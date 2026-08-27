@@ -2248,7 +2248,7 @@
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
         <span id="morpho" hidden></span>
-        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; Morpho HY product chip = settings / product_apy / seed 7% (vault GraphQL ≠ Coinbase One product rate); RH equity/margin → USDG Earn (settings / live Morpho GraphQL / seed 7% · Gold may cancel)</div>
+        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; Morpho HY product chip = product_apy / settings fallback / seed 7% (vault GraphQL ≠ Coinbase One product rate); RH equity/margin → USDG Earn (live Morpho GraphQL / settings fallback / seed 7% · Gold may cancel)</div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
             <label>CB loan principal (USDC)</label>
@@ -2261,10 +2261,10 @@
             <input id="m-vault" type="number" step="any" placeholder="Morpho HY · not card float" />
             <label>Coinbase One Morpho HY product APY override (0–1 · blank = product_apy or seed 7%)</label>
             <input id="m-vault-apy" type="number" step="0.001" min="0" max="1" placeholder="blank = seed 7% · not Morpho vault GraphQL" />
-            <p class="hint">Vault GraphQL avgNetApy is vault reference only — not the Coinbase One in-app product rate. Do not invent a One %. Blank uses honest product_apy if present, else seed 7%.</p>
+            <p class="hint">Honest product_apy (Coinbase One) beats this fallback. Vault GraphQL avgNetApy is vault reference only — not the Coinbase One in-app product rate. Do not invent a One %. Blank/0 uses product_apy if present, else seed 7%.</p>
             <label>Coinbase BTC-backed Morpho loan APR override (0–1 · blank = live or seed ~5%)</label>
             <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed ~5%" />
-            <p class="hint">Interest Spectrum Morpho loan chip — margin/borrow interest, not Morpho HY. Blank/0 keeps live avgBorrowApy if present, else seed 5%. Empty override must not paint 0%.</p>
+            <p class="hint">Interest Spectrum Morpho loan chip — margin/borrow interest, not Morpho HY. Honest live avgBorrowApy beats this fallback. Blank/0 keeps live if present, else seed 5%. Empty/0 must not paint 0%.</p>
             <label>Morpho liquidation price (BTC USD)</label>
             <input id="m-liq-price" type="number" step="any" placeholder="e.g. 16559.79" />
             <label>Bitcoin est. CAGR override (0–1 · blank = seed 30%)</label>
@@ -2282,7 +2282,7 @@
             <span id="rh-margin" hidden></span>
             <label>RH margin interest APR override (0–1 · blank = live or seed 5%)</label>
             <input id="m-rh-margin-apr" type="number" step="0.0001" min="0" max="1" placeholder="blank = books or seed 5% · 5% up to $50k" />
-            <p class="hint">Interest Spectrum RH margin interest chip. Borrow cost — not USDG Earn. Blank/0 keeps live books if present, else seed 5%. Do not invent or scrape a RH margin rate. 5% up to $50k is product framing; chip rate is the APR %.</p>
+            <p class="hint">Interest Spectrum RH margin interest chip. Borrow cost — not USDG Earn. Honest live books beat this fallback. Blank/0 keeps live if present, else seed 5%. Do not invent or scrape a RH margin rate. 5% up to $50k is product framing; chip rate is the APR %.</p>
             <label>RH margin loan used (USD)</label>
             <input id="m-rh-margin-loan" type="number" step="any" placeholder="optional · funding Earn" />
             <label>RH equity collateral (USD)</label>

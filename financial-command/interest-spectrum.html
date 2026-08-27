@@ -169,21 +169,23 @@
         (cap at One Card / highest contractual rate). Asset yield above the axis
         (gain); debt cost below (loss). Locked yield seeds always show (X Money 6%, Morpho HY 7%,
         USDG 7%, Bitcoin 30%, Agentic Fund 15%). Bitcoin and Agentic Fund are
-        <strong>est. CAGR</strong> (not cash APR/APY). Settings override beats
-        the locked est. CAGR seed when set. These two lines only; a general equity
-        axis stays off this page. Coinbase BTC-backed Morpho loan (margin/borrow)
-        precedence: FCC settings manual &gt; live Morpho
-        GraphQL marketById avgBorrowApy (cbBTC/USDC / Base) &gt; seed ~5%.
-        Blank/0 Morpho loan settings must not paint 0%.
-        RH margin interest: FCC settings manual &gt; live books (when already
-        present) &gt; seed 5% (5% up to $50k product framing). Do not scrape RH.
-        Morpho HY product chip: FCC settings manual &gt; product_apy
-        (Coinbase One / in-app when honest) &gt; seed 7%. Morpho GraphQL
+        <strong>est. CAGR</strong> (not cash APR/APY). Settings fallback beats
+        the locked est. CAGR seed when set (no live invent). These two lines only; a general equity
+        axis stays off this page. Every chip: honest live books &gt; FCC settings manual
+        fallback &gt; seed. Empty / 0 / source-blocked live does not beat seed.
+        Coinbase BTC-backed Morpho loan (margin/borrow)
+        precedence: live Morpho
+        GraphQL marketById avgBorrowApy (cbBTC/USDC / Base) &gt; FCC settings
+        fallback &gt; seed ~5%.
+        Blank/0 Morpho loan live or settings must not paint 0%.
+        RH margin interest: live books (when already
+        present) &gt; FCC settings fallback &gt; seed 5% (5% up to $50k product framing). Do not scrape RH.
+        Morpho HY product chip: product_apy
+        (Coinbase One / in-app when honest) &gt; FCC settings fallback &gt; seed 7%. Morpho GraphQL
         avgNetApy is vault_apy reference only — ≠ Coinbase One product
         rate; vault GraphQL alone does not paint the product chip.
-        USDG HY precedence: FCC settings
-        manual &gt; live Morpho GraphQL avgNetApy (Steakhouse USDG / Robinhood
-        Chain) &gt; seed 7% + Gold-cancel caveat — do not invent rates.
+        USDG HY precedence: live Morpho GraphQL avgNetApy (Steakhouse USDG / Robinhood
+        Chain) &gt; FCC settings fallback &gt; seed 7% + Gold-cancel caveat — do not invent rates.
         JR-strcUSX is a spectrum chip only (live epoch APY from
         app.solstice.finance/strcusx AccountingState, else ~20% docs
         target). Chip size is not a balance.
@@ -203,7 +205,7 @@
 
     <section class="card" id="unknown-card">
       <h2>Rate unknown</h2>
-      <p class="hint">Locked yield seeds always show. Settings override beats live books; live books beat the seed. Morpho HY product chip: settings &gt; product_apy &gt; seed 7% (vault GraphQL is not product APY). Honest empty only when a venue is still unknown.</p>
+      <p class="hint">Locked yield seeds always show. Honest live books beat settings; settings beat the seed when live is blank or blocked. Morpho HY product chip: product_apy &gt; settings fallback &gt; seed 7% (vault GraphQL is not product APY). Honest empty only when a venue is still unknown.</p>
       <div id="unknown-row"></div>
     </section>
 

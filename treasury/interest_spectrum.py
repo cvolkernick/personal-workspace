@@ -7,38 +7,48 @@ assumed-return stays off-axis. Wells/20 Tesla stays off FCC.
 JR-strcUSX is a spectrum chip only (not HY/LTV). Coach threshold X
 is not wired.
 
+Chris / Nakatoshi lock (2026-08-26) — Interest Spectrum precedence (#360):
+  **live books > settings > seeds**
+  Settings are a fallback only when live is blank, 0, or source-blocked.
+  Settings are NOT an override of honest live. Empty / 0 / missing live
+  still does NOT beat seed. If a live field is wrong, fix or remove it —
+  do not paper over a bad live value with settings.
+  This supersedes #306 (settings > live > seed).
+
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho HY USDC:
   ``vault_apy`` = Morpho GraphQL vaultV2 ``avgNetApy`` — vault reference only
   ``product_apy`` = Coinbase One / in-app rate when honest, else settings
-  Product chip: settings > product_apy > seed 7%
+  Product chip: product_apy > settings fallback > seed 7%
   Naked ``vault_apy`` must NOT set chip ``source=books`` as product APY
-  Do not invent a Coinbase One %. Do not scrape Coinbase.
+  After the live-first flip, vault GraphQL still must not win the product
+  chip (Naka AC). Do not invent a Coinbase One %. Do not scrape Coinbase.
 
-Morpho HY product-chip precedence (settings > product_apy > seed):
-  1. FCC settings manual ``config.coinbase_manual.product_apy``
-     (legacy ``vault_apy`` / dedicated ``morpho_hy_apy_est``) when set
-  2. Honest books ``product_apy`` (Coinbase One / in-app) — never GraphQL
+Morpho HY product-chip precedence (product_apy > settings > seed):
+  1. Honest books ``product_apy`` (Coinbase One / in-app) — never GraphQL
+  2. FCC settings manual ``config.coinbase_manual.product_apy``
+     (legacy ``vault_apy`` / dedicated ``morpho_hy_apy_est``) when live
+     product_apy is blank / 0
   3. Seed 7%
   Vault GraphQL stays on books as ``vault_apy`` for reference only.
+  Treating ``vault_apy`` (~2.9%) as honest live snaps the chip — fail.
 
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum USDG HY:
   Preferred: live apy_est when a trustworthy source exists
-  Fallback: seed 7% + Gold-cancel caveat (do not invent a post-Gold rate)
-  Override: FCC settings manual beats seed and beats live when set
+  Fallback: settings when live is blank / 0 / blocked; else seed 7%
+           + Gold-cancel caveat (do not invent a post-Gold rate)
   Do not invent rates.
 
-USDG HY precedence (settings > live books > seed):
-  1. FCC settings manual ``config.robinhood.usdg_earn_apy_est``
-     (or dedicated ``usdg_hy_apy_est``) when set — human override
-  2. Live books ``evaluation.inputs.rh_usdg_earn_apy_est`` and
+USDG HY precedence (live books > settings > seed):
+  1. Live books ``evaluation.inputs.rh_usdg_earn_apy_est`` and
      snapshot ``usdg_hy`` paths from a trusted feed (Morpho GraphQL
      vaultV2 ``avgNetApy`` — Steakhouse USDG / Robinhood Chain)
+  2. FCC settings manual ``config.robinhood.usdg_earn_apy_est``
+     (or dedicated ``usdg_hy_apy_est``) when live is blank / 0
   3. Seed 7% + Gold-cancel note
 
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho borrow:
   Preferred: live variable APR when a trustworthy source exists
-  Fallback: seed ~5%
-  Override: FCC settings manual beats seed and beats live when set
+  Fallback: settings when live is blank / 0 / blocked; else seed ~5%
   Do not invent rates.
 
 Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Morpho loan + RH margin (#343):
@@ -47,24 +57,22 @@ Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Morpho loan + RH marg
   Morpho loan (margin/borrow interest).
   New debt chip ``rh_margin``: RH margin interest · seed 5%
   (Chris: 5% up to $50k product framing; chip rate stays the APR %).
-  Empty / 0 settings override must not paint 0% as books.
+  Empty / 0 live or settings must not paint 0% as books.
   Do not invent or scrape a RH margin rate. Wells stays off FCC.
 
-Morpho borrow precedence (settings > live books > seed):
-  1. FCC settings manual ``config.coinbase_manual.variable_apr``
-     (or dedicated ``morpho_borrow_apr``) when set — human override
-     (blank / 0 is unset — must not beat live or seed)
-  2. Live books ``evaluation.inputs.variable_apr`` and snapshot
+Morpho borrow precedence (live books > settings > seed):
+  1. Live books ``evaluation.inputs.variable_apr`` and snapshot
      ``morpho_borrow`` paths from a trusted feed (Morpho GraphQL
      ``marketById`` ``avgBorrowApy`` — cbBTC/USDC / Base
      ``0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836``)
+  2. FCC settings manual ``config.coinbase_manual.variable_apr``
+     (or dedicated ``morpho_borrow_apr``) when live is blank / 0
   3. Seed ~5%
 
-RH margin interest precedence (settings > live books > seed):
-  1. FCC settings manual ``config.robinhood.rh_margin_apr``
-     (or ``margin_apr``) when set — human override
-     (blank / 0 is unset — must not beat live or seed)
-  2. Live books rate if already present (no invent, no scrape)
+RH margin interest precedence (live books > settings > seed):
+  1. Live books rate if already present (no invent, no scrape)
+  2. FCC settings manual ``config.robinhood.rh_margin_apr``
+     (or ``margin_apr``) when live is blank / 0
   3. Seed 5%
 
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
@@ -86,7 +94,7 @@ Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Bitcoin + Agentic Fun
   unless already on books.
   1. Bitcoin — seed 30% · rate_kind ``est. CAGR``
   2. Agentic Fund — seed 15% · rate_kind ``est. CAGR``
-  Precedence: FCC settings manual > locked est. CAGR seed.
+  Precedence: FCC settings fallback > locked est. CAGR seed (no live invent).
   Generic ``btc_expected_return`` / ``equity_expected_return`` /
   ``assumed_return`` / ``appreciation_pct`` stay off these chips.
   Payload flags ``est_cagr`` on the chips and ``policy.est_cagr_exception``
@@ -185,14 +193,14 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
         "notes": (
             "locked seed ~5% APR · Coinbase BTC-backed Morpho loan · "
             "margin/borrow interest · variable · "
-            "precedence: FCC settings variable_apr / morpho_borrow_apr > "
-            "live books (Morpho GraphQL marketById avgBorrowApy · "
-            "cbBTC/USDC / Base) > seed · blank/0 settings must not paint 0% · "
+            "precedence: live books (Morpho GraphQL marketById avgBorrowApy · "
+            "cbBTC/USDC / Base) > FCC settings variable_apr / morpho_borrow_apr "
+            "fallback > seed · blank/0 live or settings must not paint 0% · "
             "do not invent rates"
         ),
         "deep_link": "index.html#morpho",
         "fcc_liability": True,
-        # settings_paths are checked first so a human override beats live books.
+        # settings_paths are fallback when live is blank / 0 / blocked.
         "settings_paths": (
             ("config", "coinbase_manual", "variable_apr"),
             ("config", "coinbase_manual", "morpho_borrow_apr"),
@@ -200,7 +208,6 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
         "paths": (
             ("evaluation", "inputs", "variable_apr"),
             ("evaluation", "inputs", "morpho_borrow_apr"),
-            ("snapshot", "coinbase_manual", "variable_apr"),
             ("snapshot", "morpho_borrow", "apr"),
             ("snapshot", "morpho_borrow", "variable_apr"),
             ("snapshot", "morpho_borrow", "avg_borrow_apy"),
@@ -223,9 +230,9 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
         "notes": (
             "locked seed 5% APR · RH margin interest · borrow cost · "
             "5% up to $50k product framing · "
-            "precedence: FCC settings rh_margin_apr / margin_apr > "
-            "live books (when already present) > seed · "
-            "blank/0 settings must not paint 0% · "
+            "precedence: live books (when already present) > "
+            "FCC settings rh_margin_apr / margin_apr fallback > seed · "
+            "blank/0 live or settings must not paint 0% · "
             "do not invent or scrape a RH margin rate"
         ),
         "deep_link": "index.html#rh-margin",
@@ -306,23 +313,23 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         "unit": "fraction",
         "notes": (
             "locked seed 7% APY · Coinbase One Morpho HY · variable · "
-            "precedence: FCC settings product_apy / vault_apy / "
-            "morpho_hy_apy_est > product_apy (Coinbase One / in-app when "
-            "honest) > seed · vault GraphQL avgNetApy is vault reference "
+            "precedence: product_apy (Coinbase One / in-app when honest) > "
+            "FCC settings product_apy / vault_apy / morpho_hy_apy_est "
+            "fallback > seed · vault GraphQL avgNetApy is vault reference "
             "only · ≠ Coinbase One product rate · do not invent a One %"
         ),
         "deep_link": "index.html#hy",
-        # settings_paths are checked first so a human override beats product_apy.
+        # settings_paths are fallback when product_apy is blank / 0.
         "settings_paths": (
             ("config", "coinbase_manual", "product_apy"),
             ("config", "coinbase_manual", "vault_apy"),
             ("config", "coinbase_manual", "morpho_hy_apy_est"),
         ),
         # Product-chip books only. Naked vault_apy / GraphQL apy_est stay off.
+        # snapshot.coinbase_manual.product_apy is a settings overlay — not live.
         "paths": (
             ("evaluation", "inputs", "product_apy"),
             ("evaluation", "inputs", "morpho_hy_product_apy"),
-            ("snapshot", "coinbase_manual", "product_apy"),
             ("snapshot", "morpho_hy", "product_apy"),
             ("morpho_hy", "product_apy"),
         ),
@@ -354,13 +361,13 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         "unit": "fraction",
         "notes": (
             "locked seed 7% APY · RH USDG Earn · variable · "
-            "precedence: FCC settings usdg_earn_apy_est / usdg_hy_apy_est > "
-            "live books (Morpho GraphQL vaultV2 avgNetApy · Steakhouse USDG / "
-            "Robinhood Chain) > seed · may end when RH Gold cancels — "
-            "do not invent a post-Gold rate"
+            "precedence: live books (Morpho GraphQL vaultV2 avgNetApy · "
+            "Steakhouse USDG / Robinhood Chain) > FCC settings "
+            "usdg_earn_apy_est / usdg_hy_apy_est fallback > seed · "
+            "may end when RH Gold cancels — do not invent a post-Gold rate"
         ),
         "deep_link": "index.html#panel-brokerage",
-        # settings_paths are checked first so a human override beats live books.
+        # settings_paths are fallback when live is blank / 0 / blocked.
         "settings_paths": (
             ("config", "robinhood", "usdg_earn_apy_est"),
             ("config", "robinhood", "usdg_hy_apy_est"),
@@ -368,7 +375,6 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         "paths": (
             ("evaluation", "inputs", "rh_usdg_earn_apy_est"),
             ("evaluation", "inputs", "usdg_hy_apy_est"),
-            ("snapshot", "robinhood", "usdg_earn_apy_est"),
             ("snapshot", "usdg_hy", "apy_est"),
             ("snapshot", "usdg_hy", "apy"),
             ("usdg_hy", "apy_est"),
@@ -394,7 +400,7 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
             f"locked seed 30% · {EST_CAGR_NOTE} · "
             "these two lines only · "
             "precedence: FCC settings bitcoin_cagr_est / "
-            "btc_cagr_est > locked seed · "
+            "btc_cagr_est fallback > locked seed · "
             "do not invent a live BTC return · no scrape"
         ),
         "deep_link": "index.html#bitcoin",
@@ -422,7 +428,7 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
             f"locked seed 15% · {EST_CAGR_NOTE} · "
             "these two lines only · "
             "precedence: FCC settings agentic_fund_cagr_est / "
-            "agentic_cagr_est > locked seed · "
+            "agentic_cagr_est fallback > locked seed · "
             "do not invent a live agentic return · no scrape · "
             "no equity basket expansion"
         ),
@@ -492,10 +498,10 @@ JR_LIVE_APY_PATHS = (
 )
 
 # Live/books paths only — settings stay on LOCKED_SEEDS morpho_borrow.settings_paths.
+# snapshot.coinbase_manual.variable_apr is a settings overlay — not live.
 MORPHO_BOOK_PATHS = (
     ("evaluation", "inputs", "variable_apr"),
     ("evaluation", "inputs", "morpho_borrow_apr"),
-    ("snapshot", "coinbase_manual", "variable_apr"),
     ("snapshot", "morpho_borrow", "apr"),
     ("snapshot", "morpho_borrow", "variable_apr"),
     ("snapshot", "morpho_borrow", "avg_borrow_apy"),
@@ -542,6 +548,8 @@ WELLS_OFF_FCC_ID = "m3-2020"
 
 ALLOWED_CHIP_KINDS = frozenset({"debt", "yield"})
 ALLOWED_SOURCES = frozenset({"locked_financing", "locked_seed", "books", "docs_target"})
+# Chris / Nakatoshi lock #360 — one order for every spectrum line.
+RATE_PRECEDENCE = "live > settings > seeds"
 LOCKED_RATE_BY_ID = {row["id"]: float(row["rate_pct"]) for row in LOCKED_FLEET}
 LOCKED_SEED_RATE_BY_ID = {
     **{row["id"]: float(row["rate_pct"]) for row in LOCKED_SEEDS},
@@ -702,11 +710,78 @@ def _fleet_chips() -> List[Dict[str, Any]]:
 
 
 def _is_empty_override(value: Any) -> bool:
-    """Blank / 0 settings must not paint as a books rate (#343)."""
+    """Blank / 0 must not paint as a books rate (#343 / #360)."""
     if value is None or value == "":
         return True
     n = _as_float(value)
     return n is not None and n == 0.0
+
+
+def _value_is_source_blocked(value: Any) -> bool:
+    if value is True:
+        return True
+    if not isinstance(value, str):
+        return False
+    lowered = value.strip().lower()
+    return "source blocked" in lowered or lowered in ("source_blocked", "blocked")
+
+
+_JR_BLOCK_KEYS = (
+    "jr_strcusx_apy_error",
+    "solstice_apy_error",
+    "strcusx_apy_error",
+    "source_blocked",
+    "jr_strcusx_source_blocked",
+    "jr_strcusx_apy_source_blocked",
+)
+_JR_BLOCK_BUCKETS = (
+    ("snapshot", "solstice_jr"),
+    ("snapshot", "solana"),
+    ("solstice_jr",),
+    ("solana",),
+    ("evaluation", "inputs"),
+)
+
+
+def _live_is_source_blocked(ctx: Dict[str, Any], chip_id: str) -> bool:
+    """True when the live feed for this chip is explicitly source-blocked."""
+    if chip_id != JR_STRCUSX_ID:
+        return False
+    for bucket_path in _JR_BLOCK_BUCKETS:
+        bucket = _dig(ctx, bucket_path)
+        if not isinstance(bucket, dict):
+            continue
+        for key in _JR_BLOCK_KEYS:
+            if _value_is_source_blocked(bucket.get(key)):
+                return True
+    return False
+
+
+def _resolve_spectrum_rate(
+    ctx: Dict[str, Any],
+    *,
+    live_paths: Iterable[Iterable[str]] = (),
+    settings_paths: Iterable[Iterable[str]] = (),
+    unit: str = "fraction",
+    chip_id: str = "",
+    allow_live: bool = True,
+) -> tuple[Optional[float], Optional[str], Optional[str]]:
+    """Honest live > settings fallback > seed (#360).
+
+    Returns ``(rate_pct, hit_path, origin)`` where origin is ``\"live\"``,
+    ``\"settings\"``, or ``None`` (caller keeps the seed). Empty / 0 /
+    source-blocked live does not win. Empty / 0 settings does not win.
+    Morpho HY ``vault_apy`` / GraphQL must not be in ``live_paths``.
+    """
+    if allow_live and live_paths and not _live_is_source_blocked(ctx, chip_id):
+        rate, hit = _first_apy_hit(ctx, live_paths, unit=unit, skip_zero=True)
+        if rate is not None:
+            return rate, hit, "live"
+    if settings_paths:
+        rate, hit = _first_apy_hit(ctx, settings_paths, unit=unit, skip_zero=True)
+        if rate is not None:
+            return rate, hit, "settings"
+    return None, None, None
 
 
 def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -735,23 +810,21 @@ def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
         if row["id"] == "morpho_borrow" and not live_paths:
             live_paths = MORPHO_BOOK_PATHS
         if settings_paths or live_paths:
-            # skip_zero: blank/0 manual override must not paint 0% as books
-            # (empty settings can also land on snapshot.coinbase_manual / RH overlay).
-            rate, hit = _first_apy_hit(
-                ctx, settings_paths, unit=unit, skip_zero=True
+            # live > settings > seed. skip_zero: blank/0 must not paint 0%.
+            rate, hit, origin = _resolve_spectrum_rate(
+                ctx,
+                live_paths=live_paths,
+                settings_paths=settings_paths,
+                unit=unit,
+                chip_id=str(row["id"]),
             )
-            from_settings = rate is not None
-            if rate is None:
-                rate, hit = _first_apy_hit(
-                    ctx, live_paths, unit=unit, skip_zero=True
-                )
             if rate is not None:
                 chip["rate_pct"] = rate
                 chip["approx"] = False
                 chip["source"] = "books"
                 notes = f"from {hit}" if hit else "from books"
-                if from_settings:
-                    notes = f"{notes} · FCC settings override"
+                if origin == "settings":
+                    notes = f"{notes} · FCC settings fallback"
                 else:
                     notes = f"{notes} · live books"
                 if row["id"] == RH_MARGIN_ID:
@@ -808,7 +881,8 @@ def _jr_live_rate_pct(ctx: Dict[str, Any]) -> tuple[Optional[float], Optional[st
         if raw is None or raw == "":
             continue
         n = _as_float(raw)
-        if n is None or n < 0:
+        # 0 / empty live does not beat the ~20% docs_target (#360).
+        if n is None or n <= 0:
             continue
         return n * 100.0, ".".join(path)
     return None, None
@@ -832,7 +906,9 @@ def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "deep_link": "index.html#panel-solana",
         "placed": True,
     }
-    live, hit = _jr_live_rate_pct(ctx)
+    live, hit = (None, None)
+    if not _live_is_source_blocked(ctx, JR_STRCUSX_ID):
+        live, hit = _jr_live_rate_pct(ctx)
     if live is not None:
         chip["rate_pct"] = live
         chip["approx"] = False
@@ -879,10 +955,11 @@ def _attach_morpho_hy_vault_ref(chip: Dict[str, Any], ctx: Dict[str, Any], spec:
 def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     """X Money / Morpho HY / USDG / Bitcoin / Agentic Fund always appear.
 
-    Morpho HY product chip: settings > product_apy > seed 7%. Naked vault
-    GraphQL ``vault_apy`` is reference only and must not paint the chip.
-    USDG HY still walks ``settings_paths`` before live ``paths``.
-    Bitcoin / Agentic Fund: settings > locked est. CAGR seed only.
+    Morpho HY product chip: product_apy > settings fallback > seed 7%.
+    Naked vault GraphQL ``vault_apy`` is reference only and must not
+    paint the chip — even after the live-first flip (#360 / #329).
+    USDG HY walks live ``paths`` before ``settings_paths``.
+    Bitcoin / Agentic Fund: settings fallback > locked est. CAGR seed only.
     No live BTC / agentic invent. Generic expected-return fields stay off.
     """
     chips: List[Dict[str, Any]] = []
@@ -909,28 +986,32 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             chip["est_cagr"] = True
             chip["rate_basis"] = EST_CAGR_LABEL
         unit = str(spec.get("unit") or "fraction")
-        rate, hit = _first_apy_hit(ctx, spec.get("settings_paths") or (), unit=unit)
-        from_settings = rate is not None
         # Est. CAGR chips: settings only. Never invent a live BTC/agentic print.
-        if rate is None and not est_cagr:
-            rate, hit = _first_apy_hit(ctx, spec.get("paths") or (), unit=unit)
+        rate, hit, origin = _resolve_spectrum_rate(
+            ctx,
+            live_paths=() if est_cagr else (spec.get("paths") or ()),
+            settings_paths=spec.get("settings_paths") or (),
+            unit=unit,
+            chip_id=str(spec["id"]),
+            allow_live=not est_cagr,
+        )
         if rate is not None:
             chip["rate_pct"] = rate
             chip["approx"] = False
             chip["source"] = "books"
             notes = f"from {hit}" if hit else None
             if spec["id"] == "morpho_hy" and notes:
-                if from_settings:
-                    notes = f"{notes} · FCC settings override"
+                if origin == "settings":
+                    notes = f"{notes} · FCC settings fallback"
                 else:
                     notes = f"{notes} · product_apy"
             elif spec["id"] == "usdg_earn" and notes:
-                if from_settings:
-                    notes = f"{notes} · FCC settings override"
+                if origin == "settings":
+                    notes = f"{notes} · FCC settings fallback"
                 else:
                     notes = f"{notes} · live books"
             elif est_cagr and notes:
-                notes = f"{notes} · FCC settings override"
+                notes = f"{notes} · FCC settings fallback"
                 chip["rate_kind"] = EST_CAGR_KIND
                 chip["est_cagr"] = True
             if spec["id"] == "usdg_earn":
@@ -1059,6 +1140,9 @@ def build_interest_spectrum(
             "wells_on_fcc_spectrum": False,
             "chip_size_is_notional": False,
             "coach_wired": False,
+            "rate_precedence": RATE_PRECEDENCE,
+            "settings_are_fallback": True,
+            "morpho_hy_vault_graphql_is_product": False,
         },
         "sources": {
             "locked_financing": True,

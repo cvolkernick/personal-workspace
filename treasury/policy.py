@@ -387,8 +387,8 @@ def evaluate_treasury(
     vault_usdc = _f(vault_raw) if vault_known else 0.0
     # Live Morpho HY vault APY from GraphQL poller (snapshot.morpho_hy).
     # vault_apy is vault reference only — never a product chip rate.
-    # Settings override stays on config.coinbase_manual and is not copied
-    # here so spectrum can keep settings > product_apy > seed distinct.
+    # Settings stay on config.coinbase_manual and are not copied here so
+    # spectrum can keep live product_apy > settings fallback > seed distinct.
     mh = snapshot.get("morpho_hy") if isinstance(snapshot.get("morpho_hy"), dict) else {}
     vault_apy = None
     for key in ("vault_apy", "apy_est", "apy", "avg_net_apy"):
@@ -411,8 +411,8 @@ def evaluate_treasury(
             else:
                 break
     # Live USDG HY APY from GraphQL poller (snapshot.usdg_hy). Settings
-    # override stays on config.robinhood and is not copied here so
-    # spectrum can keep settings > live > seed distinct. Never invent
+    # stay on config.robinhood and are not copied here so
+    # spectrum can keep live > settings fallback > seed distinct. Never invent
     # a post-Gold rate from a Gold-cancelled flag.
     uh = snapshot.get("usdg_hy") if isinstance(snapshot.get("usdg_hy"), dict) else {}
     rh_usdg_earn_apy_est = None
@@ -425,8 +425,8 @@ def evaluate_treasury(
             else:
                 break
     # Live Morpho borrow APR from GraphQL poller (snapshot.morpho_borrow).
-    # Settings override stays on config.coinbase_manual and is not copied
-    # here so spectrum can keep settings > live > seed distinct.
+    # Settings stay on config.coinbase_manual and are not copied here so
+    # spectrum can keep live > settings fallback > seed distinct.
     mb = snapshot.get("morpho_borrow") if isinstance(snapshot.get("morpho_borrow"), dict) else {}
     variable_apr = None
     for key in ("apr", "variable_apr", "avg_borrow_apy", "apy_est", "apy"):
