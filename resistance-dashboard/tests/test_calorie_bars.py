@@ -214,6 +214,17 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(payload["pacing"]["window"]["source"], "civil_day_after_empty")
         self.assertEqual(payload["pacing"]["consumed"], 0.0)
 
+        hydro_win = eating_window_fraction(
+            now=now,
+            last_wake_at=wake,
+            empty_at=empty,
+            awake_budget_hours=16.0,
+            mode="hydration",
+        )
+        self.assertEqual(hydro_win["source"], "sleep_battery_after_empty")
+        self.assertEqual(hydro_win["fraction"], 1.0)
+        self.assertTrue(str(hydro_win["window_start"]).startswith("2026-07-29"))
+
     def test_pace_vs_expected_green_yellow_red(self):
         # Mid-window, day target 2000 → paced 1000
         on = pace_vs_expected(

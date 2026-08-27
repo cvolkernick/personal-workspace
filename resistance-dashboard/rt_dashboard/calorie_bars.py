@@ -173,12 +173,20 @@ def eating_window_fraction(
     last_wake_at: Any = None,
     empty_at: Any = None,
     awake_budget_hours: float = 15.0,
+    mode: str = "eating",
 ) -> Dict[str, Any]:
     """Fraction of the eating/wake window elapsed in [0, 1].
 
     Window start = last wake; end = empty_at or wake + awake_budget_hours.
     Fallback (no wake): viewer civil day so far (midnight → now / 24h).
     Same clock as sleep-battery wake → empty — not a second 08:00–20:00 window.
+
+    ``mode``:
+      eating (default) — after empty_at, civil midnight→now / 24 so calorie
+        pacing is not pinned to yesterday's finished cycle.
+      hydration — after empty_at, hold the wake→empty clock at fraction 1.0
+        (source ``sleep_battery_after_empty``). Hydration actual is already
+        timed sips in that window; mixing it with civil /24 is a false ahead.
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -222,9 +230,24 @@ def eating_window_fraction(
         end = end.astimezone(now.tzinfo)
 
     # Wake→empty already finished (battery empty / overdue for sleep).
-    # Keep pacing on the *current* civil day so we don't pin intake to the
-    # completed cycle (e.g. yesterday's meals at 100% of an expired window).
+    # Eating: keep pacing on the *current* civil day so we don't pin intake
+    # to the completed cycle (e.g. yesterday's meals at 100% of an expired
+    # window). Hydration: hold the wake clock at 100% — consumed is already
+    # [last_wake_at, empty_at] and must not mix with civil /24.
     if now > end:
+        mode_key = (mode or "eating").strip().lower()
+        if mode_key == "hydration":
+            total_sec = max(1.0, (end - wake_local).total_seconds())
+            hours_total = total_sec / 3600.0
+            return {
+                "fraction": 1.0,
+                "hours_elapsed": round(hours_total, 2),
+                "hours_total": round(hours_total, 2),
+                "hours_left": 0.0,
+                "window_start": wake_local.isoformat(timespec="seconds"),
+                "window_end": end.isoformat(timespec="seconds"),
+                "source": "sleep_battery_after_empty",
+            }
         return _civil_day_window("civil_day_after_empty")
 
     wake = wake_local

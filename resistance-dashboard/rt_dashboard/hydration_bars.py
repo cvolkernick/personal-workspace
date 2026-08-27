@@ -1,6 +1,8 @@
 """Hydration pacing over the same wake window as calorie eating-window pacing.
 
 Window = sleep-battery last_wake_at → empty_at (may cross a civil day).
+After empty_at the wake clock stays at fraction 1.0 (source
+``sleep_battery_after_empty``) — do not switch hydration to civil /24.
 Day target = 35 ml/kg from latest weight (2500 fallback). Wake-bar actual =
 sum of timestamped Sip samples in [wake_start, wake_end] (cutoff min(now, end)).
 Pace = actual vs target × window fraction — only when sip times exist.
@@ -433,10 +435,11 @@ def build_hydration_bars_payload(
       3. DEFAULT_HYDRATION_GOAL_ML (2500)
 
     Wake-bar ``consumed`` = sum of timestamped Sip samples in
-    ``[last_wake_at, empty_at]`` (may cross a civil day). Civil-day
-    ``hydration`` is only used for ``day`` / Trends — never split or summed
-    across midnight to fake a wake actual. No wake or no timed sips →
-    status ``unknown`` (not on-pace).
+    ``[last_wake_at, empty_at]`` (may cross a civil day). After empty_at,
+    ``window_fraction`` stays 1.0 and pace is vs the full wake target.
+    Civil-day ``hydration`` is only used for ``day`` / Trends — never split
+    or summed across midnight to fake a wake actual. No wake or no timed
+    sips → status ``unknown`` (not on-pace).
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -460,6 +463,7 @@ def build_hydration_bars_payload(
         last_wake_at=bat.get("last_wake_at"),
         empty_at=bat.get("empty_at"),
         awake_budget_hours=float(bat.get("awake_budget_hours") or 15.0),
+        mode="hydration",
     )
     frac = float(window["fraction"])
 
@@ -467,7 +471,8 @@ def build_hydration_bars_payload(
     # Only timestamped sips count. Civil-day Day.totalAmount is Trends-only.
     timed = timed_sip_samples(samples, hydration)
     sip_aware = bool(timed)
-    # Actual follows sleep-battery wake→empty, not eating_window civil fallback.
+    # Actual follows sleep-battery wake→empty (held after empty_at).
+    # Fraction uses mode=hydration so it does not switch to civil /24.
     wake_start = bat.get("last_wake_at")
     wake_end = bat.get("empty_at")
     if wake_end is None and wake_start:
