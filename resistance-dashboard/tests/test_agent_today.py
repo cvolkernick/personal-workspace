@@ -184,8 +184,10 @@ class ExportFixtures(unittest.TestCase):
         self.assertTrue(today["workout"]["empty"])
         self.assertIsNone(today["workout"]["session_type"])
         self.assertFalse(today["workout"]["is_rest_day"])
+        self.assertIsNone(today["workout"]["next_session_type"])
         self.assertEqual(today["workout"]["plan_exercises"], [])
         self.assertEqual(today["workout"]["logged_exercises"], [])
+        self.assertEqual(today["workout"]["recent_sessions"], [])
         self.assertIsNone(today["hydration_wake"]["consumed"])
         self.assertIsNone(today["hydration_wake"]["target"])
         self.assertIsNone(today["hydration_wake"]["pace"])
@@ -219,11 +221,14 @@ class ExportFixtures(unittest.TestCase):
         today = body["today"]
         self.assertEqual(today["date"], "2026-08-23")
         wo = today["workout"]
+        # Today already has a logged pull — letter stays that session.
         self.assertEqual(wo["session_type"], "pull")
+        self.assertEqual(wo["next_session_type"], "legs")
         self.assertFalse(wo["is_rest_day"])
         self.assertEqual(wo["plan_exercises"][0]["name"], "DB Row")
         self.assertEqual(wo["logged_exercises"][0]["name"], "DB Row")
         self.assertEqual(wo["logged_exercises"][0]["weight_lbs"], 50)
+        self.assertEqual(wo["recent_sessions"][0]["session_type"], "pull")
         self.assertFalse(wo["empty"])
         hyd = today["hydration_wake"]
         self.assertEqual(hyd["consumed"], 800.0)
@@ -473,6 +478,12 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(logged[0]["session_type"], "push")
         self.assertEqual(logged[0]["volume"], 900)
         self.assertEqual(body["today"]["workout"]["logged_exercises"], [])
+        # Letter uses all logs (last was push → pull), not this-week-only fallback.
+        self.assertEqual(body["today"]["workout"]["session_type"], "pull")
+        self.assertEqual(
+            [s["date"] for s in body["today"]["workout"]["recent_sessions"]],
+            ["2026-08-16", "2026-08-18"],
+        )
 
     def test_empty_logged_week_is_honest(self):
         body = export_agent_today(
@@ -595,6 +606,235 @@ class ExportFixtures(unittest.TestCase):
         self.assertIsNotNone(hyd["pace"])
         self.assertEqual(hyd["pace"]["status"], "on_pace")
         self.assertNotEqual(hyd["consumed"], hyd["civil_day_ml"])
+
+
+def _logged(date, session_type, name="DB Row", weight=50):
+    return {
+        "date": date,
+        "session_type": session_type,
+        "exercises": [
+            {
+                "name": name,
+                "weight_lbs": weight,
+                "sets": [{"weight_lbs": weight, "sets": 3, "reps": 10}],
+                "volume": weight * 3 * 10,
+            }
+        ],
+        "volume": weight * 3 * 10,
+    }
+
+
+class TodayLetterAndHistory(unittest.TestCase):
+    """#383: letter matches signed-in Today; history is not this-week-only."""
+
+    def test_letter_follows_rotation_after_last_pull(self):
+        body = export_agent_today(
+            {
+                "sessions": [
+                    _logged("2026-08-20", "push"),
+                    _logged("2026-08-22", "pull"),
+                ],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        wo = body["today"]["workout"]
+        self.assertEqual(wo["session_type"], "legs")
+        self.assertEqual(wo["next_session_type"], "legs")
+        self.assertFalse(wo["is_rest_day"])
+        self.assertNotEqual(wo["session_type"], "push")
+
+    def test_letter_follows_rotation_after_last_legs(self):
+        body = export_agent_today(
+            {
+                "sessions": [_logged("2026-08-22", "legs", name="Goblet squat")],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        self.assertEqual(body["today"]["workout"]["session_type"], "push")
+        self.assertEqual(body["today"]["workout"]["next_session_type"], "push")
+
+    def test_letter_not_hardcoded_legs(self):
+        after_push = export_agent_today(
+            {
+                "sessions": [_logged("2026-08-22", "push")],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        after_legs = export_agent_today(
+            {
+                "sessions": [_logged("2026-08-22", "legs")],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        self.assertEqual(after_push["today"]["workout"]["session_type"], "pull")
+        self.assertEqual(after_legs["today"]["workout"]["session_type"], "push")
+        self.assertNotEqual(
+            after_push["today"]["workout"]["session_type"],
+            after_legs["today"]["workout"]["session_type"],
+        )
+
+    def test_rest_gate_keeps_ppl_letter(self):
+        body = export_agent_today(
+            {
+                "sessions": [_logged("2026-08-22", "pull")],
+                "recovery": {"score": 35, "sparse": False},
+                "workout_store": {
+                    "goals": {
+                        "rotation": ["push", "pull", "legs"],
+                        "rest_if_recovery_below": 40,
+                    }
+                },
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        wo = body["today"]["workout"]
+        self.assertTrue(wo["is_rest_day"])
+        self.assertEqual(wo["session_type"], "legs")
+        self.assertEqual(wo["next_session_type"], "legs")
+
+    def test_history_present_from_last_week(self):
+        body = export_agent_today(
+            {
+                "sessions": [
+                    _logged("2026-08-20", "push", name="Press"),
+                    _logged("2026-08-22", "pull", name="Row"),
+                ],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        recent = body["today"]["workout"]["recent_sessions"]
+        self.assertEqual([s["date"] for s in recent], ["2026-08-20", "2026-08-22"])
+        self.assertEqual(recent[0]["session_type"], "push")
+        self.assertEqual(recent[1]["session_type"], "pull")
+        self.assertEqual(recent[1]["exercises"][0]["name"], "Row")
+        self.assertGreater(recent[1]["volume"], 0)
+
+    def test_history_honest_empty(self):
+        body = export_agent_today(
+            {
+                "workout": {"session_type": "push", "is_rest_day": False, "exercises": []},
+                "sessions": [],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        self.assertEqual(body["today"]["workout"]["recent_sessions"], [])
+        self.assertEqual(body["week"]["logged_sessions"], [])
+
+    def test_this_week_stays_empty_when_logs_are_older(self):
+        body = export_agent_today(
+            {
+                "sessions": [
+                    _logged("2026-08-20", "push"),
+                    _logged("2026-08-22", "pull"),
+                ],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        self.assertEqual(body["week"]["start"], "2026-08-24")
+        self.assertEqual(body["week"]["end"], "2026-08-27")
+        self.assertEqual(body["week"]["logged_sessions"], [])
+        self.assertEqual(len(body["today"]["workout"]["recent_sessions"]), 2)
+        self.assertEqual(body["today"]["workout"]["session_type"], "legs")
+
+    def test_older_than_14d_still_returns_last_two(self):
+        body = export_agent_today(
+            {
+                "sessions": [
+                    _logged("2026-07-01", "push"),
+                    _logged("2026-07-03", "pull"),
+                    _logged("2026-07-05", "legs"),
+                ],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        recent = body["today"]["workout"]["recent_sessions"]
+        self.assertEqual([s["date"] for s in recent], ["2026-07-03", "2026-07-05"])
+        self.assertEqual(body["week"]["logged_sessions"], [])
+        self.assertEqual(body["today"]["workout"]["session_type"], "push")
+
+    def test_canary_session_is_not_history_or_letter(self):
+        body = export_agent_today(
+            {
+                "sessions": [
+                    _logged("2026-08-22", "pull", name="e2e canary press"),
+                    _logged("2026-08-20", "push", name="DB Flat Press"),
+                ],
+                "coach": {"today": {"date": "2026-08-27"}},
+            }
+        )
+        recent = body["today"]["workout"]["recent_sessions"]
+        self.assertEqual([s["date"] for s in recent], ["2026-08-20"])
+        self.assertEqual(body["today"]["workout"]["session_type"], "pull")
+
+
+class HouseSessionFallback(unittest.TestCase):
+    def test_empty_default_uses_other_turso_user(self):
+        pull = Session(
+            date="2026-08-22",
+            session_type="pull",
+            exercises=[
+                ExerciseEntry(name="DB Row", sets=[SetEntry(weight_lbs=50, sets=3, reps=10)])
+            ],
+        )
+
+        def listed(uid):
+            if uid in ("default", ""):
+                return [], []
+            return [pull], []
+
+        from api.dashboard import _load_sessions
+
+        with mock.patch(
+            "rt_dashboard.turso_repo.list_sessions_detailed", side_effect=listed
+        ), mock.patch(
+            "rt_dashboard.turso_repo.list_workout_user_ids",
+            return_value=["default", "google-sub-1"],
+        ):
+            sessions, _err, src = _load_sessions("default", fallback_house=True)
+        self.assertEqual(src, "turso-house")
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].session_type, "pull")
+
+    def test_signed_in_path_does_not_house_fallback(self):
+        from api.dashboard import _load_sessions
+
+        with mock.patch(
+            "rt_dashboard.turso_repo.list_sessions_detailed", return_value=([], [])
+        ) as listed, mock.patch(
+            "rt_dashboard.turso_repo.list_workout_user_ids",
+            return_value=["google-sub-1"],
+        ) as house:
+            sessions, _err, src = _load_sessions("sub-1")
+        self.assertEqual(sessions, [])
+        self.assertEqual(src, "turso")
+        house.assert_not_called()
+        self.assertGreaterEqual(listed.call_count, 1)
+
+    def test_list_workout_user_ids_orders_by_last_date(self):
+        from rt_dashboard.turso_http import TursoCursor, TursoRow
+        from rt_dashboard.turso_repo import list_workout_user_ids
+
+        rows = [
+            TursoRow({"user_id": "google-sub-1", "last_date": "2026-08-22"}),
+            TursoRow({"user_id": "default", "last_date": "2026-05-01"}),
+        ]
+
+        class Conn:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return None
+
+            def execute(self, sql, params=()):
+                self.sql = sql
+                return TursoCursor(["user_id", "last_date"], rows)
+
+        with mock.patch("rt_dashboard.turso_repo.turso_enabled", return_value=True), mock.patch(
+            "rt_dashboard.turso_repo.connect", return_value=Conn()
+        ):
+            uids = list_workout_user_ids()
+        self.assertEqual(uids, ["google-sub-1", "default"])
 
 
 class VercelAgentTodayAuth(unittest.TestCase):
@@ -911,6 +1151,96 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertEqual(body["today"]["nutrition"]["targets"]["calories"], 2100.0)
         self.assertEqual(body["today"]["nutrition"]["meals"], [])
         self._assert_no_secrets(body)
+
+    def test_store_path_letter_and_history_from_last_week(self):
+        env = {
+            "FITDASH_SERVICE_TOKEN": "house-secret",
+            "FITDASH_SERVICE_LOOPBACK": "0",
+            "TZ": "UTC",
+        }
+        sessions = [
+            Session(
+                date="2026-08-20",
+                session_type="push",
+                exercises=[
+                    ExerciseEntry(
+                        name="DB Flat Press",
+                        sets=[SetEntry(weight_lbs=45, sets=3, reps=10)],
+                    )
+                ],
+            ),
+            Session(
+                date="2026-08-22",
+                session_type="pull",
+                exercises=[
+                    ExerciseEntry(
+                        name="DB Row",
+                        sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+                    )
+                ],
+            ),
+        ]
+        empty_bottle = {
+            "available": False,
+            "percent": None,
+            "status": "not_configured",
+            "name": None,
+            "field": None,
+            "error": None,
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.timeutil.local_today_iso", return_value="2026-08-27"
+            ), mock.patch(
+                "api.dashboard._load_sessions", return_value=(sessions, [], "turso-house")
+            ), mock.patch(
+                "rt_dashboard.google_health.GoogleHealthClient.credentials_present",
+                return_value=False,
+            ), mock.patch(
+                "rt_dashboard.hidrate_client.hidrate_bottle_charge",
+                return_value=empty_bottle,
+            ), mock.patch(
+                "rt_dashboard.hidrate_client.hidrate_hydration_samples",
+                return_value=[],
+            ), mock.patch(
+                "rt_dashboard.meal_plan_store.load_last_good_meal_plan",
+                return_value=None,
+            ):
+                status, body = agent_today_body(
+                    {"X-FitDash-Service-Token": "house-secret"}, ""
+                )
+        self.assertEqual(status, 200)
+        self.assertEqual(body["today"]["date"], "2026-08-27")
+        self.assertEqual(body["today"]["workout"]["session_type"], "legs")
+        self.assertEqual(body["today"]["workout"]["next_session_type"], "legs")
+        self.assertFalse(body["today"]["workout"]["is_rest_day"])
+        self.assertEqual(body["week"]["start"], "2026-08-24")
+        self.assertEqual(body["week"]["end"], "2026-08-27")
+        self.assertEqual(body["week"]["logged_sessions"], [])
+        self.assertEqual(
+            [s["date"] for s in body["today"]["workout"]["recent_sessions"]],
+            ["2026-08-20", "2026-08-22"],
+        )
+        self.assertIn("nutrition", body["today"])
+        self.assertIn("sleep", body["week"])
+        self._assert_no_secrets(body)
+
+    def test_store_path_dashboard_and_workouts_stay_401(self):
+        from api.dashboard import dashboard_body
+        from api.workout._util import workouts_body
+
+        env = {"FITDASH_SERVICE_TOKEN": "house-secret", "FITDASH_SERVICE_LOOPBACK": "0"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            dash_status, dash = dashboard_body(
+                {"X-FitDash-Service-Token": "house-secret"}, ""
+            )
+            wo_status, wo = workouts_body(
+                {"X-FitDash-Service-Token": "house-secret"}
+            )
+        self.assertEqual(dash_status, 401)
+        self.assertEqual(dash["error"], "auth_required")
+        self.assertEqual(wo_status, 401)
+        self.assertEqual(wo["error"], "auth_required")
 
 
 if __name__ == "__main__":

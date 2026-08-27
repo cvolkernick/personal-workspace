@@ -561,7 +561,9 @@ def _agent_today_from_stores(headers, query: str = ""):
     from rt_dashboard.hidrate_client import hidrate_bottle_charge, hidrate_hydration_samples
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.models import HealthSnapshot
+    from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
+    from rt_dashboard.sleep_series import expand_sleep_calendar
     from rt_dashboard.timeutil import local_now, local_today_iso
     from rt_dashboard.workout_store import load_workspace_goals
 
@@ -571,7 +573,7 @@ def _agent_today_from_stores(headers, query: str = ""):
     today = local_today_iso(tz_name, now=now)
     errors: list[str] = []
 
-    sessions, sess_err, _source = _load_sessions(uid)
+    sessions, sess_err, _source = _load_sessions(uid, fallback_house=True)
     errors.extend(sess_err)
 
     health = HealthSnapshot()
@@ -621,11 +623,37 @@ def _agent_today_from_stores(headers, query: str = ""):
         hydration_bars["bottle"] = bottle
 
     goals, _src = load_workspace_goals()
+    had_real_sleep = any(
+        float(getattr(s, "sleep_hours", 0) or 0) > 0
+        and str(getattr(s, "source", "") or "") != "implied_zero"
+        for s in (health.sleep or [])
+    )
+    recovery_dict: dict = {}
+    try:
+        sleep_for_recovery = expand_sleep_calendar(
+            health.sleep or [],
+            as_of=today,
+            window_days=90,
+            fill_hours=0.0,
+            fill_source="implied_zero",
+        )
+        recovery = compute_recovery_status(
+            weight=health.weight or [],
+            sleep=sleep_for_recovery,
+            sessions=sessions,
+            as_of=today,
+        )
+        recovery_dict = recovery.to_dict() if hasattr(recovery, "to_dict") else {}
+        recovery_dict["sparse"] = not had_real_sleep
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"recovery: {type(exc).__name__}")
+        recovery_dict = {"sparse": not had_real_sleep}
+
     _meal, workout = dashboard_plan_slots(
         uid,
         sessions=sessions,
         goals=goals,
-        recovery=None,
+        recovery=recovery_dict,
         as_of=today,
     )
 
@@ -660,6 +688,8 @@ def _agent_today_from_stores(headers, query: str = ""):
         sleep_battery=sleep_battery,
         health=health,
         nutrition_store=nutrition_store,
+        goals=goals,
+        recovery=recovery_dict,
         meta_error="; ".join(errors) if errors else None,
     )
     return 200, export_agent_today(slice_payload)
