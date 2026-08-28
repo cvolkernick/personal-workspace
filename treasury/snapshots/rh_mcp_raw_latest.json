@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-08-28T00:23:20.471082+00:00",
+  "fetched_at": "2026-08-28T03:26:14.361512+00:00",
   "accounts_raw": {
     "data": {
       "accounts": [
@@ -66,8 +66,8 @@
   },
   "agentic_portfolio_raw": {
     "data": {
-      "total_value": "235.57366435",
-      "equity_value": "235.48366435",
+      "total_value": "235.3906097",
+      "equity_value": "235.3006097",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -230,7 +230,5 @@
       ]
     },
     "guide": "Sellable shares: use shares_available_for_sells, not quantity. Yesterday's quantity = quantity - intraday_quantity. average_buy_price is the average cost per share shown in the Robinhood app (it already reflects partial sells) \u2014 use it as the user's average cost; it may be omitted for positions still reconciling. No market price here \u2014 for current value or PnL, call get_equity_quotes and multiply by quantity. Present symbol, quantity, average_buy_price, and type when not 'long'; suppress other fields unless asked."
-  },
-  "primary_positions_pages": 1,
-  "agentic_positions_pages": 1
+  }
 }
