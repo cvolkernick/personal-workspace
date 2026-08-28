@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-27T19:49:36.471410+00:00",
+  "as_of": "2026-08-28T18:24:34.902467+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 295.77,
-  "cash": 295.77,
-  "available": 295.77,
-  "cleared_balance": 295.77,
+  "balance_raw": 199.72,
+  "cash": 199.72,
+  "available": 199.72,
+  "cleared_balance": 199.72,
   "uncleared_balance": 0.0,
-  "spend_30d": 4745.99,
+  "spend_30d": 4799.93,
   "inflow_30d": 4785.01,
-  "transaction_count": 258,
+  "transaction_count": 264,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -92,8 +92,8 @@
       "amount_display": 1.0,
       "memo": null,
       "cleared": "cleared",
-      "approved": false,
-      "category_name": "Inflow: Ready to Assign"
+      "approved": true,
+      "category_name": "X P2P"
     },
     {
       "id": "87b2dbb2-a65b-4096-b879-0a97ee341eb0",
@@ -217,7 +217,7 @@
       "category_name": "\ud83c\udf7d\ufe0f Dining out"
     },
     {
-      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -228,7 +228,7 @@
       "category_name": "\ud83d\ude98 Transportation"
     },
     {
-      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -373,13 +373,13 @@
     {
       "id": "5ba89a13-521e-4186-b096-50c08e4abd54",
       "date": "2026-07-25",
-      "payee": "X Money Transfer",
+      "payee": "Transfer : RH Checking \u2013 3646",
       "amount": 2.43,
       "amount_display": 2.43,
       "memo": null,
       "cleared": "cleared",
-      "approved": false,
-      "category_name": "Inflow: Ready to Assign"
+      "approved": true,
+      "category_name": "Uncategorized"
     },
     {
       "id": "5d8dc733-505f-4093-b286-a3cc0c00dd0a",
@@ -571,5 +571,5 @@
   ],
   "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-29"
+  "since": "2026-05-30"
 }
