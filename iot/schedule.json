@@ -3,7 +3,7 @@
     "latitude": 26.6093,
     "longitude": -81.60184,
     "timezone": "America/New_York",
-    "label": "Approx. Lehigh Acres, FL (IP geolocation — refine with Use browser location)"
+    "label": "Approx. Lehigh Acres, FL (IP geolocation \u2014 refine with Use browser location)"
   },
   "sleep_battery_follow": {
     "enabled": true,
@@ -11,13 +11,20 @@
     "target": "masterbedroom",
     "fitdash_url": "http://127.0.0.1:8787",
     "fitdash_path": "/api/sleep_battery",
-    "note": "After local sunset: poll FitDash Sleep Battery every 15m; set bedroom brightness only (color keep). At 0% turn off and stop until next day. Auth: FITDASH_SERVICE_TOKEN or FitDash loopback service allowlist."
+    "note": "After local sunset through overnight until sunrise: poll FitDash Sleep Battery every 15m; dim interior Wiz rooms (color keep). Exterior stays on/off via sunset/sunrise only — not dimmed. At 0% turn follow groups off and stop until the next sunset. Plugs (office, plant lights) stay on their own sunrise/sunset jobs. Auth: loopback or FITDASH_SERVICE_TOKEN.",
+    "targets": [
+      "masterbedroom",
+      "livingroom",
+      "entryway",
+      "masterbathroom",
+      "garage"
+    ]
   },
   "routines": [
     {
       "id": "sunset_office_on",
       "enabled": true,
-      "name": "Sunset — office plug on",
+      "name": "Sunset \u2014 office plug on",
       "trigger": "sunset",
       "offset_minutes": 0,
       "target": "office",
@@ -27,7 +34,7 @@
     {
       "id": "sunset_office_on_plus3",
       "enabled": true,
-      "name": "Sunset+3m — office plug reassert on",
+      "name": "Sunset+3m \u2014 office plug reassert on",
       "trigger": "sunset",
       "offset_minutes": 3,
       "target": "office",
@@ -37,7 +44,7 @@
     {
       "id": "sunset_office_on_plus12",
       "enabled": true,
-      "name": "Sunset+12m — office plug reassert on",
+      "name": "Sunset+12m \u2014 office plug reassert on",
       "trigger": "sunset",
       "offset_minutes": 12,
       "target": "office",
@@ -47,7 +54,7 @@
     {
       "id": "sunset_lights_on",
       "enabled": true,
-      "name": "Sunset — house lights magenta",
+      "name": "Sunset \u2014 house lights magenta",
       "trigger": "sunset",
       "offset_minutes": 0,
       "target": "lights",
@@ -57,7 +64,7 @@
     {
       "id": "sunset_plants_off",
       "enabled": true,
-      "name": "Sunset — plant lights off",
+      "name": "Sunset \u2014 plant lights off",
       "trigger": "sunset",
       "offset_minutes": 0,
       "target": "plantlights",
@@ -67,7 +74,7 @@
     {
       "id": "sunrise_office_off",
       "enabled": true,
-      "name": "Sunrise — office plug off",
+      "name": "Sunrise \u2014 office plug off",
       "trigger": "sunrise",
       "offset_minutes": 0,
       "target": "office",
@@ -77,7 +84,7 @@
     {
       "id": "sunrise_lights_off",
       "enabled": true,
-      "name": "Sunrise — house lights off",
+      "name": "Sunrise \u2014 house lights off",
       "trigger": "sunrise",
       "offset_minutes": 0,
       "target": "lights",
@@ -87,7 +94,7 @@
     {
       "id": "sunrise_plants_on",
       "enabled": true,
-      "name": "Sunrise — plant lights on",
+      "name": "Sunrise \u2014 plant lights on",
       "trigger": "sunrise",
       "offset_minutes": 0,
       "target": "plantlights",
