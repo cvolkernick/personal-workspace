@@ -15,9 +15,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.ynab_sync import (  # noqa: E402
+    SNAPSHOT_TX_LIMIT,
+    _newest_snapshot_txs,
     _report_from_writes,
     _safe_write,
     _snapshot_needs_live_refresh,
+    _summarize_txs,
     closed_pin_reason,
     fetch_rh_checking,
     fetch_x_money,
@@ -316,6 +319,166 @@ class TestNormalizeChecking(unittest.TestCase):
         self.assertAlmostEqual(snap["cash"], 22.76)
         self.assertEqual(snap["account_name"], "Checking – 2201")
         self.assertEqual(snap["account_id"], XM_PIN)
+
+
+def _oldest_first_july_august(
+    *,
+    july_n: int = 50,
+    august_n: int = 12,
+    july_milli: int = -10000,
+    august_milli: int = -5000,
+) -> list:
+    """YNAB since_date order: oldest first. Recreates the 2026-08-28 prism slice."""
+    txs = []
+    for i in range(july_n):
+        day = 21 + (i % 8)  # 2026-07-21 .. 2026-07-28
+        txs.append(
+            {
+                "id": f"jul-{i:03d}",
+                "date": f"2026-07-{day:02d}",
+                "payee_name": f"July {i}",
+                "amount": july_milli,
+                "deleted": False,
+            }
+        )
+    for i in range(august_n):
+        day = 1 + (i % 28)  # 2026-08-01 .. 2026-08-28
+        txs.append(
+            {
+                "id": f"aug-{i:03d}",
+                "date": f"2026-08-{day:02d}",
+                "payee_name": f"August {i}",
+                "amount": august_milli,
+                "deleted": False,
+            }
+        )
+    return txs
+
+
+def _checking_acct(**overrides):
+    acct = {
+        "id": XM_PIN,
+        "name": "Checking – 2201",
+        "type": "checking",
+        "balance": 229720,
+        "balance_currency": 229.72,
+        "cleared_balance": 229720,
+        "uncleared_balance": 0,
+        "direct_import_linked": True,
+        "direct_import_in_error": False,
+    }
+    acct.update(overrides)
+    return acct
+
+
+def _card_acct(**overrides):
+    acct = {
+        "id": "card-1",
+        "name": "Coinbase One Card – 5361",
+        "type": "creditCard",
+        "balance": -418550,
+        "balance_currency": -418.55,
+        "cleared_balance": -418550,
+        "uncleared_balance": 0,
+        "direct_import_linked": True,
+        "direct_import_in_error": False,
+    }
+    acct.update(overrides)
+    return acct
+
+
+class TestSnapshotKeepsNewestTxs(unittest.TestCase):
+    """Oldest-first API order must not produce a July-only transactions[] head."""
+
+    def test_summarize_preserves_api_order(self):
+        txs = _oldest_first_july_august(july_n=3, august_n=2)
+        txs_out, _, _ = _summarize_txs(txs, account_type="checking")
+        self.assertEqual([t["date"] for t in txs_out], [t["date"] for t in txs])
+        self.assertTrue(txs_out[0]["date"].startswith("2026-07"))
+        self.assertTrue(txs_out[-1]["date"].startswith("2026-08"))
+
+    def test_newest_helper_drops_oldest_head(self):
+        txs_out, _, _ = _summarize_txs(
+            _oldest_first_july_august(july_n=50, august_n=12),
+            account_type="checking",
+        )
+        head = txs_out[:SNAPSHOT_TX_LIMIT]
+        self.assertTrue(all(t["date"].startswith("2026-07") for t in head))
+        newest = _newest_snapshot_txs(txs_out)
+        dates = [t["date"] for t in newest]
+        self.assertTrue(any(d.startswith("2026-08") for d in dates))
+        self.assertFalse(all(d.startswith("2026-07") for d in dates))
+        self.assertEqual(dates, sorted(dates, reverse=True))
+        self.assertEqual(len(newest), SNAPSHOT_TX_LIMIT)
+
+    def _assert_newest_snapshot(self, snap, *, full_count):
+        listed = snap["transactions"]
+        dates = [t["date"] for t in listed]
+        self.assertEqual(snap["transaction_count"], full_count)
+        self.assertLessEqual(len(listed), SNAPSHOT_TX_LIMIT)
+        self.assertTrue(any(d.startswith("2026-08") for d in dates), dates[:3])
+        self.assertFalse(all(d.startswith("2026-07") for d in dates))
+        self.assertEqual(dates, sorted(dates, reverse=True))
+        self.assertTrue(dates[0].startswith("2026-08"))
+
+    def test_x_money_includes_august_not_july_head(self):
+        txs = _oldest_first_july_august(july_n=50, august_n=12)
+        snap = normalize_x_money(
+            _checking_acct(), txs, budget_id="b1", budget_name="Chris's Plan"
+        )
+        self._assert_newest_snapshot(snap, full_count=62)
+
+    def test_rh_checking_includes_august_not_july_head(self):
+        txs = _oldest_first_july_august(july_n=50, august_n=12)
+        snap = normalize_rh_checking(
+            _checking_acct(id="rh", name="RH Checking – 3646", balance_currency=2.43),
+            txs,
+            budget_id="b1",
+            budget_name="Chris's Plan",
+        )
+        self._assert_newest_snapshot(snap, full_count=62)
+
+    def test_one_card_includes_august_not_july_head(self):
+        txs = _oldest_first_july_august(july_n=50, august_n=12)
+        snap = normalize_one_card(
+            _card_acct(), txs, budget_id="b1", budget_name="Chris's Plan"
+        )
+        self._assert_newest_snapshot(snap, full_count=62)
+
+    def test_spend_30d_uses_full_set_not_displayed_slice(self):
+        # More than 50 txs inside the 30d window so a display slice cannot match full spend.
+        outside = date.today() - timedelta(days=40)
+        inside = date.today() - timedelta(days=5)
+        txs = []
+        for i in range(50):
+            txs.append(
+                {
+                    "id": f"old-{i:03d}",
+                    "date": outside.isoformat(),
+                    "payee_name": f"Old {i}",
+                    "amount": -10000,
+                    "deleted": False,
+                }
+            )
+        for i in range(60):
+            txs.append(
+                {
+                    "id": f"new-{i:03d}",
+                    "date": inside.isoformat(),
+                    "payee_name": f"New {i}",
+                    "amount": -5000,
+                    "deleted": False,
+                }
+            )
+        snap = normalize_x_money(
+            _checking_acct(), txs, budget_id="b1", budget_name="Chris's Plan"
+        )
+        self.assertEqual(snap["transaction_count"], 110)
+        self.assertEqual(len(snap["transactions"]), SNAPSHOT_TX_LIMIT)
+        # Full 60 in-window outflows at $5, not the displayed 50 ($250) or the old head ($0).
+        self.assertAlmostEqual(snap["spend_30d"], 300.0)
+        self.assertAlmostEqual(snap["inflow_30d"], 0.0)
+        self.assertTrue(all(t["date"] == inside.isoformat() for t in snap["transactions"]))
 
 
 class TestSafeWritePreserve(unittest.TestCase):

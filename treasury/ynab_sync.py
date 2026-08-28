@@ -48,6 +48,8 @@ def _now() -> str:
 
 # Re-fetch YNAB if an on-disk snapshot is older than this (matches FCC stale_after_hours).
 DEFAULT_YNAB_MAX_AGE_HOURS = 6.0
+# YNAB GET ?since_date returns oldest-first. Snapshots keep the newest N, newest-first.
+SNAPSHOT_TX_LIMIT = 50
 
 
 def fold_dashes(name: Optional[str]) -> str:
@@ -298,7 +300,7 @@ def _summarize_txs(
     *,
     account_type: str,
 ) -> Tuple[List[Dict[str, Any]], float, float]:
-    """Return (txs_out, spend_30d, inflow_30d)."""
+    """Return (txs_out, spend_30d, inflow_30d). txs_out preserves input/API order."""
     txs_out: List[Dict[str, Any]] = []
     spend_30d = 0.0
     inflow_30d = 0.0
@@ -349,6 +351,20 @@ def _summarize_txs(
     return txs_out, round(spend_30d, 2), round(inflow_30d, 2)
 
 
+def _newest_snapshot_txs(
+    txs_out: List[Dict[str, Any]],
+    *,
+    limit: int = SNAPSHOT_TX_LIMIT,
+) -> List[Dict[str, Any]]:
+    """Keep the newest N txs, newest-first. YNAB / _summarize_txs preserve oldest-first API order."""
+    ordered = sorted(
+        txs_out,
+        key=lambda t: (str(t.get("date") or ""), str(t.get("id") or "")),
+        reverse=True,
+    )
+    return ordered[:limit]
+
+
 def normalize_one_card(
     account: Dict[str, Any],
     transactions: List[Dict[str, Any]],
@@ -383,7 +399,7 @@ def normalize_one_card(
         "spend_30d": spend_30d,
         "payments_30d": payments_30d,
         "transaction_count": len(txs_out),
-        "transactions": txs_out[:50],
+        "transactions": _newest_snapshot_txs(txs_out),
         "notes": (
             "Card data via YNAB (Plaid). Available credit not exposed by YNAB; "
             "set card_available_credit in config if needed."
@@ -424,7 +440,7 @@ def normalize_rh_checking(
         "spend_30d": spend_30d,
         "inflow_30d": inflow_30d,
         "transaction_count": len(txs_out),
-        "transactions": txs_out[:50],
+        "transactions": _newest_snapshot_txs(txs_out),
         "notes": (
             "Robinhood Checking via YNAB/Plaid — actual ACH/checking balance and txs. "
             "Prefer this over brokerage MCP cash for bill-pay float."
@@ -465,7 +481,7 @@ def normalize_x_money(
         "spend_30d": spend_30d,
         "inflow_30d": inflow_30d,
         "transaction_count": len(txs_out),
-        "transactions": txs_out[:50],
+        "transactions": _newest_snapshot_txs(txs_out),
         "notes": (
             "X Money via YNAB/Plaid. Plaid may label the account as 'Checking – ####'. "
             "Cash sleeve separate from RH Checking ACH float."
@@ -491,6 +507,7 @@ def _fetch_account_txs(
     account_id: str,
     since: str,
 ) -> List[Dict[str, Any]]:
+    # YNAB returns this list oldest-first for since_date; callers must not treat [:N] as newest.
     return (
         ynab_get(
             f"/budgets/{budget_id}/accounts/{account_id}/transactions",
