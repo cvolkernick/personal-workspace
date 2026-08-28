@@ -169,9 +169,13 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertIn('k: "Agentic NAV"', index_html)
         self.assertIn('k: "Morpho LTV"', index_html)
         self.assertIn('k: "CB ONE CARD"', index_html)
+        self.assertIn('k: "Liquid USDC"', index_html)
+        self.assertIn('k: "Vault USDC"', index_html)
+        self.assertIn("kpi-pair", index_html)
         self.assertNotIn('k: "NAV"', index_html)
         self.assertNotIn('k: "LTV"', index_html)
         self.assertNotIn('k: "Card"', index_html)
+        self.assertNotIn('k: "USDC"', index_html)
 
         cf = _by_id(index, "nav-capital-flows")
         self.assertEqual(cf["text"], "Capital Flows")
