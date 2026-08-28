@@ -68,6 +68,22 @@
       vertical-align: 0.02em;
       letter-spacing: 0;
     }
+    h1 .title-link {
+      display: inline-block;
+      margin-left: 0.55rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 999px;
+      padding: 0.14rem 0.5rem;
+      vertical-align: 0.14em;
+    }
+    h1 .title-link:hover { filter: brightness(1.1); border-color: var(--accent); }
     .sub { color: var(--muted); font-size: 0.8rem; }
     .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
     .pill {
@@ -2042,7 +2058,7 @@
   <div class="sticky-top">
     <div class="row">
       <div>
-        <h1><span class="title-ico" aria-hidden="true">₿</span> Financial Command Center</h1>
+        <h1><span class="title-ico" aria-hidden="true">₿</span> Financial Command Center <a class="title-link" href="https://www.coinbase.com/home" id="nav-coinbase" target="_blank" rel="noopener noreferrer" title="Open Coinbase">Coinbase</a></h1>
         <div class="sub">Liquidity · fund manager · bills · spend</div>
       </div>
       <div class="controls">
@@ -3429,7 +3445,8 @@
       const rhCheck = f(inp.rh_checking_cash ?? rhc.cash);
       const xMoney = f(inp.x_money_cash ?? xm.cash);
       const agentNav = f(fmaK.nav_usd);
-      const rhBp = f(inp.rh_buying_power);
+      const cbBtcUsd = inp.liquid_btc_usd;
+      const cbBtcQty = inp.liquid_btc;
       const billsMo = f(
         es.upcoming_expense_monthly ?? es.personal_monthly ?? inp.expenses_upcoming_monthly
       );
@@ -3437,7 +3454,6 @@
       const ltvVal = inp.ltv == null || inp.ltv === "" ? null : f(inp.ltv);
       const ltvMax = f(pol.cb_target_ltv_max) || 0.5;
       const ltvAlert = f(pol.cb_ltv_alert) || 0.45;
-      const bpFloor = f(pol.rh_bp_floor); // MO: may be 0
 
       const toneWord = {
         red: "Critical",
@@ -3701,38 +3717,24 @@
           `Next payout ~${days.toFixed(0)}d away (${prog}) — still filling threshold.`
         );
       }
-      function rhBpTone() {
-        if (!Number.isFinite(rhBp))
-          return toneResult("muted", "Buying power not loaded.");
-        // MO: floor 0 — any BP deployable; dust is min-trade HOLD, not a red floor miss
-        if (bpFloor <= 0) {
-          if (rhBp < 1)
-            return toneResult(
-              "yellow",
-              `RH BP ${money(rhBp)} is dust — below typical min trade.`
-            );
-          if (rhBp < 25)
-            return toneResult("yellow", `RH BP ${money(rhBp)} is small.`);
-          return toneResult("green", `RH BP ${money(rhBp)} deployable (no floor).`);
-        }
-        if (rhBp < bpFloor)
-          return toneResult(
-            "red",
-            `RH BP ${money(rhBp)} under floor ${money(bpFloor)}.`
-          );
-        if (rhBp < bpFloor * 3)
-          return toneResult(
-            "orange",
-            `RH BP ${money(rhBp)} low vs floor ${money(bpFloor)}.`
-          );
-        if (rhBp < bpFloor * 8)
+      function cbBtcTone() {
+        const usd =
+          cbBtcUsd == null || cbBtcUsd === "" ? NaN : Number(cbBtcUsd);
+        const qty =
+          cbBtcQty == null || cbBtcQty === "" ? NaN : Number(cbBtcQty);
+        if (!Number.isFinite(usd) && !Number.isFinite(qty))
+          return toneResult("muted", "Coinbase BTC not loaded.");
+        if (!Number.isFinite(usd))
           return toneResult(
             "yellow",
-            `RH BP ${money(rhBp)} moderate vs floor ${money(bpFloor)}.`
+            `Coinbase BTC ${btcAmt(qty, 6)} — USD price missing.`
           );
+        if (!(usd > 0) && !(qty > 0))
+          return toneResult("muted", "No Coinbase BTC balance.");
         return toneResult(
           "green",
-          `RH BP ${money(rhBp)} healthy vs floor ${money(bpFloor)}.`
+          `Coinbase BTC ${money(usd)}` +
+            (Number.isFinite(qty) ? ` (${btcAmt(qty, 6)}).` : ".")
         );
       }
 
@@ -3747,7 +3749,7 @@
       const tRhCheck = cashLowTone(rhCheck, 5, 25, 75, "RH Checking");
       const tXMoney = cashLowTone(xMoney, 40, 150, 400, "X Money");
       const tAgent = agenticTone();
-      const tBp = rhBpTone();
+      const tBtc = cbBtcTone();
       const tBills = billsPressureTone();
       const tLtv = ltvTone();
       const tAsic = asicHashTone();
@@ -3800,12 +3802,12 @@
           why: tAgent.why,
         },
         {
-          k: "BP",
-          v: money(rhBp),
-          s: bpFloor > 0 ? "floor " + money(bpFloor) : "no floor",
-          target: "panel-brokerage",
-          tone: tBp.tone,
-          why: tBp.why,
+          k: "BTC",
+          v: money(cbBtcUsd),
+          s: "Coinbase",
+          target: "cash-credit",
+          tone: tBtc.tone,
+          why: tBtc.why,
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis

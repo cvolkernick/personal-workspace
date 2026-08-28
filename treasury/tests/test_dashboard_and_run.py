@@ -17,6 +17,13 @@ class TestDashboardArtifact(unittest.TestCase):
     def test_index_has_dual_venue_and_actions(self):
         html = (ROOT / "financial-command" / "index.html").read_text(encoding="utf-8")
         self.assertIn("Financial Command Center", html)
+        self.assertIn('id="nav-coinbase"', html)
+        self.assertIn("https://www.coinbase.com/home", html)
+        self.assertIn('k: "BTC"', html)
+        self.assertNotIn('k: "BP"', html)
+        self.assertIn("function cbBtcTone", html)
+        self.assertNotIn("function rhBpTone", html)
+        self.assertIn("inp.liquid_btc_usd", html)
         self.assertIn("Do now", html)
         self.assertIn("Next to pay", html)
         self.assertIn("glance-next-pay", html)
