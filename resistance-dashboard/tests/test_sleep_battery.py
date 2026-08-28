@@ -208,6 +208,89 @@ class TestSleepBattery(unittest.TestCase):
         self.assertIsNotNone(bat["last_wake_at"])
         self.assertGreater(bat["last_wake_at"], old_wake.isoformat())
 
+    def test_daily_fill_does_not_invent_future_7am_wake(self):
+        """Chris 2026-08-28 ~02:52 ET: daily 'today' 8.72h must not say woke Fri 7am."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 28, 2, 52, tzinfo=tz)
+        timed_wake = datetime(2026, 8, 27, 23, 34, tzinfo=tz)
+        intervals = [
+            {
+                "start": (timed_wake - timedelta(hours=8.72)).isoformat(),
+                "end": timed_wake.isoformat(),
+                "source": "google_health",
+            }
+        ]
+        sleep = [
+            SleepSample(date="2026-08-27", sleep_hours=8.72, source="google_health"),
+            SleepSample(date="2026-08-28", sleep_hours=8.72, source="google_health"),
+        ]
+        bat = sleep_battery_from_fitdash_sleep(
+            sleep,
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=intervals,
+            sleep_target_hours=8.0,
+        )
+        wake = datetime.fromisoformat(bat["last_wake_at"])
+        self.assertLessEqual(wake, now)
+        self.assertNotEqual(wake.strftime("%Y-%m-%d %H:%M"), "2026-08-28 07:00")
+        self.assertEqual(wake.strftime("%Y-%m-%d %H:%M"), "2026-08-27 23:34")
+        self.assertNotEqual(bat["mode"], "sleeping")
+        self.assertIsNone(bat.get("planned_wake_at"))
+        self.assertAlmostEqual(bat["last_sleep_hours"], 8.72, places=1)
+
+    def test_daily_approx_skips_unfinished_civil_day(self):
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 28, 2, 52, tzinfo=tz)
+        sleep = [
+            SleepSample(date="2026-08-28", sleep_hours=8.72, source="google_health"),
+        ]
+        iv = intervals_from_daily_sleep(sleep, tz=tz, now=now)
+        self.assertEqual(iv, [])
+        bat = sleep_battery_from_fitdash_sleep(
+            sleep, now=now, tz_name="America/New_York"
+        )
+        self.assertIn(bat["data_source"], ("none", "daily_sleep_approx"))
+        if bat.get("last_wake_at"):
+            wake = datetime.fromisoformat(bat["last_wake_at"])
+            self.assertLessEqual(wake, now)
+
+    def test_sleeping_mode_last_wake_is_completed_not_planned(self):
+        tz = timezone.utc
+        prev_wake = datetime(2026, 8, 27, 11, 0, 0, tzinfo=tz)
+        sleep_start = datetime(2026, 8, 27, 22, 16, 0, tzinfo=tz)
+        planned_wake = datetime(2026, 8, 28, 7, 0, 0, tzinfo=tz)
+        now = datetime(2026, 8, 28, 2, 52, 0, tzinfo=tz)
+        intervals = [
+            {
+                "start": (prev_wake - timedelta(hours=8)).isoformat(),
+                "end": prev_wake.isoformat(),
+                "source": "google_health",
+            },
+            {
+                "start": sleep_start.isoformat(),
+                "end": planned_wake.isoformat(),
+                "source": "google_health",
+            },
+        ]
+        bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
+        self.assertEqual(bat["mode"], "sleeping")
+        self.assertEqual(
+            datetime.fromisoformat(bat["last_wake_at"]),
+            prev_wake,
+        )
+        self.assertEqual(
+            datetime.fromisoformat(bat["planned_wake_at"]),
+            planned_wake,
+        )
+        self.assertGreater(datetime.fromisoformat(bat["planned_wake_at"]), now)
+        self.assertLessEqual(datetime.fromisoformat(bat["last_wake_at"]), now)
+        self.assertAlmostEqual(bat["last_sleep_hours"], 4.6, places=1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -276,17 +276,31 @@
         </div>
       </div>
       <p class="sb-summary muted">${b.summary || "Sync Google Health sleep to charge the battery."}</p>
-      <p class="sb-meta muted">${
-        mode === "no_data"
-          ? "No sleep cycle yet"
-          : `~${sleepTgt}h sleep · ${Number(b.sleep_around_hours || sleepTgt + 1).toFixed(0)}h around sleep${
-              b.last_wake_at ? ` · woke ${fmtBatteryWhen(b.last_wake_at)}` : ""
-            }${
-              b.last_sleep_hours != null
-                ? ` · last cycle ${Number(b.last_sleep_hours).toFixed(1)}h`
-                : ""
-            }`
-      }</p>`;
+      <p class="sb-meta muted">${sleepBatteryMeta(b, mode, sleepTgt)}</p>`;
+  }
+
+  function sleepBatteryMeta(b, mode, sleepTgt) {
+    if (mode === "no_data") return "No sleep cycle yet";
+    const bits = [
+      `~${sleepTgt}h sleep`,
+      `${Number(b.sleep_around_hours || sleepTgt + 1).toFixed(0)}h around sleep`,
+    ];
+    if (mode === "sleeping") {
+      if (b.last_sleep_hours != null) {
+        bits.push(`${Number(b.last_sleep_hours).toFixed(1)}h so far`);
+      }
+      if (b.planned_wake_at) bits.push(`wake ${fmtBatteryWhen(b.planned_wake_at)}`);
+    } else {
+      if (b.last_wake_at) {
+        const d = new Date(b.last_wake_at);
+        const future = !Number.isNaN(d.getTime()) && d.getTime() > Date.now();
+        bits.push(`${future ? "wake" : "woke"} ${fmtBatteryWhen(b.last_wake_at)}`);
+      }
+      if (b.last_sleep_hours != null) {
+        bits.push(`last cycle ${Number(b.last_sleep_hours).toFixed(1)}h`);
+      }
+    }
+    return bits.join(" · ");
   }
 
   /** Auto-dismiss delays (ms). Errors stay longer; 0 = until dismissed. */
