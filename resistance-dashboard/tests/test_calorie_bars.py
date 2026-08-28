@@ -89,6 +89,17 @@ class TestCalorieBars(unittest.TestCase):
         self.assertGreaterEqual(win["fraction"], 0.0)
         self.assertLessEqual(win["fraction"], 1.0)
 
+    def test_future_wake_uses_civil_day_not_7am_window(self):
+        now = datetime(2026, 8, 28, 2, 51, 0, tzinfo=timezone.utc)
+        future_wake = datetime(2026, 8, 28, 7, 0, 0, tzinfo=timezone.utc)
+        win = eating_window_fraction(
+            now=now,
+            last_wake_at=future_wake,
+            empty_at=future_wake + timedelta(hours=15),
+        )
+        self.assertEqual(win["source"], "civil_day_before_wake")
+        self.assertTrue(win["window_start"].startswith("2026-08-28T00:00:00"))
+
     def test_payload_builder(self):
         wake = datetime(2026, 7, 26, 8, 0, 0, tzinfo=timezone.utc)
         now = wake + timedelta(hours=8)

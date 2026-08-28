@@ -199,6 +199,33 @@
     }
   }
 
+  function isoIsFuture(iso) {
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) && t > Date.now();
+  }
+
+  function sleepBatteryMetaLine(b, mode, sleepTgt) {
+    if (mode === "no_data") return "No sleep cycle yet";
+    const sleeping = mode === "sleeping";
+    const around = Number(b.sleep_around_hours || sleepTgt + 1).toFixed(0);
+    let bits = `~${sleepTgt}h sleep · ${around}h around sleep`;
+    const planned = b.planned_wake_at;
+    const woke = b.last_wake_at;
+    if (sleeping && planned) {
+      bits += ` · wake ~${fmtBatteryWhen(planned)}`;
+    } else if (woke && !isoIsFuture(woke)) {
+      bits += ` · woke ${fmtBatteryWhen(woke)}`;
+    } else if (planned && isoIsFuture(planned)) {
+      bits += ` · wake ~${fmtBatteryWhen(planned)}`;
+    }
+    if (b.last_sleep_hours != null) {
+      const label = sleeping ? "this cycle" : "last cycle";
+      bits += ` · ${label} ${Number(b.last_sleep_hours).toFixed(1)}h`;
+    }
+    return bits;
+  }
+
   function renderSleepBatteryMini(battery) {
     const el = $("sleep-battery-panel");
     if (!el) return;
@@ -276,17 +303,7 @@
         </div>
       </div>
       <p class="sb-summary muted">${b.summary || "Sync Google Health sleep to charge the battery."}</p>
-      <p class="sb-meta muted">${
-        mode === "no_data"
-          ? "No sleep cycle yet"
-          : `~${sleepTgt}h sleep · ${Number(b.sleep_around_hours || sleepTgt + 1).toFixed(0)}h around sleep${
-              b.last_wake_at ? ` · woke ${fmtBatteryWhen(b.last_wake_at)}` : ""
-            }${
-              b.last_sleep_hours != null
-                ? ` · last cycle ${Number(b.last_sleep_hours).toFixed(1)}h`
-                : ""
-            }`
-      }</p>`;
+      <p class="sb-meta muted">${sleepBatteryMetaLine(b, mode, sleepTgt)}</p>`;
   }
 
   /** Auto-dismiss delays (ms). Errors stay longer; 0 = until dismissed. */
