@@ -175,6 +175,18 @@
       max-width: 100%;
       min-width: 0;
     }
+    .kpi-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.25rem;
+      min-width: 0;
+    }
+    .kpi-pair .kpi {
+      padding: 0.32rem 0.32rem 0.36rem;
+    }
+    .kpi-pair .kpi .k { font-size: 0.52rem; }
+    .kpi-pair .kpi .v { font-size: 0.78rem; }
+    .kpi-pair .kpi .s { font-size: 0.56rem; }
     #at-a-glance {
       overflow: visible;
       width: 100%;
@@ -1802,6 +1814,10 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.35rem;
       }
+      .kpi-pair {
+        grid-column: 1 / -1;
+      }
+      .kpi-pair .kpi .v { font-size: 0.9rem; }
       .kpi {
         min-width: 0;
         max-width: 100%;
@@ -3442,7 +3458,7 @@
       renderGlanceHero(overall, sorted, stress, snap, inp, ev);
       renderActionsCarousel(sorted, stress);
 
-      // KPIs — 10 chips in a 5-col grid (2 even rows); tone = attention shading
+      // KPIs — 5 Glance slots; USDC is Liquid + Vault sub-chips. Tone = attention shading.
       const oc = snap.one_card || {};
       const rhc = snap.rh_checking || {};
       const xm = snap.x_money || {};
@@ -3455,6 +3471,9 @@
       const wDepK = fmaK.weights_of_deployed || {};
 
       const workingUsdc = f(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc);
+      const liquidUsdc = f(inp.liquid_usdc);
+      const vaultKnown = !(inp.vault_known === false || inp.vault_usdc == null);
+      const vaultUsdc = vaultKnown ? f(inp.vault_usdc) : null;
       const cardOwed = f(inp.card_balance ?? oc.balance_owed);
       const cardDeposit = f(inp.card_security_deposit_usdc);
       const rhCheck = f(inp.rh_checking_cash ?? rhc.cash);
@@ -3503,23 +3522,35 @@
           `${label} ${money(n)} is at a healthy cushion (≥ ${money(mod)}).`
         );
       }
-      function workingUsdcTone() {
+      function liquidUsdcTone() {
+        if (!Number.isFinite(liquidUsdc))
+          return toneResult("muted", "Liquid USDC not loaded.");
+        if (liquidUsdc < 1)
+          return toneResult(
+            "muted",
+            `Idle spot USDC ${money(liquidUsdc)} — often $0 by design.`
+          );
+        return cashLowTone(liquidUsdc, 40, 120, 350, "Liquid USDC");
+      }
+      function vaultUsdcTone() {
+        if (!vaultKnown)
+          return toneResult(
+            "yellow",
+            "High Yield vault USDC unknown — enter in Settings."
+          );
         if (stress.coinbase_liquid === "red") {
           return toneResult(
             "red",
-            `HY LTV Buffer ${money(workingUsdc)} is below floor (not One Card float).`
+            `Vault USDC ${money(vaultUsdc)} is below HY LTV Buffer floor.`
           );
         }
         if (stress.coinbase_liquid === "yellow") {
           return toneResult(
             "yellow",
-            `Working USDC ${money(workingUsdc)} is tight vs buffers` +
-              (inp.vault_known === false || inp.vault_usdc == null
-                ? "; High Yield vault still unknown."
-                : ".")
+            `Vault USDC ${money(vaultUsdc)} is tight vs HY LTV Buffer.`
           );
         }
-        return cashLowTone(workingUsdc, 40, 120, 350, "Working USDC");
+        return cashLowTone(vaultUsdc, 40, 120, 350, "Vault USDC");
       }
       function cardOwedTone(owed, deposit) {
         if (!Number.isFinite(owed))
@@ -3753,7 +3784,8 @@
         );
       }
 
-      const tWorking = workingUsdcTone();
+      const tLiquid = liquidUsdcTone();
+      const tVault = vaultUsdcTone();
       const tCard =
         stress.coinbase_card === "red"
           ? toneResult(
@@ -3770,22 +3802,47 @@
       const tAsic = asicHashTone();
       const tPay = nextPayTone();
 
-      // Glance: primary 5 only (SNR). Secondary cash/mining live on other tabs.
+      // Glance: 5 slots (SNR). USDC slot is Liquid + Vault sub-chips.
       const cardUtilPct =
         cardDeposit > 0 && Number.isFinite(cardOwed)
           ? Math.round((cardOwed / cardDeposit) * 100) + "%"
           : money(cardOwed);
+      function kpiHtml(k) {
+        const tone = k.tone || "muted";
+        const word = toneWord[tone] || tone;
+        const why = (k.why || "").trim() || `${k.k}: ${word}`;
+        return (
+          `<div class="kpi tone-${tone}" data-target="${k.target}" tabindex="0" ` +
+          `aria-label="${escapeHtml(k.k + ": " + why)}">` +
+          `<div class="kpi-tip" role="tooltip">` +
+          `<span class="tip-tone">${escapeHtml(word)}</span>` +
+          `${escapeHtml(why)}</div>` +
+          `<div class="k">${k.k}</div>` +
+          `<div class="v">${k.v}</div>` +
+          `<div class="s">${k.s}</div></div>`
+        );
+      }
       const kpis = [
         {
-          k: "USDC",
-          v: money(workingUsdc),
-          s:
-            inp.vault_known === false || inp.vault_usdc == null
-              ? "spot+vault?"
-              : "w/ vault",
-          target: "cash-credit",
-          tone: tWorking.tone,
-          why: tWorking.why,
+          pair: true,
+          items: [
+            {
+              k: "Liquid USDC",
+              v: money(liquidUsdc),
+              s: "spot",
+              target: "cash-credit",
+              tone: tLiquid.tone,
+              why: tLiquid.why,
+            },
+            {
+              k: "Vault USDC",
+              v: vaultKnown ? money(vaultUsdc) : "—",
+              s: vaultKnown ? "HY" : "unknown",
+              target: "cash-credit",
+              tone: tVault.tone,
+              why: tVault.why,
+            },
+          ],
         },
         {
           k: "CB ONE CARD",
@@ -3826,21 +3883,11 @@
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
-        .map((k) => {
-          const tone = k.tone || "muted";
-          const word = toneWord[tone] || tone;
-          const why = (k.why || "").trim() || `${k.k}: ${word}`;
-          return (
-            `<div class="kpi tone-${tone}" data-target="${k.target}" tabindex="0" ` +
-            `aria-label="${escapeHtml(k.k + ": " + why)}">` +
-            `<div class="kpi-tip" role="tooltip">` +
-            `<span class="tip-tone">${escapeHtml(word)}</span>` +
-            `${escapeHtml(why)}</div>` +
-            `<div class="k">${k.k}</div>` +
-            `<div class="v">${k.v}</div>` +
-            `<div class="s">${k.s}</div></div>`
-          );
-        })
+        .map((k) =>
+          k.pair
+            ? `<div class="kpi-pair">${k.items.map(kpiHtml).join("")}</div>`
+            : kpiHtml(k)
+        )
         .join("");
       document.querySelectorAll(".kpi").forEach((el) => {
         el.addEventListener("click", () => {
