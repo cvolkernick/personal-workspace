@@ -82,16 +82,26 @@ def intervals_from_daily_sleep(
     *,
     assume_wake_local_hour: int = 7,
     tz: Optional[timezone] = None,
+    now: Optional[datetime] = None,
 ) -> List[dict]:
     """Approximate sleep intervals from per-day hour totals (FitDash shape).
 
     Places each night ending at ``assume_wake_local_hour`` and extending
     backward by logged hours. Skips 0h / implied-zero nights.
+
+    A synthesized wake still in the future is omitted — partial same-day
+    totals must not create a completed 7am cycle before 7am.
     """
     if tz is None:
         from .timeutil import local_tz
 
         tz = local_tz()
+    if now is None:
+        from .timeutil import local_now
+
+        now = local_now()
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     out: List[dict] = []
     for s in sleep or []:
         hours = float(s.sleep_hours or 0)
@@ -107,6 +117,8 @@ def intervals_from_daily_sleep(
         except ValueError:
             continue
         wake = datetime(y, m, d, assume_wake_local_hour, 0, 0, tzinfo=tz)
+        if wake > now:
+            continue
         start = wake - timedelta(hours=hours)
         out.append(
             {
@@ -233,6 +245,7 @@ def compute_sleep_battery(
 
     mode = "no_data"
     last_wake_at: Optional[datetime] = None
+    planned_wake_at: Optional[datetime] = None
     last_sleep_hours: Optional[float] = None
     hours_awake = 0.0
     hours_until_empty = awake_hours
@@ -252,7 +265,12 @@ def compute_sleep_battery(
         charge = min(100.0, (so_far / planned) * 100.0)
         pct = charge
         level = "full" if charge >= 90 else ("ok" if charge >= 50 else "low")
-        last_wake_at = active["end"]
+        # last_wake_at is only a wake that has already happened. Planned
+        # end (Fitbit alarm / 7am approx) lives on planned_wake_at.
+        planned_end = active["end"]
+        planned_wake_at = planned_end if planned_end > now else None
+        if last is not None and last["end"] <= now:
+            last_wake_at = last["end"]
         last_sleep_hours = so_far
         hours_awake = 0.0
         hours_until_empty = awake_hours
@@ -323,6 +341,9 @@ def compute_sleep_battery(
         "hours_awake": round(hours_awake, 2),
         "hours_until_empty": round(hours_until_empty, 2),
         "last_wake_at": last_wake_at.isoformat(timespec="seconds") if last_wake_at else None,
+        "planned_wake_at": (
+            planned_wake_at.isoformat(timespec="seconds") if planned_wake_at else None
+        ),
         "last_sleep_hours": round(last_sleep_hours, 2)
         if last_sleep_hours is not None
         else None,
@@ -376,7 +397,7 @@ def sleep_battery_from_fitdash_sleep(
     intervals = normalize_intervals(list(sleep_intervals or []))
     source = "sleep_intervals"
     if not intervals:
-        intervals = intervals_from_daily_sleep(sleep, tz=now.tzinfo)
+        intervals = intervals_from_daily_sleep(sleep, tz=now.tzinfo, now=now)
         source = "daily_sleep_approx" if intervals else "none"
     else:
         last_end: Optional[datetime] = None
@@ -384,14 +405,16 @@ def sleep_battery_from_fitdash_sleep(
             en = _parse_dt(row.get("end"))
             if en and (last_end is None or en > last_end):
                 last_end = en
-        daily = intervals_from_daily_sleep(sleep, tz=now.tzinfo)
+        daily = intervals_from_daily_sleep(sleep, tz=now.tzinfo, now=now)
         filled = 0
         for row in daily:
             en = _parse_dt(row.get("end"))
             if not en or last_end is None:
                 continue
-            # Only nights whose wake is strictly after last timed wake
-            if en > last_end:
+            # Only nights whose assumed wake already happened and is
+            # strictly after last timed wake. Future 7am fills must not
+            # become "woke Fri 7am" at 2am.
+            if last_end < en <= now:
                 intervals.append(row)
                 filled += 1
         if filled:

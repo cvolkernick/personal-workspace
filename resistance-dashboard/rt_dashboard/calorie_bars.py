@@ -224,6 +224,9 @@ def eating_window_fraction(
         return _civil_day_window("civil_day_fallback")
 
     wake_local = wake.astimezone(now.tzinfo)
+    if wake_local > now:
+        # Planned alarm / 7am approx is not an eating-window start.
+        return _civil_day_window("civil_day_before_wake")
     if end is None:
         end = wake_local + timedelta(hours=budget)
     else:

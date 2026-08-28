@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from rt_dashboard.models import SleepSample
 from rt_dashboard.sleep_battery import (
@@ -12,6 +13,8 @@ from rt_dashboard.sleep_battery import (
     sleep_battery_from_fitdash_sleep,
     start_charge_fraction,
 )
+
+NY = ZoneInfo("America/New_York")
 
 
 class TestStartChargeFraction(unittest.TestCase):
@@ -207,6 +210,72 @@ class TestSleepBattery(unittest.TestCase):
         self.assertEqual(bat["data_source"], "sleep_intervals+daily_fill")
         self.assertIsNotNone(bat["last_wake_at"])
         self.assertGreater(bat["last_wake_at"], old_wake.isoformat())
+
+    def test_sleeping_does_not_claim_future_planned_wake(self):
+        """In-progress night ending at 7am must not set last_wake_at to 7am."""
+        now = datetime(2026, 8, 28, 2, 51, tzinfo=NY)
+        planned = datetime(2026, 8, 28, 7, 0, tzinfo=NY)
+        start = now - timedelta(hours=4.6)
+        intervals = [
+            {
+                "start": start.isoformat(),
+                "end": planned.isoformat(),
+                "source": "google_health",
+            }
+        ]
+        bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
+        self.assertEqual(bat["mode"], "sleeping")
+        self.assertIsNone(bat["last_wake_at"])
+        self.assertEqual(
+            datetime.fromisoformat(bat["planned_wake_at"]),
+            planned,
+        )
+        self.assertAlmostEqual(bat["last_sleep_hours"], 4.6, places=1)
+        self.assertEqual(bat["hours_awake"], 0.0)
+
+    def test_daily_fill_skips_future_7am_before_wake(self):
+        """Partial Friday hours must not become 'woke Fri 7am' at 2:51am."""
+        now = datetime(2026, 8, 28, 2, 51, tzinfo=NY)
+        timed_wake = datetime(2026, 8, 27, 23, 34, tzinfo=NY)
+        intervals = [
+            {
+                "start": (timed_wake - timedelta(hours=8.72)).isoformat(),
+                "end": timed_wake.isoformat(),
+                "source": "google_health",
+            }
+        ]
+        sleep = [
+            SleepSample(date="2026-08-27", sleep_hours=8.72, source="google_health"),
+            SleepSample(date="2026-08-28", sleep_hours=4.6, source="google_health"),
+        ]
+        bat = sleep_battery_from_fitdash_sleep(
+            sleep,
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=intervals,
+            sleep_target_hours=8.0,
+        )
+        self.assertEqual(bat["data_source"], "sleep_intervals")
+        wake = datetime.fromisoformat(bat["last_wake_at"])
+        self.assertEqual(wake, timed_wake)
+        self.assertNotEqual(wake.strftime("%H:%M"), "07:00")
+        self.assertIsNone(bat["planned_wake_at"])
+
+    def test_daily_approx_omits_today_until_assumed_wake(self):
+        now = datetime(2026, 8, 28, 2, 51, tzinfo=NY)
+        sleep = [
+            SleepSample(date="2026-08-27", sleep_hours=8.72, source="google_health"),
+            SleepSample(date="2026-08-28", sleep_hours=4.6, source="google_health"),
+        ]
+        iv = intervals_from_daily_sleep(sleep, tz=NY, now=now)
+        ends = [row["end"] for row in iv]
+        self.assertTrue(any("2026-08-27T07:00:00" in e for e in ends))
+        self.assertFalse(any("2026-08-28T07:00:00" in e for e in ends))
+        bat = sleep_battery_from_fitdash_sleep(
+            sleep, now=now, tz_name="America/New_York"
+        )
+        wake = datetime.fromisoformat(bat["last_wake_at"])
+        self.assertEqual(wake.strftime("%Y-%m-%d %H:%M"), "2026-08-27 07:00")
 
 
 if __name__ == "__main__":
