@@ -54,6 +54,7 @@ class _AnchorParser(HTMLParser):
             "id": ad.get("id", ""),
             "href": ad.get("href", ""),
             "title": ad.get("title", ""),
+            "target": ad.get("target", ""),
             "text": "",
         }
 
@@ -140,6 +141,11 @@ class TestFccNavFleet(unittest.TestCase):
         flows = _parse_anchors((FCC / "capital-flows.html").read_text(encoding="utf-8"))
         watch = _parse_anchors((FCC / "watchlist.html").read_text(encoding="utf-8"))
         spectrum = _parse_anchors((FCC / "interest-spectrum.html").read_text(encoding="utf-8"))
+
+        cb = _by_id(index, "nav-coinbase")
+        self.assertEqual(cb["text"], "Coinbase")
+        self.assertEqual(cb["href"], "https://www.coinbase.com/home")
+        self.assertEqual(cb.get("target") or "", "_blank")
 
         cf = _by_id(index, "nav-capital-flows")
         self.assertEqual(cf["text"], "Capital Flows")
