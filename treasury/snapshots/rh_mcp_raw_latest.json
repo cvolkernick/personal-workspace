@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-08-28T09:33:35.890083+00:00",
+  "fetched_at": "2026-08-28T12:37:23.755120+00:00",
   "accounts_raw": {
     "data": {
       "accounts": [
@@ -66,14 +66,14 @@
   },
   "agentic_portfolio_raw": {
     "data": {
-      "total_value": "234.36255337",
-      "equity_value": "234.27255337",
+      "total_value": "233.7415490387",
+      "equity_value": "233.6515490387",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
       "crypto_value": "0",
       "cash": "0.09",
-      "pending_deposits": "25",
+      "pending_deposits": "0",
       "mutual_funds_value": "0",
       "fixed_income_value": "0",
       "currency": "USD",
