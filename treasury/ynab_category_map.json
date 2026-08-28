@@ -2,7 +2,7 @@
   "schema_version": 0,
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
-  "as_of": "2026-08-27T15:52:32Z",
+  "as_of": "2026-08-28T14:39:38Z",
   "allow_approve": true,
   "allow_categorize": true,
   "forbid": ["move_money", "payment", "transfer"],
@@ -39,10 +39,11 @@
     {"id": "d5ba566f-8c1b-47af-a313-683187226904", "name": "🍿 Entertainment", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
     {"id": "346c7801-13a1-4ce3-ac90-ce625ead9539", "name": "🏝️ Vacation", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
     {"id": "6dedac49-c925-4528-93f6-f27cdef48233", "name": "❗️ Stuff I forgot to plan for", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
-    {"id": "bf7c5065-838f-43bf-b227-419b97298a1c", "name": "🌳 YNAB subscription", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true}
+    {"id": "bf7c5065-838f-43bf-b227-419b97298a1c", "name": "🌳 YNAB subscription", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
+    {"id": "57cf549f-4d0f-47a3-b276-493c05c4013d", "name": "X P2P", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true}
   ],
   "payee_rules": [
     {"payee_name": "Planet Fitness", "category_id": "4b5886e5-a645-401e-a5a7-a24d52e9e044", "category_name": "🏋️ Gym"}
   ],
-  "notes": "Restored 2026-08-27 by Nakatoshi from live YNAB GET. Includes Thaís / Student Loan / Citation / Gym / Pets / Subscriptions plus fleet-loan and Collateral cats. Keep-off: RTA, Uncategorized, Coinbase One Card payment. No invent ids. No dollar moves. Commit this file so workspace-sync cannot clobber it."
+  "notes": "Restored 2026-08-27 by Nakatoshi from live YNAB GET. Includes Thaís / Student Loan / Citation / Gym / Pets / Subscriptions plus fleet-loan and Collateral cats. Keep-off: RTA, Uncategorized, Coinbase One Card payment. No invent ids. No dollar moves. Commit this file so workspace-sync cannot clobber it. Added X P2P (Wants) 2026-08-28 leftover P2P tips."
 }

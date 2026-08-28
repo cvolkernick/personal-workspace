@@ -152,18 +152,18 @@ class TestSoTSchema(unittest.TestCase):
         self.assertTrue(data["allow_approve"])
         self.assertTrue(data["allow_categorize"])
         self.assertTrue(HARD_FORBID.issubset(set(data["forbid"])))
-        self.assertEqual(data["as_of"], "2026-08-27T15:52:32Z")
+        self.assertEqual(data["as_of"], "2026-08-28T14:39:38Z")
         rules = data["payee_rules"]
         self.assertEqual(len(rules), 1)
         self.assertEqual(rules[0]["payee_name"], "Planet Fitness")
         self.assertEqual(rules[0]["category_id"], "4b5886e5-a645-401e-a5a7-a24d52e9e044")
         cats = data["categories"]
-        self.assertEqual(len(cats), 33)
+        self.assertEqual(len(cats), 34)
         enabled = [c for c in cats if c.get("enabled") is True]
         disabled = [c for c in cats if c.get("enabled") is not True]
-        self.assertEqual(len(enabled), 30)
+        self.assertEqual(len(enabled), 31)
         self.assertEqual(len(disabled), 3)
-        self.assertEqual(len(enabled_category_ids(data)), 30)
+        self.assertEqual(len(enabled_category_ids(data)), 31)
         self.assertEqual(
             {c["name"] for c in disabled},
             {
@@ -186,9 +186,13 @@ class TestSoTSchema(unittest.TestCase):
             "Santander",
             "ASIC Fleet OpEx",
             "Agentic Fund Allocation",
+            "X P2P",
         ):
             self.assertIn(required, names)
         by_id = {c["id"]: c for c in cats}
+        self.assertEqual(by_id["57cf549f-4d0f-47a3-b276-493c05c4013d"]["name"], "X P2P")
+        self.assertEqual(by_id["57cf549f-4d0f-47a3-b276-493c05c4013d"]["group_name"], "Wants")
+        self.assertTrue(by_id["57cf549f-4d0f-47a3-b276-493c05c4013d"]["enabled"])
         self.assertEqual(by_id["b8e23b96-da05-45cc-a4b8-01b6c3031e10"].get("sheet_item"), "Fleet Insurance")
         self.assertEqual(by_id["77083d0b-3501-4639-9990-ced43c1a0435"].get("sheet_item"), "FilterEasy")
         self.assertEqual(by_id["4b5886e5-a645-401e-a5a7-a24d52e9e044"]["name"], "🏋️ Gym")
