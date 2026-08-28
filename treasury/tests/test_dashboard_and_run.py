@@ -70,6 +70,28 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertGreater(svg, ico)
         self.assertGreater(len(html), 8000)
 
+    def test_cash_fold_recedes_metric_dump(self):
+        html = (ROOT / "financial-command" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="cash-fold"', html)
+        self.assertIn('id="buffer-sleeves"', html)
+        self.assertIn('id="panel-solana"', html)
+        self.assertIn("HY LTV Buffer", html)
+        self.assertIn("One Card (Morpho refinance)", html)
+        self.assertIn('k: "Vault USDC"', html)
+        self.assertIn('k: "Idle spot USDC"', html)
+        self.assertIn('k: "X Money"', html)
+        self.assertIn("Working USDC", html)
+        self.assertIn("often $0 by design", html)
+        self.assertIn("vault-prefer-idle", html)
+        self.assertIn("ops float", html)
+        self.assertNotIn('id="cb-metrics"', html)
+        self.assertNotIn("cash-credit-side", html)
+        self.assertNotIn("LTV sleeve (spot+HY)", html)
+        self.assertNotIn("Bank cash (RH+X)", html)
+        self.assertNotIn("Solana book", html)
+        self.assertNotIn("Morpho var APR", html)
+        self.assertNotIn("Liq. price (BTC)", html)
+
     def test_action_items_doc(self):
         p = ROOT / "investment" / "treasury-action-items.md"
         text = p.read_text(encoding="utf-8")

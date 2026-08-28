@@ -753,6 +753,46 @@
     }
     .sleeve .bar.gap > i { background: var(--red); }
     .sleeve .gap { font-size: 0.72rem; color: var(--red); margin-top: 0.2rem; }
+    .cash-fold {
+      margin-top: 0.55rem;
+      display: grid;
+      gap: 0.4rem;
+    }
+    .cash-fold-working {
+      background: #0e151c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem 0.55rem 0.55rem;
+    }
+    .cash-fold-working .sum-cap {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+      margin-bottom: 0.35rem;
+    }
+    .cash-fold-working .sum-cap .n {
+      margin-left: 0.4rem;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 0.82rem;
+    }
+    .cash-fold-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.75fr);
+      gap: 0.35rem;
+    }
+    .cash-fold-row.solo {
+      grid-template-columns: minmax(0, 14rem);
+    }
+    .cash-fold .kpi { cursor: default; }
+    .cash-fold-row .kpi:last-child .k { font-size: 0.52rem; }
+    .cash-fold-row .kpi:last-child .v { font-size: 0.78rem; }
+    .cash-fold-row .kpi:last-child .s { font-size: 0.56rem; }
     .hint { color: var(--muted); font-size: 0.8rem; margin: 0.35rem 0; }
     .error {
       background: #2a1515;
@@ -1818,6 +1858,9 @@
         grid-column: 1 / -1;
       }
       .kpi-pair .kpi .v { font-size: 0.9rem; }
+      .cash-fold-row {
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
+      }
       .kpi {
         min-width: 0;
         max-width: 100%;
@@ -2266,10 +2309,7 @@
         <h2>Cash &amp; credit</h2>
       </div>
       <div class="sleeves" id="buffer-sleeves"></div>
-      <div class="grid-2 cash-credit-stats" style="margin-top:0.45rem">
-        <div id="cb-metrics"></div>
-        <div id="cash-credit-side"></div>
-      </div>
+      <div class="cash-fold" id="cash-fold"></div>
     </section>
 
     <details class="panel" id="panel-solana" data-m-panel="cash">
@@ -3943,115 +3983,84 @@
         ),
       ].join("");
 
-      // Cash & credit stats — split evenly across two columns (no empty column)
+      // Cash fold — two sleeve bars above, then vault + idle caption → X Money → compact LTV.
+      // Recede the even-split metric dump (Solana/JR, bank blend, duplicates, BTC, APR/liq).
+      // Glance Liquid/Vault chips stay on Glance; do not re-hero them here.
       const man = snap.coinbase_manual || {};
-      const cashCreditRows = [
-        metric(
-          "LTV sleeve (spot+HY)",
-          money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)
-        ),
-        metric(
-          "One Card owed",
-          money(inp.card_balance ?? oc.balance_owed) + " · Morpho refinance"
-        ),
-        metric(
-          "HY LTV Buffer",
-          inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"
-        ),
-        metric(
-          "Available credit",
-          money(inp.card_available_credit) +
-            (inp.card_available_credit_source === "deposit_minus_balance"
-              ? " · deposit − bal"
-              : "")
-        ),
-        metric(
-          "Idle spot USDC",
-          money(inp.liquid_usdc) + (f(inp.liquid_usdc) < 1 ? " · often $0 by design" : "")
-        ),
-        metric("USDC security deposit", money(inp.card_security_deposit_usdc)),
-        metric(
-          "Liquid BTC",
-          inp.liquid_btc != null ? Number(inp.liquid_btc).toFixed(6) : "—"
-        ),
-        metric("RH Checking", money(inp.rh_checking_cash ?? rhc.cash)),
-        metric("BTC ≈ USD", money(inp.liquid_btc_usd)),
-        metric(
-          "X Money",
-          money(inp.x_money_cash ?? xm.cash) +
-            (inp.x_money_account || xm.account_name
-              ? ` · ${(inp.x_money_account || xm.account_name || "").toString().slice(0, 20)}`
-              : "") +
-            ((inp.x_money_apy_est ?? xm.apy_est) != null
-              ? ` · ~${(Number(inp.x_money_apy_est ?? xm.apy_est) * 100).toFixed(0)}% APY`
-              : "")
-        ),
-        metric("LTV", pct(inp.ltv)),
-        metric(
-          "Morpho var APR",
-          (() => {
-            const apr =
-              man.variable_apr != null
-                ? f(man.variable_apr)
-                : man.morpho_borrow_apr != null
-                  ? f(man.morpho_borrow_apr)
-                  : inp.variable_apr != null
-                    ? f(inp.variable_apr)
-                    : null;
-            if (apr == null || !Number.isFinite(apr)) return "— · set in Settings";
-            const principal =
-              f(inp.loan_principal_usdc) || f(man.loan_principal_usdc) || 0;
-            const yr =
-              principal > 0 && apr > 0
-                ? ` · ~${money(principal * apr)}/yr`
-                : "";
-            return (apr * 100).toFixed(2) + "%" + yr;
-          })()
-        ),
-        metric(
-          "Liq. price (BTC)",
-          (() => {
-            const liq =
-              inp.liquidation_price_btc_usd != null
-                ? f(inp.liquidation_price_btc_usd)
-                : man.liquidation_price_btc_usd != null
-                  ? f(man.liquidation_price_btc_usd)
-                  : null;
-            if (liq == null || !Number.isFinite(liq)) return "— · set in Settings";
-            const btcPx = f(inp.btc_usd_price);
-            if (btcPx > 0 && btcPx > liq) {
-              const cushion = ((btcPx - liq) / btcPx) * 100;
-              return money(liq) + ` · ${cushion.toFixed(0)}% below spot`;
-            }
-            return money(liq);
-          })()
-        ),
-        metric("Bank cash (RH+X)", money(inp.bank_cash)),
-        metric("Card source", inp.card_source || oc.source || "—"),
-        metric("Bill-pay cash", money(inp.bill_pay_cash)),
-        metric("Checking 30d out", money(rhc.spend_30d)),
-        metric("X Money 30d out", money(xm.spend_30d ?? inp.x_money_spend_30d)),
-        metric(
-          "Solana book",
-          money(inp.solana_book_usd ?? (snap.solana || {}).book_usd) +
-            " · not HY"
-        ),
-        metric(
-          "JR-strcUSX",
-          (inp.solana_jr_strcusx != null
-            ? Number(inp.solana_jr_strcusx).toFixed(4)
-            : "—") +
-            " · " +
-            money(inp.solana_jr_strcusx_usd ?? (snap.solana || {}).jr_strcusx_usd)
-        ),
-      ];
-      const cashMid = Math.ceil(cashCreditRows.length / 2);
-      document.getElementById("cb-metrics").innerHTML = cashCreditRows
-        .slice(0, cashMid)
-        .join("");
-      document.getElementById("cash-credit-side").innerHTML = cashCreditRows
-        .slice(cashMid)
-        .join("");
+      const idleByDesign = Number.isFinite(liquidUsdc) && liquidUsdc < 1;
+      const tIdleFold = idleByDesign
+        ? toneResult(
+            "muted",
+            `Idle spot USDC ${money(liquidUsdc)} — often $0 by design.`
+          )
+        : toneResult(
+            "yellow",
+            `Idle spot USDC ${money(liquidUsdc)} is not parked in HY (vault-prefer-idle).`
+          );
+      function rhFundedBillsDueSoon(tabs) {
+        const t = tabs && typeof tabs === "object" ? tabs : {};
+        return Object.keys(t).some((name) => {
+          const block = t[name] || {};
+          const rows = []
+            .concat(block.items || [])
+            .concat(block.upcoming_by_date || []);
+          return rows.some((r) => {
+            if (!r || srcTagClass(r.from) !== "rh") return false;
+            const u = dueUrgency(r.date);
+            return u.days != null && u.days <= 7;
+          });
+        });
+      }
+      const showRhCheck = rhCheck > 0 || rhFundedBillsDueSoon(ex.tabs);
+      const foldEl = document.getElementById("cash-fold");
+      if (foldEl) {
+        const vaultChip = kpiHtml({
+          k: "Vault USDC",
+          v: vaultKnown ? money(vaultUsdc) : "enter in Settings",
+          s: vaultKnown ? "HY home" : "unknown",
+          tone: tVault.tone,
+          why: tVault.why,
+        });
+        const idleChip = kpiHtml({
+          k: "Idle spot USDC",
+          v: money(liquidUsdc),
+          s: idleByDesign ? "often $0 by design" : "not in HY",
+          tone: tIdleFold.tone,
+          why: tIdleFold.why,
+        });
+        const xChip = kpiHtml({
+          k: "X Money",
+          v: money(xMoney),
+          s: "ops float",
+          tone: tXMoney.tone,
+          why: tXMoney.why,
+        });
+        const ltvChip = kpiHtml({
+          k: "Morpho LTV",
+          v: pct(ltvVal),
+          s: stress.coinbase_ltv || "Morpho",
+          tone: tLtv.tone,
+          why: tLtv.why,
+        });
+        const rhHtml = showRhCheck
+          ? `<div class="cash-fold-row solo">${kpiHtml({
+              k: "RH Checking",
+              v: money(rhCheck),
+              s: "bill-pay",
+              tone: tRhCheck.tone,
+              why: tRhCheck.why,
+            })}</div>`
+          : "";
+        foldEl.innerHTML =
+          `<div class="cash-fold-working">` +
+          `<div class="sum-cap">Working USDC<span class="n">${money(
+            workingUsdc
+          )}</span></div>` +
+          `<div class="kpi-pair">${vaultChip}${idleChip}</div>` +
+          `</div>` +
+          `<div class="cash-fold-row">${xChip}${ltvChip}</div>` +
+          rhHtml;
+      }
 
       const solSnap = snap.solana || {};
       const solHold = solSnap.holdings || [];
@@ -4472,7 +4481,7 @@
         )
         .join("");
 
-      // man already set above for cash metrics
+      // man set above with the Cash fold (Settings fields).
       const set = (id, v) => {
         const el = document.getElementById(id);
         if (el && v !== null && v !== undefined && v !== "") el.value = v;
