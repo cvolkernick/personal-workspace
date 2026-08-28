@@ -157,6 +157,37 @@
       color: var(--muted); font-size: 0.78rem;
     }
     a { color: var(--accent); }
+    @media (max-width: 720px) {
+      .sticky-top { padding: 0.55rem 0.75rem; }
+      .sticky-top .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.45rem;
+      }
+      .sticky-top .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        width: 100%;
+      }
+      /* Keep ← FCC | Refresh; hide satellite siblings (same contract as FCC Watchlist | Refresh). */
+      #nav-horizon,
+      #nav-capital-flows,
+      #nav-watchlist,
+      #nav-fleet {
+        display: none;
+      }
+      .sticky-top .controls button,
+      .sticky-top .controls .btn,
+      .sticky-top .controls a.btn {
+        justify-content: center;
+        min-height: 2.5rem;
+        padding: 0.5rem 0.6rem;
+        font-size: 0.8rem;
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
   </style>
 </head>
 <body>
@@ -236,7 +267,8 @@
   </main>
 
   <footer>
-    Interest Spectrum · FCC · cash APR/APY · Bitcoin / Agentic Fund est. CAGR exception · two-lane axis · display-only FCF nudge after essentials current
+    <a href="index.html">← FCC</a> ·
+    Interest Spectrum · cash APR/APY · Bitcoin / Agentic Fund est. CAGR exception · two-lane axis · display-only FCF nudge after essentials current
   </footer>
 
   <script src="nav-horizon.js"></script>
