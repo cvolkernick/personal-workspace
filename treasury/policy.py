@@ -589,6 +589,9 @@ def evaluate_treasury(
         detail: str,
         api_reachable: bool,
     ) -> None:
+        # Either = shared hands. App-only rows are You, even if a caller said either.
+        if actor == "either" and not api_reachable:
+            actor = "human"
         actions.append(
             {
                 "priority": priority,
@@ -801,12 +804,12 @@ def evaluate_treasury(
             3,
             "rh_checking_float",
             f"Est. RH Checking–funded bills ~${float(rh_checking_burn):.0f}/mo vs checking float ${float(bill_pay_cash):.2f} ({src})",
-            actor="either",
+            actor="human",
             detail=(
                 "Upcoming sheet bills marked RH Checking. "
                 "Actual checking balance/txs from YNAB when linked; top up before ACH due dates."
             ),
-            api_reachable=True,
+            api_reachable=False,
         )
     if rh_checking.get("source") not in (None, "empty") and not rh_checking.get("live_error"):
         if rh_checking_cash is not None and rh_checking_cash < 50 and (rh_checking_burn or 0) > 0:
