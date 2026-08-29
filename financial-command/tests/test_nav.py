@@ -152,19 +152,31 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(rh["href"], "https://robinhood.com/")
         self.assertEqual(rh.get("target") or "", "_blank")
 
+        expenses = _by_id(index, "nav-expenses")
+        self.assertEqual(expenses["text"], "Expenses")
+        self.assertEqual(
+            expenses["href"],
+            "https://docs.google.com/spreadsheets/d/15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ/edit",
+        )
+        self.assertEqual(expenses.get("target") or "", "_blank")
+
         index_html = (FCC / "index.html").read_text(encoding="utf-8")
         h1 = re.search(r"<h1\b.*?</h1>", index_html, re.S)
         self.assertIsNotNone(h1)
         self.assertNotIn("nav-coinbase", h1.group(0))
         self.assertNotIn("nav-robinhood", h1.group(0))
+        self.assertNotIn("nav-expenses", h1.group(0))
         self.assertIn('class="broker-links"', index_html)
         cb_at = index_html.find('id="nav-coinbase"')
         rh_at = index_html.find('id="nav-robinhood"')
+        exp_at = index_html.find('id="nav-expenses"')
         h1_at = index_html.find("<h1")
         self.assertGreater(h1_at, 0)
         self.assertLess(cb_at, h1_at)
         self.assertLess(rh_at, h1_at)
+        self.assertLess(exp_at, h1_at)
         self.assertLess(cb_at, rh_at)
+        self.assertLess(rh_at, exp_at)
 
         self.assertIn('k: "Agentic NAV"', index_html)
         self.assertIn('k: "Morpho LTV"', index_html)

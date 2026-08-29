@@ -21,10 +21,16 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("https://www.coinbase.com/home", html)
         self.assertIn('id="nav-robinhood"', html)
         self.assertIn("https://robinhood.com/", html)
+        self.assertIn('id="nav-expenses"', html)
+        self.assertIn(
+            "https://docs.google.com/spreadsheets/d/15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ/edit",
+            html,
+        )
         self.assertIn('class="broker-links"', html)
         h1 = html[html.find("<h1") : html.find("</h1>") + 5]
         self.assertNotIn("nav-coinbase", h1)
         self.assertNotIn("nav-robinhood", h1)
+        self.assertNotIn("nav-expenses", h1)
         self.assertIn('k: "BTC"', html)
         self.assertNotIn('k: "BP"', html)
         self.assertIn('k: "Agentic NAV"', html)
