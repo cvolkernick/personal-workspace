@@ -1,8 +1,8 @@
 {
-  "version": 43,
+  "version": 44,
   "as_of": "2026-08-29",
   "title": "Capital Flows — X Money · Digital Credit ↔ Margin ↔ JR-strcUSX",
-  "notes": "v43: same Lyft / GrubHub card; Lyft → Digital Credit, GrubHub → X Money (owner 2026-08-29). v42: GrubHub added to the Lyft card. v41: Lyft → Digital Credit only (no Lyft → X Money). v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin. Spine: X Money → Digital Credit → Margin. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "notes": "v44: Deploy column visual order Fleet above Essential (owner 2026-08-29). Edges unchanged. v43: same Lyft / GrubHub card; Lyft → Digital Credit, GrubHub → X Money. v42: GrubHub added to the Lyft card. v41: Lyft → Digital Credit only (no Lyft → X Money). v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin. Spine: X Money → Digital Credit → Margin. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -24,8 +24,8 @@
         "id": "deploy",
         "label": "Deploy",
         "ids": [
-          "bills_essential",
           "bills_fleet",
+          "bills_essential",
           "bills_collateral",
           "bills_productive",
           "bills_consumer"
