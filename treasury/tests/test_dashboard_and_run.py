@@ -134,7 +134,10 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn(("lyft", "digital_credit"), pairs)
         self.assertNotIn(("lyft", "x_money"), pairs)
         lyft = next(s for s in model["income_sources"] if s["id"] == "lyft")
+        self.assertEqual(lyft.get("label"), "Lyft / GrubHub")
         self.assertEqual(lyft.get("typical_landing"), "digital_credit")
+        self.assertIn("Lyft / GrubHub", html)
+        self.assertNotIn("Lyft → both X Money and Digital Credit", html)
         self.assertGreater(len(model.get("edges") or []), 5)
 
 
@@ -243,6 +246,9 @@ class TestFccSidecarAttach(unittest.TestCase):
         pairs = {(e["from"], e["to"]) for e in data.get("edges") or []}
         self.assertNotIn(("lyft", "x_money"), pairs)
         self.assertIn(("lyft", "digital_credit"), pairs)
+        lyft = next(s for s in data.get("income_sources") or [] if s.get("id") == "lyft")
+        self.assertEqual(lyft.get("label"), "Lyft / GrubHub")
+        self.assertEqual(data.get("version"), 42)
 
 
 if __name__ == "__main__":
