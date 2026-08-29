@@ -61,12 +61,16 @@ _TRIP_IN_TEXT = re.compile(
 _TRIP_HASH = re.compile(r"(?:^|[\s(])#\s*(\d{6,8})\b")
 
 
-# Static public host profile. Mail-proven Corollas only. Never fetched.
+# Static public host profile. Never fetched live from Turo.
 MIKE_TURO_HOST_LABEL = "Mike's"
 MIKE_TURO_DRIVER_ID = "27172979"
 MIKE_TURO_PUBLIC_URL = "https://turo.com/us/en/drivers/27172979"
+# Corollas: trip mail. Rivian: Turo Support case 20260826-S3MDJC
+# (VIN 7PDSGABA3PN028624 listed on Mike's account) + owner 2026-08-29.
 # Fleet-tagged turo / Mike's is not enough. m3-2022 stays gated.
-MAIL_PROVEN_HOST_UNIT_IDS = frozenset({"corolla-2022", "corolla-2024"})
+MAIL_PROVEN_HOST_UNIT_IDS = frozenset(
+    {"corolla-2022", "corolla-2024", "r1s-2023"}
+)
 
 
 def host_label_for(unit: Mapping[str, Any]) -> Optional[str]:
@@ -82,7 +86,7 @@ def host_label_for(unit: Mapping[str, Any]) -> Optional[str]:
 
 
 def host_identity_for(unit: Mapping[str, Any]) -> Optional[dict[str, str]]:
-    """Thin static Mike Turo chip. Mail-proven units only. No live Turo read."""
+    """Thin static Mike Turo chip. Listing-proven units only. No live Turo read."""
     uid = str(unit.get("id") or "")
     if uid not in MAIL_PROVEN_HOST_UNIT_IDS:
         return None

@@ -56,8 +56,8 @@ ROSTER_UNITS = [
         "year": 2023,
         "make": "Rivian",
         "model": "R1S",
-        "role": "personal",
-        "vin": None,
+        "role": "turo",
+        "vin": "7PDSGABA3PN028624",
     },
 ]
 
@@ -69,7 +69,7 @@ def _with_roles(units: list[dict]) -> list[dict]:
         "m3-2022": "turo",
         "corolla-2022": "turo",
         "corolla-2024": "turo",
-        "r1s-2023": "personal",
+        "r1s-2023": "turo",
     }
     out = []
     for u in units:

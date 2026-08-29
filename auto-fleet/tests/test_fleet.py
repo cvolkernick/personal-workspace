@@ -34,6 +34,7 @@ class FleetAssemblyTests(unittest.TestCase):
             inbox_path=inbox or EMPTY_INBOX,
             dimo_env={},
             now="2026-08-17T16:00:00+00:00",
+            gt={"ok": True, "items": [], "source": "test"},
         )
 
     def test_units_from_roster(self) -> None:
@@ -56,9 +57,10 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertEqual(r1s["identity"]["year"], 2023)
         self.assertEqual(r1s["identity"]["make"], "Rivian")
         self.assertEqual(r1s["identity"]["model"], "R1S")
-        self.assertEqual(r1s["identity"]["role"], "personal")
-        self.assertIsNone(r1s["identity"]["vin"])
+        self.assertEqual(r1s["identity"]["role"], "turo")
+        self.assertEqual(r1s["identity"]["vin"], "7PDSGABA3PN028624")
         self.assertEqual(r1s["identity"]["lender"], "Vivek")
+        self.assertEqual(r1s["identity"]["host_label"], "Mike's")
         self.assertEqual(by_id["m3-2020"]["identity"]["lender"], "Wells Fargo")
         self.assertEqual(by_id["corolla-2022"]["identity"]["plate"], "24EWUH")
         self.assertEqual(by_id["corolla-2024"]["identity"]["plate"], "25EWUH")
@@ -145,12 +147,14 @@ class FleetAssemblyTests(unittest.TestCase):
         personal = by_id["m3-2020"]["finance"]
         self.assertEqual(personal["sheet_lines"], [])
         rivian = by_id["r1s-2023"]["finance"]
-        self.assertEqual(rivian["sheet_lines"], [])
+        rivian_names = {l["item"] for l in rivian["sheet_lines"]}
+        self.assertIn("Rivian R1S", rivian_names)
+        self.assertAlmostEqual(rivian["sheet_monthly"], 1350.0)
 
         shared_names = {l["item"] for l in payload["shared_finance"]["lines"]}
         self.assertIn("Fleet Insurance", shared_names)
         self.assertIn("Sud Stop Car Wash", shared_names)
-        self.assertIn("Rivian R1S", shared_names)
+        self.assertNotIn("Rivian R1S", shared_names)
         self.assertIn("Premium Connectivity", shared_names)
 
     def test_default_turo_and_dimo_are_empty_honest(self) -> None:

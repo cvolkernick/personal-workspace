@@ -69,8 +69,8 @@
         "year": 2023,
         "make": "Rivian",
         "model": "R1S",
-        "role": "personal",
-        "host_label": null
+        "role": "turo",
+        "host_label": "Mike's"
       },
       "bookings": [],
       "schedule": [],

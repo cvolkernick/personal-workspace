@@ -64,8 +64,8 @@ ROSTER_UNITS = [
         "year": 2023,
         "make": "Rivian",
         "model": "R1S",
-        "role": "personal",
-        "vin": None,
+        "role": "turo",
+        "vin": "7PDSGABA3PN028624",
     },
 ]
 
@@ -102,11 +102,12 @@ class LockedFinanceTests(unittest.TestCase):
         self.assertEqual(by_id["corolla-2024"]["identity"]["host_label"], "Mike's")
         self.assertEqual(by_id["corolla-2022"]["identity"]["host_label"], "Mike's")
         self.assertEqual(by_id["m3-2022"]["identity"]["host_label"], "Mike's")
+        self.assertEqual(by_id["r1s-2023"]["identity"]["host_label"], "Mike's")
         self.assertEqual(by_id["corolla-2022"]["identity"]["plate"], "24EWUH")
         self.assertEqual(by_id["corolla-2024"]["identity"]["plate"], "25EWUH")
         self.assertIsNone(by_id["m3-2022"]["identity"]["plate"])
         self.assertIsNone(by_id["r1s-2023"]["identity"]["plate"])
-        self.assertIsNone(by_id["r1s-2023"]["identity"]["vin"])
+        self.assertEqual(by_id["r1s-2023"]["identity"]["vin"], "7PDSGABA3PN028624")
 
 
 class HostIdentityTests(unittest.TestCase):
@@ -118,13 +119,17 @@ class HostIdentityTests(unittest.TestCase):
         "public_url": "https://turo.com/us/en/drivers/27172979",
     }
 
-    def test_mail_proven_corollas_only(self) -> None:
+    def test_mail_proven_corollas_and_rivian(self) -> None:
         self.assertEqual(
             car_cards.host_identity_for({"id": "corolla-2022", "role": "turo"}),
             self.STATIC,
         )
         self.assertEqual(
             car_cards.host_identity_for({"id": "corolla-2024", "role": "turo"}),
+            self.STATIC,
+        )
+        self.assertEqual(
+            car_cards.host_identity_for({"id": "r1s-2023", "role": "turo"}),
             self.STATIC,
         )
         self.assertIsNone(
@@ -140,7 +145,7 @@ class HostIdentityTests(unittest.TestCase):
             car_cards.host_identity_for({"id": "corolla-2022", "role": "personal"})
         )
 
-    def test_fleet_payload_scopes_chip_to_corollas(self) -> None:
+    def test_fleet_payload_scopes_chip_to_listing_proven_units(self) -> None:
         payload = fleet.build_fleet(
             roster_path=ROSTER,
             notes_path=NOTES,
@@ -150,9 +155,9 @@ class HostIdentityTests(unittest.TestCase):
             now=NOW,
         )
         by_id = {u["id"]: u for u in payload["units"]}
-        for uid in ("corolla-2022", "corolla-2024"):
+        for uid in ("corolla-2022", "corolla-2024", "r1s-2023"):
             self.assertEqual(by_id[uid]["identity"]["host_identity"], self.STATIC)
-        for uid in ("m3-2022", "m3-2020", "r1s-2023"):
+        for uid in ("m3-2022", "m3-2020"):
             self.assertIsNone(by_id[uid]["identity"]["host_identity"])
         blob = json.dumps(payload)
         self.assertNotIn("rating", blob.lower())
@@ -169,7 +174,7 @@ class HostIdentityTests(unittest.TestCase):
             now=NOW,
         )
         by_id = {u["id"]: u for u in payload["units"]}
-        for uid in ("corolla-2022", "corolla-2024"):
+        for uid in ("corolla-2022", "corolla-2024", "r1s-2023"):
             html = glance.render_unit_card_html(by_id[uid], now=NOW)
             host = html[: html.find("<h3>Vehicle</h3>")]
             self.assertIn('class="strip host-identity"', host)
@@ -183,7 +188,7 @@ class HostIdentityTests(unittest.TestCase):
             self.assertNotIn("Schedule", host)
             self.assertNotIn("booking", host.lower())
             self.assertNotIn("inbox", host.lower())
-        for uid in ("m3-2022", "m3-2020", "r1s-2023"):
+        for uid in ("m3-2022", "m3-2020"):
             html = glance.render_unit_card_html(by_id[uid], now=NOW)
             self.assertNotIn("host-identity", html)
             self.assertNotIn("27172979", html)

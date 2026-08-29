@@ -114,8 +114,8 @@ class AutoFleetServerTests(unittest.TestCase):
                 self.assertEqual(
                     r1s["glance"]["photo"], "/static/fleet/rivian-r1s-2023.jpg"
                 )
-                self.assertIsNone(r1s["identity"]["vin"])
-                self.assertEqual(r1s["finance"]["sheet_lines"], [])
+                self.assertEqual(r1s["identity"]["vin"], "7PDSGABA3PN028624")
+                self.assertEqual(r1s["identity"]["role"], "turo")
                 self.assertEqual(
                     by_id["m3-2020"]["glance"]["photo"],
                     "/static/fleet/tesla-model-3-2020.jpg",
@@ -163,7 +163,10 @@ class AutoFleetServerTests(unittest.TestCase):
                 )
                 self.assertIsNone(by_id["m3-2022"]["identity"]["host_identity"])
                 self.assertIsNone(by_id["m3-2020"]["identity"]["host_identity"])
-                self.assertIsNone(by_id["r1s-2023"]["identity"]["host_identity"])
+                self.assertEqual(
+                    by_id["r1s-2023"]["identity"]["host_identity"],
+                    by_id["corolla-2022"]["identity"]["host_identity"],
+                )
                 for unit in fleet["units"]:
                     self.assertIn("identity", unit)
                     self.assertIn("year", unit["identity"])
