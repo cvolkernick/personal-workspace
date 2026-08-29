@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-28T21:47:57.987636+00:00",
+    "as_of": "2026-08-29T00:50:38.587769+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-28T19:59:03.526378+00:00",
@@ -3415,7 +3415,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-28T21:47:57.872816+00:00",
+      "as_of": "2026-08-29T00:50:35.520334+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3429,9 +3429,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-28T21:47:57.872812+00:00",
-        "total_value": 227.9861337432,
-        "equity_value": 227.8961337432,
+        "as_of": "2026-08-29T00:50:35.520330+00:00",
+        "total_value": 228.2108661273,
+        "equity_value": 228.1208661273,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3758,7 +3758,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 227.9861337432,
+      "rh_agentic_total_value": 228.2108661273,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 10,
@@ -3866,7 +3866,7 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-28T19:59:03.526378+00:00",
-        "robinhood_as_of": "2026-08-28T21:47:57.872816+00:00",
+        "robinhood_as_of": "2026-08-29T00:50:35.520334+00:00",
         "one_card_as_of": "2026-08-28T19:59:04.182216+00:00",
         "rh_checking_as_of": "2026-08-28T19:59:04.457823+00:00",
         "x_money_as_of": "2026-08-28T19:59:04.796250+00:00",
@@ -3996,16 +3996,16 @@
           "id": "expenses",
           "title": "Expenses paid & current",
           "status": "partial",
-          "need": 11352.0,
+          "need": 11778.0,
           "allocated": 403.99,
-          "gap": 10948.01,
-          "detail": "5 overdue \u00b7 3 due \u22647d \u00b7 critical $11,352",
+          "gap": 11374.01,
+          "detail": "5 overdue \u00b7 4 due \u22647d \u00b7 critical $11,778",
           "fund_from": "venue_cash",
           "meta": {
             "overdue_count": 5,
-            "due_soon_count": 3,
+            "due_soon_count": 4,
             "overdue_total": 9110.0,
-            "due_soon_total": 2242.0
+            "due_soon_total": 2668.0
           }
         },
         {
@@ -4050,7 +4050,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 12214.11,
+          "gap": 12640.11,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -4100,10 +4100,10 @@
         }
       ],
       "expense_window": {
-        "critical_total": 11352.0,
+        "critical_total": 11778.0,
         "overdue_count": 5,
-        "due_soon_count": 3,
-        "as_of_date": "2026-08-28"
+        "due_soon_count": 4,
+        "as_of_date": "2026-08-29"
       },
       "capex": {
         "fund_from": "collateralized_margin",
@@ -4212,25 +4212,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-28T21:47:57.992676+00:00",
+      "as_of": "2026-08-29T00:50:38.592889+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-28T21:47:57.989589+00:00",
+        "as_of": "2026-08-29T00:50:38.589835+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 227.9861,
+        "nav_usd": 228.2109,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 199.7289,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3554,
-          "stocks_growth": 0.5206,
+          "btc_digital_credit": 0.3551,
+          "stocks_growth": 0.5201,
           "other": 0.0,
           "cash": 0.0004
         },
@@ -6014,25 +6014,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-28T21:47:57.992676+00:00",
+    "as_of": "2026-08-29T00:50:38.592889+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-28T21:47:57.989589+00:00",
+      "as_of": "2026-08-29T00:50:38.589835+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 227.9861,
+      "nav_usd": 228.2109,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 199.7289,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3554,
-        "stocks_growth": 0.5206,
+        "btc_digital_credit": 0.3551,
+        "stocks_growth": 0.5201,
         "other": 0.0,
         "cash": 0.0004
       },
