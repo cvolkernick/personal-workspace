@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Install (macOS user launchd) — Coinbase + Solana live snapshot every hour:
+    cp treasury/deploy/com.personalworkspace.cb-solana-refresh.plist ~/Library/LaunchAgents/
+    launchctl bootout gui/$(id -u)/com.personalworkspace.cb-solana-refresh 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.cb-solana-refresh.plist
+    launchctl kickstart -k gui/$(id -u)/com.personalworkspace.cb-solana-refresh
+
+  Unload:
+    launchctl bootout gui/$(id -u)/com.personalworkspace.cb-solana-refresh
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.personalworkspace.cb-solana-refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/cb_solana_refresh.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/opt/homebrew/sbin:/Users/cvolkernick/.local/bin:/usr/local/bin:/Users/cvolkernick/.grok/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/cvolkernick</string>
+    <key>FCC_HOST_TAG</key>
+    <string>mac</string>
+  </dict>
+  <!-- 1 hour — under FCC 6h stale threshold -->
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/cb_solana_refresh_launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/cb_solana_refresh_launchd.err.log</string>
+</dict>
+</plist>

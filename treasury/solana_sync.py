@@ -326,6 +326,37 @@ def write_solana_snapshot(data: Dict[str, Any], path: Optional[Path] = None) -> 
     return out
 
 
+def overlay_solana_snapshot(
+    treasury: Dict[str, Any],
+    *,
+    snapshot_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """If snapshot.solana is missing/empty, fill from solana_latest.json.
+
+    Refresh on a host whose build_snapshot does not know Solana used to rewrite
+    treasury_latest.json with snapshot.solana = {} and blank the SOL chip.
+    Never overwrites a present as_of block.
+    """
+    if not isinstance(treasury, dict):
+        return treasury
+    snap = treasury.get("snapshot")
+    if not isinstance(snap, dict):
+        snap = {}
+        treasury["snapshot"] = snap
+    sol = snap.get("solana")
+    missing = not isinstance(sol, dict) or not sol or not sol.get("as_of")
+    if not missing:
+        return treasury
+    file_data = load_json(snapshot_path or (SNAPSHOTS_DIR / SNAPSHOT_NAME))
+    if file_data and file_data.get("as_of"):
+        snap["solana"] = file_data
+        meta = snap.get("meta") if isinstance(snap.get("meta"), dict) else {}
+        snap["meta"] = meta
+        meta["solana_source"] = file_data.get("source")
+        meta["solana_sidecar"] = True
+    return treasury
+
+
 def fetch_solana(
     *,
     prefer_live: bool = True,
