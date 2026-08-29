@@ -1,8 +1,8 @@
 {
-  "version": 42,
+  "version": 43,
   "as_of": "2026-08-29",
   "title": "Capital Flows — X Money · Digital Credit ↔ Margin ↔ JR-strcUSX",
-  "notes": "v42: Lyft card includes GrubHub (same Digital Credit landing; still one income node). v41: Lyft → Digital Credit only (no Lyft → X Money). v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). Spine: X Money → Digital Credit → Margin. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "notes": "v43: same Lyft / GrubHub card; Lyft → Digital Credit, GrubHub → X Money (owner 2026-08-29). v42: GrubHub added to the Lyft card. v41: Lyft → Digital Credit only (no Lyft → X Money). v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin. Spine: X Money → Digital Credit → Margin. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -48,8 +48,9 @@
       "label": "Lyft / GrubHub",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Lyft and GrubHub land Digital Credit (Coinbase/Morpho engine). Does not land X Money.",
+      "evidence": "Lyft lands Digital Credit (Coinbase/Morpho). GrubHub lands X Money (ops cash). Same income card; two landings.",
       "typical_landing": "digital_credit",
+      "landing_label": "Lyft → DC · GrubHub → X Money",
       "cadence": "weekly"
     },
     {
@@ -103,7 +104,7 @@
       "stroke": "liq-gray",
       "subtitle": "~6% · ops float",
       "confidence": "owner_stated",
-      "notes": "Ops cash sleeve (left of LE). Receives Turo; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
+      "notes": "Ops cash sleeve (left of LE). Receives Turo + GrubHub; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
     },
     {
       "id": "digital_credit",
@@ -182,7 +183,14 @@
       "to": "digital_credit",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Lyft / GrubHub land Morpho/BTC engine. Not X Money."
+      "notes": "Lyft lands Morpho/BTC engine."
+    },
+    {
+      "from": "lyft",
+      "to": "x_money",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "GrubHub lands X Money (ops cash). Not Digital Credit."
     },
     {
       "from": "asics",
