@@ -1,8 +1,8 @@
 {
-  "version": 40,
-  "as_of": "2026-08-25",
+  "version": 41,
+  "as_of": "2026-08-29",
   "title": "Capital Flows — X Money · Digital Credit ↔ Margin ↔ JR-strcUSX",
-  "notes": "v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). v39 spine otherwise unchanged: X Money → Digital Credit → Margin. Turo → X Money only. Lyft → both X Money and Digital Credit. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "notes": "v41: Lyft → Digital Credit only (no Lyft → X Money). v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). Spine: X Money → Digital Credit → Margin. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -48,10 +48,8 @@
       "label": "Lyft",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Lyft splits to both X Money (ops) and Digital Credit (Coinbase/Morpho engine).",
-      "typical_landing": "x_money",
-      "landing_label": "X Money · Digital Credit",
-      "engine_target": "digital_credit",
+      "evidence": "Lyft lands Digital Credit (Coinbase/Morpho engine). Does not land X Money.",
+      "typical_landing": "digital_credit",
       "cadence": "weekly"
     },
     {
@@ -105,7 +103,7 @@
       "stroke": "liq-gray",
       "subtitle": "~6% · ops float",
       "confidence": "owner_stated",
-      "notes": "Ops cash sleeve (left of LE). Receives Turo + half of Lyft; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
+      "notes": "Ops cash sleeve (left of LE). Receives Turo; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
     },
     {
       "id": "digital_credit",
@@ -181,17 +179,10 @@
     },
     {
       "from": "lyft",
-      "to": "x_money",
-      "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Lyft share to ops cash."
-    },
-    {
-      "from": "lyft",
       "to": "digital_credit",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Lyft share to Morpho/BTC engine."
+      "notes": "Lyft lands Morpho/BTC engine. Not X Money."
     },
     {
       "from": "asics",
