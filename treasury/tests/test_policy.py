@@ -404,6 +404,65 @@ class TestEvaluateTreasury(unittest.TestCase):
         self.assertEqual(ev["stress"]["coinbase_ltv"], "green")
 
 
+class TestActorEitherRequiresExecute(unittest.TestCase):
+    def test_app_only_rows_are_you_not_either(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 50, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.46,
+                "loan_principal_usdc": 4600,
+                "collateral_btc_usd": 10000,
+                "card_balance": 200,
+                "card_available_credit": 50,
+                "vault_usdc": 100,
+            },
+            "one_card": {"source": "ynab", "card_balance": 200},
+            "rh_checking": {"source": "ynab", "cash": 2},
+            "expenses": {
+                "summary": {
+                    "coinbase_funded_monthly": 5000,
+                    "rh_funded_monthly": 1000,
+                }
+            },
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 10,
+                "equity_value": 10000,
+                "margin_use": 0.1,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        for a in ev["actions"]:
+            if not a.get("api_reachable"):
+                self.assertNotEqual(a.get("actor"), "either", a)
+
+    def test_excess_allocate_can_be_either(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.30,
+                "loan_principal_usdc": 30000,
+                "collateral_btc_usd": 100000,
+                "card_balance": 0,
+                "card_available_credit": 4000,
+                "vault_usdc": 0,
+            },
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 1500,
+                "equity_value": 20000,
+                "margin_use": 0.1,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        alloc = [a for a in ev["actions"] if a["kind"] == "excess_allocate"]
+        self.assertTrue(alloc)
+        self.assertTrue(alloc[0]["api_reachable"])
+        self.assertEqual(alloc[0]["actor"], "either")
+
+
 if __name__ == "__main__":
     unittest.main()
 
