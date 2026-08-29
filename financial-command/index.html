@@ -2432,25 +2432,15 @@
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
         <span id="morpho" hidden></span>
-        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; Morpho HY product chip = product_apy / settings fallback / seed 7% (vault GraphQL ≠ Coinbase One product rate); RH equity/margin → USDG Earn (live Morpho GraphQL / settings fallback / seed 7% · Gold may cancel)</div>
+        <div class="hint">Morpho BTC loan is live from the Coinbase Borrow smart wallet (GraphQL) — not Settings. Writes (repay / add collateral) stay in the Coinbase app. HY vault balance is still Settings (different wallet). Morpho HY product chip = product_apy / settings fallback / seed 7% (vault GraphQL ≠ Coinbase One product rate); RH equity/margin → USDG Earn (live Morpho GraphQL / settings fallback / seed 7% · Gold may cancel)</div>
+        <div id="morpho-live" class="hint"></div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
-            <label>CB loan principal (USDC)</label>
-            <input id="m-principal" type="number" step="any" placeholder="from Borrow app" />
-            <label>CB collateral value (USD)</label>
-            <input id="m-collateral" type="number" step="any" placeholder="BTC collateral USD" />
-            <label>CB LTV (0–1, e.g. 0.35)</label>
-            <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
             <label>CB High Yield vault USDC (LTV buffer)</label>
             <input id="m-vault" type="number" step="any" placeholder="Morpho HY · not card float" />
             <label>Coinbase One Morpho HY product APY override (0–1 · blank = product_apy or seed 7%)</label>
             <input id="m-vault-apy" type="number" step="0.001" min="0" max="1" placeholder="blank = seed 7% · not Morpho vault GraphQL" />
             <p class="hint">Honest product_apy (Coinbase One) beats this fallback. Vault GraphQL avgNetApy is vault reference only — not the Coinbase One in-app product rate. Do not invent a One %. Blank/0 uses product_apy if present, else seed 7%.</p>
-            <label>Coinbase BTC-backed Morpho loan APR override (0–1 · blank = live or seed ~5%)</label>
-            <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed ~5%" />
-            <p class="hint">Interest Spectrum Morpho loan chip — margin/borrow interest, not Morpho HY. Honest live avgBorrowApy beats this fallback. Blank/0 keeps live if present, else seed 5%. Empty/0 must not paint 0%.</p>
-            <label>Morpho liquidation price (BTC USD)</label>
-            <input id="m-liq-price" type="number" step="any" placeholder="e.g. 16559.79" />
             <label>Bitcoin est. CAGR override (0–1 · blank = seed 30%)</label>
             <input id="m-btc-cagr" type="number" step="0.001" min="0" max="2" placeholder="blank = seed 30% · est. CAGR" />
             <p class="hint">Interest Spectrum Bitcoin line only. Est. CAGR — not cash APR/APY. Blank keeps the 30% seed. Do not invent a live BTC return.</p>
@@ -2888,7 +2878,7 @@
       const actions = [];
       const add = (priority, kind, title, actor, detail, api) =>
         actions.push({ priority, kind, title, actor, detail, api_reachable: api });
-      if (ltv == null) add(1, "ltv_check", "Confirm Morpho loan LTV in Coinbase app", "human", "Update config after app check.", false);
+      if (ltv == null) add(1, "ltv_check", "Confirm Morpho loan LTV from the Coinbase Borrow wallet", "human", "Wallet GraphQL miss — not Settings.", false);
       else if (ltv >= p.cb_target_ltv_max)
         add(1, "ltv_protect", `LTV ${(ltv * 100).toFixed(1)}% at/above max — repay or add collateral`, "human", "In-app only.", false);
       if (f(man.card_balance) > 0)
@@ -2955,7 +2945,7 @@
         return "Do: Fund RH Checking before ACH due dates";
       if (k.includes("bridge")) return "Do: Manual transfer (recommend only)";
       if (k === "expense_burn") return "Do: Build liquid USDC / review sheet estimates";
-      if (k === "fill_manual") return "Do: Settings below or Coinbase app → save config";
+      if (k === "fill_manual") return "Do: Settings below (vault/card) or Coinbase app";
       if (a.api_reachable) return "Do: Agent can assist (API)";
       return "Do: In-app or manual";
     }
@@ -3708,7 +3698,7 @@
         if (ltvVal == null || !Number.isFinite(ltvVal))
           return toneResult(
             "yellow",
-            "Morpho LTV unknown — set principal/collateral/LTV in Settings."
+            "Morpho LTV unknown — Coinbase Borrow wallet poll missed."
           );
         const lv = pct(ltvVal);
         const manSnap = (data.snapshot || {}).coinbase_manual || {};
@@ -4493,14 +4483,37 @@
         const el = document.getElementById(id);
         if (el && v !== null && v !== undefined && v !== "") el.value = v;
       };
-      set("m-principal", man.loan_principal_usdc);
-      set("m-collateral", man.collateral_btc_usd);
-      set("m-ltv", man.ltv);
       set("m-vault", man.vault_usdc);
       set("m-vault-apy", man.product_apy ?? man.vault_apy ?? man.morpho_hy_apy_est);
-      set("m-var-apr", man.variable_apr ?? man.morpho_borrow_apr);
-      set("m-liq-price", man.liquidation_price_btc_usd);
       set("m-btc-cagr", man.bitcoin_cagr_est ?? man.btc_cagr_est ?? man.bitcoin_cagr_apy_est ?? man.btc_cagr_apy_est);
+      const liveEl = document.getElementById("morpho-live");
+      if (liveEl) {
+        const pos = snap.morpho_position || {};
+        const p = inp.loan_principal_usdc ?? pos.loan_principal_usdc;
+        const c = inp.collateral_btc_usd ?? pos.collateral_btc_usd;
+        const btc = inp.collateral_btc ?? pos.collateral_btc;
+        const liveLtv = inp.ltv ?? pos.ltv;
+        const liq = inp.liquidation_price_btc_usd ?? pos.liquidation_price_btc_usd;
+        const hf = inp.health_factor ?? pos.health_factor;
+        const apr =
+          inp.variable_apr != null
+            ? inp.variable_apr
+            : pos.variable_apr != null
+              ? pos.variable_apr
+              : null;
+        const src = pos.source || snap.meta?.morpho_position_source || "—";
+        const wallet = pos.wallet || inp.morpho_wallet || "";
+        const bits = [];
+        if (p != null && p !== "") bits.push(`principal ${money(f(p))}`);
+        if (c != null && c !== "") bits.push(`collateral ${money(f(c))}` + (btc ? ` (${Number(btc).toFixed(8)} cbBTC)` : ""));
+        if (liveLtv != null && liveLtv !== "") bits.push(`LTV ${pct(f(liveLtv))}`);
+        if (apr != null && Number(apr) > 0) bits.push(`APR ${(f(apr) * 100).toFixed(2)}%`);
+        if (liq != null && Number(liq) > 0) bits.push(`liq ${money(f(liq))} / BTC`);
+        if (hf != null && Number(hf) > 0) bits.push(`health ${f(hf).toFixed(2)}`);
+        liveEl.textContent = bits.length
+          ? `Live Morpho loan (${src}${wallet ? " · " + wallet.slice(0, 6) + "…" + wallet.slice(-4) : ""}): ${bits.join(" · ")}. Writes stay in the Coinbase app.`
+          : `Morpho loan not on the wallet feed (${src}). Vault/card below stay Settings.`;
+      }
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
       set("m-card-bal", man.card_balance);
       set(
@@ -4815,15 +4828,10 @@
         return v === "" ? null : v;
       };
       return {
-        loan_principal_usdc: num("m-principal"),
-        collateral_btc_usd: num("m-collateral"),
-        ltv: num("m-ltv"),
         vault_usdc: num("m-vault"),
         product_apy: num("m-vault-apy"),
         vault_apy: num("m-vault-apy"),
-        variable_apr: num("m-var-apr"),
         bitcoin_cagr_est: num("m-btc-cagr"),
-        liquidation_price_btc_usd: num("m-liq-price"),
         card_balance: num("m-card-bal"),
         one_card_security_deposit_usdc: num("m-card-deposit"),
         card_available_credit: num("m-card-avail"),

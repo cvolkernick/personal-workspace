@@ -13,15 +13,18 @@
     "count_vault_toward_buffers": true,
     "one_card_security_deposit_usdc": 500
   },
+  "morpho": {
+    "wallet": "0x5528C23727761a66B471859D68Ee58293E6aBfB1",
+    "chain_id": 8453,
+    "market_id": "0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836",
+    "notes": "Coinbase Borrow SCW on Base. Read-only Morpho GraphQL userByAddress. Never store a backup-link sig. Writes (repay / add collateral) stay app-only. HY vault is a different wallet."
+  },
   "coinbase_manual": {
-    "loan_principal_usdc": null,
-    "collateral_btc_usd": null,
-    "ltv": null,
     "vault_usdc": "47.44",
     "card_balance": "462.2",
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
-    "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance."
+    "notes": "vault_usdc = High Yield Morpho (working float) — still Settings; loan principal/collateral/LTV/liq price come from morpho.wallet. one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance."
   },
   "robinhood": {
     "account_number": "5QW39737",
