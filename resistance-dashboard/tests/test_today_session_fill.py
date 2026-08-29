@@ -83,6 +83,21 @@ class StampTodaySession(unittest.TestCase):
         self.assertEqual(slot["next_session_type"], "pull")
         self.assertEqual(slot["exercises"], [])
 
+    def test_logged_today_pins_letter_skips_rest_gate(self):
+        goals, _ = load_workspace_goals()
+        slot = stamp_today_session(
+            {"exercises": [], "empty": True},
+            [_session("2026-08-29", "legs")],
+            goals,
+            {"score": 35, "sparse": False},
+            as_of="2026-08-29",
+        )
+        self.assertTrue(slot["already_trained_today"])
+        self.assertFalse(slot["is_rest_day"])
+        self.assertEqual(slot["session_type"], "legs")
+        self.assertEqual(slot["next_session_type"], "push")
+        self.assertEqual(slot["exercises"], [])
+
 
 class DashboardPlanSlotsHybrid(unittest.TestCase):
     def test_supergrok_disconnected_session_type_present(self):

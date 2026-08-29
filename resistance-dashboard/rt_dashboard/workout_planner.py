@@ -946,6 +946,25 @@ def last_session_type(sessions: Sequence[Any]) -> Optional[str]:
     return session_type_of(ordered[0])
 
 
+def ppl_logged_on_day(sessions: Sequence[Any], day: Optional[str]) -> Optional[str]:
+    """PPL letter already logged on civil ``day``, if any.
+
+    One slot per day: the first push/pull/legs session on that date.
+    Does not invent a second type. ``next_session_type`` remains the
+    following rotation letter (tomorrow).
+    """
+    target = str(day or "")[:10]
+    if not target:
+        return None
+    for s in sessions or []:
+        if session_date_of(s) != target:
+            continue
+        st = session_type_of(s)
+        if st in ("push", "pull", "legs"):
+            return st
+    return None
+
+
 def next_session_type(sessions: Sequence[Any], goals: dict) -> str:
     rotation = goals.get("rotation") or ["push", "pull", "legs"]
     rotation = [str(r).lower() for r in rotation]
@@ -1174,6 +1193,10 @@ def generate_workout_plan(
     When ``recovery_sparse`` is True (e.g. no real sleep logs from Health yet),
     a low recovery score does not force a rest day — zero-filled sleep debt
     would otherwise score ~30 Caution and blank the plan on cold cache.
+
+    If a PPL session is already logged on ``as_of``, pin to that letter and
+    do not generate the next rotation for the same civil day. Pass an
+    explicit ``session_type`` (force Push/Pull/Legs) to override.
     """
     goals = normalize_goals(goals)
     if as_of is None:
@@ -1235,6 +1258,46 @@ def generate_workout_plan(
         "auto": focus_res.get("auto"),
         "reason": focus_res.get("reason"),
     }
+
+    explicit = str(session_type or "").strip().lower()
+    logged_today = ppl_logged_on_day(sessions, day)
+    if logged_today and explicit not in ("push", "pull", "legs"):
+        nxt = next_session_type(sessions, goals)
+        balance = volume_balance_report(tally, goals)
+        balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
+            tally, goals
+        )
+        balance["focus"] = {
+            "muscles": goals.get("focus_muscles") or [],
+            "source": focus_res.get("source"),
+            "reason": focus_res.get("reason"),
+        }
+        return {
+            "date": day,
+            "session_type": logged_today,
+            "is_rest_day": False,
+            "already_trained_today": True,
+            "exercises": [],
+            "next_session_type": nxt,
+            "message": (
+                f"Already trained today ({logged_today.upper()}). "
+                f"Next session: {nxt.upper()} tomorrow."
+            ),
+            "goals": goals,
+            "volume": balance,
+            "context": {
+                "recovery_label": recovery_label,
+                "recovery_score": recovery_score,
+                "last_session_type": last_session_type(sessions),
+                "next_session_type": nxt,
+                "days_since_last": days,
+                "training_continuity": continuity,
+                "volume_framework": VOLUME_FRAMEWORK,
+                "weekly_sets": tally,
+                "focus": balance["focus"],
+                "already_trained_today": True,
+            },
+        }
 
     if (
         recovery_score is not None

@@ -386,7 +386,9 @@ def build_today_board(
     # when the plan said so. Sparse sleep looking like low recovery must not
     # print a Rest headline next to a lift slot.
     rec_label = "rest" if wp.get("is_rest_day") else "train"
-    if not wp.get("is_rest_day") and recovery.score < 55:
+    if wp.get("already_trained_today"):
+        rec_label = "done"
+    elif not wp.get("is_rest_day") and recovery.score < 55:
         rec_label = "easy"
 
     focus = (wp.get("volume") or {}).get("focus") or (wp.get("context") or {}).get(
@@ -532,7 +534,29 @@ def build_today_board(
     elif consumed.get("food_log_count") is not None:
         n_logs = int(consumed.get("food_log_count") or 0)
 
-    if rec_label == "rest":
+    if rec_label == "done":
+        st = (wp.get("session_type") or "session").upper()
+        nxt = (
+            wp.get("next_session_type")
+            or (wp.get("context") or {}).get("next_session_type")
+            or "next"
+        )
+        actions.append(
+            {
+                "id": "train-session",
+                "kind": "training",
+                "priority": 1,
+                "text": str(
+                    wp.get("message")
+                    or (
+                        f"Already trained today ({st}). "
+                        f"Next session: {str(nxt).upper()} tomorrow."
+                    )
+                ),
+                "motivation": TARGET_MOTIVATIONS["training"],
+            }
+        )
+    elif rec_label == "rest":
         actions.append(
             {
                 "id": "train-session",
@@ -665,6 +689,7 @@ def build_today_board(
         "rest": "Rest day — recover so the next hard session is productive.",
         "easy": "Easy day — train lightly; recovery is moderate.",
         "train": "Train day — execute the prescribed session and fuel around it.",
+        "done": "Session logged — next PPL waits until tomorrow.",
     }.get(rec_label, "Today's guide")
 
     return {
@@ -688,6 +713,7 @@ def build_today_board(
         "workout": {
             "session_type": wp.get("session_type"),
             "is_rest_day": bool(wp.get("is_rest_day")),
+            "already_trained_today": bool(wp.get("already_trained_today")),
             "message": wp.get("message"),
             "exercises": exercises,
             "focus": focus,

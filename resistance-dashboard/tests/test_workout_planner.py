@@ -10,6 +10,7 @@ from rt_dashboard.workout_planner import (
     generate_workout_plan,
     last_performance,
     next_session_type,
+    ppl_logged_on_day,
     prescribe,
     resolve_focus_for_plan,
     scale_muscle_targets_for_continuity,
@@ -86,6 +87,47 @@ class TestWorkoutPlanner(unittest.TestCase):
     def test_next_session_type(self):
         sessions = [_session("2026-07-10", "push", "DB Flat Press", 50)]
         self.assertEqual(next_session_type(sessions, self.goals), "pull")
+
+    def test_ppl_logged_on_day(self):
+        sessions = [
+            _session("2026-08-29", "legs", "RDL", 40, 2, 7),
+            _session("2026-08-24", "push", "DB Flat Press", 50),
+        ]
+        self.assertEqual(ppl_logged_on_day(sessions, "2026-08-29"), "legs")
+        self.assertIsNone(ppl_logged_on_day(sessions, "2026-08-28"))
+
+    def test_logged_today_pins_letter_does_not_seed_next_ppl(self):
+        sessions = [_session("2026-08-29", "legs", "RDL", 40, 2, 7)]
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            sessions,
+            recovery_label="Caution",
+            recovery_score=35,
+            recovery_sparse=False,
+            as_of="2026-08-29",
+        )
+        self.assertEqual(plan["session_type"], "legs")
+        self.assertTrue(plan["already_trained_today"])
+        self.assertFalse(plan["is_rest_day"])
+        self.assertEqual(plan["exercises"], [])
+        self.assertEqual(plan["next_session_type"], "push")
+        names = [e.get("name") for e in plan["exercises"]]
+        self.assertNotIn("DB Flat Press", names)
+
+    def test_explicit_session_type_still_generates_after_log(self):
+        sessions = [_session("2026-08-29", "legs", "RDL", 40, 2, 7)]
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            sessions,
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-08-29",
+        )
+        self.assertEqual(plan["session_type"], "push")
+        self.assertFalse(plan.get("already_trained_today"))
+        self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
 
     def test_last_performance(self):
         sessions = [

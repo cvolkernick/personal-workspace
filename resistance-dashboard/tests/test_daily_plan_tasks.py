@@ -2313,6 +2313,84 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertIn("55 lb", lifts[0]["title"])
         self.assertNotIn("50 lb", lifts[0]["title"])
 
+    def test_already_trained_purges_unplanned_incomplete_lifts(self):
+        """Logged legs today must not leave a spawned PUSH session on the list."""
+        from rt_dashboard.daily_plan_tasks import quest_notes
+
+        day = "2026-08-29"
+        store = {
+            "g-train": {
+                "id": "g-train",
+                "title": "Training",
+                "notes": quest_notes("", day, "training|group"),
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+            },
+            "rdl": {
+                "id": "rdl",
+                "title": "RDL (40.0 lb 2×7)",
+                "notes": quest_notes("", day, "training|ex-rdl"),
+                "status": "completed",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+            "press": {
+                "id": "press",
+                "title": "DB Flat Press (36.0 lb 1×9)",
+                "notes": quest_notes("", day, "training|ex-db-flat-press"),
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+            "easy": {
+                "id": "easy",
+                "title": "Easy PUSH — keep loads moderate; prioritize form and leave reps in reserve.",
+                "notes": quest_notes("", day, "training|train-session"),
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Buy chalk",
+                "notes": "",
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        board = {
+            "date": day,
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Already trained today (LEGS). Next session: PUSH tomorrow.",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "already_trained_today": True,
+                "session_type": "legs",
+                "exercises": [],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                result = ensure_daily_tasks(board, day=day)
+        self.assertTrue(result.get("ok"), result)
+        self.assertNotIn("press", store)
+        self.assertIn("rdl", store)
+        self.assertEqual(store["rdl"]["status"], "completed")
+        self.assertIn("jot", store)
+        self.assertIn("easy", store)
+        self.assertIn("Already trained today", store["easy"]["title"])
+        self.assertFalse(
+            any("DB Flat Press" in (t.get("title") or "") for t in created)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
