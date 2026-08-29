@@ -380,7 +380,10 @@ def sleep_quest_action_slug(act: dict) -> Optional[str]:
 
 
 def looks_like_train_session_title(title: str) -> bool:
-    return bool(TRAIN_SESSION_TITLE_RE.match((title or "").strip()))
+    text = (title or "").strip()
+    if TRAIN_SESSION_TITLE_RE.match(text):
+        return True
+    return bool(re.search(r"\balready logged today\b", text, re.I))
 
 
 def looks_like_calorie_pace_title(title: str) -> bool:
@@ -1082,7 +1085,8 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
 
     # Training exercises
     workout = (today or {}).get("workout") or {}
-    if not workout.get("is_rest_day"):
+    # A logged PPL session today must not seed the *next* rotation's lifts.
+    if not workout.get("is_rest_day") and not workout.get("already_logged_today"):
         for ex in workout.get("exercises") or []:
             if not isinstance(ex, dict):
                 continue
@@ -1485,6 +1489,85 @@ def _existing_meal_foods_fp(tasks: Sequence[dict], day: str) -> Optional[str]:
     return None
 
 
+def purge_wrong_rotation_lifts(
+    *,
+    list_id: str,
+    day: str,
+    pin: str,
+    listed_tasks: Sequence[dict],
+    cache: Optional[dict] = None,
+    save: bool = True,
+    catalog: Optional[dict] = None,
+) -> Dict[str, Any]:
+    """Delete incomplete same-day lift leaves that belong to another PPL slot.
+
+    After a session is logged, dashboard paint used to generate the *next*
+    rotation and seed those ``ex-*`` leaves. Completed copies stay. Same-type
+    incomplete lifts (mid-session remainder) stay. Hand jots stay.
+    """
+    from .workout_planner import session_types_for_lift_name
+
+    day = str(day or "")[:10]
+    pin_st = str(pin or "").lower()
+    empty = {"ok": True, "purged": [], "failed": 0, "errors": []}
+    if not list_id or not day or not _is_day_key(day) or pin_st not in (
+        "push",
+        "pull",
+        "legs",
+    ):
+        return {**empty, "ok": False, "error": "missing list_id, day, or pin"}
+    if cache is None:
+        cache = _load_cache()
+    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+    ids = dict(day_cache.get("ids") or {})
+    purged: List[str] = []
+    errors: List[str] = []
+    for task in listed_tasks or []:
+        if not isinstance(task, dict) or not _is_incomplete(task):
+            continue
+        if not _has_fitdash_kind_or_quest(task):
+            continue
+        if not _task_on_civil_day(task, day):
+            continue
+        title = task.get("title") or ""
+        if looks_like_train_session_title(title):
+            continue
+        name = lift_name_from_title(title)
+        if not name:
+            continue
+        types = session_types_for_lift_name(name, catalog)
+        if not types or pin_st in types:
+            continue
+        tid = str(task.get("id") or "")
+        if not tid:
+            continue
+        try:
+            result = gtb.delete_task(list_id, tid)
+            if result.get("ok"):
+                purged.append(tid)
+            else:
+                errors.append(f"{tid}: {result.get('error') or 'delete failed'}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{tid}: {exc}")
+    drop = set(purged)
+    if drop:
+        for ck in list(ids.keys()):
+            if str(ids.get(ck) or "") in drop:
+                ids.pop(ck, None)
+        if isinstance(day_cache, dict):
+            day_cache = dict(day_cache)
+            day_cache["ids"] = ids
+            cache[day] = day_cache
+            if save:
+                _save_cache(cache)
+    return {
+        "ok": True,
+        "purged": purged,
+        "failed": len(errors),
+        "errors": errors,
+    }
+
+
 def purge_meal_plan_tasks(
     *,
     list_id: str,
@@ -1667,6 +1750,28 @@ def ensure_daily_tasks(
             if listed and listed.get("ok")
             else []
         )
+        workout = (today_board or {}).get("workout") or {}
+        pin = str(workout.get("session_type") or "").lower()
+        if workout.get("already_logged_today") and pin in ("push", "pull", "legs"):
+            wrong = purge_wrong_rotation_lifts(
+                list_id=list_id,
+                day=day,
+                pin=pin,
+                listed_tasks=listed_tasks,
+                cache=cache,
+                save=True,
+            )
+            purged_wrong = set(wrong.get("purged") or [])
+            if purged_wrong:
+                listed_tasks = [
+                    t
+                    for t in listed_tasks
+                    if str(t.get("id") or "") not in purged_wrong
+                ]
+                listed = {"ok": True, "tasks": listed_tasks}
+                day_cache = cache.get(day) if isinstance(cache.get(day), dict) else day_cache
+                if isinstance(day_cache, dict) and day_cache.get("ids"):
+                    ids = dict(day_cache.get("ids") or ids)
         owned_meal = collect_meal_plan_task_ids(
             listed_tasks, day=day, cache_ids=ids
         )

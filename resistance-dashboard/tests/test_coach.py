@@ -69,6 +69,30 @@ class TestCoach(unittest.TestCase):
         self.assertEqual(board["workout"]["session_type"], "pull")
         self.assertFalse(board["workout"]["is_rest_day"])
 
+    def test_already_logged_today_action_not_next_rotation(self):
+        rec = RecoveryStatus(label="Moderate", score=50.0, reasons=["ok"])
+        board = build_today_board(
+            as_of="2026-08-29",
+            recovery=rec,
+            workout_plan={
+                "is_rest_day": False,
+                "session_type": "legs",
+                "next_session_type": "push",
+                "already_logged_today": True,
+                "exercises": [
+                    {"name": "DB Flat Press", "prescription": {"weight_lbs": 36, "sets": 1, "reps": 9}}
+                ],
+            },
+            meal_plan={"remaining_before_plan": {"calories": 500, "protein_g": 40}},
+            consumed={"calories": 1000, "protein_g": 80},
+            targets={"calories": 2100, "protein_g": 200},
+            adherence={"protein": {"pct": 50}, "sleep": {"pct": 40}},
+        )
+        self.assertTrue(board["workout"]["already_logged_today"])
+        texts = [a.get("text") or "" for a in board.get("actions") or []]
+        self.assertTrue(any("LEGS already logged today" in t for t in texts))
+        self.assertFalse(any("Easy PUSH" in t or "Complete today's PUSH" in t for t in texts))
+
     def test_today_guide_stock_only_meal_and_purchases(self):
         """Shipped meal planner + today board: only stocked ids; restock when OOS."""
         inv = {

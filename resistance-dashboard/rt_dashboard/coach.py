@@ -532,7 +532,24 @@ def build_today_board(
     elif consumed.get("food_log_count") is not None:
         n_logs = int(consumed.get("food_log_count") or 0)
 
-    if rec_label == "rest":
+    if wp.get("already_logged_today"):
+        st = (wp.get("session_type") or "session").upper()
+        nxt = str(wp.get("next_session_type") or "").upper()
+        text = f"{st} already logged today"
+        if nxt and nxt not in (st, "REST"):
+            text += f" — next is {nxt} tomorrow."
+        else:
+            text += "."
+        actions.append(
+            {
+                "id": "train-session",
+                "kind": "training",
+                "priority": 1,
+                "text": text,
+                "motivation": TARGET_MOTIVATIONS["training"],
+            }
+        )
+    elif rec_label == "rest":
         actions.append(
             {
                 "id": "train-session",
@@ -688,6 +705,7 @@ def build_today_board(
         "workout": {
             "session_type": wp.get("session_type"),
             "is_rest_day": bool(wp.get("is_rest_day")),
+            "already_logged_today": bool(wp.get("already_logged_today")),
             "message": wp.get("message"),
             "exercises": exercises,
             "focus": focus,

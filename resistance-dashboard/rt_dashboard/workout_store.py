@@ -243,8 +243,17 @@ def stamp_today_session(
     session_type comes from next_session_type when goals.rotation is set;
     null only if goals/rotation are missing. Rest gate may fill a rest-day
     slot (is_rest_day + session_type=rest) while keeping next_session_type.
+
+    If a PPL session is already logged on ``as_of``, pin today's letter to
+    that session and keep next_session_type as the *following* slot. Do not
+    rest-gate over a completed session or keep a next-rotation exercise list.
     """
-    from .workout_planner import next_session_type, normalize_goals
+    from .workout_planner import (
+        next_session_type,
+        normalize_goals,
+        pin_logged_session_type,
+    )
+    from .timeutil import local_today_iso
 
     plan = dict(workout) if isinstance(workout, dict) else {}
     continuity = slim_training_continuity(sessions, as_of=as_of)
@@ -253,15 +262,36 @@ def stamp_today_session(
     ctx["training_continuity"] = continuity
     ctx["days_since_last"] = continuity.get("days_since")
 
+    goals_n = normalize_goals(goals) if isinstance(goals, dict) or goals is None else {}
+    day = str(as_of or local_today_iso())[:10]
+    logged = pin_logged_session_type(sessions or [], goals_n, day)
+
     next_st = None
     override = str(next_st_override or "").strip().lower()
     if override:
         next_st = override
     elif _rotation_set(goals):
-        next_st = next_session_type(sessions or [], normalize_goals(goals))
+        next_st = next_session_type(sessions or [], goals_n)
     plan["next_session_type"] = next_st
     ctx["next_session_type"] = next_st
-    if plan.get("session_type") in (None, ""):
+
+    incoming_st = str(plan.get("session_type") or "").lower()
+    if logged:
+        plan["already_logged_today"] = True
+        ctx["already_logged_today"] = True
+        if incoming_st and incoming_st not in (logged, "rest"):
+            # Plan was built for the next rotation — drop those lifts.
+            plan["exercises"] = []
+            plan["empty"] = True
+        plan["session_type"] = logged
+        plan["is_rest_day"] = False
+        if not (plan.get("message") or "").strip():
+            nxt_lab = (next_st or "").upper()
+            plan["message"] = (
+                f"{logged.upper()} already logged today"
+                + (f" — next is {nxt_lab} tomorrow." if nxt_lab else ".")
+            )
+    elif plan.get("session_type") in (None, ""):
         plan["session_type"] = next_st
     plan["context"] = ctx
 
@@ -270,6 +300,9 @@ def stamp_today_session(
 
     plan = apply_rest_gate(plan, goals if isinstance(goals, dict) else {}, recovery or {})
     gate = plan.get("rest_gate") or {}
+    if logged:
+        # Already trained — rest gate is informational, not a slot rewrite.
+        return plan
     if fill_rest and gate.get("force_rest"):
         plan["is_rest_day"] = True
         plan["session_type"] = "rest"

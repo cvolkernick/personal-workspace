@@ -956,6 +956,69 @@ def next_session_type(sessions: Sequence[Any], goals: dict) -> str:
     return rotation[(idx + 1) % len(rotation)]
 
 
+def ppl_letters_on_day(sessions: Sequence[Any], day: str) -> List[str]:
+    """Distinct PPL letters logged on civil day ``day``, first-seen order."""
+    want = str(day or "")[:10]
+    found: List[str] = []
+    for session in sessions or []:
+        if session_date_of(session)[:10] != want:
+            continue
+        st = session_type_of(session)
+        if st in ("push", "pull", "legs") and st not in found:
+            found.append(st)
+    return found
+
+
+def pin_logged_session_type(
+    sessions: Sequence[Any],
+    goals: Optional[dict],
+    day: str,
+) -> Optional[str]:
+    """Today's PPL letter when a session is already logged on ``day``.
+
+    ``next_session_type`` always advances past the last log, including one
+    from today — that is what seeded a second rotation on the same civil
+    day. This pin is the letter to keep. If two types exist the same day
+    (the original plus the wrongly seeded next), return the predecessor
+    in rotation: the session that caused the next leaf to appear.
+    """
+    letters = ppl_letters_on_day(sessions, day)
+    if not letters:
+        return None
+    if len(letters) == 1:
+        return letters[0]
+    rotation = [str(r).lower() for r in ((goals or {}).get("rotation") or ["push", "pull", "legs"])]
+    letter_set = set(letters)
+    for letter in letters:
+        if letter not in rotation:
+            continue
+        nxt = rotation[(rotation.index(letter) + 1) % len(rotation)]
+        if nxt in letter_set:
+            return letter
+    return letters[0]
+
+
+def session_types_for_lift_name(
+    name: str,
+    catalog: Optional[dict] = None,
+) -> Tuple[str, ...]:
+    """Catalog PPL slots for a lift title. Empty if unknown — callers must not guess."""
+    key = re.sub(r"\s+", " ", (name or "").strip().lower())
+    if not key:
+        return ()
+    data = catalog if isinstance(catalog, dict) else default_catalog()
+    alias_id = NAME_ALIASES.get(key)
+    for ex in data.get("exercises") or []:
+        if not isinstance(ex, dict):
+            continue
+        n = re.sub(r"\s+", " ", str(ex.get("name") or "").strip().lower())
+        eid = str(ex.get("id") or "").strip().lower()
+        if key == n or key == eid or (alias_id and eid == alias_id):
+            types = [str(t).lower() for t in (ex.get("session_types") or [])]
+            return tuple(t for t in types if t in ("push", "pull", "legs"))
+    return ()
+
+
 def days_since_last_session(sessions: Sequence[Any], as_of: Optional[str] = None) -> Optional[int]:
     dated = [s for s in (sessions or []) if session_date_of(s)]
     if not dated:
@@ -1235,6 +1298,48 @@ def generate_workout_plan(
         "auto": focus_res.get("auto"),
         "reason": focus_res.get("reason"),
     }
+
+    logged = pin_logged_session_type(sessions, goals, day)
+    if logged and not session_type:
+        # Already trained this civil day. Do not rest-gate the letter away
+        # and do not generate the *next* PPL slot as today's plan (quests
+        # would seed those lifts on the same day).
+        nxt = next_session_type(sessions, goals)
+        balance = volume_balance_report(tally, goals)
+        balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
+            tally, goals
+        )
+        balance["focus"] = {
+            "muscles": goals.get("focus_muscles") or [],
+            "source": focus_res.get("source"),
+            "reason": focus_res.get("reason"),
+        }
+        return {
+            "date": day,
+            "session_type": logged,
+            "next_session_type": nxt,
+            "already_logged_today": True,
+            "is_rest_day": False,
+            "exercises": [],
+            "empty": True,
+            "message": (
+                f"{logged.upper()} already logged today — next is {nxt.upper()} tomorrow."
+            ),
+            "goals": goals,
+            "volume": balance,
+            "context": {
+                "already_logged_today": True,
+                "recovery_label": recovery_label,
+                "recovery_score": recovery_score,
+                "last_session_type": last_session_type(sessions),
+                "days_since_last": days,
+                "training_continuity": continuity,
+                "volume_framework": VOLUME_FRAMEWORK,
+                "weekly_sets": tally,
+                "focus": balance["focus"],
+                "next_session_type": nxt,
+            },
+        }
 
     if (
         recovery_score is not None

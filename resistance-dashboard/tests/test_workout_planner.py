@@ -10,9 +10,11 @@ from rt_dashboard.workout_planner import (
     generate_workout_plan,
     last_performance,
     next_session_type,
+    pin_logged_session_type,
     prescribe,
     resolve_focus_for_plan,
     scale_muscle_targets_for_continuity,
+    session_types_for_lift_name,
     training_continuity,
     weekly_set_tally,
     volume_balance_report,
@@ -364,6 +366,74 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertTrue(plan["exercises"])
         for e in plan["exercises"]:
             self.assertEqual(int((e.get("prescription") or {}).get("sets") or 0), 2)
+
+    def test_pin_logged_session_type_same_day_and_predecessor(self):
+        self.assertEqual(
+            pin_logged_session_type(
+                [_session("2026-08-29", "legs", "RDL", 40, 2, 7)],
+                self.goals,
+                "2026-08-29",
+            ),
+            "legs",
+        )
+        self.assertIsNone(
+            pin_logged_session_type(
+                [_session("2026-08-28", "legs", "RDL", 40, 2, 7)],
+                self.goals,
+                "2026-08-29",
+            )
+        )
+        # Legs logged, then a same-day push (wrong seed) — pin stays legs.
+        self.assertEqual(
+            pin_logged_session_type(
+                [
+                    _session("2026-08-29", "legs", "RDL", 40, 2, 7),
+                    _session("2026-08-29", "push", "DB Flat Press", 36, 1, 9),
+                ],
+                self.goals,
+                "2026-08-29",
+            ),
+            "legs",
+        )
+
+    def test_generate_plan_does_not_advance_same_day(self):
+        catalog = {
+            "exercises": self.catalog["exercises"]
+            + [
+                {
+                    "id": "rdl",
+                    "name": "RDL",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings"],
+                    "movement": "compound",
+                    "default_sets": 3,
+                    "default_reps": 10,
+                    "rep_range": [8, 12],
+                    "priority": 10,
+                    "available": True,
+                }
+            ]
+        }
+        plan = generate_workout_plan(
+            catalog,
+            self.goals,
+            [_session("2026-08-29", "legs", "RDL", 40, 2, 7)],
+            recovery_label="Easy",
+            recovery_score=50,
+            as_of="2026-08-29",
+        )
+        self.assertEqual(plan["session_type"], "legs")
+        self.assertEqual(plan["next_session_type"], "push")
+        self.assertTrue(plan["already_logged_today"])
+        self.assertFalse(plan["is_rest_day"])
+        self.assertEqual(plan["exercises"], [])
+        names = [e.get("name") for e in plan["exercises"]]
+        self.assertNotIn("DB Flat Press", names)
+
+    def test_session_types_for_lift_name(self):
+        types = session_types_for_lift_name("DB Flat Press", self.catalog)
+        self.assertEqual(types, ("push",))
+        self.assertEqual(session_types_for_lift_name("unknown lift", self.catalog), ())
 
 
 if __name__ == "__main__":

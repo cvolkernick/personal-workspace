@@ -36,11 +36,13 @@ from rt_dashboard.daily_plan_tasks import (
     looks_like_protein_remaining_title,
     looks_like_sleep_battery_low_title,
     looks_like_sleep_quest_title,
+    looks_like_train_session_title,
     meal_quest_notes,
     plan_from_today_board,
     plan_preview,
     purge_meal_plan_tasks,
     purge_stale_quest_tasks,
+    purge_wrong_rotation_lifts,
     quest_mark_day,
     quest_notes,
     sleep_quest_action_slug,
@@ -2312,6 +2314,95 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(lifts[0]["id"], first_id)
         self.assertIn("55 lb", lifts[0]["title"])
         self.assertNotIn("50 lb", lifts[0]["title"])
+
+    def test_already_logged_skips_next_rotation_lift_leaves(self):
+        board = {
+            "date": "2026-08-29",
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "LEGS already logged today — next is PUSH tomorrow.",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "already_logged_today": True,
+                "session_type": "legs",
+                "exercises": [
+                    {"name": "DB Flat Press", "sets": 1, "reps": 9, "weight_lbs": 36}
+                ],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        groups = plan_from_today_board(board, day="2026-08-29")
+        training = next(g for g in groups if g.group == "training")
+        slugs = [it.slug for it in training.items]
+        self.assertIn("train-session", slugs)
+        self.assertFalse(any(s.startswith("ex-") for s in slugs))
+        self.assertTrue(
+            looks_like_train_session_title(
+                "LEGS already logged today — next is PUSH tomorrow."
+            )
+        )
+
+    def test_purge_wrong_rotation_lifts_keeps_same_type(self):
+        catalog = {
+            "exercises": [
+                {
+                    "id": "rdl",
+                    "name": "RDL",
+                    "session_types": ["legs"],
+                },
+                {
+                    "id": "db-flat-press",
+                    "name": "DB Flat Press",
+                    "session_types": ["push"],
+                },
+            ]
+        }
+        deleted: list[str] = []
+        listed = [
+            {
+                "id": "push-leaf",
+                "title": "DB Flat Press (36 lb 1×9)",
+                "notes": "[fitdash-quest:2026-08-29] [fitdash-kind:training|ex-db-flat-press]",
+                "status": "needsAction",
+            },
+            {
+                "id": "legs-leaf",
+                "title": "RDL (40 lb 2×7)",
+                "notes": "[fitdash-quest:2026-08-29] [fitdash-kind:training|ex-rdl]",
+                "status": "needsAction",
+            },
+            {
+                "id": "done-rdl",
+                "title": "RDL (40 lb 2×7)",
+                "notes": "[fitdash-quest:2026-08-29] [fitdash-kind:training|ex-rdl]",
+                "status": "completed",
+            },
+        ]
+
+        def fake_delete(_list_id, task_id):
+            deleted.append(task_id)
+            return {"ok": True}
+
+        with mock.patch(
+            "rt_dashboard.daily_plan_tasks.gtb.delete_task", side_effect=fake_delete
+        ):
+            stats = purge_wrong_rotation_lifts(
+                list_id="L1",
+                day="2026-08-29",
+                pin="legs",
+                listed_tasks=listed,
+                cache={"2026-08-29": {"list_id": "L1", "ids": {}}},
+                save=False,
+                catalog=catalog,
+            )
+        self.assertTrue(stats.get("ok"))
+        self.assertEqual(stats.get("purged"), ["push-leaf"])
+        self.assertEqual(deleted, ["push-leaf"])
 
 
 if __name__ == "__main__":
