@@ -221,16 +221,7 @@ def parse_all_workouts(files: Dict[str, str]) -> List[Session]:
 
 
 def format_set_entry(s: SetEntry) -> str:
-    if s.sets == 1:
-        # still use full triple for round-trip consistency with dominant style
-        return f"{_fmt_w(s.weight_lbs)} lbs x {s.sets} x {s.reps}"
-    return f"{_fmt_w(s.weight_lbs)} lbs x {s.sets} x {s.reps}"
-
-
-def _fmt_w(w: float) -> str:
-    if abs(w - round(w)) < 1e-9:
-        return str(int(round(w)))
-    return f"{w:g}"
+    return s.label()
 
 
 def format_exercise_line(ex: ExerciseEntry) -> str:

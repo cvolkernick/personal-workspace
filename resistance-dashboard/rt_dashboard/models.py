@@ -6,6 +6,12 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
 
+def _fmt_weight_lbs(w: float) -> str:
+    if abs(float(w) - round(float(w))) < 1e-9:
+        return str(int(round(float(w))))
+    return f"{w:g}"
+
+
 @dataclass
 class SetEntry:
     weight_lbs: float
@@ -23,6 +29,10 @@ class SetEntry:
         if self.reps == 1:
             return float(self.weight_lbs)
         return float(self.weight_lbs) * (1.0 + self.reps / 30.0)
+
+    def label(self) -> str:
+        """Log-shaped triple: ``225 lbs x 3 x 8``."""
+        return f"{_fmt_weight_lbs(self.weight_lbs)} lbs x {int(self.sets)} x {int(self.reps)}"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -52,6 +62,10 @@ class ExerciseEntry:
             return 0.0
         return max(s.weight_lbs for s in self.sets)
 
+    @property
+    def sets_label(self) -> str:
+        return ", ".join(s.label() for s in self.sets)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
@@ -62,6 +76,7 @@ class ExerciseEntry:
             "volume": self.volume,
             "best_e1rm": self.best_e1rm,
             "best_working_weight": self.best_working_weight,
+            "sets_label": self.sets_label,
         }
 
 

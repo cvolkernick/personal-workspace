@@ -1670,16 +1670,23 @@
   function renderHistory(sessions) {
     const list = $("session-list");
     list.innerHTML = "";
+    const fmtEx =
+      typeof window !== "undefined" &&
+      window.FitDashHistorySets &&
+      typeof window.FitDashHistorySets.formatExerciseLine === "function"
+        ? window.FitDashHistorySets.formatExerciseLine
+        : (e) => `${e.name} (${Math.round(e.volume)} vol)`;
     (sessions || []).slice(0, 40).forEach((s) => {
       const li = document.createElement("li");
-      const exPreview = (s.exercises || [])
-        .slice(0, 4)
-        .map((e) => `${e.name} (${Math.round(e.volume)} vol)`)
-        .join(" · ");
+      const exercises = s.exercises || [];
+      const rows = exercises.map((e) => fmtEx(e));
+      const exHtml = rows.length
+        ? rows.map((r) => `<div class="ex-row">${r}</div>`).join("")
+        : "No parsed sets";
       li.innerHTML = `
         <div class="title">${s.session_type.toUpperCase()} · ${s.date}</div>
-        <div class="meta">Volume ${fmtNum(s.volume)} lb · ${s.exercises.length} exercises</div>
-        <div class="ex">${exPreview || "No parsed sets"}</div>
+        <div class="meta">Volume ${fmtNum(s.volume)} lb · ${exercises.length} exercises</div>
+        <div class="ex">${exHtml}</div>
       `;
       list.appendChild(li);
     });
