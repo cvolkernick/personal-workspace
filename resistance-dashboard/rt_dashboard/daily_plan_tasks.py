@@ -91,7 +91,7 @@ SLEEP_BATTERY_LOW_SLUG_RE = re.compile(
     re.I,
 )
 TRAIN_SESSION_TITLE_RE = re.compile(
-    r"^(Complete today's|Easy |Rest / recover today)\b",
+    r"^(Complete today's|Easy |Rest / recover today|Already trained today)\b",
     re.I,
 )
 CALORIE_PACE_TITLE_RE = re.compile(
@@ -1080,9 +1080,10 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
             )
         )
 
-    # Training exercises
+    # Training exercises. Already-trained days keep completed leaves as
+    # history and must not seed the next PPL's ex-* cards.
     workout = (today or {}).get("workout") or {}
-    if not workout.get("is_rest_day"):
+    if not workout.get("is_rest_day") and not workout.get("already_trained_today"):
         for ex in workout.get("exercises") or []:
             if not isinstance(ex, dict):
                 continue
@@ -1473,6 +1474,79 @@ def meal_food_identities_from_tasks(tasks: Sequence[dict], day: str) -> set:
     return names
 
 
+def purge_unplanned_training_leaves(
+    *,
+    list_id: str,
+    day: str,
+    planned: Sequence[PlannedGroup],
+    listed_tasks: Optional[Sequence[dict]] = None,
+    cache: Optional[dict] = None,
+    save: bool = True,
+) -> Dict[str, Any]:
+    """Delete incomplete same-day training leaves that are not in today's plan.
+
+    Completed copies stay history. Nutrition / shopping / sleep / jots are
+    never touched. The Training group header is kept.
+    """
+    day = str(day or "")[:10]
+    stats: Dict[str, Any] = {"deleted": [], "failed": 0, "errors": []}
+    if not list_id or not day or not _is_day_key(day):
+        stats["ok"] = False
+        stats["error"] = "missing list_id or day"
+        return stats
+    keep: set = {"training|group"}
+    for g in planned or []:
+        if str(getattr(g, "group", "") or "") != "training":
+            continue
+        for it in g.items or []:
+            keep.add(item_kind_key(it))
+    tasks = [t for t in (listed_tasks or []) if isinstance(t, dict)]
+    if cache is None:
+        cache = _load_cache()
+    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+    ids = dict(day_cache.get("ids") or {})
+    deleted: List[str] = []
+    for task in tasks:
+        if not _is_incomplete(task):
+            continue
+        if not _has_fitdash_kind_or_quest(task):
+            continue
+        if not _task_on_civil_day(task, day):
+            continue
+        notes = task.get("notes") or ""
+        kind = kind_from_notes(notes) or ""
+        if not kind.startswith("training|"):
+            continue
+        if kind in keep:
+            continue
+        tid = str(task.get("id") or "")
+        if not tid:
+            continue
+        try:
+            result = gtb.delete_task(list_id, tid)
+            if result.get("ok"):
+                deleted.append(tid)
+            else:
+                stats["failed"] += 1
+                stats["errors"].append(
+                    f"{tid}: {result.get('error') or 'delete failed'}"
+                )
+        except Exception as exc:  # noqa: BLE001
+            stats["failed"] += 1
+            stats["errors"].append(f"{tid}: {exc}")
+    drop = set(deleted)
+    for ck in list(ids.keys()):
+        if str(ids.get(ck) or "") in drop:
+            ids.pop(ck, None)
+    if deleted:
+        cache[day] = {"list_id": list_id, "ids": ids}
+        if save:
+            _save_cache(cache)
+    stats["deleted"] = deleted
+    stats["ok"] = True
+    return stats
+
+
 def _existing_meal_foods_fp(tasks: Sequence[dict], day: str) -> Optional[str]:
     fps = {
         foods_fp_from_notes(t.get("notes") or "")
@@ -1763,6 +1837,25 @@ def ensure_daily_tasks(
                         if str(t.get("id") or "") not in set(kind_purged)
                     ]
                     listed = {"ok": True, "tasks": listed_tasks}
+        unplanned = purge_unplanned_training_leaves(
+            list_id=list_id,
+            day=day,
+            planned=planned,
+            listed_tasks=listed_tasks,
+            cache=cache,
+            save=True,
+        )
+        unplanned_ids = set(unplanned.get("deleted") or [])
+        if unplanned_ids:
+            listed_tasks = [
+                t
+                for t in listed_tasks
+                if str(t.get("id") or "") not in unplanned_ids
+            ]
+            listed = {"ok": True, "tasks": listed_tasks}
+            day_cache = cache.get(day) if isinstance(cache.get(day), dict) else day_cache
+            if isinstance(day_cache, dict) and day_cache.get("ids"):
+                ids = dict(day_cache.get("ids") or ids)
         day_cache = cache.get(day) if isinstance(cache.get(day), dict) else day_cache
         if isinstance(day_cache, dict) and day_cache.get("ids"):
             ids = dict(day_cache.get("ids") or ids)

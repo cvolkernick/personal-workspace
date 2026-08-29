@@ -243,8 +243,12 @@ def stamp_today_session(
     session_type comes from next_session_type when goals.rotation is set;
     null only if goals/rotation are missing. Rest gate may fill a rest-day
     slot (is_rest_day + session_type=rest) while keeping next_session_type.
+
+    If a PPL session is already logged on ``as_of``, pin today's letter to
+    that session and skip the rest gate — next_session_type stays tomorrow.
     """
-    from .workout_planner import next_session_type, normalize_goals
+    from .timeutil import local_today_iso
+    from .workout_planner import next_session_type, normalize_goals, ppl_logged_on_day
 
     plan = dict(workout) if isinstance(workout, dict) else {}
     continuity = slim_training_continuity(sessions, as_of=as_of)
@@ -252,6 +256,8 @@ def stamp_today_session(
     ctx = dict(plan.get("context") or {})
     ctx["training_continuity"] = continuity
     ctx["days_since_last"] = continuity.get("days_since")
+    day = str(as_of or local_today_iso())[:10]
+    logged = ppl_logged_on_day(sessions or [], day)
 
     next_st = None
     override = str(next_st_override or "").strip().lower()
@@ -261,6 +267,16 @@ def stamp_today_session(
         next_st = next_session_type(sessions or [], normalize_goals(goals))
     plan["next_session_type"] = next_st
     ctx["next_session_type"] = next_st
+    if logged:
+        plan["already_trained_today"] = True
+        ctx["already_trained_today"] = True
+        if plan.get("session_type") in (None, "", "rest"):
+            plan["session_type"] = logged
+        plan["is_rest_day"] = False
+        plan["context"] = ctx
+        if "exercises" not in plan:
+            plan["exercises"] = []
+        return plan
     if plan.get("session_type") in (None, ""):
         plan["session_type"] = next_st
     plan["context"] = ctx
