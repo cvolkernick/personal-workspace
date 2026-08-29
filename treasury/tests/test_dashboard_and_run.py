@@ -34,6 +34,7 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Capital targets", html)
         self.assertIn("Settings", html)
         self.assertIn("/api/refresh", html)
+        self.assertIn("SOL⚠", html)
         self.assertIn("renderGlanceHero", html)
         self.assertIn("cash_stack", html)
         self.assertIn("actorLabel", html)

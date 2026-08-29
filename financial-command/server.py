@@ -98,30 +98,49 @@ _SERVER_STARTED_OFFLINE = False
 _SERVER_CONSUMER = False
 
 
+def _coinbase_cli_available() -> bool:
+    """Fail closed: missing helper / import → no CLI."""
+    try:
+        from treasury.adapters import _resolve_coinbase_bin
+
+        return bool(_resolve_coinbase_bin())
+    except Exception:
+        return False
+
+
+def _has_ynab_token() -> bool:
+    try:
+        from treasury.ynab_sync import load_ynab_token
+
+        tok, _ = load_ynab_token()
+        return bool(tok)
+    except Exception:
+        return False
+
+
 def _is_snapshot_consumer() -> bool:
-    """True when this host should not run live YNAB/CB (Pi phone FCC).
+    """True when this host should not run live YNAB/CB (full re-read only).
 
     --offline alone is only a *boot* hint (Mac ensure uses it for fast start).
-    Consumer mode = explicit --consumer / FCC_OFFLINE_CONSUMER, or no live creds.
+    Full consumer = explicit --consumer / FCC_OFFLINE_CONSUMER, or no YNAB
+    token *and* no Coinbase CLI. Probe/import failures fail closed (no creds).
+
+    A host with YNAB but no Coinbase CLI is *not* a full consumer (Pi): Refresh
+    still live-fetches YNAB/Sheet/Solana; Coinbase stays on the Mac snapshot.
     """
-    if _SERVER_CONSUMER:
-        return True
-    if os.environ.get("FCC_OFFLINE_CONSUMER", "").strip().lower() in (
+    from treasury.adapters import should_force_offline_consumer
+
+    env_on = os.environ.get("FCC_OFFLINE_CONSUMER", "").strip().lower() in (
         "1",
         "true",
         "yes",
-    ):
-        return True
-    try:
-        from treasury.ynab_sync import load_ynab_token
-        from treasury.adapters import _resolve_coinbase_bin
-
-        tok, _ = load_ynab_token()
-        if not tok and not _resolve_coinbase_bin():
-            return True
-    except Exception:
-        pass
-    return False
+    )
+    return should_force_offline_consumer(
+        explicit=_SERVER_CONSUMER,
+        env_consumer=env_on,
+        has_ynab_token=_has_ynab_token(),
+        has_coinbase_cli=_coinbase_cli_available(),
+    )
 
 
 def _snapshot_age_hours(path: Path) -> float | None:
@@ -592,6 +611,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
             data = dict(data)
             data.setdefault("ok", True)
             try:
+                from treasury.solana_sync import overlay_solana_snapshot
+
+                overlay_solana_snapshot(data)
+            except Exception:
+                pass
+            try:
                 data["braiins"] = _braiins_live()
             except Exception as be:
                 data["braiins"] = {
@@ -847,15 +872,21 @@ class FCCHandler(SimpleHTTPRequestHandler):
             rh_mcp = bool(body.get("rh_mcp")) or os.environ.get(
                 "FCC_REFRESH_RH_MCP", ""
             ).strip() in ("1", "true", "yes")
-            # Prefer live YNAB + Coinbase + Braiins unless offline.
+            # Prefer live YNAB + Solana + Braiins unless offline.
+            # Coinbase CLI is Mac-only; skip live CB on Pi instead of failing
+            # the whole producer path (that used to drop snapshot.solana).
             args = ["--offline"] if offline else []
+            skip_cb = (not offline) and (not _coinbase_cli_available())
+            if skip_cb:
+                args.append("--skip-coinbase")
             report: dict = {
                 "mode": "offline_consumer" if offline else "live_producer",
                 "ynab": "skipped" if offline else "pending",
                 "expenses": "skipped" if offline else "pending",
-                "coinbase_treasury": "pending",
+                "coinbase_treasury": "skipped" if skip_cb else "pending",
                 "braiins": "skipped" if offline else "pending",
                 "robinhood": "skipped" if offline else "pending",
+                "solana": "skipped" if offline else "pending",
             }
             code: int | None = 0
             try:
@@ -898,30 +929,57 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 # Coinbase + assemble treasury BEFORE RH — RH MCP can take 1–2+ min
                 # and used to block CB/Sheet ages from updating if Refresh was aborted.
                 code = run_treasury_main(args)
-                report["coinbase_treasury"] = (
-                    "ok" if code in (0, None) else f"exit {code}"
-                )
-                # Surface CB live_error when CLI missing / failed (ages stay stale)
+                if not skip_cb:
+                    report["coinbase_treasury"] = (
+                        "ok" if code in (0, None) else f"exit {code}"
+                    )
+                elif code in (0, None):
+                    report["coinbase_treasury"] = "skipped"
+                # Surface CB / Solana ages. Overlay sidecar if assemble omitted SOL.
                 try:
+                    from treasury.solana_sync import overlay_solana_snapshot
+
                     p_cb = ROOT / "treasury" / "snapshots" / "coinbase_latest.json"
-                    if p_cb.is_file():
-                        cb_snap = json.loads(p_cb.read_text(encoding="utf-8"))
-                    else:
-                        cb_snap = {}
-                    # Also read just-written treasury snapshot coinbase block
+                    cb_snap = (
+                        json.loads(p_cb.read_text(encoding="utf-8"))
+                        if p_cb.is_file()
+                        else {}
+                    )
                     p_t = ROOT / "financial-command" / "treasury_latest.json"
-                    if p_t.is_file():
-                        t_data = json.loads(p_t.read_text(encoding="utf-8"))
-                        cb_block = (t_data.get("snapshot") or {}).get("coinbase") or {}
-                        if cb_block.get("live_error"):
-                            report["coinbase_live_error"] = cb_block["live_error"]
-                        if cb_block.get("as_of"):
-                            report["coinbase_as_of"] = cb_block["as_of"]
-                        if cb_block.get("source"):
-                            report["coinbase_source"] = cb_block["source"]
+                    t_data = (
+                        json.loads(p_t.read_text(encoding="utf-8"))
+                        if p_t.is_file()
+                        else {}
+                    )
+                    if isinstance(t_data, dict):
+                        overlay_solana_snapshot(t_data)
+                        if p_t.is_file():
+                            p_t.write_text(
+                                json.dumps(t_data, indent=2) + "\n", encoding="utf-8"
+                            )
+                        snap = t_data.get("snapshot") or {}
+                        cb_block = snap.get("coinbase") or {}
+                        sol_block = snap.get("solana") or {}
+                    else:
+                        cb_block, sol_block = {}, {}
+                    if cb_block.get("live_error"):
+                        report["coinbase_live_error"] = cb_block["live_error"]
+                    if cb_block.get("as_of"):
+                        report["coinbase_as_of"] = cb_block["as_of"]
+                    if cb_block.get("source"):
+                        report["coinbase_source"] = cb_block["source"]
                     elif cb_snap.get("as_of"):
                         report["coinbase_as_of"] = cb_snap.get("as_of")
                         report["coinbase_source"] = cb_snap.get("source")
+                    if sol_block.get("live_error"):
+                        report["solana_live_error"] = sol_block["live_error"]
+                        report["solana"] = f"error: {sol_block['live_error']}"
+                    elif sol_block.get("as_of"):
+                        report["solana"] = "ok"
+                        report["solana_as_of"] = sol_block.get("as_of")
+                        report["solana_source"] = sol_block.get("source")
+                    elif not offline:
+                        report["solana"] = "missing"
                 except Exception:
                     pass
                 if not offline:
@@ -973,9 +1031,10 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     )
             except SystemExit as e:
                 code = e.code if e.code is not None else 0
-                report["coinbase_treasury"] = (
-                    "ok" if code in (0, None) else f"exit {code}"
-                )
+                if not skip_cb:
+                    report["coinbase_treasury"] = (
+                        "ok" if code in (0, None) else f"exit {code}"
+                    )
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e), "refreshed": report})
                 return
@@ -992,6 +1051,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
             p = ROOT / "financial-command" / "treasury_latest.json"
             data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
             if isinstance(data, dict):
+                try:
+                    from treasury.solana_sync import overlay_solana_snapshot
+
+                    overlay_solana_snapshot(data)
+                except Exception:
+                    pass
                 try:
                     data["braiins"] = _braiins_live()
                 except Exception as be:

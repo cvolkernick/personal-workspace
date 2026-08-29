@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -21,6 +22,7 @@ from treasury.adapters import (  # noqa: E402
     fetch_robinhood,
     normalize_robinhood_payload,
     save_json,
+    should_force_offline_consumer,
     write_robinhood_snapshot,
 )
 
@@ -137,6 +139,33 @@ class TestSnapshotFallback(unittest.TestCase):
             self.assertEqual(r["liquid_usdc"], 1.0)
             self.assertEqual(r["source"], "snapshot")
             self.assertIn("coinbase CLI not found", r.get("live_error") or "")
+            disk = json.loads(p.read_text(encoding="utf-8"))
+            self.assertEqual(disk["source"], "snapshot")
+            self.assertIn("coinbase CLI not found", disk.get("live_error") or "")
+
+    def test_no_cli_skips_live_subprocess(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "cb.json"
+            save_json(
+                p,
+                {
+                    "source": "live",
+                    "as_of": "2026-08-28T19:59:03+00:00",
+                    "liquid_usdc": 104.0,
+                    "liquid_btc": 0.0,
+                },
+            )
+            with mock.patch(
+                "treasury.adapters._resolve_coinbase_bin", return_value=None
+            ):
+                with mock.patch(
+                    "treasury.adapters.fetch_coinbase_liquid_live"
+                ) as live:
+                    r = fetch_coinbase_liquid(prefer_live=True, snapshot_path=p)
+                    live.assert_not_called()
+            self.assertEqual(r["source"], "snapshot")
+            self.assertEqual(r["live_error"], "coinbase CLI not found")
+            self.assertAlmostEqual(r["liquid_usdc"], 104.0)
 
     def test_robinhood_file_and_build(self):
         with tempfile.TemporaryDirectory() as td:
@@ -174,6 +203,63 @@ class TestMergeManualWithOneCard(unittest.TestCase):
         )
         self.assertEqual(merged["card_balance"], 100.0)
         self.assertIsNone(merged.get("card_balance_source"))
+
+
+class TestOfflineConsumerPolicy(unittest.TestCase):
+    def test_explicit_or_env(self):
+        self.assertTrue(should_force_offline_consumer(explicit=True, has_ynab_token=True, has_coinbase_cli=True))
+        self.assertTrue(should_force_offline_consumer(env_consumer=True, has_ynab_token=True, has_coinbase_cli=True))
+
+    def test_no_creds_fail_closed(self):
+        self.assertTrue(
+            should_force_offline_consumer(has_ynab_token=False, has_coinbase_cli=False)
+        )
+        self.assertTrue(should_force_offline_consumer())
+
+    def test_ynab_without_coinbase_is_split_live_not_consumer(self):
+        self.assertFalse(
+            should_force_offline_consumer(has_ynab_token=True, has_coinbase_cli=False)
+        )
+
+    def test_coinbase_without_ynab_is_producer(self):
+        self.assertFalse(
+            should_force_offline_consumer(has_ynab_token=False, has_coinbase_cli=True)
+        )
+
+
+class TestSolanaIndependentOfCoinbase(unittest.TestCase):
+    def test_explicit_live_solana_when_cb_skipped(self):
+        called = {}
+
+        def fake_solana(*, prefer_live=True, config=None, snapshot_path=None):
+            called["prefer_live"] = prefer_live
+            return {"source": "live", "as_of": "now", "book_usd": 9.58}
+
+        with mock.patch("treasury.solana_sync.fetch_solana", side_effect=fake_solana):
+            with mock.patch(
+                "treasury.adapters.fetch_coinbase_liquid",
+                return_value={"source": "snapshot", "as_of": "old"},
+            ):
+                with mock.patch("treasury.adapters.fetch_robinhood", return_value={}):
+                    with mock.patch("treasury.ynab_sync.fetch_one_card", return_value={}):
+                        with mock.patch(
+                            "treasury.ynab_sync.fetch_rh_checking", return_value={}
+                        ):
+                            with mock.patch(
+                                "treasury.ynab_sync.fetch_x_money", return_value={}
+                            ):
+                                with mock.patch(
+                                    "treasury.expenses_sync.fetch_expenses",
+                                    return_value={},
+                                ):
+                                    snap = build_snapshot(
+                                        prefer_live_coinbase=False,
+                                        prefer_live_ynab=True,
+                                        prefer_live_solana=True,
+                                        config={"policy": {}, "coinbase_manual": {}},
+                                    )
+        self.assertTrue(called.get("prefer_live"))
+        self.assertAlmostEqual(snap["solana"]["book_usd"], 9.58)
 
 
 if __name__ == "__main__":

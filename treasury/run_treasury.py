@@ -25,6 +25,7 @@ from treasury.adapters import (  # noqa: E402
 )
 from treasury.fund_manager import evaluate_fund_manager, write_fund_manager_snapshot  # noqa: E402
 from treasury.policy import evaluate_treasury  # noqa: E402
+from treasury.solana_sync import overlay_solana_snapshot  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,6 +41,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Do not call YNAB live (use one_card snapshot if present)",
     )
     parser.add_argument(
+        "--skip-coinbase",
+        action="store_true",
+        help="Do not call Coinbase CLI (keep coinbase_latest.json; Solana can still be live)",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=SNAPSHOTS_DIR / "treasury_latest.json",
@@ -51,9 +57,10 @@ def main(argv: list[str] | None = None) -> int:
     live = not args.offline
     snap = build_snapshot(
         config=cfg,
-        prefer_live_coinbase=live,
+        prefer_live_coinbase=live and not args.skip_coinbase,
         prefer_live_ynab=live and not args.skip_ynab,
         prefer_live_expenses=live,
+        prefer_live_solana=live,
     )
     result = evaluate_treasury(snap, policy=cfg.get("policy") or {})
     # Agentic fund manager (agentic RH account only; see investment/fund_manager.json)
@@ -68,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         "evaluation": result,
         "fund_manager": fm,
     }
+    overlay_solana_snapshot(out)
     save_json(args.out, out)
     # Also publish to financial-command UI path
     dash_out = ROOT / "financial-command" / "treasury_latest.json"

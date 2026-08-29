@@ -11,6 +11,7 @@ Mac is the **live producer** for Robinhood trade + Braiins. Pi is an **offline c
 | 3 | Mac launchd RH: **`TREASURY_SKIP_PI=1`** (never re-copy stale Pi RH) |
 | 4 | New **braiins** launchd every **4h** (`com.personalworkspace.braiins-refresh`) |
 | 5 | After Mac success → **push** RH/Braiins/FM/treasury **+ YNAB cash** (`one_card`, `rh_checking`, `x_money`, `expenses`) → Pi (+ `financial-command/treasury_latest.json`) |
+| 6 | **Coinbase + Solana** Mac producer hourly (`com.personalworkspace.cb-solana-refresh`). Pi Refresh is split-live: YNAB/Sheet/Solana can be live; Coinbase stays Mac-pushed when CLI is missing. Overlay `solana_latest.json` if assemble omits `snapshot.solana`. |
 
 ## Install / reload (Mac)
 
@@ -19,12 +20,15 @@ cd ~/personal-workspace-worktrees/treasury   # or monorepo root on this branch
 
 cp treasury/deploy/com.personalworkspace.rh-refresh.plist ~/Library/LaunchAgents/
 cp treasury/deploy/com.personalworkspace.braiins-refresh.plist ~/Library/LaunchAgents/
+cp treasury/deploy/com.personalworkspace.cb-solana-refresh.plist ~/Library/LaunchAgents/
 
 UID_N=$(id -u)
 launchctl bootout gui/$UID_N/com.personalworkspace.rh-refresh 2>/dev/null || true
 launchctl bootout gui/$UID_N/com.personalworkspace.braiins-refresh 2>/dev/null || true
+launchctl bootout gui/$UID_N/com.personalworkspace.cb-solana-refresh 2>/dev/null || true
 launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/com.personalworkspace.braiins-refresh.plist
+launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/com.personalworkspace.cb-solana-refresh.plist
 
 # optional kick
 launchctl kickstart -k gui/$UID_N/com.personalworkspace.braiins-refresh
@@ -35,6 +39,9 @@ launchctl kickstart -k gui/$UID_N/com.personalworkspace.braiins-refresh
 ## Manual
 
 ```bash
+# Coinbase + Solana + push
+bash treasury/cb_solana_refresh.sh
+
 # Braiins + push
 bash treasury/braiins_refresh.sh
 
@@ -49,6 +56,7 @@ python3 -m treasury.rh_snapshot_sync --push-only
 
 - `treasury/snapshots/rh_refresh_latest.log`
 - `treasury/snapshots/braiins_refresh_latest.log`
+- `treasury/snapshots/cb_solana_refresh_latest.log`
 
 ## Security
 

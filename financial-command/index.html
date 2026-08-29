@@ -4820,6 +4820,9 @@
           bits.push("CB");
         else if (r.coinbase_treasury && r.coinbase_treasury !== "skipped")
           bits.push("CB⚠");
+        if (r.solana_live_error) bits.push("SOL⚠");
+        else if (r.solana === "ok" || r.solana === "pending") bits.push("SOL");
+        else if (r.solana && r.solana !== "skipped") bits.push("SOL⚠");
         if (String(r.braiins || "").startsWith("ok")) bits.push("Braiins");
         else if (r.braiins && r.braiins !== "skipped")
           bits.push("Braiins⚠");

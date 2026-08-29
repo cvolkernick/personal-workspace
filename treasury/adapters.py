@@ -198,6 +198,27 @@ def fetch_coinbase_liquid_live(
     return result, None
 
 
+def should_force_offline_consumer(
+    *,
+    explicit: bool = False,
+    env_consumer: bool = False,
+    has_ynab_token: Optional[bool] = None,
+    has_coinbase_cli: Optional[bool] = None,
+) -> bool:
+    """True when this host must not live-fetch *any* producer feeds.
+
+    Full consumer = explicit flag / env, or no YNAB token *and* no Coinbase CLI.
+    Probe failures must pass False (fail closed), never None-as-producer.
+    A host with YNAB but no Coinbase CLI is *not* a full consumer — split live:
+    YNAB/Sheet/Solana still run; Coinbase stays on the last snapshot.
+    """
+    if explicit or env_consumer:
+        return True
+    ynab = bool(has_ynab_token)
+    cb = bool(has_coinbase_cli)
+    return (not ynab) and (not cb)
+
+
 def fetch_coinbase_liquid(
     *,
     prefer_live: bool = True,
@@ -207,10 +228,13 @@ def fetch_coinbase_liquid(
     snap = snapshot_path or (SNAPSHOTS_DIR / "coinbase_latest.json")
     err = None
     if prefer_live:
-        live, err = fetch_coinbase_liquid_live()
-        if live is not None:
-            save_json(snap, live)
-            return live
+        if not _resolve_coinbase_bin():
+            err = "coinbase CLI not found"
+        else:
+            live, err = fetch_coinbase_liquid_live()
+            if live is not None:
+                save_json(snap, live)
+                return live
     file_data = load_json(snap)
     if file_data:
         out = dict(file_data)
@@ -219,6 +243,7 @@ def fetch_coinbase_liquid(
             out["live_error"] = err
             if (out.get("source") or "").lower() in ("live", ""):
                 out["source"] = "snapshot"
+            save_json(snap, out)
         else:
             out["source"] = out.get("source") or "snapshot"
         return out
@@ -510,12 +535,16 @@ def build_snapshot(
     prefer_live_coinbase: bool = True,
     prefer_live_ynab: bool = True,
     prefer_live_expenses: Optional[bool] = None,
+    prefer_live_solana: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Merge live/file venue reads with manual fields, YNAB, expense sheet."""
     from treasury.ynab_sync import fetch_one_card, fetch_rh_checking, fetch_x_money
 
     if prefer_live_expenses is None:
         prefer_live_expenses = prefer_live_ynab
+    # Solana is public RPC — do not gate it on the Coinbase CLI.
+    if prefer_live_solana is None:
+        prefer_live_solana = prefer_live_ynab or prefer_live_coinbase
 
     cfg = config if config is not None else load_config()
     cb = fetch_coinbase_liquid(prefer_live=prefer_live_coinbase)
@@ -535,7 +564,7 @@ def build_snapshot(
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
     from treasury.solana_sync import fetch_solana
 
-    solana = fetch_solana(prefer_live=prefer_live_coinbase, config=cfg)
+    solana = fetch_solana(prefer_live=prefer_live_solana, config=cfg)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     rh_cfg = cfg.get("robinhood") or {}
     # Manual RH yield sleeve (Robinhood Earn / USDG / Morpho) — not a clean MCP field
