@@ -305,6 +305,8 @@ class FormatTests(unittest.TestCase):
         self.assertNotIn("SafeWheels", html)
         self.assertNotIn("Mercury", html)
         self.assertIn('id="nav-fcc"', html)
+        self.assertIn('id="nav-turo"', html)
+        self.assertIn('href="https://turo.com"', html)
         self.assertNotIn("<iframe", html.lower())
         self.assertNotIn("TREAD", html.replace("not TREAD", ""))
 
