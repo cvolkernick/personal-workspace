@@ -147,6 +147,13 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("GrubHub → X Money", html)
         self.assertNotIn("Lyft / GrubHub → Digital Credit", html)
         self.assertNotIn("Lyft → both X Money and Digital Credit", html)
+        deploy = next(c for c in model["layout"]["columns"] if c["id"] == "deploy")
+        self.assertEqual(
+            deploy["ids"][:2],
+            ["bills_fleet", "bills_essential"],
+        )
+        self.assertIn("Fleet · Essential · Collateral", html)
+        self.assertNotIn("Essential · Fleet · Collateral", html)
         self.assertGreater(len(model.get("edges") or []), 5)
 
 
@@ -258,7 +265,11 @@ class TestFccSidecarAttach(unittest.TestCase):
         lyft = next(s for s in data.get("income_sources") or [] if s.get("id") == "lyft")
         self.assertEqual(lyft.get("label"), "Lyft / GrubHub")
         self.assertEqual(lyft.get("landing_label"), "Lyft → DC · GrubHub → X Money")
-        self.assertEqual(data.get("version"), 43)
+        self.assertEqual(data.get("version"), 44)
+        deploy = next(
+            c for c in (data.get("layout") or {}).get("columns") or [] if c.get("id") == "deploy"
+        )
+        self.assertEqual(deploy.get("ids", [])[:2], ["bills_fleet", "bills_essential"])
 
 
 if __name__ == "__main__":
