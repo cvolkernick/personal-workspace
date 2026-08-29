@@ -12,6 +12,7 @@ from rt_dashboard.workout_planner import (
     next_session_type,
     ppl_logged_on_day,
     prescribe,
+    session_types_for_lift_name,
     resolve_focus_for_plan,
     scale_muscle_targets_for_continuity,
     training_continuity,
@@ -128,6 +129,11 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertEqual(plan["session_type"], "push")
         self.assertFalse(plan.get("already_trained_today"))
         self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
+
+    def test_session_types_for_lift_name(self):
+        types = session_types_for_lift_name("DB Flat Press", self.catalog)
+        self.assertEqual(types, ("push",))
+        self.assertEqual(session_types_for_lift_name("unknown lift", self.catalog), ())
 
     def test_last_performance(self):
         sessions = [

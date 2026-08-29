@@ -965,6 +965,27 @@ def ppl_logged_on_day(sessions: Sequence[Any], day: Optional[str]) -> Optional[s
     return None
 
 
+def session_types_for_lift_name(
+    name: str,
+    catalog: Optional[dict] = None,
+) -> Tuple[str, ...]:
+    """Catalog PPL slots for a lift title. Empty if unknown — callers must not guess."""
+    key = re.sub(r"\s+", " ", (name or "").strip().lower())
+    if not key:
+        return ()
+    data = catalog if isinstance(catalog, dict) else default_catalog()
+    alias_id = NAME_ALIASES.get(key)
+    for ex in data.get("exercises") or []:
+        if not isinstance(ex, dict):
+            continue
+        n = re.sub(r"\s+", " ", str(ex.get("name") or "").strip().lower())
+        eid = str(ex.get("id") or "").strip().lower()
+        if key == n or key == eid or (alias_id and eid == alias_id):
+            types = [str(t).lower() for t in (ex.get("session_types") or [])]
+            return tuple(t for t in types if t in ("push", "pull", "legs"))
+    return ()
+
+
 def next_session_type(sessions: Sequence[Any], goals: dict) -> str:
     rotation = goals.get("rotation") or ["push", "pull", "legs"]
     rotation = [str(r).lower() for r in rotation]

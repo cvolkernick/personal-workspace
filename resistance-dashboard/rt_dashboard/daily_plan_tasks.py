@@ -1547,6 +1547,86 @@ def purge_unplanned_training_leaves(
     return stats
 
 
+def purge_wrong_rotation_lifts(
+    *,
+    list_id: str,
+    day: str,
+    pin: str,
+    listed_tasks: Sequence[dict],
+    cache: Optional[dict] = None,
+    save: bool = True,
+    catalog: Optional[dict] = None,
+) -> Dict[str, Any]:
+    """Delete incomplete same-day lift leaves that belong to another PPL slot.
+
+    After a session is logged, dashboard paint used to generate the *next*
+    rotation and seed those ``ex-*`` leaves. Completed copies stay. Same-type
+    incomplete lifts (mid-session remainder) stay. Hand jots stay. Unknown
+    catalog names stay — do not guess a letter.
+    """
+    from .workout_planner import session_types_for_lift_name
+
+    day = str(day or "")[:10]
+    pin_st = str(pin or "").lower()
+    empty = {"ok": True, "purged": [], "failed": 0, "errors": []}
+    if not list_id or not day or not _is_day_key(day) or pin_st not in (
+        "push",
+        "pull",
+        "legs",
+    ):
+        return {**empty, "ok": False, "error": "missing list_id, day, or pin"}
+    if cache is None:
+        cache = _load_cache()
+    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+    ids = dict(day_cache.get("ids") or {})
+    purged: List[str] = []
+    errors: List[str] = []
+    for task in listed_tasks or []:
+        if not isinstance(task, dict) or not _is_incomplete(task):
+            continue
+        if not _has_fitdash_kind_or_quest(task):
+            continue
+        if not _task_on_civil_day(task, day):
+            continue
+        title = task.get("title") or ""
+        if looks_like_train_session_title(title):
+            continue
+        name = lift_name_from_title(title)
+        if not name:
+            continue
+        types = session_types_for_lift_name(name, catalog)
+        if not types or pin_st in types:
+            continue
+        tid = str(task.get("id") or "")
+        if not tid:
+            continue
+        try:
+            result = gtb.delete_task(list_id, tid)
+            if result.get("ok"):
+                purged.append(tid)
+            else:
+                errors.append(f"{tid}: {result.get('error') or 'delete failed'}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{tid}: {exc}")
+    drop = set(purged)
+    if drop:
+        for ck in list(ids.keys()):
+            if str(ids.get(ck) or "") in drop:
+                ids.pop(ck, None)
+        if isinstance(day_cache, dict):
+            day_cache = dict(day_cache)
+            day_cache["ids"] = ids
+            cache[day] = day_cache
+            if save:
+                _save_cache(cache)
+    return {
+        "ok": True,
+        "purged": purged,
+        "failed": len(errors),
+        "errors": errors,
+    }
+
+
 def _existing_meal_foods_fp(tasks: Sequence[dict], day: str) -> Optional[str]:
     fps = {
         foods_fp_from_notes(t.get("notes") or "")
@@ -1837,15 +1917,30 @@ def ensure_daily_tasks(
                         if str(t.get("id") or "") not in set(kind_purged)
                     ]
                     listed = {"ok": True, "tasks": listed_tasks}
-        unplanned = purge_unplanned_training_leaves(
-            list_id=list_id,
-            day=day,
-            planned=planned,
-            listed_tasks=listed_tasks,
-            cache=cache,
-            save=True,
-        )
-        unplanned_ids = set(unplanned.get("deleted") or [])
+        workout = (today_board or {}).get("workout") or {}
+        pin = str(workout.get("session_type") or "").lower()
+        if workout.get("already_trained_today") and pin in ("push", "pull", "legs"):
+            # Planned set has no remaining ex-* after a log. Unplanned purge
+            # would also drop leftover same-letter lifts (mid-session remainder).
+            wrong = purge_wrong_rotation_lifts(
+                list_id=list_id,
+                day=day,
+                pin=pin,
+                listed_tasks=listed_tasks,
+                cache=cache,
+                save=True,
+            )
+            unplanned_ids = set(wrong.get("purged") or [])
+        else:
+            unplanned = purge_unplanned_training_leaves(
+                list_id=list_id,
+                day=day,
+                planned=planned,
+                listed_tasks=listed_tasks,
+                cache=cache,
+                save=True,
+            )
+            unplanned_ids = set(unplanned.get("deleted") or [])
         if unplanned_ids:
             listed_tasks = [
                 t
