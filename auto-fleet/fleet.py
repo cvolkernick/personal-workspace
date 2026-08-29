@@ -139,7 +139,9 @@ def classify_sheet_line(
         return "shared", "empty"
 
     for u in units:
-        sheet_item = (u.get("dimo_sheet_item") or "").strip()
+        sheet_item = (
+            (u.get("sheet_item") or u.get("dimo_sheet_item") or "").strip()
+        )
         if sheet_item and sheet_item.lower() == name_l:
             return "unit", str(u["id"])
 
@@ -153,8 +155,15 @@ def classify_sheet_line(
     if len(lender_hits) > 1:
         return "shared", "ambiguous_lender"
 
-    if "rivian" in name_l:
-        return "shared", "planned_not_on_roster"
+    make_hits: list[str] = []
+    for u in units:
+        make = (u.get("make") or "").strip()
+        if make and make.lower() in name_l:
+            make_hits.append(str(u["id"]))
+    if len(make_hits) == 1:
+        return "unit", make_hits[0]
+    if len(make_hits) > 1:
+        return "shared", "ambiguous_make"
     return "shared", "unassigned"
 
 
@@ -270,7 +279,7 @@ def shared_finance(
         "lines": lines,
         "items": lines,
         "monthly": round(sum(float(i.get("monthly") or 0) for i in lines), 2),
-        "note": "Insurance / wash / planned Rivian / unassigned Tesla lines. Planned Rivian cash is not pinned to r1s-2023 yet.",
+        "note": "Insurance / wash / unassigned Tesla lines. Rivian R1S cash is pinned to r1s-2023.",
     }
 
 
