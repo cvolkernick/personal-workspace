@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Auto Fleet header: FCC same-host deep-link; no Orchestra."""
+"""Auto Fleet header: FCC same-host deep-link; Turo opens turo.com; no Orchestra."""
 
 from __future__ import annotations
 
@@ -79,6 +79,8 @@ class _AnchorParser(HTMLParser):
             "id": ad.get("id", ""),
             "href": ad.get("href", ""),
             "title": ad.get("title", ""),
+            "target": ad.get("target", ""),
+            "rel": ad.get("rel", ""),
             "text": "",
         }
 
@@ -186,6 +188,25 @@ class TestFleetHeader(unittest.TestCase):
         self.assertIn('id="btn-refresh"', html)
         self.assertIn("Auto Fleet", html)
 
+    def test_header_has_turo_open_link(self) -> None:
+        html = (FLEET / "index.html").read_text(encoding="utf-8")
+        header = _header_html(html)
+        turo = _by_id(_parse_anchors(header), "nav-turo")
+        self.assertEqual(turo["text"], "Turo")
+        self.assertEqual(turo["href"], "https://turo.com")
+        self.assertEqual(turo["title"], "Open Turo")
+        self.assertEqual(turo["target"], "_blank")
+        self.assertIn("noopener", turo["rel"].split())
+        self.assertIn("noreferrer", turo["rel"].split())
+        self.assertNotIn("/drivers/", turo["href"])
+        self.assertNotIn("/vehicle/", turo["href"])
+        fcc_at = header.find('id="nav-fcc"')
+        refresh_at = header.find('id="btn-refresh"')
+        turo_at = header.find('id="nav-turo"')
+        self.assertGreater(fcc_at, 0)
+        self.assertGreater(refresh_at, fcc_at)
+        self.assertGreater(turo_at, refresh_at)
+
     def test_header_visible_copy_has_no_port_number(self) -> None:
         header = _header_html((FLEET / "index.html").read_text(encoding="utf-8"))
         visible = re.sub(r"<[^>]+>", " ", header)
@@ -244,6 +265,9 @@ class TestFleetHeaderLive(unittest.TestCase):
         self.assertIn(b">FCC<", body)
         self.assertIn(b"nav-fcc.js", body)
         self.assertIn(b'id="btn-refresh"', body)
+        self.assertIn(b'id="nav-turo"', body)
+        self.assertIn(b'href="https://turo.com"', body)
+        self.assertIn(b">Turo<", body)
         header = _header_html(body.decode("utf-8"))
         for needle in ORCHESTRA_NEEDLES:
             self.assertNotIn(needle, header, f"served header still has {needle!r}")
