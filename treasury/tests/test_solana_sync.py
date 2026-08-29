@@ -18,6 +18,7 @@ from treasury.solana_sync import (  # noqa: E402
     WSOL_MINT,
     fetch_solana,
     normalize_solana_book,
+    overlay_solana_snapshot,
     parse_token_accounts,
     write_solana_snapshot,
 )
@@ -122,6 +123,32 @@ class TestFetchFallback(unittest.TestCase):
             self.assertEqual(r["live_error"], "rpc down")
             self.assertAlmostEqual(r["jr_strcusx"], 1.0)
             self.assertFalse(r["counts_toward_hy"])
+
+    def test_overlay_fills_empty_block_does_not_clobber(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "sol.json"
+            write_solana_snapshot(
+                {
+                    "source": "live",
+                    "as_of": "2026-08-29T18:12:13+00:00",
+                    "book_usd": 9.58,
+                    "jr_strcusx": 3.317128,
+                },
+                path=p,
+            )
+            empty = {"snapshot": {"solana": {}, "coinbase": {"as_of": "cb"}}}
+            overlay_solana_snapshot(empty, snapshot_path=p)
+            self.assertEqual(
+                empty["snapshot"]["solana"]["as_of"], "2026-08-29T18:12:13+00:00"
+            )
+            self.assertTrue(empty["snapshot"]["meta"]["solana_sidecar"])
+            keep = {
+                "snapshot": {
+                    "solana": {"as_of": "keep-me", "book_usd": 1.0},
+                }
+            }
+            overlay_solana_snapshot(keep, snapshot_path=p)
+            self.assertEqual(keep["snapshot"]["solana"]["as_of"], "keep-me")
 
 
 if __name__ == "__main__":

@@ -63,6 +63,7 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("interest-spectrum.html", html)
         self.assertIn("/api/refresh", html)
         self.assertIn("fillGlanceNextPay", html)
+        self.assertIn("SOL⚠", html)
         self.assertIn("actorLabel", html)
         ico = html.find('href="favicon.ico')
         svg = html.find('href="favicon.svg')

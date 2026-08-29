@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +58,22 @@ def _parse_coinbase_balance_payload(payload: Dict[str, Any]) -> Dict[str, float]
         except (TypeError, ValueError):
             continue
     return totals
+
+
+def _resolve_coinbase_bin() -> Optional[str]:
+    """Locate coinbase CLI even when PATH is stripped (launchd / Pi)."""
+    found = shutil.which("coinbase")
+    if found:
+        return found
+    home = Path.home()
+    for cand in (
+        home / ".local" / "bin" / "coinbase",
+        Path("/opt/homebrew/bin/coinbase"),
+        Path("/usr/local/bin/coinbase"),
+    ):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
 
 
 def fetch_btc_usd_price(*, timeout: float = 20.0) -> Tuple[Optional[float], Optional[str]]:
@@ -147,6 +164,27 @@ def fetch_coinbase_liquid_live(
     return result, None
 
 
+def should_force_offline_consumer(
+    *,
+    explicit: bool = False,
+    env_consumer: bool = False,
+    has_ynab_token: Optional[bool] = None,
+    has_coinbase_cli: Optional[bool] = None,
+) -> bool:
+    """True when this host must not live-fetch *any* producer feeds.
+
+    Full consumer = explicit flag / env, or no YNAB token *and* no Coinbase CLI.
+    Probe failures must pass False (fail closed), never None-as-producer.
+    A host with YNAB but no Coinbase CLI is *not* a full consumer — split live:
+    YNAB/Sheet/Solana still run; Coinbase stays on the last snapshot.
+    """
+    if explicit or env_consumer:
+        return True
+    ynab = bool(has_ynab_token)
+    cb = bool(has_coinbase_cli)
+    return (not ynab) and (not cb)
+
+
 def fetch_coinbase_liquid(
     *,
     prefer_live: bool = True,
@@ -156,16 +194,22 @@ def fetch_coinbase_liquid(
     snap = snapshot_path or (SNAPSHOTS_DIR / "coinbase_latest.json")
     err = None
     if prefer_live:
-        live, err = fetch_coinbase_liquid_live()
-        if live is not None:
-            save_json(snap, live)
-            return live
+        if not _resolve_coinbase_bin():
+            err = "coinbase CLI not found"
+        else:
+            live, err = fetch_coinbase_liquid_live()
+            if live is not None:
+                save_json(snap, live)
+                return live
     file_data = load_json(snap)
     if file_data:
         out = dict(file_data)
         out["source"] = out.get("source") or "snapshot"
         if err:
             out["live_error"] = err
+            if (out.get("source") or "").lower() in ("live", ""):
+                out["source"] = "snapshot"
+            save_json(snap, out)
         return out
     return {
         "source": "empty",
@@ -291,12 +335,16 @@ def build_snapshot(
     prefer_live_coinbase: bool = True,
     prefer_live_ynab: bool = True,
     prefer_live_expenses: Optional[bool] = None,
+    prefer_live_solana: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Merge live/file venue reads with manual fields, YNAB, expense sheet."""
     from treasury.ynab_sync import fetch_one_card, fetch_rh_checking
 
     if prefer_live_expenses is None:
         prefer_live_expenses = prefer_live_ynab
+    # Solana is public RPC — do not gate it on the Coinbase CLI.
+    if prefer_live_solana is None:
+        prefer_live_solana = prefer_live_ynab or prefer_live_coinbase
 
     cfg = config if config is not None else load_config()
     cb = fetch_coinbase_liquid(prefer_live=prefer_live_coinbase)
@@ -313,6 +361,9 @@ def build_snapshot(
     from treasury.expenses_sync import fetch_expenses
 
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
+    from treasury.solana_sync import fetch_solana
+
+    solana = fetch_solana(prefer_live=prefer_live_solana, config=cfg)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     from treasury.morpho_borrow_sync import fetch_morpho_borrow
     from treasury.morpho_hy_sync import fetch_morpho_hy
@@ -353,6 +404,7 @@ def build_snapshot(
         "as_of": _now(),
         "coinbase": cb,
         "coinbase_manual": manual,
+        "solana": solana,
         "morpho_hy": morpho_hy,
         "usdg_hy": usdg_hy,
         "morpho_borrow": morpho_borrow,
@@ -365,6 +417,7 @@ def build_snapshot(
         "meta": {
             "config_path": str(CONFIG_PATH),
             "coinbase_source": cb.get("source"),
+            "solana_source": solana.get("source"),
             "robinhood_source": rh.get("source"),
             "one_card_source": one_card.get("source"),
             "rh_checking_source": rh_checking.get("source"),
