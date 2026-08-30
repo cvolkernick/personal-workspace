@@ -1,5 +1,6 @@
 {
-  "accounts": {
+  "as_of": "2026-08-30T22:41:16Z",
+  "accounts_raw": {
     "data": {
       "accounts": [
         {
@@ -39,7 +40,7 @@
     },
     "guide": "Sort the list deterministically when presenting: the default account first, agentic accounts (agentic_allowed=true) second, then other individual accounts, then retirement (IRA) accounts. Present account_number, rhc_account_number (label it \"Crypto Account\"), brokerage_account_type (label it \"Account Type\" \u2014 a linked crypto account always shares it, so never add a separate crypto account type column), type (label it \"Brokerage Trading Type\"), nickname (if set), and is_default \u2014 in that column order. In the Crypto Account column show \"N/A\" for accounts with an empty rhc_account_number; omit the column entirely only when no account has one. When referring to the account in user-facing prose (e.g. \"your <X> account\"), use nickname when set; fall back to brokerage_account_type otherwise. When displaying account_number or rhc_account_number to the user, mask all but the last 4 digits (e.g. '\u2022\u2022\u2022\u20221234'); pass the full value to other tools unchanged \u2014 including get_option_level_upgrade_info and any fallback upgrade URL; masking breaks the link. Flag agentic_allowed when the user is choosing an account for a trade. There is exactly one agentic_allowed=true account \u2014 use it directly rather than asking which account to trade. agentic_allowed is caller-relative \u2014 true means accessible to this agent, false means this agent cannot act on it (the account may still be agentic-enabled for a different agent). Never state agentic_allowed's field name or raw boolean value to the user. Do not use nickname to determine agentic-account eligibility. Skip false accounts for trade operations; if the user asks why, say the account is not accessible to this agent, not that it needs to be enabled. When option_level is empty or 'option_level_0' and the user wants options, call get_option_level_upgrade_info with the account_number; if that tool is unavailable, direct the user to https://applink.robinhood.com/upgrade_options?account_number=<that account's account_number> (embed the full unmasked account_number in the URL). management_type='managed' is layered on brokerage_account_type \u2014 surface alongside, not as a replacement. For tools that ask for an account identifier on a crypto-backed flow (get_crypto_positions, future crypto write tools), pass rhs_account_number; for everything else (equities, options, etc.) pass account_number. Do not add an unsettled_funds column to the account table \u2014 surface it only via the following rule. Whenever you report an account's funds, value, or buying power and that account has type='cash' with unsettled_funds greater than 0, tell the user those unsettled proceeds could be traded immediately with a limited-margin upgrade, and \u2014 if the get_limited_margin_upgrade_info tool is available \u2014 call it with the account_number and share the appropriate upgrade link. If that tool is not available, say nothing about limited margin (there is no fallback). "
   },
-  "primary_portfolio": {
+  "primary_portfolio_raw": {
     "data": {
       "total_value": "0.094046",
       "equity_value": "0",
@@ -63,7 +64,7 @@
     },
     "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value. On a cash account, recently sold proceeds that have not yet settled are not spendable and are not included in buying_power; that unsettled amount is reported as unsettled_funds by get_accounts (not here), so if you do not already have the account's unsettled_funds, call get_accounts to check it. Whenever you report buying power or account value for a type='cash' account whose unsettled_funds is greater than 0, inform the user those unsettled proceeds could be traded immediately with a limited-margin upgrade, and \u2014 if the get_limited_margin_upgrade_info tool is available \u2014 call it with the account_number and share the appropriate upgrade link. If that tool is not available, say nothing about limited margin (there is no fallback)."
   },
-  "agentic_portfolio": {
+  "agentic_portfolio_raw": {
     "data": {
       "total_value": "228.2108661273",
       "equity_value": "228.1208661273",
@@ -87,13 +88,13 @@
     },
     "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value. On a cash account, recently sold proceeds that have not yet settled are not spendable and are not included in buying_power; that unsettled amount is reported as unsettled_funds by get_accounts (not here), so if you do not already have the account's unsettled_funds, call get_accounts to check it. Whenever you report buying power or account value for a type='cash' account whose unsettled_funds is greater than 0, inform the user those unsettled proceeds could be traded immediately with a limited-margin upgrade, and \u2014 if the get_limited_margin_upgrade_info tool is available \u2014 call it with the account_number and share the appropriate upgrade link. If that tool is not available, say nothing about limited margin (there is no fallback)."
   },
-  "primary_positions": {
+  "primary_positions_raw": {
     "data": {
       "positions": []
     },
     "guide": "Sellable shares: use shares_available_for_sells, not quantity. Yesterday's quantity = quantity - intraday_quantity. average_buy_price is the average cost per share shown in the Robinhood app (it already reflects partial sells) \u2014 use it as the user's average cost; it may be omitted for positions still reconciling. No market price here \u2014 for current value or PnL, call get_equity_quotes and multiply by quantity. Present symbol, quantity, average_buy_price, and type when not 'long'; suppress other fields unless asked."
   },
-  "agentic_positions": {
+  "agentic_positions_raw": {
     "data": {
       "positions": [
         {
@@ -229,5 +230,7 @@
       ]
     },
     "guide": "Sellable shares: use shares_available_for_sells, not quantity. Yesterday's quantity = quantity - intraday_quantity. average_buy_price is the average cost per share shown in the Robinhood app (it already reflects partial sells) \u2014 use it as the user's average cost; it may be omitted for positions still reconciling. No market price here \u2014 for current value or PnL, call get_equity_quotes and multiply by quantity. Present symbol, quantity, average_buy_price, and type when not 'long'; suppress other fields unless asked."
-  }
+  },
+  "source": "live",
+  "via": "http_mcp_oauth"
 }
