@@ -2317,15 +2317,36 @@
         u
       );
     }
-    function actorLabel(a) {
-      if (a === "human") return "You";
-      if (a === "agent") return "Agent";
-      return "Either";
-    }
-    function actorClass(a) {
-      if (a === "human") return "you";
+    function effectiveActor(a, apiReachable) {
       if (a === "agent") return "agent";
-      return "either";
+      if (a === "either" && apiReachable) return "either";
+      return "human";
+    }
+    function actorLabel(a, apiReachable) {
+      const x = effectiveActor(a, apiReachable);
+      if (x === "agent") return "Agent";
+      if (x === "either") return "Either";
+      return "You";
+    }
+    function actorClass(a, apiReachable) {
+      const x = effectiveActor(a, apiReachable);
+      if (x === "agent") return "agent";
+      if (x === "either") return "either";
+      return "you";
+    }
+    function newestTxDate(oc) {
+      const txs = (oc && oc.transactions) || [];
+      let last = null;
+      for (const t of txs) {
+        if (t && t.date && (!last || String(t.date) > last)) last = String(t.date);
+      }
+      return last;
+    }
+    function oneCardChipSub(owed, oc) {
+      const bits = [money(owed) + " owed", "YNAB"];
+      const last = newestTxDate(oc);
+      if (last) bits.push("tx " + last);
+      return bits.join(" · ");
     }
     function ageLabel(iso) {
       if (!iso) return null;
@@ -2724,7 +2745,7 @@
         }">` +
         `<div class="top">` +
         `<span class="tag p">P${a.priority}</span>` +
-        `<span class="tag ${actorClass(a.actor)}">${actorLabel(a.actor)}</span>` +
+        `<span class="tag ${actorClass(a.actor, a.api_reachable)}">${actorLabel(a.actor, a.api_reachable)}</span>` +
         `<span class="tag ${a.api_reachable ? "auto" : "app"}">${
           a.api_reachable ? "Auto" : "App"
         }</span>` +
@@ -2914,8 +2935,8 @@
         `<span class="hero-why">${escapeHtml(why)}</span></div>` +
         (primary
           ? `<div class="hero-cta"><span class="tag ${actorClass(
-              primary.actor
-            )}">${actorLabel(primary.actor)}</span> ${escapeHtml(
+              primary.actor, primary.api_reachable
+            )}">${actorLabel(primary.actor, primary.api_reachable)}</span> ${escapeHtml(
               primary.title || ""
             )}</div>`
           : "") +
@@ -3422,6 +3443,7 @@
           }
         }
         const extraStr = extras.length ? ` · ${extras.join(" · ")}` : "";
+        // Same bands as policy._ltv_stress: green under alert, yellow at alert, red at max.
         if (ltvVal >= ltvMax)
           return toneResult(
             "red",
@@ -3429,18 +3451,19 @@
           );
         if (ltvVal >= ltvAlert)
           return toneResult(
-            "orange",
-            `LTV ${lv} is above alert ${pct(ltvAlert)} (max ${pct(ltvMax)}).${extraStr}`
-          );
-        if (ltvVal >= ltvAlert * 0.85)
-          return toneResult(
             "yellow",
-            `LTV ${lv} is approaching alert ${pct(ltvAlert)}.${extraStr}`
+            `LTV ${lv} is above alert ${pct(ltvAlert)} (max ${pct(ltvMax)}).${extraStr}`
           );
         return toneResult(
           "green",
-          `LTV ${lv} is comfortably under alert ${pct(ltvAlert)}.${extraStr}`
+          `LTV ${lv} is under alert ${pct(ltvAlert)}.${extraStr}`
         );
+      }
+      function ltvChipSub() {
+        if (ltvVal == null || !Number.isFinite(ltvVal)) return "unknown";
+        if (ltvVal >= ltvMax) return "at max";
+        if (ltvVal >= ltvAlert) return "above alert";
+        return "under alert";
       }
       function asicHashTone() {
         if (!br.ok)
@@ -3563,7 +3586,7 @@
         {
           k: "Card",
           v: cardUtilPct,
-          s: money(cardOwed) + " owed",
+          s: oneCardChipSub(cardOwed, oc),
           target: "cash-credit",
           tone: tCard.tone,
           why: tCard.why,
@@ -3571,7 +3594,7 @@
         {
           k: "LTV",
           v: pct(ltvVal),
-          s: stress.coinbase_ltv || "Morpho",
+          s: ltvChipSub(),
           target: "panel-settings",
           tone: tLtv.tone,
           why: tLtv.why,
