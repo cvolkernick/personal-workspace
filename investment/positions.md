@@ -50,6 +50,8 @@ Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlis
 | **PLTR** | AI harness/apps (Palantir) | ready | Dive 2026-08-04. Medium priority; high multiple / gov gates. |
 | **EVGO** | Energy (EVgo) | ready | Dive 2026-08-06. Low-priority show-me Superchargers. |
 | **AMZN** | AI stack (Amazon) | ready | Dive 2026-08-24. AWS/AI real; GAAP EPS Anthropic-mark; behind GOOGL/NVDA. |
+| **RKLB** | Space (Rocket Lab) | ready | Dive 2026-08-26. Neutron optionality vs held SPCX. No size until Flight 1 + residual. |
+| **STRK** | Digital credit (Strategy Strike pfd) | ready | Dive 2026-08-30. 8% convertible preferred; junior to held STRC; not core. No size until residual + RV vs STRC. |
 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60 when relative value favors it; **strong theme bias**.

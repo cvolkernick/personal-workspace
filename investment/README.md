@@ -42,7 +42,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | Theme | Idea | Examples |
 |-------|------|----------|
 | **Bitcoin & hard money** | Store of value / hard money stack | BTC; gold/silver (e.g. PAXG, GLDM or similar—optional sleeve) |
-| **Digital credit** | BTC-linked corporate / structured credit, yield, and fixed-income proxies | MSTR, **STRC**, **SATA**, ASST, **BITA** — **small bias within 40%** to STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash; not MSTR-only by habit) |
+| **Digital credit** | BTC-linked corporate / structured credit, yield, and fixed-income proxies | MSTR, **STRC**, **SATA**, ASST, **BITA** — **small bias within 40%** to STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash; not MSTR-only by habit). **Watch:** **STRK** (Strategy Strike 8% convertible preferred) — consider-set sibling of held STRC, not core, not a substitute |
 | **Bitcoin infrastructure** | Mining / energy-intensive BTC infra | MARA, RIOT, CLSK, WULF, IREN |
 | **AI stack** | Infrastructure (hardware) through foundational models and app layers (software) | Broad AI exposure over time; not limited to “chips only” |
 | **Equity / growth (stocks sleeve)** | Non-BTC-primary growth names in the “60” | e.g. TSLA, SPCX |
@@ -54,6 +54,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 - **AI** = full stack: infra/hardware, foundation models, and application software—not only semiconductor hardware.
 - **Bitcoin + digital credit + miners** = the hard-money / BTC complex.
 - **Digital credit (STRC/SATA):** **Small bias inside the ~40% stack** toward a real STRC/SATA seat on deploys — BTC-fundamental high-yield / frequent-dividend credit, not cash. Owner 2026-08-04: yields roughly ~2× typical USDC/USDG cash, so prefer STRC/SATA over pure cash-like residual when deploying into the complex. Not “covered by MSTR+BITA” as a default skip; not 40% all-credit.
+- **STRK (Strike preferred):** Owner-add 2026-08-30. Strategy 8% convertible perpetual preferred (0.1 MSTR). Watchlist `ready` — name it each deploy; **not** preferred_core; **not** a substitute for STRC. Not Jack Mallers Strike / not Starknet STRK / not JR-strcUSX. Dive `research/STRK_deep_dive.md`. No size until residual-after-floors (or BP ≥ min_trade) plus logged RV vs held STRC.
 - **Miners:** Diversify across multiple names (MARA, IREN, CLSK, RIOT, WULF, …). Multi-miner is intentional; do not reject for “overlap” alone.
 - **Energy** is the shared constraint (mining, AI power, electrification); opportunistic, not a mandatory line-item yet.
 - **Space:** SPCX is the core expression (already held). RKLB is watchlist optionality on a second launcher — deep-dive 2026-08-26; **not** a mandate to buy space names. Do not treat LUNR/PL/RDW/FLY as SpaceX competitors.

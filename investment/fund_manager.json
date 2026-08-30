@@ -185,6 +185,9 @@
         "WULF",
         "IREN"
       ],
+      "watchlist_symbols": [
+        "STRK"
+      ],
       "optional_symbols": [
         "PAXG",
         "GLDM",
@@ -213,7 +216,7 @@
             "STRC",
             "SATA"
           ],
-          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA \u2014 BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2\u00d7 owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit."
+          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA \u2014 BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2\u00d7 owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit. Owner 2026-08-30: STRK (Strategy Strike 8% convertible preferred) is watchlist/consider-set only \u2014 sibling of held STRC, not preferred_core, not a substitute. Name it each deploy; reject unless residual-after-floors (or BP \u2265 min_trade) plus a logged RV case vs STRC/SATA. Not Jack Mallers Strike; not Starknet STRK; not JR-strcUSX."
         },
         "miners_infra": {
           "priority": "diversify_within_sleeve",
@@ -227,7 +230,7 @@
           "notes": "Owner 2026-07-27: multi-miner diversification is intentional. Do NOT reject RIOT/CLSK/WULF/etc. merely for 'miner overlap' or 'already have MARA+IREN'. Diversify mining beta across names; only block on true concentration (e.g. miners crowding out digital credit / MSTR / whole-book limits), liquidity, or thesis failure."
         }
       },
-      "notes": "BTC complex = digital credit + miners/infra + optional spot/metals. Small bias toward STRC/SATA within credit (yield > cash; BTC-fundamental dividends); multi-miner book is diversification, not redundancy."
+      "notes": "BTC complex = digital credit + miners/infra + optional spot/metals. Small bias toward STRC/SATA within credit (yield > cash; BTC-fundamental dividends); multi-miner book is diversification, not redundancy. STRK is watchlist convertible preferred (owner 2026-08-30) \u2014 consider each deploy; not core."
     },
     "stocks_growth": {
       "target_pct": 0.6,

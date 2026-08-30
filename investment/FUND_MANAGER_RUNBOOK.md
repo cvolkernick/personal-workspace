@@ -129,4 +129,5 @@ Cash risk budget = deposits (cash account today). Full allowlist is the menu eac
 
 **Owner prefs:**
 - **Digital credit (2026-08-04):** **Small bias within the ~40% stack** toward **STRC / SATA** — BTC-fundamental, high-yield, frequent-dividend positions (not cash). Yields ~2× typical USDC/USDG cash → prefer a real STRC/SATA seat over cash-like residual when deploying into the complex. Not MSTR-only by habit; not 40% all-credit. Skip only with a strong, logged Risk/Critic rebuttal (liquidity/structure/ticket-size/thesis).
+- **STRK (2026-08-30):** Strategy Strike 8% convertible preferred is **watchlist/consider-set**, not preferred_core. Name it each deploy; reject unless residual-after-floors (or BP ≥ min_trade) plus a logged RV case versus held STRC/SATA. Same issuer as MSTR+STRC — not a hedge. Not Jack Mallers Strike; not Starknet; not JR-strcUSX.
 - **Miners (2026-07-27):** Multi-miner diversification is intentional. Do not reject names for “miner overlap.” Diversify across MARA, IREN, CLSK, RIOT, WULF, etc.

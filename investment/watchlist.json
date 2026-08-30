@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-26",
+  "as_of": "2026-08-30",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -218,6 +218,29 @@
       "last_verdict": "ready_consider_no_size_until_neutron_and_free_capital",
       "next_catalyst": "Neutron Flight 1 or official slip past Q1 2027; Iridium close/break (mid-2027); or >25% move from ~$66.91 (2026-08-25 close)",
       "notes": "Owner-add via Grok #Orchestration 2026-08-26 (space-economy Northstar). Dive same day. Close $66.91 / ~$40B cap / TTM rev ~$769M / P/S ~50-59x. Neutron pad Q4 2026, year-end window narrowing. NSSL Lane 1 gated on Flight 1. Already hold SPCX core. Not auto-buy. No size while Neutron unflown + thin buffer. ASTS is the connectivity candidate — not added this pass."
+    },
+    {
+      "symbol": "STRK",
+      "name": "Strategy Strike Preferred (8.00% Series A Perpetual)",
+      "theme": "digital_credit",
+      "themes": [
+        "digital_credit",
+        "bitcoin",
+        "btc_yield",
+        "convertible_preferred"
+      ],
+      "sleeve_if_owned": "btc_digital_credit",
+      "status": "ready",
+      "priority": "high",
+      "thesis_fit": "Strategy Inc. convertible perpetual preferred: 8% cumulative on $100 stated, quarterly, convertible into 0.1 MSTR. Listed digital-credit expression of the BTC complex — sibling of held STRC, not a substitute, not Jack Mallers Strike, not Starknet STRK, not JR-strcUSX. Conversion currently ~8× OTM; trades as a discounted preferred (~11% effective at $71.73).",
+      "added": "2026-08-30",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": "2026-08-30",
+      "last_deep_dive_path": "investment/research/STRK_deep_dive.md",
+      "last_verdict": "ready_consider_no_size_until_residual_and_rv_vs_strc",
+      "next_catalyst": "Residual-after-floors or BP ≥ min_trade plus logged RV vs held STRC; MSTR path toward ~$1000 conversion; STRK terms/dividend event; >25% from $71.73 (2026-08-28 close); or 90d age",
+      "notes": "Owner-add via Nakatoshi #agentic-finance 2026-08-30. Dive same day. Close $71.73 / ~28% below par / 8% stated / ~11.15% effective / 0.1 MSTR convert. Junior to held STRC (12% Stretch, ~$97). STRC+SATA seats already exist (~$11). Not core. Not auto-buy. No size while red-mode + dust BP + conversion OTM. High = owner-named, not first dollar."
     }
   ]
 }
