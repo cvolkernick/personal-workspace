@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "as_of": "2026-08-30T16:35:46.274961+00:00",
+  "as_of": "2026-08-30T19:39:00.939250+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-08-30T16:35:46.271281+00:00",
+    "as_of": "2026-08-30T19:39:00.936050+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
@@ -125,7 +125,7 @@
       "path": "investment/watchlist.json",
       "auto_buy": false,
       "deep_dive_workflow": "position-deep-dive",
-      "count": 8,
+      "count": 9,
       "symbols": [
         "BE",
         "GOOGL",
@@ -134,7 +134,8 @@
         "PLTR",
         "EVGO",
         "AMZN",
-        "RKLB"
+        "RKLB",
+        "STRK"
       ],
       "entries": [
         {
@@ -232,6 +233,18 @@
           "last_deep_dive": "2026-08-26",
           "held": false,
           "thesis_fit": "Only public Western attempt at Falcon 9-class medium-lift (Neutron, unflown). Electron is operational small-lift; space systems + proposed Iridium deal copy the launch+constellation template. Fits new Space Northstar lens under ~60% stocks/growth as optionality vs already-held SPCX \u2014 not a substitute for SpaceX, not a space basket."
+        },
+        {
+          "symbol": "STRK",
+          "name": "Strategy Strike Preferred (8.00% Series A Perpetual)",
+          "theme": "digital_credit",
+          "status": "ready",
+          "priority": "high",
+          "sleeve_if_owned": "btc_digital_credit",
+          "deep_dive_required_before_buy": true,
+          "last_deep_dive": "2026-08-30",
+          "held": false,
+          "thesis_fit": "Strategy Inc. convertible perpetual preferred: 8% cumulative on $100 stated, quarterly, convertible into 0.1 MSTR. Listed digital-credit expression of the BTC complex \u2014 sibling of held STRC, not a substitute, not Jack Mallers Strike, not Starknet STRK, not JR-strcUSX. Conversion currently ~8\u00d7 OTM; trades as a discounted preferred (~11% effective at $71.73)."
         }
       ],
       "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
@@ -318,7 +331,7 @@
     },
     "manager_hints": [
       "Deployed mix within target bands \u2014 discretionary alpha only.",
-      "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB \u2014 deep-dive via /position-deep-dive before first buy when required.",
+      "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB, STRK \u2014 deep-dive via /position-deep-dive before first buy when required.",
       "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
     ],
     "fair_game": true,
