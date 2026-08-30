@@ -440,7 +440,7 @@ def collect_data_requests(
             {
                 "field": "morpho_ltv_principal",
                 "why": "Cannot judge whether vault USDC should stay as loan buffer vs bill pay.",
-                "how": "Enter Morpho principal/collateral/LTV in FCC Settings.",
+                "how": "Morpho GraphQL userByAddress on the Coinbase Borrow SCW — not Settings. Re-run treasury if the poller missed.",
             }
         )
 

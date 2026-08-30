@@ -370,9 +370,18 @@ def build_snapshot(
     from treasury.solstice_jr_sync import fetch_solstice_jr
     from treasury.usdg_hy_sync import fetch_usdg_hy
 
+    from treasury.morpho_position_sync import (
+        fetch_morpho_position,
+        overlay_manual_with_position,
+    )
+
     morpho_hy = fetch_morpho_hy(prefer_live=prefer_live_coinbase)
     usdg_hy = fetch_usdg_hy(prefer_live=prefer_live_coinbase)
     morpho_borrow = fetch_morpho_borrow(prefer_live=prefer_live_coinbase)
+    morpho_position = fetch_morpho_position(
+        prefer_live=prefer_live_coinbase, config=cfg
+    )
+    manual = overlay_manual_with_position(manual, morpho_position)
     solstice_jr = fetch_solstice_jr(prefer_live=prefer_live_coinbase)
     rh_cfg = cfg.get("robinhood") or {}
     # Overlay FCC settings yield/principal so the Settings form can re-show
@@ -408,6 +417,7 @@ def build_snapshot(
         "morpho_hy": morpho_hy,
         "usdg_hy": usdg_hy,
         "morpho_borrow": morpho_borrow,
+        "morpho_position": morpho_position,
         "solstice_jr": solstice_jr,
         "one_card": one_card,
         "rh_checking": rh_checking,
@@ -425,6 +435,7 @@ def build_snapshot(
             "morpho_hy_source": morpho_hy.get("source"),
             "usdg_hy_source": usdg_hy.get("source"),
             "morpho_borrow_source": morpho_borrow.get("source"),
+            "morpho_position_source": morpho_position.get("source"),
             "solstice_jr_source": solstice_jr.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
@@ -458,7 +469,15 @@ def build_snapshot(
                     "APR Morpho GraphQL marketById avgBorrowApy "
                     "(cbBTC/USDC / Base "
                     "0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836; "
-                    "soft-fail; no scrape). Principal/LTV app-only. Do not invent rates."
+                    "soft-fail; no scrape). Principal/collateral/LTV/liq price "
+                    "from userByAddress on the Coinbase Borrow SCW (snapshot."
+                    "morpho_position). Writes stay app-only. Do not invent rates."
+                ),
+                "morpho_position": (
+                    "Loan books Morpho GraphQL userByAddress (Coinbase Borrow "
+                    "SCW on Base). Public, no Coinbase auth, no backup-link sig. "
+                    "Soft-fail keeps prior sidecar; Settings is not a source. "
+                    "HY vault is a different wallet. Writes app-only."
                 ),
                 "solstice_jr": (
                     "JR-strcUSX live epoch APY from STRC-USX AccountingState "
@@ -484,23 +503,48 @@ def _f_safe(x: Any) -> float:
         return 0.0
 
 
+# Loan books come from Morpho GraphQL (SCW). Settings must not store or
+# re-introduce them — git-zero / form POST used to wipe the live feed.
+LOAN_MANUAL_KEYS = (
+    "loan_principal_usdc",
+    "collateral_btc_usd",
+    "collateral_btc",
+    "ltv",
+    "variable_apr",
+    "morpho_borrow_apr",
+    "liquidation_price_btc_usd",
+    "health_factor",
+    "morpho_wallet",
+    "morpho_position_source",
+)
+
+
 def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
     """Persist treasury config.json (manual fields + policy)."""
     p = path or CONFIG_PATH
     existing = load_config(p)
     merged = {
-        "policy": {**(existing.get("policy") or {}), **(data.get("policy") or {})},
-        "coinbase_manual": {
-            **(existing.get("coinbase_manual") or {}),
-            **(data.get("coinbase_manual") or {}),
-        },
-        "robinhood": {**(existing.get("robinhood") or {}), **(data.get("robinhood") or {})},
-        "ynab": {**(existing.get("ynab") or {}), **(data.get("ynab") or {})},
-        "expenses_sheet": {
-            **(existing.get("expenses_sheet") or {}),
-            **(data.get("expenses_sheet") or {}),
-        },
+        k: v
+        for k, v in existing.items()
+        if k not in {"policy", "coinbase_manual", "robinhood", "ynab", "expenses_sheet"}
     }
+    merged.update(
+        {
+            "policy": {**(existing.get("policy") or {}), **(data.get("policy") or {})},
+            "coinbase_manual": {
+                **(existing.get("coinbase_manual") or {}),
+                **(data.get("coinbase_manual") or {}),
+            },
+            "robinhood": {**(existing.get("robinhood") or {}), **(data.get("robinhood") or {})},
+            "ynab": {**(existing.get("ynab") or {}), **(data.get("ynab") or {})},
+            "expenses_sheet": {
+                **(existing.get("expenses_sheet") or {}),
+                **(data.get("expenses_sheet") or {}),
+            },
+        }
+    )
+    if data.get("morpho"):
+        merged["morpho"] = {**(existing.get("morpho") or {}), **(data.get("morpho") or {})}
     # Preserve expenses_sheet if empty merge
     if not merged["expenses_sheet"] and existing.get("expenses_sheet"):
         merged["expenses_sheet"] = existing["expenses_sheet"]
@@ -509,5 +553,9 @@ def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
         "notes"
     ):
         merged["coinbase_manual"]["notes"] = existing["coinbase_manual"]["notes"]
+    man = dict(merged.get("coinbase_manual") or {})
+    for k in LOAN_MANUAL_KEYS:
+        man.pop(k, None)
+    merged["coinbase_manual"] = man
     save_json(p, merged)
     return p

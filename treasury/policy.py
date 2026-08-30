@@ -31,9 +31,6 @@ DEFAULT_POLICY: Dict[str, Any] = {
 }
 
 MANUAL_FIELDS = (
-    "loan_principal_usdc",
-    "collateral_btc_usd",
-    "ltv",
     "vault_usdc",
     "card_balance",
     "card_available_credit",
@@ -218,16 +215,9 @@ def assess_data_quality(
     meta = snapshot.get("meta") or {}
 
     missing_manual = [k for k in MANUAL_FIELDS if _is_missing(man.get(k))]
-    # If ltv derived, don't mark ltv missing
-    if ltv is not None and "ltv" in missing_manual:
-        missing_manual = [k for k in missing_manual if k != "ltv"]
-    # principal+collateral can substitute for ltv
-    if (
-        not _is_missing(man.get("loan_principal_usdc"))
-        and not _is_missing(man.get("collateral_btc_usd"))
-        and "ltv" in missing_manual
-    ):
-        missing_manual = [k for k in missing_manual if k != "ltv"]
+    pos = snapshot.get("morpho_position") if isinstance(snapshot.get("morpho_position"), dict) else {}
+    # Loan books are wallet GraphQL, not Settings — never flag principal/LTV as
+    # missing-manual. Live overlay already filled coinbase_manual when present.
 
     warnings: List[str] = []
     # Card fields filled via YNAB one_card count as present for DQ
@@ -249,6 +239,12 @@ def assess_data_quality(
     ):
         missing_manual = [k for k in missing_manual if k != "card_available_credit"]
 
+    if pos.get("source") in (None, "empty"):
+        warnings.append(
+            "Morpho loan position missing — GraphQL userByAddress on the Coinbase Borrow SCW"
+        )
+    elif pos.get("live_error"):
+        warnings.append(f"Morpho position: {pos['live_error']}")
     if missing_manual:
         warnings.append(
             "Missing Coinbase app fields: " + ", ".join(missing_manual)
@@ -343,7 +339,7 @@ def assess_data_quality(
         "stale": stale,
         "warnings": warnings,
         "notes": [
-            "Morpho LTV, High Yield vault, and One Card are app-only — not Advanced Trade API.",
+            "Morpho loan books are GraphQL userByAddress on the Coinbase Borrow SCW; writes + HY vault balance stay app-only.",
             "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
             "Liquid CB balances exclude vault/collateral locked on Morpho.",
         ],
@@ -370,15 +366,36 @@ def evaluate_treasury(
         liquid_btc * btc_usd_price if btc_usd_price is not None else _f(cb.get("liquid_btc_usd"))
     )
 
-    ltv = man.get("ltv")
+    pos = snapshot.get("morpho_position") if isinstance(snapshot.get("morpho_position"), dict) else {}
+
+    def _loan_field(key: str) -> Any:
+        if not _is_missing(pos.get(key)):
+            return pos.get(key)
+        return man.get(key)
+
+    ltv = _loan_field("ltv")
     if not _is_missing(ltv):
         ltv = _f(ltv)
     else:
         ltv = None
-    principal = _f(man.get("loan_principal_usdc")) if not _is_missing(man.get("loan_principal_usdc")) else 0.0
-    coll_usd = _f(man.get("collateral_btc_usd")) if not _is_missing(man.get("collateral_btc_usd")) else 0.0
+    principal = (
+        _f(_loan_field("loan_principal_usdc"))
+        if not _is_missing(_loan_field("loan_principal_usdc"))
+        else 0.0
+    )
+    coll_usd = (
+        _f(_loan_field("collateral_btc_usd"))
+        if not _is_missing(_loan_field("collateral_btc_usd"))
+        else 0.0
+    )
     if ltv is None and principal > 0 and coll_usd > 0:
         ltv = principal / coll_usd
+    coll_btc = _loan_field("collateral_btc")
+    coll_btc = _f(coll_btc) if not _is_missing(coll_btc) else None
+    liq_price = _loan_field("liquidation_price_btc_usd")
+    liq_price = _f(liq_price) if not _is_missing(liq_price) else None
+    health_factor = _loan_field("health_factor")
+    health_factor = _f(health_factor) if not _is_missing(health_factor) else None
 
     one_card = snapshot.get("one_card") or {}
     rh_checking = snapshot.get("rh_checking") or {}
@@ -572,6 +589,9 @@ def evaluate_treasury(
         detail: str,
         api_reachable: bool,
     ) -> None:
+        # Either = shared hands. App-only rows are You, even if a caller said either.
+        if actor == "either" and not api_reachable:
+            actor = "human"
         actions.append(
             {
                 "priority": priority,
@@ -597,9 +617,9 @@ def evaluate_treasury(
         add(
             1,
             "ltv_check",
-            "Confirm Morpho loan LTV in Coinbase app",
+            "Confirm Morpho loan LTV from the Coinbase Borrow wallet",
             actor="human",
-            detail="LTV not readable via Advanced Trade API. Update treasury config; enable loan protection.",
+            detail="Wallet GraphQL miss — not Settings. Check Morpho SCW poller / enable loan protection in-app.",
             api_reachable=False,
         )
     elif ltv >= _f(p["cb_target_ltv_max"]):
@@ -784,12 +804,12 @@ def evaluate_treasury(
             3,
             "rh_checking_float",
             f"Est. RH Checking–funded bills ~${float(rh_checking_burn):.0f}/mo vs checking float ${float(bill_pay_cash):.2f} ({src})",
-            actor="either",
+            actor="human",
             detail=(
                 "Upcoming sheet bills marked RH Checking. "
                 "Actual checking balance/txs from YNAB when linked; top up before ACH due dates."
             ),
-            api_reachable=True,
+            api_reachable=False,
         )
     if rh_checking.get("source") not in (None, "empty") and not rh_checking.get("live_error"):
         if rh_checking_cash is not None and rh_checking_cash < 50 and (rh_checking_burn or 0) > 0:
@@ -857,6 +877,10 @@ def evaluate_treasury(
             "ltv": ltv,
             "loan_principal_usdc": principal if principal else None,
             "collateral_btc_usd": coll_usd if coll_usd else None,
+            "collateral_btc": coll_btc,
+            "liquidation_price_btc_usd": liq_price,
+            "health_factor": health_factor,
+            "morpho_wallet": pos.get("wallet") or man.get("morpho_wallet"),
             "vault_usdc": vault_usdc if vault_known else None,
             "vault_apy": vault_apy,
             "product_apy": product_apy,

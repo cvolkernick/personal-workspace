@@ -540,8 +540,14 @@ def build_treasury_context(
             "liquid_usdc": inp.get("liquid_usdc"),
             "vault_usdc": inp.get("vault_usdc") or man.get("vault_usdc"),
             "ltv": inp.get("ltv") if inp.get("ltv") is not None else man.get("ltv"),
-            "loan_principal_usdc": man.get("loan_principal_usdc"),
-            "collateral_btc_usd": man.get("collateral_btc_usd"),
+            "loan_principal_usdc": inp.get("loan_principal_usdc")
+            if inp.get("loan_principal_usdc") is not None
+            else man.get("loan_principal_usdc"),
+            "collateral_btc_usd": inp.get("collateral_btc_usd")
+            if inp.get("collateral_btc_usd") is not None
+            else man.get("collateral_btc_usd"),
+            "liquidation_price_btc_usd": inp.get("liquidation_price_btc_usd"),
+            "health_factor": inp.get("health_factor"),
             "card_balance": inp.get("card_balance") or oc.get("balance_owed") or man.get("card_balance"),
             "card_security_deposit_usdc": inp.get("card_security_deposit_usdc")
             or man.get("one_card_security_deposit_usdc"),
