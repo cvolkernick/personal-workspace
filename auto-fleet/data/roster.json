@@ -5,6 +5,6 @@
     {"id": "m3-2022", "year": 2022, "make": "Tesla", "model": "Model 3", "role": "turo", "vin": "5YJ3E1EA6NF289917", "lender": "GM Financial", "account": "111088614673", "dimo_expected": "tesla"},
     {"id": "corolla-2022", "year": 2022, "make": "Toyota", "model": "Corolla", "role": "turo", "plate": "24EWUH", "vin": "5YFVPMAE9NP362974", "lender": "Capital One", "account": "6201049298207", "dimo_expected": "aftermarket", "dimo_sheet_item": "2022 Corolla DIMO"},
     {"id": "corolla-2024", "year": 2024, "make": "Toyota", "model": "Corolla", "role": "turo", "plate": "25EWUH", "vin": "5YFB4MDE9RP121896", "lender": "Santander", "account": "28312877", "dimo_expected": "aftermarket", "dimo_sheet_item": "2024 Corolla DIMO"},
-    {"id": "r1s-2023", "year": 2023, "make": "Rivian", "model": "R1S", "role": "turo", "vin": "7PDSGABA3PN028624", "lender": "Vivek", "sheet_item": "Rivian R1S"}
+    {"id": "r1s-2023", "year": 2023, "make": "Rivian", "model": "R1S", "role": "turo", "vin": "7PDSGABA3PN028624", "lender": "Vivek", "sheet_item": "Rivian R1S", "tracking_url": "https://docs.google.com/spreadsheets/d/1H4hjK7hNOyUHAIekWwxuqf3NgZOpSdyezHA7rQ3Zafc/edit"}
   ]
 }

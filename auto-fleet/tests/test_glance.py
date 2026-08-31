@@ -281,10 +281,58 @@ class FormatTests(unittest.TestCase):
         self.assertEqual(glance.speed_mph(0), 0.0)
         self.assertIsNone(glance.speed_mph(None))
 
+    def test_https_url_allows_only_compact_https(self) -> None:
+        good = (
+            "https://docs.google.com/spreadsheets/d/"
+            "1H4hjK7hNOyUHAIekWwxuqf3NgZOpSdyezHA7rQ3Zafc/edit"
+        )
+        self.assertEqual(glance.https_url(good), good)
+        self.assertIsNone(glance.https_url(None))
+        self.assertIsNone(glance.https_url(""))
+        self.assertIsNone(glance.https_url("http://docs.google.com/spreadsheets/d/x"))
+        self.assertIsNone(glance.https_url("javascript:alert(1)"))
+        self.assertIsNone(glance.https_url('https://evil.example/"onclick'))
+        self.assertIsNone(glance.https_url("https://example.com/has space"))
+
+    def test_rivian_glance_chip_links_tracking_sheet(self) -> None:
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=EMPTY_INBOX,
+            dimo_env={},
+            now=NOW,
+        )
+        by_id = {u["id"]: u for u in payload["units"]}
+        sheet = (
+            "https://docs.google.com/spreadsheets/d/"
+            "1H4hjK7hNOyUHAIekWwxuqf3NgZOpSdyezHA7rQ3Zafc/edit"
+        )
+        self.assertEqual(by_id["r1s-2023"]["glance"]["tracking_url"], sheet)
+        html = glance.render_cards_html(
+            payload["units"], now=NOW, inbox_status=None
+        )
+        glance_html = html[: html.find('<div class="grid">')]
+        self.assertIn(sheet, glance_html)
+        self.assertIn(">sheet</a>", glance_html)
+        self.assertIn('href="#unit-r1s-2023"', glance_html)
+        self.assertEqual(glance_html.count(sheet), 1)
+        self.assertNotIn(
+            sheet,
+            html[html.find('data-unit="m3-2020"') : html.find('data-unit="r1s-2023"')],
+        )
+
     def test_index_html_glance_contract(self) -> None:
         html = (PKG / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="glance"', html)
         self.assertIn("function renderGlanceCell", html)
+        glance_fn = html[
+            html.find("function renderGlanceCell") : html.find("function renderUnit")
+        ]
+        self.assertIn("chipLink", glance_fn)
+        self.assertIn("g.tracking_url", glance_fn)
+        self.assertIn("class=\"glance-cell", glance_fn)
+        self.assertNotIn("<a class=\"glance-cell", glance_fn)
         turo_fn = html[html.find("function scheduleStrip") : html.find("function moneyStrip")]
         self.assertGreater(html.find("function scheduleStrip"), 0)
         self.assertGreater(html.find("function vehicleStrip"), 0)

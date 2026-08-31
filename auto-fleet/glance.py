@@ -40,6 +40,20 @@ def _esc(value: Any) -> str:
     )
 
 
+def https_url(value: Any) -> Optional[str]:
+    """Allow only a compact https URL. Reject http, spaces, and quotes."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if len(text) < 9 or len(text) > 2000:
+        return None
+    if not text.lower().startswith("https://"):
+        return None
+    if any(ch.isspace() or ch in "<>\"'" for ch in text):
+        return None
+    return text
+
+
 def _normalize_iso(raw: str) -> str:
     """Pad/trim fractional seconds so 3.9 fromisoformat accepts DIMO stamps."""
     text = raw.strip()
@@ -553,12 +567,25 @@ def glance_for_unit(
         "heading": dimo.get("heading"),
         "ignition_on": dimo.get("ignition_on"),
         "show_soc": soc is not None,
+        "tracking_url": https_url(ident.get("tracking_url")),
     }
 
 
 def _chip(text: str, kind: str = "") -> str:
     cls = f"chip {kind}".strip()
     return f'<span class="{cls}">{_esc(text)}</span>'
+
+
+def _chip_link(text: str, href: str, kind: str = "") -> str:
+    url = https_url(href)
+    if not url:
+        return ""
+    cls = f"chip {kind}".strip()
+    return (
+        f'<a class="{cls}" href="{_esc(url)}" target="_blank" '
+        f'rel="noopener noreferrer" title="Tracking spreadsheet">'
+        f"{_esc(text)}</a>"
+    )
 
 
 def copyable_html(value: Any, *, title: str) -> str:
@@ -633,6 +660,9 @@ def render_unit_card_html(
         chips.append(_chip(str(g["vin_short"])))
     if ident.get("lender"):
         chips.append(_chip(str(ident["lender"])))
+    sheet = https_url(g.get("tracking_url") or ident.get("tracking_url"))
+    if sheet:
+        chips.append(_chip_link("sheet", sheet))
     if fresh in ("stale", "dead"):
         chips.append(_chip(str(fresh), "err" if fresh == "dead" else "warn"))
     if g.get("due"):
@@ -823,9 +853,12 @@ def render_cards_html(
             badges.append("available")
         if g.get("due"):
             badges.append("due")
+        sheet = https_url(g.get("tracking_url"))
+        sheet_chip = _chip_link("sheet", sheet) if sheet else ""
         cells.append(
-            f'<a class="glance-cell {g["freshness"]}" href="#unit-{_esc(unit.get("id"))}">'
-            f"{' · '.join(badges)}</a>"
+            f'<div class="glance-cell {g["freshness"]}">'
+            f'<a class="glance-jump" href="#unit-{_esc(unit.get("id"))}">'
+            f"{' · '.join(badges)}</a>{sheet_chip}</div>"
         )
         cards.append(
             render_unit_card_html(

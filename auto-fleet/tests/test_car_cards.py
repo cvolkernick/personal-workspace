@@ -593,6 +593,11 @@ class CardHtmlTests(unittest.TestCase):
         rivian = glance.render_unit_card_html(by_id["r1s-2023"], now=NOW)
         self.assertIn("Vivek", rivian)
         self.assertIn("$1,350.00/mo", rivian)
+        self.assertIn(
+            "https://docs.google.com/spreadsheets/d/1H4hjK7hNOyUHAIekWwxuqf3NgZOpSdyezHA7rQ3Zafc/edit",
+            rivian,
+        )
+        self.assertIn(">sheet</a>", rivian)
         self.assertNotIn("24EWUH", rivian)
         self.assertNotIn("25EWUH", rivian)
         c22 = glance.render_unit_card_html(by_id["corolla-2022"], now=NOW)

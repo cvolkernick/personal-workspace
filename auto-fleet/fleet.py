@@ -195,6 +195,7 @@ def identity_for(unit: Mapping[str, Any]) -> dict[str, Any]:
         "role": role,
         "lender": unit.get("lender"),
         "account": unit.get("account"),
+        "tracking_url": glance.https_url(unit.get("tracking_url")),
     }
 
 

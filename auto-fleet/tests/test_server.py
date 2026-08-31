@@ -117,6 +117,15 @@ class AutoFleetServerTests(unittest.TestCase):
                 self.assertEqual(r1s["identity"]["vin"], "7PDSGABA3PN028624")
                 self.assertEqual(r1s["identity"]["role"], "turo")
                 self.assertEqual(
+                    r1s["identity"]["tracking_url"],
+                    "https://docs.google.com/spreadsheets/d/1H4hjK7hNOyUHAIekWwxuqf3NgZOpSdyezHA7rQ3Zafc/edit",
+                )
+                self.assertEqual(
+                    r1s["glance"]["tracking_url"],
+                    r1s["identity"]["tracking_url"],
+                )
+                self.assertIsNone(by_id["m3-2020"]["identity"]["tracking_url"])
+                self.assertEqual(
                     by_id["m3-2020"]["glance"]["photo"],
                     "/static/fleet/tesla-model-3-2020.jpg",
                 )
@@ -275,6 +284,9 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn("bookingRow(", sched_src)
         self.assertIn('class="glance"', html)
         self.assertIn("function renderGlanceCell", html)
+        self.assertIn("function chipLink", html)
+        self.assertIn("g.tracking_url", html)
+        self.assertIn('title="Tracking spreadsheet"', html)
         self.assertIn('id="turo-inbox"', html)
         self.assertIn("min-height: 44px", html)
         self.assertIn("grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr)", html)
