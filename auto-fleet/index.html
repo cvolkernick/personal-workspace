@@ -90,6 +90,27 @@
       color: inherit;
       text-decoration: none;
     }
+    a.glance-jump, a.glance-name {
+      color: inherit;
+      text-decoration: none;
+      min-width: 0;
+    }
+    a.glance-jump {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.08rem;
+      flex: 1;
+    }
+    a.chip { text-decoration: none; cursor: pointer; }
+    a.chip:hover { border-color: var(--accent); }
+    .glance-top-end {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.12rem;
+      align-items: center;
+      flex-shrink: 0;
+    }
     .glance-cell:hover { border-color: var(--accent); }
     .glance-cell.stale { border-color: #6a5a2a; }
     .glance-cell.dead, .card.dead {
@@ -620,6 +641,20 @@
 
     function chip(text, kind) {
       return `<span class="chip ${kind || ""}">${esc(text)}</span>`;
+    }
+
+    function httpsUrl(value) {
+      const text = String(value || "").trim();
+      if (text.length < 9 || text.length > 2000) return null;
+      if (!text.toLowerCase().startsWith("https://")) return null;
+      if (/[\s<>"']/.test(text)) return null;
+      return text;
+    }
+
+    function chipLink(text, href, kind) {
+      const url = httpsUrl(href);
+      if (!url) return "";
+      return `<a class="chip ${kind || ""}" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Tracking spreadsheet">${esc(text)}</a>`;
     }
 
     function kmToMiles(km) {
@@ -1276,20 +1311,26 @@
 
     function renderGlanceCell(u, g) {
       const freshKind = g.freshness === "dead" ? "err" : (g.freshness === "stale" ? "warn" : "");
+      const sheet = httpsUrl(g.tracking_url || (u.identity || {}).tracking_url);
       return `
-        <a class="glance-cell ${esc(g.freshness || "")}" href="#unit-${esc(u.id)}">
+        <div class="glance-cell ${esc(g.freshness || "")}">
           <div class="glance-top">
-            <span class="glance-name">${esc(g.year_model || u.id)}</span>
-            ${chip(g.role || "unknown")}
+            <a class="glance-name" href="#unit-${esc(u.id)}">${esc(g.year_model || u.id)}</a>
+            <span class="glance-top-end">
+              ${chip(g.role || "unknown")}
+              ${sheet ? chipLink("sheet", sheet) : ""}
+            </span>
           </div>
-          <div class="glance-hero">${esc(g.hero || "—")}</div>
-          <div class="glance-meta">
-            ${g.last_seen_relative ? `<span class="${freshKind}">${esc(g.last_seen_relative)}</span>` : "<span>—</span>"}
-            ${g.freshness === "stale" || g.freshness === "dead" ? chip(g.freshness, g.freshness === "dead" ? "err" : "warn") : ""}
-            ${g.available ? chip("available", "ok") : chip("booked", "warn")}
-            ${g.due ? chip("due", "err") : ""}
-          </div>
-        </a>`;
+          <a class="glance-jump" href="#unit-${esc(u.id)}">
+            <div class="glance-hero">${esc(g.hero || "—")}</div>
+            <div class="glance-meta">
+              ${g.last_seen_relative ? `<span class="${freshKind}">${esc(g.last_seen_relative)}</span>` : "<span>—</span>"}
+              ${g.freshness === "stale" || g.freshness === "dead" ? chip(g.freshness, g.freshness === "dead" ? "err" : "warn") : ""}
+              ${g.available ? chip("available", "ok") : chip("booked", "warn")}
+              ${g.due ? chip("due", "err") : ""}
+            </div>
+          </a>
+        </div>`;
     }
 
     function renderUnit(u, nowMs, pollS) {
@@ -1307,6 +1348,7 @@
         idn.plate ? chip(idn.plate) : "",
         vinChip ? chip(vinChip) : "",
         idn.lender ? chip(idn.lender) : "",
+        chipLink("sheet", g.tracking_url || idn.tracking_url),
         fresh === "dead" ? chip("dead", "err") : (fresh === "stale" ? chip("stale", "warn") : ""),
         g.due ? chip("due", "err") : "",
       ].join("");

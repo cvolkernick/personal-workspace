@@ -68,6 +68,18 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertIsNone(by_id["m3-2022"]["identity"]["plate"])
         self.assertIsNone(r1s["identity"]["plate"])
         self.assertNotIn("color", r1s["identity"])
+        self.assertEqual(
+            r1s["identity"]["tracking_url"],
+            "https://docs.google.com/spreadsheets/d/1H4hjK7hNOyUHAIekWwxuqf3NgZOpSdyezHA7rQ3Zafc/edit",
+        )
+        self.assertEqual(
+            r1s["glance"]["tracking_url"],
+            r1s["identity"]["tracking_url"],
+        )
+        self.assertIsNone(by_id["m3-2020"]["identity"]["tracking_url"])
+        self.assertIsNone(by_id["m3-2022"]["identity"]["tracking_url"])
+        self.assertIsNone(by_id["corolla-2022"]["identity"]["tracking_url"])
+        self.assertIsNone(by_id["corolla-2024"]["identity"]["tracking_url"])
         self.assertEqual(r1s["glance"]["title"], "2023 Rivian R1S")
         self.assertEqual(
             r1s["glance"]["photo"], "/static/fleet/rivian-r1s-2023.jpg"
