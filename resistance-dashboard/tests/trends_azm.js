@@ -22,6 +22,9 @@ function almostEqual(a, b, msg) {
 
 assert(azm.SPAN_DAYS === 90, "window is 90 civil days");
 assert(azm.ROLL_DAYS === 7, "rolling average is 7 days");
+assert(azm.SERIES_COLORS.daily === "#8b9bb4", "daily is muted gray");
+assert(azm.SERIES_COLORS.roll === "#3d9cf0", "rolling avg is house blue");
+assert(azm.SERIES_COLORS.trend === "#f07178", "trendline is house coral");
 
 const now = new Date(2026, 7, 27, 12, 0, 0);
 const labels = azm.windowLabels(90, now);
@@ -142,8 +145,12 @@ assert(
 );
 assert(azm.sparklineSvg(empty.daily, empty.labels, empty.rolling7, empty.trend) === "", "no sparkline when no points");
 assert(
-  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend).indexOf("413") === -1,
-  "sparkline does not invent out-of-window values"
+  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend).indexOf('data-y-max="413"') === -1,
+  "Y max is not the out-of-window May 20 value"
+);
+assert(
+  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend).indexOf(">413</text>") === -1,
+  "no 413 tick from out-of-window May 20"
 );
 
 const spark = azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend);
@@ -183,6 +190,10 @@ assert(ticks[0] > 0, "first kept tick is Jun 1, not the May 30 start");
 assert(spark.indexOf(">S</text>") === -1, "no weekday-letter X ticks on the 90d spark");
 assert(spark.indexOf("chart.js") === -1, "still an SVG spark, not Chart.js");
 assert(spark.indexOf("last 90 days") !== -1, "aria names the 90d window");
+assert(spark.indexOf('height="100%"') !== -1, "svg height fills the chart box");
+assert(spark.indexOf('preserveAspectRatio="none"') !== -1, "svg stretches to the box");
+assert(spark.indexOf('height="80"') === -1, "no pinned 80px spark height");
+assert(spark.indexOf('viewBox="0 0 720 220"') !== -1, "plot viewBox is card-sized, not 400x80");
 
 const els = {};
 function makeEl(id) {
