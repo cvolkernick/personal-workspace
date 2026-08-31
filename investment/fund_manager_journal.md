@@ -1954,3 +1954,35 @@
 - **critic:** ok — Hold preferred when bands ok — avoid churn
 - **executor:** hold — No MCP orders on pure rules HOLD
 
+
+## 2026-08-31T10:29:57 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.09 BP $25.09 (deployable $25.09 ≥ min_trade $1.00)
+**Book:** NAV $253.456 · BP $25.09
+**Weights before (deployed):** BTC-complex 0.4057 · Stocks 0.5943
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $253.46 BP $25.09 cash $25.09
+- **thesis:** ok — deployed BTC 0.4057 stocks 0.5943
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-08-31T10:39:51 — deploy
+**Summary:** Pre-market team deploy of $25.09 idle agentic cash: RIOT $5 + WULF $5 (unheld miner diversifiers) + BE $15 (first energy equipment). All 3 queued regular_hours for the open. Residual $0.09.
+**Book:** NAV $253.4 · BP $25.09
+**Weights before (deployed):** BTC-complex 0.3986 · Stocks 0.6014
+**Why now:** User-run fund-manager review ~06:35 ET pre-market; live MCP cash/BP $25.09 >= min $1; unsettled $0; live_autopilot. Friday 8/28 cash was $0.09 with STRC/SATA/GOOGL already held — this is a new $25, not the 8/24 phantom. Deployed mix already in band so capital goes to theme gaps (unheld miners + empty energy).
+**Why not alternatives:** Rejected MSTR/TSLA/SPCX/GOOGL top-up as held-only inertia. STRC/SATA seats exist (~$11) and credit is ~73% of the BTC complex — logged rebuttal to under-allocation challenge is sub-sleeve balance + SATA wide tape, not 'MSTR covers credit'. Did not reject RIOT/WULF for miner overlap. NVDA beat 8/26 but AI already has GOOGL; energy is empty so BE is the stocks dollar. CCJ/BWXT named nuclear gap — not first energy dollar and not a BE+nuclear basket. STRK RV vs STRC fails.
+**Team:**
+- **scout:** ok — Agentic ••••1752 live MCP NAV $253.40 equity~$228.31 cash/BP $25.09; unsettled $0; held MSTR STRC SATA BITA MARA IREN CLSK TSLA SPCX GOOGL; deployed ~39.9/60.1 in band; ~06:35 ET pre-market. Friday cash $0.09 so $25 is new. RH MCP via stored OAuth (session tools disconnected).
+- **thesis:** ok — Best names now: RIOT+WULF unheld miner diversifiers inside 40% (STRC/SATA seats exist; credit 73% of complex); BE first energy equipment under 60%. Not MSTR/TSLA habit. $10/$15 split of new capital lands of-NAV near 40/60.
+- **risk:** ok — Agentic cash only; $25.09 within BP; min $1; limited_margin; no open orders before place; fractional dollar market regular_hours (queues to 09:30). BE multiple/beta + Smith fuel-cost overlay → starter $15. RIOT/WULF liquid. WULF insider sale not a size block. NVDA event risk cleared (beat 8/26).
+- **critic:** ok — Block held-only. STRC/SATA under-allocation: seats exist; credit 73% of complex; SATA spread is liquidity rebuttal; skip is balance not MSTR-cover. Miner skip of held MARA/IREN/CLSK is not overlap-reject of RIOT/WULF. Block CCJ+BWXT basket with BE. Block NVDA on this ticket (AI seated). Block STRK (RV vs STRC fails + wide tape). No size-down.
+- **executor:** execute — 3 market dollar buys agentic regular_hours GFD queued for the open. RIOT $5 / WULF $5 / BE $15. Residual $0.09. Venue stored OAuth HTTP.
+**Actions:**
+- BUY RIOT $5.0 [queued] 6a9559bc-1f1b-4cfb-9240-0071f9d8e36c
+- BUY WULF $5.0 [queued] 6a9559bc-9fbc-43f0-a266-9adf1c6b351f
+- BUY BE $15.0 [queued] 6a9559bd-add9-4fba-945d-00c769801182
+

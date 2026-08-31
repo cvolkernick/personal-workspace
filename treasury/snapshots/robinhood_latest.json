@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-08-31T10:29:24.323875+00:00",
+  "as_of": "2026-08-31T10:39:54.224828+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,12 +14,12 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-08-31T10:29:24.323871+00:00",
-    "total_value": 253.4560148567,
-    "equity_value": 228.3660148567,
+    "as_of": "2026-08-31T10:39:54.224816+00:00",
+    "total_value": 253.447698692,
+    "equity_value": 228.357698692,
     "cash": 25.09,
-    "buying_power": 25.09,
-    "unleveraged_buying_power": 25.09,
+    "buying_power": 0.09,
+    "unleveraged_buying_power": 0.09,
     "margin_use": null,
     "currency": "USD",
     "account_number_last4": "1752",
@@ -156,6 +156,42 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long"
+      },
+      {
+        "symbol": "RIOT",
+        "quantity": "0.000000",
+        "intraday_quantity": "0.000000",
+        "shares_available_for_sells": "0.000000",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "empty"
+      },
+      {
+        "symbol": "WULF",
+        "quantity": "0.000000",
+        "intraday_quantity": "0.000000",
+        "shares_available_for_sells": "0.000000",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "empty"
+      },
+      {
+        "symbol": "BE",
+        "quantity": "0.000000",
+        "intraday_quantity": "0.000000",
+        "shares_available_for_sells": "0.000000",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "empty"
       }
     ]
   },
@@ -200,5 +236,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot."
+  "notes": "Post-order snapshot 2026-08-31 fund-manager deploy; 3 buys queued regular_hours."
 }
