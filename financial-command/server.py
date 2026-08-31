@@ -346,7 +346,7 @@ def _attach_x_money(data: dict) -> dict:
 
 
 def _attach_morpho_position(data: dict) -> dict:
-    """Stale composites omit snapshot.morpho_position; restore GraphQL/SCW books."""
+    """GET: live GraphQL rewrite. Stale sidecar must not win with an LLTV invent."""
     try:
         from treasury.morpho_position_sync import overlay_morpho_position_onto_treasury
 
