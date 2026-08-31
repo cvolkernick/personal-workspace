@@ -16,6 +16,7 @@ from .models import (
     SleepSample,
     WeightSample,
 )
+from .cardio_quest import cardio_spec
 from .labs_store import labs_summary_for_coach
 from .test_noise import filter_sessions
 from .timeutil import local_today_iso
@@ -323,6 +324,11 @@ TARGET_MOTIVATIONS = {
     "hydration": (
         "Hydration supports performance and appetite control. Sip through the day, not only at meals."
     ),
+    "cardio": (
+        "AZM is the cardio prescription. Hit the day's minutes from the wearable; "
+        "rest, deload, and low recovery drop this to a walk / Zone 2 — not HIIT "
+        "and not a skip."
+    ),
 }
 
 
@@ -348,6 +354,7 @@ def build_today_board(
     calorie_bars: Optional[dict] = None,
     food_logs_today: Optional[Sequence[Any]] = None,
     inventory_dark: bool = False,
+    active_zone_minutes: Optional[Sequence[Any]] = None,
 ) -> dict:
     """Comprehensive same-day guide: targets + why, meal, training, actions.
 
@@ -592,6 +599,34 @@ def build_today_board(
             }
         )
 
+    cardio = cardio_spec(
+        {
+            "date": as_of,
+            "recommendation": rec_label,
+            "recovery": {
+                "label": recovery.label,
+                "score": recovery.score,
+            },
+            "workout": {
+                "is_rest_day": bool(wp.get("is_rest_day")),
+                "recommendation": rec_label,
+                "training_continuity": wp.get("training_continuity")
+                or (wp.get("context") or {}).get("training_continuity"),
+            },
+        },
+        azm=active_zone_minutes,
+        as_of=as_of,
+    )
+    actions.append(
+        {
+            "id": "azm",
+            "kind": "cardio",
+            "priority": 2,
+            "text": cardio["title"],
+            "motivation": TARGET_MOTIVATIONS["cardio"],
+        }
+    )
+
     if rem.get("protein_g", 0) > 20:
         actions.append(
             {
@@ -736,6 +771,17 @@ def build_today_board(
             "food_logs_fp": food_logs_fp,
         },
         "actions": actions,
+        "cardio": {
+            "kind": cardio.get("kind"),
+            "current_minutes": cardio.get("current_minutes"),
+            "target_minutes": cardio.get("target_minutes"),
+            "easy": cardio.get("easy"),
+            "mode": cardio.get("mode"),
+            "hit": cardio.get("hit"),
+            "title": cardio.get("title"),
+            "motivation": TARGET_MOTIVATIONS["cardio"],
+        },
+        "active_zone_minutes": list(cardio.get("days") or []),
         "sleep_battery": {
             "pct_charged": bat.get("pct_charged"),
             "mode": bat.get("mode"),
@@ -1151,6 +1197,7 @@ def build_coach_payload(
         calorie_bars=calorie_bars,
         food_logs_today=today_logs,
         inventory_dark=inventory_dark,
+        active_zone_minutes=health.active_zone_minutes if health else None,
     )
     food_commentary = build_food_commentary(
         food_logs=health.food_logs or [],

@@ -8,8 +8,9 @@ Sync identity:
     ``[fitdash-foods:<fp>]`` so same-day food-log regen can purge only those.
   * Local cache when the filesystem persists (Pi). Vercel is ephemeral — do not
     key rollover on cache alone.
-  * Known group headers (Training / Nutrition / Shopping / Sleep & recovery)
-    and their children, so unmarked user-OAuth leftovers can still be swept.
+  * Known group headers (Training / Cardio / Nutrition / Shopping /
+    Sleep & recovery) and their children, so unmarked user-OAuth leftovers
+    can still be swept.
 
   ~/.config/resistance-dashboard/daily_quest_cache.json
   { "day": { "list_id": "...", "ids": { "training|group": "taskId", "training|ex-foo": "..." } } }
@@ -30,6 +31,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import gtasks_bridge as gtb
+from .cardio_quest import (
+    GROUP as CARDIO_GROUP,
+    KIND_KEY as CARDIO_AZM_CACHE_KEY,
+    SLUG as CARDIO_AZM_SLUG,
+    cardio_spec,
+)
 from .nutrition_planner import food_logs_fingerprint, format_plan_portion
 from .timeutil import local_today_iso
 
@@ -71,6 +78,10 @@ CALORIE_PACE_SLUG = "calorie-pace"
 CALORIE_PACE_CACHE_KEY = f"nutrition|{CALORIE_PACE_SLUG}"
 SHOP_TOP_SLUG = "shop-top"
 SHOP_TOP_CACHE_KEY = f"shopping|{SHOP_TOP_SLUG}"
+CARDIO_AZM_TITLE_RE = re.compile(
+    r"^(Walk · Zone 2|Cardio)\s+[—-]\s+\d+\s*/\s*\d+\s*AZM\b",
+    re.I,
+)
 KIND_MARK_RE = re.compile(r"\[fitdash-kind:([a-z0-9.|-]+)\]")
 PROTECT_BEDTIME_TITLE_RE = re.compile(r"^Protect bedtime\b", re.I)
 SLEEP_BATTERY_LOW_TITLE_RE = re.compile(r"^Sleep battery low\b", re.I)
@@ -107,10 +118,11 @@ LIFT_TITLE_RE = re.compile(
 )
 GROUP_META = {
     "training": {"title": "Training", "order": 1, "emoji": "🏋️"},
-    "nutrition": {"title": "Nutrition", "order": 2, "emoji": "🍽"},
-    "shopping": {"title": "Shopping", "order": 3, "emoji": "🛒"},
-    "sleep": {"title": "Sleep & recovery", "order": 4, "emoji": "😴"},
-    "recovery": {"title": "Sleep & recovery", "order": 4, "emoji": "😴"},
+    "cardio": {"title": "Cardio", "order": 2, "emoji": "🏃"},
+    "nutrition": {"title": "Nutrition", "order": 3, "emoji": "🍽"},
+    "shopping": {"title": "Shopping", "order": 4, "emoji": "🛒"},
+    "sleep": {"title": "Sleep & recovery", "order": 5, "emoji": "😴"},
+    "recovery": {"title": "Sleep & recovery", "order": 5, "emoji": "😴"},
     "other": {"title": "Other", "order": 9, "emoji": "✓"},
 }
 
@@ -170,6 +182,8 @@ def item_kind_key(item: PlannedItem) -> str:
         return PROTECT_BEDTIME_CACHE_KEY
     if is_sleep_battery_low_item(item):
         return SLEEP_BATTERY_LOW_CACHE_KEY
+    if is_cardio_azm_item(item):
+        return CARDIO_AZM_CACHE_KEY
     return cache_key(item.group, item.slug)
 
 
@@ -261,6 +275,42 @@ def looks_like_meal_plan_title(title: str) -> bool:
 
 def looks_like_protein_remaining_title(title: str) -> bool:
     return bool(PROTEIN_REMAINING_TITLE_RE.match((title or "").strip()))
+
+
+def looks_like_cardio_azm_title(title: str) -> bool:
+    return bool(CARDIO_AZM_TITLE_RE.match((title or "").strip()))
+
+
+def is_cardio_azm_cache_key(cache_key_s: str) -> bool:
+    ck = str(cache_key_s or "")
+    if ck == CARDIO_AZM_CACHE_KEY:
+        return True
+    if not ck.startswith("cardio|"):
+        return False
+    slug = ck.split("|", 1)[-1]
+    return slug == CARDIO_AZM_SLUG or slug in ("cardio", "azm")
+
+
+def is_cardio_azm_item(item: PlannedItem) -> bool:
+    slug = str(item.slug or "")
+    if slug == CARDIO_AZM_SLUG or slug in ("cardio", "azm"):
+        return True
+    if str(item.group or "") == CARDIO_GROUP:
+        return True
+    return looks_like_cardio_azm_title(item.title)
+
+
+def cardio_azm_action_slug(act: dict) -> Optional[str]:
+    """Stable slug so AZM progress in the title cannot fork a leaf."""
+    aid = str((act or {}).get("id") or "").strip().lower()
+    if aid in (CARDIO_AZM_SLUG, "cardio", "azm", CARDIO_AZM_CACHE_KEY):
+        return CARDIO_AZM_SLUG
+    kind = str((act or {}).get("kind") or "").strip().lower()
+    if kind == CARDIO_GROUP:
+        return CARDIO_AZM_SLUG
+    if looks_like_cardio_azm_title(str((act or {}).get("text") or "")):
+        return CARDIO_AZM_SLUG
+    return None
 
 
 def is_protein_remaining_cache_key(cache_key_s: str) -> bool:
@@ -414,6 +464,8 @@ def lift_name_from_title(title: str) -> str:
         return ""
     if looks_like_protein_remaining_title(text):
         return ""
+    if looks_like_cardio_azm_title(text):
+        return ""
     if looks_like_meal_plan_title(text):
         return ""
     match = LIFT_TITLE_RE.match(text)
@@ -427,6 +479,9 @@ def stable_action_slug(act: dict, index: int) -> str:
     protein = protein_remaining_action_slug(act)
     if protein:
         return protein
+    cardio = cardio_azm_action_slug(act)
+    if cardio:
+        return cardio
     sleep = sleep_quest_action_slug(act)
     if sleep:
         return sleep
@@ -590,8 +645,8 @@ def _shopping_name_from_title(title: str) -> str:
 def task_matches_item(task: dict, item: PlannedItem, day: str) -> bool:
     """True when this Fitness task is the same kind+day as the planned leaf.
 
-    Title-shape families (protein, Protect bedtime, Sleep battery low) beat
-    kind-mark equality so a fresh action id cannot fork a leaf (#363).
+    Title-shape families (protein, cardio AZM, Protect bedtime, Sleep battery
+    low) beat kind-mark equality so a fresh action id cannot fork a leaf (#363).
     Other kinds still match the kind marker first. Exact title is last-resort.
     Jots without a FitDash day hint never match.
     """
@@ -601,6 +656,8 @@ def task_matches_item(task: dict, item: PlannedItem, day: str) -> bool:
         return False
     if is_protein_remaining_item(item):
         return is_protein_remaining_owned_task(task, day=day)
+    if is_cardio_azm_item(item):
+        return is_cardio_azm_owned_task(task, day=day)
     if is_protect_bedtime_item(item):
         return is_protect_bedtime_owned_task(task, day=day)
     if is_sleep_battery_low_item(item):
@@ -731,9 +788,28 @@ def _kind_keeper(
     return sorted(pool, key=lambda t: str(t.get("id") or ""))[0]
 
 
+def is_cardio_azm_owned_task(task: dict, *, day: str = "") -> bool:
+    """FitDash cardio|azm leaf for this civil day. Not a PPL lift."""
+    if not isinstance(task, dict):
+        return False
+    title = task.get("title") or ""
+    kind = kind_from_notes(task.get("notes") or "")
+    if kind == CARDIO_AZM_CACHE_KEY:
+        return _task_on_civil_day(task, day)
+    if not looks_like_cardio_azm_title(title):
+        return False
+    if looks_like_meal_plan_title(title) or looks_like_protein_remaining_title(title):
+        return False
+    if not _has_fitdash_kind_or_quest(task):
+        return False
+    return _task_on_civil_day(task, day)
+
+
 def _family_remap_cache_key(item: PlannedItem):
     if is_protein_remaining_item(item):
         return is_protein_remaining_cache_key
+    if is_cardio_azm_item(item):
+        return is_cardio_azm_cache_key
     if is_protect_bedtime_item(item):
         return is_protect_bedtime_cache_key
     if is_sleep_battery_low_item(item):
@@ -972,8 +1048,8 @@ def collect_fitdash_quest_ids(tasks: Sequence[dict]) -> set:
     """Ids FitDash wrote: marker, known group header, or child of those.
 
     Unmarked user-OAuth leftovers are still identifiable when they sit under
-    Training / Nutrition / Shopping / Sleep & recovery. Top-level jots and
-    other lists are not included.
+    Training / Cardio / Nutrition / Shopping / Sleep & recovery. Top-level
+    jots and other lists are not included.
     """
     headers = group_header_titles()
     quest_ids: set = set()
@@ -1067,6 +1143,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
             TRAIN_SESSION_SLUG,
             CALORIE_PACE_SLUG,
             SHOP_TOP_SLUG,
+            CARDIO_AZM_SLUG,
         ):
             if slug in saw_family:
                 continue
@@ -1197,6 +1274,28 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 slug=f"buy-{_slug(name)}",
                 title=f"{act}: {name}"[:200],
                 notes_extra=str(p.get("reason") or "")[:400],
+            )
+        )
+
+    spec = cardio_spec(today, as_of=day)
+    cardio_g = groups.get(CARDIO_GROUP)
+    cardio_items = [
+        it for it in (cardio_g.items if cardio_g else []) if is_cardio_azm_item(it)
+    ]
+    if cardio_items:
+        leaf = cardio_items[0]
+        leaf.group = CARDIO_GROUP
+        leaf.slug = CARDIO_AZM_SLUG
+        leaf.title = spec["title"][:200]
+        if not leaf.notes_extra:
+            leaf.notes_extra = str(spec.get("motivation") or "")[:400]
+    else:
+        _g(CARDIO_GROUP).items.append(
+            PlannedItem(
+                group=CARDIO_GROUP,
+                slug=CARDIO_AZM_SLUG,
+                title=spec["title"][:200],
+                notes_extra=str(spec.get("motivation") or "")[:400],
             )
         )
 
@@ -1767,6 +1866,8 @@ def ensure_daily_tasks(
     """
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
+    cardio = cardio_spec(today_board or {}, as_of=day)
+    cardio_hit = bool(cardio.get("hit"))
     foods_fp = board_food_logs_fingerprint(today_board or {}, day=day)
     meal_stats = meal_regen_payload(fingerprint=foods_fp, silent=True)
     protein_title = next(
@@ -2059,6 +2160,22 @@ def ensure_daily_tasks(
                             if protein_item:
                                 protein_stats["created"] = True
                                 protein_stats["kept"] = tid
+                if (
+                    is_cardio_azm_item(it)
+                    and create_missing
+                    and task
+                    and cardio_hit
+                    and _is_incomplete(task)
+                ):
+                    tid_done = str(task.get("id") or tid)
+                    done = gtb.complete_task(
+                        list_id, tid_done, completed=True
+                    )
+                    if done.get("ok") and isinstance(done.get("task"), dict):
+                        task = done["task"]
+                    else:
+                        task = dict(task)
+                        task["status"] = "completed"
                 if not task:
                     items_out.append(
                         {

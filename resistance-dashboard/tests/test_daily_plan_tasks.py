@@ -692,9 +692,16 @@ class TestDailyPlanTasks(unittest.TestCase):
                     day="2026-08-21",
                 )
         self.assertTrue(result.get("ok"))
-        self.assertEqual(result.get("groups"), [])
-        self.assertEqual(result.get("summary"), {"done": 0, "total": 0})
-        self.assertEqual(created, [])
+        groups = result.get("groups") or []
+        self.assertEqual({g["group"] for g in groups}, {"cardio"})
+        self.assertEqual(result.get("summary"), {"done": 0, "total": 1})
+        self.assertTrue(any(t == "Cardio" or "AZM" in (t or "") for t in created))
+        self.assertFalse(
+            any(
+                t in ("Training", "Nutrition", "Shopping", "Sleep & recovery")
+                for t in created
+            )
+        )
 
     def test_meal_ownership_marker_skips_jots_and_lifts(self):
         day = "2026-08-24"
@@ -1254,6 +1261,23 @@ class TestDailyPlanTasks(unittest.TestCase):
             },
         }
         deleted: list[str] = []
+
+        def fake_create(lid, title, notes="", due=None, parent=None):
+            if title in ("Nutrition",) or "Chicken" in (title or "") or "Next meal" in (
+                title or ""
+            ):
+                raise AssertionError("must hydrate existing meal task")
+            tid = f"cardio-{len(store)}"
+            task = {
+                "id": tid,
+                "title": title,
+                "notes": notes,
+                "status": "needsAction",
+                "parent": parent,
+            }
+            store[tid] = task
+            return {"ok": True, "task": task}
+
         board = {
             "date": "2026-08-24",
             "actions": [],
@@ -1299,7 +1323,7 @@ class TestDailyPlanTasks(unittest.TestCase):
                 else {"ok": False},
             ), mock.patch(
                 "rt_dashboard.daily_plan_tasks.gtb.create_task",
-                side_effect=AssertionError("must hydrate existing meal task"),
+                side_effect=fake_create,
             ), mock.patch(
                 "rt_dashboard.daily_plan_tasks._load_cache",
                 return_value={
