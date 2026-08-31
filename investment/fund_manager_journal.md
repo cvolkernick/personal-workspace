@@ -1986,3 +1986,35 @@
 - BUY WULF $5.0 [queued] 6a9559bc-9fbc-43f0-a266-9adf1c6b351f
 - BUY BE $15.0 [queued] 6a9559bd-add9-4fba-945d-00c769801182
 
+
+## 2026-08-31T13:45:03 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.09 BP $0.09 (deployable $25.09 ≥ min_trade $1.00)
+**Book:** NAV $253.6603 · BP $0.09
+**Weights before (deployed):** BTC-complex 0.4057 · Stocks 0.5943
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $253.66 BP $0.09 cash $25.09
+- **thesis:** ok — deployed BTC 0.4057 stocks 0.5943
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-08-31T13:51:23 — hold
+**Summary:** Mid-session-style team HOLD on agentic ••••1752 after 09:30 ET fills: NAV $254.01, cash/BP $0.09 < min $1. Live mix ~39.2% BTC-complex / ~60.8% stocks (in ±5% band). This morning RIOT $5 + WULF $5 + BE $15 filled. pending_deposits $25 is phantom — not spendable. Full research/rotate. No new orders.
+**Book:** NAV $254.01 · BP $0.09
+**Weights before (deployed):** BTC-complex 0.3918 · Stocks 0.6082
+**Why now:** User-run fund-manager review ~09:50 ET. Live MCP cash/BP $0.09 < min $1. Unsettled $0. live_autopilot. This morning's queued RIOT $5 + WULF $5 + BE $15 filled at 13:30Z. Deployed mix in band so no rotate. Rules 13:45Z need_llm used stale cash $25.09 vs BP $0.09 — spendable is BP.
+**Why not alternatives:** Rejected treating pending_deposits $25 as capital. Rejected MSTR/TSLA/SPCX/GOOGL top-up (no residual; held-only inertia). STRC/SATA seats exist (~$11) and credit is ~66% of the BTC complex — logged rebuttal is residual=0 + sub-sleeve balance, not 'MSTR covers credit'. Regular-hours SATA spread is $0.05 so illiquidity is not the rebuttal. Did not reject miners for overlap — 5-name sleeve is the desired diversification and already filled. NVDA beat 8/26 but no residual; energy seat is now BE. CCJ/BWXT named nuclear gap — not a BE substitute and not a basket. STRK RV vs STRC fails. Forced rotate sells blocked as open-churn 18m after fills inside first-30m avoid window.
+**Team:**
+- **scout:** ok — Agentic ••••1752 live MCP NAV $254.01 equity $253.92 cash/BP $0.09; unsettled $0; pending_deposits $25 phantom; held MSTR STRC SATA BITA MARA IREN CLSK RIOT WULF TSLA SPCX GOOGL BE; deployed ~39.2/60.8 in band; ~09:50 ET still in open-first-30m. This morning RIOT/WULF/BE filled 13:30Z. RH MCP via stored OAuth (session tools disconnected).
+- **thesis:** ok — HOLD. Theme holes filled this open (RIOT+WULF unheld miners; BE first energy equipment). STRC/SATA seats exist; credit 66% of complex. Next residual rank NVDA then CCJ — not this pass. Not MSTR/TSLA habit. No rotate.
+- **risk:** ok — Agentic cash only; BP $0.09 < min $1; limited_margin; no open orders; unsettled $0. Guardrail: no trade without deployable BP. Open-first-30m avoid. Do not spend pending $25. TSLA 27% is concentration observation, not a trim mandate 18m after fills. Miner 5-name is diversification not concentration vs credit.
+- **critic:** ok — Block phantom $25. Block held-only. STRC/SATA under-allocation: seats exist; credit 66% of complex; skip is residual=0 not MSTR-cover; SATA regular-hours tape is tight so liquidity is not the rebuttal. Miner skip of *adds* is no-capital, not overlap-reject of RIOT/WULF (now held). Block CCJ+BWXT+BE basket. Block NVDA this ticket (no BP). Block STRK (RV vs STRC fails). Block open-churn rotate. No size-down because no orders.
+- **executor:** hold — No place/cancel. Confirmed prior three agentic regular_hours GFD market buys filled at the open: RIOT $5 / WULF $5 / BE $15. Residual $0.09. Venue stored OAuth HTTP.
+**Actions:**
+- BUY RIOT $5.0 [filled] 6a9559bc-1f1b-4cfb-9240-0071f9d8e36c
+- BUY WULF $5.0 [filled] 6a9559bc-9fbc-43f0-a266-9adf1c6b351f
+- BUY BE $15.0 [filled] 6a9559bd-add9-4fba-945d-00c769801182
+
