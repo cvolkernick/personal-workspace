@@ -1,24 +1,24 @@
 {
   "ok": true,
-  "as_of": "2026-08-31T04:47:42.127331+00:00",
+  "as_of": "2026-08-31T07:50:59.363649+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-08-31T04:47:42.124304+00:00",
+    "as_of": "2026-08-31T07:50:59.360495+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 227.334,
+    "nav_usd": 228.6235,
     "cash_usd": 0.09,
     "buying_power_usd": 0.09,
     "pending_deposits_usd": null,
     "equity_market_value_usd": 199.7289,
     "weights_of_nav": {
-      "btc_digital_credit": 0.3564,
-      "stocks_growth": 0.5221,
+      "btc_digital_credit": 0.3544,
+      "stocks_growth": 0.5192,
       "other": 0.0,
       "cash": 0.0004
     },
@@ -125,7 +125,7 @@
       "path": "investment/watchlist.json",
       "auto_buy": false,
       "deep_dive_workflow": "position-deep-dive",
-      "count": 9,
+      "count": 11,
       "symbols": [
         "BE",
         "GOOGL",
@@ -135,7 +135,9 @@
         "EVGO",
         "AMZN",
         "RKLB",
-        "STRK"
+        "STRK",
+        "CCJ",
+        "BWXT"
       ],
       "entries": [
         {
@@ -146,7 +148,7 @@
           "priority": "high",
           "sleeve_if_owned": "stocks_growth",
           "deep_dive_required_before_buy": true,
-          "last_deep_dive": "2026-08-04",
+          "last_deep_dive": "2026-08-31",
           "held": false,
           "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification \u2014 fits open energy theme under stocks/growth."
         },
@@ -245,6 +247,30 @@
           "last_deep_dive": "2026-08-30",
           "held": false,
           "thesis_fit": "Strategy Inc. convertible perpetual preferred: 8% cumulative on $100 stated, quarterly, convertible into 0.1 MSTR. Listed digital-credit expression of the BTC complex \u2014 sibling of held STRC, not a substitute, not Jack Mallers Strike, not Starknet STRK, not JR-strcUSX. Conversion currently ~8\u00d7 OTM; trades as a discounted preferred (~11% effective at $71.73)."
+        },
+        {
+          "symbol": "CCJ",
+          "name": "Cameco",
+          "theme": "nuclear",
+          "status": "ready",
+          "priority": "high",
+          "sleeve_if_owned": "stocks_growth",
+          "deep_dive_required_before_buy": true,
+          "last_deep_dive": "2026-08-31",
+          "held": false,
+          "thesis_fit": "Uranium mining + fuel services + 49% of Westinghouse. Closes the named nuclear gap on the north star (Energy incl. nuclear) that PAVE/GRID left open. Complementary to BWXT (fuel+OEM vs Navy/hardware). Not a substitute for BE (equipment/speed-to-power). Not Brookfield. Not LEU."
+        },
+        {
+          "symbol": "BWXT",
+          "name": "BWX Technologies",
+          "theme": "nuclear",
+          "status": "ready",
+          "priority": "high",
+          "sleeve_if_owned": "stocks_growth",
+          "deep_dive_required_before_buy": true,
+          "last_deep_dive": "2026-08-31",
+          "held": false,
+          "thesis_fit": "Navy nuclear propulsion floor (reactors + fuel for Naval Reactors) plus commercial nuclear components. Complementary to CCJ (hardware vs fuel+OEM). Not a substitute for BE. Microreactor/Janus is option-value until a primary award."
         }
       ],
       "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
@@ -331,7 +357,7 @@
     },
     "manager_hints": [
       "Deployed mix within target bands \u2014 discretionary alpha only.",
-      "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB, STRK \u2014 deep-dive via /position-deep-dive before first buy when required.",
+      "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB, STRK, CCJ, BWXT \u2014 deep-dive via /position-deep-dive before first buy when required.",
       "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
     ],
     "fair_game": true,
