@@ -25,6 +25,7 @@ from treasury.morpho_position_sync import (  # noqa: E402
     parse_lltv,
     parse_price_variation,
     parse_user_position,
+    rewrite_honest_liquidation_price,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
 
@@ -34,6 +35,30 @@ LIVE_COLLATERAL_USD = 280.1704280540971
 LIVE_BORROW_USD = 122.94404229168993
 LIVE_HEALTH = 1.959719794355175
 LIVE_VARIATION = -0.4897229681098162
+
+# 8/30 prism sidecar (Naka FAIL after #438). Invented liq is principal/(coll×0.86).
+SIDECAR_830_PRINCIPAL = 122.94
+SIDECAR_830_COLLATERAL_BTC = 0.00358918
+SIDECAR_830_MARK = 78569.42
+SIDECAR_830_VARIATION = -0.4927
+SIDECAR_830_INVENT = 39829.47
+SIDECAR_830_HONEST = SIDECAR_830_MARK * (1.0 + SIDECAR_830_VARIATION)
+
+
+def _sidecar_830() -> dict:
+    return {
+        "source": "morpho_graphql",
+        "wallet": DEFAULT_WALLET,
+        "as_of": "2026-08-30T12:25:00+00:00",
+        "loan_principal_usdc": SIDECAR_830_PRINCIPAL,
+        "collateral_btc": SIDECAR_830_COLLATERAL_BTC,
+        "collateral_btc_usd": SIDECAR_830_MARK * SIDECAR_830_COLLATERAL_BTC,
+        "ltv": SIDECAR_830_PRINCIPAL / (SIDECAR_830_MARK * SIDECAR_830_COLLATERAL_BTC),
+        "lltv": 0.86,
+        "health_factor": 1.96,
+        "price_variation_to_liquidation": SIDECAR_830_VARIATION,
+        "liquidation_price_btc_usd": SIDECAR_830_INVENT,
+    }
 
 
 def _graphql_ok() -> dict:
@@ -349,6 +374,91 @@ class TestOverlayAndPolicy(unittest.TestCase):
             )
         self.assertIn("liquidation_price_btc_usd", out["evaluation"]["inputs"])
         self.assertIsNone(out["evaluation"]["inputs"]["liquidation_price_btc_usd"])
+
+    def test_stale_830_sidecar_must_not_win_over_live_graphql(self) -> None:
+        """GET default (prefer_live unset) must not paint the 8/30 LLTV invent."""
+        live_honest = liquidation_price_btc_usd(
+            collateral_usd=LIVE_COLLATERAL_USD,
+            collateral_btc=LIVE_COLLATERAL_RAW / 1e8,
+            price_variation_to_liquidation=LIVE_VARIATION,
+        )
+        opener = mock.Mock(return_value=_FakeResp(_graphql_ok()))
+        treasury = {
+            "snapshot": {"coinbase_manual": {"vault_usdc": "47.44"}},
+            "evaluation": {"inputs": {"btc_usd_price": 78000}},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "morpho_position_latest.json"
+            path.write_text(json.dumps(_sidecar_830()), encoding="utf-8")
+            out = overlay_morpho_position_onto_treasury(
+                treasury,
+                prior=_sidecar_830(),
+                snapshot=path,
+                opener=opener,
+            )
+            rewritten = json.loads(path.read_text(encoding="utf-8"))
+        opener.assert_called()
+        painted = out["evaluation"]["inputs"]["liquidation_price_btc_usd"]
+        self.assertNotAlmostEqual(painted, SIDECAR_830_INVENT, places=1)
+        self.assertAlmostEqual(painted, live_honest)
+        self.assertAlmostEqual(
+            out["snapshot"]["morpho_position"]["liquidation_price_btc_usd"],
+            live_honest,
+        )
+        invented_live = LIVE_BORROW_USD / ((LIVE_COLLATERAL_RAW / 1e8) * 0.86)
+        self.assertNotAlmostEqual(painted, invented_live, places=1)
+        self.assertAlmostEqual(rewritten["liquidation_price_btc_usd"], live_honest)
+
+    def test_stale_composite_position_still_hits_live_graphql(self) -> None:
+        opener = mock.Mock(return_value=_FakeResp(_graphql_ok()))
+        live_honest = liquidation_price_btc_usd(
+            collateral_usd=LIVE_COLLATERAL_USD,
+            collateral_btc=LIVE_COLLATERAL_RAW / 1e8,
+            price_variation_to_liquidation=LIVE_VARIATION,
+        )
+        treasury = {
+            "snapshot": {"morpho_position": _sidecar_830()},
+            "evaluation": {"inputs": {"btc_usd_price": 78000}},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            out = overlay_morpho_position_onto_treasury(
+                treasury,
+                snapshot=Path(td) / "pos.json",
+                opener=opener,
+            )
+        opener.assert_called()
+        painted = out["evaluation"]["inputs"]["liquidation_price_btc_usd"]
+        self.assertNotAlmostEqual(painted, SIDECAR_830_INVENT, places=1)
+        self.assertAlmostEqual(painted, live_honest)
+
+    def test_stale_830_sidecar_lltv_invent_rewritten_when_live_misses(self) -> None:
+        opener = mock.Mock(side_effect=TimeoutError("timed out"))
+        treasury = {
+            "snapshot": {},
+            "evaluation": {"inputs": {"btc_usd_price": 78000}},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            out = overlay_morpho_position_onto_treasury(
+                treasury,
+                prior=_sidecar_830(),
+                snapshot=Path(td) / "pos.json",
+                opener=opener,
+            )
+        painted = out["evaluation"]["inputs"]["liquidation_price_btc_usd"]
+        self.assertNotAlmostEqual(painted, SIDECAR_830_INVENT, places=1)
+        self.assertAlmostEqual(painted, SIDECAR_830_HONEST, places=2)
+        self.assertIsNone(
+            rewrite_honest_liquidation_price(
+                {
+                    "source": "morpho_graphql",
+                    "loan_principal_usdc": SIDECAR_830_PRINCIPAL,
+                    "collateral_btc": SIDECAR_830_COLLATERAL_BTC,
+                    "collateral_btc_usd": SIDECAR_830_MARK * SIDECAR_830_COLLATERAL_BTC,
+                    "ltv": 0.44,
+                    "liquidation_price_btc_usd": SIDECAR_830_INVENT,
+                }
+            )["liquidation_price_btc_usd"]
+        )
 
     def test_save_config_strips_loan_keys_keeps_wallet(self) -> None:
         with tempfile.TemporaryDirectory() as td:

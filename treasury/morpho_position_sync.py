@@ -401,10 +401,13 @@ def fetch_morpho_position(
             opener=opener,
         )
         if live is not None and _position_is_usable(live):
+            live = rewrite_honest_liquidation_price(live)
+            assert live is not None
             save_json(path, live)
             return live
         if _position_is_usable(prior) and isinstance(prior, dict):
-            kept = dict(prior)
+            kept = rewrite_honest_liquidation_price(dict(prior))
+            assert kept is not None
             kept["live_error"] = err or "live fetch failed"
             kept.setdefault("source", "prior")
             return kept
@@ -412,12 +415,31 @@ def fetch_morpho_position(
         return empty
 
     if _position_is_usable(prior) and isinstance(prior, dict):
-        out = dict(prior)
+        out = rewrite_honest_liquidation_price(dict(prior))
+        assert out is not None
         out.setdefault("source", "snapshot")
         return out
     empty["live_error"] = "no morpho position snapshot"
     empty["source"] = "empty"
     return empty
+
+
+def rewrite_honest_liquidation_price(
+    position: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Replace stored liq with mark × (1 + variation). Missing → None.
+
+    Never keep a principal / (collateral × LLTV) invent. Never 0.86 × spot.
+    """
+    if not isinstance(position, dict):
+        return position
+    out = dict(position)
+    out["liquidation_price_btc_usd"] = liquidation_price_btc_usd(
+        collateral_usd=_f(out.get("collateral_btc_usd")),
+        collateral_btc=_f(out.get("collateral_btc")),
+        price_variation_to_liquidation=out.get("price_variation_to_liquidation"),
+    )
+    return out
 
 
 def overlay_manual_with_position(
@@ -477,11 +499,12 @@ def overlay_morpho_position_onto_treasury(
     config: Optional[Dict[str, Any]] = None,
     opener=None,
 ) -> Dict[str, Any]:
-    """Restore snapshot.morpho_position + evaluation.inputs.liq from GraphQL/SCW.
+    """Join snapshot.morpho_position + evaluation.inputs.liq from GraphQL/SCW.
 
-    Same class as overlay_solana_snapshot: a stale composite (no position key)
-    gets the wallet feed. Live GraphQL only when the composite *and* sidecar
-    are unusable — never invent a $ liq. Settings never win.
+    GET default is live GraphQL even when a usable sidecar exists. An 8/30
+    (or any) sidecar must not win with a stored LLTV invent. Soft-fail keeps
+    sidecar books but rewrites liq via mark × (1 + variation); missing
+    variation/mark → null. Settings never win.
     """
     if not isinstance(treasury, dict):
         return treasury
@@ -489,31 +512,47 @@ def overlay_morpho_position_onto_treasury(
     if not isinstance(snap, dict):
         snap = {}
         treasury["snapshot"] = snap
-    pos = snap.get("morpho_position") if isinstance(snap.get("morpho_position"), dict) else None
-    if not _position_is_usable(pos):
-        path = snapshot_path(snapshot)
-        sidecar = prior if prior is not None else load_json(path)
-        live = prefer_live
-        if live is None:
-            live = not _position_is_usable(sidecar if isinstance(sidecar, dict) else None)
+    path = snapshot_path(snapshot)
+    snap_pos = snap.get("morpho_position") if isinstance(snap.get("morpho_position"), dict) else None
+    sidecar = prior if prior is not None else load_json(path)
+    fallback = snap_pos if _position_is_usable(snap_pos) else sidecar
+    live = True if prefer_live is None else bool(prefer_live)
+    if live:
         pos = fetch_morpho_position(
-            prefer_live=live,
+            prefer_live=True,
+            prior=fallback if isinstance(fallback, dict) else None,
+            snapshot=path,
+            config=config,
+            opener=opener,
+        )
+    elif _position_is_usable(snap_pos):
+        pos = dict(snap_pos)
+    else:
+        pos = fetch_morpho_position(
+            prefer_live=False,
             prior=sidecar if isinstance(sidecar, dict) else None,
             snapshot=path,
             config=config,
             opener=opener,
         )
-        if _position_is_usable(pos):
-            snap["morpho_position"] = pos
-            snap["coinbase_manual"] = overlay_manual_with_position(
-                snap.get("coinbase_manual") if isinstance(snap.get("coinbase_manual"), dict) else {},
-                pos,
-            )
-            meta = snap.get("meta") if isinstance(snap.get("meta"), dict) else {}
-            snap["meta"] = meta
-            meta["morpho_position_source"] = pos.get("source")
-        elif isinstance(pos, dict):
-            snap.setdefault("morpho_position", pos)
+    if _position_is_usable(pos):
+        pos = rewrite_honest_liquidation_price(pos)
+        assert pos is not None
+        snap["morpho_position"] = pos
+        snap["coinbase_manual"] = overlay_manual_with_position(
+            snap.get("coinbase_manual") if isinstance(snap.get("coinbase_manual"), dict) else {},
+            pos,
+        )
+        meta = snap.get("meta") if isinstance(snap.get("meta"), dict) else {}
+        snap["meta"] = meta
+        meta["morpho_position_source"] = pos.get("source")
+        try:
+            save_json(path, pos)
+        except Exception:
+            pass
+    elif isinstance(pos, dict):
+        pos = rewrite_honest_liquidation_price(pos)
+        snap.setdefault("morpho_position", pos)
     ev = treasury.get("evaluation")
     if isinstance(ev, dict):
         inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
