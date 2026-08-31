@@ -3260,6 +3260,13 @@ body.m-shell .quest-card {
   background: transparent;
   border-radius: 0;
 }
+.azm-swatch-target {
+  height: 0;
+  width: 1.25rem;
+  border-top: 2px dotted #5ce1a8;
+  background: transparent;
+  border-radius: 0;
+}
 #azm-trend-card .chart-box.azm-spark {
   height: 240px;
   min-height: 240px;

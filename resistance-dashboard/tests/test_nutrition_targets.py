@@ -292,7 +292,7 @@ class WiringLock(unittest.TestCase):
 
     def test_does_not_touch_azm_or_cals_window(self):
         self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 60;", APP_JS)
-        self.assertIn("/trends-azm.js?v=azm-90d-2", HTML)
+        self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
         self.assertNotIn(".sb-shell", NT_PY)
 
 

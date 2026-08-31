@@ -16,10 +16,15 @@
 
   var SPAN_DAYS = 90;
   var ROLL_DAYS = 7;
+  var TARGET_LOOKBACK_DAYS = 14;
+  var AZM_TARGET_FLOOR = 10;
+  var AZM_TARGET_CAP = 45;
+  var DEFAULT_AZM_TARGET = 20;
   var SERIES_COLORS = {
     daily: "#8b9bb4",
     roll: "#3d9cf0",
     trend: "#f07178",
+    target: "#5ce1a8",
   };
   var MONTHS = [
     "Jan",
@@ -125,6 +130,65 @@
     return null;
   }
 
+  /** Python 3 int(round(x)) for x >= 0 — ties to even. */
+  function pyRound(n) {
+    var x = Number(n);
+    if (Number.isNaN(x)) return 0;
+    var f = Math.floor(x);
+    var frac = x - f;
+    if (frac < 0.5) return f;
+    if (frac > 0.5) return f + 1;
+    return f % 2 === 0 ? f : f + 1;
+  }
+
+  function median(values) {
+    var ordered = [];
+    (values || []).forEach(function (v) {
+      if (v == null || Number.isNaN(Number(v))) return;
+      ordered.push(Number(v));
+    });
+    ordered.sort(function (a, b) {
+      return a - b;
+    });
+    var n = ordered.length;
+    if (!n) return null;
+    var mid = Math.floor(n / 2);
+    if (n % 2) return ordered[mid];
+    return (ordered[mid - 1] + ordered[mid]) / 2;
+  }
+
+  /**
+   * Present AZM in (today − lookback, today). Today is excluded.
+   * Missing days stay missing. Logged 0 is a real rest day and stays.
+   * Same window as cardio_quest.recent_azm_minutes.
+   */
+  function recentAzmMinutes(daily, labels, lookback) {
+    var n = (labels || []).length;
+    var win = lookback == null ? TARGET_LOOKBACK_DAYS : lookback;
+    if (!n || win < 1) return [];
+    var from = Math.max(0, n - 1 - win);
+    var to = n - 1;
+    var out = [];
+    for (var i = from; i < to; i++) {
+      var v = daily ? daily[i] : null;
+      if (v == null || Number.isNaN(Number(v))) continue;
+      out.push(Number(v));
+    }
+    return out;
+  }
+
+  /**
+   * Daily AZM aim. Median of recent present days, floor 10 / cap 45,
+   * default 20. Standard (not easy/walk) — Trends is the aiming line,
+   * not today's recovery cut. Same formula as cardio_target_minutes(easy=False).
+   */
+  function azmTargetMinutes(recent) {
+    var raw =
+      recent && recent.length ? median(recent) : DEFAULT_AZM_TARGET;
+    if (raw == null || Number.isNaN(Number(raw))) raw = DEFAULT_AZM_TARGET;
+    return pyRound(Math.min(AZM_TARGET_CAP, Math.max(AZM_TARGET_FLOOR, raw)));
+  }
+
   /**
    * 90 civil days ending today. Daily series is real total_minutes only.
    * Missing days stay null (not 0). No present points → lastRolling7 is null.
@@ -150,11 +214,13 @@
     });
     var rolling7 = rollingAverage(daily, ROLL_DAYS);
     var trend = linearTrend(daily);
+    var target = azmTargetMinutes(recentAzmMinutes(daily, labels, TARGET_LOOKBACK_DAYS));
     return {
       spanDays: SPAN_DAYS,
       rollDays: ROLL_DAYS,
       pointDays: present.length,
       lastRolling7: present.length ? lastFinite(rolling7) : null,
+      target: target,
       daily: daily,
       rolling7: rolling7,
       trend: trend,
@@ -224,16 +290,19 @@
   }
 
   /**
-   * 90-day chart: daily (thin, gaps break) + 7d rolling avg + OLS trendline.
+   * 90-day chart: daily (thin, gaps break) + 7d rolling avg + OLS trendline
+   * + horizontal target (14d median, floor 10 / cap 45).
    * Sized to fill the card's chart-box (not an 80px spark).
-   * Y domain is 0 → max of present daily / rolling. No weekday letters.
+   * Y domain is 0 → max of present daily / rolling / target. No weekday letters.
    * Null daily days keep their X slot and get no zero point.
    */
-  function sparklineSvg(daily, labels, rolling, trend) {
+  function sparklineSvg(daily, labels, rolling, trend, target) {
     var presentDaily = finitePairs(daily);
     if (!presentDaily.length) return "";
     var presentRoll = finitePairs(rolling);
     var presentTrend = finitePairs(trend);
+    var tgt =
+      target == null || Number.isNaN(Number(target)) ? null : Number(target);
     var w = 720;
     var h = 220;
     var left = 36;
@@ -248,6 +317,7 @@
     presentDaily.concat(presentRoll).forEach(function (p) {
       if (p.v > max) max = p.v;
     });
+    if (tgt != null && tgt > max) max = tgt;
     var yMaxLabel = Math.round(max);
     function x(i) {
       return left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
@@ -336,6 +406,22 @@
           '" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round" stroke-linejoin="round"'
       );
     }
+    if (tgt != null) {
+      var ty = y(tgt);
+      parts.push(
+        '<line class="azm-target" x1="' +
+          left.toFixed(1) +
+          '" y1="' +
+          ty.toFixed(1) +
+          '" x2="' +
+          (w - right).toFixed(1) +
+          '" y2="' +
+          ty.toFixed(1) +
+          '" stroke="' +
+          SERIES_COLORS.target +
+          '" stroke-width="1.75" stroke-dasharray="3 5" stroke-linecap="round"/>'
+      );
+    }
 
     monthTickIndexes(labels).forEach(function (xi) {
       var label = monthLabel(labels[xi]);
@@ -361,7 +447,9 @@
       h +
       '" width="100%" height="100%" preserveAspectRatio="none" data-y-min="0" data-y-max="' +
       yMaxLabel +
-      '" role="img" aria-label="Daily Active Zone Minutes with 7-day rolling average and trendline, 0 to ' +
+      '" role="img" aria-label="Daily Active Zone Minutes with 7-day rolling average, trendline, and ' +
+      (tgt != null ? Math.round(tgt) + "-minute target, " : "") +
+      "0 to " +
       yMaxLabel +
       ' minutes, last 90 days">' +
       parts.join("") +
@@ -382,7 +470,7 @@
         : null;
     if (!card || !valueEl) return null;
     var stats = azmSeries(azmPoints(data), now);
-    var key = stats.pointDays + ":" + String(stats.lastRolling7);
+    var key = stats.pointDays + ":" + String(stats.lastRolling7) + ":" + String(stats.target);
     valueEl.textContent = formatRolling(stats.lastRolling7);
     var sub = document.getElementById("azm-week-sub");
     if (sub) {
@@ -391,19 +479,38 @@
           ? "90d · " + stats.pointDays + (stats.pointDays === 1 ? " day" : " days")
           : "90d";
     }
+    var targetEl = document.getElementById("azm-target-value");
+    if (targetEl) {
+      targetEl.textContent =
+        stats.target == null ? "—" : String(stats.target);
+    }
+    var targetSub = document.getElementById("azm-target-sub");
+    if (targetSub) {
+      targetSub.textContent = "14d median";
+    }
     var note = document.getElementById("azm-trend-note");
     if (note) {
       note.textContent =
         stats.pointDays > 0
-          ? "90d daily AZM · 7d rolling avg · trendline on daily points · " +
+          ? "90d daily AZM · 7d rolling avg · trendline · target " +
+            stats.target +
+            " (14d median, floor 10 / cap 45) · " +
             stats.pointDays +
             (stats.pointDays === 1 ? " day" : " days") +
             " with points"
-          : "No Active Zone Minutes in the last 90 days.";
+          : "No Active Zone Minutes in the last 90 days. Target " +
+            stats.target +
+            " is the default until days land.";
     }
     var spark = document.getElementById("azm-sparkline");
     if (spark) {
-      spark.innerHTML = sparklineSvg(stats.daily, stats.labels, stats.rolling7, stats.trend);
+      spark.innerHTML = sparklineSvg(
+        stats.daily,
+        stats.labels,
+        stats.rolling7,
+        stats.trend,
+        stats.target
+      );
     }
     paintedKey = key;
     return stats;
@@ -445,12 +552,20 @@
   var api = {
     SPAN_DAYS: SPAN_DAYS,
     ROLL_DAYS: ROLL_DAYS,
+    TARGET_LOOKBACK_DAYS: TARGET_LOOKBACK_DAYS,
+    AZM_TARGET_FLOOR: AZM_TARGET_FLOOR,
+    AZM_TARGET_CAP: AZM_TARGET_CAP,
+    DEFAULT_AZM_TARGET: DEFAULT_AZM_TARGET,
     SERIES_COLORS: SERIES_COLORS,
     windowLabels: windowLabels,
     azmPoints: azmPoints,
     azmSeries: azmSeries,
     rollingAverage: rollingAverage,
     linearTrend: linearTrend,
+    median: median,
+    pyRound: pyRound,
+    recentAzmMinutes: recentAzmMinutes,
+    azmTargetMinutes: azmTargetMinutes,
     formatRolling: formatRolling,
     weekdayLetter: weekdayLetter,
     monthLabel: monthLabel,

@@ -47,7 +47,7 @@ class EnergyWeightAlignMarkup(unittest.TestCase):
     def test_does_not_touch_other_surfaces(self):
         self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 60;", APP_JS)
         self.assertIn("Calories intake vs burned · 60d", HTML)
-        self.assertIn("/trends-azm.js?v=azm-90d-2", HTML)
+        self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
         self.assertNotIn("chart.js", OVERLAY.lower())
         self.assertNotIn(".sb-shell", OVERLAY)
         self.assertIn(".sb-fill-wrap {\n  height: 44px;", CSS)
@@ -70,12 +70,13 @@ class EnergyWeightAlignNode(unittest.TestCase):
 
 class EnergyWeightAlignCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v75"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v76"', SW)
         self.assertIn("/app.js?v=history-sets-1", SW)
         self.assertNotIn("fitdash-shell-v71", SW)
         self.assertNotIn("fitdash-shell-v72", SW)
         self.assertNotIn("fitdash-shell-v73", SW)
         self.assertNotIn("fitdash-shell-v74", SW)
+        self.assertNotIn("fitdash-shell-v75", SW)
         self.assertNotIn("ewi-cap-5lb-1", HTML)
         self.assertNotIn("ewi-cap-5lb-1", SW)
 

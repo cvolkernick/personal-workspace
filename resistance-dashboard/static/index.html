@@ -13,12 +13,12 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=azm-90d-2" />
+    <link rel="stylesheet" href="/styles.css?v=azm-90d-3" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
     <script src="/trends-paired-avgs.js?v=paired-avgs-6" defer></script>
-    <script src="/trends-azm.js?v=azm-90d-2" defer></script>
+    <script src="/trends-azm.js?v=azm-90d-3" defer></script>
     <script src="/energy-weight-align.js?v=ewi-cap-1" defer></script>
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
@@ -753,10 +753,16 @@
             <span class="chip-v" id="azm-week-value">—</span>
             <span class="chip-s" id="azm-week-sub">90d</span>
           </div>
+          <div class="chart-summary-chip" id="azm-target-chip">
+            <span class="chip-k">Target</span>
+            <span class="chip-v" id="azm-target-value">—</span>
+            <span class="chip-s" id="azm-target-sub">14d median</span>
+          </div>
           <ul class="azm-legend" id="azm-legend" aria-label="AZM chart color key">
             <li><span class="azm-swatch azm-swatch-daily" aria-hidden="true"></span> Daily</li>
             <li><span class="azm-swatch azm-swatch-roll" aria-hidden="true"></span> 7d rolling avg</li>
             <li><span class="azm-swatch azm-swatch-trend" aria-hidden="true"></span> Trendline</li>
+            <li><span class="azm-swatch azm-swatch-target" aria-hidden="true"></span> Target</li>
           </ul>
         </div>
         <div class="chart-box azm-spark" id="azm-sparkline"></div>
