@@ -9,8 +9,9 @@ Standing join (Nakatoshi AC #427): first 2026-09-11 1:00 PM America/New_York,
 then every 14 days. Weekly $208 / daily $25 after 2026-08-30 / 2026-09-04
 never paint. Proof ids baa3976e and 7b8bf83b stay excluded.
 
-Thaís dest is the painted Solana address. Name-on-address remains the
-pre-2026-09-11 monthly path only. Rent planned stays sheet monthly —
+Thaís dest is the painted Solana address. Dest $415 is 2026-09-11+ only.
+Pre-9/11 dest-only $895 (2026-08-10) and name-on-address still join —
+#431 dest rewrite must not blank August. Rent planned stays sheet monthly —
 never rewrite to $25 * days or 14×$25. JR self-send is not Rent / Thaís / mint.
 
 No Transfer key. No sender code. Key lives only on prism.
@@ -46,6 +47,8 @@ _THAIS_NAME_NEEDLES = frozenset({"thais", "thaís"})
 THAIS_DEST = "AwMH3PDTmQBHC7QmMbtw3hmpxvobuXSYTzf25JQpcAVm"
 THAIS_DEST_FINGERPRINTS: frozenset[str] = frozenset({THAIS_DEST})
 THAIS_STANDING_AMOUNT = 415.0
+# 2026-08-10 dest-only monthly. Dest rewrite owns $415 from 2026-09-11 only.
+THAIS_PRE_STANDING_AMOUNT = 895.0
 THAIS_DEAD_WEEKLY_AMOUNT = 208.0
 THAIS_NEVER_PAINT_DATE = date(2026, 9, 4)
 THAIS_NETWORK = "solana"
@@ -275,9 +278,17 @@ def _thais_name_hit(tx: Dict[str, Any]) -> bool:
     return any(n in blob for n in _THAIS_NAME_NEEDLES)
 
 
-def matches_thais(tx: Dict[str, Any]) -> bool:
-    """Thaís = dest AwMH3… standing 415 from 2026-09-11, else pre-9/11 named address.
+def _thais_dest_hit(tx: Dict[str, Any]) -> bool:
+    return dest_matches_address(tx, THAIS_DEST) or (
+        dest_fingerprint(tx) in THAIS_DEST_FINGERPRINTS
+        and _to_resource(tx) in {"", "address"}
+    )
 
+
+def matches_thais(tx: Dict[str, Any]) -> bool:
+    """Thaís = dest AwMH3… $415 from 2026-09-11, else pre-9/11 dest/named monthly.
+
+    Dest $415 is 2026-09-11+ only. August dest-only $895 still joins (#433).
     Weekly $208 never paints. 2026-09-04 never paints. Proof id excluded.
     """
     if is_excluded_send_id(tx):
@@ -290,17 +301,19 @@ def matches_thais(tx: Dict[str, Any]) -> bool:
     amt = send_spend_amount(tx)
     if _near_amount(amt, THAIS_DEAD_WEEKLY_AMOUNT):
         return False
-    dest_hit = dest_matches_address(tx, THAIS_DEST) or (
-        dest_fingerprint(tx) in THAIS_DEST_FINGERPRINTS
-        and _to_resource(tx) in {"", "address"}
-    )
-    if dest_hit and not network_ok(tx, THAIS_NETWORK):
-        return False
+    dest_hit = _thais_dest_hit(tx)
+    # Standing $415 dest is 2026-09-11+ only. Do not rewrite August 895.
     if dest_hit and _near_amount(amt, THAIS_STANDING_AMOUNT):
+        if not network_ok(tx, THAIS_NETWORK):
+            return False
         return d is None or d >= STANDING_FIRST_DATE
-    # Pre-9/11 monthly named address (895 path). Dest rewrite owns 9/11+.
+    # Dest rewrite owns 9/11+ (415 path above). Pre-9/11 monthly stays.
     if d is not None and d >= STANDING_FIRST_DATE:
         return False
+    # Dest-only August 895 after dest rewrite has dest but no name blob.
+    # Do not require solana here — dest rewrite owns that gate for $415.
+    if dest_hit and _near_amount(amt, THAIS_PRE_STANDING_AMOUNT):
+        return True
     return _thais_name_hit(tx)
 
 

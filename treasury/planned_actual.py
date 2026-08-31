@@ -5,6 +5,7 @@ SoT:
   actual  — this-month YNAB in-map spend by payee, except Coinbase USDC items.
   Thaís   — Coinbase v2 USDC type=send only (lend/lock ignored).
             Standing dest AwMH3… $415 every 14d from 2026-09-11 1:00 PM ET.
+            Pre-9/11 dest-only $895 (2026-08-10) and named-address still join.
             Planned stays sheet monthly $900. Weekly $208 / 2026-09-04 never paint.
   Rent    — planned = sheet monthly; actual = completed v2 USDC type=send to nvolkern@gmail.com.
             Standing $350 one row every 14d from 2026-09-11. Daily $25 dead after 2026-08-30.
