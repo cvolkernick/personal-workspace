@@ -16,6 +16,11 @@
 
   var SPAN_DAYS = 90;
   var ROLL_DAYS = 7;
+  var SERIES_COLORS = {
+    daily: "#8b9bb4",
+    roll: "#3d9cf0",
+    trend: "#f07178",
+  };
   var MONTHS = [
     "Jan",
     "Feb",
@@ -219,7 +224,8 @@
   }
 
   /**
-   * 90-day spark: daily (thin, gaps break) + 7d rolling avg + OLS trendline.
+   * 90-day chart: daily (thin, gaps break) + 7d rolling avg + OLS trendline.
+   * Sized to fill the card's chart-box (not an 80px spark).
    * Y domain is 0 → max of present daily / rolling. No weekday letters.
    * Null daily days keep their X slot and get no zero point.
    */
@@ -228,12 +234,12 @@
     if (!presentDaily.length) return "";
     var presentRoll = finitePairs(rolling);
     var presentTrend = finitePairs(trend);
-    var w = 400;
-    var h = 80;
-    var left = 28;
-    var right = 8;
-    var top = 12;
-    var bottom = 18;
+    var w = 720;
+    var h = 220;
+    var left = 36;
+    var right = 12;
+    var top = 16;
+    var bottom = 28;
     var plotW = w - left - right;
     var plotH = h - top - bottom;
     var plotBottom = h - bottom;
@@ -260,23 +266,29 @@
         (w - right).toFixed(1) +
         '" y2="' +
         plotBottom.toFixed(1) +
-        '" stroke="#8b9bb4" stroke-opacity="0.35" stroke-width="1"/>'
+        '" stroke="' +
+        SERIES_COLORS.daily +
+        '" stroke-opacity="0.35" stroke-width="1"/>'
     );
     parts.push(
       '<text class="azm-y" x="' +
-        (left - 3).toFixed(1) +
+        (left - 4).toFixed(1) +
         '" y="' +
-        (top + 3).toFixed(1) +
-        '" text-anchor="end" font-size="9" fill="#8b9bb4">' +
+        (top + 4).toFixed(1) +
+        '" text-anchor="end" font-size="11" fill="' +
+        SERIES_COLORS.daily +
+        '">' +
         yMaxLabel +
         "</text>"
     );
     parts.push(
       '<text class="azm-y" x="' +
-        (left - 3).toFixed(1) +
+        (left - 4).toFixed(1) +
         '" y="' +
         plotBottom.toFixed(1) +
-        '" text-anchor="end" font-size="9" fill="#8b9bb4" dominant-baseline="middle">0</text>'
+        '" text-anchor="end" font-size="11" fill="' +
+        SERIES_COLORS.daily +
+        '" dominant-baseline="middle">0</text>'
     );
 
     function polyline(series, attrs) {
@@ -304,18 +316,24 @@
 
     polyline(
       daily,
-      'class="azm-daily" stroke="#8b9bb4" stroke-opacity="0.9" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"'
+      'class="azm-daily" stroke="' +
+        SERIES_COLORS.daily +
+        '" stroke-opacity="0.9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"'
     );
     if (rolling && rolling.length) {
       polyline(
         rolling,
-        'class="azm-roll" stroke="#3d9cf0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"'
+        'class="azm-roll" stroke="' +
+          SERIES_COLORS.roll +
+          '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"'
       );
     }
     if (trend && trend.length && presentTrend.length >= 2) {
       polyline(
         trend,
-        'class="azm-trend" stroke="#f07178" stroke-width="1.6" stroke-dasharray="5 3" stroke-linecap="round" stroke-linejoin="round"'
+        'class="azm-trend" stroke="' +
+          SERIES_COLORS.trend +
+          '" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round" stroke-linejoin="round"'
       );
     }
 
@@ -329,7 +347,9 @@
           (h - 3).toFixed(1) +
           '" text-anchor="' +
           (xi === 0 ? "start" : "middle") +
-          '" font-size="9" fill="#8b9bb4">' +
+          '" font-size="11" fill="' +
+          SERIES_COLORS.daily +
+          '">' +
           label +
           "</text>"
       );
@@ -339,9 +359,7 @@
       w +
       " " +
       h +
-      '" width="100%" height="' +
-      h +
-      '" data-y-min="0" data-y-max="' +
+      '" width="100%" height="100%" preserveAspectRatio="none" data-y-min="0" data-y-max="' +
       yMaxLabel +
       '" role="img" aria-label="Daily Active Zone Minutes with 7-day rolling average and trendline, 0 to ' +
       yMaxLabel +
@@ -427,6 +445,7 @@
   var api = {
     SPAN_DAYS: SPAN_DAYS,
     ROLL_DAYS: ROLL_DAYS,
+    SERIES_COLORS: SERIES_COLORS,
     windowLabels: windowLabels,
     azmPoints: azmPoints,
     azmSeries: azmSeries,

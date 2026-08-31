@@ -3205,29 +3205,68 @@ body.m-shell .quest-card {
   line-height: 1.35;
 }
 
-/* #392 Trends AZM — 90d spark + 7d rolling avg chip (stacked so the spark can breathe) */
+/* #392 Trends AZM — chip + color key above a chart-box that fills like other Trends plots */
 .azm-week-row {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.65rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
   margin-top: 0.5rem;
+  margin-bottom: 0.65rem;
 }
 .azm-week-row .chart-summary-chip {
   flex: 0 0 auto;
   min-width: 8.5rem;
   max-width: 12rem;
 }
-.azm-spark {
-  flex: 1 1 auto;
-  min-height: 80px;
-  width: 100%;
+.azm-legend {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 0.55rem 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--muted, #8b9bb4);
+}
+.azm-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+.azm-swatch {
+  display: inline-block;
+  width: 1.15rem;
+  height: 3px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.azm-swatch-daily {
+  background: #8b9bb4;
+  height: 2px;
+}
+.azm-swatch-roll {
+  background: #3d9cf0;
+  height: 3px;
+}
+.azm-swatch-trend {
+  height: 0;
+  width: 1.25rem;
+  border-top: 2px dashed #f07178;
+  background: transparent;
+  border-radius: 0;
+}
+#azm-trend-card .chart-box.azm-spark {
+  height: 240px;
+  min-height: 240px;
 }
 .azm-spark-svg {
   width: 100%;
-  height: 80px;
+  height: 100%;
   display: block;
 }
 
@@ -3242,6 +3281,10 @@ body.m-shell .quest-card {
   }
   .chart-summary-chip .chip-v {
     font-size: 0.88rem;
+  }
+  #azm-trend-card .chart-box.azm-spark {
+    height: 180px;
+    min-height: 180px;
   }
 }
 
