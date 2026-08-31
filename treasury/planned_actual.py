@@ -4,7 +4,12 @@ SoT:
   planned — Personal Expense Sheet Essential (legacy Personal) + Fleet + Collateral.
   actual  — this-month YNAB in-map spend by payee, except Coinbase USDC items.
   Thaís   — Coinbase v2 USDC type=send only (lend/lock ignored).
+            Standing dest AwMH3… $415 every 14d from 2026-09-11 1:00 PM ET.
+            Planned stays sheet monthly $900. Weekly $208 / 2026-09-04 never paint.
   Rent    — planned = sheet monthly; actual = completed v2 USDC type=send to nvolkern@gmail.com.
+            Standing $350 one row every 14d from 2026-09-11. Daily $25 dead after 2026-08-30.
+  JR      — self-send dest CzuRx… $70 same pay Fridays. Not Rent / Thaís / mint.
+            Surface only when a sheet item already joins.
   join    — sheet Item → one YNAB category_id (map name / sheet_item / payee).
 
 Never writes money, never nudges the coach, never touches Interest Spectrum.
@@ -22,6 +27,7 @@ from treasury.adapters import SNAPSHOTS_DIR
 from treasury.coinbase_usdc_sends import (
     item_sends_for_month,
     load_send_book,
+    next_standing_sends,
 )
 from treasury.financial_coach import load_snapshots, normalize_venue
 from treasury.ynab_category_map import (
@@ -49,9 +55,10 @@ FLAGS = (
 YNAB_SYNCED_VENUES = frozenset({"x_money", "rh_checking"})
 COINBASE_USDC_LABEL = "Coinbase USDC"
 # Chris venue lock: these items are Coinbase USDC custodial send (not One Card / X Money).
-_COINBASE_USDC_ITEM_FIRST = frozenset({"rent", "thais"})
+_COINBASE_USDC_ITEM_FIRST = frozenset({"rent", "thais", "jr"})
 _THAIS_ITEM_FIRST = "thais"
 _RENT_ITEM_FIRST = "rent"
+_JR_ITEM_FIRST = frozenset({"jr", "self-send", "selfsend"})
 
 # Never render: One Card payment-as-payment, RH Gold remnant.
 _OFF_MAP_ITEM_NEEDLES = (
@@ -206,7 +213,9 @@ def _ascii_item_key(val: Any) -> str:
 
 
 def is_coinbase_usdc_item(item_name: Any) -> bool:
-    """Rent and Thaís are Coinbase USDC, even if the sheet From drifted."""
+    """Rent, Thaís, and JR self-send are Coinbase USDC, even if sheet From drifted."""
+    if is_jr_self_send_item(item_name):
+        return True
     key = _ascii_item_key(item_name)
     if not key:
         return False
@@ -221,6 +230,17 @@ def is_thais_item(item_name: Any) -> bool:
 def is_rent_item(item_name: Any) -> bool:
     key = _ascii_item_key(item_name)
     return bool(key) and key.split()[0] == _RENT_ITEM_FIRST
+
+
+def is_jr_self_send_item(item_name: Any) -> bool:
+    """JR self-send sheet item only. Do not invent a planned line."""
+    key = _ascii_item_key(item_name)
+    if not key:
+        return False
+    toks = key.split()
+    if toks[0] in _JR_ITEM_FIRST:
+        return True
+    return "self send" in key or "self-send" in key
 
 
 def is_coinbase_usdc_from(from_label: Any) -> bool:
@@ -510,6 +530,23 @@ def classify_flag(
     return FLAG_ON
 
 
+def _standing_for_item(
+    item_name: Any, standing: Sequence[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    if is_thais_item(item_name):
+        kind = "thais"
+    elif is_rent_item(item_name):
+        kind = "rent"
+    elif is_jr_self_send_item(item_name):
+        kind = "jr_self_send"
+    else:
+        return None
+    for row in standing:
+        if row.get("kind") == kind:
+            return dict(row)
+    return None
+
+
 def _row_payload(
     item: Dict[str, Any],
     cat: Dict[str, Any],
@@ -519,6 +556,7 @@ def _row_payload(
     flag: str,
     tx_count: int,
     month: date,
+    next_send: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     from_label = locked_from_label(item)
     payload = {
@@ -534,6 +572,8 @@ def _row_payload(
         "month": month.isoformat()[:7],
         "display_only": True,
     }
+    if next_send:
+        payload["next_send"] = next_send
     if flag in (FLAG_OFF_BOOK, FLAG_PAYMENT_SHAPED):
         payload["from_venue"] = from_display(from_label) or "unknown"
         payload["from"] = from_display(from_label) or None
@@ -557,6 +597,7 @@ def build_planned_actual_strip(
     items = planned_sheet_items(expenses)
     txs = collect_ynab_txs(snapshots)
     usdc_sends = load_send_book(snapshots)
+    standing = next_standing_sends(month)
     rows: List[Dict[str, Any]] = []
     skipped_leftover = 0
     for tx in txs:
@@ -567,8 +608,8 @@ def build_planned_actual_strip(
         cat = join_item_category(item, cmap, txs)
         if cat is None:
             continue
-        # Rent planned is sheet monthly only. Do not rewrite to $25 * days.
-        # $25/day is future booking after Nicole dest exists — not a planned rewrite.
+        # Rent / Thaís planned is sheet monthly only. Do not rewrite to
+        # $25 * days, 14×$25, weekly $208, or standing $415/$350/$70.
         planned = _f(item.get("monthly"))
         from_label = locked_from_label(item)
         coinbase_usdc = is_coinbase_usdc_item(item.get("item")) or is_coinbase_usdc_from(
@@ -576,7 +617,8 @@ def build_planned_actual_strip(
         )
         thais = is_thais_item(item.get("item"))
         rent = is_rent_item(item.get("item"))
-        usdc_named = thais or rent
+        jr_self = is_jr_self_send_item(item.get("item"))
+        usdc_named = thais or rent or jr_self
         off_book = (coinbase_usdc and not usdc_named) or (
             not coinbase_usdc and is_off_book_from(from_label)
         )
@@ -634,6 +676,7 @@ def build_planned_actual_strip(
                 flag=flag,
                 tx_count=tx_count,
                 month=month,
+                next_send=_standing_for_item(item.get("item"), standing),
             )
         )
 
@@ -647,6 +690,7 @@ def build_planned_actual_strip(
         "coach_wired": False,
         "spectrum_trigger": False,
         "month": month.isoformat()[:7],
+        "standing_sends": standing,
         "rows": rows,
         "summary": {
             "row_count": len(rows),
@@ -656,7 +700,10 @@ def build_planned_actual_strip(
         "notes": (
             "Display only. planned = Essential/Fleet/Collateral sheet monthly; "
             "actual = this-month YNAB in-map spend by payee "
-            "(Thaís = named address send; Rent = send to nvolkern@gmail.com). "
+            "(Thaís = dest AwMH3… $415 / 14d from 2026-09-11 1:00 PM ET; "
+            "Rent = one $350 send to nvolkern@gmail.com on those Fridays; "
+            "JR self-send = dest CzuRx… $70, not Rent / Thaís / mint). "
+            "Weekly $208, daily $25 after 2026-08-30, and 2026-09-04 never paint. "
             "two-charge, cadence-lump, and payment-shaped are not lifestyle over."
         ),
     }

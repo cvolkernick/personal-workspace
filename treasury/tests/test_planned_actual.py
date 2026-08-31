@@ -26,6 +26,10 @@ from treasury.planned_actual import (  # noqa: E402
     is_skipped_tx,
     names_join,
 )
+from treasury.coinbase_usdc_sends import (  # noqa: E402
+    JR_SELF_SEND_DEST,
+    THAIS_DEST,
+)
 from treasury.ynab_category_map import MAP_PATH, load_category_map, validate_category_map  # noqa: E402
 
 # Known fixtures (tests only — not hard-coded in UI).
@@ -1022,6 +1026,167 @@ class TestCoachAndSpectrumUnchanged(unittest.TestCase):
         self.assertFalse(strip.get("coach_wired"))
         self.assertFalse(strip.get("spectrum_trigger"))
         self.assertNotIn("coach_nudge", strip)
+
+
+class TestStandingSendJoin427(unittest.TestCase):
+    def test_sep_strip_joins_standing_dests_and_keeps_sheet_planned(self) -> None:
+        items = [
+            _item("Rent", 2090.0, "Coinbase"),
+            _item("Thaís", 900.0, "Coinbase"),
+        ]
+        snaps = _snaps(items, [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "thais-415-sep11",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-415.00", "currency": "USDC"},
+                    "to": {"resource": "address", "address": THAIS_DEST, "network": "solana"},
+                    "description": "",
+                },
+                {
+                    "id": "rent-350-sep11",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-350.00", "currency": "USDC"},
+                    "to": {"resource": "email", "email": "nvolkern@gmail.com"},
+                },
+                {
+                    "id": "jr-70-sep11",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-70.00", "currency": "USDC"},
+                    "to": {
+                        "resource": "address",
+                        "address": JR_SELF_SEND_DEST,
+                        "network": "solana",
+                    },
+                },
+                {
+                    "id": "thais-weekly-208",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-208.00", "currency": "USDC"},
+                    "to": {"resource": "address", "address": THAIS_DEST},
+                    "description": "Thaís",
+                },
+                {
+                    "id": "thais-sep04",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-04T17:00:00Z",
+                    "amount": {"amount": "-415.00", "currency": "USDC"},
+                    "to": {"resource": "address", "address": THAIS_DEST},
+                    "description": "Thaís",
+                },
+                {
+                    "id": "rent-25-sep01",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-01T16:00:00Z",
+                    "amount": {"amount": "-25.00", "currency": "USDC"},
+                    "to": {"resource": "email", "email": "nvolkern@gmail.com"},
+                },
+                {
+                    "id": "7b8bf83b-dest-test",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-30T16:00:00Z",
+                    "amount": {"amount": "-5.00", "currency": "USDC"},
+                    "to": {"resource": "address", "address": JR_SELF_SEND_DEST},
+                },
+                {
+                    "id": "baa3976e-3304-53f7-b168-e35f16325653",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-27T16:00:00Z",
+                    "amount": {"amount": "-1.239144", "currency": "USDC"},
+                    "to": {"resource": "address", "address": THAIS_DEST},
+                    "description": "Thais proof",
+                },
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of="2026-09-11")
+        thais = _row(strip, "Thaís")
+        rent = _row(strip, "Rent")
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertAlmostEqual(thais["actual"], 415.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertEqual(thais["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(thais["next_send"]["amount"], 415.0)
+        self.assertEqual(thais["next_send"]["dest"], THAIS_DEST)
+        self.assertAlmostEqual(rent["planned"], 2090.0)
+        self.assertAlmostEqual(rent["actual"], 350.0)
+        self.assertEqual(rent["flag"], FLAG_ON)
+        self.assertEqual(rent["next_send"]["amount"], 350.0)
+        self.assertEqual(rent["tx_count"], 1)
+        by_kind = {r["kind"]: r for r in strip["standing_sends"]}
+        self.assertEqual(by_kind["jr_self_send"]["amount"], 70.0)
+        self.assertEqual(by_kind["jr_self_send"]["label"], "self-send")
+        self.assertEqual(by_kind["jr_self_send"]["dest"], JR_SELF_SEND_DEST)
+        self.assertNotIn("JR self-send", {r["item"] for r in strip["rows"]})
+        self.assertFalse(strip["coach_wired"])
+        self.assertFalse(strip["spectrum_trigger"])
+
+    def test_jr_sheet_item_joins_when_already_planned(self) -> None:
+        items = [
+            _item("Rent", 2090.0, "Coinbase"),
+            _item("Thaís", 900.0, "Coinbase"),
+            _item("JR self-send", 70.0, "Coinbase"),
+        ]
+        cmap = _ac_map()
+        cmap["categories"].append(
+            _cat("jr-self-send-cat", "JR self-send", group="Bills")
+        )
+        snaps = _snaps(items, [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "jr-70-sep11",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-70.00", "currency": "USDC"},
+                    "to": {
+                        "resource": "address",
+                        "address": JR_SELF_SEND_DEST,
+                        "network": "solana",
+                    },
+                }
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, cmap, as_of="2026-09-11")
+        jr = _row(strip, "JR self-send")
+        rent = _row(strip, "Rent")
+        self.assertAlmostEqual(jr["actual"], 70.0)
+        self.assertEqual(jr["flag"], FLAG_ON)
+        self.assertEqual(jr["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(jr["next_send"]["label"], "self-send")
+        self.assertEqual(rent["actual"], 0.0)
+        self.assertNotEqual(rent["actual"], 70.0)
+
+    def test_next_standing_paints_before_sep11(self) -> None:
+        strip = build_planned_actual_strip(
+            _snaps(_ac_items(), []), _ac_map(), as_of="2026-08-31"
+        )
+        thais = _row(strip, "Thaís")
+        rent = _row(strip, "Rent")
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertEqual(thais["actual"], 0.0)
+        self.assertEqual(thais["next_send"]["amount"], 415.0)
+        self.assertEqual(thais["next_send"]["next_date"], "2026-09-11")
+        self.assertEqual(rent["next_send"]["amount"], 350.0)
+        jr = [s for s in strip["standing_sends"] if s["kind"] == "jr_self_send"][0]
+        self.assertEqual(jr["amount"], 70.0)
+        self.assertEqual(jr["label"], "self-send")
+        self.assertEqual(jr["next_date"], "2026-09-11")
 
 
 if __name__ == "__main__":
