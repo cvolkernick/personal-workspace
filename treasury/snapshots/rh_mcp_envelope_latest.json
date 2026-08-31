@@ -25,13 +25,13 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "253.6602696088",
-      "equity_value": "228.5702696088",
+      "total_value": "255.4336272647",
+      "equity_value": "255.3436272647",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
       "crypto_value": "0",
-      "cash": "25.09",
+      "cash": "0.09",
       "pending_deposits": "25",
       "mutual_funds_value": "0",
       "fixed_income_value": "0",
@@ -216,39 +216,42 @@
     },
     {
       "symbol": "RIOT",
-      "quantity": "0.000000",
-      "intraday_quantity": "0.000000",
-      "shares_available_for_sells": "0.000000",
+      "quantity": "0.265577",
+      "intraday_quantity": "0.265577",
+      "average_buy_price": "18.830000",
+      "shares_available_for_sells": "0.265577",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "empty"
+      "type": "long"
     },
     {
       "symbol": "WULF",
-      "quantity": "0.000000",
-      "intraday_quantity": "0.000000",
-      "shares_available_for_sells": "0.000000",
+      "quantity": "0.327868",
+      "intraday_quantity": "0.327868",
+      "average_buy_price": "15.250000",
+      "shares_available_for_sells": "0.327868",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "empty"
+      "type": "long"
     },
     {
       "symbol": "BE",
-      "quantity": "0.000000",
-      "intraday_quantity": "0.000000",
-      "shares_available_for_sells": "0.000000",
+      "quantity": "0.071811",
+      "intraday_quantity": "0.071811",
+      "average_buy_price": "208.880000",
+      "shares_available_for_sells": "0.071811",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "empty"
+      "type": "long"
     }
   ],
   "primary_account": "5QW39737",

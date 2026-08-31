@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-08-31T13:51:23.196685+00:00",
+  "as_of": "2026-08-31T14:01:51.762919+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-08-31T13:51:23.196659+00:00",
-    "total_value": 254.868209943,
-    "equity_value": 254.778209943,
+    "as_of": "2026-08-31T14:01:51.762915+00:00",
+    "total_value": 255.4336272647,
+    "equity_value": 255.3436272647,
     "cash": 0.09,
     "buying_power": 0.09,
     "unleveraged_buying_power": 0.09,
@@ -239,5 +239,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "2026-08-31 ~09:50 ET team HOLD. Agentic BP/cash $0.09. pending_deposits $25 phantom. RIOT/WULF/BE filled 13:30Z."
+  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot."
 }
