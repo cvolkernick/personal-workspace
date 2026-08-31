@@ -22,6 +22,7 @@ from treasury.coinbase_usdc_sends import (  # noqa: E402
     RENT_DEST_FINGERPRINTS,
     THAIS_DEST,
     THAIS_EXCLUDED_SEND_IDS,
+    THAIS_PRE_STANDING_AMOUNT,
     THAIS_PROOF_ID_PREFIX,
     actual_for_item,
     collect_usdc_sends,
@@ -469,6 +470,92 @@ class TestStandingSendJoin427(unittest.TestCase):
         self.assertEqual(by_kind["thais"]["next_date"], "2026-09-11")
         later = next_pay_friday(datetime(2026, 9, 11, 14, 0, tzinfo=PAY_FRIDAY_FIRST.tzinfo))
         self.assertEqual(later.date(), date(2026, 9, 25))
+
+
+class TestAugustThaisDestMatcher432(unittest.TestCase):
+    """#432: dest rewrite must not blank August dest-only 895."""
+
+    def test_aug10_dest_only_895_joins(self) -> None:
+        dest_only = _send(
+            id="aug10-thais-895-dest",
+            created_at="2026-08-10T14:00:00Z",
+            amount={"amount": "-895.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST, "network": "solana"},
+            description="",
+        )
+        named = _send(id="aug10-thais-895-named")
+        self.assertAlmostEqual(THAIS_PRE_STANDING_AMOUNT, 895.0)
+        self.assertTrue(matches_thais(dest_only))
+        self.assertTrue(matches_thais(named))
+        self.assertFalse(matches_rent(dest_only))
+        self.assertFalse(matches_jr_self_send(dest_only))
+        book = collect_usdc_sends({"transactions": [dest_only]})
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 10)),
+            895.0,
+        )
+
+    def test_dest_415_isolated_to_sep11(self) -> None:
+        early_415 = _send(
+            id="thais-415-aug10",
+            created_at="2026-08-10T17:00:00Z",
+            amount={"amount": "-415.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST, "network": "solana"},
+            description="",
+        )
+        standing = _send(
+            id="thais-415-sep11",
+            created_at="2026-09-11T17:00:00Z",
+            amount={"amount": "-415.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST, "network": "solana"},
+            description="",
+        )
+        dest_895 = _send(
+            id="aug10-thais-895-dest",
+            created_at="2026-08-10T14:00:00Z",
+            amount={"amount": "-895.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST},
+            description="",
+        )
+        self.assertFalse(matches_thais(early_415))
+        self.assertTrue(matches_thais(standing))
+        self.assertTrue(matches_thais(dest_895))
+        book = collect_usdc_sends({"transactions": [early_415, standing, dest_895]})
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 10)),
+            895.0,
+        )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 9, 11)),
+            415.0,
+        )
+
+    def test_baa3976e_excluded_on_standing_dest(self) -> None:
+        proof = _send(
+            id="baa3976e-3304-53f7-b168-e35f16325653",
+            created_at="2026-08-27T16:00:00Z",
+            amount={"amount": "-1.239144", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST, "network": "solana"},
+            description="Thais proof",
+        )
+        dest_895 = _send(
+            id="aug10-thais-895-dest",
+            created_at="2026-08-10T14:00:00Z",
+            amount={"amount": "-895.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST},
+            description="",
+        )
+        self.assertTrue(is_excluded_send_id(proof))
+        self.assertFalse(matches_thais(proof))
+        book = collect_usdc_sends({"transactions": [proof, dest_895]})
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 27)),
+            895.0,
+        )
+        self.assertNotAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 27)),
+            896.24,
+        )
 
 
 if __name__ == "__main__":

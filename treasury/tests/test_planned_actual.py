@@ -1189,5 +1189,132 @@ class TestStandingSendJoin427(unittest.TestCase):
         self.assertEqual(jr["next_date"], "2026-09-11")
 
 
+class TestAugustThaisDestMatcher432(unittest.TestCase):
+    """#432: August dest-only 895 paints ON. Dest $415 stays 9/11+."""
+
+    def test_aug_dest_only_895_paints_900_895_on(self) -> None:
+        snaps = _snaps(_ac_items(), [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "aug10-thais-895-dest",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-10T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                    "to": {
+                        "resource": "address",
+                        "address": THAIS_DEST,
+                        "network": "solana",
+                    },
+                    "description": "",
+                },
+                {
+                    "id": "thais-415-aug31",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-31T17:00:00Z",
+                    "amount": {"amount": "-415.00", "currency": "USDC"},
+                    "to": {
+                        "resource": "address",
+                        "address": THAIS_DEST,
+                        "network": "solana",
+                    },
+                    "description": "",
+                },
+                {
+                    "id": "baa3976e-3304-53f7-b168-e35f16325653",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-27T16:00:00Z",
+                    "amount": {"amount": "-1.239144", "currency": "USDC"},
+                    "to": {
+                        "resource": "address",
+                        "address": THAIS_DEST,
+                        "network": "solana",
+                    },
+                    "description": "Thais proof",
+                },
+                {
+                    "id": "jr-70-sep11",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-70.00", "currency": "USDC"},
+                    "to": {
+                        "resource": "address",
+                        "address": JR_SELF_SEND_DEST,
+                        "network": "solana",
+                    },
+                },
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of="2026-08-15")
+        thais = _row(strip, "Thaís")
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertNotAlmostEqual(thais["planned"], 415.0)
+        self.assertAlmostEqual(thais["actual"], 895.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertEqual(thais["tx_count"], 1)
+        self.assertEqual(thais["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(thais["next_send"]["amount"], 415.0)
+        self.assertEqual(thais["next_send"]["dest"], THAIS_DEST)
+        self.assertEqual(thais["next_send"]["next_date"], "2026-09-11")
+        by_kind = {r["kind"]: r for r in strip["standing_sends"]}
+        self.assertEqual(set(by_kind), {"thais", "rent", "jr_self_send"})
+        self.assertEqual(by_kind["thais"]["amount"], 415.0)
+        self.assertEqual(by_kind["rent"]["amount"], 350.0)
+        self.assertEqual(by_kind["jr_self_send"]["amount"], 70.0)
+        self.assertFalse(strip["coach_wired"])
+        self.assertFalse(strip["spectrum_trigger"])
+
+    def test_sep11_dest_415_still_joins_after_aug_restore(self) -> None:
+        snaps = _snaps(_ac_items(), [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "aug10-thais-895-dest",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-10T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                    "to": {"resource": "address", "address": THAIS_DEST},
+                    "description": "",
+                },
+                {
+                    "id": "thais-415-sep11",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-415.00", "currency": "USDC"},
+                    "to": {
+                        "resource": "address",
+                        "address": THAIS_DEST,
+                        "network": "solana",
+                    },
+                    "description": "",
+                },
+                {
+                    "id": "rent-350-sep11",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-09-11T17:00:00Z",
+                    "amount": {"amount": "-350.00", "currency": "USDC"},
+                    "to": {"resource": "email", "email": "nvolkern@gmail.com"},
+                },
+            ],
+        }
+        sep = build_planned_actual_strip(snaps, _ac_map(), as_of="2026-09-11")
+        thais = _row(sep, "Thaís")
+        rent = _row(sep, "Rent")
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertAlmostEqual(thais["actual"], 415.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertAlmostEqual(rent["actual"], 350.0)
+        self.assertEqual(len(sep["standing_sends"]), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
