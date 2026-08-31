@@ -43,7 +43,7 @@ Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlis
 
 | Symbol | Theme | Status | Notes |
 |--------|-------|--------|-------|
-| **BE** | Energy (Bloom Energy) | ready | Post-Q2 refresh 2026-08-04. Thesis strong; val/beta harsh. `research/BE_deep_dive.md` |
+| **BE** | Energy (Bloom Energy) | ready | Post-Q2 refresh 2026-08-04. Smith fuel-cost reweight 2026-08-31: burns NG/biogas; HH $8–10 is TCO risk not confirmation. `research/BE_deep_dive.md` |
 | **GOOGL** | AI stack (Alphabet / Google) | ready | Dive 2026-08-04. Liquid AI + cash compounder. Class A preferred. |
 | **AAPL** | AI stack (Apple) | ready | Dive 2026-08-04. Quality/ecosystem AI; behind GOOGL/NVDA on pure AI. |
 | **NVDA** | AI stack (NVIDIA) | ready | Dive 2026-08-04. Pure AI infra; next print ~2026-08-26 event risk. |
@@ -52,6 +52,8 @@ Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlis
 | **AMZN** | AI stack (Amazon) | ready | Dive 2026-08-24. AWS/AI real; GAAP EPS Anthropic-mark; behind GOOGL/NVDA. |
 | **RKLB** | Space (Rocket Lab) | ready | Dive 2026-08-26. Neutron optionality vs held SPCX. No size until Flight 1 + residual. |
 | **STRK** | Digital credit (Strategy Strike pfd) | ready | Dive 2026-08-30. 8% convertible preferred; junior to held STRC; not core. No size until residual + RV vs STRC. |
+| **CCJ** | Nuclear (Cameco) | ready | Dive 2026-08-31. Fuel + 49% Westinghouse. Named nuclear gap. No size until residual; not a BE substitute. |
+| **BWXT** | Nuclear (BWX Technologies) | ready | Dive 2026-08-31. Navy propulsion floor + commercial components. Second nuclear seat behind CCJ. |
 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60 when relative value favors it; **strong theme bias**.

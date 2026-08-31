@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-30",
+  "as_of": "2026-08-31",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -46,11 +46,11 @@
       "added": "2026-07-22",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": "2026-08-04",
+      "last_deep_dive": "2026-08-31",
       "last_deep_dive_path": "investment/research/BE_deep_dive.md",
-      "last_verdict": "ready_consider_no_size_until_free_capital",
-      "next_catalyst": "Next earnings est. ~2026-10-27; or >25% drawdown refresh",
-      "notes": "Post-Q2'26 refresh 2026-08-04. Print strong (rev ~$1.07B; prior guide raise). Status ready for consideration. Valuation/beta still harsh; BP dust blocks size today. Not core; not auto-buy. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/GOOGL)."
+      "last_verdict": "ready_consider_no_size_until_free_capital_fuel_cost_overlay",
+      "next_catalyst": "Next earnings est. ~2026-10-27; winter 2028/29 HH strip >$6; documented DC fuel-cost/efficiency miss; or >25% drawdown",
+      "notes": "Post-Q2'26 refresh 2026-08-04. Smith/Chronometer reweight 2026-08-31 (Chris Orchestration 2b8d1eb2): BE burns NG/biogas \u2014 HH $8\u201310 is fuel-cost/TCO risk, not confirmation of the kit tape. Efficiency vs OCGT is a relative offset; Hunterbrook-class efficiency misses would amplify it. Turbine-slot scarcity cuts the other way (no GEV slot). Stays energy *equipment* seat; nuclear is now CCJ/BWXT. Not pass. Not auto-buy. No size while red-mode + dust BP. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/GOOGL) *when the question is equipment/speed-to-power*."
     },
     {
       "symbol": "GOOGL",
@@ -241,6 +241,54 @@
       "last_verdict": "ready_consider_no_size_until_residual_and_rv_vs_strc",
       "next_catalyst": "Residual-after-floors or BP ≥ min_trade plus logged RV vs held STRC; MSTR path toward ~$1000 conversion; STRK terms/dividend event; >25% from $71.73 (2026-08-28 close); or 90d age",
       "notes": "Owner-add via Nakatoshi #agentic-finance 2026-08-30. Dive same day. Close $71.73 / ~28% below par / 8% stated / ~11.15% effective / 0.1 MSTR convert. Junior to held STRC (12% Stretch, ~$97). STRC+SATA seats already exist (~$11). Not core. Not auto-buy. No size while red-mode + dust BP + conversion OTM. High = owner-named, not first dollar."
+    },
+    {
+      "symbol": "CCJ",
+      "name": "Cameco",
+      "theme": "nuclear",
+      "themes": [
+        "nuclear",
+        "energy",
+        "fuel_cycle",
+        "westinghouse",
+        "ai_power"
+      ],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "ready",
+      "priority": "high",
+      "thesis_fit": "Uranium mining + fuel services + 49% of Westinghouse. Closes the named nuclear gap on the north star (Energy incl. nuclear) that PAVE/GRID left open. Complementary to BWXT (fuel+OEM vs Navy/hardware). Not a substitute for BE (equipment/speed-to-power). Not Brookfield. Not LEU.",
+      "added": "2026-08-31",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": "2026-08-31",
+      "last_deep_dive_path": "investment/research/CCJ_deep_dive.md",
+      "last_verdict": "ready_consider_no_size_until_residual_nuclear_not_energy_basket",
+      "next_catalyst": "Westinghouse IPO terms; uranium contract-book roll-off; DOE/DOC AP1000 cancellation; >25% from $100.01 (2026-08-28 close); or 90d age",
+      "notes": "Owner-add via Chris #Orchestration 2b8d1eb2 (Chronometer/Smith option A). Dive same day. Close $100.01 / cap $43.6B / ttm PE ~170 (noisy). Q2'26 adj. EBITDA $391M; uranium realized C$93.13/lb; WEC our-share adj. EBITDA $163M. Confidential WEC IPO draft. Not core. Not auto-buy. No size while red-mode + dust BP. High = owner-named + nuclear gap, not first dollar vs BE equipment."
+    },
+    {
+      "symbol": "BWXT",
+      "name": "BWX Technologies",
+      "theme": "nuclear",
+      "themes": [
+        "nuclear",
+        "energy",
+        "defense",
+        "components",
+        "ai_power"
+      ],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "ready",
+      "priority": "high",
+      "thesis_fit": "Navy nuclear propulsion floor (reactors + fuel for Naval Reactors) plus commercial nuclear components. Complementary to CCJ (hardware vs fuel+OEM). Not a substitute for BE. Microreactor/Janus is option-value until a primary award.",
+      "added": "2026-08-31",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": "2026-08-31",
+      "last_deep_dive_path": "investment/research/BWXT_deep_dive.md",
+      "last_verdict": "ready_consider_no_size_until_residual_hardware_behind_ccj",
+      "next_catalyst": "Navy FY shipbuilding cut to Columbia/Virginia cadence; no commercial new-build component order by YE 2026; Janus primary award or loss; >25% from $152.85 (2026-08-28 close); or 90d age",
+      "notes": "Owner-add via Chris #Orchestration 2b8d1eb2 (Chronometer/Smith option A). Dive same day. Close $152.85 / cap $14.0B / ttm PE ~39.6 / ~37% off Apr high, near 52w low. Q2'26 rev $901.6M +18%; backlog $8.4B; FY26 guide ~$3.80B. Not core. Not auto-buy. No size while red-mode + dust BP. High = owner-named second nuclear seat, not first dollar."
     }
   ]
 }

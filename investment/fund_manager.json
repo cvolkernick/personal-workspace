@@ -257,10 +257,12 @@
       "target_pct": null,
       "symbols": [],
       "watchlist_symbols": [
-        "BE"
+        "BE",
+        "CCJ",
+        "BWXT"
       ],
       "open": true,
-      "notes": "No core mandate. BE on watchlist is active interest: deep-dive + ready for consideration each deploy; never auto-buy."
+      "notes": "No core mandate. BE = energy equipment / speed-to-power (Smith fuel-cost overlay 2026-08-31: HH $8\u201310 is TCO risk, not confirmation). CCJ = nuclear fuel + 49% Westinghouse. BWXT = Navy nuclear floor + commercial components. Owner-add 2026-08-31 (Chronometer/Smith option A). Deep-dive + ready each deploy; never auto-buy; not a basket. EXE not named \u2014 pass."
     }
   },
   "watchlist": {
