@@ -24,6 +24,7 @@ from treasury.adapters import (  # noqa: E402
     save_json,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
+from treasury.morpho_position_sync import overlay_morpho_position_onto_treasury  # noqa: E402
 from treasury.solana_sync import overlay_solana_snapshot  # noqa: E402
 
 
@@ -67,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         "evaluation": result,
     }
     overlay_solana_snapshot(out)
+    overlay_morpho_position_onto_treasury(out, prefer_live=False)
     save_json(args.out, out)
     # Also publish to financial-command UI path
     dash_out = ROOT / "financial-command" / "treasury_latest.json"

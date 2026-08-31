@@ -114,14 +114,56 @@ def _raw_to_units(raw: Any, decimals: int) -> float:
     return n / (10 ** decimals)
 
 
-def liquidation_price_btc_usd(
-    principal_usdc: float,
-    collateral_btc: float,
-    lltv: float,
-) -> Optional[float]:
-    if principal_usdc <= 0 or collateral_btc <= 0 or lltv <= 0:
+def parse_price_variation(raw: Any) -> Optional[float]:
+    """GraphQL ``priceVariationToLiquidationPrice`` is a signed fraction.
+
+    Negative = price must drop that far to hit liq (healthy). WAD (1e18)
+    is accepted if the field ever comes back unscaled. Not LLTV.
+    """
+    n = _f(raw)
+    if n is None:
         return None
-    return principal_usdc / (collateral_btc * lltv)
+    if abs(n) > 2.0:
+        n = n / 1e18
+    if abs(n) > 1.5:
+        return None
+    return n
+
+
+def morpho_mark_btc_usd(
+    collateral_usd: Optional[float], collateral_btc: Optional[float]
+) -> Optional[float]:
+    """Morpho GraphQL mark: collateralUsd / collateral units. Not Coinbase spot."""
+    if (
+        collateral_usd is None
+        or collateral_btc is None
+        or collateral_usd <= 0
+        or collateral_btc <= 0
+    ):
+        return None
+    return collateral_usd / collateral_btc
+
+
+def liquidation_price_btc_usd(
+    *,
+    collateral_usd: Optional[float] = None,
+    collateral_btc: Optional[float] = None,
+    price_variation_to_liquidation: Optional[float] = None,
+) -> Optional[float]:
+    """Honest Morpho BTC-USD liq from GraphQL fields only.
+
+    ``mark * (1 + priceVariationToLiquidationPrice)``. Never invent from
+    LTV × collateral, principal / (collateral × LLTV), or ``liq_ref`` 0.86 × spot.
+    Missing variation or mark → None.
+    """
+    variation = parse_price_variation(price_variation_to_liquidation)
+    mark = morpho_mark_btc_usd(collateral_usd, collateral_btc)
+    if variation is None or mark is None:
+        return None
+    liq = mark * (1.0 + variation)
+    if liq <= 0:
+        return None
+    return liq
 
 
 def _pick_market_position(
@@ -216,8 +258,12 @@ def parse_user_position(
         apr = normalize_apy_fraction(mstate.get("borrowApy"))
 
     health = _f((pos or {}).get("healthFactor"))
-    drop = _f((pos or {}).get("priceVariationToLiquidationPrice"))
-    liq = liquidation_price_btc_usd(principal_usd, collateral_btc, lltv)
+    drop = parse_price_variation((pos or {}).get("priceVariationToLiquidationPrice"))
+    liq = liquidation_price_btc_usd(
+        collateral_usd=coll_usd if coll_usd > 0 else None,
+        collateral_btc=collateral_btc if collateral_btc > 0 else None,
+        price_variation_to_liquidation=drop,
+    )
 
     return (
         {
@@ -391,6 +437,88 @@ def overlay_manual_with_position(
     out["morpho_wallet"] = position.get("wallet")
     out["morpho_position_source"] = position.get("source")
     return out
+
+
+_LOAN_INPUT_KEYS = (
+    "loan_principal_usdc",
+    "collateral_btc_usd",
+    "collateral_btc",
+    "ltv",
+    "health_factor",
+    "variable_apr",
+)
+
+
+def _join_position_onto_inputs(
+    inp: Dict[str, Any], position: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Wallet feed onto evaluation.inputs. Always set the liq key (None if miss)."""
+    out = dict(inp or {})
+    if _position_is_usable(position) and position is not None:
+        for key in _LOAN_INPUT_KEYS:
+            val = position.get(key)
+            if val is not None:
+                out[key] = val
+        wallet = position.get("wallet")
+        if wallet:
+            out["morpho_wallet"] = wallet
+        out["liquidation_price_btc_usd"] = position.get("liquidation_price_btc_usd")
+    else:
+        out.setdefault("liquidation_price_btc_usd", None)
+    return out
+
+
+def overlay_morpho_position_onto_treasury(
+    treasury: Dict[str, Any],
+    *,
+    prefer_live: Optional[bool] = None,
+    prior: Optional[Dict[str, Any]] = None,
+    snapshot: Optional[Path] = None,
+    config: Optional[Dict[str, Any]] = None,
+    opener=None,
+) -> Dict[str, Any]:
+    """Restore snapshot.morpho_position + evaluation.inputs.liq from GraphQL/SCW.
+
+    Same class as overlay_solana_snapshot: a stale composite (no position key)
+    gets the wallet feed. Live GraphQL only when the composite *and* sidecar
+    are unusable — never invent a $ liq. Settings never win.
+    """
+    if not isinstance(treasury, dict):
+        return treasury
+    snap = treasury.get("snapshot")
+    if not isinstance(snap, dict):
+        snap = {}
+        treasury["snapshot"] = snap
+    pos = snap.get("morpho_position") if isinstance(snap.get("morpho_position"), dict) else None
+    if not _position_is_usable(pos):
+        path = snapshot_path(snapshot)
+        sidecar = prior if prior is not None else load_json(path)
+        live = prefer_live
+        if live is None:
+            live = not _position_is_usable(sidecar if isinstance(sidecar, dict) else None)
+        pos = fetch_morpho_position(
+            prefer_live=live,
+            prior=sidecar if isinstance(sidecar, dict) else None,
+            snapshot=path,
+            config=config,
+            opener=opener,
+        )
+        if _position_is_usable(pos):
+            snap["morpho_position"] = pos
+            snap["coinbase_manual"] = overlay_manual_with_position(
+                snap.get("coinbase_manual") if isinstance(snap.get("coinbase_manual"), dict) else {},
+                pos,
+            )
+            meta = snap.get("meta") if isinstance(snap.get("meta"), dict) else {}
+            snap["meta"] = meta
+            meta["morpho_position_source"] = pos.get("source")
+        elif isinstance(pos, dict):
+            snap.setdefault("morpho_position", pos)
+    ev = treasury.get("evaluation")
+    if isinstance(ev, dict):
+        inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+        ev["inputs"] = _join_position_onto_inputs(inp, pos)
+    return treasury
 
 
 def main(argv: Optional[list] = None) -> int:

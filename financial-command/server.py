@@ -345,8 +345,20 @@ def _attach_x_money(data: dict) -> dict:
     return data
 
 
+def _attach_morpho_position(data: dict) -> dict:
+    """Stale composites omit snapshot.morpho_position; restore GraphQL/SCW books."""
+    try:
+        from treasury.morpho_position_sync import overlay_morpho_position_onto_treasury
+
+        return overlay_morpho_position_onto_treasury(data)
+    except Exception:
+        return data
+
+
 def _enrich_treasury(data: dict) -> dict:
-    return _attach_fund_manager(_attach_x_money(_attach_solana(data)))
+    return _attach_fund_manager(
+        _attach_x_money(_attach_solana(_attach_morpho_position(data)))
+    )
 
 
 def _braiins_live() -> dict:

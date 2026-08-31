@@ -21,7 +21,9 @@ from treasury.morpho_position_sync import (  # noqa: E402
     fetch_morpho_position,
     liquidation_price_btc_usd,
     overlay_manual_with_position,
+    overlay_morpho_position_onto_treasury,
     parse_lltv,
+    parse_price_variation,
     parse_user_position,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
@@ -31,6 +33,7 @@ LIVE_BORROW_RAW = 122943394
 LIVE_COLLATERAL_USD = 280.1704280540971
 LIVE_BORROW_USD = 122.94404229168993
 LIVE_HEALTH = 1.959719794355175
+LIVE_VARIATION = -0.4897229681098162
 
 
 def _graphql_ok() -> dict:
@@ -103,11 +106,18 @@ class TestParsePosition(unittest.TestCase):
         self.assertAlmostEqual(row["lltv"], 0.86)
         self.assertAlmostEqual(row["health_factor"], LIVE_HEALTH)
         expected_liq = liquidation_price_btc_usd(
-            LIVE_BORROW_USD, LIVE_COLLATERAL_RAW / 1e8, 0.86
+            collateral_usd=LIVE_COLLATERAL_USD,
+            collateral_btc=LIVE_COLLATERAL_RAW / 1e8,
+            price_variation_to_liquidation=LIVE_VARIATION,
         )
         self.assertAlmostEqual(row["liquidation_price_btc_usd"], expected_liq)
+        invented_lltv = LIVE_BORROW_USD / ((LIVE_COLLATERAL_RAW / 1e8) * 0.86)
+        self.assertNotAlmostEqual(
+            row["liquidation_price_btc_usd"], invented_lltv, places=1
+        )
         self.assertAlmostEqual(row["variable_apr"], 0.04919972459904276)
         self.assertLess(row["ltv"], 0.45)
+        self.assertAlmostEqual(row["price_variation_to_liquidation"], LIVE_VARIATION)
 
     def test_rejects_html_and_errors(self) -> None:
         row, err = parse_user_position(
@@ -132,6 +142,45 @@ class TestParsePosition(unittest.TestCase):
         self.assertAlmostEqual(parse_lltv("860000000000000000"), 0.86)
         self.assertAlmostEqual(parse_lltv(0.86), 0.86)
         self.assertAlmostEqual(parse_lltv(None), DEFAULT_LLTV)
+
+    def test_liq_from_graphql_variation_not_lltv_invent(self) -> None:
+        mark = LIVE_COLLATERAL_USD / (LIVE_COLLATERAL_RAW / 1e8)
+        honest = mark * (1.0 + LIVE_VARIATION)
+        got = liquidation_price_btc_usd(
+            collateral_usd=LIVE_COLLATERAL_USD,
+            collateral_btc=LIVE_COLLATERAL_RAW / 1e8,
+            price_variation_to_liquidation=LIVE_VARIATION,
+        )
+        self.assertAlmostEqual(got, honest)
+        invented = LIVE_BORROW_USD / ((LIVE_COLLATERAL_RAW / 1e8) * 0.86)
+        self.assertNotAlmostEqual(got, invented, places=1)
+        lltv_times_spot = 0.86 * mark
+        self.assertGreater(abs(got - lltv_times_spot), 1000)
+
+    def test_liq_null_when_variation_missing(self) -> None:
+        payload = _graphql_ok()
+        del payload["data"]["userByAddress"]["marketPositions"][0][
+            "priceVariationToLiquidationPrice"
+        ]
+        row, err = parse_user_position(
+            payload, wallet=DEFAULT_WALLET, market_id=CBBTC_USDC_BASE_MARKET
+        )
+        self.assertIsNone(err)
+        assert row is not None
+        self.assertIsNone(row["liquidation_price_btc_usd"])
+        self.assertGreater(row["loan_principal_usdc"], 0)
+        self.assertGreater(row["collateral_btc"], 0)
+
+    def test_liq_never_invented_from_ltv_times_collateral(self) -> None:
+        self.assertIsNone(
+            liquidation_price_btc_usd(
+                collateral_usd=LIVE_COLLATERAL_USD,
+                collateral_btc=LIVE_COLLATERAL_RAW / 1e8,
+                price_variation_to_liquidation=None,
+            )
+        )
+        self.assertAlmostEqual(parse_price_variation(LIVE_VARIATION), LIVE_VARIATION)
+        self.assertAlmostEqual(parse_price_variation(-0.4897229681098162 * 1e18), LIVE_VARIATION)
 
 
 class TestFetchSoftFail(unittest.TestCase):
@@ -232,9 +281,74 @@ class TestOverlayAndPolicy(unittest.TestCase):
         self.assertAlmostEqual(ev["inputs"]["collateral_btc_usd"], LIVE_COLLATERAL_USD)
         self.assertAlmostEqual(ev["inputs"]["ltv"], LIVE_BORROW_USD / LIVE_COLLATERAL_USD)
         self.assertIsNotNone(ev["inputs"]["liquidation_price_btc_usd"])
+        self.assertAlmostEqual(
+            ev["inputs"]["liquidation_price_btc_usd"], pos["liquidation_price_btc_usd"]
+        )
+        invented = LIVE_BORROW_USD / ((LIVE_COLLATERAL_RAW / 1e8) * 0.86)
+        self.assertNotAlmostEqual(
+            ev["inputs"]["liquidation_price_btc_usd"], invented, places=1
+        )
         self.assertEqual(ev["stress"]["coinbase_ltv"], "green")
         self.assertNotIn("loan_principal_usdc", ev["data_quality"]["missing_manual_fields"])
         self.assertNotIn("ltv", ev["data_quality"]["missing_manual_fields"])
+
+    def test_evaluate_keeps_liq_key_null_without_invent(self) -> None:
+        ev = evaluate_treasury(
+            {
+                "coinbase": {"liquid_usdc": 100, "btc_usd_price": 78000, "source": "live"},
+                "coinbase_manual": {"vault_usdc": 147.43, "card_balance": 10},
+                "one_card": {"source": "ynab", "card_balance": 10},
+                "robinhood": {
+                    "buying_power": 1000,
+                    "cash": 10,
+                    "equity_value": 5000,
+                    "source": "live",
+                },
+            }
+        )
+        self.assertIn("liquidation_price_btc_usd", ev["inputs"])
+        self.assertIsNone(ev["inputs"]["liquidation_price_btc_usd"])
+
+    def test_overlay_restores_position_and_inputs_from_graphql(self) -> None:
+        pos, err = parse_user_position(_graphql_ok(), wallet=DEFAULT_WALLET)
+        self.assertIsNone(err)
+        treasury = {
+            "snapshot": {"coinbase_manual": {"vault_usdc": "47.44"}},
+            "evaluation": {"inputs": {"btc_usd_price": 78000}},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            out = overlay_morpho_position_onto_treasury(
+                treasury,
+                prefer_live=False,
+                prior=pos,
+                snapshot=Path(td) / "pos.json",
+            )
+        self.assertEqual(out["snapshot"]["morpho_position"]["source"], "morpho_graphql")
+        self.assertAlmostEqual(
+            out["snapshot"]["morpho_position"]["liquidation_price_btc_usd"],
+            pos["liquidation_price_btc_usd"],
+        )
+        self.assertAlmostEqual(
+            out["evaluation"]["inputs"]["liquidation_price_btc_usd"],
+            pos["liquidation_price_btc_usd"],
+        )
+        self.assertAlmostEqual(out["snapshot"]["coinbase_manual"]["loan_principal_usdc"], LIVE_BORROW_USD)
+        self.assertEqual(out["snapshot"]["coinbase_manual"]["vault_usdc"], "47.44")
+
+    def test_overlay_leaves_liq_null_when_graphql_misses(self) -> None:
+        treasury = {
+            "snapshot": {"coinbase_manual": {}},
+            "evaluation": {"inputs": {"btc_usd_price": 78000}},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            out = overlay_morpho_position_onto_treasury(
+                treasury,
+                prefer_live=False,
+                prior={"source": "empty"},
+                snapshot=Path(td) / "pos.json",
+            )
+        self.assertIn("liquidation_price_btc_usd", out["evaluation"]["inputs"])
+        self.assertIsNone(out["evaluation"]["inputs"]["liquidation_price_btc_usd"])
 
     def test_save_config_strips_loan_keys_keeps_wallet(self) -> None:
         with tempfile.TemporaryDirectory() as td:

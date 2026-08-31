@@ -512,6 +512,48 @@
     .kpi.tone-orange .kpi-tip .tip-tone { color: var(--orange); }
     .kpi.tone-yellow .kpi-tip .tip-tone { color: var(--yellow); }
     .kpi.tone-green .kpi-tip .tip-tone { color: var(--green); }
+    .ltv-liq-baro {
+      margin-top: 0.38rem;
+      padding-top: 0.3rem;
+      border-top: 1px solid rgba(30, 42, 54, 0.9);
+    }
+    .ltv-liq-baro-track {
+      position: relative;
+      height: 7px;
+      background: #1a2430;
+      border-radius: 4px;
+      margin: 0.28rem 0 0.22rem;
+    }
+    .ltv-liq-baro-span {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #6b2e2e 0%, #1e4a32 100%);
+      border-radius: 4px;
+      opacity: 0.85;
+    }
+    .ltv-liq-baro-mark {
+      position: absolute;
+      top: -2px;
+      width: 3px;
+      height: 11px;
+      border-radius: 1px;
+      transform: translateX(-50%);
+    }
+    .ltv-liq-baro-mark.liq { background: var(--red); }
+    .ltv-liq-baro-mark.spot { background: var(--accent); }
+    .ltv-liq-baro-lab {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.25rem;
+      font-size: 0.52rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+    .ltv-liq-baro-lab .liq { color: var(--red); }
+    .ltv-liq-baro-lab .spot { color: var(--accent); }
+    .ltv-liq-baro-lab .cushion { color: var(--text); font-weight: 650; }
     .kpi:hover .kpi-tip,
     .kpi:focus-visible .kpi-tip {
       opacity: 1;
@@ -3775,6 +3817,65 @@
         if (ltvVal >= ltvAlert) return "above alert";
         return "under alert";
       }
+      function morphoLiqUsd() {
+        const pos = (data.snapshot || {}).morpho_position || {};
+        const manSnap = (data.snapshot || {}).coinbase_manual || {};
+        const raw =
+          inp.liquidation_price_btc_usd != null
+            ? inp.liquidation_price_btc_usd
+            : pos.liquidation_price_btc_usd != null
+              ? pos.liquidation_price_btc_usd
+              : manSnap.liquidation_price_btc_usd;
+        if (raw == null || raw === "") return null;
+        const liq = f(raw);
+        return Number.isFinite(liq) && liq > 0 ? liq : null;
+      }
+      function ltvLiqBarometerHtml(spot, liq) {
+        // Honest-empty: skip the bar when liq is null/missing/$0. Never fake a needle.
+        // Do not invent from LTV × collateral or LLTV × spot.
+        const s = spot == null || spot === "" ? NaN : Number(spot);
+        const l = liq == null || liq === "" ? NaN : Number(liq);
+        if (!Number.isFinite(l) || !(l > 0)) return "";
+        if (!Number.isFinite(s) || !(s > 0)) return "";
+        const lo = Math.min(s, l);
+        const hi = Math.max(s, l);
+        const pad = Math.max((hi - lo) * 0.08, hi * 0.01);
+        const minP = lo - pad;
+        const maxP = hi + pad;
+        const span = maxP - minP;
+        if (!(span > 0)) return "";
+        const pctAt = (v) => ((v - minP) / span) * 100;
+        const left = pctAt(lo);
+        const width = pctAt(hi) - left;
+        const liqPct = pctAt(l);
+        const spotPct = pctAt(s);
+        const cushion = s > l ? ((s - l) / s) * 100 : null;
+        const cushionLab =
+          cushion != null
+            ? cushion.toFixed(0) + "% below spot"
+            : "spot at/under liq";
+        const aria =
+          "BTC spot " +
+          money(s) +
+          " vs Morpho liq " +
+          money(l) +
+          " (" +
+          cushionLab +
+          ")";
+        return (
+          `<div class="ltv-liq-baro" role="img" aria-label="${escapeHtml(aria)}">` +
+          `<div class="ltv-liq-baro-lab">` +
+          `<span class="liq">liq ${money(l)}</span>` +
+          `<span class="cushion">${escapeHtml(cushionLab)}</span>` +
+          `<span class="spot">spot ${money(s)}</span>` +
+          `</div>` +
+          `<div class="ltv-liq-baro-track">` +
+          `<i class="ltv-liq-baro-span" style="left:${left.toFixed(2)}%;width:${Math.max(width, 1).toFixed(2)}%"></i>` +
+          `<b class="ltv-liq-baro-mark liq" style="left:${liqPct.toFixed(2)}%"></b>` +
+          `<b class="ltv-liq-baro-mark spot" style="left:${spotPct.toFixed(2)}%"></b>` +
+          `</div></div>`
+        );
+      }
       function asicHashTone() {
         if (!br.ok)
           return toneResult(
@@ -3872,6 +3973,7 @@
         const tone = k.tone || "muted";
         const word = toneWord[tone] || tone;
         const why = (k.why || "").trim() || `${k.k}: ${word}`;
+        const extra = k.extra || "";
         return (
           `<div class="kpi tone-${tone}" data-target="${k.target}" tabindex="0" ` +
           `aria-label="${escapeHtml(k.k + ": " + why)}">` +
@@ -3880,7 +3982,9 @@
           `${escapeHtml(why)}</div>` +
           `<div class="k">${k.k}</div>` +
           `<div class="v">${k.v}</div>` +
-          `<div class="s">${k.s}</div></div>`
+          `<div class="s">${k.s}</div>` +
+          extra +
+          `</div>`
         );
       }
       const kpis = [
@@ -3920,6 +4024,7 @@
           target: "panel-settings",
           tone: tLtv.tone,
           why: tLtv.why,
+          extra: ltvLiqBarometerHtml(f(inp.btc_usd_price), morphoLiqUsd()),
         },
         {
           k: "Agentic NAV",
