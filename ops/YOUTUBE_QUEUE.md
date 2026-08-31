@@ -1,39 +1,35 @@
-# YouTube AI Curated queue (house caps)
+# YouTube AI Curated queue
 
-Playlist: **AI Curated** — `PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At`  
-Writer: Pi hourly youtube-groom timer (one writer).  
-Nest SoT: [`scripts/youtube_groom.py`](../scripts/youtube_groom.py)  
-Pi copy after merge: `~/.local/lib/youtube-groom/youtube_groom.py` (Grok copies; do not SSH from cloud).
+Playlist: **AI Curated** — `PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At`
 
-Historical nest path: `scripts/youtube_groom.py`  
-Historical MD5 (pre-this change): `25b0bed0ca8f214f9437af3b9a8cfa9d`
+**One writer:** the Pi hourly youtube-groom timer on prism.  
+**Live file:** `~/.local/lib/youtube-groom/youtube_groom.py` (MD5 was `25b0bed0ca8f214f9437af3b9a8cfa9d`).  
+That file was **never in nest git**. Nest does **not** ship a writer. Do not copy any nest `.py` over the Pi file. Do not add a second writer. Do not touch OAuth, Pi systemd, or Mac `~/.config/youtube-mcp`.
 
-The live writer was not in nest git history (app-box runtime; B2 pulls `state.json` / `never_readd` / `groom.log` only). This file + the script are the nest scorecard for house caps.
+B2 pulls state only (`youtube-groom/state.json`, `never_readd`, `groom.log`).
 
-## Old → new constants
+Constants note: [`YOUTUBE_GROOM_CAPS.md`](YOUTUBE_GROOM_CAPS.md).
 
-| Cap | Old | New | Role |
-|-----|-----|-----|------|
-| `TARGET_SIZE` | **25** | **50** | Playlist fill target |
-| `MAX_PLAYLIST_SIZE` | **25** | **50** | Hard house max (same as target) |
-| `ADD_PER_RUN` | **4** | **8** | Per-tick insert budget |
-| `STALE_DAYS` | **7** | **7** | Stale prune; **not** the size cap |
-| `MIN_SCORE` | none | none | Sort only — no cutoff that caps size |
-| YouTube platform ceiling | 5000 | 5000 | Not the limiter |
+## Why the playlist sat ~25
 
-Old 25 / 4 came from live ticks that listed ~21–25 items and added 4 per run. Nest git never held those literals; they are the verified house sizes this change doubles.
+Not a `TARGET_SIZE=25` (that name does not exist on Pi).  
+The 72h fresh cull plus `MAX_INSERTS_PER_TICK=4` kept the list small. YouTube’s 5000 ceiling is not the limiter.
 
-If a reviewer finds the **Pi** file already at `TARGET_SIZE >= 50`, raise **that** live target to **100** instead. Nest used 25 → 50 because the live list hovered under 25.
+## Live names (verified on Pi) — Grok is patching these
+
+| Name | Was | Now (Pi patch) |
+|------|-----|----------------|
+| `MAX_INSERTS_PER_TICK` | 4 | **8** |
+| `FRESH_HOURS` | 72 | **168** (align with 7d hard stale so 72h stops emptying the list) |
+| `CAP` | 100 (breaker, `reason cap_100`) | **200** |
+| `STALE_HARD_DAYS` | 7 | **7** (unchanged) |
+| `MAX_DELETES_PER_TICK` | 80 | 80 (unchanged) |
+| `keep_n` empty fallback | 10 | **10** (unchanged) |
 
 ## Left alone
 
-- 7-day stale prune (not why the playlist stayed small)
-- Dup prune / `never_readd`
-- OAuth, Pi systemd units, Mac `~/.config/youtube-mcp`
+- `STALE_HARD_DAYS=7`
+- `keep_n=10` empty fallback
+- Dup / `never_readd` prune
+- OAuth, systemd units, youtube-mcp
 - A second writer
-
-## Tests
-
-```bash
-python3 -m unittest scripts.tests.test_youtube_groom -v
-```
