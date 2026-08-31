@@ -1,7 +1,7 @@
 """Quest complete → today's workout log (lift leaves only).
 
 Checking off a training/lift leaf upserts that exercise into today's session.
-Non-lift quests (meals, hydration, shopping, sleep) are ignored. Numbers come
+Non-lift quests (meals, hydration, shopping, sleep, cardio) are ignored. Numbers come
 from today's plan or the quest title — never invented. Quest-seeded rows are
 not auto-PR tagged. Uncheck removes the row only while it is still unedited.
 """
@@ -19,12 +19,13 @@ SESSION_TYPES = ("push", "pull", "legs")
 SEED_PREFIX = "quest-seeded:"
 LIFT_GROUPS = frozenset({"training", "train"})
 NON_LIFT_GROUPS = frozenset(
-    {"nutrition", "shopping", "sleep", "recovery", "other"}
+    {"nutrition", "shopping", "sleep", "recovery", "other", "cardio"}
 )
 
 # Session-level / rest / non-exercise training actions.
 _SKIP_TITLE = re.compile(
-    r"^(complete today|rest day|protect |cover remaining|eat through|eat:)",
+    r"^(complete today|rest day|protect |cover remaining|eat through|eat:|"
+    r"cardio|walk · zone 2)",
     re.I,
 )
 # Quest title baked by plan_from_today_board: "DB Press (50 lb 3×10)"
