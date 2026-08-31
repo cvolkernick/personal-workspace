@@ -2018,3 +2018,17 @@
 - BUY WULF $5.0 [filled] 6a9559bc-9fbc-43f0-a266-9adf1c6b351f
 - BUY BE $15.0 [filled] 6a9559bd-add9-4fba-945d-00c769801182
 
+
+## 2026-08-31T14:07:51 — hold
+**Summary:** Rules HOLD: deployed mix in ±5% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)
+**Book:** NAV $255.4336 · BP $0.09
+**Weights before (deployed):** BTC-complex 0.4051 · Stocks 0.5949
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** In-band + low cash → skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.
+**Team:**
+- **scout:** observe — NAV $255.43 BP $0.09 cash $0.09
+- **thesis:** ok — deployed BTC 0.4051 stocks 0.5949
+- **risk:** ok — Agentic capital only; no trade if hold
+- **critic:** ok — Hold preferred when bands ok — avoid churn
+- **executor:** hold — No MCP orders on pure rules HOLD
+
