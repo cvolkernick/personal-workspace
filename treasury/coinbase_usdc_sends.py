@@ -1,12 +1,19 @@
-"""Coinbase v2 USDC send book — display-only actuals for Thaís and Rent.
+"""Coinbase v2 USDC send book — display-only actuals for Thaís, Rent, JR.
 
-Venue is Coinbase v2 USDC `type=send` only. Ignore lend / lock / One Card / X Money.
+Venue is Coinbase v2 USDC `type=send` only. Merge-only send book.
+Ignore lend / lock / One Card / X Money. No live-money. No CDP key read.
 Rent dest is email only: nvolkern@gmail.com (casefold). status=completed only.
 Pending/failed/canceled do not book. No phone. No other dests.
-Thaís is named address send. Recurring send is HOLD.
-Rent planned stays sheet monthly — never rewrite to $25 * days.
-No Transfer key. No sender code. Key lives only on prism.
 
+Standing join (Nakatoshi AC #427): first 2026-09-11 1:00 PM America/New_York,
+then every 14 days. Weekly $208 / daily $25 after 2026-08-30 / 2026-09-04
+never paint. Proof ids baa3976e and 7b8bf83b stay excluded.
+
+Thaís dest is the painted Solana address. Name-on-address remains the
+pre-2026-09-11 monthly path only. Rent planned stays sheet monthly —
+never rewrite to $25 * days or 14×$25. JR self-send is not Rent / Thaís / mint.
+
+No Transfer key. No sender code. Key lives only on prism.
 Tests use fixtures only. This module never copies or logs the CDP key.
 """
 
@@ -14,9 +21,10 @@ from __future__ import annotations
 
 import json
 import unicodedata
-from datetime import date
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+from zoneinfo import ZoneInfo
 
 from treasury.adapters import SNAPSHOTS_DIR
 
@@ -33,18 +41,51 @@ SNAPSHOT_NAME = "coinbase_usdc_sends.json"
 # Prism-only. Never commit, never read into git, never copy off prism.
 PRISM_KEY_PATH = Path.home() / ".config" / "coinbase" / "cdp-api-key.json"
 
-# Thaís attribution is name-on-send only. Do not invent dest fingerprints.
-# Smoke/proof sends share the monthly dest — exclude by id, not by guessing dest.
-# Rent dest is email only. No phone. No address. No other dests.
+# Standing dest/cadence painted on #427. Do not invent other dests.
 _THAIS_NAME_NEEDLES = frozenset({"thais", "thaís"})
-THAIS_DEST_FINGERPRINTS: frozenset[str] = frozenset()
+THAIS_DEST = "AwMH3PDTmQBHC7QmMbtw3hmpxvobuXSYTzf25JQpcAVm"
+THAIS_DEST_FINGERPRINTS: frozenset[str] = frozenset({THAIS_DEST})
+THAIS_STANDING_AMOUNT = 415.0
+THAIS_DEAD_WEEKLY_AMOUNT = 208.0
+THAIS_NEVER_PAINT_DATE = date(2026, 9, 4)
+THAIS_NETWORK = "solana"
+
+RENT_DEST_EMAIL = "nvolkern@gmail.com"
+RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset({RENT_DEST_EMAIL})
+RENT_STANDING_AMOUNT = 350.0
+RENT_DAILY_AMOUNT = 25.0
+RENT_DAILY_LAST_DATE = date(2026, 8, 30)
+
+JR_SELF_SEND_DEST = "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm"
+JR_SELF_SEND_AMOUNT = 70.0
+JR_SELF_SEND_LABEL = "self-send"
+JR_SELF_SEND_NETWORK = "solana"
+
+PAY_FRIDAY_TZ_NAME = "America/New_York"
+PAY_FRIDAY_TZ = ZoneInfo(PAY_FRIDAY_TZ_NAME)
+PAY_FRIDAY_FIRST = datetime(2026, 9, 11, 13, 0, 0, tzinfo=PAY_FRIDAY_TZ)
+PAY_FRIDAY_CADENCE_DAYS = 14
+STANDING_FIRST_DATE = PAY_FRIDAY_FIRST.date()
+
+# Proof / dest-test ids. Prefix match — issue paints the leading hex, not a new UUID.
+THAIS_PROOF_ID_PREFIX = "baa3976e"
+JR_DEST_TEST_ID_PREFIX = "7b8bf83b"
+EXCLUDED_SEND_ID_PREFIXES = frozenset(
+    {
+        THAIS_PROOF_ID_PREFIX,  # 2026-08-27 $1 Thaís Solana proof
+        JR_DEST_TEST_ID_PREFIX,  # 2026-08-30 $5 JR dest-test
+    }
+)
 THAIS_EXCLUDED_SEND_IDS = frozenset(
     {
         "baa3976e-3304-53f7-b168-e35f16325653",  # 2026-08-27 $1 Solana proof
     }
 )
-RENT_DEST_EMAIL = "nvolkern@gmail.com"
-RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset({RENT_DEST_EMAIL})
+JR_EXCLUDED_SEND_IDS = frozenset(
+    {
+        JR_DEST_TEST_ID_PREFIX,
+    }
+)
 
 
 def _fold(val: Any) -> str:
@@ -60,6 +101,24 @@ def _f(val: Any, default: float = 0.0) -> float:
         return float(val)
     except (TypeError, ValueError):
         return default
+
+
+def _near_amount(a: float, b: float, *, tol: float = 0.02) -> bool:
+    return abs(float(a) - float(b)) <= tol
+
+
+def tx_id_key(tx: Dict[str, Any]) -> str:
+    return str(tx.get("id") or "").strip().casefold()
+
+
+def is_excluded_send_id(tx: Any) -> bool:
+    """Proof / dest-test ids never book as standing Thaís / Rent / JR sends."""
+    tid = tx_id_key(tx) if isinstance(tx, dict) else str(tx or "").strip().casefold()
+    if not tid:
+        return False
+    if tid in {_fold(x) for x in THAIS_EXCLUDED_SEND_IDS}:
+        return True
+    return any(tid == p or tid.startswith(p) for p in EXCLUDED_SEND_ID_PREFIXES)
 
 
 def tx_type(tx: Dict[str, Any]) -> str:
@@ -148,6 +207,44 @@ def dest_fingerprint(tx: Dict[str, Any]) -> str:
     return str(tx.get("to_address") or tx.get("destination") or "").strip()
 
 
+def dest_address(tx: Dict[str, Any]) -> str:
+    """On-chain dest only. Never email or phone."""
+    dest = tx.get("to") or {}
+    if isinstance(dest, dict):
+        resource = str(dest.get("resource") or "").strip().casefold()
+        if resource in {"email", "phone"}:
+            return ""
+        addr = str(dest.get("address") or "").strip()
+        if addr:
+            return addr
+    return str(tx.get("to_address") or "").strip()
+
+
+def dest_matches_address(tx: Dict[str, Any], expected: str) -> bool:
+    want = str(expected or "").strip()
+    if not want:
+        return False
+    got = dest_address(tx) or dest_fingerprint(tx)
+    return bool(got) and got == want
+
+
+def tx_network(tx: Dict[str, Any]) -> str:
+    dest = tx.get("to") or {}
+    if isinstance(dest, dict):
+        raw = dest.get("network") or dest.get("chain")
+        if raw:
+            return str(raw).strip().casefold()
+    return str(tx.get("network") or tx.get("chain") or "").strip().casefold()
+
+
+def network_ok(tx: Dict[str, Any], expected: str) -> bool:
+    """Missing network is ok (v2 address send). Explicit other chain is not."""
+    got = tx_network(tx)
+    if not got:
+        return True
+    return got == str(expected or "").strip().casefold()
+
+
 def dest_email(tx: Dict[str, Any]) -> str:
     """Email dest only. Never phone or chain address."""
     dest = tx.get("to") or {}
@@ -170,14 +267,7 @@ def _to_resource(tx: Dict[str, Any]) -> str:
     return ""
 
 
-def matches_thais(tx: Dict[str, Any]) -> bool:
-    """Thaís = named type=send to an address. Never phone / unlabeled / amount-guess."""
-    tid = str(tx.get("id") or "").strip().casefold()
-    if tid and tid in THAIS_EXCLUDED_SEND_IDS:
-        return False
-    dest = dest_fingerprint(tx)
-    if dest and dest in THAIS_DEST_FINGERPRINTS:
-        return True
+def _thais_name_hit(tx: Dict[str, Any]) -> bool:
     resource = _to_resource(tx)
     if resource and resource != "address":
         return False
@@ -185,17 +275,83 @@ def matches_thais(tx: Dict[str, Any]) -> bool:
     return any(n in blob for n in _THAIS_NAME_NEEDLES)
 
 
+def matches_thais(tx: Dict[str, Any]) -> bool:
+    """Thaís = dest AwMH3… standing 415 from 2026-09-11, else pre-9/11 named address.
+
+    Weekly $208 never paints. 2026-09-04 never paints. Proof id excluded.
+    """
+    if is_excluded_send_id(tx):
+        return False
+    if dest_matches_address(tx, JR_SELF_SEND_DEST):
+        return False
+    d = tx_date(tx)
+    if d == THAIS_NEVER_PAINT_DATE:
+        return False
+    amt = send_spend_amount(tx)
+    if _near_amount(amt, THAIS_DEAD_WEEKLY_AMOUNT):
+        return False
+    dest_hit = dest_matches_address(tx, THAIS_DEST) or (
+        dest_fingerprint(tx) in THAIS_DEST_FINGERPRINTS
+        and _to_resource(tx) in {"", "address"}
+    )
+    if dest_hit and not network_ok(tx, THAIS_NETWORK):
+        return False
+    if dest_hit and _near_amount(amt, THAIS_STANDING_AMOUNT):
+        return d is None or d >= STANDING_FIRST_DATE
+    # Pre-9/11 monthly named address (895 path). Dest rewrite owns 9/11+.
+    if d is not None and d >= STANDING_FIRST_DATE:
+        return False
+    return _thais_name_hit(tx)
+
+
 def matches_rent(tx: Dict[str, Any]) -> bool:
-    """Rent = completed v2 USDC type=send to nvolkern@gmail.com only. Email only."""
+    """Rent = completed v2 USDC type=send to nvolkern@gmail.com only. Email only.
+
+    Daily $25 books through 2026-08-30 only. 8/31–9/10 $25 do not paint.
+    Standing $350 is one row from 2026-09-11. JR / Thaís dests never book as Rent.
+    """
     if tx_type(tx) != SEND_TYPE:
         return False
     if tx_status(tx) != "completed":
+        return False
+    if is_excluded_send_id(tx):
+        return False
+    if dest_matches_address(tx, JR_SELF_SEND_DEST):
+        return False
+    if dest_matches_address(tx, THAIS_DEST):
         return False
     resource = _to_resource(tx)
     if resource and resource != "email":
         return False
     email = dest_email(tx)
-    return bool(email) and email in {_fold(x) for x in RENT_DEST_FINGERPRINTS}
+    if not email or email not in {_fold(x) for x in RENT_DEST_FINGERPRINTS}:
+        return False
+    amt = send_spend_amount(tx)
+    d = tx_date(tx)
+    if _near_amount(amt, RENT_STANDING_AMOUNT):
+        return d is not None and d >= STANDING_FIRST_DATE
+    if _near_amount(amt, RENT_DAILY_AMOUNT):
+        return d is not None and d <= RENT_DAILY_LAST_DATE
+    return False
+
+
+def matches_jr_self_send(tx: Dict[str, Any]) -> bool:
+    """JR self-send = dest CzuRx… standing 70 from 2026-09-11. Not Rent / Thaís / mint."""
+    if is_excluded_send_id(tx):
+        return False
+    if dest_matches_address(tx, THAIS_DEST):
+        return False
+    if dest_email(tx) and dest_email(tx) in {_fold(x) for x in RENT_DEST_FINGERPRINTS}:
+        return False
+    if not dest_matches_address(tx, JR_SELF_SEND_DEST):
+        return False
+    if not network_ok(tx, JR_SELF_SEND_NETWORK):
+        return False
+    amt = send_spend_amount(tx)
+    if not _near_amount(amt, JR_SELF_SEND_AMOUNT):
+        return False
+    d = tx_date(tx)
+    return d is None or d >= STANDING_FIRST_DATE
 
 
 def extract_raw_txs(payload: Any) -> List[Dict[str, Any]]:
@@ -301,6 +457,122 @@ def _item_send_month(item_name: str, as_of: date) -> date:
     return as_of
 
 
+def _as_et(val: Any) -> datetime:
+    if val is None:
+        return datetime.now(timezone.utc).astimezone(PAY_FRIDAY_TZ)
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc).astimezone(PAY_FRIDAY_TZ)
+        return val.astimezone(PAY_FRIDAY_TZ)
+    if isinstance(val, date):
+        return datetime.combine(val, time.min, tzinfo=PAY_FRIDAY_TZ)
+    raw = str(val).strip()
+    try:
+        if raw.endswith("Z"):
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        else:
+            dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            if "T" in raw:
+                return dt.replace(tzinfo=timezone.utc).astimezone(PAY_FRIDAY_TZ)
+            return dt.replace(tzinfo=PAY_FRIDAY_TZ)
+        return dt.astimezone(PAY_FRIDAY_TZ)
+    except ValueError:
+        try:
+            d = date.fromisoformat(raw[:10])
+        except ValueError:
+            return datetime.now(timezone.utc).astimezone(PAY_FRIDAY_TZ)
+        return datetime.combine(d, time.min, tzinfo=PAY_FRIDAY_TZ)
+
+
+def next_pay_friday(as_of: Any = None) -> datetime:
+    """Next 1:00 PM ET pay Friday on the 14-day grid from 2026-09-11."""
+    now = _as_et(as_of)
+    if now <= PAY_FRIDAY_FIRST:
+        return PAY_FRIDAY_FIRST
+    step = timedelta(days=PAY_FRIDAY_CADENCE_DAYS)
+    periods = (now - PAY_FRIDAY_FIRST) // step
+    candidate = PAY_FRIDAY_FIRST + periods * step
+    if now <= candidate:
+        return candidate
+    return candidate + step
+
+
+def standing_send_defs() -> Tuple[Dict[str, Any], ...]:
+    """Merge-only standing join rows. Not completed txs. Not live-money."""
+    return (
+        {
+            "id": "standing-thais-415",
+            "kind": "thais",
+            "label": "Thaís",
+            "type": SEND_TYPE,
+            "currency": USDC,
+            "amount": THAIS_STANDING_AMOUNT,
+            "dest": THAIS_DEST,
+            "network": THAIS_NETWORK,
+            "cadence_days": PAY_FRIDAY_CADENCE_DAYS,
+            "first_at": PAY_FRIDAY_FIRST.isoformat(),
+            "tz": PAY_FRIDAY_TZ_NAME,
+            "book_as": "thais",
+        },
+        {
+            "id": "standing-nicole-rent-350",
+            "kind": "rent",
+            "label": "Nicole Rent",
+            "type": SEND_TYPE,
+            "currency": USDC,
+            "amount": RENT_STANDING_AMOUNT,
+            "dest": RENT_DEST_EMAIL,
+            "dest_kind": "email",
+            "cadence_days": PAY_FRIDAY_CADENCE_DAYS,
+            "first_at": PAY_FRIDAY_FIRST.isoformat(),
+            "tz": PAY_FRIDAY_TZ_NAME,
+            "book_as": "rent",
+            "book_shape": "one_row",
+        },
+        {
+            "id": "standing-jr-self-send-70",
+            "kind": "jr_self_send",
+            "label": JR_SELF_SEND_LABEL,
+            "type": SEND_TYPE,
+            "currency": USDC,
+            "amount": JR_SELF_SEND_AMOUNT,
+            "dest": JR_SELF_SEND_DEST,
+            "network": JR_SELF_SEND_NETWORK,
+            "cadence_days": PAY_FRIDAY_CADENCE_DAYS,
+            "first_at": PAY_FRIDAY_FIRST.isoformat(),
+            "tz": PAY_FRIDAY_TZ_NAME,
+            "book_as": "jr_self_send",
+            "not": ("rent", "thais", "mint"),
+        },
+    )
+
+
+def next_standing_sends(as_of: Any = None) -> List[Dict[str, Any]]:
+    nxt = next_pay_friday(as_of)
+    out: List[Dict[str, Any]] = []
+    for row in standing_send_defs():
+        rec = dict(row)
+        rec["next_at"] = nxt.isoformat()
+        rec["next_date"] = nxt.date().isoformat()
+        out.append(rec)
+    return out
+
+
+def merge_standing_into_book(book: Dict[str, Any], *, as_of: Any = None) -> Dict[str, Any]:
+    """Merge standing join rows onto an existing type=send book. No live rebuild."""
+    out = dict(book) if isinstance(book, dict) else {"transactions": []}
+    out["standing"] = list(next_standing_sends(as_of))
+    notes = str(out.get("notes") or "")
+    merge_note = (
+        "merge-only standing join. type=send USDC. "
+        "no live rebuild. no live-money."
+    )
+    if merge_note not in notes:
+        out["notes"] = (notes + " " + merge_note).strip()
+    return out
+
+
 def item_sends_for_month(
     sends: Sequence[Dict[str, Any]],
     *,
@@ -316,6 +588,8 @@ def item_sends_for_month(
         if key == "thais" and matches_thais(tx):
             matched.append(tx)
         elif key == "rent" and matches_rent(tx):
+            matched.append(tx)
+        elif key in {"jr", "self-send", "selfsend"} and matches_jr_self_send(tx):
             matched.append(tx)
     return matched
 
@@ -333,15 +607,17 @@ def actual_for_item(
 def write_send_book(payload: Any, dest: Path) -> Dict[str, Any]:
     """Filter a v2 payload to type=send USDC and write the prism snapshot."""
     sends = collect_usdc_sends(payload)
-    book = {
-        "source": "coinbase_v2_usdc",
-        "account_currency": USDC,
-        "transactions": sends,
-        "notes": (
-            "type=send only. lend/lock ignored. Recurring send HOLD. "
-            "No Transfer key. Key stays on prism."
-        ),
-    }
+    book = merge_standing_into_book(
+        {
+            "source": "coinbase_v2_usdc",
+            "account_currency": USDC,
+            "transactions": sends,
+            "notes": (
+                "type=send only. lend/lock ignored. Merge-only standing join. "
+                "No live rebuild. No Transfer key. Key stays on prism."
+            ),
+        }
+    )
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(book, indent=2) + "\n", encoding="utf-8")
     return book

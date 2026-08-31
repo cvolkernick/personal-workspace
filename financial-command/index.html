@@ -2229,7 +2229,7 @@
         <span class="hint" id="planned-actual-asof">display only</span>
       </div>
       <p class="hint" id="planned-actual-note" style="margin:0.15rem 0 0.4rem">
-        Essential (legacy Personal), Fleet, and Collateral sheet monthly vs this-month in-map spend by payee. two-charge, cadence-lump, and payment-shaped are billing shape, not lifestyle over.
+        Essential (legacy Personal), Fleet, and Collateral sheet monthly vs this-month in-map spend by payee. Coinbase USDC type=send only: Thaís $415 Solana to AwMH3PDTmQBHC7QmMbtw3hmpxvobuXSYTzf25JQpcAVm, Nicole Rent $350 to nvolkern@gmail.com (one row), JR self-send $70 to CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm — first 2026-09-11 1:00 PM ET then every 14 days. Weekly $208 / daily $25 after 2026-08-30 / 2026-09-04 never paint. two-charge, cadence-lump, and payment-shaped are billing shape, not lifestyle over.
       </p>
       <div id="planned-actual-strip" class="pa-strip">
         <p class="hint">Loading planned vs actual…</p>
@@ -5005,6 +5005,33 @@
         root.innerHTML = `<p class="hint">No mapped sheet items for this month.</p>`;
         return;
       }
+      const standing = data.standing_sends || [];
+      const rowKinds = new Set(
+        rows.map((r) => (r.next_send && r.next_send.kind) || "").filter(Boolean)
+      );
+      const extraStanding = standing.filter((s) => s && s.kind && !rowKinds.has(s.kind));
+      const standingHtml = extraStanding.length
+        ? extraStanding
+            .map((s) => {
+              const dest = s.dest ? String(s.dest) : "";
+              const destShort =
+                dest.length > 18 ? dest.slice(0, 8) + "…" + dest.slice(-5) : dest;
+              return (
+                `<div class="pa-row" data-flag="not-yet" data-standing="${escapeHtml(s.kind || "")}">` +
+                `<div><div class="name">${escapeHtml(s.label || s.kind || "standing send")}</div>` +
+                `<div class="meta">next v2 USDC send ${escapeHtml(String(s.amount || ""))}` +
+                (s.label ? ` ${escapeHtml(String(s.label))}` : "") +
+                (destShort ? ` to ${escapeHtml(destShort)}` : "") +
+                (s.next_date ? ` · ${escapeHtml(String(s.next_date))}` : "") +
+                `</div></div>` +
+                `<div class="amt"><span class="lab">planned</span>—</div>` +
+                `<div class="amt"><span class="lab">actual</span>—</div>` +
+                `<span class="pa-flag flag-not-yet">next send</span>` +
+                `</div>`
+              );
+            })
+            .join("")
+        : "";
       root.innerHTML = rows
         .map((r) => {
           const flag = r.flag || "";
@@ -5012,7 +5039,13 @@
             (flag === "off-book From" || flag === "payment-shaped") && r.from
               ? `From=${escapeHtml(r.from)}`
               : escapeHtml(r.category_name || "");
-          const meta = [r.tab ? escapeHtml(r.tab) : "", fromBit].filter(Boolean).join(" · ");
+          const next = r.next_send || {};
+          const nextBit = next.amount
+            ? `next send ${escapeHtml(String(next.amount))} USDC` +
+              (next.label ? ` ${escapeHtml(String(next.label))}` : "") +
+              (next.next_date ? ` ${escapeHtml(String(next.next_date))}` : "")
+            : "";
+          const meta = [r.tab ? escapeHtml(r.tab) : "", fromBit, nextBit].filter(Boolean).join(" · ");
           return (
             `<div class="pa-row" data-flag="${escapeHtml(flag)}" data-tab="${escapeHtml(r.tab || "")}">` +
             `<div><div class="name">${escapeHtml(r.item || "—")}</div>` +
@@ -5023,7 +5056,7 @@
             `</div>`
           );
         })
-        .join("");
+        .join("") + standingHtml;
     }
     async function loadPlannedActual() {
       const root = document.getElementById("planned-actual-strip");

@@ -51,6 +51,10 @@ class TestPlannedActualPage(unittest.TestCase):
         self.assertIn("flag-payment-shaped", html)
         self.assertIn("two-charge, cadence-lump, and payment-shaped", html)
         self.assertIn("Essential (legacy Personal), Fleet, and Collateral", html)
+        self.assertIn("self-send", html)
+        self.assertIn("nvolkern@gmail.com", html)
+        self.assertIn("2026-09-11", html)
+        self.assertIn("type=send", html)
         self.assertNotIn("overspend", html.lower())
         # two-charge / cadence-lump must not use the red due style
         css = html.split("flag-two-charge")[1].split("flag-off-book")[0]
@@ -109,6 +113,10 @@ class TestPlannedActualApi(unittest.TestCase):
                 ("on", "not-yet", "two-charge", "cadence-lump", "off-book From", "payment-shaped"),
             )
             self.assertNotIn(row.get("flag"), ("over", "under", "overspend"))
+        standing = data.get("standing_sends") or []
+        self.assertEqual(len(standing), 3)
+        kinds = {s.get("kind") for s in standing}
+        self.assertEqual(kinds, {"thais", "rent", "jr_self_send"})
 
     def test_health_lists_feature(self) -> None:
         code, body = self._get("/api/health")

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,16 +14,25 @@ if str(ROOT) not in sys.path:
 
 from treasury.coinbase_usdc_sends import (  # noqa: E402
     IGNORE_TYPES,
+    JR_DEST_TEST_ID_PREFIX,
+    JR_SELF_SEND_DEST,
+    PAY_FRIDAY_FIRST,
     PRISM_KEY_PATH,
     RENT_DEST_EMAIL,
     RENT_DEST_FINGERPRINTS,
+    THAIS_DEST,
     THAIS_EXCLUDED_SEND_IDS,
+    THAIS_PROOF_ID_PREFIX,
     actual_for_item,
     collect_usdc_sends,
+    is_excluded_send_id,
     is_usdc_send,
     load_send_book,
+    matches_jr_self_send,
     matches_rent,
     matches_thais,
+    next_pay_friday,
+    next_standing_sends,
     send_spend_amount,
     write_send_book,
 )
@@ -299,6 +308,167 @@ class TestSendFilter(unittest.TestCase):
             self.assertEqual(len(book["transactions"]), 1)
             loaded = load_send_book(path=dest)
             self.assertEqual(len(loaded), 1)
+            self.assertEqual(len(book.get("standing") or []), 3)
+            kinds = {r["kind"] for r in book["standing"]}
+            self.assertEqual(kinds, {"thais", "rent", "jr_self_send"})
+
+
+class TestStandingSendJoin427(unittest.TestCase):
+    """#427 dest/cadence rewrite. Fixtures only. No live-money."""
+
+    def test_excluded_proof_and_dest_test_ids(self) -> None:
+        self.assertTrue(is_excluded_send_id("baa3976e-3304-53f7-b168-e35f16325653"))
+        self.assertTrue(is_excluded_send_id("baa3976e"))
+        self.assertTrue(is_excluded_send_id("7b8bf83b-aaaa-bbbb-cccc-ddddeeeeffff"))
+        self.assertTrue(is_excluded_send_id({"id": "7b8bf83b"}))
+        self.assertIn(THAIS_PROOF_ID_PREFIX, "baa3976e-3304-53f7-b168-e35f16325653")
+        self.assertEqual(JR_DEST_TEST_ID_PREFIX, "7b8bf83b")
+        self.assertIn("baa3976e-3304-53f7-b168-e35f16325653", THAIS_EXCLUDED_SEND_IDS)
+
+    def test_thais_standing_dest_415_from_sep11(self) -> None:
+        standing = _send(
+            id="thais-415-sep11",
+            created_at="2026-09-11T17:00:00Z",
+            amount={"amount": "-415.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST, "network": "solana"},
+            description="",
+        )
+        self.assertTrue(matches_thais(standing))
+        self.assertFalse(matches_rent(standing))
+        self.assertFalse(matches_jr_self_send(standing))
+        book = collect_usdc_sends({"transactions": [standing]})
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 9, 11)),
+            415.0,
+        )
+
+    def test_weekly_208_never_paints(self) -> None:
+        weekly = _send(
+            id="thais-weekly-208",
+            created_at="2026-09-11T17:00:00Z",
+            amount={"amount": "-208.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST, "network": "solana"},
+            description="Thaís",
+        )
+        earlier = _send(
+            id="thais-weekly-208-aug",
+            created_at="2026-08-28T17:00:00Z",
+            amount={"amount": "-208.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST},
+            description="Thaís",
+        )
+        self.assertFalse(matches_thais(weekly))
+        self.assertFalse(matches_thais(earlier))
+        book = collect_usdc_sends({"transactions": [weekly, earlier]})
+        self.assertEqual(actual_for_item(book, item_name="Thaís", month=date(2026, 9, 11)), 0.0)
+        self.assertEqual(actual_for_item(book, item_name="Thaís", month=date(2026, 8, 15)), 0.0)
+
+    def test_sep04_never_paints(self) -> None:
+        cancelled = _send(
+            id="thais-sep04-cancelled",
+            created_at="2026-09-04T17:00:00Z",
+            amount={"amount": "-415.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST, "network": "solana"},
+            description="Thaís",
+        )
+        self.assertFalse(matches_thais(cancelled))
+        book = collect_usdc_sends({"transactions": [cancelled]})
+        self.assertEqual(actual_for_item(book, item_name="Thaís", month=date(2026, 9, 4)), 0.0)
+
+    def test_nicole_daily_25_dead_after_aug30(self) -> None:
+        last_daily = _send(
+            id="rent-25-aug30",
+            created_at="2026-08-30T16:00:00Z",
+            amount={"amount": "-25.00", "currency": "USDC"},
+            to={"resource": "email", "email": "nvolkern@gmail.com"},
+            description="",
+        )
+        gap = _send(
+            id="rent-25-sep01",
+            created_at="2026-09-01T16:00:00Z",
+            amount={"amount": "-25.00", "currency": "USDC"},
+            to={"resource": "email", "email": "nvolkern@gmail.com"},
+            description="",
+        )
+        self.assertTrue(matches_rent(last_daily))
+        self.assertFalse(matches_rent(gap))
+        book = collect_usdc_sends({"transactions": [last_daily, gap]})
+        self.assertAlmostEqual(actual_for_item(book, item_name="Rent", month=date(2026, 8, 30)), 25.0)
+        self.assertEqual(actual_for_item(book, item_name="Rent", month=date(2026, 9, 1)), 0.0)
+
+    def test_nicole_350_one_row_not_fourteen_times_25(self) -> None:
+        lump = _send(
+            id="rent-350-sep11",
+            created_at="2026-09-11T17:00:00Z",
+            amount={"amount": "-350.00", "currency": "USDC"},
+            to={"resource": "email", "email": "nvolkern@gmail.com"},
+            description="",
+        )
+        dailies = [
+            _send(
+                id=f"rent-25-catchup-{i}",
+                created_at="2026-09-0{}T16:00:00Z".format(i) if i < 10 else "2026-09-10T16:00:00Z",
+                amount={"amount": "-25.00", "currency": "USDC"},
+                to={"resource": "email", "email": "nvolkern@gmail.com"},
+            )
+            for i in range(1, 11)
+        ]
+        self.assertTrue(matches_rent(lump))
+        for tx in dailies:
+            self.assertFalse(matches_rent(tx), tx["id"])
+        book = collect_usdc_sends({"transactions": [lump, *dailies]})
+        hits = [t for t in book if matches_rent(t)]
+        self.assertEqual(len(hits), 1)
+        self.assertAlmostEqual(send_spend_amount(hits[0]), 350.0)
+        self.assertAlmostEqual(actual_for_item(book, item_name="Rent", month=date(2026, 9, 11)), 350.0)
+        self.assertEqual(sum(1 for t in dailies if matches_rent(t)), 0)
+
+    def test_jr_self_send_70_not_rent_or_thais(self) -> None:
+        jr = _send(
+            id="jr-70-sep11",
+            created_at="2026-09-11T17:00:00Z",
+            amount={"amount": "-70.00", "currency": "USDC"},
+            to={"resource": "address", "address": JR_SELF_SEND_DEST, "network": "solana"},
+            description="",
+        )
+        dest_test = _send(
+            id="7b8bf83b-dest-test",
+            created_at="2026-08-30T16:00:00Z",
+            amount={"amount": "-5.00", "currency": "USDC"},
+            to={"resource": "address", "address": JR_SELF_SEND_DEST, "network": "solana"},
+            description="JR dest test",
+        )
+        self.assertTrue(matches_jr_self_send(jr))
+        self.assertFalse(matches_thais(jr))
+        self.assertFalse(matches_rent(jr))
+        self.assertFalse(matches_jr_self_send(dest_test))
+        self.assertFalse(matches_thais(dest_test))
+        self.assertFalse(matches_rent(dest_test))
+        book = collect_usdc_sends({"transactions": [jr, dest_test]})
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="JR self-send", month=date(2026, 9, 11)),
+            70.0,
+        )
+        self.assertEqual(actual_for_item(book, item_name="Rent", month=date(2026, 9, 11)), 0.0)
+        self.assertEqual(actual_for_item(book, item_name="Thaís", month=date(2026, 9, 11)), 0.0)
+
+    def test_next_standing_before_sep11_is_first_pay_friday(self) -> None:
+        nxt = next_pay_friday("2026-08-31")
+        self.assertEqual(nxt, PAY_FRIDAY_FIRST)
+        self.assertEqual(nxt.hour, 13)
+        rows = next_standing_sends("2026-08-31")
+        by_kind = {r["kind"]: r for r in rows}
+        self.assertEqual(by_kind["thais"]["amount"], 415.0)
+        self.assertEqual(by_kind["thais"]["dest"], THAIS_DEST)
+        self.assertEqual(by_kind["thais"]["network"], "solana")
+        self.assertEqual(by_kind["rent"]["amount"], 350.0)
+        self.assertEqual(by_kind["rent"]["dest"], RENT_DEST_EMAIL)
+        self.assertEqual(by_kind["jr_self_send"]["amount"], 70.0)
+        self.assertEqual(by_kind["jr_self_send"]["dest"], JR_SELF_SEND_DEST)
+        self.assertEqual(by_kind["jr_self_send"]["label"], "self-send")
+        self.assertEqual(by_kind["thais"]["next_date"], "2026-09-11")
+        later = next_pay_friday(datetime(2026, 9, 11, 14, 0, tzinfo=PAY_FRIDAY_FIRST.tzinfo))
+        self.assertEqual(later.date(), date(2026, 9, 25))
 
 
 if __name__ == "__main__":
