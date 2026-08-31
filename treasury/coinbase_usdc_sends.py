@@ -288,7 +288,7 @@ def _thais_dest_hit(tx: Dict[str, Any]) -> bool:
 def matches_thais(tx: Dict[str, Any]) -> bool:
     """Thaís = dest AwMH3… $415 from 2026-09-11, else pre-9/11 dest/named monthly.
 
-    Dest $415 is 2026-09-11+ only. August dest-only $895 still joins (#433).
+    Dest $415 is 2026-09-11+ only. August dest-only $895 still joins (#432).
     Weekly $208 never paints. 2026-09-04 never paints. Proof id excluded.
     """
     if is_excluded_send_id(tx):

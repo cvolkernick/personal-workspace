@@ -1189,8 +1189,8 @@ class TestStandingSendJoin427(unittest.TestCase):
         self.assertEqual(jr["next_date"], "2026-09-11")
 
 
-class TestAugustThaisDestMatcher433(unittest.TestCase):
-    """#433: August dest-only 895 paints ON. Dest $415 stays 9/11+."""
+class TestAugustThaisDestMatcher432(unittest.TestCase):
+    """#432: August dest-only 895 paints ON. Dest $415 stays 9/11+."""
 
     def test_aug_dest_only_895_paints_900_895_on(self) -> None:
         snaps = _snaps(_ac_items(), [])

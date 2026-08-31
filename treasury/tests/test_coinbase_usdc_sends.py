@@ -472,8 +472,8 @@ class TestStandingSendJoin427(unittest.TestCase):
         self.assertEqual(later.date(), date(2026, 9, 25))
 
 
-class TestAugustThaisDestMatcher433(unittest.TestCase):
-    """#433: dest rewrite must not blank August dest-only 895."""
+class TestAugustThaisDestMatcher432(unittest.TestCase):
+    """#432: dest rewrite must not blank August dest-only 895."""
 
     def test_aug10_dest_only_895_joins(self) -> None:
         dest_only = _send(
