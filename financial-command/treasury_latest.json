@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-31T10:40:15.857618+00:00",
+    "as_of": "2026-08-31T10:54:41.649204+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-31T10:38:00.594858+00:00",
@@ -2903,7 +2903,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-31T10:39:54.224828+00:00",
+      "as_of": "2026-08-31T10:54:35.213548+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -2917,9 +2917,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-31T10:39:54.224816+00:00",
-        "total_value": 253.447698692,
-        "equity_value": 228.357698692,
+        "as_of": "2026-08-31T10:54:35.213544+00:00",
+        "total_value": 253.6602696088,
+        "equity_value": 228.5702696088,
         "cash": 25.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3139,7 +3139,7 @@
         "connected": true,
         "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
       },
-      "notes": "Post-order snapshot 2026-08-31 fund-manager deploy; 3 buys queued regular_hours.",
+      "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot.",
       "usdg_earn_usdg": null,
       "usdg_earn_apy_est": "0.07",
       "margin_loan_usd": null,
@@ -3282,7 +3282,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 25.09,
-      "rh_agentic_total_value": 253.447698692,
+      "rh_agentic_total_value": 253.6602696088,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 13,
@@ -3390,7 +3390,7 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-31T10:38:00.594858+00:00",
-        "robinhood_as_of": "2026-08-31T10:39:54.224828+00:00",
+        "robinhood_as_of": "2026-08-31T10:54:35.213548+00:00",
         "one_card_as_of": "2026-08-31T10:29:50.879136+00:00",
         "rh_checking_as_of": "2026-08-31T10:29:51.154281+00:00",
         "x_money_as_of": "2026-08-31T10:29:51.344634+00:00",
@@ -3736,27 +3736,27 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-31T10:40:15.862760+00:00",
+      "as_of": "2026-08-31T10:54:41.654643+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-31T10:40:15.859643+00:00",
+        "as_of": "2026-08-31T10:54:41.651504+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 253.4477,
+        "nav_usd": 253.6603,
         "cash_usd": 25.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 199.7289,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3197,
-          "stocks_growth": 0.4683,
+          "btc_digital_credit": 0.3194,
+          "stocks_growth": 0.4679,
           "other": 0.0,
-          "cash": 0.099
+          "cash": 0.0989
         },
         "weights_of_deployed": {
           "btc_digital_credit": 0.4057,
@@ -5721,27 +5721,27 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-31T10:40:15.862760+00:00",
+    "as_of": "2026-08-31T10:54:41.654643+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-31T10:40:15.859643+00:00",
+      "as_of": "2026-08-31T10:54:41.651504+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 253.4477,
+      "nav_usd": 253.6603,
       "cash_usd": 25.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 199.7289,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3197,
-        "stocks_growth": 0.4683,
+        "btc_digital_credit": 0.3194,
+        "stocks_growth": 0.4679,
         "other": 0.0,
-        "cash": 0.099
+        "cash": 0.0989
       },
       "weights_of_deployed": {
         "btc_digital_credit": 0.4057,
