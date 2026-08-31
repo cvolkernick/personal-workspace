@@ -35,7 +35,7 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertIn('id="azm-trend-note"', HTML)
         self.assertIn("Active Zone Minutes · 90d", HTML)
         self.assertIn("7d rolling avg", HTML)
-        self.assertIn("/trends-azm.js?v=azm-90d-2", HTML)
+        self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
         self.assertNotIn("Active Zone Minutes · 7d", HTML)
         self.assertNotIn("7d trailing sum", HTML)
         self.assertNotIn("Weekly AZM", HTML)
@@ -53,16 +53,22 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertNotIn("<canvas", azm_card)
         self.assertIn('id="azm-sparkline"', azm_card)
         self.assertIn('id="azm-legend"', azm_card)
+        self.assertIn('id="azm-target-chip"', azm_card)
+        self.assertIn('id="azm-target-value"', azm_card)
         self.assertIn("azm-swatch-daily", azm_card)
         self.assertIn("azm-swatch-roll", azm_card)
         self.assertIn("azm-swatch-trend", azm_card)
+        self.assertIn("azm-swatch-target", azm_card)
         self.assertIn("Daily", azm_card)
         self.assertIn("Trendline", azm_card)
+        self.assertIn("Target", azm_card)
+        self.assertIn("14d median", azm_card)
         self.assertIn("height: 240px", CSS)
         self.assertIn("azm-swatch-daily", CSS)
         self.assertIn("#8b9bb4", CSS.split(".azm-swatch-daily", 1)[1].split("}", 1)[0])
         self.assertIn("#3d9cf0", CSS.split(".azm-swatch-roll", 1)[1].split("}", 1)[0])
         self.assertIn("#f07178", CSS.split(".azm-swatch-trend", 1)[1].split("}", 1)[0])
+        self.assertIn("#5ce1a8", CSS.split(".azm-swatch-target", 1)[1].split("}", 1)[0])
         self.assertNotIn("height: 80px", CSS.split(".azm-spark-svg", 1)[1].split("}", 1)[0])
 
     def test_series_is_90d_rolling_avg_and_trendline(self):
@@ -75,7 +81,12 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertIn("lastRolling7", OVERLAY)
         self.assertIn("linearTrend", OVERLAY)
         self.assertIn("rollingAverage", OVERLAY)
+        self.assertIn("azmTargetMinutes", OVERLAY)
+        self.assertIn("var TARGET_LOOKBACK_DAYS = 14;", OVERLAY)
+        self.assertIn("var AZM_TARGET_FLOOR = 10;", OVERLAY)
+        self.assertIn("var AZM_TARGET_CAP = 45;", OVERLAY)
         self.assertIn("sparklineSvg", OVERLAY)
+        self.assertIn("azm-target", OVERLAY)
         self.assertIn('data-y-min="0"', OVERLAY)
         self.assertIn("monthTickIndexes", OVERLAY)
         self.assertIn("azm-trend", OVERLAY)
@@ -142,6 +153,46 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertIn("height: 44px", sleep_wrap)
 
 
+class TrendsAzmTargetLock(unittest.TestCase):
+    def test_same_formula_as_cardio_quest(self):
+        from rt_dashboard.cardio_quest import (
+            AZM_LOOKBACK_DAYS,
+            AZM_TARGET_CAP,
+            AZM_TARGET_FLOOR,
+            DEFAULT_AZM_TARGET,
+            cardio_target_minutes,
+            recent_azm_minutes,
+        )
+
+        self.assertEqual(AZM_LOOKBACK_DAYS, 14)
+        self.assertEqual(AZM_TARGET_FLOOR, 10)
+        self.assertEqual(AZM_TARGET_CAP, 45)
+        self.assertEqual(DEFAULT_AZM_TARGET, 20)
+        days = [
+            {"date": "2026-08-16", "total_minutes": 10},
+            {"date": "2026-08-17", "total_minutes": 22},
+            {"date": "2026-08-18", "total_minutes": 18},
+            {"date": "2026-08-19", "total_minutes": 24},
+            {"date": "2026-08-20", "total_minutes": 12},
+            {"date": "2026-08-21", "total_minutes": 30},
+            {"date": "2026-08-22", "total_minutes": 16},
+            {"date": "2026-08-23", "total_minutes": 20},
+            {"date": "2026-08-24", "total_minutes": 28},
+            {"date": "2026-08-25", "total_minutes": 14},
+            {"date": "2026-08-26", "total_minutes": 26},
+            {"date": "2026-08-27", "total_minutes": 19},
+            {"date": "2026-08-28", "total_minutes": 21},
+            {"date": "2026-08-29", "total_minutes": 17},
+            {"date": "2026-08-30", "total_minutes": 23},
+            {"date": "2026-08-31", "total_minutes": 400},
+        ]
+        recent = recent_azm_minutes(days, as_of="2026-08-31")
+        self.assertEqual(cardio_target_minutes(recent, easy=False), 20)
+        self.assertNotIn(400.0, recent)
+        self.assertIn("cardio_target_minutes(easy=False)", OVERLAY)
+        self.assertIn("var TARGET_LOOKBACK_DAYS = 14;", OVERLAY)
+
+
 class TrendsAzmSourceLock(unittest.TestCase):
     def test_reuses_existing_backend(self):
         self.assertIn("def fetch_active_zone_minutes", GH)
@@ -196,10 +247,10 @@ class HobbyAndIgnoreLock(unittest.TestCase):
         self.assertIn("resistance-dashboard/", paths)
 
     def test_cache_bumped(self):
-        self.assertIn("/trends-azm.js?v=azm-90d-2", HTML)
-        self.assertIn("styles.css?v=azm-90d-2", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v75"', SW)
-        self.assertIn("/styles.css?v=azm-90d-2", SW)
+        self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
+        self.assertIn("styles.css?v=azm-90d-3", HTML)
+        self.assertIn('const CACHE = "fitdash-shell-v76"', SW)
+        self.assertIn("/styles.css?v=azm-90d-3", SW)
         self.assertNotIn("fitdash-shell-v60", SW)
         self.assertNotIn("fitdash-shell-v61", SW)
         self.assertNotIn("fitdash-shell-v62", SW)
@@ -215,10 +266,12 @@ class HobbyAndIgnoreLock(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v72", SW)
         self.assertNotIn("fitdash-shell-v73", SW)
         self.assertNotIn("fitdash-shell-v74", SW)
+        self.assertNotIn("fitdash-shell-v75", SW)
         self.assertNotIn("azm-week-1", HTML)
         self.assertNotIn("azm-week-2", HTML)
         self.assertNotIn("azm-spark-1", HTML)
         self.assertNotIn("azm-90d-1", HTML)
+        self.assertNotIn("azm-90d-2", HTML)
         self.assertNotIn("calorie-meta-bottom-1", HTML)
         self.assertNotIn("calorie-meta-bottom-1", SW)
 

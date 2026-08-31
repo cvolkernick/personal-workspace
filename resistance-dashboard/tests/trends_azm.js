@@ -22,9 +22,20 @@ function almostEqual(a, b, msg) {
 
 assert(azm.SPAN_DAYS === 90, "window is 90 civil days");
 assert(azm.ROLL_DAYS === 7, "rolling average is 7 days");
+assert(azm.TARGET_LOOKBACK_DAYS === 14, "target lookback is 14 days");
+assert(azm.AZM_TARGET_FLOOR === 10, "target floor is 10");
+assert(azm.AZM_TARGET_CAP === 45, "target cap is 45");
+assert(azm.DEFAULT_AZM_TARGET === 20, "empty history defaults to 20");
 assert(azm.SERIES_COLORS.daily === "#8b9bb4", "daily is muted gray");
 assert(azm.SERIES_COLORS.roll === "#3d9cf0", "rolling avg is house blue");
 assert(azm.SERIES_COLORS.trend === "#f07178", "trendline is house coral");
+assert(azm.SERIES_COLORS.target === "#5ce1a8", "target is house mint");
+assert(azm.azmTargetMinutes([]) === 20, "empty recent uses default 20");
+assert(azm.azmTargetMinutes([10, 10, 10]) === 10, "median at floor stays 10");
+assert(azm.azmTargetMinutes([80, 80, 80]) === 45, "median above cap is 45");
+assert(azm.azmTargetMinutes([20, 21]) === 20, "even median 20.5 ties-to-even like Python");
+assert(azm.pyRound(20.5) === 20, "Python 3 round half-even on 20.5");
+assert(azm.pyRound(21.5) === 22, "Python 3 round half-even on 21.5");
 
 const now = new Date(2026, 7, 27, 12, 0, 0);
 const labels = azm.windowLabels(90, now);
@@ -62,6 +73,15 @@ almostEqual(
 );
 assert(present.lastRolling7 != null, "latest rolling avg is present");
 assert(azm.formatRolling(present.lastRolling7) !== "—", "present formats the rolling avg");
+assert(present.target === 20, "14d median of in-window days (Aug 13–26) is 20; Aug 11 is outside lookback");
+assert(
+  azm.recentAzmMinutes(present.daily, present.labels).indexOf(10) === -1,
+  "Aug 11 is in 90d series but excluded from 14d target lookback"
+);
+assert(
+  azm.recentAzmMinutes(present.daily, present.labels).indexOf(413) === -1,
+  "out-of-window 413 does not enter the target median"
+);
 
 const rollWindow = azm.rollingAverage([10, null, 20, 30], 7);
 almostEqual(rollWindow[0], 10, "first present point is its own rolling avg");
@@ -87,6 +107,7 @@ assert(azm.formatRolling(0) === "0", "zero minutes formats as 0, not em dash");
 const empty = azm.azmSeries([], now);
 assert(empty.lastRolling7 === null, "empty list is null, not 0");
 assert(empty.pointDays === 0, "empty has no point days");
+assert(empty.target === 20, "empty history still has the default 20 target");
 assert(azm.formatRolling(empty.lastRolling7) === "—", "empty formats as em dash");
 assert(
   empty.trend.every(function (v) {
@@ -140,20 +161,20 @@ assert(
 );
 
 assert(
-  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend).indexOf("<svg") === 0,
+  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend, present.target).indexOf("<svg") === 0,
   "present days get a sparkline"
 );
-assert(azm.sparklineSvg(empty.daily, empty.labels, empty.rolling7, empty.trend) === "", "no sparkline when no points");
+assert(azm.sparklineSvg(empty.daily, empty.labels, empty.rolling7, empty.trend, empty.target) === "", "no sparkline when no points");
 assert(
-  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend).indexOf('data-y-max="413"') === -1,
+  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend, present.target).indexOf('data-y-max="413"') === -1,
   "Y max is not the out-of-window May 20 value"
 );
 assert(
-  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend).indexOf(">413</text>") === -1,
+  azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend, present.target).indexOf(">413</text>") === -1,
   "no 413 tick from out-of-window May 20"
 );
 
-const spark = azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend);
+const spark = azm.sparklineSvg(present.daily, present.labels, present.rolling7, present.trend, present.target);
 assert(spark.indexOf('data-y-min="0"') !== -1, "Y domain starts at 0");
 assert(spark.indexOf('data-y-max="30"') !== -1, "Y top is this window's max present minutes (30)");
 assert((spark.match(/class="azm-y"/g) || []).length === 2, "Y ticks: 0 and max only");
@@ -163,9 +184,11 @@ assert(spark.indexOf("azm-baseline") !== -1, "faint 0-baseline");
 assert(spark.indexOf("azm-daily") !== -1, "daily series is drawn");
 assert(spark.indexOf("azm-roll") !== -1, "7d rolling avg is drawn");
 assert(spark.indexOf("azm-trend") !== -1, "trendline is drawn");
+assert(spark.indexOf("azm-target") !== -1, "target line is drawn");
 assert(spark.indexOf("stroke-dasharray") !== -1, "trendline is dashed");
 assert(spark.indexOf("#3d9cf0") !== -1, "rolling avg stays #3d9cf0");
 assert(spark.indexOf("#f07178") !== -1, "trendline stays house #f07178");
+assert(spark.indexOf("#5ce1a8") !== -1, "target stays house #5ce1a8");
 assert((spark.match(/<circle /g) || []).length === 0, "90d spark has no per-day dots");
 const yTexts = [...spark.matchAll(/class="azm-y"[^>]*>([^<]+)/g)].map(function (m) {
   return m[1];
@@ -209,6 +232,8 @@ global.document = {
 makeEl("azm-trend-card");
 makeEl("azm-week-value");
 makeEl("azm-week-sub");
+makeEl("azm-target-value");
+makeEl("azm-target-sub");
 makeEl("azm-trend-note");
 makeEl("azm-sparkline");
 
@@ -219,11 +244,15 @@ assert(els["azm-week-value"].textContent !== "132", "card is not a 7d trailing s
 assert(els["azm-week-sub"].textContent.indexOf("90d") !== -1, "sub names the 90d window");
 assert(els["azm-week-sub"].textContent.indexOf("7 days") !== -1, "sub labels present days");
 assert(els["azm-trend-note"].textContent.indexOf("7d rolling avg") !== -1, "note documents 7d rolling avg");
-assert(els["azm-trend-note"].textContent.indexOf("trendline on daily points") !== -1, "note names the daily-point fit");
+assert(els["azm-trend-note"].textContent.indexOf("trendline") !== -1, "note names the trendline");
 assert(els["azm-trend-note"].textContent.indexOf("7d trailing sum") === -1, "note dropped the 7d trailing sum");
 assert(els["azm-sparkline"].innerHTML.indexOf("<svg") !== -1, "sparkline paints from the same points");
 assert(els["azm-sparkline"].innerHTML.indexOf("azm-roll") !== -1, "painted spark includes rolling avg");
 assert(els["azm-sparkline"].innerHTML.indexOf("azm-trend") !== -1, "painted spark includes trendline");
+assert(els["azm-sparkline"].innerHTML.indexOf("azm-target") !== -1, "painted spark includes target line");
+assert(els["azm-target-value"].textContent === "20", "chip shows 14d median target");
+assert(els["azm-target-sub"].textContent.indexOf("14d") !== -1, "chip names 14d median");
+assert(els["azm-trend-note"].textContent.indexOf("target 20") !== -1, "note names the target");
 assert(els["azm-sparkline"].innerHTML.indexOf("chicken") === -1, "does not invent food");
 assert(els["azm-week-value"].textContent.indexOf("2400") === -1, "does not show burned kcal");
 
@@ -236,6 +265,8 @@ assert(
   "empty note is honest"
 );
 assert(els["azm-trend-note"].textContent.indexOf("90 days") !== -1, "empty note names 90 days");
+assert(els["azm-target-value"].textContent === "20", "empty card still shows default target 20");
+assert(els["azm-sparkline"].innerHTML.indexOf("azm-target") === -1, "no invented spark/target line when no points");
 
 const burnedOnly = azm.paintAzmCard(
   {
@@ -248,5 +279,45 @@ const burnedOnly = azm.paintAzmCard(
 );
 assert(burnedOnly.lastRolling7 === null, "burned-only payload does not invent AZM");
 assert(els["azm-week-value"].textContent === "—", "burned-only stays em dash");
+
+const lowDays = [];
+for (var d = 13; d <= 26; d++) {
+  lowDays.push({ date: "2026-08-" + String(d).padStart(2, "0"), total_minutes: 5 });
+}
+const low = azm.azmSeries(lowDays, now);
+assert(low.target === 10, "median 5 floors to 10");
+const lowSpark = azm.sparklineSvg(low.daily, low.labels, low.rolling7, low.trend, low.target);
+assert(lowSpark.indexOf('data-y-max="10"') !== -1, "Y max expands to the floor target when daily max is 5");
+assert(lowSpark.indexOf("azm-target") !== -1, "target line still draws when it is the Y max");
+
+const cardioNow = new Date(2026, 7, 31, 12, 0, 0);
+const cardioDays = [
+  { date: "2026-08-16", total_minutes: 10 },
+  { date: "2026-08-17", total_minutes: 22 },
+  { date: "2026-08-18", total_minutes: 18 },
+  { date: "2026-08-19", total_minutes: 24 },
+  { date: "2026-08-20", total_minutes: 12 },
+  { date: "2026-08-21", total_minutes: 30 },
+  { date: "2026-08-22", total_minutes: 16 },
+  { date: "2026-08-23", total_minutes: 20 },
+  { date: "2026-08-24", total_minutes: 28 },
+  { date: "2026-08-25", total_minutes: 14 },
+  { date: "2026-08-26", total_minutes: 26 },
+  { date: "2026-08-27", total_minutes: 19 },
+  { date: "2026-08-28", total_minutes: 21 },
+  { date: "2026-08-29", total_minutes: 17 },
+  { date: "2026-08-30", total_minutes: 23 },
+  { date: "2026-08-31", total_minutes: 400 },
+];
+const cardio = azm.azmSeries(cardioDays, cardioNow);
+assert(cardio.target === 20, "same 14d median as cardio_quest (20.5 ties-to-even → 20); today 400 excluded");
+assert(
+  azm.recentAzmMinutes(cardio.daily, cardio.labels).indexOf(400) === -1,
+  "today is excluded from the Trends target median"
+);
+assert(
+  azm.recentAzmMinutes(cardio.daily, cardio.labels).indexOf(10) === -1,
+  "Aug 16 is before the 14d start (Aug 17) and stays out"
+);
 
 console.log("ok trends-azm");
