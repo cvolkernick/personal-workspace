@@ -531,20 +531,38 @@ def _capital_flows_payload() -> dict:
     return data
 
 
-def _root_fcc_js_remap(path: str) -> str | None:
-    """Map /foo.js → /financial-command/foo.js when that sibling exists.
+def _root_fcc_file_remap(path: str) -> str | None:
+    """Map /foo.ext → /financial-command/foo.ext when that sibling exists.
 
     Live FCC is served with directory=ROOT. GET/HEAD / remaps to
-    /financial-command/index.html, so relative <script src="nav-fleet.js">
-    hits /nav-fleet.js (404) unless we remap — same hole as /favicon.ico.
+    /financial-command/index.html, so relative More-page links
+    (interest-spectrum.html, nav-fleet.js, …) hit origin-root 404s
+    unless we remap. Workspace files/dirs at ROOT keep priority.
     Only a basename under financial-command/ is eligible (no path traversal).
+    Pretty /bias-spectrum maps to bias-spectrum.html when that file exists.
     """
     name = path.lstrip("/")
-    if not name or "/" in name or not name.endswith(".js"):
+    if not name or "/" in name or name.startswith(".") or ".." in name:
         return None
-    if not (ROOT / "financial-command" / name).is_file():
+    if (ROOT / name).exists():
         return None
-    return f"/financial-command/{name}"
+    fcc_dir = ROOT / "financial-command"
+    direct = fcc_dir / name
+    if direct.is_file():
+        return f"/financial-command/{name}"
+    if "." not in name:
+        html = fcc_dir / f"{name}.html"
+        if html.is_file():
+            return f"/financial-command/{name}.html"
+    return None
+
+
+def _root_fcc_js_remap(path: str) -> str | None:
+    """JS-only slice of origin aliases (kept for existing tests)."""
+    name = path.lstrip("/")
+    if not name.endswith(".js"):
+        return None
+    return _root_fcc_file_remap(path)
 
 
 class FCCHandler(SimpleHTTPRequestHandler):
@@ -846,7 +864,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
         elif path in ("/icon-512.png", "/financial-command/icon-512.png"):
             self.path = "/financial-command/icon-512.png"
         else:
-            remapped = _root_fcc_js_remap(path)
+            remapped = _root_fcc_file_remap(path)
             if remapped:
                 self.path = remapped
 

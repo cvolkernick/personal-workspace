@@ -66,6 +66,8 @@ class TestBiasSpectrumPage(unittest.TestCase):
         self.assertNotIn("CIC", html)
         self.assertNotIn("vercel", html.lower())
         self.assertIn('chip.lane === "above"', html)
+        self.assertIn("toFixed(2)", html)
+        self.assertNotIn("Math.abs(p.x - x) < 86", html)
 
     def test_fcc_index_has_bias_deep_link(self) -> None:
         html = INDEX.read_text(encoding="utf-8")
@@ -129,6 +131,20 @@ class TestBiasSpectrumApi(unittest.TestCase):
         self.assertIn(b"<h1>Bias Spectrum</h1>", page_body)
         self.assertIn(b'data-layout="two_lane"', page_body)
         self.assertIn(b"new-money consider-share", page_body)
+
+        origin_pretty, origin_body = self._get("/bias-spectrum")
+        self.assertEqual(origin_pretty, 200)
+        self.assertEqual(origin_body, page_body)
+        origin_html, origin_html_body = self._get("/bias-spectrum.html")
+        self.assertEqual(origin_html, 200)
+        self.assertEqual(origin_html_body, page_body)
+
+        symbols = {c.get("symbol") for c in data.get("chips") or []}
+        if "STRC" in symbols:
+            strc = next(c for c in data["chips"] if c["symbol"] == "STRC")
+            self.assertEqual(strc.get("role"), "preferred_core")
+            self.assertEqual(strc.get("sleeve"), "btc_digital_credit")
+            self.assertEqual(strc.get("lane"), "above")
 
     def test_health_lists_feature(self) -> None:
         code, body = self._get("/api/health")

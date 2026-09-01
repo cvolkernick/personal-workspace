@@ -174,6 +174,12 @@ class TestFccPwaHttp(unittest.TestCase):
             "/favicon.ico",
             "/favicon-32.png",
             "/apple-touch-icon.png",
+            "/interest-spectrum.html",
+            "/bias-spectrum.html",
+            "/watchlist.html",
+            "/capital-flows.html",
+            "/interest-spectrum",
+            "/bias-spectrum",
         ):
             code, _, _ = self._get(path)
             self.assertEqual(code, 200, path)
@@ -216,6 +222,10 @@ class TestFccPwaHttp(unittest.TestCase):
             "/favicon.ico",
             "/favicon-32.png",
             "/apple-touch-icon.png",
+            "/interest-spectrum.html",
+            "/bias-spectrum.html",
+            "/watchlist.html",
+            "/capital-flows.html",
         ):
             get_code, get_ctype, get_body = self._get(path)
             head_code, head_ctype, head_len = self._head(path)

@@ -81,10 +81,10 @@
     .spectrum {
       position: relative;
       min-width: 760px;
-      height: 360px;
+      min-height: 360px;
       margin: 0 8px;
     }
-    .spectrum-svg { display: block; width: 100%; height: 360px; }
+    .spectrum-svg { display: block; width: 100%; min-height: 360px; }
     .chip {
       position: absolute;
       display: flex;
@@ -300,21 +300,33 @@
     }
 
     function stackLanes(chips, maxPct) {
+      // Cluster by consider-share. Same-score names (STRC+SATA at 4.08%) share a
+      // column. Neighboring scores must not steal lanes — the old 86px collision
+      // shoved STRC off a 360px axis on mobile.
       const above = [];
       const below = [];
       chips.forEach((c) => (c.lane === "above" ? above : below).push(c));
       function assign(list) {
-        const sorted = list.slice().sort((a, b) => Number(a.weight_pct) - Number(b.weight_pct));
-        const used = [];
-        sorted.forEach((chip) => {
-          const x = xFor(chip.weight_pct, maxPct);
-          let lane = 0;
-          while (used.some((p) => p.lane === lane && Math.abs(p.x - x) < 86)) lane++;
-          chip._x = x;
-          chip._stack = lane;
-          used.push({ x, lane });
+        const groups = new Map();
+        list.slice()
+          .sort((a, b) => {
+            const dw = Number(a.weight_pct) - Number(b.weight_pct);
+            if (dw) return dw;
+            return String(a.symbol || "").localeCompare(String(b.symbol || ""));
+          })
+          .forEach((chip) => {
+            const key = Number(chip.weight_pct).toFixed(2);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(chip);
+          });
+        groups.forEach((members) => {
+          const x = xFor(Number(members[0].weight_pct), maxPct);
+          members.forEach((chip, i) => {
+            chip._x = x;
+            chip._stack = i;
+          });
         });
-        return sorted;
+        return list;
       }
       return assign(above).concat(assign(below));
     }
@@ -325,12 +337,27 @@
       stage.querySelectorAll(".chip").forEach((n) => n.remove());
       const maxPct = Number((data.axis && data.axis.max_pct) || 30);
       const ticks = (data.axis && data.axis.ticks) || [0, 5, 10, 20, 30];
-      const axisY = 180;
+      const pitch = 58;
+      const placed = stackLanes(data.placed || [], maxPct);
+      let maxAbove = 0;
+      let maxBelow = 0;
+      placed.forEach((c) => {
+        const s = c._stack || 0;
+        if (c.lane === "above") maxAbove = Math.max(maxAbove, s);
+        else maxBelow = Math.max(maxBelow, s);
+      });
+      const needTop = 48 + (maxAbove + 1) * pitch;
+      const needBot = 48 + (maxBelow + 1) * pitch;
+      const axisY = Math.max(180, needTop);
+      const height = axisY + Math.max(180, needBot);
+      stage.style.height = height + "px";
+      svg.setAttribute("viewBox", "0 0 1000 " + height);
+      svg.style.height = height + "px";
 
       let html = `
         <text x="70" y="28" fill="#f2a900" font-size="12" font-weight="700" letter-spacing="0.06em">BTC / DIGITAL CREDIT · ~40%</text>
         <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~${maxPct}%</text>
-        <text x="70" y="348" fill="#7c9cff" font-size="12" font-weight="700" letter-spacing="0.06em">STOCKS / GROWTH · ~60%</text>
+        <text x="70" y="${height - 12}" fill="#7c9cff" font-size="12" font-weight="700" letter-spacing="0.06em">STOCKS / GROWTH · ~60%</text>
         <line x1="70" y1="${axisY}" x2="930" y2="${axisY}" stroke="#5a7188" stroke-width="3" stroke-linecap="round"/>
       `;
       ticks.forEach((t, i) => {
@@ -342,12 +369,12 @@
       });
       svg.innerHTML = html;
 
-      stackLanes(data.placed || [], maxPct).forEach((chip) => {
+      placed.forEach((chip) => {
         const leftPct = (chip._x / 1000) * 100;
         const stack = chip._stack || 0;
         const top = chip.lane === "above"
-          ? axisY - 14 - stack * 58
-          : axisY + 14 + stack * 58;
+          ? axisY - 14 - stack * pitch
+          : axisY + 14 + stack * pitch;
         const href = chipHref(chip);
         const sleeve = sleeveClass(chip.sleeve);
         const heldClass = chip.held ? "held" : "consider";
