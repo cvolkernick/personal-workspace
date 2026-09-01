@@ -48,15 +48,15 @@ def _extract_section(md: str, heading_pat: str, max_chars: int = 2500) -> str:
     return body
 
 
-def _parse_deep_dive(path: Path) -> Dict[str, Any]:
-    if not path.is_file():
-        return {"exists": False, "path": str(path.relative_to(ROOT)) if path else None}
+def _rel_to_root(path: Path) -> str:
     try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as e:
-        return {"exists": False, "error": str(e), "path": str(path.relative_to(ROOT))}
+        return str(path.resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
 
-    # Status line like **Status:** `monitor`
+
+def _parse_deep_dive_text(text: str) -> Dict[str, Any]:
+    """Parse a deep-dive markdown body (path filled in by caller)."""
     status_m = re.search(
         r"\*\*Status:\*\*\s*`?([^`\n*]+)`?", text, flags=re.IGNORECASE
     )
@@ -68,7 +68,6 @@ def _parse_deep_dive(path: Path) -> Dict[str, Any]:
         text,
         flags=re.IGNORECASE,
     )
-    # Fallback: first line after ## Verdict
     verdict_sum = _extract_section(text, r"^##\s+Verdict[^\n]*\n", max_chars=1200)
     if not one_line and verdict_sum:
         for line in verdict_sum.splitlines():
@@ -91,7 +90,6 @@ def _parse_deep_dive(path: Path) -> Dict[str, Any]:
 
     return {
         "exists": True,
-        "path": str(path.relative_to(ROOT)),
         "as_of_report": (as_of_m.group(1).strip() if as_of_m else None),
         "status_line": (status_m.group(1).strip() if status_m else None),
         "one_line_conclusion": one_line_text or None,
@@ -111,6 +109,19 @@ def _parse_deep_dive(path: Path) -> Dict[str, Any]:
         "char_count": len(text),
         "full_markdown": text,
     }
+
+
+def _parse_deep_dive(path: Path) -> Dict[str, Any]:
+    rel = _rel_to_root(path) if path else None
+    if not path.is_file():
+        return {"exists": False, "path": rel}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return {"exists": False, "error": str(e), "path": rel}
+    out = _parse_deep_dive_text(text)
+    out["path"] = rel
+    return out
 
 
 def _held_symbols() -> Dict[str, Any]:

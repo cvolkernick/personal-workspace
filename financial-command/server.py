@@ -9,6 +9,7 @@ Serves static UI + APIs:
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
   GET  /api/bias-spectrum — new-money consider-share (core + ready watchlist; not book weight)
+  GET  /api/position?symbol=STRC — ticker dossier (stance, dive, policy, related)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/coach         — financial coach allocation plan (pay on time)
   GET  /api/planned-actual — display-only sheet planned vs YNAB actual flags
@@ -29,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -92,6 +94,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
 )
 from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
 from treasury.bias_spectrum import build_bias_spectrum  # noqa: E402
+from treasury.position_dossier import get_position_dossier  # noqa: E402
 from treasury.planned_actual import load_planned_actual  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
@@ -687,6 +690,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "capital_flows",
                         "interest_spectrum",
                         "bias_spectrum",
+                        "position_dossier",
                         "planned_actual",
                     ],
                 },
@@ -720,6 +724,16 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/interest-spectrum":
             try:
                 self._json(200, build_interest_spectrum())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/position":
+            qs = parse_qs(parsed.query or "")
+            sym = (qs.get("symbol") or [""])[0]
+            try:
+                payload = get_position_dossier(sym)
+                code = 200 if payload.get("ok") else 400
+                self._json(code, payload)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -835,6 +849,11 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/financial-command/bias-spectrum/",
         ):
             self.path = "/financial-command/bias-spectrum.html"
+        elif path in (
+            "/financial-command/position",
+            "/financial-command/position/",
+        ):
+            self.path = "/financial-command/position.html"
         elif path in ("/favicon.ico", "/financial-command/favicon.ico"):
             # iOS Safari fetches /favicon.ico at the origin root, not the page dir.
             self.path = "/financial-command/favicon.ico"
@@ -864,6 +883,13 @@ class FCCHandler(SimpleHTTPRequestHandler):
         elif path in ("/icon-512.png", "/financial-command/icon-512.png"):
             self.path = "/financial-command/icon-512.png"
         else:
+            pos = re.fullmatch(
+                r"/(?:financial-command/)?position/([A-Za-z][A-Za-z0-9.\-]{0,11})/?",
+                path,
+            )
+            if pos:
+                self.path = "/financial-command/position.html"
+                return
             remapped = _root_fcc_file_remap(path)
             if remapped:
                 self.path = remapped

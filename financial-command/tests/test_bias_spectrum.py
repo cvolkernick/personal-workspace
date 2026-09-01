@@ -58,6 +58,7 @@ class TestBiasSpectrumPage(unittest.TestCase):
         self.assertIn("high=3", html)
         self.assertIn("Not an order ticket", html)
         self.assertIn("preferred-core", html)
+        self.assertIn("position.html?symbol=", html)
         self.assertNotIn("HELD BOOK", html)
         self.assertNotIn("WATCHLIST CONSIDER", html)
         self.assertNotIn("<iframe", html.lower())

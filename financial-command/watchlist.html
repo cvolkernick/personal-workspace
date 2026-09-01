@@ -605,7 +605,8 @@
     <div class="hint" style="margin-top:0.65rem">Deep-dive excerpt</div>
     <div class="md-block">${mdToHtml(exec)}</div>
     <div class="controls" style="margin-top:0.65rem">
-      <button type="button" class="primary btn-full-dive" data-symbol="${esc(e.symbol)}">Open full deep dive</button>
+      <a class="btn primary" href="position.html?symbol=${esc(e.symbol)}">Open dossier</a>
+      <button type="button" class="btn-full-dive" data-symbol="${esc(e.symbol)}">Open full deep dive</button>
       ${
         d.path
           ? `<a href="/${esc(d.path)}" target="_blank" rel="noopener">Raw markdown</a>`
@@ -714,6 +715,12 @@
       document.getElementById("full-dive-card").classList.add("hidden");
     });
     document.getElementById("btn-refresh").addEventListener("click", loadWatchlist);
+    (function redirectHashToDossier() {
+      const h = (location.hash || "").replace(/^#/, "").trim();
+      if (/^[A-Za-z][A-Za-z0-9.\-]{0,11}$/.test(h)) {
+        location.replace("position.html?symbol=" + encodeURIComponent(h.toUpperCase()));
+      }
+    })();
     loadWatchlist();
   </script>
   <script src="nav-horizon.js"></script>

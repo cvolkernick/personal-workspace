@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.ico?v=btc2" sizes="any" />
+  <link rel="icon" href="favicon-32.png?v=btc2" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=btc2" />
+  <link rel="icon" href="favicon.svg?v=btc2" type="image/svg+xml" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <title>Position · FCC</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --agent: #7c9cff;
+      --btc: #f5a623;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    h1 span { color: var(--muted); font-weight: 500; font-size: 0.92rem; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    button, .btn, a.btn {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #1a2836;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
+    button.primary, a.btn.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid;
+      gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-weight: 650;
+      font-size: 0.7rem;
+      border: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill.monitor { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.ready { color: var(--green); border-color: #245c42; }
+    .pill.held { color: var(--agent); border-color: #3a4a7a; }
+    .pill.core { color: var(--green); border-color: #245c42; }
+    .pill.preferred { color: var(--btc); border-color: #7a5a18; }
+    .pill.watch { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.high { color: var(--red); border-color: #6b2e2e; }
+    .pill.btc { color: var(--btc); border-color: #7a5a18; }
+    .pill.stocks { color: var(--accent); border-color: #2a4a6a; }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.75rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .kv {
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      padding: 0.4rem 0;
+    }
+    .kv b {
+      color: var(--muted);
+      font-weight: 600;
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.15rem;
+    }
+    .stance-box {
+      background: #0e1620;
+      border-left: 3px solid var(--accent);
+      padding: 0.7rem 0.85rem;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.92rem;
+      margin: 0.35rem 0 0.5rem;
+    }
+    .stance-box .headline {
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.35rem;
+    }
+    .md-block {
+      font-size: 0.88rem;
+      background: #0d141c;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem 0.9rem;
+      color: #cfe0f0;
+      line-height: 1.5;
+    }
+    .md-full { max-height: none; }
+    .md-block h1, .md-block h2, .md-block h3, .md-block h4 {
+      margin: 1rem 0 0.45rem;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .md-block h1 { font-size: 1.25rem; margin-top: 0; }
+    .md-block h2 { font-size: 1.08rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+    .md-block h3 { font-size: 0.98rem; color: #d7e6f5; }
+    .md-block h4 { font-size: 0.92rem; color: var(--muted); }
+    .md-block p { margin: 0.45rem 0; }
+    .md-block ul, .md-block ol { margin: 0.4rem 0 0.5rem 1.2rem; padding: 0; }
+    .md-block li { margin: 0.2rem 0; }
+    .md-block hr { border: none; border-top: 1px solid var(--border); margin: 0.85rem 0; }
+    .md-block strong { color: var(--text); font-weight: 700; }
+    .md-block em { color: #d0dceb; }
+    .md-block code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.84em;
+      background: #15202c;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.05rem 0.3rem;
+    }
+    .md-block pre {
+      background: #101820;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      overflow: auto;
+      margin: 0.5rem 0;
+    }
+    .md-block pre code { background: none; border: none; padding: 0; font-size: 0.82rem; }
+    .md-block table { width: 100%; border-collapse: collapse; margin: 0.55rem 0 0.75rem; font-size: 0.84rem; }
+    .md-block th, .md-block td {
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.5rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .md-block th {
+      background: #15202c;
+      color: var(--muted);
+      font-weight: 650;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .md-block tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .md-block blockquote {
+      margin: 0.5rem 0;
+      padding: 0.35rem 0.75rem;
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      background: #0e1620;
+    }
+    .error {
+      background: #1a1010;
+      border: 1px solid #5a2a2a;
+      color: var(--red);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    .related-item {
+      border-top: 1px solid var(--border);
+      padding: 0.55rem 0;
+    }
+    .related-item .src {
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    footer {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 1.25rem 2rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1 id="page-title">Position</h1>
+        <div class="sub" id="subtitle">Loading…</div>
+      </div>
+      <div class="controls">
+        <a class="btn" href="http://127.0.0.1:8795/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
+        <a class="btn" href="index.html" id="nav-fcc">← FCC</a>
+        <a class="btn" href="bias-spectrum.html" id="nav-bias-spectrum">Bias Spectrum</a>
+        <a class="btn" href="watchlist.html" id="nav-watchlist">Watchlist</a>
+        <a class="btn" href="interest-spectrum.html" id="nav-interest-spectrum">Interest Spectrum</a>
+        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet ops (same host :8796)">Fleet</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+    <div id="dossier"></div>
+  </main>
+
+  <footer>
+    Stance from written policy + live book. Deep dives in <code>investment/research/</code>.
+    Not an order ticket. Auto-buy is off.
+  </footer>
+
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function mdToHtml(src) {
+      if (!src) return "";
+      let text = String(src).replace(/\r\n/g, "\n");
+      const fences = [];
+      text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const i = fences.length;
+        fences.push(
+          `<pre><code class="lang-${esc(lang || "text")}">${esc(code.replace(/\n$/, ""))}</code></pre>`
+        );
+        return `\n%%FENCE${i}%%\n`;
+      });
+      const lines = text.split("\n");
+      const out = [];
+      let i = 0;
+      let para = [];
+      let listType = null;
+      let listItems = [];
+      function flushPara() {
+        if (!para.length) return;
+        const joined = para.join(" ").trim();
+        if (joined) out.push(`<p>${inlineMd(joined)}</p>`);
+        para = [];
+      }
+      function flushList() {
+        if (!listType) return;
+        const tag = listType;
+        out.push(`<${tag}>` + listItems.map((li) => `<li>${inlineMd(li)}</li>`).join("") + `</${tag}>`);
+        listType = null;
+        listItems = [];
+      }
+      function flush() { flushPara(); flushList(); }
+      function isTableSep(line) {
+        return /^\s*\|?[\s:-]+\|[\s|:-]*\|?\s*$/.test(line) && line.includes("-");
+      }
+      function splitRow(line) {
+        let s = line.trim();
+        if (s.startsWith("|")) s = s.slice(1);
+        if (s.endsWith("|")) s = s.slice(0, -1);
+        return s.split("|").map((c) => c.trim());
+      }
+      while (i < lines.length) {
+        const line = lines[i];
+        const t = line.trim();
+        const fm = t.match(/^%%FENCE(\d+)%%$/);
+        if (fm) { flush(); out.push(fences[Number(fm[1])] || ""); i++; continue; }
+        if (!t) { flush(); i++; continue; }
+        if (/^---+$/.test(t) || /^\*\*\*+$/.test(t)) { flush(); out.push("<hr/>"); i++; continue; }
+        const hm = t.match(/^(#{1,4})\s+(.+)$/);
+        if (hm) {
+          flush();
+          out.push(`<h${hm[1].length}>${inlineMd(hm[2])}</h${hm[1].length}>`);
+          i++;
+          continue;
+        }
+        if (t.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+          flush();
+          const header = splitRow(lines[i]);
+          i += 2;
+          const rows = [];
+          while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+            if (isTableSep(lines[i])) { i++; continue; }
+            rows.push(splitRow(lines[i]));
+            i++;
+          }
+          let html = "<table><thead><tr>";
+          header.forEach((c) => { html += `<th>${inlineMd(c)}</th>`; });
+          html += "</tr></thead><tbody>";
+          rows.forEach((row) => {
+            html += "<tr>";
+            header.forEach((_, idx) => {
+              html += `<td>${inlineMd(row[idx] != null ? row[idx] : "")}</td>`;
+            });
+            html += "</tr>";
+          });
+          html += "</tbody></table>";
+          out.push(html);
+          continue;
+        }
+        const ul = t.match(/^[-*+]\s+(.+)$/);
+        if (ul) {
+          flushPara();
+          if (listType && listType !== "ul") flushList();
+          listType = "ul";
+          listItems.push(ul[1]);
+          i++;
+          continue;
+        }
+        const ol = t.match(/^\d+\.\s+(.+)$/);
+        if (ol) {
+          flushPara();
+          if (listType && listType !== "ol") flushList();
+          listType = "ol";
+          listItems.push(ol[1]);
+          i++;
+          continue;
+        }
+        const bq = t.match(/^>\s?(.*)$/);
+        if (bq) {
+          flush();
+          const chunks = [bq[1]];
+          i++;
+          while (i < lines.length) {
+            const m2 = lines[i].trim().match(/^>\s?(.*)$/);
+            if (!m2) break;
+            chunks.push(m2[1]);
+            i++;
+          }
+          out.push(`<blockquote><p>${inlineMd(chunks.join(" "))}</p></blockquote>`);
+          continue;
+        }
+        if (listType) flushList();
+        para.push(t);
+        i++;
+      }
+      flush();
+      return out.join("\n");
+    }
+
+    function inlineMd(s) {
+      let t = esc(s);
+      t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+      t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      t = t.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      t = t.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+      t = t.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+      t = t.replace(
+        /\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener">$1</a>'
+      );
+      return t;
+    }
+
+    function symbolFromLocation() {
+      const q = new URLSearchParams(location.search).get("symbol");
+      if (q) return q.trim().toUpperCase();
+      const path = location.pathname.match(/\/position\/([A-Za-z][A-Za-z0-9.\-]{0,11})\/?$/);
+      if (path) return path[1].toUpperCase();
+      const h = (location.hash || "").replace(/^#/, "").trim();
+      if (h) return h.toUpperCase();
+      return "";
+    }
+
+    function money(n) {
+      if (n == null || !Number.isFinite(Number(n))) return "—";
+      return "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+
+    function pct(n, suffix) {
+      if (n == null || !Number.isFinite(Number(n))) return "—";
+      const s = Number(n).toFixed(2).replace(/\.?0+$/, "");
+      return s + "%" + (suffix ? " " + suffix : "");
+    }
+
+    function kv(k, v) {
+      return `<div class="kv"><b>${esc(k)}</b>${v}</div>`;
+    }
+
+    function render(data) {
+      const st = data.stance || {};
+      const dive = data.deep_dive || {};
+      const watch = data.watchlist || null;
+      const pic = data.larger_picture || {};
+      document.title = (data.symbol || "Position") + " · FCC dossier";
+      document.getElementById("page-title").innerHTML =
+        esc(data.symbol || "Position") +
+        (data.name && data.name !== data.symbol ? ` <span>${esc(data.name)}</span>` : "");
+      document.getElementById("subtitle").textContent =
+        (data.in_consider_set ? "Consider-set dossier" : "Research dossier") +
+        (data.as_of ? " · " + String(data.as_of).slice(0, 19).replace("T", " ") + " UTC" : "");
+
+      const pills = [];
+      if (st.held) pills.push('<span class="pill held">held</span>');
+      else if (data.in_consider_set) pills.push('<span class="pill watch">unheld consider</span>');
+      if (st.preferred_core) pills.push('<span class="pill preferred">preferred-core</span>');
+      else if (st.core_allowlist) pills.push('<span class="pill core">core</span>');
+      if (st.status) pills.push(`<span class="pill ${esc(st.status)}">${esc(st.status)}</span>`);
+      if (st.priority) pills.push(`<span class="pill ${st.priority === "high" ? "high" : "watch"}">${esc(st.priority)} priority</span>`);
+      if (st.sleeve === "btc_digital_credit") pills.push('<span class="pill btc">BTC / digital credit</span>');
+      if (st.sleeve === "stocks_growth") pills.push('<span class="pill stocks">stocks / growth</span>');
+      pills.push('<span class="pill">auto-buy off</span>');
+
+      const themes = (data.themes || []).filter(Boolean).join(" · ") || data.theme || "";
+      const related = (data.related || []).map((r) => `
+        <div class="related-item">
+          <div class="src">${esc(r.source || "")} · ${esc(r.kind || "note")}</div>
+          <div><strong>${esc(r.title || r.path)}</strong></div>
+          <div class="hint" style="margin:0.2rem 0 0">${esc(r.path || "")}</div>
+          ${r.snippet ? `<div class="hint" style="margin:0.25rem 0 0">${esc(r.snippet)}</div>` : ""}
+        </div>`).join("") || `<p class="hint">No extra notes beyond policy + the dive (if any).</p>`;
+
+      const journal = (data.journal || []).map((j) =>
+        `<div class="related-item"><div class="src">${esc(j.source)}</div><div>${esc(j.snippet)}</div></div>`
+      ).join("") || `<p class="hint">No recent journal hits for this ticker.</p>`;
+
+      const excerpts = (data.policy_excerpts || []).map((e) =>
+        `<blockquote style="margin:0.4rem 0">${esc(e)}</blockquote>`
+      ).join("") || `<p class="hint">No named policy paragraph for this ticker (it may still be on the allowlist as a symbol only).</p>`;
+
+      const diveBody = dive.exists
+        ? `<div class="md-block md-full">${mdToHtml(dive.full_markdown || "")}</div>
+           <p class="hint" style="margin-top:0.5rem">${esc(dive.path || "")}${dive.as_of_report ? " · " + esc(dive.as_of_report) : ""}</p>`
+        : `<p class="hint">No <code>/position-deep-dive</code> on disk for ${esc(data.symbol)}.
+           Stance above is from written FM policy, the consider-set axis, and
+           <code>investment/positions.md</code>. Core names (TSLA, SPCX, STRC, miners, …)
+           often have no separate dive because the allowlist <em>is</em> the stance.</p>`;
+
+      const posRow = data.positions
+        ? `<div class="kv"><b>positions.md</b><code>${esc(data.positions.row)}</code></div>`
+        : "";
+
+      document.getElementById("dossier").innerHTML = `
+        <section class="card" id="stance-card">
+          <h2>Current stance</h2>
+          <div class="meta-row">${pills.join("")}</div>
+          <div class="stance-box">
+            <div class="headline">${esc(st.headline || "—")}</div>
+            <div>${esc(st.picture || "")}</div>
+          </div>
+          <div class="grid-2">
+            ${kv("New-money consider-share", esc(pct(st.consider_share_pct, "of next dollar")))}
+            ${kv("Held book %", st.held ? esc(pct(st.book_pct, "of deployed equity")) : "Unheld")}
+            ${kv("Live value", st.held ? esc(money(st.market_value)) : "—")}
+            ${kv("Role", esc(st.role_label || "—"))}
+            ${kv("Sleeve", esc(st.sleeve_label || "—"))}
+            ${kv("Last verdict", esc(st.verdict || "—"))}
+          </div>
+          ${themes ? `<p class="hint" style="margin-top:0.7rem">Themes: ${esc(themes)}</p>` : ""}
+        </section>
+
+        <section class="card" id="picture-card">
+          <h2>Where it fits</h2>
+          <p class="hint">${esc(pic.sleeve_budget || "60/40")} · axis is ${esc(pic.axis || "new-money consider-share")} · ${pic.not_an_order ? "not an order ticket" : ""}.</p>
+          <div class="grid-2">
+            ${kv("Book", "Agentic Robinhood only")}
+            ${kv("Core allowlist", st.core_allowlist ? "Yes" : "No")}
+            ${kv("Preferred-core", st.preferred_core ? "Yes (STRC/SATA-class bias)" : "No")}
+            ${kv("On watchlist", watch ? "Yes — ready names are consider-set, never auto-buy" : "No — core/allowlist path")}
+          </div>
+          ${posRow}
+        </section>
+
+        ${watch ? `
+        <section class="card" id="watch-card">
+          <h2>Watchlist record</h2>
+          <div class="grid-2">
+            ${kv("Thesis fit", esc(watch.thesis_fit || "—"))}
+            ${kv("Notes", esc(watch.notes || "—"))}
+            ${kv("Last deep-dive", esc(watch.last_deep_dive || "never"))}
+            ${kv("Next catalyst", esc(watch.next_catalyst || "—"))}
+          </div>
+        </section>` : ""}
+
+        <section class="card" id="policy-card">
+          <h2>Policy excerpts</h2>
+          <p class="hint">Named mentions in <code>fund_manager.json</code> — the standing written bias.</p>
+          ${excerpts}
+        </section>
+
+        <section class="card" id="dive-card">
+          <h2>Deep dive</h2>
+          ${st.one_line && dive.exists ? `<div class="stance-box">${esc(st.one_line)}</div>` : ""}
+          ${diveBody}
+        </section>
+
+        <section class="card" id="related-card">
+          <h2>Related knowledge</h2>
+          <p class="hint">Repo research, nest consider-set locks, and B2 notes that name this ticker.</p>
+          ${related}
+        </section>
+
+        <section class="card" id="journal-card">
+          <h2>Journal / decisions</h2>
+          ${journal}
+        </section>
+      `;
+    }
+
+    async function load() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      const symbol = symbolFromLocation();
+      if (!symbol) {
+        err.classList.remove("hidden");
+        err.textContent = "No symbol. Open from a Bias Spectrum chip, or add ?symbol=TSLA.";
+        document.getElementById("subtitle").textContent = "Missing ticker";
+        return;
+      }
+      try {
+        const res = await fetch("/api/position?symbol=" + encodeURIComponent(symbol) + "&ts=" + Date.now());
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "API unavailable");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent = "Could not load " + symbol + ": " + e.message;
+      }
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+  <script src="nav-horizon.js"></script>
+  <script src="nav-fleet.js"></script>
+  <script src="pwa.js"></script>
+</body>
+</html>
