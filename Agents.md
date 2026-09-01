@@ -44,6 +44,7 @@ python3 projects-dashboard/git_workflow.py protect "fix(area): short reason"   #
 | **Fitness** | `resistance-dashboard/`, `fitness/` | `work/resistance-dashboard` |
 | **Time** | `holistic/` | `work/holistic` |
 | **IoT** | `iot/` | `work/iot` |
+| **OOMWOO** | `oomwoo/` | `feature/oomwoo-status` (MVP) |
 | **Planning** (meta) | `strategy/`, `initiatives/` | (no project card; use workflow branch if needed) |
 
 - Do **not** pile unfinished work only on `master`. Start or continue the area branch:

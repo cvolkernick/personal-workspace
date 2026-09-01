@@ -41,6 +41,7 @@ _DEFAULT_SERVICES: dict[str, dict[str, Any]] = {
     },
     "auto-fleet": {"port": 8796, "path": "/", "health": "/api/health"},
     "horizon": {"port": 8795, "path": "/", "health": "/api/health"},
+    "oomwoo": {"port": 8798, "path": "/", "health": "/api/health"},
 }
 
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=OOMWOO project-status dashboard (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace
+ExecStart=/usr/bin/python3 %h/personal-workspace/oomwoo/server.py --host 0.0.0.0 --port 8798 --no-browser
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
