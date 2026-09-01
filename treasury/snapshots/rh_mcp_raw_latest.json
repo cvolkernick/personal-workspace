@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-08-31T17:01:37Z",
+  "as_of": "2026-09-01T02:12:19Z",
   "accounts_raw": {
     "data": {
       "accounts": [
@@ -66,8 +66,8 @@
   },
   "agentic_portfolio_raw": {
     "data": {
-      "total_value": "257.4657886331",
-      "equity_value": "257.3757886331",
+      "total_value": "258.392949203",
+      "equity_value": "258.302949203",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
