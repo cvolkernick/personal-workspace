@@ -348,11 +348,11 @@ def _attach_x_money(data: dict) -> dict:
 
 
 def _attach_morpho_position(data: dict) -> dict:
-    """GET: live GraphQL rewrite. Stale sidecar must not win with an LLTV invent."""
+    """GET: live GraphQL rewrite + policy re-eval. Stale sidecar must not win."""
     try:
         from treasury.morpho_position_sync import overlay_morpho_position_onto_treasury
 
-        return overlay_morpho_position_onto_treasury(data)
+        return overlay_morpho_position_onto_treasury(data, config=load_config())
     except Exception:
         return data
 

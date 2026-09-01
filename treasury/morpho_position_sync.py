@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional, Tuple
 from treasury.adapters import SNAPSHOTS_DIR, load_config, load_json, save_json
 from treasury.morpho_borrow_sync import BASE_CHAIN_ID, CBBTC_USDC_BASE_MARKET
 from treasury.morpho_hy_sync import MORPHO_GRAPHQL_URL, normalize_apy_fraction
+from treasury.policy import evaluate_treasury
 
 # Coinbase Borrow SCW on Base (factory ERC-1967 → Coinbase Smart Wallet).
 DEFAULT_WALLET = "0x5528C23727761a66B471859D68Ee58293E6aBfB1"
@@ -471,6 +472,40 @@ _LOAN_INPUT_KEYS = (
 )
 
 
+def _policy_for_reeval(
+    treasury: Dict[str, Any], config: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Prefer caller config, else the evaluation already on the payload."""
+    if isinstance(config, dict) and isinstance(config.get("policy"), dict):
+        return config["policy"]
+    ev = treasury.get("evaluation")
+    if isinstance(ev, dict) and isinstance(ev.get("policy"), dict):
+        return ev["policy"]
+    return {}
+
+
+def _reevaluate_after_overlay(
+    treasury: Dict[str, Any],
+    position: Optional[Dict[str, Any]],
+    *,
+    config: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Replace evaluation so stress/actions match live Morpho books.
+
+    Overlay used to rewrite evaluation.inputs.ltv (chip) and leave
+    evaluation.stress / actions on the producer snapshot (hero 50% red).
+    """
+    snap = treasury.get("snapshot")
+    if not isinstance(snap, dict) or not _position_is_usable(position):
+        return
+    new_ev = evaluate_treasury(snap, policy=_policy_for_reeval(treasury, config))
+    new_ev["inputs"] = _join_position_onto_inputs(
+        new_ev.get("inputs") if isinstance(new_ev.get("inputs"), dict) else {},
+        position,
+    )
+    treasury["evaluation"] = new_ev
+
+
 def _join_position_onto_inputs(
     inp: Dict[str, Any], position: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
@@ -504,7 +539,8 @@ def overlay_morpho_position_onto_treasury(
     GET default is live GraphQL even when a usable sidecar exists. An 8/30
     (or any) sidecar must not win with a stored LLTV invent. Soft-fail keeps
     sidecar books but rewrites liq via mark × (1 + variation); missing
-    variation/mark → null. Settings never win.
+    variation/mark → null. Settings never win. After a usable overlay,
+    re-run policy so stress/actions match live LTV (chip vs hero).
     """
     if not isinstance(treasury, dict):
         return treasury
@@ -553,10 +589,13 @@ def overlay_morpho_position_onto_treasury(
     elif isinstance(pos, dict):
         pos = rewrite_honest_liquidation_price(pos)
         snap.setdefault("morpho_position", pos)
-    ev = treasury.get("evaluation")
-    if isinstance(ev, dict):
-        inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
-        ev["inputs"] = _join_position_onto_inputs(inp, pos)
+    if _position_is_usable(pos):
+        _reevaluate_after_overlay(treasury, pos, config=config)
+    else:
+        ev = treasury.get("evaluation")
+        if isinstance(ev, dict):
+            inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+            ev["inputs"] = _join_position_onto_inputs(inp, pos)
     return treasury
 
 

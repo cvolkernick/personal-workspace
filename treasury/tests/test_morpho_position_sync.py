@@ -460,6 +460,82 @@ class TestOverlayAndPolicy(unittest.TestCase):
             )["liquidation_price_btc_usd"]
         )
 
+    def test_overlay_reevaluates_stale_50pct_hero(self) -> None:
+        """Live 44.7% overlay must not leave stress/actions at Settings 50% red."""
+        live_ltv = 148.46 / 332.00
+        live = {
+            "source": "morpho_graphql",
+            "wallet": DEFAULT_WALLET,
+            "loan_principal_usdc": 148.46,
+            "collateral_btc": 0.00422774,
+            "collateral_btc_usd": 332.00,
+            "ltv": live_ltv,
+            "health_factor": 1.92,
+            "price_variation_to_liquidation": -0.48,
+            "liquidation_price_btc_usd": 40826.0,
+            "variable_apr": 0.0476,
+        }
+        treasury = {
+            "snapshot": {
+                "coinbase": {"liquid_usdc": 0.0, "liquid_btc": 0.0},
+                "coinbase_manual": {
+                    "loan_principal_usdc": 120.50,
+                    "collateral_btc_usd": 242.84,
+                    "ltv": 0.50,
+                    "vault_usdc": 47.44,
+                },
+            },
+            "evaluation": {
+                "policy": {"cb_target_ltv_max": 0.50, "cb_ltv_alert": 0.45},
+                "stress": {"coinbase_ltv": "red", "overall": "red"},
+                "actions": [
+                    {
+                        "kind": "ltv_protect",
+                        "title": "LTV 50.0% at/above max 50% — repay USDC or add collateral",
+                        "priority": 1,
+                    }
+                ],
+                "inputs": {"ltv": 0.50, "btc_usd_price": 78529.25},
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            out = overlay_morpho_position_onto_treasury(
+                treasury,
+                prefer_live=False,
+                prior=live,
+                snapshot=Path(td) / "pos.json",
+            )
+        ev = out["evaluation"]
+        self.assertAlmostEqual(ev["inputs"]["ltv"], live_ltv, places=4)
+        self.assertLess(ev["inputs"]["ltv"], 0.45)
+        self.assertNotEqual(ev["stress"]["coinbase_ltv"], "red")
+        self.assertEqual(ev["stress"]["coinbase_ltv"], "green")
+        kinds = [a.get("kind") for a in ev.get("actions") or []]
+        self.assertNotIn("ltv_protect", kinds)
+        titles = " ".join(a.get("title") or "" for a in ev.get("actions") or [])
+        self.assertNotIn("50.0%", titles)
+        self.assertNotIn("at/above max", titles)
+
+    def test_overlay_keeps_eval_when_position_unusable(self) -> None:
+        treasury = {
+            "snapshot": {"coinbase_manual": {"ltv": 0.50}},
+            "evaluation": {
+                "stress": {"coinbase_ltv": "red"},
+                "actions": [{"kind": "ltv_protect"}],
+                "inputs": {"ltv": 0.50, "btc_usd_price": 78000},
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            out = overlay_morpho_position_onto_treasury(
+                treasury,
+                prefer_live=False,
+                prior={"source": "empty"},
+                snapshot=Path(td) / "pos.json",
+            )
+        self.assertEqual(out["evaluation"]["stress"]["coinbase_ltv"], "red")
+        self.assertEqual(out["evaluation"]["actions"][0]["kind"], "ltv_protect")
+        self.assertEqual(out["evaluation"]["inputs"]["ltv"], 0.50)
+
     def test_save_config_strips_loan_keys_keeps_wallet(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "config.json"
