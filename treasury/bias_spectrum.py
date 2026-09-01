@@ -567,7 +567,7 @@ def build_bias_spectrum(
             "market_value": None if not held else held["market_value"],
             "quantity": None if not held else held["quantity"],
             "notes": notes,
-            "deep_link": "watchlist.html",
+            "deep_link": f"position.html?symbol={sym}",
         }
         chips.append(chip)
 

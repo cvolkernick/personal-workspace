@@ -25,6 +25,7 @@ SURFACES = (
     "watchlist.html",
     "interest-spectrum.html",
     "bias-spectrum.html",
+    "position.html",
 )
 
 

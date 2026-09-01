@@ -152,6 +152,7 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertTrue(tsla["held"])
         self.assertEqual(tsla["lane"], "below")
         self.assertEqual(tsla["kind"], "held")
+        self.assertEqual(tsla["deep_link"], "position.html?symbol=TSLA")
         # Stocks sleeve scores: TSLA 4, NVDA 3, BE 3, PLTR 2 = 12
         # TSLA = 4/12 * 60% = 20
         self.assertAlmostEqual(tsla["weight_pct"], 20.0)

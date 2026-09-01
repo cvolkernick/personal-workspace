@@ -222,7 +222,7 @@
         <span><i class="swatch stocks"></i>Stocks / growth (below, ~60%)</span>
         <span><i class="swatch held"></i>Currently held (badge)</span>
         <span><i class="swatch consider"></i>Unheld consider-set</span>
-        <span>Tap a chip for watchlist research. No trade controls.</span>
+        <span>Tap a chip for the position dossier. No trade controls.</span>
       </div>
     </section>
 
@@ -273,9 +273,9 @@
     }
 
     function chipHref(chip) {
-      const base = chip.deep_link || "watchlist.html";
-      if (chip.symbol) return base + "#" + encodeURIComponent(chip.symbol);
-      return base;
+      if (chip.deep_link) return chip.deep_link;
+      if (chip.symbol) return "position.html?symbol=" + encodeURIComponent(chip.symbol);
+      return "watchlist.html";
     }
 
     async function load() {
@@ -435,7 +435,7 @@
         const book = c.book_pct != null
           ? " · book " + Number(c.book_pct).toFixed(1).replace(/\.0$/, "") + "%"
           : "";
-        return `<li><strong>${esc(c.symbol)}</strong> · ${esc(fmtPct(c))}${book}${money} · ${esc(roleLabel(c))} · ${esc(c.notes || "")}</li>`;
+        return `<li><a href="${esc(chipHref(c))}"><strong>${esc(c.symbol)}</strong></a> · ${esc(fmtPct(c))}${book}${money} · ${esc(roleLabel(c))} · ${esc(c.notes || "")}</li>`;
       }).join("");
     }
 

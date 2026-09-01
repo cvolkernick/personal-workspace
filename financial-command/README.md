@@ -23,6 +23,8 @@ Opens: http://localhost:8000/financial-command/index.html
 | `/api/treasury` | GET | Latest evaluation |
 | `/api/config` | GET/POST | Read/merge-save `treasury/config.json` |
 | `/api/refresh` | POST | Re-run evaluation (`{"offline": true}` optional) |
+| `/api/bias-spectrum` | GET | New-money consider-share chips |
+| `/api/position?symbol=` | GET | Ticker dossier (stance, dive, policy, related) |
 
 ## Data flow
 
