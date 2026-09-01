@@ -1,26 +1,26 @@
 {
   "ok": true,
-  "as_of": "2026-09-01T05:15:34.069303+00:00",
+  "as_of": "2026-09-01T11:22:49.704231+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-09-01T05:15:34.066234+00:00",
+    "as_of": "2026-09-01T11:22:49.701078+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 259.0241,
+    "nav_usd": 255.7029,
     "cash_usd": 0.09,
     "buying_power_usd": 0.09,
     "pending_deposits_usd": null,
     "equity_market_value_usd": 224.7296,
     "weights_of_nav": {
-      "btc_digital_credit": 0.3514,
-      "stocks_growth": 0.5162,
+      "btc_digital_credit": 0.356,
+      "stocks_growth": 0.5229,
       "other": 0.0,
-      "cash": 0.0003
+      "cash": 0.0004
     },
     "weights_of_deployed": {
       "btc_digital_credit": 0.4051,
