@@ -237,6 +237,32 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertGreater(card_idx, 0)
         self.assertIn('data-m-panel="more"', index_html[card_idx : card_idx + 120])
 
+        # Mobile header hides #nav-fleet; the visible path is the top chip + More card.
+        fleet_chip = _by_id(index, "link-fleet-chip")
+        self.assertEqual(fleet_chip["text"], "Fleet")
+        self.assertIn(":8796", fleet_chip["href"])
+        self.assertTrue(fleet_chip["href"].startswith("http://"))
+        self.assertEqual(fleet_chip.get("target") or "", "")
+        chip_at = index_html.find('id="link-fleet-chip"')
+        self.assertGreater(chip_at, 0)
+        self.assertLess(chip_at, h1_at)
+        self.assertIn("data-nav-fleet", index_html[chip_at : chip_at + 180])
+        self.assertGreater(chip_at, exp_at)
+
+        more_fleet = _by_id(index, "link-fleet-full")
+        self.assertIn("Open", more_fleet["text"])
+        self.assertIn(":8796", more_fleet["href"])
+        self.assertIn('id="fleet-card"', index_html)
+        fleet_card_idx = index_html.find('id="fleet-card"')
+        self.assertGreater(fleet_card_idx, 0)
+        self.assertIn('data-m-panel="more"', index_html[fleet_card_idx : fleet_card_idx + 120])
+        full_at = index_html.find('id="link-fleet-full"')
+        self.assertIn("data-nav-fleet", index_html[full_at : full_at + 180])
+
+        footer_fleet = _by_id(index, "link-fleet-footer")
+        self.assertEqual(footer_fleet["text"], "Fleet")
+        self.assertIn(":8796", footer_fleet["href"])
+
         spec_html = (FCC / "interest-spectrum.html").read_text(encoding="utf-8")
         # Mobile cull hides satellite siblings, never the FCC back-link.
         self.assertIn("#nav-horizon", spec_html)
@@ -354,6 +380,18 @@ class TestFccNavHorizon(unittest.TestCase):
             fleet = _by_id(_parse_anchors(html), "nav-fleet")
             self.assertEqual(fleet["text"], "Fleet", name)
             self.assertIn("nav-fleet.js", html, name)
+
+    def test_mobile_cull_still_hides_header_fleet_not_chip(self) -> None:
+        """≤720px hides #nav-fleet; top chip / More card stay visible."""
+        index_html = (FCC / "index.html").read_text(encoding="utf-8")
+        self.assertRegex(
+            index_html,
+            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-interest-spectrum,\s*#nav-fleet",
+        )
+        self.assertNotRegex(index_html, r"#link-fleet-chip\s*[,\{]")
+        self.assertNotRegex(index_html, r"#link-fleet-full\s*[,\{]")
+        self.assertNotRegex(index_html, r"#fleet-card\s*[,\{]")
+        self.assertIn("Watchlist | Refresh", index_html)
 
 
 def _load_fcc_server():
