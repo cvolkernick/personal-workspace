@@ -524,6 +524,20 @@ class TestRootNavJsRemap(unittest.TestCase):
         self.assertIsNone(remap("/no-such-nav.js"))
         self.assertIsNone(remap("/../nav-fleet.js"))
         self.assertIsNone(remap("/"))
+        self.assertIsNone(remap("/interest-spectrum.html"))
+
+    def test_remap_helper_origin_html_siblings(self) -> None:
+        remap = self.mod._root_fcc_file_remap
+        self.assertEqual(remap("/interest-spectrum.html"), "/financial-command/interest-spectrum.html")
+        self.assertEqual(remap("/bias-spectrum.html"), "/financial-command/bias-spectrum.html")
+        self.assertEqual(remap("/watchlist.html"), "/financial-command/watchlist.html")
+        self.assertEqual(remap("/capital-flows.html"), "/financial-command/capital-flows.html")
+        self.assertEqual(remap("/bias-spectrum"), "/financial-command/bias-spectrum.html")
+        self.assertEqual(remap("/interest-spectrum"), "/financial-command/interest-spectrum.html")
+        self.assertIsNone(remap("/financial-command/bias-spectrum.html"))
+        self.assertIsNone(remap("/../bias-spectrum.html"))
+        self.assertIsNone(remap("/treasury"))
+        self.assertIsNone(remap("/no-such-page.html"))
 
 
 if __name__ == "__main__":
