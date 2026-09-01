@@ -200,6 +200,7 @@ def _which_grok() -> str | None:
     if found:
         return found
     for p in (
+        Path.home() / ".grok" / "bin" / "grok",
         Path.home() / ".local" / "bin" / "grok",
         Path("/opt/homebrew/bin/grok"),
         Path("/usr/local/bin/grok"),

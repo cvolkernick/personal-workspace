@@ -319,6 +319,21 @@ class TestGrokLoginApi(unittest.TestCase):
         self.assertNotIn("/api/open-orchestra", html)
         self.assertNotIn("vercel", html.lower())
 
+    def test_ensure_tool_path_prepends_home_grok_bin(self) -> None:
+        old = os.environ.get("PATH", "")
+        try:
+            os.environ["PATH"] = "/usr/bin:/bin"
+            with tempfile.TemporaryDirectory() as td:
+                home = Path(td)
+                (home / ".grok" / "bin").mkdir(parents=True)
+                with mock.patch.object(self.mod.Path, "home", return_value=home):
+                    self.mod._ensure_tool_path()
+                parts = os.environ["PATH"].split(":")
+                self.assertEqual(parts[0], str(home / ".grok" / "bin"))
+            self.assertIn("/usr/bin", parts)
+        finally:
+            os.environ["PATH"] = old
+
 
 if __name__ == "__main__":
     unittest.main()

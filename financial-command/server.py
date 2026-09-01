@@ -40,12 +40,14 @@ if str(ROOT) not in sys.path:
 
 
 def _ensure_tool_path() -> None:
-    """launchd/ensure often starts us with PATH=/usr/bin:/bin — restore homebrew CLIs.
+    """launchd/systemd often start us with PATH=/usr/bin:/bin.
 
-    Without this, `coinbase` / scp extras are invisible and Refresh silently keeps
-    stale CB ages while reporting coinbase_treasury=ok (file fallback).
+    Restore Grok Build (`~/.grok/bin`) and Homebrew CLIs. Without this,
+    `grok login` fails as "CLI not found" on Pi, and `coinbase` / scp extras
+    are invisible so Refresh silently keeps stale CB ages.
     """
     extras = [
+        str(Path.home() / ".grok" / "bin"),
         "/opt/homebrew/bin",
         "/opt/homebrew/sbin",
         "/usr/local/bin",
