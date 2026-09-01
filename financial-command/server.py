@@ -8,6 +8,7 @@ Serves static UI + APIs:
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
+  GET  /api/bias-spectrum — agentic + watchlist relative weights (no invented targets)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/coach         — financial coach allocation plan (pay on time)
   GET  /api/planned-actual — display-only sheet planned vs YNAB actual flags
@@ -90,6 +91,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
     get_deep_dive_markdown,
 )
 from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
+from treasury.bias_spectrum import build_bias_spectrum  # noqa: E402
 from treasury.planned_actual import load_planned_actual  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
@@ -652,6 +654,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "watchlist",
                         "capital_flows",
                         "interest_spectrum",
+                        "bias_spectrum",
                         "planned_actual",
                     ],
                 },
@@ -685,6 +688,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/interest-spectrum":
             try:
                 self._json(200, build_interest_spectrum())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/bias-spectrum":
+            try:
+                self._json(200, build_bias_spectrum())
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -774,6 +783,11 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/financial-command/interest-spectrum/",
         ):
             self.path = "/financial-command/interest-spectrum.html"
+        elif path in (
+            "/financial-command/bias-spectrum",
+            "/financial-command/bias-spectrum/",
+        ):
+            self.path = "/financial-command/bias-spectrum.html"
         elif path in ("/favicon.ico", "/financial-command/favicon.ico"):
             # iOS Safari fetches /favicon.ico at the origin root, not the page dir.
             self.path = "/financial-command/favicon.ico"
@@ -1173,6 +1187,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(
         f"Interest Spectrum         → http://127.0.0.1:{args.port}/financial-command/interest-spectrum.html"
+    )
+    print(
+        f"Bias Spectrum             → http://127.0.0.1:{args.port}/financial-command/bias-spectrum.html"
     )
     print(f"[fcc] bind {bind_host}:{args.port}", file=sys.stderr)
     httpd = ThreadingHTTPServer((bind_host, args.port), FCCHandler)
