@@ -18,7 +18,9 @@ API: `/api/health` · `/api/status` · `/api/status?refresh=1`
 
 Optional `GITHUB_TOKEN` / `GH_TOKEN` raises the GitHub rate limit. Unauthenticated works; Pi responses cache for 3 minutes.
 
-Public HTTPS (Vercel, edge-cached ~15 min): project `oomwoo`, root `oomwoo/`. Local Pi on :8798 is still prod for the house.
+Public HTTPS (share this): **https://oomwoo.vercel.app/**
+
+Vercel edge-caches `/api/status` ~15 min. Pi `:8798` remains the house surface.
 
 ## What it shows
 
@@ -33,7 +35,7 @@ v0 target on upstream: 3D-printed chassis, Gazebo sim, basic cleaning/mapping, P
 ## Tests
 
 ```bash
-python3 -m unittest oomwoo.tests.test_parse oomwoo.tests.test_status oomwoo.tests.test_server
+python3 -m unittest oomwoo.tests.test_parse oomwoo.tests.test_status oomwoo.tests.test_server oomwoo.tests.test_vercel
 ```
 
 Pi unit (after merge + `install_remote.sh --only oomwoo`): port **8798**.
