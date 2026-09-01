@@ -1,17 +1,17 @@
 {
   "snapshot": {
-    "as_of": "2026-09-01T11:22:49.698863+00:00",
+    "as_of": "2026-09-01T14:25:32.766633+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-09-01T10:41:10.078558+00:00",
+      "as_of": "2026-09-01T14:14:51.430016+00:00",
       "liquid_usdc": 199.04414312556142,
-      "liquid_btc": 0.0054102477294815,
-      "btc_usd_price": 78152.99,
-      "liquid_btc_usd": 422.82703669969044,
+      "liquid_btc": 0.0054147777294815,
+      "btc_usd_price": 78233.69,
+      "liquid_btc_usd": 423.61804230715956,
       "by_currency": {
         "USDC": 199.0434571904,
         "USD": 0.0006859351614,
-        "BTC": 0.0054102477294815
+        "BTC": 0.0054147777294815
       },
       "account_count": 19,
       "coinbase_bin": "/opt/homebrew/bin/coinbase"
@@ -21,7 +21,7 @@
       "collateral_btc_usd": "242.84",
       "ltv": "0.5",
       "vault_usdc": "100",
-      "card_balance": 386.38,
+      "card_balance": 418.86,
       "card_available_credit": null,
       "one_card_security_deposit_usdc": "500",
       "notes": "vault_usdc = HY LTV Buffer balance (generic high-yield leverage defense \u2014 not product-branded USDC/USDG, not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
@@ -31,7 +31,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-31T19:59:06.138003+00:00",
+      "as_of": "2026-09-01T14:14:52.103162+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -40,16 +40,16 @@
       "account_type": "creditCard",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": -386.38,
-      "balance_owed": 386.38,
-      "card_balance": 386.38,
+      "balance_raw": -418.86,
+      "balance_owed": 418.86,
+      "card_balance": 418.86,
       "available_credit": null,
       "card_available_credit": null,
-      "cleared_balance": -386.38,
+      "cleared_balance": -418.86,
       "uncleared_balance": 0.0,
-      "spend_30d": 99.74,
+      "spend_30d": 131.23,
       "payments_30d": 177.55,
-      "transaction_count": 59,
+      "transaction_count": 65,
       "transactions": [
         {
           "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -129,7 +129,7 @@
           "category_name": "\ud83d\ude98 Transportation"
         },
         {
-          "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
+          "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
           "date": "2026-07-17",
           "payee": "7-Eleven",
           "amount": -0.63,
@@ -140,7 +140,7 @@
           "category_name": "\ud83d\ude98 Transportation"
         },
         {
-          "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
+          "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
           "date": "2026-07-17",
           "payee": "7-Eleven",
           "amount": -0.63,
@@ -569,9 +569,9 @@
           "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
-          "id": "f3845ae7-bb8e-4c02-b8b4-dfcbc347f222",
+          "id": "fdc395be-b85a-4034-a75f-b14a86fab41a",
           "date": "2026-08-16",
-          "payee": "Taco Bell",
+          "payee": "McDonald's",
           "amount": -1.05,
           "amount_display": -1.05,
           "memo": null,
@@ -580,9 +580,9 @@
           "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
-          "id": "fdc395be-b85a-4034-a75f-b14a86fab41a",
+          "id": "f3845ae7-bb8e-4c02-b8b4-dfcbc347f222",
           "date": "2026-08-16",
-          "payee": "McDonald's",
+          "payee": "Taco Bell",
           "amount": -1.05,
           "amount_display": -1.05,
           "memo": null,
@@ -604,11 +604,11 @@
       ],
       "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-06-02"
+      "since": "2026-06-03"
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-31T19:59:06.425145+00:00",
+      "as_of": "2026-09-01T14:14:52.362088+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -651,11 +651,11 @@
       ],
       "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-06-02"
+      "since": "2026-06-03"
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-31T19:59:06.638196+00:00",
+      "as_of": "2026-09-01T14:14:52.619726+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -687,23 +687,23 @@
       ],
       "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-06-02",
+      "since": "2026-06-03",
       "apy_est": 0.06
     },
     "solana": {
       "source": "live",
-      "as_of": "2026-09-01T10:41:11.309931+00:00",
+      "as_of": "2026-09-01T14:14:58.460822+00:00",
       "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
       "rpc_url": "https://api.mainnet-beta.solana.com",
-      "slot": 443403235,
+      "slot": 443443524,
       "sol": 0.010668183,
-      "sol_usd_price": 102.66222113356952,
-      "sol_usd": 1.095219362239387,
+      "sol_usd_price": 102.21128995713836,
+      "sol_usd": 1.090408745928814,
       "usdc": 0.0,
       "jr_strcusx": 12.74909,
       "jr_strcusx_usd_price": 1.0258821383568437,
       "jr_strcusx_usd": 13.079063711303853,
-      "book_usd": 14.17428307354324,
+      "book_usd": 14.169472457232667,
       "counts_toward_hy": false,
       "counts_toward_ltv_defense": false,
       "counts_toward_working_usdc": false,
@@ -713,15 +713,15 @@
           "mint": "So11111111111111111111111111111111111111112",
           "role": "gas",
           "amount": 0.010668183,
-          "usd_price": 102.66222113356952,
-          "usd": 1.095219362239387
+          "usd_price": 102.21128995713836,
+          "usd": 1.090408745928814
         },
         {
           "symbol": "USDC",
           "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
           "role": "onchain_stable",
           "amount": 0.0,
-          "usd_price": 0.9998820292471948,
+          "usd_price": 0.9998260446512285,
           "usd": 0.0
         },
         {
@@ -739,7 +739,7 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-08-31T19:59:10.283897+00:00",
+      "as_of": "2026-09-01T14:14:57.388460+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -1711,7 +1711,7 @@
           "items": [
             {
               "item": "Agentic Fund Allocation",
-              "date": "8/31/2026",
+              "date": "9/7/2026",
               "daily": 3.57,
               "weekly": 25.0,
               "biweekly": 50.0,
@@ -1767,7 +1767,7 @@
               "item": "Agentic Fund Allocation",
               "monthly": 108.33,
               "from": "X Money",
-              "date": "8/31/2026",
+              "date": "9/7/2026",
               "budget_allocation": null,
               "tab": "Collateral"
             }
@@ -1793,7 +1793,7 @@
               "item": "Agentic Fund Allocation",
               "monthly": 108.33,
               "from": "X Money",
-              "date": "8/31/2026",
+              "date": "9/7/2026",
               "budget_allocation": null,
               "tab": "Collateral"
             }
@@ -2903,7 +2903,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-09-01T11:22:42.636017+00:00",
+      "as_of": "2026-09-01T14:25:32.641578+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -2917,9 +2917,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-09-01T11:22:42.636012+00:00",
-        "total_value": 255.7029488818,
-        "equity_value": 255.6129488818,
+        "as_of": "2026-09-01T14:25:32.641574+00:00",
+        "total_value": 254.8096885458,
+        "equity_value": 254.7196885458,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3233,19 +3233,19 @@
       "working_usdc": 299.0441431255614,
       "vault_known": true,
       "count_vault_toward_buffers": true,
-      "liquid_btc": 0.0054102477294815,
-      "liquid_btc_usd": 422.82703669969044,
-      "btc_usd_price": 78152.99,
+      "liquid_btc": 0.0054147777294815,
+      "liquid_btc_usd": 423.61804230715956,
+      "btc_usd_price": 78233.69,
       "ltv": 0.5,
       "loan_principal_usdc": 120.5,
       "collateral_btc_usd": 242.84,
       "vault_usdc": 100.0,
-      "card_balance": 386.38,
-      "card_available_credit": 113.62,
+      "card_balance": 418.86,
+      "card_available_credit": 81.13999999999999,
       "card_security_deposit_usdc": 500.0,
       "card_available_credit_source": "deposit_minus_balance",
       "card_source": "ynab",
-      "one_card_spend_30d": 99.74,
+      "one_card_spend_30d": 131.23,
       "one_card_account": "Coinbase One Card \u2013 5361",
       "expenses_upcoming_monthly": 20221.63,
       "expenses_personal_monthly": 14646.58,
@@ -3269,7 +3269,7 @@
       "x_money_spend_30d": 0.0,
       "x_money_apy_est": 0.06,
       "solana_wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
-      "solana_book_usd": 14.17428307354324,
+      "solana_book_usd": 14.169472457232667,
       "solana_sol": 0.010668183,
       "solana_usdc": 0.0,
       "solana_jr_strcusx": 12.74909,
@@ -3285,7 +3285,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 255.7029488818,
+      "rh_agentic_total_value": 254.8096885458,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 13,
@@ -3337,7 +3337,7 @@
       "coinbase_liquid": "red",
       "coinbase_card": "yellow",
       "robinhood": "green",
-      "data_quality": "yellow",
+      "data_quality": "green",
       "morpho_band": "critical",
       "rh_margin_band": "unknown",
       "overall": "red",
@@ -3346,7 +3346,7 @@
         "coinbase_liquid": "red",
         "coinbase_card": "yellow",
         "robinhood": "green",
-        "data_quality": "yellow",
+        "data_quality": "green",
         "morpho_band": "critical",
         "rh_margin_band": "unknown",
         "overall": "red"
@@ -3379,7 +3379,7 @@
       }
     },
     "data_quality": {
-      "status": "yellow",
+      "status": "green",
       "completeness_score": 1.0,
       "missing_manual_fields": [],
       "manual_filled": 6,
@@ -3392,26 +3392,16 @@
         "x_money": "ynab",
         "solana": "live",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-09-01T10:41:10.078558+00:00",
-        "robinhood_as_of": "2026-09-01T11:22:42.636017+00:00",
-        "one_card_as_of": "2026-08-31T19:59:06.138003+00:00",
-        "rh_checking_as_of": "2026-08-31T19:59:06.425145+00:00",
-        "x_money_as_of": "2026-08-31T19:59:06.638196+00:00",
-        "solana_as_of": "2026-09-01T10:41:11.309931+00:00",
-        "expenses_as_of": "2026-08-31T19:59:10.283897+00:00"
+        "coinbase_as_of": "2026-09-01T14:14:51.430016+00:00",
+        "robinhood_as_of": "2026-09-01T14:25:32.641578+00:00",
+        "one_card_as_of": "2026-09-01T14:14:52.103162+00:00",
+        "rh_checking_as_of": "2026-09-01T14:14:52.362088+00:00",
+        "x_money_as_of": "2026-09-01T14:14:52.619726+00:00",
+        "solana_as_of": "2026-09-01T14:14:58.460822+00:00",
+        "expenses_as_of": "2026-09-01T14:14:57.388460+00:00"
       },
-      "stale": [
-        "one_card data 15.4h old (>6.0h)",
-        "rh_checking data 15.4h old (>6.0h)",
-        "x_money data 15.4h old (>6.0h)",
-        "expenses data 15.4h old (>6.0h)"
-      ],
-      "warnings": [
-        "one_card data 15.4h old (>6.0h)",
-        "rh_checking data 15.4h old (>6.0h)",
-        "x_money data 15.4h old (>6.0h)",
-        "expenses data 15.4h old (>6.0h)"
-      ],
+      "stale": [],
+      "warnings": [],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
         "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
@@ -3437,7 +3427,7 @@
       {
         "priority": 1,
         "kind": "card_refinance",
-        "title": "Refinance One Card $386 via Morpho principal (~5% vs ~29% APR)",
+        "title": "Refinance One Card $419 via Morpho principal (~5% vs ~29% APR)",
         "actor": "human",
         "detail": "Capital Flows: Morpho \u2192 One Card. Borrow additional BTC-backed USDC principal and pay the card in-app. Do not pull HY LTV Buffer for card. Watch LTV after principal increases.",
         "api_reachable": false
@@ -3488,7 +3478,7 @@
       {
         "n": 2,
         "actor": "human",
-        "title": "Refinance One Card $386 via Morpho principal (~5% vs ~29% APR)",
+        "title": "Refinance One Card $419 via Morpho principal (~5% vs ~29% APR)",
         "api_reachable": false
       },
       {
@@ -3510,7 +3500,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.5\nHY LTV sleeve: $299.04 (spot $199.04 + HY vault $100.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00541025 (~$422.83)\nOne Card owed: $386.38 (source=ynab) | 30d spend $99.74 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.5 [critical] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=block_new_dual_extract\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $20221.63/mo (personal $14646.58 | fleet tab $5575.05) | CB-funded est $13523.90 | RH-checking est $0.00 | X Money est $5347.73 | Collateral investments (not burn) $697.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $0.0 | X Money: $620.0 (EveryDay Checking \u2013 8680) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $14.17 book (SOL 0.0107 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 12.7491 ~$13.08) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [human|manual] LTV 50.0% at/above max 50% \u2014 repay USDC or add collateral\n  P1 [human|manual] Refinance One Card $386 via Morpho principal (~5% vs ~29% APR)\n  P1 [human|manual] LTV 50.0% critical (alert 45%) \u2014 HY LTV Buffer \u2192 BTC collateral defense (up to $100)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$701\n  P5 [human|manual] Bills ~$13524/mo vs USDC $299\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.5\nHY LTV sleeve: $299.04 (spot $199.04 + HY vault $100.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00541478 (~$423.62)\nOne Card owed: $418.86 (source=ynab) | 30d spend $131.23 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.5 [critical] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=block_new_dual_extract\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $20221.63/mo (personal $14646.58 | fleet tab $5575.05) | CB-funded est $13523.90 | RH-checking est $0.00 | X Money est $5347.73 | Collateral investments (not burn) $697.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $0.0 | X Money: $620.0 (EveryDay Checking \u2013 8680) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $14.17 book (SOL 0.0107 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 12.7491 ~$13.08) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [human|manual] LTV 50.0% at/above max 50% \u2014 repay USDC or add collateral\n  P1 [human|manual] Refinance One Card $419 via Morpho principal (~5% vs ~29% APR)\n  P1 [human|manual] LTV 50.0% critical (alert 45%) \u2014 HY LTV Buffer \u2192 BTC collateral defense (up to $100)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$701\n  P5 [human|manual] Bills ~$13524/mo vs USDC $299\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -3550,13 +3540,13 @@
           "id": "card_paydown",
           "title": "Coinbase One Card paydown",
           "status": "gap",
-          "need": 386.38,
+          "need": 418.86,
           "allocated": 0.0,
-          "gap": 386.38,
-          "detail": "Owed $386.38 \u2014 pay down before buffer residual risk",
+          "gap": 418.86,
+          "detail": "Owed $418.86 \u2014 pay down before buffer residual risk",
           "fund_from": "free_dollar",
           "meta": {
-            "card_balance": 386.38
+            "card_balance": 418.86
           }
         },
         {
@@ -3587,7 +3577,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 11821.29,
+          "gap": 11853.77,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -3674,8 +3664,8 @@
         "role": "ltv_buffer_sleeve"
       },
       "one_card": {
-        "balance": 386.38,
-        "available_credit": 113.62,
+        "balance": 418.86,
+        "available_credit": 81.13999999999999,
         "deposit": 500.0,
         "path": "morpho_refinance",
         "note": "Morpho new principal \u2192 pay card (~5% vs ~29%); raises LTV deliberately"
@@ -3695,16 +3685,16 @@
       "strc_jr": {
         "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
         "sol": 0.010668183,
-        "sol_usd": 1.095219362239387,
+        "sol_usd": 1.090408745928814,
         "usdc": 0.0,
         "jr_strcusx": 12.74909,
         "jr_strcusx_usd": 13.079063711303853,
-        "book_usd": 14.17428307354324,
+        "book_usd": 14.169472457232667,
         "counts_toward_hy": false,
         "counts_toward_ltv_defense": false,
         "counts_toward_working_usdc": false,
         "source": "live",
-        "as_of": "2026-09-01T10:41:11.309931+00:00",
+        "as_of": "2026-09-01T14:14:58.460822+00:00",
         "explorer": "https://solscan.io/account/CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
         "note": "Solana whitelist book (SOL + USDC + JR-strcUSX). JR is DC-credit parlay \u2014 never HY / LTV defense / working USDC."
       }
@@ -3749,25 +3739,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-09-01T11:22:49.704231+00:00",
+      "as_of": "2026-09-01T14:25:32.771848+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-09-01T11:22:49.701078+00:00",
+        "as_of": "2026-09-01T14:25:32.768791+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 255.7029,
+        "nav_usd": 254.8097,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 224.7296,
         "weights_of_nav": {
-          "btc_digital_credit": 0.356,
-          "stocks_growth": 0.5229,
+          "btc_digital_credit": 0.3573,
+          "stocks_growth": 0.5247,
           "other": 0.0,
           "cash": 0.0004
         },
@@ -4131,6 +4121,58 @@
         "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
       },
       "recent_decisions": [
+        {
+          "kind": "hold",
+          "outcome": "hold",
+          "need_llm": false,
+          "path": "rules",
+          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+          "nav_usd": 255.7029,
+          "buying_power_usd": 0.09,
+          "weights_before": {
+            "btc_digital_credit": 0.4051,
+            "stocks_growth": 0.5949
+          },
+          "weights_after_expected": {
+            "btc_digital_credit": 0.4051,
+            "stocks_growth": 0.5949
+          },
+          "rationale": {
+            "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+            "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+            "thesis_tags": [
+              "rules_engine",
+              "modernized_60_40"
+            ]
+          },
+          "team_votes": {
+            "scout": {
+              "vote": "observe",
+              "note": "NAV $255.70 BP $0.09 cash $0.09"
+            },
+            "thesis": {
+              "vote": "ok",
+              "note": "deployed BTC 0.4051 stocks 0.5949"
+            },
+            "risk": {
+              "vote": "ok",
+              "note": "Agentic capital only; no trade if hold"
+            },
+            "critic": {
+              "vote": "ok",
+              "note": "Hold preferred when bands ok \u2014 avoid churn"
+            },
+            "executor": {
+              "vote": "hold",
+              "note": "No MCP orders on pure rules HOLD"
+            }
+          },
+          "actions": [],
+          "as_of": "2026-09-01T13:44:34.407677+00:00",
+          "schema_version": 1,
+          "account_scope": "agentic_only"
+        },
         {
           "kind": "hold",
           "outcome": "hold",
@@ -5773,58 +5815,6 @@
           "as_of": "2026-08-19T13:31:36.890710+00:00",
           "schema_version": 1,
           "account_scope": "agentic_only"
-        },
-        {
-          "kind": "hold",
-          "outcome": "hold",
-          "need_llm": false,
-          "path": "rules",
-          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-          "nav_usd": 192.0758,
-          "buying_power_usd": 0.09,
-          "weights_before": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "weights_after_expected": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "rationale": {
-            "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-            "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
-            "thesis_tags": [
-              "rules_engine",
-              "modernized_60_40"
-            ]
-          },
-          "team_votes": {
-            "scout": {
-              "vote": "observe",
-              "note": "NAV $192.08 BP $0.09 cash $0.09"
-            },
-            "thesis": {
-              "vote": "ok",
-              "note": "deployed BTC 0.4 stocks 0.6"
-            },
-            "risk": {
-              "vote": "ok",
-              "note": "Agentic capital only; no trade if hold"
-            },
-            "critic": {
-              "vote": "ok",
-              "note": "Hold preferred when bands ok \u2014 avoid churn"
-            },
-            "executor": {
-              "vote": "hold",
-              "note": "No MCP orders on pure rules HOLD"
-            }
-          },
-          "actions": [],
-          "as_of": "2026-08-18T13:36:58.353185+00:00",
-          "schema_version": 1,
-          "account_scope": "agentic_only"
         }
       ],
       "policy_summary": {
@@ -5869,25 +5859,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-09-01T11:22:49.704231+00:00",
+    "as_of": "2026-09-01T14:25:32.771848+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-09-01T11:22:49.701078+00:00",
+      "as_of": "2026-09-01T14:25:32.768791+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 255.7029,
+      "nav_usd": 254.8097,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 224.7296,
       "weights_of_nav": {
-        "btc_digital_credit": 0.356,
-        "stocks_growth": 0.5229,
+        "btc_digital_credit": 0.3573,
+        "stocks_growth": 0.5247,
         "other": 0.0,
         "cash": 0.0004
       },
@@ -6251,6 +6241,58 @@
       "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
     },
     "recent_decisions": [
+      {
+        "kind": "hold",
+        "outcome": "hold",
+        "need_llm": false,
+        "path": "rules",
+        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+        "nav_usd": 255.7029,
+        "buying_power_usd": 0.09,
+        "weights_before": {
+          "btc_digital_credit": 0.4051,
+          "stocks_growth": 0.5949
+        },
+        "weights_after_expected": {
+          "btc_digital_credit": 0.4051,
+          "stocks_growth": 0.5949
+        },
+        "rationale": {
+          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+          "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+          "thesis_tags": [
+            "rules_engine",
+            "modernized_60_40"
+          ]
+        },
+        "team_votes": {
+          "scout": {
+            "vote": "observe",
+            "note": "NAV $255.70 BP $0.09 cash $0.09"
+          },
+          "thesis": {
+            "vote": "ok",
+            "note": "deployed BTC 0.4051 stocks 0.5949"
+          },
+          "risk": {
+            "vote": "ok",
+            "note": "Agentic capital only; no trade if hold"
+          },
+          "critic": {
+            "vote": "ok",
+            "note": "Hold preferred when bands ok \u2014 avoid churn"
+          },
+          "executor": {
+            "vote": "hold",
+            "note": "No MCP orders on pure rules HOLD"
+          }
+        },
+        "actions": [],
+        "as_of": "2026-09-01T13:44:34.407677+00:00",
+        "schema_version": 1,
+        "account_scope": "agentic_only"
+      },
       {
         "kind": "hold",
         "outcome": "hold",
@@ -7891,58 +7933,6 @@
         },
         "actions": [],
         "as_of": "2026-08-19T13:31:36.890710+00:00",
-        "schema_version": 1,
-        "account_scope": "agentic_only"
-      },
-      {
-        "kind": "hold",
-        "outcome": "hold",
-        "need_llm": false,
-        "path": "rules",
-        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-        "nav_usd": 192.0758,
-        "buying_power_usd": 0.09,
-        "weights_before": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "weights_after_expected": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "rationale": {
-          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-          "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
-          "thesis_tags": [
-            "rules_engine",
-            "modernized_60_40"
-          ]
-        },
-        "team_votes": {
-          "scout": {
-            "vote": "observe",
-            "note": "NAV $192.08 BP $0.09 cash $0.09"
-          },
-          "thesis": {
-            "vote": "ok",
-            "note": "deployed BTC 0.4 stocks 0.6"
-          },
-          "risk": {
-            "vote": "ok",
-            "note": "Agentic capital only; no trade if hold"
-          },
-          "critic": {
-            "vote": "ok",
-            "note": "Hold preferred when bands ok \u2014 avoid churn"
-          },
-          "executor": {
-            "vote": "hold",
-            "note": "No MCP orders on pure rules HOLD"
-          }
-        },
-        "actions": [],
-        "as_of": "2026-08-18T13:36:58.353185+00:00",
         "schema_version": 1,
         "account_scope": "agentic_only"
       }
