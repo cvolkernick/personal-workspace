@@ -1,4 +1,4 @@
-"""FCC PWA shell: installable standalone app under /financial-command/."""
+"""FCC PWA shell: origin-scoped standalone app like FitDash."""
 
 from __future__ import annotations
 
@@ -52,22 +52,22 @@ def _png_size(data: bytes) -> tuple[int, int]:
 
 
 class TestFccPwaFiles(unittest.TestCase):
-    def test_manifest_is_standalone_under_financial_command(self) -> None:
+    def test_manifest_is_standalone_origin_scope(self) -> None:
         raw = (FCC / "manifest.webmanifest").read_text(encoding="utf-8")
         data = json.loads(raw)
         self.assertEqual(data["display"], "standalone")
-        start = data["start_url"]
-        scope = data["scope"]
-        self.assertTrue(start.startswith("/financial-command/"), start)
-        self.assertTrue(scope.startswith("/financial-command/"), scope)
-        self.assertFalse(start.startswith("/api/"), start)
+        self.assertEqual(data["start_url"], "/")
+        self.assertEqual(data["scope"], "/")
+        self.assertEqual(data.get("id"), "/")
+        self.assertFalse(data["start_url"].startswith("/api/"))
         self.assertEqual(data["theme_color"], "#0b0f14")
         self.assertEqual(data["background_color"], "#0b0f14")
         sizes = {icon["sizes"]: icon["src"] for icon in data["icons"]}
         self.assertIn("192x192", sizes)
         self.assertIn("512x512", sizes)
-        self.assertTrue(sizes["192x192"].startswith("/financial-command/"))
-        self.assertTrue(sizes["512x512"].startswith("/financial-command/"))
+        self.assertTrue(sizes["192x192"].startswith("/"))
+        self.assertTrue(sizes["512x512"].startswith("/"))
+        self.assertFalse(sizes["192x192"].startswith("/api/"))
 
     def test_sw_never_caches_api_or_json(self) -> None:
         src = (FCC / "sw.js").read_text(encoding="utf-8")
@@ -81,11 +81,13 @@ class TestFccPwaFiles(unittest.TestCase):
     def test_html_surfaces_link_manifest_and_register_sw(self) -> None:
         pwa = (FCC / "pwa.js").read_text(encoding="utf-8")
         self.assertIn("navigator.serviceWorker.register", pwa)
-        self.assertIn('"/financial-command/sw.js"', pwa)
+        self.assertIn('"/sw.js"', pwa)
+        self.assertNotIn('"/financial-command/sw.js"', pwa)
         for name in SURFACES:
             html = (FCC / name).read_text(encoding="utf-8")
             self.assertIn('rel="manifest"', html, name)
-            self.assertIn("/financial-command/manifest.webmanifest", html, name)
+            self.assertIn('href="/manifest.webmanifest"', html, name)
+            self.assertNotIn("/financial-command/manifest.webmanifest", html, name)
             self.assertIn("pwa.js", html, name)
             self.assertNotIn('navigator.serviceWorker.register("/")', html, name)
 
@@ -124,8 +126,8 @@ class TestFccPwaHttp(unittest.TestCase):
         )
         data = json.loads(body.decode("utf-8"))
         self.assertEqual(data["display"], "standalone")
-        self.assertTrue(data["start_url"].startswith("/financial-command/"))
-        self.assertTrue(data["scope"].startswith("/financial-command/"))
+        self.assertEqual(data["start_url"], "/")
+        self.assertEqual(data["scope"], "/")
 
     def test_prefixed_sw_js_skips_api(self) -> None:
         code, _, body = self._get("/financial-command/sw.js")
@@ -147,10 +149,18 @@ class TestFccPwaHttp(unittest.TestCase):
 
     def test_root_pwa_aliases(self) -> None:
         for path in (
+            "/",
             "/manifest.webmanifest",
             "/sw.js",
             "/icon-192.png",
             "/icon-512.png",
+            "/pwa.js",
+            "/nav-fleet.js",
+            "/nav-horizon.js",
+            "/favicon.svg",
+            "/favicon.ico",
+            "/favicon-32.png",
+            "/apple-touch-icon.png",
         ):
             code, _, _ = self._get(path)
             self.assertEqual(code, 200, path)
@@ -158,17 +168,25 @@ class TestFccPwaHttp(unittest.TestCase):
         _, _, man_pref = self._get("/financial-command/manifest.webmanifest")
         self.assertEqual(man_code, 200)
         self.assertEqual(man_root, man_pref)
-        sw_code, _, sw_root = self._get("/sw.js")
+        sw_code, ctype, sw_root = self._get("/sw.js")
         _, _, sw_pref = self._get("/financial-command/sw.js")
         self.assertEqual(sw_code, 200)
         self.assertEqual(sw_root, sw_pref)
+        self.assertIn("javascript", ctype.lower())
 
     def test_entry_html_exposes_manifest_and_pwa_script(self) -> None:
-        code, _, body = self._get("/financial-command/")
-        self.assertEqual(code, 200)
-        self.assertIn(b'rel="manifest"', body)
-        self.assertIn(b"pwa.js", body)
-        self.assertIn(b"navigator.serviceWorker.register", (FCC / "pwa.js").read_bytes())
+        for path in ("/", "/financial-command/"):
+            code, _, body = self._get(path)
+            self.assertEqual(code, 200, path)
+            self.assertIn(b'rel="manifest"', body)
+            self.assertIn(b'href="/manifest.webmanifest"', body)
+            self.assertIn(b"pwa.js", body)
+        self.assertIn(b'navigator.serviceWorker.register("/sw.js")', (FCC / "pwa.js").read_bytes())
+
+    def test_sw_allowed_header_is_origin(self) -> None:
+        url = f"http://127.0.0.1:{self.port}/sw.js"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            self.assertEqual(resp.headers.get("Service-Worker-Allowed"), "/")
 
 
 if __name__ == "__main__":

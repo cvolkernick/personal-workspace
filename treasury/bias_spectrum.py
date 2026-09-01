@@ -21,7 +21,10 @@ an order ticket — the fund manager still research/rotates at deploy.
 
 from __future__ import annotations
 
+import json
 import os
+import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -52,6 +55,8 @@ SLEEVE_STOCKS = "stocks_growth"
 READY_STATUSES = {"ready"}
 DEFAULT_BTC_BUDGET = 0.4
 DEFAULT_STOCKS_BUDGET = 0.6
+_GIT_JSON_TTL_S = 30.0
+_GIT_JSON_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
 
 def _now() -> str:
@@ -62,8 +67,6 @@ def _load_json(path: Path) -> Dict[str, Any]:
     if not path.is_file():
         return {}
     try:
-        import json
-
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, TypeError):
         return {}
@@ -169,16 +172,125 @@ def _first_json(rel: str) -> Dict[str, Any]:
     return {}
 
 
-def _load_policy(policy: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _git_show_json(rel: str) -> Dict[str, Any]:
+    """Pi FCC runs master; finance policy lives on origin/work/treasury."""
+    now = time.monotonic()
+    cached = _GIT_JSON_CACHE.get(rel)
+    if cached and now - cached[0] < _GIT_JSON_TTL_S:
+        return cached[1]
+    data: Dict[str, Any] = {}
+    try:
+        raw = subprocess.check_output(
+            ["git", "-C", str(ROOT), "show", f"origin/work/treasury:{rel}"],
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+        parsed = json.loads(raw.decode("utf-8"))
+        if isinstance(parsed, dict):
+            data = parsed
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        json.JSONDecodeError,
+        TypeError,
+        UnicodeDecodeError,
+    ):
+        data = {}
+    _GIT_JSON_CACHE[rel] = (now, data)
+    return data
+
+
+def _policy_usable(pol: Dict[str, Any]) -> bool:
+    if not isinstance(pol, dict) or not pol:
+        return False
+    return bool(_core_allowlist(pol) or _preferred_core(pol) or _sleeve_membership(pol))
+
+
+def _policy_from_snapshot(fm: Dict[str, Any]) -> Dict[str, Any]:
+    """Last-resort consider-set when fund_manager.json is not on this checkout."""
+    analysis = _analysis_from_fm(fm)
+    core = _syms(analysis.get("allowlist_core"))
+    targets = _as_dict(analysis.get("targets")) or _as_dict(
+        _as_dict(fm.get("policy_summary")).get("targets")
+    )
+    btc_syms: List[str] = []
+    stocks_syms: List[str] = []
+    btc_watch: List[str] = []
+    stocks_watch: List[str] = []
+    for p in _as_list(analysis.get("positions")):
+        if not isinstance(p, dict):
+            continue
+        sym = _sym(p.get("symbol"))
+        sleeve = str(p.get("sleeve") or "").strip()
+        if not sym or sleeve not in (SLEEVE_BTC, SLEEVE_STOCKS):
+            continue
+        if sleeve == SLEEVE_BTC:
+            btc_syms.append(sym)
+        else:
+            stocks_syms.append(sym)
+    for e in _as_list(_as_dict(analysis.get("watchlist")).get("entries")):
+        if not isinstance(e, dict):
+            continue
+        sym = _sym(e.get("symbol"))
+        sleeve = str(e.get("sleeve_if_owned") or e.get("sleeve") or "").strip()
+        if not sym or sleeve not in (SLEEVE_BTC, SLEEVE_STOCKS):
+            continue
+        if sleeve == SLEEVE_BTC:
+            btc_watch.append(sym)
+        else:
+            stocks_watch.append(sym)
+    if not core and not btc_syms and not stocks_syms and not btc_watch and not stocks_watch:
+        return {}
+    btc_budget = _money(targets.get("btc_digital_credit_pct"))
+    stocks_budget = _money(targets.get("stocks_growth_pct"))
+    return {
+        "as_of": analysis.get("as_of") or fm.get("as_of"),
+        "targets": {
+            "btc_digital_credit_pct": btc_budget if btc_budget is not None else DEFAULT_BTC_BUDGET,
+            "stocks_growth_pct": stocks_budget if stocks_budget is not None else DEFAULT_STOCKS_BUDGET,
+            "band_pct": targets.get("band_pct"),
+        },
+        "allowlist": {"core": core},
+        "sleeves": {
+            SLEEVE_BTC: {
+                "target_pct": btc_budget if btc_budget is not None else DEFAULT_BTC_BUDGET,
+                "symbols": btc_syms,
+                "watchlist_symbols": btc_watch,
+            },
+            SLEEVE_STOCKS: {
+                "target_pct": stocks_budget if stocks_budget is not None else DEFAULT_STOCKS_BUDGET,
+                "symbols": stocks_syms,
+                "watchlist_symbols": stocks_watch,
+            },
+        },
+    }
+
+
+def _load_policy(
+    policy: Optional[Dict[str, Any]] = None,
+    fund_manager: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     if isinstance(policy, dict):
         return policy
-    return _first_json("investment/fund_manager.json")
+    pol = _first_json("investment/fund_manager.json")
+    if _policy_usable(pol):
+        return pol
+    pol = _git_show_json("investment/fund_manager.json")
+    if _policy_usable(pol):
+        return pol
+    return _policy_from_snapshot(fund_manager or {})
 
 
 def _load_watchlist(watchlist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if isinstance(watchlist, dict):
         return watchlist
-    return _first_json("investment/watchlist.json")
+    wl = _first_json("investment/watchlist.json")
+    if "entries" in wl:
+        return wl
+    git_wl = _git_show_json("investment/watchlist.json")
+    if "entries" in git_wl:
+        return git_wl
+    return wl
 
 
 def _preferred_core(policy: Dict[str, Any]) -> set[str]:
@@ -378,7 +490,7 @@ def build_bias_spectrum(
         treasury = _load_json(TREASURY_FCC if TREASURY_FCC.is_file() else TREASURY_SNAP)
     fm = _load_fund_manager(fund_manager, treasury)
     analysis = _analysis_from_fm(fm)
-    pol = _load_policy(policy)
+    pol = _load_policy(policy, fund_manager=fm)
     wl = _load_watchlist(watchlist)
     preferred = _preferred_core(pol)
     core = _core_allowlist(pol)

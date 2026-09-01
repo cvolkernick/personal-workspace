@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -252,6 +253,38 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertGreaterEqual(payload["consider_count"], 1)
         self.assertEqual(payload["btc_count"], 4)
         self.assertEqual(payload["stocks_count"], 4)
+
+    def test_git_work_treasury_policy_when_file_missing(self) -> None:
+        fm = _fm()
+        with patch("treasury.bias_spectrum._first_json", return_value={}):
+            with patch("treasury.bias_spectrum._git_show_json", return_value=_policy()):
+                payload = build_bias_spectrum(
+                    fund_manager=fm, treasury={}, watchlist=_watchlist()
+                )
+        by_id = {c["id"]: c for c in payload["chips"]}
+        self.assertEqual(by_id["bias-STRC"]["role"], "preferred_core")
+        self.assertEqual(by_id["bias-TSLA"]["role"], "core")
+        self.assertIsNone(payload.get("error"))
+
+    def test_snapshot_allowlist_when_policy_and_git_missing(self) -> None:
+        fm = _fm()
+        fm["analysis"]["allowlist_core"] = ["MSTR", "STRC", "SATA", "TSLA"]
+        with patch("treasury.bias_spectrum._first_json", return_value={}):
+            with patch("treasury.bias_spectrum._git_show_json", return_value={}):
+                payload = build_bias_spectrum(
+                    fund_manager=fm, treasury={}, watchlist=_watchlist()
+                )
+        ids = {c["id"] for c in payload["chips"]}
+        self.assertIn("bias-STRC", ids)
+        self.assertIn("bias-SATA", ids)
+        self.assertIn("bias-TSLA", ids)
+        self.assertIn("bias-MSTR", ids)
+        self.assertIn("bias-STRK", ids)
+        self.assertNotEqual(
+            {c["id"]: c for c in payload["chips"]}["bias-STRK"]["weight_pct"],
+            40.0,
+        )
+        self.assertIsNone(payload.get("error"))
 
 
 if __name__ == "__main__":

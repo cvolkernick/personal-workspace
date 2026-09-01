@@ -568,6 +568,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         # Phone browsers 304-cache index.html hard; always revalidate static UI.
         self.send_header("Cache-Control", "no-store, max-age=0")
+        path = urlparse(getattr(self, "path", "") or "").path
+        if path.endswith("/sw.js") or path == "/sw.js":
+            self.send_header("Service-Worker-Allowed", "/")
         super().end_headers()
 
     def _json(self, code: int, payload: dict) -> None:
@@ -802,6 +805,10 @@ class FCCHandler(SimpleHTTPRequestHandler):
         elif path in ("/favicon.ico", "/financial-command/favicon.ico"):
             # iOS Safari fetches /favicon.ico at the origin root, not the page dir.
             self.path = "/financial-command/favicon.ico"
+        elif path in ("/favicon.svg", "/financial-command/favicon.svg"):
+            self.path = "/financial-command/favicon.svg"
+        elif path in ("/favicon-32.png", "/financial-command/favicon-32.png"):
+            self.path = "/financial-command/favicon-32.png"
         elif path in (
             "/apple-touch-icon.png",
             "/apple-touch-icon-precomposed.png",

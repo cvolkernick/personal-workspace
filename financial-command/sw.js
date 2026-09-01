@@ -1,18 +1,20 @@
 /* FCC offline shell — caches static UI only, never API or treasury JSON. */
-const CACHE = "fcc-shell-v1";
+const CACHE = "fcc-shell-v2";
 const PRECACHE = [
+  "/",
   "/financial-command/",
   "/financial-command/index.html",
-  "/financial-command/manifest.webmanifest",
-  "/financial-command/icon-192.png",
-  "/financial-command/icon-512.png",
-  "/financial-command/favicon.svg",
-  "/financial-command/favicon.ico",
-  "/financial-command/favicon-32.png",
-  "/financial-command/apple-touch-icon.png",
-  "/financial-command/pwa.js",
-  "/financial-command/nav-fleet.js",
-  "/financial-command/nav-horizon.js",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/favicon.svg",
+  "/favicon.ico",
+  "/favicon-32.png",
+  "/apple-touch-icon.png",
+  "/pwa.js",
+  "/nav-fleet.js",
+  "/nav-horizon.js",
 ];
 
 function isLiveMoney(url) {
@@ -52,7 +54,7 @@ self.addEventListener("fetch", (event) => {
           return res;
         })
         .catch(() =>
-          caches.match(req).then((hit) => hit || caches.match("/financial-command/"))
+          caches.match(req).then((hit) => hit || caches.match("/") || caches.match("/financial-command/"))
         )
     );
   }
