@@ -548,6 +548,17 @@ def _root_fcc_js_remap(path: str) -> str | None:
 
 
 class FCCHandler(SimpleHTTPRequestHandler):
+    # PWA manifest MIME (stdlib map often serves .webmanifest as octet-stream)
+    extensions_map = {
+        **getattr(SimpleHTTPRequestHandler, "extensions_map", {}),
+        ".webmanifest": "application/manifest+json",
+        ".js": "text/javascript; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".png": "image/png",
+        ".html": "text/html; charset=utf-8",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -800,6 +811,18 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/apple-touch-icon-180x180-precomposed.png",
         ):
             self.path = "/financial-command/apple-touch-icon.png"
+        elif path in (
+            "/manifest.webmanifest",
+            "/financial-command/manifest.webmanifest",
+        ):
+            # Chromium probes /manifest.webmanifest at the origin root.
+            self.path = "/financial-command/manifest.webmanifest"
+        elif path in ("/sw.js", "/financial-command/sw.js"):
+            self.path = "/financial-command/sw.js"
+        elif path in ("/icon-192.png", "/financial-command/icon-192.png"):
+            self.path = "/financial-command/icon-192.png"
+        elif path in ("/icon-512.png", "/financial-command/icon-512.png"):
+            self.path = "/financial-command/icon-512.png"
         else:
             remapped = _root_fcc_js_remap(path)
             if remapped:
