@@ -21,7 +21,13 @@ if str(ROOT) not in sys.path:
 from research.horizon.server import DEFAULT_PORT as HORIZON_PORT  # noqa: E402
 
 FCC = ROOT / "financial-command"
-SURFACES = ("index.html", "capital-flows.html", "watchlist.html", "interest-spectrum.html")
+SURFACES = (
+    "index.html",
+    "capital-flows.html",
+    "watchlist.html",
+    "interest-spectrum.html",
+    "bias-spectrum.html",
+)
 HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
@@ -201,12 +207,17 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(spec["text"], "Interest Spectrum")
         self.assertEqual(spec["href"], "interest-spectrum.html")
 
+        bias = _by_id(index, "nav-bias-spectrum")
+        self.assertEqual(bias["text"], "Bias Spectrum")
+        self.assertEqual(bias["href"], "bias-spectrum.html")
+
         fcc_from_flows = _by_id(flows, "nav-fcc")
         self.assertIn("FCC", fcc_from_flows["text"])
         self.assertEqual(fcc_from_flows["href"], "index.html")
         self.assertEqual(_by_id(flows, "nav-watchlist")["href"], "watchlist.html")
         self.assertEqual(_by_id(flows, "nav-watchlist")["text"], "Watchlist")
         self.assertEqual(_by_id(flows, "nav-interest-spectrum")["href"], "interest-spectrum.html")
+        self.assertEqual(_by_id(flows, "nav-bias-spectrum")["href"], "bias-spectrum.html")
 
         fcc_from_watch = _by_id(watch, "nav-fcc")
         self.assertIn("FCC", fcc_from_watch["text"])
@@ -215,12 +226,18 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(cf_from_watch["href"], "capital-flows.html")
         self.assertEqual(cf_from_watch["text"], "Capital Flows")
         self.assertEqual(_by_id(watch, "nav-interest-spectrum")["href"], "interest-spectrum.html")
+        self.assertEqual(_by_id(watch, "nav-bias-spectrum")["href"], "bias-spectrum.html")
 
         fcc_from_spec = _by_id(spectrum, "nav-fcc")
         self.assertIn("FCC", fcc_from_spec["text"])
         self.assertEqual(fcc_from_spec["href"], "index.html")
         self.assertEqual(_by_id(spectrum, "nav-capital-flows")["href"], "capital-flows.html")
         self.assertEqual(_by_id(spectrum, "nav-watchlist")["href"], "watchlist.html")
+        self.assertEqual(_by_id(spectrum, "nav-bias-spectrum")["href"], "bias-spectrum.html")
+        bias_page = _parse_anchors((FCC / "bias-spectrum.html").read_text(encoding="utf-8"))
+        self.assertIn("FCC", _by_id(bias_page, "nav-fcc")["text"])
+        self.assertEqual(_by_id(bias_page, "nav-fcc")["href"], "index.html")
+        self.assertEqual(_by_id(bias_page, "nav-interest-spectrum")["href"], "interest-spectrum.html")
 
         for name in SURFACES:
             html = (FCC / name).read_text(encoding="utf-8")
@@ -236,6 +253,14 @@ class TestFccNavFleet(unittest.TestCase):
         card_idx = index_html.find('id="interest-spectrum-card"')
         self.assertGreater(card_idx, 0)
         self.assertIn('data-m-panel="more"', index_html[card_idx : card_idx + 120])
+
+        more_bias = _by_id(index, "link-bias-spectrum-full")
+        self.assertEqual(more_bias["href"], "bias-spectrum.html")
+        self.assertIn("Open", more_bias["text"])
+        self.assertIn('id="bias-spectrum-card"', index_html)
+        bias_card_idx = index_html.find('id="bias-spectrum-card"')
+        self.assertGreater(bias_card_idx, 0)
+        self.assertIn('data-m-panel="more"', index_html[bias_card_idx : bias_card_idx + 120])
 
         # Mobile header hides #nav-fleet; the visible path is the top chip + More card.
         fleet_chip = _by_id(index, "link-fleet-chip")
@@ -269,7 +294,7 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertIn("#nav-watchlist", spec_html)
         self.assertRegex(
             spec_html,
-            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-watchlist,\s*#nav-fleet",
+            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-watchlist,\s*#nav-bias-spectrum,\s*#nav-fleet",
         )
         self.assertNotRegex(
             spec_html,
@@ -386,7 +411,7 @@ class TestFccNavHorizon(unittest.TestCase):
         index_html = (FCC / "index.html").read_text(encoding="utf-8")
         self.assertRegex(
             index_html,
-            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-interest-spectrum,\s*#nav-fleet",
+            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-interest-spectrum,\s*#nav-bias-spectrum,\s*#nav-fleet",
         )
         self.assertNotRegex(index_html, r"#link-fleet-chip\s*[,\{]")
         self.assertNotRegex(index_html, r"#link-fleet-full\s*[,\{]")

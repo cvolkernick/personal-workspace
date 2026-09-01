@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.ico?v=btc2" sizes="any" />
+  <link rel="icon" href="favicon-32.png?v=btc2" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=btc2" />
+  <link rel="icon" href="favicon.svg?v=btc2" type="image/svg+xml" />
+  <title>Bias Spectrum · FCC</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --accent: #5b9fd4;
+      --held: #3dd6b0;
+      --consider: #c9a45c;
+      --btc: #f2a900;
+      --stocks: #7c9cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.4;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; gap: 0.6rem 1rem;
+      align-items: center; justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    button, .btn, a.btn {
+      cursor: pointer; border: 1px solid var(--border); background: #1a2836;
+      color: var(--text); border-radius: 8px; padding: 0.4rem 0.75rem;
+      font-weight: 600; font-size: 0.85rem; text-decoration: none;
+      display: inline-flex; align-items: center;
+    }
+    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    main {
+      max-width: 1100px; margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid; gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+    }
+    .card h2 { margin: 0 0 0.45rem; font-size: 0.95rem; font-weight: 650; }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .error {
+      background: #1a1010; border: 1px solid #5a2a2a; color: #ff6b6b;
+      border-radius: 10px; padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    .axis-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0d141c;
+      padding: 0.5rem 0.4rem 0.35rem;
+    }
+    .spectrum {
+      position: relative;
+      min-width: 760px;
+      height: 360px;
+      margin: 0 8px;
+    }
+    .spectrum-svg { display: block; width: 100%; height: 360px; }
+    .chip {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.08rem;
+      width: 7.4rem;
+      min-height: 2.55rem;
+      padding: 0.28rem 0.4rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #15202c;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      text-align: center;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+    }
+    .chip.above { transform: translate(-50%, -100%); }
+    .chip.below { transform: translate(-50%, 0); }
+    .chip:hover { filter: brightness(1.08); text-decoration: none; }
+    .chip.held { border-color: #2a6a58; background: #10221c; }
+    .chip.consider { border-color: #6b5420; background: #1c1810; }
+    .chip .who { font-weight: 700; font-size: 0.74rem; }
+    .chip .rate { font-weight: 750; letter-spacing: -0.02em; }
+    .chip.held .rate { color: var(--held); }
+    .chip.consider .rate { color: var(--consider); }
+    .chip .subn { color: var(--muted); font-size: 0.62rem; }
+    .chip.btc .who { color: var(--btc); }
+    .chip.stocks .who { color: var(--stocks); }
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 0.55rem 1rem;
+      margin-top: 0.7rem; font-size: 0.78rem; color: var(--muted);
+    }
+    .swatch {
+      width: 12px; height: 12px; border-radius: 3px;
+      display: inline-block; margin-right: 0.35rem;
+      vertical-align: -1px;
+    }
+    .swatch.held { background: var(--held); }
+    .swatch.consider { background: var(--consider); }
+    .swatch.btc { background: var(--btc); }
+    .swatch.stocks { background: var(--stocks); }
+    .chip-list { margin: 0; padding-left: 1.15rem; font-size: 0.86rem; }
+    .chip-list li { margin: 0.35rem 0; }
+    .sleeve-bar {
+      display: flex; height: 10px; border-radius: 999px; overflow: hidden;
+      border: 1px solid var(--border); margin: 0.35rem 0 0.55rem;
+    }
+    .sleeve-bar .btc { background: var(--btc); }
+    .sleeve-bar .stocks { background: var(--stocks); }
+    footer {
+      max-width: 1100px; margin: 0 auto; padding: 0 1.25rem 2rem;
+      color: var(--muted); font-size: 0.78rem;
+    }
+    a { color: var(--accent); }
+    @media (max-width: 720px) {
+      .sticky-top { padding: 0.55rem 0.75rem; }
+      .sticky-top .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.45rem;
+      }
+      .sticky-top .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        width: 100%;
+      }
+      /* Keep ← FCC | Refresh; hide satellite siblings. */
+      #nav-horizon,
+      #nav-capital-flows,
+      #nav-watchlist,
+      #nav-interest-spectrum,
+      #nav-fleet {
+        display: none;
+      }
+      .sticky-top .controls button,
+      .sticky-top .controls .btn,
+      .sticky-top .controls a.btn {
+        justify-content: center;
+        min-height: 2.5rem;
+        padding: 0.5rem 0.6rem;
+        font-size: 0.8rem;
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1>Bias Spectrum</h1>
+        <div class="sub" id="subtitle">Relative weight · FCC</div>
+      </div>
+      <div class="controls">
+        <a class="btn" href="http://127.0.0.1:8795/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
+        <a class="btn" href="index.html" id="nav-fcc">← FCC</a>
+        <a class="btn" href="capital-flows.html" id="nav-capital-flows">Capital Flows</a>
+        <a class="btn" href="interest-spectrum.html" id="nav-interest-spectrum">Interest Spectrum</a>
+        <a class="btn" href="watchlist.html" id="nav-watchlist">Watchlist</a>
+        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet">Fleet</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+
+    <section class="card">
+      <h2>Spectrum</h2>
+      <p class="hint">
+        Shared relative-weight axis: <strong>0%</strong> left → largest chip right.
+        <strong>Held</strong> above = % of deployed agentic equity (live books).
+        <strong>Consider</strong> below = unheld watchlist priority share
+        (high=3 · med=2 · low=1, normalized). Consider % is not capital.
+        No invented per-name targets. Sleeve mix (~40% BTC/digital-credit · ~60% stocks/growth)
+        is legend only. Private names stay off this axis.
+      </p>
+      <div id="sleeve-legend"></div>
+      <div class="axis-wrap">
+        <div class="spectrum" id="spectrum" data-layout="two_lane">
+          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane bias spectrum: held book weight above, watchlist consider share below"></svg>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="swatch held"></i>Held book (above)</span>
+        <span><i class="swatch consider"></i>Watchlist consider (below)</span>
+        <span><i class="swatch btc"></i>BTC / digital credit</span>
+        <span><i class="swatch stocks"></i>Stocks / growth</span>
+        <span>Tap a chip for watchlist research. No trade controls.</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Chips (detail)</h2>
+      <ul class="chip-list" id="chip-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <a href="index.html">← FCC</a> ·
+    Bias Spectrum · held book % · watchlist consider share · two-lane axis · display-only
+  </footer>
+
+  <script src="nav-horizon.js"></script>
+  <script src="nav-fleet.js"></script>
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function fmtPct(chip) {
+      if (chip.weight_pct == null || !Number.isFinite(Number(chip.weight_pct))) return "weight unknown";
+      const n = Number(chip.weight_pct);
+      const body = n.toFixed(1).replace(/\.0$/, "") + "%";
+      return chip.kind === "consider" ? body + " consider" : body + " book";
+    }
+
+    function sleeveClass(sleeve) {
+      if (sleeve === "btc_digital_credit") return "btc";
+      if (sleeve === "stocks_growth") return "stocks";
+      return "";
+    }
+
+    function chipHref(chip) {
+      const base = chip.deep_link || "watchlist.html";
+      if (chip.symbol) return base + "#" + encodeURIComponent(chip.symbol);
+      return base;
+    }
+
+    async function load() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      try {
+        const res = await fetch("/api/bias-spectrum?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "bad payload");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent =
+          "Could not load Bias Spectrum (" + e.message + "). Start FCC: python3 financial-command/server.py";
+      }
+    }
+
+    function xFor(weight, maxPct) {
+      const mag = Math.max(0, Number(weight) || 0);
+      return 70 + (mag / Math.max(maxPct, 1)) * 860;
+    }
+
+    function stackLanes(chips, maxPct) {
+      const above = [];
+      const below = [];
+      chips.forEach((c) => (c.kind === "held" ? above : below).push(c));
+      function assign(list) {
+        const sorted = list.slice().sort((a, b) => Number(a.weight_pct) - Number(b.weight_pct));
+        const used = [];
+        sorted.forEach((chip) => {
+          const x = xFor(chip.weight_pct, maxPct);
+          let lane = 0;
+          while (used.some((p) => p.lane === lane && Math.abs(p.x - x) < 86)) lane++;
+          chip._x = x;
+          chip._stack = lane;
+          used.push({ x, lane });
+        });
+        return sorted;
+      }
+      return assign(above).concat(assign(below));
+    }
+
+    function drawAxis(data) {
+      const svg = document.getElementById("spectrum-svg");
+      const stage = document.getElementById("spectrum");
+      stage.querySelectorAll(".chip").forEach((n) => n.remove());
+      const maxPct = Number((data.axis && data.axis.max_pct) || 30);
+      const ticks = (data.axis && data.axis.ticks) || [0, 5, 10, 20, 30];
+      const axisY = 180;
+
+      let html = `
+        <text x="70" y="28" fill="#3dd6b0" font-size="12" font-weight="700" letter-spacing="0.06em">HELD BOOK</text>
+        <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~${maxPct}%</text>
+        <text x="70" y="348" fill="#c9a45c" font-size="12" font-weight="700" letter-spacing="0.06em">WATCHLIST CONSIDER</text>
+        <line x1="70" y1="${axisY}" x2="930" y2="${axisY}" stroke="#5a7188" stroke-width="3" stroke-linecap="round"/>
+      `;
+      ticks.forEach((t, i) => {
+        const x = xFor(t, maxPct);
+        const label = String(t).replace(/\.0$/, "") + "%";
+        const labY = axisY + (i % 2 === 0 ? 22 : 36);
+        html += `<line x1="${x}" y1="${axisY - 7}" x2="${x}" y2="${axisY + 7}" stroke="#8aa0b5" stroke-width="1.4"/>`;
+        html += `<text x="${x}" y="${labY}" fill="#8aa0b5" font-size="10" text-anchor="middle">${esc(label)}</text>`;
+      });
+      svg.innerHTML = html;
+
+      stackLanes(data.placed || [], maxPct).forEach((chip) => {
+        const leftPct = (chip._x / 1000) * 100;
+        const stack = chip._stack || 0;
+        const top = chip.kind === "held"
+          ? axisY - 14 - stack * 58
+          : axisY + 14 + stack * 58;
+        const href = chipHref(chip);
+        const sleeve = sleeveClass(chip.sleeve);
+        const el = document.createElement("div");
+        el.innerHTML = `<a class="chip ${esc(chip.kind)} ${chip.kind === "held" ? "above" : "below"} ${sleeve}" href="${esc(href)}" style="left:${leftPct}%;top:${top}px">
+          <span class="who">${esc(chip.symbol || chip.label)}</span>
+          <span class="rate">${esc(fmtPct(chip))}</span>
+          <span class="subn">${esc(chip.weight_basis === "priority_share" ? (chip.priority || "consider") : (chip.sleeve || "book"))}</span>
+        </a>`;
+        stage.appendChild(el.firstElementChild);
+      });
+    }
+
+    function renderSleeves(data) {
+      const el = document.getElementById("sleeve-legend");
+      const w = data.sleeve_weights_deployed || {};
+      const t = data.targets || {};
+      const btc = Number(w.btc_digital_credit);
+      const stocks = Number(w.stocks_growth);
+      const tb = Number(t.btc_digital_credit_pct);
+      const ts = Number(t.stocks_growth_pct);
+      if (!Number.isFinite(btc) && !Number.isFinite(tb)) {
+        el.innerHTML = "";
+        return;
+      }
+      const btcPct = Number.isFinite(btc) ? Math.round(btc * 1000) / 10 : 0;
+      const stPct = Number.isFinite(stocks) ? Math.round(stocks * 1000) / 10 : 0;
+      const tBtc = Number.isFinite(tb) ? Math.round(tb * 100) : 40;
+      const tSt = Number.isFinite(ts) ? Math.round(ts * 100) : 60;
+      el.innerHTML =
+        `<div class="hint" style="margin:0 0 0.25rem">Sleeve mix (deployed) vs target ${tBtc}/${tSt} — legend, not per-name targets.</div>` +
+        `<div class="sleeve-bar" title="deployed sleeve mix">` +
+        `<span class="btc" style="width:${btcPct}%"></span>` +
+        `<span class="stocks" style="width:${stPct}%"></span>` +
+        `</div>` +
+        `<p class="hint" style="margin:0">BTC/digital-credit ${btcPct}% · stocks/growth ${stPct}%</p>`;
+    }
+
+    function render(data) {
+      document.getElementById("subtitle").textContent =
+        "Relative weight · FCC" + (data.as_of ? " · " + String(data.as_of).slice(0, 16).replace("T", " ") + " UTC" : "");
+      drawAxis(data);
+      renderSleeves(data);
+      const list = document.getElementById("chip-list");
+      const chips = data.chips || [];
+      if (!chips.length) {
+        list.innerHTML = `<li class="hint">${esc(data.error || "No agentic positions or watchlist consider-set yet.")}</li>`;
+        return;
+      }
+      list.innerHTML = chips.map((c) => {
+        const money = c.market_value != null
+          ? " · $" + Number(c.market_value).toLocaleString(undefined, { maximumFractionDigits: 2 })
+          : "";
+        return `<li><strong>${esc(c.symbol)}</strong> · ${esc(fmtPct(c))}${money} · ${esc(c.notes || "")}</li>`;
+      }).join("");
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>
