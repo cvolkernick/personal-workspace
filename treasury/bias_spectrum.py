@@ -1,41 +1,57 @@
 """Position bias spectrum for FCC.
 
-Two-lane axis like Interest Spectrum, but the unit is relative weight,
-not APR/APY:
+Axis unit is **new-money consider-share** — relative standing bias when
+new funds are allocated — not current book weight.
 
-  above = held book % of deployed equity (live fund_manager.analysis)
-  below = unheld watchlist consider-set relative priority share
+  above = BTC / digital-credit sleeve (~40% of new money)
+  below = stocks / growth sleeve (~60% of new money, incl. energy
+          opportunistic names via sleeve_if_owned)
 
-Priority share uses the existing watchlist priority field only:
-high=3, med/medium=2, low=1, missing=1. That is relative consideration
-among the consider-set — not capital, not an invented target weight.
+Consider set = core allowlist ∪ ready watchlist (private off-axis).
+Role scores come from written policy only:
 
-No per-name target weights. Sleeve 40/60 is legend only.
-Private watchlist stays off-axis (not deployable).
+  preferred_core (STRC/SATA) 5 · core 4 · watch high 3 · med 2 · low 1
+
+Within each sleeve, share = role_score / sleeve_score_sum, then scaled
+by the sleeve's target budget so chips sum to ~100% of new money.
+
+Live book % is an annotation (held badge), never the axis. This is not
+an order ticket — the fund manager still research/rotates at deploy.
 """
 
 from __future__ import annotations
 
-import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
+FM_POLICY = ROOT / "investment" / "fund_manager.json"
+WATCHLIST_PATH = ROOT / "investment" / "watchlist.json"
 FM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "fund_manager_latest.json"
 TREASURY_FCC = ROOT / "financial-command" / "treasury_latest.json"
 TREASURY_SNAP = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
+TREASURY_WORKTREE = Path.home() / "personal-workspace-worktrees" / "treasury"
 
-PRIORITY_SCORE = {
-    "high": 3.0,
-    "med": 2.0,
-    "medium": 2.0,
-    "low": 1.0,
+ROLE_SCORE = {
+    "preferred_core": 5.0,
+    "core": 4.0,
+    "watch_high": 3.0,
+    "watch_med": 2.0,
+    "watch_low": 1.0,
 }
-DEFAULT_PRIORITY_SCORE = 1.0
-ALLOWED_KINDS = ("held", "consider")
+PRIORITY_TO_ROLE = {
+    "high": "watch_high",
+    "med": "watch_med",
+    "medium": "watch_med",
+    "low": "watch_low",
+}
 SLEEVE_BTC = "btc_digital_credit"
 SLEEVE_STOCKS = "stocks_growth"
+READY_STATUSES = {"ready"}
+DEFAULT_BTC_BUDGET = 0.4
+DEFAULT_STOCKS_BUDGET = 0.6
 
 
 def _now() -> str:
@@ -46,6 +62,8 @@ def _load_json(path: Path) -> Dict[str, Any]:
     if not path.is_file():
         return {}
     try:
+        import json
+
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, TypeError):
         return {}
@@ -76,6 +94,17 @@ def _money(value: Any) -> Optional[float]:
     return n
 
 
+def _syms(values: Any) -> List[str]:
+    out: List[str] = []
+    seen = set()
+    for item in _as_list(values):
+        s = _sym(item)
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
 def _analysis_from_fm(fm: Dict[str, Any]) -> Dict[str, Any]:
     an = fm.get("analysis")
     if isinstance(an, dict) and (an.get("ok") or an.get("positions") or an.get("watchlist")):
@@ -100,24 +129,130 @@ def _load_fund_manager(
             fm = ev.get("fund_manager")
             if isinstance(fm, dict) and _analysis_from_fm(fm):
                 return fm
-    snap = _load_json(FM_SNAPSHOT)
-    if _analysis_from_fm(snap):
-        return snap
-    tre = treasury if isinstance(treasury, dict) else _load_json(
-        TREASURY_FCC if TREASURY_FCC.is_file() else TREASURY_SNAP
-    )
-    fm = tre.get("fund_manager") if isinstance(tre.get("fund_manager"), dict) else {}
-    return fm if _analysis_from_fm(fm) else {}
+    for root in _treasury_roots():
+        snap = _load_json(root / "treasury" / "snapshots" / "fund_manager_latest.json")
+        if _analysis_from_fm(snap):
+            return snap
+        for rel in (
+            Path("financial-command") / "treasury_latest.json",
+            Path("treasury") / "snapshots" / "treasury_latest.json",
+        ):
+            tre = _load_json(root / rel)
+            fm = tre.get("fund_manager") if isinstance(tre.get("fund_manager"), dict) else {}
+            if _analysis_from_fm(fm):
+                return fm
+    return {}
 
 
-def _priority_score(raw: Any) -> Tuple[float, str, bool]:
-    key = str(raw or "").strip().lower()
-    if key in PRIORITY_SCORE:
-        return PRIORITY_SCORE[key], key if key != "medium" else "med", False
-    return DEFAULT_PRIORITY_SCORE, "low", True
+def _treasury_roots() -> List[Path]:
+    roots = [ROOT]
+    env = (os.environ.get("FCC_WORKTREE_ROOT") or "").strip()
+    if env:
+        roots.append(Path(env).expanduser())
+    roots.append(TREASURY_WORKTREE)
+    seen: set[str] = set()
+    out: List[Path] = []
+    for p in roots:
+        key = str(p.resolve()) if p.exists() else str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
 
 
-def _held_chips(analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _first_json(rel: str) -> Dict[str, Any]:
+    for root in _treasury_roots():
+        data = _load_json(root / rel)
+        if data:
+            return data
+    return {}
+
+
+def _load_policy(policy: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if isinstance(policy, dict):
+        return policy
+    return _first_json("investment/fund_manager.json")
+
+
+def _load_watchlist(watchlist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if isinstance(watchlist, dict):
+        return watchlist
+    return _first_json("investment/watchlist.json")
+
+
+def _preferred_core(policy: Dict[str, Any]) -> set[str]:
+    found: set[str] = set()
+    for sleeve in _as_dict(policy.get("sleeves")).values():
+        if not isinstance(sleeve, dict):
+            continue
+        for sub in _as_dict(sleeve.get("sub_sleeves")).values():
+            if not isinstance(sub, dict):
+                continue
+            found.update(_syms(sub.get("preferred_core")))
+    return found
+
+
+def _core_allowlist(policy: Dict[str, Any]) -> set[str]:
+    return set(_syms(_as_dict(policy.get("allowlist")).get("core")))
+
+
+def _sleeve_membership(policy: Dict[str, Any]) -> Dict[str, str]:
+    """Map symbol → sleeve for named btc/stocks lists. Energy is open."""
+    mapping: Dict[str, str] = {}
+    for name, sleeve in _as_dict(policy.get("sleeves")).items():
+        if not isinstance(sleeve, dict):
+            continue
+        if name not in (SLEEVE_BTC, SLEEVE_STOCKS):
+            continue
+        for sym in _syms(sleeve.get("symbols")) + _syms(sleeve.get("watchlist_symbols")):
+            mapping.setdefault(sym, name)
+    return mapping
+
+
+def _sleeve_budgets(policy: Dict[str, Any]) -> Tuple[float, float]:
+    targets = _as_dict(policy.get("targets"))
+    btc = _money(targets.get("btc_digital_credit_pct"))
+    stocks = _money(targets.get("stocks_growth_pct"))
+    if btc is None:
+        btc = _money(_as_dict(_as_dict(policy.get("sleeves")).get(SLEEVE_BTC)).get("target_pct"))
+    if stocks is None:
+        stocks = _money(
+            _as_dict(_as_dict(policy.get("sleeves")).get(SLEEVE_STOCKS)).get("target_pct")
+        )
+    btc_f = float(btc) if btc is not None else DEFAULT_BTC_BUDGET
+    stocks_f = float(stocks) if stocks is not None else DEFAULT_STOCKS_BUDGET
+    total = btc_f + stocks_f
+    if total <= 0:
+        return DEFAULT_BTC_BUDGET, DEFAULT_STOCKS_BUDGET
+    return btc_f / total, stocks_f / total
+
+
+def _watch_entries(
+    watchlist: Dict[str, Any], analysis: Dict[str, Any]
+) -> Dict[str, Dict[str, Any]]:
+    entries: Dict[str, Dict[str, Any]] = {}
+    # File / injected watchlist is SoT when it includes `entries` (even empty).
+    # Snapshot watchlist is fallback only when no file/inject list exists.
+    if "entries" in watchlist:
+        sources = [_as_list(watchlist.get("entries"))]
+    else:
+        sources = [
+            _as_list(_as_dict(analysis.get("watchlist")).get("entries")),
+            _as_list(watchlist.get("entries")),
+        ]
+    for src in sources:
+        for e in src:
+            if not isinstance(e, dict):
+                continue
+            sym = _sym(e.get("symbol"))
+            if not sym:
+                continue
+            entries[sym] = e
+    return entries
+
+
+def _held_books(analysis: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     positions = [p for p in _as_list(analysis.get("positions")) if isinstance(p, dict)]
     equity = _money(analysis.get("equity_market_value_usd"))
     if not equity or equity <= 0:
@@ -126,85 +261,67 @@ def _held_chips(analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
             mv = _money(p.get("market_value"))
             if mv and mv > 0:
                 equity += mv
-    chips: List[Dict[str, Any]] = []
+    books: Dict[str, Dict[str, Any]] = {}
     if not equity or equity <= 0:
-        return chips
+        return books
     for p in positions:
         sym = _sym(p.get("symbol"))
         mv = _money(p.get("market_value"))
         if not sym or mv is None or mv <= 0:
             continue
-        pct = round(100.0 * mv / equity, 2)
-        sleeve = str(p.get("sleeve") or "other")
-        chips.append(
-            {
-                "id": f"held-{sym}",
-                "symbol": sym,
-                "label": sym,
-                "venue": sym,
-                "kind": "held",
-                "lane": "above",
-                "sleeve": sleeve,
-                "weight_pct": pct,
-                "weight_basis": "pct_of_deployed_equity",
-                "market_value": round(mv, 4),
-                "quantity": _money(p.get("quantity")),
-                "source": "books",
-                "held": True,
-                "notes": "Live agentic book weight. Not a target.",
-                "deep_link": "watchlist.html",
-            }
-        )
-    chips.sort(key=lambda c: (-float(c["weight_pct"]), c["symbol"]))
-    return chips
+        books[sym] = {
+            "market_value": round(mv, 4),
+            "quantity": _money(p.get("quantity")),
+            "book_pct": round(100.0 * mv / equity, 2),
+            "sleeve": str(p.get("sleeve") or ""),
+        }
+    return books
 
 
-def _consider_chips(analysis: Dict[str, Any], held_symbols: set[str]) -> List[Dict[str, Any]]:
-    wl = _as_dict(analysis.get("watchlist"))
-    entries = [e for e in _as_list(wl.get("entries")) if isinstance(e, dict)]
-    scored: List[Tuple[Dict[str, Any], float, str, bool]] = []
-    for e in entries:
-        sym = _sym(e.get("symbol"))
-        if not sym or sym in held_symbols:
-            continue
-        score, pri, defaulted = _priority_score(e.get("priority"))
-        scored.append((e, score, pri, defaulted))
-    total = sum(s for _, s, _, _ in scored)
-    chips: List[Dict[str, Any]] = []
-    if total <= 0:
-        return chips
-    for e, score, pri, defaulted in scored:
-        sym = _sym(e.get("symbol"))
-        pct = round(100.0 * score / total, 2)
-        sleeve = str(e.get("sleeve_if_owned") or e.get("sleeve") or "other")
-        notes = (
-            f"Consider-set share from watchlist priority {pri}"
-            f"{' (default low)' if defaulted else ''} "
-            f"— not capital, not a target weight."
-        )
-        chips.append(
-            {
-                "id": f"consider-{sym}",
-                "symbol": sym,
-                "label": e.get("name") or sym,
-                "venue": sym,
-                "kind": "consider",
-                "lane": "below",
-                "sleeve": sleeve,
-                "weight_pct": pct,
-                "weight_basis": "priority_share",
-                "priority": pri,
-                "priority_score": score,
-                "theme": e.get("theme"),
-                "status": e.get("status"),
-                "source": "watchlist_priority",
-                "held": False,
-                "notes": notes,
-                "deep_link": "watchlist.html",
-            }
-        )
-    chips.sort(key=lambda c: (-float(c["weight_pct"]), c["symbol"]))
-    return chips
+def _role_for(
+    sym: str,
+    *,
+    preferred: set[str],
+    core: set[str],
+    watch: Optional[Dict[str, Any]],
+) -> Optional[Tuple[str, float, str]]:
+    if sym in preferred:
+        return "preferred_core", ROLE_SCORE["preferred_core"], "preferred_core"
+    if sym in core:
+        return "core", ROLE_SCORE["core"], "core"
+    if not watch:
+        return None
+    status = str(watch.get("status") or "").strip().lower()
+    if status and status not in READY_STATUSES:
+        return None
+    if not status:
+        # File entries without status still count as ready consider-set
+        # only when they have a priority (owner-named).
+        if not watch.get("priority"):
+            return None
+    pri_key = str(watch.get("priority") or "low").strip().lower()
+    role = PRIORITY_TO_ROLE.get(pri_key, "watch_low")
+    return role, ROLE_SCORE[role], pri_key if pri_key != "medium" else "med"
+
+
+def _sleeve_for(
+    sym: str,
+    *,
+    membership: Dict[str, str],
+    watch: Optional[Dict[str, Any]],
+    held: Optional[Dict[str, Any]],
+) -> str:
+    if sym in membership:
+        return membership[sym]
+    if watch:
+        owned = str(watch.get("sleeve_if_owned") or watch.get("sleeve") or "").strip()
+        if owned in (SLEEVE_BTC, SLEEVE_STOCKS):
+            return owned
+    if held:
+        hs = str(held.get("sleeve") or "").strip()
+        if hs in (SLEEVE_BTC, SLEEVE_STOCKS):
+            return hs
+    return SLEEVE_STOCKS
 
 
 def _axis_max(placed: List[Dict[str, Any]]) -> float:
@@ -229,40 +346,137 @@ def _ticks(max_pct: float) -> List[float]:
     return out
 
 
+def _candidate_symbols(
+    *,
+    core: set[str],
+    preferred: set[str],
+    membership: Dict[str, str],
+    watch_entries: Dict[str, Dict[str, Any]],
+) -> List[str]:
+    seen = set()
+    ordered: List[str] = []
+    for sym in list(sorted(preferred)) + list(sorted(core)) + list(sorted(membership)) + list(
+        sorted(watch_entries)
+    ):
+        if sym in seen:
+            continue
+        seen.add(sym)
+        ordered.append(sym)
+    return ordered
+
+
 def build_bias_spectrum(
     *,
     fund_manager: Optional[Dict[str, Any]] = None,
     treasury: Optional[Dict[str, Any]] = None,
+    policy: Optional[Dict[str, Any]] = None,
+    watchlist: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Assemble held / consider chips on a shared 0→max% two-lane axis."""
+    """Assemble new-money consider-share chips on a 40/60 two-lane axis."""
     treasury_from_disk = not isinstance(treasury, dict)
     if treasury_from_disk:
         treasury = _load_json(TREASURY_FCC if TREASURY_FCC.is_file() else TREASURY_SNAP)
     fm = _load_fund_manager(fund_manager, treasury)
     analysis = _analysis_from_fm(fm)
-    held = _held_chips(analysis)
-    held_syms = {c["symbol"] for c in held}
-    consider = _consider_chips(analysis, held_syms)
-    chips = held + consider
-    for chip in chips:
-        if chip.get("kind") not in ALLOWED_KINDS:
-            chip["kind"] = "held" if chip.get("held") else "consider"
-        chip["lane"] = "above" if chip["kind"] == "held" else "below"
+    pol = _load_policy(policy)
+    wl = _load_watchlist(watchlist)
+    preferred = _preferred_core(pol)
+    core = _core_allowlist(pol)
+    membership = _sleeve_membership(pol)
+    watch_entries = _watch_entries(wl, analysis)
+    books = _held_books(analysis)
+    btc_budget, stocks_budget = _sleeve_budgets(pol)
+
+    scored: Dict[str, Dict[str, Any]] = {}
+    for sym in _candidate_symbols(
+        core=core,
+        preferred=preferred,
+        membership=membership,
+        watch_entries=watch_entries,
+    ):
+        watch = watch_entries.get(sym)
+        role_info = _role_for(sym, preferred=preferred, core=core, watch=watch)
+        if role_info is None:
+            continue
+        role, score, pri = role_info
+        sleeve = _sleeve_for(sym, membership=membership, watch=watch, held=books.get(sym))
+        if sleeve not in (SLEEVE_BTC, SLEEVE_STOCKS):
+            sleeve = SLEEVE_STOCKS
+        held = books.get(sym)
+        scored[sym] = {
+            "symbol": sym,
+            "role": role,
+            "score": score,
+            "priority": pri if role.startswith("watch_") else None,
+            "sleeve": sleeve,
+            "watch": watch,
+            "held": held,
+        }
+
+    sleeve_totals = {SLEEVE_BTC: 0.0, SLEEVE_STOCKS: 0.0}
+    for row in scored.values():
+        sleeve_totals[row["sleeve"]] += float(row["score"])
+
+    chips: List[Dict[str, Any]] = []
+    for sym, row in scored.items():
+        sleeve = row["sleeve"]
+        total = sleeve_totals[sleeve]
+        budget = btc_budget if sleeve == SLEEVE_BTC else stocks_budget
+        if total <= 0:
+            continue
+        pct = round(100.0 * budget * float(row["score"]) / total, 2)
+        watch = row["watch"] or {}
+        held = row["held"]
+        role = row["role"]
+        notes = (
+            f"New-money consider-share from policy role {role}"
+            f"{' / watchlist ' + row['priority'] if row['priority'] else ''} "
+            f"inside the {'40% BTC/digital-credit' if sleeve == SLEEVE_BTC else '60% stocks/growth'} "
+            f"sleeve budget. Not current book weight, not an order."
+        )
+        chip = {
+            "id": f"bias-{sym}",
+            "symbol": sym,
+            "label": watch.get("name") or sym,
+            "venue": sym,
+            "kind": "held" if held else "consider",
+            "lane": "above" if sleeve == SLEEVE_BTC else "below",
+            "sleeve": sleeve,
+            "role": role,
+            "weight_pct": pct,
+            "weight_basis": "new_money_consider_share",
+            "role_score": row["score"],
+            "priority": row["priority"],
+            "theme": watch.get("theme"),
+            "status": watch.get("status"),
+            "source": "policy_consider_set",
+            "held": bool(held),
+            "book_pct": None if not held else held["book_pct"],
+            "market_value": None if not held else held["market_value"],
+            "quantity": None if not held else held["quantity"],
+            "notes": notes,
+            "deep_link": "watchlist.html",
+        }
+        chips.append(chip)
+
+    chips.sort(key=lambda c: (-float(c["weight_pct"]), c["symbol"]))
     placed = [c for c in chips if c.get("weight_pct") is not None]
     max_pct = _axis_max(placed)
-    targets = _as_dict(analysis.get("targets")) or _as_dict(
-        _as_dict(fm.get("policy_summary")).get("targets")
-    )
+    targets = _as_dict(analysis.get("targets")) or _as_dict(pol.get("targets"))
     nav = _money(analysis.get("nav_usd"))
     equity = _money(analysis.get("equity_market_value_usd"))
     error = None
-    if not analysis:
-        error = "no fund_manager.analysis — refresh RH snapshot on Mac"
+    if not pol:
+        error = "no fund_manager.json policy — cannot build new-money consider-set"
+    elif not chips:
+        error = "empty consider-set (core allowlist + ready watchlist)"
+    btc_count = sum(1 for c in chips if c["lane"] == "above")
+    stocks_count = sum(1 for c in chips if c["lane"] == "below")
     return {
         "ok": True,
         "title": "Bias Spectrum",
         "brand": "FCC",
-        "as_of": analysis.get("as_of") or fm.get("as_of") or _now(),
+        "as_of": analysis.get("as_of") or fm.get("as_of") or pol.get("as_of") or _now(),
         "error": error,
         "axis": {
             "layout": "two_lane",
@@ -272,35 +486,47 @@ def build_bias_spectrum(
             "max_pct": max_pct,
             "held_lane": "above",
             "consider_lane": "below",
-            "unit": "relative_weight_pct",
+            "btc_lane": "above",
+            "stocks_lane": "below",
+            "unit": "new_money_consider_share_pct",
             "ticks": _ticks(max_pct),
         },
         "chips": chips,
         "placed": placed,
-        "held_count": len(held),
-        "consider_count": len(consider),
+        "held_count": sum(1 for c in chips if c.get("held")),
+        "consider_count": sum(1 for c in chips if not c.get("held")),
+        "btc_count": btc_count,
+        "stocks_count": stocks_count,
         "nav_usd": nav,
         "equity_market_value_usd": equity,
         "sleeve_weights_deployed": _as_dict(analysis.get("weights_of_deployed")),
         "sleeve_weights_nav": _as_dict(analysis.get("weights_of_nav")),
+        "sleeve_budgets": {
+            "btc_digital_credit_pct": btc_budget,
+            "stocks_growth_pct": stocks_budget,
+        },
         "targets": {
-            "btc_digital_credit_pct": targets.get("btc_digital_credit_pct"),
-            "stocks_growth_pct": targets.get("stocks_growth_pct"),
+            "btc_digital_credit_pct": targets.get("btc_digital_credit_pct", btc_budget),
+            "stocks_growth_pct": targets.get("stocks_growth_pct", stocks_budget),
             "band_pct": targets.get("band_pct"),
         },
         "policy": {
             "apr_apy_axis": False,
             "invented_targets": False,
-            "held_is_book_weight": True,
-            "consider_is_priority_share": True,
-            "priority_score": dict(PRIORITY_SCORE),
+            "held_is_book_weight": False,
+            "consider_is_priority_share": False,
+            "axis_is_new_money_consider_share": True,
+            "book_pct_is_annotation": True,
+            "role_score": dict(ROLE_SCORE),
             "private_watchlist_on_axis": False,
-            "sleeve_targets_are_legend_only": True,
+            "sleeve_targets_are_new_money_budget": True,
+            "forbid_held_only": True,
         },
         "notes": [
-            "Held chips = % of deployed agentic equity (live books).",
-            "Consider chips = relative watchlist priority share among unheld names.",
-            "Do not read consider % as a capital allocation.",
-            "Sleeve 40/60 is the only target mix; no per-name targets.",
+            "Chips = standing new-money consider-share from written policy.",
+            "First split is sleeve budget (~40% BTC/digital-credit above, ~60% stocks/growth below).",
+            "Then relative role inside the sleeve: preferred-core > core > watchlist high/med/low.",
+            "Current book % is annotation only (held badge). Not an order ticket.",
+            "Private watchlist stays off-axis.",
         ],
     }
