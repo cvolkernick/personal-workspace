@@ -182,7 +182,7 @@
     <div class="row">
       <div>
         <h1>Bias Spectrum</h1>
-        <div class="sub" id="subtitle">Relative weight · FCC</div>
+        <div class="sub" id="subtitle">New-money consider-share · FCC</div>
       </div>
       <div class="controls">
         <a class="btn" href="http://127.0.0.1:8795/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
@@ -202,24 +202,26 @@
     <section class="card">
       <h2>Spectrum</h2>
       <p class="hint">
-        Shared relative-weight axis: <strong>0%</strong> left → largest chip right.
-        <strong>Held</strong> above = % of deployed agentic equity (live books).
-        <strong>Consider</strong> below = unheld watchlist priority share
-        (high=3 · med=2 · low=1, normalized). Consider % is not capital.
-        No invented per-name targets. Sleeve mix (~40% BTC/digital-credit · ~60% stocks/growth)
-        is legend only. Private names stay off this axis.
+        Shared axis: <strong>0%</strong> left → largest chip right.
+        Unit is <strong>new-money consider-share</strong> — standing bias when
+        new funds are allocated — not current book weight.
+        <strong>Above</strong> = ~40% BTC / digital-credit sleeve budget.
+        <strong>Below</strong> = ~60% stocks / growth (incl. energy opportunistic).
+        Inside a sleeve: STRC/SATA preferred-core &gt; other core &gt; watchlist
+        high=3 · med=2 · low=1. Held is a badge; book % is annotation.
+        Not an order ticket. Private names stay off this axis.
       </p>
       <div id="sleeve-legend"></div>
       <div class="axis-wrap">
         <div class="spectrum" id="spectrum" data-layout="two_lane">
-          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane bias spectrum: held book weight above, watchlist consider share below"></svg>
+          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane bias spectrum: BTC/digital-credit new-money share above, stocks/growth new-money share below"></svg>
         </div>
       </div>
       <div class="legend">
-        <span><i class="swatch held"></i>Held book (above)</span>
-        <span><i class="swatch consider"></i>Watchlist consider (below)</span>
-        <span><i class="swatch btc"></i>BTC / digital credit</span>
-        <span><i class="swatch stocks"></i>Stocks / growth</span>
+        <span><i class="swatch btc"></i>BTC / digital credit (above, ~40%)</span>
+        <span><i class="swatch stocks"></i>Stocks / growth (below, ~60%)</span>
+        <span><i class="swatch held"></i>Currently held (badge)</span>
+        <span><i class="swatch consider"></i>Unheld consider-set</span>
         <span>Tap a chip for watchlist research. No trade controls.</span>
       </div>
     </section>
@@ -232,7 +234,7 @@
 
   <footer>
     <a href="index.html">← FCC</a> ·
-    Bias Spectrum · held book % · watchlist consider share · two-lane axis · display-only
+    Bias Spectrum · new-money consider-share · 40/60 sleeve budgets · two-lane axis · display-only
   </footer>
 
   <script src="nav-horizon.js"></script>
@@ -250,8 +252,18 @@
     function fmtPct(chip) {
       if (chip.weight_pct == null || !Number.isFinite(Number(chip.weight_pct))) return "weight unknown";
       const n = Number(chip.weight_pct);
-      const body = n.toFixed(1).replace(/\.0$/, "") + "%";
-      return chip.kind === "consider" ? body + " consider" : body + " book";
+      return n.toFixed(1).replace(/\.0$/, "") + "% new";
+    }
+
+    function roleLabel(chip) {
+      const role = chip.role || "";
+      if (role === "preferred_core") return "preferred core";
+      if (role === "core") return "core";
+      if (role === "watch_high") return "watch high";
+      if (role === "watch_med") return "watch med";
+      if (role === "watch_low") return "watch low";
+      if (chip.priority) return String(chip.priority);
+      return chip.held ? "held" : "consider";
     }
 
     function sleeveClass(sleeve) {
@@ -290,7 +302,7 @@
     function stackLanes(chips, maxPct) {
       const above = [];
       const below = [];
-      chips.forEach((c) => (c.kind === "held" ? above : below).push(c));
+      chips.forEach((c) => (c.lane === "above" ? above : below).push(c));
       function assign(list) {
         const sorted = list.slice().sort((a, b) => Number(a.weight_pct) - Number(b.weight_pct));
         const used = [];
@@ -316,9 +328,9 @@
       const axisY = 180;
 
       let html = `
-        <text x="70" y="28" fill="#3dd6b0" font-size="12" font-weight="700" letter-spacing="0.06em">HELD BOOK</text>
+        <text x="70" y="28" fill="#f2a900" font-size="12" font-weight="700" letter-spacing="0.06em">BTC / DIGITAL CREDIT · ~40%</text>
         <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~${maxPct}%</text>
-        <text x="70" y="348" fill="#c9a45c" font-size="12" font-weight="700" letter-spacing="0.06em">WATCHLIST CONSIDER</text>
+        <text x="70" y="348" fill="#7c9cff" font-size="12" font-weight="700" letter-spacing="0.06em">STOCKS / GROWTH · ~60%</text>
         <line x1="70" y1="${axisY}" x2="930" y2="${axisY}" stroke="#5a7188" stroke-width="3" stroke-linecap="round"/>
       `;
       ticks.forEach((t, i) => {
@@ -333,16 +345,21 @@
       stackLanes(data.placed || [], maxPct).forEach((chip) => {
         const leftPct = (chip._x / 1000) * 100;
         const stack = chip._stack || 0;
-        const top = chip.kind === "held"
+        const top = chip.lane === "above"
           ? axisY - 14 - stack * 58
           : axisY + 14 + stack * 58;
         const href = chipHref(chip);
         const sleeve = sleeveClass(chip.sleeve);
+        const heldClass = chip.held ? "held" : "consider";
+        const laneClass = chip.lane === "above" ? "above" : "below";
+        const book = chip.book_pct != null && Number.isFinite(Number(chip.book_pct))
+          ? " · book " + Number(chip.book_pct).toFixed(1).replace(/\.0$/, "") + "%"
+          : "";
         const el = document.createElement("div");
-        el.innerHTML = `<a class="chip ${esc(chip.kind)} ${chip.kind === "held" ? "above" : "below"} ${sleeve}" href="${esc(href)}" style="left:${leftPct}%;top:${top}px">
+        el.innerHTML = `<a class="chip ${heldClass} ${laneClass} ${sleeve}" href="${esc(href)}" style="left:${leftPct}%;top:${top}px">
           <span class="who">${esc(chip.symbol || chip.label)}</span>
           <span class="rate">${esc(fmtPct(chip))}</span>
-          <span class="subn">${esc(chip.weight_basis === "priority_share" ? (chip.priority || "consider") : (chip.sleeve || "book"))}</span>
+          <span class="subn">${esc(roleLabel(chip) + (chip.held ? " · held" : "") + book)}</span>
         </a>`;
         stage.appendChild(el.firstElementChild);
       });
@@ -365,7 +382,7 @@
       const tBtc = Number.isFinite(tb) ? Math.round(tb * 100) : 40;
       const tSt = Number.isFinite(ts) ? Math.round(ts * 100) : 60;
       el.innerHTML =
-        `<div class="hint" style="margin:0 0 0.25rem">Sleeve mix (deployed) vs target ${tBtc}/${tSt} — legend, not per-name targets.</div>` +
+        `<div class="hint" style="margin:0 0 0.25rem">New-money sleeve budget ${tBtc}/${tSt}. Deployed mix below is book drift — not the axis.</div>` +
         `<div class="sleeve-bar" title="deployed sleeve mix">` +
         `<span class="btc" style="width:${btcPct}%"></span>` +
         `<span class="stocks" style="width:${stPct}%"></span>` +
@@ -375,7 +392,7 @@
 
     function render(data) {
       document.getElementById("subtitle").textContent =
-        "Relative weight · FCC" + (data.as_of ? " · " + String(data.as_of).slice(0, 16).replace("T", " ") + " UTC" : "");
+        "New-money consider-share · FCC" + (data.as_of ? " · " + String(data.as_of).slice(0, 16).replace("T", " ") + " UTC" : "");
       drawAxis(data);
       renderSleeves(data);
       const list = document.getElementById("chip-list");
@@ -388,7 +405,10 @@
         const money = c.market_value != null
           ? " · $" + Number(c.market_value).toLocaleString(undefined, { maximumFractionDigits: 2 })
           : "";
-        return `<li><strong>${esc(c.symbol)}</strong> · ${esc(fmtPct(c))}${money} · ${esc(c.notes || "")}</li>`;
+        const book = c.book_pct != null
+          ? " · book " + Number(c.book_pct).toFixed(1).replace(/\.0$/, "") + "%"
+          : "";
+        return `<li><strong>${esc(c.symbol)}</strong> · ${esc(fmtPct(c))}${book}${money} · ${esc(roleLabel(c))} · ${esc(c.notes || "")}</li>`;
       }).join("");
     }
 

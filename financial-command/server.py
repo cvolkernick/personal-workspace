@@ -8,7 +8,7 @@ Serves static UI + APIs:
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
-  GET  /api/bias-spectrum — agentic + watchlist relative weights (no invented targets)
+  GET  /api/bias-spectrum — new-money consider-share (core + ready watchlist; not book weight)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/coach         — financial coach allocation plan (pay on time)
   GET  /api/planned-actual — display-only sheet planned vs YNAB actual flags

@@ -1,4 +1,4 @@
-"""Bias Spectrum page + API: two-lane relative weights, no invented targets."""
+"""Bias Spectrum page + API: new-money consider-share, not book weight."""
 
 from __future__ import annotations
 
@@ -41,30 +41,31 @@ def _free_port() -> int:
 
 
 class TestBiasSpectrumPage(unittest.TestCase):
-    def test_page_is_two_lane_weight_spectrum(self) -> None:
+    def test_page_is_two_lane_new_money_spectrum(self) -> None:
         html = PAGE.read_text(encoding="utf-8")
         self.assertIn("<h1>Bias Spectrum</h1>", html)
         self.assertIn("Bias Spectrum · FCC", html)
-        self.assertIn("Relative weight · FCC", html)
+        self.assertIn("New-money consider-share · FCC", html)
         self.assertIn('data-layout="two_lane"', html)
-        self.assertIn("HELD BOOK", html)
-        self.assertIn("WATCHLIST CONSIDER", html)
-        self.assertIn("Held book (above)", html)
-        self.assertIn("Watchlist consider (below)", html)
+        self.assertIn("BTC / DIGITAL CREDIT", html)
+        self.assertIn("STOCKS / GROWTH", html)
+        self.assertIn("new-money consider-share", html)
+        self.assertIn("not current book weight", html)
         self.assertIn("/api/bias-spectrum", html)
         self.assertIn('id="nav-fcc"', html)
         self.assertIn('id="nav-fleet"', html)
         self.assertIn("nav-fleet.js", html)
         self.assertIn("high=3", html)
-        self.assertIn("not capital", html)
-        self.assertIn("No invented per-name targets", html)
-        self.assertIn("legend only", html)
+        self.assertIn("Not an order ticket", html)
+        self.assertIn("preferred-core", html)
+        self.assertNotIn("HELD BOOK", html)
+        self.assertNotIn("WATCHLIST CONSIDER", html)
         self.assertNotIn("<iframe", html.lower())
         self.assertNotIn("place order", html.lower())
         self.assertNotIn("mint JR", html)
         self.assertNotIn("CIC", html)
         self.assertNotIn("vercel", html.lower())
-        self.assertIn("chip.kind === \"held\"", html)
+        self.assertIn('chip.lane === "above"', html)
 
     def test_fcc_index_has_bias_deep_link(self) -> None:
         html = INDEX.read_text(encoding="utf-8")
@@ -72,6 +73,7 @@ class TestBiasSpectrumPage(unittest.TestCase):
         self.assertIn('id="nav-bias-spectrum"', html)
         self.assertIn('id="bias-spectrum-card"', html)
         self.assertIn('id="link-bias-spectrum-full"', html)
+        self.assertIn("not current book weight", html)
 
 
 class TestBiasSpectrumApi(unittest.TestCase):
@@ -103,21 +105,30 @@ class TestBiasSpectrumApi(unittest.TestCase):
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data.get("ok"))
         self.assertEqual(data.get("axis", {}).get("layout"), "two_lane")
-        self.assertEqual(data.get("axis", {}).get("held_lane"), "above")
-        self.assertEqual(data.get("axis", {}).get("consider_lane"), "below")
-        self.assertEqual(data.get("axis", {}).get("unit"), "relative_weight_pct")
-        self.assertFalse((data.get("policy") or {}).get("invented_targets"))
+        self.assertEqual(data.get("axis", {}).get("btc_lane"), "above")
+        self.assertEqual(data.get("axis", {}).get("stocks_lane"), "below")
+        self.assertEqual(data.get("axis", {}).get("unit"), "new_money_consider_share_pct")
+        pol = data.get("policy") or {}
+        self.assertFalse(pol.get("invented_targets"))
+        self.assertTrue(pol.get("axis_is_new_money_consider_share"))
+        self.assertFalse(pol.get("held_is_book_weight"))
         for chip in data.get("chips") or []:
             self.assertIn(chip.get("kind"), ("held", "consider"))
-            if chip.get("kind") == "held":
+            self.assertEqual(chip.get("weight_basis"), "new_money_consider_share")
+            if chip.get("sleeve") == "btc_digital_credit":
                 self.assertEqual(chip.get("lane"), "above")
-            else:
+            elif chip.get("sleeve") == "stocks_growth":
                 self.assertEqual(chip.get("lane"), "below")
+            if chip.get("held"):
+                self.assertEqual(chip.get("kind"), "held")
+            else:
+                self.assertEqual(chip.get("kind"), "consider")
 
         page_code, page_body = self._get("/financial-command/bias-spectrum")
         self.assertEqual(page_code, 200)
         self.assertIn(b"<h1>Bias Spectrum</h1>", page_body)
         self.assertIn(b'data-layout="two_lane"', page_body)
+        self.assertIn(b"new-money consider-share", page_body)
 
     def test_health_lists_feature(self) -> None:
         code, body = self._get("/api/health")
@@ -130,6 +141,7 @@ class TestBiasSpectrumApi(unittest.TestCase):
         payload = build_bias_spectrum(fund_manager={"ok": False}, treasury={})
         self.assertEqual(payload["title"], "Bias Spectrum")
         self.assertEqual(payload["axis"]["layout"], "two_lane")
+        self.assertEqual(payload["axis"]["unit"], "new_money_consider_share_pct")
 
 
 if __name__ == "__main__":
