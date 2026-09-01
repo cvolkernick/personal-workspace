@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-09-01T02:12:25.232085+00:00",
+  "as_of": "2026-09-01T05:15:33.948392+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-09-01T02:12:25.232080+00:00",
-    "total_value": 258.392949203,
-    "equity_value": 258.302949203,
+    "as_of": "2026-09-01T05:15:33.948388+00:00",
+    "total_value": 259.024119913,
+    "equity_value": 258.934119913,
     "cash": 0.09,
     "buying_power": 0.09,
     "unleveraged_buying_power": 0.09,
@@ -160,7 +160,7 @@
       {
         "symbol": "RIOT",
         "quantity": "0.265577",
-        "intraday_quantity": "0.265577",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "18.830000",
         "shares_available_for_sells": "0.265577",
         "shares_held_for_sells": "0.000000",
@@ -173,7 +173,7 @@
       {
         "symbol": "WULF",
         "quantity": "0.327868",
-        "intraday_quantity": "0.327868",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "15.250000",
         "shares_available_for_sells": "0.327868",
         "shares_held_for_sells": "0.000000",
@@ -186,7 +186,7 @@
       {
         "symbol": "BE",
         "quantity": "0.071811",
-        "intraday_quantity": "0.071811",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "208.880000",
         "shares_available_for_sells": "0.071811",
         "shares_held_for_sells": "0.000000",

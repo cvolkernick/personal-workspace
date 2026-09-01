@@ -25,8 +25,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "258.392949203",
-      "equity_value": "258.302949203",
+      "total_value": "259.024119913",
+      "equity_value": "258.934119913",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -217,7 +217,7 @@
     {
       "symbol": "RIOT",
       "quantity": "0.265577",
-      "intraday_quantity": "0.265577",
+      "intraday_quantity": "0.000000",
       "average_buy_price": "18.830000",
       "shares_available_for_sells": "0.265577",
       "shares_held_for_sells": "0.000000",
@@ -230,7 +230,7 @@
     {
       "symbol": "WULF",
       "quantity": "0.327868",
-      "intraday_quantity": "0.327868",
+      "intraday_quantity": "0.000000",
       "average_buy_price": "15.250000",
       "shares_available_for_sells": "0.327868",
       "shares_held_for_sells": "0.000000",
@@ -243,7 +243,7 @@
     {
       "symbol": "BE",
       "quantity": "0.071811",
-      "intraday_quantity": "0.071811",
+      "intraday_quantity": "0.000000",
       "average_buy_price": "208.880000",
       "shares_available_for_sells": "0.071811",
       "shares_held_for_sells": "0.000000",
