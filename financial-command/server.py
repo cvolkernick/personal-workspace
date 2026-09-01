@@ -1191,6 +1191,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Accepted for systemd parity with other dashboards; bind is --host",
+    )
+    parser.add_argument(
         "--offline",
         action="store_true",
         help="Initial boot refresh offline only (does not force all POSTs offline)",
