@@ -68,7 +68,8 @@ def main(argv: list[str] | None = None) -> int:
         "evaluation": result,
     }
     overlay_solana_snapshot(out)
-    overlay_morpho_position_onto_treasury(out, prefer_live=False)
+    overlay_morpho_position_onto_treasury(out, prefer_live=False, config=cfg)
+    result = out.get("evaluation") or result
     save_json(args.out, out)
     # Also publish to financial-command UI path
     dash_out = ROOT / "financial-command" / "treasury_latest.json"
