@@ -55,6 +55,12 @@
       "unit": "auto-fleet.service",
       "service_key": "auto-fleet",
       "only": "auto-fleet"
+    },
+    {
+      "prefixes": ["oomwoo/"],
+      "unit": "oomwoo-dashboard.service",
+      "service_key": "oomwoo",
+      "only": "oomwoo"
     }
   ],
   "shared_auto": {

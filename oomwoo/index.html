@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>OOMWOO status</title>
+  <style>
+    :root {
+      --bg: #0c1014;
+      --panel: #151b22;
+      --border: #243040;
+      --text: #e8eef4;
+      --muted: #8b9db0;
+      --amber: #f0b429;
+      --green: #3dd68c;
+      --blue: #6cb6ff;
+      --ready: #9aa8b8;
+      --chip: #1b2430;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 420px at 8% -10%, #2a2110 0%, transparent 55%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    a { color: var(--amber); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: rgba(12,16,20,0.92);
+      backdrop-filter: blur(8px);
+      z-index: 20;
+    }
+    header h1 { margin: 0; font-size: 1.15rem; letter-spacing: 0.14em; font-weight: 700; }
+    header .sub { color: var(--muted); font-size: 0.85rem; }
+    button {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 0.4rem 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--amber); color: var(--amber); }
+    main { max-width: 1180px; margin: 0 auto; padding: 1rem 1.15rem 3rem; }
+    .hero {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 1rem;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .hero img {
+      width: 160px;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 10px;
+      background: #0a0d10;
+    }
+    .kpis { display: flex; flex-wrap: wrap; gap: 0.7rem 1.2rem; margin: 0.35rem 0 0; }
+    .kpi { font-size: 0.9rem; }
+    .kpi b { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+    .bars { display: grid; gap: 0.35rem; margin-top: 0.7rem; }
+    .bar-row { display: grid; grid-template-columns: 110px 1fr 48px; gap: 0.5rem; align-items: center; font-size: 0.8rem; color: var(--muted); }
+    .bar { height: 8px; background: #0f151c; border-radius: 99px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; border-radius: 99px; }
+    .bar.done > span { background: var(--green); }
+    .bar.wip > span { background: var(--blue); }
+    .bar.deliv > span { background: var(--amber); }
+    .kanban {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    .col {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem;
+      min-width: 0;
+    }
+    .col h2 { margin: 0 0 0.55rem; font-size: 0.92rem; }
+    .col.done h2 { color: var(--green); }
+    .col.wip h2 { color: var(--blue); }
+    .col.ready h2 { color: var(--ready); }
+    .mod {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.55rem 0.65rem;
+      margin-bottom: 0.45rem;
+      background: #10161d;
+    }
+    .mod h3 { margin: 0 0 0.2rem; font-size: 0.88rem; font-weight: 650; }
+    .mod p { margin: 0; font-size: 0.78rem; color: var(--muted); }
+    .chip {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--chip);
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+    }
+    .card h2 { margin: 0 0 0.55rem; font-size: 0.95rem; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { padding: 0.35rem 0; border-bottom: 1px solid #1c2733; font-size: 0.86rem; }
+    li:last-child { border-bottom: 0; }
+    .check { color: var(--green); font-weight: 700; }
+    .todo { color: var(--muted); }
+    .err { color: #ff8b8b; font-size: 0.85rem; }
+    .links { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.8rem; }
+    .links a {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.2rem 0.65rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--chip);
+    }
+    .meta { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.8rem; }
+    @media (max-width: 860px) {
+      .hero, .kanban, .grid2 { grid-template-columns: 1fr; }
+      .hero img { width: 100%; height: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>OOMWOO</h1>
+      <div class="sub">Open-source robot vacuum · project status</div>
+    </div>
+    <div>
+      <button type="button" id="refresh">Refresh</button>
+    </div>
+  </header>
+  <main>
+    <p class="meta" id="meta">Loading makerspet/oomwoo…</p>
+    <div id="errors"></div>
+    <section class="hero">
+      <img src="https://raw.githubusercontent.com/makerspet/oomwoo/main/assets/vacuum_model_top.webp" alt="OOMWOO reference model" />
+      <div>
+        <div class="sub" id="desc">Open-source vacuum robot cleaner</div>
+        <div class="kpis" id="kpis"></div>
+        <div class="bars" id="bars"></div>
+        <div class="links" id="links"></div>
+      </div>
+    </section>
+    <section class="kanban" id="kanban"></section>
+    <section class="grid2">
+      <div class="card">
+        <h2>Open-source deliverables</h2>
+        <ul id="deliverables"></ul>
+      </div>
+      <div class="card">
+        <h2>v0 target</h2>
+        <ul id="v0"></ul>
+        <h2 style="margin-top:1rem">Related repos</h2>
+        <ul id="related"></ul>
+      </div>
+    </section>
+    <section class="grid2" style="margin-top:0.75rem">
+      <div class="card">
+        <h2>Open issues &amp; PRs</h2>
+        <ul id="issues"></ul>
+      </div>
+      <div class="card">
+        <h2>Recent commits</h2>
+        <ul id="commits"></ul>
+      </div>
+    </section>
+  </main>
+  <script>
+    const STATUS_LABEL = {
+      done: "Done / mostly complete",
+      in_progress: "In progress",
+      ready: "Ready to start",
+    };
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function ago(iso) {
+      if (!iso) return "";
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return iso;
+      const sec = Math.round((Date.now() - t) / 1000);
+      if (sec < 90) return "just now";
+      if (sec < 3600) return Math.round(sec / 60) + "m ago";
+      if (sec < 86400) return Math.round(sec / 3600) + "h ago";
+      const d = Math.round(sec / 86400);
+      return d + "d ago";
+    }
+
+    function n(x) {
+      return Number(x || 0).toLocaleString();
+    }
+
+    function pct(num, den) {
+      if (!den) return 0;
+      return Math.round((100 * num) / den);
+    }
+
+    function moduleUrl(mod) {
+      if (!mod.url) return "";
+      if (/^https?:/i.test(mod.url)) return mod.url;
+      const path = String(mod.url).replace(/^\.\//, "");
+      return "https://github.com/makerspet/oomwoo/tree/main/" + path;
+    }
+
+    function renderModules(modules) {
+      const groups = { done: [], in_progress: [], ready: [] };
+      for (const m of modules || []) {
+        const key = groups[m.status] ? m.status : "ready";
+        groups[key].push(m);
+      }
+      const col = (key, cls) => {
+        const items = groups[key] || [];
+        const body = items.map((m) => {
+          const href = moduleUrl(m);
+          const title = href
+            ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(m.title)}</a>`
+            : esc(m.title);
+          const id = m.id ? `<span class="chip">${esc(m.id)}</span>` : "";
+          return `<article class="mod">${id}<h3>${title}</h3><p>${esc(m.notes || m.status_label || "")}</p></article>`;
+        }).join("") || `<p class="muted">None</p>`;
+        return `<div class="col ${cls}"><h2>${STATUS_LABEL[key]} · ${items.length}</h2>${body}</div>`;
+      };
+      document.getElementById("kanban").innerHTML =
+        col("done", "done") + col("in_progress", "wip") + col("ready", "ready");
+    }
+
+    function render(data) {
+      const hub = data.hub || {};
+      const p = data.progress || {};
+      document.getElementById("desc").textContent = hub.description || "Open-source robot vacuum";
+      const human = data.last_human_commit;
+      document.getElementById("meta").textContent =
+        (hub.full_name || "makerspet/oomwoo") +
+        " · fetched " + ago(data.fetched_at) +
+        (human ? " · last human commit " + ago(human.date) + " (" + human.author + ")" : "");
+      document.getElementById("kpis").innerHTML = [
+        ["Stars", n(hub.stars)],
+        ["Forks", n(hub.forks)],
+        ["Open issues", n(hub.open_issues)],
+        ["Pushed", ago(hub.pushed_at)],
+      ].map(([k, v]) => `<div class="kpi"><b>${esc(v)}</b><div class="muted">${esc(k)}</div></div>`).join("");
+
+      const mDone = p.modules_done || 0;
+      const mWip = p.modules_in_progress || 0;
+      const mTot = p.modules_total || 0;
+      const dDone = p.deliverables_done || 0;
+      const dTot = p.deliverables_total || 0;
+      document.getElementById("bars").innerHTML = `
+        <div class="bar-row"><span>Modules done</span><div class="bar done"><span style="width:${pct(mDone, mTot)}%"></span></div><span>${mDone}/${mTot}</span></div>
+        <div class="bar-row"><span>In progress</span><div class="bar wip"><span style="width:${pct(mWip, mTot)}%"></span></div><span>${mWip}/${mTot}</span></div>
+        <div class="bar-row"><span>Deliverables</span><div class="bar deliv"><span style="width:${pct(dDone, dTot)}%"></span></div><span>${dDone}/${dTot}</span></div>`;
+
+      document.getElementById("links").innerHTML = (data.links || []).map((l) =>
+        `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`
+      ).join("");
+
+      renderModules(data.modules);
+
+      document.getElementById("deliverables").innerHTML = (data.deliverables || []).map((d) => {
+        const mark = d.done ? '<span class="check">✓</span>' : '<span class="todo">○</span>';
+        const title = d.url
+          ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>`
+          : esc(d.title);
+        return `<li>${mark} ${title}</li>`;
+      }).join("") || "<li class='muted'>No deliverables parsed</li>";
+
+      document.getElementById("v0").innerHTML = (data.v0 || []).map((x) => `<li>${esc(x)}</li>`).join("")
+        || "<li class='muted'>None</li>";
+
+      document.getElementById("related").innerHTML = (data.related || [])
+        .filter((r) => r.full_name !== hub.full_name)
+        .map((r) => `<li><a href="${esc(r.html_url)}" target="_blank" rel="noopener">${esc(r.full_name)}</a>
+          <div class="muted">${n(r.stars)}★ · pushed ${esc(ago(r.pushed_at))} · ${esc(r.description || "")}</div></li>`)
+        .join("") || "<li class='muted'>None</li>";
+
+      const issues = (data.issues || []).map((i) =>
+        `<li><a href="${esc(i.html_url)}" target="_blank" rel="noopener">#${esc(i.number)} ${esc(i.title)}</a>
+          <div class="muted">issue · ${esc(i.user)} · ${esc(ago(i.updated_at))}</div></li>`);
+      const pulls = (data.pulls || []).map((i) =>
+        `<li><a href="${esc(i.html_url)}" target="_blank" rel="noopener">#${esc(i.number)} ${esc(i.title)}</a>
+          <div class="muted">PR · ${esc(i.user)} · ${esc(ago(i.updated_at))}</div></li>`);
+      document.getElementById("issues").innerHTML = (pulls.concat(issues).join("") || "<li class='muted'>None open</li>");
+
+      document.getElementById("commits").innerHTML = (data.commits || []).map((c) =>
+        `<li><a href="${esc(c.html_url)}" target="_blank" rel="noopener">${esc(c.sha)}</a> ${esc(c.message)}
+          <div class="muted">${esc(c.author)}${c.bot ? " · bot" : ""} · ${esc(ago(c.date))}</div></li>`
+      ).join("") || "<li class='muted'>None</li>";
+
+      const err = document.getElementById("errors");
+      if (data.errors && data.errors.length) {
+        err.innerHTML = data.errors.map((e) => `<p class="err">${esc(e)}</p>`).join("");
+      } else {
+        err.innerHTML = "";
+      }
+    }
+
+    async function load(refresh) {
+      const url = refresh ? "/api/status?refresh=1" : "/api/status";
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok && !data.hub) throw new Error(data.error || res.status);
+      render(data);
+    }
+
+    document.getElementById("refresh").addEventListener("click", () => {
+      load(true).catch((e) => {
+        document.getElementById("meta").textContent = String(e);
+      });
+    });
+    load(false).catch((e) => {
+      document.getElementById("meta").textContent = "Failed to load: " + e;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "ok": true,
+  "service": "oomwoo",
+  "fetched_at": "2026-09-01T19:00:00Z",
+  "hub": {
+    "full_name": "makerspet/oomwoo",
+    "description": "Open-source vacuum robot cleaner",
+    "html_url": "https://github.com/makerspet/oomwoo",
+    "homepage": "https://oomwoo.com",
+    "stars": 10039,
+    "forks": 598,
+    "open_issues": 3,
+    "pushed_at": "2026-08-31T06:53:23Z",
+    "updated_at": "2026-09-01T18:45:21Z",
+    "language": "Python",
+    "default_branch": "main",
+    "topics": ["ros2", "vacuum-robot"],
+    "license": "Apache-2.0",
+    "archived": false
+  },
+  "progress": {
+    "modules_total": 7,
+    "modules_done": 3,
+    "modules_in_progress": 3,
+    "modules_ready": 1,
+    "modules_unknown": 0,
+    "module_score": 0.643,
+    "deliverables_total": 10,
+    "deliverables_done": 4
+  },
+  "modules": [
+    {"title": "ROS2 URDF + Gazebo sim", "id": "urdf-gazebo-sim", "url": "./contributions/urdf-gazebo-sim", "status_label": "Mostly complete", "status": "done", "notes": "Placeholder URDF"},
+    {"title": "First clean", "id": "clean-and-map", "url": "./contributions/clean-and-map", "status_label": "In progress", "status": "in_progress", "notes": "SLAM"},
+    {"title": "Dock cycle", "id": "dock-cycle", "url": "./contributions/dock-cycle", "status_label": "Ready to start work", "status": "ready", "notes": "Undock"}
+  ],
+  "deliverables": [
+    {"title": "Software development environment", "done": true, "url": "https://github.com/makerspet/oomwoo-install"},
+    {"title": "Demo video(s)", "done": false, "url": ""}
+  ],
+  "v0": ["3D-printed chassis", "ROS2 Gazebo sim"],
+  "related": [
+    {"full_name": "makerspet/oomwoo-pcb", "description": "I/O board", "html_url": "https://github.com/makerspet/oomwoo-pcb", "stars": 32, "forks": 11, "open_issues": 0, "pushed_at": "2026-09-01T07:46:34Z", "language": "HTML", "homepage": "", "updated_at": "", "default_branch": "main", "topics": [], "license": "Apache-2.0", "archived": false}
+  ],
+  "issues": [
+    {"number": 18, "title": "Evaluate Rust and MCU split", "html_url": "https://github.com/makerspet/oomwoo/issues/18", "user": "xbattlax", "updated_at": "2026-08-30T05:13:34Z", "labels": ["Discussion"], "draft": false}
+  ],
+  "pulls": [
+    {"number": 60, "title": "feat(observability): Phase-0 baseline", "html_url": "https://github.com/makerspet/oomwoo/pull/60", "user": "yueqin22", "updated_at": "2026-08-28T22:00:26Z", "labels": [], "draft": false}
+  ],
+  "commits": [
+    {"sha": "fd9d9f1", "html_url": "https://github.com/makerspet/oomwoo/commit/fd9d9f1", "message": "Merge pull request #61", "author": "makers-pet", "date": "2026-08-30T05:14:15Z", "bot": false}
+  ],
+  "last_human_commit": {"sha": "fd9d9f1", "html_url": "https://github.com/makerspet/oomwoo/commit/fd9d9f1", "message": "Merge pull request #61", "author": "makers-pet", "date": "2026-08-30T05:14:15Z", "bot": false},
+  "links": [{"label": "GitHub", "url": "https://github.com/makerspet/oomwoo"}],
+  "errors": [],
+  "note": "fixture"
+}
