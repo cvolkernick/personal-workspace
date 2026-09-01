@@ -19,6 +19,7 @@ from treasury.financial_advisor import (
     parse_grok_login_output,
     reset_grok_login_state,
     start_grok_login,
+    _which_grok,
 )
 
 
@@ -141,6 +142,20 @@ class GrokLoginCliTests(unittest.TestCase):
         )
         self.assertIsNone(parsed["verification_uri"])
         self.assertEqual(parsed["user_code"], "ABCD-WXYZ")
+
+    def test_which_grok_finds_home_install_when_not_on_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            grok = home / ".grok" / "bin" / "grok"
+            grok.parent.mkdir(parents=True)
+            grok.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            grok.chmod(grok.stat().st_mode | stat.S_IEXEC)
+            os.environ.pop("FCC_GROK_BIN", None)
+            with (
+                mock.patch("treasury.financial_advisor.Path.home", return_value=home),
+                mock.patch("treasury.financial_advisor.shutil.which", return_value=None),
+            ):
+                self.assertEqual(_which_grok(), str(grok))
 
     def test_start_fails_when_grok_missing(self) -> None:
         reset_grok_login_state()
