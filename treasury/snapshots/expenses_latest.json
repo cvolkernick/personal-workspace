@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-09-01T14:14:57.388460+00:00",
+  "as_of": "2026-09-01T17:17:17.502941+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -24,12 +24,12 @@
       "role": "upcoming_expense_estimates",
       "item_count": 29,
       "totals": {
-        "daily": 481.55,
-        "weekly": 3370.82,
-        "biweekly": 6741.64,
-        "monthly": 14646.58,
-        "annually": 58937.92,
-        "quarterly": 25117.73
+        "daily": 481.6,
+        "weekly": 3371.19,
+        "biweekly": 6742.39,
+        "monthly": 14645.74,
+        "annually": 58927.92,
+        "quarterly": 25115.23
       },
       "items": [
         {
@@ -151,19 +151,6 @@
         },
         {
           "date": "9/10/2026",
-          "from": "Coinbase",
-          "item": "Tha\u00eds",
-          "daily": 29.59,
-          "weekly": 207.12,
-          "biweekly": 414.25,
-          "monthly": 900.0,
-          "annually": 10800.0,
-          "budget_allocation": null,
-          "quarterly": 2700.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/10/2026",
           "from": "X Money",
           "item": "Robinhood Gold",
           "daily": 0.14,
@@ -173,6 +160,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/11/2026",
+          "from": "Coinbase",
+          "item": "Tha\u00eds",
+          "daily": 29.64,
+          "weekly": 207.5,
+          "biweekly": 415.0,
+          "monthly": 899.17,
+          "annually": 10790.0,
+          "budget_allocation": null,
+          "quarterly": 2697.5,
           "tab": "Essential"
         },
         {
@@ -411,7 +411,7 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13523.9,
+        "Coinbase": 13523.07,
         "X Money": 1122.68
       },
       "top_monthly": [
@@ -465,9 +465,9 @@
         },
         {
           "item": "Tha\u00eds",
-          "monthly": 900.0,
+          "monthly": 899.17,
           "from": "Coinbase",
-          "date": "9/10/2026",
+          "date": "9/11/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -594,11 +594,11 @@
           "tab": "Essential"
         },
         {
-          "date": "9/10/2026",
+          "date": "9/11/2026",
           "item": "Tha\u00eds",
           "from": "Coinbase",
-          "monthly": 900.0,
-          "weekly": 207.12,
+          "monthly": 899.17,
+          "weekly": 207.5,
           "tab": "Essential"
         },
         {
@@ -963,13 +963,25 @@
       "role": "collateral_investments",
       "item_count": 3,
       "totals": {
-        "daily": 22.98,
-        "weekly": 160.89,
-        "biweekly": 321.78,
-        "monthly": 697.2,
-        "annually": 8366.4
+        "daily": 22.65,
+        "weekly": 158.58,
+        "biweekly": 317.17,
+        "monthly": 687.2,
+        "annually": 8246.4
       },
       "items": [
+        {
+          "item": "ASIC Fleet OpEx",
+          "date": "9/1/2026",
+          "daily": 14.08,
+          "weekly": 98.58,
+          "biweekly": 197.17,
+          "monthly": 427.2,
+          "annually": 5126.4,
+          "from": "X Money",
+          "to": null,
+          "tab": "Collateral"
+        },
         {
           "item": "Agentic Fund Allocation",
           "date": "9/7/2026",
@@ -983,20 +995,8 @@
           "tab": "Collateral"
         },
         {
-          "item": "ASIC Fleet OpEx",
-          "date": "9/1/2026",
-          "daily": 14.41,
-          "weekly": 100.89,
-          "biweekly": 201.78,
-          "monthly": 437.2,
-          "annually": 5246.4,
-          "from": "X Money",
-          "to": null,
-          "tab": "Collateral"
-        },
-        {
           "item": "JR-strcUSX Allocation",
-          "date": "9/1/2026",
+          "date": "9/11/2026",
           "daily": 5.0,
           "weekly": 35.0,
           "biweekly": 70.0,
@@ -1010,7 +1010,7 @@
       "top_targets": [
         {
           "item": "ASIC Fleet OpEx",
-          "monthly": 437.2,
+          "monthly": 427.2,
           "from": "X Money",
           "date": "9/1/2026",
           "budget_allocation": null,
@@ -1020,7 +1020,7 @@
           "item": "JR-strcUSX Allocation",
           "monthly": 151.67,
           "from": "X Money",
-          "date": "9/1/2026",
+          "date": "9/11/2026",
           "budget_allocation": null,
           "tab": "Collateral"
         },
@@ -1036,7 +1036,7 @@
       "top_monthly": [
         {
           "item": "ASIC Fleet OpEx",
-          "monthly": 437.2,
+          "monthly": 427.2,
           "from": "X Money",
           "date": "9/1/2026",
           "budget_allocation": null,
@@ -1046,7 +1046,7 @@
           "item": "JR-strcUSX Allocation",
           "monthly": 151.67,
           "from": "X Money",
-          "date": "9/1/2026",
+          "date": "9/11/2026",
           "budget_allocation": null,
           "tab": "Collateral"
         },
@@ -1297,12 +1297,12 @@
       "role": "upcoming_expense_estimates",
       "item_count": 29,
       "totals": {
-        "daily": 481.55,
-        "weekly": 3370.82,
-        "biweekly": 6741.64,
-        "monthly": 14646.58,
-        "annually": 58937.92,
-        "quarterly": 25117.73
+        "daily": 481.6,
+        "weekly": 3371.19,
+        "biweekly": 6742.39,
+        "monthly": 14645.74,
+        "annually": 58927.92,
+        "quarterly": 25115.23
       },
       "items": [
         {
@@ -1424,19 +1424,6 @@
         },
         {
           "date": "9/10/2026",
-          "from": "Coinbase",
-          "item": "Tha\u00eds",
-          "daily": 29.59,
-          "weekly": 207.12,
-          "biweekly": 414.25,
-          "monthly": 900.0,
-          "annually": 10800.0,
-          "budget_allocation": null,
-          "quarterly": 2700.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/10/2026",
           "from": "X Money",
           "item": "Robinhood Gold",
           "daily": 0.14,
@@ -1446,6 +1433,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/11/2026",
+          "from": "Coinbase",
+          "item": "Tha\u00eds",
+          "daily": 29.64,
+          "weekly": 207.5,
+          "biweekly": 415.0,
+          "monthly": 899.17,
+          "annually": 10790.0,
+          "budget_allocation": null,
+          "quarterly": 2697.5,
           "tab": "Essential"
         },
         {
@@ -1684,7 +1684,7 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13523.9,
+        "Coinbase": 13523.07,
         "X Money": 1122.68
       },
       "top_monthly": [
@@ -1738,9 +1738,9 @@
         },
         {
           "item": "Tha\u00eds",
-          "monthly": 900.0,
+          "monthly": 899.17,
           "from": "Coinbase",
-          "date": "9/10/2026",
+          "date": "9/11/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1867,11 +1867,11 @@
           "tab": "Essential"
         },
         {
-          "date": "9/10/2026",
+          "date": "9/11/2026",
           "item": "Tha\u00eds",
           "from": "Coinbase",
-          "monthly": 900.0,
-          "weekly": 207.12,
+          "monthly": 899.17,
+          "weekly": 207.5,
           "tab": "Essential"
         },
         {
@@ -2130,32 +2130,32 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 20221.63,
-    "essential_monthly": 14646.58,
-    "personal_monthly": 14646.58,
-    "personal_daily": 481.55,
-    "essential_daily": 481.55,
-    "personal_weekly": 3370.82,
-    "personal_annually": 58937.92,
+    "upcoming_expense_monthly": 20220.79,
+    "essential_monthly": 14645.74,
+    "personal_monthly": 14645.74,
+    "personal_daily": 481.6,
+    "essential_daily": 481.6,
+    "personal_weekly": 3371.19,
+    "personal_annually": 58927.92,
     "fleet_monthly": 5575.05,
     "fleet_daily": 185.52,
     "fleet_annually": 28117.57,
-    "collateral_investments_monthly": 697.2,
-    "collateral_monthly": 697.2,
+    "collateral_investments_monthly": 687.2,
+    "collateral_monthly": 687.2,
     "capital_targets_monthly": 3000.0,
     "productive_discretionary_monthly": 3000.0,
     "discretionary_monthly": 3000.0,
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 20221.63,
-    "combined_daily": 667.08,
+    "combined_monthly": 20220.79,
+    "combined_daily": 667.13,
     "by_source_monthly": {
-      "Coinbase": 13523.9,
+      "Coinbase": 13523.07,
       "X Money": 5347.73,
       "NFCU (Zelle)": 1350.0
     },
-    "coinbase_funded_monthly": 13523.9,
+    "coinbase_funded_monthly": 13523.07,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
     "x_money_funded_monthly": 5347.73
