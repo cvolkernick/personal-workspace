@@ -69,6 +69,10 @@ class TestFccPwaFiles(unittest.TestCase):
         self.assertTrue(sizes["512x512"].startswith("/"))
         self.assertFalse(sizes["192x192"].startswith("/api/"))
 
+    def test_server_accepts_systemd_local_flag(self) -> None:
+        src = (FCC / "server.py").read_text(encoding="utf-8")
+        self.assertIn('"--local"', src)
+
     def test_sw_never_caches_api_or_json(self) -> None:
         src = (FCC / "sw.js").read_text(encoding="utf-8")
         self.assertIn('url.pathname.startsWith("/api/")', src)
