@@ -16,7 +16,9 @@ http://localhost:8798/
 
 API: `/api/health` · `/api/status` · `/api/status?refresh=1`
 
-Optional `GITHUB_TOKEN` / `GH_TOKEN` raises the GitHub rate limit. Unauthenticated works; responses cache for 3 minutes.
+Optional `GITHUB_TOKEN` / `GH_TOKEN` raises the GitHub rate limit. Unauthenticated works; Pi responses cache for 3 minutes.
+
+Public HTTPS (Vercel, edge-cached ~15 min): project `oomwoo`, root `oomwoo/`. Local Pi on :8798 is still prod for the house.
 
 ## What it shows
 

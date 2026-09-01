@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/api/status", "destination": "/api?_r=status" },
+    { "source": "/api/health", "destination": "/api?_r=health" },
+    { "source": "/api/status/:path*", "destination": "/api?_r=status" }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 15,
+      "includeFiles": "{status.py,ghclient.py,parse.py,__init__.py}"
+    }
+  }
+}
