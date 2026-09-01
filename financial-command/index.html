@@ -50,6 +50,7 @@
     }
     .broker-links {
       display: flex;
+      flex-wrap: wrap;
       justify-content: flex-end;
       align-items: center;
       gap: 0.35rem;
@@ -2172,6 +2173,7 @@
       <a class="broker-link" href="https://www.coinbase.com/home" id="nav-coinbase" target="_blank" rel="noopener noreferrer" title="Open Coinbase">Coinbase</a>
       <a class="broker-link" href="https://robinhood.com/" id="nav-robinhood" target="_blank" rel="noopener noreferrer" title="Open Robinhood">Robinhood</a>
       <a class="broker-link" href="https://docs.google.com/spreadsheets/d/15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ/edit" id="nav-expenses" target="_blank" rel="noopener noreferrer" title="Open personal expense spreadsheet">Expenses</a>
+      <a class="broker-link" href="http://127.0.0.1:8796/" id="link-fleet-chip" data-nav-fleet title="Auto Fleet ops (same host :8796)">Fleet</a>
     </div>
     <div class="row">
       <div>
@@ -2416,6 +2418,13 @@
       </div>
     </details>
 
+    <details class="panel" id="fleet-card" data-m-panel="more">
+      <summary>Fleet dashboard <a class="btn" href="http://127.0.0.1:8796/" id="link-fleet-full" data-nav-fleet style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
+      <div class="body">
+        <p class="hint">Auto Fleet ops on this host :8796. Separate service — not a tab inside FCC.</p>
+      </div>
+    </details>
+
     <details class="panel" id="watchlist-preview-card" data-m-panel="more">
       <summary>Watchlist research <a class="btn" href="watchlist.html" id="link-watchlist-full" style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
       <div class="body">
@@ -2543,6 +2552,7 @@
     <a href="watchlist.html">watchlist research</a> ·
     <a href="capital-flows.html">Capital Flows</a> ·
     <a href="interest-spectrum.html">Interest Spectrum</a> ·
+    <a href="http://127.0.0.1:8796/" id="link-fleet-footer" data-nav-fleet>Fleet</a> ·
     <a href="../investment/treasury-action-items.md">action items</a> ·
     <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
     ·
