@@ -532,9 +532,9 @@ def _capital_flows_payload() -> dict:
 
 
 def _root_fcc_js_remap(path: str) -> str | None:
-    """Map GET /foo.js → /financial-command/foo.js when that sibling exists.
+    """Map /foo.js → /financial-command/foo.js when that sibling exists.
 
-    Live FCC is served with directory=ROOT. GET / remaps to
+    Live FCC is served with directory=ROOT. GET/HEAD / remaps to
     /financial-command/index.html, so relative <script src="nav-fleet.js">
     hits /nav-fleet.js (404) unless we remap — same hole as /favicon.ico.
     Only a basename under financial-command/ is eligible (no path traversal).
@@ -783,6 +783,21 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e), "phase": "fail"})
             return
+        self._remap_static_path()
+        return super().do_GET()
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        # Android / Chromium A2HS probes manifest, SW, and icons with HEAD.
+        # GET remaps origin aliases onto financial-command/; HEAD used to skip
+        # that and 404 (or serve the workspace stub at /). FitDash HEAD matches GET
+        # because its document root actually has those files.
+        path = urlparse(self.path).path
+        if not path.startswith("/api/"):
+            self._remap_static_path()
+        return super().do_HEAD()
+
+    def _remap_static_path(self) -> None:
+        path = urlparse(self.path).path
         if path in ("/", "/financial-command", "/financial-command/"):
             self.path = "/financial-command/index.html"
         elif path in ("/financial-command/watchlist", "/financial-command/watchlist/"):
@@ -834,7 +849,6 @@ class FCCHandler(SimpleHTTPRequestHandler):
             remapped = _root_fcc_js_remap(path)
             if remapped:
                 self.path = remapped
-        return super().do_GET()
 
     def _load_treasury_payload(self) -> dict:
         p = ROOT / "financial-command" / "treasury_latest.json"

@@ -117,6 +117,19 @@ class TestFccPwaHttp(unittest.TestCase):
             ctype = exc.headers.get("Content-Type", "") if exc.headers else ""
             return exc.code, ctype, exc.read()
 
+    def _head(self, path: str) -> tuple[int, str, int]:
+        url = f"http://127.0.0.1:{self.port}{path}"
+        req = urllib.request.Request(url, method="HEAD")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                ctype = resp.headers.get("Content-Type", "")
+                clen = int(resp.headers.get("Content-Length") or 0)
+                return resp.status, ctype, clen
+        except urllib.error.HTTPError as exc:
+            ctype = exc.headers.get("Content-Type", "") if exc.headers else ""
+            clen = int(exc.headers.get("Content-Length") or 0) if exc.headers else 0
+            return exc.code, ctype, clen
+
     def test_prefixed_manifest_is_json_standalone(self) -> None:
         code, ctype, body = self._get("/financial-command/manifest.webmanifest")
         self.assertEqual(code, 200)
@@ -186,6 +199,46 @@ class TestFccPwaHttp(unittest.TestCase):
     def test_sw_allowed_header_is_origin(self) -> None:
         url = f"http://127.0.0.1:{self.port}/sw.js"
         with urllib.request.urlopen(url, timeout=5) as resp:
+            self.assertEqual(resp.headers.get("Service-Worker-Allowed"), "/")
+
+    def test_root_pwa_aliases_head_matches_get(self) -> None:
+        """Android A2HS probes HEAD. FitDash HEAD==GET; FCC HEAD used to 404."""
+        for path in (
+            "/",
+            "/manifest.webmanifest",
+            "/sw.js",
+            "/icon-192.png",
+            "/icon-512.png",
+            "/pwa.js",
+            "/nav-fleet.js",
+            "/nav-horizon.js",
+            "/favicon.svg",
+            "/favicon.ico",
+            "/favicon-32.png",
+            "/apple-touch-icon.png",
+        ):
+            get_code, get_ctype, get_body = self._get(path)
+            head_code, head_ctype, head_len = self._head(path)
+            self.assertEqual(get_code, 200, path)
+            self.assertEqual(head_code, 200, f"HEAD {path}")
+            self.assertEqual(head_len, len(get_body), f"HEAD Content-Length {path}")
+            self.assertEqual(
+                (head_ctype or "").split(";")[0].strip().lower(),
+                (get_ctype or "").split(";")[0].strip().lower(),
+                path,
+            )
+        head_code, _, head_len = self._head("/")
+        get_code, _, get_body = self._get("/")
+        self.assertEqual(head_code, 200)
+        self.assertEqual(get_code, 200)
+        self.assertEqual(head_len, len(get_body))
+        self.assertGreater(head_len, 10_000)
+
+    def test_head_sw_allowed_header_is_origin(self) -> None:
+        url = f"http://127.0.0.1:{self.port}/sw.js"
+        req = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            self.assertEqual(resp.status, 200)
             self.assertEqual(resp.headers.get("Service-Worker-Allowed"), "/")
 
 
