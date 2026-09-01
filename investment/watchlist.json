@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-31",
+  "as_of": "2026-09-01",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -50,7 +50,7 @@
       "last_deep_dive_path": "investment/research/BE_deep_dive.md",
       "last_verdict": "ready_consider_no_size_until_free_capital_fuel_cost_overlay",
       "next_catalyst": "Next earnings est. ~2026-10-27; winter 2028/29 HH strip >$6; documented DC fuel-cost/efficiency miss; or >25% drawdown",
-      "notes": "Post-Q2'26 refresh 2026-08-04. Smith/Chronometer reweight 2026-08-31 (Chris Orchestration 2b8d1eb2): BE burns NG/biogas \u2014 HH $8\u201310 is fuel-cost/TCO risk, not confirmation of the kit tape. Efficiency vs OCGT is a relative offset; Hunterbrook-class efficiency misses would amplify it. Turbine-slot scarcity cuts the other way (no GEV slot). Stays energy *equipment* seat; nuclear is now CCJ/BWXT. Not pass. Not auto-buy. No size while red-mode + dust BP. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/GOOGL) *when the question is equipment/speed-to-power*."
+      "notes": "Post-Q2'26 refresh 2026-08-04. Smith/Chronometer reweight 2026-08-31 (Chris Orchestration 2b8d1eb2): BE burns NG/biogas \u2014 HH $8\u201310 is fuel-cost/TCO risk, not confirmation of the kit tape. Efficiency vs OCGT is a relative offset; Hunterbrook-class efficiency misses would amplify it. Turbine-slot scarcity cuts the other way (no GEV slot). Stays energy *equipment* seat; nuclear is now CCJ/BWXT. Not pass. Not auto-buy. No size while red-mode + dust BP. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/GOOGL/PLTR) *when the question is equipment/speed-to-power*."
     },
     {
       "symbol": "GOOGL",
@@ -74,7 +74,7 @@
       "last_deep_dive_path": "investment/research/GOOGL_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Next earnings est. ~2026-10-28; FCF/capex guide",
-      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. First agentic seat filled 2026-08-24 ($14). Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/BE). Not promoted to core."
+      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. First agentic seat filled 2026-08-24 ($14). Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/BE/PLTR). Not promoted to core."
     },
     {
       "symbol": "AAPL",
@@ -97,8 +97,8 @@
       "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/AAPL_deep_dive.md",
       "last_verdict": "ready_consider",
-      "next_catalyst": "Next earnings est. ~2026-10-29; Services/iPhone guide \u2014 watch rank slightly below NVDA/GOOGL/BE peer set",
-      "notes": "Deep-dive 2026-08-04. Quality compounder; AI purity behind GOOGL/NVDA. Ready for consider set; not auto-buy. Owner preference 2026-08-23 via Grok/Meridian: relative watch priority slightly below the NVDA / GOOGL / BE top peer set \u2014 still ready/high consider-set, not equal-weight with those three. Not auto-buy."
+      "next_catalyst": "Next earnings est. ~2026-10-29; Services/iPhone guide \u2014 watch rank slightly below NVDA/GOOGL/BE/PLTR peer set",
+      "notes": "Deep-dive 2026-08-04. Quality compounder; AI purity behind GOOGL/NVDA. Ready for consider set; not auto-buy. Owner preference 2026-08-23 via Grok/Meridian: relative watch priority slightly below the NVDA / GOOGL / BE top peer set \u2014 still ready/high consider-set, not equal-weight with those three. Owner 2026-09-01 via Grok: peer set is now NVDA / GOOGL / BE / PLTR; AAPL still slightly below that quartet, still ready/high, not equal-weight. Not auto-buy."
     },
     {
       "symbol": "NVDA",
@@ -122,7 +122,7 @@
       "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Open-weight / model-factory follow-through + earnings est. ~2026-08-26 \u2014 event risk for any new size into print",
-      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. 2026-08-23 (Chris via Grok/Nakatoshi AC): NVDA investing in their own open-source/open-weight models — thesis: may reinforce core GPU franchise via vertical integration / industry lock-in. Note only; not a price target or position. Ready for consider set; not auto-buy. Not held. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with GOOGL/BE)."
+      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. 2026-08-23 (Chris via Grok/Nakatoshi AC): NVDA investing in their own open-source/open-weight models — thesis: may reinforce core GPU franchise via vertical integration / industry lock-in. Note only; not a price target or position. Ready for consider set; not auto-buy. Not held. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with GOOGL/BE/PLTR)."
     },
     {
       "symbol": "PLTR",
@@ -137,16 +137,16 @@
       ],
       "sleeve_if_owned": "stocks_growth",
       "status": "ready",
-      "priority": "medium",
+      "priority": "high",
       "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core.",
       "added": "2026-08-03",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
       "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/PLTR_deep_dive.md",
-      "last_verdict": "ready_consider_lower_priority",
+      "last_verdict": "ready_consider",
       "next_catalyst": "Next quarter print; commercial growth durability vs multiple",
-      "notes": "Deep-dive 2026-08-04. Ready for consider set at medium priority \u2014 high multiple + politics/gov gates. Behind mega-cap AI for scarce residual capital. Not auto-buy."
+      "notes": "Deep-dive 2026-08-04. Ready for consider set \u2014 high multiple + politics/gov gates remain. Owner 2026-09-01 via Grok: joins NVDA / GOOGL / BE top peer set for watch relative priority. Still not auto-buy. Still not held. No invent $. Flatten-only."
     },
     {
       "symbol": "EVGO",
