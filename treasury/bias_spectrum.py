@@ -771,7 +771,7 @@ def build_bias_spectrum(
             "Private watchlist stays off-axis.",
             *(
                 [
-                    "TSLA/SPCX 10% chips are consideration-list stamps (residual mix), "
+                    "TSLA/SPCX 15% chips are consideration-list stamps (residual mix), "
                     "not live NAV/sleeve targets and not orders. Flatten-only: no trim, "
                     "no top-up. Monday residual stays theme-gap."
                 ]
