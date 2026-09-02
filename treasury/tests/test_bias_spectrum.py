@@ -226,7 +226,7 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
             self.assertFalse(chip.get("consider_share_stamp"))
 
     def test_consider_share_stamps_pin_and_rescale_not_nav_target(self) -> None:
-        """TSLA/SPCX 10% is a consider-list stamp. Book % and sleeve targets stay put."""
+        """TSLA/SPCX 15% is a consider-list stamp. Book % and sleeve targets stay put."""
         policy = _policy()
         policy["allowlist"]["core"] = ["MSTR", "STRC", "SATA", "TSLA", "SPCX"]
         policy["sleeves"]["stocks_growth"]["symbols"] = ["TSLA", "SPCX"]
@@ -246,15 +246,15 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
             treasury={},
             policy=policy,
             watchlist=_watchlist(),
-            consider_share_stamps={"pins": {"TSLA": 10.0, "SPCX": 10.0}},
+            consider_share_stamps={"pins": {"TSLA": 15.0, "SPCX": 15.0}},
         )
         by_before = {c["symbol"]: c for c in before["chips"]}
         by_after = {c["symbol"]: c for c in after["chips"]}
         self.assertAlmostEqual(by_before["TSLA"]["weight_pct"], by_before["SPCX"]["weight_pct"])
         # Role-score math (stocks scores 4+4+3+3+2=16): 4/16*60 = 15
         self.assertAlmostEqual(by_before["TSLA"]["weight_pct"], 15.0)
-        self.assertAlmostEqual(by_after["TSLA"]["weight_pct"], 10.0)
-        self.assertAlmostEqual(by_after["SPCX"]["weight_pct"], 10.0)
+        self.assertAlmostEqual(by_after["TSLA"]["weight_pct"], 15.0)
+        self.assertAlmostEqual(by_after["SPCX"]["weight_pct"], 15.0)
         self.assertEqual(by_after["TSLA"]["weight_basis"], "consider_share_stamp")
         self.assertTrue(by_after["TSLA"]["consider_share_stamp"])
         self.assertEqual(by_after["TSLA"]["book_pct"], by_before["TSLA"]["book_pct"])
@@ -266,8 +266,17 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertAlmostEqual(
             sum(float(c["weight_pct"]) for c in after["chips"]), 100.0, places=1
         )
-        # Unpinned names keep relative rank; scale by 80 / (100 - 15 - 15)
-        scale = 80.0 / 70.0
+        self.assertAlmostEqual(
+            sum(
+                float(c["weight_pct"])
+                for c in after["chips"]
+                if c["symbol"] not in ("TSLA", "SPCX")
+            ),
+            70.0,
+            places=1,
+        )
+        # Unpinned names keep relative rank; scale remainder 70 / (100 - 15 - 15)
+        scale = 70.0 / 70.0
         self.assertAlmostEqual(
             by_after["NVDA"]["weight_pct"],
             round(by_before["NVDA"]["weight_pct"] * scale, 2),

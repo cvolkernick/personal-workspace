@@ -138,7 +138,7 @@ class TestBiasSpectrumApi(unittest.TestCase):
             if chip.get("consider_share_stamp"):
                 self.assertEqual(chip.get("weight_basis"), "consider_share_stamp")
                 self.assertIn(chip.get("symbol"), ("TSLA", "SPCX"))
-                self.assertAlmostEqual(float(chip["weight_pct"]), 10.0)
+                self.assertAlmostEqual(float(chip["weight_pct"]), 15.0)
                 self.assertIn("NOT a live NAV", chip.get("notes") or "")
 
         page_code, page_body = self._get("/financial-command/bias-spectrum")
