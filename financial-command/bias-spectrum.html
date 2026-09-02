@@ -210,6 +210,9 @@
         Inside a sleeve: STRC/SATA preferred-core &gt; other core &gt; watchlist
         high=3 · med=2 · low=1. Held is a badge; book % is annotation.
         Not an order ticket. Private names stay off this axis.
+        Pinned consider-share stamps (if any) are residual-mix preference —
+        not live NAV or sleeve targets, not something autopilot or Monday
+        residual can chase.
       </p>
       <div id="sleeve-legend"></div>
       <div class="axis-wrap">
@@ -300,7 +303,7 @@
     }
 
     function stackLanes(chips, maxPct) {
-      // Cluster by consider-share. Same-score names (STRC+SATA at 4.08%) share a
+      // Cluster by consider-share. Same-score names (e.g. STRC+SATA) share a
       // column. Neighboring scores must not steal lanes — the old 86px collision
       // shoved STRC off a 360px axis on mobile.
       const above = [];
