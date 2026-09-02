@@ -1,5 +1,5 @@
 {
-  "source_note": "Optional bi-annual/quarterly lab panels. Coach uses these as slow-changing context (not medical advice). Use snake_case marker keys with units in the name.",
+  "source_note": "Empty hook only. Upload lab PDFs in FitDash More → Labs. PHI is stored in ~/.config/resistance-dashboard/labs/, not this file.",
   "updated_at": "",
   "panels": []
 }
