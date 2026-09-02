@@ -246,6 +246,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         inventory_source_fields,
         load_preview_inventory,
     )
+    from rt_dashboard.labs_store import load_labs
     from rt_dashboard.nutrition_store import load_workspace_targets
     from rt_dashboard.grok_planner import dashboard_plan_slots
     from rt_dashboard.workout_store import (
@@ -345,6 +346,11 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         generated_plan,
         inventory,
     )
+    labs = load_labs(
+        user_id=str(user.get("id") or ""),
+        targets=targets,
+        as_of=today,
+    )
 
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
@@ -361,6 +367,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "meal_plan": meal_plan,
         "inventory_suggestions": inv_suggestions,
         "inventory_removals": inv_removals,
+        "labs": labs,
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,
         "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
@@ -507,6 +514,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             inventory_suggestions=inv_suggestions,
             inventory_removals=inv_removals,
             inventory_dark=not bool((inventory or {}).get("ingredients")),
+            labs=labs,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"coach: {type(exc).__name__}")

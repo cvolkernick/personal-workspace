@@ -71,6 +71,18 @@
     {
       "source": "/api/equipment/remove",
       "destination": "/api/dashboard?_r=eq_remove"
+    },
+    {
+      "source": "/api/labs/upload",
+      "destination": "/api/dashboard?_r=labs_upload"
+    },
+    {
+      "source": "/api/labs/delete",
+      "destination": "/api/dashboard?_r=labs_delete"
+    },
+    {
+      "source": "/api/labs",
+      "destination": "/api/dashboard?_r=labs"
     }
   ],
   "functions": {

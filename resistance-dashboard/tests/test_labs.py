@@ -101,6 +101,8 @@ class TestLabsStore(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["RESISTANCE_DASHBOARD_CONFIG_DIR"] = self.tmp.name
+        os.environ.pop("VERCEL", None)
+        os.environ.pop("VERCEL_ENV", None)
         self.addCleanup(self.tmp.cleanup)
         self.addCleanup(lambda: os.environ.pop("RESISTANCE_DASHBOARD_CONFIG_DIR", None))
 
@@ -263,6 +265,22 @@ class TestFlagContract(unittest.TestCase):
         # Same cluster helper is idempotent
         again = energy_availability_cluster(annotated["markers"], in_deficit=True)
         self.assertEqual(again["id"], "energy_availability")
+
+
+class TestVercelHobbyIsNotPhiStore(unittest.TestCase):
+    def test_save_panel_skips_disk_on_vercel(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        os.environ["RESISTANCE_DASHBOARD_CONFIG_DIR"] = tmp.name
+        os.environ["VERCEL"] = "1"
+        self.addCleanup(lambda: os.environ.pop("RESISTANCE_DASHBOARD_CONFIG_DIR", None))
+        self.addCleanup(lambda: os.environ.pop("VERCEL", None))
+        panel = parse_lab_text(RYTHM_TEXT)
+        labs = save_panel(panel, pdf_bytes=b"%PDF-1.3 fake")
+        self.assertEqual(labs.get("storage"), "memory")
+        self.assertEqual(len(labs["panels"]), 1)
+        self.assertEqual(list(Path(tmp.name).rglob("*.pdf")), [])
+        self.assertEqual(list(Path(tmp.name).rglob("index.json")), [])
 
 
 class TestPilotPdfOptional(unittest.TestCase):

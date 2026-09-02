@@ -133,6 +133,14 @@ _FORBIDDEN = re.compile(
 )
 
 
+def _ephemeral_host() -> bool:
+    """Vercel Hobby FS is not a PHI store. Durable path is Pi ~/.config."""
+    return bool(
+        (os.environ.get("VERCEL") or "").strip()
+        or (os.environ.get("VERCEL_ENV") or "").strip()
+    )
+
+
 def labs_root() -> Path:
     override = os.environ.get("FITDASH_LABS_DIR")
     if override:
@@ -422,6 +430,11 @@ def energy_availability_cluster(
 
 
 def _atomic_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
+    if _ephemeral_host():
+        raise RuntimeError(
+            "labs store is Pi ~/.config/resistance-dashboard/labs/; "
+            "Vercel Hobby FS is not a PHI store"
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.chmod(path.parent, 0o700)
@@ -490,8 +503,15 @@ def save_panel(
     if pdf_bytes:
         sha = hashlib.sha256(pdf_bytes).hexdigest()
         annotated["source_sha256"] = sha
-        pdf_path = _user_dir(user_id) / "files" / f"{sha}.pdf"
-        _atomic_write(pdf_path, pdf_bytes)
+        if not _ephemeral_host():
+            pdf_path = _user_dir(user_id) / "files" / f"{sha}.pdf"
+            _atomic_write(pdf_path, pdf_bytes)
+    if _ephemeral_host():
+        store = default_labs()
+        store["panels"] = [annotated]
+        store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        store["storage"] = "memory"
+        return store
     ident = _panel_identity(annotated)
     store = _load_index(user_id)
     panels = [p for p in store.get("panels") or [] if _panel_identity(p) != ident]
@@ -511,6 +531,11 @@ def delete_panel(
     order_id: str = "",
     user_id: str = "",
 ) -> dict:
+    if _ephemeral_host():
+        store = default_labs()
+        store["storage"] = "memory"
+        store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        return store
     store = _load_index(user_id)
     date_s = str(date)[:10]
     lab_s = str(lab or "").strip().lower()

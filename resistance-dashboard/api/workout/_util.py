@@ -33,10 +33,14 @@ _ROUTES = (
     "daily_tasks",
     "daily_tasks_complete",
     "agent_today",
+    "labs",
+    "labs_upload",
+    "labs_delete",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
 _EQ_ROUTES = ("eq_add", "eq_remove", "eq_update")
 _MEAL_ROUTES = ("meal_plan", "meal_generate")
+_LABS_WRITE_ROUTES = ("labs_upload", "labs_delete")
 
 
 def read_json(handler: BaseHTTPRequestHandler) -> dict:
@@ -104,6 +108,12 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "daily_tasks"
     if "/api/agent/today" in blob:
         return "agent_today"
+    if "/api/labs/upload" in blob:
+        return "labs_upload"
+    if "/api/labs/delete" in blob:
+        return "labs_delete"
+    if "/api/labs" in blob:
+        return "labs"
     return ""
 
 
@@ -479,6 +489,72 @@ def inventory_write(headers, route: str, payload=None):
     }
 
 
+def labs_body(headers):
+    """GET /api/labs — Pi config store. Cookie-less 401. Empty on Vercel."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    from rt_dashboard.labs_store import load_labs
+
+    labs = load_labs(user_id=str(user.get("id") or ""))
+    return 200, {"ok": True, "labs": labs}
+
+
+def labs_write(headers, route: str, payload=None):
+    """POST /api/labs/upload|delete — same parse/store as Pi server.py.
+
+    Cookie-less 401. Vercel Hobby FS is not a PHI store; save_panel skips
+    durable writes there. Pi ~/.config remains the durable path.
+    """
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "")
+    from rt_dashboard.labs_parse import LabParseError, MAX_PDF_BYTES, parse_lab_pdf
+    from rt_dashboard.labs_store import delete_panel, save_panel
+
+    try:
+        if route == "labs_delete":
+            date = str(payload.get("date") or "")
+            if not date:
+                return 400, {"ok": False, "error": "date required"}
+            labs = delete_panel(
+                date=date,
+                lab=str(payload.get("lab") or ""),
+                order_id=str(payload.get("order_id") or ""),
+                user_id=uid,
+            )
+            return 200, {"ok": True, "labs": labs}
+        if route != "labs_upload":
+            return 400, {"ok": False, "error": "unknown_labs_route"}
+        import base64
+
+        filename = str(payload.get("filename") or "lab.pdf")
+        b64 = str(payload.get("content_base64") or "").strip()
+        if not b64:
+            return 400, {"ok": False, "error": "Missing content_base64."}
+        try:
+            raw = base64.b64decode(b64)
+        except Exception as exc:  # noqa: BLE001
+            return 400, {"ok": False, "error": f"Invalid base64: {exc}"}
+        if len(raw) > MAX_PDF_BYTES:
+            return 400, {"ok": False, "error": "Upload too large (8 MB PDF max)."}
+        panel = parse_lab_pdf(raw, filename=filename)
+        labs = save_panel(panel, user_id=uid, pdf_bytes=raw)
+        markers = panel.get("markers") or {}
+        return 200, {
+            "ok": True,
+            "panel": panel,
+            "labs": labs,
+            "marker_count": len(markers),
+        }
+    except (LabParseError, ValueError) as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+
+
 def equipment_write(headers, route: str, payload=None):
     """Add/update/remove owned gear + max load. Cookie-less 401. Failed persist is 5xx."""
     user, err = require_user(headers)
@@ -733,6 +809,14 @@ def dispatch_client_route(
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return agent_today_body(headers, query, client_host=client_host)
+    if route == "labs":
+        if method != "GET":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return labs_body(headers)
+    if route in _LABS_WRITE_ROUTES:
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return labs_write(headers, route, payload or {})
     return None
 
 
@@ -749,6 +833,8 @@ __all__ = [
     "goals_body",
     "equipment_write",
     "inventory_write",
+    "labs_body",
+    "labs_write",
     "daily_tasks_body",
     "daily_tasks_complete_body",
     "stamp_quest_list_ids",
