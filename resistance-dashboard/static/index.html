@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=azm-90d-3" />
+    <link rel="stylesheet" href="/styles.css?v=labs-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=history-sets-1" defer></script>
+    <script src="/app.js?v=labs-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -590,6 +590,33 @@
         </form>
       </section>
 
+      <section class="card" style="margin-top: 1rem" id="labs-section" data-m-panel="more">
+        <h2>Labs</h2>
+        <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
+          Upload a lab PDF (Rythm Health text reports first). Results stay on this
+          host under <code>~/.config/resistance-dashboard/labs</code> — not git.
+          Coach and Ask Grok see the latest panel. Not medical advice; clinical
+          flags are for your clinician.
+        </p>
+        <p class="muted mobile-help" hidden>
+          Upload a Rythm Health PDF. Stored on-device config, not git.
+        </p>
+        <form class="log-form" id="labs-upload-form">
+          <div class="row cols-2">
+            <label>
+              Lab PDF
+              <input type="file" id="labs-file" accept="application/pdf,.pdf" />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" class="primary" id="btn-labs-upload">Upload panel</button>
+            <button type="button" id="btn-labs-delete" hidden>Remove latest</button>
+          </div>
+          <p class="muted" id="labs-status" style="margin: 0"></p>
+        </form>
+        <div id="labs-panel" class="labs-panel" style="margin-top: 0.85rem"></div>
+      </section>
+
       <section class="card" style="margin-top: 1rem" id="training-settings-section" data-m-panel="more">
         <h2>Training settings</h2>
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
@@ -820,7 +847,7 @@
 
       <footer class="app-footer">
         Data sources: local lift log (SQLite) · Google Health (weight, sleep, nutrition, hydration) ·
-        SuperGrok ask ·
+        lab PDFs (local config) · SuperGrok ask ·
         <span id="meta-line"></span>
       </footer>
     </div>

@@ -994,30 +994,46 @@ def build_food_commentary(
                 )
 
     # --- Labs (optional, slow-changing) ---
-    lab_sum = labs_summary_for_coach(labs)
+    lab_sum = labs_summary_for_coach(labs, targets=targets, as_of=day)
     if lab_sum.get("has_labs"):
-        flags = lab_sum.get("flags") or []
-        notes.append(
+        lab_bits = [
             f"Latest labs: {lab_sum.get('date')}"
             + (f" ({lab_sum.get('lab')})" if lab_sum.get("lab") else "")
-            + f" · {lab_sum.get('marker_count')} markers."
-        )
-        for fl in flags[:4]:
-            marker = str(fl.get("marker") or "").replace("_", " ")
-            improve.append(
-                f"Lab flag: {marker} = {fl.get('value')} ({fl.get('status')}; "
-                f"ref {fl.get('ref_low')}–{fl.get('ref_high')}) — "
-                f"diet may support this but retest with your clinician."
+            + f" · {lab_sum.get('marker_count')} markers"
+        ]
+        if lab_sum.get("fasting"):
+            lab_bits.append("fasting")
+        notes.append(" · ".join(lab_bits) + ".")
+        clinical = lab_sum.get("clinical_flags") or []
+        if clinical:
+            shown = []
+            for fl in clinical:
+                name = fl.get("name") or str(fl.get("marker") or "").replace("_", " ")
+                shown.append(
+                    f"{name} {fl.get('value_text') or fl.get('value')} "
+                    f"({fl.get('status')}) — clinician"
+                )
+            notes.append("Clinical flags: " + "; ".join(shown) + ".")
+        if lab_sum.get("stale"):
+            days = lab_sum.get("stale_days")
+            draw = lab_sum.get("collected") or lab_sum.get("date") or "this draw"
+            notes.append(
+                f"Panel is stale ({days}d since {draw}). Retest after this diet phase "
+                "— not an emergency."
             )
-        if not flags:
+        notes.append("Volume: unchanged from this panel.")
+        for line in lab_sum.get("kitchen_lines") or []:
+            if line:
+                improve.append(str(line))
+        if not clinical and not lab_sum.get("kitchen_lines"):
             working.append(
-                f"Latest lab panel ({lab_sum.get('date')}) has no out-of-range flags "
-                f"vs coach reference hints."
+                f"Latest lab panel ({lab_sum.get('date')}) has no clinician flags "
+                "and no coach-lane actions."
             )
     else:
         notes.append(
-            "Labs: none on file yet — drop bi-annual results into fitness/data/labs.json "
-            "when you have them."
+            "Labs: none on file — upload a PDF under More → Labs "
+            "(PHI stays off git)."
         )
 
     if not logs and not (adherence.get("protein") or {}).get("days_logged"):

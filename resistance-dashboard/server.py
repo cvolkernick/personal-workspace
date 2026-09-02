@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -119,7 +120,8 @@ from rt_dashboard.hidrate_client import (  # noqa: E402
     overlay_hidrate_hydration,
 )
 from rt_dashboard.models import HealthSnapshot, Session  # noqa: E402
-from rt_dashboard.labs_store import load_labs  # noqa: E402
+from rt_dashboard.labs_parse import LabParseError, MAX_PDF_BYTES, parse_lab_pdf  # noqa: E402
+from rt_dashboard.labs_store import delete_panel, load_labs, save_panel  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     add_ingredient,
     food_logs_for_day,
@@ -776,7 +778,12 @@ def load_dashboard_data(
         targets=nut.get("targets") or {},
         food_logs=health.food_logs or [],
     )
-    labs = load_labs(local_dir or "")
+    labs = load_labs(
+        local_dir or "",
+        user_id=uid or "",
+        targets=nut.get("targets") or {},
+        as_of=local_today,
+    )
     payload["nutrition_store"] = {
         "inventory": nut["inventory"],
         "targets": nut["targets"],
@@ -1689,6 +1696,60 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/labs/upload":
+            try:
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > MAX_PDF_BYTES * 2:
+                    self._send_json(
+                        {"ok": False, "error": "Upload too large (8 MB PDF max)."},
+                        status=400,
+                    )
+                    return
+                body = self._read_json() if length else {}
+                filename = str(body.get("filename") or "lab.pdf")
+                b64 = str(body.get("content_base64") or "").strip()
+                if not b64:
+                    raise ValueError("Missing content_base64.")
+                try:
+                    raw = base64.b64decode(b64)
+                except Exception as e:  # noqa: BLE001
+                    raise ValueError(f"Invalid base64: {e}") from e
+                panel = parse_lab_pdf(raw, filename=filename)
+                labs = save_panel(panel, user_id=str(uid), pdf_bytes=raw)
+                markers = panel.get("markers") or {}
+                self._send_json(
+                    {
+                        "ok": True,
+                        "panel": panel,
+                        "labs": labs,
+                        "marker_count": len(markers),
+                    }
+                )
+            except (LabParseError, ValueError, json.JSONDecodeError) as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/labs/delete":
+            try:
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                body = self._read_json()
+                date = str(body.get("date") or "")
+                if not date:
+                    raise ValueError("date required")
+                labs = delete_panel(
+                    date=date,
+                    lab=str(body.get("lab") or ""),
+                    order_id=str(body.get("order_id") or ""),
+                    user_id=str(uid),
+                )
+                self._send_json({"ok": True, "labs": labs})
+            except (ValueError, json.JSONDecodeError) as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/inventory/add":
             try:

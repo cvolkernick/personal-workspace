@@ -2956,26 +2956,210 @@
     if (labsBox) {
       const labs = (fc.labs || (store && store.labs)) || {};
       const panels = labs.panels || [];
+      const open = `<button type="button" class="labs-jump" id="btn-labs-jump">More → Labs</button>`;
       if (labs.has_labs === false || (!panels.length && !labs.has_labs)) {
-        labsBox.innerHTML =
-          `Labs: none on file — optional <code>fitness/data/labs.json</code> for bi-annual/quarterly markers.`;
+        labsBox.innerHTML = `Labs: none on file — ${open}`;
       } else if (labs.has_labs) {
-        const flags = labs.flags || [];
+        const clinical = labs.clinical_flags || [];
+        const stale = labs.stale ? ` · stale (${labs.stale_days || "?"}d)` : "";
+        const clin =
+          clinical.length
+            ? ` · clinical: ${clinical
+                .map((f) => `${f.name || f.marker} ${f.value_text || f.value}`)
+                .join(", ")} (clinician)`
+            : " · no clinical flags";
         labsBox.innerHTML = `Latest labs <strong>${labs.date || "—"}</strong>${
           labs.lab ? ` (${labs.lab})` : ""
-        }: ${labs.marker_count || 0} markers${
-          flags.length
-            ? ` · flags: ${flags.map((f) => `${f.marker} ${f.status}`).join(", ")}`
-            : " · no coach flags"
-        }.`;
+        }: ${labs.marker_count || 0} markers${clin}${stale}. Volume unchanged. ${open}`;
       } else if (panels.length) {
         const p = panels[panels.length - 1];
         labsBox.innerHTML = `Latest labs <strong>${p.date || "—"}</strong>${
           p.lab ? ` (${p.lab})` : ""
-        }: ${Object.keys(p.markers || {}).length} markers.`;
+        }: ${Object.keys(p.markers || {}).length} markers. ${open}`;
       } else {
-        labsBox.innerHTML = "";
+        labsBox.innerHTML = open;
       }
+      const jump = $("btn-labs-jump");
+      if (jump) {
+        jump.addEventListener("click", () => {
+          goMobileTab("more");
+          const el = $("labs-section");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+    }
+  }
+
+  function labEsc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function labRange(lo, hi) {
+    if (lo == null && hi == null) return "—";
+    return `${lo ?? "—"}–${hi ?? "—"}`;
+  }
+
+  function latestLabsPanel(store) {
+    const labs = (store && store.labs) || {};
+    const panels = labs.panels || [];
+    if (!panels.length) return null;
+    return panels[panels.length - 1];
+  }
+
+  function renderLabsPanel(store) {
+    const box = $("labs-panel");
+    const del = $("btn-labs-delete");
+    if (!box) return;
+    const panel = latestLabsPanel(store);
+    if (del) del.hidden = !panel;
+    if (!panel) {
+      box.innerHTML = `<p class="muted" style="margin:0">No panel on file yet.</p>`;
+      return;
+    }
+    const rawMarkers = panel.markers || {};
+    const markers = Array.isArray(rawMarkers)
+      ? rawMarkers
+      : (panel.marker_order || Object.keys(rawMarkers)).map((k) => rawMarkers[k]).filter(Boolean);
+    const fasting =
+      panel.fasting === true ? "fasting" : panel.fasting === false ? "non-fasting" : "";
+    const rows = markers
+      .map((m) => {
+        const band = m.band || "unknown";
+        const cls =
+          band === "out_clinical" || band === "out_of_clinical"
+            ? "labs-row-clinical"
+            : band === "in_clinical_out_perf" || band === "out_of_performance"
+              ? "labs-row-perf"
+              : band === "in_clinical_in_perf" || band === "in_performance"
+                ? "labs-row-ok"
+                : "";
+        const status =
+          band === "out_clinical" || band === "out_of_clinical"
+            ? `clinical ${m.clinical_status || m.status || ""}`
+            : band === "in_clinical_out_perf" || band === "out_of_performance"
+              ? `performance ${m.performance_status || m.status || ""}`
+              : band === "in_clinical_in_perf" || band === "in_performance"
+                ? "in range"
+                : m.status || "—";
+        return `<tr class="${cls}">
+          <td>${labEsc(m.name || m.key)}</td>
+          <td class="labs-val">${labEsc(m.value_text || m.value)}</td>
+          <td>${labEsc(m.unit || "")}</td>
+          <td>${labEsc(labRange(m.clinical_low, m.clinical_high))}</td>
+          <td>${labEsc(labRange(m.performance_low, m.performance_high))}</td>
+          <td>${labEsc(status)}</td>
+          <td>${labEsc(m.lane || "info")}</td>
+        </tr>`;
+      })
+      .join("");
+    box.innerHTML = `
+      <p class="labs-meta">
+        <strong>${labEsc(panel.lab || "Lab")}</strong>
+        · reported ${labEsc(panel.date || "—")}
+        ${panel.collected ? ` · collected ${labEsc(panel.collected)}` : ""}
+        ${fasting ? ` · ${fasting}` : ""}
+        · ${markers.length} markers
+      </p>
+      <div class="labs-table-wrap">
+        <table class="labs-table">
+          <thead>
+            <tr>
+              <th>Test</th><th>Value</th><th>Unit</th>
+              <th>Clinical</th><th>Performance</th><th>Status</th><th>Lane</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin:0.5rem 0 0; font-size:0.8rem">
+        Blue/green = inside the lab's performance range. Amber = outside performance,
+        inside clinical. Red = outside the clinical range — clinician, not a training call.
+      </p>`;
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const s = String(r.result || "");
+        const i = s.indexOf(",");
+        resolve(i >= 0 ? s.slice(i + 1) : s);
+      };
+      r.onerror = () => reject(new Error("Could not read file"));
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function submitLabsUpload(ev) {
+    ev.preventDefault();
+    const status = $("labs-status");
+    const input = $("labs-file");
+    const file = input && input.files && input.files[0];
+    if (!file) {
+      if (status) status.textContent = "Choose a PDF first.";
+      return;
+    }
+    if (status) status.textContent = "Parsing…";
+    try {
+      const content_base64 = await fileToBase64(file);
+      const res = await fetch("/api/labs/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ filename: file.name, content_base64 }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+      if (status) {
+        status.textContent = `Saved ${data.marker_count || 0} markers (${(
+          (data.panel && data.panel.lab) ||
+          "lab"
+        )} ${data.panel && data.panel.date ? data.panel.date : ""})`.trim();
+      }
+      if (input) input.value = "";
+      showAlert("Lab panel saved. Coach and Ask Grok will use the latest results.", "ok");
+      if (data.labs && state && state.nutrition_store) {
+        state.nutrition_store.labs = data.labs;
+        renderLabsPanel(state.nutrition_store);
+      }
+      await loadDashboard(false);
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`Lab upload failed: ${e.message}`, "err");
+    }
+  }
+
+  async function submitLabsDelete() {
+    const panel = latestLabsPanel(state && state.nutrition_store);
+    if (!panel || !panel.date) return;
+    const status = $("labs-status");
+    if (status) status.textContent = "Removing…";
+    try {
+      const res = await fetch("/api/labs/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          date: panel.date,
+          lab: panel.lab || "",
+          order_id: panel.order_id || "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+      if (status) status.textContent = "Removed latest panel.";
+      if (data.labs && state && state.nutrition_store) {
+        state.nutrition_store.labs = data.labs;
+        renderLabsPanel(state.nutrition_store);
+      }
+      await loadDashboard(false);
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`Lab delete failed: ${e.message}`, "err");
     }
   }
 
@@ -3673,6 +3857,7 @@
       renderMealPlan(data.nutrition_store.meal_plan);
     }
     renderFoodCoach(data.coach, data.nutrition_store);
+    renderLabsPanel(data.nutrition_store);
     renderExerciseCatalog(data.workout_store);
     renderEquipmentInventory(data.workout_store);
     renderWorkoutGoals(data.workout_store);
@@ -5819,6 +6004,12 @@
     }
     if ($("targets-form")) {
       $("targets-form").addEventListener("submit", submitTargets);
+    }
+    if ($("labs-upload-form")) {
+      $("labs-upload-form").addEventListener("submit", submitLabsUpload);
+    }
+    if ($("btn-labs-delete")) {
+      $("btn-labs-delete").addEventListener("click", submitLabsDelete);
     }
     if ($("btn-apply-coach-targets")) {
       $("btn-apply-coach-targets").addEventListener("click", applyCoachTargets);
