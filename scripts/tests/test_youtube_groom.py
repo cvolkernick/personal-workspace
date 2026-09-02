@@ -169,12 +169,12 @@ class TestDocsMatchPolicy(unittest.TestCase):
     def test_queue_doc_before_after(self):
         text = QUEUE_MD.read_text(encoding="utf-8")
         self.assertIn("MAX_INSERTS_PER_TICK", text)
-        self.assertIn("| 8 | **removed**", text)
+        self.assertIn("| **8** (4 before 8/31) | **removed**", text)
         self.assertIn("FRESH_HOURS", text)
         self.assertIn("168", text)
         self.assertIn("CAP", text)
         self.assertIn("200", text)
-        self.assertNotIn("MAX_ADD_PER_DAY", text.replace("Do not invent `MAX_ADD_PER_DAY`", ""))
+        self.assertIn("Do not invent `MAX_ADD_PER_DAY`", text)
 
 
 class TestMainNoNetwork(unittest.TestCase):
