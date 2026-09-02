@@ -57,6 +57,7 @@ class TestBiasSpectrumPage(unittest.TestCase):
         self.assertIn("nav-fleet.js", html)
         self.assertIn("high=3", html)
         self.assertIn("Not an order ticket", html)
+        self.assertIn("not live NAV or sleeve targets", html)
         self.assertIn("preferred-core", html)
         self.assertIn("position.html?symbol=", html)
         self.assertNotIn("HELD BOOK", html)
@@ -115,9 +116,11 @@ class TestBiasSpectrumApi(unittest.TestCase):
         self.assertFalse(pol.get("invented_targets"))
         self.assertTrue(pol.get("axis_is_new_money_consider_share"))
         self.assertFalse(pol.get("held_is_book_weight"))
+        self.assertTrue(pol.get("consider_share_stamps_are_not_nav_targets"))
+        self.assertTrue(pol.get("consider_share_stamps_are_not_sleeve_targets"))
+        self.assertTrue(pol.get("consider_share_stamps_are_not_orders"))
         for chip in data.get("chips") or []:
             self.assertIn(chip.get("kind"), ("held", "consider"))
-            self.assertEqual(chip.get("weight_basis"), "new_money_consider_share")
             if chip.get("sleeve") == "btc_digital_credit":
                 self.assertEqual(chip.get("lane"), "above")
             elif chip.get("sleeve") == "stocks_growth":
@@ -126,6 +129,17 @@ class TestBiasSpectrumApi(unittest.TestCase):
                 self.assertEqual(chip.get("kind"), "held")
             else:
                 self.assertEqual(chip.get("kind"), "consider")
+            self.assertIn(
+                chip.get("weight_basis"),
+                ("new_money_consider_share", "consider_share_stamp"),
+            )
+            self.assertNotIn("target_pct", chip)
+            self.assertNotIn("target_weight", chip)
+            if chip.get("consider_share_stamp"):
+                self.assertEqual(chip.get("weight_basis"), "consider_share_stamp")
+                self.assertIn(chip.get("symbol"), ("TSLA", "SPCX"))
+                self.assertAlmostEqual(float(chip["weight_pct"]), 15.0)
+                self.assertIn("NOT a live NAV", chip.get("notes") or "")
 
         page_code, page_body = self._get("/financial-command/bias-spectrum")
         self.assertEqual(page_code, 200)

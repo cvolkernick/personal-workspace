@@ -17,6 +17,7 @@ from typing import Iterable, Optional
 
 # Relative to the prism user home unless noted.
 # youtube-groom and nest-published live on the app box, not this monorepo.
+# Caps scorecard only: ops/YOUTUBE_QUEUE.md (writer stays on Pi).
 DEFAULT_PRISM_HOME = "/home/prism-agent"
 DEFAULT_PRISM_WORKSPACE = "/home/prism-agent/personal-workspace"
 DEFAULT_PULL_DEST = "/home/finley-agent/b2-pulls/prism"

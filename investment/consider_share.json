@@ -1,0 +1,16 @@
+{
+  "schema": "fcc_consider_share_stamps_v0",
+  "as_of": "2026-09-02",
+  "unit": "new_money_consider_share_pct",
+  "sum_to": 100,
+  "not_a_nav_target": true,
+  "not_a_sleeve_target": true,
+  "not_an_order": true,
+  "not_for_autopilot": true,
+  "not_for_monday_residual": true,
+  "notes": "Consideration-list stamp only. Residual mix / relative preference on the Bias Spectrum 100% consider list (same axis PLTR's watch priority feeds). Pin named chips, then proportionally rescale every other chip so the list still sums to 100%. NOT a live NAV target, NOT a sleeve target, NOT an order. Live agentic book already has TSLA ~23.5% NAV and SPCX ~17.7% NAV (2026-09-01 snapshot) — flatten-only forbids trim and forbids topping up. Next Monday $25 remains theme-gap, not TSLA/SPCX. fund_manager.py / autopilot must not read this file.",
+  "pins": {
+    "TSLA": 15.0,
+    "SPCX": 15.0
+  }
+}
