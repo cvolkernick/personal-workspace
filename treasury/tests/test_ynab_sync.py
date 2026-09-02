@@ -11,7 +11,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.ynab_sync import (  # noqa: E402
+    _roll_up_x_money,
     _snapshot_needs_live_refresh,
+    account_last4,
     milli_to_units,
     normalize_one_card,
     normalize_rh_checking,
@@ -19,6 +21,7 @@ from treasury.ynab_sync import (  # noqa: E402
     pick_one_card_account,
     pick_rh_checking_account,
     pick_x_money_account,
+    pick_x_money_spaces,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
 
@@ -92,6 +95,107 @@ class TestPickAccount(unittest.TestCase):
             {"name": "Checking – 2201", "type": "checking", "deleted": False, "closed": False, "id": "c1"},
         ]
         self.assertEqual(pick_x_money_account(named)["name"], "X Money")
+
+    def test_last4_pin_beats_everyday_checking(self):
+        accts = [
+            {"name": "RH Checking – 3646", "type": "checking", "deleted": False, "closed": False, "id": "rh"},
+            {"name": "Main – 2201", "type": "checking", "deleted": False, "closed": False, "id": "main"},
+            {"name": "Auto Fleet – 0895", "type": "checking", "deleted": False, "closed": False, "id": "af"},
+            {"name": "Collateral – 3326", "type": "checking", "deleted": False, "closed": False, "id": "col"},
+            {"name": "Utilities – 4867", "type": "checking", "deleted": False, "closed": False, "id": "util"},
+            {
+                "name": "EveryDay Checking – 8680",
+                "type": "checking",
+                "deleted": False,
+                "closed": False,
+                "id": "navy",
+            },
+        ]
+        a = pick_x_money_account(
+            accts,
+            prefer_name="Checking – 2201",
+            exclude_ids={"rh"},
+            prefer_last4="2201",
+            exclude_last4=["8680"],
+        )
+        self.assertEqual(a["name"], "Main – 2201")
+        a2 = pick_x_money_account(
+            accts,
+            prefer_name="Main – 2201",
+            exclude_ids={"rh"},
+            prefer_last4="2201",
+            exclude_last4=["8680"],
+        )
+        self.assertEqual(a2["name"], "Main – 2201")
+
+    def test_exclude_last4_never_picks_navy_federal(self):
+        accts = [
+            {
+                "name": "EveryDay Checking – 8680",
+                "type": "checking",
+                "deleted": False,
+                "closed": False,
+                "id": "navy",
+            },
+            {"name": "Main – 2201", "type": "checking", "deleted": False, "closed": False, "id": "main"},
+        ]
+        a = pick_x_money_account(
+            accts, prefer_last4="2201", exclude_last4=["8680"]
+        )
+        self.assertEqual(a["name"], "Main – 2201")
+        # Last-4 pin miss must not fall through to 8680
+        self.assertIsNone(
+            pick_x_money_account(
+                accts,
+                prefer_last4="9999",
+                exclude_last4=["8680"],
+            )
+        )
+
+    def test_multiple_leftover_checkings_do_not_guess(self):
+        accts = [
+            {"name": "Main – 2201", "type": "checking", "deleted": False, "closed": False, "id": "main"},
+            {
+                "name": "EveryDay Checking – 8680",
+                "type": "checking",
+                "deleted": False,
+                "closed": False,
+                "id": "navy",
+            },
+        ]
+        self.assertIsNone(pick_x_money_account(accts))
+
+    def test_account_last4(self):
+        self.assertEqual(account_last4("Main – 2201"), "2201")
+        self.assertEqual(account_last4("Checking – 2201"), "2201")
+        self.assertEqual(account_last4("EveryDay Checking – 8680"), "8680")
+        self.assertIsNone(account_last4("X Money"))
+
+    def test_pick_x_money_spaces(self):
+        accts = [
+            {"name": "RH Checking – 3646", "type": "checking", "deleted": False, "closed": False, "id": "rh"},
+            {"name": "Main – 2201", "type": "checking", "deleted": False, "closed": False, "id": "main"},
+            {"name": "Auto Fleet – 0895", "type": "checking", "deleted": False, "closed": False, "id": "af"},
+            {"name": "Collateral – 3326", "type": "checking", "deleted": False, "closed": False, "id": "col"},
+            {"name": "Utilities – 4867", "type": "checking", "deleted": False, "closed": False, "id": "util"},
+            {
+                "name": "EveryDay Checking – 8680",
+                "type": "checking",
+                "deleted": False,
+                "closed": False,
+                "id": "navy",
+            },
+        ]
+        spaces = pick_x_money_spaces(
+            accts,
+            ["Auto Fleet", "Collateral", "Utilities"],
+            exclude_ids={"rh", "main"},
+            exclude_last4=["8680"],
+        )
+        self.assertEqual(
+            [s["name"] for s in spaces],
+            ["Auto Fleet – 0895", "Collateral – 3326", "Utilities – 4867"],
+        )
 
 
 class TestNormalize(unittest.TestCase):
@@ -188,7 +292,56 @@ class TestNormalizeChecking(unittest.TestCase):
         }
         snap = normalize_x_money(account, [], budget_id="b1", budget_name="Chris's Plan")
         self.assertAlmostEqual(snap["cash"], 22.76)
+        self.assertAlmostEqual(snap["available"], 22.76)
         self.assertEqual(snap["account_name"], "Checking – 2201")
+
+    def test_x_money_signed_overdraft(self):
+        account = {
+            "id": "x1",
+            "name": "Main – 2201",
+            "type": "checking",
+            "balance": -116500,
+            "balance_currency": -116.50,
+            "cleared_balance": -116500,
+            "uncleared_balance": 0,
+            "direct_import_linked": True,
+        }
+        snap = normalize_x_money(account, [], budget_id="b1", budget_name="Chris's Plan")
+        self.assertAlmostEqual(snap["cash"], -116.50)
+        self.assertAlmostEqual(snap["available"], 0.0)
+
+    def test_x_money_space_rollup(self):
+        main = normalize_x_money(
+            {
+                "id": "main",
+                "name": "Main – 2201",
+                "type": "checking",
+                "balance": -116500,
+                "balance_currency": -116.50,
+            },
+            [],
+            budget_id="b1",
+            budget_name="Chris's Plan",
+        )
+        fleet = normalize_x_money(
+            {
+                "id": "af",
+                "name": "Auto Fleet – 0895",
+                "type": "checking",
+                "balance": 997460,
+                "balance_currency": 997.46,
+            },
+            [],
+            budget_id="b1",
+            budget_name="Chris's Plan",
+        )
+        rolled = _roll_up_x_money(main, [fleet])
+        self.assertEqual(rolled["account_name"], "Main – 2201")
+        self.assertAlmostEqual(rolled["main_cash"], -116.50)
+        self.assertAlmostEqual(rolled["cash"], 880.96)
+        self.assertAlmostEqual(rolled["available"], 997.46)
+        self.assertEqual(rolled["spaces"][0]["account_name"], "Auto Fleet – 0895")
+        self.assertEqual(rolled["spaces"][0]["last4"], "0895")
 
 
 class TestPolicyUsesOneCard(unittest.TestCase):

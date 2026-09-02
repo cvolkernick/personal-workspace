@@ -611,6 +611,9 @@ def build_snapshot(
                 or rh_checking.get("account_name"),
                 "x_money_account_name": ynab_cfg.get("x_money_account_name")
                 or x_money.get("account_name"),
+                "x_money_account_last4": ynab_cfg.get("x_money_account_last4"),
+                "x_money_space_names": ynab_cfg.get("x_money_space_names") or [],
+                "x_money_exclude_last4": ynab_cfg.get("x_money_exclude_last4") or [],
             },
             "expenses_sheet": {
                 "sheet_id": exp_cfg.get("sheet_id") or expenses.get("sheet_id"),
@@ -621,7 +624,7 @@ def build_snapshot(
                 "high_yield_vault": "app-only",
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
-                "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking – ####)",
+                "x_money": "ynab/plaid (X Money main last-4 2201 + Auto Fleet/Collateral/Utilities spaces; 8680 is Navy Federal, not X Money)",
                 "solana": "public RPC + Jupiter prices; whitelist SOL/USDC/JR-strcUSX; JR is not HY",
                 "expenses": "google sheet: Essential + funded unique Fleet = burn; Fleet tab is fleet_ops (empty-From / name overlap out of combined); Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
                 "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",

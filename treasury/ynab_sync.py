@@ -4,7 +4,7 @@
 Accounts:
   - Coinbase One Card (credit) → one_card_latest.json  (actual card spend/liability)
   - RH Checking (checking)     → rh_checking_latest.json (ACH / bank draft float)
-  - X Money (checking/cash)    → x_money_latest.json (YNAB/Plaid; often labeled Checking – ####)
+  - X Money (checking/cash)    → x_money_latest.json (main last-4 + named spaces)
 
 Auth: ~/.config/ynab/token or env YNAB_TOKEN (never commit tokens).
 
@@ -18,13 +18,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -211,46 +212,152 @@ def pick_rh_checking_account(
     return None
 
 
+_LAST4_RE = re.compile(r"(\d{4})\s*$")
+
+
+def account_last4(name: Optional[str]) -> Optional[str]:
+    """Trailing four digits from a YNAB account name (e.g. 'Main – 2201' → '2201')."""
+    if not name:
+        return None
+    m = _LAST4_RE.search(str(name).strip())
+    return m.group(1) if m else None
+
+
+def _norm_last4(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    s = str(value).strip()
+    if re.fullmatch(r"\d{4}", s):
+        return s
+    return account_last4(s)
+
+
+def _as_last4_set(values: Optional[Iterable[Any]]) -> set:
+    out = set()
+    for v in values or []:
+        n = _norm_last4(str(v) if v is not None else None)
+        if n:
+            out.add(n)
+    return out
+
+
+def _is_rh_name(name: str) -> bool:
+    low = name.lower()
+    return "rh" in low or "robinhood" in low
+
+
+def _x_money_name_hit(name: str) -> bool:
+    low = name.lower()
+    return "x money" in low or "xmoney" in low.replace(" ", "") or "x-money" in low
+
+
 def pick_x_money_account(
     accounts: List[Dict[str, Any]],
     prefer_name: Optional[str] = None,
     *,
     exclude_ids: Optional[set] = None,
+    prefer_last4: Optional[str] = None,
+    exclude_last4: Optional[Iterable[Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Pick X Money (or leftover non-RH checking). Plaid often names it 'Checking – ####'."""
+    """Pick X Money main. Last-4 pin beats leftover-checking name heuristics.
+
+    Plaid used to label the sleeve ``Checking – ####``. It is now ``Main – 2201``.
+    Scoring leftover checkings by the word "checking" will steal Navy Federal
+    (EveryDay Checking – 8680) when several X Money spaces exist — do not guess
+    when more than one leftover checking remains.
+    """
     open_accts = _open_accounts(accounts)
     exclude_ids = exclude_ids or set()
-    if prefer_name:
-        for a in open_accts:
-            if (a.get("name") or "").lower() == prefer_name.lower():
-                return a
-    scored: List[Tuple[int, Dict[str, Any]]] = []
-    for a in open_accts:
+    excluded_last4 = _as_last4_set(exclude_last4)
+    want_last4 = _norm_last4(prefer_last4) or _norm_last4(prefer_name)
+
+    def _eligible(a: Dict[str, Any]) -> bool:
         if a.get("id") in exclude_ids:
-            continue
-        name = (a.get("name") or "").lower()
-        # Never pick RH Checking as X Money
-        if "rh" in name or "robinhood" in name:
-            continue
+            return False
+        name = a.get("name") or ""
+        if _is_rh_name(name):
+            return False
+        n4 = account_last4(name)
+        if n4 and n4 in excluded_last4:
+            return False
+        return True
+
+    candidates = [a for a in open_accts if _eligible(a)]
+
+    if prefer_name:
+        want = prefer_name.lower()
+        for a in candidates:
+            if (a.get("name") or "").lower() == want:
+                return a
+
+    if want_last4:
+        for a in candidates:
+            if account_last4(a.get("name")) == want_last4:
+                return a
+        # Explicit last-4 / renamed-name pin missed — do not guess EveryDay.
+        return None
+
+    scored: List[Tuple[int, Dict[str, Any]]] = []
+    leftover: List[Dict[str, Any]] = []
+    for a in candidates:
+        name = a.get("name") or ""
         if a.get("type") not in ("checking", "cash", "savings", None):
-            # still allow if name screams x money
-            if not any(k in name for k in ("x money", "xmoney", "x-money")):
+            if not _x_money_name_hit(name):
                 continue
-        score = 0
-        if "x money" in name or "xmoney" in name.replace(" ", "") or "x-money" in name:
-            score += 10
+        if _x_money_name_hit(name):
+            scored.append((10, a))
+            continue
         if a.get("type") in ("checking", "cash"):
-            score += 2
-        if "checking" in name:
-            score += 2
-        if "cash" in name:
-            score += 1
-        if score:
-            scored.append((score, a))
+            leftover.append(a)
     if scored:
         scored.sort(key=lambda x: -x[0])
         return scored[0][1]
+    if len(leftover) == 1:
+        return leftover[0]
     return None
+
+
+def pick_x_money_spaces(
+    accounts: List[Dict[str, Any]],
+    space_names: Optional[Iterable[str]] = None,
+    *,
+    exclude_ids: Optional[set] = None,
+    exclude_last4: Optional[Iterable[Any]] = None,
+) -> List[Dict[str, Any]]:
+    """Match configured X Money space names (prefix or last-4), skipping main/RH/excluded."""
+    open_accts = _open_accounts(accounts)
+    used = set(exclude_ids or set())
+    excluded_last4 = _as_last4_set(exclude_last4)
+    picked: List[Dict[str, Any]] = []
+    for raw in space_names or []:
+        want = str(raw or "").strip()
+        if not want:
+            continue
+        want_low = want.lower()
+        want_last4 = _norm_last4(want)
+        match: Optional[Dict[str, Any]] = None
+        for a in open_accts:
+            if a.get("id") in used:
+                continue
+            name = a.get("name") or ""
+            if _is_rh_name(name):
+                continue
+            n4 = account_last4(name)
+            if n4 and n4 in excluded_last4:
+                continue
+            if a.get("type") not in ("checking", "cash", "savings", None):
+                continue
+            low = name.lower()
+            if low == want_low or low.startswith(want_low) or want_low in low:
+                match = a
+                break
+            if want_last4 and n4 == want_last4:
+                match = a
+                break
+        if match:
+            used.add(match.get("id"))
+            picked.append(match)
+    return picked
 
 
 def _summarize_txs(
@@ -399,7 +506,7 @@ def normalize_x_money(
     budget_name: str,
     source: str = "ynab",
 ) -> Dict[str, Any]:
-    """X Money cash/checking via YNAB (Plaid). Balance is available cash (positive)."""
+    """X Money cash/checking via YNAB (Plaid). ``cash`` is signed; ``available`` is clamped."""
     raw = account_balance_units(account)
     available = raw if raw >= 0 else 0.0
     txs_out, spend_30d, inflow_30d = _summarize_txs(
@@ -417,7 +524,7 @@ def normalize_x_money(
         "direct_import_linked": account.get("direct_import_linked"),
         "direct_import_in_error": account.get("direct_import_in_error"),
         "balance_raw": raw,
-        "cash": round(available, 2),
+        "cash": round(raw, 2),
         "available": round(available, 2),
         "cleared_balance": milli_to_units(account.get("cleared_balance")),
         "uncleared_balance": milli_to_units(account.get("uncleared_balance")),
@@ -426,11 +533,41 @@ def normalize_x_money(
         "transaction_count": len(txs_out),
         "transactions": txs_out[:50],
         "notes": (
-            "X Money via YNAB/Plaid. Plaid may label the account as 'Checking – ####'. "
-            "Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash "
-            "(see config ynab.x_money_apy_est)."
+            "X Money via YNAB/Plaid. Main is last-4 2201 (Main – 2201); named spaces "
+            "are separate sleeves. EveryDay Checking – 8680 is Navy Federal, not X Money. "
+            "cash is signed (overdraft visible); available is max(0, cash). "
+            "Product pays ~6% APY on cash (see config ynab.x_money_apy_est)."
         ),
     }
+
+
+def _space_brief(snap: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "account_id": snap.get("account_id"),
+        "account_name": snap.get("account_name"),
+        "last4": account_last4(snap.get("account_name")),
+        "cash": snap.get("cash"),
+        "available": snap.get("available"),
+        "spend_30d": snap.get("spend_30d"),
+        "inflow_30d": snap.get("inflow_30d"),
+    }
+
+
+def _roll_up_x_money(
+    main: Dict[str, Any], space_snaps: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Keep main identity; cash/spend become main + spaces. Overdraft on main still counts."""
+    out = dict(main)
+    out["main_cash"] = main.get("cash")
+    out["spaces"] = [_space_brief(s) for s in space_snaps]
+    if not space_snaps:
+        return out
+    parts = [main, *space_snaps]
+    out["cash"] = round(sum(float(p.get("cash") or 0) for p in parts), 2)
+    out["available"] = round(sum(float(p.get("available") or 0) for p in parts), 2)
+    out["spend_30d"] = round(sum(float(p.get("spend_30d") or 0) for p in parts), 2)
+    out["inflow_30d"] = round(sum(float(p.get("inflow_30d") or 0) for p in parts), 2)
+    return out
 
 
 def _load_budget_context(
@@ -488,6 +625,9 @@ def sync_ynab(
     one_card_account_name = one_card_account_name or ynab_cfg.get("account_name")
     checking_account_name = checking_account_name or ynab_cfg.get("checking_account_name")
     x_money_account_name = x_money_account_name or ynab_cfg.get("x_money_account_name")
+    x_money_account_last4 = ynab_cfg.get("x_money_account_last4")
+    x_money_space_names = ynab_cfg.get("x_money_space_names") or []
+    x_money_exclude_last4 = ynab_cfg.get("x_money_exclude_last4") or []
     since = since or ynab_cfg.get("since") or (date.today() - timedelta(days=90)).isoformat()
 
     budget, accounts, bid = _load_budget_context(tok, budget_name=budget_name)
@@ -532,7 +672,11 @@ def sync_ynab(
 
     exclude = {chk_acct["id"]} if chk_acct and chk_acct.get("id") else set()
     xm_acct = pick_x_money_account(
-        accounts, prefer_name=x_money_account_name, exclude_ids=exclude
+        accounts,
+        prefer_name=x_money_account_name,
+        exclude_ids=exclude,
+        prefer_last4=x_money_account_last4,
+        exclude_last4=x_money_exclude_last4,
     )
     if xm_acct:
         txs = _fetch_account_txs(tok, bid, xm_acct["id"], since)
@@ -541,6 +685,24 @@ def sync_ynab(
         )
         x_money["token_source"] = tok_src
         x_money["since"] = since
+        space_exclude = set(exclude)
+        if xm_acct.get("id"):
+            space_exclude.add(xm_acct["id"])
+        space_accts = pick_x_money_spaces(
+            accounts,
+            x_money_space_names,
+            exclude_ids=space_exclude,
+            exclude_last4=x_money_exclude_last4,
+        )
+        space_snaps: List[Dict[str, Any]] = []
+        for sp in space_accts:
+            sp_txs = _fetch_account_txs(tok, bid, sp["id"], since)
+            space_snaps.append(
+                normalize_x_money(
+                    sp, sp_txs, budget_id=bid, budget_name=bname, source="ynab"
+                )
+            )
+        x_money = _roll_up_x_money(x_money, space_snaps)
     else:
         x_money = {
             "source": "ynab",
@@ -805,6 +967,14 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "path": str(p3),
                     "account": xm.get("account_name"),
                     "cash": xm.get("cash"),
+                    "main_cash": xm.get("main_cash"),
+                    "spaces": [
+                        {
+                            "account": s.get("account_name"),
+                            "cash": s.get("cash"),
+                        }
+                        for s in (xm.get("spaces") or [])
+                    ],
                     "spend_30d": xm.get("spend_30d"),
                     "tx_count": xm.get("transaction_count"),
                     "error": xm.get("live_error"),

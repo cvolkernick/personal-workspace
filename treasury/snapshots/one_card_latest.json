@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-09-01T19:50:34.230870+00:00",
+  "as_of": "2026-09-02T05:08:40.040558+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -573,5 +573,5 @@
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-06-03"
+  "since": "2026-06-04"
 }

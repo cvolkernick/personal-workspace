@@ -3725,16 +3725,59 @@
         ),
         metric("RH Checking", money(inp.rh_checking_cash ?? rhc.cash)),
         metric("BTC ≈ USD", money(inp.liquid_btc_usd)),
-        metric(
-          "X Money",
-          money(inp.x_money_cash ?? xm.cash) +
-            (inp.x_money_account || xm.account_name
-              ? ` · ${(inp.x_money_account || xm.account_name || "").toString().slice(0, 20)}`
-              : "") +
-            ((inp.x_money_apy_est ?? xm.apy_est) != null
+        ...(() => {
+          const xmSpaces = Array.isArray(xm.spaces) ? xm.spaces : [];
+          const apyBit =
+            (inp.x_money_apy_est ?? xm.apy_est) != null
               ? ` · ~${(Number(inp.x_money_apy_est ?? xm.apy_est) * 100).toFixed(0)}% APY`
-              : "")
-        ),
+              : "";
+          const accountLast4 = (name) => {
+            const m = String(name || "").match(/(\d{4})\s*$/);
+            return m ? m[1] : "";
+          };
+          const shortXm = (name) =>
+            String(name || "")
+              .replace(/\s+[–-]\s+\d{4}\s*$/, "")
+              .trim() || String(name || "space");
+          if (!xmSpaces.length) {
+            return [
+              metric(
+                "X Money",
+                money(inp.x_money_cash ?? xm.cash) +
+                  (inp.x_money_account || xm.account_name
+                    ? ` · ${(inp.x_money_account || xm.account_name || "")
+                        .toString()
+                        .slice(0, 20)}`
+                    : "") +
+                  apyBit
+              ),
+            ];
+          }
+          const rows = [
+            metric(
+              "X Money",
+              money(inp.x_money_cash ?? xm.cash) +
+                ` · ${xmSpaces.length + 1} sleeves` +
+                apyBit
+            ),
+            metric(
+              "X Money · " + shortXm(xm.account_name || "Main"),
+              money(xm.main_cash ?? xm.cash) +
+                (accountLast4(xm.account_name)
+                  ? ` · ${accountLast4(xm.account_name)}`
+                  : "")
+            ),
+          ];
+          for (const sp of xmSpaces) {
+            rows.push(
+              metric(
+                "X Money · " + shortXm(sp.account_name),
+                money(sp.cash) + (sp.last4 ? ` · ${sp.last4}` : "")
+              )
+            );
+          }
+          return rows;
+        })(),
         metric("LTV", pct(inp.ltv)),
         metric(
           "Morpho var APR",

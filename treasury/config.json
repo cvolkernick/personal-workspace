@@ -45,9 +45,18 @@
     "budget_name": null,
     "account_name": null,
     "checking_account_name": null,
-    "x_money_account_name": "Checking \u2013 2201",
+    "x_money_account_name": "Main \u2013 2201",
+    "x_money_account_last4": "2201",
+    "x_money_space_names": [
+      "Auto Fleet",
+      "Collateral",
+      "Utilities"
+    ],
+    "x_money_exclude_last4": [
+      "8680"
+    ],
     "x_money_apy_est": 0.06,
-    "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking + X Money (Plaid often names X Money as Checking \u2013 ####). X Money cash pays ~6% APY (product rate; confirm in app)."
+    "notes": "Token at ~/.config/ynab/token. X Money main is last-4 2201 (Main \u2013 2201). Spaces: Auto Fleet / Collateral / Utilities. EveryDay Checking \u2013 8680 is Navy Federal \u2014 never X Money. Do not leftover-pick a random checking. X Money cash pays ~6% APY (product rate; confirm in app)."
   },
   "expenses_sheet": {
     "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
