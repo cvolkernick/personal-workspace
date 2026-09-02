@@ -1,7 +1,12 @@
 """Lab panels for coach + FitDash Labs UI.
 
-Durable store: ``~/.config/resistance-dashboard/labs/<user>/`` (PHI, not git).
-Override with ``FITDASH_LABS_DIR``. ``fitness/data/labs.json`` is an empty hook.
+Durable store:
+- Turso ``labs_panels`` (parsed markers, no PDF) when ``TURSO_*`` is set —
+  this is the Vercel prod path.
+- ``~/.config/resistance-dashboard/labs/<user>/`` on Pi when Turso is dark
+  (hashed PDF + index). Override with ``FITDASH_LABS_DIR``.
+
+``fitness/data/labs.json`` is an empty hook. PDFs never go to Turso or git.
 
 Lane is an allowlist by marker id — out-of-range does not imply diet advice.
 """
@@ -132,9 +137,25 @@ _FORBIDDEN = re.compile(
     re.I,
 )
 
+_BLOB_KEYS = (
+    "pdf_bytes",
+    "pdf_b64",
+    "content_base64",
+    "file_bytes",
+    "raw_pdf",
+)
+
+ENSURE_LABS_SQL = """
+CREATE TABLE IF NOT EXISTS labs_panels (
+  user_id TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+"""
+
 
 def _ephemeral_host() -> bool:
-    """Vercel Hobby FS is not a PHI store. Durable path is Pi ~/.config."""
+    """Vercel Hobby FS is not a PHI store. Parsed markers persist in Turso."""
     return bool(
         (os.environ.get("VERCEL") or "").strip()
         or (os.environ.get("VERCEL_ENV") or "").strip()
@@ -163,8 +184,9 @@ def _index_path(user_id: str) -> Path:
 def default_labs() -> dict:
     return {
         "source_note": (
-            "Lab panels live in ~/.config/resistance-dashboard/labs/ (not git). "
-            "fitness/data/labs.json is an empty hook."
+            "Parsed lab panels persist in Turso (Vercel) or "
+            "~/.config/resistance-dashboard/labs/ (Pi). "
+            "PDFs stay off Turso and git. fitness/data/labs.json is an empty hook."
         ),
         "panels": [],
         "updated_at": "",
@@ -432,8 +454,7 @@ def energy_availability_cluster(
 def _atomic_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
     if _ephemeral_host():
         raise RuntimeError(
-            "labs store is Pi ~/.config/resistance-dashboard/labs/; "
-            "Vercel Hobby FS is not a PHI store"
+            "Vercel Hobby FS is not a PHI store; parsed markers persist in Turso"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -457,6 +478,154 @@ def _atomic_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
         raise
 
 
+def _labs_uid(user_id: str) -> str:
+    return (user_id or "").strip() or "local"
+
+
+def _strip_panel(panel: dict) -> dict:
+    out = deepcopy(panel)
+    for key in _BLOB_KEYS:
+        out.pop(key, None)
+    return out
+
+
+def _payload_for_store(store: dict) -> dict:
+    panels = [
+        _strip_panel(raw)
+        for raw in (store.get("panels") or [])
+        if isinstance(raw, dict)
+    ]
+    panels.sort(key=lambda x: str(x.get("date") or ""))
+    return {
+        "source_note": str(store.get("source_note") or default_labs()["source_note"]),
+        "updated_at": str(store.get("updated_at") or ""),
+        "panels": panels,
+    }
+
+
+def _index_from_payload(data: dict, *, storage: str) -> dict:
+    out = default_labs()
+    if not isinstance(data, dict):
+        out["storage"] = storage
+        return out
+    out["source_note"] = str(data.get("source_note") or out["source_note"])
+    out["updated_at"] = str(data.get("updated_at") or "")
+    out["storage"] = storage
+    panels = [raw for raw in (data.get("panels") or []) if isinstance(raw, dict)]
+    panels.sort(key=lambda x: str(x.get("date") or ""))
+    out["panels"] = panels
+    return out
+
+
+def _open_labs_blob(user_id: str, raw: Any) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    blob = str(raw or "").strip()
+    if not blob:
+        raise ValueError("empty labs payload")
+    if blob.startswith("{"):
+        data = json.loads(blob)
+        if not isinstance(data, dict):
+            raise ValueError("labs payload is not an object")
+        return data
+    from .crypto_box import open_str
+
+    plain = open_str(blob, aad=f"user:{user_id}:labs")
+    data = json.loads(plain)
+    if not isinstance(data, dict):
+        raise ValueError("labs payload is not an object")
+    return data
+
+
+def _turso_get_labs(user_id: str) -> Optional[dict]:
+    from .turso_http import connect, turso_enabled
+
+    if not turso_enabled():
+        return None
+    uid = _labs_uid(user_id)
+    with connect() as conn:
+        conn.execute(ENSURE_LABS_SQL)
+        row = conn.execute(
+            "SELECT payload FROM labs_panels WHERE user_id = ?",
+            (uid,),
+        ).fetchone()
+    if not row:
+        return None
+    payload = row["payload"] if isinstance(row, dict) else row[0]
+    if not payload:
+        return None
+    data = _open_labs_blob(uid, payload)
+    return _index_from_payload(data, storage="turso")
+
+
+def _turso_put_labs(user_id: str, store: dict) -> None:
+    from .crypto_box import seal_str
+    from .turso_http import connect, turso_enabled
+
+    if not turso_enabled():
+        raise RuntimeError("turso env missing")
+    uid = _labs_uid(user_id)
+    payload = _payload_for_store(store)
+    now = payload["updated_at"] or datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    payload["updated_at"] = now
+    blob = seal_str(
+        json.dumps(payload, separators=(",", ":")),
+        aad=f"user:{uid}:labs",
+    )
+    with connect() as conn:
+        conn.execute(ENSURE_LABS_SQL)
+        conn.execute(
+            """
+            INSERT INTO labs_panels(user_id, payload, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+              payload = excluded.payload,
+              updated_at = excluded.updated_at
+            """,
+            (uid, blob, now),
+        )
+
+
+def _commit_turso(user_id: str, store: dict, *, expect_identity=None) -> None:
+    _turso_put_labs(user_id, store)
+    existing = _turso_get_labs(user_id)
+    if existing is None:
+        raise RuntimeError("turso write not visible on readback")
+    if expect_identity is None:
+        return
+    ids = [_panel_identity(p) for p in existing.get("panels") or []]
+    if expect_identity not in ids:
+        raise RuntimeError("turso write not visible on readback")
+
+
+def _read_store(user_id: str) -> dict:
+    from .turso_http import turso_enabled
+
+    if turso_enabled():
+        existing = _turso_get_labs(user_id)
+        if existing is not None:
+            return existing
+        if _ephemeral_host():
+            return default_labs()
+        return _load_index(user_id)
+    if _ephemeral_host():
+        raise RuntimeError("turso env missing")
+    return _load_index(user_id)
+
+
+def _write_store(user_id: str, store: dict, *, expect_identity=None) -> None:
+    from .turso_http import turso_enabled
+
+    if turso_enabled():
+        store["storage"] = "turso"
+        _commit_turso(user_id, store, expect_identity=expect_identity)
+        return
+    if _ephemeral_host():
+        raise RuntimeError("turso env missing")
+    store["storage"] = "config"
+    _save_index(user_id, store)
+
+
 def _load_index(user_id: str) -> dict:
     p = _index_path(user_id)
     if not p.is_file():
@@ -467,18 +636,11 @@ def _load_index(user_id: str) -> dict:
         return default_labs()
     if not isinstance(data, dict):
         return default_labs()
-    out = default_labs()
-    out["source_note"] = str(data.get("source_note") or out["source_note"])
-    out["updated_at"] = str(data.get("updated_at") or "")
-    out["storage"] = "config"
-    panels = [raw for raw in (data.get("panels") or []) if isinstance(raw, dict)]
-    panels.sort(key=lambda x: str(x.get("date") or ""))
-    out["panels"] = panels
-    return out
+    return _index_from_payload(data, storage="config")
 
 
 def _save_index(user_id: str, payload: dict) -> None:
-    blob = json.dumps(payload, indent=2) + "\n"
+    blob = json.dumps(_payload_for_store(payload), indent=2) + "\n"
     _atomic_write(_index_path(user_id), blob.encode("utf-8"))
 
 
@@ -506,21 +668,15 @@ def save_panel(
         if not _ephemeral_host():
             pdf_path = _user_dir(user_id) / "files" / f"{sha}.pdf"
             _atomic_write(pdf_path, pdf_bytes)
-    if _ephemeral_host():
-        store = default_labs()
-        store["panels"] = [annotated]
-        store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        store["storage"] = "memory"
-        return store
+    annotated = _strip_panel(annotated)
     ident = _panel_identity(annotated)
-    store = _load_index(user_id)
+    store = _read_store(user_id)
     panels = [p for p in store.get("panels") or [] if _panel_identity(p) != ident]
     panels.append(annotated)
     panels.sort(key=lambda x: str(x.get("date") or ""))
     store["panels"] = panels
     store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    store["storage"] = "config"
-    _save_index(user_id, store)
+    _write_store(user_id, store, expect_identity=ident)
     return load_labs(user_id=user_id)
 
 
@@ -531,12 +687,7 @@ def delete_panel(
     order_id: str = "",
     user_id: str = "",
 ) -> dict:
-    if _ephemeral_host():
-        store = default_labs()
-        store["storage"] = "memory"
-        store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        return store
-    store = _load_index(user_id)
+    store = _read_store(user_id)
     date_s = str(date)[:10]
     lab_s = str(lab or "").strip().lower()
     order_s = str(order_id or "").strip()
@@ -551,8 +702,7 @@ def delete_panel(
         kept.append(p)
     store["panels"] = kept
     store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    store["storage"] = "config"
-    _save_index(user_id, store)
+    _write_store(user_id, store)
     return load_labs(user_id=user_id)
 
 
@@ -581,20 +731,16 @@ def _load_workspace_hook(workspace_dir: str, rel_path: str) -> dict:
     return out
 
 
-def load_labs(
-    workspace_dir: str = "",
-    rel_path: str = DEFAULT_REL_PATH,
+def _decorate_labs(
+    src: dict,
     *,
-    user_id: str = "",
     targets: Optional[dict] = None,
     as_of: Optional[str] = None,
 ) -> dict:
-    cfg = _load_index(user_id)
-    src = cfg if cfg.get("panels") else _load_workspace_hook(workspace_dir, rel_path)
     out = default_labs()
     out["source_note"] = src.get("source_note") or out["source_note"]
     out["updated_at"] = src.get("updated_at") or ""
-    out["storage"] = src.get("storage") or ("config" if cfg.get("panels") else out["storage"])
+    out["storage"] = src.get("storage") or out["storage"]
     panels = [
         annotate_panel(raw, targets=targets, as_of=as_of)
         for raw in (src.get("panels") or [])
@@ -603,6 +749,35 @@ def load_labs(
     panels.sort(key=lambda x: str(x.get("date") or ""))
     out["panels"] = panels
     return out
+
+
+def load_labs(
+    workspace_dir: str = "",
+    rel_path: str = DEFAULT_REL_PATH,
+    *,
+    user_id: str = "",
+    targets: Optional[dict] = None,
+    as_of: Optional[str] = None,
+) -> dict:
+    from .turso_http import turso_enabled
+
+    if turso_enabled():
+        try:
+            src = _turso_get_labs(user_id)
+        except Exception:
+            src = None
+        if src is not None:
+            return _decorate_labs(src, targets=targets, as_of=as_of)
+        if _ephemeral_host():
+            return _decorate_labs(default_labs(), targets=targets, as_of=as_of)
+    elif _ephemeral_host():
+        return _decorate_labs(default_labs(), targets=targets, as_of=as_of)
+    cfg = _load_index(user_id)
+    src = cfg if cfg.get("panels") else _load_workspace_hook(workspace_dir, rel_path)
+    if cfg.get("panels") and not src.get("storage"):
+        src = dict(src)
+        src["storage"] = "config"
+    return _decorate_labs(src, targets=targets, as_of=as_of)
 
 
 def latest_panel(labs: Optional[dict]) -> Optional[dict]:

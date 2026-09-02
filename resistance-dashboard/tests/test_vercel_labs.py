@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from unittest import mock
 
@@ -126,8 +127,78 @@ class CookieLessLabsRoutes(unittest.TestCase):
                 self.assertEqual(body["error"], "auth_required")
 
 
+class _FakeLabsTurso:
+    def __init__(self, store):
+        self.store = store
+        self._patches = (
+            mock.patch(
+                "rt_dashboard.labs_store._turso_get_labs", side_effect=self.get
+            ),
+            mock.patch(
+                "rt_dashboard.labs_store._turso_put_labs", side_effect=self.put
+            ),
+        )
+
+    def get(self, uid):
+        data = self.store.get(uid)
+        return deepcopy(data) if data is not None else None
+
+    def put(self, uid, payload):
+        self.store[uid] = deepcopy(payload)
+
+    def __enter__(self):
+        for p in self._patches:
+            p.start()
+        return self
+
+    def __exit__(self, *exc):
+        for p in reversed(self._patches):
+            p.stop()
+        return False
+
+
 class SignedInLabsRoutes(unittest.TestCase):
-    def test_vercel_upload_parses_without_hobby_phi(self):
+    def test_vercel_upload_persists_to_turso_and_survives_reload(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret", "VERCEL": "1"}
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        panel = _twenty_marker_panel()
+        store = {}
+        with mock.patch.dict(
+            os.environ,
+            {**env, "RESISTANCE_DASHBOARD_CONFIG_DIR": tmp.name},
+            clear=True,
+        ), mock.patch(
+            "rt_dashboard.turso_http.turso_enabled", return_value=True
+        ), _FakeLabsTurso(store), mock.patch(
+            "rt_dashboard.labs_parse.parse_lab_pdf",
+            return_value=panel,
+        ):
+            status, body = labs_write(
+                _headers(),
+                "labs_upload",
+                {
+                    "filename": "rythm.pdf",
+                    "content_base64": base64.b64encode(b"%PDF-1.3 fake").decode(
+                        "ascii"
+                    ),
+                },
+            )
+            status2, body2 = labs_body(_headers())
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertGreaterEqual(body["marker_count"], 20)
+        self.assertEqual(body["panel"]["lab"], "Rythm Health")
+        self.assertEqual((body.get("labs") or {}).get("storage"), "turso")
+        self.assertEqual(body.get("write", {}).get("source"), "turso")
+        self.assertEqual(status2, 200)
+        self.assertEqual(len((body2.get("labs") or {}).get("panels") or []), 1)
+        self.assertEqual(body2["labs"]["storage"], "turso")
+        self.assertEqual(list(Path(tmp.name).rglob("*.pdf")), [])
+        self.assertEqual(list(Path(tmp.name).rglob("index.json")), [])
+        self.assertNotIn("%PDF", json.dumps(store, default=str))
+
+    def test_vercel_upload_without_turso_is_500(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret", "VERCEL": "1"}
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -136,46 +207,61 @@ class SignedInLabsRoutes(unittest.TestCase):
             os.environ,
             {**env, "RESISTANCE_DASHBOARD_CONFIG_DIR": tmp.name},
             clear=True,
+        ), mock.patch(
+            "rt_dashboard.labs_parse.parse_lab_pdf",
+            return_value=panel,
         ):
-            with mock.patch(
-                "rt_dashboard.labs_parse.parse_lab_pdf",
-                return_value=panel,
-            ):
-                status, body = labs_write(
-                    _headers(),
-                    "labs_upload",
-                    {
-                        "filename": "rythm.pdf",
-                        "content_base64": base64.b64encode(b"%PDF-1.3 fake").decode(
-                            "ascii"
-                        ),
-                    },
-                )
-        self.assertEqual(status, 200)
-        self.assertTrue(body["ok"])
-        self.assertGreaterEqual(body["marker_count"], 20)
-        self.assertEqual(body["panel"]["lab"], "Rythm Health")
-        self.assertEqual((body.get("labs") or {}).get("storage"), "memory")
-        self.assertEqual(list(Path(tmp.name).rglob("*.pdf")), [])
-        self.assertEqual(list(Path(tmp.name).rglob("index.json")), [])
+            status, body = labs_write(
+                _headers(),
+                "labs_upload",
+                {
+                    "filename": "rythm.pdf",
+                    "content_base64": base64.b64encode(b"%PDF-1.3 fake").decode(
+                        "ascii"
+                    ),
+                },
+            )
+        self.assertEqual(status, 500)
+        self.assertFalse(body.get("ok", True))
+        self.assertIn("turso", str(body.get("error") or "").lower())
+        self.assertEqual(list(Path(tmp.name).rglob("*")), [])
 
-    def test_vercel_delete_is_ok_without_disk_write(self):
+    def test_vercel_delete_removes_turso_row_without_disk(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret", "VERCEL": "1"}
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
+        store = {
+            "sub-1": {
+                "source_note": "t",
+                "updated_at": "2026-09-02T00:00:00Z",
+                "storage": "turso",
+                "panels": [
+                    {
+                        "date": "2026-06-01",
+                        "lab": "Rythm Health",
+                        "markers": {},
+                    }
+                ],
+            }
+        }
         with mock.patch.dict(
             os.environ,
             {**env, "RESISTANCE_DASHBOARD_CONFIG_DIR": tmp.name},
             clear=True,
-        ):
+        ), mock.patch(
+            "rt_dashboard.turso_http.turso_enabled", return_value=True
+        ), _FakeLabsTurso(store):
             status, body = labs_write(
                 _headers(),
                 "labs_delete",
                 {"date": "2026-06-01", "lab": "Rythm Health"},
             )
+            status2, body2 = labs_body(_headers())
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
         self.assertEqual(body["labs"]["panels"], [])
+        self.assertEqual(status2, 200)
+        self.assertEqual(body2["labs"]["panels"], [])
         self.assertEqual(list(Path(tmp.name).rglob("*")), [])
 
     def test_non_vercel_upload_reuses_pi_store(self):

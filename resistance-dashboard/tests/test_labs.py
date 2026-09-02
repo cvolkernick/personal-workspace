@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -103,6 +106,8 @@ class TestLabsStore(unittest.TestCase):
         os.environ["RESISTANCE_DASHBOARD_CONFIG_DIR"] = self.tmp.name
         os.environ.pop("VERCEL", None)
         os.environ.pop("VERCEL_ENV", None)
+        os.environ.pop("TURSO_DATABASE_URL", None)
+        os.environ.pop("TURSO_AUTH_TOKEN", None)
         self.addCleanup(self.tmp.cleanup)
         self.addCleanup(lambda: os.environ.pop("RESISTANCE_DASHBOARD_CONFIG_DIR", None))
 
@@ -146,6 +151,27 @@ class TestLabsStore(unittest.TestCase):
         save_panel(parse_lab_text(RYTHM_TEXT))
         labs = delete_panel(date="2026-06-01")
         self.assertEqual(labs["panels"], [])
+
+    def test_turso_miss_on_pi_seeds_from_disk(self):
+        save_panel(parse_lab_text(RYTHM_TEXT), user_id="local")
+        store = {}
+
+        def get(uid):
+            data = store.get(uid)
+            return deepcopy(data) if data is not None else None
+
+        def put(uid, payload):
+            store[uid] = deepcopy(payload)
+
+        panel2 = parse_lab_text(RYTHM_TEXT)
+        panel2["date"] = "2026-08-01"
+        panel2["order_id"] = "second"
+        with mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), mock.patch(
+            "rt_dashboard.labs_store._turso_get_labs", side_effect=get
+        ), mock.patch("rt_dashboard.labs_store._turso_put_labs", side_effect=put):
+            labs = save_panel(panel2, user_id="local")
+        self.assertEqual(labs.get("storage"), "turso")
+        self.assertEqual(len(labs["panels"]), 2)
 
     def test_legacy_float_markers(self):
         flags = flag_markers(
@@ -268,19 +294,137 @@ class TestFlagContract(unittest.TestCase):
 
 
 class TestVercelHobbyIsNotPhiStore(unittest.TestCase):
-    def test_save_panel_skips_disk_on_vercel(self):
+    def test_save_panel_persists_markers_to_turso_not_disk(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         os.environ["RESISTANCE_DASHBOARD_CONFIG_DIR"] = tmp.name
         os.environ["VERCEL"] = "1"
+        os.environ.pop("TURSO_DATABASE_URL", None)
+        os.environ.pop("TURSO_AUTH_TOKEN", None)
+        self.addCleanup(lambda: os.environ.pop("RESISTANCE_DASHBOARD_CONFIG_DIR", None))
+        self.addCleanup(lambda: os.environ.pop("VERCEL", None))
+        store = {}
+
+        def get(uid):
+            data = store.get(uid)
+            return deepcopy(data) if data is not None else None
+
+        def put(uid, payload):
+            store[uid] = deepcopy(payload)
+
+        panel = parse_lab_text(RYTHM_TEXT)
+        with mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), mock.patch(
+            "rt_dashboard.labs_store._turso_get_labs", side_effect=get
+        ), mock.patch("rt_dashboard.labs_store._turso_put_labs", side_effect=put):
+            labs = save_panel(panel, user_id="sub-1", pdf_bytes=b"%PDF-1.3 fake")
+            loaded = load_labs(user_id="sub-1")
+        self.assertEqual(labs.get("storage"), "turso")
+        self.assertEqual(len(labs["panels"]), 1)
+        self.assertEqual(len(loaded["panels"]), 1)
+        self.assertEqual(loaded["storage"], "turso")
+        blob = json.dumps(store)
+        self.assertNotIn("%PDF", blob)
+        self.assertEqual(list(Path(tmp.name).rglob("*.pdf")), [])
+        self.assertEqual(list(Path(tmp.name).rglob("index.json")), [])
+
+    def test_save_panel_on_vercel_without_turso_raises(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        os.environ["RESISTANCE_DASHBOARD_CONFIG_DIR"] = tmp.name
+        os.environ["VERCEL"] = "1"
+        os.environ.pop("TURSO_DATABASE_URL", None)
+        os.environ.pop("TURSO_AUTH_TOKEN", None)
         self.addCleanup(lambda: os.environ.pop("RESISTANCE_DASHBOARD_CONFIG_DIR", None))
         self.addCleanup(lambda: os.environ.pop("VERCEL", None))
         panel = parse_lab_text(RYTHM_TEXT)
-        labs = save_panel(panel, pdf_bytes=b"%PDF-1.3 fake")
-        self.assertEqual(labs.get("storage"), "memory")
-        self.assertEqual(len(labs["panels"]), 1)
-        self.assertEqual(list(Path(tmp.name).rglob("*.pdf")), [])
-        self.assertEqual(list(Path(tmp.name).rglob("index.json")), [])
+        with self.assertRaises(RuntimeError) as ctx:
+            save_panel(panel, pdf_bytes=b"%PDF-1.3 fake")
+        self.assertIn("turso", str(ctx.exception).lower())
+        self.assertEqual(list(Path(tmp.name).rglob("*")), [])
+
+    def test_turso_helpers_seal_roundtrip_without_pdf(self):
+        import base64
+
+        import rt_dashboard.crypto_box as crypto_box
+        from rt_dashboard.labs_store import _turso_get_labs, _turso_put_labs
+
+        crypto_box._KEY = None
+        self.addCleanup(lambda: setattr(crypto_box, "_KEY", None))
+        os.environ["FITDASH_MASTER_KEY"] = base64.urlsafe_b64encode(b"k" * 32).decode(
+            "ascii"
+        )
+        self.addCleanup(lambda: os.environ.pop("FITDASH_MASTER_KEY", None))
+        table = {}
+
+        class _Cursor:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def fetchone(self):
+                return self._rows[0] if self._rows else None
+
+        class _Conn:
+            def execute(self, sql, params=()):
+                text = " ".join(str(sql).split())
+                if text.upper().startswith("SELECT"):
+                    uid = params[0]
+                    if uid not in table:
+                        return _Cursor([])
+                    return _Cursor([{"payload": table[uid]}])
+                if "INSERT" in text.upper():
+                    table[params[0]] = params[1]
+                return _Cursor([])
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        panel = parse_lab_text(RYTHM_TEXT)
+        store = {
+            "source_note": "t",
+            "updated_at": "2026-09-02T00:00:00Z",
+            "panels": [
+                {
+                    **panel,
+                    "pdf_bytes": b"%PDF-1.3 fake",
+                }
+            ],
+        }
+        with mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), mock.patch(
+            "rt_dashboard.turso_http.connect", return_value=_Conn()
+        ):
+            _turso_put_labs("sub-1", store)
+            loaded = _turso_get_labs("sub-1")
+        self.assertEqual(loaded["storage"], "turso")
+        self.assertEqual(loaded["panels"][0]["lab"], panel["lab"])
+        self.assertNotIn("pdf_bytes", loaded["panels"][0])
+        self.assertFalse(str(table["sub-1"]).startswith("{"))
+        self.assertNotIn("%PDF", str(table["sub-1"]))
+
+    def test_payload_for_store_drops_pdf_bytes(self):
+        from rt_dashboard.labs_store import _payload_for_store
+
+        store = {
+            "source_note": "x",
+            "updated_at": "2026-09-02T00:00:00Z",
+            "storage": "turso",
+            "panels": [
+                {
+                    "date": "2026-06-01",
+                    "lab": "Rythm Health",
+                    "pdf_bytes": b"%PDF-1.3 fake",
+                    "content_base64": "QQ==",
+                    "markers": {"apob_mg_dl": {"value": 90.9}},
+                }
+            ],
+        }
+        payload = _payload_for_store(store)
+        self.assertNotIn("storage", payload)
+        self.assertNotIn("pdf_bytes", payload["panels"][0])
+        self.assertNotIn("content_base64", payload["panels"][0])
+        self.assertEqual(payload["panels"][0]["markers"]["apob_mg_dl"]["value"], 90.9)
 
 
 class TestPilotPdfOptional(unittest.TestCase):
