@@ -4018,6 +4018,70 @@ body.m-shell #alerts {
   }
 }
 
+.labs-jump {
+  display: inline;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.8rem;
+}
+
+.labs-meta {
+  margin: 0 0 0.5rem;
+  font-size: 0.88rem;
+}
+
+.labs-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.labs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.labs-table th,
+.labs-table td {
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.labs-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.labs-table td.labs-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.labs-row-ok td:last-child {
+  color: var(--accent-2);
+}
+
+.labs-row-perf {
+  background: rgba(240, 180, 41, 0.08);
+}
+
+.labs-row-perf td:last-child {
+  color: var(--warn);
+}
+
+.labs-row-clinical {
+  background: rgba(240, 113, 120, 0.1);
+}
+
+.labs-row-clinical td:last-child {
+  color: var(--danger);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

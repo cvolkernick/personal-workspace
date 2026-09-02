@@ -1,3 +1,4 @@
-# Stdlib-only runtime (urllib, http.server). No third-party deps required.
+# Runtime is mostly stdlib (urllib, http.server). Lab PDF upload needs:
+pypdf>=5.0
 # Optional for local dev convenience:
 # pytest>=7.0
