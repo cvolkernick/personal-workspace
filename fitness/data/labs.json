@@ -1,5 +1,5 @@
 {
-  "source_note": "Empty hook only. Upload lab PDFs in FitDash More → Labs. PHI is stored in ~/.config/resistance-dashboard/labs/, not this file.",
+  "source_note": "Empty hook only. Upload lab PDFs in FitDash More → Labs. Parsed markers persist in Turso (Vercel) or ~/.config/resistance-dashboard/labs/ (Pi). PDFs never land here.",
   "updated_at": "",
   "panels": []
 }

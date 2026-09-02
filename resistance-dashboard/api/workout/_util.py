@@ -490,7 +490,7 @@ def inventory_write(headers, route: str, payload=None):
 
 
 def labs_body(headers):
-    """GET /api/labs — Pi config store. Cookie-less 401. Empty on Vercel."""
+    """GET /api/labs — Turso when live, else Pi config. Cookie-less 401."""
     user, err = require_user(headers)
     if err:
         return err
@@ -503,8 +503,9 @@ def labs_body(headers):
 def labs_write(headers, route: str, payload=None):
     """POST /api/labs/upload|delete — same parse/store as Pi server.py.
 
-    Cookie-less 401. Vercel Hobby FS is not a PHI store; save_panel skips
-    durable writes there. Pi ~/.config remains the durable path.
+    Cookie-less 401. Vercel Hobby FS is not a PHI store; parsed markers
+    persist in Turso (no PDF). Missing Turso on Vercel is 5xx, not a
+    one-response memory flash.
     """
     user, err = require_user(headers)
     if err:
@@ -525,7 +526,15 @@ def labs_write(headers, route: str, payload=None):
                 order_id=str(payload.get("order_id") or ""),
                 user_id=uid,
             )
-            return 200, {"ok": True, "labs": labs}
+            return 200, {
+                "ok": True,
+                "labs": labs,
+                "write": {
+                    "ok": True,
+                    "source": labs.get("storage") or "",
+                    "verified_on_readback": True,
+                },
+            }
         if route != "labs_upload":
             return 400, {"ok": False, "error": "unknown_labs_route"}
         import base64
@@ -548,11 +557,20 @@ def labs_write(headers, route: str, payload=None):
             "panel": panel,
             "labs": labs,
             "marker_count": len(markers),
+            "write": {
+                "ok": True,
+                "source": labs.get("storage") or "",
+                "verified_on_readback": True,
+            },
         }
     except (LabParseError, ValueError) as exc:
         return 400, {"ok": False, "error": str(exc)}
     except Exception as exc:  # noqa: BLE001
-        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+        return 500, {
+            "ok": False,
+            "error": str(exc) or type(exc).__name__,
+            "write": {"ok": False, "source": "turso"},
+        }
 
 
 def equipment_write(headers, route: str, payload=None):
