@@ -2968,9 +2968,14 @@
                 .map((f) => `${f.name || f.marker} ${f.value_text || f.value}`)
                 .join(", ")} (clinician)`
             : " · no clinical flags";
+        const nPanels = labs.panel_count || (labs.history && labs.history.panel_count) || (panels.length || 1);
+        const histBit =
+          nPanels > 1
+            ? ` · ${nPanels} panels (last-known dated, not averaged)`
+            : "";
         labsBox.innerHTML = `Latest labs <strong>${labs.date || "—"}</strong>${
           labs.lab ? ` (${labs.lab})` : ""
-        }: ${labs.marker_count || 0} markers${clin}${stale}. Volume unchanged. ${open}`;
+        }: ${labs.marker_count || 0} markers${clin}${stale}${histBit}. Volume unchanged. ${open}`;
       } else if (panels.length) {
         const p = panels[panels.length - 1];
         labsBox.innerHTML = `Latest labs <strong>${p.date || "—"}</strong>${
@@ -3003,6 +3008,13 @@
     return `${lo ?? "—"}–${hi ?? "—"}`;
   }
 
+  let labsSelectedKey = "";
+
+  function labPanelKey(p) {
+    if (!p) return "";
+    return `${p.date || ""}|${p.lab || ""}|${p.order_id || ""}`;
+  }
+
   function latestLabsPanel(store) {
     const labs = (store && store.labs) || {};
     const panels = labs.panels || [];
@@ -3010,16 +3022,109 @@
     return panels[panels.length - 1];
   }
 
-  function renderLabsPanel(store) {
-    const box = $("labs-panel");
-    const del = $("btn-labs-delete");
-    if (!box) return;
-    const panel = latestLabsPanel(store);
-    if (del) del.hidden = !panel;
-    if (!panel) {
-      box.innerHTML = `<p class="muted" style="margin:0">No panel on file yet.</p>`;
-      return;
-    }
+  function selectedLabsPanel(store) {
+    const labs = (store && store.labs) || {};
+    const panels = labs.panels || [];
+    if (!panels.length) return null;
+    const hit = panels.find((p) => labPanelKey(p) === labsSelectedKey);
+    return hit || panels[panels.length - 1];
+  }
+
+  function labSpark(series) {
+    const nums = (series || []).map((s) => s && s.numeric).filter((v) => v != null && Number.isFinite(v));
+    if (nums.length < 2) return `<span class="labs-spark labs-spark-empty">—</span>`;
+    const w = 64;
+    const h = 20;
+    const pad = 2;
+    const min = Math.min(...nums);
+    const max = Math.max(...nums);
+    const span = max - min || 1;
+    const pts = nums
+      .map((v, i) => {
+        const x = pad + (i * (w - 2 * pad)) / (nums.length - 1);
+        const y = h - pad - ((v - min) / span) * (h - 2 * pad);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    return `<svg class="labs-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/></svg>`;
+  }
+
+  function labDeltaText(row) {
+    if (row.delta == null || !Number.isFinite(row.delta)) return "—";
+    const n = row.delta;
+    const sign = n > 0 ? "+" : "";
+    const cls = n > 0 ? "labs-delta-up" : n < 0 ? "labs-delta-down" : "";
+    return `<span class="${cls}">${sign}${labEsc(n)}</span>`;
+  }
+
+  function labRangeHist(row) {
+    if (row.min == null || row.max == null) return "—";
+    const mean = row.mean == null ? "" : ` · μ ${labEsc(row.mean)}`;
+    return `${labEsc(row.min)}–${labEsc(row.max)}${mean}`;
+  }
+
+  function renderLabsOverview(store) {
+    const labs = (store && store.labs) || {};
+    const hist = labs.history || {};
+    const markers = hist.markers || [];
+    const panels = labs.panels || hist.panels || [];
+    if (!panels.length) return "";
+    const chips = panels
+      .map((p) => {
+        const key = labPanelKey(p);
+        const selected = selectedLabsPanel(store);
+        const on = labPanelKey(selected) === key;
+        return `<button type="button" class="labs-chip${on ? " is-on" : ""}" data-lab-panel="${labEsc(key)}">${labEsc(
+          p.date || "—"
+        )}${p.lab ? ` · ${labEsc(p.lab)}` : ""}</button>`;
+      })
+      .join("");
+    const mixed = hist.mixed_labs
+      ? `<span class="labs-mixed">Mixed vendors — assays differ; do not treat as one lab.</span>`
+      : "";
+    const rows = markers
+      .map((m) => {
+        const last = m.last || {};
+        const carry = m.on_latest
+          ? ""
+          : `<span class="labs-carry">last known ${labEsc(last.date || "")}</span>`;
+        const vendor = m.mixed_labs ? ` · ${labEsc(last.lab || "")}` : "";
+        return `<tr class="${m.on_latest ? "" : "labs-row-carry"}">
+          <td>${labEsc(m.name || m.id)}${carry}</td>
+          <td class="labs-val">${labEsc(last.value_text || last.value)}${vendor}</td>
+          <td>${labEsc(m.unit || last.unit || "")}</td>
+          <td>${labDeltaText(m)}</td>
+          <td>${labRangeHist(m)} <span class="muted">n=${labEsc(m.n)}</span></td>
+          <td>${labSpark(m.series)}</td>
+          <td>${labEsc(m.lane || "info")}</td>
+        </tr>`;
+      })
+      .join("");
+    return `
+      <div class="labs-overview">
+        <p class="labs-meta">
+          <strong>Overview</strong>
+          · ${panels.length} panel${panels.length === 1 ? "" : "s"}
+          · last-known per marker is dated, not averaged
+          ${mixed}
+        </p>
+        <div class="labs-panel-list" role="tablist">${chips}</div>
+        <div class="labs-table-wrap">
+          <table class="labs-table labs-history-table">
+            <thead>
+              <tr>
+                <th>Marker</th><th>Last known</th><th>Unit</th>
+                <th>Δ prev</th><th>Range / mean</th><th>Trend</th><th>Lane</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function renderLabsPanelTable(panel) {
+    if (!panel) return "";
     const rawMarkers = panel.markers || {};
     const markers = Array.isArray(rawMarkers)
       ? rawMarkers
@@ -3056,7 +3161,7 @@
         </tr>`;
       })
       .join("");
-    box.innerHTML = `
+    return `
       <p class="labs-meta">
         <strong>${labEsc(panel.lab || "Lab")}</strong>
         · reported ${labEsc(panel.date || "—")}
@@ -3078,7 +3183,32 @@
       <p class="muted" style="margin:0.5rem 0 0; font-size:0.8rem">
         Blue/green = inside the lab's performance range. Amber = outside performance,
         inside clinical. Red = outside the clinical range — clinician, not a training call.
+        Mean/range above are historical, not the live value.
       </p>`;
+  }
+
+  function renderLabsPanel(store) {
+    const box = $("labs-panel");
+    const del = $("btn-labs-delete");
+    if (!box) return;
+    const latest = latestLabsPanel(store);
+    if (del) del.hidden = !latest;
+    if (!latest) {
+      box.innerHTML = `<p class="muted" style="margin:0">No panel on file yet.</p>`;
+      return;
+    }
+    const keys = ((store && store.labs && store.labs.panels) || []).map(labPanelKey);
+    if (!keys.includes(labsSelectedKey)) {
+      labsSelectedKey = labPanelKey(latest);
+    }
+    const panel = selectedLabsPanel(store);
+    box.innerHTML = `${renderLabsOverview(store)}${renderLabsPanelTable(panel)}`;
+    box.querySelectorAll("[data-lab-panel]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        labsSelectedKey = btn.getAttribute("data-lab-panel") || "";
+        renderLabsPanel(store);
+      });
+    });
   }
 
   function fileToBase64(file) {
@@ -3121,9 +3251,10 @@
         )} ${data.panel && data.panel.date ? data.panel.date : ""})`.trim();
       }
       if (input) input.value = "";
-      showAlert("Lab panel saved. Coach and Ask Grok will use the latest results.", "ok");
+      showAlert("Lab panel saved. Overview uses every panel; coach flags the newest draw.", "ok");
       if (data.labs && state && state.nutrition_store) {
         state.nutrition_store.labs = data.labs;
+        labsSelectedKey = "";
         renderLabsPanel(state.nutrition_store);
       }
       await loadDashboard(false);
