@@ -1,17 +1,17 @@
 {
   "snapshot": {
-    "as_of": "2026-09-02T08:44:56.962699+00:00",
+    "as_of": "2026-09-02T11:48:04.783865+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-09-02T08:43:59.005918+00:00",
+      "as_of": "2026-09-02T11:44:20.532514+00:00",
       "liquid_usdc": 259.0441431255614,
-      "liquid_btc": 9.5177294815e-06,
-      "btc_usd_price": 76967.68,
-      "liquid_btc_usd": 0.7325575570586579,
+      "liquid_btc": 1.22877294815e-05,
+      "btc_usd_price": 76598.07,
+      "liquid_btc_usd": 0.9412163629650009,
       "by_currency": {
         "USDC": 259.0434571904,
         "USD": 0.0006859351614,
-        "BTC": 9.5177294815e-06
+        "BTC": 1.22877294815e-05
       },
       "account_count": 19,
       "coinbase_bin": "/opt/homebrew/bin/coinbase"
@@ -1261,18 +1261,18 @@
     },
     "solana": {
       "source": "live",
-      "as_of": "2026-09-02T08:44:00.122096+00:00",
+      "as_of": "2026-09-02T11:44:22.450269+00:00",
       "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
       "rpc_url": "https://api.mainnet-beta.solana.com",
-      "slot": 443653982,
+      "slot": 443688363,
       "sol": 0.010668183,
-      "sol_usd_price": 98.90632160388797,
-      "sol_usd": 1.0551507387271304,
+      "sol_usd_price": 97.91695255206838,
+      "sol_usd": 1.0445959686277824,
       "usdc": 0.0,
       "jr_strcusx": 12.74909,
       "jr_strcusx_usd_price": 1.026102141280007,
       "jr_strcusx_usd": 13.081868548371526,
-      "book_usd": 14.137019287098656,
+      "book_usd": 14.126464516999308,
       "counts_toward_hy": false,
       "counts_toward_ltv_defense": false,
       "counts_toward_working_usdc": false,
@@ -1282,15 +1282,15 @@
           "mint": "So11111111111111111111111111111111111111112",
           "role": "gas",
           "amount": 0.010668183,
-          "usd_price": 98.90632160388797,
-          "usd": 1.0551507387271304
+          "usd_price": 97.91695255206838,
+          "usd": 1.0445959686277824
         },
         {
           "symbol": "USDC",
           "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
           "role": "onchain_stable",
           "amount": 0.0,
-          "usd_price": 0.9998197113731586,
+          "usd_price": 0.9997036470409296,
           "usd": 0.0
         },
         {
@@ -3472,7 +3472,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-09-02T08:44:53.105103+00:00",
+      "as_of": "2026-09-02T11:47:59.011702+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3486,9 +3486,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-09-02T08:44:53.105099+00:00",
-        "total_value": 252.6067718667,
-        "equity_value": 252.5167718667,
+        "as_of": "2026-09-02T11:47:59.011698+00:00",
+        "total_value": 252.2148657306,
+        "equity_value": 252.1248657306,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3811,9 +3811,9 @@
       "working_usdc": 359.0441431255614,
       "vault_known": true,
       "count_vault_toward_buffers": true,
-      "liquid_btc": 9.5177294815e-06,
-      "liquid_btc_usd": 0.7325575570586579,
-      "btc_usd_price": 76967.68,
+      "liquid_btc": 1.22877294815e-05,
+      "liquid_btc_usd": 0.9412163629650009,
+      "btc_usd_price": 76598.07,
       "ltv": 0.5,
       "loan_principal_usdc": 120.5,
       "collateral_btc_usd": 242.84,
@@ -3847,7 +3847,7 @@
       "x_money_spend_30d": 7387.67,
       "x_money_apy_est": 0.06,
       "solana_wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
-      "solana_book_usd": 14.137019287098656,
+      "solana_book_usd": 14.126464516999308,
       "solana_sol": 0.010668183,
       "solana_usdc": 0.0,
       "solana_jr_strcusx": 12.74909,
@@ -3863,7 +3863,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 252.6067718667,
+      "rh_agentic_total_value": 252.2148657306,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 13,
@@ -3915,7 +3915,7 @@
       "coinbase_liquid": "red",
       "coinbase_card": "yellow",
       "robinhood": "green",
-      "data_quality": "green",
+      "data_quality": "yellow",
       "morpho_band": "critical",
       "rh_margin_band": "unknown",
       "overall": "red",
@@ -3924,7 +3924,7 @@
         "coinbase_liquid": "red",
         "coinbase_card": "yellow",
         "robinhood": "green",
-        "data_quality": "green",
+        "data_quality": "yellow",
         "morpho_band": "critical",
         "rh_margin_band": "unknown",
         "overall": "red"
@@ -3957,7 +3957,7 @@
       }
     },
     "data_quality": {
-      "status": "green",
+      "status": "yellow",
       "completeness_score": 1.0,
       "missing_manual_fields": [],
       "manual_filled": 6,
@@ -3970,16 +3970,26 @@
         "x_money": "ynab",
         "solana": "live",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-09-02T08:43:59.005918+00:00",
-        "robinhood_as_of": "2026-09-02T08:44:53.105103+00:00",
+        "coinbase_as_of": "2026-09-02T11:44:20.532514+00:00",
+        "robinhood_as_of": "2026-09-02T11:47:59.011702+00:00",
         "one_card_as_of": "2026-09-02T05:08:40.040558+00:00",
         "rh_checking_as_of": "2026-09-02T05:08:40.231220+00:00",
         "x_money_as_of": "2026-09-02T05:08:40.636413+00:00",
-        "solana_as_of": "2026-09-02T08:44:00.122096+00:00",
+        "solana_as_of": "2026-09-02T11:44:22.450269+00:00",
         "expenses_as_of": "2026-09-02T04:34:14.076786+00:00"
       },
-      "stale": [],
-      "warnings": [],
+      "stale": [
+        "one_card data 6.7h old (>6.0h)",
+        "rh_checking data 6.7h old (>6.0h)",
+        "x_money data 6.7h old (>6.0h)",
+        "expenses data 7.2h old (>6.0h)"
+      ],
+      "warnings": [
+        "one_card data 6.7h old (>6.0h)",
+        "rh_checking data 6.7h old (>6.0h)",
+        "x_money data 6.7h old (>6.0h)",
+        "expenses data 7.2h old (>6.0h)"
+      ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
         "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
@@ -4078,7 +4088,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.5\nHY LTV sleeve: $359.04 (spot $259.04 + HY vault $100.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00000952 (~$0.73)\nOne Card owed: $418.86 (source=ynab) | 30d spend $131.23 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.5 [critical] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=block_new_dual_extract\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $20220.79/mo (personal $14645.74 | fleet tab $5575.05) | CB-funded est $13523.07 | RH-checking est $0.00 | X Money est $5347.73 | Collateral investments (not burn) $687.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $0.0 | X Money: $1456.89 (Main \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $14.14 book (SOL 0.0107 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 12.7491 ~$13.08) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [human|manual] LTV 50.0% at/above max 50% \u2014 repay USDC or add collateral\n  P1 [human|manual] Refinance One Card $419 via Morpho principal (~5% vs ~29% APR)\n  P1 [human|manual] LTV 50.0% critical (alert 45%) \u2014 HY LTV Buffer \u2192 BTC collateral defense (up to $100)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$641\n  P5 [human|manual] Bills ~$13523/mo vs USDC $359\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.5\nHY LTV sleeve: $359.04 (spot $259.04 + HY vault $100.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00001229 (~$0.94)\nOne Card owed: $418.86 (source=ynab) | 30d spend $131.23 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.5 [critical] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=block_new_dual_extract\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $20220.79/mo (personal $14645.74 | fleet tab $5575.05) | CB-funded est $13523.07 | RH-checking est $0.00 | X Money est $5347.73 | Collateral investments (not burn) $687.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $0.0 | X Money: $1456.89 (Main \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $14.13 book (SOL 0.0107 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 12.7491 ~$13.08) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [human|manual] LTV 50.0% at/above max 50% \u2014 repay USDC or add collateral\n  P1 [human|manual] Refinance One Card $419 via Morpho principal (~5% vs ~29% APR)\n  P1 [human|manual] LTV 50.0% critical (alert 45%) \u2014 HY LTV Buffer \u2192 BTC collateral defense (up to $100)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$641\n  P5 [human|manual] Bills ~$13523/mo vs USDC $359\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -4263,16 +4273,16 @@
       "strc_jr": {
         "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
         "sol": 0.010668183,
-        "sol_usd": 1.0551507387271304,
+        "sol_usd": 1.0445959686277824,
         "usdc": 0.0,
         "jr_strcusx": 12.74909,
         "jr_strcusx_usd": 13.081868548371526,
-        "book_usd": 14.137019287098656,
+        "book_usd": 14.126464516999308,
         "counts_toward_hy": false,
         "counts_toward_ltv_defense": false,
         "counts_toward_working_usdc": false,
         "source": "live",
-        "as_of": "2026-09-02T08:44:00.122096+00:00",
+        "as_of": "2026-09-02T11:44:22.450269+00:00",
         "explorer": "https://solscan.io/account/CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
         "note": "Solana whitelist book (SOL + USDC + JR-strcUSX). JR is DC-credit parlay \u2014 never HY / LTV defense / working USDC."
       }
@@ -4317,25 +4327,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-09-02T08:44:56.967770+00:00",
+      "as_of": "2026-09-02T11:48:04.789267+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-09-02T08:44:56.964669+00:00",
+        "as_of": "2026-09-02T11:48:04.786125+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 252.6068,
+        "nav_usd": 252.2149,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 224.7296,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3604,
-          "stocks_growth": 0.5293,
+          "btc_digital_credit": 0.3609,
+          "stocks_growth": 0.5301,
           "other": 0.0,
           "cash": 0.0004
         },
@@ -6437,25 +6447,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-09-02T08:44:56.967770+00:00",
+    "as_of": "2026-09-02T11:48:04.789267+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-09-02T08:44:56.964669+00:00",
+      "as_of": "2026-09-02T11:48:04.786125+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 252.6068,
+      "nav_usd": 252.2149,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 224.7296,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3604,
-        "stocks_growth": 0.5293,
+        "btc_digital_credit": 0.3609,
+        "stocks_growth": 0.5301,
         "other": 0.0,
         "cash": 0.0004
       },
