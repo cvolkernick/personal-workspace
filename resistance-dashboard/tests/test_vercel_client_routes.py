@@ -69,6 +69,15 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("fitness/exercises/equipment.json", raw)
         self.assertIn("/api/equipment/add", raw)
         self.assertIn("/api/dashboard?_r=eq_add", raw)
+        self.assertIn("/api/labs/upload", raw)
+        self.assertIn("/api/dashboard?_r=labs_upload", raw)
+        self.assertIn("/api/labs/delete", raw)
+        self.assertIn("/api/dashboard?_r=labs_delete", raw)
+        self.assertIn("/api/labs", raw)
+        self.assertIn("/api/dashboard?_r=labs", raw)
+        self.assertNotIn("api/labs.py", raw)
+        self.assertFalse((ROOT / "api" / "labs.py").exists())
+        self.assertFalse((ROOT / "api" / "labs").is_dir())
 
     def test_hobby_function_count_stays_at_12(self):
         api = ROOT / "api"
@@ -129,6 +138,7 @@ class CookieLessClientRoutes(unittest.TestCase):
                 "daily_tasks",
                 "daily_tasks_complete",
                 "agent_today",
+                "labs",
             ):
                 status, body = dispatch_client_route({}, f"_r={route}", "GET")
                 self.assertEqual(status, 401, route)
@@ -148,11 +158,29 @@ class CookieLessClientRoutes(unittest.TestCase):
                 ("/api/daily-tasks", "daily_tasks"),
                 ("/api/daily-tasks/complete", "daily_tasks_complete"),
                 ("/api/agent/today", "agent_today"),
+                ("/api/labs", "labs"),
             )
             for path, route in pairs:
                 status, body = dispatch_client_route({}, "", "GET", path=path)
                 self.assertEqual(status, 401, route)
                 self.assertEqual(body["error"], "auth_required")
+
+    def test_dispatch_labs_post_cookie_less_401(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            for path, route in (
+                ("/api/labs/upload", "labs_upload"),
+                ("/api/labs/delete", "labs_delete"),
+            ):
+                status, body = dispatch_client_route(
+                    {}, "", "POST", payload={}, path=path
+                )
+                self.assertEqual(status, 401, route)
+                self.assertEqual(body["error"], "auth_required")
+                self.assertNotIn("<html", json.dumps(body).lower())
+                status, body = dispatch_client_route(
+                    {}, f"_r={route}", "POST", payload={}
+                )
+                self.assertEqual(status, 401, route)
 
 
 class SignedInClientRoutes(unittest.TestCase):
