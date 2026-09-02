@@ -15,6 +15,13 @@ Role scores come from written policy only:
 Within each sleeve, share = role_score / sleeve_score_sum, then scaled
 by the sleeve's target budget so chips sum to ~100% of new money.
 
+Optional consider-share stamps (investment/consider_share.json, or a
+watchlist/policy `consider_share_stamps` block) pin named chips, then
+proportionally rescale the rest so the list still sums to 100%. Those
+pins are residual-mix / relative preference on this axis only — NOT a
+live NAV target, NOT a sleeve target, NOT an order. Autopilot and
+Monday residual must not chase them.
+
 Live book % is an annotation (held badge), never the axis. This is not
 an order ticket — the fund manager still research/rotates at deploy.
 """
@@ -32,6 +39,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parent.parent
 FM_POLICY = ROOT / "investment" / "fund_manager.json"
 WATCHLIST_PATH = ROOT / "investment" / "watchlist.json"
+CONSIDER_SHARE_PATH = ROOT / "investment" / "consider_share.json"
 FM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "fund_manager_latest.json"
 TREASURY_FCC = ROOT / "financial-command" / "treasury_latest.json"
 TREASURY_SNAP = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
@@ -458,6 +466,116 @@ def _ticks(max_pct: float) -> List[float]:
     return out
 
 
+def _pins_from(value: Any) -> Dict[str, float]:
+    """Extract symbol → pct pins. Accepts `{pins: {...}}` or a flat map."""
+    if not isinstance(value, dict) or not value:
+        return {}
+    raw = value.get("pins") if isinstance(value.get("pins"), dict) else value
+    if not isinstance(raw, dict):
+        return {}
+    out: Dict[str, float] = {}
+    for key, val in raw.items():
+        if str(key).strip().lower() in {
+            "pins",
+            "notes",
+            "schema",
+            "as_of",
+            "unit",
+            "sum_to",
+            "not_a_nav_target",
+            "not_a_sleeve_target",
+            "not_an_order",
+            "not_for_autopilot",
+            "not_for_monday_residual",
+        }:
+            continue
+        sym = _sym(key)
+        pct = _money(val)
+        if not sym or pct is None or pct <= 0:
+            continue
+        out[sym] = float(pct)
+    return out
+
+
+def _load_consider_share_stamps(
+    stamps: Optional[Dict[str, Any]],
+    watchlist: Dict[str, Any],
+    policy: Dict[str, Any],
+    *,
+    watchlist_injected: bool,
+) -> Dict[str, float]:
+    """Stamps are Bias Spectrum residual-mix only. Never a fill/NAV target.
+
+    Injected watchlist/policy without a stamps block stays stamp-free so
+    role-score fixtures keep their 40/60 math. Disk/git file is the live SoT.
+    """
+    if stamps is not None:
+        return _pins_from(stamps)
+    for block in (
+        _as_dict(watchlist).get("consider_share_stamps"),
+        _as_dict(policy).get("consider_share_stamps"),
+    ):
+        pins = _pins_from(block)
+        if pins:
+            return pins
+    if watchlist_injected:
+        return {}
+    for data in (
+        _first_json("investment/consider_share.json"),
+        _git_show_json("investment/consider_share.json"),
+    ):
+        pins = _pins_from(data)
+        if pins:
+            return pins
+    return {}
+
+
+def _apply_consider_share_stamps(
+    chips: List[Dict[str, Any]], pins: Dict[str, float]
+) -> List[str]:
+    """Pin named chips, rescale every other chip so the list sums to 100%.
+
+    Returns the symbols that were actually stamped. Does not write NAV or
+    sleeve targets. Rank order among unpinned names is preserved.
+    """
+    if not chips or not pins:
+        return []
+    present = [c for c in chips if c.get("symbol") in pins]
+    if not present:
+        return []
+    applied = [str(c["symbol"]) for c in present]
+    pin_total = sum(float(pins[c["symbol"]]) for c in present)
+    others = [c for c in chips if c.get("symbol") not in pins]
+    other_sum = sum(float(c.get("weight_pct") or 0) for c in others)
+    remainder = 100.0 - pin_total
+    for chip in present:
+        pct = round(float(pins[chip["symbol"]]), 2)
+        chip["weight_pct"] = pct
+        chip["weight_basis"] = "consider_share_stamp"
+        chip["consider_share_stamp"] = True
+        chip["notes"] = (
+            f"Consideration-list stamp {pct:g}% — residual mix / relative "
+            f"preference on the 100% Bias Spectrum list. NOT a live NAV "
+            f"target, NOT a sleeve target, NOT an order. Flatten-only: do "
+            f"not trim and do not top up. Next residual (Monday $25) stays "
+            f"theme-gap, not {chip['symbol']}."
+        )
+    if others and other_sum > 0 and remainder >= 0:
+        scaled = []
+        for chip in others:
+            raw = float(chip.get("weight_pct") or 0) * remainder / other_sum
+            chip["weight_pct"] = round(raw, 2)
+            scaled.append(chip)
+        drift = round(remainder - sum(float(c["weight_pct"]) for c in scaled), 2)
+        if drift and scaled:
+            # Park leftover cents on the smallest unpinned chip so equal-score
+            # peer sets (NVDA=GOOGL=BE=PLTR) stay tied after the TSLA/SPCX lift.
+            anchor = min(scaled, key=lambda c: (float(c["weight_pct"]), c["symbol"]))
+            anchor["weight_pct"] = round(float(anchor["weight_pct"]) + drift, 2)
+    chips.sort(key=lambda c: (-float(c.get("weight_pct") or 0), str(c.get("symbol") or "")))
+    return applied
+
+
 def _candidate_symbols(
     *,
     core: set[str],
@@ -483,15 +601,20 @@ def build_bias_spectrum(
     treasury: Optional[Dict[str, Any]] = None,
     policy: Optional[Dict[str, Any]] = None,
     watchlist: Optional[Dict[str, Any]] = None,
+    consider_share_stamps: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble new-money consider-share chips on a 40/60 two-lane axis."""
     treasury_from_disk = not isinstance(treasury, dict)
+    watchlist_injected = isinstance(watchlist, dict)
     if treasury_from_disk:
         treasury = _load_json(TREASURY_FCC if TREASURY_FCC.is_file() else TREASURY_SNAP)
     fm = _load_fund_manager(fund_manager, treasury)
     analysis = _analysis_from_fm(fm)
     pol = _load_policy(policy, fund_manager=fm)
     wl = _load_watchlist(watchlist)
+    stamps = _load_consider_share_stamps(
+        consider_share_stamps, wl, pol, watchlist_injected=watchlist_injected
+    )
     preferred = _preferred_core(pol)
     core = _core_allowlist(pol)
     membership = _sleeve_membership(pol)
@@ -572,6 +695,7 @@ def build_bias_spectrum(
         chips.append(chip)
 
     chips.sort(key=lambda c: (-float(c["weight_pct"]), c["symbol"]))
+    stamped = _apply_consider_share_stamps(chips, stamps)
     placed = [c for c in chips if c.get("weight_pct") is not None]
     max_pct = _axis_max(placed)
     targets = _as_dict(analysis.get("targets")) or _as_dict(pol.get("targets"))
@@ -633,12 +757,26 @@ def build_bias_spectrum(
             "private_watchlist_on_axis": False,
             "sleeve_targets_are_new_money_budget": True,
             "forbid_held_only": True,
+            "consider_share_stamps_applied": bool(stamped),
+            "consider_share_stamps_are_not_nav_targets": True,
+            "consider_share_stamps_are_not_sleeve_targets": True,
+            "consider_share_stamps_are_not_orders": True,
         },
+        "consider_share_stamps": stamped,
         "notes": [
             "Chips = standing new-money consider-share from written policy.",
             "First split is sleeve budget (~40% BTC/digital-credit above, ~60% stocks/growth below).",
             "Then relative role inside the sleeve: preferred-core > core > watchlist high/med/low.",
             "Current book % is annotation only (held badge). Not an order ticket.",
             "Private watchlist stays off-axis.",
+            *(
+                [
+                    "TSLA/SPCX 10% chips are consideration-list stamps (residual mix), "
+                    "not live NAV/sleeve targets and not orders. Flatten-only: no trim, "
+                    "no top-up. Monday residual stays theme-gap."
+                ]
+                if stamped
+                else []
+            ),
         ],
     }

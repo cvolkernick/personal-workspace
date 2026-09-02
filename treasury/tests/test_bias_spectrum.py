@@ -215,9 +215,88 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertTrue(payload["policy"]["forbid_held_only"])
         self.assertFalse(payload["policy"]["private_watchlist_on_axis"])
         self.assertFalse(payload["policy"]["apr_apy_axis"])
+        self.assertTrue(payload["policy"]["consider_share_stamps_are_not_nav_targets"])
+        self.assertTrue(payload["policy"]["consider_share_stamps_are_not_sleeve_targets"])
+        self.assertTrue(payload["policy"]["consider_share_stamps_are_not_orders"])
+        self.assertFalse(payload["policy"]["consider_share_stamps_applied"])
+        self.assertEqual(payload.get("consider_share_stamps"), [])
         for chip in payload["chips"]:
             self.assertNotIn("target_pct", chip)
             self.assertNotIn("target_weight", chip)
+            self.assertFalse(chip.get("consider_share_stamp"))
+
+    def test_consider_share_stamps_pin_and_rescale_not_nav_target(self) -> None:
+        """TSLA/SPCX 10% is a consider-list stamp. Book % and sleeve targets stay put."""
+        policy = _policy()
+        policy["allowlist"]["core"] = ["MSTR", "STRC", "SATA", "TSLA", "SPCX"]
+        policy["sleeves"]["stocks_growth"]["symbols"] = ["TSLA", "SPCX"]
+        policy["sleeves"]["stocks_growth"]["watchlist_symbols"] = [
+            "NVDA",
+            "BE",
+            "PLTR",
+        ]
+        before = build_bias_spectrum(
+            fund_manager=_fm(),
+            treasury={},
+            policy=policy,
+            watchlist=_watchlist(),
+        )
+        after = build_bias_spectrum(
+            fund_manager=_fm(),
+            treasury={},
+            policy=policy,
+            watchlist=_watchlist(),
+            consider_share_stamps={"pins": {"TSLA": 10.0, "SPCX": 10.0}},
+        )
+        by_before = {c["symbol"]: c for c in before["chips"]}
+        by_after = {c["symbol"]: c for c in after["chips"]}
+        self.assertAlmostEqual(by_before["TSLA"]["weight_pct"], by_before["SPCX"]["weight_pct"])
+        # Role-score math (stocks scores 4+4+3+3+2=16): 4/16*60 = 15
+        self.assertAlmostEqual(by_before["TSLA"]["weight_pct"], 15.0)
+        self.assertAlmostEqual(by_after["TSLA"]["weight_pct"], 10.0)
+        self.assertAlmostEqual(by_after["SPCX"]["weight_pct"], 10.0)
+        self.assertEqual(by_after["TSLA"]["weight_basis"], "consider_share_stamp")
+        self.assertTrue(by_after["TSLA"]["consider_share_stamp"])
+        self.assertEqual(by_after["TSLA"]["book_pct"], by_before["TSLA"]["book_pct"])
+        self.assertEqual(by_after["TSLA"]["role"], "core")
+        self.assertNotIn("target_pct", by_after["TSLA"])
+        self.assertNotIn("target_weight", by_after["TSLA"])
+        self.assertIn("NOT a live NAV", by_after["TSLA"]["notes"])
+        self.assertIn("NOT a sleeve target", by_after["TSLA"]["notes"])
+        self.assertAlmostEqual(
+            sum(float(c["weight_pct"]) for c in after["chips"]), 100.0, places=1
+        )
+        # Unpinned names keep relative rank; scale by 80 / (100 - 15 - 15)
+        scale = 80.0 / 70.0
+        self.assertAlmostEqual(
+            by_after["NVDA"]["weight_pct"],
+            round(by_before["NVDA"]["weight_pct"] * scale, 2),
+            places=1,
+        )
+        self.assertAlmostEqual(
+            by_after["NVDA"]["weight_pct"], by_after["BE"]["weight_pct"]
+        )
+        self.assertGreater(by_after["NVDA"]["weight_pct"], by_after["PLTR"]["weight_pct"])
+        self.assertEqual(
+            after["targets"]["btc_digital_credit_pct"],
+            before["targets"]["btc_digital_credit_pct"],
+        )
+        self.assertEqual(
+            after["targets"]["stocks_growth_pct"],
+            before["targets"]["stocks_growth_pct"],
+        )
+        self.assertEqual(after["sleeve_budgets"], before["sleeve_budgets"])
+        self.assertFalse(after["policy"]["invented_targets"])
+        self.assertTrue(after["policy"]["consider_share_stamps_applied"])
+        self.assertTrue(after["policy"]["consider_share_stamps_are_not_nav_targets"])
+        self.assertCountEqual(after["consider_share_stamps"], ["TSLA", "SPCX"])
+
+    def test_injected_watchlist_does_not_load_disk_stamps(self) -> None:
+        """Role-score fixtures stay isolated from investment/consider_share.json."""
+        payload = _build()
+        tsla = {c["id"]: c for c in payload["chips"]}["bias-TSLA"]
+        self.assertAlmostEqual(tsla["weight_pct"], 20.0)
+        self.assertEqual(tsla["weight_basis"], "new_money_consider_share")
 
     def test_zero_market_value_is_not_held(self) -> None:
         fm = _fm()
