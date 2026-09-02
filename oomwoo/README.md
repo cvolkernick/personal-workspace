@@ -1,8 +1,11 @@
 # OOMWOO project status
 
-Local tracker for [makerspet/oomwoo](https://github.com/makerspet/oomwoo) — the open-source robot vacuum you build yourself.
+House copy of the makerspet/oomwoo status dashboard (Pi `:8798`).
 
-This is a **read-only MVP**: it parses the hub README (contribution modules + open-source deliverables) and overlays live GitHub pulse (stars, related repos, issues, PRs, commits). It does not write to GitHub.
+**Canonical source (community PRs):** [cvolkernick/oomwoo-status](https://github.com/cvolkernick/oomwoo-status)  
+**Public HTTPS:** https://oomwoo.vercel.app/
+
+This tree is a consumer for the house Pi unit. Do not send community contributions here.
 
 ## Open
 
