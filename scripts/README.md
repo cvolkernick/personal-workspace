@@ -4,6 +4,7 @@
 |------|---------|
 | `buzz-board` | Buzz Board (GitHub Project #1) CLI — `list`, `get`, `set-status N Done`, … |
 | `eng_gate_post_merge.py` | After eng-gate merge: mark board Done / residual / sweep (#58) |
+| `youtube_groom.py` | AI Curated house-cap policy (not the Pi writer; do not copy over `~/.local/lib/youtube-groom/youtube_groom.py`) |
 
 ```bash
 ./scripts/buzz-board whoami
