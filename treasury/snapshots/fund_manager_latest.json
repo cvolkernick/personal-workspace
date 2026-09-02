@@ -1,24 +1,24 @@
 {
   "ok": true,
-  "as_of": "2026-09-02T11:48:04.789267+00:00",
+  "as_of": "2026-09-02T17:55:26.467788+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-09-02T11:48:04.786125+00:00",
+    "as_of": "2026-09-02T17:55:26.464733+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 252.2149,
+    "nav_usd": 252.0214,
     "cash_usd": 0.09,
     "buying_power_usd": 0.09,
     "pending_deposits_usd": null,
     "equity_market_value_usd": 224.7296,
     "weights_of_nav": {
-      "btc_digital_credit": 0.3609,
-      "stocks_growth": 0.5301,
+      "btc_digital_credit": 0.3612,
+      "stocks_growth": 0.5305,
       "other": 0.0,
       "cash": 0.0004
     },
@@ -382,6 +382,58 @@
     "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
   },
   "recent_decisions": [
+    {
+      "kind": "hold",
+      "outcome": "hold",
+      "need_llm": false,
+      "path": "rules",
+      "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+      "nav_usd": 252.2149,
+      "buying_power_usd": 0.09,
+      "weights_before": {
+        "btc_digital_credit": 0.4051,
+        "stocks_growth": 0.5949
+      },
+      "weights_after_expected": {
+        "btc_digital_credit": 0.4051,
+        "stocks_growth": 0.5949
+      },
+      "rationale": {
+        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+        "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+        "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+        "thesis_tags": [
+          "rules_engine",
+          "modernized_60_40"
+        ]
+      },
+      "team_votes": {
+        "scout": {
+          "vote": "observe",
+          "note": "NAV $252.21 BP $0.09 cash $0.09"
+        },
+        "thesis": {
+          "vote": "ok",
+          "note": "deployed BTC 0.4051 stocks 0.5949"
+        },
+        "risk": {
+          "vote": "ok",
+          "note": "Agentic capital only; no trade if hold"
+        },
+        "critic": {
+          "vote": "ok",
+          "note": "Hold preferred when bands ok \u2014 avoid churn"
+        },
+        "executor": {
+          "vote": "hold",
+          "note": "No MCP orders on pure rules HOLD"
+        }
+      },
+      "actions": [],
+      "as_of": "2026-09-02T13:36:06.218473+00:00",
+      "schema_version": 1,
+      "account_scope": "agentic_only"
+    },
     {
       "kind": "hold",
       "outcome": "hold",
@@ -2022,58 +2074,6 @@
       },
       "actions": [],
       "as_of": "2026-08-20T13:36:04.297603+00:00",
-      "schema_version": 1,
-      "account_scope": "agentic_only"
-    },
-    {
-      "kind": "hold",
-      "outcome": "hold",
-      "need_llm": false,
-      "path": "rules",
-      "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.32/$0.09 < min_trade $1.00 (not deployable)",
-      "nav_usd": 188.8542,
-      "buying_power_usd": 0.09,
-      "weights_before": {
-        "btc_digital_credit": 0.4,
-        "stocks_growth": 0.6
-      },
-      "weights_after_expected": {
-        "btc_digital_credit": 0.4,
-        "stocks_growth": 0.6
-      },
-      "rationale": {
-        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.32/$0.09 < min_trade $1.00 (not deployable)",
-        "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-        "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
-        "thesis_tags": [
-          "rules_engine",
-          "modernized_60_40"
-        ]
-      },
-      "team_votes": {
-        "scout": {
-          "vote": "observe",
-          "note": "NAV $188.85 BP $0.09 cash $0.32"
-        },
-        "thesis": {
-          "vote": "ok",
-          "note": "deployed BTC 0.4 stocks 0.6"
-        },
-        "risk": {
-          "vote": "ok",
-          "note": "Agentic capital only; no trade if hold"
-        },
-        "critic": {
-          "vote": "ok",
-          "note": "Hold preferred when bands ok \u2014 avoid churn"
-        },
-        "executor": {
-          "vote": "hold",
-          "note": "No MCP orders on pure rules HOLD"
-        }
-      },
-      "actions": [],
-      "as_of": "2026-08-19T13:31:36.890710+00:00",
       "schema_version": 1,
       "account_scope": "agentic_only"
     }

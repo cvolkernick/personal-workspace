@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-09-02T04:34:14.076786+00:00",
+  "as_of": "2026-09-02T17:40:37.895179+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -22,14 +22,14 @@
   "tabs": {
     "Essential": {
       "role": "upcoming_expense_estimates",
-      "item_count": 29,
+      "item_count": 31,
       "totals": {
-        "daily": 481.6,
-        "weekly": 3371.19,
-        "biweekly": 6742.39,
-        "monthly": 14645.74,
-        "annually": 58927.92,
-        "quarterly": 25115.23
+        "daily": 563.79,
+        "weekly": 3946.54,
+        "biweekly": 7893.07,
+        "monthly": 17145.74,
+        "annually": 43927.92,
+        "quarterly": 24515.23
       },
       "items": [
         {
@@ -98,16 +98,16 @@
           "tab": "Essential"
         },
         {
-          "date": "10/1/2026",
+          "date": "9/1/2026",
           "from": "Coinbase",
           "item": "September Rent",
           "daily": 69.04,
           "weekly": 483.29,
           "biweekly": 966.58,
           "monthly": 2100.0,
-          "annually": 24000.0,
+          "annually": 2100.0,
           "budget_allocation": null,
-          "quarterly": 6000.0,
+          "quarterly": 2100.0,
           "tab": "Essential"
         },
         {
@@ -134,6 +134,19 @@
           "annually": 5112.0,
           "budget_allocation": null,
           "quarterly": 1278.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/6/2026",
+          "from": "X Money",
+          "item": "T-Mobile",
+          "daily": 13.15,
+          "weekly": 92.05,
+          "biweekly": 184.11,
+          "monthly": 400.0,
+          "annually": 4800.0,
+          "budget_allocation": null,
+          "quarterly": 1200.0,
           "tab": "Essential"
         },
         {
@@ -307,6 +320,19 @@
         },
         {
           "date": "10/1/2026",
+          "from": "Coinbase",
+          "item": "October Rent",
+          "daily": 69.04,
+          "weekly": 483.29,
+          "biweekly": 966.58,
+          "monthly": 2100.0,
+          "annually": 2100.0,
+          "budget_allocation": null,
+          "quarterly": 2100.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "10/1/2026",
           "from": "X Money",
           "item": "Dog Food",
           "daily": 2.04,
@@ -411,8 +437,8 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13523.07,
-        "X Money": 1122.68
+        "Coinbase": 15623.07,
+        "X Money": 1522.68
       },
       "top_monthly": [
         {
@@ -449,6 +475,14 @@
         },
         {
           "item": "September Rent",
+          "monthly": 2100.0,
+          "from": "Coinbase",
+          "date": "9/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "October Rent",
           "monthly": 2100.0,
           "from": "Coinbase",
           "date": "10/1/2026",
@@ -488,26 +522,18 @@
           "tab": "Essential"
         },
         {
+          "item": "T-Mobile",
+          "monthly": 400.0,
+          "from": "X Money",
+          "date": "9/6/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
           "item": "Lee County Citation",
           "monthly": 161.0,
           "from": "X Money",
           "date": "9/9/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "SuperGrok Heavy",
-          "monthly": 99.0,
-          "from": "X Money",
-          "date": "9/19/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Banfield",
-          "monthly": 85.0,
-          "from": "X Money",
-          "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
         }
@@ -554,6 +580,14 @@
           "tab": "Essential"
         },
         {
+          "date": "9/1/2026",
+          "item": "September Rent",
+          "from": "Coinbase",
+          "monthly": 2100.0,
+          "weekly": 483.29,
+          "tab": "Essential"
+        },
+        {
           "date": "9/3/2026",
           "item": "Electric",
           "from": "X Money",
@@ -567,6 +601,14 @@
           "from": "Coinbase",
           "monthly": 27.0,
           "weekly": 6.3,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/6/2026",
+          "item": "T-Mobile",
+          "from": "X Money",
+          "monthly": 400.0,
+          "weekly": 92.05,
           "tab": "Essential"
         },
         {
@@ -656,22 +698,6 @@
           "monthly": 14.99,
           "weekly": 3.45,
           "tab": "Essential"
-        },
-        {
-          "date": "9/24/2026",
-          "item": "Coinbase One Card",
-          "from": "Coinbase",
-          "monthly": 24.0,
-          "weekly": 5.52,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/24/2026",
-          "item": "Coinbase One Membership",
-          "from": "Coinbase",
-          "monthly": 29.99,
-          "weekly": 6.9,
-          "tab": "Essential"
         }
       ],
       "label": "Essential",
@@ -726,19 +752,6 @@
           "tab": "Fleet"
         },
         {
-          "date": "10/1/2026",
-          "from": "NFCU (Zelle)",
-          "item": "Rivian R1S",
-          "daily": 45.0,
-          "weekly": 315.0,
-          "biweekly": 630.0,
-          "monthly": 1350.0,
-          "annually": 16200.0,
-          "budget_allocation": null,
-          "quarterly": 4050.0,
-          "tab": "Fleet"
-        },
-        {
           "date": "9/15/2026",
           "from": "X Money",
           "item": "2022 Corolla DIMO",
@@ -788,6 +801,19 @@
           "annually": 478.44,
           "budget_allocation": null,
           "quarterly": 119.61,
+          "tab": "Fleet"
+        },
+        {
+          "date": "10/1/2026",
+          "from": "NFCU (Zelle)",
+          "item": "Rivian R1S",
+          "daily": 45.0,
+          "weekly": 315.0,
+          "biweekly": 630.0,
+          "monthly": 1350.0,
+          "annually": 16200.0,
+          "budget_allocation": null,
+          "quarterly": 4050.0,
           "tab": "Fleet"
         },
         {
@@ -1295,14 +1321,14 @@
     },
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 29,
+      "item_count": 31,
       "totals": {
-        "daily": 481.6,
-        "weekly": 3371.19,
-        "biweekly": 6742.39,
-        "monthly": 14645.74,
-        "annually": 58927.92,
-        "quarterly": 25115.23
+        "daily": 563.79,
+        "weekly": 3946.54,
+        "biweekly": 7893.07,
+        "monthly": 17145.74,
+        "annually": 43927.92,
+        "quarterly": 24515.23
       },
       "items": [
         {
@@ -1371,16 +1397,16 @@
           "tab": "Essential"
         },
         {
-          "date": "10/1/2026",
+          "date": "9/1/2026",
           "from": "Coinbase",
           "item": "September Rent",
           "daily": 69.04,
           "weekly": 483.29,
           "biweekly": 966.58,
           "monthly": 2100.0,
-          "annually": 24000.0,
+          "annually": 2100.0,
           "budget_allocation": null,
-          "quarterly": 6000.0,
+          "quarterly": 2100.0,
           "tab": "Essential"
         },
         {
@@ -1407,6 +1433,19 @@
           "annually": 5112.0,
           "budget_allocation": null,
           "quarterly": 1278.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/6/2026",
+          "from": "X Money",
+          "item": "T-Mobile",
+          "daily": 13.15,
+          "weekly": 92.05,
+          "biweekly": 184.11,
+          "monthly": 400.0,
+          "annually": 4800.0,
+          "budget_allocation": null,
+          "quarterly": 1200.0,
           "tab": "Essential"
         },
         {
@@ -1580,6 +1619,19 @@
         },
         {
           "date": "10/1/2026",
+          "from": "Coinbase",
+          "item": "October Rent",
+          "daily": 69.04,
+          "weekly": 483.29,
+          "biweekly": 966.58,
+          "monthly": 2100.0,
+          "annually": 2100.0,
+          "budget_allocation": null,
+          "quarterly": 2100.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "10/1/2026",
           "from": "X Money",
           "item": "Dog Food",
           "daily": 2.04,
@@ -1684,8 +1736,8 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13523.07,
-        "X Money": 1122.68
+        "Coinbase": 15623.07,
+        "X Money": 1522.68
       },
       "top_monthly": [
         {
@@ -1722,6 +1774,14 @@
         },
         {
           "item": "September Rent",
+          "monthly": 2100.0,
+          "from": "Coinbase",
+          "date": "9/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "October Rent",
           "monthly": 2100.0,
           "from": "Coinbase",
           "date": "10/1/2026",
@@ -1761,26 +1821,18 @@
           "tab": "Essential"
         },
         {
+          "item": "T-Mobile",
+          "monthly": 400.0,
+          "from": "X Money",
+          "date": "9/6/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
           "item": "Lee County Citation",
           "monthly": 161.0,
           "from": "X Money",
           "date": "9/9/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "SuperGrok Heavy",
-          "monthly": 99.0,
-          "from": "X Money",
-          "date": "9/19/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Banfield",
-          "monthly": 85.0,
-          "from": "X Money",
-          "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
         }
@@ -1827,6 +1879,14 @@
           "tab": "Essential"
         },
         {
+          "date": "9/1/2026",
+          "item": "September Rent",
+          "from": "Coinbase",
+          "monthly": 2100.0,
+          "weekly": 483.29,
+          "tab": "Essential"
+        },
+        {
           "date": "9/3/2026",
           "item": "Electric",
           "from": "X Money",
@@ -1840,6 +1900,14 @@
           "from": "Coinbase",
           "monthly": 27.0,
           "weekly": 6.3,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/6/2026",
+          "item": "T-Mobile",
+          "from": "X Money",
+          "monthly": 400.0,
+          "weekly": 92.05,
           "tab": "Essential"
         },
         {
@@ -1928,22 +1996,6 @@
           "from": "X Money",
           "monthly": 14.99,
           "weekly": 3.45,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/24/2026",
-          "item": "Coinbase One Card",
-          "from": "Coinbase",
-          "monthly": 24.0,
-          "weekly": 5.52,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/24/2026",
-          "item": "Coinbase One Membership",
-          "from": "Coinbase",
-          "monthly": 29.99,
-          "weekly": 6.9,
           "tab": "Essential"
         }
       ],
@@ -2130,13 +2182,13 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 20220.79,
-    "essential_monthly": 14645.74,
-    "personal_monthly": 14645.74,
-    "personal_daily": 481.6,
-    "essential_daily": 481.6,
-    "personal_weekly": 3371.19,
-    "personal_annually": 58927.92,
+    "upcoming_expense_monthly": 22720.79,
+    "essential_monthly": 17145.74,
+    "personal_monthly": 17145.74,
+    "personal_daily": 563.79,
+    "essential_daily": 563.79,
+    "personal_weekly": 3946.54,
+    "personal_annually": 43927.92,
     "fleet_monthly": 5575.05,
     "fleet_daily": 185.52,
     "fleet_annually": 28117.57,
@@ -2148,17 +2200,17 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 20220.79,
-    "combined_daily": 667.13,
+    "combined_monthly": 22720.79,
+    "combined_daily": 749.32,
     "by_source_monthly": {
-      "Coinbase": 13523.07,
-      "X Money": 5347.73,
+      "Coinbase": 15623.07,
+      "X Money": 5747.73,
       "NFCU (Zelle)": 1350.0
     },
-    "coinbase_funded_monthly": 13523.07,
+    "coinbase_funded_monthly": 15623.07,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5347.73
+    "x_money_funded_monthly": 5747.73
   },
   "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }
