@@ -300,6 +300,118 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertTrue(after["policy"]["consider_share_stamps_are_not_nav_targets"])
         self.assertCountEqual(after["consider_share_stamps"], ["TSLA", "SPCX"])
 
+    def test_reallocate_be_onto_tsla_spcx_leaves_others_unchanged(self) -> None:
+        """Drop BE after the 15/15 stamp; split its chip onto TSLA/SPCX. No rescale."""
+        policy = _policy()
+        policy["allowlist"]["core"] = ["MSTR", "STRC", "SATA", "TSLA", "SPCX"]
+        policy["sleeves"]["stocks_growth"]["symbols"] = ["TSLA", "SPCX"]
+        policy["sleeves"]["stocks_growth"]["watchlist_symbols"] = [
+            "NVDA",
+            "BE",
+            "PLTR",
+        ]
+        before = build_bias_spectrum(
+            fund_manager=_fm(),
+            treasury={},
+            policy=policy,
+            watchlist=_watchlist(),
+            consider_share_stamps={"pins": {"TSLA": 15.0, "SPCX": 15.0}},
+        )
+        after = build_bias_spectrum(
+            fund_manager=_fm(),
+            treasury={},
+            policy=policy,
+            watchlist=_watchlist(),
+            consider_share_stamps={
+                "pins": {"TSLA": 15.0, "SPCX": 15.0},
+                "reallocate": {"BE": ["TSLA", "SPCX"]},
+            },
+        )
+        by_before = {c["symbol"]: c for c in before["chips"]}
+        by_after = {c["symbol"]: c for c in after["chips"]}
+        self.assertIn("BE", by_before)
+        self.assertNotIn("BE", by_after)
+        be_stamp = float(by_before["BE"]["weight_pct"])
+        self.assertGreater(be_stamp, 0)
+        # Equal split; leftover cent (if any) lands on the last dest (SPCX).
+        first = round(be_stamp / 2.0, 2)
+        second = round(be_stamp - first, 2)
+        self.assertAlmostEqual(by_after["TSLA"]["weight_pct"], 15.0 + first)
+        self.assertAlmostEqual(by_after["SPCX"]["weight_pct"], 15.0 + second)
+        self.assertEqual(by_after["TSLA"]["weight_basis"], "consider_share_stamp")
+        self.assertEqual(by_after["SPCX"]["weight_basis"], "consider_share_stamp")
+        self.assertTrue(by_after["TSLA"]["consider_share_stamp"])
+        self.assertTrue(by_after["SPCX"]["consider_share_stamp"])
+        self.assertIn("NOT a live NAV", by_after["TSLA"]["notes"])
+        self.assertIn("NOT a sleeve target", by_after["TSLA"]["notes"])
+        self.assertIn("NOT an order", by_after["TSLA"]["notes"])
+        self.assertNotIn("$100", by_after["TSLA"]["notes"])
+        self.assertNotIn("monthly $100", by_after["TSLA"]["notes"].lower())
+        for sym, chip in by_before.items():
+            if sym in ("BE", "TSLA", "SPCX"):
+                continue
+            self.assertAlmostEqual(
+                by_after[sym]["weight_pct"], chip["weight_pct"], places=2
+            )
+            self.assertEqual(by_after[sym]["weight_basis"], chip["weight_basis"])
+        self.assertAlmostEqual(
+            sum(float(c["weight_pct"]) for c in after["chips"]), 100.0, places=1
+        )
+        self.assertTrue(after["policy"]["consider_share_stamps_applied"])
+        self.assertTrue(after["policy"]["consider_share_stamps_are_not_nav_targets"])
+        self.assertTrue(after["policy"]["consider_share_stamps_are_not_sleeve_targets"])
+        self.assertTrue(after["policy"]["consider_share_stamps_are_not_orders"])
+        self.assertCountEqual(after["consider_share_stamps"], ["TSLA", "SPCX"])
+        # Dropping BE from the consider-set then raising pins would rescale
+        # everyone (sleeve score sum changes). Reallocate is the SoT instead.
+        dropped = dict(policy)
+        dropped["sleeves"] = {
+            name: dict(sleeve) if isinstance(sleeve, dict) else sleeve
+            for name, sleeve in policy["sleeves"].items()
+        }
+        dropped["sleeves"]["stocks_growth"] = dict(
+            policy["sleeves"]["stocks_growth"]
+        )
+        dropped["sleeves"]["stocks_growth"]["watchlist_symbols"] = [
+            "NVDA",
+            "PLTR",
+        ]
+        dropped["sleeves"]["energy_opportunistic"] = dict(
+            policy["sleeves"]["energy_opportunistic"]
+        )
+        dropped["sleeves"]["energy_opportunistic"]["watchlist_symbols"] = []
+        watch_wo_be = {
+            "entries": [e for e in _watchlist()["entries"] if e.get("symbol") != "BE"]
+        }
+        naive = build_bias_spectrum(
+            fund_manager=_fm(),
+            treasury={},
+            policy=dropped,
+            watchlist=watch_wo_be,
+            consider_share_stamps={
+                "pins": {"TSLA": 15.0 + first, "SPCX": 15.0 + second}
+            },
+        )
+        naive_by = {c["symbol"]: c for c in naive["chips"]}
+        self.assertNotIn("BE", naive_by)
+        self.assertNotAlmostEqual(
+            naive_by["NVDA"]["weight_pct"], by_after["NVDA"]["weight_pct"]
+        )
+
+    def test_disk_consider_share_json_drops_be_and_keeps_flags(self) -> None:
+        raw = (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
+        self.assertNotIn("$100", raw)
+        self.assertNotIn("monthly $100", raw.lower())
+        data = __import__("json").loads(raw)
+        self.assertEqual(data["pins"], {"TSLA": 15.0, "SPCX": 15.0})
+        self.assertEqual(data["reallocate"], {"BE": ["TSLA", "SPCX"]})
+        self.assertTrue(data["not_a_nav_target"])
+        self.assertTrue(data["not_a_sleeve_target"])
+        self.assertTrue(data["not_an_order"])
+        self.assertTrue(data["not_for_autopilot"])
+        self.assertTrue(data["not_for_monday_residual"])
+        self.assertIn("fund_manager.py", data["notes"])
+
     def test_injected_watchlist_does_not_load_disk_stamps(self) -> None:
         """Role-score fixtures stay isolated from investment/consider_share.json."""
         payload = _build()
