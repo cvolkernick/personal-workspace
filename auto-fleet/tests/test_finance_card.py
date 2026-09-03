@@ -75,6 +75,7 @@ class HelmSotSeedTests(unittest.TestCase):
         self.assertFalse(c22["payoff_is_live"])
         self.assertNotIn("arrangement", c22)
         self.assertNotIn("next_due_date", c22)
+        self.assertNotIn("past_due_amount", c22)
 
         c24 = by_id["corolla-2024"]
         self.assertEqual(c24["lender"], "Santander")
@@ -247,9 +248,10 @@ class AgentFleetStaysDumpOnlyTests(unittest.TestCase):
             self.assertNotIn(acct, blob)
         src = (PKG / "server.py").read_text(encoding="utf-8")
         self.assertIn('if path == "/api/agent/fleet":', src)
-        post = src[src.find("def do_POST") :]
-        self.assertNotIn("/api/agent/fleet", post)
+        post = src[src.find("def do_POST") : src.find("def main")]
+        self.assertNotIn('path == "/api/agent/fleet"', post)
         self.assertIn("/api/turo-tasks/complete", post)
+        self.assertIn('self._json(404, {"ok": False, "error": "not found"})', post)
         vercel = (PKG / "api" / "agent" / "fleet.py").read_text(encoding="utf-8")
         self.assertIn("def do_GET", vercel)
         self.assertNotIn("def do_POST", vercel)

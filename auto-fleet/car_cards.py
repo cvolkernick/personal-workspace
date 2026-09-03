@@ -186,8 +186,11 @@ def loan_display_for(
     if src.get("amount_due_now") is not None:
         out["amount_due_now"] = src["amount_due_now"]
     past_due_amount = src.get("past_due_amount")
-    if past_due_amount is None and isinstance(src.get("past_due"), (int, float)):
-        past_due_amount = src.get("past_due")
+    raw_past = src.get("past_due")
+    if past_due_amount is None and isinstance(raw_past, (int, float)) and not isinstance(
+        raw_past, bool
+    ):
+        past_due_amount = raw_past
     if past_due_amount is not None:
         out["past_due_amount"] = past_due_amount
     if src.get("past_due_days") is not None:
