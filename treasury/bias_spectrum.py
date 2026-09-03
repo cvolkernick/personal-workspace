@@ -17,10 +17,12 @@ by the sleeve's target budget so chips sum to ~100% of new money.
 
 Optional consider-share stamps (investment/consider_share.json, or a
 watchlist/policy `consider_share_stamps` block) pin named chips, then
-proportionally rescale the rest so the list still sums to 100%. Those
-pins are residual-mix / relative preference on this axis only — NOT a
-live NAV target, NOT a sleeve target, NOT an order. Autopilot and
-Monday residual must not chase them.
+proportionally rescale the rest so the list still sums to 100%. An
+optional `reallocate` block then drops a named chip and splits that
+already-stamped mass onto dest pins without rescaling anyone else.
+Those pins are residual-mix / relative preference on this axis only —
+NOT a live NAV target, NOT a sleeve target, NOT an order. Autopilot
+and Monday residual must not chase them.
 
 Live book % is an annotation (held badge), never the axis. This is not
 an order ticket — the fund manager still research/rotates at deploy.
@@ -477,6 +479,9 @@ def _pins_from(value: Any) -> Dict[str, float]:
     for key, val in raw.items():
         if str(key).strip().lower() in {
             "pins",
+            "reallocate",
+            "exclude",
+            "drop",
             "notes",
             "schema",
             "as_of",
@@ -497,81 +502,160 @@ def _pins_from(value: Any) -> Dict[str, float]:
     return out
 
 
-def _load_consider_share_stamps(
+def _stamp_chip_notes(chip: Dict[str, Any], pct: float, extra: str = "") -> None:
+    chip["weight_pct"] = pct
+    chip["weight_basis"] = "consider_share_stamp"
+    chip["consider_share_stamp"] = True
+    suffix = f" {extra}" if extra else ""
+    chip["notes"] = (
+        f"Consideration-list stamp {pct:g}% — residual mix / relative "
+        f"preference on the 100% Bias Spectrum list.{suffix} NOT a live NAV "
+        f"target, NOT a sleeve target, NOT an order. Flatten-only: do "
+        f"not trim and do not top up. Next residual (Monday $25) stays "
+        f"theme-gap, not {chip['symbol']}."
+    )
+
+
+def _reallocate_from(value: Any) -> Dict[str, List[str]]:
+    """Extract {SRC: [DEST, ...]} splits. Accepts `{to: [...]}` per source."""
+    if not isinstance(value, dict) or not value:
+        return {}
+    raw = value.get("reallocate") if isinstance(value.get("reallocate"), dict) else None
+    if not isinstance(raw, dict) or not raw:
+        return {}
+    out: Dict[str, List[str]] = {}
+    for key, dest in raw.items():
+        src = _sym(key)
+        if isinstance(dest, dict):
+            dest = dest.get("to") or dest.get("split_equally_to")
+        dests = [_sym(item) for item in _as_list(dest)]
+        dests = [d for d in dests if d and d != src]
+        if src and dests:
+            out[src] = dests
+    return out
+
+
+def _load_consider_share_config(
     stamps: Optional[Dict[str, Any]],
     watchlist: Dict[str, Any],
     policy: Dict[str, Any],
     *,
     watchlist_injected: bool,
-) -> Dict[str, float]:
+) -> Dict[str, Any]:
     """Stamps are Bias Spectrum residual-mix only. Never a fill/NAV target.
 
     Injected watchlist/policy without a stamps block stays stamp-free so
     role-score fixtures keep their 40/60 math. Disk/git file is the live SoT.
+    Returns the raw pins/reallocate block (not a flattened pin map) so a
+    drop-and-split can run after the first-pass rescale.
     """
     if stamps is not None:
-        return _pins_from(stamps)
+        return stamps if isinstance(stamps, dict) else {}
     for block in (
         _as_dict(watchlist).get("consider_share_stamps"),
         _as_dict(policy).get("consider_share_stamps"),
     ):
-        pins = _pins_from(block)
-        if pins:
-            return pins
+        data = _as_dict(block)
+        if _pins_from(data) or _reallocate_from(data):
+            return data
     if watchlist_injected:
         return {}
     for data in (
         _first_json("investment/consider_share.json"),
         _git_show_json("investment/consider_share.json"),
     ):
-        pins = _pins_from(data)
-        if pins:
-            return pins
+        if _pins_from(data) or _reallocate_from(data):
+            return data
     return {}
 
 
-def _apply_consider_share_stamps(
-    chips: List[Dict[str, Any]], pins: Dict[str, float]
-) -> List[str]:
-    """Pin named chips, rescale every other chip so the list sums to 100%.
+def _split_mass(mass: float, dests: List[str]) -> List[Tuple[str, float]]:
+    """Equal split with leftover cents on the last dest so parts sum to mass."""
+    n = len(dests)
+    if n <= 0 or mass <= 0:
+        return []
+    allocated = 0.0
+    out: List[Tuple[str, float]] = []
+    for i, dest in enumerate(dests):
+        if i == n - 1:
+            part = round(mass - allocated, 2)
+        else:
+            part = round(mass / n, 2)
+            allocated = round(allocated + part, 2)
+        out.append((dest, part))
+    return out
 
-    Returns the symbols that were actually stamped. Does not write NAV or
-    sleeve targets. Rank order among unpinned names is preserved.
-    """
-    if not chips or not pins:
-        return []
-    present = [c for c in chips if c.get("symbol") in pins]
-    if not present:
-        return []
-    applied = [str(c["symbol"]) for c in present]
-    pin_total = sum(float(pins[c["symbol"]]) for c in present)
-    others = [c for c in chips if c.get("symbol") not in pins]
-    other_sum = sum(float(c.get("weight_pct") or 0) for c in others)
-    remainder = 100.0 - pin_total
-    for chip in present:
-        pct = round(float(pins[chip["symbol"]]), 2)
-        chip["weight_pct"] = pct
-        chip["weight_basis"] = "consider_share_stamp"
-        chip["consider_share_stamp"] = True
-        chip["notes"] = (
-            f"Consideration-list stamp {pct:g}% — residual mix / relative "
-            f"preference on the 100% Bias Spectrum list. NOT a live NAV "
-            f"target, NOT a sleeve target, NOT an order. Flatten-only: do "
-            f"not trim and do not top up. Next residual (Monday $25) stays "
-            f"theme-gap, not {chip['symbol']}."
+
+def _apply_reallocate(chips: List[Dict[str, Any]], realloc: Dict[str, List[str]]) -> None:
+    """Drop named chips and split their stamped mass onto dests. No rescale."""
+    if not chips or not realloc:
+        return
+    by_sym = {str(c.get("symbol") or ""): c for c in chips}
+    for src, dests in realloc.items():
+        src_chip = by_sym.get(src)
+        if not src_chip:
+            continue
+        mass = float(src_chip.get("weight_pct") or 0)
+        chips.remove(src_chip)
+        by_sym.pop(src, None)
+        live_dests = [d for d in dests if d in by_sym]
+        if mass <= 0 or not live_dests:
+            continue
+        extra = (
+            f"Includes {src}'s dropped consider-share split equally onto "
+            f"{' and '.join(live_dests)}."
         )
-    if others and other_sum > 0 and remainder >= 0:
-        scaled = []
-        for chip in others:
-            raw = float(chip.get("weight_pct") or 0) * remainder / other_sum
-            chip["weight_pct"] = round(raw, 2)
-            scaled.append(chip)
-        drift = round(remainder - sum(float(c["weight_pct"]) for c in scaled), 2)
-        if drift and scaled:
-            # Park leftover cents on the smallest unpinned chip so equal-score
-            # peer sets (NVDA=GOOGL=BE=PLTR) stay tied after the TSLA/SPCX lift.
-            anchor = min(scaled, key=lambda c: (float(c["weight_pct"]), c["symbol"]))
-            anchor["weight_pct"] = round(float(anchor["weight_pct"]) + drift, 2)
+        for dest, part in _split_mass(mass, live_dests):
+            chip = by_sym[dest]
+            new_pct = round(float(chip.get("weight_pct") or 0) + part, 2)
+            _stamp_chip_notes(chip, new_pct, extra)
+
+
+def _apply_consider_share_stamps(
+    chips: List[Dict[str, Any]], config: Dict[str, Any]
+) -> List[str]:
+    """Pin named chips, rescale the rest, then optional drop-and-split.
+
+    `reallocate` removes a chip after the first-pass stamp and moves that
+    mass onto dest pins. Remaining names keep their already-stamped
+    weights — they are not proportional-rescaled again. Returns the
+    symbols that remain stamped. Does not write NAV or sleeve targets.
+    """
+    pins = _pins_from(config)
+    realloc = _reallocate_from(config)
+    if not chips or (not pins and not realloc):
+        return []
+    applied: List[str] = []
+    if pins:
+        present = [c for c in chips if c.get("symbol") in pins]
+        if present:
+            applied = [str(c["symbol"]) for c in present]
+            pin_total = sum(float(pins[c["symbol"]]) for c in present)
+            others = [c for c in chips if c.get("symbol") not in pins]
+            other_sum = sum(float(c.get("weight_pct") or 0) for c in others)
+            remainder = 100.0 - pin_total
+            for chip in present:
+                _stamp_chip_notes(chip, round(float(pins[chip["symbol"]]), 2))
+            if others and other_sum > 0 and remainder >= 0:
+                scaled = []
+                for chip in others:
+                    raw = float(chip.get("weight_pct") or 0) * remainder / other_sum
+                    chip["weight_pct"] = round(raw, 2)
+                    scaled.append(chip)
+                drift = round(remainder - sum(float(c["weight_pct"]) for c in scaled), 2)
+                if drift and scaled:
+                    # Park leftover cents on the smallest unpinned chip so equal-score
+                    # peer sets (NVDA=GOOGL=BE=PLTR) stay tied after the TSLA/SPCX lift.
+                    anchor = min(scaled, key=lambda c: (float(c["weight_pct"]), c["symbol"]))
+                    anchor["weight_pct"] = round(float(anchor["weight_pct"]) + drift, 2)
+    if realloc:
+        _apply_reallocate(chips, realloc)
+        dropped = set(realloc)
+        applied = [s for s in applied if s not in dropped]
+        for dests in realloc.values():
+            for dest in dests:
+                if dest not in applied and any(c.get("symbol") == dest for c in chips):
+                    applied.append(dest)
     chips.sort(key=lambda c: (-float(c.get("weight_pct") or 0), str(c.get("symbol") or "")))
     return applied
 
@@ -612,7 +696,7 @@ def build_bias_spectrum(
     analysis = _analysis_from_fm(fm)
     pol = _load_policy(policy, fund_manager=fm)
     wl = _load_watchlist(watchlist)
-    stamps = _load_consider_share_stamps(
+    stamps = _load_consider_share_config(
         consider_share_stamps, wl, pol, watchlist_injected=watchlist_injected
     )
     preferred = _preferred_core(pol)
@@ -771,9 +855,10 @@ def build_bias_spectrum(
             "Private watchlist stays off-axis.",
             *(
                 [
-                    "TSLA/SPCX 15% chips are consideration-list stamps (residual mix), "
-                    "not live NAV/sleeve targets and not orders. Flatten-only: no trim, "
-                    "no top-up. Monday residual stays theme-gap."
+                    "TSLA/SPCX chips are consideration-list stamps (residual mix; "
+                    "BE's consider-share was split onto them), not live NAV/sleeve "
+                    "targets and not orders. Flatten-only: no trim, no top-up. "
+                    "Monday residual stays theme-gap."
                 ]
                 if stamped
                 else []

@@ -138,8 +138,36 @@ class TestBiasSpectrumApi(unittest.TestCase):
             if chip.get("consider_share_stamp"):
                 self.assertEqual(chip.get("weight_basis"), "consider_share_stamp")
                 self.assertIn(chip.get("symbol"), ("TSLA", "SPCX"))
-                self.assertAlmostEqual(float(chip["weight_pct"]), 15.0)
                 self.assertIn("NOT a live NAV", chip.get("notes") or "")
+                self.assertNotIn("$100", chip.get("notes") or "")
+
+        symbols = {c.get("symbol") for c in data.get("chips") or []}
+        self.assertNotIn("BE", symbols)
+        stamped = [c for c in (data.get("chips") or []) if c.get("consider_share_stamp")]
+        self.assertTrue(stamped)
+        self.assertCountEqual([c.get("symbol") for c in stamped], ["TSLA", "SPCX"])
+        baseline = build_bias_spectrum(
+            fund_manager={"ok": False},
+            treasury={},
+            consider_share_stamps={"pins": {"TSLA": 15.0, "SPCX": 15.0}},
+        )
+        by_base = {c["symbol"]: c for c in baseline["chips"]}
+        by_live = {c["symbol"]: c for c in data["chips"]}
+        self.assertIn("BE", by_base)
+        be_stamp = float(by_base["BE"]["weight_pct"])
+        first = round(be_stamp / 2.0, 2)
+        second = round(be_stamp - first, 2)
+        self.assertAlmostEqual(by_live["TSLA"]["weight_pct"], 15.0 + first)
+        self.assertAlmostEqual(by_live["SPCX"]["weight_pct"], 15.0 + second)
+        for sym, chip in by_base.items():
+            if sym in ("BE", "TSLA", "SPCX"):
+                continue
+            self.assertAlmostEqual(
+                by_live[sym]["weight_pct"], chip["weight_pct"], places=2
+            )
+        self.assertAlmostEqual(
+            sum(float(c["weight_pct"]) for c in data["chips"]), 100.0, places=1
+        )
 
         page_code, page_body = self._get("/financial-command/bias-spectrum")
         self.assertEqual(page_code, 200)
