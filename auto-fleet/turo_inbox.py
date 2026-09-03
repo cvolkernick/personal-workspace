@@ -35,7 +35,9 @@ except ImportError:  # script / unittest path
 
 DEFAULT_INBOX_NAME = "turo_inbox.json"
 CONFIG_INBOX = Path.home() / ".config" / "auto-fleet" / "turo_inbox.json"
-GMAIL_INBOX_ADDR = "cvolkern@gmail.com"
+# Nest dump + dash label. SoT is panamerica; personal cvolkern Turo copies
+# are forwards through this inbox — do not double-ingest.
+GMAIL_INBOX_ADDR = "panamerica.cars@gmail.com"
 # Live poll: Turo senders after the forward start. Do not OR label:Turo —
 # that label is 2024 old-fleet mail.
 GMAIL_QUERY = (

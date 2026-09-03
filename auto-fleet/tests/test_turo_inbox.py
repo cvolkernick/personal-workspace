@@ -80,6 +80,12 @@ def _with_roles(units: list[dict]) -> list[dict]:
 
 
 class TuroInboxTests(unittest.TestCase):
+    def test_labeled_inbox_is_panamerica_not_personal(self) -> None:
+        self.assertEqual(turo_inbox.GMAIL_INBOX_ADDR, "panamerica.cars@gmail.com")
+        self.assertNotEqual(turo_inbox.GMAIL_INBOX_ADDR, "cvolkern@gmail.com")
+        self.assertIn("after:2026/08/18", turo_inbox.GMAIL_QUERY)
+        self.assertNotIn("label:Turo", turo_inbox.GMAIL_QUERY)
+
     def test_empty_default_fixture_invents_nothing(self) -> None:
         empty = PKG / "data" / "turo_inbox.json"
         payload = turo_inbox.turo_payload(inbox_path=empty, units=ROSTER_UNITS)
@@ -97,6 +103,8 @@ class TuroInboxTests(unittest.TestCase):
         payload = turo_inbox.turo_payload(inbox_path=missing, units=ROSTER_UNITS)
         self.assertEqual(payload["bookings"], [])
         self.assertIn("no host inbox", payload["inbox_status"].lower())
+        self.assertIn("panamerica.cars@gmail.com", payload["inbox_status"])
+        self.assertNotIn("cvolkern@gmail.com", payload["inbox_status"])
 
     def test_json_fixture_parses_booked_and_canceled(self) -> None:
         path = FIXTURES / "turo_messages.json"
@@ -165,7 +173,8 @@ class TuroInboxTests(unittest.TestCase):
         )
         self.assertEqual(payload["bookings"], [])
         self.assertEqual(payload["inbox_state"], "empty")
-        self.assertIn("cvolkern@gmail.com", payload["inbox_status"])
+        self.assertIn("panamerica.cars@gmail.com", payload["inbox_status"])
+        self.assertNotIn("cvolkern@gmail.com", payload["inbox_status"])
         self.assertIn("0 trip events", payload["inbox_status"])
         self.assertNotIn("host mail is not forwarded", payload["inbox_status"].lower())
 
@@ -225,15 +234,16 @@ class TuroInboxTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             dest = Path(td) / "dump.json"
-            path = turo_gmail.write_dump([], dest, inbox="cvolkern@gmail.com")
+            path = turo_gmail.write_dump([], dest)
             self.assertEqual(path, dest)
             data = json.loads(dest.read_text(encoding="utf-8"))
             self.assertEqual(data["messages"], [])
-            self.assertEqual(data["inbox"], "cvolkern@gmail.com")
+            self.assertEqual(data["inbox"], "panamerica.cars@gmail.com")
             self.assertEqual(data["source"], "gmail_dump")
             payload = turo_inbox.turo_payload(inbox_path=dest, units=ROSTER_UNITS)
             self.assertEqual(payload["bookings"], [])
-            self.assertIn("cvolkern@gmail.com", payload["inbox_status"])
+            self.assertIn("panamerica.cars@gmail.com", payload["inbox_status"])
+            self.assertNotIn("cvolkern@gmail.com", payload["inbox_status"])
 
     def test_maildir_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -293,6 +303,7 @@ class TuroInboxTests(unittest.TestCase):
             dest = Path(td) / "dump.json"
             turo_gmail.write_dump([], dest)
             data = json.loads(dest.read_text(encoding="utf-8"))
+            self.assertEqual(data["inbox"], "panamerica.cars@gmail.com")
             self.assertEqual(data["forward_since"], turo_inbox.FORWARD_SINCE_ISO)
             self.assertEqual(data["poll_interval_s"], 900)
             self.assertIn("after:2026/08/18", data["query"])
@@ -333,7 +344,9 @@ class TuroInboxTests(unittest.TestCase):
             self.assertIn("no Gmail refresh token", data["note"])
             payload = turo_inbox.turo_payload(inbox_path=dest, units=ROSTER_UNITS)
             self.assertEqual(payload["bookings"], [])
-            self.assertIn("cvolkern@gmail.com", payload["inbox_status"])
+            self.assertEqual(data["inbox"], "panamerica.cars@gmail.com")
+            self.assertIn("panamerica.cars@gmail.com", payload["inbox_status"])
+            self.assertNotIn("cvolkern@gmail.com", payload["inbox_status"])
             self.assertIn("0 trip events", payload["inbox_status"])
 
     def test_fetch_with_mocked_gmail_writes_api_source(self) -> None:
@@ -575,6 +588,24 @@ class TuroInboxTests(unittest.TestCase):
         }
         parsed = turo_inbox.parse_message(rec)
         self.assertIsNone(turo_inbox.match_unit(parsed, _with_roles(ROSTER_UNITS)))
+
+    def test_other_host_mail_stays_unmatched_no_invented_unit(self) -> None:
+        rec = {
+            "subject": "(Alex's vehicle) - Sam's trip with your 2023 Honda Civic is booked!",
+            "from": "Turo <noreply@mail.turo.com>",
+            "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+            "body": (
+                "2023 Honda Civic\nbooked by Sam Lee\nReservation ID #77889900\n"
+            ),
+        }
+        parsed = turo_inbox.parse_message(rec)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["guest"], "Sam Lee")
+        self.assertFalse(turo_inbox.is_current_host_subject(parsed["subject"]))
+        units = _with_roles(ROSTER_UNITS)
+        self.assertIsNone(turo_inbox.match_unit(parsed, units))
+        self.assertEqual({u["id"] for u in units}, {u["id"] for u in ROSTER_UNITS})
+        self.assertNotIn("civic-2023", {u["id"] for u in units})
 
     def test_html_body_year_and_reservation_flatten(self) -> None:
         html = (
