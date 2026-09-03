@@ -1,30 +1,30 @@
 {
   "ok": true,
-  "as_of": "2026-09-03T09:12:03.093696+00:00",
+  "as_of": "2026-09-03T15:59:33.046402+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-09-03T09:12:03.090444+00:00",
+    "as_of": "2026-09-03T15:59:33.043111+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 255.5769,
-    "cash_usd": 0.09,
-    "buying_power_usd": 0.09,
+    "nav_usd": 271.769,
+    "cash_usd": 0.1,
+    "buying_power_usd": 0.1,
     "pending_deposits_usd": null,
-    "equity_market_value_usd": 224.7296,
+    "equity_market_value_usd": 225.4313,
     "weights_of_nav": {
-      "btc_digital_credit": 0.3562,
-      "stocks_growth": 0.5231,
+      "btc_digital_credit": 0.335,
+      "stocks_growth": 0.4945,
       "other": 0.0,
       "cash": 0.0004
     },
     "weights_of_deployed": {
-      "btc_digital_credit": 0.4051,
-      "stocks_growth": 0.5949
+      "btc_digital_credit": 0.4038,
+      "stocks_growth": 0.5962
     },
     "targets": {
       "btc_digital_credit_pct": 0.4,
@@ -32,8 +32,8 @@
       "band_pct": 0.05
     },
     "drift_deployed": {
-      "btc_digital_credit": 0.0051,
-      "stocks_growth": -0.0051
+      "btc_digital_credit": 0.0038,
+      "stocks_growth": -0.0038
     },
     "in_band": {
       "btc_digital_credit": true,
@@ -54,14 +54,14 @@
       },
       {
         "symbol": "TSLA",
-        "quantity": 0.194348,
-        "market_value": 59.7503,
+        "quantity": 0.215371,
+        "market_value": 67.6006,
         "sleeve": "stocks_growth"
       },
       {
         "symbol": "SPCX",
-        "quantity": 0.398798,
-        "market_value": 44.9485,
+        "quantity": 0.452208,
+        "market_value": 52.7998,
         "sleeve": "stocks_growth"
       },
       {
@@ -111,17 +111,11 @@
         "quantity": 0.327868,
         "market_value": 5.0,
         "sleeve": "btc_digital_credit"
-      },
-      {
-        "symbol": "BE",
-        "quantity": 0.071811,
-        "market_value": 14.9999,
-        "sleeve": "stocks_growth"
       }
     ],
     "sleeve_market_value": {
       "btc_digital_credit": 91.0309,
-      "stocks_growth": 133.6986,
+      "stocks_growth": 134.4003,
       "other": 0.0
     },
     "allowlist_core": [
@@ -167,7 +161,7 @@
           "sleeve_if_owned": "stocks_growth",
           "deep_dive_required_before_buy": true,
           "last_deep_dive": "2026-08-31",
-          "held": true,
+          "held": false,
           "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification \u2014 fits open energy theme under stocks/growth."
         },
         {
@@ -375,13 +369,65 @@
     },
     "manager_hints": [
       "Deployed mix within target bands \u2014 discretionary alpha only.",
-      "Watchlist candidates (not auto-buy): AAPL, NVDA, PLTR, EVGO, AMZN, RKLB, STRK, CCJ, BWXT \u2014 deep-dive via /position-deep-dive before first buy when required.",
+      "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB, STRK, CCJ, BWXT \u2014 deep-dive via /position-deep-dive before first buy when required.",
       "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
     ],
     "fair_game": true,
     "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
   },
   "recent_decisions": [
+    {
+      "kind": "hold",
+      "outcome": "hold",
+      "need_llm": false,
+      "path": "rules",
+      "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+      "nav_usd": 255.5769,
+      "buying_power_usd": 0.09,
+      "weights_before": {
+        "btc_digital_credit": 0.4051,
+        "stocks_growth": 0.5949
+      },
+      "weights_after_expected": {
+        "btc_digital_credit": 0.4051,
+        "stocks_growth": 0.5949
+      },
+      "rationale": {
+        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 41%, stocks 59%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+        "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+        "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+        "thesis_tags": [
+          "rules_engine",
+          "modernized_60_40"
+        ]
+      },
+      "team_votes": {
+        "scout": {
+          "vote": "observe",
+          "note": "NAV $255.58 BP $0.09 cash $0.09"
+        },
+        "thesis": {
+          "vote": "ok",
+          "note": "deployed BTC 0.4051 stocks 0.5949"
+        },
+        "risk": {
+          "vote": "ok",
+          "note": "Agentic capital only; no trade if hold"
+        },
+        "critic": {
+          "vote": "ok",
+          "note": "Hold preferred when bands ok \u2014 avoid churn"
+        },
+        "executor": {
+          "vote": "hold",
+          "note": "No MCP orders on pure rules HOLD"
+        }
+      },
+      "actions": [],
+      "as_of": "2026-09-03T13:31:28.678773+00:00",
+      "schema_version": 1,
+      "account_scope": "agentic_only"
+    },
     {
       "kind": "hold",
       "outcome": "hold",
@@ -2022,58 +2068,6 @@
       },
       "actions": [],
       "as_of": "2026-08-21T13:34:52.836052+00:00",
-      "schema_version": 1,
-      "account_scope": "agentic_only"
-    },
-    {
-      "kind": "hold",
-      "outcome": "hold",
-      "need_llm": false,
-      "path": "rules",
-      "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-      "nav_usd": 197.4586,
-      "buying_power_usd": 0.09,
-      "weights_before": {
-        "btc_digital_credit": 0.4008,
-        "stocks_growth": 0.5992
-      },
-      "weights_after_expected": {
-        "btc_digital_credit": 0.4008,
-        "stocks_growth": 0.5992
-      },
-      "rationale": {
-        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-        "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-        "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
-        "thesis_tags": [
-          "rules_engine",
-          "modernized_60_40"
-        ]
-      },
-      "team_votes": {
-        "scout": {
-          "vote": "observe",
-          "note": "NAV $197.46 BP $0.09 cash $0.09"
-        },
-        "thesis": {
-          "vote": "ok",
-          "note": "deployed BTC 0.4008 stocks 0.5992"
-        },
-        "risk": {
-          "vote": "ok",
-          "note": "Agentic capital only; no trade if hold"
-        },
-        "critic": {
-          "vote": "ok",
-          "note": "Hold preferred when bands ok \u2014 avoid churn"
-        },
-        "executor": {
-          "vote": "hold",
-          "note": "No MCP orders on pure rules HOLD"
-        }
-      },
-      "actions": [],
-      "as_of": "2026-08-20T13:36:04.297603+00:00",
       "schema_version": 1,
       "account_scope": "agentic_only"
     }

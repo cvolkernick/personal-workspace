@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-09-02T19:46:04.509777+00:00",
+  "as_of": "2026-09-03T15:41:18.627511+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -705,14 +705,14 @@
     },
     "Fleet": {
       "role": "fleet_ops",
-      "item_count": 9,
+      "item_count": 10,
       "totals": {
-        "daily": 185.52,
-        "weekly": 1298.67,
-        "biweekly": 2597.34,
-        "monthly": 5575.05,
-        "annually": 28117.57,
-        "quarterly": 6147.96
+        "daily": 189.06,
+        "weekly": 1323.41,
+        "biweekly": 2646.81,
+        "monthly": 5681.05,
+        "annually": 29389.57,
+        "quarterly": 6465.96
       },
       "items": [
         {
@@ -817,6 +817,19 @@
           "tab": "Fleet"
         },
         {
+          "date": "10/2/2026",
+          "from": "X Money",
+          "item": "FSD",
+          "daily": 3.53,
+          "weekly": 24.73,
+          "biweekly": 49.47,
+          "monthly": 106.0,
+          "annually": 1272.0,
+          "budget_allocation": null,
+          "quarterly": 318.0,
+          "tab": "Fleet"
+        },
+        {
           "date": "2/1/2027",
           "from": "X Money",
           "item": "Premium Connectivity",
@@ -831,7 +844,7 @@
         }
       ],
       "by_source_monthly": {
-        "X Money": 4225.05,
+        "X Money": 4331.05,
         "NFCU (Zelle)": 1350.0
       },
       "top_monthly": [
@@ -872,6 +885,14 @@
           "monthly": 633.2,
           "from": "X Money",
           "date": "9/21/2026",
+          "budget_allocation": null,
+          "tab": "Fleet"
+        },
+        {
+          "item": "FSD",
+          "monthly": 106.0,
+          "from": "X Money",
+          "date": "10/2/2026",
           "budget_allocation": null,
           "tab": "Fleet"
         },
@@ -971,6 +992,14 @@
           "from": "NFCU (Zelle)",
           "monthly": 1350.0,
           "weekly": 315.0,
+          "tab": "Fleet"
+        },
+        {
+          "date": "10/2/2026",
+          "item": "FSD",
+          "from": "X Money",
+          "monthly": 106.0,
+          "weekly": 24.73,
           "tab": "Fleet"
         },
         {
@@ -2182,16 +2211,16 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 22720.79,
+    "upcoming_expense_monthly": 22826.79,
     "essential_monthly": 17145.74,
     "personal_monthly": 17145.74,
     "personal_daily": 563.79,
     "essential_daily": 563.79,
     "personal_weekly": 3946.54,
     "personal_annually": 43927.92,
-    "fleet_monthly": 5575.05,
-    "fleet_daily": 185.52,
-    "fleet_annually": 28117.57,
+    "fleet_monthly": 5681.05,
+    "fleet_daily": 189.06,
+    "fleet_annually": 29389.57,
     "collateral_investments_monthly": 687.2,
     "collateral_monthly": 687.2,
     "capital_targets_monthly": 3000.0,
@@ -2200,17 +2229,17 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 22720.79,
-    "combined_daily": 749.32,
+    "combined_monthly": 22826.79,
+    "combined_daily": 752.85,
     "by_source_monthly": {
       "Coinbase": 15623.07,
-      "X Money": 5747.73,
+      "X Money": 5853.73,
       "NFCU (Zelle)": 1350.0
     },
     "coinbase_funded_monthly": 15623.07,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5747.73
+    "x_money_funded_monthly": 5853.73
   },
   "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }

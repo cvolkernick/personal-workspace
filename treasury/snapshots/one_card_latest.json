@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-09-02T19:45:58.690447+00:00",
+  "as_of": "2026-09-03T15:41:13.061659+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -452.53,
-  "balance_owed": 452.53,
-  "card_balance": 452.53,
+  "balance_raw": -479.71,
+  "balance_owed": 479.71,
+  "card_balance": 479.71,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -452.53,
+  "cleared_balance": -479.71,
   "uncleared_balance": 0.0,
-  "spend_30d": 164.9,
+  "spend_30d": 192.08,
   "payments_30d": 177.55,
-  "transaction_count": 71,
+  "transaction_count": 75,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -230,7 +230,7 @@
       "category_name": "\ud83d\ude98 Transportation"
     },
     {
-      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
+      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -241,7 +241,7 @@
       "category_name": "\ud83c\udf7d\ufe0f Dining out"
     },
     {
-      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
+      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -483,7 +483,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
+      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -494,7 +494,7 @@
       "category_name": "\ud83d\udcb3 Subscriptions"
     },
     {
-      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
+      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -573,5 +573,5 @@
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-06-04"
+  "since": "2026-06-05"
 }
