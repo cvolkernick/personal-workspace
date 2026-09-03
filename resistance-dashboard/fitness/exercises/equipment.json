@@ -1,13 +1,14 @@
 {
-  "updated_at": "2026-08-22",
-  "notes": "Owned gear + available loads. Not an exercise dump. Seed: DBs Chris already trains with (max/hand from logged work) + flat bench. Add Marketplace buys in the UI.",
+  "updated_at": "2026-09-03",
+  "seed_revision": 2,
+  "notes": "Access inventory (home owned + gym), not an exercise dump. Home: DBs only (no bench). Gym tags are access so mixed plans are legal. Catalog available=true is the programmed library.",
   "items": [
     {
       "id": "dumbbells",
       "name": "Dumbbells",
       "tag": "dumbbells",
       "max_weight_lbs": 50,
-      "notes": "Owned pairs; max per hand",
+      "notes": "Home. Owned pairs; max per hand.",
       "source": "owned"
     },
     {
@@ -15,8 +16,72 @@
       "name": "Flat bench",
       "tag": "bench",
       "max_weight_lbs": null,
-      "notes": "Flat only — no incline",
-      "source": "owned"
+      "notes": "Gym access — not at home.",
+      "source": "gym"
+    },
+    {
+      "id": "incline_bench",
+      "name": "Incline bench",
+      "tag": "incline_bench",
+      "max_weight_lbs": null,
+      "notes": "Gym access.",
+      "source": "gym"
+    },
+    {
+      "id": "smith_machine",
+      "name": "Smith machine",
+      "tag": "smith_machine",
+      "max_weight_lbs": null,
+      "notes": "Gym access.",
+      "source": "gym"
+    },
+    {
+      "id": "cable",
+      "name": "Cable stack",
+      "tag": "cable",
+      "max_weight_lbs": null,
+      "notes": "Gym access.",
+      "source": "gym"
+    },
+    {
+      "id": "lat_pulldown",
+      "name": "Lat pulldown",
+      "tag": "lat_pulldown",
+      "max_weight_lbs": null,
+      "notes": "Gym access.",
+      "source": "gym"
+    },
+    {
+      "id": "assisted_pullup",
+      "name": "Assisted pull-up",
+      "tag": "assisted_pullup",
+      "max_weight_lbs": null,
+      "notes": "Gym access.",
+      "source": "gym"
+    },
+    {
+      "id": "machine",
+      "name": "Selectorized machine",
+      "tag": "machine",
+      "max_weight_lbs": null,
+      "notes": "Gym access (row, leg curl, back extension).",
+      "source": "gym"
+    },
+    {
+      "id": "leg_press",
+      "name": "Leg press",
+      "tag": "leg_press",
+      "max_weight_lbs": null,
+      "notes": "Gym access.",
+      "source": "gym"
+    },
+    {
+      "id": "barbell",
+      "name": "Barbell",
+      "tag": "barbell",
+      "max_weight_lbs": null,
+      "notes": "Gym access.",
+      "source": "gym"
     }
   ]
 }

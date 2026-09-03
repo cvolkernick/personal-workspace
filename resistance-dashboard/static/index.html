@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=labs-2" />
+    <link rel="stylesheet" href="/styles.css?v=library-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=labs-2" defer></script>
+    <script src="/app.js?v=library-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -653,12 +653,12 @@
         <article class="card-fill" id="equipment-inventory-card">
           <h2>Equipment inventory</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            What you own and the max load you can put on it (DB max/hand, plate
-            stack). The movement catalog stays a library — add gear here, not
-            exercises. Planner only prescribes lifts every required tag can load.
+            Access: home owned + gym. Max load is a cap (DB max/hand). Adding a
+            machine does not dump those lifts onto Today — it feeds coach
+            suggestions on the exercise library. Home gym is DBs only (no bench).
           </p>
           <p class="muted mobile-help" hidden>
-            Add owned gear + max weight. Planner will not invent missing machines.
+            Home + gym access. Library is what Today reads, not this list.
           </p>
           <form class="log-form" id="equipment-form">
             <div class="row cols-3">
@@ -686,6 +686,15 @@
                 <input type="number" id="eq-max" min="0" step="0.5" placeholder="e.g. 50" />
               </label>
             </div>
+            <div class="row cols-3">
+              <label>
+                Where
+                <select id="eq-source">
+                  <option value="owned">home (owned)</option>
+                  <option value="gym">gym (access)</option>
+                </select>
+              </label>
+            </div>
             <div class="actions">
               <button type="submit" class="primary">Add / update gear</button>
             </div>
@@ -697,15 +706,17 @@
 
       <section class="card" style="margin-top: 1rem" id="exercise-catalog-section" data-m-panel="more">
         <article class="card-fill" id="exercise-catalog-card">
-          <h2>Exercise catalog</h2>
+          <h2>Exercise library</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            Read-only movement library in <code>fitness/exercises/catalog.json</code>
-            — muscles, session type, required equipment tags. Feasible lifts come
-            from Equipment inventory, not from adding exercises here.
+            Programmed movements Today reads. Catalog file is the universe;
+            <code>available=true</code> (or an applied overlay) is the library.
+            Coach suggests add/remove from equipment + logs. Apply is explicit.
           </p>
           <p class="muted mobile-help" hidden>
-            Library only. Add gear above to unlock lifts on Today.
+            Library is what Today uses. Coach suggests; you apply.
           </p>
+          <div id="library-suggestions" class="inv-suggestions" style="margin-top: 0.75rem"></div>
+          <div id="library-removals" class="inv-suggestions" style="margin-top: 0.75rem"></div>
           <ul class="session-list exercise-catalog-scroll" id="exercise-catalog-list" style="margin-top: 0.75rem"></ul>
         </article>
       </section>

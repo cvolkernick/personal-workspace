@@ -253,8 +253,10 @@ def generate_grok_plans(
             "Do not omit next_session_type. No canned plan. No fake inventory. "
             "Do NOT use catalog default_sets=3. Volume from goals: "
             "default_hard_sets, DeanT 4-8, session_working_set_cap. "
-            "Workout catalog names are already filtered to owned equipment. "
-            "Do not invent cable/smith/assisted-pullup or loads above max_weight_lbs."
+            "Workout names are the programmed library, already checked against "
+            "accessible equipment. Do not invent lifts or enable available=false "
+            "rows. New gear does not auto-expand the library. "
+            "Do not prescribe loads above max_weight_lbs."
         ),
     }
     if isinstance(equipment, dict):
@@ -266,6 +268,7 @@ def generate_grok_plans(
                 "name": i.get("name"),
                 "tag": i.get("tag"),
                 "max_weight_lbs": i.get("max_weight_lbs"),
+                "source": i.get("source") or "owned",
             }
             for i in owned_equipment_items(equipment)
         ]
@@ -283,8 +286,10 @@ def generate_grok_plans(
             "Do not omit next_session_type. No canned plan. No fake inventory. "
             "Do NOT use catalog default_sets=3. Volume from goals: "
             "default_hard_sets, DeanT 4-8, session_working_set_cap. "
-            "Workout catalog names are already filtered to owned equipment. "
-            "Do not invent cable/smith/assisted-pullup or loads above max_weight_lbs."
+            "Workout names are the programmed library, already checked against "
+            "accessible equipment. Do not invent lifts or enable available=false "
+            "rows. New gear does not auto-expand the library. "
+            "Do not prescribe loads above max_weight_lbs."
         )
     elif inventory is not None:
         from .nutrition_planner import stocked_ingredients
@@ -319,8 +324,10 @@ def generate_grok_plans(
             "Do not omit next_session_type. No canned plan. No fake inventory. "
             "Do NOT use catalog default_sets=3. Volume from goals: "
             "default_hard_sets, DeanT 4-8, session_working_set_cap. "
-            "Workout catalog names are already filtered to owned equipment. "
-            "Do not invent cable/smith/assisted-pullup or loads above max_weight_lbs."
+            "Workout names are the programmed library, already checked against "
+            "accessible equipment. Do not invent lifts or enable available=false "
+            "rows. New gear does not auto-expand the library. "
+            "Do not prescribe loads above max_weight_lbs."
         )
     system = (
         "You generate today's FitDash meal sketch and workout plan.\n"
@@ -340,13 +347,16 @@ def generate_grok_plans(
         "- If inventory is null or empty, return meal items=[] meals=[]. "
         "Do not invent food.\n"
         "- Never use logged foods or remaining macros to invent a pantry.\n"
-        "- Workout uses goals.split / rotation, catalog names (already filtered "
-        "to owned equipment), recovery, and recent lifts.\n"
-        "- Every catalog.equipment tag must be owned. weight_lbs must be "
+        "- Workout uses goals.split / rotation, catalog names in the programmed "
+        "library (available=true and feasible with current access), recovery, "
+        "and recent lifts.\n"
+        "- Every catalog.equipment tag must be on the equipment inventory "
+        "(home owned or gym access). weight_lbs must be "
         "<= that implement's max_weight_lbs (DB max/hand, plate stack).\n"
-        "- Never invent cable, smith, assisted-pullup, or any missing gear.\n"
-        "- If no owned gear can load this PPL slot, return exercises=[] and say why. "
-        "Still set session_type.\n"
+        "- Never invent a lift that is not in the library. New gear does not "
+        "auto-add catalog rows.\n"
+        "- If no accessible gear can load this PPL slot from the library, "
+        "return exercises=[] and say why. Still set session_type.\n"
         "- Volume caps come from goals (default_hard_sets, DeanT 4-8, "
         "session_working_set_cap). NEVER use catalog default_sets=3.\n"
         "- rest_if_recovery_below + recovery.score + sparse are INPUT to you. "

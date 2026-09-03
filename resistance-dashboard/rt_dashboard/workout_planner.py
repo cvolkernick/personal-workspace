@@ -176,6 +176,14 @@ NAME_ALIASES = {
     "back extension machine": "back-extension",
     "smith bench": "smith-bench",
     "smith shrugs": "smith-shrugs",
+    "db floor press": "db-floor-press",
+    "dumbbell floor press": "db-floor-press",
+    "floor press": "db-floor-press",
+    "db row": "db-row",
+    "dumbbell row": "db-row",
+    "one arm row": "db-row",
+    "goblet squat": "goblet-squat",
+    "db goblet squat": "goblet-squat",
 }
 
 
@@ -733,10 +741,10 @@ def movement_any_tags(ex: dict) -> List[str]:
 
 
 def movement_feasible(ex: dict, equipment: Optional[dict]) -> bool:
-    """Allow a catalog movement only when every required tag is owned.
+    """Allow a library movement only when every required tag is accessible.
 
-    ``equipment_any`` is OR (barbell *or* dumbbells). Missing gear → skip;
-    never invent cable/smith/assisted-pullup.
+    ``equipment_any`` is OR (barbell *or* dumbbells). Missing gear → skip.
+    Safety net — not how movements enter the programmed library.
     """
     required = movement_required_tags(ex)
     any_tags = movement_any_tags(ex)
@@ -777,7 +785,7 @@ def available_load_lbs(ex: dict, equipment: Optional[dict]) -> Optional[float]:
 
 
 def filter_catalog_by_equipment(catalog: dict, equipment: Optional[dict]) -> dict:
-    """Catalog minus movements the owned gear cannot load. Does not invent lifts."""
+    """Library (available=true) minus movements current access cannot load."""
     out = deepcopy(catalog) if isinstance(catalog, dict) else {"exercises": []}
     kept = []
     for raw in out.get("exercises") or []:
@@ -843,7 +851,7 @@ def clamp_workout_to_equipment(
         capped, _cap, was_capped = cap_weight_to_inventory(w_f, cat, equipment)
         if was_capped:
             rx["weight_lbs"] = capped
-            note = f"Load capped at {capped:g} lb (owned max)."
+            note = f"Load capped at {capped:g} lb (inventory max)."
             rationale = str(row.get("rationale") or "")
             row["rationale"] = f"{rationale} {note}".strip()
         elif capped is not None:
@@ -859,11 +867,10 @@ def clamp_workout_to_equipment(
         st = str(workout.get("session_type") or "").upper() or "this"
         workout["empty"] = True
         msg = str(workout.get("message") or "")
-        if "invent" not in msg.lower() and "owned equipment" not in msg.lower():
+        if "invent" not in msg.lower() and "equipment" not in msg.lower():
             workout["message"] = (
-                f"No owned equipment can load a {st} lift. "
-                "Add gear and max weight — the planner will not invent "
-                "cable, smith, or assisted-pullup."
+                f"No accessible equipment can load a {st} lift from the library. "
+                "Fix the equipment inventory — the planner will not invent lifts."
             )
     return workout
 
@@ -1527,9 +1534,8 @@ def generate_workout_plan(
     last_st = last_session_type(sessions)
     if not plan_ex and equipment_on:
         msg_parts = [
-            f"No owned equipment can load a {st.upper()} lift. "
-            "Add gear and max weight in Equipment inventory — "
-            "the planner will not invent cable, smith, or assisted-pullup."
+            f"No accessible equipment can load a {st.upper()} lift from the library. "
+            "Fix the equipment inventory — the planner will not invent lifts."
         ]
     else:
         msg_parts = [

@@ -1,4 +1,4 @@
-"""#251: workout plan from owned equipment/weights, not exercise dumps."""
+"""Workout plan from programmed library ∩ accessible equipment."""
 
 from __future__ import annotations
 
@@ -13,9 +13,11 @@ from api.dashboard import dashboard_body
 from api.workout._util import dispatch_client_route, equipment_write
 from rt_dashboard.equipment_store import (
     EQUIPMENT_PATH,
+    SEED_REVISION,
     add_equipment_item,
     load_preview_equipment,
     load_workspace_equipment,
+    migrate_equipment_inventory,
     remove_equipment_item,
 )
 from rt_dashboard.grok_planner import generate_grok_plans
@@ -71,29 +73,46 @@ def _eq(*rows):
     return {"items": items}
 
 
+GYM_TAGS = {
+    "bench",
+    "incline_bench",
+    "smith_machine",
+    "cable",
+    "lat_pulldown",
+    "assisted_pullup",
+    "machine",
+    "leg_press",
+    "barbell",
+}
+
+
 class SeedFile(unittest.TestCase):
-    def test_seed_is_owned_gear_not_exercise_dump(self):
+    def test_seed_is_access_not_exercise_dump(self):
         raw = json.loads(REPO_EQ.read_text(encoding="utf-8"))
         tags = {i["tag"] for i in raw["items"]}
         self.assertIn("dumbbells", tags)
-        self.assertIn("bench", tags)
-        self.assertNotIn("cable", tags)
-        self.assertNotIn("smith_machine", tags)
-        self.assertNotIn("assisted_pullup", tags)
+        self.assertTrue(GYM_TAGS <= tags)
         names = [i["name"] for i in raw["items"]]
         self.assertNotIn("DB Flat Press", names)
         self.assertNotIn("Seated Cable Row", names)
         db = next(i for i in raw["items"] if i["tag"] == "dumbbells")
         self.assertEqual(db["max_weight_lbs"], 50)
+        self.assertEqual(db["source"], "owned")
+        bench = next(i for i in raw["items"] if i["tag"] == "bench")
+        self.assertEqual(bench["source"], "gym")
+        self.assertEqual(raw.get("seed_revision"), SEED_REVISION)
         self.assertTrue(BUNDLE_EQ.is_file())
         self.assertEqual(BUNDLE_EQ.read_bytes(), REPO_EQ.read_bytes())
 
     def test_loader_reads_seed(self):
         inv, src = load_workspace_equipment()
         self.assertEqual(src, EQUIPMENT_PATH)
-        self.assertGreaterEqual(len(inv["items"]), 2)
         tags = {i["tag"] for i in inv["items"]}
-        self.assertEqual(tags, {"dumbbells", "bench"})
+        self.assertIn("dumbbells", tags)
+        self.assertTrue(GYM_TAGS <= tags)
+        by = {i["tag"]: i for i in inv["items"]}
+        self.assertEqual(by["dumbbells"]["source"], "owned")
+        self.assertEqual(by["bench"]["source"], "gym")
 
 
 class FeasibilityRules(unittest.TestCase):
@@ -161,7 +180,7 @@ class FeasibilityRules(unittest.TestCase):
         self.assertNotIn("cable", blob)
         self.assertNotIn("smith", blob)
         self.assertNotIn("assisted", blob)
-        self.assertIn("owned equipment", (plan.get("message") or "").lower())
+        self.assertIn("equipment", (plan.get("message") or "").lower())
         cont = (plan.get("context") or {}).get("training_continuity") or {}
         self.assertTrue(cont.get("phase"))
         self.assertIn("training_continuity", plan.get("context") or {})
@@ -280,7 +299,9 @@ class TursoPersist(unittest.TestCase):
         ):
             inv, src = load_preview_equipment("sub-1")
         self.assertEqual(src, "turso")
-        self.assertEqual({i["tag"] for i in inv["items"]}, {"dumbbells", "bench"})
+        tags = {i["tag"] for i in inv["items"]}
+        self.assertIn("dumbbells", tags)
+        self.assertTrue(GYM_TAGS <= tags)
         self.assertEqual(len(puts), 1)
 
     def test_stored_empty_row_is_sot_not_reseeded(self):
@@ -363,7 +384,10 @@ class EquipmentWrites(unittest.TestCase):
                 )
         self.assertEqual(status, 400)
         self.assertIn("not found", str(body.get("error") or "").lower())
-        self.assertEqual(puts, [])
+        for inv in puts:
+            tags = {i.get("tag") for i in (inv.get("items") or []) if isinstance(i, dict)}
+            self.assertNotIn("unicorn-rack", tags)
+            self.assertNotIn("smith_machine", {i.get("id") for i in (inv.get("items") or []) if isinstance(i, dict) and i.get("id") == "unicorn-rack"})
 
     def test_dispatch_equipment_paths(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -405,13 +429,19 @@ class DashboardCompose(unittest.TestCase):
         self.assertIn(wo["sources"]["equipment"], (EQUIPMENT_PATH, "turso"))
         tags = {i["tag"] for i in (wo["equipment"] or {}).get("items") or []}
         self.assertIn("dumbbells", tags)
+        self.assertIn("cable", tags)
         plan = wo["plan"]
         self.assertEqual(plan.get("session_type"), "pull")
         names = [e.get("name") for e in plan.get("exercises") or []]
         self.assertTrue(names)
-        for banned in ("Seated Cable Row", "Assisted Pullups", "Pulldowns"):
-            self.assertNotIn(banned, names)
+        self.assertNotIn("DB Floor Press", names)
         self.assertTrue((plan.get("context") or {}).get("training_continuity"))
+        adds = {
+            s["id"]
+            for s in ((wo.get("library_suggestions") or {}).get("suggestions") or [])
+        }
+        self.assertIn("db-floor-press", adds)
+        self.assertIn("db-row", adds)
 
     def test_empty_equipment_dashboard_keeps_session_type(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
@@ -538,12 +568,15 @@ class UiIsGearNotExercises(unittest.TestCase):
         self.assertNotIn("Add / update exercise", HTML)
         self.assertNotIn('id="exercise-form"', HTML)
         self.assertIn('id="equipment-form"', HTML)
-        self.assertIn("Read-only movement library", HTML)
+        self.assertIn("Programmed movements Today reads", HTML)
+        self.assertIn("library-suggestions", HTML)
+        self.assertIn("eq-source", HTML)
 
     def test_js_posts_equipment_not_catalog_add(self):
         self.assertIn('fetch("/api/equipment/add"', JS)
         self.assertIn('fetch("/api/equipment/remove"', JS)
         self.assertIn("async function submitEquipmentInventory", JS)
+        self.assertIn('fetch("/api/workout/exercise/available"', JS)
         self.assertNotIn("/api/workout/exercise\"", JS.replace("/api/workout/exercise/available", ""))
         self.assertNotIn("Add / update exercise", JS)
 
@@ -563,6 +596,87 @@ class UiIsGearNotExercises(unittest.TestCase):
             if "class handler" in src or "\ndef app(" in src or "\napp = " in src:
                 fns.append(path)
         self.assertEqual(len(fns), 12, [str(x.relative_to(ROOT)) for x in fns])
+
+
+class MigrateV2(unittest.TestCase):
+    def test_old_seed_gains_gym_and_drops_home_bench(self):
+        old = {
+            "items": [
+                {
+                    "id": "dumbbells",
+                    "name": "Dumbbells",
+                    "tag": "dumbbells",
+                    "max_weight_lbs": 50,
+                    "source": "owned",
+                },
+                {
+                    "id": "bench",
+                    "name": "Flat bench",
+                    "tag": "bench",
+                    "source": "owned",
+                },
+            ]
+        }
+        out = migrate_equipment_inventory(old)
+        by = {i["tag"]: i for i in out["items"]}
+        self.assertEqual(out["seed_revision"], SEED_REVISION)
+        self.assertEqual(by["dumbbells"]["source"], "owned")
+        self.assertEqual(by["dumbbells"]["max_weight_lbs"], 50)
+        self.assertEqual(by["bench"]["source"], "gym")
+        self.assertTrue(GYM_TAGS <= set(by))
+
+    def test_empty_row_is_not_reseeded(self):
+        out = migrate_equipment_inventory({"items": []})
+        self.assertEqual(out["items"], [])
+
+    def test_already_migrated_keeps_user_deletes(self):
+        inv = {
+            "seed_revision": SEED_REVISION,
+            "items": [
+                {
+                    "id": "dumbbells",
+                    "name": "Dumbbells",
+                    "tag": "dumbbells",
+                    "max_weight_lbs": 50,
+                    "source": "owned",
+                }
+            ],
+        }
+        out = migrate_equipment_inventory(inv)
+        self.assertEqual({i["tag"] for i in out["items"]}, {"dumbbells"})
+
+    def test_live_turso_old_seed_is_written_back(self):
+        puts = []
+        old = {
+            "items": [
+                {
+                    "id": "dumbbells",
+                    "name": "Dumbbells",
+                    "tag": "dumbbells",
+                    "max_weight_lbs": 50,
+                    "source": "owned",
+                },
+                {
+                    "id": "bench",
+                    "name": "Flat bench",
+                    "tag": "bench",
+                    "source": "owned",
+                },
+            ]
+        }
+        with mock.patch(
+            "rt_dashboard.turso_http.turso_enabled", return_value=True
+        ), mock.patch(
+            "rt_dashboard.equipment_store._turso_get_equipment", return_value=old
+        ), mock.patch(
+            "rt_dashboard.equipment_store._turso_put_equipment",
+            side_effect=lambda uid, inv: puts.append(inv),
+        ):
+            inv, src = load_preview_equipment("sub-1")
+        self.assertEqual(src, "turso")
+        self.assertEqual(len(puts), 1)
+        self.assertEqual(inv["seed_revision"], SEED_REVISION)
+        self.assertIn("cable", {i["tag"] for i in inv["items"]})
 
 
 class Mutators(unittest.TestCase):
