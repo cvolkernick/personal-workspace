@@ -24,7 +24,7 @@
       "rhs_account_number": "674601752",
       "rhc_account_number": "311264401076",
       "type": "limited_margin",
-      "unsettled_funds": "0.0000",
+      "unsettled_funds": "15.7100",
       "brokerage_account_type": "individual",
       "nickname": "Agentic",
       "is_default": false,
@@ -62,24 +62,24 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "254.766446943",
-      "equity_value": "254.676446943",
+      "total_value": "270.5508481578",
+      "equity_value": "270.4508481578",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
       "crypto_value": "0",
-      "cash": "0.09",
+      "cash": "0.1",
       "pending_deposits": "25",
       "mutual_funds_value": "0",
       "fixed_income_value": "0",
       "currency": "USD",
       "buying_power": {
-        "buying_power": "0.0900",
-        "unleveraged_buying_power": "0.0900",
+        "buying_power": "0.1000",
+        "unleveraged_buying_power": "0.1000",
         "display_currency": "USD"
       },
       "crypto_buying_power": {
-        "buying_power": "0.0900"
+        "buying_power": "0.1000"
       }
     }
   },
@@ -113,10 +113,10 @@
     },
     {
       "symbol": "TSLA",
-      "quantity": "0.194348",
-      "intraday_quantity": "0.000000",
-      "average_buy_price": "307.440000",
-      "shares_available_for_sells": "0.194348",
+      "quantity": "0.215371",
+      "intraday_quantity": "0.021023",
+      "average_buy_price": "313.880000",
+      "shares_available_for_sells": "0.215371",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
@@ -126,10 +126,10 @@
     },
     {
       "symbol": "SPCX",
-      "quantity": "0.398798",
-      "intraday_quantity": "0.000000",
-      "average_buy_price": "112.710000",
-      "shares_available_for_sells": "0.398798",
+      "quantity": "0.452208",
+      "intraday_quantity": "0.053410",
+      "average_buy_price": "116.760000",
+      "shares_available_for_sells": "0.452208",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
@@ -234,19 +234,6 @@
       "intraday_quantity": "0.000000",
       "average_buy_price": "15.250000",
       "shares_available_for_sells": "0.327868",
-      "shares_held_for_sells": "0.000000",
-      "shares_held_for_stock_grants": "0.000000",
-      "shares_held_for_options_events": "0.000000",
-      "shares_held_for_asset_transfer": "0.000000",
-      "shares_pending_from_options_events": "0.000000",
-      "type": "long"
-    },
-    {
-      "symbol": "BE",
-      "quantity": "0.071811",
-      "intraday_quantity": "0.000000",
-      "average_buy_price": "208.880000",
-      "shares_available_for_sells": "0.071811",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
