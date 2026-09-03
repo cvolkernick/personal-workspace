@@ -1,11 +1,11 @@
 /* FitDash offline shell — caches static UI only, never API responses. */
-const CACHE = "fitdash-shell-v78";
+const CACHE = "fitdash-shell-v79";
 const PRECACHE = [
   "/",
   "/index.html",
-  "/styles.css?v=labs-2",
+  "/styles.css?v=library-1",
   "/history-sets.js?v=history-sets-1",
-  "/app.js?v=labs-2",
+  "/app.js?v=library-1",
   "/meal-snapshot.js?v=meal-slot-1",
   "/manifest.webmanifest",
   "/icon-192.png",

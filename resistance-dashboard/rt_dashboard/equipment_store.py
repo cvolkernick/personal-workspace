@@ -1,8 +1,10 @@
 """Per-user equipment/weights inventory: bundled seed + Turso persist.
 
-Catalog stays the movement library. This file is owned gear + available loads,
-not a second exercise dump. After seed, Turso is source of truth.
-Never invent cable/smith/assisted-pullup.
+Equipment is ACCESS (home owned + gym), not a workout and not an exercise dump.
+Catalog available=true is the programmed library. Adding a machine here does
+not dump those lifts onto Today — coach suggests library diffs; apply is
+explicit. After seed, Turso is source of truth. Seed revision 2: home DBs
+only (no bench) + gym access tags the current library already requires.
 """
 
 from __future__ import annotations
@@ -16,6 +18,82 @@ from typing import Any, Dict, List, Optional, Tuple
 
 EQUIPMENT_PATH = "fitness/exercises/equipment.json"
 EQUIPMENT_ROW_DEFAULT = "default"
+SEED_REVISION = 2
+
+GYM_ACCESS_SEED = (
+    {
+        "id": "bench",
+        "name": "Flat bench",
+        "tag": "bench",
+        "max_weight_lbs": None,
+        "notes": "Gym access — not at home.",
+        "source": "gym",
+    },
+    {
+        "id": "incline_bench",
+        "name": "Incline bench",
+        "tag": "incline_bench",
+        "max_weight_lbs": None,
+        "notes": "Gym access.",
+        "source": "gym",
+    },
+    {
+        "id": "smith_machine",
+        "name": "Smith machine",
+        "tag": "smith_machine",
+        "max_weight_lbs": None,
+        "notes": "Gym access.",
+        "source": "gym",
+    },
+    {
+        "id": "cable",
+        "name": "Cable stack",
+        "tag": "cable",
+        "max_weight_lbs": None,
+        "notes": "Gym access.",
+        "source": "gym",
+    },
+    {
+        "id": "lat_pulldown",
+        "name": "Lat pulldown",
+        "tag": "lat_pulldown",
+        "max_weight_lbs": None,
+        "notes": "Gym access.",
+        "source": "gym",
+    },
+    {
+        "id": "assisted_pullup",
+        "name": "Assisted pull-up",
+        "tag": "assisted_pullup",
+        "max_weight_lbs": None,
+        "notes": "Gym access.",
+        "source": "gym",
+    },
+    {
+        "id": "machine",
+        "name": "Selectorized machine",
+        "tag": "machine",
+        "max_weight_lbs": None,
+        "notes": "Gym access (row, leg curl, back extension).",
+        "source": "gym",
+    },
+    {
+        "id": "leg_press",
+        "name": "Leg press",
+        "tag": "leg_press",
+        "max_weight_lbs": None,
+        "notes": "Gym access.",
+        "source": "gym",
+    },
+    {
+        "id": "barbell",
+        "name": "Barbell",
+        "tag": "barbell",
+        "max_weight_lbs": None,
+        "notes": "Gym access.",
+        "source": "gym",
+    },
+)
 
 ENSURE_EQUIPMENT_SQL = """
 CREATE TABLE IF NOT EXISTS equipment_inventory (
@@ -120,8 +198,15 @@ def normalize_equipment_item(raw: dict) -> dict:
         "tag": tag,
         "max_weight_lbs": max_weight,
         "notes": str(raw.get("notes") or ""),
-        "source": str(raw.get("source") or "owned"),
+        "source": _normalize_source(raw.get("source")),
     }
+
+
+def _normalize_source(raw: Any) -> str:
+    key = str(raw or "owned").strip().lower()
+    if key in ("gym", "access", "pf", "planet_fitness"):
+        return "gym"
+    return "owned"
 
 
 def _as_equipment(raw: Any) -> dict:
@@ -140,7 +225,52 @@ def _as_equipment(raw: Any) -> dict:
             continue
     out = {k: v for k, v in raw.items() if k != "items"}
     out["items"] = kept
+    try:
+        out["seed_revision"] = int(raw.get("seed_revision") or 0)
+    except (TypeError, ValueError):
+        out["seed_revision"] = 0
     return out
+
+
+def migrate_equipment_inventory(equipment: Optional[dict]) -> dict:
+    """v2: home DBs only; gym access tags the current library already needs.
+
+    Empty ``items: []`` is explicit SoT and is not reseeded. Already-migrated
+    rows (seed_revision >= 2) are left alone so later UI deletes stick.
+    """
+    inv = _as_equipment(equipment)
+    items = list(inv.get("items") or [])
+    if not items:
+        return inv
+    try:
+        rev = int(inv.get("seed_revision") or 0)
+    except (TypeError, ValueError):
+        rev = 0
+    if rev >= SEED_REVISION:
+        return inv
+    by_tag: Dict[str, dict] = {}
+    for item in items:
+        tag = str(item.get("tag") or "")
+        if tag:
+            by_tag[tag] = dict(item)
+    db = by_tag.get("dumbbells")
+    if db:
+        db["source"] = "owned"
+        by_tag["dumbbells"] = db
+    bench = by_tag.get("bench")
+    if bench and str(bench.get("source") or "owned") == "owned":
+        bench["source"] = "gym"
+        bench["name"] = bench.get("name") or "Flat bench"
+        bench["notes"] = "Gym access — not at home."
+        by_tag["bench"] = bench
+    for seed in GYM_ACCESS_SEED:
+        tag = seed["tag"]
+        if tag not in by_tag:
+            by_tag[tag] = dict(seed)
+    inv["items"] = [normalize_equipment_item(v) for v in by_tag.values()]
+    inv["seed_revision"] = SEED_REVISION
+    inv["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return _as_equipment(inv)
 
 
 def load_workspace_equipment() -> Tuple[dict, str]:
@@ -248,14 +378,23 @@ def load_preview_equipment(user_id: str = "") -> Tuple[dict, str]:
     except Exception:
         return file_inv, file_src
     if not _turso_row_empty(existing):
-        return _as_equipment(existing), "turso"
+        current = _as_equipment(existing)
+        migrated = migrate_equipment_inventory(current)
+        if int(migrated.get("seed_revision") or 0) > int(current.get("seed_revision") or 0):
+            try:
+                _turso_put_equipment(user_id, migrated)
+            except Exception:
+                return migrated, "turso"
+            return migrated, "turso"
+        return current, "turso"
     if not file_inv.get("items"):
         return file_inv, file_src
+    seeded = migrate_equipment_inventory(file_inv)
     try:
-        _turso_put_equipment(user_id, file_inv)
+        _turso_put_equipment(user_id, seeded)
     except Exception:
-        return file_inv, file_src
-    return file_inv, "turso"
+        return seeded, file_src
+    return seeded, "turso"
 
 
 def add_equipment_item(equipment: dict, raw: dict) -> dict:

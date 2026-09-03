@@ -279,16 +279,24 @@ class PreviewWriteIsReadOnly(unittest.TestCase):
             self.assertEqual(body["error"], "auth_required")
             self.assertNotIn("<html", json.dumps(body).lower())
 
-    def test_signed_in_goals_available_still_403_json(self):
+    def test_signed_in_goals_still_403_json(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True):
             headers = self._headers()
-            for fn in (goals_write, available_write):
-                status, body = fn(headers)
-                self.assertEqual(status, 403, fn.__name__)
-                self.assertEqual(body["error"], "preview_read_only")
-                self.assertTrue(body["readonly"])
-                self.assertNotIn("<html", json.dumps(body).lower())
+            status, body = goals_write(headers)
+        self.assertEqual(status, 403)
+        self.assertEqual(body["error"], "preview_read_only")
+        self.assertTrue(body["readonly"])
+        self.assertNotIn("<html", json.dumps(body).lower())
+
+    def test_signed_in_available_write_is_not_preview_read_only(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            headers = self._headers()
+            status, body = available_write(headers, {})
+        self.assertNotEqual(body.get("error"), "preview_read_only")
+        self.assertEqual(status, 400)
+        self.assertIn("exercise id", str(body.get("error") or "").lower())
 
     def test_signed_in_workouts_write_is_not_preview_read_only(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}

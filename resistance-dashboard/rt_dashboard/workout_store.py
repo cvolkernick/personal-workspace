@@ -65,7 +65,7 @@ def load_workspace_goals() -> Tuple[dict, str]:
 
 
 def load_workspace_catalog() -> Tuple[dict, str]:
-    """Read fitness/exercises/catalog.json (full file; ~7KB / 19 exercises).
+    """Read fitness/exercises/catalog.json (universe; available=true is the library).
 
     Same SoT-then-bundle walk as targets.json / goals.json.
     Source is CATALOG_PATH when the file is found, else "default".

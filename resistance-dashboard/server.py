@@ -164,10 +164,20 @@ from rt_dashboard.equipment_store import (  # noqa: E402
 from rt_dashboard.workout_planner import (  # noqa: E402
     add_or_update_exercise,
     generate_workout_plan,
-    set_exercise_available,
     update_goals,
 )
+from rt_dashboard.library_groom import (  # noqa: E402
+    suggest_library_additions,
+    suggest_library_removals,
+)
+from rt_dashboard.library_store import (  # noqa: E402
+    apply_library_overlay,
+    load_library_overlay,
+    save_library_overlay,
+    set_library_available,
+)
 from rt_dashboard.workout_store import (  # noqa: E402
+    apply_goals_volume_caps,
     load_catalog_and_goals,
     write_catalog,
     write_goals,
@@ -849,8 +859,11 @@ def load_dashboard_data(
     try:
         wo = load_catalog_and_goals(nut_client)
         equipment, equipment_src = load_preview_equipment(str(uid or ""))
+        overlay, library_src = load_library_overlay(str(uid or ""))
+        catalog = apply_library_overlay(wo["catalog"], overlay)
+        catalog = apply_goals_volume_caps(catalog, wo["goals"])
         workout_plan = generate_workout_plan(
-            wo["catalog"],
+            catalog,
             wo["goals"],
             sessions,
             recovery_label=(recovery.label if recovery else None),
@@ -872,10 +885,20 @@ def load_dashboard_data(
                 },
             }
         payload["workout_store"] = {
-            "catalog": wo["catalog"],
+            "catalog": catalog,
             "equipment": equipment,
             "goals": effective_goals,
-            "sources": {**wo["sources"], "equipment": equipment_src},
+            "library_suggestions": suggest_library_additions(
+                catalog, equipment, sessions
+            ),
+            "library_removals": suggest_library_removals(
+                catalog, equipment, sessions
+            ),
+            "sources": {
+                **wo["sources"],
+                "equipment": equipment_src,
+                "library": library_src,
+            },
             "plan": workout_plan,
         }
     except Exception as e:  # noqa: BLE001
@@ -2175,19 +2198,43 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/workout/exercise/available":
             try:
                 body = self._read_json()
-                client = build_github_client(for_write=True)
+                eid = str(body.get("id") or "").strip()
+                if not eid:
+                    raise ValueError("exercise id required")
+                want = bool(body.get("available", True))
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                client = build_github_client(for_write=False)
                 store = load_catalog_and_goals(client)
-                updated = set_exercise_available(
-                    store["catalog"],
-                    exercise_id=str(body.get("id") or ""),
-                    available=bool(body.get("available", True)),
+                match = None
+                for raw in (store.get("catalog") or {}).get("exercises") or []:
+                    if isinstance(raw, dict) and str(raw.get("id") or "") == eid:
+                        match = raw
+                        break
+                if not match:
+                    raise ValueError("exercise not found")
+                if want:
+                    from rt_dashboard.workout_planner import (
+                        movement_feasible,
+                        normalize_exercise,
+                    )
+
+                    equipment, _src = load_preview_equipment(str(uid))
+                    if not movement_feasible(normalize_exercise(match), equipment):
+                        raise ValueError(
+                            "exercise needs equipment that is not in the inventory"
+                        )
+                overlay, _src = load_library_overlay(str(uid))
+                updated_ov = set_library_available(overlay, eid, want)
+                saved = save_library_overlay(updated_ov, str(uid))
+                catalog = apply_library_overlay(store["catalog"], saved)
+                self._send_json(
+                    {
+                        "ok": True,
+                        "catalog": catalog,
+                        "library": saved,
+                        "write": {"ok": True, "source": "turso"},
+                    }
                 )
-                write = write_catalog(
-                    client,
-                    updated,
-                    message=f"workout: available {body.get('id')}",
-                )
-                self._send_json({"ok": True, "catalog": updated, "write": write})
             except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:

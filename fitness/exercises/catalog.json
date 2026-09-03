@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-07-12",
-  "notes": "Exercise library for daily workout plan generation. available=false hides an exercise from plans.",
+  "updated_at": "2026-09-03",
+  "notes": "Movement universe. available=true is the programmed library Today reads. available=false stays off the plan until coach suggests and you apply. Equipment inventory is access, not an auto-unlock.",
   "exercises": [
     {
       "id": "db-flat-press",
@@ -269,6 +269,51 @@
       "rep_range": [10, 15],
       "priority": 3,
       "available": true
+    },
+    {
+      "id": "db-floor-press",
+      "name": "DB Floor Press",
+      "session_types": ["push"],
+      "primary_muscles": ["chest"],
+      "secondary_muscles": ["triceps"],
+      "movement": "compound",
+      "equipment": ["dumbbells"],
+      "default_sets": 3,
+      "default_reps": 10,
+      "rep_range": [8, 12],
+      "priority": 8,
+      "available": false,
+      "notes": "Home chest press without a bench."
+    },
+    {
+      "id": "db-row",
+      "name": "DB Row",
+      "session_types": ["pull"],
+      "primary_muscles": ["back"],
+      "secondary_muscles": ["biceps"],
+      "movement": "compound",
+      "equipment": ["dumbbells"],
+      "default_sets": 3,
+      "default_reps": 10,
+      "rep_range": [8, 12],
+      "priority": 8,
+      "available": false,
+      "notes": "Home horizontal pull."
+    },
+    {
+      "id": "goblet-squat",
+      "name": "Goblet Squat",
+      "session_types": ["legs"],
+      "primary_muscles": ["quads"],
+      "secondary_muscles": ["glutes"],
+      "movement": "compound",
+      "equipment": ["dumbbells"],
+      "default_sets": 3,
+      "default_reps": 10,
+      "rep_range": [8, 12],
+      "priority": 8,
+      "available": false,
+      "notes": "Home squat pattern. Load capped at DB max/hand."
     }
   ]
 }
