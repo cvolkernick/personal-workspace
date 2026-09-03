@@ -47,7 +47,7 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `agent_fleet.py` / `service_auth.py` | Read-only Helm brief + service-token gate (#295) |
 | `data/agent_fleet_latest.json` | Shipped empty/stale snapshot — no invented trips |
 | `fleet.py` | Assemble `/api/fleet` |
-| `car_cards.py` | Locked lender/APR, trip schedule, GT→car match |
+| `car_cards.py` | Locked lender/APR, per-car loan flatten, trip schedule, GT→car match |
 | `glance.py` | Miles / SoC / stale / PTP presentation helpers |
 | `static/fleet/` | Per-unit stills (`m3-2020`, `m3-2022`, `r1s-2023`, both Corollas). Not TREAD chrome |
 | `dimo_client.py` | DIMO stub + optional live path |
@@ -56,7 +56,7 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |
 | `turo_media.py` | Persist image MIME parts next to the dump (`turo_inbox_media/`) |
 | `data/roster.json` | Five-unit seed |
-| `data/notes.json` | 2026-08-13 portal override (stale on purpose) |
+| `data/notes.json` | Durable per-car finance record (Helm SoT 2026-09-03). Helm later replaces this file from signed portals — no local writer |
 | `data/turo_inbox.json` | Empty fixture — no invented trips |
 | `tests/` | Unit + HTTP tests |
 
@@ -93,7 +93,7 @@ Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
 | **DIMO** | Unconfigured until env + vehicle token ids exist. Live path mints a Developer JWT then a **Vehicle JWT** via `dimo-python-sdk`. Never send `DIMO_API_KEY` as a telemetry Bearer. Telemetry is `signalsLatest` (latest GPS / SoC / odo), **not** a live stream. Dashboard polls `/api/fleet` every 30s for location; Turo writer stays every 15 minutes. Fleet map is OSM. |
 | **Turo** | Parses a **local** JSON fixture / maildir / `~/.config/auto-fleet/turo_inbox.json`. Default fixture is empty. Prod writer is the Pi 15m timer (`auto-fleet-turo-writer.timer`) — not a Mac Grok/MCP poll. Historical / `label:Turo` 2024 mail is dropped. The server does not call Gmail. Payout dest is **X Money**. |
 | **Costs / notes** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly`. Missing Fleet tab → `stale: true` and roster + `notes.json`. |
-| **Lien-holders** | No scrape. `notes.json` is a dated portal snapshot. Principal / PTP / payoff-quote fields are **not** live. |
+| **Lien-holders** | No scrape. `notes.json` is the Helm-feedable per-car finance record (SoT 2026-09-03). Amounts are flatten-only — **not** live. `/api/agent/fleet` stays a read-only dump; this slice does not invent a Helm writer. |
 
 ## Invoice-ready (Google Tasks)
 

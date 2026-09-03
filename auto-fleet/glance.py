@@ -164,23 +164,175 @@ def _portal(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
     return portal if isinstance(portal, dict) else {}
 
 
+def _loan(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    if not finance:
+        return {}
+    loan = finance.get("loan")
+    return loan if isinstance(loan, dict) else {}
+
+
 def due_from_finance(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    empty = {
+        "due": False,
+        "ptp": None,
+        "amount_due": None,
+        "past_due": None,
+        "past_due_days": None,
+    }
     locked = (finance or {}).get("locked") if isinstance(finance, Mapping) else {}
+    loan = _loan(finance)
     if isinstance(locked, dict) and locked.get("show_balances") is False:
-        return {"due": False, "ptp": None, "amount_due": None, "past_due": None}
+        return empty
+    if loan.get("show_balances") is False:
+        return empty
     portal = _portal(finance)
-    ptp = portal.get("ptp") or portal.get("promise_to_pay")
+    ptp = loan.get("arrangement")
+    if not isinstance(ptp, dict):
+        ptp = portal.get("ptp") or portal.get("promise_to_pay")
     if not isinstance(ptp, dict):
         ptp = None
-    amount_due = portal.get("amount_due")
-    past_due = portal.get("past_due")
-    has = bool(ptp) or amount_due not in (None, "") or past_due not in (None, "")
+    amount_due = loan.get("amount_due_now")
+    if amount_due is None:
+        amount_due = portal.get("amount_due")
+    past_due = loan.get("past_due_amount")
+    if past_due is None:
+        raw_past = portal.get("past_due")
+        past_due = raw_past if isinstance(raw_past, (int, float)) else None
+    past_due_days = loan.get("past_due_days")
+    past_flag = (
+        loan.get("past_due") is True
+        or past_due not in (None, "")
+        or past_due_days not in (None, "")
+    )
+    has = bool(ptp) or amount_due not in (None, "") or past_flag
     return {
         "due": has,
         "ptp": ptp,
         "amount_due": amount_due,
         "past_due": past_due,
+        "past_due_days": past_due_days,
     }
+
+
+def money_strip_inner_html(finance: Optional[Mapping[str, Any]]) -> str:
+    """Loan + ops rows for the existing Money strip. Omit empty. No phones."""
+    finance = finance if isinstance(finance, Mapping) else {}
+    locked = finance.get("locked") if isinstance(finance.get("locked"), dict) else {}
+    loan = _loan(finance)
+    portal = _portal(finance)
+    show_balances = loan.get("show_balances")
+    if show_balances is None:
+        show_balances = locked.get("show_balances", True)
+    bits: list[str] = []
+    lender = loan.get("lender") or locked.get("lender")
+    if lender:
+        bits.append(str(lender))
+    if loan.get("account_last4"):
+        bits.append(f"…{loan['account_last4']}")
+    apr = loan.get("apr_pct") if loan.get("apr_pct") is not None else locked.get("apr_pct")
+    if apr is not None:
+        bits.append(f"{apr}% APR")
+    monthly = (
+        loan.get("monthly_payment")
+        if loan.get("monthly_payment") is not None
+        else locked.get("monthly")
+    )
+    if monthly is not None:
+        bits.append(f"{money(monthly)}/mo")
+    rows: list[str] = []
+    if bits:
+        rows.append(f'<div class="row muted">{_esc(" · ".join(bits))}</div>')
+    if loan.get("paid_by"):
+        extra = " · off FCC" if loan.get("off_fcc") else ""
+        rows.append(f'<div class="row">{_esc(loan["paid_by"])} pays{extra}</div>')
+    elif loan.get("off_fcc"):
+        rows.append('<div class="row">off FCC</div>')
+    if loan.get("payment_method"):
+        rows.append(f'<div class="row">{_esc(loan["payment_method"])}</div>')
+    if loan.get("no_portal"):
+        rows.append('<div class="row muted">No portal</div>')
+    arr = loan.get("arrangement") if isinstance(loan.get("arrangement"), dict) else None
+    if arr and (arr.get("amount") is not None or arr.get("due")):
+        rows.append(
+            f'<div class="row due-lead">Arrangement {money(arr.get("amount")) or "—"}'
+            f'{(" by " + _esc(arr["due"])) if arr.get("due") else ""}</div>'
+        )
+    if show_balances and loan.get("amount_due_now") is not None:
+        rows.append(f'<div class="row">Due now {money(loan["amount_due_now"])}</div>')
+    if show_balances and (
+        loan.get("past_due") is True
+        or loan.get("past_due_amount") is not None
+        or loan.get("past_due_days") is not None
+    ):
+        parts = []
+        if loan.get("past_due_amount") is not None:
+            parts.append(money(loan["past_due_amount"]) or "")
+        if loan.get("past_due_days") is not None:
+            parts.append(f'{loan["past_due_days"]} days')
+        suffix = f' {" · ".join(p for p in parts if p)}' if parts else ""
+        rows.append(f'<div class="row err">Past due{suffix}</div>')
+    if show_balances and (
+        loan.get("next_scheduled_amount") is not None or loan.get("next_due_date")
+    ):
+        nxt = "Next"
+        if loan.get("next_scheduled_amount") is not None:
+            nxt += f' {money(loan["next_scheduled_amount"])}'
+        if loan.get("next_due_date"):
+            nxt += f' on {_esc(loan["next_due_date"])}'
+        rows.append(f'<div class="row">{nxt}</div>')
+    if show_balances and loan.get("payoff") is not None:
+        rows.append(
+            f'<div class="row muted">Payoff {money(loan["payoff"])} — not live</div>'
+        )
+
+    due = due_from_finance(finance)
+    has_loan_paint = bool(loan.get("lender") or loan.get("amount_due_now") is not None
+                          or loan.get("past_due_amount") is not None
+                          or loan.get("arrangement") or loan.get("paid_by")
+                          or loan.get("payment_method"))
+    if not has_loan_paint:
+        if due["ptp"]:
+            ptp = due["ptp"]
+            rows.append(
+                f'<div class="row due-lead">PTP {money(ptp.get("amount")) or "—"} '
+                f'due {_esc(ptp.get("due") or "—")}</div>'
+            )
+        if due["amount_due"] not in (None, ""):
+            rows.append(f'<div class="row">Due {money(due["amount_due"])}</div>')
+        if due["past_due"] not in (None, ""):
+            rows.append(f'<div class="row">Past due {money(due["past_due"])}</div>')
+        extra = []
+        if show_balances and portal.get("contractual_monthly") is not None:
+            extra.append(f'{money(portal["contractual_monthly"])}/mo')
+        if locked.get("apr_pct") is not None:
+            extra.append(f'{locked["apr_pct"]}% APR')
+        elif portal.get("apr_pct") is not None:
+            extra.append(f'{portal["apr_pct"]}% APR')
+        if show_balances and portal.get("principal_balance") is not None:
+            extra.append(f'principal {money(portal["principal_balance"])}')
+        if extra:
+            stale = "stale" if portal.get("stale", True) else "sheet"
+            rows.append(
+                f'<div class="row muted">{_esc(" · ".join(extra))} {_chip(stale, "warn")}</div>'
+            )
+
+    lines = finance.get("sheet_lines") or [] if show_balances else []
+    for line in lines:
+        if not isinstance(line, dict):
+            continue
+        rows.append(
+            f'<div class="row">{_esc(line.get("item"))} · {money(line.get("monthly")) or "—"}</div>'
+        )
+    if loan.get("as_of"):
+        rows.append(
+            f'<div class="row muted">Helm SoT {_esc(loan["as_of"])} — not live '
+            f'{_chip("stale", "warn")}</div>'
+        )
+    if not rows:
+        rows.append(
+            f'<div class="empty">{_esc(finance.get("note") or "No money items for this unit.")}</div>'
+        )
+    return f'<div class="finance-block">{"".join(rows)}</div>'
 
 
 def turo_line(
@@ -736,45 +888,7 @@ def render_unit_card_html(
     schedule_html = schedule_queue_html(schedule, invoice_items)
     awaiting_html = awaiting_strip_html(invoice_items)
 
-    portal = _portal(finance)
-    due = due_from_finance(finance)
-    cost_bits: list[str] = []
-    if due["ptp"]:
-        ptp = due["ptp"]
-        cost_bits.append(
-            f'<div class="row due-lead">PTP {money(ptp.get("amount")) or "—"} '
-            f'due {_esc(ptp.get("due") or "—")}</div>'
-        )
-    if due["amount_due"] not in (None, ""):
-        cost_bits.append(f'<div class="row">Due {money(due["amount_due"])}</div>')
-    if due["past_due"] not in (None, ""):
-        cost_bits.append(f'<div class="row">Past due {money(due["past_due"])}</div>')
-    extra = []
-    show_balances = locked.get("show_balances", True)
-    if show_balances and portal.get("contractual_monthly") is not None:
-        extra.append(f'{money(portal["contractual_monthly"])}/mo')
-    if locked.get("apr_pct") is not None:
-        extra.append(f'{locked["apr_pct"]}% APR')
-    elif portal.get("apr_pct") is not None:
-        extra.append(f'{portal["apr_pct"]}% APR')
-    if show_balances and portal.get("principal_balance") is not None:
-        extra.append(f'principal {money(portal["principal_balance"])}')
-    if extra:
-        stale = "stale" if portal.get("stale", True) else "sheet"
-        cost_bits.append(
-            f'<div class="row muted">{_esc(" · ".join(extra))} {_chip(stale, "warn")}</div>'
-        )
-    lines = finance.get("sheet_lines") or []
-    for line in lines:
-        if not isinstance(line, dict):
-            continue
-        cost_bits.append(
-            f'<div class="row">{_esc(line.get("item"))} · {money(line.get("monthly")) or "—"}</div>'
-        )
-    if not cost_bits and not locked_bits:
-        cost_bits.append(
-            f'<div class="empty">{_esc(finance.get("note") or "No Fleet-tab lines for this unit.")}</div>'
-        )
+    money_html = money_strip_inner_html(finance)
 
     trip_bits = []
     for b in schedule:
@@ -825,7 +939,7 @@ def render_unit_card_html(
         f"{dimo_body}</div>"
         f'<div class="strip"><h3>Schedule</h3>{schedule_html}</div>'
         f"{awaiting_html}"
-        f'<div class="strip"><h3>Money</h3>{"".join(cost_bits)}</div>'
+        f'<div class="strip"><h3>Money</h3>{money_html}</div>'
         f"{trip_html}"
         f"</article>"
     )

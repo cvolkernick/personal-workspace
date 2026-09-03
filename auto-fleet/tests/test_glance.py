@@ -132,9 +132,9 @@ class FormatTests(unittest.TestCase):
         c24 = by_id["corolla-2024"]
         due = glance.due_from_finance(c24["finance"])
         self.assertTrue(due["due"])
-        self.assertEqual(due["ptp"]["amount"], 460.6)
-        self.assertEqual(due["ptp"]["due"], "2026-08-21")
-        self.assertEqual(due["past_due"], 921.2)
+        self.assertEqual(due["ptp"]["amount"], 307.15)
+        self.assertEqual(due["ptp"]["due"], "2026-09-14")
+        self.assertEqual(due["past_due"], 788.99)
         self.assertFalse(by_id["m3-2020"]["glance"]["due"])
         self.assertTrue(c24["glance"]["due"])
         self.assertTrue(c24["glance"]["available"])

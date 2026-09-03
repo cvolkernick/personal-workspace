@@ -186,14 +186,14 @@ class FleetAssemblyTests(unittest.TestCase):
     def test_portal_override_is_not_live_payoff(self) -> None:
         payload = self._build(FIXTURES / "expenses_with_fleet.json")
         tesla = next(u for u in payload["units"] if u["id"] == "m3-2022")
-        portal = tesla["finance"]["portal_override"]
-        self.assertEqual(portal["principal_balance"], 21568.15)
-        self.assertFalse(portal["principal_is_payoff_quote"])
-        self.assertFalse(portal["live"])
+        loan = tesla["finance"]["loan"]
+        self.assertEqual(loan["past_due_amount"], 1326.37)
+        self.assertFalse(loan["live"])
+        self.assertFalse(tesla["finance"]["portal_override"]["live"])
         cap = next(u for u in payload["units"] if u["id"] == "corolla-2022")
-        quote = cap["finance"]["portal_override"]["payoff_quote"]
-        self.assertEqual(quote["amount"], 17996.47)
-        self.assertFalse(cap["finance"]["portal_override"]["payoff_is_live"])
+        self.assertEqual(cap["finance"]["loan"]["payoff"], 17974.92)
+        self.assertFalse(cap["finance"]["loan"]["payoff_is_live"])
+        self.assertFalse(cap["finance"]["loan"]["live"])
 
     def test_unit_cards_ignore_combined_monthly(self) -> None:
         """Fixture summary.combined_monthly is 8427 — must not leak onto cards."""

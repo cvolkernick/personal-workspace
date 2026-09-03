@@ -16,7 +16,9 @@ try:
 except ImportError:  # script / unittest path
     import turo_inbox  # type: ignore
 
-# Product-locked lender/APR (Chris + Helm). No invented balances.
+# Product-locked lender/APR (Chris + Helm). Balances come from the
+# Helm-feedable record in data/notes.json — do not invent them here.
+# 22 Tesla APR is omitted: not in Helm SoT 2026-09-03.
 LOCKED_FINANCE: dict[str, dict[str, Any]] = {
     "m3-2020": {
         "lender": "Wells Fargo",
@@ -26,7 +28,6 @@ LOCKED_FINANCE: dict[str, dict[str, Any]] = {
     },
     "m3-2022": {
         "lender": "GM Financial",
-        "apr_pct": 18.15,
         "show_balances": True,
     },
     "corolla-2022": {
@@ -106,6 +107,117 @@ def locked_finance_for(unit_id: str) -> dict[str, Any]:
     if not locked:
         return {"lender": None, "apr_pct": None, "show_balances": False}
     return dict(locked)
+
+
+def _present(value: Any) -> bool:
+    return value not in (None, "", [], {})
+
+
+def mask_account_last4(account: Any) -> Optional[str]:
+    """Last four digits only. Never return a full account number."""
+    digits = re.sub(r"\D", "", str(account or ""))
+    if len(digits) < 4:
+        return None
+    return digits[-4:]
+
+
+def loan_display_for(
+    unit_id: str,
+    record: Mapping[str, Any] | None = None,
+    *,
+    meta: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Normalized per-car loan facts for the Money strip.
+
+    Show fields that are present. Omit empty rather than inventing.
+    Helm later replaces ``data/notes.json`` from signed portals — this
+    helper only flattens the durable record. Not live. Not a writer.
+    """
+    locked = locked_finance_for(unit_id)
+    src = dict(record) if isinstance(record, Mapping) else {}
+    info = meta if isinstance(meta, Mapping) else {}
+    show_balances = src.get("show_balances")
+    if show_balances is None:
+        show_balances = locked.get("show_balances", True)
+    out: dict[str, Any] = {
+        "show_balances": bool(show_balances),
+        "live": False,
+    }
+    if _present(info.get("as_of")):
+        out["as_of"] = info.get("as_of")
+    if _present(info.get("source")):
+        out["source"] = info.get("source")
+    if _present(info.get("disclaimer")):
+        out["disclaimer"] = info.get("disclaimer")
+
+    lender = src.get("lender") or locked.get("lender")
+    if _present(lender):
+        out["lender"] = lender
+
+    last4 = src.get("account_last4") or mask_account_last4(src.get("account"))
+    if _present(last4):
+        out["account_last4"] = str(last4)
+
+    apr = src.get("apr_pct")
+    if apr is None:
+        apr = locked.get("apr_pct")
+    if apr is not None:
+        out["apr_pct"] = apr
+
+    monthly = src.get("monthly_payment")
+    if monthly is None:
+        monthly = locked.get("monthly")
+    if monthly is not None:
+        out["monthly_payment"] = monthly
+
+    for key in ("paid_by", "payment_method", "note"):
+        if _present(src.get(key)):
+            out[key] = src[key]
+        elif key == "note" and _present(locked.get("note")) and not show_balances:
+            out["note"] = locked["note"]
+    if src.get("off_fcc") is True:
+        out["off_fcc"] = True
+    if src.get("no_portal") is True:
+        out["no_portal"] = True
+
+    if not show_balances:
+        return out
+
+    if src.get("amount_due_now") is not None:
+        out["amount_due_now"] = src["amount_due_now"]
+    past_due_amount = src.get("past_due_amount")
+    if past_due_amount is None and isinstance(src.get("past_due"), (int, float)):
+        past_due_amount = src.get("past_due")
+    if past_due_amount is not None:
+        out["past_due_amount"] = past_due_amount
+    if src.get("past_due_days") is not None:
+        out["past_due_days"] = src["past_due_days"]
+    past_flag = src.get("past_due")
+    if isinstance(past_flag, bool):
+        out["past_due"] = past_flag
+    elif past_due_amount is not None or src.get("past_due_days") is not None:
+        out["past_due"] = True
+    if _present(src.get("next_due_date")):
+        out["next_due_date"] = src["next_due_date"]
+    if src.get("next_scheduled_amount") is not None:
+        out["next_scheduled_amount"] = src["next_scheduled_amount"]
+    arr = src.get("arrangement")
+    if isinstance(arr, Mapping) and (
+        arr.get("amount") is not None or _present(arr.get("due"))
+    ):
+        arrangement: dict[str, Any] = {}
+        if arr.get("amount") is not None:
+            arrangement["amount"] = arr["amount"]
+        if _present(arr.get("due")):
+            arrangement["due"] = arr["due"]
+        out["arrangement"] = arrangement
+    payoff = src.get("payoff")
+    if payoff is None and isinstance(src.get("payoff_quote"), Mapping):
+        payoff = src["payoff_quote"].get("amount")
+    if payoff is not None:
+        out["payoff"] = payoff
+        out["payoff_is_live"] = False
+    return out
 
 
 def _as_et(now: Any) -> datetime:
