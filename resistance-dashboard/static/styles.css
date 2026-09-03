@@ -4082,6 +4082,74 @@ body.m-shell #alerts {
   color: var(--danger);
 }
 
+.labs-overview {
+  margin-bottom: 1rem;
+}
+
+.labs-panel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 0.65rem;
+}
+
+.labs-chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.labs-chip.is-on {
+  border-color: var(--accent-2);
+  background: rgba(90, 200, 160, 0.12);
+}
+
+.labs-history-table td {
+  vertical-align: middle;
+}
+
+.labs-spark {
+  display: inline-block;
+  color: var(--accent-2);
+  vertical-align: middle;
+}
+
+.labs-spark-empty {
+  color: var(--muted);
+}
+
+.labs-carry {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.labs-row-carry td:first-child {
+  font-style: italic;
+}
+
+.labs-delta-up {
+  color: var(--warn);
+}
+
+.labs-delta-down {
+  color: var(--accent-2);
+}
+
+.labs-mixed {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--warn);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

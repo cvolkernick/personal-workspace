@@ -748,6 +748,7 @@ def _decorate_labs(
     ]
     panels.sort(key=lambda x: str(x.get("date") or ""))
     out["panels"] = panels
+    out["history"] = labs_history(out)
     return out
 
 
@@ -787,6 +788,245 @@ def latest_panel(labs: Optional[dict]) -> Optional[dict]:
     if not panels:
         return None
     return panels[-1]
+
+
+LOWER_BETTER_IDS = {
+    "apob",
+    "ldl",
+    "triglycerides",
+    "remnant_cholesterol",
+    "hs_crp",
+    "hscrp",
+    "ggt",
+}
+
+_LANE_RANK = {"clinician": 0, "coach": 1, "info": 2}
+
+_HISTORY_NOTE = (
+    "Last-known per marker is dated. Mean/min/max are historical range, "
+    "not a current blended panel. Mixed vendors are labeled; assays differ."
+)
+
+
+def _numeric_uncensored(marker: dict) -> Optional[float]:
+    """Numeric for trend/mean. Comparator-bounded values (<10) are excluded."""
+    if str(marker.get("comparator") or "").strip():
+        return None
+    value = marker.get("value")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _history_point(panel: dict, marker: dict) -> dict:
+    numeric = _numeric_uncensored(marker)
+    return {
+        "date": str(panel.get("date") or "")[:10],
+        "lab": str(panel.get("lab") or ""),
+        "name": marker.get("name") or marker.get("id") or "",
+        "value": marker.get("value"),
+        "value_text": marker.get("value_text") or "",
+        "unit": marker.get("unit") or "",
+        "band": marker.get("band") or "",
+        "lane": marker.get("lane") or "info",
+        "comparator": marker.get("comparator") or "",
+        "numeric": numeric,
+    }
+
+
+def _point_public(point: dict) -> dict:
+    return {
+        "date": point.get("date") or "",
+        "lab": point.get("lab") or "",
+        "value": point.get("value"),
+        "value_text": point.get("value_text") or "",
+        "unit": point.get("unit") or "",
+        "band": point.get("band") or "",
+        "lane": point.get("lane") or "info",
+        "comparator": point.get("comparator") or "",
+        "numeric": point.get("numeric"),
+    }
+
+
+def labs_history(labs: Optional[dict]) -> dict:
+    """Per-marker series across every stored panel.
+
+    Does not average panels into a fake current draw. Last-known is the most
+    recent panel that actually measured the marker, with that date attached.
+    Mean/min/max (n>=2, same unit, uncensored) are historical range only.
+    """
+    empty = {
+        "panel_count": 0,
+        "panels": [],
+        "markers": [],
+        "mixed_labs": False,
+        "latest_date": "",
+        "latest_lab": "",
+        "note": _HISTORY_NOTE,
+    }
+    if not labs:
+        return empty
+    panels = [p for p in (labs.get("panels") or []) if isinstance(p, dict)]
+    panels.sort(key=lambda x: str(x.get("date") or ""))
+    if not panels:
+        return empty
+    latest = panels[-1]
+    latest_date = str(latest.get("date") or "")[:10]
+    latest_ids = {
+        str(m.get("id") or "")
+        for m in _as_marker_map(latest.get("markers")).values()
+        if m.get("id")
+    }
+    vendor_names = set()
+    panel_rows: List[dict] = []
+    by_id: Dict[str, List[dict]] = {}
+    for panel in panels:
+        markers = _as_marker_map(panel.get("markers"))
+        date = str(panel.get("date") or "")[:10]
+        lab = str(panel.get("lab") or "")
+        if lab:
+            vendor_names.add(lab.strip().lower())
+        panel_rows.append(
+            {
+                "date": date,
+                "lab": lab,
+                "order_id": str(panel.get("order_id") or ""),
+                "marker_count": len(markers),
+                "fasting": bool(panel.get("fasting")),
+                "stale": bool(panel.get("stale")),
+            }
+        )
+        for marker in markers.values():
+            cid = str(marker.get("id") or "")
+            if not cid:
+                continue
+            by_id.setdefault(cid, []).append(_history_point(panel, marker))
+
+    marker_rows: List[dict] = []
+    for cid, series in by_id.items():
+        series.sort(key=lambda x: str(x.get("date") or ""))
+        last = series[-1]
+        prev = series[-2] if len(series) >= 2 else None
+        on_latest = cid in latest_ids and last.get("date") == latest_date
+        units = {str(s.get("unit") or "") for s in series if s.get("unit")}
+        mixed_units = len(units) > 1
+        series_labs = {str(s.get("lab") or "").strip().lower() for s in series if s.get("lab")}
+        mixed_marker_labs = len(series_labs) > 1
+        nums = [
+            s["numeric"]
+            for s in series
+            if s.get("numeric") is not None and not mixed_units
+        ]
+        mean = min_v = max_v = None
+        if len(nums) >= 2:
+            mean = round(sum(nums) / len(nums), 4)
+            min_v = min(nums)
+            max_v = max(nums)
+        delta = None
+        direction = "n/a"
+        if (
+            not mixed_units
+            and last.get("numeric") is not None
+            and prev is not None
+            and prev.get("numeric") is not None
+        ):
+            delta = round(float(last["numeric"]) - float(prev["numeric"]), 4)
+            if abs(delta) < 1e-9:
+                direction = "flat"
+            elif delta > 0:
+                direction = "up"
+            else:
+                direction = "down"
+        lower_better = cid in LOWER_BETTER_IDS
+        improving = None
+        if direction == "up":
+            improving = not lower_better
+        elif direction == "down":
+            improving = lower_better
+        marker_rows.append(
+            {
+                "id": cid,
+                "name": last.get("name") or cid,
+                "unit": last.get("unit") or "",
+                "lane": last.get("lane") or "info",
+                "n": len(series),
+                "series": [_point_public(s) for s in series],
+                "last": _point_public(last),
+                "previous": _point_public(prev) if prev else None,
+                "on_latest": on_latest,
+                "delta": delta,
+                "direction": direction,
+                "improving": improving,
+                "lower_better": lower_better,
+                "mean": mean,
+                "min": min_v,
+                "max": max_v,
+                "mixed_labs": mixed_marker_labs,
+                "mixed_units": mixed_units,
+            }
+        )
+    marker_rows.sort(
+        key=lambda r: (_LANE_RANK.get(str(r.get("lane") or ""), 9), str(r.get("name") or "").lower())
+    )
+    return {
+        "panel_count": len(panels),
+        "panels": panel_rows,
+        "markers": marker_rows,
+        "mixed_labs": len(vendor_names) > 1,
+        "latest_date": latest_date,
+        "latest_lab": str(latest.get("lab") or ""),
+        "note": _HISTORY_NOTE,
+    }
+
+
+def history_coach_notes(hist: Optional[dict]) -> List[str]:
+    """Dated last-known / trend lines. Never a blended current value."""
+    if not hist or int(hist.get("panel_count") or 0) <= 1:
+        return []
+    notes: List[str] = []
+    mixed = " · mixed vendors" if hist.get("mixed_labs") else ""
+    notes.append(
+        f"{hist.get('panel_count')} panels on file · last-known is dated, "
+        f"not averaged{mixed}."
+    )
+    off = [
+        m
+        for m in (hist.get("markers") or [])
+        if isinstance(m, dict)
+        and not m.get("on_latest")
+        and m.get("lane") in {"coach", "clinician"}
+    ]
+    if off:
+        bits = []
+        for marker in off[:4]:
+            last = marker.get("last") or {}
+            bits.append(
+                f"{marker.get('name')} {last.get('value_text') or last.get('value')} "
+                f"({last.get('date')})"
+            )
+        notes.append("Not on the latest panel (last known): " + "; ".join(bits) + ".")
+    trends = []
+    for marker in hist.get("markers") or []:
+        if not isinstance(marker, dict):
+            continue
+        if int(marker.get("n") or 0) < 2:
+            continue
+        if marker.get("direction") not in {"up", "down", "flat"}:
+            continue
+        if marker.get("lane") not in {"coach", "clinician"}:
+            continue
+        last = marker.get("last") or {}
+        prev = marker.get("previous") or {}
+        trends.append(
+            f"{marker.get('name')} {prev.get('value_text') or prev.get('value')} → "
+            f"{last.get('value_text') or last.get('value')} ({marker.get('direction')})"
+        )
+    if trends:
+        notes.append("Trend (same marker, not a mean): " + "; ".join(trends[:4]) + ".")
+    return notes
 
 
 def flag_markers(panel: Optional[dict]) -> List[dict]:
@@ -862,6 +1102,10 @@ def labs_summary_for_coach(
             )
     if cluster:
         kitchen_lines.append(cluster["text"])
+    hist = labs_history({"panels": annotated} if labs and labs.get("panels") else {"panels": [panel]})
+    last_known_off = [
+        m for m in (hist.get("markers") or []) if isinstance(m, dict) and not m.get("on_latest")
+    ]
     return {
         "has_labs": True,
         "date": panel.get("date"),
@@ -869,6 +1113,7 @@ def labs_summary_for_coach(
         "lab": panel.get("lab") or "",
         "fasting": bool(panel.get("fasting")),
         "marker_count": len(markers),
+        "panel_count": hist.get("panel_count") or 1,
         "flags": flags,
         "clinical_flags": clinical_flags,
         "cluster": cluster,
@@ -881,4 +1126,7 @@ def labs_summary_for_coach(
         "kitchen_lines": kitchen_lines,
         "volume": "unchanged",
         "storage": (labs or {}).get("storage") or "",
+        "history": hist,
+        "last_known_off_latest": last_known_off,
+        "history_notes": history_coach_notes(hist),
     }

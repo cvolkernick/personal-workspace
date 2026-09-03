@@ -22,6 +22,7 @@ from rt_dashboard.labs_parse import (  # noqa: E402
 from rt_dashboard.labs_store import (  # noqa: E402
     delete_panel,
     flag_markers,
+    labs_history,
     labs_summary_for_coach,
     load_labs,
     save_panel,
@@ -173,6 +174,59 @@ class TestLabsStore(unittest.TestCase):
         self.assertEqual(labs.get("storage"), "turso")
         self.assertEqual(len(labs["panels"]), 2)
 
+    def test_history_last_known_not_averaged(self):
+        first = parse_lab_text(RYTHM_TEXT)
+        save_panel(first)
+        second = deepcopy(parse_lab_text(RYTHM_TEXT))
+        second["date"] = "2026-09-01"
+        second["order_id"] = "222222"
+        second["lab"] = "Quest Diagnostics"
+        markers = second.get("markers") or {}
+        kept = {}
+        for key, raw in markers.items():
+            cid = (raw.get("id") if isinstance(raw, dict) else "") or str(key)
+            if cid in {"estrogen", "estrogen_pg_ml"} or "estrogen" in str(key).lower():
+                continue
+            row = deepcopy(raw) if isinstance(raw, dict) else {"value": raw}
+            if cid == "apob" or str(key).startswith("apob"):
+                row["value"] = 100.0
+                row["value_text"] = "100"
+                row["comparator"] = ""
+            kept[key] = row
+        second["markers"] = kept
+        labs = save_panel(second)
+        self.assertEqual(len(labs["panels"]), 2)
+        hist = labs.get("history") or labs_history(labs)
+        self.assertEqual(hist["panel_count"], 2)
+        self.assertTrue(hist["mixed_labs"])
+        by_id = {m["id"]: m for m in hist["markers"]}
+        e2 = by_id["estrogen"]
+        self.assertFalse(e2["on_latest"])
+        self.assertEqual(e2["last"]["date"], "2026-06-01")
+        self.assertIn("<", str(e2["last"].get("value_text") or ""))
+        apo = by_id["apob"]
+        self.assertTrue(apo["on_latest"])
+        self.assertEqual(apo["last"]["date"], "2026-09-01")
+        self.assertEqual(apo["last"]["value"], 100.0)
+        self.assertEqual(apo["n"], 2)
+        self.assertEqual(apo["direction"], "up")
+        self.assertAlmostEqual(apo["mean"], 97.5)
+        self.assertNotEqual(apo["mean"], apo["last"]["value"])
+        summary = labs_summary_for_coach(labs, as_of="2026-09-02")
+        self.assertEqual(summary["date"], "2026-09-01")
+        self.assertEqual(summary["panel_count"], 2)
+        kitchen = " ".join(summary["kitchen_lines"]).lower()
+        self.assertIn("100", kitchen)
+        self.assertNotIn("97.5", kitchen)
+        self.assertNotIn("estrogen", kitchen)
+        notes = " ".join(summary["history_notes"]).lower()
+        self.assertIn("not averaged", notes)
+        self.assertIn("estrogen", notes)
+        self.assertIn("2026-06-01", notes)
+        self.assertIn("mixed vendors", notes)
+        blob = json.dumps(summary)
+        self.assertNotIn('"value": 97.5', blob)
+
     def test_legacy_float_markers(self):
         flags = flag_markers(
             {
@@ -196,6 +250,10 @@ class TestLabsMarkup(unittest.TestCase):
         self.assertIn("/api/labs/upload", js)
         self.assertIn("submitLabsUpload", js)
         self.assertNotIn("fitness/data/labs.json", js)
+        self.assertIn("labs-history-table", js)
+        self.assertIn("data-lab-panel", js)
+        self.assertIn("last-known per marker is dated, not averaged", js)
+        self.assertIn("last known", html.lower() + js.lower())
 
 
 class TestFlagContract(unittest.TestCase):
@@ -254,6 +312,49 @@ class TestFlagContract(unittest.TestCase):
         improve = " ".join(fc["can_improve"]).lower()
         self.assertNotIn("estrogen", improve)
         self.assertTrue(any("clinician" in n.lower() for n in fc["notes"]))
+
+    def test_coach_history_is_dated_not_mean(self):
+        from rt_dashboard.coach import build_food_commentary
+
+        first = parse_lab_text(RYTHM_TEXT)
+        second = deepcopy(first)
+        second["date"] = "2026-09-01"
+        second["order_id"] = "222222"
+        second["lab"] = "Quest Diagnostics"
+        markers = {}
+        for key, raw in (second.get("markers") or {}).items():
+            cid = (raw.get("id") if isinstance(raw, dict) else "") or str(key)
+            if "estrogen" in str(cid).lower() or "estrogen" in str(key).lower():
+                continue
+            row = deepcopy(raw)
+            if cid == "apob" or str(key).startswith("apob"):
+                row["value"] = 100.0
+                row["value_text"] = "100"
+                row["comparator"] = ""
+            markers[key] = row
+        second["markers"] = markers
+        fc = build_food_commentary(
+            food_logs=[],
+            nutrition=[],
+            targets={"calories": 2100, "protein_g": 210, "notes": "Default cutting targets"},
+            consumed={"calories": 680, "protein_g": 56},
+            adherence={"protein": {"pct": 40, "hits": 1, "days_logged": 3}},
+            labs={"panels": [first, second]},
+            as_of="2026-09-02",
+        )
+        blob = (
+            (fc.get("markdown") or "")
+            + " "
+            + " ".join(fc.get("notes") or [])
+            + " "
+            + " ".join(fc.get("can_improve") or [])
+        ).lower()
+        self.assertIn("2 panels", blob)
+        self.assertIn("not averaged", blob)
+        self.assertIn("estrogen", blob)
+        self.assertIn("2026-06-01", blob)
+        self.assertNotIn("97.5", blob)
+        self.assertNotIn("trt", blob)
 
     def test_energy_cluster_one_line(self):
         from rt_dashboard.labs_store import annotate_panel, energy_availability_cluster

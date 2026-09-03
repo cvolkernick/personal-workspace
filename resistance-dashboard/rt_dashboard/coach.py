@@ -1001,6 +1001,8 @@ def build_food_commentary(
             + (f" ({lab_sum.get('lab')})" if lab_sum.get("lab") else "")
             + f" · {lab_sum.get('marker_count')} markers"
         ]
+        if int(lab_sum.get("panel_count") or 1) > 1:
+            lab_bits.append(f"{lab_sum.get('panel_count')} panels")
         if lab_sum.get("fasting"):
             lab_bits.append("fasting")
         notes.append(" · ".join(lab_bits) + ".")
@@ -1022,6 +1024,9 @@ def build_food_commentary(
                 "— not an emergency."
             )
         notes.append("Volume: unchanged from this panel.")
+        for line in lab_sum.get("history_notes") or []:
+            if line:
+                notes.append(str(line))
         for line in lab_sum.get("kitchen_lines") or []:
             if line:
                 improve.append(str(line))
@@ -1054,7 +1059,7 @@ def build_food_commentary(
 
     working = _dedupe(working)[:6]
     improve = _dedupe(improve)[:8]
-    notes = _dedupe(notes)[:6]
+    notes = _dedupe(notes)[:8]
 
     # Markdown for UI
     lines = ["### Nutrition Coach"]
