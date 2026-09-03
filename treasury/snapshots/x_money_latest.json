@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-09-03T16:34:09.043908+00:00",
+  "as_of": "2026-09-03T19:55:58.013839+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -419.04,
+  "balance_raw": -464.04,
   "cash": 966.93,
-  "available": 1422.19,
-  "cleared_balance": -419.04,
+  "available": 1447.19,
+  "cleared_balance": -464.04,
   "uncleared_balance": 0.0,
-  "spend_30d": 7982.57,
-  "inflow_30d": 8370.43,
-  "transaction_count": 327,
+  "spend_30d": 8027.57,
+  "inflow_30d": 8415.43,
+  "transaction_count": 330,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -217,7 +217,7 @@
       "category_name": "\ud83c\udf7d\ufe0f Dining out"
     },
     {
-      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -228,7 +228,7 @@
       "category_name": "\ud83d\ude98 Transportation"
     },
     {
-      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -572,34 +572,34 @@
   "notes": "X Money via YNAB/Plaid. Main is last-4 2201 (Main \u2013 2201); named spaces are separate sleeves. EveryDay Checking \u2013 8680 is Navy Federal, not X Money. cash is signed (overdraft visible); available is max(0, cash). Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
   "since": "2026-06-05",
-  "main_cash": -419.04,
+  "main_cash": -464.04,
   "spaces": [
     {
       "account_id": "15c33269-eab1-4b16-b39d-94d2c74b3b36",
       "account_name": "Auto Fleet \u2013 0895",
       "last4": "0895",
-      "cash": 1001.7,
-      "available": 1001.7,
+      "cash": 1011.7,
+      "available": 1011.7,
       "spend_30d": 1397.54,
-      "inflow_30d": 2399.24
+      "inflow_30d": 2409.24
     },
     {
       "account_id": "9a1f26d8-df81-4db8-ba21-772bbf483342",
       "account_name": "Collateral \u2013 3326",
       "last4": "3326",
-      "cash": -36.22,
+      "cash": -16.22,
       "available": 0.0,
       "spend_30d": 476.66,
-      "inflow_30d": 340.44
+      "inflow_30d": 360.44
     },
     {
       "account_id": "550541e5-27cb-4603-85bc-4091488fe8cd",
       "account_name": "Utilities \u2013 4867",
       "last4": "4867",
-      "cash": 420.49,
-      "available": 420.49,
+      "cash": 435.49,
+      "available": 435.49,
       "spend_30d": 0.0,
-      "inflow_30d": 317.39
+      "inflow_30d": 332.39
     }
   ]
 }

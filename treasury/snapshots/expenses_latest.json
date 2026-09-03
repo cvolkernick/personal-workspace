@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-09-03T16:34:13.945312+00:00",
+  "as_of": "2026-09-03T19:56:02.637960+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -151,7 +151,7 @@
         },
         {
           "date": "9/9/2026",
-          "from": "X Money",
+          "from": "Coinbase",
           "item": "Lee County Citation",
           "daily": 5.29,
           "weekly": 37.05,
@@ -437,8 +437,8 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 15623.07,
-        "X Money": 1522.68
+        "Coinbase": 15784.07,
+        "X Money": 1361.68
       },
       "top_monthly": [
         {
@@ -532,7 +532,7 @@
         {
           "item": "Lee County Citation",
           "monthly": 161.0,
-          "from": "X Money",
+          "from": "Coinbase",
           "date": "9/9/2026",
           "budget_allocation": null,
           "tab": "Essential"
@@ -614,7 +614,7 @@
         {
           "date": "9/9/2026",
           "item": "Lee County Citation",
-          "from": "X Money",
+          "from": "Coinbase",
           "monthly": 161.0,
           "weekly": 37.05,
           "tab": "Essential"
@@ -1479,7 +1479,7 @@
         },
         {
           "date": "9/9/2026",
-          "from": "X Money",
+          "from": "Coinbase",
           "item": "Lee County Citation",
           "daily": 5.29,
           "weekly": 37.05,
@@ -1765,8 +1765,8 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 15623.07,
-        "X Money": 1522.68
+        "Coinbase": 15784.07,
+        "X Money": 1361.68
       },
       "top_monthly": [
         {
@@ -1860,7 +1860,7 @@
         {
           "item": "Lee County Citation",
           "monthly": 161.0,
-          "from": "X Money",
+          "from": "Coinbase",
           "date": "9/9/2026",
           "budget_allocation": null,
           "tab": "Essential"
@@ -1942,7 +1942,7 @@
         {
           "date": "9/9/2026",
           "item": "Lee County Citation",
-          "from": "X Money",
+          "from": "Coinbase",
           "monthly": 161.0,
           "weekly": 37.05,
           "tab": "Essential"
@@ -2232,14 +2232,14 @@
     "combined_monthly": 22826.79,
     "combined_daily": 752.85,
     "by_source_monthly": {
-      "Coinbase": 15623.07,
-      "X Money": 5853.73,
+      "Coinbase": 15784.07,
+      "X Money": 5692.73,
       "NFCU (Zelle)": 1350.0
     },
-    "coinbase_funded_monthly": 15623.07,
+    "coinbase_funded_monthly": 15784.07,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5853.73
+    "x_money_funded_monthly": 5692.73
   },
   "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }

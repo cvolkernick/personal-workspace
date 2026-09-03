@@ -65,8 +65,8 @@
   },
   "get_portfolio_agentic": {
     "data": {
-      "total_value": "270.5508481578",
-      "equity_value": "270.4508481578",
+      "total_value": "272.2570269631",
+      "equity_value": "272.1570269631",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
