@@ -1,7 +1,7 @@
 {
   "as_of": "2026-08-18",
   "source": "gmail_dump",
-  "inbox": "cvolkern@gmail.com",
+  "inbox": "panamerica.cars@gmail.com",
   "query": "from:(turo.com OR mail.turo.com OR transactional.turo.com) OR label:Turo",
   "messages": [
     {

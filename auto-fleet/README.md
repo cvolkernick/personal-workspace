@@ -120,8 +120,10 @@ window — do not add Orchestra chrome here. Chat ping is not this page.
 
 ## Turo Gmail dump (forward-only, 15m)
 
-Host mail forwards into `cvolkern@gmail.com` starting **2026-08-18**. The Pi
-timer runs every 15 minutes. Do **not** ingest historical Turo.
+Turo/fleet mail SoT is `panamerica.cars@gmail.com` starting **2026-08-18**.
+Personal `cvolkern@gmail.com` Turo copies are forwards through that inbox —
+do not double-ingest. The Pi timer runs every 15 minutes. Do **not** ingest
+historical Turo.
 
 ```bash
 python3 -m auto-fleet.turo_gmail --fetch
@@ -141,8 +143,9 @@ invented bytes. Override dump path with `AUTO_FLEET_TURO_INBOX` or `--out`.
 
 `--fetch` uses `~/.config/auto-fleet/gmail-token.json` (gmail.readonly OAuth)
 or `GMAIL_REFRESH_TOKEN` + `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` in
-`~/.config/auto-fleet/env`. Missing creds write `source=gmail_unconfigured`
-and zero messages — honest empty, not a crash.
+`~/.config/auto-fleet/env`. That token must be the panamerica mailbox
+(`users/me`); prism re-auth is ops after merge. Missing creds write
+`source=gmail_unconfigured` and zero messages — honest empty, not a crash.
 
 Current-host subject hint: `Mike's vehicle` (same shape as the old
 `(Jessica's vehicle) — …` mail). Jessica / Kia / Spark stay out.

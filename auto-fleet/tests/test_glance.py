@@ -143,7 +143,7 @@ class FormatTests(unittest.TestCase):
 
     def test_inbox_status_not_repeated_on_cards(self) -> None:
         status = (
-            "Watching Gmail cvolkern@gmail.com after:2026/08/18 "
+            "Watching Gmail panamerica.cars@gmail.com after:2026/08/18 "
             "from:(turo.com OR mail.turo.com OR transactional.turo.com); "
             "0 trip events. Payout destination is X Money."
         )
