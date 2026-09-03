@@ -5925,6 +5925,18 @@
     }
   }
 
+  function askErrorHint(message) {
+    const msg = String(message || "");
+    if (
+      /expired|connect super|not connected|unauthorized|no super|session expired/i.test(
+        msg
+      )
+    ) {
+      return "\n\nIf SuperGrok expired, open More → Connect SuperGrok and retry.";
+    }
+    return "";
+  }
+
   async function submitAsk(ev) {
     ev.preventDefault();
     const input = $("ask-question");
@@ -5972,6 +5984,7 @@
       const sec = Math.round((Date.now() - started) / 1000);
       const bits = [`${sec}s`];
       if (data.model) bits.push(data.model);
+      if (data.fallback_used) bits.push("fallback");
       if (data.auth_source) bits.push(data.auth_source);
       if (data.usage && data.usage.total_tokens != null) {
         bits.push(`${data.usage.total_tokens} tokens`);
@@ -5989,7 +6002,7 @@
     } catch (e) {
       askHistory.push({
         role: "assistant",
-        content: `Error: ${e.message}\n\nIf SuperGrok expired, open More → Connect SuperGrok and retry.`,
+        content: `Error: ${e.message}${askErrorHint(e.message)}`,
       });
       renderAskMessages();
       if (status) status.textContent = "";

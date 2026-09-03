@@ -21,10 +21,10 @@ SW = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
 class EnergyWeightAlignMarkup(unittest.TestCase):
     def test_overlay_wired_before_app_js(self):
         self.assertIn("/energy-weight-align.js?v=ewi-cap-1", HTML)
-        self.assertIn("/app.js?v=labs-2", HTML)
+        self.assertIn("/app.js?v=ask-429-1", HTML)
         self.assertLess(
             HTML.find("/energy-weight-align.js?v=ewi-cap-1"),
-            HTML.find("/app.js?v=labs-2"),
+            HTML.find("/app.js?v=ask-429-1"),
         )
         self.assertIn("FitDashEnergyWeightAlign", APP_JS)
         self.assertIn("energyWeightAlignment", APP_JS)
@@ -70,8 +70,9 @@ class EnergyWeightAlignNode(unittest.TestCase):
 
 class EnergyWeightAlignCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v78"', SW)
-        self.assertIn("/app.js?v=labs-2", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v79"', SW)
+        self.assertIn("/app.js?v=ask-429-1", SW)
+        self.assertNotIn("fitdash-shell-v78", SW)
         self.assertNotIn("fitdash-shell-v71", SW)
         self.assertNotIn("fitdash-shell-v72", SW)
         self.assertNotIn("fitdash-shell-v73", SW)

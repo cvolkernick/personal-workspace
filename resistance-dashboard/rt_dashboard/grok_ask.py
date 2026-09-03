@@ -12,6 +12,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 XAI_API_BASE = os.environ.get("XAI_API_BASE", "https://api.x.ai/v1").rstrip("/")
 DEFAULT_MODEL = os.environ.get("XAI_MODEL", "grok-4.20-non-reasoning")
+# grok-4.20-non-reasoning is often at capacity; grok-4.3 is the current
+# less-congested chat model (fast/non-reasoning slugs redirect here).
+FALLBACK_MODEL = os.environ.get("XAI_FALLBACK_MODEL", "grok-4.3")
+CAPACITY_USER_MSG = "Grok is at capacity right now. Retry in a few minutes."
 AUTH_PATH = Path.home() / ".grok" / "auth.json"
 # Lighter default pack for Ask (override with GROK_ASK_MAX_CONTEXT_CHARS).
 MAX_CONTEXT_CHARS = int(os.environ.get("GROK_ASK_MAX_CONTEXT_CHARS", "28000"))
@@ -579,6 +583,45 @@ def _shrink_context(context: dict, max_chars: int = MAX_CONTEXT_CHARS) -> Tuple[
     return ctx, True
 
 
+def _is_capacity_error(exc: GrokAskError) -> bool:
+    if int(exc.status or 0) == 429:
+        return True
+    blob = f"{exc} {exc.body or ''}".lower()
+    return "resource-exhausted" in blob or "currently at capacity" in blob
+
+
+def _http_ask_error(code: int, err_body: str) -> GrokAskError:
+    """Map xAI HTTP failures to a user-facing error. Never dump capacity JSON."""
+    body = err_body or ""
+    lowered = body.lower()
+    if int(code) == 429 or "resource-exhausted" in lowered or "currently at capacity" in lowered:
+        return GrokAskError(CAPACITY_USER_MSG, status=int(code) or 429, body=body)
+    return GrokAskError(
+        f"xAI API error HTTP {code}: {body[:400]}",
+        status=code,
+        body=body,
+    )
+
+
+def _chat_request_body(
+    model: str,
+    messages: List[dict],
+    max_tokens: int,
+    temperature: float,
+) -> dict:
+    body: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    # grok-4.3 supports none/low/medium/high. Match Ask's non-reasoning default.
+    # https://docs.x.ai/developers/migration/may-15-retirement
+    if str(model).startswith("grok-4.3"):
+        body["reasoning_effort"] = "none"
+    return body
+
+
 def _post_chat(token: str, body: dict) -> Dict[str, Any]:
     req = urllib.request.Request(
         f"{XAI_API_BASE}/chat/completions",
@@ -596,11 +639,7 @@ def _post_chat(token: str, body: dict) -> Dict[str, Any]:
             return json.loads(raw)
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="replace")[:2000]
-        raise GrokAskError(
-            f"xAI API error HTTP {e.code}: {err_body[:400]}",
-            status=e.code,
-            body=err_body,
-        ) from e
+        raise _http_ask_error(e.code, err_body) from e
 
 
 def chat_completions(
@@ -618,38 +657,53 @@ def chat_completions(
     if creds.get("expired"):
         raise GrokAskError(creds.get("error") or "Session expired", status=401)
 
-    body = {
-        "model": model or DEFAULT_MODEL,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
-    try:
-        data = _post_chat(str(token), body)
-    except GrokAskError as e:
-        if e.status == 401 and user_id and creds.get("source") == "supergrok_session":
-            from .grok_oauth import refresh_access_token
-            from .grok_sessions import load_grok_session, save_grok_session
+    primary = model or DEFAULT_MODEL
+    fallback = (FALLBACK_MODEL or "").strip()
 
-            stored = load_grok_session(str(user_id)) or {}
-            refreshed = refresh_access_token(str(stored.get("refresh_token") or ""))
-            if refreshed and refreshed.get("access_token"):
-                merged = {
-                    "access_token": refreshed["access_token"],
-                    "refresh_token": refreshed.get("refresh_token")
-                    or stored.get("refresh_token")
-                    or "",
-                    "expires_at": refreshed.get("expires_at") or "",
-                    "email": refreshed.get("email") or stored.get("email") or creds.get("email") or "",
-                }
-                try:
-                    save_grok_session(str(user_id), merged)
-                except Exception:
-                    pass
-                data = _post_chat(merged["access_token"], body)
-                creds = {**creds, "token": merged["access_token"]}
-            else:
-                raise
+    def _post(chosen: str, tok: str) -> Dict[str, Any]:
+        return _post_chat(
+            tok, _chat_request_body(chosen, messages, max_tokens, temperature)
+        )
+
+    def _post_maybe_refresh(chosen: str) -> Dict[str, Any]:
+        nonlocal creds, token
+        try:
+            return _post(chosen, str(token))
+        except GrokAskError as e:
+            if e.status == 401 and user_id and creds.get("source") == "supergrok_session":
+                from .grok_oauth import refresh_access_token
+                from .grok_sessions import load_grok_session, save_grok_session
+
+                stored = load_grok_session(str(user_id)) or {}
+                refreshed = refresh_access_token(str(stored.get("refresh_token") or ""))
+                if refreshed and refreshed.get("access_token"):
+                    merged = {
+                        "access_token": refreshed["access_token"],
+                        "refresh_token": refreshed.get("refresh_token")
+                        or stored.get("refresh_token")
+                        or "",
+                        "expires_at": refreshed.get("expires_at") or "",
+                        "email": refreshed.get("email")
+                        or stored.get("email")
+                        or creds.get("email")
+                        or "",
+                    }
+                    try:
+                        save_grok_session(str(user_id), merged)
+                    except Exception:
+                        pass
+                    token = merged["access_token"]
+                    creds = {**creds, "token": token}
+                    return _post(chosen, str(token))
+            raise
+
+    used = primary
+    try:
+        data = _post_maybe_refresh(primary)
+    except GrokAskError as e:
+        if _is_capacity_error(e) and fallback and fallback != primary:
+            data = _post_maybe_refresh(fallback)
+            used = fallback
         else:
             raise
     except urllib.error.URLError as e:
@@ -664,9 +718,10 @@ def chat_completions(
 
     return {
         "answer": content,
-        "model": data.get("model") or (model or DEFAULT_MODEL),
+        "model": data.get("model") or used,
         "usage": data.get("usage"),
         "auth_source": creds.get("source"),
+        "fallback_used": used != primary,
     }
 
 

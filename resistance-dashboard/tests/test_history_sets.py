@@ -60,10 +60,10 @@ class HistorySetsModels(unittest.TestCase):
 class HistorySetsMarkup(unittest.TestCase):
     def test_helper_wired_before_app_js(self):
         self.assertIn("/history-sets.js?v=history-sets-1", HTML)
-        self.assertIn("/app.js?v=labs-2", HTML)
+        self.assertIn("/app.js?v=ask-429-1", HTML)
         self.assertLess(
             HTML.find("/history-sets.js?v=history-sets-1"),
-            HTML.find("/app.js?v=labs-2"),
+            HTML.find("/app.js?v=ask-429-1"),
         )
         self.assertIn("FitDashHistorySets", APP_JS)
         self.assertIn("formatExerciseLine", APP_JS)
@@ -76,9 +76,10 @@ class HistorySetsMarkup(unittest.TestCase):
         self.assertIn("root.FitDashHistorySets = api", HIST_JS)
 
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v78"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v79"', SW)
         self.assertIn("/history-sets.js?v=history-sets-1", SW)
-        self.assertIn("/app.js?v=labs-2", SW)
+        self.assertIn("/app.js?v=ask-429-1", SW)
+        self.assertNotIn("fitdash-shell-v78", SW)
         self.assertNotIn("fitdash-shell-v77", SW)
         self.assertNotIn("fitdash-shell-v76", SW)
         self.assertNotIn("fitdash-shell-v73", SW)
