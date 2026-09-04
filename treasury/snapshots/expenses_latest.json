@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-09-03T19:56:02.637960+00:00",
+  "as_of": "2026-09-04T15:43:15.346252+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -111,7 +111,7 @@
           "tab": "Essential"
         },
         {
-          "date": "9/3/2026",
+          "date": "10/3/2026",
           "from": "Coinbase",
           "item": "YouTube Premium",
           "daily": 0.9,
@@ -124,7 +124,7 @@
           "tab": "Essential"
         },
         {
-          "date": "9/3/2026",
+          "date": "10/3/2026",
           "from": "X Money",
           "item": "Electric",
           "daily": 14.01,
@@ -517,7 +517,7 @@
           "item": "Electric",
           "monthly": 426.0,
           "from": "X Money",
-          "date": "9/3/2026",
+          "date": "10/3/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -585,22 +585,6 @@
           "from": "Coinbase",
           "monthly": 2100.0,
           "weekly": 483.29,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/3/2026",
-          "item": "Electric",
-          "from": "X Money",
-          "monthly": 426.0,
-          "weekly": 98.04,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/3/2026",
-          "item": "YouTube Premium",
-          "from": "Coinbase",
-          "monthly": 27.0,
-          "weekly": 6.3,
           "tab": "Essential"
         },
         {
@@ -697,6 +681,22 @@
           "from": "X Money",
           "monthly": 14.99,
           "weekly": 3.45,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/24/2026",
+          "item": "Coinbase One Card",
+          "from": "Coinbase",
+          "monthly": 24.0,
+          "weekly": 5.52,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/24/2026",
+          "item": "Coinbase One Membership",
+          "from": "Coinbase",
+          "monthly": 29.99,
+          "weekly": 6.9,
           "tab": "Essential"
         }
       ],
@@ -1026,18 +1026,6 @@
       },
       "items": [
         {
-          "item": "ASIC Fleet OpEx",
-          "date": "10/1/2026",
-          "daily": 14.08,
-          "weekly": 98.58,
-          "biweekly": 197.17,
-          "monthly": 427.2,
-          "annually": 5126.4,
-          "from": "X Money",
-          "to": null,
-          "tab": "Collateral"
-        },
-        {
           "item": "Agentic Fund Allocation",
           "date": "9/7/2026",
           "daily": 3.57,
@@ -1057,6 +1045,18 @@
           "biweekly": 70.0,
           "monthly": 151.67,
           "annually": 1820.0,
+          "from": "X Money",
+          "to": null,
+          "tab": "Collateral"
+        },
+        {
+          "item": "ASIC Fleet OpEx",
+          "date": "10/1/2026",
+          "daily": 14.08,
+          "weekly": 98.58,
+          "biweekly": 197.17,
+          "monthly": 427.2,
+          "annually": 5126.4,
           "from": "X Money",
           "to": null,
           "tab": "Collateral"
@@ -1439,7 +1439,7 @@
           "tab": "Essential"
         },
         {
-          "date": "9/3/2026",
+          "date": "10/3/2026",
           "from": "Coinbase",
           "item": "YouTube Premium",
           "daily": 0.9,
@@ -1452,7 +1452,7 @@
           "tab": "Essential"
         },
         {
-          "date": "9/3/2026",
+          "date": "10/3/2026",
           "from": "X Money",
           "item": "Electric",
           "daily": 14.01,
@@ -1845,7 +1845,7 @@
           "item": "Electric",
           "monthly": 426.0,
           "from": "X Money",
-          "date": "9/3/2026",
+          "date": "10/3/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1913,22 +1913,6 @@
           "from": "Coinbase",
           "monthly": 2100.0,
           "weekly": 483.29,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/3/2026",
-          "item": "Electric",
-          "from": "X Money",
-          "monthly": 426.0,
-          "weekly": 98.04,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/3/2026",
-          "item": "YouTube Premium",
-          "from": "Coinbase",
-          "monthly": 27.0,
-          "weekly": 6.3,
           "tab": "Essential"
         },
         {
@@ -2025,6 +2009,22 @@
           "from": "X Money",
           "monthly": 14.99,
           "weekly": 3.45,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/24/2026",
+          "item": "Coinbase One Card",
+          "from": "Coinbase",
+          "monthly": 24.0,
+          "weekly": 5.52,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/24/2026",
+          "item": "Coinbase One Membership",
+          "from": "Coinbase",
+          "monthly": 29.99,
+          "weekly": 6.9,
           "tab": "Essential"
         }
       ],
