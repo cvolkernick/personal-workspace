@@ -5,7 +5,7 @@ const PRECACHE = [
   "/index.html",
   "/styles.css?v=library-1",
   "/history-sets.js?v=history-sets-1",
-  "/app.js?v=library-1",
+  "/app.js?v=ask-429-1",
   "/meal-snapshot.js?v=meal-slot-1",
   "/manifest.webmanifest",
   "/icon-192.png",
