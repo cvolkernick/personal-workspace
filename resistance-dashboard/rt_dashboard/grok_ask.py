@@ -475,6 +475,7 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
                     "name": i.get("name"),
                     "tag": i.get("tag"),
                     "max_weight_lbs": i.get("max_weight_lbs"),
+                    "source": i.get("source") or "owned",
                 }
                 for i in ((wo.get("equipment") or {}).get("items") or [])
                 if isinstance(i, dict) and i.get("tag")

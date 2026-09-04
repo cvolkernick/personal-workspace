@@ -210,6 +210,7 @@
     .strip.host-identity { padding-top: 0.4rem; padding-bottom: 0.15rem; }
     .strip.host-identity .chips { margin: 0.05rem 0 0.2rem; }
     .strip.awaiting { padding-top: 0.35rem; padding-bottom: 0.1rem; }
+    .finance-block { margin: 0; }
     .strip.awaiting .host-ops-item { padding: 0.12rem 0; }
     .metrics {
       display: grid;
@@ -715,11 +716,25 @@
       return (f && (f.portal || f.portal_override)) || null;
     }
 
-    function hasDue(portal) {
+    function loanOf(f) {
+      return (f && f.loan) || null;
+    }
+
+    function hasDue(f) {
+      const loan = loanOf(f);
+      if (loan) {
+        if (loan.show_balances === false) return false;
+        const arr = loan.arrangement;
+        if (arr && (arr.amount != null || arr.due)) return true;
+        if (loan.amount_due_now != null) return true;
+        if (loan.past_due === true || loan.past_due_amount != null || loan.past_due_days != null) return true;
+        return false;
+      }
+      const portal = portalOf(f);
       if (!portal) return false;
       const ptp = portal.promise_to_pay || portal.ptp;
       if (ptp && (ptp.amount != null || ptp.due)) return true;
-      return portal.amount_due != null || portal.past_due != null;
+      return portal.amount_due != null || (typeof portal.past_due === "number");
     }
 
     function turoOneLine(t, pollS) {
@@ -786,7 +801,7 @@
         hero: soc != null ? `${soc}%` : (odo != null ? `${odo.toLocaleString("en-US")} mi` : "—"),
         available: !((u.turo || {}).bookings || []).length,
         turo_line: turoOneLine(u.turo || {}, pollS),
-        due: hasDue(portalOf(u.finance || {})),
+        due: hasDue(u.finance || {}),
         photo: unitPhoto(u.id),
         maps_url: mapsUrl(d.location),
         location_label: coordPair(d.location),
@@ -1202,24 +1217,70 @@
 
     function moneyStrip(f) {
       const locked = (f && f.locked) || {};
-      const showBalances = locked.show_balances !== false;
+      const loan = loanOf(f) || {};
+      const showBalances = (loan.show_balances != null ? loan.show_balances : locked.show_balances) !== false;
       const portal = portalOf(f);
-      const ptp = showBalances && portal && (portal.promise_to_pay || portal.ptp);
       const lines = showBalances ? ((f && f.sheet_lines) || []) : [];
       let body = "";
       const bits = [];
-      if (locked.lender) bits.push(locked.lender);
-      if (locked.apr_pct != null) bits.push(`${locked.apr_pct}% APR`);
-      if (locked.monthly != null) bits.push(`${money(locked.monthly)}/mo`);
+      const lender = loan.lender || locked.lender;
+      if (lender) bits.push(lender);
+      if (loan.account_last4) bits.push(`…${loan.account_last4}`);
+      const apr = loan.apr_pct != null ? loan.apr_pct : locked.apr_pct;
+      if (apr != null) bits.push(`${apr}% APR`);
+      const monthly = loan.monthly_payment != null ? loan.monthly_payment : locked.monthly;
+      if (monthly != null) bits.push(`${money(monthly)}/mo`);
       if (bits.length) body += `<div class="row muted">${esc(bits.join(" · "))}</div>`;
-      if (ptp) {
-        body += `<div class="row due-lead">PTP ${money(ptp.amount)} due ${esc(ptp.due || "—")}${ptp.installment ? ` · ${esc(ptp.installment)}` : ""}</div>`;
+      if (loan.paid_by) {
+        body += `<div class="row">${esc(loan.paid_by)} pays${loan.off_fcc ? " · off FCC" : ""}</div>`;
+      } else if (loan.off_fcc) {
+        body += `<div class="row">off FCC</div>`;
       }
-      if (showBalances && portal && portal.amount_due != null) {
-        body += `<div class="row">Amount due ${money(portal.amount_due)}</div>`;
+      if (loan.payment_method) body += `<div class="row">${esc(loan.payment_method)}</div>`;
+      if (loan.no_portal) body += `<div class="row muted">No portal</div>`;
+      const arr = loan.arrangement;
+      if (arr && (arr.amount != null || arr.due)) {
+        body += `<div class="row due-lead">Arrangement ${arr.amount != null ? money(arr.amount) : "—"}${arr.due ? ` by ${esc(arr.due)}` : ""}</div>`;
       }
-      if (showBalances && portal && portal.past_due != null) {
-        body += `<div class="row err">Past due ${money(portal.past_due)}</div>`;
+      if (showBalances && loan.amount_due_now != null) {
+        body += `<div class="row">Due now ${money(loan.amount_due_now)}</div>`;
+      }
+      if (showBalances && (loan.past_due === true || loan.past_due_amount != null || loan.past_due_days != null)) {
+        const parts = [];
+        if (loan.past_due_amount != null) parts.push(money(loan.past_due_amount));
+        if (loan.past_due_days != null) parts.push(`${loan.past_due_days} days`);
+        body += `<div class="row err">Past due${parts.length ? ` ${esc(parts.join(" · "))}` : ""}</div>`;
+      }
+      if (showBalances && (loan.next_scheduled_amount != null || loan.next_due_date)) {
+        body += `<div class="row">Next${loan.next_scheduled_amount != null ? ` ${money(loan.next_scheduled_amount)}` : ""}${loan.next_due_date ? ` on ${esc(loan.next_due_date)}` : ""}</div>`;
+      }
+      if (showBalances && loan.payoff != null) {
+        body += `<div class="row muted">Payoff ${money(loan.payoff)} — not live</div>`;
+      }
+      const hasLoanPaint = !!(loan.lender || loan.amount_due_now != null || loan.past_due_amount != null
+        || loan.arrangement || loan.paid_by || loan.payment_method);
+      if (!hasLoanPaint) {
+        const ptp = showBalances && portal && (portal.promise_to_pay || portal.ptp);
+        if (ptp) {
+          body += `<div class="row due-lead">PTP ${money(ptp.amount)} due ${esc(ptp.due || "—")}${ptp.installment ? ` · ${esc(ptp.installment)}` : ""}</div>`;
+        }
+        if (showBalances && portal && portal.amount_due != null) {
+          body += `<div class="row">Amount due ${money(portal.amount_due)}</div>`;
+        }
+        if (showBalances && portal && typeof portal.past_due === "number") {
+          body += `<div class="row err">Past due ${money(portal.past_due)}</div>`;
+        }
+        if (showBalances && portal) {
+          const extra = [];
+          if (portal.contractual_monthly != null) extra.push(`${money(portal.contractual_monthly)}/mo`);
+          if (portal.principal_balance != null) extra.push(`principal ${money(portal.principal_balance)} (not payoff)`);
+          if (portal.payoff_quote && portal.payoff_quote.amount != null) {
+            extra.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
+          }
+          if (extra.length) {
+            body += `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(extra.join(" · "))} ${chip("stale", "warn")}</div>`;
+          }
+        }
       }
       body += lines.map((l) =>
         `<div class="row">${esc(l.item)} · ${money(l.monthly)}` +
@@ -1229,21 +1290,13 @@
       if (showBalances && f && f.sheet_monthly != null) {
         body += `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>`;
       }
-      if (showBalances && portal) {
-        const extra = [];
-        if (portal.contractual_monthly != null) extra.push(`${money(portal.contractual_monthly)}/mo`);
-        if (portal.principal_balance != null) extra.push(`principal ${money(portal.principal_balance)} (not payoff)`);
-        if (portal.payoff_quote && portal.payoff_quote.amount != null) {
-          extra.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
-        }
-        if (extra.length) {
-          body += `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(extra.join(" · "))} ${chip("stale", "warn")}</div>`;
-        }
+      if (loan.as_of) {
+        body += `<div class="row muted">Helm SoT ${esc(loan.as_of)} — not live ${chip("stale", "warn")}</div>`;
       }
       if (!body) {
         body = `<div class="empty">${esc((f && f.note) || "No money items for this unit.")}</div>`;
       }
-      return `<div class="strip"><h3>Money</h3>${body}</div>`;
+      return `<div class="strip"><h3>Money</h3><div class="finance-block">${body}</div></div>`;
     }
 
     function photoHref(a) {

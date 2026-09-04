@@ -1,57 +1,58 @@
 {
-  "as_of": "2026-08-13",
-  "source": "lender_portal_screenshots",
+  "as_of": "2026-09-03",
+  "source": "helm_sot_2026-09-03",
   "stale": true,
-  "disclaimer": "Portal snapshot from RESEARCH/FLEET_AUTO_NOTES_INGEST_2026_08_13.md. Does not refresh itself. Not a live payoff quote.",
+  "live": false,
+  "disclaimer": "Helm SoT 2026-09-03 flatten of existing loan facts. Not live. Not a payoff quote. Helm may later replace this file from signed portals — no local writer in this slice.",
   "units": {
-    "m3-2022": {
-      "lender": "GM Financial",
-      "account": "111088614673",
-      "apr_pct": 18.15,
-      "contractual_monthly": 501.08,
-      "principal_balance": 21568.15,
-      "principal_is_payoff_quote": false,
-      "last_payment": {
-        "date": "2026-08-10",
-        "amount": 221.77,
-        "note": "short vs $501.08 contractual monthly"
-      }
-    },
     "corolla-2022": {
       "lender": "Capital One",
-      "account": "6201049298207",
-      "apr_pct": 11.14,
-      "contractual_monthly": 373.85,
-      "principal_balance": 17837.78,
-      "payoff_quote": {
-        "amount": 17996.47,
-        "window": "today_as_of_snapshot",
-        "as_of": "2026-08-13"
-      },
-      "payoff_is_live": false
+      "account_last4": "8207",
+      "amount_due_now": 962.98,
+      "past_due": true,
+      "past_due_days": 74,
+      "monthly_payment": 373.85,
+      "payoff": 17974.92,
+      "apr_pct": 11.14
     },
     "corolla-2024": {
       "lender": "Santander",
-      "account": "28312877",
-      "apr_pct": 10.18,
-      "account_balance": 14446.28,
-      "amount_due": 1095.88,
-      "past_due": 921.2,
-      "promise_to_pay": {
-        "amount": 460.6,
-        "due": "2026-08-21",
-        "installment": "1 of 2"
+      "account_last4": "2877",
+      "past_due": true,
+      "past_due_amount": 788.99,
+      "arrangement": {
+        "amount": 307.15,
+        "due": "2026-09-14"
       },
-      "payoff_is_live": false
+      "next_due_date": "2026-09-21",
+      "next_scheduled_amount": 307.34,
+      "payoff": 14158.38,
+      "apr_pct": 10.18
+    },
+    "m3-2022": {
+      "lender": "GM Financial",
+      "past_due": true,
+      "past_due_amount": 1326.37,
+      "past_due_days": 41,
+      "next_due_date": "2026-09-23",
+      "next_scheduled_amount": 501.08
     },
     "m3-2020": {
       "lender": "Wells Fargo",
-      "apr_pct": 5.65
+      "apr_pct": 5.65,
+      "paid_by": "Mike",
+      "off_fcc": true,
+      "show_balances": false,
+      "note": "Mike pays. No balance. Off FCC."
     },
     "r1s-2023": {
       "lender": "Vivek",
       "apr_pct": 0,
-      "contractual_monthly": 1350
+      "monthly_payment": 1350,
+      "payment_method": "NFCU Zelle",
+      "no_portal": true,
+      "show_balances": false,
+      "note": "No portal."
     }
   }
 }

@@ -183,12 +183,12 @@ class QuestRolloverNotOnRefreshButtons(unittest.TestCase):
 
 class CacheAndHobbyLock(unittest.TestCase):
     def test_static_cache_bumped(self):
-        self.assertIn("?v=labs-2", HTML)
+        self.assertIn("?v=library-1", HTML)
         self.assertIn("?v=meal-slot-1", HTML)
         self.assertIn("?v=bottle-charge-7", HTML)
         self.assertIn("?v=paired-avgs-6", HTML)
         self.assertIn('const CACHE = "fitdash-shell-v79"', SW)
-        self.assertIn("/styles.css?v=labs-2", SW)
+        self.assertIn("/styles.css?v=library-1", SW)
         self.assertNotIn("bottle-charge-3", HTML)
         self.assertNotIn("bottle-charge-4", HTML)
         self.assertNotIn("bottle-charge-5", HTML)
@@ -226,6 +226,8 @@ class CacheAndHobbyLock(unittest.TestCase):
         self.assertIn("/app.js?v=ask-429-1", HTML)
         self.assertNotIn("/app.js?v=labs-2", SW)
         self.assertNotIn("/app.js?v=labs-2", HTML)
+        self.assertNotIn("/app.js?v=library-1", SW)
+        self.assertNotIn("/app.js?v=library-1", HTML)
         self.assertNotIn("fitdash-shell-v76", SW)
         self.assertNotIn("fitdash-shell-v77", SW)
         self.assertNotIn("fitdash-shell-v78", SW)

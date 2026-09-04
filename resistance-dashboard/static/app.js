@@ -3299,9 +3299,13 @@
     if (!list) return;
     list.innerHTML = "";
     const items = ((store && store.catalog && store.catalog.exercises) || []).slice();
-    items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    items.sort((a, b) => {
+      const av = Number(!!b.available) - Number(!!a.available);
+      if (av) return av;
+      return String(a.name).localeCompare(String(b.name));
+    });
     if (!items.length) {
-      list.innerHTML = `<li class="muted">No movements in the catalog library.</li>`;
+      list.innerHTML = `<li class="muted">No movements in the catalog universe.</li>`;
       return;
     }
     const owned = new Set(
@@ -3320,13 +3324,116 @@
         (!req.length || req.every((t) => owned.has(String(t).toLowerCase()))) &&
         (!any.length || any.some((t) => owned.has(String(t).toLowerCase())));
       const gear = tags.length ? tags.join(", ") : "no gear tags";
+      const inLib = !!ex.available;
+      const eid = String(ex.id || "").replace(/"/g, "&quot;");
+      const badge = inLib ? "in library" : "not in library";
+      const action = inLib ? "remove" : "add";
+      const label = inLib ? "Remove" : "Add";
       li.innerHTML = `
-        <div class="title">${ex.name}${feasible ? "" : " <span class='muted'>(needs gear)</span>"}</div>
+        <div class="title">${ex.name}
+          <span class="inv-action-badge inv-action-${inLib ? "restock" : "add"}">${badge}</span>
+          ${feasible ? "" : " <span class='muted'>(needs gear)</span>"}</div>
         <div class="meta">${sessions || "?"} · ${ex.movement || "compound"} · ${muscles}
           · ${gear}</div>
+        <div class="actions inv-card-actions compact">
+          <button type="button" class="${inLib ? "btn-suggest-remove" : "primary btn-suggest-apply"}"
+            data-library-action="${action}" data-id="${eid}" ${!inLib && !feasible ? "disabled" : ""}>
+            ${label}
+          </button>
+        </div>
       `;
       list.appendChild(li);
     });
+    renderLibrarySuggestions(store);
+    renderLibraryRemovals(store);
+  }
+
+  function renderLibrarySuggestions(store) {
+    const box = $("library-suggestions");
+    if (!box) return;
+    const block = (store && store.library_suggestions) || {};
+    const items = block.suggestions || [];
+    if (!items.length) {
+      box.innerHTML = "";
+      return;
+    }
+    let slides = "";
+    items.forEach((s) => {
+      const eid = String(s.id || "").replace(/"/g, "&quot;");
+      const reason = String(s.reason || "").slice(0, 110);
+      slides += `<div class="inv-slide inv-card compact suggest">
+        <div class="inv-card-name">${s.name || "Movement"}
+          <span class="inv-action-badge inv-action-add">add</span>
+        </div>
+        <div class="inv-card-meta muted">${(s.session_types || []).join("/") || "?"} · ${(s.primary_muscles || []).join(", ") || "—"}</div>
+        ${reason ? `<div class="inv-reason compact">${reason}</div>` : ""}
+        <div class="actions inv-card-actions compact">
+          <button type="button" class="primary btn-suggest-apply" data-library-action="add" data-id="${eid}">Add to library</button>
+        </div>
+      </div>`;
+    });
+    box.innerHTML = `<div class="macro-summary inv-suggest-panel compact-panel">
+      <div class="macro-summary-header">
+        <div>
+          <div class="macro-summary-title">Coach — add to library</div>
+          <div class="macro-summary-meta muted">${block.summary || "Feasible, not programmed yet"}</div>
+        </div>
+        <div class="inv-carousel-count muted">${items.length}</div>
+      </div>
+      ${typeof invCarouselShell === "function" ? invCarouselShell("lib-suggest-carousel", slides) : `<div class="inv-cards">${slides}</div>`}
+    </div>`;
+  }
+
+  function renderLibraryRemovals(store) {
+    const box = $("library-removals");
+    if (!box) return;
+    const block = (store && store.library_removals) || {};
+    const items = block.suggestions || [];
+    if (!items.length) {
+      box.innerHTML = "";
+      return;
+    }
+    let slides = "";
+    items.forEach((s) => {
+      const eid = String(s.id || "").replace(/"/g, "&quot;");
+      const reason = String(s.reason || "").slice(0, 110);
+      slides += `<div class="inv-slide inv-card compact suggest-remove">
+        <div class="inv-card-name">${s.name || "Movement"}
+          <span class="inv-action-badge inv-action-remove">remove</span>
+        </div>
+        <div class="inv-card-meta muted">${(s.session_types || []).join("/") || "?"}</div>
+        ${reason ? `<div class="inv-reason compact">${reason}</div>` : ""}
+        <div class="actions inv-card-actions compact">
+          <button type="button" class="btn-suggest-remove" data-library-action="remove" data-id="${eid}">Remove from library</button>
+        </div>
+      </div>`;
+    });
+    box.innerHTML = `<div class="macro-summary inv-remove-panel compact-panel">
+      <div class="macro-summary-header">
+        <div>
+          <div class="macro-summary-title">Coach — remove from library</div>
+          <div class="macro-summary-meta muted">${block.summary || "Apply is explicit"}</div>
+        </div>
+        <div class="inv-carousel-count muted">${items.length}</div>
+      </div>
+      ${typeof invCarouselShell === "function" ? invCarouselShell("lib-remove-carousel", slides) : `<div class="inv-cards">${slides}</div>`}
+    </div>`;
+  }
+
+  async function applyLibraryMembership(exerciseId, available) {
+    const res = await fetch("/api/workout/exercise/available", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ id: exerciseId, available: !!available }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+    if (data.catalog && state && state.workout_store) {
+      state.workout_store.catalog = data.catalog;
+    }
+    await loadDashboard(false);
+    return data;
   }
 
   function renderEquipmentInventory(store) {
@@ -3335,25 +3442,29 @@
     const items = ((store && store.equipment && store.equipment.items) || []).slice();
     items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     if (!items.length) {
-      list.innerHTML = `<p class="muted">No owned gear yet — add what you have and the max load. The planner will not invent cable/smith/assisted-pullup.</p>`;
+      list.innerHTML = `<p class="muted">No access listed — add home owned gear and gym machines. Plans read the exercise library, then skip anything this list cannot load.</p>`;
       return;
     }
     let cards = "";
     items.forEach((g) => {
       const id = String(g.id || "").replace(/"/g, "&quot;");
       const name = String(g.name || "").replace(/"/g, "&quot;");
+      const src = String(g.source || "owned") === "gym" ? "gym" : "home";
       const max =
         g.max_weight_lbs != null && g.max_weight_lbs !== ""
           ? `${g.max_weight_lbs} lb max`
           : "no load cap";
       cards += `<div class="inv-card" data-eq-id="${id}">
-        <div class="inv-card-name">${g.name || g.tag || "Gear"}</div>
+        <div class="inv-card-name">${g.name || g.tag || "Gear"}
+          <span class="inv-action-badge inv-action-${src === "gym" ? "add" : "restock"}">${src}</span>
+        </div>
         <div class="inv-card-meta muted">${g.tag || "—"} · ${max}${
         g.notes ? ` · ${String(g.notes).slice(0, 80)}` : ""
       }</div>
         <div class="actions inv-card-actions">
           <button type="button" class="btn-edit" data-eq-action="edit" data-id="${id}"
             data-name="${name}" data-tag="${String(g.tag || "").replace(/"/g, "&quot;")}"
+            data-source="${src === "gym" ? "gym" : "owned"}"
             data-max="${g.max_weight_lbs != null ? g.max_weight_lbs : ""}">Edit</button>
           <button type="button" class="btn-remove" data-eq-action="remove" data-id="${id}" data-name="${name}">Remove</button>
         </div>
@@ -3521,7 +3632,7 @@
     if (!items.length) {
       html += `<p class="muted">${
         plan.message ||
-        "No owned equipment can load a lift for this session. Add gear — do not invent cable/smith/assisted-pullup."
+        "No accessible equipment can load a library lift for this session. Fix the equipment inventory."
       }</p>`;
     } else {
       html += `<ul class="session-list" style="margin-top:0.5rem">`;
@@ -5802,6 +5913,7 @@
       name: $("eq-name").value.trim(),
       tag: $("eq-tag").value,
       max_weight_lbs: maxRaw === "" || maxRaw == null ? null : Number(maxRaw),
+      source: ($("eq-source") && $("eq-source").value) || "owned",
     };
     try {
       const res = await fetch("/api/equipment/add", {
@@ -6162,6 +6274,27 @@
     if ($("equipment-form")) {
       $("equipment-form").addEventListener("submit", submitEquipmentInventory);
     }
+    if (!document.body.dataset.libraryBound) {
+      document.body.dataset.libraryBound = "1";
+      document.body.addEventListener("click", async (ev) => {
+        const btn = ev.target.closest("button[data-library-action]");
+        if (!btn || btn.disabled) return;
+        const action = btn.getAttribute("data-library-action");
+        const id = (btn.getAttribute("data-id") || "").trim();
+        if (!id || (action !== "add" && action !== "remove")) return;
+        btn.disabled = true;
+        try {
+          await applyLibraryMembership(id, action === "add");
+          showAlert(
+            action === "add" ? `Added to library` : `Removed from library`,
+            "ok"
+          );
+        } catch (e) {
+          btn.disabled = false;
+          showAlert(`Library update failed: ${e.message}`, "err");
+        }
+      });
+    }
     const eqList = $("equipment-list");
     if (eqList && !eqList.dataset.eqBound) {
       eqList.dataset.eqBound = "1";
@@ -6177,6 +6310,9 @@
             $("eq-tag").value = btn.getAttribute("data-tag");
           }
           if ($("eq-max")) $("eq-max").value = btn.getAttribute("data-max") || "";
+          if ($("eq-source") && btn.getAttribute("data-source")) {
+            $("eq-source").value = btn.getAttribute("data-source");
+          }
           $("eq-name") && $("eq-name").focus();
           return;
         }

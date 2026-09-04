@@ -137,6 +137,7 @@ def available_body(headers):
     user, err = require_user(headers)
     if err:
         return err
+    from rt_dashboard.library_store import apply_library_overlay, load_library_overlay
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
         catalog_names,
@@ -144,16 +145,23 @@ def available_body(headers):
         load_workspace_goals,
     )
 
+    uid = str(user.get("id") or "")
     goals, goals_src = load_workspace_goals()
     catalog, catalog_src = load_workspace_catalog()
+    overlay, overlay_src = load_library_overlay(uid)
+    catalog = apply_library_overlay(catalog, overlay)
     catalog = apply_goals_volume_caps(catalog, goals)
     return 200, {
         "ok": True,
-        "readonly": True,
+        "readonly": False,
         "catalog": catalog,
         "names": catalog_names(catalog),
-        "sources": {"catalog": catalog_src, "goals": goals_src},
-        "write": {"ok": False, "readonly": True},
+        "sources": {
+            "catalog": catalog_src,
+            "goals": goals_src,
+            "library": overlay_src,
+        },
+        "write": {"ok": False, "readonly": False},
     }
 
 
@@ -199,8 +207,70 @@ def goals_write(headers):
     return _write_denied(headers)
 
 
-def available_write(headers):
-    return _write_denied(headers)
+def available_write(headers, payload=None):
+    """Apply an explicit library add/remove. Cookie-less 401. Failed persist is 5xx."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    eid = str(payload.get("id") or "").strip()
+    if not eid:
+        return 400, {"ok": False, "error": "exercise id required"}
+    available = bool(payload.get("available", True))
+    uid = str(user.get("id") or "")
+    from rt_dashboard.equipment_store import load_preview_equipment
+    from rt_dashboard.library_store import (
+        apply_library_overlay,
+        load_library_overlay,
+        save_library_overlay,
+        set_library_available,
+    )
+    from rt_dashboard.workout_planner import movement_feasible, normalize_exercise
+    from rt_dashboard.workout_store import (
+        apply_goals_volume_caps,
+        load_workspace_catalog,
+        load_workspace_goals,
+    )
+
+    catalog, catalog_src = load_workspace_catalog()
+    match = None
+    for raw in catalog.get("exercises") or []:
+        if isinstance(raw, dict) and str(raw.get("id") or "") == eid:
+            try:
+                match = normalize_exercise(raw)
+            except ValueError:
+                match = None
+            break
+    if not match:
+        return 400, {"ok": False, "error": "exercise not found"}
+    if available:
+        equipment, _ = load_preview_equipment(uid)
+        if not movement_feasible(match, equipment):
+            return 400, {
+                "ok": False,
+                "error": "exercise needs equipment that is not in the inventory",
+            }
+    try:
+        overlay, _src = load_library_overlay(uid)
+        updated = set_library_available(overlay, eid, available)
+        saved = save_library_overlay(updated, uid)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {
+            "ok": False,
+            "error": str(exc) or type(exc).__name__,
+            "write": {"ok": False, "source": "turso"},
+        }
+    goals, _ = load_workspace_goals()
+    stamped = apply_goals_volume_caps(apply_library_overlay(catalog, saved), goals)
+    return 200, {
+        "ok": True,
+        "catalog": stamped,
+        "library": saved,
+        "write": {"ok": True, "source": "turso", "verified_on_readback": True},
+        "sources": {"catalog": catalog_src, "library": "turso"},
+    }
 
 
 def workouts_write(headers, payload=None):
@@ -798,7 +868,11 @@ def dispatch_client_route(
     if route == "goals":
         return goals_write(headers) if method == "POST" else goals_body(headers)
     if route == "available":
-        return available_write(headers) if method == "POST" else available_body(headers)
+        return (
+            available_write(headers, payload)
+            if method == "POST"
+            else available_body(headers)
+        )
     if route == "workouts":
         return (
             workouts_write(headers, payload)

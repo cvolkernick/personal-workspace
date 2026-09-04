@@ -91,7 +91,7 @@ class LockedFinanceTests(unittest.TestCase):
         self.assertNotIn("principal_balance", wells["finance"]["locked"])
         self.assertFalse(wells["glance"]["due"])
 
-        self.assertEqual(by_id["m3-2022"]["finance"]["locked"]["apr_pct"], 18.15)
+        self.assertIsNone(by_id["m3-2022"]["finance"]["locked"].get("apr_pct"))
         self.assertEqual(by_id["corolla-2022"]["finance"]["locked"]["apr_pct"], 11.14)
         self.assertEqual(by_id["corolla-2024"]["finance"]["locked"]["apr_pct"], 10.18)
         rivian = by_id["r1s-2023"]["finance"]["locked"]
