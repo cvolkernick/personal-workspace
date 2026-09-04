@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-09-04T03:34:23.311901+00:00",
+  "as_of": "2026-09-04T06:37:22.171962+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-09-04T03:34:23.311896+00:00",
-    "total_value": 270.261052927,
-    "equity_value": 270.161052927,
+    "as_of": "2026-09-04T06:37:22.171958+00:00",
+    "total_value": 269.995985317,
+    "equity_value": 269.895985317,
     "cash": 0.1,
     "buying_power": 0.1,
     "unleveraged_buying_power": 0.1,
@@ -56,7 +56,7 @@
       {
         "symbol": "TSLA",
         "quantity": "0.215371",
-        "intraday_quantity": "0.021023",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "313.880000",
         "shares_available_for_sells": "0.215371",
         "shares_held_for_sells": "0.000000",
@@ -69,7 +69,7 @@
       {
         "symbol": "SPCX",
         "quantity": "0.452208",
-        "intraday_quantity": "0.053410",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "116.760000",
         "shares_available_for_sells": "0.452208",
         "shares_held_for_sells": "0.000000",
@@ -207,7 +207,7 @@
       "rhs_account_number": "674601752",
       "rhc_account_number": "311264401076",
       "type": "limited_margin",
-      "unsettled_funds": "15.7100",
+      "unsettled_funds": "0.0000",
       "brokerage_account_type": "individual",
       "nickname": "Agentic",
       "is_default": false,
