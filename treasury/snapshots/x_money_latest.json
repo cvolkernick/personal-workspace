@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-09-04T15:43:10.326282+00:00",
+  "as_of": "2026-09-04T19:47:27.265528+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -951.08,
-  "cash": 821.57,
-  "available": 1772.65,
-  "cleared_balance": -951.08,
+  "balance_raw": -991.08,
+  "cash": 736.57,
+  "available": 1727.65,
+  "cleared_balance": -991.08,
   "uncleared_balance": 0.0,
-  "spend_30d": 9014.11,
-  "inflow_30d": 8997.02,
-  "transaction_count": 341,
+  "spend_30d": 9124.11,
+  "inflow_30d": 9022.02,
+  "transaction_count": 343,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -572,16 +572,16 @@
   "notes": "X Money via YNAB/Plaid. Main is last-4 2201 (Main \u2013 2201); named spaces are separate sleeves. EveryDay Checking \u2013 8680 is Navy Federal, not X Money. cash is signed (overdraft visible); available is max(0, cash). Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
   "since": "2026-06-06",
-  "main_cash": -951.08,
+  "main_cash": -991.08,
   "spaces": [
     {
       "account_id": "15c33269-eab1-4b16-b39d-94d2c74b3b36",
       "account_name": "Auto Fleet \u2013 0895",
       "last4": "0895",
-      "cash": 1243.52,
-      "available": 1243.52,
-      "spend_30d": 1419.37,
-      "inflow_30d": 2662.89
+      "cash": 1198.52,
+      "available": 1198.52,
+      "spend_30d": 1489.37,
+      "inflow_30d": 2687.89
     },
     {
       "account_id": "9a1f26d8-df81-4db8-ba21-772bbf483342",
