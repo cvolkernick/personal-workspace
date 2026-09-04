@@ -237,12 +237,22 @@ def finance_for_unit(
     has_tab = tab is not None
     monthly = sum(float(i.get("monthly") or 0) for i in assigned) if has_sheet else None
     locked = car_cards.locked_finance_for(uid)
+    loan = car_cards.loan_display_for(
+        uid,
+        portal if isinstance(portal, dict) else None,
+        meta={
+            "as_of": notes.get("as_of"),
+            "source": notes.get("source"),
+            "disclaimer": notes.get("disclaimer"),
+        },
+    )
     return {
         "stale": not has_tab,
         "source": "expenses_sync.tabs.Fleet" if has_tab else "roster_notes",
         "snapshot_as_of": (expenses or {}).get("as_of") if has_tab else notes.get("as_of"),
         "role": "fleet_ops",
         "locked": locked,
+        "loan": loan,
         "sheet_lines": assigned,
         "sheet_monthly": round(monthly, 2) if monthly is not None else None,
         "note": (
