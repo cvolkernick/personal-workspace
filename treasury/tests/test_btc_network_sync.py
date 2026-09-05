@@ -14,6 +14,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.btc_network_sync import (  # noqa: E402
+    HASHRATE_URL,
+    WINDOW,
     btc_network_payload,
     format_difficulty,
     format_hashrate_hs,
@@ -46,6 +48,8 @@ class TestNormalize(unittest.TestCase):
         out = normalize_network(raw["hashrate"], raw["adjustment"], as_of="2026-09-05T20:00:00+00:00")
         self.assertTrue(out["ok"])
         self.assertEqual(out["source"], "mempool.space")
+        self.assertEqual(out["window"], WINDOW)
+        self.assertTrue(HASHRATE_URL.endswith("/all"))
         self.assertEqual(len(out["hashrate"]), 4)
         self.assertEqual(len(out["difficulty"]), 3)
         self.assertEqual(out["hashrate"][0]["t"], 1693958400)
@@ -88,6 +92,24 @@ class TestPayloadCache(unittest.TestCase):
             out = btc_network_payload(refresh_if_stale=False, path=path)
             self.assertFalse(out["ok"])
             self.assertEqual(out["status"], "missing")
+
+    def test_short_window_snapshot_refetches(self):
+        raw = _fixture()
+        snap = normalize_network(raw["hashrate"], raw["adjustment"])
+        snap["window"] = "3y"
+        live = dict(snap)
+        live["window"] = WINDOW
+        live["hashrate_label"] = "refetched"
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "btc_network_latest.json"
+            write_btc_network_snapshot(snap, path)
+            with mock.patch(
+                "treasury.btc_network_sync.fetch_btc_network", return_value=live
+            ) as fetch:
+                out = btc_network_payload(refresh_if_stale=True, path=path)
+                fetch.assert_called_once()
+            self.assertEqual(out["window"], WINDOW)
+            self.assertEqual(out["hashrate_label"], "refetched")
 
 
 if __name__ == "__main__":
