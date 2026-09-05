@@ -11,6 +11,7 @@ Serves static UI + APIs:
   GET  /api/bias-spectrum — new-money consider-share (core + ready watchlist; not book weight)
   GET  /api/position?symbol=STRC — ticker dossier (stance, dive, policy, related)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
+  GET  /api/btc-network   — Bitcoin network hashrate + difficulty (mempool.space)
   GET  /api/coach         — financial coach allocation plan (pay on time)
   GET  /api/planned-actual — display-only sheet planned vs YNAB actual flags
   GET  /api/ask/status    — Ask Grok financial advisor auth + model
@@ -98,6 +99,7 @@ from treasury.position_dossier import get_position_dossier  # noqa: E402
 from treasury.planned_actual import load_planned_actual  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
+BTC_NETWORK_SNAPSHOT = ROOT / "treasury" / "snapshots" / "btc_network_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 FM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "fund_manager_latest.json"
 XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
@@ -448,6 +450,23 @@ def _braiins_live() -> dict:
     }
 
 
+def _btc_network_live() -> dict:
+    """Public Bitcoin network hashrate + difficulty for the FCC Bitcoin tab."""
+    try:
+        from treasury.btc_network_sync import btc_network_payload
+
+        data = btc_network_payload(refresh_if_stale=True, path=BTC_NETWORK_SNAPSHOT)
+    except Exception as e:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": f"btc network attach failed: {e}",
+        }
+    if isinstance(data, dict):
+        return data
+    return {"ok": False, "status": "error", "error": "invalid btc network payload"}
+
+
 def _capital_flows_payload() -> dict:
     """Load investment/capital_flows.json and lightly enrich from YNAB snapshots."""
     path = ROOT / "investment" / "capital_flows.json"
@@ -671,6 +690,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "status": "error", "error": str(e)})
             return
+        if path == "/api/btc-network":
+            try:
+                self._json(200, _btc_network_live())
+            except Exception as e:
+                self._json(500, {"ok": False, "status": "error", "error": str(e)})
+            return
         if path in ("/api/health", "/api/fcc-identity"):
             # Orchestrator / launchers use this to refuse wrong monorepo FCC instances
             self._json(
@@ -684,6 +709,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     "branch_expected": "work/treasury",
                     "features": [
                         "braiins",
+                        "btc_network",
                         "x_money",
                         "coach",
                         "watchlist",
@@ -1017,6 +1043,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 "expenses": "skipped" if offline else "pending",
                 "coinbase_treasury": "skipped" if skip_cb else "pending",
                 "braiins": "skipped" if offline else "pending",
+                "btc_network": "pending",
                 "robinhood": "skipped" if offline else "pending",
                 "solana": "skipped" if offline else "pending",
             }
@@ -1061,6 +1088,19 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except Exception as be:
                         report["braiins"] = f"error: {be}"
                         sys.stderr.write(f"[fcc] braiins_sync warning: {be}\n")
+                # Public mempool.space — Pi can fetch this even in consumer mode.
+                try:
+                    from treasury.btc_network_sync import main as btc_net_main
+
+                    nc = btc_net_main([])
+                    report["btc_network"] = "ok" if nc in (0, None) else f"exit {nc}"
+                except SystemExit as se:
+                    report["btc_network"] = (
+                        "ok" if se.code in (0, None) else f"exit {se.code}"
+                    )
+                except Exception as ne:
+                    report["btc_network"] = f"error: {ne}"
+                    sys.stderr.write(f"[fcc] btc_network_sync warning: {ne}\n")
                 # Coinbase + assemble treasury BEFORE RH — RH MCP can take 1–2+ min
                 # and used to block CB/Sheet ages from updating if Refresh was aborted.
                 code = run_treasury_main(args)
