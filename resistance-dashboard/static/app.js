@@ -380,6 +380,92 @@
     setsWrap.appendChild(row);
   }
 
+  const LIBRARY_SESSION_ORDER = ["push", "pull", "legs"];
+  const LIBRARY_GROUP_LABEL = {
+    push: "Push",
+    pull: "Pull",
+    legs: "Legs",
+    other: "Other",
+    logged: "Not in library",
+  };
+
+  /** Programmed library names for the log dropdown (`available=true` catalog rows). */
+  function libraryLogExercises(includeName) {
+    const catalog =
+      (state && state.workout_store && state.workout_store.catalog) || {};
+    const items = [];
+    const seen = new Set();
+    for (const ex of catalog.exercises || []) {
+      if (!ex || !ex.available) continue;
+      const name = String(ex.name || "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const types = (ex.session_types || []).map((t) => String(t).toLowerCase());
+      const session =
+        LIBRARY_SESSION_ORDER.find((t) => types.includes(t)) || types[0] || "other";
+      items.push({ name, session });
+    }
+    items.sort((a, b) => {
+      const ao = LIBRARY_SESSION_ORDER.indexOf(a.session);
+      const bo = LIBRARY_SESSION_ORDER.indexOf(b.session);
+      const ag = ao === -1 ? 99 : ao;
+      const bg = bo === -1 ? 99 : bo;
+      if (ag !== bg) return ag - bg;
+      return a.name.localeCompare(b.name);
+    });
+    const extra = String(includeName || "").trim();
+    if (extra && !seen.has(extra.toLowerCase())) {
+      items.push({ name: extra, session: "logged" });
+    }
+    return items;
+  }
+
+  function fillExerciseNameSelect(sel, selectedName) {
+    if (!sel) return;
+    const wanted = String(
+      selectedName != null ? selectedName : sel.value || ""
+    ).trim();
+    const loaded = !!(state && state.workout_store && state.workout_store.catalog);
+    const items = libraryLogExercises(wanted);
+    sel.innerHTML = "";
+    if (!wanted) {
+      const ph = document.createElement("option");
+      ph.value = "";
+      ph.textContent =
+        loaded && !items.length ? "No exercises in library" : "Select exercise";
+      sel.appendChild(ph);
+    }
+    const groups = new Map();
+    items.forEach((it) => {
+      if (!groups.has(it.session)) groups.set(it.session, []);
+      groups.get(it.session).push(it);
+    });
+    ["push", "pull", "legs", "other", "logged"].forEach((key) => {
+      const rows = groups.get(key);
+      if (!rows || !rows.length) return;
+      const og = document.createElement("optgroup");
+      og.label = LIBRARY_GROUP_LABEL[key] || key;
+      rows.forEach((it) => {
+        const opt = document.createElement("option");
+        opt.value = it.name;
+        opt.textContent = it.name;
+        og.appendChild(opt);
+      });
+      sel.appendChild(og);
+    });
+    if (wanted) sel.value = wanted;
+    sel.required = true;
+    sel.disabled = loaded && items.length === 0 && !wanted;
+  }
+
+  function refreshExerciseNameSelects() {
+    document.querySelectorAll("#exercise-rows select.ex-name").forEach((sel) => {
+      fillExerciseNameSelect(sel, sel.value);
+    });
+  }
+
   /**
    * One exercise card with multiple set groups.
    * Saves as: Name: 50 lbs x 1 x 10, 45 lbs x 1 x 8  (matches existing logs)
@@ -408,7 +494,7 @@
     card.innerHTML = `
       <div class="exercise-card-head">
         <label class="ex-name-label">Exercise
-          <input type="text" class="ex-name" required placeholder="e.g. DB Flat Press" value="${prefill.name || ""}" />
+          <select class="ex-name" required aria-label="Exercise"></select>
         </label>
         <button type="button" class="ex-remove" aria-label="Remove exercise">Remove</button>
       </div>
@@ -418,6 +504,7 @@
         <span class="muted set-hint">Different weights? Add a set per load. Same load ×3 → set Sets=3. PR is auto-tagged from history on save.</span>
       </div>
     `;
+    fillExerciseNameSelect(card.querySelector(".ex-name"), prefill.name || "");
 
     const setsWrap = card.querySelector(".set-rows");
     setPrefills.forEach((s) => addSetRow(setsWrap, s));
@@ -3296,7 +3383,10 @@
 
   function renderExerciseCatalog(store) {
     const list = $("exercise-catalog-list");
-    if (!list) return;
+    if (!list) {
+      refreshExerciseNameSelects();
+      return;
+    }
     list.innerHTML = "";
     const items = ((store && store.catalog && store.catalog.exercises) || []).slice();
     items.sort((a, b) => {
@@ -3346,6 +3436,7 @@
     });
     renderLibrarySuggestions(store);
     renderLibraryRemovals(store);
+    refreshExerciseNameSelects();
   }
 
   function renderLibrarySuggestions(store) {
