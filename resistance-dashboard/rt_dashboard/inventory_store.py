@@ -109,8 +109,19 @@ def load_workspace_inventory() -> Tuple[dict, str]:
     return {"ingredients": []}, "default"
 
 
-def _inventory_uid(user_id: str = "") -> str:
-    return (user_id or "").strip() or INVENTORY_ROW_DEFAULT
+def _inventory_uid(user_id: str = "", *, allow_default: bool = True) -> str:
+    """Map a principal onto a Turso row. Agent writes must pass allow_default=False."""
+    uid = (user_id or "").strip()
+    if uid:
+        return uid
+    if not allow_default:
+        raise ValueError("inventory user_id required")
+    return INVENTORY_ROW_DEFAULT
+
+
+def inventory_principal_uid(user_id: str) -> str:
+    """Fail closed: never the shared ``default`` pantry row."""
+    return _inventory_uid(user_id, allow_default=False)
 
 
 def _turso_row_empty(raw: Any) -> bool:

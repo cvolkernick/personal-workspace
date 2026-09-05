@@ -130,6 +130,7 @@ Honest gaps (no fake events):
 - `GET /api/dashboard?refresh=1` — force 90-day Google Health pull (Refresh data)
 - `GET /api/warm` — incremental 14-day Health + Hidrate cache warm (loopback / service token; no page load)
 - `GET /api/agent/today` — read-only Today + this-week brief for agents (workout letter + last-session history, hydration wake pace, bottle, wake window, `today.active_zone_minutes`, `today.nutrition`, `week.nutrition` / `week.logged_sessions` / `week.sleep`). Same loopback / `FITDASH_SERVICE_TOKEN` gate as `/api/sleep_battery`. Cookie-less without token is 401 on the function; the production alias is cookie-less 200 via that gate. Does not invent ml / loads / sessions / AZM / intake / sleep. Nutrition is logged calories/protein + live books (or 2100/210P) + meal slots if present. Week is the ISO week Monday→today. `today.workout.session_type` is the same PPL letter as signed-in Today (`stamp_today_session` / next after last real log, rest flag separate). `today.workout.recent_sessions` is last 2+ real sessions or the last ~14d (honest `[]` if none); this-week `week.logged_sessions` stays empty when those logs are older. Personal `/api/dashboard` and `/api/workouts` stay session-gated.
+- `POST /api/inventory/stock` `{ "id": "<ingredient_id>", "in_stock": true }` — Kitchen Google session, **or** Chris-bound `FITDASH_INVENTORY_AGENT_TOKEN` (Bearer / `X-FitDash-Service-Token`) whose tenant is `FITDASH_INVENTORY_AGENT_USER_ID`. House `FITDASH_SERVICE_TOKEN` / loopback do **not** write pantry. Unknown id → 404, no create. Idempotent stock-true is 2xx. After grocery confirm: complete matching Google Tasks, then POST each bought id with the Chris-bound credential.
 - `POST /api/workouts` — log a session  
   ```json
   {
@@ -148,6 +149,7 @@ Honest gaps (no fake events):
 python3 -m unittest tests.test_analytics -v
 python3 -m unittest tests.test_vercel_ignore -v
 python3 -m unittest tests.test_vercel_preview -v
+python3 -m unittest tests.test_inventory_agent_write -v
 python3 scripts/verify_github.py
 python3 scripts/verify_google.py
 python3 scripts/verify_launch.py
