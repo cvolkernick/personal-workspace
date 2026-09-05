@@ -6,10 +6,15 @@ import unittest
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.workout_planner import (
+    HORIZONTAL_PRESS_FAMILY,
+    INCLINE_PRESS_FAMILY,
+    VERTICAL_PRESS_FAMILY,
     credit_sets_for_exercise,
     generate_workout_plan,
+    last_pattern_family_ids,
     last_performance,
     next_session_type,
+    pattern_family,
     ppl_logged_on_day,
     prescribe,
     session_types_for_lift_name,
@@ -412,6 +417,180 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertTrue(plan["exercises"])
         for e in plan["exercises"]:
             self.assertEqual(int((e.get("prescription") or {}).get("sets") or 0), 2)
+
+    def test_pattern_family_maps_press_variants(self):
+        self.assertEqual(
+            pattern_family({"id": "db-flat-press", "name": "DB Flat Press", "movement": "compound", "primary_muscles": ["chest"]}),
+            HORIZONTAL_PRESS_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family({"id": "smith-bench", "name": "Smith Bench", "movement": "compound", "primary_muscles": ["chest"]}),
+            HORIZONTAL_PRESS_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family({"id": "db-incline-press", "name": "DB Incline Press", "movement": "compound", "primary_muscles": ["chest"]}),
+            INCLINE_PRESS_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family({"id": "db-shoulder-press", "name": "DB Shoulder Press", "movement": "compound", "primary_muscles": ["shoulders"]}),
+            VERTICAL_PRESS_FAMILY,
+        )
+        self.assertIsNone(
+            pattern_family({"id": "lateral-raises", "name": "Lateral Raises", "movement": "isolation", "primary_muscles": ["shoulders"]})
+        )
+        self.assertEqual(
+            pattern_family({"id": "bb-bench", "name": "Barbell Bench", "movement": "compound", "primary_muscles": ["chest"]}),
+            HORIZONTAL_PRESS_FAMILY,
+        )
+
+    def test_last_pattern_family_ids_from_logs(self):
+        sessions = [
+            _session("2026-09-01", "push", "Smith Bench", 135, 2, 8),
+            _session("2026-09-04", "push", "DB Flat Press", 50, 2, 10),
+        ]
+        last = last_pattern_family_ids(sessions, {})
+        self.assertEqual(last[HORIZONTAL_PRESS_FAMILY], "db-flat-press")
+
+    def test_push_caps_one_horizontal_press_when_chest_lags(self):
+        """Chest lag used to stack DB Flat + Incline + Smith. Cap at 1 horizontal."""
+        catalog = _push_press_catalog()
+        sessions = [
+            _session("2026-09-01", "pull", "Seated Cable Row", 100, 3, 10),
+            _session("2026-09-02", "pull", "Seated Cable Row", 100, 3, 10),
+            _session("2026-09-03", "legs", "Leg Press", 200, 3, 10),
+        ]
+        plan = generate_workout_plan(
+            catalog,
+            {
+                **self.goals,
+                "exercises_per_session": 5,
+                "auto_focus_muscles": True,
+                "default_hard_sets": 2,
+            },
+            sessions,
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-09-05",
+        )
+        ids = [e["id"] for e in plan["exercises"]]
+        horizontals = [i for i in ids if i in ("db-flat-press", "smith-bench")]
+        self.assertEqual(len(horizontals), 1, ids)
+        self.assertIn("db-incline-press", ids)
+
+    def test_horizontal_press_rotates_off_last_implement(self):
+        catalog = _push_press_catalog()
+        after_smith = generate_workout_plan(
+            catalog,
+            {**self.goals, "exercises_per_session": 5, "auto_focus_muscles": True},
+            [
+                _session("2026-09-01", "push", "Smith Bench", 135, 2, 8),
+                _session("2026-09-02", "pull", "Seated Cable Row", 100, 2, 10),
+                _session("2026-09-03", "legs", "Leg Press", 200, 2, 10),
+            ],
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-09-05",
+        )
+        after_smith_ids = [e["id"] for e in after_smith["exercises"]]
+        self.assertIn("db-flat-press", after_smith_ids)
+        self.assertNotIn("smith-bench", after_smith_ids)
+
+        after_flat = generate_workout_plan(
+            catalog,
+            {**self.goals, "exercises_per_session": 5, "auto_focus_muscles": True},
+            [
+                _session("2026-09-01", "push", "DB Flat Press", 50, 2, 10),
+                _session("2026-09-02", "pull", "Seated Cable Row", 100, 2, 10),
+                _session("2026-09-03", "legs", "Leg Press", 200, 2, 10),
+            ],
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-09-05",
+        )
+        after_flat_ids = [e["id"] for e in after_flat["exercises"]]
+        self.assertIn("smith-bench", after_flat_ids)
+        self.assertNotIn("db-flat-press", after_flat_ids)
+
+
+def _push_press_catalog():
+    return {
+        "exercises": [
+            {
+                "id": "db-flat-press",
+                "name": "DB Flat Press",
+                "session_types": ["push"],
+                "primary_muscles": ["chest"],
+                "secondary_muscles": ["triceps"],
+                "movement": "compound",
+                "default_sets": 3,
+                "default_reps": 10,
+                "rep_range": [8, 12],
+                "priority": 10,
+                "available": True,
+            },
+            {
+                "id": "db-incline-press",
+                "name": "DB Incline Press",
+                "session_types": ["push"],
+                "primary_muscles": ["chest", "shoulders"],
+                "movement": "compound",
+                "default_sets": 3,
+                "default_reps": 10,
+                "rep_range": [8, 12],
+                "priority": 9,
+                "available": True,
+            },
+            {
+                "id": "smith-bench",
+                "name": "Smith Bench",
+                "session_types": ["push"],
+                "primary_muscles": ["chest"],
+                "secondary_muscles": ["triceps"],
+                "movement": "compound",
+                "default_sets": 3,
+                "default_reps": 10,
+                "rep_range": [8, 12],
+                "priority": 8,
+                "available": True,
+            },
+            {
+                "id": "db-shoulder-press",
+                "name": "DB Shoulder Press",
+                "session_types": ["push"],
+                "primary_muscles": ["shoulders"],
+                "movement": "compound",
+                "default_sets": 3,
+                "default_reps": 10,
+                "rep_range": [8, 12],
+                "priority": 9,
+                "available": True,
+            },
+            {
+                "id": "lateral-raises",
+                "name": "Lateral Raises",
+                "session_types": ["push"],
+                "primary_muscles": ["shoulders"],
+                "movement": "isolation",
+                "default_sets": 3,
+                "default_reps": 12,
+                "rep_range": [10, 15],
+                "priority": 6,
+                "available": True,
+            },
+            {
+                "id": "tricep-pushdowns",
+                "name": "Tricep Pushdowns",
+                "session_types": ["push"],
+                "primary_muscles": ["triceps"],
+                "movement": "isolation",
+                "default_sets": 3,
+                "default_reps": 12,
+                "rep_range": [10, 15],
+                "priority": 7,
+                "available": True,
+            },
+        ]
+    }
 
 
 if __name__ == "__main__":
