@@ -186,6 +186,22 @@ NAME_ALIASES = {
     "db goblet squat": "goblet-squat",
 }
 
+# Same motion, different implement = one slot per session.
+# Incline is the angle change (allowed with one horizontal). OHP is vertical.
+HORIZONTAL_PRESS_FAMILY = "horizontal_press"
+INCLINE_PRESS_FAMILY = "incline_press"
+VERTICAL_PRESS_FAMILY = "vertical_press"
+
+PATTERN_FAMILY_BY_ID: Dict[str, str] = {
+    "db-flat-press": HORIZONTAL_PRESS_FAMILY,
+    "smith-bench": HORIZONTAL_PRESS_FAMILY,
+    "db-floor-press": HORIZONTAL_PRESS_FAMILY,
+    "db-incline-press": INCLINE_PRESS_FAMILY,
+    "db-shoulder-press": VERTICAL_PRESS_FAMILY,
+}
+
+PATTERN_FAMILY_SESSION_CAP = 1
+
 
 def _slug(name: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
@@ -675,6 +691,70 @@ def _cap_sets_for_muscles(
             break
         sets -= 1
     return sets
+
+
+def pattern_family(ex: Optional[dict]) -> Optional[str]:
+    """Movement-pattern slot. None = no uniqueness cap (isolations, unique compounds)."""
+    if not isinstance(ex, dict):
+        return None
+    explicit = str(ex.get("pattern_family") or "").strip().lower()
+    if explicit:
+        return explicit
+    eid = str(ex.get("id") or "").strip()
+    if eid in PATTERN_FAMILY_BY_ID:
+        return PATTERN_FAMILY_BY_ID[eid]
+    if str(ex.get("movement") or "").lower() != "compound":
+        return None
+    name = _norm_name(str(ex.get("name") or ""))
+    prim = {normalize_muscle(m) for m in (ex.get("primary_muscles") or [])}
+    if "chest" in prim:
+        if "incline" in name:
+            return INCLINE_PRESS_FAMILY
+        if any(tok in name for tok in ("press", "bench")):
+            if "shoulder" in name or "overhead" in name:
+                return VERTICAL_PRESS_FAMILY
+            return HORIZONTAL_PRESS_FAMILY
+    if prim & {"delts"} and any(tok in name for tok in ("press", "ohp", "overhead")):
+        return VERTICAL_PRESS_FAMILY
+    return None
+
+
+def last_pattern_family_ids(
+    sessions: Sequence[Any],
+    catalog_by_id: Optional[Dict[str, dict]] = None,
+) -> Dict[str, str]:
+    """Most recently logged catalog id for each pattern family."""
+    catalog_by_id = catalog_by_id or {}
+    found: Dict[str, str] = {}
+    ordered = sorted(list(sessions), key=session_date_of, reverse=True)
+    for s in ordered:
+        exercises = getattr(s, "exercises", None)
+        if exercises is None and isinstance(s, dict):
+            exercises = s.get("exercises") or []
+        for raw in exercises or []:
+            name = ""
+            if isinstance(raw, dict):
+                name = str(raw.get("name") or "")
+            else:
+                name = str(getattr(raw, "name", "") or "")
+            if not name:
+                continue
+            cid = match_catalog_id(name, catalog_by_id) if catalog_by_id else None
+            if not cid:
+                cid = NAME_ALIASES.get(_norm_name(name)) or _slug(name)
+            cat = catalog_by_id.get(cid) if cid else None
+            fam = pattern_family(cat) if cat else PATTERN_FAMILY_BY_ID.get(cid or "")
+            if fam and fam not in found and cid:
+                found[fam] = cid
+    return found
+
+
+def _family_slot_taken(ex: dict, chosen: Sequence[dict]) -> bool:
+    fam = pattern_family(ex)
+    if not fam:
+        return False
+    n = sum(1 for c in chosen if pattern_family(c) == fam)
+    return n >= PATTERN_FAMILY_SESSION_CAP
 
 
 def normalize_exercise(raw: dict) -> dict:
@@ -1373,11 +1453,23 @@ def generate_workout_plan(
     bands = scale_muscle_targets_for_continuity(muscle_targets(goals), continuity)
     focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
+    last_family_ids = last_pattern_family_ids(sessions, by_id)
+
+    def _repeat_penalty(e: dict) -> int:
+        # Rotate implements inside a family (DB flat ↔ Smith), don't restack last.
+        fam = pattern_family(e)
+        if not fam:
+            return 0
+        last_id = last_family_ids.get(fam)
+        if last_id and e.get("id") == last_id:
+            return 1
+        return 0
 
     # Rank pool by volume need (under-target muscles) + compound efficiency
     pool_scored = sorted(
         pool,
         key=lambda e: (
+            _repeat_penalty(e),
             -_score_exercise_for_volume(e, done, bands, focus=focus),
             0 if e.get("movement") == "compound" else 1,
             -int(e.get("priority") or 0),
@@ -1403,19 +1495,22 @@ def generate_workout_plan(
     # Seed with top compound if compounds preferred
     if goals.get("prefer_compounds_first", True):
         for e in pool_scored:
-            if e.get("movement") == "compound":
+            if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
                 chosen.append(e)
                 break
     for e in pool_scored:
         if len(chosen) >= n:
             break
-        if e["id"] not in {c["id"] for c in chosen}:
-            # Skip isolations whose primaries are already over weekly max
-            prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
-            if e.get("movement") != "compound" and prim:
-                if all(float(done.get(m) or 0) >= float((bands.get(m) or {}).get("max") or 8) for m in prim):
-                    continue
-            chosen.append(e)
+        if e["id"] in {c["id"] for c in chosen}:
+            continue
+        if _family_slot_taken(e, chosen):
+            continue
+        # Skip isolations whose primaries are already over weekly max
+        prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
+        if e.get("movement") != "compound" and prim:
+            if all(float(done.get(m) or 0) >= float((bands.get(m) or {}).get("max") or 8) for m in prim):
+                continue
+        chosen.append(e)
 
     plan_ex: List[dict] = []
     planned_credits: Dict[str, float] = {}
