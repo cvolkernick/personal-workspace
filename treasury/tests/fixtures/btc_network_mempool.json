@@ -1,0 +1,26 @@
+{
+  "hashrate": {
+    "currentHashrate": 927200699635722500000,
+    "currentDifficulty": 125807076547197.5,
+    "hashrates": [
+      {"timestamp": 1693958400, "avgHashrate": 342669525852744500000},
+      {"timestamp": 1700000000, "avgHashrate": 500000000000000000000},
+      {"timestamp": 1720000000, "avgHashrate": 700000000000000000000},
+      {"timestamp": 1788566400, "avgHashrate": 913436376824477900000}
+    ],
+    "difficulty": [
+      {"time": 1693967242, "height": 806400, "difficulty": 54150142369480, "adjustment": 0.9735479950904846},
+      {"time": 1740000000, "height": 900000, "difficulty": 100000000000000, "adjustment": 1.05},
+      {"time": 1787446127, "height": 963648, "difficulty": 125807076547197.5, "adjustment": 0.986877977848053}
+    ]
+  },
+  "adjustment": {
+    "progressPercent": 99.85,
+    "difficultyChange": 1.268,
+    "estimatedRetargetDate": 1788641170337,
+    "remainingBlocks": 3,
+    "remainingTime": 1778337,
+    "previousRetarget": -1.312,
+    "nextRetargetHeight": 965664
+  }
+}

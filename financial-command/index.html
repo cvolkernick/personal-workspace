@@ -1796,6 +1796,54 @@
       color: var(--muted);
       margin-top: 0.25rem;
     }
+    .btc-net-kpis { margin: 0.15rem 0 0.45rem; }
+    .btc-net-range {
+      display: flex;
+      gap: 0.25rem;
+      margin: 0 0 0.45rem;
+    }
+    .btc-net-range button {
+      padding: 0.18rem 0.5rem;
+      font-size: 0.72rem;
+      min-height: 1.8rem;
+    }
+    .btc-net-range button.on {
+      background: #1e4d7a;
+      border-color: #2a6aa3;
+    }
+    .btc-net-charts {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.55rem;
+    }
+    @media (min-width: 721px) {
+      .btc-net-charts { grid-template-columns: 1fr 1fr; }
+    }
+    .btc-chart {
+      background: #0e1620;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.45rem 0.5rem 0.3rem;
+      min-width: 0;
+    }
+    .btc-chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.5rem;
+      margin-bottom: 0.2rem;
+    }
+    .btc-chart-head .now {
+      font-variant-numeric: tabular-nums;
+      font-weight: 650;
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+    .btc-chart svg {
+      display: block;
+      width: 100%;
+      height: 148px;
+    }
 
     /* ── Mobile-first refinements (phone / narrow browser) ── */
     html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
@@ -2013,7 +2061,7 @@
     /* Optional body class set by JS when narrow / touch */
     body.is-mobile .sticky-top .sub { display: none; }
 
-    /* ── Tab shell (Glance / Cash / Mining / Coach / More) — all viewports ── */
+    /* ── Tab shell (Glance / Cash / Bitcoin / Coach / More) — all viewports ── */
     .mobile-tabbar {
       display: none;
     }
@@ -2074,6 +2122,7 @@
     body.m-shell .feeds-compact span {
       white-space: nowrap;
     }
+    body.m-shell[data-m-active="mining"] #btc-network-card,
     body.m-shell[data-m-active="mining"] #braiins-card {
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -2214,8 +2263,8 @@
       <span class="tab-lbl">Cash</span>
     </button>
     <button type="button" class="tab-btn" data-m-tab="mining">
-      <span class="tab-ico" aria-hidden="true">⛏</span>
-      <span class="tab-lbl">Mining</span>
+      <span class="tab-ico" aria-hidden="true">₿</span>
+      <span class="tab-lbl">Bitcoin</span>
     </button>
     <button type="button" class="tab-btn" data-m-tab="coach">
       <span class="tab-ico" aria-hidden="true">✓</span>
@@ -2390,6 +2439,36 @@
         <summary class="hint" style="cursor:pointer">Decision log</summary>
         <div id="fund-manager-decisions" style="margin-top:0.35rem"></div>
       </details>
+    </section>
+
+    <section class="card" id="btc-network-card" data-m-panel="mining" aria-label="Bitcoin network hashrate and difficulty">
+      <div class="card-head">
+        <h2>Bitcoin network</h2>
+        <span class="live-dot off" id="btc-net-dot">—</span>
+      </div>
+      <div id="btc-net-kpis" class="grid-2 btc-net-kpis"></div>
+      <div class="btc-net-range" id="btc-net-range" role="tablist" aria-label="Chart range">
+        <button type="button" data-range="90">3m</button>
+        <button type="button" data-range="365" class="on">1y</button>
+        <button type="button" data-range="1095">3y</button>
+      </div>
+      <div class="btc-net-charts">
+        <div class="btc-chart">
+          <div class="btc-chart-head">
+            <span class="hint">Hashrate</span>
+            <span class="now" id="btc-hr-now"></span>
+          </div>
+          <div id="btc-hr-chart"><p class="hint">Loading…</p></div>
+        </div>
+        <div class="btc-chart">
+          <div class="btc-chart-head">
+            <span class="hint">Difficulty</span>
+            <span class="now" id="btc-diff-now"></span>
+          </div>
+          <div id="btc-diff-chart"><p class="hint">Loading…</p></div>
+        </div>
+      </div>
+      <p class="hint" id="btc-net-src" style="margin:0.4rem 0 0"></p>
     </section>
 
     <details class="panel" id="braiins-card" data-m-panel="mining" open>
@@ -2664,6 +2743,24 @@
         " " +
         u
       );
+    }
+    /** Network hashrate in H/s → EH/s (or PH/s). */
+    function formatNetworkHashrate(hs) {
+      if (hs == null || hs === "" || !Number.isFinite(Number(hs))) return "—";
+      const n = Number(hs);
+      const abs = Math.abs(n);
+      if (abs >= 1e18) return (n / 1e18).toFixed(1) + " EH/s";
+      if (abs >= 1e15) return (n / 1e15).toFixed(1) + " PH/s";
+      if (abs >= 1e12) return (n / 1e12).toFixed(1) + " TH/s";
+      return n.toExponential(2) + " H/s";
+    }
+    function formatDifficulty(d) {
+      if (d == null || d === "" || !Number.isFinite(Number(d))) return "—";
+      const n = Number(d);
+      const abs = Math.abs(n);
+      if (abs >= 1e12) return (n / 1e12).toFixed(1) + " T";
+      if (abs >= 1e9) return (n / 1e9).toFixed(1) + " B";
+      return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
     }
     function effectiveActor(a, apiReachable) {
       if (a === "agent") return "agent";
@@ -4970,6 +5067,196 @@
       }
     }
 
+    let btcNetRangeDays = 365;
+    let btcNetData = null;
+
+    function btcDownsample(points, maxN) {
+      if (!points || points.length <= maxN) return points || [];
+      const step = (points.length - 1) / (maxN - 1);
+      const out = [];
+      for (let i = 0; i < maxN; i++) out.push(points[Math.round(i * step)]);
+      return out;
+    }
+    function btcFilterDays(points, days) {
+      if (!points || !points.length) return [];
+      const cutoff = Date.now() / 1000 - Number(days) * 86400;
+      const out = points.filter((p) => Number(p.t) >= cutoff);
+      return out.length >= 2 ? out : points.slice();
+    }
+    function btcChartDate(t) {
+      const d = new Date(Number(t) * 1000);
+      if (!Number.isFinite(d.getTime())) return "";
+      return d.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
+    }
+    function btcLineChartSvg(points, opts) {
+      const W = 320,
+        H = 140;
+      const pad = { l: 6, r: 6, t: 8, b: 20 };
+      const innerW = W - pad.l - pad.r;
+      const innerH = H - pad.t - pad.b;
+      if (!points.length) return `<p class="hint">No series</p>`;
+      const ys = points.map((p) => Number(p.v)).filter((n) => Number.isFinite(n));
+      if (!ys.length) return `<p class="hint">No series</p>`;
+      let min = Math.min.apply(null, ys);
+      let max = Math.max.apply(null, ys);
+      if (min === max) {
+        min = min * 0.98;
+        max = max * 1.02;
+        if (min === max) {
+          min = 0;
+          max = 1;
+        }
+      }
+      const padY = (max - min) * 0.08;
+      min -= padY;
+      max += padY;
+      const xAt = (i) =>
+        pad.l + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+      const yAt = (v) => pad.t + (1 - (Number(v) - min) / (max - min)) * innerH;
+      const stroke = opts.stroke || "#5b9fd4";
+      const fill = opts.fill || "rgba(91,159,212,0.22)";
+      const step = !!opts.step;
+      let line = "";
+      if (step) {
+        line = `M ${xAt(0).toFixed(1)} ${yAt(points[0].v).toFixed(1)}`;
+        for (let i = 1; i < points.length; i++) {
+          line += ` H ${xAt(i).toFixed(1)} V ${yAt(points[i].v).toFixed(1)}`;
+        }
+      } else {
+        line = points
+          .map((p, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(p.v).toFixed(1)}`)
+          .join(" ");
+      }
+      const lastX = xAt(points.length - 1).toFixed(1);
+      const baseY = (pad.t + innerH).toFixed(1);
+      const area =
+        `M ${pad.l.toFixed(1)} ${baseY} ` + line.replace(/^M/, "L") + ` L ${lastX} ${baseY} Z`;
+      const first = btcChartDate(points[0].t);
+      const last = btcChartDate(points[points.length - 1].t);
+      return (
+        `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(opts.label || "chart")}">` +
+        `<path d="${area}" fill="${fill}"/>` +
+        `<path d="${line}" fill="none" stroke="${stroke}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>` +
+        `<text x="${pad.l}" y="${H - 5}" fill="#8aa0b5" font-size="9">${escapeHtml(first)}</text>` +
+        `<text x="${W - pad.r}" y="${H - 5}" fill="#8aa0b5" font-size="9" text-anchor="end">${escapeHtml(last)}</text>` +
+        `</svg>`
+      );
+    }
+    function renderBtcNetwork(data) {
+      btcNetData = data || {};
+      const kpis = document.getElementById("btc-net-kpis");
+      const hrEl = document.getElementById("btc-hr-chart");
+      const diffEl = document.getElementById("btc-diff-chart");
+      const hrNow = document.getElementById("btc-hr-now");
+      const diffNow = document.getElementById("btc-diff-now");
+      const src = document.getElementById("btc-net-src");
+      const dot = document.getElementById("btc-net-dot");
+      if (!hrEl || !diffEl) return;
+      const br = btcNetData;
+      if (!br.ok) {
+        if (dot) {
+          dot.className = "live-dot off";
+          dot.textContent = "Offline";
+        }
+        const err = escapeHtml(br.error || "Bitcoin network series unavailable");
+        if (kpis) kpis.innerHTML = `<p class="hint" style="margin:0">${err}</p>`;
+        hrEl.innerHTML = `<p class="hint">${err}</p>`;
+        diffEl.innerHTML = "";
+        if (hrNow) hrNow.textContent = "";
+        if (diffNow) diffNow.textContent = "";
+        if (src)
+          src.innerHTML =
+            `Source: <a href="https://mempool.space" target="_blank" rel="noopener">mempool.space</a>` +
+            ` · <code>python3 treasury/btc_network_sync.py</code>`;
+        return;
+      }
+      if (dot) {
+        dot.className = "live-dot";
+        dot.textContent = "Live · " + (ageLabel(br.as_of) || "ok");
+      }
+      const adj = br.adjustment || {};
+      const chg = adj.difficulty_change_pct;
+      const chgLabel =
+        chg == null || !Number.isFinite(Number(chg))
+          ? "—"
+          : (Number(chg) >= 0 ? "+" : "") + Number(chg).toFixed(1) + "%";
+      const blocks = adj.remaining_blocks;
+      const secs = adj.remaining_time_s;
+      const eta =
+        secs != null && Number.isFinite(Number(secs))
+          ? `~${(Number(secs) / 86400).toFixed(1)}d`
+          : "—";
+      if (kpis) {
+        kpis.innerHTML = [
+          metric("Network hashrate", formatNetworkHashrate(br.current_hashrate)),
+          metric("Difficulty", formatDifficulty(br.current_difficulty)),
+          metric("Next adjustment", chgLabel + " · " + eta),
+          metric(
+            "Blocks remaining",
+            blocks != null ? String(blocks) : "—"
+          ),
+        ].join("");
+      }
+      if (hrNow) hrNow.textContent = formatNetworkHashrate(br.current_hashrate);
+      if (diffNow) diffNow.textContent = formatDifficulty(br.current_difficulty);
+      const hrPts = btcDownsample(btcFilterDays(br.hashrate || [], btcNetRangeDays), 120);
+      const diffPts = btcDownsample(
+        btcFilterDays(br.difficulty || [], btcNetRangeDays),
+        80
+      );
+      hrEl.innerHTML = btcLineChartSvg(hrPts, {
+        label: "Bitcoin network hashrate",
+        stroke: "#5b9fd4",
+        fill: "rgba(91,159,212,0.20)",
+      });
+      diffEl.innerHTML = btcLineChartSvg(diffPts, {
+        label: "Bitcoin difficulty",
+        stroke: "#f2a900",
+        fill: "rgba(242,169,0,0.16)",
+        step: true,
+      });
+      if (src) {
+        const nHr = (br.hashrate || []).length;
+        const nDiff = (br.difficulty || []).length;
+        src.innerHTML =
+          `Source: <a href="https://mempool.space/graphs/mining/hashrate-difficulty" target="_blank" rel="noopener">mempool.space</a>` +
+          ` · ${nHr} hashrate pts · ${nDiff} difficulty epochs` +
+          (br.refresh_error
+            ? ` · stale (${escapeHtml(String(br.refresh_error))})`
+            : "");
+      }
+    }
+    function initBtcNetRange() {
+      const bar = document.getElementById("btc-net-range");
+      if (!bar || bar.dataset.bound) return;
+      bar.dataset.bound = "1";
+      bar.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-range]");
+        if (!btn || !bar.contains(btn)) return;
+        const days = Number(btn.getAttribute("data-range"));
+        if (!Number.isFinite(days)) return;
+        btcNetRangeDays = days;
+        bar.querySelectorAll("[data-range]").forEach((b) => {
+          b.classList.toggle("on", b === btn);
+        });
+        if (btcNetData) renderBtcNetwork(btcNetData);
+      });
+    }
+    async function loadBtcNetwork() {
+      initBtcNetRange();
+      try {
+        const res = await fetch("/api/btc-network?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        renderBtcNetwork(await res.json());
+      } catch (e) {
+        if (btcNetData && btcNetData.ok) return;
+        renderBtcNetwork({
+          ok: false,
+          error: e.message || "Could not load Bitcoin network series",
+        });
+      }
+    }
+
     function readManualForm() {
       const num = (id) => {
         const el = document.getElementById(id);
@@ -5288,6 +5575,7 @@
         loadWatchlistPreview();
         loadCoach();
         loadPlannedActual();
+        loadBtcNetwork();
       } catch (e) {
         errEl.classList.remove("hidden");
         errEl.textContent =
@@ -5319,6 +5607,7 @@
           render(t);
           if (typeof loadCoach === "function") loadCoach();
           if (typeof loadPlannedActual === "function") loadPlannedActual();
+          if (typeof loadBtcNetwork === "function") loadBtcNetwork();
         } else await loadTreasury();
         // Honest toast: Refresh is not "all feeds" (RH trade is MCP-only)
         const r = body.refreshed || {};
@@ -5344,6 +5633,9 @@
         if (String(r.braiins || "").startsWith("ok")) bits.push("Braiins");
         else if (r.braiins && r.braiins !== "skipped")
           bits.push("Braiins⚠");
+        if (String(r.btc_network || "").startsWith("ok")) bits.push("BTC net");
+        else if (r.btc_network && r.btc_network !== "skipped")
+          bits.push("BTC net⚠");
         if (String(r.robinhood || "").startsWith("ok")) {
           const src = String(r.robinhood).replace(/^ok:/, "") || "ok";
           bits.push("RH:" + src);
@@ -5767,6 +6059,7 @@
       return document.body.getAttribute("data-m-active") || "glance";
     }
     function setFccTab(tab, opts) {
+      if (tab === "bitcoin") tab = "mining";
       const t = FCC_TABS.includes(tab) ? tab : "glance";
       const prev = document.body.getAttribute("data-m-active");
       const changed = prev !== t;
@@ -5799,7 +6092,7 @@
       const touchNarrow =
         window.matchMedia("(pointer: coarse)").matches && window.innerWidth <= 900;
       document.body.classList.toggle("is-mobile", narrow || touchNarrow);
-      // Tab shell always on (web + mobile) — same Glance/Cash/Mining/Coach/More
+      // Tab shell always on (web + mobile) — same Glance/Cash/Bitcoin/Coach/More
       document.body.classList.add("m-shell");
       const bar = document.getElementById("mobile-tabbar");
       if (bar) {
@@ -5821,6 +6114,8 @@
         hy: "cash-credit",
         "x-money": "cash-credit",
         morpho: "panel-settings",
+        bitcoin: "btc-network-card",
+        mining: "btc-network-card",
       };
       const id = aliases[key] || key;
       const node = document.getElementById(id);
