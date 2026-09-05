@@ -58,6 +58,11 @@ class TestBtcNetworkPage(unittest.TestCase):
         self.assertIn("function renderBtcNetwork", html)
         self.assertIn("function btcLineChartSvg", html)
         self.assertIn("bitcoin: \"btc-network-card\"", html)
+        self.assertIn('data-range="90"', html)
+        self.assertIn('data-range="365"', html)
+        self.assertIn('data-range="1095"', html)
+        self.assertIn('data-range="1825"', html)
+        self.assertIn(">5y</button>", html)
         # ASIC fleet stays on the same tab
         self.assertIn('id="braiins-card"', html)
 
