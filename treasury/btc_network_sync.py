@@ -25,8 +25,11 @@ if str(ROOT) not in sys.path:
 
 from treasury.adapters import SNAPSHOTS_DIR, load_json, save_json  # noqa: E402
 
-HASHRATE_URL = "https://mempool.space/api/v1/mining/hashrate/3y"
+# mempool documents 1m/3m/6m/1y/2y/3y; omit/all returns the full series so the
+# FCC 5y range is not truncated. /5y currently aliases to all-time as well.
+HASHRATE_URL = "https://mempool.space/api/v1/mining/hashrate/all"
 ADJUST_URL = "https://mempool.space/api/v1/difficulty-adjustment"
+WINDOW = "all"
 OUT_PATH = SNAPSHOTS_DIR / "btc_network_latest.json"
 STALE_S = 6 * 3600
 UA = "personal-workspace-treasury/btc_network_sync"
@@ -220,7 +223,7 @@ def normalize_network(
         "status": "live",
         "as_of": as_of or _now_iso(),
         "source": source,
-        "window": "3y",
+        "window": WINDOW,
         "current_hashrate": current_hr,
         "current_difficulty": current_diff,
         "hashrate_label": format_hashrate_hs(current_hr),
@@ -275,6 +278,11 @@ def _snapshot_age_s(data: Dict[str, Any]) -> Optional[float]:
     return max(0.0, (_now() - dt).total_seconds())
 
 
+def _snapshot_covers_window(snap: Optional[Dict[str, Any]]) -> bool:
+    """3y snapshots cannot serve the 5y chart range — refetch even if age-fresh."""
+    return bool(snap and snap.get("ok") and snap.get("window") == WINDOW)
+
+
 def btc_network_payload(
     *,
     refresh_if_stale: bool = True,
@@ -284,7 +292,13 @@ def btc_network_payload(
     """Serve cached snapshot; optionally refresh from mempool.space when stale/missing."""
     snap = load_btc_network_snapshot(path)
     age = _snapshot_age_s(snap) if snap else None
-    fresh = bool(snap and snap.get("ok") and age is not None and age < stale_s)
+    fresh = bool(
+        snap
+        and snap.get("ok")
+        and age is not None
+        and age < stale_s
+        and _snapshot_covers_window(snap)
+    )
     if fresh or not refresh_if_stale:
         if snap:
             return snap
