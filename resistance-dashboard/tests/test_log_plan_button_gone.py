@@ -43,7 +43,7 @@ class LogThisPlanRemoved(unittest.TestCase):
         self.assertIn("log-form", log)
         self.assertNotIn("Log this plan", log)
         self.assertIn("auto-log", log)
-        self.assertIn("Log tab", log)
+        self.assertIn("exercise library", log)
 
     def test_quest_complete_still_attaches_lift_log(self):
         complete = UTIL.split("def daily_tasks_complete_body", 1)[1].split(
