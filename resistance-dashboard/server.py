@@ -1508,6 +1508,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             try:
                 uid = user.get("user_id") if user else None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
+                from rt_dashboard.agent_plan import house_plan_user_id, overlay_workout_on_payload
+                from rt_dashboard.timeutil import local_today_iso
+                from rt_dashboard.workout_plan_store import (
+                    is_good_workout_plan,
+                    load_last_good_workout_plan,
+                )
+
+                plan_uid = str(uid or house_plan_user_id())
+                day = (
+                    ((data.get("coach") or {}).get("today") or {}).get("date")
+                    or (data.get("meta") or {}).get("local_today")
+                    or local_today_iso()
+                )
+                saved = load_last_good_workout_plan(plan_uid, str(day)[:10])
+                if is_good_workout_plan(saved):
+                    data = overlay_workout_on_payload(data, saved)
                 self._send_json(export_agent_today(data))
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
@@ -1617,7 +1633,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         # Gate all personal POST APIs. Inventory stock also accepts a
         # Chris-bound agent token (not the house FITDASH_SERVICE_TOKEN).
         if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
-            if parsed.path == "/api/inventory/stock":
+            if parsed.path == "/api/agent/generate-plan":
+                user = _session_user_from_headers(self.headers)
+                client_host = (self.client_address or ("", 0))[0]
+                if user:
+                    self._request_user = user  # type: ignore[attr-defined]
+                elif _service_auth_ok(self.headers, client_host):
+                    self._request_user = {  # type: ignore[attr-defined]
+                        "user_id": None,
+                        "email": "",
+                        "display_name": "agent",
+                    }
+                elif _auth_required():
+                    self._send_json(service_auth_denied("generate-plan"), status=401)
+                    return
+                else:
+                    self._request_user = {  # type: ignore[attr-defined]
+                        "user_id": None,
+                        "email": "",
+                        "display_name": "legacy",
+                    }
+            elif parsed.path == "/api/inventory/stock":
                 user = _session_user_from_headers(self.headers)
                 if not user:
                     user = inventory_agent_principal(self.headers)
@@ -1637,6 +1673,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if user is None and _auth_required():
                     return
                 self._request_user = user  # type: ignore[attr-defined]
+        if parsed.path == "/api/agent/generate-plan":
+            try:
+                body = (
+                    self._read_json()
+                    if int(self.headers.get("Content-Length") or 0)
+                    else {}
+                )
+                from api.workout._util import agent_generate_plan_body
+
+                client_host = (self.client_address or ("", 0))[0]
+                status, payload = agent_generate_plan_body(
+                    self.headers, body, parsed.query, client_host=client_host
+                )
+                self._send_json(payload, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/google-health/auth/start":
             try:
                 body = (

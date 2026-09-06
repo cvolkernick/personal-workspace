@@ -1,7 +1,8 @@
 """Shared FitDash machine-client auth (Pi + Vercel).
 
 Same gate already used by ``/api/day_constraints``, ``/api/sleep_battery``,
-``/api/warm``, and ``/api/agent/today``. Do not invent a second scheme.
+``/api/warm``, ``/api/agent/today``, and ``POST /api/agent/generate-plan``.
+Do not invent a second scheme.
 
 Env:
   FITDASH_SERVICE_TOKEN — required for non-loopback machine access

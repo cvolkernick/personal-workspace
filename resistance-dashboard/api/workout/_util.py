@@ -33,6 +33,7 @@ _ROUTES = (
     "daily_tasks",
     "daily_tasks_complete",
     "agent_today",
+    "agent_generate",
     "labs",
     "labs_upload",
     "labs_delete",
@@ -106,6 +107,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "daily_tasks_complete"
     if "/api/daily-tasks" in blob:
         return "daily_tasks"
+    if "/api/agent/generate-plan" in blob or "/agent/generate-plan" in blob:
+        return "agent_generate"
     if "/api/agent/today" in blob:
         return "agent_today"
     if "/api/labs/upload" in blob:
@@ -329,6 +332,37 @@ def workouts_write(headers, payload=None):
         "session": session.to_dict(),
         "error": "; ".join(errors) if errors else None,
     }
+
+
+def agent_generate_plan_body(headers, payload=None, query: str = "", client_host=None):
+    """Cookie-less POST /api/agent/generate-plan. SuperGrok only. No public unauth."""
+    from api.auth.session_util import session_from_headers
+    from rt_dashboard.agent_plan import ensure_today_grok_plan, house_plan_user_id
+    from rt_dashboard.service_auth import service_auth_denied, service_auth_ok
+
+    user = session_from_headers(headers)
+    if not user and not service_auth_ok(headers, client_host):
+        return 401, service_auth_denied("generate-plan")
+    uid = str((user or {}).get("id") or house_plan_user_id())
+    force = False
+    if isinstance(payload, dict):
+        force = bool(payload.get("force"))
+    result = ensure_today_grok_plan(
+        uid, auto=False, force=force, headers=headers, query=query
+    )
+    body = {
+        "ok": bool(result.get("ok")),
+        "skipped": result.get("skipped"),
+        "generated": bool(result.get("generated")),
+        "plan": result.get("workout") or {},
+        "workout": result.get("workout") or {},
+        "persist": result.get("persist"),
+        "error": result.get("error"),
+        "meal": result.get("meal"),
+    }
+    if result.get("model"):
+        body["model"] = result.get("model")
+    return 200, body
 
 
 def generate_body(headers, payload=None):
@@ -857,13 +891,52 @@ def _agent_today_from_stores(headers, query: str = ""):
         errors.append(f"recovery: {type(exc).__name__}")
         recovery_dict = {"sparse": not had_real_sleep}
 
+    from rt_dashboard.agent_plan import (
+        ensure_today_grok_plan,
+        house_plan_user_id,
+    )
+    from rt_dashboard.workout_plan_store import (
+        is_good_workout_plan,
+        load_last_good_workout_plan,
+    )
+    from rt_dashboard.workout_store import brief_sessions
+
+    plan_uid = house_plan_user_id()
     _meal, workout = dashboard_plan_slots(
-        uid,
+        plan_uid,
         sessions=sessions,
         goals=goals,
         recovery=recovery_dict,
         as_of=today,
     )
+    saved = load_last_good_workout_plan(plan_uid, today)
+    if is_good_workout_plan(saved):
+        workout = saved
+    elif workout.get("session_type") and not workout.get("is_rest_day"):
+        filled = ensure_today_grok_plan(
+            plan_uid,
+            day=today,
+            auto=True,
+            context={
+                "day": today,
+                "sessions": sessions,
+                "sessions_brief": brief_sessions(sessions, limit=5),
+                "goals": goals,
+                "recovery": recovery_dict,
+                "stamped": workout,
+                "next_session_type": workout.get("next_session_type"),
+            },
+            headers=headers,
+            query=query,
+        )
+        if filled.get("ok") and is_good_workout_plan(filled.get("workout")):
+            workout = filled["workout"]
+        elif filled.get("error"):
+            workout = dict(workout)
+            workout["generate_error"] = filled["error"]
+            msg = str(workout.get("message") or "")
+            if "Generate today's" in msg or not msg.strip():
+                workout["message"] = filled["error"]
 
     nutrition_store: dict = {}
     try:
@@ -925,6 +998,12 @@ def dispatch_client_route(
         )
     if route == "generate":
         return generate_body(headers, payload)
+    if route == "agent_generate":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return agent_generate_plan_body(
+            headers, payload, query, client_host=client_host
+        )
     if route in _MEAL_ROUTES:
         return meal_plan_body(headers, payload)
     if route == "refresh":
@@ -963,6 +1042,7 @@ __all__ = [
     "available_read",
     "available_write",
     "agent_today_body",
+    "agent_generate_plan_body",
     "client_route_name",
     "dispatch_client_route",
     "generate_body",

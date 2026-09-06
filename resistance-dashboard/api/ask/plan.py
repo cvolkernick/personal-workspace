@@ -68,12 +68,24 @@ def ask_plan_body(headers, payload=None):
         inventory=nut.get("inventory"),
         equipment=wo.get("equipment"),
     )
+    from rt_dashboard.agent_plan import persist_grok_result
+    from rt_dashboard.timeutil import local_today_iso
+
+    day = (
+        ((dashboard.get("coach") or {}).get("today") or {}).get("date")
+        or (dashboard.get("meta") or {}).get("local_today")
+        or local_today_iso()
+    )
+    persist = persist_grok_result(str(user["id"]), str(day)[:10], result)
+    result = dict(result)
+    result["persist"] = persist
     if not result.get("ok"):
         return 200, {
             "ok": False,
             "error": result.get("error"),
             "meal": result.get("meal") or honest_empty_meal(),
             "workout": result.get("workout") or honest_empty_workout(),
+            "persist": persist,
         }
     return 200, result
 
@@ -90,6 +102,7 @@ class handler(BaseHTTPRequestHandler):
             "POST",
             payload=payload,
             path=parsed.path,
+            client_host=(self.client_address or ("", 0))[0],
         )
         if routed is not None:
             status, body = routed

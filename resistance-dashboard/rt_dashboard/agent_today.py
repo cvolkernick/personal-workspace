@@ -59,6 +59,7 @@ def _plan_exercise_row(ex: Any) -> Optional[Dict[str, Any]]:
     if not str(name or "").strip():
         return None
     row: Dict[str, Any] = {"name": name}
+    rx = ex.get("prescription") if isinstance(ex.get("prescription"), dict) else {}
     for key in (
         "sets",
         "reps",
@@ -70,6 +71,8 @@ def _plan_exercise_row(ex: Any) -> Optional[Dict[str, Any]]:
     ):
         if ex.get(key) is not None:
             row[key] = ex[key]
+        elif rx.get(key) is not None:
+            row[key] = rx[key]
     return row
 
 
@@ -326,7 +329,7 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     )
     if not has_signal:
         return _empty_workout()
-    return {
+    out = {
         "session_type": session_type,
         "is_rest_day": is_rest,
         "next_session_type": next_st,
@@ -336,6 +339,10 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         "message": message,
         "empty": not plan_exercises and not logged and not session_type and not is_rest,
     }
+    gen_err = slot.get("generate_error") or plan.get("generate_error")
+    if gen_err:
+        out["generate_error"] = str(gen_err)
+    return out
 
 
 def _sip_count(pacing: Dict[str, Any]) -> Optional[int]:

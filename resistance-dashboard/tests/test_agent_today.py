@@ -301,6 +301,35 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(body["today"]["workout"]["logged_exercises"], [])
         self.assertEqual(body["today"]["workout"]["session_type"], "push")
 
+    def test_plan_exercises_flatten_supergrok_prescription(self):
+        body = export_agent_today(
+            {
+                "workout": {"session_type": "pull", "is_rest_day": False},
+                "workout_store": {
+                    "plan": {
+                        "session_type": "pull",
+                        "exercises": [
+                            {
+                                "name": "DB Row",
+                                "prescription": {
+                                    "sets": 2,
+                                    "reps": 8,
+                                    "weight_lbs": 50,
+                                },
+                            }
+                        ],
+                    }
+                },
+                "coach": {"today": {"date": "2026-09-06"}},
+                "sessions": [],
+            }
+        )
+        row = body["today"]["workout"]["plan_exercises"][0]
+        self.assertEqual(row["name"], "DB Row")
+        self.assertEqual(row["sets"], 2)
+        self.assertEqual(row["reps"], 8)
+        self.assertEqual(row["weight_lbs"], 50)
+
     def test_logged_session_objects_flatten(self):
         session = Session(
             date="2026-08-23",
