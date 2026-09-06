@@ -117,6 +117,47 @@ class TestClassify(unittest.TestCase):
         status, reason = H.classify_status(scan, now=NOW, writer_present=True)
         self.assertEqual(status, "broken")
         self.assertEqual(reason, "invalid_grant")
+        self.assertEqual(scan.last_tick, "failure")
+
+    def test_last_tick_scan_order_beats_mixed_clocks(self):
+        # Prism: listed= is ISO UTC; failures are logging asctime (host local).
+        # 16:00Z success then a later 13:00 asctime invalid_grant must be broken
+        # even though asctime-parsed-as-UTC looks earlier than the ISO success.
+        success = (
+            "2026-09-06T16:00:00+00:00 hour0=False dry=False listed=41 "
+            "del=0 {} remain=41 add=0 skip={} quota=200"
+        )
+        fail = (
+            "2026-09-06 13:00:05,001 ERROR groom failed\n"
+            "google.auth.exceptions.RefreshError: ('invalid_grant: Token has been "
+            "expired or revoked.', {'error': 'invalid_grant'})"
+        )
+        scan = H.scan_log(_log(success, fail))
+        self.assertEqual(scan.last_tick, "failure")
+        self.assertEqual(scan.last_failure_kind, "invalid_grant")
+        self.assertLess(scan.last_failure_at, scan.last_success_at)
+        later = datetime(2026, 9, 6, 18, 0, tzinfo=timezone.utc)
+        status, reason = H.classify_status(scan, now=later, writer_present=True)
+        self.assertEqual(status, "broken")
+        self.assertEqual(reason, "invalid_grant")
+
+    def test_last_tick_later_iso_success_beats_earlier_asctime_fail(self):
+        fail = (
+            "2026-09-06 18:00:05,001 ERROR groom failed\n"
+            "google.auth.exceptions.RefreshError: ('invalid_grant: Token has been "
+            "expired or revoked.', {'error': 'invalid_grant'})"
+        )
+        success = (
+            "2026-09-06T16:30:00+00:00 hour0=False dry=False listed=28 "
+            "del=13 remain=28 add=9 skip={} quota=400"
+        )
+        scan = H.scan_log(_log(fail, success))
+        self.assertEqual(scan.last_tick, "success")
+        self.assertGreater(scan.last_failure_at, scan.last_success_at)
+        later = datetime(2026, 9, 6, 17, 0, tzinfo=timezone.utc)
+        status, reason = H.classify_status(scan, now=later, writer_present=True)
+        self.assertEqual(status, "healthy")
+        self.assertEqual(reason, "ok")
 
     def test_missing_log_skipped_off_prod(self):
         scan = H.LogScan(missing_log=True)
@@ -299,6 +340,15 @@ class TestNoChrisAndNoWriterClobber(unittest.TestCase):
         self.assertIn("FRESH_HOURS          = 168", text)
         self.assertIn("CAP                  = 200", text)
         self.assertIn("STALE_HARD_DAYS      = 7", text)
+
+    def test_board_health_json_is_durable_untracked(self):
+        marker = "ops/board/youtube_groom_health.json"
+        gi = (ROOT.parent / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn(marker, gi)
+        sync = (ROOT.parent / "deploy" / "workspace_sync.sh").read_text(encoding="utf-8")
+        self.assertGreaterEqual(sync.count(marker), 2)
+        self.assertIn("preserve_durable", sync)
+        self.assertIn("git clean -fd", sync)
 
 
 if __name__ == "__main__":

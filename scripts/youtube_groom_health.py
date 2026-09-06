@@ -121,6 +121,10 @@ class LogScan:
     last_failure_at: Optional[datetime] = None
     last_failure_kind: Optional[str] = None
     last_failure_excerpt: str = ""
+    # File append order, not wall-clock compare. Success is ISO UTC
+    # (listed= append); failures are logging asctime (host local, no TZ).
+    # Comparing those clocks on prism (America/New_York) hid last-tick auth.
+    last_tick: Optional[str] = None  # "success" | "failure"
     missing_log: bool = False
     empty_log: bool = False
 
@@ -154,11 +158,13 @@ def scan_log(text: str) -> LogScan:
         if is_success_line(line):
             scan.last_success_at = current_ts or scan.last_success_at
             scan.last_success_line = line.strip()[:240]
+            scan.last_tick = "success"
         kind = classify_failure(line)
         if kind:
             scan.last_failure_at = current_ts or scan.last_failure_at
             scan.last_failure_kind = kind
             scan.last_failure_excerpt = line.strip()[:240]
+            scan.last_tick = "failure"
     return scan
 
 
@@ -238,9 +244,10 @@ def classify_status(scan: LogScan, *, now: datetime, writer_present: bool) -> tu
         if writer_present:
             return "broken", "missing_log" if scan.missing_log else "empty_log"
         return "skipped", "no_prod_log"
-    last_fail = scan.last_failure_at
     last_ok = scan.last_success_at
-    if last_fail is not None and (last_ok is None or last_fail >= last_ok):
+    # Last-tick is scan order (later line in the file), not last_fail >= last_ok.
+    # Mixed clocks: ISO UTC success vs asctime-as-UTC would hide a later invalid_grant.
+    if scan.last_tick == "failure":
         return "broken", scan.last_failure_kind or "uncaught"
     if last_ok is None:
         return "broken", "no_success"
@@ -366,6 +373,7 @@ def health_payload(
         "checked_at": iso(now),
         "last_success_at": iso(scan.last_success_at),
         "last_failure_at": iso(scan.last_failure_at),
+        "last_tick": scan.last_tick,
         "last_failure_kind": scan.last_failure_kind,
         "last_failure_excerpt": scan.last_failure_excerpt,
         "broken_since": iso(decision.broken_since),

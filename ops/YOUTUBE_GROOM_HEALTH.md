@@ -13,6 +13,11 @@ Unhealthy when:
 - no successful `listed=` / INFO completion in that log within **2h**, or
 - last tick contains `RefreshError` / `invalid_grant` / uncaught (`groom failed` / traceback)
 
+Last tick is **scan order** (later line in `groom.log`), not a wall-clock compare.
+Success is raw ISO UTC (`listed=` append); failures are logging `asctime` (host
+local, no TZ). On prism (`America/New_York`) those clocks must not hide a later
+`invalid_grant`.
+
 Checker: `scripts/youtube_groom_health.py` (copy to Pi
 `~/.local/lib/youtube-groom/youtube_groom_health.py` — **alongside** the writer,
 never replacing it).
@@ -30,7 +35,7 @@ score with groom.log excerpts + this JSON (failed tick → alert → successful 
 |------|------|
 | **Thin #workflow message** | On **broken** transition, **recovery**, and optional **daily reminder** if still broken >24h. Mentions **Grok only**. Clock identity (`ceremony_clock.send_channel_message`). **Not** a Chris DM from the Pi. |
 | **Durable ledger (Pi)** | `~/.local/share/youtube-groom/health.json` (mode 600) |
-| **15m sweep copy** | `scripts/export-day-packets.sh` (board-day-export, 15m) runs the checker and copies the ledger to `ops/board/youtube_groom_health.json` — same tree Grok’s 15m eng-gate already reads (`ops/board/`). |
+| **15m sweep copy** | `scripts/export-day-packets.sh` (board-day-export, 15m) runs the checker and copies the ledger to `ops/board/youtube_groom_health.json` — same tree Grok’s 15m eng-gate already reads (`ops/board/`). Gitignored + `workspace_sync.sh` `git clean` / `preserve_durable` exclude (same as `day_constraints.json`) so the 15m copy is not deleted on the ~5m sync. |
 | **After each fire** | `youtube-groom.service` `ExecStopPost` (success or fail) |
 
 Dedup: one alert on broken, one on recovery; no hourly spam. Healthy ticks produce no message.

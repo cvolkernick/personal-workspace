@@ -37,6 +37,9 @@ ops/board/.day_constraints.*.tmp
 fitness/data/day_constraints.json
 fitness/data/.day_constraints.*.tmp
 
+# youtube-groom 15m health copy (Pi export; not a tracked product file)
+ops/board/youtube_groom_health.json
+
 # Local Playwright install (scratch / accidental)
 **/node_modules/
 playwright-report/
