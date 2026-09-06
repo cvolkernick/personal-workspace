@@ -251,7 +251,7 @@ def try_parse_coach_action(
         }
 
     m = re.match(
-        r"^(.+?)\s+(?:is|as)\s+(out of stock|in stock|running low|low inventory|low)\s*$",
+        r"^(.+?)\s+(?:is|as)\s+(out of stock|in stock|running low|low inventory)\s*$",
         low,
     )
     if m and _WRITE_INTENT.search(low) is None:

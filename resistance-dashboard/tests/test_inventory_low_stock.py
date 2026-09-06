@@ -215,6 +215,17 @@ class CoachParse(unittest.TestCase):
             self.assertTrue(a["in_stock"], q)
             self.assertIn("yogurt", a["id_or_name"])
 
+    def test_observational_is_low_is_not_stock(self):
+        # Bare "X is low" is Ask (protein/energy/sleep/volume), not pantry.
+        # Keep "mark yogurt low" and "yogurt is running low" as set_stock.
+        for q in (
+            "protein is low",
+            "energy is low",
+            "sleep is low",
+            "volume is low",
+        ):
+            self.assertIsNone(try_parse_coach_action(q), q)
+
     def test_mark_out_still_works(self):
         a = try_parse_coach_action("mark chicken out of stock")
         self.assertEqual(a["stock"], "out")
