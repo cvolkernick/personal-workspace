@@ -9,6 +9,10 @@
       "destination": "/api/dashboard?_r=agent_today"
     },
     {
+      "source": "/api/agent/generate-plan",
+      "destination": "/api/ask/plan?_r=agent_generate"
+    },
+    {
       "source": "/api/meal-plan/generate",
       "destination": "/api/dashboard?_r=meal_generate"
     },

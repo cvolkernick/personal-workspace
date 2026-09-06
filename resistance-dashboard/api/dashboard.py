@@ -622,7 +622,12 @@ class handler(BaseHTTPRequestHandler):
 
         payload = read_json(self)
         routed = dispatch_client_route(
-            self.headers, parsed.query, "POST", payload=payload, path=parsed.path
+            self.headers,
+            parsed.query,
+            "POST",
+            payload=payload,
+            path=parsed.path,
+            client_host=(self.client_address or ("", 0))[0],
         )
         if routed is not None:
             status, body = routed

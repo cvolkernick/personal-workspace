@@ -59,7 +59,10 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("/api/dashboard?_r=daily_tasks_complete", raw)
         self.assertIn("/api/agent/today", raw)
         self.assertIn("/api/dashboard?_r=agent_today", raw)
+        self.assertIn("/api/agent/generate-plan", raw)
+        self.assertIn("/api/ask/plan?_r=agent_generate", raw)
         self.assertNotIn("api/agent/today.py", raw)
+        self.assertNotIn("api/agent/generate-plan.py", raw)
         self.assertFalse((ROOT / "api" / "agent").exists())
         self.assertNotIn("api/workout-plan/generate.py", raw)
         self.assertNotIn("api/workouts.py", raw)
@@ -164,6 +167,16 @@ class CookieLessClientRoutes(unittest.TestCase):
                 status, body = dispatch_client_route({}, "", "GET", path=path)
                 self.assertEqual(status, 401, route)
                 self.assertEqual(body["error"], "auth_required")
+            status, body = dispatch_client_route(
+                {}, "", "GET", path="/api/agent/generate-plan"
+            )
+            self.assertEqual(status, 405)
+            self.assertEqual(body["error"], "method_not_allowed")
+            status, body = dispatch_client_route(
+                {}, "", "POST", path="/api/agent/generate-plan"
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(body["error"], "auth_required")
 
     def test_dispatch_labs_post_cookie_less_401(self):
         with mock.patch.dict(os.environ, {}, clear=True):

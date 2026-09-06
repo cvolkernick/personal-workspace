@@ -298,12 +298,9 @@ class AgentTodayHttpTests(unittest.TestCase):
                 "sleep_battery": FAKE_BATTERY,
                 "coach": {"today": {"date": "2026-08-23"}},
                 "meta": {"local_today": "2026-08-23"},
-                "workout": {
-                    "session_type": "pull",
-                    "is_rest_day": False,
-                    "exercises": [],
-                },
                 "sessions": [],
+                "workout_store": {"goals": {"rotation": ["push", "pull", "legs"]}, "plan": {}},
+                "recovery": {},
                 "health": {
                     "active_zone_minutes": [
                         {
@@ -319,6 +316,16 @@ class AgentTodayHttpTests(unittest.TestCase):
             },
         )
         self._load_patch.start()
+        # Auth tests are not the auto-gen suite — keep SuperGrok off this path.
+        self._fill_patch = mock.patch(
+            "rt_dashboard.agent_plan.stamp_and_fill_workout",
+            return_value={
+                "session_type": "pull",
+                "is_rest_day": False,
+                "exercises": [],
+            },
+        )
+        self._fill_patch.start()
         self.httpd = ThreadingHTTPServer(
             ("127.0.0.1", 0), fitdash_server.DashboardHandler
         )
@@ -329,6 +336,7 @@ class AgentTodayHttpTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.httpd.shutdown()
         self.httpd.server_close()
+        self._fill_patch.stop()
         self._load_patch.stop()
         for key, val in self._saved.items():
             if val is None:
