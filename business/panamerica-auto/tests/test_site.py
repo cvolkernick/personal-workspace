@@ -20,7 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "index.html"
 CYBERCAB = ROOT / "cybercab-fleet.html"
-HERO_IMG = ROOT / "static" / "img" / "swfl-cybercab-hero.jpg"
+HERO_IMG = ROOT / "static" / "img" / "tesla-cybercab-hero.jpg"
+HERO_CREDITS = ROOT / "static" / "img" / "CREDITS.md"
 CSS = ROOT / "static" / "styles.css"
 JS = ROOT / "static" / "app.js"
 SERVER = ROOT / "server.py"
@@ -65,7 +66,7 @@ class PanamericaAutoSiteTests(unittest.TestCase):
         self.html = INDEX.read_text(encoding="utf-8")
 
     def test_project_files_exist(self) -> None:
-        for path in (INDEX, CYBERCAB, HERO_IMG, CSS, JS, SERVER, README):
+        for path in (INDEX, CYBERCAB, HERO_IMG, HERO_CREDITS, CSS, JS, SERVER, README):
             self.assertTrue(path.is_file(), f"missing {path.relative_to(ROOT)}")
 
     def test_homepage_links_cybercab_demo(self) -> None:
@@ -264,8 +265,21 @@ class PanamericaCybercabDemoTests(unittest.TestCase):
         self.assertIn('id="interest-form"', self.html)
         for field in ("inv-name", "inv-email", "inv-role", "inv-size", "inv-message", "inv-accredited", "inv-ack"):
             self.assertIn(f'id="{field}"', self.html)
-        self.assertIn('src="static/img/swfl-cybercab-hero.jpg"', self.html)
+        self.assertIn('src="static/img/tesla-cybercab-hero.jpg"', self.html)
         self.assertGreater(HERO_IMG.stat().st_size, 10_000)
+        self.assertNotIn("swfl-cybercab-hero.jpg", self.html)
+        self.assertNotIn("illustrative concept", self.html.lower())
+        self.assertNotIn("not tesla photography", self.html.lower())
+
+    def test_hero_photo_is_credited_wikimedia(self) -> None:
+        lowered = self.html.lower()
+        self.assertIn("cc by 4.0", lowered)
+        self.assertIn("wikimedia commons", lowered)
+        self.assertIn("not affiliated with tesla", lowered)
+        credits = HERO_CREDITS.read_text(encoding="utf-8").lower()
+        self.assertIn("wikimedia", credits)
+        self.assertIn("cc by 4.0", credits)
+        self.assertIn("9yz", credits)
 
     def test_js_binds_interest_form(self) -> None:
         js = JS.read_text(encoding="utf-8")
