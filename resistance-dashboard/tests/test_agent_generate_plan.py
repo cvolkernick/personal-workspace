@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import threading
@@ -303,6 +304,45 @@ class AgentGenerateHttp(unittest.TestCase):
         self.assertEqual(today["today"]["workout"]["plan_exercises"][0]["weight_lbs"], 50)
         self.assertFalse(today["today"]["workout"]["empty"])
 
+    def test_empty_overlay_beats_canned_coach_lifts(self):
+        canned = {
+            "coach": {
+                "today": {
+                    "date": "2026-09-06",
+                    "workout": {
+                        "session_type": "push",
+                        "exercises": [{"name": "Canned Bench"}],
+                    },
+                }
+            }
+        }
+        fail_loud = overlay_workout_on_payload(
+            copy.deepcopy(canned),
+            {
+                "session_type": "push",
+                "is_rest_day": False,
+                "exercises": [],
+                "empty": True,
+                "generate_error": "Connect SuperGrok to generate today's meal/workout plan.",
+            },
+        )
+        wo = export_agent_today(fail_loud)["today"]["workout"]
+        self.assertEqual(wo.get("plan_exercises") or [], [])
+        self.assertIn("Connect SuperGrok", wo.get("generate_error") or "")
+        self.assertNotIn(
+            "Canned Bench",
+            [ex.get("name") for ex in wo.get("plan_exercises") or []],
+        )
+
+        rest = overlay_workout_on_payload(copy.deepcopy(canned), dict(REST_STAMP))
+        rest_wo = export_agent_today(rest)["today"]["workout"]
+        self.assertTrue(rest_wo["is_rest_day"])
+        self.assertEqual(rest_wo.get("plan_exercises") or [], [])
+        self.assertNotIn(
+            "Canned Bench",
+            [ex.get("name") for ex in rest_wo.get("plan_exercises") or []],
+        )
+
     def test_signed_in_still_works(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True):
@@ -551,9 +591,18 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
             "next_session_type": "pull",
         }
         # Real load_dashboard_data shape: sessions + workout_store.plan/goals,
-        # never a top-level workout key.
+        # never a top-level workout key. Coach still carries the local planner
+        # list — empty overlay must not leak those lifts.
         self._dash = {
-            "coach": {"today": {"date": "2026-09-06"}},
+            "coach": {
+                "today": {
+                    "date": "2026-09-06",
+                    "workout": {
+                        "session_type": "push",
+                        "exercises": [{"name": "Canned Bench"}],
+                    },
+                }
+            },
             "meta": {"local_today": "2026-09-06"},
             "sessions": [],
             "workout_store": {
@@ -566,7 +615,9 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
 
         self._server = fitdash_server
         self._load_patch = mock.patch.object(
-            fitdash_server, "load_dashboard_data", return_value=self._dash
+            fitdash_server,
+            "load_dashboard_data",
+            side_effect=lambda *a, **kw: copy.deepcopy(self._dash),
         )
         self._load_patch.start()
         self._slots_patch = mock.patch(
@@ -705,6 +756,10 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         wo = body["today"]["workout"]
         self.assertTrue(wo["is_rest_day"])
         self.assertEqual(wo.get("plan_exercises") or [], [])
+        self.assertNotIn(
+            "Canned Bench",
+            [ex.get("name") for ex in wo.get("plan_exercises") or []],
+        )
 
     def test_fail_loud_no_invented_list(self):
         clear_memory_workout_plans()
@@ -725,6 +780,10 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         self.assertEqual(status, 200)
         wo = body["today"]["workout"]
         self.assertEqual(wo.get("plan_exercises") or [], [])
+        self.assertNotIn(
+            "Canned Bench",
+            [ex.get("name") for ex in wo.get("plan_exercises") or []],
+        )
         self.assertIn(
             "Connect SuperGrok", wo.get("generate_error") or wo.get("message") or ""
         )

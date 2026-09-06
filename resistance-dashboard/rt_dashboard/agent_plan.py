@@ -37,7 +37,10 @@ def house_plan_user_id() -> str:
 
 
 def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
-    """Copy SuperGrok exercises onto dashboard-shaped workout + store.plan."""
+    """Copy SuperGrok exercises onto workout, store.plan, and coach.today.workout.
+
+    Empty lists stay authoritative so canned local-planner lifts cannot leak.
+    """
     if not isinstance(payload, dict) or not isinstance(plan, dict):
         return payload
     exercises = flatten_plan_exercises(plan.get("exercises"))
@@ -72,6 +75,11 @@ def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
         store_plan.pop("generate_error", None)
     store["plan"] = store_plan
     payload["workout_store"] = store
+    coach = dict(payload.get("coach") or {})
+    today = dict(coach.get("today") or {})
+    today["workout"] = dict(slot)
+    coach["today"] = today
+    payload["coach"] = coach
     return payload
 
 

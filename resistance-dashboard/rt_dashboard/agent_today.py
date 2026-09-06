@@ -286,7 +286,15 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         or _ppl_letter(_as_dict(slot.get("context")).get("next_session_type"))
     )
 
-    plan_src = plan.get("exercises") or slot.get("exercises") or coach_wo.get("exercises") or []
+    # Empty overlay is authoritative. `[]` is falsy, so `or` would leak canned
+    # coach.today.workout.exercises (local generate_workout_plan) onto fail-loud
+    # and rest days.
+    if "exercises" in plan:
+        plan_src = plan.get("exercises") or []
+    elif "exercises" in slot:
+        plan_src = slot.get("exercises") or []
+    else:
+        plan_src = coach_wo.get("exercises") or []
     plan_exercises: List[Dict[str, Any]] = []
     for ex in plan_src:
         row = _plan_exercise_row(ex)

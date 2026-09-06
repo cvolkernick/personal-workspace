@@ -290,6 +290,41 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(wo["logged_exercises"], [])
         self.assertFalse(wo["empty"])
 
+    def test_empty_plan_exercises_do_not_fall_through_to_coach(self):
+        body = export_agent_today(
+            {
+                "workout": {
+                    "session_type": "push",
+                    "is_rest_day": False,
+                    "exercises": [],
+                    "generate_error": "Connect SuperGrok",
+                },
+                "workout_store": {
+                    "plan": {
+                        "session_type": "push",
+                        "is_rest_day": False,
+                        "exercises": [],
+                    }
+                },
+                "coach": {
+                    "today": {
+                        "date": "2026-09-06",
+                        "workout": {
+                            "session_type": "push",
+                            "exercises": [{"name": "Canned Bench"}],
+                        },
+                    }
+                },
+                "sessions": [],
+            }
+        )
+        wo = body["today"]["workout"]
+        self.assertEqual(wo["plan_exercises"], [])
+        self.assertNotIn(
+            "Canned Bench", [ex.get("name") for ex in wo["plan_exercises"]]
+        )
+        self.assertIn("Connect SuperGrok", wo.get("generate_error") or "")
+
     def test_does_not_invent_logged_session(self):
         body = export_agent_today(
             {
