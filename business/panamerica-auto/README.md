@@ -80,6 +80,7 @@ Manual checklist:
 - Interest form only (client-side, same pattern as contact)
 - Unit economics from `~/Projects/tesla-robotaxi-pitch` shown as a range; **base case does not beat Turo**
 - Tesla’s form is [tesla.com/robotaxi/interest](https://www.tesla.com/robotaxi/interest) (theirs)
+- Hero is a real Cybercab photograph (Wikimedia Commons, CC BY 4.0); credit in the figcaption and `static/img/CREDITS.md`
 
 Do **not** deploy to the Pi (`:8795`) until Chris explicitly says so. The DEMO banner and noindex stay if it does ship.
 
@@ -96,7 +97,8 @@ business/panamerica-auto/
   static/
     styles.css
     app.js
-    img/swfl-cybercab-hero.jpg
+    img/tesla-cybercab-hero.jpg
+    img/CREDITS.md
   tests/
     test_site.py
   deploy/
