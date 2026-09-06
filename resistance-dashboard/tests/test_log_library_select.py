@@ -68,11 +68,14 @@ class LogLibrarySelect(unittest.TestCase):
         self.assertNotIn("e.g. DB Flat Press", log)
 
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v80"', SW)
-        self.assertIn("/app.js?v=log-lib-select-1", HTML)
-        self.assertIn("/app.js?v=log-lib-select-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v81"', SW)
+        self.assertIn("/app.js?v=restock-stock-1", HTML)
+        self.assertIn("/app.js?v=restock-stock-1", SW)
+        self.assertNotIn("/app.js?v=log-lib-select-1", HTML)
+        self.assertNotIn("/app.js?v=log-lib-select-1", SW)
         self.assertNotIn("/app.js?v=ask-429-1", HTML)
         self.assertNotIn("/app.js?v=ask-429-1", SW)
+        self.assertNotIn("fitdash-shell-v80", SW)
         self.assertNotIn("fitdash-shell-v79", SW)
 
 

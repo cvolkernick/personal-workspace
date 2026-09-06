@@ -50,6 +50,7 @@ class LogThisPlanRemoved(unittest.TestCase):
             "def inventory_write", 1
         )[0]
         self.assertIn("attach_lift_quest_log", complete)
+        self.assertIn("attach_shopping_quest_stock", complete)
         self.assertIn("complete_leaf", complete)
 
     def test_coach_brief_does_not_name_removed_button(self):

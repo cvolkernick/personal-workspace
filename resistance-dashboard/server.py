@@ -2011,6 +2011,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     else bool(sibling_all_done),
                 )
                 if result.get("ok"):
+                    from rt_dashboard.quest_inventory_stock import (
+                        attach_shopping_quest_stock,
+                    )
                     from rt_dashboard.quest_workout_log import (
                         attach_lift_quest_log,
                         quest_log_context,
@@ -2033,6 +2036,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         sessions=sessions,
                         today=day,
                         today_workout=today_workout,
+                    )
+                    result = attach_shopping_quest_stock(
+                        result,
+                        body,
+                        bool(completed),
+                        user_id=str(uid),
                     )
                 status = 200 if result.get("ok") else 400
                 self._send_json(result, status=status)
