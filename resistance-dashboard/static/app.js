@@ -4817,7 +4817,11 @@
         return;
       }
       const log = data.workout_log || {};
+      const stock = data.inventory_stock || {};
       patchLocalQuestCompleted(taskId, wantCompleted);
+      if (wantCompleted && stock.wrote && stock.inventory) {
+        applyInventoryUpdate(stock.inventory);
+      }
       if (wantCompleted) {
         btn.classList.add("is-done");
         btn.setAttribute("aria-pressed", "true");
@@ -4840,6 +4844,20 @@
             );
           }
         } else {
+          if (
+            stock.ok === false ||
+            (stock.reason &&
+              !stock.wrote &&
+              stock.action !== "dedupe" &&
+              stock.action !== "ignore")
+          ) {
+            showAlert(
+              stock.error ||
+                stock.reason ||
+                "Quest checked, but pantry was not updated",
+              "warn"
+            );
+          }
           btn.removeAttribute("aria-busy");
           setTimeout(() => {
             btn.remove();

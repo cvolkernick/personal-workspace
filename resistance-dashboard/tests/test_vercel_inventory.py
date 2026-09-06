@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class BundledInventoryFile(unittest.TestCase):
     def test_repo_file_has_15_real_ingredients(self):
         raw = json.loads(REPO_INV.read_text(encoding="utf-8"))
-        self.assertEqual(raw["updated_at"], "2026-08-12")
+        self.assertEqual(raw["updated_at"], "2026-09-06")
         ings = raw["ingredients"]
         self.assertEqual(len(ings), 15)
         names = [i["name"] for i in ings]

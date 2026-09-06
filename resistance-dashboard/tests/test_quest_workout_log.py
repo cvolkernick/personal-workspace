@@ -782,6 +782,7 @@ class Wiring(unittest.TestCase):
             "def inventory_write", 1
         )[0]
         self.assertIn("attach_lift_quest_log", complete)
+        self.assertIn("attach_shopping_quest_stock", complete)
         self.assertIn("complete_leaf", complete)
         self.assertNotIn("preview_read_only", complete)
 

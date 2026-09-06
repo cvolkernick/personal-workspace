@@ -288,6 +288,44 @@ async function click(btn) {
   assert(fetches.length === 0, "done meal card does not POST uncheck");
 
   fetches.length = 0;
+  let appliedInventory = null;
+  global.applyInventoryUpdate = (inv) => {
+    appliedInventory = inv;
+  };
+  global.fetch = async (url, opts) => {
+    fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        inventory_stock: {
+          ok: true,
+          wrote: true,
+          action: "restock",
+          id: "sweet-potato",
+          inventory: {
+            ingredients: [{ id: "sweet-potato", name: "Sweet potato", in_stock: true }],
+          },
+        },
+      }),
+    };
+  };
+  const shop = makeBtn({
+    taskId: "t-shop",
+    listId: "L1",
+    group: "shopping",
+    title: "Restock: Sweet potato",
+    slug: "buy-sweet-potato",
+  });
+  await click(shop);
+  assert(fetches.length === 1, "shopping leaf POSTs complete");
+  const shopBody = JSON.parse(fetches[0].body);
+  assert(shopBody.group === "shopping", "shopping complete sends group");
+  assert(shopBody.slug === "buy-sweet-potato", "shopping complete sends slug");
+  assert(appliedInventory && appliedInventory.ingredients[0].in_stock === true, "Kitchen inventory updates on restock complete");
+
+  fetches.length = 0;
   let alerted = "";
   global.showAlert = (msg) => {
     alerted = String(msg || "");
