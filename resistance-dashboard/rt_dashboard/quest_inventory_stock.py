@@ -1,9 +1,10 @@
 """Quest complete → pantry in_stock for shopping / restock leaves.
 
 Checking off a Restock/Get/Add shopping quest marks the matching
-existing ingredient in stock. Uncheck does not mark it out. Unknown
-foods are not invented. Non-shopping quests are ignored. Quest complete
-stays 200 even if the pantry write fails.
+existing ingredient in stock. If it is not in the pantry yet (Get from
+food logs or a catalog gap), add it in stock. Uncheck does not mark it
+out. Non-shopping quests are ignored. Quest complete stays 200 even if
+the pantry write fails.
 """
 
 from __future__ import annotations
@@ -12,9 +13,24 @@ import re
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from .inventory_store import INVENTORY_ROW_DEFAULT, load_preview_inventory, save_preview_inventory
-from .nutrition_planner import _names_overlap, set_in_stock
+from .nutrition_planner import (
+    STAPLE_CATALOG,
+    _names_overlap,
+    _slug,
+    add_ingredient,
+    set_in_stock,
+)
 
 SHOPPING_GROUPS = frozenset({"shopping", "shop"})
+GENERIC_SHOP_NAMES = frozenset(
+    {
+        "high-protein staples",
+        "pantry staples",
+        "staples",
+        "groceries",
+        "shopping",
+    }
+)
 _SHOP_TITLE = re.compile(
     r"^(?:Restock|Get|Add):?\s+(.+?)(?:\s+[—-]\s+.+)?$",
     re.I,
@@ -92,6 +108,57 @@ def match_inventory_ingredient(
     return None
 
 
+def _catalog_staple(name: str, iid: str = "") -> Optional[dict]:
+    want_id = str(iid or "").strip().lower()
+    want_name = str(name or "").strip()
+    for staple in STAPLE_CATALOG:
+        if not isinstance(staple, dict):
+            continue
+        sid = str(staple.get("id") or "").strip().lower()
+        sname = str(staple.get("name") or "")
+        if want_id and sid == want_id:
+            return staple
+        if want_name and _names_overlap(sname, want_name):
+            return staple
+        if want_id and _names_overlap(_words(sid), _words(want_id)):
+            return staple
+    return None
+
+
+def new_ingredient_from_quest(name: str, iid: str = "") -> Optional[dict]:
+    """Payload for a pantry row that did not exist yet. Catalog first."""
+    label = str(name or "").strip()
+    want_id = str(iid or "").strip().lower()
+    if not label and not want_id:
+        return None
+    if (label or "").strip().lower() in GENERIC_SHOP_NAMES:
+        return None
+    if want_id.replace("-", " ") in GENERIC_SHOP_NAMES:
+        return None
+    staple = _catalog_staple(label, want_id)
+    if staple:
+        out = dict(staple)
+        out["in_stock"] = True
+        if label and not out.get("name"):
+            out["name"] = label
+        return out
+    if not label:
+        return None
+    return {
+        "id": want_id or _slug(label),
+        "name": label,
+        "category": "other",
+        "serving_g": 100,
+        "serving_label": "100g",
+        "calories": 0,
+        "protein_g": 0,
+        "carbs_g": 0,
+        "fat_g": 0,
+        "in_stock": True,
+        "notes": "Added from shopping quest complete.",
+    }
+
+
 def apply_shopping_quest_stock(
     *,
     completed: bool,
@@ -123,11 +190,20 @@ def apply_shopping_quest_stock(
     current = inventory if isinstance(inventory, dict) else {"ingredients": []}
     match = match_inventory_ingredient(current, name, iid)
     if not match:
-        info["ok"] = False
-        info["action"] = "skip"
-        info["reason"] = "not_found"
-        info["name"] = name or iid
-        return None, info
+        payload = new_ingredient_from_quest(name, iid)
+        if not payload:
+            info["ok"] = False
+            info["action"] = "skip"
+            info["reason"] = "not_found"
+            info["name"] = name or iid
+            return None, info
+        updated = add_ingredient(current, payload)
+        info["action"] = "add"
+        info["wrote"] = True
+        info["in_stock"] = True
+        info["id"] = str(payload.get("id") or "")
+        info["name"] = str(payload.get("name") or name)
+        return updated, info
 
     mid = str(match.get("id") or "").strip()
     info["id"] = mid
