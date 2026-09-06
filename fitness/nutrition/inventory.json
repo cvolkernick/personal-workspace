@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-08-12",
+  "updated_at": "2026-09-06",
   "notes": "Curated pantry/fridge inventory. Macros are per serving_g (weigh on food scale). serving_label is the display string (prefer grams).",
   "ingredients": [
     {
@@ -84,7 +84,7 @@
       "protein_g": 4,
       "carbs_g": 11,
       "fat_g": 0,
-      "in_stock": false
+      "in_stock": true
     },
     {
       "id": "oats",
