@@ -136,7 +136,7 @@ class ApplyStock(unittest.TestCase):
         self.assertEqual(info["reason"], "uncheck_noop")
         self.assertTrue(inv["ingredients"][0]["in_stock"])
 
-    def test_unknown_food_is_not_invented(self):
+    def test_missing_logged_food_is_added_in_stock(self):
         inv = _pantry(("broccoli", "Broccoli", False))
         updated, info = apply_shopping_quest_stock(
             completed=True,
@@ -145,9 +145,40 @@ class ApplyStock(unittest.TestCase):
             slug="buy-roasted-almonds-with-sea-salt",
             inventory=inv,
         )
+        self.assertEqual(info["action"], "add")
+        self.assertTrue(info["wrote"])
+        almonds = next(
+            i for i in updated["ingredients"] if i["id"] == "roasted-almonds-with-sea-salt"
+        )
+        self.assertTrue(almonds["in_stock"])
+        self.assertEqual(almonds["name"], "Roasted Almonds with Sea Salt")
+        self.assertEqual(len(inv["ingredients"]), 1)
+
+    def test_catalog_gap_uses_staple_macros(self):
+        inv = {"ingredients": []}
+        updated, info = apply_shopping_quest_stock(
+            completed=True,
+            group="shopping",
+            title="Get: Whey protein",
+            slug="buy-whey-protein",
+            inventory=inv,
+        )
+        self.assertEqual(info["action"], "add")
+        row = next(i for i in updated["ingredients"] if i["id"] == "whey-protein")
+        self.assertTrue(row["in_stock"])
+        self.assertGreater(row["protein_g"], 0)
+
+    def test_generic_staples_prompt_is_not_added(self):
+        inv = {"ingredients": []}
+        updated, info = apply_shopping_quest_stock(
+            completed=True,
+            group="shopping",
+            title="Get: High-protein staples",
+            slug="buy-high-protein-staples",
+            inventory=inv,
+        )
         self.assertIsNone(updated)
         self.assertEqual(info["reason"], "not_found")
-        self.assertEqual(len(inv["ingredients"]), 1)
 
     def test_meal_ignored(self):
         inv = _pantry(("oats", "Oats", False))
@@ -257,6 +288,46 @@ class CompleteRoute(unittest.TestCase):
         self.assertTrue(body["ok"])
         self.assertTrue(body["inventory_stock"]["wrote"])
         self.assertEqual(body["inventory_stock"]["action"], "restock")
+        self.assertTrue(pantry["ingredients"][0]["in_stock"])
+
+    def test_shopping_complete_adds_missing_food(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        pantry = {"ingredients": []}
+
+        def load(_uid):
+            return pantry, "turso"
+
+        def save(inv, uid):
+            self.assertEqual(uid, "sub-1")
+            pantry["ingredients"] = inv["ingredients"]
+            return inv
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.daily_plan_tasks.complete_leaf",
+                return_value={"ok": True, "task": {"id": "t-shop"}},
+            ), mock.patch(
+                "rt_dashboard.quest_inventory_stock.load_preview_inventory",
+                load,
+            ), mock.patch(
+                "rt_dashboard.quest_inventory_stock.save_preview_inventory",
+                save,
+            ):
+                status, body = daily_tasks_complete_body(
+                    _headers(),
+                    {
+                        "list_id": "L1",
+                        "task_id": "t-shop",
+                        "completed": True,
+                        "group": "shopping",
+                        "title": "Get: Roasted Almonds with Sea Salt",
+                        "slug": "buy-roasted-almonds-with-sea-salt",
+                    },
+                )
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["inventory_stock"]["action"], "add")
+        self.assertTrue(body["inventory_stock"]["wrote"])
+        self.assertEqual(len(pantry["ingredients"]), 1)
         self.assertTrue(pantry["ingredients"][0]["in_stock"])
 
     def test_uncheck_shopping_does_not_mark_out(self):
