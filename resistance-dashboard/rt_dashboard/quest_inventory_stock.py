@@ -15,9 +15,11 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from .inventory_store import INVENTORY_ROW_DEFAULT, load_preview_inventory, save_preview_inventory
 from .nutrition_planner import (
     STAPLE_CATALOG,
+    STOCK_IN,
     _names_overlap,
     _slug,
     add_ingredient,
+    normalize_stock,
     set_in_stock,
 )
 
@@ -208,7 +210,7 @@ def apply_shopping_quest_stock(
     mid = str(match.get("id") or "").strip()
     info["id"] = mid
     info["name"] = str(match.get("name") or name)
-    if match.get("in_stock", True):
+    if normalize_stock(match) == STOCK_IN:
         info["action"] = "dedupe"
         info["reason"] = "already_in_stock"
         return None, info

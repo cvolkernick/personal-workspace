@@ -389,6 +389,86 @@ def _pick_continuous_portion(
     return (1.0, None)
 
 
+STOCK_IN = "in"
+STOCK_LOW = "low"
+STOCK_OUT = "out"
+VALID_STOCK = frozenset({STOCK_IN, STOCK_LOW, STOCK_OUT})
+
+
+def normalize_stock(raw: Any) -> str:
+    """Resolve pantry stock to in|low|out.
+
+    Compat: missing/`true` → in; `false`/`0` → out. Explicit ``stock`` wins
+    when it is one of in|low|out. Derived ``in_stock = (stock != out)``.
+    """
+    if not isinstance(raw, dict):
+        if raw is False or raw == 0:
+            return STOCK_OUT
+        if isinstance(raw, str):
+            t = raw.strip().lower()
+            if t in VALID_STOCK:
+                return t
+            if t in ("0", "false", "no", "off"):
+                return STOCK_OUT
+        return STOCK_IN
+    if "stock" in raw:
+        s = str(raw.get("stock") or "").strip().lower()
+        if s in VALID_STOCK:
+            return s
+    if "in_stock" not in raw:
+        return STOCK_IN
+    v = raw.get("in_stock")
+    if isinstance(v, str):
+        t = v.strip().lower()
+        if t in VALID_STOCK:
+            return t
+        if t in ("1", "true", "yes", "on"):
+            return STOCK_IN
+        if t in ("0", "false", "no", "off"):
+            return STOCK_OUT
+        return STOCK_IN
+    if v is False or v == 0:
+        return STOCK_OUT
+    return STOCK_IN
+
+
+def is_in_stock(raw: dict) -> bool:
+    """True when the item can be used in meals (in or low). Out is excluded."""
+    if not isinstance(raw, dict):
+        return False
+    return normalize_stock(raw) != STOCK_OUT
+
+
+def needs_restock(raw: dict) -> bool:
+    """True when Restock/Get shopping should include this item (low or out)."""
+    if not isinstance(raw, dict):
+        return False
+    return normalize_stock(raw) in (STOCK_LOW, STOCK_OUT)
+
+
+def stock_from_write_payload(payload: Optional[dict]) -> str:
+    """POST /api/inventory/stock body → in|low|out.
+
+    ``stock`` wins when present and non-empty. Bool ``in_stock`` maps in/out
+    for the agent token path. Missing both → in.
+    """
+    body = payload if isinstance(payload, dict) else {}
+    if "stock" in body and body.get("stock") is not None and str(body.get("stock")).strip() != "":
+        s = str(body.get("stock")).strip().lower()
+        if s not in VALID_STOCK:
+            raise ValueError("stock must be in, low, or out")
+        return s
+    v = body.get("in_stock", True)
+    if isinstance(v, str):
+        t = v.strip().lower()
+        if t in VALID_STOCK:
+            return t
+        if t in ("0", "false", "no", "off"):
+            return STOCK_OUT
+        return STOCK_IN
+    return STOCK_IN if bool(v) else STOCK_OUT
+
+
 def normalize_ingredient(raw: dict) -> dict:
     name = str(raw.get("name") or "").strip()
     if not name:
@@ -432,32 +512,18 @@ def normalize_ingredient(raw: dict) -> dict:
         "protein_g": float(raw.get("protein_g") or 0),
         "carbs_g": float(raw.get("carbs_g") or 0),
         "fat_g": float(raw.get("fat_g") or 0),
-        "in_stock": bool(raw.get("in_stock", True)),
         "notes": str(raw.get("notes") or ""),
     }
+    stock = normalize_stock(raw)
+    out["stock"] = stock
+    out["in_stock"] = stock != STOCK_OUT
     if serving_g is not None:
         out["serving_g"] = float(serving_g)
     return out
 
 
-def is_in_stock(raw: dict) -> bool:
-    """True only when ingredient is actively marked in stock.
-
-    Missing key defaults to True for legacy rows; explicit false/0/\"false\"
-    are always out of stock.
-    """
-    if not isinstance(raw, dict):
-        return False
-    if "in_stock" not in raw:
-        return True
-    v = raw.get("in_stock")
-    if isinstance(v, str):
-        return v.strip().lower() in ("1", "true", "yes", "on")
-    return bool(v)
-
-
 def stocked_ingredients(inventory: dict) -> List[dict]:
-    """Return only ingredients currently marked in stock (for meal plans)."""
+    """Return ingredients usable in meals (in or low; not out)."""
     return [
         normalize_ingredient(i)
         for i in inventory.get("ingredients") or []
@@ -1508,19 +1574,32 @@ def remove_ingredient(inventory: dict, ingredient_id: str = "", name: str = "") 
     return inv
 
 
-def set_in_stock(inventory: dict, ingredient_id: str, in_stock: bool) -> dict:
+def set_stock(inventory: dict, ingredient_id: str, stock: str) -> dict:
+    s = str(stock or "").strip().lower()
+    if s not in VALID_STOCK:
+        raise ValueError("stock must be in, low, or out")
     inv = deepcopy(inventory) if inventory else {"ingredients": []}
     found = False
     want = str(ingredient_id or "").strip().lower()
     for existing in inv.get("ingredients") or []:
         if str(existing.get("id") or "").strip().lower() == want:
-            existing["in_stock"] = bool(in_stock)
+            existing["stock"] = s
+            existing["in_stock"] = s != STOCK_OUT
             found = True
             break
     if not found:
         raise ValueError("ingredient not found")
     inv["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return inv
+
+
+def set_in_stock(inventory: dict, ingredient_id: str, in_stock: bool) -> dict:
+    """Bool path: True → in, False → out. Agent token and quest complete use this."""
+    return set_stock(
+        inventory,
+        ingredient_id,
+        STOCK_IN if in_stock else STOCK_OUT,
+    )
 
 
 def update_ingredient(inventory: dict, raw: dict) -> dict:
@@ -1554,9 +1633,20 @@ def update_ingredient(inventory: dict, raw: dict) -> dict:
         "protein_g": raw.get("protein_g", existing.get("protein_g")),
         "carbs_g": raw.get("carbs_g", existing.get("carbs_g")),
         "fat_g": raw.get("fat_g", existing.get("fat_g")),
-        "in_stock": raw.get("in_stock", existing.get("in_stock", True)),
         "notes": raw.get("notes", existing.get("notes", "")),
     }
+    if "stock" in raw and raw.get("stock") is not None and str(raw.get("stock")).strip() != "":
+        overlay["stock"] = raw.get("stock")
+        if "in_stock" in raw:
+            overlay["in_stock"] = raw.get("in_stock")
+        else:
+            overlay["in_stock"] = existing.get("in_stock", True)
+    elif "in_stock" in raw:
+        overlay["in_stock"] = raw.get("in_stock")
+    else:
+        overlay["in_stock"] = existing.get("in_stock", True)
+        if existing.get("stock"):
+            overlay["stock"] = existing.get("stock")
     if "serving_g" in raw:
         overlay["serving_g"] = raw.get("serving_g")
     elif existing.get("serving_g") is not None:
@@ -1838,15 +1928,26 @@ def suggest_inventory_staples(
         suggestions.append(item)
 
     ingredients = [normalize_ingredient(i) for i in (inventory.get("ingredients") or [])]
-    stocked = [i for i in ingredients if i.get("in_stock", True)]
-    out_of_stock = [i for i in ingredients if not i.get("in_stock", True)]
+    stocked = [i for i in ingredients if is_in_stock(i)]
+    restock_needed = [i for i in ingredients if needs_restock(i)]
 
-    # --- 1) Restock out-of-stock items (always high priority — already in your list) ---
-    for ing in out_of_stock:
+    # --- 1) Restock low + out items (not `not in_stock` — low is still cookable) ---
+    for ing in restock_needed:
         dens = _protein_density(ing)
+        low = normalize_stock(ing) == STOCK_LOW
         # Base high so restocks beat net-new catalog noise
         score = 75.0 + dens * 80.0
-        if dens >= 0.08:
+        if low:
+            if dens >= 0.08:
+                reason = "Running low and high protein density — restock before empty."
+                score += 18
+            elif (ing.get("category") or "") == "veg":
+                reason = "Running low on veg — restock for volume/fiber."
+                score += 10
+            else:
+                reason = "Running low — restock before empty."
+                score += 8
+        elif dens >= 0.08:
             reason = "Out of stock and high protein density — restock for meal plans."
             score += 20
         elif (ing.get("category") or "") == "veg":
@@ -1899,7 +2000,7 @@ def suggest_inventory_staples(
         if st["count"] < 2:
             continue
         match = _find_inventory_match(inventory or {}, name)
-        if match and match.get("in_stock", True):
+        if match and normalize_stock(match) == STOCK_IN:
             continue
         n = max(1, st["count"])
         avg = {
@@ -1910,12 +2011,18 @@ def suggest_inventory_staples(
         }
         dens = avg["protein_g"] / (avg["calories"] or 1)
         cat = "protein" if dens >= 0.08 else ("fat" if avg["fat_g"] > avg["carbs_g"] and dens < 0.04 else "carb")
-        if match and not match.get("in_stock", True):
+        if match and needs_restock(match):
+            low = normalize_stock(match) == STOCK_LOW
+            reason = (
+                f"Logged {st['count']}× recently and running low."
+                if low
+                else f"Logged {st['count']}× recently and currently out of stock."
+            )
             _push(
                 {
                     **normalize_ingredient(match),
                     "action": "restock",
-                    "reason": f"Logged {st['count']}× recently and currently out of stock.",
+                    "reason": reason,
                     "score": round(50 + st["count"] * 8 + dens * 40, 1),
                     "source": "food_logs",
                 }
@@ -1946,14 +2053,18 @@ def suggest_inventory_staples(
         match = _find_inventory_match(
             inventory or {}, staple["name"], str(staple.get("id") or "")
         )
-        if match and match.get("in_stock", True):
+        if match and normalize_stock(match) == STOCK_IN:
             continue
         dens = _protein_density(staple)
         score = 20.0 + dens * 60.0
         reasons = []
-        if match and not match.get("in_stock", True):
+        if match and needs_restock(match):
             action = "restock"
-            reasons.append("Catalog staple currently out of stock.")
+            reasons.append(
+                "Catalog staple currently low."
+                if normalize_stock(match) == STOCK_LOW
+                else "Catalog staple currently out of stock."
+            )
             score += 25
             payload = {**normalize_ingredient(match)}
         else:

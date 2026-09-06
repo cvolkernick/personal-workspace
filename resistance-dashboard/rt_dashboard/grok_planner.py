@@ -306,13 +306,15 @@ def generate_grok_plans(
                 "protein_g": i.get("protein_g"),
                 "carbs_g": i.get("carbs_g"),
                 "fat_g": i.get("fat_g"),
+                "stock": i.get("stock") or "in",
                 "in_stock": True,
             }
             for i in stocked
         ]
         user_block["notes"] = (
             "Meal plan is IN-STOCK ONLY. Use only inventory items listed "
-            "(in_stock=true). Do not invent pantry items or off-stock staples. "
+            "(stock in or low; in_stock=true). Do not invent pantry items "
+            "or out-of-stock staples. Low items are still cookable. "
             "When serving_g is known, pick continuous portion_g (25g, 250g, 500g) "
             "— do not lock to whole inventory servings. Macros = "
             "(portion_g / serving_g) × per-serving macros. Round grams ~5g, "

@@ -1937,6 +1937,10 @@ footer {
   border-style: dashed;
 }
 
+.inv-card.low {
+  border-color: rgba(232, 176, 64, 0.55);
+}
+
 .inv-card.suggest {
   border-left: 3px solid var(--accent-2);
 }
@@ -1983,6 +1987,39 @@ footer {
 .inv-out-badge {
   color: var(--danger);
   font-weight: 600;
+}
+
+.inv-low-badge {
+  color: #d4a017;
+  font-weight: 600;
+}
+
+.inv-stock-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.inv-stock-opt {
+  border: 0 !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0.35rem 0.65rem !important;
+  font-size: 0.78rem !important;
+  background: transparent;
+  color: var(--muted);
+}
+
+.inv-stock-opt + .inv-stock-opt {
+  border-left: 1px solid var(--border) !important;
+}
+
+.inv-stock-opt.on {
+  background: var(--accent-2);
+  color: var(--bg);
+  font-weight: 700;
 }
 
 .inv-action-badge {

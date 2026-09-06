@@ -304,6 +304,8 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
     nut = dashboard.get("nutrition_store") or {}
     inventory = nut.get("inventory") or {}
     ingredients = inventory.get("ingredients") if isinstance(inventory, dict) else []
+    from .nutrition_planner import is_in_stock, normalize_stock
+
     stocked = [
         {
             "id": i.get("id"),
@@ -315,10 +317,11 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
             "protein_g": i.get("protein_g"),
             "carbs_g": i.get("carbs_g"),
             "fat_g": i.get("fat_g"),
-            "in_stock": i.get("in_stock", True),
+            "stock": normalize_stock(i),
+            "in_stock": True,
         }
         for i in (ingredients or [])
-        if isinstance(i, dict) and i.get("in_stock", True)
+        if isinstance(i, dict) and is_in_stock(i)
     ]
 
     meal_plan = nut.get("meal_plan") or {}
