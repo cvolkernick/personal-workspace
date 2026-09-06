@@ -21,3 +21,8 @@ Insert budget after prune = `min(slots to HOUSE_TARGET, slots to CAP, remaining 
 No add/hour clamp. Do not invent `MAX_ADD_PER_DAY`. If the Pi file has a YouTube API quota guard, keep it (nest has not seen one).
 
 Playlist id: `PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At`
+
+Auth/tick failure alerts (#480) are a **separate** log reader:
+`scripts/youtube_groom_health.py` → Pi `health.json` + #workflow (Grok).
+Do not copy this policy module over the writer. Landing path:
+[`YOUTUBE_GROOM_HEALTH.md`](YOUTUBE_GROOM_HEALTH.md).

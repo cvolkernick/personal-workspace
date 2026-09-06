@@ -64,6 +64,7 @@ preserve_durable() {
     ops/backlog/suggestions.json
     ops/sprint
     ops/board/day_constraints.json
+    ops/board/youtube_groom_health.json
     fitness/data/day_constraints.json
     financial-command/treasury_latest.json
     orchestra/data/heartbeat/latest.json
@@ -132,6 +133,7 @@ clean_blocking_untracked() {
     -e 'treasury/config.json' \
     -e 'ops/sprint/' \
     -e 'ops/board/day_constraints.json' \
+    -e 'ops/board/youtube_groom_health.json' \
     -e 'fitness/data/' \
     -e '**/data/schedule_state.json' \
     -e '.env' \
