@@ -1779,11 +1779,18 @@
     });
   }
 
+  function ingredientStock(ing) {
+    const s = String((ing && ing.stock) || "").trim().toLowerCase();
+    if (s === "in" || s === "low" || s === "out") return s;
+    if (ing && ing.in_stock === false) return "out";
+    return "in";
+  }
+
   function filterSuggestionsAgainstInventory(store) {
     const ings = ((store.inventory && store.inventory.ingredients) || []).map((i) => ({
       id: String(i.id || "").toLowerCase(),
       name: String(i.name || "").toLowerCase(),
-      stock: i.in_stock !== false,
+      stock: ingredientStock(i),
     }));
     const block = store && store.inventory_suggestions;
     if (block && Array.isArray(block.suggestions)) {
@@ -1796,7 +1803,7 @@
             (sname && (i.name === sname || i.name.includes(sname) || sname.includes(i.name)))
         );
         if (!match) return true; // still missing → keep "add"
-        if (match.stock) return false; // already in stock
+        if (match.stock === "in") return false; // fully in stock
         return s.action === "restock";
       });
       block.count = block.suggestions.length;
@@ -2065,8 +2072,9 @@
     if (!list) return;
     const items = ((store && store.inventory && store.inventory.ingredients) || []).slice();
     items.sort((a, b) => {
-      const sa = a.in_stock === false ? 1 : 0;
-      const sb = b.in_stock === false ? 1 : 0;
+      const order = { in: 0, low: 1, out: 2 };
+      const sa = order[ingredientStock(a)] ?? 0;
+      const sb = order[ingredientStock(b)] ?? 0;
       if (sa !== sb) return sa - sb;
       return String(a.name).localeCompare(String(b.name));
     });
@@ -2077,33 +2085,42 @@
       </div>`;
       return;
     }
-    const stocked = items.filter((i) => i.in_stock !== false).length;
+    const nIn = items.filter((i) => ingredientStock(i) === "in").length;
+    const nLow = items.filter((i) => ingredientStock(i) === "low").length;
+    const nOut = items.filter((i) => ingredientStock(i) === "out").length;
     let cards = "";
     items.forEach((ing) => {
-      const stock = ing.in_stock !== false;
+      const st = ingredientStock(ing);
       const iid = invEscapeAttr(ing.id || "");
       const iname = invEscapeAttr(ing.name || "");
       const rawId = String(ing.id || "");
       const editing = inventoryEditId && rawId && inventoryEditId === rawId;
+      const cardMod = st === "out" ? " out" : st === "low" ? " low" : "";
       if (editing) {
-        cards += `<div class="inv-card editing${stock ? "" : " out"}" data-ing-id="${iid}">
+        cards += `<div class="inv-card editing${cardMod}" data-ing-id="${iid}">
           ${inventoryEditFormHtml(ing)}
         </div>`;
         return;
       }
-      cards += `<div class="inv-card${stock ? "" : " out"}" data-ing-id="${iid}">
-        <div class="inv-card-name">${ing.name || "Ingredient"}${
-        stock ? "" : ' <span class="inv-out-badge">out</span>'
-      }</div>
+      const badge =
+        st === "out"
+          ? ' <span class="inv-out-badge">(out)</span>'
+          : st === "low"
+            ? ' <span class="inv-low-badge">(low)</span>'
+            : "";
+      cards += `<div class="inv-card${cardMod}" data-ing-id="${iid}">
+        <div class="inv-card-name">${ing.name || "Ingredient"}${badge}</div>
         <div class="inv-card-meta muted">${ing.category || "other"} · ${formatInventoryPortion(
         ing
       )}</div>
         ${invMacroStrip(ing, false)}
         <div class="actions inv-card-actions">
           <button type="button" class="btn-edit" data-action="edit" data-id="${iid}" data-name="${iname}">Edit</button>
-          <button type="button" class="btn-stock" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="${stock ? "0" : "1"}">
-            ${stock ? "Mark out" : "Mark in stock"}
-          </button>
+          <div class="inv-stock-seg" role="group" aria-label="Stock">
+            <button type="button" class="inv-stock-opt${st === "in" ? " on" : ""}" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="in">In</button>
+            <button type="button" class="inv-stock-opt${st === "low" ? " on" : ""}" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="low">Low</button>
+            <button type="button" class="inv-stock-opt${st === "out" ? " on" : ""}" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="out">Out</button>
+          </div>
           <button type="button" class="btn-remove" data-action="remove" data-id="${iid}" data-name="${iname}">Remove</button>
         </div>
       </div>`;
@@ -2112,7 +2129,7 @@
       <div class="macro-summary-header">
         <div>
           <div class="macro-summary-title">Current inventory</div>
-          <div class="macro-summary-meta muted">${stocked} in · ${items.length - stocked} out · scroll</div>
+          <div class="macro-summary-meta muted">${nIn} in · ${nLow} low · ${nOut} out · scroll</div>
         </div>
         <div class="inv-carousel-count muted">${items.length}</div>
       </div>
@@ -2144,6 +2161,7 @@
           protein_g: s.protein_g,
           carbs_g: s.carbs_g,
           fat_g: s.fat_g,
+          stock: "in",
           in_stock: true,
           notes: s.notes || "",
         })
@@ -2272,7 +2290,7 @@
       const res = await fetch("/api/inventory/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, in_stock: true }),
+        body: JSON.stringify({ ...body, stock: "in", in_stock: true }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -2294,7 +2312,7 @@
       const res = await fetch("/api/inventory/stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: body.id, in_stock: true }),
+        body: JSON.stringify({ id: body.id, stock: "in", in_stock: true }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -2550,21 +2568,26 @@
             /* optional */
           }
         } else if (action === "stock") {
-          const in_stock = btn.getAttribute("data-stock") === "1";
+          const stock = String(btn.getAttribute("data-stock") || "").toLowerCase();
+          if (!(stock === "in" || stock === "low" || stock === "out")) {
+            throw new Error("stock must be in, low, or out");
+          }
+          if (btn.classList.contains("on")) {
+            btn.disabled = false;
+            return;
+          }
           const res = await fetch("/api/inventory/stock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, in_stock }),
+            body: JSON.stringify({ id, stock }),
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data.ok) {
             throw new Error(data.error || `HTTP ${res.status}`);
           }
           applyInventoryUpdate(data.inventory);
-          showAlert(
-            in_stock ? `Marked ${name || id} in stock` : `Marked ${name || id} out of stock`,
-            "ok"
-          );
+          const label = stock === "in" ? "in stock" : stock === "low" ? "low" : "out of stock";
+          showAlert(`Marked ${name || id} ${label}`, "ok");
           try {
             await generatePlan();
           } catch (_) {
@@ -5768,6 +5791,7 @@
       protein_g: Number($("ing-p").value),
       carbs_g: Number($("ing-c").value),
       fat_g: Number($("ing-f").value),
+      stock: "in",
       in_stock: true,
     };
     // Prefer weighable grams; macros apply to this mass. Never invent grams.

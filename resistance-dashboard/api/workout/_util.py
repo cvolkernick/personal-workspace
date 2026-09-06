@@ -528,7 +528,8 @@ def inventory_write(headers, route: str, payload=None):
     from rt_dashboard.nutrition_planner import (
         add_ingredient,
         remove_ingredient,
-        set_in_stock,
+        set_stock,
+        stock_from_write_payload,
         update_ingredient,
     )
     from rt_dashboard.service_auth import (
@@ -568,10 +569,11 @@ def inventory_write(headers, route: str, payload=None):
                 name=str(payload.get("name") or ""),
             )
         elif route == "inv_stock":
-            updated = set_in_stock(
+            stock = stock_from_write_payload(payload)
+            updated = set_stock(
                 current,
                 ingredient_id=str(payload.get("id") or ""),
-                in_stock=bool(payload.get("in_stock", True)),
+                stock=stock,
             )
         elif route == "inv_update":
             updated = update_ingredient(current, payload)

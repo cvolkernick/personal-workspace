@@ -212,7 +212,7 @@ def try_parse_coach_action(
       - change macros to 220p 150c 55f
       - apply those recommendations  (uses last Grok reply for numbers)
       - apply coach targets / apply coach macros  (subroutine recs only)
-      - mark chicken out of stock / set eggs in stock
+      - mark chicken out of stock / set eggs in stock / mark yogurt low
       - refresh meal plan / regenerate my meal plan
     """
     q = (question or "").strip()
@@ -222,34 +222,49 @@ def try_parse_coach_action(
 
     # --- stock --------------------------------------------------------------
     m = re.match(
-        r"^(?:set\s+stock|stock)\s+(.+?)\s+(on|off|true|false|in|out)\s*$",
+        r"^(?:set\s+stock|stock)\s+(.+?)\s+(on|off|true|false|in|out|low)\s*$",
         low,
     )
     if m:
         ident = m.group(1).strip()
-        flag = m.group(2)
-        in_stock = flag in ("on", "true", "in")
-        return {"action": "set_stock", "id_or_name": ident, "in_stock": in_stock}
+        stock = _stock_flag_to_state(m.group(2))
+        return {
+            "action": "set_stock",
+            "id_or_name": ident,
+            "stock": stock,
+            "in_stock": stock != "out",
+        }
 
     m = re.match(
-        r"^(?:mark|set|make)\s+(.+?)\s+(?:as\s+)?(out of stock|in stock|out|in)\s*$",
+        r"^(?:mark|set|make)\s+(.+?)\s+(?:as\s+)?"
+        r"(out of stock|in stock|running low|low inventory|out|in|low)\s*$",
         low,
     )
     if m:
         ident = m.group(1).strip()
-        in_stock = m.group(2) in ("in stock", "in")
-        return {"action": "set_stock", "id_or_name": ident, "in_stock": in_stock}
+        stock = _stock_flag_to_state(m.group(2))
+        return {
+            "action": "set_stock",
+            "id_or_name": ident,
+            "stock": stock,
+            "in_stock": stock != "out",
+        }
 
     m = re.match(
-        r"^(.+?)\s+(?:is|as)\s+(out of stock|in stock)\s*$",
+        r"^(.+?)\s+(?:is|as)\s+(out of stock|in stock|running low|low inventory)\s*$",
         low,
     )
     if m and _WRITE_INTENT.search(low) is None:
         # "chicken is out of stock" — treat as stock command only if short
         ident = m.group(1).strip()
         if len(ident) <= 40 and not _QUESTION_PREFIX.match(low):
-            in_stock = m.group(2) == "in stock"
-            return {"action": "set_stock", "id_or_name": ident, "in_stock": in_stock}
+            stock = _stock_flag_to_state(m.group(2))
+            return {
+                "action": "set_stock",
+                "id_or_name": ident,
+                "stock": stock,
+                "in_stock": stock != "out",
+            }
 
     # --- meal / workout plan refresh ----------------------------------------
     if re.match(
@@ -381,13 +396,25 @@ def _parse_muscle_list(text: str) -> List[str]:
     return out[:4]  # at most a couple priority muscles
 
 
+def _stock_flag_to_state(flag: str) -> str:
+    t = (flag or "").strip().lower()
+    if t in ("low", "running low", "low inventory"):
+        return "low"
+    if t in ("out", "off", "false", "out of stock"):
+        return "out"
+    return "in"
+
+
 def format_action_reply(result: Dict[str, Any]) -> str:
     if not result.get("ok"):
         return f"**Action failed:** {result.get('error') or 'unknown error'}"
     action = result.get("action")
     if action == "set_stock":
-        state = "in stock" if result.get("in_stock") else "out of stock"
-        return f"**Done.** Marked **{result.get('name') or result.get('id')}** as {state}."
+        stock = result.get("stock")
+        if stock not in ("in", "low", "out"):
+            stock = "in" if result.get("in_stock") else "out"
+        label = {"in": "in stock", "low": "low", "out": "out of stock"}[stock]
+        return f"**Done.** Marked **{result.get('name') or result.get('id')}** as {label}."
     if action in ("set_targets", "apply_coach_targets"):
         t = result.get("targets") or {}
         bits = []

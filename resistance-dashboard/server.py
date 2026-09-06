@@ -131,7 +131,8 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     food_logs_for_day,
     generate_meal_plan,
     remove_ingredient,
-    set_in_stock,
+    set_stock,
+    stock_from_write_payload,
     suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
@@ -1087,21 +1088,23 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                     "action": kind,
                     "error": f"ingredient not found: {ident}",
                 }
-            updated = set_in_stock(
-                inv, ingredient_id=match_id, in_stock=bool(action.get("in_stock"))
-            )
+            stock = action.get("stock")
+            if stock not in ("in", "low", "out"):
+                stock = "in" if action.get("in_stock") else "out"
+            updated = set_stock(inv, ingredient_id=match_id, stock=stock)
             write = persist_inventory(
                 updated,
                 str(uid or ""),
                 file_client=client,
-                message=f"nutrition: stock via coach {match_id}",
+                message=f"nutrition: stock {stock} via coach {match_id}",
             )
             return {
                 "ok": True,
                 "action": kind,
                 "id": match_id,
                 "name": match_name,
-                "in_stock": bool(action.get("in_stock")),
+                "stock": stock,
+                "in_stock": stock != "out",
                 "write": write,
             }
         if kind == "set_targets":
@@ -1877,16 +1880,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     return
                 client = build_github_client(for_write=True)
                 current, _src = load_preview_inventory(str(uid))
-                updated = set_in_stock(
+                stock = stock_from_write_payload(body)
+                updated = set_stock(
                     current,
                     ingredient_id=str(body.get("id") or ""),
-                    in_stock=bool(body.get("in_stock", True)),
+                    stock=stock,
                 )
                 write = persist_inventory(
                     updated,
                     str(uid),
                     file_client=client,
-                    message=f"nutrition: stock {'on' if body.get('in_stock') else 'off'} {body.get('id')}",
+                    message=f"nutrition: stock {stock} {body.get('id')}",
                 )
                 self._send_json(
                     {
