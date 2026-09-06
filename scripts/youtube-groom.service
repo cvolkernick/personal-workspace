@@ -1,0 +1,14 @@
+[Unit]
+Description=YouTube AI Curated hourly groom
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom.py
+# Health runs after success *or* fail. Leading '-' = missing checker is non-fatal.
+ExecStopPost=-/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom_health.py
+Nice=10
+
+[Install]
+WantedBy=default.target

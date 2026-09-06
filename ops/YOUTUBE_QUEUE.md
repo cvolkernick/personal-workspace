@@ -43,11 +43,20 @@ The old 72h fresh cull plus `MAX_INSERTS_PER_TICK` (4, then 8) kept the list sma
 - `FRESH_HOURS=168`, `CAP=200`, `STALE_HARD_DAYS=7`
 - `keep_n=10` empty fallback
 - Dup / `never_readd` prune
-- OAuth, systemd units, youtube-mcp
+- OAuth, youtube-mcp, Mac token as prod
+- systemd `ExecStart` writer + hourly timer (health adds `ExecStopPost` only)
 - A second writer / Bot cron
+
+## Auth/tick alerts (#480)
+
+Silent `invalid_grant` must not freeze the playlist unnoticed. Log reader:
+`scripts/youtube_groom_health.py` (copy **alongside** the Pi writer, never over it).
+Landing path: [`YOUTUBE_GROOM_HEALTH.md`](YOUTUBE_GROOM_HEALTH.md).
+Grok on #workflow + `ops/board/youtube_groom_health.json` (15m export). Not a Chris DM.
 
 ## Tests
 
 ```bash
 python3 -m unittest scripts.tests.test_youtube_groom -v
+python3 -m unittest scripts.tests.test_youtube_groom_health -v
 ```

@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly YouTube AI Curated groom
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=90
+AccuracySec=2min
+
+[Install]
+WantedBy=timers.target

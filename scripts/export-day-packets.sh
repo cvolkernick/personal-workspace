@@ -4,6 +4,8 @@
 # Board (Forge / Cadence): scripts/buzz-board day-export → ops/board/day_constraints.json
 # Fit (Frankenfit write path): best-effort hit FitDash /api/day_constraints so the
 #   existing load_dashboard exporter writes fitness/data/day_constraints.json.
+# youtube-groom health (#480): scripts/youtube_groom_health.py → health.json
+#   copied to ops/board/youtube_groom_health.json (Grok 15m sweep ledger).
 # Orchestra only *reads* these files — never dual-writes domain SoT.
 #
 # Usage (from monorepo root or any cwd):
@@ -61,8 +63,11 @@ log() { echo "[$LOG_TAG] $*"; }
 
 BOARD_RC=0
 FIT_RC=0
+YG_HEALTH_RC=0
 BOARD_PATH="$DIR/ops/board/day_constraints.json"
 FIT_PATH="$DIR/fitness/data/day_constraints.json"
+YG_LEDGER="$DIR/ops/board/youtube_groom_health.json"
+YG_HEALTH_PATH="${HOME}/.local/share/youtube-groom/health.json"
 
 if [[ "$FIT_ONLY" -eq 0 ]]; then
   log "board day-export → $BOARD_PATH"
@@ -115,6 +120,32 @@ if [[ "$BOARD_ONLY" -eq 0 ]]; then
   fi
 fi
 
+# youtube-groom auth/tick health (#480). Log/alert only — never a second writer.
+# Prefer the Pi install; fall back to the nest script in this checkout.
+YG_HEALTH_PY=""
+if [[ -f "${HOME}/.local/lib/youtube-groom/youtube_groom_health.py" ]]; then
+  YG_HEALTH_PY="${HOME}/.local/lib/youtube-groom/youtube_groom_health.py"
+elif [[ -f "$DIR/scripts/youtube_groom_health.py" ]]; then
+  YG_HEALTH_PY="$DIR/scripts/youtube_groom_health.py"
+fi
+if [[ -n "$YG_HEALTH_PY" ]]; then
+  log "youtube-groom health-check → $YG_HEALTH_PY"
+  set +e
+  python3 "$YG_HEALTH_PY" --json >/tmp/yg-health-$$.json 2>/tmp/yg-health-$$.err
+  YG_HEALTH_RC=$?
+  set -e
+  if [[ -f "$YG_HEALTH_PATH" ]]; then
+    mkdir -p "$DIR/ops/board"
+    cp "$YG_HEALTH_PATH" "$YG_LEDGER"
+    log "youtube-groom health ledger → $YG_LEDGER"
+  else
+    log "youtube-groom health: no Pi ledger yet (rc=${YG_HEALTH_RC})"
+  fi
+  rm -f /tmp/yg-health-$$.json /tmp/yg-health-$$.err
+else
+  log "youtube-groom health-check skipped (script not installed)"
+fi
+
 if [[ "$JSON" -eq 1 ]]; then
   python3 - <<PY
 import json
@@ -123,10 +154,13 @@ print(json.dumps({
   "workspace": "$DIR",
   "board_rc": $BOARD_RC,
   "fit_rc": $FIT_RC,
+  "yg_health_rc": $YG_HEALTH_RC,
   "board_path": "$BOARD_PATH",
   "fit_path": "$FIT_PATH",
+  "yg_ledger": "$YG_LEDGER",
   "board_exists": Path("$BOARD_PATH").is_file(),
   "fit_exists": Path("$FIT_PATH").is_file(),
+  "yg_ledger_exists": Path("$YG_LEDGER").is_file(),
 }, indent=2))
 PY
 fi
