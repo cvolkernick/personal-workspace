@@ -48,7 +48,7 @@
       "protein_g": 30,
       "carbs_g": 12,
       "fat_g": 0,
-      "in_stock": false
+      "in_stock": true
     },
     {
       "id": "brown-rice",
