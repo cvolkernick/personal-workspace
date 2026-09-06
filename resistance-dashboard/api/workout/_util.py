@@ -799,7 +799,6 @@ def _agent_today_from_stores(headers, query: str = ""):
     from api.dashboard import _load_health, _load_sessions, _today_consumed, request_tz_name
     from rt_dashboard.agent_today import assemble_dashboard_slice, export_agent_today
     from rt_dashboard.google_health import GoogleHealthClient
-    from rt_dashboard.grok_planner import dashboard_plan_slots
     from rt_dashboard.hidrate_client import hidrate_bottle_charge, hidrate_hydration_samples
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.models import HealthSnapshot
@@ -891,20 +890,12 @@ def _agent_today_from_stores(headers, query: str = ""):
         errors.append(f"recovery: {type(exc).__name__}")
         recovery_dict = {"sparse": not had_real_sleep}
 
-    from rt_dashboard.agent_plan import fill_stamped_workout, house_plan_user_id
+    from rt_dashboard.agent_plan import house_plan_user_id, stamp_and_fill_workout
 
     plan_uid = house_plan_user_id()
-    _meal, workout = dashboard_plan_slots(
-        plan_uid,
-        sessions=sessions,
-        goals=goals,
-        recovery=recovery_dict,
-        as_of=today,
-    )
-    workout = fill_stamped_workout(
+    workout = stamp_and_fill_workout(
         plan_uid,
         day=today,
-        workout=workout,
         sessions=sessions,
         goals=goals,
         recovery=recovery_dict,

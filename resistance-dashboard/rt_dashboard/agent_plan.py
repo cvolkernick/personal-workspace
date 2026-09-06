@@ -339,6 +339,43 @@ def ensure_today_grok_plan(
         }
 
 
+def stamp_and_fill_workout(
+    user_id: str,
+    *,
+    day: str,
+    sessions=None,
+    goals=None,
+    recovery=None,
+    headers=None,
+    query: str = "",
+) -> dict:
+    """Stamp today's letter, then SuperGrok-fill when empty.
+
+    Shared by Pi GET ``/api/agent/today`` and the Vercel cookie-less Today path.
+    ``load_dashboard_data`` has no top-level ``workout``; the letter comes from
+    ``dashboard_plan_slots``, not from the payload.
+    """
+    from .grok_planner import dashboard_plan_slots
+
+    _meal, workout = dashboard_plan_slots(
+        user_id,
+        sessions=sessions,
+        goals=goals,
+        recovery=recovery,
+        as_of=day,
+    )
+    return fill_stamped_workout(
+        user_id,
+        day=day,
+        workout=workout,
+        sessions=sessions,
+        goals=goals,
+        recovery=recovery,
+        headers=headers,
+        query=query,
+    )
+
+
 def fill_stamped_workout(
     user_id: str,
     *,

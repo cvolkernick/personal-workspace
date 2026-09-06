@@ -1510,9 +1510,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 uid = user.get("user_id") if user else None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
                 from rt_dashboard.agent_plan import (
-                    fill_stamped_workout,
                     house_plan_user_id,
                     overlay_workout_on_payload,
+                    stamp_and_fill_workout,
                 )
                 from rt_dashboard.timeutil import local_today_iso
 
@@ -1522,14 +1522,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     or (data.get("meta") or {}).get("local_today")
                     or local_today_iso()
                 )
-                filled = fill_stamped_workout(
+                store = (
+                    data.get("workout_store")
+                    if isinstance(data.get("workout_store"), dict)
+                    else {}
+                )
+                goals = store.get("goals")
+                if not isinstance(goals, dict):
+                    goals = (
+                        data.get("goals")
+                        if isinstance(data.get("goals"), dict)
+                        else None
+                    )
+                filled = stamp_and_fill_workout(
                     plan_uid,
                     day=str(day)[:10],
-                    workout=data.get("workout")
-                    if isinstance(data.get("workout"), dict)
-                    else {},
                     sessions=data.get("sessions") or [],
-                    goals=data.get("goals") or {},
+                    goals=goals,
                     recovery=data.get("recovery")
                     if isinstance(data.get("recovery"), dict)
                     else {},

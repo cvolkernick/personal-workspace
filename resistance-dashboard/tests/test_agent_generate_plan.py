@@ -23,6 +23,7 @@ from rt_dashboard.agent_plan import (
     fill_stamped_workout,
     house_plan_user_id,
     overlay_workout_on_payload,
+    stamp_and_fill_workout,
 )
 from rt_dashboard.agent_today import export_agent_today
 from rt_dashboard.workout_plan_store import clear_memory_workout_plans
@@ -463,6 +464,64 @@ class FillStampedWorkout(unittest.TestCase):
         self.assertEqual(out.get("exercises") or [], [])
         self.assertIn("Connect SuperGrok", out.get("generate_error") or "")
 
+    def test_empty_slot_does_not_call_supergrok(self):
+        with mock.patch(
+            "rt_dashboard.agent_plan.generate_grok_plans"
+        ) as gen:
+            out = fill_stamped_workout(
+                "sub-1",
+                day="2026-09-06",
+                workout={},
+            )
+        gen.assert_not_called()
+        self.assertEqual(out, {})
+
+
+class StampAndFillWorkout(unittest.TestCase):
+    def setUp(self):
+        clear_memory_workout_plans()
+
+    def tearDown(self):
+        clear_memory_workout_plans()
+
+    def test_stamps_then_fills_without_payload_workout_key(self):
+        grok = {"ok": True, "workout": PULL_PLAN, "meal": {"items": [], "empty": True}}
+        pull_slot = {
+            "session_type": "pull",
+            "is_rest_day": False,
+            "exercises": [],
+            "empty": True,
+            "next_session_type": "pull",
+        }
+        ctx_loaded = {
+            "day": "2026-09-06",
+            "catalog": {"exercises": [{"name": "DB Row"}]},
+            "sessions": [],
+            "goals": {"rotation": ["push", "pull", "legs"]},
+            "recovery": {},
+            "stamped": pull_slot,
+            "next_session_type": "pull",
+        }
+        with mock.patch(
+            "rt_dashboard.grok_planner.dashboard_plan_slots",
+            return_value=({}, pull_slot),
+        ) as slots, mock.patch(
+            "rt_dashboard.agent_plan._load_generate_kwargs", return_value=ctx_loaded
+        ), mock.patch(
+            "rt_dashboard.agent_plan.generate_grok_plans", return_value=grok
+        ) as gen:
+            out = stamp_and_fill_workout(
+                "sub-1",
+                day="2026-09-06",
+                sessions=[],
+                goals={"rotation": ["push", "pull", "legs"]},
+                recovery={},
+            )
+        slots.assert_called_once()
+        gen.assert_called_once()
+        self.assertEqual(out["exercises"][0]["name"], "DB Row")
+        self.assertEqual(out["session_type"], "pull")
+
 
 class PiTodayHttpAutoGenerate(unittest.TestCase):
     """Pi ``server.py`` GET /api/agent/today must auto-gen, not overlay-only."""
@@ -484,18 +543,23 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         os.environ["FITDASH_SERVICE_LOOPBACK"] = "1"
         os.environ["FITDASH_USER_ID"] = "sub-pi-today"
         os.environ.pop("VERCEL", None)
+        self._stamp = {
+            "session_type": "pull",
+            "is_rest_day": False,
+            "exercises": [],
+            "empty": True,
+            "next_session_type": "pull",
+        }
+        # Real load_dashboard_data shape: sessions + workout_store.plan/goals,
+        # never a top-level workout key.
         self._dash = {
             "coach": {"today": {"date": "2026-09-06"}},
             "meta": {"local_today": "2026-09-06"},
-            "workout": {
-                "session_type": "pull",
-                "is_rest_day": False,
-                "exercises": [],
-                "empty": True,
-                "next_session_type": "pull",
-            },
             "sessions": [],
-            "goals": {"rotation": ["push", "pull", "legs"]},
+            "workout_store": {
+                "goals": {"rotation": ["push", "pull", "legs"]},
+                "plan": {},
+            },
             "recovery": {},
         }
         import server as fitdash_server
@@ -505,6 +569,11 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
             fitdash_server, "load_dashboard_data", return_value=self._dash
         )
         self._load_patch.start()
+        self._slots_patch = mock.patch(
+            "rt_dashboard.grok_planner.dashboard_plan_slots",
+            side_effect=lambda *a, **kw: ({}, dict(self._stamp)),
+        )
+        self._slots_mock = self._slots_patch.start()
         self._kwargs_patch = mock.patch(
             "rt_dashboard.agent_plan._load_generate_kwargs",
             return_value={
@@ -544,6 +613,7 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         self.httpd.server_close()
         self._gen.stop()
         self._kwargs_patch.stop()
+        self._slots_patch.stop()
         self._load_patch.stop()
         clear_memory_workout_plans()
         for key, val in self._saved.items():
@@ -566,6 +636,7 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
             return int(exc.code), body
 
     def test_cookie_less_get_autogens_once_matching_letter(self):
+        self.assertNotIn("workout", self._dash)
         status, body = self._get()
         self.assertEqual(status, 200)
         wo = body["today"]["workout"]
@@ -573,6 +644,7 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         self.assertFalse(wo["is_rest_day"])
         self.assertEqual(wo["plan_exercises"][0]["name"], "DB Row")
         self.assertEqual(self._gen_mock.call_count, 1)
+        self.assertGreaterEqual(self._slots_mock.call_count, 1)
         status2, body2 = self._get()
         self.assertEqual(status2, 200)
         self.assertEqual(
@@ -609,7 +681,7 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
                     },
                     "meal": {"items": [], "empty": True},
                 }
-                self._dash["workout"] = {
+                self._stamp = {
                     "session_type": letter,
                     "is_rest_day": False,
                     "exercises": [],
@@ -626,7 +698,7 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
     def test_rest_day_skips_supergrok(self):
         clear_memory_workout_plans()
         self._gen_mock.reset_mock()
-        self._dash["workout"] = dict(REST_STAMP)
+        self._stamp = dict(REST_STAMP)
         status, body = self._get()
         self.assertEqual(status, 200)
         self._gen_mock.assert_not_called()
@@ -642,7 +714,7 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
             "error": "Connect SuperGrok to generate today's meal/workout plan.",
             "workout": {"session_type": "push", "exercises": [], "empty": True},
         }
-        self._dash["workout"] = {
+        self._stamp = {
             "session_type": "push",
             "is_rest_day": False,
             "exercises": [],
@@ -662,6 +734,7 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         text = (root / "server.py").read_text(encoding="utf-8")
         today_idx = text.find('parsed.path == "/api/agent/today"')
         self.assertGreater(today_idx, 0)
-        chunk = text[today_idx : today_idx + 1800]
-        self.assertIn("fill_stamped_workout", chunk)
+        chunk = text[today_idx : today_idx + 2400]
+        self.assertIn("stamp_and_fill_workout", chunk)
+        self.assertNotIn('data.get("workout")', chunk)
         self.assertNotIn("load_last_good_workout_plan", chunk)
