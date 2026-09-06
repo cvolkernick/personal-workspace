@@ -19,10 +19,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "index.html"
+CYBERCAB = ROOT / "cybercab-fleet.html"
+HERO_IMG = ROOT / "static" / "img" / "swfl-cybercab-hero.jpg"
 CSS = ROOT / "static" / "styles.css"
 JS = ROOT / "static" / "app.js"
 SERVER = ROOT / "server.py"
 README = ROOT / "README.md"
+
+FORBIDDEN_OFFERING_CTA = [
+    "Invest now",
+    "Buy shares",
+    "Wire funds",
+    "Subscribe now",
+    "Purchase shares",
+]
 
 # High-level services expected on the MVP page (HTML may escape &)
 REQUIRED_SERVICES = [
@@ -55,8 +65,13 @@ class PanamericaAutoSiteTests(unittest.TestCase):
         self.html = INDEX.read_text(encoding="utf-8")
 
     def test_project_files_exist(self) -> None:
-        for path in (INDEX, CSS, JS, SERVER, README):
+        for path in (INDEX, CYBERCAB, HERO_IMG, CSS, JS, SERVER, README):
             self.assertTrue(path.is_file(), f"missing {path.relative_to(ROOT)}")
+
+    def test_homepage_links_cybercab_demo(self) -> None:
+        self.assertIn('href="cybercab-fleet.html"', self.html)
+        self.assertIn("teaser-strip", self.html)
+        self.assertIn('option value="cybercab"', self.html)
 
     def test_title_and_brand(self) -> None:
         self.assertIn("Panamerica Auto", self.html)
@@ -178,6 +193,16 @@ class PanamericaAutoSiteTests(unittest.TestCase):
                 self.assertIn("High-level services", body, f"services heading missing run {run}")
                 for name in REQUIRED_SERVICES:
                     self.assertIn(name, body, f"service missing on run {run}: {name}")
+                self.assertIn("cybercab-fleet.html", body, f"homepage cybercab link missing run {run}")
+
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/cybercab-fleet.html", timeout=1.0
+                ) as resp:
+                    self.assertEqual(resp.status, 200)
+                    cyber = resp.read().decode("utf-8")
+                self.assertIn("DEMO", cyber)
+                self.assertIn("not an offer to sell securities", cyber.lower())
+                self.assertIn("noindex", cyber)
             finally:
                 proc.terminate()
                 try:
@@ -188,6 +213,65 @@ class PanamericaAutoSiteTests(unittest.TestCase):
                 if proc.stderr is not None:
                     proc.stderr.close()
 
+
+
+class PanamericaCybercabDemoTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.html = CYBERCAB.read_text(encoding="utf-8")
+
+    def test_demo_banner_and_noindex(self) -> None:
+        self.assertIn('name="robots" content="noindex, nofollow"', self.html)
+        self.assertIn("demo-banner", self.html)
+        self.assertIn("DEMO", self.html)
+        self.assertIn("not an offer to sell securities", self.html.lower())
+        self.assertRegex(self.html, r"<title>[^<]*Demo")
+
+    def test_not_a_live_offering_cta(self) -> None:
+        for phrase in FORBIDDEN_OFFERING_CTA:
+            self.assertNotIn(phrase, self.html, f"offering CTA leaked: {phrase}")
+        self.assertIn("Register interest", self.html)
+        self.assertNotRegex(self.html, r">\s*Invest\s*<")
+
+    def test_tesla_form_is_theirs_not_ours(self) -> None:
+        self.assertIn("https://www.tesla.com/robotaxi/interest", self.html)
+        self.assertIn("not Tesla", self.html)
+        self.assertNotIn("Tesla partner", self.html)
+        self.assertIn("not a Tesla dealer", self.html)
+        lowered = self.html.lower()
+        self.assertIn("not an official tesla asset", lowered)
+        self.assertIn("that is not a partnership", lowered)
+
+    def test_swfl_not_claimed_live(self) -> None:
+        lowered = self.html.lower()
+        self.assertIn("not swfl", lowered)
+        self.assertIn("miami", lowered)
+        self.assertIn("tampa", lowered)
+        self.assertIn("orlando", lowered)
+
+    def test_three_scenarios_and_honest_base_case(self) -> None:
+        self.assertIn('data-scenario="conservative"', self.html)
+        self.assertIn('data-scenario="base"', self.html)
+        self.assertIn('data-scenario="optimistic"', self.html)
+        self.assertIn("Does not beat", self.html)
+        self.assertIn("Turo", self.html)
+        self.assertIn("$1,651", self.html)
+        self.assertIn("$3,693", self.html)
+        self.assertIn("not the plan", self.html.lower())
+
+    def test_risks_and_interest_form(self) -> None:
+        self.assertIn('id="risks"', self.html)
+        self.assertIn("Tesla may never sell", self.html)
+        self.assertIn('id="interest-form"', self.html)
+        for field in ("inv-name", "inv-email", "inv-role", "inv-size", "inv-message", "inv-accredited", "inv-ack"):
+            self.assertIn(f'id="{field}"', self.html)
+        self.assertIn('src="static/img/swfl-cybercab-hero.jpg"', self.html)
+        self.assertGreater(HERO_IMG.stat().st_size, 10_000)
+
+    def test_js_binds_interest_form(self) -> None:
+        js = JS.read_text(encoding="utf-8")
+        self.assertIn("interest-form", js)
+        self.assertIn("ack_demo", js)
+        self.assertIn("accredited", js)
 
 
 if __name__ == "__main__":

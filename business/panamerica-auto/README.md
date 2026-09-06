@@ -66,20 +66,37 @@ Manual checklist:
 1. Home hero loads with brand **Panamerica Auto** and rental/fleet positioning.
 2. Six service cards: Turo rentals, Private rentals, Fleet management, Rental management, Maintenance coordination, Service coordination.
 3. Site does **not** present vehicle sales as a primary offering.
-4. Nav links jump to Services / Why us / Process / Contact.
+4. Nav links jump to Services / Why us / Process / Contact; Cybercab goes to `/cybercab-fleet.html`.
 5. Contact form shows an error if fields are empty; success message when filled.
 6. Pi URL responds with brand + services after deploy.
+7. `/cybercab-fleet.html` shows the DEMO banner, `noindex`, three scenario cards, and an interest form — no “Invest now” CTA.
+
+## Cybercab fleet interest demo
+
+`cybercab-fleet.html` is a **demo** — not a live securities offering, not a Tesla order form.
+
+- Persistent `DEMO — not an offer to sell securities` banner
+- `noindex,nofollow`
+- Interest form only (client-side, same pattern as contact)
+- Unit economics from `~/Projects/tesla-robotaxi-pitch` shown as a range; **base case does not beat Turo**
+- Tesla’s form is [tesla.com/robotaxi/interest](https://www.tesla.com/robotaxi/interest) (theirs)
+
+Do **not** deploy to the Pi (`:8795`) until Chris explicitly says so. The DEMO banner and noindex stay if it does ship.
+
+Local: [http://127.0.0.1:8795/cybercab-fleet.html](http://127.0.0.1:8795/cybercab-fleet.html)
 
 ## Layout
 
 ```
 business/panamerica-auto/
-  index.html          # Single-page site
-  server.py           # Local / Pi static server (default :8795)
-  start.command       # Open Pi site (or local fallback)
+  index.html              # Home — rentals / fleet ops
+  cybercab-fleet.html     # SWFL Cybercab interest demo (noindex)
+  server.py               # Local / Pi static server (default :8795)
+  start.command           # Open Pi site (or local fallback)
   static/
     styles.css
     app.js
+    img/swfl-cybercab-hero.jpg
   tests/
     test_site.py
   deploy/
@@ -95,3 +112,4 @@ business/panamerica-auto/
 - Inventory or sample listings
 - Multi-page SEO and language variants
 - Custom domain / HTTPS reverse proxy
+- Counsel-led offering path (only if Chris opens it) — this HTML is not that path

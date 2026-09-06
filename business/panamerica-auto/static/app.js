@@ -21,10 +21,6 @@
     });
   }
 
-  var form = document.getElementById("contact-form");
-  var status = document.getElementById("form-status");
-  if (!form || !status) return;
-
   function setInvalid(el, invalid) {
     if (!el) return;
     el.classList.toggle("invalid", !!invalid);
@@ -34,49 +30,82 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
-    status.textContent = "";
-    status.className = "form-status";
+  function bindForm(formId, statusId, successMessage, extraValidate) {
+    var form = document.getElementById(formId);
+    var status = document.getElementById(statusId);
+    if (!form || !status) return;
 
-    var name = form.elements.namedItem("name");
-    var email = form.elements.namedItem("email");
-    var interest = form.elements.namedItem("interest");
-    var message = form.elements.namedItem("message");
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      status.textContent = "";
+      status.className = "form-status";
 
-    var fields = [name, email, interest, message];
-    fields.forEach(function (f) {
-      setInvalid(f, false);
+      var name = form.elements.namedItem("name");
+      var email = form.elements.namedItem("email");
+      var select = form.elements.namedItem("interest") || form.elements.namedItem("role");
+      var message = form.elements.namedItem("message");
+
+      var fields = [name, email, select, message];
+      fields.forEach(function (f) {
+        setInvalid(f, false);
+      });
+
+      var errors = [];
+      if (!name || !String(name.value || "").trim()) {
+        setInvalid(name, true);
+        errors.push("Name is required.");
+      }
+      if (!email || !isValidEmail(String(email.value || "").trim())) {
+        setInvalid(email, true);
+        errors.push("A valid email is required.");
+      }
+      if (!select || !String(select.value || "").trim()) {
+        setInvalid(select, true);
+        errors.push("Please select an option.");
+      }
+      if (!message || !String(message.value || "").trim()) {
+        setInvalid(message, true);
+        errors.push("Message is required.");
+      }
+
+      if (typeof extraValidate === "function") {
+        extraValidate(form, errors, setInvalid);
+      }
+
+      if (errors.length) {
+        status.textContent = errors[0];
+        status.classList.add("err");
+        return;
+      }
+
+      status.textContent = successMessage;
+      status.classList.add("ok");
+      form.reset();
     });
+  }
 
-    var errors = [];
-    if (!name || !String(name.value || "").trim()) {
-      setInvalid(name, true);
-      errors.push("Name is required.");
-    }
-    if (!email || !isValidEmail(String(email.value || "").trim())) {
-      setInvalid(email, true);
-      errors.push("A valid email is required.");
-    }
-    if (!interest || !String(interest.value || "").trim()) {
-      setInvalid(interest, true);
-      errors.push("Please select an interest.");
-    }
-    if (!message || !String(message.value || "").trim()) {
-      setInvalid(message, true);
-      errors.push("Message is required.");
-    }
+  bindForm(
+    "contact-form",
+    "form-status",
+    "Thanks — your inquiry was recorded locally. We will follow up by email."
+  );
 
-    if (errors.length) {
-      status.textContent = errors[0];
-      status.classList.add("err");
-      return;
+  bindForm(
+    "interest-form",
+    "interest-form-status",
+    "Thanks — your interest was recorded locally on this demo. This is not an investment, reservation, or Tesla order.",
+    function (form, errors, markInvalid) {
+      var ack = form.elements.namedItem("ack_demo");
+      var role = form.elements.namedItem("role");
+      var accredited = form.elements.namedItem("accredited");
+      if (!ack || !ack.checked) {
+        markInvalid(ack, true);
+        errors.push("Please confirm you understand this is a demo, not an offer to sell securities.");
+      }
+      if (role && role.value === "capital" && (!accredited || !accredited.checked)) {
+        markInvalid(accredited, true);
+        errors.push("Capital-partner interest on this demo requires accredited-investor self-attestation.");
+      }
     }
-
-    // MVP: client-side only confirmation (no backend yet)
-    status.textContent =
-      "Thanks — your inquiry was recorded locally. We will follow up by email.";
-    status.classList.add("ok");
-    form.reset();
-  });
+  );
 })();
