@@ -17,6 +17,7 @@ from .models import (
     WeightSample,
 )
 from .cardio_quest import cardio_spec
+from .sleep_quest import sleep_spec
 from .labs_store import labs_summary_for_coach
 from .test_noise import filter_sessions
 from .timeutil import local_today_iso
@@ -319,7 +320,9 @@ TARGET_MOTIVATIONS = {
         "with rest or an easy day instead of forcing a hard lift."
     ),
     "sleep": (
-        "Sleep is the main recovery lever. Protect bedtime so tomorrow's battery starts full."
+        "Last night's completed sleep vs the 8h target. A good night checks this "
+        "at wake; a short night is nap / earlier bedtime / caffeine cutoff — not "
+        "'sleep 8h tonight.'"
     ),
     "hydration": (
         "Hydration supports performance and appetite control. Sip through the day, not only at meals."
@@ -355,6 +358,7 @@ def build_today_board(
     food_logs_today: Optional[Sequence[Any]] = None,
     inventory_dark: bool = False,
     active_zone_minutes: Optional[Sequence[Any]] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
 ) -> dict:
     """Comprehensive same-day guide: targets + why, meal, training, actions.
 
@@ -668,32 +672,23 @@ def build_today_board(
         )
 
     bat = sleep_battery or {}
-    if bat.get("mode") == "awake" and float(bat.get("pct_charged") or 100) < 30:
-        actions.append(
-            {
-                "id": "sleep-battery-low",
-                "kind": "sleep",
-                "priority": 2,
-                "text": (
-                    f"Sleep battery low ({bat.get('pct_charged')}%) — plan bedtime soon "
-                    f"(empty ~{str(bat.get('empty_at') or '')[11:16] or 'tonight'})."
-                ),
-                "motivation": TARGET_MOTIVATIONS["sleep"],
-            }
-        )
-    elif bat.get("mode") == "awake":
-        actions.append(
-            {
-                "id": "protect-bedtime",
-                "kind": "sleep",
-                "priority": 5,
-                "text": (
-                    f"Protect bedtime — battery {bat.get('pct_charged')}% after wake "
-                    f"{str(bat.get('last_wake_at') or '')[11:16] or '—'}."
-                ),
-                "motivation": TARGET_MOTIVATIONS["sleep"],
-            }
-        )
+    sleep = sleep_spec(
+        {
+            "date": as_of,
+            "sleep_battery": bat,
+            "sleep_intervals": list(sleep_intervals or []),
+        },
+        as_of=as_of,
+    )
+    actions.append(
+        {
+            "id": sleep["slug"],
+            "kind": "sleep",
+            "priority": int(sleep.get("priority") or 5),
+            "text": sleep["title"],
+            "motivation": TARGET_MOTIVATIONS["sleep"],
+        }
+    )
 
     cb = calorie_bars or {}
     pacing = cb.get("pacing") if isinstance(cb, dict) else None
@@ -786,12 +781,26 @@ def build_today_board(
             "pct_charged": bat.get("pct_charged"),
             "mode": bat.get("mode"),
             "last_wake_at": bat.get("last_wake_at"),
+            "last_sleep_hours": bat.get("last_sleep_hours"),
+            "sleep_target_hours": bat.get("sleep_target_hours"),
             "empty_at": bat.get("empty_at"),
             "summary": bat.get("summary"),
             "motivation": TARGET_MOTIVATIONS["sleep"],
         }
         if bat
         else None,
+        "sleep_intervals": list(sleep_intervals or []),
+        "sleep": {
+            "kind": sleep.get("kind"),
+            "status": sleep.get("status"),
+            "last_night_hours": sleep.get("last_night_hours"),
+            "extra_hours": sleep.get("extra_hours"),
+            "total_hours": sleep.get("total_hours"),
+            "target_hours": sleep.get("target_hours"),
+            "hit": sleep.get("hit"),
+            "title": sleep.get("title"),
+            "motivation": TARGET_MOTIVATIONS["sleep"],
+        },
         "calorie_bars": {
             "pacing_summary": (pacing or {}).get("summary") if isinstance(pacing, dict) else None,
             "delta_summary": ((cb.get("delta") or {}) if isinstance(cb, dict) else {}).get(
@@ -1219,6 +1228,7 @@ def build_coach_payload(
         food_logs_today=today_logs,
         inventory_dark=inventory_dark,
         active_zone_minutes=health.active_zone_minutes if health else None,
+        sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
     )
     food_commentary = build_food_commentary(
         food_logs=health.food_logs or [],

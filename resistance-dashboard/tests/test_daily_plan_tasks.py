@@ -14,7 +14,8 @@ from rt_dashboard.daily_plan_tasks import (
     PROTECT_BEDTIME_CACHE_KEY,
     PROTECT_BEDTIME_SLUG,
     SLEEP_BATTERY_LOW_CACHE_KEY,
-    SLEEP_BATTERY_LOW_SLUG,
+    SLEEP_RECOVERY_CACHE_KEY,
+    SLEEP_RECOVERY_SLUG,
     PlannedGroup,
     PlannedItem,
     _delete_order,
@@ -137,9 +138,12 @@ class TestDailyPlanTasks(unittest.TestCase):
         ]
         self.assertEqual(len(protein_items), 1)
         self.assertEqual(protein_items[0].title, "Cover remaining protein")
-        bedtime = [i for i in by["sleep"].items if i.slug == PROTECT_BEDTIME_SLUG]
+        bedtime = [i for i in by["sleep"].items if i.slug == SLEEP_RECOVERY_SLUG]
         self.assertEqual(len(bedtime), 1)
-        self.assertEqual(bedtime[0].title, "Protect bedtime")
+        self.assertTrue(
+            bedtime[0].title.startswith("Sleep —"),
+            bedtime[0].title,
+        )
 
     def test_meal_bucket_clock_lands_on_quest_label(self):
         board = {
@@ -693,14 +697,17 @@ class TestDailyPlanTasks(unittest.TestCase):
                 )
         self.assertTrue(result.get("ok"))
         groups = result.get("groups") or []
-        self.assertEqual({g["group"] for g in groups}, {"cardio"})
-        self.assertEqual(result.get("summary"), {"done": 0, "total": 1})
+        self.assertEqual({g["group"] for g in groups}, {"cardio", "sleep"})
+        self.assertEqual(result.get("summary"), {"done": 0, "total": 2})
         self.assertTrue(any(t == "Cardio" or "AZM" in (t or "") for t in created))
-        self.assertFalse(
+        self.assertTrue(
             any(
-                t in ("Training", "Nutrition", "Shopping", "Sleep & recovery")
+                t == "Sleep & recovery" or str(t or "").startswith("Sleep —")
                 for t in created
             )
+        )
+        self.assertFalse(
+            any(t in ("Training", "Nutrition", "Shopping") for t in created)
         )
 
     def test_meal_ownership_marker_skips_jots_and_lifts(self):
@@ -1728,8 +1735,8 @@ class TestDailyPlanTasks(unittest.TestCase):
             i for i in sleep.items if looks_like_sleep_quest_title(i.title)
         ]
         self.assertEqual(len(bedtime), 1)
-        self.assertEqual(bedtime[0].slug, PROTECT_BEDTIME_SLUG)
-        self.assertIn("60.3%", bedtime[0].title)
+        self.assertEqual(bedtime[0].slug, SLEEP_RECOVERY_SLUG)
+        self.assertTrue(bedtime[0].title.startswith("Sleep —"))
 
     def test_protect_bedtime_different_ids_plan_to_one(self):
         board = {
@@ -1761,31 +1768,23 @@ class TestDailyPlanTasks(unittest.TestCase):
         }
         groups = plan_from_today_board(board, day="2026-08-26")
         sleep = next(g for g in groups if g.group == "sleep")
-        bedtime = [
-            i for i in sleep.items if looks_like_protect_bedtime_title(i.title)
-        ]
-        low = [
-            i for i in sleep.items if looks_like_sleep_battery_low_title(i.title)
-        ]
-        self.assertEqual(len(bedtime), 1)
-        self.assertEqual(bedtime[0].slug, PROTECT_BEDTIME_SLUG)
-        self.assertIn("60.3%", bedtime[0].title)
-        self.assertEqual(len(low), 1)
-        self.assertEqual(low[0].slug, SLEEP_BATTERY_LOW_SLUG)
+        self.assertEqual(len(sleep.items), 1)
+        self.assertEqual(sleep.items[0].slug, SLEEP_RECOVERY_SLUG)
+        self.assertTrue(sleep.items[0].title.startswith("Sleep —"))
         self.assertEqual(
-            sleep_quest_action_slug(board["actions"][0]), PROTECT_BEDTIME_SLUG
+            sleep_quest_action_slug(board["actions"][0]), SLEEP_RECOVERY_SLUG
         )
         self.assertEqual(
-            sleep_quest_action_slug(board["actions"][1]), PROTECT_BEDTIME_SLUG
+            sleep_quest_action_slug(board["actions"][1]), SLEEP_RECOVERY_SLUG
         )
         self.assertEqual(
-            sleep_quest_action_slug(board["actions"][2]), SLEEP_BATTERY_LOW_SLUG
+            sleep_quest_action_slug(board["actions"][2]), SLEEP_RECOVERY_SLUG
         )
         self.assertEqual(
-            stable_action_slug(board["actions"][0], 0), PROTECT_BEDTIME_SLUG
+            stable_action_slug(board["actions"][0], 0), SLEEP_RECOVERY_SLUG
         )
         self.assertEqual(
-            stable_action_slug(board["actions"][2], 2), SLEEP_BATTERY_LOW_SLUG
+            stable_action_slug(board["actions"][2], 2), SLEEP_RECOVERY_SLUG
         )
 
     def test_hydrate_sleep_ignores_battery_in_title(self):
@@ -1822,7 +1821,7 @@ class TestDailyPlanTasks(unittest.TestCase):
             ],
         }
         ids = _hydrate_ids_from_listed({}, planned, listed, "2026-08-26")
-        self.assertEqual(ids[PROTECT_BEDTIME_CACHE_KEY], "bed-old")
+        self.assertEqual(ids[SLEEP_RECOVERY_CACHE_KEY], "bed-old")
 
     def test_sleep_owned_not_jot(self):
         day = "2026-08-26"
@@ -1843,12 +1842,11 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertTrue(looks_like_sleep_quest_title(jot["title"]))
         self.assertFalse(is_sleep_owned_task(jot, day=day))
 
-    def _sleep_board(self, pct, extra_actions=None, action_id=None, wake="18:28"):
+    def _sleep_board(self, hours, extra_actions=None, action_id=None, wake="18:28"):
+        _ = wake  # prior-night quest ignores wake clock
         action = {
             "kind": "sleep",
-            "text": (
-                f"Protect bedtime — battery {pct}% after wake {wake}."
-            ),
+            "text": f"Sleep — {float(hours):.1f}h / 8.0h last night",
         }
         if action_id is not None:
             action["id"] = action_id
@@ -1860,6 +1858,12 @@ class TestDailyPlanTasks(unittest.TestCase):
             "workout": {"is_rest_day": True, "exercises": []},
             "meal": {"meals": [], "items": []},
             "purchases": [],
+            "sleep_battery": {
+                "mode": "awake",
+                "last_sleep_hours": float(hours),
+                "sleep_target_hours": 8.0,
+                "pct_charged": 70,
+            },
         }
 
     def test_double_seed_sleep_stays_one(self):
@@ -1867,8 +1871,8 @@ class TestDailyPlanTasks(unittest.TestCase):
         created: list[dict] = []
         with tempfile.TemporaryDirectory() as tmp:
             with self._patch_ensure(store, created, tmp):
-                first = ensure_daily_tasks(self._sleep_board(60.3), day="2026-08-26")
-                second = ensure_daily_tasks(self._sleep_board(60.3), day="2026-08-26")
+                first = ensure_daily_tasks(self._sleep_board(6.0), day="2026-08-26")
+                second = ensure_daily_tasks(self._sleep_board(6.0), day="2026-08-26")
         self.assertTrue(first.get("ok"), first)
         self.assertTrue(second.get("ok"), second)
         incompletes = collect_sleep_quest_tasks(
@@ -1887,12 +1891,12 @@ class TestDailyPlanTasks(unittest.TestCase):
         created: list[dict] = []
         with tempfile.TemporaryDirectory() as tmp:
             with self._patch_ensure(store, created, tmp):
-                first = ensure_daily_tasks(self._sleep_board(60.3), day="2026-08-26")
+                first = ensure_daily_tasks(self._sleep_board(6.0), day="2026-08-26")
                 first_sleep = collect_sleep_quest_tasks(
                     list(store.values()), day="2026-08-26", incomplete_only=True
                 )
                 first_id = first_sleep[0]["id"]
-                second = ensure_daily_tasks(self._sleep_board(81.7), day="2026-08-26")
+                second = ensure_daily_tasks(self._sleep_board(6.5), day="2026-08-26")
         self.assertTrue(first.get("ok"), first)
         self.assertTrue(second.get("ok"), second)
         incompletes = collect_sleep_quest_tasks(
@@ -1900,8 +1904,8 @@ class TestDailyPlanTasks(unittest.TestCase):
         )
         self.assertEqual(len(incompletes), 1)
         self.assertEqual(incompletes[0]["id"], first_id)
-        self.assertIn("81.7%", incompletes[0]["title"])
-        self.assertNotIn("60.3%", incompletes[0]["title"])
+        self.assertIn("6.5h", incompletes[0]["title"])
+        self.assertNotIn("6.0h", incompletes[0]["title"])
         sleep_created = [
             t
             for t in created
@@ -1969,7 +1973,7 @@ class TestDailyPlanTasks(unittest.TestCase):
             with self._patch_ensure(store, created, tmp):
                 result = ensure_daily_tasks(
                     self._sleep_board(
-                        81.7,
+                        6.5,
                         extra_actions=[
                             {
                                 "kind": "training",
@@ -1993,7 +1997,7 @@ class TestDailyPlanTasks(unittest.TestCase):
             list(store.values()), day="2026-08-26", incomplete_only=True
         )
         self.assertEqual(len(incompletes), 1)
-        self.assertIn("81.7%", incompletes[0]["title"])
+        self.assertIn("6.5h", incompletes[0]["title"])
         self.assertIn("lift", store)
         self.assertIn("protein", store)
         self.assertIn("jot", store)
@@ -2029,7 +2033,7 @@ class TestDailyPlanTasks(unittest.TestCase):
         created: list[dict] = []
         with tempfile.TemporaryDirectory() as tmp:
             with self._patch_ensure(store, created, tmp):
-                result = ensure_daily_tasks(self._sleep_board(81.7), day="2026-08-26")
+                result = ensure_daily_tasks(self._sleep_board(6.5), day="2026-08-26")
         self.assertTrue(result.get("ok"), result)
         self.assertIn("s-done", store)
         self.assertEqual(store["s-done"]["status"], "completed")
@@ -2100,36 +2104,29 @@ class TestDailyPlanTasks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self._patch_ensure(store, created, tmp):
                 first = ensure_daily_tasks(
-                    self._sleep_board(81.7, action_id="act-ccc"),
+                    self._sleep_board(6.0, action_id="act-ccc"),
                     day="2026-08-26",
                 )
-                bedtime = collect_protect_bedtime_tasks(
+                bedtime = collect_sleep_quest_tasks(
                     list(store.values()), day="2026-08-26", incomplete_only=True
                 )
                 self.assertEqual(len(bedtime), 1)
                 kept_id = bedtime[0]["id"]
                 second = ensure_daily_tasks(
-                    self._sleep_board(90.1, action_id="act-ddd", wake="20:10"),
+                    self._sleep_board(6.5, action_id="act-ddd", wake="20:10"),
                     day="2026-08-26",
                 )
         self.assertTrue(first.get("ok"), first)
         self.assertTrue(second.get("ok"), second)
-        bedtime = collect_protect_bedtime_tasks(
+        bedtime = collect_sleep_quest_tasks(
             list(store.values()), day="2026-08-26", incomplete_only=True
         )
         self.assertEqual(len(bedtime), 1)
         self.assertEqual(bedtime[0]["id"], kept_id)
-        self.assertIn("90.1%", bedtime[0]["title"])
-        self.assertIn("20:10", bedtime[0]["title"])
-        self.assertNotIn("60.3%", bedtime[0]["title"])
-        self.assertNotIn("81.7%", bedtime[0]["title"])
-        low = collect_sleep_battery_low_tasks(
-            list(store.values()), day="2026-08-26", incomplete_only=True
-        )
-        self.assertEqual(len(low), 1)
-        self.assertEqual(low[0]["id"], "low")
-        self.assertTrue(looks_like_sleep_battery_low_title(low[0]["title"]))
-        self.assertFalse(is_protect_bedtime_owned_task(low[0], day="2026-08-26"))
+        self.assertIn("6.5h", bedtime[0]["title"])
+        self.assertNotIn("6.0h", bedtime[0]["title"])
+        self.assertNotIn("Protect bedtime", bedtime[0]["title"])
+        self.assertNotIn("Sleep battery low", bedtime[0]["title"])
         self.assertIn("jot", store)
         self.assertEqual(store["jot"]["title"], "Text the vet")
         parents = [
@@ -2206,28 +2203,23 @@ class TestDailyPlanTasks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self._patch_ensure(store, created, tmp):
                 result = ensure_daily_tasks(
-                    self._sleep_board(81.7, action_id="act-ccc"),
+                    self._sleep_board(6.5, action_id="act-ccc"),
                     day="2026-08-26",
                 )
         self.assertTrue(result.get("ok"), result)
-        bedtime = collect_protect_bedtime_tasks(
+        bedtime = collect_sleep_quest_tasks(
             list(store.values()), day="2026-08-26", incomplete_only=True
         )
         self.assertEqual(len(bedtime), 1)
-        self.assertIn("81.7%", bedtime[0]["title"])
-        low = collect_sleep_battery_low_tasks(
-            list(store.values()), day="2026-08-26", incomplete_only=True
-        )
-        self.assertEqual(len(low), 1)
-        self.assertEqual(low[0]["id"], "low")
-        self.assertIn("18%", low[0]["title"])
-        self.assertTrue(is_sleep_battery_low_owned_task(low[0], day="2026-08-26"))
+        self.assertIn("6.5h", bedtime[0]["title"])
+        self.assertNotIn("Sleep battery low", bedtime[0]["title"])
+        self.assertNotIn("Protect bedtime", bedtime[0]["title"])
         self.assertIn("lift", store)
         self.assertIn("jot", store)
         self.assertEqual(store["jot"]["title"], "Call mom")
 
     def test_sleep_battery_low_family_stays_one(self):
-        def _low_board(pct, action_id):
+        def _low_board(hours, action_id):
             return {
                 "date": "2026-08-26",
                 "actions": [
@@ -2235,14 +2227,20 @@ class TestDailyPlanTasks(unittest.TestCase):
                         "kind": "sleep",
                         "id": action_id,
                         "text": (
-                            f"Sleep battery low ({pct}%) — plan bedtime soon "
-                            "(empty ~23:10)."
+                            f"Sleep — {hours:.1f}h / 8.0h last night. "
+                            "Nap, earlier bedtime, caffeine cutoff."
                         ),
                     }
                 ],
                 "workout": {"is_rest_day": True, "exercises": []},
                 "meal": {"meals": [], "items": []},
                 "purchases": [],
+                "sleep_battery": {
+                    "mode": "awake",
+                    "last_sleep_hours": float(hours),
+                    "sleep_target_hours": 8.0,
+                    "pct_charged": 20,
+                },
             }
 
         store = {
@@ -2270,25 +2268,22 @@ class TestDailyPlanTasks(unittest.TestCase):
         created: list[dict] = []
         with tempfile.TemporaryDirectory() as tmp:
             with self._patch_ensure(store, created, tmp):
-                first = ensure_daily_tasks(_low_board(15, "act-new"), day="2026-08-26")
-                low = collect_sleep_battery_low_tasks(
+                first = ensure_daily_tasks(_low_board(6.0, "act-new"), day="2026-08-26")
+                low = collect_sleep_quest_tasks(
                     list(store.values()), day="2026-08-26", incomplete_only=True
                 )
                 self.assertEqual(len(low), 1)
                 kept_id = low[0]["id"]
-                second = ensure_daily_tasks(_low_board(12, "act-newer"), day="2026-08-26")
+                second = ensure_daily_tasks(_low_board(5.5, "act-newer"), day="2026-08-26")
         self.assertTrue(first.get("ok"), first)
         self.assertTrue(second.get("ok"), second)
-        low = collect_sleep_battery_low_tasks(
+        low = collect_sleep_quest_tasks(
             list(store.values()), day="2026-08-26", incomplete_only=True
         )
         self.assertEqual(len(low), 1)
         self.assertEqual(low[0]["id"], kept_id)
-        self.assertIn("12%", low[0]["title"])
-        bedtime = collect_protect_bedtime_tasks(
-            list(store.values()), day="2026-08-26", incomplete_only=True
-        )
-        self.assertEqual(bedtime, [])
+        self.assertIn("5.5h", low[0]["title"])
+        self.assertEqual(SLEEP_RECOVERY_CACHE_KEY, "sleep|sleep-recovery")
         self.assertEqual(SLEEP_BATTERY_LOW_CACHE_KEY, "sleep|sleep-battery-low")
 
     def test_lift_weight_change_upserts_same_id(self):
