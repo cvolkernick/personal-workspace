@@ -506,12 +506,15 @@ def daily_tasks_complete_body(headers, payload=None, method="POST"):
 
 
 def inventory_write(headers, route: str, payload=None):
-    """Kitchen add/remove/stock/update to Turso. Cookie-less 401. Failed persist is 5xx."""
-    user, err = require_user(headers)
-    if err:
-        return err
+    """Kitchen add/remove/stock/update to Turso. Cookie-less 401. Failed persist is 5xx.
+
+    Agent stock writes use a Chris-bound ``FITDASH_INVENTORY_AGENT_TOKEN``
+    (same Bearer / X-FitDash-Service-Token headers). House
+    ``FITDASH_SERVICE_TOKEN`` is not enough. Body ``userId`` is not trusted.
+    """
     payload = payload if isinstance(payload, dict) else {}
     from rt_dashboard.inventory_store import (
+        inventory_principal_uid,
         load_preview_inventory,
         save_preview_inventory,
     )
@@ -521,8 +524,32 @@ def inventory_write(headers, route: str, payload=None):
         set_in_stock,
         update_ingredient,
     )
+    from rt_dashboard.service_auth import (
+        account_hint_mismatch,
+        inventory_agent_denied,
+        inventory_agent_principal,
+        inventory_forbidden,
+        inventory_session_uid,
+    )
 
-    uid = str(user.get("id") or "")
+    user, err = require_user(headers)
+    if err:
+        user = inventory_agent_principal(headers)
+        if not user:
+            return 401, inventory_agent_denied()
+        if route != "inv_stock":
+            return 403, inventory_forbidden("inventory agent is stock-write only")
+        try:
+            uid = inventory_principal_uid(inventory_session_uid(user))
+        except ValueError:
+            return 401, inventory_agent_denied()
+    else:
+        uid = inventory_session_uid(user)
+
+    mismatch = account_hint_mismatch(uid, payload)
+    if mismatch:
+        return mismatch
+
     try:
         current, _src = load_preview_inventory(uid)
         if route == "inv_add":
@@ -545,7 +572,14 @@ def inventory_write(headers, route: str, payload=None):
             return 400, {"ok": False, "error": "unknown_inventory_route"}
         saved = save_preview_inventory(updated, uid)
     except ValueError as exc:
-        return 400, {"ok": False, "error": str(exc)}
+        msg = str(exc)
+        if msg == "inventory user_id required":
+            return 401, inventory_agent_denied()
+        if msg == "ingredient not found":
+            if route == "inv_stock":
+                return 404, {"ok": False, "error": "not_found", "message": msg}
+            return 400, {"ok": False, "error": msg}
+        return 400, {"ok": False, "error": msg}
     except Exception as exc:  # noqa: BLE001
         return 500, {
             "ok": False,
@@ -556,6 +590,7 @@ def inventory_write(headers, route: str, payload=None):
         "ok": True,
         "inventory": saved,
         "write": {"ok": True, "source": "turso", "verified_on_readback": True},
+        "user_id": uid,
     }
 
 

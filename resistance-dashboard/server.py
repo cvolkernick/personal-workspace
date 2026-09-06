@@ -99,6 +99,10 @@ from rt_dashboard.day_constraints import (  # noqa: E402
     export_day_constraints_from_dashboard,
 )
 from rt_dashboard.service_auth import (  # noqa: E402
+    account_hint_mismatch,
+    inventory_agent_denied,
+    inventory_agent_principal,
+    inventory_session_uid,
     service_auth_denied,
     service_auth_ok as _service_auth_ok,
     service_token_from_headers as _service_token_from_headers,
@@ -135,9 +139,10 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     update_targets,
 )
 from rt_dashboard.inventory_store import (  # noqa: E402
+    inventory_principal_uid,
+    inventory_source_fields,
     load_preview_inventory,
     persist_inventory,
-    inventory_source_fields,
 )
 from rt_dashboard.nutrition_store import (  # noqa: E402
     TARGETS_PATH,
@@ -1606,12 +1611,29 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         ):
             return
         parsed = urlparse(self.path)
-        # Gate all personal POST APIs
+        # Gate all personal POST APIs. Inventory stock also accepts a
+        # Chris-bound agent token (not the house FITDASH_SERVICE_TOKEN).
         if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
-            user = self._require_user()
-            if user is None and _auth_required():
-                return
-            self._request_user = user  # type: ignore[attr-defined]
+            if parsed.path == "/api/inventory/stock":
+                user = _session_user_from_headers(self.headers)
+                if not user:
+                    user = inventory_agent_principal(self.headers)
+                if user:
+                    self._request_user = user  # type: ignore[attr-defined]
+                elif _auth_required():
+                    self._send_json(inventory_agent_denied(), status=401)
+                    return
+                else:
+                    self._request_user = {  # type: ignore[attr-defined]
+                        "user_id": None,
+                        "email": "",
+                        "display_name": "legacy",
+                    }
+            else:
+                user = self._require_user()
+                if user is None and _auth_required():
+                    return
+                self._request_user = user  # type: ignore[attr-defined]
         if parsed.path == "/api/google-health/auth/start":
             try:
                 body = (
@@ -1844,7 +1866,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/inventory/stock":
             try:
                 body = self._read_json()
-                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                user = getattr(self, "_request_user", None) or {}
+                uid = inventory_session_uid(user)
+                if user.get("agent_inventory"):
+                    uid = inventory_principal_uid(uid)
+                mismatch = account_hint_mismatch(uid, body)
+                if mismatch:
+                    status, payload = mismatch
+                    self._send_json(payload, status=status)
+                    return
                 client = build_github_client(for_write=True)
                 current, _src = load_preview_inventory(str(uid))
                 updated = set_in_stock(
@@ -1859,9 +1889,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     message=f"nutrition: stock {'on' if body.get('in_stock') else 'off'} {body.get('id')}",
                 )
                 self._send_json(
-                    {"ok": True, "inventory": write.get("inventory") or updated, "write": write}
+                    {
+                        "ok": True,
+                        "inventory": write.get("inventory") or updated,
+                        "write": write,
+                        "user_id": uid,
+                    }
                 )
-            except (ValueError, json.JSONDecodeError) as e:
+            except ValueError as e:
+                msg = str(e)
+                if msg == "inventory user_id required":
+                    self._send_json(inventory_agent_denied(), status=401)
+                elif msg == "ingredient not found":
+                    self._send_json(
+                        {"ok": False, "error": "not_found", "message": msg},
+                        status=404,
+                    )
+                else:
+                    self._send_json({"ok": False, "error": msg}, status=400)
+            except json.JSONDecodeError as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
