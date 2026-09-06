@@ -51,6 +51,10 @@ def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
     if plan.get("next_session_type"):
         slot["next_session_type"] = plan.get("next_session_type")
     slot["source"] = plan.get("source") or "grok"
+    if plan.get("generate_error"):
+        slot["generate_error"] = plan.get("generate_error")
+    else:
+        slot.pop("generate_error", None)
     payload["workout"] = slot
     store = dict(payload.get("workout_store") or {})
     store_plan = dict(store.get("plan") or {})
@@ -62,6 +66,10 @@ def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
     store_plan["source"] = slot.get("source")
     if slot.get("next_session_type"):
         store_plan["next_session_type"] = slot.get("next_session_type")
+    if slot.get("generate_error"):
+        store_plan["generate_error"] = slot.get("generate_error")
+    else:
+        store_plan.pop("generate_error", None)
     store["plan"] = store_plan
     payload["workout_store"] = store
     return payload
@@ -329,3 +337,56 @@ def ensure_today_grok_plan(
             "meal": result.get("meal"),
             "model": result.get("model"),
         }
+
+
+def fill_stamped_workout(
+    user_id: str,
+    *,
+    day: str,
+    workout: Optional[dict] = None,
+    sessions=None,
+    goals=None,
+    recovery=None,
+    headers=None,
+    query: str = "",
+) -> dict:
+    """Saved plan, else SuperGrok once when letter stamps + not rest + empty.
+
+    Shared by Pi GET ``/api/agent/today`` and the Vercel cookie-less Today path.
+    Never invents lifts. Surfaces ``generate_error`` on the slot when SuperGrok fails.
+    """
+    from .workout_store import brief_sessions
+
+    plan_uid = str(user_id or "").strip() or house_plan_user_id()
+    local_day = str(day or "")[:10]
+    slot = dict(workout) if isinstance(workout, dict) else {}
+    saved = load_last_good_workout_plan(plan_uid, local_day)
+    if is_good_workout_plan(saved):
+        return saved
+    letter = _letter(slot.get("session_type"))
+    if not letter or slot.get("is_rest_day") or letter == "rest":
+        return slot
+    filled = ensure_today_grok_plan(
+        plan_uid,
+        day=local_day,
+        auto=True,
+        context={
+            "day": local_day,
+            "sessions": sessions or [],
+            "sessions_brief": brief_sessions(sessions or [], limit=5),
+            "goals": goals or {},
+            "recovery": recovery or {},
+            "stamped": slot,
+            "next_session_type": slot.get("next_session_type"),
+        },
+        headers=headers,
+        query=query,
+    )
+    if filled.get("ok") and is_good_workout_plan(filled.get("workout")):
+        return filled["workout"]
+    if filled.get("error"):
+        slot["generate_error"] = filled["error"]
+        msg = str(slot.get("message") or "")
+        if "Generate today's" in msg or not msg.strip():
+            slot["message"] = filled["error"]
+    return slot

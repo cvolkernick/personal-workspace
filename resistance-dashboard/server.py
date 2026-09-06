@@ -1495,9 +1495,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/agent/today":
             # Machine-friendly Today + week brief. Same loopback / service-token
-            # path as /api/sleep_battery (see _service_auth_ok). Read-only
-            # slice of the cached dashboard — no invented ml / loads / sessions /
-            # AZM / intake / sleep.
+            # path as /api/sleep_battery (see _service_auth_ok). Auto-generates a
+            # SuperGrok plan when the letter stamps, it is not rest, and the
+            # store is empty — no invented ml / loads / sessions / AZM / intake /
+            # sleep / lifts.
             client_host = (self.client_address or ("", 0))[0]
             user = _session_user_from_headers(self.headers)
             if _auth_required() and not user and not _service_auth_ok(
@@ -1508,12 +1509,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             try:
                 uid = user.get("user_id") if user else None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
-                from rt_dashboard.agent_plan import house_plan_user_id, overlay_workout_on_payload
-                from rt_dashboard.timeutil import local_today_iso
-                from rt_dashboard.workout_plan_store import (
-                    is_good_workout_plan,
-                    load_last_good_workout_plan,
+                from rt_dashboard.agent_plan import (
+                    fill_stamped_workout,
+                    house_plan_user_id,
+                    overlay_workout_on_payload,
                 )
+                from rt_dashboard.timeutil import local_today_iso
 
                 plan_uid = str(uid or house_plan_user_id())
                 day = (
@@ -1521,9 +1522,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     or (data.get("meta") or {}).get("local_today")
                     or local_today_iso()
                 )
-                saved = load_last_good_workout_plan(plan_uid, str(day)[:10])
-                if is_good_workout_plan(saved):
-                    data = overlay_workout_on_payload(data, saved)
+                filled = fill_stamped_workout(
+                    plan_uid,
+                    day=str(day)[:10],
+                    workout=data.get("workout")
+                    if isinstance(data.get("workout"), dict)
+                    else {},
+                    sessions=data.get("sessions") or [],
+                    goals=data.get("goals") or {},
+                    recovery=data.get("recovery")
+                    if isinstance(data.get("recovery"), dict)
+                    else {},
+                    headers=self.headers,
+                    query=parsed.query or "",
+                )
+                data = overlay_workout_on_payload(data, filled)
                 self._send_json(export_agent_today(data))
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)

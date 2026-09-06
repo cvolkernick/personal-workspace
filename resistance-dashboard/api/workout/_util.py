@@ -891,15 +891,7 @@ def _agent_today_from_stores(headers, query: str = ""):
         errors.append(f"recovery: {type(exc).__name__}")
         recovery_dict = {"sparse": not had_real_sleep}
 
-    from rt_dashboard.agent_plan import (
-        ensure_today_grok_plan,
-        house_plan_user_id,
-    )
-    from rt_dashboard.workout_plan_store import (
-        is_good_workout_plan,
-        load_last_good_workout_plan,
-    )
-    from rt_dashboard.workout_store import brief_sessions
+    from rt_dashboard.agent_plan import fill_stamped_workout, house_plan_user_id
 
     plan_uid = house_plan_user_id()
     _meal, workout = dashboard_plan_slots(
@@ -909,34 +901,16 @@ def _agent_today_from_stores(headers, query: str = ""):
         recovery=recovery_dict,
         as_of=today,
     )
-    saved = load_last_good_workout_plan(plan_uid, today)
-    if is_good_workout_plan(saved):
-        workout = saved
-    elif workout.get("session_type") and not workout.get("is_rest_day"):
-        filled = ensure_today_grok_plan(
-            plan_uid,
-            day=today,
-            auto=True,
-            context={
-                "day": today,
-                "sessions": sessions,
-                "sessions_brief": brief_sessions(sessions, limit=5),
-                "goals": goals,
-                "recovery": recovery_dict,
-                "stamped": workout,
-                "next_session_type": workout.get("next_session_type"),
-            },
-            headers=headers,
-            query=query,
-        )
-        if filled.get("ok") and is_good_workout_plan(filled.get("workout")):
-            workout = filled["workout"]
-        elif filled.get("error"):
-            workout = dict(workout)
-            workout["generate_error"] = filled["error"]
-            msg = str(workout.get("message") or "")
-            if "Generate today's" in msg or not msg.strip():
-                workout["message"] = filled["error"]
+    workout = fill_stamped_workout(
+        plan_uid,
+        day=today,
+        workout=workout,
+        sessions=sessions,
+        goals=goals,
+        recovery=recovery_dict,
+        headers=headers,
+        query=query,
+    )
 
     nutrition_store: dict = {}
     try:
