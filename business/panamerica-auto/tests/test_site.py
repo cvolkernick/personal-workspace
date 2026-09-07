@@ -73,6 +73,10 @@ class PanamericaAutoSiteTests(unittest.TestCase):
         self.assertIn('href="cybercab-fleet.html"', self.html)
         self.assertIn("teaser-strip", self.html)
         self.assertIn('option value="cybercab"', self.html)
+        self.assertNotIn("Open the demo page", self.html)
+        self.assertNotIn("Cybercab demo", self.html)
+        self.assertIn("Start on Turo. Position for Cybercab.", self.html)
+        self.assertIn("Explore the path", self.html)
 
     def test_title_and_brand(self) -> None:
         self.assertIn("Panamerica Auto", self.html)
@@ -195,15 +199,17 @@ class PanamericaAutoSiteTests(unittest.TestCase):
                 for name in REQUIRED_SERVICES:
                     self.assertIn(name, body, f"service missing on run {run}: {name}")
                 self.assertIn("cybercab-fleet.html", body, f"homepage cybercab link missing run {run}")
+                self.assertNotIn("Open the demo page", body, f"homepage still uses demo CTA on run {run}")
 
                 with urllib.request.urlopen(
                     f"http://127.0.0.1:{port}/cybercab-fleet.html", timeout=1.0
                 ) as resp:
                     self.assertEqual(resp.status, 200)
                     cyber = resp.read().decode("utf-8")
-                self.assertIn("DEMO", cyber)
+                self.assertIn("Register interest", cyber)
                 self.assertIn("not an offer to sell securities", cyber.lower())
-                self.assertIn("noindex", cyber)
+                self.assertNotIn("demo-banner", cyber)
+                self.assertNotIn("Open the demo page", cyber)
             finally:
                 proc.terminate()
                 try:
@@ -219,13 +225,22 @@ class PanamericaAutoSiteTests(unittest.TestCase):
 class PanamericaCybercabDemoTests(unittest.TestCase):
     def setUp(self) -> None:
         self.html = CYBERCAB.read_text(encoding="utf-8")
+        self.home = INDEX.read_text(encoding="utf-8")
 
-    def test_demo_banner_and_noindex(self) -> None:
-        self.assertIn('name="robots" content="noindex, nofollow"', self.html)
-        self.assertIn("demo-banner", self.html)
-        self.assertIn("DEMO", self.html)
+    def test_marketing_hero_not_demo_skin(self) -> None:
+        self.assertNotIn('name="robots" content="noindex, nofollow"', self.html)
+        self.assertNotIn("demo-banner", self.html)
+        self.assertNotIn("page-cybercab", self.html)
+        self.assertNotRegex(self.html, r"<title>[^<]*Demo")
+        self.assertNotIn("What this page is", self.html)
         self.assertIn("not an offer to sell securities", self.html.lower())
-        self.assertRegex(self.html, r"<title>[^<]*Demo")
+        self.assertIn("legal-strip", self.html)
+        self.assertRegex(self.html, r"<title>[^<]*Turo to Cybercab")
+        self.assertIn("href=\"static/styles.css\"", self.html)
+        css = CSS.read_text(encoding="utf-8")
+        self.assertNotIn(".demo-banner", css)
+        self.assertIn("--accent:", css)
+        self.assertIn("--gold:", css)
 
     def test_not_a_live_offering_cta(self) -> None:
         for phrase in FORBIDDEN_OFFERING_CTA:
@@ -249,6 +264,14 @@ class PanamericaCybercabDemoTests(unittest.TestCase):
         self.assertIn("tampa", lowered)
         self.assertIn("orlando", lowered)
 
+    def test_turo_cybercab_path(self) -> None:
+        self.assertIn("id=\"path\"", self.html)
+        self.assertIn("Vehicle at your price", self.html)
+        self.assertIn("Live on Turo", self.html)
+        self.assertIn("Position for Cybercab", self.html)
+        self.assertIn("Operator continuity", self.html)
+        self.assertIn("listing, turnover, maintenance", self.html.lower())
+
     def test_three_scenarios_and_honest_base_case(self) -> None:
         self.assertIn('data-scenario="conservative"', self.html)
         self.assertIn('data-scenario="base"', self.html)
@@ -263,8 +286,10 @@ class PanamericaCybercabDemoTests(unittest.TestCase):
         self.assertIn('id="risks"', self.html)
         self.assertIn("Tesla may never sell", self.html)
         self.assertIn('id="interest-form"', self.html)
-        for field in ("inv-name", "inv-email", "inv-role", "inv-size", "inv-message", "inv-accredited", "inv-ack"):
+        for field in ("inv-name", "inv-email", "inv-role", "inv-message", "inv-ack"):
             self.assertIn(f'id="{field}"', self.html)
+        self.assertNotIn('id="inv-accredited"', self.html)
+        self.assertNotIn('id="inv-size"', self.html)
         self.assertIn('src="static/img/tesla-cybercab-hero.jpg"', self.html)
         self.assertGreater(HERO_IMG.stat().st_size, 10_000)
         self.assertNotIn("swfl-cybercab-hero.jpg", self.html)
@@ -284,8 +309,17 @@ class PanamericaCybercabDemoTests(unittest.TestCase):
     def test_js_binds_interest_form(self) -> None:
         js = JS.read_text(encoding="utf-8")
         self.assertIn("interest-form", js)
-        self.assertIn("ack_demo", js)
-        self.assertIn("accredited", js)
+        self.assertIn("ack_legal", js)
+        self.assertNotIn("ack_demo", js)
+
+    def test_shared_chrome_with_homepage(self) -> None:
+        self.assertIn("Panamerica Auto", self.html)
+        self.assertIn("Rentals · Fleet Management", self.html)
+        self.assertIn('class="brand-mark"', self.html)
+        self.assertIn('class="site-header"', self.html)
+        self.assertIn('class="site-footer"', self.html)
+        self.assertIn("Start on Turo. Position for Cybercab.", self.home)
+        self.assertNotIn("Open the demo page", self.home)
 
 
 if __name__ == "__main__":
