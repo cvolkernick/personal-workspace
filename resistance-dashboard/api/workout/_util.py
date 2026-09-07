@@ -291,10 +291,11 @@ def workouts_write(headers, payload=None):
         from api.dashboard import _load_sessions
         from rt_dashboard.pr_detect import apply_auto_prs
         from rt_dashboard.turso_repo import save_preview_session
-        from rt_dashboard.workout_log import parse_log_body
+        from rt_dashboard.workout_log import merge_log_with_history, parse_log_body
 
         session = parse_log_body(payload)
         history, _hist_err, _hist_src = _load_sessions(uid)
+        session = merge_log_with_history(session, history)
         apply_auto_prs(session, history)
         result = save_preview_session(uid, session)
         sessions, errors, source = _load_sessions(uid)

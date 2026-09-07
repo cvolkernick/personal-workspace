@@ -3,15 +3,86 @@
 UI ``submitWorkout`` posts ``{session_type, date, notes, exercises}``
 (``static/app.js``). Flat ``{name, weight_lbs, sets, reps}`` is also accepted
 so the README / Pi form stay valid.
+
+Log-tab save unions with an existing same-day same-type session (quest
+checkoffs) instead of replacing the row. Incoming log weights win on name
+match; exercises only on the existing session are kept.
 """
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Sequence
 
 from .models import ExerciseEntry, Session, SetEntry
 from .timeutil import local_today_iso
+
+
+def _norm_name(name: str) -> str:
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+def find_same_day_session(
+    sessions: Sequence[Session], date: str, session_type: str
+) -> Optional[Session]:
+    st = str(session_type or "").lower().strip()
+    day = str(date or "")[:10]
+    for s in sessions or []:
+        if str(s.date)[:10] == day and str(s.session_type or "").lower() == st:
+            return s
+    return None
+
+
+def merge_same_day_session(
+    incoming: Session, existing: Optional[Session]
+) -> Session:
+    """Union exercises for the same civil day + PPL type.
+
+    Incoming (Log tab) wins on normalized name — those are the loads Chris
+    typed. Quest-only rows stay. Empty incoming notes do not wipe existing
+    notes. Different date or session_type is not merged.
+    """
+    if existing is None:
+        return incoming
+    in_st = str(incoming.session_type or "").lower()
+    ex_st = str(existing.session_type or "").lower()
+    if str(existing.date)[:10] != str(incoming.date)[:10] or in_st != ex_st:
+        return incoming
+    by_key: Dict[str, ExerciseEntry] = {}
+    order: list[str] = []
+    for ex in existing.exercises or []:
+        key = _norm_name(ex.name)
+        if not key:
+            continue
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = ex
+    for ex in incoming.exercises or []:
+        key = _norm_name(ex.name)
+        if not key:
+            continue
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = ex
+    notes = (incoming.notes or "").strip() or (existing.notes or "")
+    source = (incoming.source_file or "").strip() or (existing.source_file or "")
+    return Session(
+        date=incoming.date,
+        session_type=incoming.session_type,
+        exercises=[by_key[k] for k in order],
+        notes=notes,
+        source_file=source,
+    )
+
+
+def merge_log_with_history(
+    incoming: Session, history: Sequence[Session]
+) -> Session:
+    existing = find_same_day_session(
+        history, incoming.date, incoming.session_type
+    )
+    return merge_same_day_session(incoming, existing)
 
 
 def parse_log_body(data: dict) -> Session:
