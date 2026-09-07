@@ -1910,6 +1910,8 @@
 
   function formatInventoryPortion(ing) {
     if (!ing) return "1 serving";
+    const qty = ing.suggested_qty;
+    if (qty && qty.label) return String(qty.label);
     const sg = Number(ing.serving_g);
     if (Number.isFinite(sg) && sg > 0) {
       const label = String(ing.serving_label || "").trim();
@@ -1952,13 +1954,11 @@
     return !!(it && itemHasMacros(it) && usableServingGrams(it) == null);
   }
 
-  /** Health logged-serving / generic “1 serving” must not save without user grams. */
+  /** Health “logged serving” must not save without user grams. Other serving-only items are allowed (#503). */
   function servingGramsRequired(it) {
     if (!itemNeedsServingGrams(it)) return false;
     const label = String((it && it.serving_label) || "").trim();
-    if (!label) return false;
-    if (/logged\s+serving/i.test(label)) return true;
-    return /^(?:\d+(?:\.\d+)?\s+)?(?:logged\s+)?servings?\s*(?:\([^)]*\))?$/i.test(label);
+    return /logged\s+serving/i.test(label);
   }
 
   function servingGramsPrompt(it) {
@@ -2022,7 +2022,9 @@
   }
 
   function assertServingGramsOrExplain(body) {
-    if (!itemNeedsServingGrams(body)) return "";
+    // portion_g / serving_g is preferred, not required (#503). Only Health
+    // “logged serving” rows still need mass so we do not invent grams.
+    if (!servingGramsRequired(body)) return "";
     return servingGramsPrompt(body);
   }
 
@@ -2045,9 +2047,9 @@
             ing.name || ""
           )}" required /></label>
           <label>Category <select data-edit-field="category">${opts}</select></label>
-          <label>Portion (g) <input type="number" data-edit-field="serving_g" min="1" step="1" value="${invEscapeAttr(
+          <label>Portion (g) <span class="muted">optional</span> <input type="number" data-edit-field="serving_g" min="1" step="1" value="${invEscapeAttr(
             gVal
-          )}"${itemNeedsServingGrams(ing) ? " required" : ""} /></label>
+          )}"${servingGramsRequired(ing) ? " required" : ""} /></label>
         </div>
         ${
           itemNeedsServingGrams(ing)
@@ -2148,13 +2150,40 @@
     </div>`;
   }
 
+  function renderInventoryHonesty(honesty) {
+    const rows = Array.isArray(honesty) ? honesty : [];
+    if (!rows.length) return "";
+    let html = `<ul class="meal-honesty">`;
+    rows.forEach((h) => {
+      const level = h && h.level === "warn" ? "warn" : "muted";
+      const text = (h && h.text) || "";
+      if (!text) return;
+      html += `<li class="${level}">${text}</li>`;
+    });
+    html += `</ul>`;
+    return html;
+  }
+
   function renderInventorySuggestions(store) {
     const box = $("inventory-suggestions");
     if (!box) return;
     const block = (store && store.inventory_suggestions) || {};
     const items = block.suggestions || [];
+    const honestyHtml = renderInventoryHonesty(block.honesty);
     if (!items.length) {
-      box.innerHTML = "";
+      if (!honestyHtml && !block.summary) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = `<div class="macro-summary inv-suggest-panel compact-panel">
+        <div class="macro-summary-header">
+          <div>
+            <div class="macro-summary-title">Suggested staples</div>
+            <div class="macro-summary-meta muted">${block.summary || "Need-based (not log frequency). Proposals until you accept."}</div>
+          </div>
+        </div>
+        ${honestyHtml}
+      </div>`;
       return;
     }
     let slides = "";
@@ -2177,17 +2206,18 @@
           notes: s.notes || "",
         })
       );
-      const reason = String(s.reason || "").slice(0, 90);
+      const reason = String(s.need || s.reason || "").slice(0, 90);
+      const qty = (s.suggested_qty && s.suggested_qty.label) || formatInventoryPortion(s);
       slides += `<div class="inv-slide inv-card compact suggest">
         <div class="inv-card-name">${s.name || "Staple"}
           <span class="inv-action-badge inv-action-${action}">${action}</span>
         </div>
-        <div class="inv-card-meta muted">${s.category || "other"} · ${
-        formatInventoryPortion(s)
-      }</div>
+        <div class="inv-card-meta muted">${s.category || "other"} · ${qty}</div>
         ${
-          itemNeedsServingGrams(s)
+          servingGramsRequired(s)
             ? `<p class="inv-grams-prompt compact">${invEscapeAttr(servingGramsPrompt(s))}</p>`
+            : itemNeedsServingGrams(s)
+            ? `<p class="inv-grams-prompt compact muted">Grams optional — planner will use servings.</p>`
             : ""
         }
         ${reason ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${String(s.reason || "").length > 90 ? "…" : ""}</div>` : ""}
@@ -2198,6 +2228,7 @@
             data-payload="${payload}" data-idx="${idx}">
             ${label}
           </button>
+          <button type="button" data-action="suggest-dismiss" data-idx="${idx}">Dismiss</button>
         </div>
       </div>`;
     });
@@ -2205,10 +2236,11 @@
       <div class="macro-summary-header">
         <div>
           <div class="macro-summary-title">Suggested staples</div>
-          <div class="macro-summary-meta muted">${block.summary || "Based on logs, gaps, and catalog"}</div>
+          <div class="macro-summary-meta muted">${block.summary || "Need-based (not log frequency). Proposals until you accept."}</div>
         </div>
         <div class="inv-carousel-count muted">${items.length}</div>
       </div>
+      ${honestyHtml}
       ${invCarouselShell("suggest-carousel", slides)}
     </div>`;
   }
@@ -2218,15 +2250,31 @@
     if (!box) return;
     const block = (store && store.inventory_removals) || {};
     const items = block.suggestions || [];
+    const honestyHtml = renderInventoryHonesty(block.honesty);
     if (!items.length) {
-      box.innerHTML = "";
+      if (!honestyHtml && !block.summary) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = `<div class="macro-summary inv-remove-panel compact-panel">
+        <div class="macro-summary-header">
+          <div>
+            <div class="macro-summary-title">Suggested removals</div>
+            <div class="macro-summary-meta muted">${block.summary || "Need-based — not rare-log. Proposals until you accept."}</div>
+          </div>
+        </div>
+        ${honestyHtml}
+      </div>`;
       return;
     }
     let slides = "";
     items.forEach((s, idx) => {
       const iid = String(s.id || "").replace(/"/g, "&quot;");
       const iname = String(s.name || "").replace(/"/g, "&quot;");
-      const reason = String(s.reason || "").slice(0, 110);
+      const reason = String(s.need || s.reason || "").slice(0, 110);
+      const paired = s.paired_add && s.paired_add.name
+        ? ` Pair with add: ${s.paired_add.name}.`
+        : "";
       slides += `<div class="inv-slide inv-card compact suggest-remove">
         <div class="inv-card-name">${s.name || "Item"}
           <span class="inv-action-badge inv-action-remove">remove</span>
@@ -2234,7 +2282,7 @@
         <div class="inv-card-meta muted">${s.category || "other"} · ${s.serving_label || "1 serving"}</div>
         ${
           reason
-            ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${
+            ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${paired}${
                 String(s.reason || "").length > 110 ? "…" : ""
               }</div>`
             : ""
@@ -2245,6 +2293,7 @@
             data-id="${iid}" data-name="${iname}" data-idx="${idx}">
             Remove
           </button>
+          <button type="button" data-action="suggest-remove-dismiss" data-idx="${idx}">Dismiss</button>
         </div>
       </div>`;
     });
@@ -2252,10 +2301,11 @@
       <div class="macro-summary-header">
         <div>
           <div class="macro-summary-title">Suggested removals</div>
-          <div class="macro-summary-meta muted">${block.summary || "Items that may not help your plan"}</div>
+          <div class="macro-summary-meta muted">${block.summary || "Need-based — not rare-log. Proposals until you accept."}</div>
         </div>
         <div class="inv-carousel-count muted">${items.length}</div>
       </div>
+      ${honestyHtml}
       ${invCarouselShell("remove-carousel", slides)}
     </div>`;
   }
@@ -2280,8 +2330,8 @@
     const wrap = document.createElement("div");
     wrap.innerHTML = `<form class="inv-grams-form">
         <p class="inv-grams-prompt">${invEscapeAttr(servingGramsPrompt(body))}</p>
-        <label>Portion (g)
-          <input type="number" data-grams-field="serving_g" min="1" step="1" required placeholder="e.g. 170" />
+        <label>Portion (g) <span class="muted">optional</span>
+          <input type="number" data-grams-field="serving_g" min="1" step="1" placeholder="e.g. 170" />
         </label>
         <div class="actions inv-card-actions compact">
           <button type="submit" class="primary" data-action="suggest-grams-save"
@@ -2432,6 +2482,22 @@
         cancelInventoryEdit();
         return;
       }
+      if (action === "suggest-dismiss") {
+        dropAppliedSuggestion(Number(btn.getAttribute("data-idx")));
+        return;
+      }
+      if (action === "suggest-remove-dismiss") {
+        if (state && state.nutrition_store && state.nutrition_store.inventory_removals) {
+          const rem = state.nutrition_store.inventory_removals;
+          const idx = Number(btn.getAttribute("data-idx"));
+          if (Array.isArray(rem.suggestions) && !Number.isNaN(idx)) {
+            rem.suggestions = rem.suggestions.filter((_, i) => i !== idx);
+            rem.count = rem.suggestions.length;
+          }
+          renderInventoryRemovals(state.nutrition_store);
+        }
+        return;
+      }
       btn.disabled = true;
       try {
         if (action === "suggest-remove") {
@@ -2478,11 +2544,12 @@
           } catch (_) {
             throw new Error("bad suggestion payload");
           }
-          if (!Number.isFinite(grams) || grams <= 0) {
+          if (Number.isFinite(grams) && grams > 0) {
+            body.serving_g = grams;
+          } else if (servingGramsRequired(body)) {
             if (gramsEl) gramsEl.focus();
             throw new Error(servingGramsPrompt(body));
           }
-          body.serving_g = grams;
           const suggestAction = btn.getAttribute("data-suggest-action") || "add";
           await persistInventorySuggestion(body, suggestAction, true);
           dropAppliedSuggestion(Number(btn.getAttribute("data-idx")));
@@ -2502,7 +2569,7 @@
             throw new Error("bad suggestion payload");
           }
           const suggestAction = btn.getAttribute("data-suggest-action") || "add";
-          if (itemNeedsServingGrams(body)) {
+          if (servingGramsRequired(body)) {
             btn.disabled = false;
             const slide = btn.closest(".inv-slide") || btn.closest(".inv-card");
             showSuggestionGramsPrompt(

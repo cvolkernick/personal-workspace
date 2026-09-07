@@ -501,10 +501,13 @@ def build_today_board(
                 "action": s.get("action") or "add",
                 "id": s.get("id"),
                 "name": s.get("name"),
-                "reason": s.get("reason") or "",
+                "reason": s.get("reason") or s.get("need") or "",
+                "need": s.get("need") or s.get("reason") or "",
                 "category": s.get("category"),
                 "calories": s.get("calories"),
                 "protein_g": s.get("protein_g"),
+                "suggested_qty": s.get("suggested_qty"),
+                "proposal": True,
             }
         )
         if len(purchases) >= 6:

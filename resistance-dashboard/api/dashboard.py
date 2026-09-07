@@ -167,9 +167,27 @@ def preview_inventory_carousels(inventory, targets, food_logs=None, consumed=Non
 
     inv = inventory if isinstance(inventory, dict) else {}
     if not (inv.get("ingredients") or []):
+        empty_h = {
+            "level": "muted",
+            "kind": "empty_suggestions",
+            "text": "No pantry items yet — not inventing catalog staples as stock-on-hand.",
+        }
         return (
-            {"suggestions": [], "summary": "No pantry items yet.", "count": 0},
-            {"suggestions": [], "summary": "No inventory items to review.", "count": 0},
+            {
+                "suggestions": [],
+                "summary": "No pantry items yet.",
+                "count": 0,
+                "ranking": "need",
+                "log_frequency_positive": False,
+                "refresh": "dashboard_load",
+                "honesty": [empty_h],
+            },
+            {
+                "suggestions": [],
+                "summary": "No inventory items to review.",
+                "count": 0,
+                "honesty": [empty_h],
+            },
         )
     suggestions = suggest_inventory_staples(
         inv,
@@ -181,6 +199,7 @@ def preview_inventory_carousels(inventory, targets, food_logs=None, consumed=Non
         inv,
         targets=targets or {},
         food_logs=food_logs or [],
+        paired_adds=(suggestions or {}).get("suggestions") or [],
     )
     return suggestions, removals
 

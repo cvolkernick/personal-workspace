@@ -158,11 +158,6 @@ def _coerce_serving_g(raw: dict) -> Optional[float]:
 
 
 _MACRO_KEYS = ("calories", "protein_g", "carbs_g", "fat_g")
-# Health imports often land as "1 logged serving (avg)" with macros and no mass.
-_GENERIC_SERVING_RE = re.compile(
-    r"^\s*(?:\d+(?:\.\d+)?\s+)?(?:logged\s+)?servings?\s*(?:\([^)]*\))?\s*$",
-    re.I,
-)
 SERVING_GRAMS_REQUIRED_MSG = (
     "serving grams required — logged serving has no weighable mass"
 )
@@ -193,15 +188,17 @@ def needs_serving_grams(raw: dict) -> bool:
 
 
 def serving_grams_required(raw: dict) -> bool:
-    """Block save for Health logged-serving / generic serving labels without mass."""
+    """Block save only for Health “logged serving” rows with no weighable mass.
+
+    ``portion_g`` / ``serving_g`` is preferred, not required (#503). Whole-food
+    serving labels (1 serving, 1 medium, 3 eggs) must save without grams. The
+    meal planner uses whole servings when mass is unknown and continuous
+    ``portion_g`` when ``serving_g`` is present — it never invents grams.
+    """
     if not needs_serving_grams(raw):
         return False
     label = str(raw.get("serving_label") or "").strip()
-    if not label:
-        return False
-    if re.search(r"logged\s+serving", label, re.I):
-        return True
-    return bool(_GENERIC_SERVING_RE.match(label))
+    return bool(re.search(r"logged\s+serving", label, re.I))
 
 
 def require_serving_grams_or_raise(raw: dict) -> None:
@@ -2339,6 +2336,17 @@ STAPLE_CATALOG: List[dict] = [
         "carbs_g": 6,
         "fat_g": 11,
     },
+    {
+        "id": "banana",
+        "name": "Banana",
+        "category": "carb",
+        "serving_label": "1 medium",
+        "calories": 105,
+        "protein_g": 1.3,
+        "carbs_g": 27,
+        "fat_g": 0.4,
+        "fiber_g": 3.1,
+    },
 ]
 
 
@@ -2366,6 +2374,55 @@ def _protein_density(ing: dict) -> float:
     return float(ing.get("protein_g") or 0) / cal
 
 
+def inventory_gap_role(ing: dict) -> Optional[str]:
+    """``lean_protein`` or ``veg_fiber``. Shakes/supplements are not protected fillers."""
+    if not isinstance(ing, dict):
+        return None
+    if is_shake_or_powder(ing):
+        return None
+    blob = _ing_blob(ing)
+    if any(
+        tok in blob
+        for tok in (
+            "vitamin",
+            "multivitamin",
+            "supplement",
+            "gummy",
+            "capsule",
+            "tablet",
+            "probiotic",
+        )
+    ):
+        return None
+    if is_veg_or_fruit(ing) or estimated_fiber_g(ing) >= 3:
+        return "veg_fiber"
+    if _protein_density(ing) >= 0.08:
+        return "lean_protein"
+    return None
+
+
+def suggested_qty_for_item(item: dict) -> dict:
+    """Grams when weighable; otherwise whole servings (#503 / #504)."""
+    sg = _ingredient_serving_g(item) if isinstance(item, dict) else None
+    if sg is not None and float(sg) > 0:
+        amt = round(float(sg), 1)
+        return {
+            "amount": amt,
+            "unit": "g",
+            "label": f"{int(round(amt))}g",
+            "portion_g": amt,
+            "servings": None,
+        }
+    label = str((item or {}).get("serving_label") or "1 serving").strip() or "1 serving"
+    return {
+        "amount": 1,
+        "unit": "servings",
+        "label": label,
+        "portion_g": None,
+        "servings": 1,
+    }
+
+
 def _find_inventory_match(inventory: dict, name: str, iid: str = "") -> Optional[dict]:
     want_id = (iid or "").strip().lower()
     for raw in inventory.get("ingredients") or []:
@@ -2382,15 +2439,21 @@ def suggest_inventory_staples(
     food_logs: Optional[Sequence[Any]] = None,
     consumed: Optional[dict] = None,
     max_suggestions: int = 8,
+    catalog: Optional[Sequence[dict]] = None,
 ) -> dict:
-    """Suggest restocks / new staples from inventory gaps, logs, and macro needs.
+    """Need-based restock / add proposals from the staple catalog + pantry holes.
 
-    Returns ``{"suggestions": [...], "summary": str}`` where each suggestion has:
-    action (restock|add), reason, score, plus ingredient fields for one-click add.
+    Ranking (#502): remaining macros, soft fiber/veg, shake-as-filler risk,
+    pantry holes that block a non-shake plan. Log-frequency is **not** a
+    positive signal (may be a soft negative for low-quality over-logged food).
+    Candidates come from ``catalog`` / ``STAPLE_CATALOG``, not “foods Chris logged.”
+    Suggestions are proposals — never written as stock-on-hand until accept.
+    Recomputed on every dashboard load (inventory / consumed / plan change).
     """
     targets = normalize_targets(targets or {})
     logs = list(food_logs or [])
     consumed = consumed or {}
+    catalog_rows = list(catalog) if catalog is not None else list(STAPLE_CATALOG)
     suggestions: List[dict] = []
     seen_keys: set = set()
 
@@ -2437,18 +2500,23 @@ def suggest_inventory_staples(
         else:
             reason = "Marked out of stock — restock if you still use it."
             score += 10
+        qty = suggested_qty_for_item(ing)
         _push(
             {
                 **ing,
                 "action": "restock",
                 "reason": reason,
+                "need": reason,
                 "score": round(score, 1),
                 "source": "inventory",
+                "proposal": True,
+                "suggested_qty": qty,
             }
         )
 
-    # --- 2) Frequently logged foods missing from inventory ---
-    log_stats: Dict[str, Dict[str, Any]] = {}
+    # Log counts are a soft *negative* for low-quality over-representation only.
+    # Never a positive add signal (#502 AC1).
+    log_counts: Dict[str, int] = {}
     for f in logs:
         if hasattr(f, "to_dict"):
             d = f.to_dict()
@@ -2459,126 +2527,129 @@ def suggest_inventory_staples(
         name = str(d.get("name") or "").strip()
         if not name or name.lower() in ("logged food", "unknown"):
             continue
-        bucket = log_stats.setdefault(
-            name,
-            {
-                "name": name,
-                "count": 0,
-                "calories": 0.0,
-                "protein_g": 0.0,
-                "carbs_g": 0.0,
-                "fat_g": 0.0,
-            },
-        )
-        bucket["count"] += 1
-        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
-            try:
-                bucket[k] += float(d.get(k) or 0)
-            except (TypeError, ValueError):
-                pass
+        log_counts[name] = log_counts.get(name, 0) + 1
 
-    for name, st in sorted(log_stats.items(), key=lambda x: -x[1]["count"]):
-        if st["count"] < 2:
-            continue
-        match = _find_inventory_match(inventory or {}, name)
-        if match and normalize_stock(match) == STOCK_IN:
-            continue
-        n = max(1, st["count"])
-        avg = {
-            "calories": round(st["calories"] / n, 1),
-            "protein_g": round(st["protein_g"] / n, 1),
-            "carbs_g": round(st["carbs_g"] / n, 1),
-            "fat_g": round(st["fat_g"] / n, 1),
-        }
-        dens = avg["protein_g"] / (avg["calories"] or 1)
-        cat = "protein" if dens >= 0.08 else ("fat" if avg["fat_g"] > avg["carbs_g"] and dens < 0.04 else "carb")
-        if match and needs_restock(match):
-            low = normalize_stock(match) == STOCK_LOW
-            reason = (
-                f"Logged {st['count']}× recently and running low."
-                if low
-                else f"Logged {st['count']}× recently and currently out of stock."
-            )
-            _push(
-                {
-                    **normalize_ingredient(match),
-                    "action": "restock",
-                    "reason": reason,
-                    "score": round(50 + st["count"] * 8 + dens * 40, 1),
-                    "source": "food_logs",
-                }
-            )
-        else:
-            _push(
-                {
-                    "id": _slug(name),
-                    "name": name,
-                    "category": cat,
-                    "serving_label": "1 logged serving (avg)",
-                    **avg,
-                    "in_stock": True,
-                    "action": "add",
-                    "reason": f"Logged {st['count']}× recently but not in inventory.",
-                    "score": round(45 + st["count"] * 8 + dens * 50, 1),
-                    "source": "food_logs",
-                }
-            )
+    def _log_hits(name: str) -> int:
+        n = 0
+        for ln, c in log_counts.items():
+            if _names_overlap(name, ln):
+                n += c
+        return n
 
-    # --- 3) Catalog staples missing from inventory (gap-aware) ---
+    # --- 2) Catalog staples ranked by nutrition/ops need (not log frequency) ---
     tgt_p = float(targets.get("protein_g") or 0)
     rem_p = max(0.0, tgt_p - float(consumed.get("protein_g") or 0))
-    stocked_high_p = sum(1 for i in stocked if _protein_density(i) >= 0.08)
-    protein_gap = rem_p > 40 or stocked_high_p < 2
+    stocked_high_p = [i for i in stocked if _protein_density(i) >= 0.08]
+    stocked_whole_p = [i for i in stocked_high_p if not is_shake_or_powder(i)]
+    veg_n = sum(1 for i in stocked if is_veg_or_fruit(i))
+    fiber_stocked = sum(estimated_fiber_g(i) for i in stocked)
+    shake_n = sum(1 for i in stocked if is_shake_or_powder(i))
+    protein_gap = rem_p > 40 or len(stocked_whole_p) < 2
+    fiber_gap = veg_n < 1 or fiber_stocked < SOFT_FIBER_TARGET_G
+    shake_heavy = shake_n > 0 and len(stocked_whole_p) < 2
 
-    for staple in STAPLE_CATALOG:
+    honesty: List[dict] = []
+    if not catalog_rows:
+        if not suggestions:
+            summary = "No staple catalog — cannot propose adds (not inventing food)."
+            honesty.append(
+                {
+                    "level": "warn",
+                    "kind": "catalog_blocked",
+                    "text": "Staple catalog empty — no add suggestions. Not inventing stock-on-hand.",
+                }
+            )
+            return {
+                "suggestions": [],
+                "summary": summary,
+                "count": 0,
+                "ranking": "need",
+                "log_frequency_positive": False,
+                "refresh": "dashboard_load",
+                "honesty": honesty,
+            }
+
+    for staple in catalog_rows:
         match = _find_inventory_match(
             inventory or {}, staple["name"], str(staple.get("id") or "")
         )
         if match and normalize_stock(match) == STOCK_IN:
             continue
         dens = _protein_density(staple)
-        score = 20.0 + dens * 60.0
-        reasons = []
+        shake = is_shake_or_powder(staple)
+        veg = is_veg_or_fruit(staple)
+        fiber = estimated_fiber_g(staple)
+        score = 8.0 + dens * 20.0
+        reasons: List[str] = []
         if match and needs_restock(match):
             action = "restock"
             reasons.append(
-                "Catalog staple currently low."
-                if normalize_stock(match) == STOCK_LOW
-                else "Catalog staple currently out of stock."
+                "Pantry hole — restock this staple so the meal plan can use it."
+                if normalize_stock(match) == STOCK_OUT
+                else "Running low — restock before empty so the plan stays non-shake."
             )
-            score += 25
+            score += 28
             payload = {**normalize_ingredient(match)}
         else:
             action = "add"
-            reasons.append("High-value staple not in inventory.")
-            payload = {**staple, "in_stock": True}
-        if protein_gap and dens >= 0.08:
-            reasons.append("Helps close protein / high-protein stock gap.")
-            score += 20
-        if staple.get("category") == "veg" and stocked_high_p >= 0:
-            # Mild boost for fiber volume when few veg stocked
-            veg_n = sum(1 for i in stocked if (i.get("category") or "") == "veg")
-            if veg_n < 2:
-                reasons.append("Few vegetables stocked.")
-                score += 10
-        if staple.get("category") == "carb":
-            carb_n = sum(1 for i in stocked if (i.get("category") or "") == "carb")
-            if carb_n < 2:
-                reasons.append("Limited carb staples stocked.")
-                score += 8
-        _push(
-            {
-                **payload,
-                "action": action,
-                "reason": " ".join(reasons),
-                "score": round(score, 1),
-                "source": "catalog",
-            }
-        )
+            payload = {**staple}
+            payload.pop("in_stock", None)
+            payload.pop("stock", None)
+
+        if protein_gap and dens >= 0.08 and not shake:
+            reasons.append(
+                f"Closes remaining protein (~{int(rem_p)}g of {int(tgt_p)}g) with whole food, not powder."
+            )
+            score += 32
+        if fiber_gap and (veg or fiber >= 3):
+            reasons.append(
+                f"Fills soft fiber / veg gap (target ~{int(SOFT_FIBER_TARGET_G)}g; pantry produce thin)."
+            )
+            score += 36
+            if shake:
+                # Powder must not win a fiber/veg slot (#504 / #501).
+                score -= 50
+        if shake_heavy and dens >= 0.08 and not shake:
+            reasons.append("Whole-food protein so the plan is not shake-filled.")
+            score += 22
+        if shake:
+            if shake_heavy or not protein_gap:
+                score -= 40
+            elif protein_gap and len(stocked_whole_p) == 0:
+                reasons.append("Powder only if whole-food protein is missing — last-resort protein.")
+                score += 4
+            else:
+                score -= 12
+        carb_n = sum(1 for i in stocked if (i.get("category") or "") == "carb")
+        if (staple.get("category") or "") == "carb" and carb_n < 2 and fiber >= 2 and not shake:
+            reasons.append("Carb staple with fiber — helps fill remaining carbs without junk.")
+            score += 10
+
+        hits = _log_hits(str(staple.get("name") or ""))
+        if hits >= 3 and (shake or dens < 0.04):
+            score -= 18
+
+        if action == "add" and not reasons:
+            continue
+        if not reasons:
+            reasons.append("Pantry hole for a cutting staple.")
+        qty = suggested_qty_for_item(payload)
+        row = {
+            **payload,
+            "action": action,
+            "reason": " ".join(reasons),
+            "need": reasons[0],
+            "score": round(score, 1),
+            "source": "catalog",
+            "proposal": True,
+            "suggested_qty": qty,
+        }
+        if qty.get("portion_g") is not None:
+            row["portion_g"] = qty["portion_g"]
+        _push(row)
 
     suggestions.sort(key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
     limit = max(1, int(max_suggestions))
-    # Prefer including restocks first, then fill remaining with highest-score adds
     restocks = [s for s in suggestions if s.get("action") == "restock"]
     adds = [s for s in suggestions if s.get("action") != "restock"]
     top: List[dict] = []
@@ -2593,11 +2664,33 @@ def suggest_inventory_staples(
         bits.append(f"{restock_n} restock")
     if add_n:
         bits.append(f"{add_n} add")
-    summary = (
-        f"{len(top)} suggestions ({', '.join(bits) or 'none'}) from inventory gaps, "
-        f"food logs, and staple catalog."
-    )
-    return {"suggestions": top, "summary": summary, "count": len(top)}
+    if not top:
+        summary = (
+            "No need-based add/restock proposals — pantry already covers protein/veg "
+            "staples, or catalog has nothing new. Not inventing stock-on-hand."
+        )
+        honesty.append(
+            {
+                "level": "muted",
+                "kind": "empty_suggestions",
+                "text": summary,
+            }
+        )
+    else:
+        summary = (
+            f"{len(top)} need-based suggestions ({', '.join(bits)}) from pantry holes "
+            f"and staple catalog. Log frequency is not a positive rank signal. "
+            f"Proposals only until you accept."
+        )
+    return {
+        "suggestions": top,
+        "summary": summary,
+        "count": len(top),
+        "ranking": "need",
+        "log_frequency_positive": False,
+        "refresh": "dashboard_load",
+        "honesty": honesty,
+    }
 
 
 def suggest_inventory_removals(
@@ -2605,104 +2698,130 @@ def suggest_inventory_removals(
     targets: Optional[dict] = None,
     food_logs: Optional[Sequence[Any]] = None,
     max_suggestions: int = 6,
+    paired_adds: Optional[Sequence[dict]] = None,
 ) -> dict:
-    """Suggest inventory items that may be worth removing (with short reasons).
+    """Need-based removal proposals. Rare-log alone is never enough (#502 AC4).
 
-    Signals: near-duplicates, out-of-stock clutter, low protein density vs
-    cutting targets, non-meal items, and stocked items never logged when
-    stronger alternatives already exist.
+    Never drop the last unique lean-protein or veg-fiber staple without a
+    simultaneous add that covers that role (#504 AC1).
     """
     targets = normalize_targets(targets or {})
-    logs = list(food_logs or [])
     ingredients = [normalize_ingredient(i) for i in (inventory.get("ingredients") or [])]
+    honesty: List[dict] = []
     if not ingredients:
+        summary = "No inventory items to review."
+        honesty.append(
+            {
+                "level": "muted",
+                "kind": "empty_removals",
+                "text": summary,
+            }
+        )
         return {
             "suggestions": [],
-            "summary": "No inventory items to review.",
+            "summary": summary,
             "count": 0,
+            "honesty": honesty,
         }
-
-    # Food-log name hits for "actually used"
-    log_names: List[str] = []
-    log_counts: Dict[str, int] = {}
-    for f in logs:
-        if hasattr(f, "to_dict"):
-            d = f.to_dict()
-        elif isinstance(f, dict):
-            d = f
-        else:
-            continue
-        name = str(d.get("name") or "").strip()
-        if not name:
-            continue
-        log_names.append(name)
-        log_counts[name] = log_counts.get(name, 0) + 1
-
-    def _logged(ing: dict) -> int:
-        n = 0
-        for ln, c in log_counts.items():
-            if _names_overlap(ing.get("name") or "", ln):
-                n += c
-        return n
 
     tgt_p = float(targets.get("protein_g") or 0)
     high_protein_goal = tgt_p >= 150
     stocked = [i for i in ingredients if is_in_stock(i)]
-    stocked_high_p = [i for i in stocked if _protein_density(i) >= 0.08]
+    adds = [a for a in (paired_adds or []) if isinstance(a, dict)]
+
+    def _covering_add(role: str, dropping: dict) -> Optional[dict]:
+        for a in adds:
+            if a.get("action") not in (None, "add", "restock"):
+                continue
+            if inventory_gap_role(a) != role:
+                continue
+            if _names_overlap(str(a.get("name") or ""), str(dropping.get("name") or "")):
+                continue
+            return a
+        return None
+
+    def _protect_last_unique(ing: dict) -> Optional[dict]:
+        """Return covering add, or None when remove must be skipped."""
+        if not is_in_stock(ing):
+            return {}  # out-of-stock is not a unique in-pantry filler
+        role = inventory_gap_role(ing)
+        if not role:
+            return {}
+        others = [
+            i
+            for i in stocked
+            if str(i.get("id") or "") != str(ing.get("id") or "")
+            and inventory_gap_role(i) == role
+        ]
+        if others:
+            return {}
+        cover = _covering_add(role, ing)
+        if cover is None:
+            return None
+        return cover
 
     candidates: List[dict] = []
-    # Track which id we keep when flagging duplicates
     skip_keep: set = set()
 
-    # --- Duplicates: keep higher protein-density / logged one ---
+    # --- Duplicates: keep higher protein-density / in-stock (not log count) ---
     for i, a in enumerate(ingredients):
         for b in ingredients[i + 1 :]:
             if not _names_overlap(a.get("name") or "", b.get("name") or ""):
                 continue
-            # Prefer keep: more log hits, then density, then in-stock
+
             def rank(x: dict) -> tuple:
                 return (
-                    _logged(x),
                     _protein_density(x),
                     1 if is_in_stock(x) else 0,
+                    1 if inventory_gap_role(x) else 0,
                     float(x.get("protein_g") or 0),
                 )
 
             keep, drop = (a, b) if rank(a) >= rank(b) else (b, a)
-            kid = str(keep.get("id") or "")
             did = str(drop.get("id") or "")
             if did in skip_keep:
                 continue
+            cover = _protect_last_unique(drop)
+            if cover is None:
+                continue
             skip_keep.add(did)
-            candidates.append(
-                {
-                    **drop,
-                    "action": "remove",
-                    "reason": (
-                        f"Near-duplicate of “{keep.get('name')}” — keep one entry "
-                        f"to simplify meal planning."
-                    ),
-                    "score": 90.0,
-                    "source": "duplicate",
+            row = {
+                **drop,
+                "action": "remove",
+                "reason": (
+                    f"Near-duplicate of “{keep.get('name')}” — keep one entry "
+                    f"to simplify meal planning."
+                ),
+                "need": f"Redundant SKU vs “{keep.get('name')}”.",
+                "score": 90.0,
+                "source": "duplicate",
+                "proposal": True,
+            }
+            if cover:
+                row["paired_add"] = {
+                    "id": cover.get("id"),
+                    "name": cover.get("name"),
+                    "reason": cover.get("reason") or cover.get("need") or "",
                 }
-            )
+                row["reason"] = (
+                    row["reason"]
+                    + f" Paired add: {cover.get('name')} covers the {inventory_gap_role(drop)} role."
+                )
+            candidates.append(row)
 
     for ing in ingredients:
         iid = str(ing.get("id") or "")
         if iid in skip_keep:
-            continue  # already suggested as duplicate drop
+            continue
         dens = _protein_density(ing)
         cal = float(ing.get("calories") or 0)
         prot = float(ing.get("protein_g") or 0)
-        name = str(ing.get("name") or "")
-        name_l = name.lower()
+        name_l = str(ing.get("name") or "").lower()
         cat = str(ing.get("category") or "other").lower()
-        logged_n = _logged(ing)
         in_stock = is_in_stock(ing)
         reasons: List[str] = []
         score = 0.0
 
-        # Non-meal / supplement-like clutter for the meal planner
         non_meal_kw = (
             "vitamin",
             "multivitamin",
@@ -2714,71 +2833,63 @@ def suggest_inventory_removals(
             "electrolyte packet",
         )
         if any(k in name_l for k in non_meal_kw) or (
-            prot < 3 and cal < 40 and cat in ("other", "carb")
+            prot < 3 and cal < 40 and cat in ("other", "carb") and not is_veg_or_fruit(ing)
         ):
             reasons.append(
                 "Looks like a supplement/micro item — meal planner works better with real food staples."
             )
             score += 55
 
-        # Out of stock + unused + low utility
-        if not in_stock and logged_n == 0 and dens < 0.06:
+        # Out of stock + low utility (need-based). Rare-log alone is not enough.
+        if not in_stock and dens < 0.06 and cal < 80:
             reasons.append(
-                "Out of stock and not in recent food logs — safe to prune dead catalog rows."
+                "Out of stock and low meal-plan utility — prune if you will not restock."
             )
-            score += 50
-        elif not in_stock and logged_n == 0:
-            reasons.append("Out of stock with no recent logs — consider removing if you won’t buy again.")
-            score += 35
+            score += 40
 
-        # Low protein density while chasing high protein targets
         if high_protein_goal and dens < 0.04 and cal >= 100 and cat in ("fat", "other", "carb"):
-            if logged_n <= 1:
-                reasons.append(
-                    f"Low protein density ({prot:.0f}g / {cal:.0f} kcal) for a ~{int(tgt_p)}g protein target."
-                )
-                score += 40
-            elif dens < 0.025 and cal >= 150:
+            reasons.append(
+                f"Low protein density ({prot:.0f}g / {cal:.0f} kcal) for a ~{int(tgt_p)}g protein target."
+            )
+            score += 40
+            if dens < 0.025 and cal >= 150:
                 reasons.append(
                     "Calorie-dense / low-protein for a cutting-style protein goal — easy to overshoot calories."
                 )
-                score += 32
+                score += 8
 
-        # Stocked but never logged while better proteins exist
-        if (
-            in_stock
-            and logged_n == 0
-            and dens < 0.07
-            and len(stocked_high_p) >= 2
-            and not any(_names_overlap(name, h.get("name") or "") for h in stocked_high_p)
-        ):
-            reasons.append(
-                "In stock but not logged recently; stronger high-protein staples already cover meal plans."
-            )
-            score += 28
-
-        # Empty / zero-macro junk rows
         if cal <= 0 and prot <= 0 and float(ing.get("carbs_g") or 0) <= 0:
             reasons.append("No macros on file — not useful for planning until filled in (or remove).")
             score += 45
 
         if not reasons or score < 25:
             continue
-        # Don't suggest removing a heavily logged staple
-        if logged_n >= 5 and dens >= 0.08:
+
+        cover = _protect_last_unique(ing)
+        if cover is None:
             continue
 
-        candidates.append(
-            {
-                **ing,
-                "action": "remove",
-                "reason": " ".join(reasons[:2]),
-                "score": round(score, 1),
-                "source": "heuristic",
+        row = {
+            **ing,
+            "action": "remove",
+            "reason": " ".join(reasons[:2]),
+            "need": reasons[0],
+            "score": round(score, 1),
+            "source": "heuristic",
+            "proposal": True,
+        }
+        if cover:
+            row["paired_add"] = {
+                "id": cover.get("id"),
+                "name": cover.get("name"),
+                "reason": cover.get("reason") or cover.get("need") or "",
             }
-        )
+            row["reason"] = (
+                row["reason"]
+                + f" Paired add: {cover.get('name')} covers the {inventory_gap_role(ing)} role."
+            )
+        candidates.append(row)
 
-    # Dedupe by id, keep highest score
     by_id: Dict[str, dict] = {}
     for c in candidates:
         k = str(c.get("id") or c.get("name") or "").lower()
@@ -2788,10 +2899,23 @@ def suggest_inventory_removals(
             by_id[k] = c
     ranked = sorted(by_id.values(), key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
     top = ranked[: max(1, int(max_suggestions))] if ranked else []
-    summary = (
-        f"{len(top)} removal suggestion{'s' if len(top) != 1 else ''} "
-        f"(duplicates, unused, or weak fit for targets)."
-        if top
-        else "No strong removal candidates — inventory looks lean."
-    )
-    return {"suggestions": top, "summary": summary, "count": len(top)}
+    if top:
+        summary = (
+            f"{len(top)} removal suggestion{'s' if len(top) != 1 else ''} "
+            f"(duplicates or weak fit for targets — not rare-log). Proposals until you accept."
+        )
+    else:
+        summary = "No strong removal candidates — inventory looks lean."
+        honesty.append(
+            {
+                "level": "muted",
+                "kind": "empty_removals",
+                "text": summary,
+            }
+        )
+    return {
+        "suggestions": top,
+        "summary": summary,
+        "count": len(top),
+        "honesty": honesty,
+    }
