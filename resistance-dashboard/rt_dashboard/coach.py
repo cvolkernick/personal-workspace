@@ -486,6 +486,8 @@ def build_today_board(
         "empty": empty,
         "food_logs_today": meal_logs,
         "food_logs_fp": food_logs_fp,
+        "notes": mp.get("notes") or {},
+        "honesty": mp.get("honesty") or [],
     }
 
     # Purchase / restock recommendations
@@ -510,18 +512,39 @@ def build_today_board(
     # If meal plan empty and stock low, emphasize purchases.
     # Vercel preview: Pi inventory is dark — never invent a pantry.
     if meal_block["empty"] and not purchases and not inventory_dark:
-        purchases.append(
-            {
-                "action": "add",
-                "id": None,
-                "name": "High-protein staples",
-                "reason": (
-                    "No in-stock ingredients available for a meal plan — "
-                    "restock pantry staples (chicken, Greek yogurt, eggs, rice) to unlock today."
-                ),
-                "category": "protein",
-            }
-        )
+        notes_reason = str((mp.get("notes") or {}).get("empty_plan_reason") or "")
+        try:
+            stocked_n = int(mp.get("stocked_count") or 0)
+        except (TypeError, ValueError):
+            stocked_n = 0
+        if notes_reason == "targets_met":
+            pass
+        elif notes_reason == "pantry_blocked" or stocked_n > 0:
+            purchases.append(
+                {
+                    "action": "add",
+                    "id": None,
+                    "name": "Staples that fit remaining macros",
+                    "reason": (
+                        "No plan — in-stock items cannot fill remaining macros without "
+                        "inventing food. Restock protein/veg staples, then refresh."
+                    ),
+                    "category": "protein",
+                }
+            )
+        else:
+            purchases.append(
+                {
+                    "action": "add",
+                    "id": None,
+                    "name": "High-protein staples",
+                    "reason": (
+                        "No in-stock ingredients available for a meal plan — "
+                        "restock pantry staples (chicken, Greek yogurt, eggs, rice) to unlock today."
+                    ),
+                    "category": "protein",
+                }
+            )
 
     rem_block = inventory_removals or {}
     removals = []
@@ -764,6 +787,8 @@ def build_today_board(
             "meal_plan_message": mp.get("message"),
             "food_log_count": n_logs,
             "food_logs_fp": food_logs_fp,
+            "honesty": mp.get("honesty") or [],
+            "notes": mp.get("notes") or {},
         },
         "actions": actions,
         "cardio": {
@@ -1144,6 +1169,18 @@ def build_coach_brief(
             f"**Nutrition remaining:** {rem.get('calories', 0):.0f} kcal · "
             f"P {rem.get('protein_g', 0):.0f} g · C {rem.get('carbs_g', 0):.0f} g · F {rem.get('fat_g', 0):.0f} g."
         )
+    honesty = (today.get("meal") or {}).get("honesty") or nut.get("honesty") or []
+    for row in honesty:
+        if not isinstance(row, dict):
+            continue
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
+        kind = str(row.get("kind") or "meal")
+        lines.append(f"**Meal plan ({kind}):** {text}")
+        if row.get("level") == "warn":
+            # One warn is enough in the brief; remaining honesty lives on today.meal.
+            break
     bits = []
     if adh.get("protein_pct") is not None:
         bits.append(f"protein {adh['protein_pct']}%")

@@ -326,12 +326,17 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
 
     meal_plan = nut.get("meal_plan") or {}
     if isinstance(meal_plan, dict):
+        items = meal_plan.get("items") or []
+        meals = meal_plan.get("meals") or []
         meal_plan = {
             "message": meal_plan.get("message"),
-            "items": (meal_plan.get("items") or meal_plan.get("meals") or [])[:12],
+            "items": (items or meals)[:12],
             "totals": meal_plan.get("totals") or meal_plan.get("planned_totals"),
             "remaining_before_plan": meal_plan.get("remaining_before_plan"),
             "targets": meal_plan.get("targets"),
+            "empty": not items and not meals,
+            "notes": meal_plan.get("notes") or {},
+            "honesty": meal_plan.get("honesty") or [],
         }
 
     sess_limit = ASK_SESSION_LIMIT if compact else 40

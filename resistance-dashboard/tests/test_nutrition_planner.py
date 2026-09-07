@@ -13,12 +13,17 @@ sys.path.insert(0, str(ROOT))
 
 from rt_dashboard.models import FoodLogEntry, NutritionDay  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
+    DEFAULT_TARGETS,
     SERVING_GRAMS_REQUIRED_MSG,
+    SHAKE_MAX_POWDER_PROTEIN_G,
+    SHAKE_MAX_SERVINGS,
+    SOFT_FIBER_TARGET_G,
     add_ingredient,
     food_logs_fingerprint,
     format_plan_portion,
     format_portion_label,
     generate_meal_plan,
+    is_shake_or_powder,
     needs_serving_grams,
     normalize_ingredient,
     remaining_macros,
@@ -1139,6 +1144,301 @@ class TestNutritionPlanner(unittest.TestCase):
             serving_grams_nudge_text(plan["items"]),
             plan["serving_grams_nudge"],
         )
+
+
+def _ing(iid, name, **kwargs):
+    row = {
+        "id": iid,
+        "name": name,
+        "category": kwargs.pop("category", "other"),
+        "serving_label": kwargs.pop("serving_label", "1 serving"),
+        "calories": kwargs.pop("calories", 100),
+        "protein_g": kwargs.pop("protein_g", 0),
+        "carbs_g": kwargs.pop("carbs_g", 0),
+        "fat_g": kwargs.pop("fat_g", 0),
+        "in_stock": kwargs.pop("in_stock", True),
+    }
+    row.update(kwargs)
+    return row
+
+
+class TestMealPlanFoodQuality(unittest.TestCase):
+    """#501: empty-plan regen, veg-before-shake, soft fiber, shake cap, 210P."""
+
+    def test_protein_floor_stays_210(self):
+        self.assertEqual(DEFAULT_TARGETS["protein_g"], 210)
+        self.assertEqual(DEFAULT_TARGETS["calories"], 2100)
+        plan = generate_meal_plan({"ingredients": []}, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertEqual(plan["targets"]["protein_g"], 210)
+        self.assertEqual(plan["targets"]["calories"], 2100)
+
+    def test_stocked_pantry_yields_non_empty_plan(self):
+        inv = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                ),
+                _ing(
+                    "rice",
+                    "Brown rice",
+                    category="carb",
+                    calories=215,
+                    protein_g=5,
+                    carbs_g=45,
+                    fat_g=2,
+                ),
+                _ing(
+                    "broccoli",
+                    "Broccoli",
+                    category="veg",
+                    calories=55,
+                    protein_g=4,
+                    carbs_g=11,
+                    fiber_g=5,
+                ),
+                _ing(
+                    "candy",
+                    "Candy",
+                    category="other",
+                    calories=250,
+                    protein_g=1,
+                    carbs_g=40,
+                    fat_g=10,
+                    in_stock=False,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertTrue(plan["items"], msg=plan.get("message"))
+        self.assertTrue(plan["meals"])
+        self.assertFalse(plan["notes"]["empty_plan"])
+        names = {i["name"] for i in plan["items"]}
+        self.assertNotIn("Candy", names)
+        self.assertTrue(names <= {"Chicken breast", "Brown rice", "Broccoli"})
+        self.assertGreater(plan["planned_totals"]["protein_g"], 0)
+
+    def test_veg_slot_before_shake_fill(self):
+        inv = {
+            "ingredients": [
+                _ing(
+                    "whey",
+                    "Chocolate whey protein",
+                    category="protein",
+                    calories=120,
+                    protein_g=30,
+                    carbs_g=3,
+                    fat_g=1,
+                ),
+                _ing(
+                    "broccoli",
+                    "Broccoli",
+                    category="veg",
+                    calories=55,
+                    protein_g=4,
+                    carbs_g=11,
+                    fiber_g=5,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertTrue(plan["items"])
+        names = [i["name"] for i in plan["items"]]
+        self.assertIn("Broccoli", names)
+        self.assertTrue(plan["notes"]["veg_slot_filled"])
+        veg_idx = names.index("Broccoli")
+        shake_idxs = [i for i, n in enumerate(names) if "whey" in n.lower()]
+        self.assertTrue(shake_idxs)
+        self.assertLessEqual(veg_idx, min(shake_idxs))
+        kinds = {h["kind"] for h in plan["honesty"]}
+        self.assertNotIn("veg_slot", kinds)
+
+    def test_soft_fiber_biases_fill_without_inventing(self):
+        inv = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                ),
+                _ing(
+                    "broccoli",
+                    "Broccoli",
+                    category="veg",
+                    calories=55,
+                    protein_g=4,
+                    carbs_g=11,
+                    fiber_g=8,
+                ),
+                _ing(
+                    "oats",
+                    "Oats",
+                    category="carb",
+                    calories=150,
+                    protein_g=5,
+                    carbs_g=27,
+                    fat_g=3,
+                    fiber_g=4,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        names = {i["name"] for i in plan["items"]}
+        self.assertTrue({"Broccoli", "Oats"} & names)
+        self.assertLessEqual(SOFT_FIBER_TARGET_G, 30)
+        self.assertGreaterEqual(SOFT_FIBER_TARGET_G, 25)
+        blocked = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                ),
+                _ing(
+                    "spinach",
+                    "Spinach",
+                    category="veg",
+                    calories=20,
+                    protein_g=2,
+                    carbs_g=3,
+                    fiber_g=2,
+                    in_stock=False,
+                ),
+            ]
+        }
+        miss = generate_meal_plan(blocked, FULL_TARGETS, EMPTY_CONSUMED)
+        miss_names = {i["name"] for i in miss["items"]}
+        self.assertNotIn("Spinach", miss_names)
+        self.assertTrue(miss["notes"]["fiber_miss"])
+        self.assertTrue(any(h["kind"] == "fiber" for h in miss["honesty"]))
+
+    def test_shake_cap_when_whole_food_protein_exists(self):
+        inv = {
+            "ingredients": [
+                _ing(
+                    "whey",
+                    "Whey isolate",
+                    category="protein",
+                    calories=110,
+                    protein_g=40,
+                    carbs_g=2,
+                    fat_g=1,
+                ),
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=20,
+                    fat_g=6,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        shake_servings = sum(
+            int(i.get("servings") or 1) for i in plan["items"] if is_shake_or_powder(i)
+        )
+        shake_p = sum(
+            float(i.get("protein_g") or 0) for i in plan["items"] if is_shake_or_powder(i)
+        )
+        self.assertLessEqual(shake_servings, SHAKE_MAX_SERVINGS)
+        self.assertLessEqual(shake_p, SHAKE_MAX_POWDER_PROTEIN_G + 0.05)
+        self.assertTrue(any(i["name"] == "Chicken breast" for i in plan["items"]))
+        self.assertFalse(plan["notes"]["shake_cap_escaped"])
+        self.assertTrue(
+            plan["notes"]["shake_cap_applied"] or shake_servings <= SHAKE_MAX_SERVINGS
+        )
+
+    def test_shake_cap_escape_when_pantry_cannot_hit_210p(self):
+        inv = {
+            "ingredients": [
+                _ing(
+                    "whey",
+                    "Chocolate whey protein",
+                    category="protein",
+                    calories=120,
+                    protein_g=30,
+                    carbs_g=3,
+                    fat_g=1,
+                )
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertTrue(plan["items"])
+        self.assertTrue(plan["notes"]["shake_cap_escaped"])
+        shake_servings = sum(int(i.get("servings") or 1) for i in plan["items"])
+        self.assertGreater(shake_servings, SHAKE_MAX_SERVINGS)
+        self.assertTrue(any(h["kind"] == "shake_cap" for h in plan["honesty"]))
+        self.assertTrue(all(is_shake_or_powder(i) for i in plan["items"]))
+
+    def test_pantry_blocked_empty_plan_is_honest_not_silent(self):
+        inv = {
+            "ingredients": [
+                _ing(
+                    "dessert",
+                    "Giant dessert",
+                    category="other",
+                    calories=900,
+                    protein_g=2,
+                    carbs_g=120,
+                    fat_g=40,
+                )
+            ]
+        }
+        consumed = {"calories": 2010, "protein_g": 20, "carbs_g": 160, "fat_g": 50}
+        plan = generate_meal_plan(inv, FULL_TARGETS, consumed)
+        self.assertFalse(plan["items"])
+        self.assertFalse(plan["meals"])
+        self.assertTrue(plan["notes"]["empty_plan"])
+        self.assertEqual(plan["notes"]["empty_plan_reason"], "pantry_blocked")
+        self.assertTrue(plan["notes"]["regen_attempted"])
+        self.assertTrue(any(h["kind"] == "empty_plan" for h in plan["honesty"]))
+        self.assertIn("No plan", plan["message"])
+        self.assertTrue(
+            any("invent" in (h.get("text") or "").lower() for h in plan["honesty"])
+            or "invent" in (plan.get("message") or "").lower()
+        )
+        self.assertEqual({i["name"] for i in plan["items"]}, set())
+
+    def test_empty_stock_is_pantry_unavailable_not_no_stock(self):
+        """Empty ingredients list is a dark pantry — never no_stock."""
+        plan = generate_meal_plan({"ingredients": []}, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertFalse(plan["items"])
+        self.assertTrue(plan.get("pantry_dark"))
+        self.assertEqual(plan["notes"]["empty_plan_reason"], "pantry_unavailable")
+        self.assertNotEqual(plan["notes"]["empty_plan_reason"], "no_stock")
+        self.assertTrue(any(h["kind"] == "empty_plan" for h in plan["honesty"]))
+
+    def test_oos_stock_is_no_stock_not_dark(self):
+        """Known pantry with nothing in stock is no_stock, not pantry_unavailable."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                    in_stock=False,
+                )
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertFalse(plan["items"])
+        self.assertFalse(plan.get("pantry_dark"))
+        self.assertEqual(plan["notes"]["empty_plan_reason"], "no_stock")
+        self.assertTrue(any(h["kind"] == "empty_plan" for h in plan["honesty"]))
 
 
 if __name__ == "__main__":
