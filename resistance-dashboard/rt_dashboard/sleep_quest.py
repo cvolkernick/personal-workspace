@@ -299,8 +299,12 @@ def sleep_spec(
     )
     clock = now or _now_from_board(board, day)
     target = _as_float(bat.get("sleep_target_hours")) or DEFAULT_SLEEP_TARGET_HOURS
+    # Prefer last_night_hours so a nap on last_sleep_hours is not last night.
+    night_fallback = _as_float(bat.get("last_night_hours"))
+    if night_fallback is None:
+        night_fallback = _as_float(bat.get("last_sleep_hours"))
     scored = score_sleep(
-        last_sleep_hours=_as_float(bat.get("last_sleep_hours")),
+        last_sleep_hours=night_fallback,
         last_wake_at=bat.get("last_wake_at"),
         intervals=iv,
         sleep_target_hours=target,

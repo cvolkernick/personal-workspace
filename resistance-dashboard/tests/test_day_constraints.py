@@ -287,6 +287,22 @@ class PacketBuilderTests(unittest.TestCase):
         )
         self.assertNotIn("sleep_battery", pkt)
 
+    def test_sleep_ok_prefers_last_night_not_nap_cycle(self) -> None:
+        pkt = build_day_constraints_packet(
+            today_board=self._board(),
+            sleep_battery={
+                "mode": "awake",
+                "last_sleep_hours": 3.45,
+                "last_night_hours": 8.2,
+                "pct_charged": 100.0,
+                "empty_at": "2026-09-07T10:55:00-04:00",
+            },
+            civil_day="2026-09-06",
+            as_of="2026-09-06T20:08:00-04:00",
+        )
+        self.assertEqual(pkt["sleep_last_night_h"], 8.2)
+        self.assertTrue(pkt["sleep_ok"])
+
     def test_sleep_battery_included_when_live(self) -> None:
         pkt = build_day_constraints_packet(
             today_board=self._board(),

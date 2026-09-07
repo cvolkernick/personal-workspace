@@ -261,6 +261,60 @@ class TestSleepBattery(unittest.TestCase):
         self.assertNotEqual(wake.strftime("%H:%M"), "07:00")
         self.assertIsNone(bat["planned_wake_at"])
 
+    def test_multi_session_splits_last_cycle_from_charge(self):
+        """Overnight + nap: last cycle is the nap; start charge uses recovered."""
+        overnight_start = datetime(2026, 9, 6, 2, 45, tzinfo=NY)
+        overnight_end = datetime(2026, 9, 6, 8, 31, tzinfo=NY)
+        nap_start = datetime(2026, 9, 6, 16, 28, tzinfo=NY)
+        nap_end = datetime(2026, 9, 6, 19, 55, tzinfo=NY)
+        now = datetime(2026, 9, 6, 20, 8, tzinfo=NY)
+        intervals = [
+            {
+                "start": overnight_start.isoformat(),
+                "end": overnight_end.isoformat(),
+                "source": "google_health",
+            },
+            {
+                "start": nap_start.isoformat(),
+                "end": nap_end.isoformat(),
+                "source": "google_health",
+            },
+        ]
+        bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
+        self.assertEqual(bat["mode"], "awake")
+        self.assertAlmostEqual(bat["last_sleep_hours"], 3.45, places=2)
+        self.assertAlmostEqual(bat["last_night_hours"], 5.77, places=2)
+        self.assertAlmostEqual(bat["extra_hours"], 3.45, places=2)
+        self.assertAlmostEqual(bat["charge_sleep_hours"], 9.22, places=2)
+        self.assertEqual(bat["start_pct_charged"], 100.0)
+        self.assertEqual(datetime.fromisoformat(bat["last_wake_at"]), nap_end)
+        self.assertAlmostEqual(bat["hours_awake"], 13.0 / 60.0, places=2)
+        self.assertNotIn("3.5h sleep", bat["summary"])
+        self.assertIn("recovered 9.2h", bat["summary"])
+        self.assertIn("5.8 last night", bat["summary"])
+        self.assertIn("3.5 nap", bat["summary"])
+        empty = datetime.fromisoformat(bat["empty_at"])
+        self.assertEqual(empty, nap_end + timedelta(hours=15))
+
+    def test_nap_only_charges_from_latest_interval_not_zero(self):
+        nap_start = datetime(2026, 9, 6, 16, 28, tzinfo=NY)
+        nap_end = datetime(2026, 9, 6, 19, 55, tzinfo=NY)
+        now = datetime(2026, 9, 6, 20, 8, tzinfo=NY)
+        intervals = [
+            {
+                "start": nap_start.isoformat(),
+                "end": nap_end.isoformat(),
+                "source": "google_health",
+            }
+        ]
+        bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
+        self.assertEqual(bat["mode"], "awake")
+        self.assertAlmostEqual(bat["last_sleep_hours"], 3.45, places=2)
+        self.assertIsNone(bat["last_night_hours"])
+        self.assertAlmostEqual(bat["charge_sleep_hours"], 3.45, places=2)
+        self.assertAlmostEqual(bat["start_pct_charged"], 100.0 * 13.0 / 15.0, places=1)
+        self.assertEqual(datetime.fromisoformat(bat["last_wake_at"]), nap_end)
+
     def test_daily_approx_omits_today_until_assumed_wake(self):
         now = datetime(2026, 8, 28, 2, 51, tzinfo=NY)
         sleep = [

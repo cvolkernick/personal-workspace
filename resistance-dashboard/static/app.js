@@ -223,6 +223,17 @@
       const label = sleeping ? "this cycle" : "last cycle";
       bits += ` · ${label} ${Number(b.last_sleep_hours).toFixed(1)}h`;
     }
+    const extra = Number(b.extra_hours);
+    if (
+      !sleeping &&
+      extra > 0.05 &&
+      b.last_night_hours != null &&
+      b.charge_sleep_hours != null
+    ) {
+      bits +=
+        ` · recovered ${Number(b.charge_sleep_hours).toFixed(1)}h ` +
+        `(${Number(b.last_night_hours).toFixed(1)} last night + ${extra.toFixed(1)} nap)`;
+    }
     return bits;
   }
 
