@@ -12,7 +12,8 @@ from api.auth.session_util import SESSION_COOKIE, make_session
 from api.workout._util import dispatch_client_route, workouts_write
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.turso_http import TursoCursor, TursoRow
-from rt_dashboard.workout_log import parse_log_body
+from rt_dashboard.quest_workout_log import seed_exercise
+from rt_dashboard.workout_log import merge_same_day_session, parse_log_body
 from rt_dashboard.workout_repo import _row_to_session, _seal_exercises
 
 JS = (Path(__file__).resolve().parents[1] / "static" / "app.js").read_text(
@@ -296,6 +297,7 @@ class WorkoutsWriteRoute(unittest.TestCase):
         write_fn = UTIL.split("def workouts_write", 1)[1].split("def generate_body", 1)[0]
         self.assertNotIn("return _write_denied", write_fn)
         self.assertIn("save_preview_session", write_fn)
+        self.assertIn("merge_log_with_history", write_fn)
         self.assertIn("turso_env_missing", write_fn)
 
     def test_ui_prefers_message_on_log_failure(self):
@@ -316,6 +318,201 @@ class WorkoutsWriteRoute(unittest.TestCase):
             )
         self.assertNotEqual(status, 403)
         self.assertNotEqual(body.get("error"), "preview_read_only")
+
+    def test_log_tab_merges_quest_seeded_same_day(self):
+        env = {
+            "GOOGLE_CLIENT_SECRET": "test-secret",
+            "FITDASH_MASTER_KEY": "test-master-key-for-unit-tests-only!!",
+        }
+        store = MemoryTurso()
+        quest = Session(
+            date="2026-09-06",
+            session_type="legs",
+            exercises=[
+                seed_exercise(
+                    "RDL",
+                    title_rx={"weight_lbs": 40.0, "sets": 2, "reps": 7},
+                )
+            ],
+            notes="quest",
+        )
+        log_body = {
+            "session_type": "legs",
+            "date": "2026-09-06",
+            "notes": "",
+            "exercises": [
+                {
+                    "name": "Leg Press",
+                    "sets": [{"weight_lbs": 180, "sets": 3, "reps": 10}],
+                }
+            ],
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            import rt_dashboard.crypto_box as cb
+
+            cb._KEY = None
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.connect", return_value=store
+            ):
+                from rt_dashboard import turso_repo
+
+                turso_repo.upsert_session("sub-1", quest)
+                status, body = workouts_write(_session_cookie(), log_body)
+        self.assertEqual(status, 200, body)
+        names = [e["name"] for e in body["session"]["exercises"]]
+        self.assertEqual(names, ["RDL", "Leg Press"])
+        rdl = body["session"]["exercises"][0]
+        self.assertEqual(rdl["sets"][0]["weight_lbs"], 40.0)
+        self.assertTrue(rdl.get("quest_seeded"))
+        press = body["session"]["exercises"][1]
+        self.assertEqual(press["sets"][0]["weight_lbs"], 180)
+        self.assertEqual(body["session"]["notes"], "quest")
+        self.assertEqual(len(store.rows), 1)
+
+    def test_log_tab_weights_win_on_same_name(self):
+        env = {
+            "GOOGLE_CLIENT_SECRET": "test-secret",
+            "FITDASH_MASTER_KEY": "test-master-key-for-unit-tests-only!!",
+        }
+        store = MemoryTurso()
+        quest = Session(
+            date="2026-09-06",
+            session_type="push",
+            exercises=[
+                seed_exercise(
+                    "DB Flat Press",
+                    title_rx={"weight_lbs": 50.0, "sets": 3, "reps": 10},
+                )
+            ],
+        )
+        log_body = {
+            "session_type": "push",
+            "date": "2026-09-06",
+            "exercises": [
+                {
+                    "name": "DB Flat Press",
+                    "sets": [{"weight_lbs": 55, "sets": 3, "reps": 8}],
+                }
+            ],
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            import rt_dashboard.crypto_box as cb
+
+            cb._KEY = None
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.connect", return_value=store
+            ):
+                from rt_dashboard import turso_repo
+
+                turso_repo.upsert_session("sub-1", quest)
+                status, body = workouts_write(_session_cookie(), log_body)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(len(body["session"]["exercises"]), 1)
+        row = body["session"]["exercises"][0]
+        self.assertEqual(row["name"], "DB Flat Press")
+        self.assertEqual(row["sets"][0]["weight_lbs"], 55)
+        self.assertFalse(row.get("quest_seeded"))
+
+
+class SameDayLogMerge(unittest.TestCase):
+    def test_keeps_quest_only_and_appends_log(self):
+        existing = Session(
+            date="2026-09-06",
+            session_type="legs",
+            exercises=[
+                seed_exercise(
+                    "RDL",
+                    title_rx={"weight_lbs": 40.0, "sets": 2, "reps": 7},
+                )
+            ],
+            notes="from quest",
+        )
+        incoming = parse_log_body(
+            {
+                "session_type": "legs",
+                "date": "2026-09-06",
+                "notes": "",
+                "exercises": [
+                    {
+                        "name": "Leg Press",
+                        "sets": [{"weight_lbs": 180, "sets": 3, "reps": 10}],
+                    }
+                ],
+            }
+        )
+        merged = merge_same_day_session(incoming, existing)
+        self.assertEqual([e.name for e in merged.exercises], ["RDL", "Leg Press"])
+        self.assertEqual(merged.notes, "from quest")
+
+    def test_incoming_weights_replace_same_name(self):
+        existing = Session(
+            date="2026-09-06",
+            session_type="push",
+            exercises=[
+                seed_exercise(
+                    "DB Flat Press",
+                    title_rx={"weight_lbs": 50.0, "sets": 3, "reps": 10},
+                )
+            ],
+        )
+        incoming = parse_log_body(
+            {
+                "session_type": "push",
+                "date": "2026-09-06",
+                "exercises": [
+                    {
+                        "name": "db  flat press",
+                        "sets": [{"weight_lbs": 55, "sets": 3, "reps": 8}],
+                    }
+                ],
+            }
+        )
+        merged = merge_same_day_session(incoming, existing)
+        self.assertEqual(len(merged.exercises), 1)
+        self.assertEqual(merged.exercises[0].sets[0].weight_lbs, 55)
+        self.assertEqual(merged.exercises[0].name, "db  flat press")
+
+    def test_does_not_merge_other_day_or_type(self):
+        existing = Session(
+            date="2026-09-05",
+            session_type="legs",
+            exercises=[ExerciseEntry(name="RDL", sets=[SetEntry(40, 2, 7)])],
+        )
+        incoming = parse_log_body(
+            {
+                "session_type": "push",
+                "date": "2026-09-06",
+                "exercises": [
+                    {
+                        "name": "DB Flat Press",
+                        "sets": [{"weight_lbs": 50, "sets": 3, "reps": 10}],
+                    }
+                ],
+            }
+        )
+        merged = merge_same_day_session(incoming, existing)
+        self.assertEqual([e.name for e in merged.exercises], ["DB Flat Press"])
+
+    def test_pi_handler_merges_before_upsert(self):
+        server = (
+            Path(__file__).resolve().parents[1] / "server.py"
+        ).read_text(encoding="utf-8")
+        chunk = server.split('if parsed.path == "/api/workouts":', 1)[1].split(
+            'if parsed.path == "/api/workouts/import":', 1
+        )[0]
+        self.assertIn("merge_log_with_history", chunk)
+        self.assertLess(
+            chunk.find("merge_log_with_history"),
+            chunk.find("upsert_session"),
+        )
 
 
 class SealedRowMapping(unittest.TestCase):

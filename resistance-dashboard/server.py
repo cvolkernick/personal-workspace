@@ -108,7 +108,10 @@ from rt_dashboard.service_auth import (  # noqa: E402
     service_token_from_headers as _service_token_from_headers,
 )
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
-from rt_dashboard.workout_log import parse_log_body  # noqa: E402
+from rt_dashboard.workout_log import (  # noqa: E402
+    merge_log_with_history,
+    parse_log_body,
+)
 from rt_dashboard.timeutil import local_now, local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
 from rt_dashboard.google_auth import (  # noqa: E402
@@ -1737,6 +1740,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 session = parse_log_body(body)
                 # Auto-tag PRs from history (prior sessions only), then write.
                 history, _, _, _ = pull_merged_sessions(user_id=uid)
+                session = merge_log_with_history(session, history)
                 apply_auto_prs(session, history)
                 pr_names = [e.name for e in session.exercises if e.is_pr]
                 if workout_use_sqlite():
