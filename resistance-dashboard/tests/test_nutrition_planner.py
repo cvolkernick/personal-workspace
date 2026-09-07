@@ -14,6 +14,9 @@ sys.path.insert(0, str(ROOT))
 from rt_dashboard.models import FoodLogEntry, NutritionDay  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     DEFAULT_TARGETS,
+    DIVERSITY_EPS,
+    DIVERSITY_EPS_KCAL,
+    DIVERSITY_EPS_PROTEIN_G,
     SERVING_GRAMS_REQUIRED_MSG,
     SHAKE_MAX_POWDER_PROTEIN_G,
     SHAKE_MAX_SERVINGS,
@@ -26,6 +29,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     generate_meal_plan,
     inventory_gap_role,
     is_shake_or_powder,
+    is_veg_or_fruit,
     needs_serving_grams,
     normalize_ingredient,
     remaining_macros,
@@ -38,6 +42,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
+    within_diversity_eps,
     _macros_for_portion,
     _pick_continuous_portion,
     _plan_item_from_ingredient,
@@ -1447,6 +1452,302 @@ class TestMealPlanFoodQuality(unittest.TestCase):
         self.assertFalse(plan.get("pantry_dark"))
         self.assertEqual(plan["notes"]["empty_plan_reason"], "no_stock")
         self.assertTrue(any(h["kind"] == "empty_plan" for h in plan["honesty"]))
+
+
+class TestMealPlanDiversity(unittest.TestCase):
+    """#513: distinct ingredients secondary under target closeness + ε."""
+
+    def _stocked_two_veg(self):
+        return {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                    serving_g=170,
+                ),
+                _ing(
+                    "rice",
+                    "Brown rice",
+                    category="carb",
+                    calories=215,
+                    protein_g=5,
+                    carbs_g=45,
+                    fat_g=2,
+                    serving_g=195,
+                ),
+                _ing(
+                    "broccoli",
+                    "Broccoli",
+                    category="veg",
+                    calories=55,
+                    protein_g=4,
+                    carbs_g=11,
+                    fiber_g=5,
+                    serving_g=180,
+                ),
+                _ing(
+                    "spinach",
+                    "Spinach",
+                    category="veg",
+                    calories=20,
+                    protein_g=2,
+                    carbs_g=3,
+                    fiber_g=2,
+                    serving_g=85,
+                ),
+                _ing(
+                    "yogurt",
+                    "Greek yogurt",
+                    category="protein",
+                    calories=130,
+                    protein_g=20,
+                    carbs_g=8,
+                    fat_g=0,
+                    serving_g=200,
+                ),
+                _ing(
+                    "candy",
+                    "Candy",
+                    category="other",
+                    calories=250,
+                    protein_g=1,
+                    carbs_g=40,
+                    fat_g=10,
+                    in_stock=False,
+                ),
+            ]
+        }
+
+    def test_primary_closeness_secondary_diversity_eps_documented(self):
+        """AC1: primary = closeness, secondary = distinct ingredients + ε."""
+        self.assertEqual(DIVERSITY_EPS["calories"], 80.0)
+        self.assertEqual(DIVERSITY_EPS["protein_g"], 8.0)
+        self.assertEqual(DIVERSITY_EPS_KCAL, 80.0)
+        self.assertEqual(DIVERSITY_EPS_PROTEIN_G, 8.0)
+        doc = generate_meal_plan.__doc__ or ""
+        self.assertIn("primary", doc.lower())
+        self.assertIn("secondary", doc.lower())
+        self.assertIn("DIVERSITY_EPS", doc)
+        plan = generate_meal_plan(self._stocked_two_veg(), FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertEqual(plan["notes"]["diversity_primary"], "target_closeness")
+        self.assertEqual(plan["notes"]["diversity_secondary"], "distinct_ingredients")
+        self.assertEqual(plan["notes"]["diversity_eps_kcal"], 80.0)
+        self.assertEqual(plan["notes"]["diversity_eps_protein_g"], 8.0)
+        best = {"calories": 100.0, "protein_g": 10.0, "carbs_g": 20.0, "fat_g": 5.0}
+        self.assertTrue(
+            within_diversity_eps(
+                best,
+                {"calories": 180.0, "protein_g": 18.0, "carbs_g": 35.0, "fat_g": 13.0},
+            )
+        )
+        self.assertFalse(
+            within_diversity_eps(
+                best,
+                {"calories": 181.0, "protein_g": 10.0, "carbs_g": 20.0, "fat_g": 5.0},
+            )
+        )
+        self.assertFalse(
+            within_diversity_eps(
+                best,
+                {"calories": 100.0, "protein_g": 18.1, "carbs_g": 20.0, "fat_g": 5.0},
+            )
+        )
+
+    def test_stocked_two_veg_uses_both(self):
+        """AC2: ≥2 distinct veg when both close the gap; no off-pantry foods."""
+        plan = generate_meal_plan(self._stocked_two_veg(), FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertTrue(plan["items"], msg=plan.get("message"))
+        names = {i["name"] for i in plan["items"]}
+        self.assertNotIn("Candy", names)
+        veg_names = {
+            i["name"]
+            for i in plan["items"]
+            if i.get("is_veg_or_fruit") or is_veg_or_fruit(i)
+        }
+        self.assertGreaterEqual(len(veg_names), 2, msg=f"veg={veg_names} items={names}")
+        self.assertTrue({"Broccoli", "Spinach"} <= veg_names)
+        self.assertGreaterEqual(plan["notes"]["distinct_ingredients"], 2)
+        self.assertFalse(plan["notes"]["diversity_limited"])
+        self.assertFalse(any(h["kind"] == "diversity" for h in plan["honesty"]))
+        meal_veg = set()
+        for meal in plan["meals"]:
+            for it in meal.get("items") or []:
+                if it.get("is_veg_or_fruit") or is_veg_or_fruit(it):
+                    meal_veg.add(it["name"])
+        self.assertGreaterEqual(len(meal_veg), 2)
+
+    def test_thin_pantry_repeats_without_inventing(self):
+        """AC3: thin pantry may repeat; honest limited-diversity note; no invented food."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                    serving_g=170,
+                ),
+                _ing(
+                    "spinach",
+                    "Spinach",
+                    category="veg",
+                    calories=20,
+                    protein_g=2,
+                    carbs_g=3,
+                    fiber_g=2,
+                    serving_g=85,
+                    in_stock=False,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        names = {i["name"] for i in plan["items"]}
+        self.assertEqual(names, {"Chicken breast"})
+        self.assertNotIn("Spinach", names)
+        self.assertTrue(plan["items"])
+        chicken = plan["items"][0]
+        self.assertGreater(float(chicken.get("servings") or 1), 1.05)
+        self.assertEqual(plan["notes"]["distinct_ingredients"], 1)
+        self.assertTrue(plan["notes"]["diversity_limited"])
+        self.assertTrue(any(h["kind"] == "diversity" for h in plan["honesty"]))
+        self.assertTrue(
+            any(
+                "not inventing" in (h.get("text") or "").lower()
+                for h in plan["honesty"]
+                if h.get("kind") == "diversity"
+            )
+        )
+
+    def test_protein_not_worsened_beyond_eps(self):
+        """AC4: 210P closeness not worse than ε on the happy-path fixture."""
+        plan = generate_meal_plan(self._stocked_two_veg(), FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertEqual(plan["targets"]["protein_g"], 210)
+        rem_p = float(plan["remaining_after_plan"]["protein_g"])
+        planned_p = float(plan["planned_totals"]["protein_g"])
+        self.assertLessEqual(rem_p, DIVERSITY_EPS_PROTEIN_G)
+        self.assertGreaterEqual(planned_p, 210 - DIVERSITY_EPS_PROTEIN_G)
+        rem_cal = float(plan["remaining_after_plan"]["calories"])
+        self.assertLessEqual(rem_cal, DIVERSITY_EPS_KCAL + 50)
+
+    def test_veg_before_shake_and_shake_cap_still_hold(self):
+        """AC5: #501 veg-before-shake + shake cap with escape still hold."""
+        before_shake = {
+            "ingredients": [
+                _ing(
+                    "whey",
+                    "Chocolate whey protein",
+                    category="protein",
+                    calories=120,
+                    protein_g=30,
+                    carbs_g=3,
+                    fat_g=1,
+                ),
+                _ing(
+                    "broccoli",
+                    "Broccoli",
+                    category="veg",
+                    calories=55,
+                    protein_g=4,
+                    carbs_g=11,
+                    fiber_g=5,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(before_shake, FULL_TARGETS, EMPTY_CONSUMED)
+        names = [i["name"] for i in plan["items"]]
+        self.assertIn("Broccoli", names)
+        self.assertTrue(plan["notes"]["veg_slot_filled"])
+        veg_idx = names.index("Broccoli")
+        shake_idxs = [i for i, n in enumerate(names) if "whey" in n.lower()]
+        self.assertTrue(shake_idxs)
+        self.assertLessEqual(veg_idx, min(shake_idxs))
+        cap = {
+            "ingredients": [
+                _ing(
+                    "whey",
+                    "Whey isolate",
+                    category="protein",
+                    calories=110,
+                    protein_g=40,
+                    carbs_g=2,
+                    fat_g=1,
+                ),
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=20,
+                    fat_g=6,
+                ),
+            ]
+        }
+        capped = generate_meal_plan(cap, FULL_TARGETS, EMPTY_CONSUMED)
+        shake_servings = sum(
+            float(i.get("servings") or 1)
+            for i in capped["items"]
+            if is_shake_or_powder(i)
+        )
+        shake_p = sum(
+            float(i.get("protein_g") or 0)
+            for i in capped["items"]
+            if is_shake_or_powder(i)
+        )
+        self.assertLessEqual(shake_servings, SHAKE_MAX_SERVINGS + 0.05)
+        self.assertLessEqual(shake_p, SHAKE_MAX_POWDER_PROTEIN_G + 0.05)
+        self.assertTrue(any(i["name"] == "Chicken breast" for i in capped["items"]))
+        self.assertFalse(capped["notes"]["shake_cap_escaped"])
+        escape = generate_meal_plan(
+            {
+                "ingredients": [
+                    _ing(
+                        "whey",
+                        "Chocolate whey protein",
+                        category="protein",
+                        calories=120,
+                        protein_g=30,
+                        carbs_g=3,
+                        fat_g=1,
+                    )
+                ]
+            },
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+        )
+        self.assertTrue(escape["notes"]["shake_cap_escaped"])
+        self.assertTrue(any(h["kind"] == "shake_cap" for h in escape["honesty"]))
+
+    def test_stored_targets_unchanged(self):
+        """AC7: no stored target number change (2100 / 210P / 180C / 55F)."""
+        self.assertEqual(DEFAULT_TARGETS["calories"], 2100)
+        self.assertEqual(DEFAULT_TARGETS["protein_g"], 210)
+        self.assertEqual(DEFAULT_TARGETS["carbs_g"], 180)
+        self.assertEqual(DEFAULT_TARGETS["fat_g"], 55)
+        import json
+
+        checked = 0
+        for path in (
+            ROOT / "fitness" / "nutrition" / "targets.json",
+            ROOT.parents[0] / "fitness" / "nutrition" / "targets.json",
+        ):
+            if not path.is_file():
+                continue
+            stored = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(float(stored["calories"]), 2100, msg=str(path))
+            self.assertEqual(float(stored["protein_g"]), 210, msg=str(path))
+            self.assertEqual(float(stored["carbs_g"]), 180, msg=str(path))
+            self.assertEqual(float(stored["fat_g"]), 55, msg=str(path))
+            checked += 1
+        self.assertGreaterEqual(checked, 1)
+        plan = generate_meal_plan({"ingredients": []}, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertEqual(plan["targets"]["protein_g"], 210)
+        self.assertEqual(plan["targets"]["calories"], 2100)
 
 
 class TestInventoryNeedSuggestions(unittest.TestCase):
