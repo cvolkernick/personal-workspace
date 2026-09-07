@@ -519,6 +519,11 @@ def normalize_ingredient(raw: dict) -> dict:
     out["in_stock"] = stock != STOCK_OUT
     if serving_g is not None:
         out["serving_g"] = float(serving_g)
+    if raw.get("fiber_g") is not None:
+        try:
+            out["fiber_g"] = max(0.0, float(raw.get("fiber_g") or 0))
+        except (TypeError, ValueError):
+            pass
     return out
 
 
@@ -691,7 +696,152 @@ def remaining_macros(targets: dict, consumed: dict) -> dict:
     return rem
 
 
-def _score_ingredient(ing: dict, rem: dict) -> float:
+# Soft food-quality constraints (#501). Never invent items; pantry only.
+SOFT_FIBER_TARGET_G = 25.0
+SHAKE_MAX_SERVINGS = 2
+SHAKE_MAX_POWDER_PROTEIN_G = 60.0
+
+_SHAKE_NAME_HINTS = (
+    "whey",
+    "casein",
+    "protein powder",
+    "protein shake",
+    "mass gainer",
+    "isolate",
+    "protein drink",
+)
+_SHAKE_EXCLUDE = (
+    "yogurt",
+    "cottage",
+    "chicken",
+    "turkey",
+    "egg",
+    "tuna",
+    "beef",
+    "fish",
+    "tilapia",
+    "salmon",
+)
+_VEG_FRUIT_CATS = frozenset({"veg", "vegetable", "fruit", "produce"})
+_VEG_FRUIT_HINTS = (
+    "broccoli",
+    "spinach",
+    "kale",
+    "salad",
+    "lettuce",
+    "greens",
+    "asparagus",
+    "zucchini",
+    "pepper",
+    "tomato",
+    "cucumber",
+    "carrot",
+    "berry",
+    "berries",
+    "apple",
+    "banana",
+    "orange",
+    "fruit",
+    "avocado",
+    "green bean",
+    "brussels",
+    "cauliflower",
+    "cabbage",
+    "mushroom",
+    "pea",
+    "edamame",
+    "vegetable",
+)
+_FIBER_HINTS = (
+    ("black bean", 15.0),
+    ("kidney bean", 13.0),
+    ("lentil", 15.0),
+    ("chickpea", 12.0),
+    ("bean", 10.0),
+    ("oat", 4.0),
+    ("broccoli", 5.0),
+    ("spinach", 2.0),
+    ("kale", 3.0),
+    ("berry", 4.0),
+    ("avocado", 5.0),
+    ("sweet potato", 4.0),
+    ("apple", 4.0),
+    ("banana", 3.0),
+    ("brown rice", 3.5),
+)
+
+
+def _ing_blob(ing: dict) -> str:
+    return (
+        f"{ing.get('name') or ''} {ing.get('id') or ''} {ing.get('category') or ''}"
+    ).lower()
+
+
+def is_shake_or_powder(ing: dict) -> bool:
+    """Protein powder / RTD shake — not whole-food protein."""
+    blob = _ing_blob(ing)
+    if any(tok in blob for tok in _SHAKE_EXCLUDE):
+        return False
+    if any(tok in blob for tok in _SHAKE_NAME_HINTS):
+        return True
+    if "shake" in blob and "protein" in blob:
+        return True
+    if "powder" in blob and "protein" in blob:
+        return True
+    return False
+
+
+def is_veg_or_fruit(ing: dict) -> bool:
+    cat = str(ing.get("category") or "").strip().lower()
+    if cat in _VEG_FRUIT_CATS:
+        return True
+    blob = _ing_blob(ing)
+    return any(tok in blob for tok in _VEG_FRUIT_HINTS)
+
+
+def estimated_fiber_g(ing: dict) -> float:
+    """Per-serving fiber for scoring. Explicit fiber_g wins; else name heuristic."""
+    if ing.get("fiber_g") is not None:
+        try:
+            return max(0.0, float(ing.get("fiber_g") or 0))
+        except (TypeError, ValueError):
+            pass
+    blob = _ing_blob(ing)
+    for token, grams in _FIBER_HINTS:
+        if token in blob:
+            return float(grams)
+    cat = str(ing.get("category") or "").strip().lower()
+    if cat in _VEG_FRUIT_CATS:
+        return 3.0
+    return 0.0
+
+
+def consumed_fiber_g(food_logs_today: Optional[Sequence[dict]] = None) -> float:
+    """Sum logged dietary fiber when GH nutrients{} present; else 0 (unknown)."""
+    total = 0.0
+    found = False
+    for row in food_logs_today or []:
+        if not isinstance(row, dict):
+            continue
+        nuts = row.get("nutrients") if isinstance(row.get("nutrients"), dict) else {}
+        raw = (
+            nuts.get("DIETARY_FIBER")
+            if nuts.get("DIETARY_FIBER") is not None
+            else nuts.get("fiber_g")
+            if nuts.get("fiber_g") is not None
+            else row.get("fiber_g")
+        )
+        if raw is None:
+            continue
+        try:
+            total += float(raw)
+            found = True
+        except (TypeError, ValueError):
+            continue
+    return round(total, 1) if found else 0.0
+
+
+def _score_ingredient(ing: dict, rem: dict, *, fiber_need_g: float = 0.0) -> float:
     """Higher is better for filling remaining needs (protein-weighted)."""
     if rem["calories"] <= 0 and rem["protein_g"] <= 0:
         return -1.0
@@ -700,7 +850,13 @@ def _score_ingredient(ing: dict, rem: dict) -> float:
     # Prefer high protein density, still useful for calories
     protein_need = max(rem["protein_g"], 1.0)
     cal_need = max(rem["calories"], 1.0)
-    return (p / protein_need) * 3.0 + (min(c, rem["calories"]) / cal_need) * 1.0 + (p / c) * 2.0
+    sc = (p / protein_need) * 3.0 + (min(c, rem["calories"]) / cal_need) * 1.0 + (p / c) * 2.0
+    if fiber_need_g > 0:
+        fg = estimated_fiber_g(ing)
+        sc += (fg / max(fiber_need_g, 1.0)) * 1.2
+        if is_veg_or_fruit(ing):
+            sc += 0.4
+    return sc
 
 
 def generate_meal_plan(
@@ -733,55 +889,142 @@ def generate_meal_plan(
     only if a caller passes them. Defaults otherwise: ~12:00 / 15:30 / 19:00.
     Slot count is 1–4 from remaining macros + in-stock items — never empty
     timed hinges, never invented food.
+
+    Food quality (#501): ≥1 veg/fruit slot before shake fill when pantry
+    allows; soft fiber ~25g biases fill order; shake/powder cap ≤2 servings
+    or ~60g powder protein unless pantry cannot otherwise meet the protein
+    target (escape + note). Empty plan regenerates with a relaxed ceiling
+    when stock can support a plan. Dark pantry is ``pantry_unavailable``,
+    never ``no_stock``.
     """
     targets = normalize_targets(targets)
+    remaining_before = remaining_macros(targets, consumed)
     rem = remaining_macros(targets, consumed)
     # Meal plan MUST only use actively in-stock inventory (never out-of-stock).
     stocked = stocked_ingredients(inventory)
     stocked_ids = {str(i.get("id") or "") for i in stocked}
     stocked_names = {str(i.get("name") or "").strip().lower() for i in stocked}
     plan_items: List[dict] = []
-    totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+    totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "fiber_g": 0.0}
     logged = list(food_logs_today or [])
     logged_names = {str(x.get("name") or "").strip().lower() for x in logged if x}
+    fiber_logged = consumed_fiber_g(logged)
+    veg_stocked = [i for i in stocked if is_veg_or_fruit(i)]
+    shake_stocked = [i for i in stocked if is_shake_or_powder(i)]
 
     ings = inventory.get("ingredients") if isinstance(inventory, dict) else None
     pantry_dark = not isinstance(ings, list) or len(ings) == 0
     if not stocked:
         from .meal_plan_store import MSG_NO_IN_STOCK, MSG_PANTRY_UNAVAILABLE
 
+        empty_reason = "pantry_unavailable" if pantry_dark else "no_stock"
+        message = MSG_PANTRY_UNAVAILABLE if pantry_dark else MSG_NO_IN_STOCK
+        if pantry_dark:
+            honesty_text = (
+                "Pantry unavailable — not inventing a pantry. "
+                "Wait for inventory, then Refresh plan."
+            )
+        else:
+            honesty_text = (
+                "No plan — pantry has no in-stock items. "
+                "Mark staples in stock, then Refresh plan."
+            )
         return {
             "meals": [],
             "items": [],
-            "planned_totals": totals,
+            "planned_totals": {k: 0.0 for k in _MACRO_KEYS},
             "remaining_after_plan": rem,
-            "remaining_before_plan": rem,
+            "remaining_before_plan": remaining_before,
             "targets": targets,
             "consumed": consumed,
             "food_logs_today": logged,
             "stocked_count": 0,
             "pantry_dark": pantry_dark,
             "in_stock_only": True,
-            "message": MSG_PANTRY_UNAVAILABLE if pantry_dark else MSG_NO_IN_STOCK,
+            "message": message,
             "serving_grams_nudge": "",
+            "notes": {
+                "empty_plan": True,
+                "empty_plan_reason": empty_reason,
+                "regen_attempted": False,
+                "veg_slot_filled": False,
+                "veg_slot_missed": False,
+                "veg_available": False,
+                "shake_servings": 0,
+                "shake_powder_protein_g": 0.0,
+                "shake_cap_applied": False,
+                "shake_cap_escaped": False,
+                "fiber_soft_target_g": SOFT_FIBER_TARGET_G,
+                "fiber_planned_g": 0.0,
+                "fiber_consumed_g": fiber_logged,
+                "fiber_miss": fiber_logged < SOFT_FIBER_TARGET_G,
+                "fiber_miss_reason": "no_fiber_foods",
+            },
+            "honesty": [
+                {"level": "warn", "kind": "empty_plan", "text": honesty_text}
+            ],
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
 
-    # Soft calorie ceiling: don't exceed remaining + 10% or +80 kcal
-    cal_ceiling = rem["calories"] + max(80.0, rem["calories"] * 0.1)
-
-    # Cap how many times we pick the same ingredient in one plan
     pick_counts: Dict[str, int] = {}
+    shake_cap_applied = False
+    shake_cap_escaped = False
+    regen_attempted = False
+    veg_slot_filled = False
+    veg_slot_missed = False
 
-    for _ in range(max_items):
-        # Close enough — leftover protein/cals too small for a useful bite
-        if rem["calories"] < 25 and rem["protein_g"] < 5:
-            break
-        candidates = []
+    def _shake_totals() -> tuple[float, float]:
+        n = 0.0
+        p = 0.0
+        for it in plan_items:
+            if is_shake_or_powder(it) or it.get("is_shake"):
+                n += float(it.get("servings") or 1)
+                p += float(it.get("protein_g") or 0)
+        return n, p
+
+    def _fiber_need() -> float:
+        return max(0.0, SOFT_FIBER_TARGET_G - fiber_logged - float(totals.get("fiber_g") or 0))
+
+    def _cal_ceiling(relax: bool) -> float:
+        base = remaining_before["calories"] + max(80.0, remaining_before["calories"] * 0.1)
+        return base + (250.0 if relax else 0.0)
+
+    def _non_shake_protein_available() -> bool:
         for ing in stocked:
+            if is_shake_or_powder(ing):
+                continue
+            if float(ing.get("protein_g") or 0) >= 8:
+                return True
+        return False
+
+    def _append(ing: dict, pick: tuple) -> None:
+        servings_n, portion_g = pick
+        row = _plan_item_from_ingredient(ing, servings=servings_n, portion_g=portion_g)
+        n = float(row.get("servings") or 1)
+        row["fiber_g"] = round(estimated_fiber_g(ing) * n, 1)
+        row["is_shake"] = is_shake_or_powder(ing)
+        row["is_veg_or_fruit"] = is_veg_or_fruit(ing)
+        plan_items.append(row)
+        pick_counts[str(ing["id"])] = pick_counts.get(str(ing["id"]), 0) + 1
+        for k in _MACRO_KEYS:
+            totals[k] += float(row.get(k) or 0)
+            rem[k] = round(max(0.0, rem[k] - float(row.get(k) or 0)), 1)
+        totals["fiber_g"] = round(float(totals.get("fiber_g") or 0) + float(row["fiber_g"]), 1)
+
+    def _collect_candidates(
+        *, relax: bool, allow_shake_escape: bool, veg_only: bool = False
+    ) -> List[tuple]:
+        nonlocal shake_cap_applied
+        candidates = []
+        ceiling = _cal_ceiling(relax)
+        shake_n, shake_p = _shake_totals()
+        for ing in stocked:
+            if veg_only and not is_veg_or_fruit(ing):
+                continue
             iid = str(ing["id"])
             if pick_counts.get(iid, 0) >= 3:
                 continue
-            pick = _pick_continuous_portion(ing, rem, cal_ceiling, totals)
+            pick = _pick_continuous_portion(ing, rem, ceiling, totals)
             if pick is None:
                 continue
             _servings_n, _portion_g = pick
@@ -790,43 +1033,121 @@ def generate_meal_plan(
                 if _portion_g is not None
                 else _macros_for_portion(ing, servings=_servings_n)
             )
-            # Don't add another huge protein hit if protein is nearly done
+            if is_shake_or_powder(ing) and not allow_shake_escape:
+                next_n = shake_n + float(_servings_n or 1)
+                next_p = shake_p + float(min_macros.get("protein_g") or 0)
+                if next_n > SHAKE_MAX_SERVINGS + 0.05 or next_p > SHAKE_MAX_POWDER_PROTEIN_G + 0.05:
+                    shake_cap_applied = True
+                    room_n = SHAKE_MAX_SERVINGS - shake_n
+                    room_p = SHAKE_MAX_POWDER_PROTEIN_G - shake_p
+                    sg = _ingredient_serving_g(ing)
+                    if room_n <= 0.05 or room_p <= 1.0:
+                        continue
+                    if _portion_g is not None and sg is not None and float(sg) > 0:
+                        prot_pg = float(ing.get("protein_g") or 0) / float(sg)
+                        max_g_p = (room_p / prot_pg) if prot_pg > 0 else 0.0
+                        max_g_n = room_n * float(sg)
+                        new_g = _round_portion_g(
+                            min(float(_portion_g), max_g_p, max_g_n), serving_g=sg
+                        )
+                        if new_g <= 0:
+                            continue
+                        pick = (new_g / float(sg), new_g)
+                        min_macros = _macros_for_portion(ing, portion_g=new_g)
+                    elif (shake_n + 1.0) > SHAKE_MAX_SERVINGS + 0.05 or (
+                        shake_p + float(ing.get("protein_g") or 0)
+                    ) > SHAKE_MAX_POWDER_PROTEIN_G + 0.05:
+                        continue
+                if not veg_slot_filled and veg_stocked:
+                    unused_veg = [
+                        v
+                        for v in veg_stocked
+                        if pick_counts.get(str(v["id"]), 0) == 0
+                        and float(v["calories"]) <= rem["calories"] + 80
+                    ]
+                    if unused_veg:
+                        continue
             if rem["protein_g"] < 20 and min_macros["protein_g"] > rem["protein_g"] + 25:
                 continue
-            # skip if this pick would blow calorie budget badly
-            if totals["calories"] + min_macros["calories"] > cal_ceiling and rem["protein_g"] < 20:
+            if totals["calories"] + min_macros["calories"] > ceiling and rem["protein_g"] < 20:
                 continue
             if (
-                totals["calories"] + min_macros["calories"] > cal_ceiling + 100
+                totals["calories"] + min_macros["calories"] > ceiling + 100
                 and min_macros["protein_g"] < 25
             ):
                 continue
-            # Once protein is filled, prefer carbs/veg to finish calories
             if rem["protein_g"] < 15 and float(ing["protein_g"]) > 25 and rem["calories"] > 100:
-                if float(ing["carbs_g"]) < 10:
+                if float(ing["carbs_g"]) < 10 and not is_veg_or_fruit(ing):
                     continue
-            sc = _score_ingredient(ing, rem)
-            # Soft diversify: slight penalty if already logged under a similar name
+            if relax:
+                if (
+                    totals["calories"] + float(min_macros["calories"]) > ceiling + 80
+                    and float(min_macros["protein_g"]) < 12
+                    and not is_veg_or_fruit(ing)
+                ):
+                    continue
+            sc = _score_ingredient(ing, rem, fiber_need_g=_fiber_need())
             iname = str(ing.get("name") or "").strip().lower()
             if iname and any(iname in ln or ln in iname for ln in logged_names if ln):
                 sc *= 0.85
-            # Stronger diversify vs items already in *this* plan
             already = pick_counts.get(iid, 0)
             if already >= 1:
                 sc *= 0.55 ** already
             if sc > 0:
                 candidates.append((sc, ing, pick))
-        if not candidates:
-            break
-        candidates.sort(key=lambda x: -x[0])
-        best = candidates[0][1]
-        servings_n, portion_g = candidates[0][2]
-        row = _plan_item_from_ingredient(best, servings=servings_n, portion_g=portion_g)
-        plan_items.append(row)
-        pick_counts[str(best["id"])] = pick_counts.get(str(best["id"]), 0) + 1
-        for k in _MACRO_KEYS:
-            totals[k] += float(row.get(k) or 0)
-            rem[k] = round(max(0.0, rem[k] - float(row.get(k) or 0)), 1)
+        return candidates
+
+    def _fill(*, relax: bool, allow_shake_escape: bool) -> None:
+        for _ in range(max(0, max_items - len(plan_items))):
+            if rem["calories"] < 25 and rem["protein_g"] < 5:
+                break
+            candidates = _collect_candidates(
+                relax=relax, allow_shake_escape=allow_shake_escape
+            )
+            if not candidates:
+                break
+            candidates.sort(key=lambda x: -x[0])
+            best = candidates[0][1]
+            pick = candidates[0][2]
+            _append(best, pick)
+
+    # AC2: ≥1 veg/fruit slot before shake fill when a serving fits.
+    if veg_stocked:
+        veg_cands = _collect_candidates(
+            relax=False, allow_shake_escape=False, veg_only=True
+        )
+        veg_cands = [
+            (sc, ing, pick)
+            for sc, ing, pick in veg_cands
+            if float(ing["calories"]) <= rem["calories"] + 80
+        ]
+        if veg_cands:
+            veg_cands.sort(
+                key=lambda x: (
+                    -estimated_fiber_g(x[1]),
+                    -float(x[1].get("protein_g") or 0),
+                    float(x[1].get("calories") or 0),
+                )
+            )
+            _append(veg_cands[0][1], veg_cands[0][2])
+            veg_slot_filled = True
+        else:
+            veg_slot_missed = True
+
+    _fill(relax=False, allow_shake_escape=False)
+
+    # AC1: empty plan is not OK when remaining macros exist and pantry has food.
+    needs_plan = remaining_before["protein_g"] >= 15 or remaining_before["calories"] >= 80
+    if not plan_items and needs_plan:
+        regen_attempted = True
+        _fill(relax=True, allow_shake_escape=False)
+
+    # AC4: escape hatch — powder past the cap only if 210P cannot be met otherwise.
+    if rem["protein_g"] >= 40 and shake_stocked and not _non_shake_protein_available():
+        before_n = len(plan_items)
+        _fill(relax=False, allow_shake_escape=True)
+        if len(plan_items) > before_n:
+            shake_cap_escaped = True
 
     # Safety net: never surface an item that is not currently stocked
     plan_items = [
@@ -848,8 +1169,9 @@ def generate_meal_plan(
         eat_slots=eat_slots,
         sleep_battery=sleep_battery,
     )
-    for k in totals:
+    for k in _MACRO_KEYS:
         totals[k] = round(totals[k], 1)
+    totals["fiber_g"] = round(float(totals.get("fiber_g") or 0), 1)
 
     remaining_after = remaining_macros(
         targets,
@@ -861,7 +1183,61 @@ def generate_meal_plan(
         },
     )
 
-    rem_before = remaining_macros(targets, consumed)
+    shake_n, shake_p = 0.0, 0.0
+    veg_in_plan = False
+    for it in plan_items:
+        if is_shake_or_powder(it) or it.get("is_shake"):
+            shake_n += float(it.get("servings") or 1)
+            shake_p += float(it.get("protein_g") or 0)
+        if is_veg_or_fruit(it) or it.get("is_veg_or_fruit"):
+            veg_in_plan = True
+    veg_slot_filled = veg_slot_filled or veg_in_plan
+    if veg_stocked and not veg_slot_filled:
+        veg_slot_missed = True
+
+    fiber_planned = round(sum(float(it.get("fiber_g") or 0) for it in plan_items), 1)
+    if fiber_planned <= 0:
+        fiber_planned = round(float(totals.get("fiber_g") or 0), 1)
+    fiber_total = fiber_logged + fiber_planned
+    fiber_miss = fiber_total < SOFT_FIBER_TARGET_G
+    fiber_foods = [
+        i for i in stocked if estimated_fiber_g(i) >= 2.0 or is_veg_or_fruit(i)
+    ]
+    if not fiber_miss:
+        fiber_miss_reason = None
+    elif not fiber_foods:
+        fiber_miss_reason = "no_fiber_foods"
+    else:
+        fiber_miss_reason = "pantry_blocked"
+
+    empty = not plan_items
+    if empty:
+        if remaining_before["protein_g"] < 15 and remaining_before["calories"] < 80:
+            empty_reason = "targets_met"
+        else:
+            empty_reason = "pantry_blocked"
+    else:
+        empty_reason = None
+
+    notes = {
+        "empty_plan": empty,
+        "empty_plan_reason": empty_reason,
+        "regen_attempted": regen_attempted,
+        "veg_slot_filled": veg_slot_filled,
+        "veg_slot_missed": veg_slot_missed and not veg_slot_filled,
+        "veg_available": bool(veg_stocked),
+        "shake_servings": round(shake_n, 2),
+        "shake_powder_protein_g": round(shake_p, 1),
+        "shake_cap_applied": shake_cap_applied and not shake_cap_escaped,
+        "shake_cap_escaped": shake_cap_escaped,
+        "fiber_soft_target_g": SOFT_FIBER_TARGET_G,
+        "fiber_planned_g": fiber_planned,
+        "fiber_consumed_g": fiber_logged,
+        "fiber_miss": fiber_miss,
+        "fiber_miss_reason": fiber_miss_reason,
+    }
+
+    honesty: List[dict] = []
     msg = (
         f"Plan from {len(stocked)} in-stock ingredient"
         f"{'s' if len(stocked) != 1 else ''} only (out-of-stock excluded)."
@@ -871,21 +1247,99 @@ def generate_meal_plan(
             f" Uses {len(logged)} Google Health food log"
             f"{'s' if len(logged) != 1 else ''} so far today for remaining macros."
         )
-    if not plan_items and rem_before["calories"] < 150 and rem_before["protein_g"] < 20:
+    if empty and empty_reason == "targets_met":
         msg = (
-            f"Day essentially complete — only ~{rem_before['calories']:.0f} kcal and "
-            f"{rem_before['protein_g']:.0f}g protein left under target; no extra servings planned."
+            f"Day essentially complete — only ~{remaining_before['calories']:.0f} kcal and "
+            f"{remaining_before['protein_g']:.0f}g protein left under target; no extra servings planned."
         )
+        honesty.append({"level": "muted", "kind": "empty_plan", "text": msg})
+    elif empty and empty_reason == "pantry_blocked":
+        msg = (
+            "No plan — pantry cannot fill remaining macros without inventing food. "
+            "Mark staples in stock, then Refresh plan."
+        )
+        if regen_attempted:
+            msg = (
+                "No plan after regen — in-stock items do not fit remaining macros "
+                "without inventing food. Restock or Refresh plan after stock lands."
+            )
+        honesty.append({"level": "warn", "kind": "empty_plan", "text": msg})
     elif remaining_after["protein_g"] > 40:
         msg += " Protein still short — restock high-protein items if needed."
-    if remaining_after["calories"] > 300 and not plan_items and rem_before["protein_g"] >= 20:
+    if remaining_after["calories"] > 300 and not plan_items and remaining_before["protein_g"] >= 20:
         msg = "Could not fit more servings without exceeding soft calorie ceiling (in-stock only)."
+
+    if shake_cap_escaped:
+        honesty.append(
+            {
+                "level": "warn",
+                "kind": "shake_cap",
+                "text": (
+                    f"Shake cap escaped — pantry cannot otherwise meet "
+                    f"{int(targets.get('protein_g') or 0)}g protein "
+                    f"(using extra powder; {shake_n:g} shakes / {round(shake_p, 0):.0f}g powder P)."
+                ),
+            }
+        )
+    elif shake_n > 0 and (shake_cap_applied or shake_n >= SHAKE_MAX_SERVINGS):
+        honesty.append(
+            {
+                "level": "muted",
+                "kind": "shake_cap",
+                "text": (
+                    f"Shake cap applied: {shake_n:g} shake"
+                    f"{'s' if shake_n != 1 else ''} / {round(shake_p, 0):.0f}g powder P "
+                    f"(≤{SHAKE_MAX_SERVINGS}/day or ≤~{int(SHAKE_MAX_POWDER_PROTEIN_G)}g)."
+                ),
+            }
+        )
+    if veg_slot_missed and not veg_slot_filled:
+        honesty.append(
+            {
+                "level": "warn",
+                "kind": "veg_slot",
+                "text": "Veg/fruit slot missed — pantry had produce but it did not fit remaining calories.",
+            }
+        )
+    elif veg_stocked and not veg_slot_filled:
+        honesty.append(
+            {
+                "level": "warn",
+                "kind": "veg_slot",
+                "text": "No veg/fruit in this plan (pantry had produce).",
+            }
+        )
+    if fiber_miss and not empty:
+        if fiber_miss_reason == "no_fiber_foods":
+            honesty.append(
+                {
+                    "level": "warn",
+                    "kind": "fiber",
+                    "text": (
+                        f"Soft fiber ~{int(SOFT_FIBER_TARGET_G)}g missed "
+                        f"(planned {fiber_planned:.0f}g + logged {fiber_logged:.0f}g). "
+                        "No fiber-rich stock — not inventing items."
+                    ),
+                }
+            )
+        else:
+            honesty.append(
+                {
+                    "level": "warn",
+                    "kind": "fiber",
+                    "text": (
+                        f"Soft fiber ~{int(SOFT_FIBER_TARGET_G)}g missed "
+                        f"(planned {fiber_planned:.0f}g + logged {fiber_logged:.0f}g; "
+                        "pantry-limited, not inventing items)."
+                    ),
+                }
+            )
 
     return {
         "meals": meals,
         "items": plan_items,
-        "planned_totals": totals,
-        "remaining_before_plan": remaining_macros(targets, consumed),
+        "planned_totals": {k: totals[k] for k in _MACRO_KEYS},
+        "remaining_before_plan": remaining_before,
         "remaining_after_plan": remaining_after,
         "targets": targets,
         "consumed": consumed,
@@ -895,9 +1349,10 @@ def generate_meal_plan(
         "in_stock_only": True,
         "message": msg,
         "serving_grams_nudge": serving_grams_nudge_text(plan_items),
+        "notes": notes,
+        "honesty": honesty,
         "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
     }
-
 
 def _plan_item_from_ingredient(
     ing: dict,
@@ -913,8 +1368,8 @@ def _plan_item_from_ingredient(
         except (TypeError, ValueError):
             pg = 0.0
         if pg > 0:
-            display_g = float(int(round(pg)))
-            n = display_g / float(base_g)
+            display_g = _round_portion_g(pg, serving_g=float(base_g))
+            n = display_g / float(base_g) if display_g else float(servings or 1)
         else:
             n = float(servings or 1)
             display_g = round(float(base_g) * n)
@@ -942,6 +1397,9 @@ def _plan_item_from_ingredient(
         "carbs_g": macros["carbs_g"],
         "fat_g": macros["fat_g"],
         "in_stock": True,
+        "fiber_g": round(estimated_fiber_g(ing) * n, 1),
+        "is_shake": is_shake_or_powder(ing),
+        "is_veg_or_fruit": is_veg_or_fruit(ing),
     }
     if base_g is not None and float(base_g) > 0:
         row["serving_g"] = float(base_g)
@@ -1031,6 +1489,9 @@ def _collapse_plan_items(items: List[dict]) -> List[dict]:
                 "protein_g": float(it.get("protein_g") or 0),
                 "carbs_g": float(it.get("carbs_g") or 0),
                 "fat_g": float(it.get("fat_g") or 0),
+                "fiber_g": float(it.get("fiber_g") or 0),
+                "is_shake": bool(it.get("is_shake")),
+                "is_veg_or_fruit": bool(it.get("is_veg_or_fruit")),
             }
             if base_g is not None and float(base_g) > 0:
                 row["serving_g"] = float(base_g)
@@ -1042,8 +1503,12 @@ def _collapse_plan_items(items: List[dict]) -> List[dict]:
             row = by_key[key]
             add_n = float(it.get("servings") or 1)
             row["servings"] = float(row.get("servings") or 0) + add_n
-            for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            for k in ("calories", "protein_g", "carbs_g", "fat_g", "fiber_g"):
                 row[k] = round(float(row[k]) + float(it.get(k) or 0), 1)
+            row["is_shake"] = bool(row.get("is_shake") or it.get("is_shake"))
+            row["is_veg_or_fruit"] = bool(
+                row.get("is_veg_or_fruit") or it.get("is_veg_or_fruit")
+            )
             if it.get("portion_g") is not None:
                 row["portion_g"] = round(
                     float(row.get("portion_g") or 0) + float(it["portion_g"]), 1
@@ -1051,26 +1516,42 @@ def _collapse_plan_items(items: List[dict]) -> List[dict]:
     out = []
     for key in order:
         row = by_key[key]
-        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+        for k in ("calories", "protein_g", "carbs_g", "fat_g", "fiber_g"):
             row[k] = round(float(row[k]), 1)
         n = float(row.get("servings") or 1)
-        row["servings"] = int(n) if abs(n - int(n)) < 1e-9 else round(n, 2)
         base_g = row.get("serving_g")
         if base_g is not None and float(base_g) > 0:
-            row["portion_g"] = round(float(base_g) * n)
+            raw_g = row.get("portion_g")
+            try:
+                raw_g = float(raw_g) if raw_g is not None else float(base_g) * n
+            except (TypeError, ValueError):
+                raw_g = float(base_g) * n
+            portion = _round_portion_g(raw_g, serving_g=float(base_g))
+            if portion <= 0:
+                portion = _round_portion_g(float(base_g) * n, serving_g=float(base_g))
+            if raw_g > 0 and portion > 0 and abs(portion - raw_g) >= 0.05:
+                factor = portion / raw_g
+                for k in ("calories", "protein_g", "carbs_g", "fat_g", "fiber_g"):
+                    if k in row:
+                        row[k] = round(float(row[k]) * factor, 1)
+            row["portion_g"] = portion
+            n = portion / float(base_g)
+            row["servings"] = int(n) if abs(n - int(n)) < 1e-9 else round(n, 2)
             row["serving_label"] = format_portion_label(
                 serving_g=float(base_g),
                 servings=n,
                 serving_label=str(row.get("serving_label") or ""),
             )
-        elif float(n) != 1.0:
-            # Non-gram multi-servings: "3 × 1 cup"
-            base_label = str(row.get("serving_label") or "1 serving")
-            # Strip prior multiplier if re-collapsing
-            base_label = re.sub(r"^\d+\s*×\s*", "", base_label)
-            row["serving_label"] = format_portion_label(
-                servings=n, serving_label=base_label
-            )
+        else:
+            row["servings"] = int(n) if abs(n - int(n)) < 1e-9 else round(n, 2)
+            if float(n) != 1.0:
+                # Non-gram multi-servings: "3 × 1 cup"
+                base_label = str(row.get("serving_label") or "1 serving")
+                # Strip prior multiplier if re-collapsing
+                base_label = re.sub(r"^\d+\s*×\s*", "", base_label)
+                row["serving_label"] = format_portion_label(
+                    servings=n, serving_label=base_label
+                )
         out.append(row)
     return out
 

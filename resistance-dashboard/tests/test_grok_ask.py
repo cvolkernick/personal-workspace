@@ -63,7 +63,19 @@ class TestGrokAskContext(unittest.TestCase):
                         }
                     ]
                 },
-                "meal_plan": {"message": "ok", "items": []},
+                "meal_plan": {
+                    "message": "No plan — pantry is empty. Mark staples in stock, then Refresh plan.",
+                    "items": [],
+                    "meals": [],
+                    "notes": {"empty_plan": True, "empty_plan_reason": "no_stock"},
+                    "honesty": [
+                        {
+                            "level": "warn",
+                            "kind": "empty_plan",
+                            "text": "No plan — pantry is empty. Mark staples in stock, then Refresh plan.",
+                        }
+                    ],
+                },
             },
         }
         ctx = build_fitness_context(dash)
@@ -72,6 +84,10 @@ class TestGrokAskContext(unittest.TestCase):
         self.assertEqual(ctx["sessions"][0]["exercises"][0]["name"], "Bench")
         self.assertEqual(ctx["nutrition_store"]["targets"]["calories"], 2100)
         self.assertEqual(len(ctx["nutrition_store"]["inventory"]), 1)
+        mp = ctx["nutrition_store"]["meal_plan"]
+        self.assertTrue(mp.get("empty"))
+        self.assertEqual((mp.get("notes") or {}).get("empty_plan_reason"), "no_stock")
+        self.assertTrue(any(h.get("kind") == "empty_plan" for h in (mp.get("honesty") or [])))
 
     def test_shrink_context_respects_max_chars(self):
         sessions = [

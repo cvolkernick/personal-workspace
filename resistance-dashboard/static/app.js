@@ -3810,10 +3810,22 @@
     const meals = plan.meals || [];
     const pt = plan.planned_totals || {};
     const ra = plan.remaining_after_plan || {};
+    const honesty = Array.isArray(plan.honesty) ? plan.honesty : [];
+    const notes = plan.notes || {};
     let html = `<div class="meal-plan-panel">`;
     html += `<p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">${plan.message || ""}</p>`;
     if (plan.serving_grams_nudge) {
       html += `<p class="meal-grams-nudge">${plan.serving_grams_nudge}</p>`;
+    }
+    if (honesty.length) {
+      html += `<ul class="meal-honesty">`;
+      honesty.forEach((h) => {
+        const level = h && h.level === "warn" ? "warn" : "muted";
+        const text = (h && h.text) || "";
+        if (!text) return;
+        html += `<li class="${level}">${text}</li>`;
+      });
+      html += `</ul>`;
     }
     html += `<div class="meal-plan-totals-row">
       <div class="meal-plan-totals compact">
@@ -3829,7 +3841,12 @@
       const remB = plan.remaining_before_plan || {};
       const remCals = Number(remB.calories);
       const remP = Number(remB.protein_g);
-      if (
+      const emptyHonesty = (honesty.find((h) => h && h.kind === "empty_plan") || {}).text;
+      if (emptyHonesty) {
+        if (!html.includes(emptyHonesty)) {
+          html += `<p class="meal-honesty-empty">${emptyHonesty}</p>`;
+        }
+      } else if (
         Number.isFinite(remCals) &&
         Number.isFinite(remP) &&
         remCals < 150 &&
@@ -3838,7 +3855,7 @@
         html += `<p class="muted">Day is essentially full (≈${fmtNumShort(
           remCals
         )} kcal / ${fmtNumShort(remP)}g protein left) — nothing useful to add from stock.</p>`;
-      } else if (plan.pantry_dark) {
+      } else if (plan.pantry_dark || notes.empty_plan_reason === "pantry_unavailable") {
         if (!/Pantry unavailable/i.test(plan.message || "")) {
           html += `<p class="muted">Pantry unavailable</p>`;
         }
@@ -5226,6 +5243,17 @@
         html += `<p class="muted" style="margin:0 0 0.4rem;font-size:0.82rem">${copy}</p>`;
       } else if (meal.message) {
         html += `<p class="muted" style="margin:0 0 0.4rem;font-size:0.82rem">${meal.message}</p>`;
+      }
+      const honesty = Array.isArray(meal.honesty) ? meal.honesty : [];
+      if (honesty.length) {
+        html += `<ul class="meal-honesty">`;
+        honesty.forEach((h) => {
+          const text = (h && h.text) || "";
+          if (!text) return;
+          const level = h && h.level === "warn" ? "warn" : "muted";
+          html += `<li class="${level}">${text}</li>`;
+        });
+        html += `</ul>`;
       }
       if (meals.length) {
         meals.forEach((bucket) => {

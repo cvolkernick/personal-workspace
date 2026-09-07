@@ -255,6 +255,17 @@ class TestCoach(unittest.TestCase):
         self.assertTrue(board["meal"].get("empty"))
         self.assertTrue(board.get("purchases"))
         self.assertTrue(any("stock" in (p.get("reason") or "").lower() or p.get("name") for p in board["purchases"]))
+        self.assertTrue(board["meal"].get("honesty"))
+        self.assertEqual(
+            (board["meal"].get("notes") or {}).get("empty_plan_reason"),
+            "pantry_unavailable",
+        )
+        self.assertNotEqual(
+            (board["meal"].get("notes") or {}).get("empty_plan_reason"), "no_stock"
+        )
+        self.assertTrue(board["nutrition"].get("honesty"))
+        brief = build_coach_brief(today=board, weekly={"bullets": []}, recovery=rec)
+        self.assertIn("empty_plan", brief["markdown"])
 
     def test_today_pantry_dark_is_unavailable_not_restock_copy(self):
         rec = RecoveryStatus(label="Ready", score=80.0, reasons=[])
