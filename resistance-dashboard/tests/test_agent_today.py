@@ -197,6 +197,7 @@ class ExportFixtures(unittest.TestCase):
         self.assertIsNone(today["bottle"]["percent"])
         self.assertIsNone(today["wake_window"]["last_wake_at"])
         self.assertIsNone(today["wake_window"]["empty_at"])
+        self.assertNotIn("segments", today["wake_window"])
         self.assertEqual(today["active_zone_minutes"], [])
         nut = today["nutrition"]
         self.assertIsNone(nut["calories"])
@@ -242,6 +243,12 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(today["bottle"]["percent"], 81.0)
         self.assertEqual(today["wake_window"]["last_wake_at"], "2026-08-23T07:00:00-04:00")
         self.assertEqual(today["wake_window"]["empty_at"], "2026-08-23T23:00:00-04:00")
+        segs = today["wake_window"]["segments"]
+        self.assertEqual(len(segs), 1)
+        self.assertEqual(segs[0]["kind"], "night")
+        self.assertEqual(segs[0]["start"], "2026-08-22T23:00:00-04:00")
+        self.assertEqual(segs[0]["end"], "2026-08-23T07:00:00-04:00")
+        self.assertEqual(segs[0]["duration_hours"], 8.0)
         azm = today["active_zone_minutes"]
         self.assertEqual(len(azm), 7)
         self.assertEqual(azm[0]["date"], "2026-08-16")
@@ -588,6 +595,131 @@ class ExportFixtures(unittest.TestCase):
         self.assertIsNone(sleep[0]["start"])
         self.assertIsNone(sleep[0]["end"])
         self.assertIsNone(sleep[0]["battery"])
+        self.assertNotIn("segments", body["today"]["wake_window"])
+
+    def test_wake_window_segments_night_and_nap_et(self):
+        body = export_agent_today(
+            {
+                "sleep_battery": {
+                    "last_wake_at": "2026-09-06T19:55:00-04:00",
+                    "empty_at": "2026-09-07T10:55:00-04:00",
+                    "pct_charged": 100.0,
+                    "mode": "awake",
+                    "as_of": "2026-09-06T20:08:00-04:00",
+                },
+                "health": {
+                    "sleep_intervals": [
+                        {
+                            "start": "2026-09-06T02:45:00-04:00",
+                            "end": "2026-09-06T08:31:00-04:00",
+                            "source": "google_health",
+                        },
+                        {
+                            "start": "2026-09-06T16:28:00-04:00",
+                            "end": "2026-09-06T19:55:00-04:00",
+                            "source": "google_health",
+                        },
+                    ]
+                },
+                "coach": {"today": {"date": "2026-09-06"}},
+            }
+        )
+        segs = body["today"]["wake_window"]["segments"]
+        self.assertEqual([s["kind"] for s in segs], ["night", "nap"])
+        self.assertEqual(segs[0]["start"], "2026-09-06T02:45:00-04:00")
+        self.assertEqual(segs[0]["end"], "2026-09-06T08:31:00-04:00")
+        self.assertAlmostEqual(segs[0]["duration_hours"], 5.77, places=2)
+        self.assertEqual(segs[1]["start"], "2026-09-06T16:28:00-04:00")
+        self.assertEqual(segs[1]["end"], "2026-09-06T19:55:00-04:00")
+        self.assertAlmostEqual(segs[1]["duration_hours"], 3.45, places=2)
+        # Existing wake_window fields unchanged besides adding segments.
+        self.assertEqual(
+            body["today"]["wake_window"]["last_wake_at"],
+            "2026-09-06T19:55:00-04:00",
+        )
+
+    def test_wake_window_segments_utc_points_export_et(self):
+        body = export_agent_today(
+            {
+                "sleep_battery": {
+                    "last_wake_at": "2026-09-06T12:31:00+00:00",
+                    "mode": "awake",
+                    "as_of": "2026-09-06T20:08:00-04:00",
+                },
+                "health": {
+                    "sleep_intervals": [
+                        {
+                            "start": "2026-09-06T06:45:00Z",
+                            "end": "2026-09-06T12:31:00Z",
+                            "source": "google_health",
+                        }
+                    ]
+                },
+                "coach": {"today": {"date": "2026-09-06"}},
+            }
+        )
+        segs = body["today"]["wake_window"]["segments"]
+        self.assertEqual(len(segs), 1)
+        self.assertEqual(segs[0]["kind"], "night")
+        self.assertEqual(segs[0]["start"], "2026-09-06T02:45:00-04:00")
+        self.assertEqual(segs[0]["end"], "2026-09-06T08:31:00-04:00")
+
+    def test_wake_window_segments_omit_when_sparse_daily_hours(self):
+        body = export_agent_today(
+            {
+                "sleep_battery": {
+                    "last_wake_at": "2026-08-23T07:00:00-04:00",
+                    "mode": "awake",
+                    "last_sleep_hours": 7.5,
+                },
+                "health": {
+                    "sleep": [
+                        {
+                            "date": "2026-08-22",
+                            "sleep_hours": 7.5,
+                            "source": "google_health",
+                        }
+                    ]
+                },
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        self.assertNotIn("segments", body["today"]["wake_window"])
+        # week.sleep may still copy unsigned hours; Today must not invent times.
+        self.assertIsNone(body["week"]["sleep"][0]["start"])
+        self.assertIsNone(body["week"]["sleep"][0]["end"])
+
+    def test_wake_window_segments_merge_overlapping_gh_ends(self):
+        body = export_agent_today(
+            {
+                "sleep_battery": {
+                    "last_wake_at": "2026-09-07T11:34:00-04:00",
+                    "mode": "awake",
+                    "as_of": "2026-09-07T14:00:00-04:00",
+                },
+                "health": {
+                    "sleep_intervals": [
+                        {
+                            "start": "2026-09-07T04:43:00-04:00",
+                            "end": "2026-09-07T09:01:00-04:00",
+                            "source": "google_health",
+                        },
+                        {
+                            "start": "2026-09-07T04:43:00-04:00",
+                            "end": "2026-09-07T11:34:00-04:00",
+                            "source": "google_health",
+                        },
+                    ]
+                },
+                "coach": {"today": {"date": "2026-09-07"}},
+            }
+        )
+        segs = body["today"]["wake_window"]["segments"]
+        self.assertEqual(len(segs), 1)
+        self.assertEqual(segs[0]["kind"], "night")
+        self.assertEqual(segs[0]["start"], "2026-09-07T04:43:00-04:00")
+        self.assertEqual(segs[0]["end"], "2026-09-07T11:34:00-04:00")
+        self.assertAlmostEqual(segs[0]["duration_hours"], 6.85, places=2)
 
     def test_live_targets_override_book_defaults(self):
         body = export_agent_today(
@@ -1082,6 +1214,7 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertFalse(hyd.get("sip_aware"))
         self.assertNotEqual(hyd.get("status"), "on_pace")
         self.assertIsNone(body["today"]["wake_window"]["last_wake_at"])
+        self.assertNotIn("segments", body["today"]["wake_window"])
         self.assertEqual(body["today"]["active_zone_minutes"], [])
         self.assertIsNone(body["today"]["nutrition"]["calories"])
         self.assertIsNone(body["today"]["nutrition"]["protein_g"])

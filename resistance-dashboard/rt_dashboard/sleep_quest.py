@@ -25,15 +25,20 @@ viewer zone so an afternoon ET nap is not last night.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence
+from zoneinfo import ZoneInfo
 
 from .sleep_battery import (
     DEFAULT_SLEEP_TARGET_HOURS,
     _parse_dt,
     normalize_intervals,
 )
-from .timeutil import local_now, local_tz
+from .timeutil import FALLBACK_TZ, local_now, local_tz
+
+# Agent Today segments (#512): absolute ET instants, not process TZ / UTC.
+ET_TZ_NAME = FALLBACK_TZ  # America/New_York
+ET_TZ = ZoneInfo(ET_TZ_NAME)
 
 KIND_KEY = "sleep|sleep-recovery"
 SLUG = "sleep-recovery"
@@ -321,6 +326,72 @@ def score_sleep(
         if overnight_end
         else None,
     }
+
+
+def _et_iso(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(ET_TZ).isoformat(timespec="seconds")
+
+
+def _segment_row(kind: str, row: dict) -> Optional[Dict[str, Any]]:
+    st = row.get("start")
+    en = row.get("end")
+    if not isinstance(st, datetime) or not isinstance(en, datetime):
+        return None
+    if en <= st:
+        return None
+    hours = float(row.get("hours") or 0.0)
+    if hours <= 0:
+        hours = (en - st).total_seconds() / 3600.0
+    if hours <= 0:
+        return None
+    return {
+        "kind": kind,
+        "start": _et_iso(st),
+        "end": _et_iso(en),
+        "duration_hours": round(hours, 2),
+    }
+
+
+def recovered_sleep_segments(
+    intervals: Optional[Sequence[Any]] = None,
+    *,
+    last_wake_at: Any = None,
+    mode: str = "",
+    now: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    """Last overnight + same-day naps with absolute ET start/end.
+
+    Shared aggregator for agent Today (#512) and consumers (Pulse / quest).
+    Timed GH intervals only — never synthesizes 7am wakes from daily hours.
+    Sparse / untimed / unrecoverable → ``[]`` (caller omits the key).
+    """
+    if now is None:
+        now = local_now()
+    now = _awake_clock(now, last_wake_at=last_wake_at, mode=mode)
+    rows = _completed_rows(intervals, now)
+    if not rows:
+        return []
+    overnight = _pick_overnight(rows)
+    out: List[Dict[str, Any]] = []
+    if overnight is not None:
+        night = _segment_row("night", overnight)
+        if night:
+            out.append(night)
+        overnight_end = overnight["end"]
+        for row in rows:
+            if row is overnight or row["start"] < overnight_end:
+                continue
+            nap = _segment_row("nap", row)
+            if nap:
+                out.append(nap)
+    else:
+        for row in rows:
+            nap = _segment_row("nap", row)
+            if nap:
+                out.append(nap)
+    return out
 
 
 def sleep_spec(
