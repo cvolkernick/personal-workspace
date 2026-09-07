@@ -93,18 +93,12 @@
   bindForm(
     "interest-form",
     "interest-form-status",
-    "Thanks — your interest was recorded locally on this demo. This is not an investment, reservation, or Tesla order.",
+    "Thanks — your interest was recorded locally. We will follow up by email. This is not an investment, reservation, or Tesla order.",
     function (form, errors, markInvalid) {
-      var ack = form.elements.namedItem("ack_demo");
-      var role = form.elements.namedItem("role");
-      var accredited = form.elements.namedItem("accredited");
+      var ack = form.elements.namedItem("ack_legal");
       if (!ack || !ack.checked) {
         markInvalid(ack, true);
-        errors.push("Please confirm you understand this is a demo, not an offer to sell securities.");
-      }
-      if (role && role.value === "capital" && (!accredited || !accredited.checked)) {
-        markInvalid(accredited, true);
-        errors.push("Capital-partner interest on this demo requires accredited-investor self-attestation.");
+        errors.push("Please confirm you understand this is not an offer to sell securities.");
       }
     }
   );

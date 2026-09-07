@@ -69,20 +69,21 @@ Manual checklist:
 4. Nav links jump to Services / Why us / Process / Contact; Cybercab goes to `/cybercab-fleet.html`.
 5. Contact form shows an error if fields are empty; success message when filled.
 6. Pi URL responds with brand + services after deploy.
-7. `/cybercab-fleet.html` shows the DEMO banner, `noindex`, three scenario cards, and an interest form — no “Invest now” CTA.
+7. `/cybercab-fleet.html` is a marketing landing (Turo → Cybercab path), not a demo-skin page — thin legal strip, three scenario cards, interest form, no “Invest now” CTA.
 
-## Cybercab fleet interest demo
+## Cybercab landing (Turo → Cybercab)
 
-`cybercab-fleet.html` is a **demo** — not a live securities offering, not a Tesla order form.
+`cybercab-fleet.html` is a public-facing elevator pitch — not a live securities offering, not a Tesla order form.
 
-- Persistent `DEMO — not an offer to sell securities` banner
-- `noindex,nofollow`
+- Same header / footer / nav / CSS tokens as `index.html` (no separate demo-skin)
+- Path: vehicle at your price → live on Turo → position for Cybercab
+- Thin legal strip only (not an offer to sell securities)
 - Interest form only (client-side, same pattern as contact)
-- Unit economics from `~/Projects/tesla-robotaxi-pitch` shown as a range; **base case does not beat Turo**
+- Unit economics from `~/Projects/tesla-robotaxi-pitch` shown compactly; **base case does not beat Turo** ($1,651 vs $3,693 EBITDA/veh)
 - Tesla’s form is [tesla.com/robotaxi/interest](https://www.tesla.com/robotaxi/interest) (theirs)
 - Hero is a real Cybercab photograph (Wikimedia Commons, CC BY 4.0); credit in the figcaption and `static/img/CREDITS.md`
 
-Do **not** deploy to the Pi (`:8795`) until Chris explicitly says so. The DEMO banner and noindex stay if it does ship.
+**Live host after merge:** out-of-tree Pi copy `/home/prism-agent/sites/panamerica-auto` on **:8797** (Tailscale `http://100.67.114.2:8797/cybercab-fleet.html`). Redeploy that tree after merge. The in-tree systemd unit (`panamerica-auto.service`) still documents :8795 and is a separate path.
 
 Local: [http://127.0.0.1:8795/cybercab-fleet.html](http://127.0.0.1:8795/cybercab-fleet.html)
 
@@ -91,7 +92,7 @@ Local: [http://127.0.0.1:8795/cybercab-fleet.html](http://127.0.0.1:8795/cyberca
 ```
 business/panamerica-auto/
   index.html              # Home — rentals / fleet ops
-  cybercab-fleet.html     # SWFL Cybercab interest demo (noindex)
+  cybercab-fleet.html     # Turo → Cybercab marketing landing
   server.py               # Local / Pi static server (default :8795)
   start.command           # Open Pi site (or local fallback)
   static/

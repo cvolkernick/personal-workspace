@@ -573,43 +573,16 @@ a { color: inherit; }
   .btn { transition: none; }
 }
 
-/* Cybercab interest demo */
-.demo-banner {
-  background: #3a2410;
-  color: #f3d9a4;
-  text-align: center;
-  font-size: 0.88rem;
-  line-height: 1.4;
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid #6a4a1e;
-  position: sticky;
-  top: 0;
-  z-index: 60;
-}
-.demo-banner strong {
-  color: var(--gold);
-  letter-spacing: 0.06em;
-}
-
-.page-cybercab .site-header {
-  top: 0;
-}
-
+/* Cybercab landing — shared tokens, no demo-skin */
 .site-nav a[aria-current="page"] {
   color: var(--text);
 }
 
-.page-cybercab .hero {
-  padding: 2.75rem 0 1.75rem;
-}
-.page-cybercab .hero h1 {
-  max-width: 22ch;
-}
-.page-cybercab .section {
-  padding: 2.6rem 0;
-}
-.page-cybercab .cta-section {
-  padding-bottom: 3.5rem;
+.legal-strip {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  max-width: 52ch;
 }
 
 .hero-photo {
@@ -862,5 +835,4 @@ a { color: inherit; }
   .participate-grid {
     grid-template-columns: 1fr;
   }
-  .demo-banner { font-size: 0.8rem; }
 }
