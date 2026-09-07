@@ -20,6 +20,7 @@ from rt_dashboard.models import RecoveryStatus
 from rt_dashboard.quest_workout_log import looks_like_lift_quest
 from rt_dashboard.sleep_quest import (
     KIND_KEY,
+    recovered_sleep_segments,
     score_sleep,
     sleep_spec,
     sleep_title,
@@ -183,6 +184,36 @@ class ScorePriorNight(unittest.TestCase):
         self.assertIn("recovered", spec["title"].lower())
         self.assertNotIn("9.2h last night", spec["title"])
         self.assertIn("5.8h last night", spec["title"])
+
+    def test_recovered_sleep_segments_night_and_nap_et(self):
+        now = datetime(2026, 9, 6, 20, 8, tzinfo=ET)
+        segs = recovered_sleep_segments(
+            [
+                {
+                    "start": "2026-09-06T02:45:00-04:00",
+                    "end": "2026-09-06T08:31:00-04:00",
+                },
+                {
+                    "start": "2026-09-06T16:28:00-04:00",
+                    "end": "2026-09-06T19:55:00-04:00",
+                },
+            ],
+            last_wake_at="2026-09-06T19:55:00-04:00",
+            mode="awake",
+            now=now,
+        )
+        self.assertEqual([s["kind"] for s in segs], ["night", "nap"])
+        self.assertEqual(segs[0]["start"], "2026-09-06T02:45:00-04:00")
+        self.assertEqual(segs[0]["end"], "2026-09-06T08:31:00-04:00")
+        self.assertEqual(segs[1]["start"], "2026-09-06T16:28:00-04:00")
+        self.assertEqual(segs[1]["end"], "2026-09-06T19:55:00-04:00")
+
+    def test_recovered_sleep_segments_sparse_is_empty(self):
+        self.assertEqual(recovered_sleep_segments([]), [])
+        self.assertEqual(
+            recovered_sleep_segments([{"start": None, "end": None}]),
+            [],
+        )
 
     def test_fallback_prefers_last_night_hours_over_nap_cycle(self):
         spec = sleep_spec(

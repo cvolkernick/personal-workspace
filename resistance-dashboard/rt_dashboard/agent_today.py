@@ -442,13 +442,69 @@ def _bottle(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _payload_sleep_intervals(
+    payload: Dict[str, Any], bat: Optional[Dict[str, Any]]
+) -> List[Any]:
+    """Timed GH intervals only. Daily hour totals are not start/end."""
+    health = _health_dict(payload)
+    coach_today = _as_dict(_as_dict(payload.get("coach")).get("today"))
+    for blob in (health, bat if isinstance(bat, dict) else {}, payload, coach_today):
+        if not isinstance(blob, dict):
+            continue
+        for key in ("sleep_intervals", "intervals"):
+            raw = blob.get(key)
+            if isinstance(raw, (list, tuple)) and raw:
+                return list(raw)
+    return []
+
+
+def _segments_clock(
+    payload: Dict[str, Any], bat: Optional[Dict[str, Any]]
+) -> Optional[datetime]:
+    from .sleep_battery import _parse_dt
+    from .timeutil import local_now
+
+    raw = None
+    if isinstance(bat, dict):
+        raw = bat.get("as_of")
+    coach_today = _as_dict(_as_dict(payload.get("coach")).get("today"))
+    meta = _as_dict(payload.get("meta"))
+    raw = raw or coach_today.get("now") or payload.get("now") or meta.get("now")
+    dt = _parse_dt(raw)
+    return local_now(now=dt) if dt is not None else local_now()
+
+
+def _recovered_sleep_segments(
+    payload: Dict[str, Any], bat: Optional[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Last night + nap with absolute ET start/end. Sparse → []."""
+    from .sleep_quest import recovered_sleep_segments
+
+    iv = _payload_sleep_intervals(payload, bat)
+    if not iv:
+        return []
+    bat = bat if isinstance(bat, dict) else {}
+    return recovered_sleep_segments(
+        iv,
+        last_wake_at=bat.get("last_wake_at"),
+        mode=str(bat.get("mode") or ""),
+        now=_segments_clock(payload, bat),
+    )
+
+
 def _wake_window(payload: Dict[str, Any]) -> Dict[str, Any]:
     bat = payload.get("sleep_battery")
     if not isinstance(bat, dict):
         bat = _as_dict(payload.get("recovery")).get("sleep_battery")
+    segments = _recovered_sleep_segments(
+        payload, bat if isinstance(bat, dict) else {}
+    )
     if not isinstance(bat, dict) or not bat:
-        return _empty_wake_window()
-    return {
+        out = _empty_wake_window()
+        if segments:
+            out["segments"] = segments
+        return out
+    out = {
         "last_wake_at": bat.get("last_wake_at"),
         "empty_at": bat.get("empty_at"),
         "pct_charged": bat.get("pct_charged"),
@@ -457,6 +513,9 @@ def _wake_window(payload: Dict[str, Any]) -> Dict[str, Any]:
         "hours_awake": bat.get("hours_awake"),
         "hours_until_empty": bat.get("hours_until_empty"),
     }
+    if segments:
+        out["segments"] = segments
+    return out
 
 
 def _azm_day(item: Any) -> Optional[Dict[str, Any]]:
