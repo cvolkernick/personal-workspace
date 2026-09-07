@@ -1,9 +1,11 @@
 """Sleep battery for FitDash recovery (ported from holistic time allocator).
 
-Model: proportional charge at last wake from last-night sleep vs target, then
-linear drain at full-budget rate (100% / awake_budget per hour). Short nights
-start below 100% so empty_at arrives earlier — soft-capped so one bad night
-cannot pull bedtime more than ``max_earlier_hours`` (default 2h) early.
+Model: proportional charge at last wake from recovered sleep (last overnight +
+same-day extra) vs target, then linear drain at full-budget rate
+(100% / awake_budget per hour). ``last_sleep_hours`` stays the latest completed
+interval (the drain clock). Short recovered totals start below 100% so empty_at
+arrives earlier — soft-capped so one bad night cannot pull bedtime more than
+``max_earlier_hours`` (default 2h) early.
 
 Awake budget is not ``24 − sleep_target``. An 8h sleep target reserves **9h
 around sleep** (30 min wind-down + 30 min sleep onset) so ``empty_at`` is
@@ -247,6 +249,9 @@ def compute_sleep_battery(
     last_wake_at: Optional[datetime] = None
     planned_wake_at: Optional[datetime] = None
     last_sleep_hours: Optional[float] = None
+    last_night_hours: Optional[float] = None
+    extra_hours: Optional[float] = None
+    charge_sleep_hours: Optional[float] = None
     hours_awake = 0.0
     hours_until_empty = awake_hours
     pct = 0.0
@@ -281,8 +286,27 @@ def compute_sleep_battery(
         last_sleep_hours = float(last["hours"])
         hours_awake = max(0.0, (now - last_wake_at).total_seconds() / 3600.0)
 
+        # One overnight/extra split — do not reimplement here.
+        from .sleep_quest import score_sleep
+
+        scored = score_sleep(
+            last_sleep_hours=last_sleep_hours,
+            last_wake_at=last_wake_at.isoformat(timespec="seconds"),
+            intervals=intervals_n,
+            sleep_target_hours=sleep_target,
+            mode=mode,
+            now=now,
+        )
+        last_night_hours = scored.get("last_night_hours")
+        extra_hours = float(scored.get("extra_hours") or 0.0)
+        if last_night_hours is not None:
+            charge_sleep_hours = float(last_night_hours) + extra_hours
+        else:
+            # GH lag / nap-only: do not invent 0h.
+            charge_sleep_hours = last_sleep_hours
+
         ch = start_charge_fraction(
-            last_sleep_hours,
+            charge_sleep_hours,
             sleep_target_hours=sleep_target,
             awake_budget_hours=awake_hours,
             max_earlier_hours=max_earlier_hours,
@@ -299,26 +323,34 @@ def compute_sleep_battery(
         hours_until_empty = max(0.0, charge_hours - hours_awake)
         empty_at_dt = last_wake_at + timedelta(hours=charge_hours)
 
-        short = last_sleep_hours < sleep_target - 0.05
-        partial_note = ""
+        short = charge_sleep_hours < sleep_target - 0.05
+        suffix = ""
+        if extra_hours > 0.05 and last_night_hours is not None:
+            suffix += (
+                f" · recovered {charge_sleep_hours:.1f}h "
+                f"({last_night_hours:.1f} last night + {extra_hours:.1f} nap)"
+            )
         if short and start_frac < 0.999:
-            partial_note = f" · started {start_frac * 100:.0f}% after {last_sleep_hours:.1f}h sleep"
+            suffix += (
+                f" · started {start_frac * 100:.0f}% after "
+                f"{charge_sleep_hours:.1f}h sleep"
+            )
 
         if pct <= 0:
             level = "critical"
             summary = f"Empty · {hours_awake:.1f}h awake — sleep soon"
         elif pct < 25:
             level = "critical"
-            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h left{partial_note}"
+            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h left{suffix}"
         elif pct < 50:
             level = "low"
-            summary = f"{pct:.0f}% · {hours_awake:.1f}h awake{partial_note}"
+            summary = f"{pct:.0f}% · {hours_awake:.1f}h awake{suffix}"
         elif pct < 85:
             level = "ok"
-            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h until empty{partial_note}"
+            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h until empty{suffix}"
         else:
             level = "full"
-            summary = f"{pct:.0f}% · woke {last_wake_at.strftime('%H:%M')}{partial_note}"
+            summary = f"{pct:.0f}% · woke {last_wake_at.strftime('%H:%M')}{suffix}"
 
     return {
         "model": "wake_partial_drain_awake",
@@ -347,6 +379,19 @@ def compute_sleep_battery(
         "last_sleep_hours": round(last_sleep_hours, 2)
         if last_sleep_hours is not None
         else None,
+        "last_night_hours": (
+            round(float(last_night_hours), 2)
+            if last_night_hours is not None
+            else None
+        ),
+        "extra_hours": (
+            round(float(extra_hours), 2) if extra_hours is not None else None
+        ),
+        "charge_sleep_hours": (
+            round(float(charge_sleep_hours), 2)
+            if charge_sleep_hours is not None
+            else None
+        ),
         "empty_at": (
             empty_at_dt.isoformat(timespec="seconds")
             if empty_at_dt is not None

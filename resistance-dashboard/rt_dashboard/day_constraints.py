@@ -311,9 +311,11 @@ def build_day_constraints_packet(
             protein_band = "unknown"
 
     sleep_h = _sleep_last_night_h(sleep or [], day)
-    # Also try board / battery last_sleep
+    # Battery last_night, not last cycle (a nap must not become last night).
     if sleep_h is None and isinstance(sleep_battery, dict):
-        sleep_h = _as_float(sleep_battery.get("last_sleep_hours"))
+        sleep_h = _as_float(sleep_battery.get("last_night_hours"))
+        if sleep_h is None:
+            sleep_h = _as_float(sleep_battery.get("last_sleep_hours"))
     sleep_ok: Optional[bool]
     if sleep_h is None:
         sleep_ok = None

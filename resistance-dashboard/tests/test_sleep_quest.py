@@ -145,6 +145,62 @@ class ScorePriorNight(unittest.TestCase):
         )
         self.assertEqual(scored["status"], "pending")
 
+    def test_live_nap_recovers_without_rewriting_last_night(self):
+        overnight = [
+            {
+                "start": "2026-09-06T02:45:00-04:00",
+                "end": "2026-09-06T08:31:00-04:00",
+            }
+        ]
+        nap = {
+            "start": "2026-09-06T16:28:00-04:00",
+            "end": "2026-09-06T19:55:00-04:00",
+        }
+        now = datetime(2026, 9, 6, 20, 8, tzinfo=ET)
+        scored = score_sleep(
+            last_sleep_hours=3.45,
+            last_wake_at="2026-09-06T19:55:00-04:00",
+            intervals=overnight + [nap],
+            now=now,
+        )
+        self.assertEqual(scored["status"], "recovered")
+        self.assertAlmostEqual(scored["last_night_hours"], 5.77, places=2)
+        self.assertAlmostEqual(scored["extra_hours"], 3.45, places=2)
+        self.assertAlmostEqual(scored["total_hours"], 9.22, places=2)
+        spec = sleep_spec(
+            _board(
+                sleep_battery={
+                    "mode": "awake",
+                    "last_sleep_hours": 3.45,
+                    "sleep_target_hours": 8.0,
+                    "last_wake_at": "2026-09-06T19:55:00-04:00",
+                },
+                intervals=overnight + [nap],
+            ),
+            now=now,
+        )
+        self.assertEqual(spec["status"], "recovered")
+        self.assertIn("recovered", spec["title"].lower())
+        self.assertNotIn("9.2h last night", spec["title"])
+        self.assertIn("5.8h last night", spec["title"])
+
+    def test_fallback_prefers_last_night_hours_over_nap_cycle(self):
+        spec = sleep_spec(
+            _board(
+                sleep_battery={
+                    "mode": "awake",
+                    "last_sleep_hours": 3.45,
+                    "last_night_hours": 8.2,
+                    "sleep_target_hours": 8.0,
+                },
+                intervals=[],
+            )
+        )
+        self.assertEqual(spec["status"], "hit")
+        self.assertAlmostEqual(spec["last_night_hours"], 8.2, places=1)
+        self.assertIn("8.2h / 8.0h last night", spec["title"])
+        self.assertNotIn("3.5h", spec["title"])
+
 
 class SpecAndTitle(unittest.TestCase):
     def test_hit_title_shape(self):
