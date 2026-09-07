@@ -338,11 +338,15 @@ def _pick_continuous_portion(
     rem: dict,
     cal_ceiling: float,
     totals: dict,
+    *,
+    max_servings: Optional[float] = None,
 ) -> Optional[tuple]:
     """Choose a continuous (servings, portion_g|None) that fills remaining macros.
 
     When ``serving_g`` is known, portion is not locked to 1.0 serving steps.
     When mass is unknown, keep a whole free-text serving (never invent grams).
+    ``max_servings`` caps one pick so veg/fruit cannot dump ``MAX_PORTION_G``
+    of a single produce item and crowd out pantry alternatives (#513).
     """
     sg = _ingredient_serving_g(ing)
     cal = float(ing.get("calories") or 0)
@@ -363,6 +367,8 @@ def _pick_continuous_portion(
         else:
             target_g = min(g_from_cal, float(sg) * 3.0)
         max_g = min(MAX_PORTION_G, float(sg) * 8.0)
+        if max_servings is not None and float(max_servings) > 0:
+            max_g = min(max_g, float(sg) * float(max_servings))
         target_g = min(max(0.0, target_g), max_g)
         portion = _round_portion_g(target_g, serving_g=sg)
         if portion <= 0:
@@ -698,6 +704,107 @@ SOFT_FIBER_TARGET_G = 25.0
 SHAKE_MAX_SERVINGS = 2
 SHAKE_MAX_POWDER_PROTEIN_G = 60.0
 
+# #513: diversity is secondary under target closeness.
+# Prefer an unused in-stock ingredient when leftover macros after that pick
+# are not worse than the best-scoring (possibly repeating) pick by more than
+# this ε. Band matches the existing +80 kcal ceiling buffer and an 8g protein
+# slack so 210P is not traded for variety. Never invent off-pantry foods.
+DIVERSITY_EPS = {
+    "calories": 80.0,
+    "protein_g": 8.0,
+    "carbs_g": 15.0,
+    "fat_g": 8.0,
+}
+DIVERSITY_EPS_KCAL = DIVERSITY_EPS["calories"]
+DIVERSITY_EPS_PROTEIN_G = DIVERSITY_EPS["protein_g"]
+MAX_DISTINCT_VEG_SLOTS = 2
+VEG_SLOT_SERVINGS = 1.0
+VEG_PICK_MAX_SERVINGS = 2.0
+
+
+def _macros_from_pick(ing: dict, pick: tuple) -> dict:
+    servings_n, portion_g = pick
+    if portion_g is not None:
+        return _macros_for_portion(ing, portion_g=portion_g)
+    return _macros_for_portion(ing, servings=servings_n)
+
+
+def remaining_after_macros(rem: dict, macros: dict) -> dict:
+    """Leftover targets after adding ``macros`` (floored at 0)."""
+    return {
+        k: round(max(0.0, float(rem.get(k) or 0) - float(macros.get(k) or 0)), 1)
+        for k in _MACRO_KEYS
+    }
+
+
+def within_diversity_eps(best_after: dict, alt_after: dict) -> bool:
+    """True when ``alt`` leftover is not worse than ``best`` leftover beyond ε.
+
+    Primary = target closeness: extra leftover calories/protein/carbs/fat
+    vs the best pick must stay inside ``DIVERSITY_EPS``. Better closeness
+    (less leftover) always qualifies.
+    """
+    for key, eps in DIVERSITY_EPS.items():
+        delta = float(alt_after.get(key) or 0) - float(best_after.get(key) or 0)
+        if delta > float(eps):
+            return False
+    return True
+
+
+def _one_serving_pick(ing: dict) -> tuple:
+    """One inventory serving (grams when known). Never invents mass."""
+    sg = _ingredient_serving_g(ing)
+    if sg is not None and float(sg) > 0:
+        g = _round_portion_g(float(sg), serving_g=float(sg))
+        if g <= 0:
+            g = float(sg)
+        return (g / float(sg), g)
+    return (1.0, None)
+
+
+def select_diverse_candidate(
+    candidates: Sequence[tuple],
+    rem: dict,
+    pick_counts: Dict[str, int],
+) -> Optional[tuple]:
+    """Choose ``(score, ing, pick)``.
+
+    Primary: highest target-closeness score. Secondary: if that pick repeats
+    an already-used ingredient, take the best unused candidate whose leftover
+    macros stay within ``DIVERSITY_EPS`` of the repeating pick. Thin pantry
+    (no unused in-band) keeps the repeat — never invents food.
+    """
+    if not candidates:
+        return None
+    ranked = sorted(candidates, key=lambda x: -x[0])
+    best = ranked[0]
+    _sc, best_ing, best_pick = best
+    iid = str(best_ing.get("id") or "")
+    if pick_counts.get(iid, 0) == 0:
+        return best
+    best_after = remaining_after_macros(rem, _macros_from_pick(best_ing, best_pick))
+    for row in ranked:
+        _s, ing, pick = row
+        if pick_counts.get(str(ing.get("id") or ""), 0) != 0:
+            continue
+        alt_after = remaining_after_macros(rem, _macros_from_pick(ing, pick))
+        if within_diversity_eps(best_after, alt_after):
+            return row
+    return best
+
+
+def _diversity_notes_fields(*, distinct: int, limited: bool) -> dict:
+    return {
+        "distinct_ingredients": int(distinct),
+        "diversity_limited": bool(limited),
+        "diversity_eps_kcal": DIVERSITY_EPS["calories"],
+        "diversity_eps_protein_g": DIVERSITY_EPS["protein_g"],
+        "diversity_eps_carbs_g": DIVERSITY_EPS["carbs_g"],
+        "diversity_eps_fat_g": DIVERSITY_EPS["fat_g"],
+        "diversity_primary": "target_closeness",
+        "diversity_secondary": "distinct_ingredients",
+    }
+
 _SHAKE_NAME_HINTS = (
     "whey",
     "casein",
@@ -893,6 +1000,14 @@ def generate_meal_plan(
     target (escape + note). Empty plan regenerates with a relaxed ceiling
     when stock can support a plan. Dark pantry is ``pantry_unavailable``,
     never ``no_stock``.
+
+    Diversity (#513): **primary** = target closeness (2100 / 210P / 180C /
+    55F remaining). **Secondary** = maximize distinct in-stock ingredients
+    within ``DIVERSITY_EPS`` (80 kcal / 8g P / 15g C / 8g F). Up to two
+    distinct veg/fruit slots at one serving each when both fit. Repeats
+    are allowed when the pantry is too thin; honesty notes that instead
+    of inventing food. Whole-food slots first; shakes last-resort under
+    the #501 cap.
     """
     targets = normalize_targets(targets)
     remaining_before = remaining_macros(targets, consumed)
@@ -956,6 +1071,7 @@ def generate_meal_plan(
                 "fiber_consumed_g": fiber_logged,
                 "fiber_miss": fiber_logged < SOFT_FIBER_TARGET_G,
                 "fiber_miss_reason": "no_fiber_foods",
+                **_diversity_notes_fields(distinct=0, limited=False),
             },
             "honesty": [
                 {"level": "warn", "kind": "empty_plan", "text": honesty_text}
@@ -1021,7 +1137,10 @@ def generate_meal_plan(
             iid = str(ing["id"])
             if pick_counts.get(iid, 0) >= 3:
                 continue
-            pick = _pick_continuous_portion(ing, rem, ceiling, totals)
+            veg_cap = VEG_PICK_MAX_SERVINGS if is_veg_or_fruit(ing) else None
+            pick = _pick_continuous_portion(
+                ing, rem, ceiling, totals, max_servings=veg_cap
+            )
             if pick is None:
                 continue
             _servings_n, _portion_g = pick
@@ -1103,32 +1222,57 @@ def generate_meal_plan(
             )
             if not candidates:
                 break
-            candidates.sort(key=lambda x: -x[0])
-            best = candidates[0][1]
-            pick = candidates[0][2]
-            _append(best, pick)
+            chosen = select_diverse_candidate(candidates, rem, pick_counts)
+            if chosen is None:
+                break
+            _append(chosen[1], chosen[2])
 
-    # AC2: ≥1 veg/fruit slot before shake fill when a serving fits.
-    if veg_stocked:
-        veg_cands = _collect_candidates(
-            relax=False, allow_shake_escape=False, veg_only=True
-        )
-        veg_cands = [
-            (sc, ing, pick)
-            for sc, ing, pick in veg_cands
-            if float(ing["calories"]) <= rem["calories"] + 80
-        ]
-        if veg_cands:
-            veg_cands.sort(
-                key=lambda x: (
-                    -estimated_fiber_g(x[1]),
-                    -float(x[1].get("protein_g") or 0),
-                    float(x[1].get("calories") or 0),
-                )
+    def _try_append_veg_serving(ing: dict) -> bool:
+        one = _one_serving_pick(ing)
+        macros = _macros_from_pick(ing, one)
+        if macros["calories"] > rem["calories"] + DIVERSITY_EPS_KCAL:
+            pick = _pick_continuous_portion(
+                ing,
+                rem,
+                _cal_ceiling(False),
+                totals,
+                max_servings=VEG_SLOT_SERVINGS,
             )
-            _append(veg_cands[0][1], veg_cands[0][2])
-            veg_slot_filled = True
-        else:
+            if pick is None:
+                return False
+            one = pick
+            macros = _macros_from_pick(ing, one)
+            if macros["calories"] > rem["calories"] + DIVERSITY_EPS_KCAL:
+                return False
+        if totals["calories"] + macros["calories"] > _cal_ceiling(False) + DIVERSITY_EPS_KCAL:
+            return False
+        _append(ing, one)
+        return True
+
+    # #501: ≥1 veg/fruit slot before shake fill. #513: a second distinct
+    # veg/fruit (one serving each) when both close the gap within ε.
+    veg_slots_want = (
+        MAX_DISTINCT_VEG_SLOTS if len(veg_stocked) >= 2 else (1 if veg_stocked else 0)
+    )
+    veg_added = 0
+    if veg_stocked:
+        unused_veg = list(veg_stocked)
+        unused_veg.sort(
+            key=lambda ing: (
+                -estimated_fiber_g(ing),
+                -float(ing.get("protein_g") or 0),
+                float(ing.get("calories") or 0),
+            )
+        )
+        for ing in unused_veg:
+            if veg_added >= veg_slots_want:
+                break
+            if pick_counts.get(str(ing.get("id") or ""), 0) > 0:
+                continue
+            if _try_append_veg_serving(ing):
+                veg_added += 1
+                veg_slot_filled = True
+        if veg_added == 0:
             veg_slot_missed = True
 
     _fill(relax=False, allow_shake_escape=False)
@@ -1216,6 +1360,30 @@ def generate_meal_plan(
     else:
         empty_reason = None
 
+    def _item_key(it: dict) -> str:
+        return str(it.get("id") or it.get("name") or "").strip().lower()
+
+    distinct_keys = []
+    seen_keys = set()
+    for it in plan_items:
+        k = _item_key(it)
+        if k and k not in seen_keys:
+            seen_keys.add(k)
+            distinct_keys.append(k)
+    distinct_n = len(seen_keys)
+    repeats = any(float(it.get("servings") or 1) > 1.05 for it in plan_items)
+    if not repeats:
+        meal_hits: Dict[str, int] = {}
+        for meal in meals:
+            for it in meal.get("items") or []:
+                k = _item_key(it)
+                if k:
+                    meal_hits[k] = meal_hits.get(k, 0) + 1
+        repeats = any(v > 1 for v in meal_hits.values())
+    diversity_limited = (not empty) and repeats and (
+        distinct_n <= 1 or len(stocked) <= 2
+    )
+
     notes = {
         "empty_plan": empty,
         "empty_plan_reason": empty_reason,
@@ -1232,6 +1400,7 @@ def generate_meal_plan(
         "fiber_consumed_g": fiber_logged,
         "fiber_miss": fiber_miss,
         "fiber_miss_reason": fiber_miss_reason,
+        **_diversity_notes_fields(distinct=distinct_n, limited=diversity_limited),
     }
 
     honesty: List[dict] = []
@@ -1331,6 +1500,17 @@ def generate_meal_plan(
                     ),
                 }
             )
+    if diversity_limited:
+        honesty.append(
+            {
+                "level": "muted",
+                "kind": "diversity",
+                "text": (
+                    "Pantry diversity limited — repeating in-stock items to hit "
+                    "targets (not inventing food)."
+                ),
+            }
+        )
 
     return {
         "meals": meals,
