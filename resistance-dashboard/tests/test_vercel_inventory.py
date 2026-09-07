@@ -514,7 +514,11 @@ class InventoryEditUi(unittest.TestCase):
         self.assertIn("serving_grams_nudge", js)
         self.assertIn("ing-serving-g", html)
         self.assertIn('id="ing-serving-g"', html)
-        self.assertIn("required", html.split('id="ing-serving-g"', 1)[1].split(">", 1)[0])
+        grams_attrs = html.split('id="ing-serving-g"', 1)[1].split(">", 1)[0]
+        self.assertNotIn("required", grams_attrs)
+        self.assertIn("optional", html.split("Portion (g)", 1)[1][:120].lower())
+        self.assertIn("suggest-dismiss", js)
+        self.assertIn("Need-based (not log frequency)", js)
         self.assertIn(".inv-grams-prompt", css)
         self.assertIn(".meal-grams-nudge", css)
         self.assertNotIn("CIC", js)

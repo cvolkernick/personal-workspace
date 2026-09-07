@@ -793,6 +793,7 @@ def load_dashboard_data(
         inv_base,
         targets=nut.get("targets") or {},
         food_logs=health.food_logs or [],
+        paired_adds=(inv_suggestions or {}).get("suggestions") or [],
     )
     labs = load_labs(
         local_dir or "",

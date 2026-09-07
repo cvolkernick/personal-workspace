@@ -18,11 +18,13 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     SHAKE_MAX_POWDER_PROTEIN_G,
     SHAKE_MAX_SERVINGS,
     SOFT_FIBER_TARGET_G,
+    STAPLE_CATALOG,
     add_ingredient,
     food_logs_fingerprint,
     format_plan_portion,
     format_portion_label,
     generate_meal_plan,
+    inventory_gap_role,
     is_shake_or_powder,
     needs_serving_grams,
     normalize_ingredient,
@@ -31,6 +33,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     scale_plan_item_to_inventory,
     serving_grams_nudge_text,
     serving_grams_required,
+    suggested_qty_for_item,
     update_ingredient,
     suggest_inventory_removals,
     suggest_inventory_staples,
@@ -228,8 +231,13 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertIn("restock", actions)
         names = [s["name"].lower() for s in out["suggestions"]]
         self.assertTrue(any("sweet potato" in n for n in names))
-        # Chicken logged 2x and not in inventory → add
-        self.assertTrue(any("chicken" in n for n in names))
+        # Need-based catalog add is allowed; log-frequency must not be the reason.
+        for s in out["suggestions"]:
+            reason = (s.get("reason") or "").lower()
+            self.assertNotIn("logged", reason)
+            self.assertNotRegex(reason, r"\d+\s*[×x]|times")
+        self.assertEqual(out.get("ranking"), "need")
+        self.assertFalse(out.get("log_frequency_positive"))
 
     def test_today_consumed_falls_back_to_food_logs(self):
         logs = [
@@ -1439,6 +1447,441 @@ class TestMealPlanFoodQuality(unittest.TestCase):
         self.assertFalse(plan.get("pantry_dark"))
         self.assertEqual(plan["notes"]["empty_plan_reason"], "no_stock")
         self.assertTrue(any(h["kind"] == "empty_plan" for h in plan["honesty"]))
+
+
+class TestInventoryNeedSuggestions(unittest.TestCase):
+    """#502 need-based add/remove · #503 portion_g optional · #504 Nourish deltas."""
+
+    def test_protein_floor_stays_210(self):
+        self.assertEqual(DEFAULT_TARGETS["protein_g"], 210)
+        self.assertEqual(DEFAULT_TARGETS["calories"], 2100)
+
+    def test_high_log_junk_does_not_outrank_need_produce(self):
+        """AC1: log-frequency is not a positive add signal."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "whey",
+                    "Whey protein",
+                    category="protein",
+                    calories=120,
+                    protein_g=24,
+                    carbs_g=3,
+                    fat_g=1,
+                    serving_g=30,
+                ),
+            ]
+        }
+        logs = [
+            FoodLogEntry(
+                date="2026-09-01",
+                name="Candy bar",
+                calories=250,
+                protein_g=2,
+                carbs_g=40,
+                fat_g=10,
+            )
+        ] * 12
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=logs,
+            consumed=EMPTY_CONSUMED,
+            max_suggestions=10,
+        )
+        self.assertEqual(out.get("ranking"), "need")
+        self.assertFalse(out.get("log_frequency_positive"))
+        names = [s["name"].lower() for s in out["suggestions"]]
+        self.assertFalse(any("candy" in n for n in names))
+        for s in out["suggestions"]:
+            blob = f"{s.get('reason') or ''} {s.get('need') or ''}".lower()
+            self.assertNotIn("logged", blob)
+            self.assertNotRegex(blob, r"\d+\s*[×x]|times")
+        veg = [
+            s
+            for s in out["suggestions"]
+            if s.get("action") == "add"
+            and (
+                (s.get("category") or "") == "veg"
+                or "broccoli" in (s.get("name") or "").lower()
+                or "spinach" in (s.get("name") or "").lower()
+            )
+        ]
+        self.assertTrue(veg, msg=names)
+
+    def test_add_includes_catalog_food_absent_from_logs(self):
+        """AC2: catalog produce never logged still surfaces for a stated need."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "eggs",
+                    "Whole eggs",
+                    category="protein",
+                    calories=210,
+                    protein_g=18,
+                    carbs_g=2,
+                    fat_g=15,
+                    serving_g=150,
+                ),
+            ]
+        }
+        logs = [
+            FoodLogEntry(
+                date="2026-09-02",
+                name="Whey protein",
+                calories=120,
+                protein_g=24,
+                carbs_g=3,
+                fat_g=1,
+            )
+        ] * 8
+        logged_names = {str(f.name).lower() for f in logs}
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=logs,
+            consumed=EMPTY_CONSUMED,
+            max_suggestions=10,
+        )
+        adds = [s for s in out["suggestions"] if s.get("action") == "add"]
+        self.assertTrue(adds)
+        absent = [
+            s
+            for s in adds
+            if not any(
+                tok in logged_names for tok in (s.get("name") or "").lower().split()
+            )
+        ]
+        self.assertTrue(absent, msg=[s.get("name") for s in adds])
+        veg_or_fiber = [
+            s
+            for s in absent
+            if inventory_gap_role(s) == "veg_fiber"
+            or (s.get("category") or "") == "veg"
+            or "broccoli" in (s.get("name") or "").lower()
+        ]
+        self.assertTrue(veg_or_fiber, msg=[s.get("name") for s in absent])
+        pick = veg_or_fiber[0]
+        self.assertTrue(pick.get("need") or pick.get("reason"))
+        self.assertNotIn("logged", (pick.get("reason") or "").lower())
+
+    def test_each_add_has_need_reason(self):
+        """AC3: human-readable need reason, not log count."""
+        inv = {"ingredients": [_ing("eggs", "Eggs", category="protein", protein_g=18, calories=210)]}
+        out = suggest_inventory_staples(
+            inv, targets=FULL_TARGETS, food_logs=[], consumed=EMPTY_CONSUMED
+        )
+        adds = [s for s in out["suggestions"] if s.get("action") == "add"]
+        self.assertTrue(adds)
+        for s in adds:
+            reason = (s.get("need") or s.get("reason") or "").strip()
+            self.assertTrue(reason)
+            self.assertNotIn("logged", reason.lower())
+            self.assertTrue(s.get("proposal"))
+
+    def test_rare_log_alone_does_not_propose_remove(self):
+        """AC4: in-stock chicken never logged is not a removal candidate."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                    serving_g=170,
+                ),
+                _ing(
+                    "broccoli",
+                    "Broccoli",
+                    category="veg",
+                    calories=55,
+                    protein_g=4,
+                    carbs_g=11,
+                    fiber_g=5,
+                    serving_g=180,
+                ),
+            ]
+        }
+        out = suggest_inventory_removals(
+            inv, targets=FULL_TARGETS, food_logs=[], max_suggestions=6
+        )
+        names = [s["name"].lower() for s in out["suggestions"]]
+        self.assertFalse(any("chicken" in n for n in names))
+        self.assertFalse(any("broccoli" in n for n in names))
+        for s in out["suggestions"]:
+            self.assertNotIn("logged", (s.get("reason") or "").lower())
+
+    def test_remove_suggestions_are_need_based(self):
+        """AC4: supplements / low-utility OOS still propose remove."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                ),
+                _ing(
+                    "mens-vitamins",
+                    "Men's Vitamins, Natural Berry Flavor",
+                    category="carb",
+                    calories=15,
+                    protein_g=0,
+                    carbs_g=4,
+                    fat_g=0,
+                ),
+            ]
+        }
+        out = suggest_inventory_removals(inv, targets=FULL_TARGETS, food_logs=[])
+        names = " ".join(s["name"].lower() for s in out["suggestions"])
+        self.assertIn("vitamin", names)
+        self.assertNotIn("chicken", names)
+        for s in out["suggestions"]:
+            self.assertEqual(s["action"], "remove")
+            self.assertTrue(s.get("reason") or s.get("need"))
+            self.assertTrue(s.get("proposal"))
+
+    def test_catalog_blocked_is_honest_empty(self):
+        """AC6: empty catalog → no fake staples."""
+        inv = {"ingredients": [_ing("eggs", "Eggs", category="protein", protein_g=18, calories=210)]}
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=EMPTY_CONSUMED,
+            catalog=[],
+        )
+        self.assertEqual(out["suggestions"], [])
+        self.assertEqual(out["count"], 0)
+        kinds = {h["kind"] for h in out.get("honesty") or []}
+        self.assertIn("catalog_blocked", kinds)
+        self.assertIn("invent", (out.get("summary") or "").lower())
+
+    def test_serving_only_add_without_portion_g(self):
+        """#503 AC1/AC4: serving-based item saves with null grams."""
+        banana = {
+            "name": "Banana",
+            "category": "carb",
+            "serving_label": "1 medium",
+            "calories": 105,
+            "protein_g": 1.3,
+            "carbs_g": 27,
+            "fat_g": 0.4,
+        }
+        self.assertTrue(needs_serving_grams(banana))
+        self.assertFalse(serving_grams_required(banana))
+        inv = add_ingredient({"ingredients": []}, banana)
+        row = inv["ingredients"][0]
+        self.assertIsNone(row.get("serving_g"))
+        self.assertEqual(row["serving_label"], "1 medium")
+        qty = suggested_qty_for_item(row)
+        self.assertEqual(qty["unit"], "servings")
+        self.assertIsNone(qty["portion_g"])
+
+    def test_grams_item_uses_partial_portions(self):
+        """#503 AC2: serving_g present → planner may use portion_g; absent → servings."""
+        with_g = _ing(
+            "chicken",
+            "Chicken breast",
+            category="protein",
+            calories=280,
+            protein_g=52,
+            fat_g=6,
+            serving_g=170,
+        )
+        pick = _pick_continuous_portion(
+            with_g,
+            {"calories": 800, "protein_g": 80, "carbs_g": 0, "fat_g": 0},
+            900,
+            {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+        )
+        self.assertIsNotNone(pick)
+        self.assertIsNotNone(pick[1])
+        no_g = {
+            "name": "Banana",
+            "category": "carb",
+            "serving_label": "1 medium",
+            "calories": 105,
+            "protein_g": 1.3,
+            "carbs_g": 27,
+            "fat_g": 0.4,
+        }
+        pick2 = _pick_continuous_portion(
+            no_g,
+            {"calories": 800, "protein_g": 80, "carbs_g": 180, "fat_g": 0},
+            900,
+            {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+        )
+        self.assertIsNotNone(pick2)
+        self.assertIsNone(pick2[1])
+
+    def test_generic_one_serving_does_not_require_grams(self):
+        """#503 AC1: generic 1 serving is allowed (logged serving still blocked)."""
+        generic = {
+            "name": "Cottage cheese",
+            "serving_label": "1 serving",
+            "calories": 180,
+            "protein_g": 28,
+            "carbs_g": 8,
+            "fat_g": 2.5,
+        }
+        self.assertFalse(serving_grams_required(generic))
+        inv = add_ingredient({"ingredients": []}, generic)
+        self.assertIsNone(inv["ingredients"][0].get("serving_g"))
+
+    def test_suggested_qty_servings_or_grams(self):
+        """#504 AC3 / #503: qty may be grams or servings."""
+        gram_item = next(s for s in STAPLE_CATALOG if s.get("id") == "chicken-breast")
+        gqty = suggested_qty_for_item(gram_item)
+        self.assertEqual(gqty["unit"], "g")
+        self.assertGreater(gqty["portion_g"], 0)
+        banana = next(s for s in STAPLE_CATALOG if s.get("id") == "banana")
+        sqty = suggested_qty_for_item(banana)
+        self.assertEqual(sqty["unit"], "servings")
+        self.assertIsNone(sqty["portion_g"])
+        inv = {"ingredients": [_ing("eggs", "Eggs", category="protein", protein_g=18, calories=210)]}
+        out = suggest_inventory_staples(
+            inv, targets=FULL_TARGETS, food_logs=[], consumed=EMPTY_CONSUMED, max_suggestions=12
+        )
+        units = { (s.get("suggested_qty") or {}).get("unit") for s in out["suggestions"] if s.get("action") == "add" }
+        self.assertTrue(units & {"g", "servings"})
+        banana_s = [s for s in out["suggestions"] if "banana" in (s.get("name") or "").lower()]
+        if banana_s:
+            self.assertEqual(banana_s[0]["suggested_qty"]["unit"], "servings")
+
+    def test_last_unique_gap_filler_blocked_without_paired_add(self):
+        """#504 AC1: sole veg-fiber with empty macros cannot drop unless a covering add exists."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "chicken",
+                    "Chicken breast",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                    serving_g=170,
+                ),
+                _ing(
+                    "spinach-empty",
+                    "Spinach",
+                    category="veg",
+                    calories=0,
+                    protein_g=0,
+                    carbs_g=0,
+                    fat_g=0,
+                ),
+            ]
+        }
+        blocked = suggest_inventory_removals(
+            inv, targets=FULL_TARGETS, food_logs=[], paired_adds=[]
+        )
+        names = [s["name"].lower() for s in blocked["suggestions"]]
+        self.assertFalse(any("spinach" in n for n in names))
+        self.assertFalse(any("chicken" in n for n in names))
+        covering = {
+            "id": "broccoli",
+            "name": "Broccoli",
+            "category": "veg",
+            "action": "add",
+            "calories": 60,
+            "protein_g": 5,
+            "carbs_g": 12,
+            "fiber_g": 5,
+            "reason": "Fills soft fiber / veg gap.",
+        }
+        allowed = suggest_inventory_removals(
+            inv, targets=FULL_TARGETS, food_logs=[], paired_adds=[covering]
+        )
+        spin = [s for s in allowed["suggestions"] if "spinach" in s["name"].lower()]
+        self.assertTrue(spin)
+        self.assertEqual((spin[0].get("paired_add") or {}).get("name"), "Broccoli")
+
+    def test_fiber_veg_prefers_whole_food_over_shake(self):
+        """#504 AC2: fiber/veg gap ranks produce above powder."""
+        inv = {
+            "ingredients": [
+                _ing(
+                    "eggs",
+                    "Whole eggs",
+                    category="protein",
+                    calories=210,
+                    protein_g=18,
+                    carbs_g=2,
+                    fat_g=15,
+                    serving_g=150,
+                ),
+            ]
+        }
+        catalog = [
+            {
+                "id": "whey-protein",
+                "name": "Whey protein",
+                "category": "protein",
+                "serving_g": 30,
+                "calories": 120,
+                "protein_g": 24,
+                "carbs_g": 3,
+                "fat_g": 1,
+            },
+            {
+                "id": "broccoli",
+                "name": "Broccoli",
+                "category": "veg",
+                "serving_g": 180,
+                "calories": 60,
+                "protein_g": 5,
+                "carbs_g": 12,
+                "fiber_g": 5,
+            },
+        ]
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=[
+                FoodLogEntry(
+                    date="2026-09-03",
+                    name="Whey protein",
+                    calories=120,
+                    protein_g=24,
+                    carbs_g=3,
+                    fat_g=1,
+                )
+            ]
+            * 10,
+            consumed=EMPTY_CONSUMED,
+            catalog=catalog,
+            max_suggestions=8,
+        )
+        by_name = {s["name"].lower(): s for s in out["suggestions"]}
+        self.assertIn("broccoli", by_name)
+        broc = by_name["broccoli"]
+        whey = by_name.get("whey protein")
+        self.assertGreater(float(broc["score"]), float((whey or {"score": -99})["score"]))
+        self.assertIn("fiber", (broc.get("reason") or "").lower() + (broc.get("need") or "").lower())
+
+    def test_ui_marks_grams_optional(self):
+        """#503 AC3."""
+        html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        attrs = html.split('id="ing-serving-g"', 1)[1].split(">", 1)[0]
+        self.assertNotIn("required", attrs)
+        self.assertIn("optional", html.split("Portion (g)", 1)[1][:80].lower())
+        self.assertIn("preferred, not required", js)
+        self.assertIn("data-action=\"suggest-dismiss\"", js)
+
+    def test_accept_path_is_explicit(self):
+        """#502 AC5: dismiss does not write; apply uses POST."""
+        js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        dismiss = js.split('action === "suggest-dismiss"', 1)[1].split("if (action ===", 1)[0]
+        self.assertNotIn("fetch(", dismiss)
+        self.assertNotIn("/api/inventory/", dismiss)
+        self.assertIn('fetch("/api/inventory/add"', js)
+        self.assertIn("dropAppliedSuggestion", js)
 
 
 if __name__ == "__main__":
