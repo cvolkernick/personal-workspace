@@ -535,6 +535,32 @@ class EnsureAutoComplete(unittest.TestCase):
             any("Protect bedtime" in (t.get("title") or "") for t in created)
         )
 
+    def test_extended_end_upserts_hours_not_stale_nap(self):
+        stale = _mon_board(
+            [],
+            extra_battery={
+                "last_sleep_hours": 3.45,
+                "last_night_hours": None,
+                "last_wake_at": "2026-09-06T19:55:00-04:00",
+            },
+        )
+        stale["now"] = "2026-09-06T20:08:00-04:00"
+        full_board = _mon_board(
+            [LIVE_SAT_NIGHT, LIVE_SAT_NAP, LIVE_MON_PARTIAL, LIVE_MON_FULL],
+            now=MON_AFTERNOON,
+        )
+        result1, store, _created, _calls = self._run(stale, day="2026-09-07")
+        self.assertTrue(result1.get("ok"), result1)
+        sleep1 = next(g for g in result1["groups"] if g["group"] == "sleep")
+        self.assertIn("3.5h", sleep1["items"][0]["title"])
+        result2, store, _created2, _calls2 = self._run(
+            full_board, store=store, day="2026-09-07"
+        )
+        self.assertTrue(result2.get("ok"), result2)
+        sleep = next(g for g in result2["groups"] if g["group"] == "sleep")
+        self.assertIn("6.8h / 8.0h last night", sleep["items"][0]["title"])
+        self.assertNotIn("3.5h", sleep["items"][0]["title"])
+
 
 class CoachEmitsSleep(unittest.TestCase):
     def test_today_board_always_has_one_sleep_action(self):
@@ -578,6 +604,125 @@ class CoachEmitsSleep(unittest.TestCase):
         self.assertEqual(len(acts), 1)
         self.assertIn("waiting", acts[0]["text"].lower())
         self.assertFalse(board["sleep"]["hit"])
+
+
+# Live #514: Sat nap 3.45h + Mon 04:43–11:34 (stale 09:01 partial still present).
+LIVE_SAT_NIGHT = {
+    "start": "2026-09-06T02:45:00-04:00",
+    "end": "2026-09-06T08:31:00-04:00",
+}
+LIVE_SAT_NAP = {
+    "start": "2026-09-06T16:28:00-04:00",
+    "end": "2026-09-06T19:55:00-04:00",
+}
+LIVE_MON_PARTIAL = {
+    "start": "2026-09-07T04:43:00-04:00",
+    "end": "2026-09-07T09:01:00-04:00",
+}
+LIVE_MON_FULL = {
+    "start": "2026-09-07T04:43:00-04:00",
+    "end": "2026-09-07T11:34:00-04:00",
+}
+LIVE_MON_TAIL = {
+    "start": "2026-09-07T09:01:00-04:00",
+    "end": "2026-09-07T11:34:00-04:00",
+}
+MON_WAKE = "2026-09-07T11:34:00-04:00"
+NOON_UTC = datetime(2026, 9, 7, 12, 0, tzinfo=timezone.utc)
+MON_AFTERNOON = datetime(2026, 9, 7, 14, 0, tzinfo=ET)
+
+
+def _mon_board(intervals, *, now=None, last_wake=MON_WAKE, extra_battery=None):
+    bat = {
+        "mode": "awake",
+        "last_sleep_hours": 6.85,
+        "last_night_hours": 6.85,
+        "sleep_target_hours": 8.0,
+        "last_wake_at": last_wake,
+        "pct_charged": 70,
+    }
+    if extra_battery:
+        bat.update(extra_battery)
+    board = {
+        "date": "2026-09-07",
+        "recommendation": "train",
+        "recovery": {"label": "Ready", "score": 80.0},
+        "workout": {
+            "is_rest_day": True,
+            "already_trained_today": False,
+            "session_type": "rest",
+            "exercises": [],
+        },
+        "meal": {"meals": [], "items": []},
+        "purchases": [],
+        "actions": [],
+        "sleep_battery": bat,
+        "sleep_intervals": list(intervals or []),
+    }
+    if now is not None:
+        board["now"] = now.isoformat()
+    return board
+
+
+class LastCycleHours(unittest.TestCase):
+    """#514 AC2–AC4: quest last-night hours match battery last-cycle."""
+
+    def test_last_cycle_not_stale_nap_or_partial(self):
+        # AC2: week.sleep / last cycle 6.85h, not Saturday 3.5h nap.
+        intervals = [LIVE_SAT_NIGHT, LIVE_SAT_NAP, LIVE_MON_PARTIAL, LIVE_MON_FULL]
+        spec = sleep_spec(_mon_board(intervals, now=MON_AFTERNOON), now=MON_AFTERNOON)
+        self.assertAlmostEqual(spec["last_night_hours"], 6.85, places=2)
+        self.assertIn("6.8h / 8.0h last night", spec["title"])
+        self.assertNotIn("3.5h", spec["title"])
+        self.assertNotIn("4.3h", spec["title"])
+
+    def test_noon_utc_board_clock_does_not_latch_nap(self):
+        # Production coach path used to pass date-only → noon UTC = 08:00 ET.
+        intervals = [LIVE_SAT_NIGHT, LIVE_SAT_NAP, LIVE_MON_PARTIAL, LIVE_MON_FULL]
+        board = _mon_board(intervals)
+        board.pop("now", None)
+        spec = sleep_spec(board, now=NOON_UTC)
+        self.assertAlmostEqual(spec["last_night_hours"], 6.85, places=2)
+        self.assertNotIn("3.5h", spec["title"])
+
+    def test_omitted_now_uses_last_wake_not_noon_utc(self):
+        intervals = [LIVE_SAT_NIGHT, LIVE_SAT_NAP, LIVE_MON_FULL]
+        board = _mon_board(intervals)
+        board.pop("now", None)
+        spec = sleep_spec(board)
+        self.assertAlmostEqual(spec["last_night_hours"], 6.85, places=2)
+        self.assertNotIn("3.5h", spec["title"])
+
+    def test_extended_end_replaces_partial(self):
+        # AC3: 09:01 partial still in the feed after end moves to 11:34.
+        spec = sleep_spec(
+            _mon_board([LIVE_MON_PARTIAL, LIVE_MON_FULL], now=MON_AFTERNOON),
+            now=MON_AFTERNOON,
+        )
+        self.assertAlmostEqual(spec["last_night_hours"], 6.85, places=2)
+        self.assertNotIn("4.3h", spec["title"])
+
+    def test_abutting_stages_are_one_night(self):
+        spec = sleep_spec(
+            _mon_board([LIVE_MON_PARTIAL, LIVE_MON_TAIL], now=MON_AFTERNOON),
+            now=MON_AFTERNOON,
+        )
+        self.assertAlmostEqual(spec["last_night_hours"], 6.85, places=2)
+        self.assertEqual(spec["extra_hours"], 0.0)
+
+    def test_unrecoverable_is_pending_not_zero(self):
+        # AC4
+        empty = sleep_spec(
+            {
+                "date": "2026-09-07",
+                "sleep_battery": {"mode": "no_data"},
+                "sleep_intervals": [],
+            }
+        )
+        self.assertEqual(empty["status"], "pending")
+        self.assertIsNone(empty["last_night_hours"])
+        self.assertIn("waiting", empty["title"].lower())
+        self.assertNotIn("0.0h", empty["title"])
 
 
 class SleepIsNotALift(unittest.TestCase):
