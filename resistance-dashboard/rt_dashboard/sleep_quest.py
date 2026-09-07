@@ -4,11 +4,28 @@ Prior night, not tonight. Wearable/interval evidence auto-completes the
 leaf the way AZM does. Same-day naps can recover a short night without
 rewriting last night as 8h. Missing overnight (GH lag) is pending, not
 a 0h fail.
+
+Hours source of truth (issue #514) — same recovery as Sleep battery:
+
+| Signal | Field | Meaning |
+|--------|--------|---------|
+| Last cycle (battery header) | ``sleep_battery.last_sleep_hours`` | Latest completed interval |
+| Last night (quest title) | ``last_night_hours`` from ``score_sleep`` | Last completed overnight session after overlapping GH rows merge |
+| Recovered total | ``last_night_hours + extra_hours`` | Overnight + same-day naps; battery ``charge_sleep_hours`` |
+| ``week.sleep`` duration | GH interval ``duration_hours`` | Same timed sessions as ``sleep_intervals`` |
+
+When last cycle *is* last night (typical morning after wake), those three
+hour totals match within rounding. Quest must not keep a stale partial
+(09:01) or a prior nap label (3.5h) after the overnight end extends.
+
+Clock: viewer-local (``local_now``), floored at ``last_wake_at`` when
+awake — never civil-day noon UTC. Overnight hours are classified in the
+viewer zone so an afternoon ET nap is not last night.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
 from .sleep_battery import (
@@ -16,6 +33,7 @@ from .sleep_battery import (
     _parse_dt,
     normalize_intervals,
 )
+from .timeutil import local_now, local_tz
 
 KIND_KEY = "sleep|sleep-recovery"
 SLUG = "sleep-recovery"
@@ -73,26 +91,49 @@ def _clock(raw: Any) -> str:
     return ""
 
 
+def _as_local(dt: datetime) -> datetime:
+    tz = local_tz()
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=tz)
+    return dt.astimezone(tz)
+
+
+def _awake_clock(clock: datetime, *, last_wake_at: Any = None, mode: str = "") -> datetime:
+    """Viewer-local now. Awake: last-cycle wake is a completed instant, not future.
+
+    Civil-day noon UTC used to drop a late ET wake (11:34) and latch a
+    prior nap as last night (#514). Floor at ``last_wake_at`` so the
+    battery last-cycle session is always eligible once we have a wake.
+    """
+    now = _as_local(clock)
+    if str(mode or "").strip().lower() == "sleeping":
+        return now
+    wake = _parse_dt(last_wake_at)
+    if wake is None:
+        return now
+    wake_l = _as_local(wake)
+    return wake_l if wake_l > now else now
+
+
 def _now_from_board(today: Optional[dict], as_of: str) -> datetime:
     board = today if isinstance(today, dict) else {}
-    raw = board.get("now") or (board.get("sleep_battery") or {}).get("as_of")
+    bat = board.get("sleep_battery") if isinstance(board.get("sleep_battery"), dict) else {}
+    # as_of is the civil day only; never noon-UTC on that date (#514).
+    _ = as_of
+    raw = board.get("now") or bat.get("as_of")
     dt = _parse_dt(raw)
-    if dt is not None:
-        return dt
-    day = _civil_day(as_of or board.get("date"))
-    if len(day) == 10:
-        try:
-            y, m, d = int(day[0:4]), int(day[5:7]), int(day[8:10])
-            return datetime(y, m, d, 12, 0, 0, tzinfo=timezone.utc)
-        except ValueError:
-            pass
-    return datetime.now(timezone.utc)
+    clock = local_now(now=dt) if dt is not None else local_now()
+    return _awake_clock(
+        clock, last_wake_at=bat.get("last_wake_at"), mode=str(bat.get("mode") or "")
+    )
 
 
 def _is_overnight(start: datetime, end: datetime, hours: float) -> bool:
     if hours >= 5.0:
         return True
-    sh, eh = start.hour, end.hour
+    st = _as_local(start)
+    en = _as_local(end)
+    sh, eh = st.hour, en.hour
     started_night = sh >= 20 or sh < 10
     ended_morning = 4 <= eh <= 12
     if (started_night or ended_morning) and hours >= 1.0:
@@ -103,14 +144,17 @@ def _is_overnight(start: datetime, end: datetime, hours: float) -> bool:
 def _completed_rows(
     raw: Optional[Sequence[Any]], now: datetime
 ) -> List[dict]:
+    now_l = _as_local(now)
     rows: List[dict] = []
     for row in normalize_intervals(list(raw or [])):
         st = _parse_dt(row.get("start"))
         en = _parse_dt(row.get("end"))
-        if not st or not en or en > now:
+        if not st or not en:
             continue
-        st_l = st.astimezone(now.tzinfo) if st.tzinfo else st
-        en_l = en.astimezone(now.tzinfo) if en.tzinfo else en
+        st_l = _as_local(st)
+        en_l = _as_local(en)
+        if en_l > now_l:
+            continue
         hours = (en_l - st_l).total_seconds() / 3600.0
         if hours <= 0:
             continue
@@ -215,9 +259,8 @@ def score_sleep(
     """Split last completed overnight vs same-day naps. Never invents 0h."""
     target = max(0.5, float(sleep_target_hours or DEFAULT_SLEEP_TARGET_HOURS))
     if now is None:
-        now = datetime.now(timezone.utc)
-    elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = local_now()
+    now = _awake_clock(now, last_wake_at=last_wake_at, mode=mode)
 
     rows = _completed_rows(intervals, now)
     overnight = _pick_overnight(rows) if rows else None
@@ -300,6 +343,8 @@ def sleep_spec(
     clock = now or _now_from_board(board, day)
     target = _as_float(bat.get("sleep_target_hours")) or DEFAULT_SLEEP_TARGET_HOURS
     # Prefer last_night_hours so a nap on last_sleep_hours is not last night.
+    # last_sleep_hours is last-cycle (battery header); use it only when
+    # last_night_hours is missing (GH lag / no overnight row).
     night_fallback = _as_float(bat.get("last_night_hours"))
     if night_fallback is None:
         night_fallback = _as_float(bat.get("last_sleep_hours"))

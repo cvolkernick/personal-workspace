@@ -10,6 +10,7 @@ from rt_dashboard.models import SleepSample
 from rt_dashboard.sleep_battery import (
     compute_sleep_battery,
     intervals_from_daily_sleep,
+    normalize_intervals,
     sleep_battery_from_fitdash_sleep,
     start_charge_fraction,
 )
@@ -314,6 +315,54 @@ class TestSleepBattery(unittest.TestCase):
         self.assertAlmostEqual(bat["charge_sleep_hours"], 3.45, places=2)
         self.assertAlmostEqual(bat["start_pct_charged"], 100.0 * 13.0 / 15.0, places=1)
         self.assertEqual(datetime.fromisoformat(bat["last_wake_at"]), nap_end)
+
+    def test_overlapping_partial_and_extended_end_merge(self):
+        """Same start, 09:01 then 11:34 → one last-cycle 6.85h (#514 AC3)."""
+        intervals = [
+            {
+                "start": "2026-09-07T04:43:00-04:00",
+                "end": "2026-09-07T09:01:00-04:00",
+                "source": "google_health",
+            },
+            {
+                "start": "2026-09-07T04:43:00-04:00",
+                "end": "2026-09-07T11:34:00-04:00",
+                "source": "google_health",
+            },
+        ]
+        merged = normalize_intervals(intervals)
+        self.assertEqual(len(merged), 1)
+        now = datetime(2026, 9, 7, 14, 0, tzinfo=NY)
+        bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
+        self.assertEqual(bat["interval_count"], 1)
+        self.assertAlmostEqual(bat["last_sleep_hours"], 6.85, places=2)
+        self.assertAlmostEqual(bat["last_night_hours"], 6.85, places=2)
+
+    def test_abutting_stages_merge_nap_stays_separate(self):
+        intervals = [
+            {
+                "start": "2026-09-07T04:43:00-04:00",
+                "end": "2026-09-07T09:01:00-04:00",
+                "source": "google_health",
+            },
+            {
+                "start": "2026-09-07T09:01:00-04:00",
+                "end": "2026-09-07T11:34:00-04:00",
+                "source": "google_health",
+            },
+            {
+                "start": "2026-09-06T16:28:00-04:00",
+                "end": "2026-09-06T19:55:00-04:00",
+                "source": "google_health",
+            },
+        ]
+        merged = normalize_intervals(intervals)
+        self.assertEqual(len(merged), 2)
+        now = datetime(2026, 9, 7, 14, 0, tzinfo=NY)
+        bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
+        self.assertAlmostEqual(bat["last_sleep_hours"], 6.85, places=2)
+        self.assertAlmostEqual(bat["last_night_hours"], 6.85, places=2)
+        self.assertEqual(bat["extra_hours"], 0.0)
 
     def test_daily_approx_omits_today_until_assumed_wake(self):
         now = datetime(2026, 8, 28, 2, 51, tzinfo=NY)

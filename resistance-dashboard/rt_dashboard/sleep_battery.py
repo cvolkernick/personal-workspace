@@ -52,6 +52,55 @@ def _parse_dt(value: Any) -> Optional[datetime]:
     return dt
 
 
+# GH often keeps a partial end and the later extended end as two rows
+# (04:43–09:01 plus 04:43–11:34), or abutting stages. Collapse those into
+# one session. Do not merge a nap hours after overnight (issue #514 / #512).
+INTERVAL_MERGE_GAP = timedelta(minutes=15)
+
+
+def _merge_touching_intervals(rows: List[dict]) -> List[dict]:
+    parsed: List[tuple] = []
+    for row in rows or []:
+        st = _parse_dt(row.get("start"))
+        en = _parse_dt(row.get("end"))
+        if not st or not en or en <= st:
+            continue
+        parsed.append((st, en, row))
+    parsed.sort(key=lambda item: item[0])
+    merged: List[tuple] = []
+    for st, en, row in parsed:
+        if merged:
+            prev_st, prev_en, prev_row = merged[-1]
+            if st <= prev_en + INTERVAL_MERGE_GAP:
+                if en > prev_en:
+                    merged[-1] = (
+                        prev_st,
+                        en,
+                        {
+                            "start": prev_st.isoformat(timespec="seconds"),
+                            "end": en.isoformat(timespec="seconds"),
+                            "source": str(
+                                row.get("source")
+                                or prev_row.get("source")
+                                or "unknown"
+                            ),
+                        },
+                    )
+                continue
+        merged.append(
+            (
+                st,
+                en,
+                {
+                    "start": st.isoformat(timespec="seconds"),
+                    "end": en.isoformat(timespec="seconds"),
+                    "source": str(row.get("source") or "unknown"),
+                },
+            )
+        )
+    return [item[2] for item in merged]
+
+
 def normalize_intervals(raw: Optional[List[dict]]) -> List[dict]:
     out: List[dict] = []
     for row in raw or []:
@@ -76,7 +125,7 @@ def normalize_intervals(raw: Optional[List[dict]]) -> List[dict]:
             continue
         seen.add(key)
         uniq.append(r)
-    return uniq
+    return _merge_touching_intervals(uniq)
 
 
 def intervals_from_daily_sleep(
