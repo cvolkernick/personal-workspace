@@ -1030,7 +1030,7 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
       nutritionLog.nutrients[{nutrient: PROTEIN|CARBOHYDRATES, quantity.grams}]
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
-    by_date: Dict[str, Dict[str, float]] = {}
+    by_date: Dict[str, Dict[str, Any]] = {}
     for pt in payload.get("dataPoints") or []:
         nlog = pt.get("nutritionLog") or pt.get("nutrition_log") or pt.get("nutrition") or pt
         if not isinstance(nlog, dict):
@@ -1047,15 +1047,26 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
 
         macros = _macros_from_nutrition_log(nlog)
         bucket = by_date.setdefault(
-            date, {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+            date,
+            {
+                "calories": 0.0,
+                "protein_g": 0.0,
+                "carbs_g": 0.0,
+                "fat_g": 0.0,
+                "nutrients": {},
+            },
         )
         for k in ("calories", "protein_g", "carbs_g", "fat_g"):
             if macros.get(k) is not None:
                 bucket[k] += float(macros[k])  # type: ignore[arg-type]
+        for nk, nv in _all_nutrients_grams(nlog).items():
+            bucket["nutrients"][nk] = round(
+                float(bucket["nutrients"].get(nk, 0.0)) + float(nv), 4
+            )
     out: List[NutritionDay] = []
     for d in sorted(by_date.keys()):
         b = by_date[d]
-        if not any(b.values()):
+        if not any(b[k] for k in ("calories", "protein_g", "carbs_g", "fat_g")):
             continue
         out.append(
             NutritionDay(
@@ -1064,6 +1075,7 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
                 protein_g=round(b["protein_g"], 1) if b["protein_g"] else None,
                 carbs_g=round(b["carbs_g"], 1) if b["carbs_g"] else None,
                 fat_g=round(b["fat_g"], 1) if b["fat_g"] else None,
+                nutrients=dict(b.get("nutrients") or {}),
                 source="google_health",
             )
         )
@@ -1178,6 +1190,7 @@ def parse_nutrition_rollup(payload: dict) -> List[NutritionDay]:
             else None,
             carbs_g=round(macros["carbs_g"], 1) if macros["carbs_g"] is not None else None,
             fat_g=round(macros["fat_g"], 1) if macros["fat_g"] is not None else None,
+            nutrients=_all_nutrients_grams(n),
             source="google_health",
         )
     return [by_date[k] for k in sorted(by_date.keys())]

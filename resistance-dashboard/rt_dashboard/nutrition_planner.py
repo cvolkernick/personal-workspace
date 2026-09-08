@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from zoneinfo import ZoneInfo
 
 from .models import FoodLogEntry, NutritionDay
+from .nutrition_micros import merge_day_micros, micros_from_nutrients
 
 INVENTORY_PATH = "fitness/nutrition/inventory.json"
 TARGETS_PATH = "fitness/nutrition/targets.json"
@@ -598,6 +599,23 @@ def today_consumed_from_nutrition(
         total["food_log_count"] = sum(1 for f in food_logs if f.date == day)
     for k in ("calories", "protein_g", "carbs_g", "fat_g"):
         total[k] = round(total[k], 1)
+    day_nutrients: Dict[str, float] = {}
+    for n in nutrition:
+        if n.date != day:
+            continue
+        day_nutrients = dict(getattr(n, "nutrients", None) or {})
+        break
+    log_maps = []
+    if food_logs:
+        for f in food_logs:
+            if f.date != day:
+                continue
+            log_maps.append(getattr(f, "nutrients", None) or {})
+    micros = merge_day_micros(day_nutrients, log_maps)
+    if day_nutrients:
+        total["nutrients"] = dict(day_nutrients)
+    if micros:
+        total["micros"] = micros
     return total
 
 
@@ -615,7 +633,11 @@ def food_logs_for_day(
     for f in food_logs or []:
         if f.date != day:
             continue
-        out.append(f.to_dict() if hasattr(f, "to_dict") else dict(f))  # type: ignore[arg-type]
+        row = f.to_dict() if hasattr(f, "to_dict") else dict(f)  # type: ignore[arg-type]
+        micros = micros_from_nutrients(row.get("nutrients") if isinstance(row, dict) else None)
+        if micros:
+            row["micros"] = micros
+        out.append(row)
     return out
 
 

@@ -126,13 +126,18 @@ class SleepSample:
 
 @dataclass
 class NutritionDay:
-    """Daily calories + macros (protein/carbs/fat grams)."""
+    """Daily calories + macros (protein/carbs/fat grams).
+
+    ``nutrients`` is the existing Google Health nutrients{} map (enum → grams)
+    when the day/rollup payload already has it. Absent keys stay absent.
+    """
 
     date: str
     calories: Optional[float] = None
     protein_g: Optional[float] = None
     carbs_g: Optional[float] = None
     fat_g: Optional[float] = None
+    nutrients: Dict[str, float] = field(default_factory=dict)
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
