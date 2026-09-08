@@ -17,7 +17,7 @@ import re
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from .models import Session
 
@@ -754,24 +754,45 @@ def last_pattern_family_ids(
     found: Dict[str, str] = {}
     ordered = sorted(list(sessions), key=session_date_of, reverse=True)
     for s in ordered:
-        exercises = getattr(s, "exercises", None)
-        if exercises is None and isinstance(s, dict):
-            exercises = s.get("exercises") or []
-        for raw in exercises or []:
-            name = ""
-            if isinstance(raw, dict):
-                name = str(raw.get("name") or "")
-            else:
-                name = str(getattr(raw, "name", "") or "")
-            if not name:
-                continue
-            cid = match_catalog_id(name, catalog_by_id) if catalog_by_id else None
+        for name in _session_exercise_names(s):
+            cid = _canonical_exercise_id(name, catalog_by_id)
             if not cid:
                 cid = NAME_ALIASES.get(_norm_name(name)) or _slug(name)
             cat = catalog_by_id.get(cid) if cid else None
             fam = pattern_family(cat) if cat else PATTERN_FAMILY_BY_ID.get(cid or "")
             if fam and fam not in found and cid:
                 found[fam] = cid
+    return found
+
+
+def _session_exercise_names(session: Any) -> List[str]:
+    exercises = getattr(session, "exercises", None)
+    if exercises is None and isinstance(session, dict):
+        exercises = session.get("exercises") or []
+    names: List[str] = []
+    for raw in exercises or []:
+        if isinstance(raw, dict):
+            name = str(raw.get("name") or "")
+        else:
+            name = str(getattr(raw, "name", "") or "")
+        if name:
+            names.append(name)
+    return names
+
+
+def _logged_catalog_ids(
+    sessions: Sequence[Any],
+    catalog_by_id: Optional[Dict[str, dict]] = None,
+) -> Set[str]:
+    catalog_by_id = catalog_by_id or {}
+    found: Set[str] = set()
+    for s in sessions or []:
+        for name in _session_exercise_names(s):
+            cid = _canonical_exercise_id(name, catalog_by_id)
+            if not cid:
+                cid = NAME_ALIASES.get(_norm_name(name)) or _slug(name)
+            if cid:
+                found.add(cid)
     return found
 
 
@@ -985,52 +1006,63 @@ def _norm_name(name: str) -> str:
     return re.sub(r"\s+", " ", name.strip().lower())
 
 
-def match_catalog_id(exercise_name: str, catalog_by_id: Dict[str, dict]) -> Optional[str]:
+def _canonical_exercise_id(
+    exercise_name: str,
+    catalog_by_id: Optional[Dict[str, dict]] = None,
+) -> Optional[str]:
+    """Catalog id from exact name or alias. Never substring (Calf Raises ⊄ DB Calf Raises)."""
     key = _norm_name(exercise_name)
-    if key in NAME_ALIASES and NAME_ALIASES[key] in catalog_by_id:
-        return NAME_ALIASES[key]
-    # direct id
-    slug = _slug(exercise_name)
-    if slug in catalog_by_id:
-        return slug
-    # name match
-    for eid, ex in catalog_by_id.items():
-        if _norm_name(ex["name"]) == key:
-            return eid
-    # fuzzy contains
-    for eid, ex in catalog_by_id.items():
-        n = _norm_name(ex["name"])
-        if key in n or n in key:
-            return eid
+    if not key:
+        return None
+    alias = NAME_ALIASES.get(key)
+    if alias and (not catalog_by_id or alias in catalog_by_id):
+        return alias
+    if catalog_by_id:
+        slug = _slug(exercise_name)
+        if slug in catalog_by_id:
+            return slug
+        for eid, ex in catalog_by_id.items():
+            if _norm_name(ex.get("name") or "") == key:
+                return eid
     return None
 
 
+def match_catalog_id(exercise_name: str, catalog_by_id: Dict[str, dict]) -> Optional[str]:
+    return _canonical_exercise_id(exercise_name, catalog_by_id)
+
+
 def last_performance(
-    sessions: Sequence[Session], exercise_name: str
+    sessions: Sequence[Session],
+    exercise_name: str,
+    catalog_by_id: Optional[Dict[str, dict]] = None,
 ) -> Optional[dict]:
-    """Most recent logged sets for an exercise (by name, case-insensitive)."""
+    """Most recent logged sets for an exercise (catalog id, exact name, or alias)."""
     target = _norm_name(exercise_name)
-    # also try alias reverse: if name maps to catalog, match any alias names
+    target_id = _canonical_exercise_id(exercise_name, catalog_by_id)
     ordered = sorted(sessions, key=lambda s: s.date, reverse=True)
     for s in ordered:
         for ex in s.exercises:
-            if _norm_name(ex.name) == target or target in _norm_name(ex.name):
-                if not ex.sets:
+            logged = _norm_name(ex.name)
+            if logged != target:
+                logged_id = _canonical_exercise_id(ex.name, catalog_by_id)
+                if not target_id or not logged_id or logged_id != target_id:
                     continue
-                best_w = max(st.weight_lbs for st in ex.sets)
-                # representative working set: highest weight, then its sets/reps
-                top = max(ex.sets, key=lambda st: (st.weight_lbs, st.reps, st.sets))
-                total_sets = sum(st.sets for st in ex.sets)
-                return {
-                    "date": s.date,
-                    "session_type": s.session_type,
-                    "weight_lbs": float(top.weight_lbs),
-                    "sets": int(total_sets) if total_sets else int(top.sets),
-                    "reps": int(top.reps),
-                    "best_working_weight": float(best_w),
-                    "volume": float(ex.volume),
-                    "is_pr": bool(ex.is_pr),
-                }
+            if not ex.sets:
+                continue
+            best_w = max(st.weight_lbs for st in ex.sets)
+            # representative working set: highest weight, then its sets/reps
+            top = max(ex.sets, key=lambda st: (st.weight_lbs, st.reps, st.sets))
+            total_sets = sum(st.sets for st in ex.sets)
+            return {
+                "date": s.date,
+                "session_type": s.session_type,
+                "weight_lbs": float(top.weight_lbs),
+                "sets": int(total_sets) if total_sets else int(top.sets),
+                "reps": int(top.reps),
+                "best_working_weight": float(best_w),
+                "volume": float(ex.volume),
+                "is_pr": bool(ex.is_pr),
+            }
     return None
 
 
@@ -1480,6 +1512,7 @@ def generate_workout_plan(
     focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
     last_family_ids = last_pattern_family_ids(sessions, by_id)
+    logged_ids = _logged_catalog_ids(sessions, by_id)
 
     def _repeat_penalty(e: dict) -> int:
         # Rotate implements inside a family (DB flat ↔ Smith), don't restack last.
@@ -1487,9 +1520,13 @@ def generate_workout_plan(
         if not fam:
             return 0
         last_id = last_family_ids.get(fam)
-        if last_id and e.get("id") == last_id:
-            return 1
-        return 0
+        if not last_id or e.get("id") != last_id:
+            return 0
+        # New calf row stays off Today until Chris has actually logged it.
+        # Cap still prevents stacking both in one session.
+        if fam == CALF_FAMILY and "db-calf-raises" not in logged_ids:
+            return 0
+        return 1
 
     # Rank pool by volume need (under-target muscles) + compound efficiency
     pool_scored = sorted(
@@ -1545,11 +1582,11 @@ def generate_workout_plan(
     for ex in chosen:
         if session_sets >= session_cap:
             break
-        last = last_performance(sessions, ex["name"])
+        last = last_performance(sessions, ex["name"], by_id)
         if not last:
             for alias, aid in NAME_ALIASES.items():
                 if aid == ex["id"]:
-                    last = last_performance(sessions, alias)
+                    last = last_performance(sessions, alias, by_id)
                     if last:
                         break
         # Volume from goals.default_hard_sets — never catalog default_sets=3

@@ -659,6 +659,74 @@ class TestWorkoutPlanner(unittest.TestCase):
         calves = [i for i in ids if i in ("calf-raises", "db-calf-raises")]
         self.assertEqual(len(calves), 1, ids)
 
+    def test_historical_calf_raises_keeps_machine_extensions_on_plan(self):
+        """Last lift named Calf Raises must not rotate Tonight onto DB Calf Raises."""
+        catalog = _legs_calf_catalog()
+        sessions = [
+            _session("2026-09-01", "legs", "Calf Raises", 105, 3, 10),
+            _session("2026-09-02", "push", "DB Flat Press", 50, 2, 10),
+            _session("2026-09-03", "pull", "Seated Cable Row", 100, 2, 10),
+        ]
+        plan = generate_workout_plan(
+            catalog,
+            {
+                **self.goals,
+                "exercises_per_session": 5,
+                "default_hard_sets": 2,
+            },
+            sessions,
+            recovery_score=80,
+            session_type="legs",
+            as_of="2026-09-08",
+        )
+        ids = [e["id"] for e in plan["exercises"]]
+        names = [e["name"] for e in plan["exercises"]]
+        calves = [i for i in ids if i in ("calf-raises", "db-calf-raises")]
+        self.assertEqual(calves, ["calf-raises"], ids)
+        self.assertIn("Calf Extensions", names)
+        self.assertNotIn("DB Calf Raises", names)
+        calf = next(e for e in plan["exercises"] if e["id"] == "calf-raises")
+        self.assertEqual(calf["prescription"]["weight_lbs"], 105.0)
+
+    def test_last_performance_matches_catalog_id_not_substring(self):
+        sessions = [
+            _session("2026-09-01", "legs", "Calf Raises", 105, 3, 10),
+            _session("2026-09-08", "legs", "DB Calf Raises", 40, 3, 12),
+        ]
+        machine = last_performance(sessions, "Calf Extensions")
+        historic = last_performance(sessions, "Calf Raises")
+        db = last_performance(sessions, "DB Calf Raises")
+        self.assertIsNotNone(machine)
+        self.assertEqual(machine["date"], "2026-09-01")
+        self.assertEqual(machine["weight_lbs"], 105)
+        self.assertEqual(historic["weight_lbs"], 105)
+        self.assertEqual(db["date"], "2026-09-08")
+        self.assertEqual(db["weight_lbs"], 40)
+
+    def test_calf_rotates_to_db_only_after_db_has_own_log(self):
+        catalog = _legs_calf_catalog()
+        sessions = [
+            _session("2026-08-20", "legs", "DB Calf Raises", 40, 3, 10),
+            _session("2026-09-01", "legs", "Calf Raises", 105, 3, 10),
+            _session("2026-09-02", "push", "DB Flat Press", 50, 2, 10),
+            _session("2026-09-03", "pull", "Seated Cable Row", 100, 2, 10),
+        ]
+        plan = generate_workout_plan(
+            catalog,
+            {
+                **self.goals,
+                "exercises_per_session": 5,
+                "default_hard_sets": 2,
+            },
+            sessions,
+            recovery_score=80,
+            session_type="legs",
+            as_of="2026-09-08",
+        )
+        ids = [e["id"] for e in plan["exercises"]]
+        calves = [i for i in ids if i in ("calf-raises", "db-calf-raises")]
+        self.assertEqual(calves, ["db-calf-raises"], ids)
+
     def test_pattern_family_maps_press_variants(self):
         self.assertEqual(
             pattern_family({"id": "db-flat-press", "name": "DB Flat Press", "movement": "compound", "primary_muscles": ["chest"]}),
@@ -751,6 +819,49 @@ class TestWorkoutPlanner(unittest.TestCase):
         after_flat_ids = [e["id"] for e in after_flat["exercises"]]
         self.assertIn("smith-bench", after_flat_ids)
         self.assertNotIn("db-flat-press", after_flat_ids)
+
+
+def _legs_calf_catalog():
+    return {
+        "exercises": [
+            {
+                "id": "leg-press",
+                "name": "Leg Press",
+                "session_types": ["legs"],
+                "primary_muscles": ["quads"],
+                "movement": "compound",
+                "priority": 10,
+                "available": True,
+            },
+            {
+                "id": "rdl",
+                "name": "RDL",
+                "session_types": ["legs"],
+                "primary_muscles": ["hamstrings", "glutes"],
+                "movement": "compound",
+                "priority": 10,
+                "available": True,
+            },
+            {
+                "id": "calf-raises",
+                "name": "Calf Extensions",
+                "session_types": ["legs"],
+                "primary_muscles": ["calves"],
+                "movement": "isolation",
+                "priority": 5,
+                "available": True,
+            },
+            {
+                "id": "db-calf-raises",
+                "name": "DB Calf Raises",
+                "session_types": ["legs"],
+                "primary_muscles": ["calves"],
+                "movement": "isolation",
+                "priority": 5,
+                "available": True,
+            },
+        ]
+    }
 
 
 def _push_press_catalog():
