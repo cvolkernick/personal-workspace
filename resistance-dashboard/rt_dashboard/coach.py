@@ -770,6 +770,8 @@ def build_today_board(
             "session_type": wp.get("session_type"),
             "is_rest_day": bool(wp.get("is_rest_day")),
             "already_trained_today": bool(wp.get("already_trained_today")),
+            "ppl_logged_today": wp.get("ppl_logged_today")
+            or (wp.get("context") or {}).get("ppl_logged_today"),
             "message": wp.get("message"),
             "exercises": exercises,
             "focus": focus,

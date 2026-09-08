@@ -588,6 +588,156 @@ def is_train_session_owned_task(task: dict, *, day: str = "") -> bool:
     return _task_on_civil_day(task, day)
 
 
+def _task_is_completed(task: Optional[dict]) -> bool:
+    return bool(task) and str((task or {}).get("status") or "") == "completed"
+
+
+def is_training_group_parent_task(task: dict, *, day: str = "") -> bool:
+    """Training group header (parent of train-session + ex-* leaves)."""
+    if not isinstance(task, dict):
+        return False
+    kind = kind_from_notes(task.get("notes") or "")
+    if kind != "training|group":
+        return False
+    return _task_on_civil_day(task, day)
+
+
+def training_day_complete_from_tasks(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    cache_ids: Optional[Dict[str, str]] = None,
+) -> bool:
+    """True when the Training parent or train-session leaf is completed.
+
+    Day-complete SoT is the Training parent (`train-session` / group header),
+    not the presence of a PPL session row.
+    """
+    ids = cache_ids if isinstance(cache_ids, dict) else {}
+    parent_id = str(ids.get("training|group") or "")
+    session_id = str(ids.get(TRAIN_SESSION_CACHE_KEY) or "")
+    for task in tasks or []:
+        if not isinstance(task, dict) or not _task_is_completed(task):
+            continue
+        tid = str(task.get("id") or "")
+        if parent_id and tid == parent_id:
+            return True
+        if session_id and tid == session_id:
+            return True
+        if is_train_session_owned_task(task, day=day):
+            return True
+        if is_training_group_parent_task(task, day=day):
+            return True
+    return False
+
+
+def training_day_complete(day: Optional[str] = None) -> bool:
+    """Best-effort GT peek: Training parent completed for civil ``day``.
+
+    Uses the quest cache ids + get_task. Cold cache or GT down → False
+    (session-row presence must not fill that gap).
+    """
+    try:
+        cred = gtb.credentials_status()
+        if not cred.get("ok"):
+            return False
+    except Exception:
+        return False
+    day = str(day or local_today_iso())[:10]
+    cache = _load_cache()
+    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+    ids = dict(day_cache.get("ids") or {})
+    list_id = str(day_cache.get("list_id") or "")
+    if not list_id or not ids:
+        return False
+    peeked: List[dict] = []
+    for key in ("training|group", TRAIN_SESSION_CACHE_KEY):
+        tid = str(ids.get(key) or "")
+        if not tid:
+            continue
+        task = _get_task_safe(list_id, tid)
+        if task:
+            peeked.append(task)
+    return training_day_complete_from_tasks(peeked, day=day, cache_ids=ids)
+
+
+def _strip_training_ex_leaves(planned: List[PlannedGroup]) -> List[PlannedGroup]:
+    """Drop remaining ex-* from the planned set (skipped leftovers stay in GT)."""
+    out: List[PlannedGroup] = []
+    for g in planned:
+        if g.group != "training":
+            out.append(g)
+            continue
+        kept = [
+            it for it in g.items if not str(it.slug or "").startswith("ex-")
+        ]
+        out.append(
+            PlannedGroup(
+                group=g.group, title=g.title, emoji=g.emoji, items=kept
+            )
+        )
+    return out
+
+
+def _attach_existing_training_leaves(
+    planned: List[PlannedGroup],
+    listed_tasks: Sequence[dict],
+    day: str,
+) -> List[PlannedGroup]:
+    """Keep leftover same-day lift leaves visible after parent complete (skips)."""
+    existing: List[PlannedItem] = []
+    seen = set()
+    for task in listed_tasks or []:
+        if not isinstance(task, dict):
+            continue
+        if not _task_on_civil_day(task, day):
+            continue
+        title = str(task.get("title") or "").strip()
+        name = lift_name_from_title(title)
+        if not name:
+            continue
+        kind = kind_from_notes(task.get("notes") or "")
+        if kind and not str(kind).startswith("training|ex-"):
+            continue
+        slug = f"ex-{_slug(name)}"
+        if slug in seen:
+            continue
+        seen.add(slug)
+        existing.append(
+            PlannedItem(group="training", slug=slug, title=title[:200])
+        )
+    if not existing:
+        return planned
+    out: List[PlannedGroup] = []
+    attached = False
+    for g in planned:
+        if g.group != "training":
+            out.append(g)
+            continue
+        have = {it.slug for it in g.items}
+        extra = [it for it in existing if it.slug not in have]
+        out.append(
+            PlannedGroup(
+                group=g.group,
+                title=g.title,
+                emoji=g.emoji,
+                items=list(g.items) + extra,
+            )
+        )
+        attached = True
+    if not attached:
+        meta = GROUP_META.get("training") or GROUP_META["other"]
+        out.append(
+            PlannedGroup(
+                group="training",
+                title=meta["title"],
+                emoji=meta.get("emoji") or "✓",
+                items=existing,
+            )
+        )
+    return out
+
+
 def is_calorie_pace_owned_task(task: dict, *, day: str = "") -> bool:
     if not isinstance(task, dict):
         return False
@@ -1978,6 +2128,17 @@ def ensure_daily_tasks(
             if listed and listed.get("ok")
             else []
         )
+        workout_board = (today_board or {}).get("workout") or {}
+        train_day_complete = bool(
+            workout_board.get("already_trained_today")
+        ) or training_day_complete_from_tasks(
+            listed_tasks, day=day, cache_ids=ids
+        )
+        if train_day_complete:
+            # Parent is SoT: do not quest-seed remaining prescription.
+            # Leftover same-letter leaves are reattached after wrong-rotation
+            # purge so skipped lifts stay visible and incomplete.
+            planned = _strip_training_ex_leaves(planned)
         owned_meal = collect_meal_plan_task_ids(
             listed_tasks, day=day, cache_ids=ids
         )
@@ -2075,10 +2236,15 @@ def ensure_daily_tasks(
                     ]
                     listed = {"ok": True, "tasks": listed_tasks}
         workout = (today_board or {}).get("workout") or {}
-        pin = str(workout.get("session_type") or "").lower()
-        if workout.get("already_trained_today") and pin in ("push", "pull", "legs"):
-            # Planned set has no remaining ex-* after a log. Unplanned purge
-            # would also drop leftover same-letter lifts (mid-session remainder).
+        pin = str(
+            workout.get("ppl_logged_today") or workout.get("session_type") or ""
+        ).lower()
+        partial_or_done = pin in ("push", "pull", "legs") and (
+            train_day_complete or bool(workout.get("ppl_logged_today"))
+        )
+        if partial_or_done:
+            # Keep leftover same-letter lifts (partial remainder or skipped
+            # leftovers). Unplanned purge would drop them.
             wrong = purge_wrong_rotation_lifts(
                 list_id=list_id,
                 day=day,
@@ -2111,6 +2277,12 @@ def ensure_daily_tasks(
         day_cache = cache.get(day) if isinstance(cache.get(day), dict) else day_cache
         if isinstance(day_cache, dict) and day_cache.get("ids"):
             ids = dict(day_cache.get("ids") or ids)
+
+        if train_day_complete:
+            planned = _attach_existing_training_leaves(
+                planned, listed_tasks, day
+            )
+            listed = {"ok": True, "tasks": listed_tasks}
 
         if listed and listed.get("ok"):
             ids = _hydrate_ids_from_listed(ids, planned, listed, day)
@@ -2270,7 +2442,48 @@ def ensure_daily_tasks(
                 and str(parent_task.get("status") or "") == "completed"
             )
             if parent_id and create_missing:
-                if all_done and not parent_completed:
+                if g.group == "training":
+                    # Training parent is day-complete SoT. Completing all
+                    # lift leaves still completes it (happy path). Leftover
+                    # incomplete lifts must not uncomplete a checked parent.
+                    lift_items = [
+                        x
+                        for x in items_out
+                        if str(x.get("slug") or "").startswith("ex-")
+                    ]
+                    lifts_all_done = bool(lift_items) and all(
+                        x["completed"] for x in lift_items
+                    )
+                    if lifts_all_done:
+                        for x in items_out:
+                            tid_sess = str(x.get("task_id") or "")
+                            if (
+                                x.get("slug") == TRAIN_SESSION_SLUG
+                                and not x["completed"]
+                                and tid_sess
+                            ):
+                                done = gtb.complete_task(
+                                    list_id, tid_sess, completed=True
+                                )
+                                if done.get("ok"):
+                                    x["completed"] = True
+                    session_done = any(
+                        x.get("slug") == TRAIN_SESSION_SLUG and x["completed"]
+                        for x in items_out
+                    )
+                    if (lifts_all_done or session_done) and not parent_completed:
+                        gtb.complete_task(
+                            list_id, str(parent_id), completed=True
+                        )
+                        parent_completed = True
+                    elif not all_done and parent_completed:
+                        pass
+                    elif all_done and not parent_completed:
+                        gtb.complete_task(
+                            list_id, str(parent_id), completed=True
+                        )
+                        parent_completed = True
+                elif all_done and not parent_completed:
                     gtb.complete_task(list_id, str(parent_id), completed=True)
                     parent_completed = True
                 elif not all_done and parent_completed:

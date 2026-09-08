@@ -237,6 +237,7 @@ def stamp_today_session(
     as_of: Optional[str] = None,
     fill_rest: bool = True,
     next_st_override: Optional[str] = None,
+    train_parent_completed: bool = False,
 ) -> dict:
     """Hybrid Today fill: session_type + continuity. Never invent exercises.
 
@@ -245,10 +246,18 @@ def stamp_today_session(
     slot (is_rest_day + session_type=rest) while keeping next_session_type.
 
     If a PPL session is already logged on ``as_of``, pin today's letter to
-    that session and skip the rest gate — next_session_type stays tomorrow.
+    that session and skip the rest gate. That pin is not day-complete —
+    ``already_trained_today`` is only set when ``train_parent_completed``.
+    Parent complete advances next_session_type to tomorrow; a partial log
+    keeps next_session_type on today's letter.
     """
     from .timeutil import local_today_iso
-    from .workout_planner import next_session_type, normalize_goals, ppl_logged_on_day
+    from .workout_planner import (
+        next_letter_after,
+        next_session_type,
+        normalize_goals,
+        ppl_logged_on_day,
+    )
 
     plan = dict(workout) if isinstance(workout, dict) else {}
     continuity = slim_training_continuity(sessions, as_of=as_of)
@@ -258,20 +267,47 @@ def stamp_today_session(
     ctx["days_since_last"] = continuity.get("days_since")
     day = str(as_of or local_today_iso())[:10]
     logged = ppl_logged_on_day(sessions or [], day)
+    norms = normalize_goals(goals) if _rotation_set(goals) else {}
 
     next_st = None
     override = str(next_st_override or "").strip().lower()
-    if override:
+    today_pin = None
+    if logged and not train_parent_completed:
+        next_st = logged
+    elif train_parent_completed:
+        pin = logged or str(plan.get("session_type") or "").lower()
+        if pin not in ("push", "pull", "legs") and _rotation_set(goals):
+            pin = next_session_type(sessions or [], norms)
+        if pin in ("push", "pull", "legs"):
+            today_pin = pin
+            next_st = next_letter_after(pin, norms)
+        elif override:
+            next_st = override
+        elif _rotation_set(goals):
+            next_st = next_session_type(sessions or [], norms)
+    elif override:
         next_st = override
     elif _rotation_set(goals):
-        next_st = next_session_type(sessions or [], normalize_goals(goals))
+        next_st = next_session_type(sessions or [], norms)
     plan["next_session_type"] = next_st
     ctx["next_session_type"] = next_st
     if logged:
-        plan["already_trained_today"] = True
-        ctx["already_trained_today"] = True
+        plan["ppl_logged_today"] = logged
+        ctx["ppl_logged_today"] = logged
         if plan.get("session_type") in (None, "", "rest"):
             plan["session_type"] = logged
+        plan["is_rest_day"] = False
+        plan["already_trained_today"] = bool(train_parent_completed)
+        ctx["already_trained_today"] = bool(train_parent_completed)
+        plan["context"] = ctx
+        if "exercises" not in plan:
+            plan["exercises"] = []
+        return plan
+    if train_parent_completed:
+        if today_pin and plan.get("session_type") in (None, "", "rest"):
+            plan["session_type"] = today_pin
+        plan["already_trained_today"] = True
+        ctx["already_trained_today"] = True
         plan["is_rest_day"] = False
         plan["context"] = ctx
         if "exercises" not in plan:
@@ -279,6 +315,8 @@ def stamp_today_session(
         return plan
     if plan.get("session_type") in (None, ""):
         plan["session_type"] = next_st
+    plan["already_trained_today"] = False
+    ctx["already_trained_today"] = False
     plan["context"] = ctx
 
     if "exercises" not in plan:

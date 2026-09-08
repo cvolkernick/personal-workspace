@@ -16,6 +16,7 @@ from rt_dashboard.workout_planner import (
     generate_workout_plan,
     last_pattern_family_ids,
     last_performance,
+    next_letter_after,
     next_session_type,
     pattern_family,
     ppl_logged_on_day,
@@ -84,6 +85,30 @@ class TestWorkoutPlanner(unittest.TestCase):
                     "priority": 10,
                     "available": True,
                 },
+                {
+                    "id": "rdl",
+                    "name": "RDL",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings", "glutes"],
+                    "movement": "compound",
+                    "default_sets": 3,
+                    "default_reps": 8,
+                    "rep_range": [6, 10],
+                    "priority": 10,
+                    "available": True,
+                },
+                {
+                    "id": "seated-leg-curls",
+                    "name": "Seated Leg Curls",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings"],
+                    "movement": "isolation",
+                    "default_sets": 3,
+                    "default_reps": 10,
+                    "rep_range": [8, 12],
+                    "priority": 8,
+                    "available": True,
+                },
             ]
         }
         self.goals = {
@@ -117,12 +142,34 @@ class TestWorkoutPlanner(unittest.TestCase):
             as_of="2026-08-29",
         )
         self.assertEqual(plan["session_type"], "legs")
+        self.assertFalse(plan["already_trained_today"])
+        self.assertFalse(plan["is_rest_day"])
+        self.assertEqual(plan["ppl_logged_today"], "legs")
+        self.assertEqual(plan["next_session_type"], "legs")
+        names = [e.get("name") for e in plan["exercises"]]
+        self.assertNotIn("DB Flat Press", names)
+        self.assertNotIn("RDL", names)
+        self.assertIn("Seated Leg Curls", names)
+
+    def test_train_parent_completed_is_day_complete_so_t(self):
+        sessions = [_session("2026-08-29", "legs", "RDL", 40, 2, 7)]
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            sessions,
+            recovery_label="Caution",
+            recovery_score=35,
+            recovery_sparse=False,
+            as_of="2026-08-29",
+            train_parent_completed=True,
+        )
+        self.assertEqual(plan["session_type"], "legs")
         self.assertTrue(plan["already_trained_today"])
         self.assertFalse(plan["is_rest_day"])
         self.assertEqual(plan["exercises"], [])
         self.assertEqual(plan["next_session_type"], "push")
-        names = [e.get("name") for e in plan["exercises"]]
-        self.assertNotIn("DB Flat Press", names)
+        self.assertEqual(next_letter_after("legs", self.goals), "push")
+        self.assertIn("Already trained today", plan["message"])
 
     def test_explicit_session_type_still_generates_after_log(self):
         sessions = [_session("2026-08-29", "legs", "RDL", 40, 2, 7)]

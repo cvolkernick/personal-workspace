@@ -96,6 +96,33 @@ class TestCoach(unittest.TestCase):
         self.assertIn("PUSH", train[0]["text"])
         self.assertNotIn("Easy PUSH", train[0]["text"])
 
+    def test_partial_log_is_not_already_trained(self):
+        rec = RecoveryStatus(label="Ready", score=80.0, reasons=["unit"])
+        board = build_today_board(
+            as_of="2026-08-29",
+            recovery=rec,
+            workout_plan={
+                "is_rest_day": False,
+                "already_trained_today": False,
+                "ppl_logged_today": "legs",
+                "session_type": "legs",
+                "next_session_type": "legs",
+                "exercises": [
+                    {"name": "Seated Leg Curls", "prescription": {"sets": 2, "reps": 10}}
+                ],
+            },
+            meal_plan={"remaining_before_plan": {"calories": 500, "protein_g": 40}},
+            consumed={"calories": 1000, "protein_g": 80},
+            targets={"calories": 2100, "protein_g": 200},
+            adherence={"protein": {"pct": 50}, "sleep": {"pct": 40}},
+        )
+        self.assertNotEqual(board["recommendation"], "done")
+        self.assertFalse(board["workout"]["already_trained_today"])
+        train = [a for a in board["actions"] if a.get("id") == "train-session"]
+        self.assertEqual(len(train), 1)
+        self.assertNotIn("Already trained today", train[0]["text"])
+        self.assertIn("LEGS", train[0]["text"])
+
     def test_today_guide_stock_only_meal_and_purchases(self):
         """Shipped meal planner + today board: only stocked ids; restock when OOS."""
         inv = {

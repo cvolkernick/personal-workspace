@@ -264,7 +264,7 @@ class PacketBuilderTests(unittest.TestCase):
         self.assertEqual(pkt["protein_remaining_g"], 100.0)
         self.assertEqual(pkt["train_recommendation"], "rest")
 
-    def test_session_logged_clears_due(self) -> None:
+    def test_session_logged_does_not_clear_due(self) -> None:
         sessions = [
             Session(date="2026-08-10", session_type="push", exercises=[]),
         ]
@@ -272,6 +272,24 @@ class PacketBuilderTests(unittest.TestCase):
             today_board=self._board(rec="train", score=75, label="Ready"),
             recovery=RecoveryStatus(label="Ready", score=75.0, reasons=[]),
             workout_plan={"is_rest_day": False, "session_type": "push"},
+            sessions=sessions,
+            civil_day="2026-08-10",
+            as_of="2026-08-10T18:00:00+00:00",
+        )
+        self.assertTrue(pkt["session_due"])
+
+    def test_train_parent_completed_clears_due(self) -> None:
+        sessions = [
+            Session(date="2026-08-10", session_type="push", exercises=[]),
+        ]
+        pkt = build_day_constraints_packet(
+            today_board=self._board(rec="train", score=75, label="Ready"),
+            recovery=RecoveryStatus(label="Ready", score=75.0, reasons=[]),
+            workout_plan={
+                "is_rest_day": False,
+                "session_type": "push",
+                "already_trained_today": True,
+            },
             sessions=sessions,
             civil_day="2026-08-10",
             as_of="2026-08-10T18:00:00+00:00",
