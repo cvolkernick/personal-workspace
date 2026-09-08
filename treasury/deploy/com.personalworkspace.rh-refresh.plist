@@ -3,10 +3,12 @@
 <!--
   BACKUP / CONSUMER ONLY — Issue #518.
 
-  SoT producer is prism/Pi (systemd rh-refresh.timer). Do NOT load this
-  launchd as a second writer. Default env pulls Pi and never pushes RH.
+  Eng-gate: do NOT bootout this unit until Pi OAuth is healthy AND
+  Pi smoke has moved robinhood_latest.json / FCC as_of (RH_PRODUCER.md
+  steps 1–2). Disarming first = no writer. Leaving it loaded after Pi
+  SoT = dual-writer. Mac tokens do not travel.
 
-  Disarm (required cutover):
+  Disarm (step 3 — only after Pi smoke green):
     launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null || true
     rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 

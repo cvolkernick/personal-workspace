@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Refresh Robinhood dual-account snapshot for FCC.
 #
-# Issue #518 — prism/Pi is the SoT producer:
-#   1) Producer (TREASURY_RH_ROLE=producer): local Grok + robinhood-trading MCP
-#   2) Consumer (Mac default): pull Pi snapshot only — never push RH back
-#   3) Backup (Mac, optional): local MCP for laptop FCC; still no RH push
-#   4) Auth/MCP failure leaves existing as_of untouched (honest stale)
+# Issue #518 — prism/Pi is the SoT producer.
+# Eng-gate (do not skip): Pi grok+MCP+Chris OAuth on Pi (Mac tokens do not
+# travel) → smoke writes robinhood_latest.json + FCC as_of moves → THEN
+# stop Mac com.personalworkspace.rh-refresh. Auth-fail must not invent as_of.
+# See treasury/deploy/RH_PRODUCER.md.
 #
-# Schedule every 3h (under FCC ~6h NTFY stale threshold):
-#   Pi:      treasury/deploy/rh-refresh.timer
-#   Mac:     do not load launchd (backup-only). See treasury/deploy/RH_PRODUCER.md
+#   Producer: TREASURY_RH_ROLE=producer (Pi systemd)
+#   Consumer: Mac pull-only after cutover — never push RH back
+#   Mac re-auth: short-term only until Pi smoke is green
 #
 # Env:
 #   TREASURY_RH_ROLE=producer|backup|consumer

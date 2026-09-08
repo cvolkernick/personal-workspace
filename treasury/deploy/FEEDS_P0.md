@@ -1,7 +1,11 @@
 # FCC feed freshness
 
 **#518 (2026-09):** Robinhood trade snapshot SoT is **prism/Pi**, not Mac.
-See `RH_PRODUCER.md` for install, Mac disarm, re-auth SOP, and smoke notes.
+Cutover order is locked in `RH_PRODUCER.md`: **(1) Pi grok + MCP + Chris OAuth
+on Pi (Mac tokens do not travel) → (2) smoke writes snapshot + FCC as_of moves
+→ (3) then stop Mac launchd → (4) NTFY = Pi host + error class.**
+Mac re-auth is short-term only until step 2 is green. Do not disarm Mac before
+Pi OAuth is healthy. Do not invent `as_of`.
 
 Mac remains the live producer for **Coinbase CLI + Braiins pool token**.
 Pi FCC is still an offline consumer of those pushed files. RH is the exception.
@@ -19,15 +23,19 @@ Pi FCC is still an offline consumer of those pushed files. RH is the exception.
 
 ## Install / reload
 
-### Pi (RH SoT)
+Follow **`RH_PRODUCER.md` eng-gate sequence**. Do not disarm Mac first.
+
+### 1–2) Pi OAuth + smoke (Mac launchd stays up)
 
 ```bash
+# on Pi — OAuth must already exist on this host (not copied from Mac)
 sudo cp treasury/deploy/rh-refresh.service treasury/deploy/rh-refresh.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rh-refresh.timer
+./treasury/rh_refresh.sh   # must write robinhood_latest.json and move FCC as_of
 ```
 
-### Mac (disarm RH launchd — no dual-writer)
+### 3) Mac disarm — only after step 2 is green
 
 ```bash
 UID_N=$(id -u)

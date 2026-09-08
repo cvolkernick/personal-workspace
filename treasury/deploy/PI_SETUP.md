@@ -1,8 +1,12 @@
 # Pi setup — unattended fund manager + RH refresh
 
-> **#518 (see `RH_PRODUCER.md`):** prism/Pi is the **live RH producer**.
-> Mac launchd `com.personalworkspace.rh-refresh` must be **unloaded** (no dual-write).
-> Braiins / Coinbase CLI can stay Mac-produced and pushed. RH OAuth lives on Pi.
+> **#518 (see `RH_PRODUCER.md` eng-gate sequence):**
+> **1)** Pi grok + `robinhood-trading` + Chris OAuth **on Pi** (Mac tokens do not travel)
+> **2)** Smoke: Pi refresh writes `robinhood_latest.json` + FCC `as_of` moves
+> **3)** **Then** unload Mac `com.personalworkspace.rh-refresh` (no dual-writer)
+> **4)** NTFY = Pi host + error class
+> Mac re-auth is short-term only until step 2 is green.
+> Wrong: disarm Mac before Pi OAuth is healthy, or invent `as_of`.
 
 Run automation on the **Pi** so ntfy alerts and RH freshness do not depend on the Mac being awake/reauthed in launchd.
 
@@ -15,9 +19,9 @@ Run automation on the **Pi** so ntfy alerts and RH freshness do not depend on th
   url = "https://agent.robinhood.com/mcp/trading"
   enabled = true
   ```
-- Robinhood MCP authenticated for **headless** use on the Pi
+- Robinhood MCP authenticated for **headless** use **on the Pi** (Chris OAuth created there)
 - Host timezone `America/New_York` (or adjust OnCalendar)
-- Optional: Mac → Pi auth sync (`com.personalworkspace.sync-pi-grok-auth` / `projects-dashboard/sync_pi_grok_auth.sh`) after laptop reauths
+- **Do not** copy Mac Grok/RH tokens onto Pi (`sync_pi_grok_auth` is not the producer path)
 
 ## Mac → Pi cutover checklist
 
@@ -45,7 +49,7 @@ Environment=FCC_HOST_TAG=prism
 Environment=TREASURY_RH_ROLE=producer
 ```
 
-### 3) Install timers on Pi
+### 3) Install RH timer on Pi (keep Mac launchd up until smoke)
 ```bash
 sudo cp treasury/deploy/fund-manager.service treasury/deploy/fund-manager.timer /etc/systemd/system/
 sudo cp treasury/deploy/rh-refresh.service treasury/deploy/rh-refresh.timer /etc/systemd/system/
@@ -57,29 +61,25 @@ sudo systemctl enable --now fund-manager-bp-poll.timer
 systemctl list-timers | grep -E 'fund|rh-refresh'
 ```
 
-### 4) Disable Mac RH launchd (no dual-writer — #518)
-On Mac:
+### 4) Smoke on Pi (required before Mac disarm)
+```bash
+which grok
+./treasury/rh_refresh.sh
+# robinhood_latest.json as_of must move; FCC RH age ≪ 6h
+# auth-fail must leave as_of unchanged (no invent)
+```
+
+### 5) Then disable Mac RH launchd (no dual-writer)
+**Only after step 4 is green.** On Mac:
 ```bash
 launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null \
   || launchctl unload ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist 2>/dev/null || true
 rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
-# Optional: also bootout fund-manager-bp-poll if that timer now runs on Pi
-# Do not keep Mac as a second RH writer. Re-auth SOP is on Pi (RH_PRODUCER.md).
 ```
 
-### 5) Verify on Pi
-```bash
-which grok
-python3 -m treasury.fund_manager --rules-review --notify
-./treasury/fund_manager_bp_poll.sh
-# force outside hours:
-FM_BP_POLL_FORCE=1 ./treasury/fund_manager_bp_poll.sh
-tail -50 treasury/snapshots/fund_manager_bp_poll_latest.log
-```
-
-### 6) ntfy host tags
-Alerts include hostname in **title** and **body** (`[hostname] …`) so you can tell Pi vs Mac.
-Override with env `FCC_HOST_TAG=pi` or `config.json` → `notifications.host_tag`.
+### 6) ntfy = Pi host + error class
+Alerts include **producer host** and **error class** (`FCC · RH auth_fail · prism`).
+Unit sets `FCC_HOST_TAG=prism`. Override with `config.json` → `notifications.host_tag`.
 
 **ntfy reply is not a CLI prompt** — inbound replies are not wired to Grok. Alerts only.
 
@@ -111,5 +111,6 @@ Alerts on need_llm / error / stale RH — quiet on routine HOLD.
 Host tag identifies which machine posted.
 
 ## Auth (producer host = Pi)
-See **`RH_PRODUCER.md`** re-auth SOP. Tokens belong on prism, not Mac.
-Box RH MCP is spare only. Success must move `as_of`; auth-fail must leave it.
+See **`RH_PRODUCER.md` step 1**. Chris OAuth is created on Pi. Mac tokens do
+not travel. Box RH MCP is spare only. Success must move `as_of`; auth-fail
+must leave it. Mac re-auth is short-term only until Pi smoke is green.
