@@ -1,6 +1,6 @@
 {
   "source": "live_mcp_http_pi",
-  "as_of": "2026-09-08T14:23:31.069799+00:00",
+  "as_of": "2026-09-08T14:49:30.347901+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,12 +14,12 @@
   "positions": [],
   "agentic": {
     "source": "live_mcp_http_pi",
-    "as_of": "2026-09-08T14:23:31.069795+00:00",
-    "total_value": 293.4437016114,
-    "equity_value": 293.3437016114,
-    "cash": 0.1,
-    "buying_power": 0.1,
-    "unleveraged_buying_power": 0.1,
+    "as_of": "2026-09-08T14:49:30.347897+00:00",
+    "total_value": 293.7011178,
+    "equity_value": 293.6711178,
+    "cash": 0.03,
+    "buying_power": 0.03,
+    "unleveraged_buying_power": 0.03,
     "margin_use": null,
     "currency": "USD",
     "account_number_last4": "1752",
@@ -39,8 +39,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 138.915,
-        "last_trade_price": 138.915
+        "last_price": 137.6936
       },
       {
         "symbol": "MARA",
@@ -54,8 +53,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 11.655,
-        "last_trade_price": 11.655
+        "last_price": 11.65
       },
       {
         "symbol": "TSLA",
@@ -69,8 +67,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 361.565,
-        "last_trade_price": 361.565
+        "last_price": 364.0522
       },
       {
         "symbol": "SPCX",
@@ -84,8 +81,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 148.72,
-        "last_trade_price": 148.72
+        "last_price": 148.2701
       },
       {
         "symbol": "BITA",
@@ -99,8 +95,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 59.56,
-        "last_trade_price": 59.56
+        "last_price": 59.59
       },
       {
         "symbol": "IREN",
@@ -114,8 +109,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 47.615,
-        "last_trade_price": 47.615
+        "last_price": 47.325
       },
       {
         "symbol": "CLSK",
@@ -129,8 +123,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 13.0,
-        "last_trade_price": 13.0
+        "last_price": 13.015
       },
       {
         "symbol": "STRC",
@@ -144,8 +137,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 97.8051,
-        "last_trade_price": 97.8051
+        "last_price": 97.875
       },
       {
         "symbol": "SATA",
@@ -159,8 +151,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 99.995,
-        "last_trade_price": 99.995
+        "last_price": 99.995
       },
       {
         "symbol": "GOOGL",
@@ -174,8 +165,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 334.715,
-        "last_trade_price": 334.715
+        "last_price": 336.3304
       },
       {
         "symbol": "RIOT",
@@ -189,8 +179,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 22.345,
-        "last_trade_price": 22.345
+        "last_price": 22.16
       },
       {
         "symbol": "WULF",
@@ -204,23 +193,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 17.135,
-        "last_trade_price": 17.135
-      },
-      {
-        "symbol": "BE",
-        "quantity": "0.018062",
-        "intraday_quantity": "0.018062",
-        "average_buy_price": "276.820000",
-        "shares_available_for_sells": "0.018062",
-        "shares_held_for_sells": "0.000000",
-        "shares_held_for_stock_grants": "0.000000",
-        "shares_held_for_options_events": "0.000000",
-        "shares_held_for_asset_transfer": "0.000000",
-        "shares_pending_from_options_events": "0.000000",
-        "type": "long",
-        "last_price": 273.32,
-        "last_trade_price": 273.32
+        "last_price": 17.22
       },
       {
         "symbol": "NVDA",
@@ -234,8 +207,21 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 228.15,
-        "last_trade_price": 228.15
+        "last_price": 227.24
+      },
+      {
+        "symbol": "CCJ",
+        "quantity": "0.048543",
+        "intraday_quantity": "0.048543",
+        "average_buy_price": "103.000000",
+        "shares_available_for_sells": "0.048543",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "long",
+        "last_price": 102.9999
       }
     ]
   },
@@ -261,7 +247,7 @@
       "rhs_account_number": "674601752",
       "rhc_account_number": "311264401076",
       "type": "limited_margin",
-      "unsettled_funds": "0.0000",
+      "unsettled_funds": "4.9300",
       "brokerage_account_type": "individual",
       "nickname": "Agentic",
       "is_default": false,
@@ -280,5 +266,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot."
+  "notes": "2026-09-08 ~10:47 ET fund-manager deploy: CCJ $5 filled after BE-exit residual. Mac OAuth revoked; Pi stored OAuth HTTP."
 }

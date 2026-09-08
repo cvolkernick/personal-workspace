@@ -2149,3 +2149,41 @@
 - BUY NVDA $10.0 [filled] 6aa014ed-b7ef-4d26-b373-708a4ac9a1ad
 - BUY BE $5.0 [filled] 6aa014ee-32a3-4b03-80ae-b29db0b9a0cf
 
+
+## 2026-09-08T14:39:37 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.10 BP $25.10 (deployable $25.10 ≥ min_trade $1.00)
+**Book:** NAV $292.1278 · BP $25.1
+**Weights before (deployed):** BTC-complex 0.4038 · Stocks 0.5962
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $292.13 BP $25.10 cash $25.10
+- **thesis:** ok — deployed BTC 0.4038 stocks 0.5962
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+## 2026-09-08T14:37:00 — flatten BE dust (owner exit enforce)
+**Summary:** Nest SoT corrected after morning theme-gap incorrectly reseated BE $5. Watchlist BE → pass/dropped; removed from energy_opportunistic.watchlist_symbols; guardrails.blocked_symbols+=BE; positions.md updated. Live BE lot 0.018062 already flat via sell fill 6aa01d5b-ac89-4b74-9489-0d3cdee5658d @ 272.8301 (agentic ••••1752). Subsequent sell attempt rejected (no shares). Not RH-app recurring — fund-manager Monday $25 deploy chose BE because status was still ready.
+**Account:** 674601752 only
+**Actions:**
+- SELL BE 0.018062 [filled prior] 6aa01d5b-ac89-4b74-9489-0d3cdee5658d
+- Nest: investment/watchlist.json, investment/fund_manager.json, investment/positions.md
+
+
+## 2026-09-08T14:49:30 — deploy
+**Summary:** Mid-session team DEPLOY on agentic ••••1752: BUY CCJ $5.00 filled after BE-exit residual. NAV $293.31 → ~$293.70, cash/BP $5.03 → $0.03. Live mix before ~41.4% BTC-complex / ~58.6% stocks; after expected ~40.7/59.3 (in ±5% band). Energy/nuclear gap filled with first CCJ seat. BE remains blocked (owner exit). pending_deposits $25 phantom. Full research/rotate.
+**Book:** NAV $293.31 · BP $5.03
+**Weights before (deployed):** BTC-complex 0.414 · Stocks 0.586
+**Why now:** User-run fund-manager review ~10:45 ET (mid-session). Live Pi MCP cash/BP $5.03 after BE owner-exit sell at 14:36Z (morning $5 BE buy was an incident). Energy/nuclear theme empty. CCJ dive 2026-08-31 current; first-buy homework done; fractional tradable; tape $0.10. Deployed mix 41.4/58.6 — CCJ $5 restores stocks toward 60%. live_autopilot. pending $25 phantom.
+**Why not alternatives:** Rejected treating pending_deposits $25 as capital. Rejected BE reseat (blocked). Rejected MSTR/TSLA/SPCX/GOOGL/NVDA top-up (held-only inertia). STRC/SATA seats exist (~$21) and credit is ~66% of the BTC complex — logged rebuttal is 40/60 + nuclear gap after BE exit, not 'MSTR covers credit'. Regular-hours STRC/SATA spreads are $0.03/$0.01 so illiquidity is not the rebuttal. This $5 is BE-exit stocks/energy replacement, not idle BTC-complex residual. Did not reject miners for overlap — 5-name sleeve is desired diversification and already complete. BWXT named second nuclear seat — not a basket with CCJ on $5. STRK RV vs STRC fails. Forced TSLA trim blocked as churn. Gold research-only until owner buy call.
+**Team:**
+- **scout:** ok — Agentic ••••1752 live Pi MCP NAV $293.31 equity $288.28 cash/BP $5.03; unsettled $4.93 (BE sale); pending_deposits $25 phantom; held MSTR STRC SATA BITA MARA IREN CLSK RIOT WULF TSLA SPCX GOOGL NVDA; BE sold 14:36Z; deployed ~41.4/58.6 in band; ~10:44 ET mid-session. RH MCP via Pi stored OAuth (Mac session tools disconnected / Mac token revoked).
+- **thesis:** ok — DEPLOY CCJ $5. BE-exit proceeds → empty energy/nuclear gap. CCJ is the named first nuclear dollar (dive 2026-08-31, <90d, +3% vs dive close — not a 25% refresh). STRC/SATA seats ~$21; credit 66% of complex. Not MSTR/TSLA habit. Not a CCJ+BWXT basket. Residual $0.03.
+- **risk:** ok — Agentic cash only; BP $5.03 ≥ min $1; limited_margin still spendable despite unsettled $4.93. CCJ fractional + $0.10 tape. $5 ≈ 1.7% NAV starter. Do not spend pending $25. Do not reseat BE. Miner 5-name is diversification. TSLA 27% is observation, not a trim.
+- **critic:** ok — Block phantom $25. Block BE reseat. Block held-only. STRC/SATA under-allocation: seats exist ~$21; skip of adds is 40/60 + nuclear gap after BE exit, not MSTR-cover; tape tight so liquidity is not the rebuttal. This residual is stocks/energy replacement, not BTC-complex idle. Miner skip of adds is no incremental gap, not overlap-reject. Block CCJ+BWXT basket. Block STRK. Block TSLA trim. No size-down.
+- **executor:** execute — 1 agentic regular_hours GFD market dollar buy: CCJ $5.00 filled 0.048543 @ $102.9999 order 6aa02006-e4c1-4b40-970d-10e678abc224. Residual $0.03. Venue Pi stored OAuth HTTP. Confirmed BE sell 6aa01d5b… already filled 14:36Z (not this pass).
+**Actions:**
+- BUY CCJ $5.0 [filled] 6aa02006-e4c1-4b40-970d-10e678abc224
+- SELL BE $? [filled] 6aa01d5b-ac89-4b74-9489-0d3cdee5658d
+
