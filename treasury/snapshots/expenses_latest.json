@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-09-08T14:39:35.842717+00:00",
+  "as_of": "2026-09-08T15:05:52.469055+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -1000,18 +1000,6 @@
       },
       "items": [
         {
-          "item": "Agentic Fund Allocation",
-          "date": "9/14/2026",
-          "daily": 3.57,
-          "weekly": 25.0,
-          "biweekly": 50.0,
-          "monthly": 108.33,
-          "annually": 1300.0,
-          "from": "X Money",
-          "to": null,
-          "tab": "Collateral"
-        },
-        {
           "item": "JR-strcUSX Allocation",
           "date": "9/11/2026",
           "daily": 5.0,
@@ -1019,6 +1007,18 @@
           "biweekly": 70.0,
           "monthly": 151.67,
           "annually": 1820.0,
+          "from": "X Money",
+          "to": null,
+          "tab": "Collateral"
+        },
+        {
+          "item": "Agentic Fund Allocation",
+          "date": "9/14/2026",
+          "daily": 3.57,
+          "weekly": 25.0,
+          "biweekly": 50.0,
+          "monthly": 108.33,
+          "annually": 1300.0,
           "from": "X Money",
           "to": null,
           "tab": "Collateral"
