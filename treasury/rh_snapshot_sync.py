@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
-"""Refresh local Robinhood snapshot: Mac MCP primary, optional Pi pull, push to Pi.
+"""Refresh Robinhood snapshot. SoT producer is prism/Pi (#518).
 
-P0 (2026-08-03) model — Mac is the live producer; Pi is a consumer of snapshots:
+Issue #518 model — Pi (prism) is the always-on live producer:
 
-  1) Local Grok + Robinhood MCP (default when TREASURY_SKIP_PI=1 / Mac launchd).
-  2) Optional Pi pull if enabled and remote is fresher / within max_age_hours.
-  3) After a successful Mac write, push snapshot files to Pi (offline FCC UI).
-
-Legacy order (prefer_pi=True, skip not set): try Pi SCP first, then local MCP.
+  1) On the producer host: local Grok + robinhood-trading MCP writes
+     ``robinhood_latest.json``. Mac offline/revoked does not block this.
+  2) On Mac (consumer): pull the Pi snapshot. Do not push RH back (no dual-write).
+  3) Mac launchd is backup-only / unloaded. Optional ``TREASURY_RH_ROLE=backup``
+     may run local MCP for laptop FCC but still must not overwrite Pi RH.
+  4) Auth/MCP failure leaves the existing as_of untouched (honest stale).
+  5) Failure NTFY names producer host + error class.
 
 Env (optional):
+  TREASURY_RH_ROLE=producer|backup|consumer
+  TREASURY_RH_PRODUCER=1 / TREASURY_RH_BACKUP=1
+  TREASURY_RH_SOT_HOST=prism
+  TREASURY_RH_PUSH=1           allow Mac→Pi robinhood_latest.json (off by default)
   TREASURY_PI_SSH     e.g. prism-agent@192.168.100.98
   TREASURY_PI_ROOT    e.g. /home/prism-agent/personal-workspace
   TREASURY_PI_CONNECT_TIMEOUT  (seconds, default 5)
   TREASURY_RH_MAX_AGE_HOURS    accept remote only if as_of younger than this (default 6)
   TREASURY_RH_MCP_TIMEOUT_S    local Grok/MCP wall timeout (default 240)
-  TREASURY_SKIP_PI=1           force local MCP only (Mac launchd default)
-  TREASURY_SKIP_LOCAL_MCP=1    do not fall back to grok/MCP
-  TREASURY_SKIP_PUSH_PI=1      do not push snapshots to Pi after success
+  TREASURY_SKIP_PI=1           do not pull from Pi (producer systemd sets this)
+  TREASURY_SKIP_LOCAL_MCP=1    do not run grok/MCP (Mac consumer launchd)
+  TREASURY_SKIP_PUSH_PI=1      do not push non-RH snapshots to Pi
 
-Config (treasury/config.json → pi_sync):
-  ssh, remote_root, connect_timeout_s, max_age_hours, mcp_timeout_s,
-  enabled, push_enabled, push_files
+Config: ``rh_producer.sot_host`` + ``pi_sync`` (ssh / remote_root / timeouts).
 
 Usage:
   python3 -m treasury.rh_snapshot_sync
@@ -62,12 +66,13 @@ DEFAULT_MAX_AGE_H = 6.0
 DEFAULT_MCP_TIMEOUT_S = 240.0
 RH_SNAP = "robinhood_latest.json"
 FM_SNAP = "fund_manager_latest.json"
+RH_PRODUCER_STATUS = "rh_producer_status.json"
+DEFAULT_SOT_HOST = "prism"
+# Mac may still push CB/YNAB/Sheet. RH is Pi SoT — omitted unless TREASURY_RH_PUSH=1.
 DEFAULT_PUSH_FILES = (
-    "robinhood_latest.json",
     "braiins_latest.json",
     "fund_manager_latest.json",
     "treasury_latest.json",
-    # Mac-produced venue feeds (secrets stay on Mac; Pi is offline consumer)
     "coinbase_latest.json",
     "one_card_latest.json",
     "rh_checking_latest.json",
@@ -97,6 +102,150 @@ def _age_hours(as_of: Optional[datetime]) -> Optional[float]:
     if not as_of:
         return None
     return max(0.0, (_now() - as_of).total_seconds() / 3600.0)
+
+
+def classify_rh_error(err: Optional[str]) -> str:
+    """Map a refresh error string to a stable error class (AC4)."""
+    e = (err or "").lower()
+    if not e.strip():
+        return "unknown"
+    auth_needles = (
+        "auth_fail",
+        "oauth",
+        "revok",
+        "unauthorized",
+        "401",
+        "login required",
+        "re-auth",
+        "reauth",
+        "authentication",
+        "token expired",
+        "not authenticated",
+        "mcp auth",
+        "consent",
+    )
+    if any(n in e for n in auth_needles):
+        return "auth_fail"
+    if "timeout" in e:
+        return "timeout"
+    if "grok_not_found" in e or "grok_exit" in e or "grok not" in e:
+        return "grok"
+    if "stale" in e:
+        return "stale"
+    if "unreachable" in e:
+        return "unreachable"
+    if "skipped" in e or e == "no_refresh_path":
+        return "skipped"
+    if "primary_only" in e:
+        return "downgrade"
+    if "mcp" in e or "local_mcp_spawn" in e:
+        return "mcp"
+    return "error"
+
+
+def _this_host() -> str:
+    env = (os.environ.get("FCC_HOST_TAG") or "").strip()
+    if env:
+        return env.split(".")[0]
+    try:
+        import socket
+
+        return (socket.gethostname() or "unknown").split(".")[0]
+    except OSError:
+        return "unknown"
+
+
+def _sot_host() -> str:
+    cfg = load_config() or {}
+    rp = cfg.get("rh_producer") if isinstance(cfg.get("rh_producer"), dict) else {}
+    return (
+        (os.environ.get("TREASURY_RH_SOT_HOST") or "").strip()
+        or str((rp or {}).get("sot_host") or (rp or {}).get("host") or "").strip()
+        or DEFAULT_SOT_HOST
+    )
+
+
+def _rh_role() -> str:
+    """producer = Pi writes SoT; consumer = pull only; backup = Mac MCP, no RH push."""
+    raw = (os.environ.get("TREASURY_RH_ROLE") or "").strip().lower()
+    if raw in ("producer", "backup", "consumer"):
+        return raw
+    if os.environ.get("TREASURY_RH_PRODUCER") == "1":
+        return "producer"
+    if os.environ.get("TREASURY_RH_BACKUP") == "1":
+        return "backup"
+    cfg = load_config() or {}
+    rp = cfg.get("rh_producer") if isinstance(cfg.get("rh_producer"), dict) else {}
+    cfg_role = str((rp or {}).get("role") or "").strip().lower()
+    if cfg_role in ("producer", "backup", "consumer"):
+        return cfg_role
+    host = _this_host().lower()
+    sot = _sot_host().lower()
+    # Only auto-promote obvious prism hosts. systemd must set TREASURY_RH_ROLE=producer.
+    if host and (host == sot or host.startswith("prism")):
+        return "producer"
+    return "consumer"
+
+
+def _strip_rh_push(files: List[str]) -> List[str]:
+    """Drop robinhood_latest.json unless TREASURY_RH_PUSH=1 (no dual-write)."""
+    if os.environ.get("TREASURY_RH_PUSH") == "1":
+        return list(files)
+    return [f for f in files if str(f) != RH_SNAP]
+
+
+def write_producer_status(status: Dict[str, Any]) -> Optional[Path]:
+    dest = SNAPSHOTS_DIR / RH_PRODUCER_STATUS
+    payload = {
+        "ok": bool(status.get("ok")),
+        "as_of": status.get("as_of"),
+        "age_hours": status.get("age_hours"),
+        "source": status.get("source"),
+        "role": status.get("role") or _rh_role(),
+        "producer_host": status.get("producer_host") or _sot_host(),
+        "this_host": status.get("this_host") or _this_host(),
+        "error": status.get("error"),
+        "error_class": status.get("error_class")
+        or classify_rh_error(str(status.get("error") or "")),
+        "written_at": _now().isoformat(),
+    }
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        save_json(dest, payload)
+        return dest
+    except OSError:
+        return None
+
+
+def notify_rh_producer_failure(
+    status: Dict[str, Any], *, force: bool = False
+) -> Dict[str, Any]:
+    """Page on producer-host refresh failure. Title includes host + error class."""
+    role = status.get("role") or _rh_role()
+    if status.get("ok"):
+        return {"ok": True, "notified": False, "reason": "success"}
+    if role != "producer" and not force:
+        return {"ok": True, "notified": False, "reason": "not_producer"}
+    try:
+        from treasury.fund_manager import notify_if_needed
+    except Exception as exc:  # pragma: no cover - import guard
+        return {"ok": False, "notified": False, "error": f"notify_import:{exc}"}
+    host = status.get("producer_host") or _sot_host()
+    err_class = status.get("error_class") or classify_rh_error(
+        str(status.get("error") or "")
+    )
+    err = status.get("error") or "rh_refresh_failed"
+    return notify_if_needed(
+        decision_or_review={"kind": "hold", "outcome": "hold"},
+        treasury_eval={
+            "data_quality": {
+                "stale": [
+                    f"robinhood producer={host} error_class={err_class}: {err}"
+                ]
+            }
+        },
+        force=force,
+    )
 
 
 def _pi_settings() -> Dict[str, Any]:
@@ -149,6 +298,7 @@ def _pi_settings() -> Dict[str, Any]:
     push_files = ps.get("push_files") or list(DEFAULT_PUSH_FILES)
     if not isinstance(push_files, list):
         push_files = list(DEFAULT_PUSH_FILES)
+    push_files = _strip_rh_push([str(x) for x in push_files if x])
     return {
         "ssh": ssh,
         "remote_root": root,
@@ -157,7 +307,7 @@ def _pi_settings() -> Dict[str, Any]:
         "mcp_timeout_s": mcp_timeout,
         "enabled": bool(enabled),
         "push_enabled": bool(push_enabled),
-        "push_files": [str(x) for x in push_files if x],
+        "push_files": push_files,
     }
 
 
@@ -488,9 +638,34 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
         out["stderr_tail"] = (r.stderr or "")[-300:]
     except subprocess.TimeoutExpired:
         out["error"] = f"local_mcp_timeout:{timeout_s}s"
+        out["error_class"] = "timeout"
+        _attach_existing_as_of(out, dest)
         return out
     except OSError as e:
         out["error"] = f"local_mcp_spawn:{e}"
+        out["error_class"] = "mcp"
+        _attach_existing_as_of(out, dest)
+        return out
+
+    blob = " ".join(
+        [
+            out.get("error") or "",
+            (r.stdout if r is not None else "") or "",
+            (r.stderr if r is not None else "") or "",
+        ]
+    )
+    err_class = classify_rh_error(blob)
+    grok_failed = r is not None and r.returncode != 0
+    if grok_failed or err_class == "auth_fail":
+        if err_class == "auth_fail":
+            out["error"] = "auth_fail"
+            out["error_class"] = "auth_fail"
+        else:
+            out["error"] = out.get("error") or f"grok_exit_{r.returncode}"
+            out["error_class"] = classify_rh_error(out["error"] + " " + blob)
+        out["ok"] = False
+        out["note"] = "left_existing_snapshot"
+        _attach_existing_as_of(out, dest)
         return out
 
     if dest.is_file():
@@ -501,20 +676,31 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
         if ok and (before_mtime is None or after_mtime > before_mtime + 0.5):
             out["ok"] = True
             out["error"] = None
+            out["error_class"] = None
             return out
         if ok and as_of and (_age_hours(as_of) or 99) < 6:
-            # file already fresh enough
+            # grok exited 0 and file is still inside the freshness window
             out["ok"] = True
             out["error"] = None
+            out["error_class"] = None
             out["note"] = "snapshot_already_fresh"
             return out
         out["error"] = out.get("error") or f"snapshot_not_updated:{why}"
+        out["error_class"] = classify_rh_error(out["error"])
     else:
         out["error"] = "snapshot_missing_after_mcp"
-
-    if r is not None and r.returncode != 0 and not out["ok"]:
-        out["error"] = out.get("error") or f"grok_exit_{r.returncode}"
+        out["error_class"] = "mcp"
     return out
+
+
+def _attach_existing_as_of(out: Dict[str, Any], dest: Path) -> None:
+    """Keep the last honest as_of on failure — never invent a new stamp."""
+    if not dest.is_file():
+        return
+    ok, as_of, _ = _valid_rh_snapshot(dest)
+    if ok and as_of:
+        out["as_of"] = as_of.isoformat()
+        out["age_hours"] = round(_age_hours(as_of) or 0.0, 2)
 
 
 def push_snapshots_to_pi(
@@ -681,8 +867,12 @@ def sync_rh_snapshot(
     allow_local_mcp: bool = True,
     reevaluate: bool = True,
     push_to_pi: bool = True,
+    notify: bool = True,
 ) -> Dict[str, Any]:
-    """Optional Pi pull, then local MCP. Push Mac snapshots to Pi on local success."""
+    """Role-aware RH refresh. Producer (Pi) writes locally; Mac does not overwrite Pi."""
+    role = _rh_role()
+    sot = _sot_host()
+    host = _this_host()
     result: Dict[str, Any] = {
         "ok": False,
         "source": None,
@@ -690,7 +880,40 @@ def sync_rh_snapshot(
         "local_mcp": None,
         "push": None,
         "error": None,
+        "error_class": None,
+        "role": role,
+        "producer_host": sot,
+        "this_host": host,
     }
+
+    if role == "producer":
+        # Pi must not SSH to itself or echo RH back over SCP.
+        prefer_pi = False
+        push_to_pi = False
+    elif role == "consumer" and os.environ.get("TREASURY_RH_BACKUP") != "1":
+        # Scheduled Mac path pulls Pi. Local MCP is laptop-only backup.
+        pass
+
+    def _finish(payload: Dict[str, Any]) -> Dict[str, Any]:
+        if payload.get("error") and not payload.get("error_class"):
+            payload["error_class"] = classify_rh_error(str(payload.get("error") or ""))
+        if payload.get("local_mcp") and isinstance(payload["local_mcp"], dict):
+            lm = payload["local_mcp"]
+            if lm.get("error") and not payload.get("error"):
+                payload["error"] = lm.get("error")
+                payload["error_class"] = lm.get("error_class") or classify_rh_error(
+                    str(lm.get("error") or "")
+                )
+        try:
+            write_producer_status(payload)
+        except Exception:
+            pass
+        if notify and (not payload.get("ok")) and role == "producer":
+            try:
+                payload["notify"] = notify_rh_producer_failure(payload)
+            except Exception as exc:
+                payload["notify"] = {"ok": False, "error": str(exc)}
+        return payload
 
     if prefer_pi and os.environ.get("TREASURY_SKIP_PI") != "1":
         pi = pull_from_pi()
@@ -704,7 +927,7 @@ def sync_rh_snapshot(
             if reevaluate:
                 reevaluate_offline()
             # Pi was source — no push (would echo same files back)
-            return result
+            return _finish(result)
         if str(pi.get("error") or "") == "primary_only_downgrade":
             fresh, as_of, age, path = _local_dual_fresh()
             if fresh:
@@ -715,7 +938,7 @@ def sync_rh_snapshot(
                 result["path"] = str(path)
                 result["error"] = None
                 result["note"] = "rejected_pi_primary_only_downgrade"
-                return result
+                return _finish(result)
 
     if allow_local_mcp and os.environ.get("TREASURY_SKIP_LOCAL_MCP") != "1":
         local = refresh_via_local_mcp()
@@ -730,12 +953,15 @@ def sync_rh_snapshot(
                 reevaluate_offline()
             if push_to_pi:
                 result["push"] = push_snapshots_to_pi()
-            return result
+            return _finish(result)
         result["error"] = local.get("error") or (result.get("pi") or {}).get("error")
-        return result
+        result["error_class"] = local.get("error_class") or classify_rh_error(
+            str(result.get("error") or "")
+        )
+        return _finish(result)
 
     result["error"] = (result.get("pi") or {}).get("error") or "no_refresh_path"
-    return result
+    return _finish(result)
 
 
 def main(argv: Optional[List[str]] = None) -> int:

@@ -50,8 +50,9 @@ else
   echo "WARN: run_treasury offline failed"
 fi
 
+# Non-RH snapshots only (robinhood_latest.json is Pi SoT — #518)
 if "$PY" -m treasury.rh_snapshot_sync --push-only; then
-  echo "push_to_pi: ok (or disabled)"
+  echo "push_to_pi: ok (or disabled; RH excluded)"
 else
   echo "WARN: push_to_pi failed (Pi off-LAN is fine)"
 fi

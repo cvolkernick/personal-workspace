@@ -495,7 +495,7 @@ def collect_data_requests(
                 {
                     "field": "rh_trade_snapshot",
                     "why": "Robinhood trade snapshot stale — agentic BP/cash advisory may be wrong.",
-                    "how": "Run treasury/rh_refresh.sh or live MCP rh_sync.",
+                    "how": "On prism/Pi: treasury/rh_refresh.sh (SoT). Mac pulls; do not dual-write.",
                 }
             )
 

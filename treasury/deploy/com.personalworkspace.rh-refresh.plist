@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Install (macOS user launchd) — refresh RH every 3 hours (Mac MCP primary):
-    cp treasury/deploy/com.personalworkspace.rh-refresh.plist ~/Library/LaunchAgents/
-    launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null || true
-    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
+  BACKUP / CONSUMER ONLY — Issue #518.
 
-  Unload:
-    launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh
+  Eng-gate: do NOT bootout this unit until Pi OAuth is healthy AND
+  Pi smoke has moved robinhood_latest.json / FCC as_of (RH_PRODUCER.md
+  steps 1–2). Disarming first = no writer. Leaving it loaded after Pi
+  SoT = dual-writer. Mac tokens do not travel.
+
+  Disarm (step 3 — only after Pi smoke green):
+    launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null || true
+    rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
+
+  Optional backup (laptop FCC only; still no RH push):
+    export TREASURY_RH_ROLE=backup   # then load this plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 -->
 <plist version="1.0">
 <dict>
@@ -28,8 +35,14 @@
     <string>/Users/cvolkernick</string>
     <key>FCC_HOST_TAG</key>
     <string>mac</string>
-    <!-- Mac is live RH producer; do not re-copy stale Pi snapshots -->
-    <key>TREASURY_SKIP_PI</key>
+    <key>TREASURY_RH_ROLE</key>
+    <string>consumer</string>
+    <key>TREASURY_RH_SOT_HOST</key>
+    <string>prism</string>
+    <!-- Pull Pi SoT; do not run Mac MCP; do not push RH back -->
+    <key>TREASURY_SKIP_LOCAL_MCP</key>
+    <string>1</string>
+    <key>TREASURY_SKIP_PUSH_PI</key>
     <string>1</string>
     <key>TREASURY_RH_MCP_TIMEOUT_S</key>
     <string>240</string>

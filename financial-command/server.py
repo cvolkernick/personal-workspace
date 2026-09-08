@@ -983,8 +983,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 except Exception:
                     pass
                 if not offline:
-                    # RH: Pi snapshot first. Local MCP only when explicitly requested
-                    # (launchd rh_refresh owns the slow path by default).
+                    # RH: producer (Pi) writes locally; Mac Refresh pulls Pi.
+                    # Local Grok+MCP is opt-in (rh_mcp / FCC_REFRESH_RH_MCP).
+                    # systemd rh-refresh.timer owns the 3h producer path.
                     try:
                         from treasury.rh_snapshot_sync import sync_rh_snapshot
 
@@ -992,6 +993,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                             prefer_pi=True,
                             allow_local_mcp=rh_mcp,
                             reevaluate=False,
+                            notify=False,
                         )
                         if rh.get("ok"):
                             report["robinhood"] = f"ok:{rh.get('source')}"
@@ -1009,6 +1011,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
                                 "pi": (rh.get("pi") or {}).get("error"),
                                 "local_mcp": (rh.get("local_mcp") or {}).get("error"),
                                 "rh_mcp_enabled": rh_mcp,
+                                "role": rh.get("role"),
+                                "producer_host": rh.get("producer_host"),
+                                "error_class": rh.get("error_class"),
                             }
                             sys.stderr.write(
                                 f"[fcc] rh_snapshot_sync failed: {report['robinhood']}\n"
@@ -1016,7 +1021,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except Exception as rexc:
                         report["robinhood"] = f"error: {rexc}"
                         sys.stderr.write(f"[fcc] rh_snapshot_sync warning: {rexc}\n")
-                    # Always push venue snapshots to Pi so iPad offline FCC ages move
+                    # Push non-RH venue snapshots to Pi (RH is Pi SoT — not in push set)
                     try:
                         from treasury.rh_snapshot_sync import push_snapshots_to_pi
 
@@ -1027,7 +1032,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 else:
                     report["note"] = (
                         "offline_consumer: re-read snapshots only "
-                        "(live feeds produced on Mac and pushed to this host)"
+                        "(RH produced on prism/Pi; other Mac-only feeds may be pushed)"
                     )
             except SystemExit as e:
                 code = e.code if e.code is not None else 0

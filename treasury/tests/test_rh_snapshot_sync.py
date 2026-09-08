@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -236,6 +237,176 @@ class RhSnapshotSyncTests(unittest.TestCase):
             written = json.loads((snap_dir / rss.RH_SNAP).read_text(encoding="utf-8"))
             self.assertIn("primary", written)
             self.assertNotIn("agentic", written)
+
+
+class RhProducerRoleTests(unittest.TestCase):
+    def test_classify_rh_error(self) -> None:
+        self.assertEqual(rss.classify_rh_error("oauth revoked"), "auth_fail")
+        self.assertEqual(rss.classify_rh_error("auth_fail"), "auth_fail")
+        self.assertEqual(rss.classify_rh_error("local_mcp_timeout:240s"), "timeout")
+        self.assertEqual(rss.classify_rh_error("grok_not_found"), "grok")
+        self.assertEqual(rss.classify_rh_error("pi_unreachable:x"), "unreachable")
+        self.assertEqual(rss.classify_rh_error("remote_stale:50.1h>6h"), "stale")
+        self.assertEqual(rss.classify_rh_error(""), "unknown")
+
+    def test_strip_rh_push_default_no_dual_write(self) -> None:
+        files = ["robinhood_latest.json", "coinbase_latest.json"]
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("TREASURY_RH_PUSH", None)
+            out = rss._strip_rh_push(files)
+        self.assertNotIn("robinhood_latest.json", out)
+        self.assertIn("coinbase_latest.json", out)
+
+    def test_strip_rh_push_explicit_override(self) -> None:
+        files = ["robinhood_latest.json", "coinbase_latest.json"]
+        with mock.patch.dict(os.environ, {"TREASURY_RH_PUSH": "1"}):
+            out = rss._strip_rh_push(files)
+        self.assertIn("robinhood_latest.json", out)
+
+    def test_role_env_producer(self) -> None:
+        with mock.patch.dict(os.environ, {"TREASURY_RH_ROLE": "producer"}):
+            self.assertEqual(rss._rh_role(), "producer")
+        with mock.patch.dict(os.environ, {"TREASURY_RH_ROLE": "consumer"}):
+            self.assertEqual(rss._rh_role(), "consumer")
+        cleared = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("TREASURY_RH_ROLE", "TREASURY_RH_PRODUCER", "TREASURY_RH_BACKUP")
+        }
+        cleared["TREASURY_RH_BACKUP"] = "1"
+        with mock.patch.dict(os.environ, cleared, clear=True):
+            self.assertEqual(rss._rh_role(), "backup")
+
+    def test_producer_skips_pi_pull_and_rh_push(self) -> None:
+        local_ok = {
+            "ok": True,
+            "source": "local_mcp",
+            "as_of": datetime.now(timezone.utc).isoformat(),
+            "path": "/tmp/y",
+        }
+        with mock.patch.dict(os.environ, {"TREASURY_RH_ROLE": "producer"}), mock.patch.object(
+            rss, "pull_from_pi"
+        ) as pull, mock.patch.object(
+            rss, "refresh_via_local_mcp", return_value=local_ok
+        ), mock.patch.object(
+            rss, "push_snapshots_to_pi"
+        ) as push, mock.patch.object(
+            rss, "write_producer_status"
+        ), mock.patch.object(
+            rss, "reevaluate_offline"
+        ):
+            out = rss.sync_rh_snapshot(
+                prefer_pi=True,
+                allow_local_mcp=True,
+                reevaluate=False,
+                push_to_pi=True,
+                notify=False,
+            )
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["role"], "producer")
+        self.assertEqual(out["source"], "local_mcp")
+        pull.assert_not_called()
+        push.assert_not_called()
+
+    def test_consumer_does_not_run_mcp_when_pi_ok(self) -> None:
+        pi_ok = {
+            "ok": True,
+            "source": "pi",
+            "as_of": datetime.now(timezone.utc).isoformat(),
+            "age_hours": 0.4,
+            "path": "/tmp/x",
+        }
+        with mock.patch.dict(os.environ, {"TREASURY_RH_ROLE": "consumer"}), mock.patch.object(
+            rss, "pull_from_pi", return_value=pi_ok
+        ), mock.patch.object(
+            rss, "refresh_via_local_mcp"
+        ) as local, mock.patch.object(
+            rss, "write_producer_status"
+        ), mock.patch.object(
+            rss, "reevaluate_offline"
+        ):
+            out = rss.sync_rh_snapshot(
+                prefer_pi=True, allow_local_mcp=True, reevaluate=False, notify=False
+            )
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["source"], "pi")
+        local.assert_not_called()
+
+    def test_auth_fail_refresh_does_not_invent(self) -> None:
+        as_of = datetime.now(timezone.utc) - timedelta(hours=2)
+        with tempfile.TemporaryDirectory() as td:
+            snap_dir = Path(td)
+            dest = snap_dir / rss.RH_SNAP
+            dest.write_text(
+                json.dumps(
+                    {
+                        "as_of": as_of.isoformat(),
+                        "source": "live",
+                        "primary": {"buying_power": 1.0},
+                        "agentic": {"nav_usd": 100},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            before = json.loads(dest.read_text(encoding="utf-8"))
+            fake = mock.Mock(returncode=1, stdout="MCP OAuth revoked / unauthorized", stderr="")
+            with mock.patch.object(rss, "SNAPSHOTS_DIR", snap_dir), mock.patch.object(
+                rss, "shutil"
+            ) as sh, mock.patch("subprocess.run", return_value=fake):
+                sh.which.return_value = "/usr/bin/grok"
+                prompt = Path(td) / "rh_refresh_prompt.txt"
+                # module reads ROOT/treasury/rh_refresh_prompt.txt — keep real prompt
+                out = rss.refresh_via_local_mcp(timeout_s=5)
+            after = json.loads(dest.read_text(encoding="utf-8"))
+            self.assertFalse(out["ok"])
+            self.assertEqual(out["error_class"], "auth_fail")
+            self.assertEqual(out.get("note"), "left_existing_snapshot")
+            self.assertEqual(after["as_of"], before["as_of"])
+            self.assertNotEqual(out.get("as_of"), datetime.now(timezone.utc).isoformat())
+
+
+class RhNotifyAc4Tests(unittest.TestCase):
+    def test_stale_notify_names_producer_and_error_class(self) -> None:
+        from treasury.fund_manager import notify_if_needed
+        from treasury import fund_manager as fm
+
+        stale_eval = {
+            "data_quality": {
+                "stale": ["robinhood snapshot is old"],
+                "warnings": [],
+            }
+        }
+        status = {
+            "ok": False,
+            "producer_host": "prism",
+            "this_host": "prism",
+            "error_class": "auth_fail",
+            "error": "auth_fail",
+        }
+        with tempfile.TemporaryDirectory() as td:
+            snap = Path(td)
+            state = snap / "ntfy_stale_rh_state.json"
+            prod = snap / "rh_producer_status.json"
+            prod.write_text(json.dumps(status), encoding="utf-8")
+            with mock.patch.object(fm, "NTFY_STALE_RH_STATE", state), mock.patch.object(
+                fm, "SNAPSHOTS_DIR", snap
+            ), mock.patch.object(
+                fm,
+                "load_config",
+                return_value={"notifications": {"enabled": True, "stale_rh_cooldown_hours": 6}},
+            ), mock.patch("urllib.request.urlopen") as urlopen:
+                resp = mock.MagicMock()
+                resp.status = 200
+                resp.__enter__.return_value = resp
+                resp.__exit__.return_value = None
+                urlopen.return_value = resp
+                out = notify_if_needed(
+                    decision_or_review={"kind": "hold", "outcome": "hold"},
+                    treasury_eval=stale_eval,
+                )
+        self.assertTrue(out.get("notified"), out)
+        self.assertIn("auth_fail", out.get("title") or "")
+        self.assertIn("prism", out.get("title") or "")
 
 
 def _fake_pi_settings() -> dict:
