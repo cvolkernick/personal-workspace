@@ -3497,6 +3497,7 @@
     });
     if (!items.length) {
       list.innerHTML = `<li class="muted">No movements in the catalog universe.</li>`;
+      refreshExerciseNameSelects();
       return;
     }
     const owned = new Set(
@@ -3610,6 +3611,50 @@
       </div>
       ${typeof invCarouselShell === "function" ? invCarouselShell("lib-remove-carousel", slides) : `<div class="inv-cards">${slides}</div>`}
     </div>`;
+  }
+
+  async function submitLibraryAdd(ev) {
+    ev.preventDefault();
+    const status = $("lib-add-status");
+    const name = $("lib-add-name") && $("lib-add-name").value.trim();
+    const session = $("lib-add-session") && $("lib-add-session").value;
+    const muscle = $("lib-add-muscle") && $("lib-add-muscle").value;
+    const movement = $("lib-add-movement") && $("lib-add-movement").value;
+    const tagSel = $("lib-add-equipment");
+    const equipment = tagSel
+      ? Array.from(tagSel.selectedOptions || [])
+          .map((opt) => String(opt.value || "").trim())
+          .filter(Boolean)
+      : [];
+    const body = {
+      name,
+      session_types: session ? [session] : [],
+      primary_muscles: muscle ? [muscle] : [],
+      movement: movement || "compound",
+      equipment,
+      available: true,
+    };
+    try {
+      const res = await fetch("/api/workout/exercise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+      if (status) status.textContent = "Added to library";
+      showAlert(`Movement added: ${name}`, "ok");
+      if ($("lib-add-name")) $("lib-add-name").value = "";
+      if (data.catalog && state && state.workout_store) {
+        state.workout_store.catalog = data.catalog;
+        renderExerciseCatalog(state.workout_store);
+      }
+      await loadDashboard(false);
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`Add movement failed: ${e.message}`, "err");
+    }
   }
 
   async function applyLibraryMembership(exerciseId, available) {
@@ -6512,6 +6557,9 @@
 
     if ($("equipment-form")) {
       $("equipment-form").addEventListener("submit", submitEquipmentInventory);
+    }
+    if ($("library-add-form")) {
+      $("library-add-form").addEventListener("submit", submitLibraryAdd);
     }
     if (!document.body.dataset.libraryBound) {
       document.body.dataset.libraryBound = "1";

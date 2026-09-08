@@ -70,16 +70,22 @@ class LogLibrarySelect(unittest.TestCase):
     def test_help_copy_points_at_library(self):
         log = HTML[HTML.find('id="log-card"') : HTML.find('id="history-card"')]
         self.assertIn("exercise library", log)
+        self.assertIn("More → Exercise library", log)
+        self.assertIn("Log cannot take a typed name", log)
+        self.assertNotIn("Add a movement there if it is missing", log)
         self.assertNotIn("e.g. DB Flat Press", log)
 
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v81"', SW)
-        self.assertIn("/app.js?v=restock-stock-1", HTML)
-        self.assertIn("/app.js?v=restock-stock-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v82"', SW)
+        self.assertIn("/app.js?v=library-add-1", HTML)
+        self.assertIn("/app.js?v=library-add-1", SW)
+        self.assertNotIn("/app.js?v=restock-stock-1", HTML)
+        self.assertNotIn("/app.js?v=restock-stock-1", SW)
         self.assertNotIn("/app.js?v=log-lib-select-1", HTML)
         self.assertNotIn("/app.js?v=log-lib-select-1", SW)
         self.assertNotIn("/app.js?v=ask-429-1", HTML)
         self.assertNotIn("/app.js?v=ask-429-1", SW)
+        self.assertNotIn("fitdash-shell-v81", SW)
         self.assertNotIn("fitdash-shell-v80", SW)
         self.assertNotIn("fitdash-shell-v79", SW)
 

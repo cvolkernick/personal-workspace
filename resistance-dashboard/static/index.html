@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=restock-stock-1" defer></script>
+    <script src="/app.js?v=library-add-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -708,13 +708,76 @@
         <article class="card-fill" id="exercise-catalog-card">
           <h2>Exercise library</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            Programmed movements Today reads. Catalog file is the universe;
-            <code>available=true</code> (or an applied overlay) is the library.
-            Coach suggests add/remove from equipment + logs. Apply is explicit.
+            Programmed movements Today reads. Catalog file is the shipped
+            universe; Add writes a live custom row (Turso) and enables it.
+            Required equipment tags must already be on Equipment inventory.
+            Today stays until the next generate.
           </p>
           <p class="muted mobile-help" hidden>
-            Library is what Today uses. Coach suggests; you apply.
+            Library is what Today uses. Add a movement here; generate later.
           </p>
+          <form class="log-form" id="library-add-form">
+            <div class="row cols-3">
+              <label>
+                Name
+                <input type="text" id="lib-add-name" required placeholder="e.g. Nordic Curl" />
+              </label>
+              <label>
+                Session
+                <select id="lib-add-session" required>
+                  <option value="push">Push</option>
+                  <option value="pull">Pull</option>
+                  <option value="legs">Legs</option>
+                </select>
+              </label>
+              <label>
+                Primary muscle
+                <select id="lib-add-muscle" required>
+                  <option value="chest">chest</option>
+                  <option value="mid_upper_back">mid/upper back</option>
+                  <option value="lats">lats</option>
+                  <option value="delts">delts</option>
+                  <option value="biceps">biceps</option>
+                  <option value="triceps">triceps</option>
+                  <option value="quads">quads</option>
+                  <option value="hamstrings">hamstrings</option>
+                  <option value="calves">calves</option>
+                  <option value="glutes">glutes</option>
+                  <option value="adductors">adductors</option>
+                  <option value="abs">abs</option>
+                  <option value="traps">traps</option>
+                </select>
+              </label>
+            </div>
+            <div class="row cols-3">
+              <label>
+                Movement
+                <select id="lib-add-movement" required>
+                  <option value="compound">compound</option>
+                  <option value="isolation">isolation</option>
+                </select>
+              </label>
+              <label>
+                Equipment tags
+                <select id="lib-add-equipment" multiple size="4">
+                  <option value="dumbbells">dumbbells</option>
+                  <option value="barbell">barbell</option>
+                  <option value="bench">bench</option>
+                  <option value="incline_bench">incline bench</option>
+                  <option value="cable">cable</option>
+                  <option value="lat_pulldown">lat pulldown</option>
+                  <option value="assisted_pullup">assisted pullup</option>
+                  <option value="machine">machine</option>
+                  <option value="smith_machine">smith machine</option>
+                  <option value="leg_press">leg press</option>
+                </select>
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="primary">Add movement</button>
+            </div>
+            <p class="muted" id="lib-add-status" style="margin: 0"></p>
+          </form>
           <div id="library-suggestions" class="inv-suggestions" style="margin-top: 0.75rem"></div>
           <div id="library-removals" class="inv-suggestions" style="margin-top: 0.75rem"></div>
           <ul class="session-list exercise-catalog-scroll" id="exercise-catalog-list" style="margin-top: 0.75rem"></ul>
@@ -747,8 +810,8 @@
             (saved as <code>50 lbs x 1 x 10, 45 lbs x 1 x 8</code>). Same load for all
             sets: one set row with Sets = 3. PR is auto-tagged from history on save.
             Completing a lift quest auto-logs that exercise. Manual entries pick
-            from the exercise library (More → catalog). Add a movement there if
-            it is missing.
+            from the exercise library only (More → Exercise library). Add a new
+            movement on that screen if it is missing — Log cannot take a typed name.
           </p>
           <div id="exercise-rows"></div>
           <div class="actions log-actions">

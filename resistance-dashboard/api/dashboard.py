@@ -447,12 +447,15 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     catalog, catalog_src = load_workspace_catalog()
     uid = str(user.get("id") or "")
     equipment, equipment_src = load_preview_equipment(uid)
+    from rt_dashboard.custom_movements import load_custom_movements, merge_custom_universe
     from rt_dashboard.library_groom import (
         suggest_library_additions,
         suggest_library_removals,
     )
     from rt_dashboard.library_store import apply_library_overlay, load_library_overlay
 
+    custom, custom_src = load_custom_movements(uid)
+    catalog = merge_custom_universe(catalog, custom)
     overlay, library_src = load_library_overlay(uid)
     catalog = apply_library_overlay(catalog, overlay)
     # Frankenfit: catalog names/movements only. Set caps from goals, never default_sets=3.
@@ -525,6 +528,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "library_removals": library_removals,
         "sources": {
             "catalog": catalog_src,
+            "custom": custom_src,
             "goals": goals_src,
             "equipment": equipment_src,
             "library": library_src,
