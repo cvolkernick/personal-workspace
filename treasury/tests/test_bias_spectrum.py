@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -398,19 +399,118 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
             naive_by["NVDA"]["weight_pct"], by_after["NVDA"]["weight_pct"]
         )
 
-    def test_disk_consider_share_json_drops_be_and_keeps_flags(self) -> None:
+    def test_disk_consider_share_json_tsla_spcx_only_and_flags(self) -> None:
         raw = (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
         self.assertNotIn("$100", raw)
         self.assertNotIn("monthly $100", raw.lower())
-        data = __import__("json").loads(raw)
+        data = json.loads(raw)
+        self.assertEqual(data["as_of"], "2026-09-08")
+        self.assertEqual(data["schema"], "fcc_consider_share_stamps_v0")
+        self.assertEqual(data["unit"], "new_money_consider_share_pct")
+        self.assertEqual(data["sum_to"], 100)
         self.assertEqual(data["pins"], {"TSLA": 15.0, "SPCX": 15.0})
+        self.assertNotIn("BITA", data["pins"])
+        self.assertNotIn("STRC", data["pins"])
+        self.assertNotIn("MARA", data["pins"])
+        self.assertNotIn("NVDA", data["pins"])
+        notes = data["notes"]
+        self.assertIn("superseded", notes.lower())
+        self.assertIn("BITA", notes)
+        self.assertIn("STRC", notes)
+        self.assertIn("MARA", notes)
+        self.assertIn("NVDA", notes)
         self.assertEqual(data["reallocate"], {"BE": ["TSLA", "SPCX"]})
         self.assertTrue(data["not_a_nav_target"])
         self.assertTrue(data["not_a_sleeve_target"])
         self.assertTrue(data["not_an_order"])
         self.assertTrue(data["not_for_autopilot"])
         self.assertTrue(data["not_for_monday_residual"])
+        self.assertTrue(data["not_a_forced_rebalance"])
+        self.assertTrue(data["authoritative_for_bias_pins"])
         self.assertIn("fund_manager.py", data["notes"])
+        self.assertIn("theme-gap", data["notes"])
+
+    def test_two_pin_overlay_unpins_bita_strc_mara_nvda(self) -> None:
+        """TSLA/SPCX stamp; BITA/STRC/MARA/NVDA float; residual + pins ~100; no Other."""
+        stamps = json.loads(
+            (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(stamps["pins"], {"TSLA": 15.0, "SPCX": 15.0})
+        policy = _policy()
+        policy["allowlist"]["core"] = [
+            "MSTR",
+            "STRC",
+            "SATA",
+            "TSLA",
+            "SPCX",
+            "BITA",
+            "MARA",
+        ]
+        policy["sleeves"]["btc_digital_credit"]["symbols"] = [
+            "MSTR",
+            "STRC",
+            "SATA",
+            "BITA",
+            "MARA",
+        ]
+        policy["sleeves"]["stocks_growth"]["symbols"] = ["TSLA", "SPCX"]
+        policy["sleeves"]["stocks_growth"]["watchlist_symbols"] = ["NVDA", "PLTR"]
+        policy["sleeves"]["energy_opportunistic"]["watchlist_symbols"] = []
+        watch = {
+            "entries": [e for e in _watchlist()["entries"] if e.get("symbol") != "BE"]
+        }
+        payload = build_bias_spectrum(
+            fund_manager=_fm(),
+            treasury={},
+            policy=policy,
+            watchlist=watch,
+            consider_share_stamps=stamps,
+        )
+        by = {c["symbol"]: c for c in payload["chips"]}
+        self.assertNotIn("BE", by)
+        self.assertNotIn("Other", by)
+        self.assertFalse(
+            any(
+                str(c.get("symbol") or "").upper() == "OTHER"
+                or str(c.get("kind") or "").lower() == "other"
+                for c in payload["chips"]
+            )
+        )
+        for sym in ("TSLA", "SPCX"):
+            self.assertIn(sym, by)
+            self.assertAlmostEqual(by[sym]["weight_pct"], 15.0)
+            self.assertEqual(by[sym]["weight_basis"], "consider_share_stamp")
+            self.assertTrue(by[sym]["consider_share_stamp"])
+            self.assertIn("NOT a live NAV", by[sym]["notes"])
+            self.assertIn("NOT a sleeve target", by[sym]["notes"])
+            self.assertIn("NOT an order", by[sym]["notes"])
+        superseded = {"BITA": 2.0, "STRC": 5.0, "MARA": 3.0, "NVDA": 5.0}
+        for sym, old_pin in superseded.items():
+            self.assertIn(sym, by)
+            self.assertFalse(by[sym].get("consider_share_stamp"))
+            self.assertEqual(by[sym]["weight_basis"], "new_money_consider_share")
+            self.assertNotAlmostEqual(by[sym]["weight_pct"], old_pin)
+        residual = sum(
+            float(c["weight_pct"])
+            for c in payload["chips"]
+            if c["symbol"] not in ("TSLA", "SPCX")
+        )
+        self.assertAlmostEqual(30.0 + residual, 100.0, places=1)
+        self.assertAlmostEqual(
+            sum(float(c["weight_pct"]) for c in payload["chips"]), 100.0, places=1
+        )
+        self.assertGreater(residual, 0.0)
+        self.assertCountEqual(payload["consider_share_stamps"], ["TSLA", "SPCX"])
+        # Historical BE→TSLA/SPCX reallocate stays in the file; absent BE is harmless.
+        self.assertEqual(stamps.get("reallocate"), {"BE": ["TSLA", "SPCX"]})
+        self.assertTrue(payload["policy"]["consider_share_stamps_applied"])
+        self.assertTrue(payload["policy"]["consider_share_stamps_are_not_nav_targets"])
+        self.assertTrue(payload["policy"]["consider_share_stamps_are_not_sleeve_targets"])
+        self.assertTrue(payload["policy"]["consider_share_stamps_are_not_orders"])
+        notes = " ".join(payload.get("notes") or [])
+        self.assertIn("TSLA", notes)
+        self.assertIn("SPCX", notes)
+        self.assertIn("consider_share.json", notes)
 
     def test_injected_watchlist_does_not_load_disk_stamps(self) -> None:
         """Role-score fixtures stay isolated from investment/consider_share.json."""

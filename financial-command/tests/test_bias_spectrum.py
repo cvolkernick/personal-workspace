@@ -119,6 +119,10 @@ class TestBiasSpectrumApi(unittest.TestCase):
         self.assertTrue(pol.get("consider_share_stamps_are_not_nav_targets"))
         self.assertTrue(pol.get("consider_share_stamps_are_not_sleeve_targets"))
         self.assertTrue(pol.get("consider_share_stamps_are_not_orders"))
+        stamps = json.loads(
+            (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
+        )
+        pins = {str(k).upper(): float(v) for k, v in stamps["pins"].items()}
         for chip in data.get("chips") or []:
             self.assertIn(chip.get("kind"), ("held", "consider"))
             if chip.get("sleeve") == "btc_digital_credit":
@@ -137,34 +141,37 @@ class TestBiasSpectrumApi(unittest.TestCase):
             self.assertNotIn("target_weight", chip)
             if chip.get("consider_share_stamp"):
                 self.assertEqual(chip.get("weight_basis"), "consider_share_stamp")
-                self.assertIn(chip.get("symbol"), ("TSLA", "SPCX"))
+                self.assertIn(chip.get("symbol"), pins)
+                self.assertAlmostEqual(
+                    float(chip.get("weight_pct")), float(pins[chip["symbol"]]), places=2
+                )
                 self.assertIn("NOT a live NAV", chip.get("notes") or "")
                 self.assertNotIn("$100", chip.get("notes") or "")
 
         symbols = {c.get("symbol") for c in data.get("chips") or []}
         self.assertNotIn("BE", symbols)
+        self.assertNotIn("Other", symbols)
         stamped = [c for c in (data.get("chips") or []) if c.get("consider_share_stamp")]
         self.assertTrue(stamped)
         self.assertCountEqual([c.get("symbol") for c in stamped], ["TSLA", "SPCX"])
-        baseline = build_bias_spectrum(
-            fund_manager={"ok": False},
-            treasury={},
-            consider_share_stamps={"pins": {"TSLA": 15.0, "SPCX": 15.0}},
-        )
-        by_base = {c["symbol"]: c for c in baseline["chips"]}
-        by_live = {c["symbol"]: c for c in data["chips"]}
-        self.assertIn("BE", by_base)
-        be_stamp = float(by_base["BE"]["weight_pct"])
-        first = round(be_stamp / 2.0, 2)
-        second = round(be_stamp - first, 2)
-        self.assertAlmostEqual(by_live["TSLA"]["weight_pct"], 15.0 + first)
-        self.assertAlmostEqual(by_live["SPCX"]["weight_pct"], 15.0 + second)
-        for sym, chip in by_base.items():
-            if sym in ("BE", "TSLA", "SPCX"):
-                continue
+        for chip in stamped:
+            self.assertIn(chip.get("symbol"), ("TSLA", "SPCX"))
+            # BE is off-axis, so historical reallocate must not bump dest pins.
             self.assertAlmostEqual(
-                by_live[sym]["weight_pct"], chip["weight_pct"], places=2
+                float(chip["weight_pct"]), float(pins[chip["symbol"]]), places=2
             )
+        for sym in ("BITA", "STRC", "MARA", "NVDA"):
+            if sym not in symbols:
+                continue
+            chip = next(c for c in data["chips"] if c["symbol"] == sym)
+            self.assertFalse(chip.get("consider_share_stamp"))
+            self.assertEqual(chip.get("weight_basis"), "new_money_consider_share")
+        for sym, pct in pins.items():
+            if sym not in symbols:
+                continue
+            chip = next(c for c in data["chips"] if c["symbol"] == sym)
+            self.assertTrue(chip.get("consider_share_stamp"))
+            self.assertAlmostEqual(float(chip["weight_pct"]), pct, places=2)
         self.assertAlmostEqual(
             sum(float(c["weight_pct"]) for c in data["chips"]), 100.0, places=1
         )
