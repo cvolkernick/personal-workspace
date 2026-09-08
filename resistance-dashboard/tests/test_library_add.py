@@ -14,6 +14,7 @@ from rt_dashboard.custom_movements import (
     merge_custom_universe,
     missing_inventory_tags,
     require_equipment_access,
+    resolve_universe_id,
     upsert_custom_exercise,
 )
 from rt_dashboard.library_store import apply_library_overlay
@@ -76,6 +77,14 @@ class MergeUniverse(unittest.TestCase):
         self.assertTrue(by["lying-leg-curls"]["available"])
         self.assertIn("seated-leg-curls", by)
         self.assertTrue(by["seated-leg-curls"]["available"])
+        self.assertEqual(
+            resolve_universe_id({"name": "Laying Leg Curl"}, catalog),
+            "lying-leg-curls",
+        )
+        self.assertNotEqual(
+            resolve_universe_id({"name": "Nordic Curl"}, catalog),
+            "seated-leg-curls",
+        )
 
     def test_missing_equipment_tag_is_rejected(self):
         ex = normalize_exercise(NORDIC)

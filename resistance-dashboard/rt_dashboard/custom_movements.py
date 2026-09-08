@@ -86,10 +86,31 @@ def merge_custom_universe(catalog: Optional[dict], custom: Optional[dict]) -> di
     return out
 
 
-def upsert_custom_exercise(custom: Optional[dict], raw: dict) -> dict:
-    from .workout_planner import add_or_update_exercise, normalize_exercise
+def resolve_universe_id(raw: dict, universe: Optional[dict] = None) -> str:
+    """Reuse an existing catalog/alias id so Add does not fork Lying Leg Curl."""
+    from .workout_planner import _canonical_exercise_id, normalize_exercise
 
     ex = normalize_exercise(raw)
+    given = str((raw or {}).get("id") or "").strip()
+    by_id: Dict[str, dict] = {}
+    if isinstance(universe, dict):
+        for row in universe.get("exercises") or []:
+            if isinstance(row, dict) and row.get("id"):
+                by_id[str(row["id"])] = row
+    if given and given in by_id:
+        return given
+    cid = _canonical_exercise_id(ex["name"], by_id or None)
+    return cid or ex["id"]
+
+
+def upsert_custom_exercise(
+    custom: Optional[dict], raw: dict, universe: Optional[dict] = None
+) -> dict:
+    from .workout_planner import add_or_update_exercise, normalize_exercise
+
+    payload = dict(raw or {})
+    payload["id"] = resolve_universe_id(payload, universe)
+    ex = normalize_exercise(payload)
     ex["available"] = True
     ex["universe"] = "custom"
     cat = add_or_update_exercise(
@@ -223,12 +244,15 @@ def add_library_movement(user_id: str, raw: dict) -> dict:
     from .workout_planner import normalize_exercise
     from .workout_store import apply_goals_volume_caps, load_workspace_goals
 
-    ex = normalize_exercise(raw)
+    universe, _srcs = load_universe_catalog(user_id)
+    payload = dict(raw or {})
+    payload["id"] = resolve_universe_id(payload, universe)
+    ex = normalize_exercise(payload)
     ex["available"] = True
     equipment, equipment_src = load_preview_equipment(user_id)
     require_equipment_access(ex, equipment)
     current, _custom_src = load_custom_movements(user_id)
-    updated = upsert_custom_exercise(current, ex)
+    updated = upsert_custom_exercise(current, ex, universe)
     saved_custom = save_custom_movements(updated, user_id)
     overlay, _overlay_src = load_library_overlay(user_id)
     saved_overlay = save_library_overlay(
