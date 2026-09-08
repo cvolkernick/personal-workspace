@@ -1,6 +1,6 @@
 {
   "source": "live_mcp_http_pi",
-  "as_of": "2026-09-08T15:08:32.779113+00:00",
+  "as_of": "2026-09-08T15:34:01.107379+00:00",
   "primary_account": "5QW39737",
   "agentic_account": "674601752",
   "accounts": [
@@ -64,8 +64,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "294.2409228119",
-      "equity_value": "294.2109228119",
+      "total_value": "296.3825832257",
+      "equity_value": "296.3525832257",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -100,7 +100,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 138.05
+      "last_price": 137.34
     },
     {
       "symbol": "MARA",
@@ -114,7 +114,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 11.74
+      "last_price": 11.805
     },
     {
       "symbol": "TSLA",
@@ -128,7 +128,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 365.135
+      "last_price": 367.75
     },
     {
       "symbol": "SPCX",
@@ -142,7 +142,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 148.31
+      "last_price": 151.6801
     },
     {
       "symbol": "BITA",
@@ -156,7 +156,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 59.55
+      "last_price": 59.64
     },
     {
       "symbol": "IREN",
@@ -170,7 +170,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 48.215
+      "last_price": 48.325
     },
     {
       "symbol": "CLSK",
@@ -184,7 +184,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 13.27
+      "last_price": 13.315
     },
     {
       "symbol": "STRC",
@@ -198,7 +198,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 97.92
+      "last_price": 97.9475
     },
     {
       "symbol": "SATA",
@@ -212,7 +212,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 99.9899
+      "last_price": 99.98
     },
     {
       "symbol": "GOOGL",
@@ -226,7 +226,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 337.43
+      "last_price": 338.435
     },
     {
       "symbol": "RIOT",
@@ -240,7 +240,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 22.245
+      "last_price": 22.4101
     },
     {
       "symbol": "WULF",
@@ -254,7 +254,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 17.425
+      "last_price": 17.46
     },
     {
       "symbol": "NVDA",
@@ -268,7 +268,7 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 227.47
+      "last_price": 226.9402
     },
     {
       "symbol": "CCJ",
@@ -282,8 +282,8 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": 103.22
+      "last_price": 103.715
     }
   ],
-  "notes": "2026-09-08 ~11:08 ET fund-manager HOLD. Mac OAuth revoked; Pi stored OAuth HTTP. BP $0.03 < min $1."
+  "notes": "Fund-manager mid-session review 2026-09-08 ~15:31Z. Mac OAuth revoked; Pi stored OAuth HTTP."
 }
