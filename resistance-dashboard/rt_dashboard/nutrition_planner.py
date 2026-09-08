@@ -985,6 +985,179 @@ def _score_ingredient(ing: dict, rem: dict, *, fiber_need_g: float = 0.0) -> flo
     return sc
 
 
+# Chris 2026-09-08: whole eggs + egg whites are one grouped component.
+EGG_WHOLE_ID = "eggs-whole"
+EGG_WHITE_ID = "egg-whites"
+EGG_GROUP_ID = "eggs"
+EGG_GROUP_LABEL = "Whole eggs + egg whites"
+_EGG_WHOLE_IDS = frozenset({"eggs-whole", "egg-whole", "whole-eggs"})
+_EGG_WHITE_IDS = frozenset({"egg-whites", "egg-white", "eggs-whites"})
+
+
+def egg_role(item: Any) -> Optional[str]:
+    """Canonical pair id for a plan/inventory row, or None if not an egg half."""
+    if not isinstance(item, dict):
+        return None
+    iid = str(item.get("id") or "").strip().lower()
+    if iid in _EGG_WHOLE_IDS:
+        return EGG_WHOLE_ID
+    if iid in _EGG_WHITE_IDS:
+        return EGG_WHITE_ID
+    name = str(item.get("name") or "").strip().lower()
+    if re.search(r"\beggplant\b", name):
+        return None
+    if re.search(r"\bwhole eggs?\b", name):
+        return EGG_WHOLE_ID
+    if re.search(r"\begg whites?\b", name):
+        return EGG_WHITE_ID
+    return None
+
+
+def egg_mate_id(role: str) -> str:
+    return EGG_WHITE_ID if role == EGG_WHOLE_ID else EGG_WHOLE_ID
+
+
+def _mark_egg_group(item: dict) -> dict:
+    item["group_id"] = EGG_GROUP_ID
+    item["group_label"] = EGG_GROUP_LABEL
+    return item
+
+
+def _stocked_egg(stocked: Sequence[dict], role: str) -> Optional[dict]:
+    for ing in stocked:
+        if egg_role(ing) == role:
+            return ing
+    return None
+
+
+def _append_egg_mate(
+    plan_items: List[dict],
+    ing: dict,
+    rem: dict,
+    totals: dict,
+) -> None:
+    """Add the stocked mate. Prefer remaining-macro portion; else one serving."""
+    ceiling = float(rem.get("calories") or 0) + max(80.0, float(rem.get("calories") or 0) * 0.1)
+    pick = _pick_continuous_portion(ing, rem, ceiling, totals)
+    if pick is None:
+        pick = _one_serving_pick(ing)
+    servings_n, portion_g = pick
+    row = _plan_item_from_ingredient(ing, servings=servings_n, portion_g=portion_g)
+    row["fiber_g"] = round(estimated_fiber_g(ing) * float(row.get("servings") or 1), 1)
+    row["is_shake"] = is_shake_or_powder(ing)
+    row["is_veg_or_fruit"] = is_veg_or_fruit(ing)
+    _mark_egg_group(row)
+    plan_items.append(row)
+    for k in _MACRO_KEYS:
+        totals[k] = float(totals.get(k) or 0) + float(row.get(k) or 0)
+        rem[k] = round(max(0.0, float(rem.get(k) or 0) - float(row.get(k) or 0)), 1)
+    totals["fiber_g"] = round(
+        float(totals.get("fiber_g") or 0) + float(row.get("fiber_g") or 0), 1
+    )
+
+
+def ensure_egg_pair(
+    plan_items: List[dict],
+    stocked: Sequence[dict],
+    rem: dict,
+    totals: dict,
+) -> tuple[List[dict], Optional[str]]:
+    """If either egg half is planned, co-schedule the mate from stock.
+
+    Does not invent the missing half. Does not force eggs onto a plan that
+    has neither. Returns honesty rows + notes.egg_pair value.
+    """
+    honesty: List[dict] = []
+    present = {egg_role(it) for it in plan_items}
+    present.discard(None)
+    if not present:
+        return honesty, None
+    for it in plan_items:
+        if egg_role(it):
+            _mark_egg_group(it)
+    for role in (EGG_WHOLE_ID, EGG_WHITE_ID):
+        if role not in present:
+            continue
+        mate = egg_mate_id(role)
+        if mate in present:
+            continue
+        stocked_mate = _stocked_egg(stocked, mate)
+        if stocked_mate is None:
+            have = "whole eggs" if role == EGG_WHOLE_ID else "egg whites"
+            missing = "egg whites" if role == EGG_WHOLE_ID else "whole eggs"
+            honesty.append(
+                {
+                    "level": "warn",
+                    "kind": "egg_pair",
+                    "text": (
+                        f"{have.capitalize()} planned; {missing} not in stock — "
+                        f"using {have} only (not inventing the pair)."
+                    ),
+                }
+            )
+            continue
+        _append_egg_mate(plan_items, stocked_mate, rem, totals)
+        present.add(mate)
+    if EGG_WHOLE_ID in present and EGG_WHITE_ID in present:
+        note = "complete"
+    elif EGG_WHITE_ID in present:
+        note = "whites_only"
+    else:
+        note = "wholes_only"
+    return honesty, note
+
+
+def _recompute_meal_totals(meal: dict) -> None:
+    sub = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+    for it in meal.get("items") or []:
+        for k in sub:
+            sub[k] += float(it.get(k) or 0)
+    meal["totals"] = {k: round(v, 1) for k, v in sub.items()}
+
+
+def colocate_egg_pair(meals: List[dict]) -> List[dict]:
+    """Keep whole eggs + egg whites on the same meal, adjacent, grouped."""
+    if not meals:
+        return meals
+    egg_idxs = [
+        i
+        for i, m in enumerate(meals)
+        if any(egg_role(it) for it in (m.get("items") or []))
+    ]
+    if not egg_idxs:
+        return meals
+    home = egg_idxs[0]
+    for i in egg_idxs[1:]:
+        stay = []
+        for it in meals[i].get("items") or []:
+            if egg_role(it):
+                meals[home].setdefault("items", []).append(it)
+            else:
+                stay.append(it)
+        meals[i]["items"] = stay
+        _recompute_meal_totals(meals[i])
+    meals = [m for m in meals if m.get("items")]
+    for meal in meals:
+        items = list(meal.get("items") or [])
+        eggs = [it for it in items if egg_role(it)]
+        rest = [it for it in items if not egg_role(it)]
+        if not eggs:
+            meal.pop("egg_pair", None)
+            continue
+        eggs.sort(key=lambda it: 0 if egg_role(it) == EGG_WHOLE_ID else 1)
+        for it in eggs:
+            _mark_egg_group(it)
+        meal["items"] = eggs + rest
+        meal["egg_pair"] = {
+            "id": EGG_GROUP_ID,
+            "label": EGG_GROUP_LABEL,
+            "complete": len({egg_role(it) for it in eggs}) >= 2,
+            "item_ids": [it.get("id") for it in eggs],
+        }
+        _recompute_meal_totals(meal)
+    return meals
+
+
 def generate_meal_plan(
     inventory: dict,
     targets: dict,
@@ -1030,6 +1203,11 @@ def generate_meal_plan(
     are allowed when the pantry is too thin; honesty notes that instead
     of inventing food. Whole-food slots first; shakes last-resort under
     the #501 cap.
+
+    Eggs (#532): if the plan includes whole eggs **or** egg whites, the
+    stocked mate is co-scheduled on the **same meal** as a grouped unit
+    (``group_id=eggs`` / meal ``egg_pair``). Missing half is noted, never
+    invented. Neither stocked → eggs are not forced onto the plan.
     """
     targets = normalize_targets(targets)
     remaining_before = remaining_macros(targets, consumed)
@@ -1321,6 +1499,9 @@ def generate_meal_plan(
     ]
     # Collapse repeated picks into one line with servings (e.g. 3× chicken)
     plan_items = _collapse_plan_items(plan_items)
+    # #532: whole eggs + egg whites are one grouped component (same meal).
+    egg_honesty, egg_pair_note = ensure_egg_pair(plan_items, stocked, rem, totals)
+    plan_items = _collapse_plan_items(plan_items)
     # Group into timed meal buckets (1–4). No empty hinges; no invented food.
     meals = _bucket_meals(
         plan_items,
@@ -1332,6 +1513,7 @@ def generate_meal_plan(
         eat_slots=eat_slots,
         sleep_battery=sleep_battery,
     )
+    meals = colocate_egg_pair(meals)
     for k in _MACRO_KEYS:
         totals[k] = round(totals[k], 1)
     totals["fiber_g"] = round(float(totals.get("fiber_g") or 0), 1)
@@ -1423,6 +1605,7 @@ def generate_meal_plan(
         "fiber_miss": fiber_miss,
         "fiber_miss_reason": fiber_miss_reason,
         **_diversity_notes_fields(distinct=distinct_n, limited=diversity_limited),
+        "egg_pair": egg_pair_note,
     }
 
     honesty: List[dict] = []
@@ -1533,6 +1716,7 @@ def generate_meal_plan(
                 ),
             }
         )
+    honesty.extend(egg_honesty)
 
     return {
         "meals": meals,
@@ -1696,6 +1880,9 @@ def _collapse_plan_items(items: List[dict]) -> List[dict]:
                 row["serving_g"] = float(base_g)
             if it.get("portion_g") is not None:
                 row["portion_g"] = float(it["portion_g"])
+            if it.get("group_id"):
+                row["group_id"] = it.get("group_id")
+                row["group_label"] = it.get("group_label") or EGG_GROUP_LABEL
             by_key[key] = row
             order.append(key)
         else:
@@ -1712,6 +1899,9 @@ def _collapse_plan_items(items: List[dict]) -> List[dict]:
                 row["portion_g"] = round(
                     float(row.get("portion_g") or 0) + float(it["portion_g"]), 1
                 )
+            if it.get("group_id"):
+                row["group_id"] = it.get("group_id")
+                row["group_label"] = it.get("group_label") or row.get("group_label")
     out = []
     for key in order:
         row = by_key[key]
