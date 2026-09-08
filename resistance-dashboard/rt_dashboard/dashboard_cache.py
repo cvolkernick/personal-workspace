@@ -166,6 +166,13 @@ def health_from_dict(data: dict) -> HealthSnapshot:
             protein_g=n.get("protein_g"),
             carbs_g=n.get("carbs_g"),
             fat_g=n.get("fat_g"),
+            nutrients={
+                str(k): float(v)
+                for k, v in (n.get("nutrients") or {}).items()
+                if v is not None
+            }
+            if isinstance(n.get("nutrients"), dict)
+            else {},
             source=str(n.get("source") or "cache"),
         )
         for n in (data.get("nutrition") or [])

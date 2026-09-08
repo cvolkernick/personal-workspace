@@ -2150,6 +2150,49 @@ footer {
   border-color: rgba(192, 132, 252, 0.5);
   color: #d0a4ff;
 }
+.inv-macro-pill.micro-fiber {
+  border-color: rgba(94, 196, 120, 0.5);
+  color: #7dce91;
+}
+.inv-macro-pill.micro-sodium {
+  border-color: rgba(148, 163, 184, 0.55);
+  color: #c5d0de;
+}
+.inv-macro-pill.micro-sugar {
+  border-color: rgba(244, 162, 97, 0.5);
+  color: #f0b27a;
+}
+
+.nutrition-micros {
+  margin-top: 0.65rem;
+}
+.nutrition-micros[hidden] {
+  display: none;
+}
+.micros-details {
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+.micros-details summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 0.88rem;
+}
+.micros-values {
+  margin: 0.45rem 0 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+.micros-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+}
+.today-micros-line {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+}
 
 
 .inv-card.editing {

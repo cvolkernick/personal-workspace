@@ -1844,6 +1844,118 @@
     renderInventoryRemovals(state.nutrition_store);
   }
 
+  const FIBER_KEYS = ["DIETARY_FIBER", "FIBER", "TOTAL_DIETARY_FIBER", "TOTAL_FIBER"];
+  const SODIUM_KEYS = ["SODIUM"];
+  const SUGAR_KEYS = ["SUGAR", "SUGARS", "TOTAL_SUGAR", "TOTAL_SUGARS"];
+
+  function pickNutrientGrams(nutrients, keys) {
+    if (!nutrients) return null;
+    if (Array.isArray(nutrients)) {
+      const upper = {};
+      nutrients.forEach((item) => {
+        if (!item || typeof item !== "object") return;
+        const key = String(item.nutrient || "").toUpperCase();
+        const q = item.quantity || {};
+        const grams = q.grams != null ? q.grams : q.gramsSum;
+        if (key) upper[key] = grams;
+      });
+      nutrients = upper;
+    }
+    if (typeof nutrients !== "object") return null;
+    const upper = {};
+    Object.keys(nutrients).forEach((k) => {
+      upper[String(k).toUpperCase()] = nutrients[k];
+    });
+    for (let i = 0; i < keys.length; i++) {
+      if (!Object.prototype.hasOwnProperty.call(upper, keys[i])) continue;
+      const raw = upper[keys[i]];
+      if (raw == null || raw === "") continue;
+      const n = Number(raw);
+      if (!Number.isNaN(n)) return n;
+    }
+    return null;
+  }
+
+  function microsFromNutrients(nutrients) {
+    const fiber = pickNutrientGrams(nutrients, FIBER_KEYS);
+    const sodium = pickNutrientGrams(nutrients, SODIUM_KEYS);
+    const sugar = pickNutrientGrams(nutrients, SUGAR_KEYS);
+    const out = {};
+    if (fiber != null) out.fiber_g = fiber;
+    if (sugar != null) out.sugar_g = sugar;
+    if (sodium != null) {
+      const grams = sodium >= 20 ? sodium / 1000 : sodium;
+      out.sodium_g = grams;
+      out.sodium_mg = grams * 1000;
+    }
+    return out;
+  }
+
+  function microsFromPayload(obj) {
+    if (obj && obj.micros && typeof obj.micros === "object") {
+      const m = obj.micros;
+      const out = {};
+      if (m.fiber_g != null && m.fiber_g !== "" && !Number.isNaN(Number(m.fiber_g)))
+        out.fiber_g = Number(m.fiber_g);
+      if (m.sugar_g != null && m.sugar_g !== "" && !Number.isNaN(Number(m.sugar_g)))
+        out.sugar_g = Number(m.sugar_g);
+      if (m.sodium_g != null && m.sodium_g !== "" && !Number.isNaN(Number(m.sodium_g)))
+        out.sodium_g = Number(m.sodium_g);
+      if (m.sodium_mg != null && m.sodium_mg !== "" && !Number.isNaN(Number(m.sodium_mg)))
+        out.sodium_mg = Number(m.sodium_mg);
+      else if (out.sodium_g != null) out.sodium_mg = out.sodium_g * 1000;
+      if (out.fiber_g != null || out.sugar_g != null || out.sodium_g != null || out.sodium_mg != null)
+        return out;
+    }
+    return microsFromNutrients(obj && obj.nutrients);
+  }
+
+  function fmtSodiumMg(mg) {
+    if (mg == null || Number.isNaN(Number(mg))) return "—";
+    return String(Math.round(Number(mg)));
+  }
+
+  function microsLine(obj) {
+    const m = microsFromPayload(obj);
+    const bits = [];
+    if (m.fiber_g != null) bits.push(`fiber ${fmtNum(m.fiber_g)}g`);
+    if (m.sodium_mg != null || m.sodium_g != null) {
+      const mg = m.sodium_mg != null ? m.sodium_mg : m.sodium_g * 1000;
+      bits.push(`Na ${fmtSodiumMg(mg)}mg`);
+    }
+    if (m.sugar_g != null) bits.push(`sugar ${fmtNum(m.sugar_g)}g`);
+    return bits.join(" · ");
+  }
+
+  function invMicroStrip(obj, compact = false) {
+    const m = microsFromPayload(obj);
+    const pills = [];
+    if (m.fiber_g != null) {
+      pills.push(
+        compact
+          ? `<span class="inv-macro-pill micro-fiber">Fi${fmtNum(m.fiber_g)}</span>`
+          : `<span class="inv-macro-pill micro-fiber"><span class="pill-k">Fiber</span> ${fmtNum(m.fiber_g)}g</span>`
+      );
+    }
+    if (m.sodium_mg != null || m.sodium_g != null) {
+      const mg = m.sodium_mg != null ? m.sodium_mg : m.sodium_g * 1000;
+      pills.push(
+        compact
+          ? `<span class="inv-macro-pill micro-sodium">Na${fmtSodiumMg(mg)}</span>`
+          : `<span class="inv-macro-pill micro-sodium"><span class="pill-k">Na</span> ${fmtSodiumMg(mg)}mg</span>`
+      );
+    }
+    if (m.sugar_g != null) {
+      pills.push(
+        compact
+          ? `<span class="inv-macro-pill micro-sugar">Su${fmtNum(m.sugar_g)}</span>`
+          : `<span class="inv-macro-pill micro-sugar"><span class="pill-k">Sugar</span> ${fmtNum(m.sugar_g)}g</span>`
+      );
+    }
+    if (!pills.length) return "";
+    return `<div class="inv-macro-strip ${compact ? "compact " : ""}inv-micro-strip">${pills.join("")}</div>`;
+  }
+
   function invMacroStrip(ing, compact = false) {
     const pct = macroCalPct(ing.protein_g, ing.carbs_g, ing.fat_g);
     if (compact) {
@@ -2847,6 +2959,25 @@
     );
     fillMacroSplit($("stat-fat"), c.fat_g, t.fat_g, "g", soFarPct.f, tgtPct.f);
     updateMacroStrip(c, t, state && state.recovery);
+    renderNutritionMicros(store);
+  }
+
+  function renderNutritionMicros(store) {
+    const el = $("nutrition-micros");
+    if (!el) return;
+    const c = (store && store.today_consumed) || {};
+    const line = microsLine(c);
+    if (!line) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML = `<details class="micros-details">
+      <summary>Fiber · Sodium · Sugar</summary>
+      <p class="micros-values">${line}</p>
+      <p class="muted micros-hint">Only nutrients already on the meal or day log. Missing keys are omitted — never invented.</p>
+    </details>`;
   }
 
   function fmtNumShort(n) {
@@ -3085,6 +3216,14 @@
           ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
           ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
         </div>
+        ${
+          (function () {
+            const line = microsLine(c);
+            return line
+              ? `<p class="muted today-micros-line">${line}</p>`
+              : "";
+          })()
+        }
       `;
     }
   }
@@ -3105,6 +3244,7 @@
         <div class="meal-item-name">${f.name || "Food"}</div>
         <div class="meal-item-meta muted">${[when, serve].filter(Boolean).join(" · ") || "Logged meal"}</div>
         ${invMacroStrip(f, true)}
+        ${invMicroStrip(f, true)}
       </div>`;
     });
     box.innerHTML = `<div class="food-logs-carousel-panel">
@@ -5206,7 +5346,10 @@
       logs
         .map((f) => {
           const kcal = f.calories != null ? `${fmtNum(f.calories)} kcal` : "— kcal";
-          return `<li><strong>${f.name || "Food"}</strong> · ${kcal}</li>`;
+          const micro = microsLine(f);
+          return `<li><strong>${f.name || "Food"}</strong> · ${kcal}${
+            micro ? ` · ${micro}` : ""
+          }</li>`;
         })
         .join("") +
       `</ul>`;
@@ -5502,6 +5645,11 @@
           nLogs !== "" && nLogs != null ? ` (${nLogs} meal log${nLogs === 1 ? "" : "s"})` : ""
         }: ${fmtNum(cons.calories)} kcal · P${fmtNum(cons.protein_g)}
         C${fmtNum(cons.carbs_g)} F${fmtNum(cons.fat_g)}
+        ${
+          microsLine(cons)
+            ? `<br/><strong>Micros</strong>: ${microsLine(cons)}`
+            : ""
+        }
         ${
           hasRem
             ? `<br/><strong>Remaining</strong>: ${fmtNum(rem.calories)} kcal · P${fmtNum(

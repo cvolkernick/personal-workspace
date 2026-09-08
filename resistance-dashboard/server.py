@@ -2158,6 +2158,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         protein_g=n.get("protein_g"),
                         carbs_g=n.get("carbs_g"),
                         fat_g=n.get("fat_g"),
+                        nutrients=n.get("nutrients") or {},
                         source=n.get("source") or "google_health",
                     )
                     for n in (health.get("nutrition") or [])

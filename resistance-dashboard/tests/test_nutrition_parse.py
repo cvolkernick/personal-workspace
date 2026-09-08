@@ -36,6 +36,7 @@ class TestNutritionParse(unittest.TestCase):
         self.assertEqual(days[0].protein_g, 218.0)
         self.assertEqual(days[0].carbs_g, 185.8)
         self.assertEqual(days[0].fat_g, 58.7)
+        self.assertEqual(days[0].nutrients, {})
 
     def test_meal_log_aggregates(self):
         payload = {
@@ -78,6 +79,7 @@ class TestNutritionParse(unittest.TestCase):
         self.assertEqual(days[0].protein_g, 30.0)
         self.assertEqual(days[0].carbs_g, 15.0)
         self.assertEqual(days[0].fat_g, 3.0)
+        self.assertEqual(days[0].nutrients, {})
 
     def test_food_log_entries_meal_level(self):
         payload = {
@@ -136,8 +138,80 @@ class TestNutritionParse(unittest.TestCase):
         self.assertEqual(entries[0].serving_label, "6 oz")
         self.assertEqual(entries[0].protein_g, 52.0)
         self.assertIn("SODIUM", entries[0].nutrients)
+        self.assertEqual(entries[0].nutrients["DIETARY_FIBER"], 0)
+        self.assertEqual(entries[0].nutrients["SODIUM"], 0.12)
+        self.assertNotIn("SUGAR", entries[0].nutrients)
+        self.assertNotIn("DIETARY_FIBER", entries[1].nutrients)
         self.assertEqual(entries[1].name, "Greek yogurt")
         self.assertEqual(entries[1].calories, 150.0)
+
+    def test_rollup_keeps_fiber_sodium_sugar_when_present(self):
+        payload = {
+            "rollupDataPoints": [
+                {
+                    "civilStartTime": {"date": {"year": 2026, "month": 7, "day": 11}},
+                    "nutritionLog": {
+                        "nutrients": [
+                            {"nutrient": "PROTEIN", "quantity": {"gramsSum": 218.0}},
+                            {"nutrient": "DIETARY_FIBER", "quantity": {"gramsSum": 22.0}},
+                            {"nutrient": "SODIUM", "quantity": {"gramsSum": 1.8}},
+                            {"nutrient": "SUGAR", "quantity": {"gramsSum": 31.0}},
+                        ],
+                        "energy": {"kcalSum": 2191.0},
+                        "totalCarbohydrate": {"gramsSum": 185.8},
+                        "totalFat": {"gramsSum": 58.7},
+                    },
+                }
+            ]
+        }
+        days = parse_nutrition_rollup(payload)
+        self.assertEqual(days[0].nutrients["DIETARY_FIBER"], 22.0)
+        self.assertEqual(days[0].nutrients["SODIUM"], 1.8)
+        self.assertEqual(days[0].nutrients["SUGAR"], 31.0)
+        self.assertNotIn("PROTEIN", days[0].nutrients)
+
+    def test_meal_log_day_sum_keeps_micros(self):
+        payload = {
+            "dataPoints": [
+                {
+                    "nutritionLog": {
+                        "interval": {
+                            "civilStartTime": {
+                                "date": {"year": 2026, "month": 7, "day": 11}
+                            }
+                        },
+                        "energy": {"kcal": 280},
+                        "totalCarbohydrate": {"grams": 0},
+                        "totalFat": {"grams": 6},
+                        "nutrients": [
+                            {"nutrient": "PROTEIN", "quantity": {"grams": 52}},
+                            {"nutrient": "DIETARY_FIBER", "quantity": {"grams": 0}},
+                            {"nutrient": "SODIUM", "quantity": {"grams": 0.12}},
+                        ],
+                    }
+                },
+                {
+                    "nutritionLog": {
+                        "interval": {
+                            "civilStartTime": {
+                                "date": {"year": 2026, "month": 7, "day": 11}
+                            }
+                        },
+                        "energy": {"kcal": 150},
+                        "totalCarbohydrate": {"grams": 8},
+                        "totalFat": {"grams": 2},
+                        "nutrients": [
+                            {"nutrient": "PROTEIN", "quantity": {"grams": 20}},
+                            {"nutrient": "SUGAR", "quantity": {"grams": 6}},
+                        ],
+                    }
+                },
+            ]
+        }
+        days = parse_nutrition_log_points(payload, days=60)
+        self.assertEqual(days[0].nutrients["DIETARY_FIBER"], 0)
+        self.assertEqual(days[0].nutrients["SODIUM"], 0.12)
+        self.assertEqual(days[0].nutrients["SUGAR"], 6)
 
 
 if __name__ == "__main__":
