@@ -214,6 +214,7 @@ def preview_workout_plan(
     recovery_sparse=False,
     as_of=None,
     equipment=None,
+    train_parent_completed=False,
 ) -> dict:
     """Same local planner as Pi ``generate_workout_plan``. Fail is explicit."""
     from rt_dashboard.workout_planner import generate_workout_plan
@@ -227,6 +228,7 @@ def preview_workout_plan(
         recovery_sparse=bool(recovery_sparse),
         as_of=as_of,
         equipment=equipment,
+        train_parent_completed=bool(train_parent_completed),
     )
 
 
@@ -464,6 +466,13 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         catalog, equipment, sessions
     )
     library_removals = suggest_library_removals(catalog, equipment, sessions)
+    train_parent_done = False
+    try:
+        from rt_dashboard.daily_plan_tasks import training_day_complete
+
+        train_parent_done = bool(training_day_complete(today))
+    except Exception:
+        train_parent_done = False
     try:
         workout_plan = preview_workout_plan(
             catalog,
@@ -474,6 +483,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             recovery_sparse=not had_real_sleep,
             as_of=today,
             equipment=equipment,
+            train_parent_completed=train_parent_done,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"workout_plan: {type(exc).__name__}")
@@ -502,6 +512,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         goals=effective_goals,
         recovery=recovery_dict,
         as_of=today,
+        train_parent_completed=train_parent_done,
     )
     workout_plan = stamp_today_session(
         workout_plan,
@@ -512,6 +523,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         fill_rest=bool(workout_plan.get("is_rest_day"))
         or not (workout_plan.get("exercises") or []),
         next_st_override=nxt.get("next_session_type"),
+        train_parent_completed=train_parent_done,
     )
     pack = build_training_pack(
         effective_goals, catalog, sessions, next_brief=nxt, limit=5

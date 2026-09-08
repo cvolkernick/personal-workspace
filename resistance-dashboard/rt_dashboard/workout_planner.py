@@ -1131,14 +1131,19 @@ def session_types_for_lift_name(
     return ()
 
 
-def next_session_type(sessions: Sequence[Any], goals: dict) -> str:
+def next_letter_after(letter: Optional[str], goals: dict) -> str:
+    """PPL letter after ``letter``. Missing/unknown letter → rotation[0]."""
     rotation = goals.get("rotation") or ["push", "pull", "legs"]
     rotation = [str(r).lower() for r in rotation]
-    last = last_session_type(sessions)
+    last = str(letter or "").lower()
     if not last or last not in rotation:
         return rotation[0]
     idx = rotation.index(last)
     return rotation[(idx + 1) % len(rotation)]
+
+
+def next_session_type(sessions: Sequence[Any], goals: dict) -> str:
+    return next_letter_after(last_session_type(sessions), goals)
 
 
 def days_since_last_session(sessions: Sequence[Any], as_of: Optional[str] = None) -> Optional[int]:
@@ -1350,6 +1355,7 @@ def generate_workout_plan(
     session_type: Optional[str] = None,
     as_of: Optional[str] = None,
     equipment: Optional[dict] = None,
+    train_parent_completed: bool = False,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -1363,6 +1369,10 @@ def generate_workout_plan(
     If a PPL session is already logged on ``as_of``, pin to that letter and
     do not generate the next rotation for the same civil day. Pass an
     explicit ``session_type`` (force Push/Pull/Legs) to override.
+
+    Day-complete (``already_trained_today``) is only when
+    ``train_parent_completed`` is true. A partial session row is a pin, not
+    a finished day — remaining lifts of that letter still generate.
     """
     goals = normalize_goals(goals)
     if as_of is None:
@@ -1427,8 +1437,11 @@ def generate_workout_plan(
 
     explicit = str(session_type or "").strip().lower()
     logged_today = ppl_logged_on_day(sessions, day)
-    if logged_today and explicit not in ("push", "pull", "legs"):
-        nxt = next_session_type(sessions, goals)
+    force_letter = explicit in ("push", "pull", "legs")
+    # Parent complete is day-complete SoT. A partial PPL row only pins today.
+    if train_parent_completed and not force_letter:
+        pin = logged_today or next_session_type(sessions, goals)
+        nxt = next_letter_after(pin, goals) if pin in ("push", "pull", "legs") else pin
         balance = volume_balance_report(tally, goals)
         balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
             tally, goals
@@ -1438,16 +1451,18 @@ def generate_workout_plan(
             "source": focus_res.get("source"),
             "reason": focus_res.get("reason"),
         }
+        st_done = pin if pin in ("push", "pull", "legs") else logged_today or "session"
         return {
             "date": day,
-            "session_type": logged_today,
+            "session_type": st_done,
             "is_rest_day": False,
             "already_trained_today": True,
+            "ppl_logged_today": logged_today,
             "exercises": [],
             "next_session_type": nxt,
             "message": (
-                f"Already trained today ({logged_today.upper()}). "
-                f"Next session: {nxt.upper()} tomorrow."
+                f"Already trained today ({str(st_done).upper()}). "
+                f"Next session: {str(nxt).upper()} tomorrow."
             ),
             "goals": goals,
             "volume": balance,
@@ -1462,11 +1477,14 @@ def generate_workout_plan(
                 "weekly_sets": tally,
                 "focus": balance["focus"],
                 "already_trained_today": True,
+                "ppl_logged_today": logged_today,
             },
         }
 
+    pin_open_session = bool(logged_today) and not force_letter
     if (
-        recovery_score is not None
+        not pin_open_session
+        and recovery_score is not None
         and recovery_score < rest_threshold
         and not recovery_sparse
     ):
@@ -1502,7 +1520,11 @@ def generate_workout_plan(
             },
         }
 
-    st = (session_type or next_session_type(sessions, goals)).lower()
+    st = (
+        session_type
+        or (logged_today if pin_open_session else None)
+        or next_session_type(sessions, goals)
+    ).lower()
     pool = [ex for ex in available if st in ex["session_types"]]
     # Do not steal lifts from another PPL slot or invent unequipped gear.
     if not pool and not equipment_on:
@@ -1513,6 +1535,14 @@ def generate_workout_plan(
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
     last_family_ids = last_pattern_family_ids(sessions, by_id)
     logged_ids = _logged_catalog_ids(sessions, by_id)
+    today_sessions = [s for s in sessions if session_date_of(s) == day]
+    today_logged_ids = _logged_catalog_ids(today_sessions, by_id)
+    today_logged_names = {
+        _norm_name(n)
+        for s in today_sessions
+        for n in _session_exercise_names(s)
+        if _norm_name(n)
+    }
 
     def _repeat_penalty(e: dict) -> int:
         # Rotate implements inside a family (DB flat ↔ Smith), don't restack last.
@@ -1546,6 +1576,9 @@ def generate_workout_plan(
         n = max(3, min(n, 4))
     elif continuity.get("phase") == "return":
         n = max(3, min(n, 5))
+    n_logged_today = max(len(today_logged_ids), len(today_logged_names))
+    if n_logged_today:
+        n = max(0, n - n_logged_today)
     base_cap = max(6, int(goals.get("session_working_set_cap") or 14))
     session_cap = max(4, int(round(base_cap * float(continuity.get("session_cap_scale") or 1.0))))
     default_hard = max(1, min(4, int(goals.get("default_hard_sets") or 2)))
@@ -1554,16 +1587,26 @@ def generate_workout_plan(
     elif continuity.get("phase") == "return":
         default_hard = min(default_hard, 2)
 
+    def _already_logged_today(e: dict) -> bool:
+        eid = str(e.get("id") or "")
+        if eid and eid in today_logged_ids:
+            return True
+        return _norm_name(str(e.get("name") or "")) in today_logged_names
+
     chosen: List[dict] = []
     # Seed with top compound if compounds preferred
-    if goals.get("prefer_compounds_first", True):
+    if n and goals.get("prefer_compounds_first", True):
         for e in pool_scored:
+            if _already_logged_today(e):
+                continue
             if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
                 chosen.append(e)
                 break
     for e in pool_scored:
         if len(chosen) >= n:
             break
+        if _already_logged_today(e):
+            continue
         if e["id"] in {c["id"] for c in chosen}:
             continue
         if _family_slot_taken(e, chosen):
@@ -1732,10 +1775,14 @@ def generate_workout_plan(
             f"Framework: ≈4–8 long-term · this week planning band ~{scale_pct}% ramp"
         )
 
+    nxt_open = logged_today if pin_open_session else next_session_type(sessions, goals)
     return {
         "date": day,
         "session_type": st,
         "is_rest_day": False,
+        "already_trained_today": False,
+        "ppl_logged_today": logged_today,
+        "next_session_type": nxt_open,
         "exercises": plan_ex,
         "message": " · ".join(msg_parts),
         "goals": goals,
@@ -1744,6 +1791,9 @@ def generate_workout_plan(
             "recovery_label": recovery_label,
             "recovery_score": recovery_score,
             "last_session_type": last_st,
+            "next_session_type": nxt_open,
+            "already_trained_today": False,
+            "ppl_logged_today": logged_today,
             "days_since_last": days,
             "training_continuity": continuity,
             "catalog_available": len(available),

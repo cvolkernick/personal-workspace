@@ -103,6 +103,7 @@ def dashboard_plan_slots(
     goals=None,
     recovery=None,
     as_of: Optional[str] = None,
+    train_parent_completed: bool = False,
 ) -> Tuple[dict, dict]:
     """GET /api/dashboard Today slots: never call Grok. Never canned.
 
@@ -133,7 +134,13 @@ def dashboard_plan_slots(
         except Exception:  # noqa: BLE001
             sessions = []
     workout = stamp_today_session(
-        workout, sessions, goals, recovery, as_of=as_of, fill_rest=True
+        workout,
+        sessions,
+        goals,
+        recovery,
+        as_of=as_of,
+        fill_rest=True,
+        train_parent_completed=bool(train_parent_completed),
     )
     return meal, workout
 

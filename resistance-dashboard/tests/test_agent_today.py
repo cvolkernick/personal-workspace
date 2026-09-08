@@ -223,8 +223,9 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(today["date"], "2026-08-23")
         wo = today["workout"]
         # Today already has a logged pull — letter stays that session.
+        # Parent is not complete, so next_session_type does not advance.
         self.assertEqual(wo["session_type"], "pull")
-        self.assertEqual(wo["next_session_type"], "legs")
+        self.assertEqual(wo["next_session_type"], "pull")
         self.assertFalse(wo["is_rest_day"])
         self.assertEqual(wo["plan_exercises"][0]["name"], "DB Row")
         self.assertEqual(wo["logged_exercises"][0]["name"], "DB Row")

@@ -251,7 +251,10 @@ def build_day_constraints_packet(
     if session_type is not None:
         session_type = str(session_type).lower()
 
-    logged = _session_logged_today(sessions or [], day)
+    wo = board.get("workout") if isinstance(board.get("workout"), dict) else {}
+    day_complete = bool(wp.get("already_trained_today")) or bool(
+        wo.get("already_trained_today")
+    )
     # Planned training day: not a pure rest rotation. Recovery-forced rest still
     # counts as "session due" (blocked by train_recommendation, not cancelled).
     is_rest_plan = bool(wp.get("is_rest_day"))
@@ -264,7 +267,7 @@ def build_day_constraints_packet(
     if body_untrusted:
         # Withhold train advertising when body signal is untrusted
         session_due = False
-    elif logged:
+    elif day_complete:
         session_due = False
     elif recovery_forced_rest:
         session_due = True

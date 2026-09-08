@@ -92,6 +92,23 @@ class StampTodaySession(unittest.TestCase):
             {"score": 35, "sparse": False},
             as_of="2026-08-29",
         )
+        self.assertFalse(slot["already_trained_today"])
+        self.assertEqual(slot["ppl_logged_today"], "legs")
+        self.assertFalse(slot["is_rest_day"])
+        self.assertEqual(slot["session_type"], "legs")
+        self.assertEqual(slot["next_session_type"], "legs")
+        self.assertEqual(slot["exercises"], [])
+
+    def test_train_parent_completed_marks_day_done_advances_next(self):
+        goals, _ = load_workspace_goals()
+        slot = stamp_today_session(
+            {"exercises": [], "empty": True},
+            [_session("2026-08-29", "legs")],
+            goals,
+            {"score": 35, "sparse": False},
+            as_of="2026-08-29",
+            train_parent_completed=True,
+        )
         self.assertTrue(slot["already_trained_today"])
         self.assertFalse(slot["is_rest_day"])
         self.assertEqual(slot["session_type"], "legs")

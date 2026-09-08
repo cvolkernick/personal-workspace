@@ -16,8 +16,10 @@ from rt_dashboard.daily_plan_tasks import (
     SLEEP_BATTERY_LOW_CACHE_KEY,
     SLEEP_RECOVERY_CACHE_KEY,
     SLEEP_RECOVERY_SLUG,
+    TRAIN_SESSION_SLUG,
     PlannedGroup,
     PlannedItem,
+    training_day_complete_from_tasks,
     _delete_order,
     _hydrate_ids_from_listed,
     cache_key,
@@ -2483,6 +2485,240 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertTrue(stats.get("ok"))
         self.assertEqual(stats.get("purged"), ["push-leaf"])
         self.assertEqual(deleted, ["push-leaf"])
+
+    def test_training_day_complete_from_train_session_leaf(self):
+        day = "2026-08-29"
+        tasks = [
+            {
+                "id": "sess",
+                "title": "Complete today's PULL session (4 lifts as prescribed).",
+                "notes": quest_notes("", day, "training|train-session"),
+                "status": "completed",
+            },
+            {
+                "id": "leaf",
+                "title": "Seated Cable Row (50 lb 3×10)",
+                "notes": quest_notes("", day, "training|ex-seated-cable-row"),
+                "status": "needsAction",
+            },
+        ]
+        self.assertTrue(
+            training_day_complete_from_tasks(tasks, day=day)
+        )
+        tasks[0]["status"] = "needsAction"
+        self.assertFalse(training_day_complete_from_tasks(tasks, day=day))
+
+    def _complete_updating_store(self, store, calls):
+        def fake_complete(list_id, task_id, completed=True):
+            calls.append((task_id, bool(completed)))
+            task = store.get(task_id)
+            if not task:
+                return {"ok": False, "error": "missing"}
+            task["status"] = "completed" if completed else "needsAction"
+            store[task_id] = task
+            return {"ok": True, "task": task}
+
+        return fake_complete
+
+    def test_parent_complete_leaves_leftover_lifts_incomplete(self):
+        """AC4/AC5: Training parent complete + leftover ex-* stay incomplete."""
+        day = "2026-08-29"
+        store = {
+            "g-train": {
+                "id": "g-train",
+                "title": "Training",
+                "notes": quest_notes("", day, "training|group"),
+                "status": "completed",
+                "due": f"{day}T00:00:00.000Z",
+            },
+            "sess": {
+                "id": "sess",
+                "title": "Complete today's LEGS session (3 lifts as prescribed).",
+                "notes": quest_notes("", day, "training|train-session"),
+                "status": "completed",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+            "rdl": {
+                "id": "rdl",
+                "title": "RDL (40.0 lb 2×7)",
+                "notes": quest_notes("", day, "training|ex-rdl"),
+                "status": "completed",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+            "curl": {
+                "id": "curl",
+                "title": "Seated Leg Curls (40.0 lb 2×10)",
+                "notes": quest_notes("", day, "training|ex-seated-leg-curls"),
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+        }
+        created: list[dict] = []
+        complete_calls: list[tuple[str, bool]] = []
+        board = {
+            "date": day,
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Complete today's LEGS session (3 lifts as prescribed).",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "already_trained_today": False,
+                "session_type": "legs",
+                "ppl_logged_today": "legs",
+                "exercises": [
+                    {
+                        "name": "Seated Leg Curls",
+                        "sets": 2,
+                        "reps": 10,
+                        "weight_lbs": 40,
+                    }
+                ],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, complete_calls),
+                ):
+                    result = ensure_daily_tasks(board, day=day)
+        self.assertTrue(result.get("ok"), result)
+        self.assertEqual(store["g-train"]["status"], "completed")
+        self.assertEqual(store["curl"]["status"], "needsAction")
+        self.assertEqual(store["rdl"]["status"], "completed")
+        self.assertFalse(any(tid == "g-train" and done is False for tid, done in complete_calls))
+        self.assertFalse(any(tid == "curl" and done is True for tid, done in complete_calls))
+        self.assertFalse(
+            any("Seated Leg Curls" in (t.get("title") or "") for t in created)
+        )
+
+    def test_all_lift_leaves_complete_training_parent(self):
+        """AC6: completing every ex-* still completes the Training parent."""
+        day = "2026-08-29"
+        store = {
+            "g-train": {
+                "id": "g-train",
+                "title": "Training",
+                "notes": quest_notes("", day, "training|group"),
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+            },
+            "sess": {
+                "id": "sess",
+                "title": "Complete today's LEGS session (2 lifts as prescribed).",
+                "notes": quest_notes("", day, "training|train-session"),
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+            "rdl": {
+                "id": "rdl",
+                "title": "RDL (40.0 lb 2×7)",
+                "notes": quest_notes("", day, "training|ex-rdl"),
+                "status": "completed",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+            "curl": {
+                "id": "curl",
+                "title": "Seated Leg Curls (40.0 lb 2×10)",
+                "notes": quest_notes("", day, "training|ex-seated-leg-curls"),
+                "status": "completed",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-train",
+            },
+        }
+        created: list[dict] = []
+        complete_calls: list[tuple[str, bool]] = []
+        board = {
+            "date": day,
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Complete today's LEGS session (2 lifts as prescribed).",
+                    "id": TRAIN_SESSION_SLUG,
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "already_trained_today": False,
+                "session_type": "legs",
+                "ppl_logged_today": "legs",
+                "exercises": [
+                    {"name": "RDL", "sets": 2, "reps": 7, "weight_lbs": 40},
+                    {
+                        "name": "Seated Leg Curls",
+                        "sets": 2,
+                        "reps": 10,
+                        "weight_lbs": 40,
+                    },
+                ],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, complete_calls),
+                ):
+                    result = ensure_daily_tasks(board, day=day)
+        self.assertTrue(result.get("ok"), result)
+        self.assertEqual(store["g-train"]["status"], "completed")
+        self.assertIn(("g-train", True), complete_calls)
+
+    def test_nutrition_parent_still_uncompletes_when_children_remain(self):
+        """AC5: Nutrition parent AND-sync is unchanged."""
+        day = "2026-08-24"
+        store = {
+            "g-nut": {
+                "id": "g-nut",
+                "title": "Nutrition",
+                "notes": quest_notes("", day, "nutrition|group"),
+                "status": "completed",
+                "due": f"{day}T00:00:00.000Z",
+            },
+            "prot": {
+                "id": "prot",
+                "title": "Cover remaining protein (~180 g) from the meal plan.",
+                "notes": quest_notes("", day, "nutrition|protein-remaining"),
+                "status": "needsAction",
+                "due": f"{day}T00:00:00.000Z",
+                "parent": "g-nut",
+            },
+        }
+        created: list[dict] = []
+        complete_calls: list[tuple[str, bool]] = []
+        board = self._protein_board(180)
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = {
+                day: {
+                    "list_id": "L1",
+                    "ids": {
+                        "nutrition|group": "g-nut",
+                        "nutrition|protein-remaining": "prot",
+                    },
+                }
+            }
+            with self._patch_ensure(store, created, tmp, cache=cache):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, complete_calls),
+                ):
+                    result = ensure_daily_tasks(board, day=day)
+        self.assertTrue(result.get("ok"), result)
+        self.assertEqual(store["g-nut"]["status"], "needsAction")
+        self.assertIn(("g-nut", False), complete_calls)
 
 
 if __name__ == "__main__":
