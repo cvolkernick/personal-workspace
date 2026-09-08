@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-03",
+  "updated_at": "2026-09-08",
   "notes": "Movement universe. available=true is the programmed library Today reads. available=false stays off the plan until coach suggests and you apply. Equipment inventory is access, not an auto-unlock.",
   "exercises": [
     {
@@ -216,6 +216,20 @@
     {
       "id": "seated-leg-curls",
       "name": "Seated Leg Curls",
+      "session_types": ["legs"],
+      "primary_muscles": ["hamstrings"],
+      "secondary_muscles": [],
+      "movement": "isolation",
+      "equipment": ["machine"],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [10, 15],
+      "priority": 7,
+      "available": true
+    },
+    {
+      "id": "lying-leg-curls",
+      "name": "Lying Leg Curl",
       "session_types": ["legs"],
       "primary_muscles": ["hamstrings"],
       "secondary_muscles": [],

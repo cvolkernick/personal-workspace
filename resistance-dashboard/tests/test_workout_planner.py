@@ -6,8 +6,10 @@ import unittest
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.workout_planner import (
+    HAMSTRING_CURL_FAMILY,
     HORIZONTAL_PRESS_FAMILY,
     INCLINE_PRESS_FAMILY,
+    NAME_ALIASES,
     VERTICAL_PRESS_FAMILY,
     credit_sets_for_exercise,
     generate_workout_plan,
@@ -417,6 +419,140 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertTrue(plan["exercises"])
         for e in plan["exercises"]:
             self.assertEqual(int((e.get("prescription") or {}).get("sets") or 0), 2)
+
+    def test_lying_and_seated_curl_share_hamstring_family(self):
+        self.assertEqual(
+            pattern_family(
+                {
+                    "id": "seated-leg-curls",
+                    "name": "Seated Leg Curls",
+                    "movement": "isolation",
+                    "primary_muscles": ["hamstrings"],
+                }
+            ),
+            HAMSTRING_CURL_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family(
+                {
+                    "id": "lying-leg-curls",
+                    "name": "Lying Leg Curl",
+                    "movement": "isolation",
+                    "primary_muscles": ["hamstrings"],
+                }
+            ),
+            HAMSTRING_CURL_FAMILY,
+        )
+
+    def test_laying_alias_maps_to_lying_leg_curls(self):
+        self.assertEqual(NAME_ALIASES["laying leg curl"], "lying-leg-curls")
+        self.assertEqual(NAME_ALIASES["lying leg curl"], "lying-leg-curls")
+        self.assertEqual(NAME_ALIASES["prone leg curls"], "lying-leg-curls")
+        self.assertEqual(
+            session_types_for_lift_name(
+                "Laying Leg Curl",
+                {
+                    "exercises": [
+                        {
+                            "id": "lying-leg-curls",
+                            "name": "Lying Leg Curl",
+                            "session_types": ["legs"],
+                        }
+                    ]
+                },
+            ),
+            ("legs",),
+        )
+
+    def test_legs_caps_one_hamstring_curl_isolation(self):
+        catalog = {
+            "exercises": [
+                {
+                    "id": "leg-press",
+                    "name": "Leg Press",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["quads"],
+                    "secondary_muscles": ["glutes", "hamstrings"],
+                    "movement": "compound",
+                    "equipment": ["leg_press"],
+                    "default_sets": 3,
+                    "default_reps": 10,
+                    "rep_range": [8, 12],
+                    "priority": 10,
+                    "available": True,
+                },
+                {
+                    "id": "rdl",
+                    "name": "RDL",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings", "glutes"],
+                    "secondary_muscles": ["back"],
+                    "movement": "compound",
+                    "equipment": ["barbell"],
+                    "default_sets": 3,
+                    "default_reps": 8,
+                    "rep_range": [6, 10],
+                    "priority": 10,
+                    "available": True,
+                },
+                {
+                    "id": "seated-leg-curls",
+                    "name": "Seated Leg Curls",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings"],
+                    "movement": "isolation",
+                    "equipment": ["machine"],
+                    "default_sets": 3,
+                    "default_reps": 12,
+                    "rep_range": [10, 15],
+                    "priority": 7,
+                    "available": True,
+                },
+                {
+                    "id": "lying-leg-curls",
+                    "name": "Lying Leg Curl",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings"],
+                    "movement": "isolation",
+                    "equipment": ["machine"],
+                    "default_sets": 3,
+                    "default_reps": 12,
+                    "rep_range": [10, 15],
+                    "priority": 7,
+                    "available": True,
+                },
+                {
+                    "id": "calf-raises",
+                    "name": "Calf Raises",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["calves"],
+                    "movement": "isolation",
+                    "equipment": ["machine"],
+                    "default_sets": 3,
+                    "default_reps": 12,
+                    "rep_range": [10, 15],
+                    "priority": 5,
+                    "available": True,
+                },
+            ]
+        }
+        plan = generate_workout_plan(
+            catalog,
+            {
+                **self.goals,
+                "exercises_per_session": 5,
+                "default_hard_sets": 2,
+            },
+            [],
+            recovery_score=80,
+            session_type="legs",
+            as_of="2026-09-08",
+        )
+        ids = [e["id"] for e in plan["exercises"]]
+        curls = [i for i in ids if i in ("seated-leg-curls", "lying-leg-curls")]
+        self.assertEqual(len(curls), 1, ids)
+        self.assertIn("seated-leg-curls", {e["id"] for e in catalog["exercises"]})
+        self.assertIn("lying-leg-curls", {e["id"] for e in catalog["exercises"]})
 
     def test_pattern_family_maps_press_variants(self):
         self.assertEqual(

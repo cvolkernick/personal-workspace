@@ -172,6 +172,13 @@ NAME_ALIASES = {
     "rdl": "rdl",
     "rdls": "rdl",
     "seated leg curls": "seated-leg-curls",
+    "seated leg curl": "seated-leg-curls",
+    "lying leg curl": "lying-leg-curls",
+    "lying leg curls": "lying-leg-curls",
+    "laying leg curl": "lying-leg-curls",
+    "laying leg curls": "lying-leg-curls",
+    "prone leg curl": "lying-leg-curls",
+    "prone leg curls": "lying-leg-curls",
     "calf raises": "calf-raises",
     "back extension machine": "back-extension",
     "smith bench": "smith-bench",
@@ -191,6 +198,7 @@ NAME_ALIASES = {
 HORIZONTAL_PRESS_FAMILY = "horizontal_press"
 INCLINE_PRESS_FAMILY = "incline_press"
 VERTICAL_PRESS_FAMILY = "vertical_press"
+HAMSTRING_CURL_FAMILY = "hamstring_curl"
 
 PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-flat-press": HORIZONTAL_PRESS_FAMILY,
@@ -198,6 +206,8 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-floor-press": HORIZONTAL_PRESS_FAMILY,
     "db-incline-press": INCLINE_PRESS_FAMILY,
     "db-shoulder-press": VERTICAL_PRESS_FAMILY,
+    "seated-leg-curls": HAMSTRING_CURL_FAMILY,
+    "lying-leg-curls": HAMSTRING_CURL_FAMILY,
 }
 
 PATTERN_FAMILY_SESSION_CAP = 1
