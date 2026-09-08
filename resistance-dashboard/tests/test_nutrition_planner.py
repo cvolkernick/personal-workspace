@@ -27,6 +27,9 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     format_plan_portion,
     format_portion_label,
     generate_meal_plan,
+    colocate_egg_pair,
+    egg_role,
+    ensure_egg_pair,
     inventory_gap_role,
     is_shake_or_powder,
     is_veg_or_fruit,
@@ -2183,6 +2186,199 @@ class TestInventoryNeedSuggestions(unittest.TestCase):
         self.assertNotIn("/api/inventory/", dismiss)
         self.assertIn('fetch("/api/inventory/add"', js)
         self.assertIn("dropAppliedSuggestion", js)
+
+
+def _egg_whole(**kwargs):
+    row = _ing(
+        "eggs-whole",
+        "Whole eggs",
+        category="protein",
+        serving_g=150,
+        serving_label="150g",
+        calories=210,
+        protein_g=18,
+        carbs_g=2,
+        fat_g=15,
+        in_stock=True,
+    )
+    row.update(kwargs)
+    return row
+
+
+def _egg_whites(**kwargs):
+    row = _ing(
+        "egg-whites",
+        "Egg whites",
+        category="protein",
+        serving_g=243,
+        serving_label="243g",
+        calories=125,
+        protein_g=26,
+        carbs_g=2,
+        fat_g=0,
+        in_stock=True,
+    )
+    row.update(kwargs)
+    return row
+
+
+class TestEggPairing(unittest.TestCase):
+    """#532: whole eggs + egg whites are one grouped meal component."""
+
+    def test_egg_role_ids_and_names(self):
+        self.assertEqual(egg_role({"id": "eggs-whole"}), "eggs-whole")
+        self.assertEqual(egg_role({"id": "egg-whites"}), "egg-whites")
+        self.assertEqual(egg_role({"name": "Whole eggs"}), "eggs-whole")
+        self.assertEqual(egg_role({"name": "Egg whites"}), "egg-whites")
+        self.assertIsNone(egg_role({"id": "eggplant", "name": "Eggplant"}))
+        self.assertIsNone(egg_role({"id": "chicken"}))
+
+    def test_whites_intent_pairs_wholes_when_both_stocked(self):
+        whites = _plan_item_from_ingredient(_egg_whites(), servings=1)
+        items = [whites]
+        rem = {"calories": 400, "protein_g": 40, "carbs_g": 20, "fat_g": 10}
+        totals = {"calories": 125, "protein_g": 26, "carbs_g": 2, "fat_g": 0, "fiber_g": 0}
+        honesty, note = ensure_egg_pair(
+            items, [_egg_whole(), _egg_whites()], rem, totals
+        )
+        ids = {it["id"] for it in items}
+        self.assertIn("egg-whites", ids)
+        self.assertIn("eggs-whole", ids)
+        self.assertEqual(note, "complete")
+        self.assertFalse(honesty)
+        self.assertTrue(all(it.get("group_id") == "eggs" for it in items if egg_role(it)))
+
+    def test_wholes_intent_pairs_whites_when_both_stocked(self):
+        wholes = _plan_item_from_ingredient(_egg_whole(), servings=1)
+        items = [wholes]
+        rem = {"calories": 400, "protein_g": 40, "carbs_g": 20, "fat_g": 10}
+        totals = {"calories": 210, "protein_g": 18, "carbs_g": 2, "fat_g": 15, "fiber_g": 0}
+        honesty, note = ensure_egg_pair(
+            items, [_egg_whole(), _egg_whites()], rem, totals
+        )
+        ids = {it["id"] for it in items}
+        self.assertEqual(ids, {"eggs-whole", "egg-whites"})
+        self.assertEqual(note, "complete")
+        self.assertFalse(honesty)
+
+    def test_neither_does_not_force_eggs(self):
+        chicken = _ing(
+            "chicken",
+            "Chicken",
+            category="protein",
+            serving_g=170,
+            calories=280,
+            protein_g=52,
+            fat_g=6,
+        )
+        inv = {"ingredients": [chicken, _egg_whole(in_stock=False), _egg_whites(in_stock=False)]}
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        ids = {it.get("id") for it in plan["items"]}
+        self.assertNotIn("eggs-whole", ids)
+        self.assertNotIn("egg-whites", ids)
+        self.assertIsNone(plan["notes"].get("egg_pair"))
+
+    def test_whites_stocked_wholes_oos_notes_no_invent(self):
+        inv = {
+            "ingredients": [
+                _egg_whites(),
+                _egg_whole(in_stock=False),
+                _ing(
+                    "rice",
+                    "Rice",
+                    category="carb",
+                    serving_g=195,
+                    calories=215,
+                    protein_g=5,
+                    carbs_g=45,
+                    fat_g=2,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        ids = {it.get("id") for it in plan["items"]}
+        self.assertIn("egg-whites", ids)
+        self.assertNotIn("eggs-whole", ids)
+        self.assertEqual(plan["notes"]["egg_pair"], "whites_only")
+        kinds = [h.get("kind") for h in plan["honesty"]]
+        self.assertIn("egg_pair", kinds)
+        text = " ".join(h.get("text") or "" for h in plan["honesty"] if h.get("kind") == "egg_pair")
+        self.assertIn("not inventing", text.lower())
+
+    def test_wholes_stocked_whites_oos_notes_no_invent(self):
+        inv = {
+            "ingredients": [
+                _egg_whole(),
+                _egg_whites(in_stock=False),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        ids = {it.get("id") for it in plan["items"]}
+        self.assertIn("eggs-whole", ids)
+        self.assertNotIn("egg-whites", ids)
+        self.assertEqual(plan["notes"]["egg_pair"], "wholes_only")
+        self.assertTrue(any(h.get("kind") == "egg_pair" for h in plan["honesty"]))
+
+    def test_generate_pairs_on_same_meal_grouped(self):
+        inv = {
+            "ingredients": [
+                _egg_whole(),
+                _egg_whites(),
+                _ing(
+                    "rice",
+                    "Rice",
+                    category="carb",
+                    serving_g=195,
+                    calories=215,
+                    protein_g=5,
+                    carbs_g=45,
+                    fat_g=2,
+                ),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        ids = {it.get("id") for it in plan["items"]}
+        self.assertIn("eggs-whole", ids)
+        self.assertIn("egg-whites", ids)
+        self.assertEqual(plan["notes"]["egg_pair"], "complete")
+        egg_meals = [
+            m
+            for m in plan["meals"]
+            if any(egg_role(it) for it in m.get("items") or [])
+        ]
+        self.assertEqual(len(egg_meals), 1)
+        meal = egg_meals[0]
+        egg_items = [it for it in meal["items"] if egg_role(it)]
+        self.assertGreaterEqual(len(egg_items), 2)
+        self.assertEqual(egg_items[0].get("group_id"), "eggs")
+        self.assertEqual(egg_items[1].get("group_id"), "eggs")
+        self.assertTrue(meal.get("egg_pair", {}).get("complete"))
+        roles = [egg_role(it) for it in meal["items"]]
+        egg_n = sum(1 for r in roles if r)
+        self.assertGreaterEqual(egg_n, 2)
+        self.assertTrue(all(roles[:egg_n]), msg=roles)
+        self.assertIn("eggs-whole", roles[:egg_n])
+        self.assertIn("egg-whites", roles[:egg_n])
+
+    def test_colocate_moves_split_eggs_onto_one_meal(self):
+        meals = [
+            {
+                "label": "Lunch",
+                "items": [_plan_item_from_ingredient(_egg_whole(), servings=1)],
+                "totals": {},
+            },
+            {
+                "label": "Dinner",
+                "items": [_plan_item_from_ingredient(_egg_whites(), servings=1)],
+                "totals": {},
+            },
+        ]
+        out = colocate_egg_pair(meals)
+        egg_meals = [m for m in out if any(egg_role(it) for it in m["items"])]
+        self.assertEqual(len(egg_meals), 1)
+        ids = [it["id"] for it in egg_meals[0]["items"] if egg_role(it)]
+        self.assertEqual(ids, ["eggs-whole", "egg-whites"])
+        self.assertTrue(egg_meals[0]["egg_pair"]["complete"])
 
 
 if __name__ == "__main__":

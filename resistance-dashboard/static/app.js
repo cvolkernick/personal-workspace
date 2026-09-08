@@ -4122,15 +4122,35 @@
       meals.forEach((m, mi) => {
         const items = m.items || [];
         let slides = "";
-        items.forEach((it) => {
-          // Total portion only (grams when known) — no ×N inventory-serving badge.
+        const mealItemHtml = (it) => {
           const serve = formatPlanPortion(it);
-          slides += `<div class="inv-slide meal-item compact">
+          return `<div class="inv-slide meal-item compact">
             <div class="meal-item-name">${it.name || "Item"}</div>
             <div class="meal-item-meta muted">${serve}</div>
             ${invMacroStrip(it, true)}
           </div>`;
-        });
+        };
+        let ii = 0;
+        while (ii < items.length) {
+          if (items[ii] && items[ii].group_id === "eggs") {
+            const group = [];
+            while (ii < items.length && items[ii] && items[ii].group_id === "eggs") {
+              group.push(items[ii]);
+              ii += 1;
+            }
+            const gLabel =
+              (m.egg_pair && m.egg_pair.label) ||
+              group[0].group_label ||
+              "Whole eggs + egg whites";
+            slides += `<div class="meal-egg-group" data-group="eggs">
+              <div class="meal-egg-group-label">${gLabel}</div>
+              ${group.map(mealItemHtml).join("")}
+            </div>`;
+          } else {
+            slides += mealItemHtml(items[ii]);
+            ii += 1;
+          }
+        }
         const cid = `meal-carousel-${mi}`;
         const clock = mealBucketClock(m);
         const clockBit = clock

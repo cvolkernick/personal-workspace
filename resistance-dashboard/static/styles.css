@@ -1251,6 +1251,27 @@ textarea {
   margin-top: 0.15rem;
 }
 
+.meal-egg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.4rem 0.4rem 0.5rem;
+  border: 1px dashed rgba(240, 180, 41, 0.45);
+  border-radius: 12px;
+  background: rgba(240, 180, 41, 0.06);
+}
+.meal-egg-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f0c14d;
+  padding: 0 0.15rem;
+}
+.meal-egg-group .meal-item {
+  margin: 0;
+}
+
 .muted {
   color: var(--muted);
 }

@@ -521,6 +521,9 @@ class InventoryEditUi(unittest.TestCase):
         self.assertIn("Need-based (not log frequency)", js)
         self.assertIn(".inv-grams-prompt", css)
         self.assertIn(".meal-grams-nudge", css)
+        self.assertIn("meal-egg-group", js)
+        self.assertIn('data-group="eggs"', js)
+        self.assertIn(".meal-egg-group", css)
         self.assertNotIn("CIC", js)
         self.assertNotIn("CIC", html)
 
