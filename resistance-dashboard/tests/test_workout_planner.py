@@ -6,6 +6,7 @@ import unittest
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.workout_planner import (
+    CALF_FAMILY,
     HAMSTRING_CURL_FAMILY,
     HORIZONTAL_PRESS_FAMILY,
     INCLINE_PRESS_FAMILY,
@@ -553,6 +554,110 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertEqual(len(curls), 1, ids)
         self.assertIn("seated-leg-curls", {e["id"] for e in catalog["exercises"]})
         self.assertIn("lying-leg-curls", {e["id"] for e in catalog["exercises"]})
+
+    def test_calf_extension_and_db_raise_share_family(self):
+        self.assertEqual(
+            pattern_family(
+                {
+                    "id": "calf-raises",
+                    "name": "Calf Extensions",
+                    "movement": "isolation",
+                    "primary_muscles": ["calves"],
+                }
+            ),
+            CALF_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family(
+                {
+                    "id": "db-calf-raises",
+                    "name": "DB Calf Raises",
+                    "movement": "isolation",
+                    "primary_muscles": ["calves"],
+                }
+            ),
+            CALF_FAMILY,
+        )
+
+    def test_historical_calf_raises_alias_to_machine_extensions(self):
+        self.assertEqual(NAME_ALIASES["calf raises"], "calf-raises")
+        self.assertEqual(NAME_ALIASES["calf extensions"], "calf-raises")
+        self.assertEqual(NAME_ALIASES["db calf raises"], "db-calf-raises")
+        self.assertEqual(NAME_ALIASES["standing calf raise"], "db-calf-raises")
+        catalog = {
+            "exercises": [
+                {
+                    "id": "calf-raises",
+                    "name": "Calf Extensions",
+                    "session_types": ["legs"],
+                },
+                {
+                    "id": "db-calf-raises",
+                    "name": "DB Calf Raises",
+                    "session_types": ["legs"],
+                },
+            ]
+        }
+        self.assertEqual(session_types_for_lift_name("Calf Raises", catalog), ("legs",))
+        self.assertEqual(session_types_for_lift_name("Calf Extensions", catalog), ("legs",))
+        self.assertEqual(session_types_for_lift_name("DB Calf Raises", catalog), ("legs",))
+
+    def test_legs_caps_one_calf_isolation(self):
+        catalog = {
+            "exercises": [
+                {
+                    "id": "leg-press",
+                    "name": "Leg Press",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["quads"],
+                    "movement": "compound",
+                    "priority": 10,
+                    "available": True,
+                },
+                {
+                    "id": "rdl",
+                    "name": "RDL",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings", "glutes"],
+                    "movement": "compound",
+                    "priority": 10,
+                    "available": True,
+                },
+                {
+                    "id": "calf-raises",
+                    "name": "Calf Extensions",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["calves"],
+                    "movement": "isolation",
+                    "priority": 5,
+                    "available": True,
+                },
+                {
+                    "id": "db-calf-raises",
+                    "name": "DB Calf Raises",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["calves"],
+                    "movement": "isolation",
+                    "priority": 5,
+                    "available": True,
+                },
+            ]
+        }
+        plan = generate_workout_plan(
+            catalog,
+            {
+                **self.goals,
+                "exercises_per_session": 5,
+                "default_hard_sets": 2,
+            },
+            [],
+            recovery_score=80,
+            session_type="legs",
+            as_of="2026-09-08",
+        )
+        ids = [e["id"] for e in plan["exercises"]]
+        calves = [i for i in ids if i in ("calf-raises", "db-calf-raises")]
+        self.assertEqual(len(calves), 1, ids)
 
     def test_pattern_family_maps_press_variants(self):
         self.assertEqual(

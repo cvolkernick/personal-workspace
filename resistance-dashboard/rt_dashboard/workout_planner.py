@@ -180,6 +180,19 @@ NAME_ALIASES = {
     "prone leg curl": "lying-leg-curls",
     "prone leg curls": "lying-leg-curls",
     "calf raises": "calf-raises",
+    "calf raise": "calf-raises",
+    "calf extensions": "calf-raises",
+    "calf extension": "calf-raises",
+    "machine calf raise": "calf-raises",
+    "machine calf raises": "calf-raises",
+    "seated calf raise": "calf-raises",
+    "seated calf raises": "calf-raises",
+    "db calf raises": "db-calf-raises",
+    "db calf raise": "db-calf-raises",
+    "dumbbell calf raises": "db-calf-raises",
+    "dumbbell calf raise": "db-calf-raises",
+    "standing calf raises": "db-calf-raises",
+    "standing calf raise": "db-calf-raises",
     "back extension machine": "back-extension",
     "smith bench": "smith-bench",
     "smith shrugs": "smith-shrugs",
@@ -199,6 +212,7 @@ HORIZONTAL_PRESS_FAMILY = "horizontal_press"
 INCLINE_PRESS_FAMILY = "incline_press"
 VERTICAL_PRESS_FAMILY = "vertical_press"
 HAMSTRING_CURL_FAMILY = "hamstring_curl"
+CALF_FAMILY = "calf"
 
 PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-flat-press": HORIZONTAL_PRESS_FAMILY,
@@ -208,6 +222,8 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-shoulder-press": VERTICAL_PRESS_FAMILY,
     "seated-leg-curls": HAMSTRING_CURL_FAMILY,
     "lying-leg-curls": HAMSTRING_CURL_FAMILY,
+    "calf-raises": CALF_FAMILY,
+    "db-calf-raises": CALF_FAMILY,
 }
 
 PATTERN_FAMILY_SESSION_CAP = 1
