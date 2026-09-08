@@ -1,6 +1,6 @@
 # Investment Portfolio — Positions & Allowlist
 
-**As of:** 2026-09-07  
+**As of:** 2026-09-08  
 **Live sizes / prices:** Financial Command Center only (not this file).  
 **Purpose:** Thesis allowlist and sleeve tags for humans + agentic Robinhood trading.
 
@@ -43,7 +43,7 @@ Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlis
 
 | Symbol | Theme | Status | Notes |
 |--------|-------|--------|-------|
-| **BE** | Energy (Bloom Energy) | ready | Post-Q2 refresh 2026-08-04. Smith fuel-cost reweight 2026-08-31: burns NG/biogas; HH $8–10 is TCO risk not confirmation. `research/BE_deep_dive.md` |
+| **BE** | Energy (Bloom Energy) | **pass / dropped** | OWNER EXIT 2026-09-03 (sold; 50/50 TSLA+SPCX). OFF Agentic holdings, OFF watchlist #1 / NVDA-GOOGL-BE trio, OFF Monday theme-gap / DCA. Do NOT reseat. 2026-09-08 incident: $5 buy still filled (order 6aa014ee…) because status was still ready — nest SoT corrected same day. |
 | **GOOGL** | AI stack (Alphabet / Google) | ready | Dive 2026-08-04. Liquid AI + cash compounder. Class A preferred. |
 | **AAPL** | AI stack (Apple) | ready | Dive 2026-08-04. Quality/ecosystem AI; behind GOOGL/NVDA on pure AI. |
 | **NVDA** | AI stack (NVIDIA) | ready | Dive 2026-08-04. Pure AI infra; next print ~2026-08-26 event risk. |

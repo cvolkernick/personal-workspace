@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "agentic_fund_manager",
-  "as_of": "2026-09-07",
+  "as_of": "2026-09-08",
   "mode": "active",
   "status": "live_autopilot",
   "live": true,
@@ -276,12 +276,11 @@
       "target_pct": null,
       "symbols": [],
       "watchlist_symbols": [
-        "BE",
         "CCJ",
         "BWXT"
       ],
       "open": true,
-      "notes": "No core mandate. BE = energy equipment / speed-to-power (Smith fuel-cost overlay 2026-08-31: HH $8\u201310 is TCO risk, not confirmation). CCJ = nuclear fuel + 49% Westinghouse. BWXT = Navy nuclear floor + commercial components. Owner-add 2026-08-31 (Chronometer/Smith option A). Deep-dive + ready each deploy; never auto-buy; not a basket. EXE not named \u2014 pass."
+      "notes": "No core mandate. BE REMOVED 2026-09-08 (owner exit 2026-09-03): sold; 50/50 TSLA+SPCX; OFF Agentic DCA / Monday theme-gap / consider set \u2014 do not reseat. CCJ = nuclear fuel + 49% Westinghouse. BWXT = Navy nuclear floor + commercial components. Owner-add CCJ/BWXT 2026-08-31 (Chronometer/Smith option A). Deep-dive + ready each deploy; never auto-buy; not a basket. EXE not named \u2014 pass. Incident 2026-09-08: morning $25 deploy bought $5 BE because watchlist still ready \u2014 nest SoT corrected."
     }
   },
   "watchlist": {
@@ -358,7 +357,10 @@
   "guardrails": {
     "block_if_agentic_bp_zero": true,
     "respect_fcc_liquidity_stress": false,
-    "notes": "v1: agentic funding is the risk budget. FCC card/loan stress does not block agentic trades (separate capital)."
+    "notes": "v1: agentic funding is the risk budget. FCC card/loan stress does not block agentic trades (separate capital). | 2026-09-08: BE in blocked_symbols \u2014 owner exit 2026-09-03; never auto-buy / never Monday theme-gap.",
+    "blocked_symbols": [
+      "BE"
+    ]
   },
   "execution": {
     "venue": "robinhood_mcp",
