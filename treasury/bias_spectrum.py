@@ -492,6 +492,8 @@ def _pins_from(value: Any) -> Dict[str, float]:
             "not_an_order",
             "not_for_autopilot",
             "not_for_monday_residual",
+            "not_a_forced_rebalance",
+            "authoritative_for_bias_pins",
         }:
             continue
         sym = _sym(key)
@@ -855,10 +857,14 @@ def build_bias_spectrum(
             "Private watchlist stays off-axis.",
             *(
                 [
-                    "TSLA/SPCX chips are consideration-list stamps (residual mix; "
-                    "BE's consider-share was split onto them), not live NAV/sleeve "
-                    "targets and not orders. Flatten-only: no trim, no top-up. "
-                    "Monday residual stays theme-gap."
+                    "Pinned chips ("
+                    + "/".join(stamped)
+                    + ") are consideration-list stamps from "
+                    "investment/consider_share.json (residual mix). Historical "
+                    "BE→TSLA/SPCX reallocate is a no-op when BE is off-axis. "
+                    "Not live NAV/sleeve targets and not orders. Flatten-only: "
+                    "no trim, no top-up. Monday residual stays theme-gap "
+                    "(prefer underweights; not forced onto pins)."
                 ]
                 if stamped
                 else []
