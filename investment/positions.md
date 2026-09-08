@@ -1,6 +1,6 @@
 # Investment Portfolio — Positions & Allowlist
 
-**As of:** 2026-07-20  
+**As of:** 2026-09-07  
 **Live sizes / prices:** Financial Command Center only (not this file).  
 **Purpose:** Thesis allowlist and sleeve tags for humans + agentic Robinhood trading.
 
@@ -33,7 +33,7 @@
 
 | Sleeve | Policy |
 |--------|--------|
-| **Hard money metals** | Gold/silver (e.g. PAXG, GLDM or similar) allowed under the ~40% hard-money umbrella if sized deliberately |
+| **Gold / sound-money metals** | Owner 2026-09-07: sound-money sleeve under ~40% complex, **lower priority than Bitcoin**. Vehicle TBD (gold ETF and/or gold miners). **Research-only — no auto-buy, no size until owner calls a buy.** Silver optional same posture. Examples for research only: GLDM/IAU/GLD; miner basket TBD. |
 | **Energy** | Overarching theme (mining power, AI electricity, electrification). **No mandated core tickers.** Candidates on **watchlist** (below); deep-dive before first buy |
 | **AI stack (broad)** | Infra (hardware), foundation models, application software—additions should still fit modernized 60/40 and FCC floors |
 

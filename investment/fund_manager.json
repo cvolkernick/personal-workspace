@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "agentic_fund_manager",
-  "as_of": "2026-08-04",
+  "as_of": "2026-09-07",
   "mode": "active",
   "status": "live_autopilot",
   "live": true,
@@ -189,9 +189,11 @@
         "STRK"
       ],
       "optional_symbols": [
-        "PAXG",
         "GLDM",
         "IAU",
+        "GLD",
+        "PAXG",
+        "GDX",
         "SLV"
       ],
       "themes": [
@@ -228,9 +230,26 @@
             "IREN"
           ],
           "notes": "Owner 2026-07-27: multi-miner diversification is intentional. Do NOT reject RIOT/CLSK/WULF/etc. merely for 'miner overlap' or 'already have MARA+IREN'. Diversify mining beta across names; only block on true concentration (e.g. miners crowding out digital credit / MSTR / whole-book limits), liquidity, or thesis failure."
+        },
+        "hard_money_metals": {
+          "priority": "below_bitcoin",
+          "status": "research_only",
+          "auto_buy": false,
+          "symbols_research": [
+            "GLDM",
+            "IAU",
+            "GLD",
+            "PAXG",
+            "GDX"
+          ],
+          "vehicle_tbd": [
+            "gold_etf",
+            "gold_miners"
+          ],
+          "notes": "Owner 2026-09-07: gold as sound-money sleeve, lower priority than Bitcoin positions. Vehicle TBD (gold ETF and/or gold miners) \u2014 research-only until owner calls a buy. No auto-buy. No Bias consider-share stamp until buy called. Not RH Gold membership. Not a substitute for BTC / digital credit / miners."
         }
       },
-      "notes": "BTC complex = digital credit + miners/infra + optional spot/metals. Small bias toward STRC/SATA within credit (yield > cash; BTC-fundamental dividends); multi-miner book is diversification, not redundancy. STRK is watchlist convertible preferred (owner 2026-08-30) \u2014 consider each deploy; not core."
+      "notes": "BTC complex = digital credit + miners/infra + optional sound-money metals. Small bias toward STRC/SATA within credit; multi-miner diversification intentional. STRK watchlist convertible preferred (2026-08-30). Gold sound-money (2026-09-07): below BTC priority; vehicle TBD; research-only until buy call."
     },
     "stocks_growth": {
       "target_pct": 0.6,

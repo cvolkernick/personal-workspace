@@ -1,50 +1,8 @@
 {
-  "primary_portfolio": {
-    "data": {
-      "total_value": "0.094046",
-      "equity_value": "0",
-      "options_value": "0",
-      "futures_value": "0",
-      "event_contracts_value": "0",
-      "crypto_value": "0.004046",
-      "cash": "0.09",
-      "pending_deposits": "0",
-      "mutual_funds_value": "0",
-      "fixed_income_value": "0",
-      "currency": "USD",
-      "buying_power": {
-        "buying_power": "0.0900",
-        "unleveraged_buying_power": "0.0900",
-        "display_currency": "USD"
-      },
-      "crypto_buying_power": {
-        "buying_power": "0.0900"
-      }
-    }
-  },
-  "agentic_portfolio": {
-    "data": {
-      "total_value": "266.3791898774",
-      "equity_value": "266.2791898774",
-      "options_value": "0",
-      "futures_value": "0",
-      "event_contracts_value": "0",
-      "crypto_value": "0",
-      "cash": "0.1",
-      "pending_deposits": "0",
-      "mutual_funds_value": "0",
-      "fixed_income_value": "0",
-      "currency": "USD",
-      "buying_power": {
-        "buying_power": "0.1000",
-        "unleveraged_buying_power": "0.1000",
-        "display_currency": "USD"
-      },
-      "crypto_buying_power": {
-        "buying_power": "0.1000"
-      }
-    }
-  },
+  "source": "live_mcp_http_pi",
+  "as_of": "2026-09-08T14:20:08.673698+00:00",
+  "primary_account": "5QW39737",
+  "agentic_account": "674601752",
   "accounts": [
     {
       "account_number": "5QW39737",
@@ -80,6 +38,54 @@
       "permanently_deactivated": false
     }
   ],
+  "primary_portfolio": {
+    "data": {
+      "total_value": "0.094046",
+      "equity_value": "0",
+      "options_value": "0",
+      "futures_value": "0",
+      "event_contracts_value": "0",
+      "crypto_value": "0.004046",
+      "cash": "0.09",
+      "pending_deposits": "0",
+      "mutual_funds_value": "0",
+      "fixed_income_value": "0",
+      "currency": "USD",
+      "buying_power": {
+        "buying_power": "0.0900",
+        "unleveraged_buying_power": "0.0900",
+        "display_currency": "USD"
+      },
+      "crypto_buying_power": {
+        "buying_power": "0.0900"
+      }
+    },
+    "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value. On a cash account, recently sold proceeds that have not yet settled are not spendable and are not included in buying_power; that unsettled amount is reported as unsettled_funds by get_accounts (not here), so if you do not already have the account's unsettled_funds, call get_accounts to check it. Whenever you report buying power or account value for a type='cash' account whose unsettled_funds is greater than 0, inform the user those unsettled proceeds could be traded immediately with a limited-margin upgrade, and \u2014 if the get_limited_margin_upgrade_info tool is available \u2014 call it with the account_number and share the appropriate upgrade link. If that tool is not available, say nothing about limited margin (there is no fallback)."
+  },
+  "agentic_portfolio": {
+    "data": {
+      "total_value": "293.4437016114",
+      "equity_value": "293.3437016114",
+      "options_value": "0",
+      "futures_value": "0",
+      "event_contracts_value": "0",
+      "crypto_value": "0",
+      "cash": "0.1",
+      "pending_deposits": "25",
+      "mutual_funds_value": "0",
+      "fixed_income_value": "0",
+      "currency": "USD",
+      "buying_power": {
+        "buying_power": "0.1000",
+        "unleveraged_buying_power": "0.1000",
+        "display_currency": "USD"
+      },
+      "crypto_buying_power": {
+        "buying_power": "0.1000"
+      }
+    },
+    "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value. On a cash account, recently sold proceeds that have not yet settled are not spendable and are not included in buying_power; that unsettled amount is reported as unsettled_funds by get_accounts (not here), so if you do not already have the account's unsettled_funds, call get_accounts to check it. Whenever you report buying power or account value for a type='cash' account whose unsettled_funds is greater than 0, inform the user those unsettled proceeds could be traded immediately with a limited-margin upgrade, and \u2014 if the get_limited_margin_upgrade_info tool is available \u2014 call it with the account_number and share the appropriate upgrade link. If that tool is not available, say nothing about limited margin (there is no fallback)."
+  },
   "primary_positions": [],
   "agentic_positions": [
     {
@@ -93,7 +99,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 138.915,
+      "last_trade_price": 138.915
     },
     {
       "symbol": "MARA",
@@ -106,7 +114,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 11.655,
+      "last_trade_price": 11.655
     },
     {
       "symbol": "TSLA",
@@ -119,7 +129,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 361.565,
+      "last_trade_price": 361.565
     },
     {
       "symbol": "SPCX",
@@ -132,7 +144,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 148.72,
+      "last_trade_price": 148.72
     },
     {
       "symbol": "BITA",
@@ -145,7 +159,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 59.56,
+      "last_trade_price": 59.56
     },
     {
       "symbol": "IREN",
@@ -158,7 +174,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 47.615,
+      "last_trade_price": 47.615
     },
     {
       "symbol": "CLSK",
@@ -171,33 +189,39 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 13.0,
+      "last_trade_price": 13.0
     },
     {
       "symbol": "STRC",
-      "quantity": "0.062240",
-      "intraday_quantity": "0.000000",
-      "average_buy_price": "96.400000",
-      "shares_available_for_sells": "0.062240",
+      "quantity": "0.113364",
+      "intraday_quantity": "0.051124",
+      "average_buy_price": "97.030000",
+      "shares_available_for_sells": "0.113364",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 97.8051,
+      "last_trade_price": 97.8051
     },
     {
       "symbol": "SATA",
-      "quantity": "0.050000",
-      "intraday_quantity": "0.000000",
+      "quantity": "0.100000",
+      "intraday_quantity": "0.050000",
       "average_buy_price": "100.000000",
-      "shares_available_for_sells": "0.050000",
+      "shares_available_for_sells": "0.100000",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 99.995,
+      "last_trade_price": 99.995
     },
     {
       "symbol": "GOOGL",
@@ -210,7 +234,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 334.715,
+      "last_trade_price": 334.715
     },
     {
       "symbol": "RIOT",
@@ -223,7 +249,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 22.345,
+      "last_trade_price": 22.345
     },
     {
       "symbol": "WULF",
@@ -236,10 +264,590 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": 17.135,
+      "last_trade_price": 17.135
+    },
+    {
+      "symbol": "BE",
+      "quantity": "0.018062",
+      "intraday_quantity": "0.018062",
+      "average_buy_price": "276.820000",
+      "shares_available_for_sells": "0.018062",
+      "shares_held_for_sells": "0.000000",
+      "shares_held_for_stock_grants": "0.000000",
+      "shares_held_for_options_events": "0.000000",
+      "shares_held_for_asset_transfer": "0.000000",
+      "shares_pending_from_options_events": "0.000000",
+      "type": "long",
+      "last_price": 273.32,
+      "last_trade_price": 273.32
+    },
+    {
+      "symbol": "NVDA",
+      "quantity": "0.043565",
+      "intraday_quantity": "0.043565",
+      "average_buy_price": "229.540000",
+      "shares_available_for_sells": "0.043565",
+      "shares_held_for_sells": "0.000000",
+      "shares_held_for_stock_grants": "0.000000",
+      "shares_held_for_options_events": "0.000000",
+      "shares_held_for_asset_transfer": "0.000000",
+      "shares_pending_from_options_events": "0.000000",
+      "type": "long",
+      "last_price": 228.15,
+      "last_trade_price": 228.15
     }
   ],
-  "primary_account": "5QW39737",
-  "agentic_account": "674601752",
-  "source": "live"
+  "agentic_orders": [
+    {
+      "id": "6aa014ee-32a3-4b03-80ae-b29db0b9a0cf",
+      "instrument_id": "82d742b6-84e0-4f22-a3f7-5bfa4afcb8c1",
+      "symbol": "BE",
+      "side": "buy",
+      "type": "market",
+      "state": "filled",
+      "quantity": "0.018062",
+      "cumulative_quantity": "0.018062",
+      "price": "276.590000",
+      "stop_price": null,
+      "average_price": "276.819900",
+      "fees": "0.000000",
+      "dollar_based_amount": {
+        "amount": "5.000000",
+        "currency_code": "USD"
+      },
+      "time_in_force": "gfd",
+      "market_hours": "regular_hours",
+      "trigger": "immediate",
+      "placed_agent": "agentic",
+      "created_at": "2026-09-08T14:00:14.846172Z",
+      "last_transaction_at": "2026-09-08T14:00:15.001Z",
+      "executions": [
+        {
+          "id": "6aa014ef-9fb5-4bcb-b5c0-0732f4986e61",
+          "price": "276.819900",
+          "quantity": "0.018062",
+          "timestamp": "2026-09-08T14:00:15.001Z",
+          "fees": "0.000000"
+        }
+      ]
+    },
+    {
+      "id": "6aa014ed-b7ef-4d26-b373-708a4ac9a1ad",
+      "instrument_id": "a4ecd608-e7b4-4ff3-afa5-f77ae7632dfb",
+      "symbol": "NVDA",
+      "side": "buy",
+      "type": "market",
+      "state": "filled",
+      "quantity": "0.043565",
+      "cumulative_quantity": "0.043565",
+      "price": "229.530000",
+      "stop_price": null,
+      "average_price": "229.539900",
+      "fees": "0.000000",
+      "dollar_based_amount": {
+        "amount": "10.000000",
+        "currency_code": "USD"
+      },
+      "time_in_force": "gfd",
+      "market_hours": "regular_hours",
+      "trigger": "immediate",
+      "placed_agent": "agentic",
+      "created_at": "2026-09-08T14:00:13.269843Z",
+      "last_transaction_at": "2026-09-08T14:00:13.416Z",
+      "executions": [
+        {
+          "id": "6aa014ed-1d36-4db9-bfe4-9bb5ae1f158f",
+          "price": "229.539900",
+          "quantity": "0.043565",
+          "timestamp": "2026-09-08T14:00:13.416Z",
+          "fees": "0.000000"
+        }
+      ]
+    },
+    {
+      "id": "6aa014eb-0273-4d1e-9e78-5aec4c6727a9",
+      "instrument_id": "a3cd0523-a915-4dc6-879a-393599e1cfc9",
+      "symbol": "SATA",
+      "side": "buy",
+      "type": "market",
+      "state": "filled",
+      "quantity": "0.050000",
+      "cumulative_quantity": "0.050000",
+      "price": "100.000000",
+      "stop_price": null,
+      "average_price": "100.000000",
+      "fees": "0.000000",
+      "dollar_based_amount": {
+        "amount": "5.000000",
+        "currency_code": "USD"
+      },
+      "time_in_force": "gfd",
+      "market_hours": "regular_hours",
+      "trigger": "immediate",
+      "placed_agent": "agentic",
+      "created_at": "2026-09-08T14:00:11.781603Z",
+      "last_transaction_at": "2026-09-08T14:00:11.961Z",
+      "executions": [
+        {
+          "id": "6aa014eb-2e81-4d30-b41f-3427de420197",
+          "price": "100.000000",
+          "quantity": "0.050000",
+          "timestamp": "2026-09-08T14:00:11.961Z",
+          "fees": "0.000000"
+        }
+      ]
+    },
+    {
+      "id": "6aa014ea-a024-4530-bb78-b98ad9caaddc",
+      "instrument_id": "baaf764e-ac23-41ac-9573-7ac1de76757c",
+      "symbol": "STRC",
+      "side": "buy",
+      "type": "market",
+      "state": "filled",
+      "quantity": "0.051124",
+      "cumulative_quantity": "0.051124",
+      "price": "97.760000",
+      "stop_price": null,
+      "average_price": "97.799900",
+      "fees": "0.000000",
+      "dollar_based_amount": {
+        "amount": "5.000000",
+        "currency_code": "USD"
+      },
+      "time_in_force": "gfd",
+      "market_hours": "regular_hours",
+      "trigger": "immediate",
+      "placed_agent": "agentic",
+      "created_at": "2026-09-08T14:00:10.133966Z",
+      "last_transaction_at": "2026-09-08T14:00:10.317Z",
+      "executions": [
+        {
+          "id": "6aa014ea-3c86-4b96-acf1-aef42c91d0dd",
+          "price": "97.799900",
+          "quantity": "0.051124",
+          "timestamp": "2026-09-08T14:00:10.317Z",
+          "fees": "0.000000"
+        }
+      ]
+    }
+  ],
+  "quotes": [
+    {
+      "quote": {
+        "symbol": "MSTR",
+        "last_trade_price": "138.915000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.31205036Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "142.800000",
+        "previous_close": "142.800000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "138.840000",
+        "venue_bid_time": "2026-09-08T14:20:06.85939722Z",
+        "ask_price": "138.940000",
+        "venue_ask_time": "2026-09-08T14:20:06.85939722Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "STRC",
+        "last_trade_price": "97.805100",
+        "venue_last_trade_time": "2026-09-08T14:19:58.898280959Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "97.750000",
+        "previous_close": "97.750000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "97.790000",
+        "venue_bid_time": "2026-09-08T14:19:55.639852397Z",
+        "ask_price": "97.840000",
+        "venue_ask_time": "2026-09-08T14:19:55.639852397Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "SATA",
+        "last_trade_price": "99.995000",
+        "venue_last_trade_time": "2026-09-08T14:19:29.988815744Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "99.958400",
+        "previous_close": "100.010000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "99.990000",
+        "venue_bid_time": "2026-09-08T14:20:02.772738799Z",
+        "ask_price": "100.000000",
+        "venue_ask_time": "2026-09-08T14:20:02.772738799Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "BITA",
+        "last_trade_price": "59.560000",
+        "venue_last_trade_time": "2026-09-08T14:19:53.52701172Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "60.399500",
+        "previous_close": "60.399500",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "59.360000",
+        "venue_bid_time": "2026-09-08T14:20:03.526239224Z",
+        "ask_price": "59.590000",
+        "venue_ask_time": "2026-09-08T14:20:03.526239224Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "ASST",
+        "last_trade_price": "26.845000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.365549602Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "27.140000",
+        "previous_close": "27.140000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "26.810000",
+        "venue_bid_time": "2026-09-08T14:20:07.224927267Z",
+        "ask_price": "26.860000",
+        "venue_ask_time": "2026-09-08T14:20:07.224927267Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "MARA",
+        "last_trade_price": "11.655000",
+        "venue_last_trade_time": "2026-09-08T14:20:05.123276806Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "11.310000",
+        "previous_close": "11.310000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "11.640000",
+        "venue_bid_time": "2026-09-08T14:20:07.219511087Z",
+        "ask_price": "11.650000",
+        "venue_ask_time": "2026-09-08T14:20:07.219511087Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "RIOT",
+        "last_trade_price": "22.345000",
+        "venue_last_trade_time": "2026-09-08T14:20:06.235452143Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "21.800000",
+        "previous_close": "21.800000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "22.340000",
+        "venue_bid_time": "2026-09-08T14:20:07.803248803Z",
+        "ask_price": "22.350000",
+        "venue_ask_time": "2026-09-08T14:20:07.803248803Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "CLSK",
+        "last_trade_price": "13.000000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.273862335Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "12.690000",
+        "previous_close": "12.690000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "12.990000",
+        "venue_bid_time": "2026-09-08T14:20:07.207457446Z",
+        "ask_price": "13.000000",
+        "venue_ask_time": "2026-09-08T14:20:07.207457446Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "WULF",
+        "last_trade_price": "17.135000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.779721655Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "16.510000",
+        "previous_close": "16.510000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "17.120000",
+        "venue_bid_time": "2026-09-08T14:20:07.866883388Z",
+        "ask_price": "17.140000",
+        "venue_ask_time": "2026-09-08T14:20:07.866883388Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "IREN",
+        "last_trade_price": "47.615000",
+        "venue_last_trade_time": "2026-09-08T14:20:06.902930599Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "44.680000",
+        "previous_close": "44.680000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "47.600000",
+        "venue_bid_time": "2026-09-08T14:20:06.938652834Z",
+        "ask_price": "47.630000",
+        "venue_ask_time": "2026-09-08T14:20:06.938652834Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "TSLA",
+        "last_trade_price": "361.565000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.784722248Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "354.080000",
+        "previous_close": "354.080000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "361.580000",
+        "venue_bid_time": "2026-09-08T14:20:07.253574781Z",
+        "ask_price": "361.740000",
+        "venue_ask_time": "2026-09-08T14:20:07.253574781Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "SPCX",
+        "last_trade_price": "148.720000",
+        "venue_last_trade_time": "2026-09-08T14:20:06.795897058Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "147.950000",
+        "previous_close": "147.950000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "148.720000",
+        "venue_bid_time": "2026-09-08T14:20:06.946039863Z",
+        "ask_price": "148.770000",
+        "venue_ask_time": "2026-09-08T14:20:06.946039863Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "GOOGL",
+        "last_trade_price": "334.715000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.31050797Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "338.460000",
+        "previous_close": "338.460000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "334.690000",
+        "venue_bid_time": "2026-09-08T14:20:06.946128491Z",
+        "ask_price": "334.720000",
+        "venue_ask_time": "2026-09-08T14:20:06.946128491Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "NVDA",
+        "last_trade_price": "228.150000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.558219306Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "230.360000",
+        "previous_close": "230.360000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "228.140000",
+        "venue_bid_time": "2026-09-08T14:20:07.374968332Z",
+        "ask_price": "228.160000",
+        "venue_ask_time": "2026-09-08T14:20:07.374968332Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "BE",
+        "last_trade_price": "273.320000",
+        "venue_last_trade_time": "2026-09-08T14:20:06.401265811Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "252.870000",
+        "previous_close": "252.870000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "273.120000",
+        "venue_bid_time": "2026-09-08T14:20:05.368656116Z",
+        "ask_price": "273.510000",
+        "venue_ask_time": "2026-09-08T14:20:05.368656116Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "AAPL",
+        "last_trade_price": "315.875000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.991323069Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "319.970000",
+        "previous_close": "319.970000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "315.860000",
+        "venue_bid_time": "2026-09-08T14:20:07.859750893Z",
+        "ask_price": "315.890000",
+        "venue_ask_time": "2026-09-08T14:20:07.859750893Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "PLTR",
+        "last_trade_price": "172.850000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.158762103Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "174.330000",
+        "previous_close": "174.330000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "172.850000",
+        "venue_bid_time": "2026-09-08T14:20:07.796297408Z",
+        "ask_price": "172.970000",
+        "venue_ask_time": "2026-09-08T14:20:07.796297408Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "EVGO",
+        "last_trade_price": "1.465000",
+        "venue_last_trade_time": "2026-09-08T14:19:43.658289576Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "1.510000",
+        "previous_close": "1.510000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "1.460000",
+        "venue_bid_time": "2026-09-08T14:19:57.947606691Z",
+        "ask_price": "1.470000",
+        "venue_ask_time": "2026-09-08T14:19:57.947606691Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "AMZN",
+        "last_trade_price": "255.375000",
+        "venue_last_trade_time": "2026-09-08T14:20:07.298823626Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "258.510000",
+        "previous_close": "258.510000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "255.350000",
+        "venue_bid_time": "2026-09-08T14:20:08.10369612Z",
+        "ask_price": "255.400000",
+        "venue_ask_time": "2026-09-08T14:20:08.10369612Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "RKLB",
+        "last_trade_price": "65.695000",
+        "venue_last_trade_time": "2026-09-08T14:20:05.335423271Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "64.260000",
+        "previous_close": "64.260000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "65.690000",
+        "venue_bid_time": "2026-09-08T14:20:08.237607429Z",
+        "ask_price": "65.710000",
+        "venue_ask_time": "2026-09-08T14:20:08.237607429Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "STRK",
+        "last_trade_price": "78.000000",
+        "venue_last_trade_time": "2026-09-08T14:03:31.917978947Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "77.770000",
+        "previous_close": "77.770000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "77.880000",
+        "venue_bid_time": "2026-09-08T14:15:18.027191582Z",
+        "ask_price": "78.750000",
+        "venue_ask_time": "2026-09-08T14:15:18.027191582Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "CCJ",
+        "last_trade_price": "104.100000",
+        "venue_last_trade_time": "2026-09-08T14:20:02.075821446Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "100.740000",
+        "previous_close": "100.740000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "104.030000",
+        "venue_bid_time": "2026-09-08T14:20:07.344974494Z",
+        "ask_price": "104.100000",
+        "venue_ask_time": "2026-09-08T14:20:07.344974494Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "BWXT",
+        "last_trade_price": "159.040000",
+        "venue_last_trade_time": "2026-09-08T14:19:54.266630208Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "157.590000",
+        "previous_close": "157.590000",
+        "previous_close_date": "2026-09-04",
+        "bid_price": "158.670000",
+        "venue_bid_time": "2026-09-08T14:20:04.247533241Z",
+        "ask_price": "159.220000",
+        "venue_ask_time": "2026-09-08T14:20:04.247533241Z",
+        "has_traded": true,
+        "state": "active"
+      }
+    }
+  ],
+  "session_mcp": "pi_stored_oauth"
 }

@@ -2088,3 +2088,64 @@
 - **critic:** ok — Hold preferred when bands ok — avoid churn
 - **executor:** hold — No MCP orders on pure rules HOLD
 
+
+## 2026-09-07T13:37:26 — hold
+**Summary:** Rules HOLD: deployed mix in ±5% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.10/$0.10 < min_trade $1.00 (not deployable)
+**Book:** NAV $266.3792 · BP $0.1
+**Weights before (deployed):** BTC-complex 0.4038 · Stocks 0.5962
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** In-band + low cash → skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.
+**Team:**
+- **scout:** observe — NAV $266.38 BP $0.10 cash $0.10
+- **thesis:** ok — deployed BTC 0.4038 stocks 0.5962
+- **risk:** ok — Agentic capital only; no trade if hold
+- **critic:** ok — Hold preferred when bands ok — avoid churn
+- **executor:** hold — No MCP orders on pure rules HOLD
+
+
+## 2026-09-08T13:31:49 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.10 BP $25.10 (deployable $25.10 ≥ min_trade $1.00)
+**Book:** NAV $292.1278 · BP $25.1
+**Weights before (deployed):** BTC-complex 0.4038 · Stocks 0.5962
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $292.13 BP $25.10 cash $25.10
+- **thesis:** ok — deployed BTC 0.4038 stocks 0.5962
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-08T14:15:30 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.10 BP $25.10 (deployable $25.10 ≥ min_trade $1.00)
+**Book:** NAV $292.1278 · BP $25.1
+**Weights before (deployed):** BTC-complex 0.4038 · Stocks 0.5962
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $292.13 BP $25.10 cash $25.10
+- **thesis:** ok — deployed BTC 0.4038 stocks 0.5962
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-08T14:23:31 — hold
+**Summary:** Mid-session-style team HOLD on agentic ••••1752 after 10:00 ET fills: NAV $293.44, cash/BP $0.10 < min $1. Live mix ~40.8% BTC-complex / ~59.2% stocks (in ±5% band). This morning STRC $5 + SATA $5 + NVDA $10 + BE $5 filled. pending_deposits $25 is phantom — not spendable. Full research/rotate. No new orders.
+**Book:** NAV $293.44 · BP $0.1
+**Weights before (deployed):** BTC-complex 0.4084 · Stocks 0.5916
+**Why now:** User-run fund-manager review ~10:20 ET (mid-session, past open-first-30m). Live Pi MCP cash/BP $0.10 < min $1. Unsettled $0. live_autopilot. This morning's STRC $5 + SATA $5 + NVDA $10 + BE $5 filled at 14:00Z. Deployed mix in band so no rotate. pending_deposits $25 is phantom vs live BP $0.10.
+**Why not alternatives:** Rejected treating pending_deposits $25 as capital. Rejected MSTR/TSLA/SPCX/GOOGL top-up (no residual; held-only inertia). STRC/SATA seats exist (~$21 after this morning's $5+$5) and credit is ~66% of the BTC complex — logged rebuttal is residual=0 + sub-sleeve balance, not 'MSTR covers credit'. Regular-hours STRC/SATA spreads are $0.05/$0.01 so illiquidity is not the rebuttal. Did not reject miners for overlap — 5-name sleeve is the desired diversification and already complete. NVDA starter and BE equipment seat filled this open. CCJ/BWXT named nuclear gap — not a BE substitute and not a basket; next residual when BP returns. STRK RV vs STRC fails. Forced rotate sells blocked as churn ~20m after fills. Gold research-only until owner buy call.
+**Team:**
+- **scout:** ok — Agentic ••••1752 live Pi MCP NAV $293.44 equity $293.34 cash/BP $0.10; unsettled $0; pending_deposits $25 phantom; held MSTR STRC SATA BITA MARA IREN CLSK RIOT WULF TSLA SPCX GOOGL NVDA BE; deployed ~40.8/59.2 in band; ~10:20 ET past open-first-30m. This morning STRC/SATA/NVDA/BE filled 14:00Z. RH MCP via Pi stored OAuth (Mac session tools disconnected / Mac token revoked).
+- **thesis:** ok — HOLD. Theme holes filled this open (STRC+SATA credit residual; NVDA silicon; BE energy equipment). STRC/SATA seats ~$21; credit 66% of complex. Next residual rank CCJ then BWXT — not this pass. Not MSTR/TSLA habit. No rotate.
+- **risk:** ok — Agentic cash only; BP $0.10 < min $1; limited_margin; no open orders; unsettled $0. Guardrail: no trade without deployable BP. Do not spend pending $25. TSLA 26.5% is concentration observation, not a trim mandate 20m after fills. Miner 5-name is diversification not concentration vs credit. BE $5 starter + fuel-cost overlay is not a size-up.
+- **critic:** ok — Block phantom $25. Block held-only. STRC/SATA under-allocation: seats exist after this morning's $5+$5; credit 66% of complex; skip of adds is residual=0 not MSTR-cover; tape is tight so liquidity is not the rebuttal. Miner skip of *adds* is no-capital, not overlap-reject. Block CCJ+BWXT+BE basket. Block STRK (RV vs STRC fails). Block open-churn rotate. No size-down because no new orders.
+- **executor:** hold — No place/cancel. Confirmed four agentic regular_hours GFD market buys filled at 10:00 ET: STRC $5 / SATA $5 / NVDA $10 / BE $5. Residual $0.10. Venue Pi stored OAuth HTTP.
+**Actions:**
+- BUY STRC $5.0 [filled] 6aa014ea-a024-4530-bb78-b98ad9caaddc
+- BUY SATA $5.0 [filled] 6aa014eb-0273-4d1e-9e78-5aec4c6727a9
+- BUY NVDA $10.0 [filled] 6aa014ed-b7ef-4d26-b373-708a4ac9a1ad
+- BUY BE $5.0 [filled] 6aa014ee-32a3-4b03-80ae-b29db0b9a0cf
+

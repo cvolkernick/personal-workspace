@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-12",
+  "as_of": "2026-09-07",
   "purpose": "Private (pre-IPO / pre-listing) companies to monitor for a possible public-market allocation when/if they become tradable. Not investable on the agentic book today. Not part of the public equities deploy consider set.",
   "policy": {
     "auto_buy": false,
@@ -153,6 +153,118 @@
       "last_deep_dive": "2026-08-06",
       "last_deep_dive_path": "investment/research/private/BOOM_deep_dive.md",
       "last_verdict": "private_watch_energy_ai_power_show_me"
+    },
+    {
+      "id": "SAIL",
+      "name": "Sail Research",
+      "legal_name": "Sail Research",
+      "status": "monitor",
+      "liquidity": "private",
+      "rank": 4,
+      "priority": "medium",
+      "theme": "ai_stack",
+      "themes": [
+        "ai_stack",
+        "agent_infra",
+        "inference",
+        "long_horizon_agents"
+      ],
+      "sleeve_if_public": "stocks_growth",
+      "public_symbol": null,
+      "listing_status": "private_no_filed_ipo",
+      "last_reported_valuation": "~$450M (Series A; KP led; seed+A ~$80M raised \u2014 press / share.google AI Mode 2026-09-05)",
+      "thesis_fit": "Inference platform for long-horizon agents (Sailboxes). Owner add 2026-09-05 for Agentic Fund private watch \u2014 investability / pricing / product / funding. Fits AI-stack / agent-infra when/if public. Not Horizon; not deployable while private.",
+      "why_watch": "Owner 2026-09-05: private now; Agentic private watch purpose is monitor until investible (IPO / public listing / clear retail or accessible secondary \u2014 NOT private deploy). Material move = investability path opens.",
+      "monitor_for": [
+        "ipo_s1_or_confidential_filing",
+        "direct_listing_or_spac_announcement",
+        "clear_retail_or_accessible_secondary",
+        "material_funding_or_valuation_step",
+        "product pricing / Sailbox GA or usage signals",
+        "material product or contract news"
+      ],
+      "next_catalyst": "Next funding mark, pricing/product milestone, or liquidity-event signal; no public ticker as of 2026-09-05",
+      "added": "2026-09-05",
+      "added_by": "owner",
+      "last_review": "2026-09-05",
+      "docs_url": "https://docs.sailresearch.com",
+      "share_url": "https://share.google/aimode/MfNmp40OJO34B8Iny",
+      "notes": "Owner 2026-09-05 via Grok: Agentic Fund private watch only \u2014 NOT Horizon. Private company now; watch until investible (IPO / listing / clear retail or accessible secondary). NOT private deploy. Ping Grok\u2192Chris ONLY when investibility path opens. Pricing/product/funding are supporting context for that gate \u2014 not standalone ping triggers. Deep-dive required; no auto-buy; no private-market authority.",
+      "deep_dive_required": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": null,
+      "last_verdict": "monitor_until_investible_path",
+      "comms": {
+        "ping_when": "investibility_path_opens",
+        "ping_means": [
+          "ipo",
+          "public_listing",
+          "clear_retail_or_accessible_secondary"
+        ],
+        "supporting_context_only": [
+          "pricing",
+          "product",
+          "funding"
+        ],
+        "route": "Grok then Chris",
+        "silent_otherwise": true
+      }
+    },
+    {
+      "id": "GLOW",
+      "name": "Glow",
+      "legal_name": "Glow (DePIN solar / GLW)",
+      "status": "monitor",
+      "liquidity": "protocol_token",
+      "rank": 5,
+      "priority": "medium",
+      "theme": "energy",
+      "themes": [
+        "energy",
+        "depin",
+        "solar",
+        "protocol_yield",
+        "flywheel_recycle"
+      ],
+      "sleeve_if_public": "stocks_growth",
+      "public_symbol": null,
+      "listing_status": "protocol_glw_not_agentic_equity",
+      "last_reported_valuation": "n/a (protocol / DePIN; GLW token \u2014 treat marks as soft)",
+      "thesis_fit": "Owner 2026-09-07: financial investment vehicle for possible recyclable profit into the Nest #490 flywheel \u2014 NOT Florida rooftop, NOT household electricity, NOT ops. Returns are protocol GLW (USDC Solar Miners or GLW delegation ~100 weeks), not classic farm equity cash yield. Vorick DePIN solar (glow.org).",
+      "why_watch": "Agentic Fund watch only \u2014 research until investible / sized on a path the agentic book can actually take. Material move = investability or clear size path opens.",
+      "monitor_for": [
+        "investibility_path_on_agentic_book",
+        "clear_retail_or_accessible_secondary",
+        "protocol_glw_liquidity_or_listing_change",
+        "material_funding_or_valuation_step",
+        "material product or network metrics"
+      ],
+      "next_catalyst": "Investability path for Agentic (venue/size clarity) or material protocol/liquidity move; no agentic equity deploy as of 2026-09-07",
+      "added": "2026-09-07",
+      "added_by": "owner",
+      "last_review": "2026-09-07",
+      "docs_url": "https://glow.org",
+      "notes": "Owner 2026-09-07 via Grok (hearted): Agentic watch only \u2014 Sail posture. Research-only, no auto-buy, no deploy. Framing: flywheel recyclable profit vehicle, not household solar/ops. Returns = protocol GLW (Solar Miners / ~100-week delegation), not farm equity cash yield. Ping Grok\u2192Chris ONLY on material investibility/size path. Pricing/product/funding = supporting context.",
+      "comms": {
+        "ping_when": "investibility_or_size_path_opens",
+        "ping_means": [
+          "agentic_investible",
+          "clear_retail_or_accessible_secondary",
+          "sized_deploy_path"
+        ],
+        "supporting_context_only": [
+          "pricing",
+          "product",
+          "funding",
+          "network_metrics"
+        ],
+        "route": "Grok then Chris",
+        "silent_otherwise": true
+      },
+      "deep_dive_required": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": null,
+      "last_verdict": "owner_add_monitor_research_only"
     }
   ]
 }

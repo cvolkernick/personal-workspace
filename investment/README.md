@@ -41,7 +41,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 
 | Theme | Idea | Examples |
 |-------|------|----------|
-| **Bitcoin & hard money** | Store of value / hard money stack | BTC; gold/silver (e.g. PAXG, GLDM or similar—optional sleeve) |
+| **Bitcoin & hard money** | Store of value / hard money stack | **BTC first.** Gold = sound-money sleeve **lower priority than Bitcoin positions**; vehicle TBD (gold ETF and/or gold miners) — **research-only until owner calls a buy**. Silver optional same posture. |
 | **Digital credit** | BTC-linked corporate / structured credit, yield, and fixed-income proxies | MSTR, **STRC**, **SATA**, ASST, **BITA** — **small bias within 40%** to STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash; not MSTR-only by habit). **Watch:** **STRK** (Strategy Strike 8% convertible preferred) — consider-set sibling of held STRC, not core, not a substitute |
 | **Bitcoin infrastructure** | Mining / energy-intensive BTC infra | MARA, RIOT, CLSK, WULF, IREN |
 | **AI stack** | Infrastructure (hardware) through foundational models and app layers (software) | Broad AI exposure over time; not limited to “chips only” |
@@ -53,6 +53,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 
 - **AI** = full stack: infra/hardware, foundation models, and application software—not only semiconductor hardware.
 - **Bitcoin + digital credit + miners** = the hard-money / BTC complex.
+- **Gold (sound-money sleeve):** Owner 2026-09-07. Explicit thesis seat under hard money, **lower priority than Bitcoin positions**. Vehicle TBD — gold ETF (e.g. GLDM/IAU/GLD class) and/or gold miners — **research-only, no auto-buy, no size until owner calls a buy**. Not a substitute for BTC; not RH Gold membership. Do not stamp Bias consider-share until a buy is called.
 - **Digital credit (STRC/SATA):** **Small bias inside the ~40% stack** toward a real STRC/SATA seat on deploys — BTC-fundamental high-yield / frequent-dividend credit, not cash. Owner 2026-08-04: yields roughly ~2× typical USDC/USDG cash, so prefer STRC/SATA over pure cash-like residual when deploying into the complex. Not “covered by MSTR+BITA” as a default skip; not 40% all-credit.
 - **STRK (Strike preferred):** Owner-add 2026-08-30. Strategy 8% convertible perpetual preferred (0.1 MSTR). Watchlist `ready` — name it each deploy; **not** preferred_core; **not** a substitute for STRC. Not Jack Mallers Strike / not Starknet STRK / not JR-strcUSX. Dive `research/STRK_deep_dive.md`. No size until residual-after-floors (or BP ≥ min_trade) plus logged RV vs held STRC.
 - **Miners:** Diversify across multiple names (MARA, IREN, CLSK, RIOT, WULF, …). Multi-miner is intentional; do not reject for “overlap” alone.
@@ -91,7 +92,7 @@ See [positions.md](./positions.md). Current named holdings focus:
 
 **~60% stocks:** TSLA, SPCX  
 
-Energy: open for agentic proposals (no fixed list). Gold/silver optional under ~40%.
+Energy: open for agentic proposals (no fixed list). Gold: sound-money under ~40%, **below BTC priority**, vehicle TBD, research-only until buy call.
 
 ## Portfolio assessment
 
@@ -105,7 +106,7 @@ Energy: open for agentic proposals (no fixed list). Gold/silver optional under ~
 - High correlation within the BTC-complex and growth equities in risk-off.
 - Miner and digital-credit names can be more volatile than spot BTC.
 - Small agentic account / thin RH book vs target weights—**fund the agentic account** before meaningful automation.
-- Gold/silver hard-money sleeve optional and may be empty.
+- Gold sound-money sleeve is thesis-explicit (2026-09-07) but **empty / research-only** until owner calls a buy; always **lower priority than BTC**.
 - Active management still inherits BTC/tech correlation; guardrails matter more than cadence.
 
 ### What this is *not*

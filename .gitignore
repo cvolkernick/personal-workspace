@@ -45,3 +45,5 @@ resistance-dashboard/.env.local
 # Full Grok session archives must never land in this repo (use ~/Backups/)
 Backups/
 **/grok-sessions-*.tar.gz
+.vercel
+.env*
