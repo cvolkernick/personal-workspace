@@ -27,7 +27,7 @@ Opens: http://localhost:8000/financial-command/index.html
 ## Data flow
 
 1. Live Coinbase balances + BTC-USD price via CLI.
-2. Robinhood dual-account snapshot (`primary` margin + **Agentic**) via MCP → `treasury/rh_sync.py` → `robinhood_latest.json`.
+2. Robinhood dual-account snapshot (`primary` margin + **Agentic**) via Pi Grok MCP `robinhood-trading` → `treasury/rh_sync.py` → `robinhood_latest.json` (SoT host **prism**; see `treasury/deploy/RH_PRODUCER.md`).
 3. **Coinbase One Card** via YNAB API (`~/.config/ynab/token`) → `treasury/snapshots/one_card_latest.json`.
 4. **Personal Expense Sheet** (Google) via CSV export-by-gid → `treasury/snapshots/expenses_latest.json`.
    Tabs: **Personal/Essential** = burn; **Fleet** = `fleet_ops` (combined adds funded unique names only; empty-From out); **Collateral** = investments (not burn); **Productive / Consumer Discretionary** = capital targets.

@@ -1,5 +1,5 @@
 [Unit]
-Description=Robinhood snapshot refresh every 3h (FCC freshness)
+Description=Robinhood snapshot producer every 3h (FCC freshness, #518)
 
 [Timer]
 OnBootSec=5min

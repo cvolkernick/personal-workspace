@@ -1,11 +1,10 @@
 # Pi setup — unattended fund manager + RH refresh
 
-> **P0 2026-08-03 (see `FEEDS_P0.md`):** Mac is the **live** RH/Braiins producer.
-> Pi FCC runs **offline** and receives snapshots via Mac **push** after refresh.
-> Full Pi-side RH MCP timers below remain optional cutover if you later run grok+MCP on the Pi.
-> Prefer Mac launchd (`com.personalworkspace.rh-refresh` + `braiins-refresh`) for daily freshness.
+> **#518 (see `RH_PRODUCER.md`):** prism/Pi is the **live RH producer**.
+> Mac launchd `com.personalworkspace.rh-refresh` must be **unloaded** (no dual-write).
+> Braiins / Coinbase CLI can stay Mac-produced and pushed. RH OAuth lives on Pi.
 
-Run automation on the **Pi** so ntfy alerts and deploys do not depend on the Mac being awake/reauthed in launchd.
+Run automation on the **Pi** so ntfy alerts and RH freshness do not depend on the Mac being awake/reauthed in launchd.
 
 ## Prerequisites
 - `personal-workspace` cloned/synced on the Pi (prefer `work/treasury` until merged)
@@ -32,17 +31,18 @@ git pull --ff-only
 ```
 
 ### 2) Fix unit paths
-Edit if your clone is not `/home/pi/personal-workspace`:
+`rh-refresh.service` defaults to `/home/prism-agent/personal-workspace`.
+Edit if your clone differs:
 - `treasury/deploy/fund-manager*.service`
 - `treasury/deploy/rh-refresh.service`
 - `treasury/deploy/fund-manager-bp-poll.service`
 
-Ensure systemd can find `grok`:
+Ensure systemd can find `grok` (already in the #518 unit):
 ```ini
-# optional in [Service]
-Environment=PATH=/home/pi/.grok/bin:/usr/local/bin:/usr/bin:/bin
-Environment=HOME=/home/pi
-Environment=FCC_HOST_TAG=pi
+Environment=PATH=/home/prism-agent/.grok/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/prism-agent
+Environment=FCC_HOST_TAG=prism
+Environment=TREASURY_RH_ROLE=producer
 ```
 
 ### 3) Install timers on Pi
@@ -57,14 +57,14 @@ sudo systemctl enable --now fund-manager-bp-poll.timer
 systemctl list-timers | grep -E 'fund|rh-refresh'
 ```
 
-### 4) Disable Mac launchd (avoid double ntfy / double trades)
+### 4) Disable Mac RH launchd (no dual-writer — #518)
 On Mac:
 ```bash
-launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-bp-poll 2>/dev/null \
-  || launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist 2>/dev/null || true
 launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null \
   || launchctl unload ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist 2>/dev/null || true
-# Keep sync-pi-grok-auth loaded so Pi receives Mac reauths
+rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
+# Optional: also bootout fund-manager-bp-poll if that timer now runs on Pi
+# Do not keep Mac as a second RH writer. Re-auth SOP is on Pi (RH_PRODUCER.md).
 ```
 
 ### 5) Verify on Pi
@@ -93,16 +93,14 @@ Override with env `FCC_HOST_TAG=pi` or `config.json` → `notifications.host_tag
 ## Mac local FCC + Pi snapshots
 Local Mac FCC does **not** share the Pi filesystem. To keep **RH trade** green on the laptop:
 
-1. Pi continues writing `treasury/snapshots/robinhood_latest.json` on its schedule.
-2. On Mac, `python3 -m treasury.rh_snapshot_sync` (also used by `rh_refresh.sh` and FCC **Refresh**):
-   - **First** SSH/SCP pull from Pi (`pi_sync` in `treasury/config.json`, or `TREASURY_PI_SSH` / `TREASURY_PI_ROOT`)
-   - **If Pi unreachable / missing / too stale** → local Grok + Robinhood MCP fallback
+1. Pi (producer) writes `treasury/snapshots/robinhood_latest.json` on its 3h timer.
+2. On Mac (consumer), `python3 -m treasury.rh_snapshot_sync` pulls via SCP.
+   It does **not** push `robinhood_latest.json` back (no dual-write).
+3. Local Mac MCP is backup-only (`TREASURY_RH_ROLE=backup`) — laptop FCC, not SoT.
 
 ```bash
-# on Mac (work/treasury)
-python3 -m treasury.rh_snapshot_sync --print
-# force local MCP only:
-TREASURY_SKIP_PI=1 python3 -m treasury.rh_snapshot_sync
+# on Mac (work/treasury) — consumer pull
+TREASURY_RH_ROLE=consumer TREASURY_SKIP_LOCAL_MCP=1 python3 -m treasury.rh_snapshot_sync --print
 ```
 
 Default SSH target: `prism-agent@192.168.100.98` → `/home/prism-agent/personal-workspace`.
@@ -112,7 +110,6 @@ Default SSH target: `prism-agent@192.168.100.98` → `/home/prism-agent/personal
 Alerts on need_llm / error / stale RH — quiet on routine HOLD.  
 Host tag identifies which machine posted.
 
-## Auth after Mac reauth
-1. Complete Robinhood MCP auth on Mac (or Pi)
-2. Run / wait for `sync_pi_grok_auth` so Pi gets tokens
-3. Confirm on Pi: `./treasury/rh_refresh.sh` succeeds without “grok not available”
+## Auth (producer host = Pi)
+See **`RH_PRODUCER.md`** re-auth SOP. Tokens belong on prism, not Mac.
+Box RH MCP is spare only. Success must move `as_of`; auth-fail must leave it.

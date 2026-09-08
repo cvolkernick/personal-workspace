@@ -944,9 +944,30 @@ def notify_if_needed(
     # Short hostname for mobile titles
     host_short = host.split(".")[0] if host else "unknown"
 
+    # AC4 (#518): failure/stale NTFY names producer host + error class
+    prod_status = load_json(SNAPSHOTS_DIR / "rh_producer_status.json") or {}
+    prod_host = (
+        (prod_status.get("producer_host") if isinstance(prod_status, dict) else None)
+        or (prod_status.get("this_host") if isinstance(prod_status, dict) else None)
+        or host_short
+    )
+    err_class = (
+        (prod_status.get("error_class") if isinstance(prod_status, dict) else None)
+        or ""
+    )
+    if stale_only or any("robinhood" in str(s).lower() for s in stale_msgs):
+        if err_class or (isinstance(prod_status, dict) and prod_status.get("error")):
+            title = f"FCC · RH {err_class or 'error'} · {prod_host}"
+            body_parts.insert(
+                0, f"producer={prod_host} error_class={err_class or 'unknown'}"
+            )
+        elif stale_only:
+            title = f"FCC · stale RH feed · {prod_host}"
+            body_parts.insert(0, f"producer={prod_host} error_class=stale")
+
     text = "\n".join(body_parts) or summary or "FCC alert"
     text = f"[{host_short}] {text}"
-    title = f"{title} · {host_short}"
+    title = f"{title} · {host_short}" if " · " + host_short not in title else title
     url = f"https://ntfy.sh/{topic}"
     try:
         req = urllib.request.Request(

@@ -106,6 +106,10 @@
     "payout_threshold_btc": 0.005,
     "notes": "Owner 2026-08-27: pool payout threshold returned 0.01 \u2192 0.005 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer 0.01 from the 2026-08-05 raise, and do not wait for history (last send was a 0.002 manual). Braiins free on-chain floor is 0.005; this is now both the pool minimum and our account rule."
   },
+  "rh_producer": {
+    "sot_host": "prism",
+    "notes": "Issue #518: prism/Pi is the always-on RH snapshot producer (Grok MCP robinhood-trading). Mac launchd is backup/unloaded — no dual-write. Box RH MCP is spare only. No live trades from this producer. See treasury/deploy/RH_PRODUCER.md."
+  },
   "pi_sync": {
     "enabled": true,
     "ssh": "prism-agent@192.168.100.98",
@@ -115,7 +119,6 @@
     "mcp_timeout_s": 240,
     "push_enabled": true,
     "push_files": [
-      "robinhood_latest.json",
       "braiins_latest.json",
       "fund_manager_latest.json",
       "treasury_latest.json",
@@ -126,6 +129,6 @@
       "solana_latest.json",
       "expenses_latest.json"
     ],
-    "notes": "P0 2026-08-03: Mac is the live producer (RH MCP, Braiins/YNAB/CB/Sheet). Pi is offline consumer of pushed snapshots \u2014 no live venue secrets required on Pi for feed display. max_age_hours=6; mcp_timeout_s=240; Mac launchd TREASURY_SKIP_PI=1. push_files includes CB + YNAB cash + Sheet so phone FCC does not show stale/empty red. Ask Grok needs SuperGrok/XAI auth on the host serving FCC (Mac localhost or synced session on Pi). Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
+    "notes": "#518: RH SoT is prism/Pi (not in push_files). Mac may still push CB/YNAB/Sheet/Braiins. max_age_hours=6; mcp_timeout_s=240. Override: TREASURY_RH_ROLE, TREASURY_RH_PUSH=1 (emergency only), TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }
