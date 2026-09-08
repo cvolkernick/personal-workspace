@@ -45,6 +45,10 @@
       "destination": "/api/dashboard?_r=available"
     },
     {
+      "source": "/api/workout/exercise",
+      "destination": "/api/dashboard?_r=exercise"
+    },
+    {
       "source": "/api/workouts",
       "destination": "/api/dashboard?_r=workouts"
     },

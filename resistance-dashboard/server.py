@@ -171,9 +171,13 @@ from rt_dashboard.equipment_store import (  # noqa: E402
     update_equipment_item,
 )
 from rt_dashboard.workout_planner import (  # noqa: E402
-    add_or_update_exercise,
     generate_workout_plan,
     update_goals,
+)
+from rt_dashboard.custom_movements import (  # noqa: E402
+    add_library_movement,
+    load_custom_movements,
+    merge_custom_universe,
 )
 from rt_dashboard.library_groom import (  # noqa: E402
     suggest_library_additions,
@@ -188,7 +192,6 @@ from rt_dashboard.library_store import (  # noqa: E402
 from rt_dashboard.workout_store import (  # noqa: E402
     apply_goals_volume_caps,
     load_catalog_and_goals,
-    write_catalog,
     write_goals,
 )
 from rt_dashboard.workout_repo import (  # noqa: E402
@@ -869,8 +872,10 @@ def load_dashboard_data(
     try:
         wo = load_catalog_and_goals(nut_client)
         equipment, equipment_src = load_preview_equipment(str(uid or ""))
+        custom, custom_src = load_custom_movements(str(uid or ""))
         overlay, library_src = load_library_overlay(str(uid or ""))
-        catalog = apply_library_overlay(wo["catalog"], overlay)
+        catalog = merge_custom_universe(wo["catalog"], custom)
+        catalog = apply_library_overlay(catalog, overlay)
         catalog = apply_goals_volume_caps(catalog, wo["goals"])
         workout_plan = generate_workout_plan(
             catalog,
@@ -906,6 +911,7 @@ def load_dashboard_data(
             ),
             "sources": {
                 **wo["sources"],
+                "custom": custom_src,
                 "equipment": equipment_src,
                 "library": library_src,
             },
@@ -2258,15 +2264,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/workout/exercise":
             try:
                 body = self._read_json()
-                client = build_github_client(for_write=True)
-                store = load_catalog_and_goals(client)
-                updated = add_or_update_exercise(store["catalog"], body)
-                write = write_catalog(
-                    client,
-                    updated,
-                    message=f"workout: add/update exercise {body.get('name', '')}",
-                )
-                self._send_json({"ok": True, "catalog": updated, "write": write})
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                result = add_library_movement(str(uid), body)
+                self._send_json({"ok": True, **result})
             except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
@@ -2344,8 +2344,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
                 client = build_github_client(for_write=False)
                 store = load_catalog_and_goals(client)
+                custom, _custom_src = load_custom_movements(str(uid))
+                universe = merge_custom_universe(store.get("catalog") or {}, custom)
                 match = None
-                for raw in (store.get("catalog") or {}).get("exercises") or []:
+                for raw in universe.get("exercises") or []:
                     if isinstance(raw, dict) and str(raw.get("id") or "") == eid:
                         match = raw
                         break
@@ -2365,7 +2367,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 overlay, _src = load_library_overlay(str(uid))
                 updated_ov = set_library_available(overlay, eid, want)
                 saved = save_library_overlay(updated_ov, str(uid))
-                catalog = apply_library_overlay(store["catalog"], saved)
+                catalog = apply_library_overlay(universe, saved)
                 self._send_json(
                     {
                         "ok": True,

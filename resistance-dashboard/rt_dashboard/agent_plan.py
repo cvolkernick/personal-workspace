@@ -121,6 +121,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
     )
     from rt_dashboard.equipment_store import load_preview_equipment
     from rt_dashboard.inventory_store import load_preview_inventory
+    from rt_dashboard.custom_movements import load_universe_catalog
     from rt_dashboard.library_store import apply_library_overlay, load_library_overlay
     from rt_dashboard.models import HealthSnapshot
     from rt_dashboard.nutrition_store import load_workspace_targets
@@ -130,7 +131,6 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
         brief_sessions,
-        load_workspace_catalog,
         load_workspace_goals,
     )
 
@@ -171,7 +171,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
     except Exception:  # noqa: BLE001
         recovery = {"sparse": not had_real_sleep}
     goals, _gs = load_workspace_goals()
-    catalog, _cs = load_workspace_catalog()
+    catalog, _cs = load_universe_catalog(user_id)
     overlay, _ls = load_library_overlay(user_id)
     catalog = apply_library_overlay(catalog, overlay)
     catalog = apply_goals_volume_caps(catalog, goals)

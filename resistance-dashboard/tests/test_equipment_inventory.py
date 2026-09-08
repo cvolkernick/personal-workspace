@@ -568,6 +568,7 @@ class UiIsGearNotExercises(unittest.TestCase):
         self.assertNotIn("Add / update exercise", HTML)
         self.assertNotIn('id="exercise-form"', HTML)
         self.assertIn('id="equipment-form"', HTML)
+        self.assertIn('id="library-add-form"', HTML)
         self.assertIn("Programmed movements Today reads", HTML)
         self.assertIn("library-suggestions", HTML)
         self.assertIn("eq-source", HTML)
@@ -577,7 +578,8 @@ class UiIsGearNotExercises(unittest.TestCase):
         self.assertIn('fetch("/api/equipment/remove"', JS)
         self.assertIn("async function submitEquipmentInventory", JS)
         self.assertIn('fetch("/api/workout/exercise/available"', JS)
-        self.assertNotIn("/api/workout/exercise\"", JS.replace("/api/workout/exercise/available", ""))
+        self.assertIn('fetch("/api/workout/exercise"', JS)
+        self.assertIn("async function submitLibraryAdd", JS)
         self.assertNotIn("Add / update exercise", JS)
 
     def test_vercel_rewrites_and_bundle(self):

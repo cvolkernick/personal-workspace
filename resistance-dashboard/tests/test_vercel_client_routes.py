@@ -47,6 +47,8 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("/api/dashboard?_r=goals", raw)
         self.assertIn("/api/workout/exercise/available", raw)
         self.assertIn("/api/dashboard?_r=available", raw)
+        self.assertIn("/api/workout/exercise", raw)
+        self.assertIn("/api/dashboard?_r=exercise", raw)
         self.assertIn("/api/workouts", raw)
         self.assertIn("/api/dashboard?_r=workouts", raw)
         self.assertIn("/api/meal-plan/generate", raw)
@@ -174,6 +176,16 @@ class CookieLessClientRoutes(unittest.TestCase):
             self.assertEqual(body["error"], "method_not_allowed")
             status, body = dispatch_client_route(
                 {}, "", "POST", path="/api/agent/generate-plan"
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(body["error"], "auth_required")
+            status, body = dispatch_client_route(
+                {}, "", "GET", path="/api/workout/exercise"
+            )
+            self.assertEqual(status, 405)
+            self.assertEqual(body["error"], "method_not_allowed")
+            status, body = dispatch_client_route(
+                {}, "", "POST", path="/api/workout/exercise", payload={}
             )
             self.assertEqual(status, 401)
             self.assertEqual(body["error"], "auth_required")

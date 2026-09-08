@@ -18,6 +18,7 @@ PREVIEW_READ_ONLY = {
 _ROUTES = (
     "goals",
     "available",
+    "exercise",
     "workouts",
     "generate",
     "inv_add",
@@ -79,6 +80,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "goals"
     if "/workout/exercise/available" in blob:
         return "available"
+    if "/workout/exercise" in blob:
+        return "exercise"
     if "/workout-plan/generate" in blob:
         return "generate"
     if "/api/workouts" in blob:
@@ -140,17 +143,17 @@ def available_body(headers):
     user, err = require_user(headers)
     if err:
         return err
+    from rt_dashboard.custom_movements import load_universe_catalog
     from rt_dashboard.library_store import apply_library_overlay, load_library_overlay
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
         catalog_names,
-        load_workspace_catalog,
         load_workspace_goals,
     )
 
     uid = str(user.get("id") or "")
     goals, goals_src = load_workspace_goals()
-    catalog, catalog_src = load_workspace_catalog()
+    catalog, cat_srcs = load_universe_catalog(uid)
     overlay, overlay_src = load_library_overlay(uid)
     catalog = apply_library_overlay(catalog, overlay)
     catalog = apply_goals_volume_caps(catalog, goals)
@@ -160,7 +163,8 @@ def available_body(headers):
         "catalog": catalog,
         "names": catalog_names(catalog),
         "sources": {
-            "catalog": catalog_src,
+            "catalog": cat_srcs.get("catalog"),
+            "custom": cat_srcs.get("custom"),
             "goals": goals_src,
             "library": overlay_src,
         },
@@ -221,6 +225,7 @@ def available_write(headers, payload=None):
         return 400, {"ok": False, "error": "exercise id required"}
     available = bool(payload.get("available", True))
     uid = str(user.get("id") or "")
+    from rt_dashboard.custom_movements import load_universe_catalog
     from rt_dashboard.equipment_store import load_preview_equipment
     from rt_dashboard.library_store import (
         apply_library_overlay,
@@ -229,13 +234,9 @@ def available_write(headers, payload=None):
         set_library_available,
     )
     from rt_dashboard.workout_planner import movement_feasible, normalize_exercise
-    from rt_dashboard.workout_store import (
-        apply_goals_volume_caps,
-        load_workspace_catalog,
-        load_workspace_goals,
-    )
+    from rt_dashboard.workout_store import apply_goals_volume_caps, load_workspace_goals
 
-    catalog, catalog_src = load_workspace_catalog()
+    catalog, catalog_srcs = load_universe_catalog(uid)
     match = None
     for raw in catalog.get("exercises") or []:
         if isinstance(raw, dict) and str(raw.get("id") or "") == eid:
@@ -272,8 +273,47 @@ def available_write(headers, payload=None):
         "catalog": stamped,
         "library": saved,
         "write": {"ok": True, "source": "turso", "verified_on_readback": True},
-        "sources": {"catalog": catalog_src, "library": "turso"},
+        "sources": {
+            "catalog": catalog_srcs.get("catalog"),
+            "custom": catalog_srcs.get("custom"),
+            "library": "turso",
+        },
     }
+
+
+def exercise_write(headers, payload=None):
+    """POST /api/workout/exercise — Turso custom universe row + enable.
+
+    Overlay-only enable of an existing catalog.json id is not this path.
+    Does not generate or rewrite Today's plan.
+    """
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "")
+    from rt_dashboard.custom_movements import add_library_movement
+
+    try:
+        result = add_library_movement(uid, payload)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc) or type(exc).__name__
+        if "turso env missing" in msg:
+            return 503, {
+                "ok": False,
+                "error": "turso_env_missing",
+                "message": (
+                    "Exercise Add needs TURSO_DATABASE_URL and TURSO_AUTH_TOKEN."
+                ),
+            }
+        return 500, {
+            "ok": False,
+            "error": msg,
+            "write": {"ok": False, "source": "turso"},
+        }
+    return 200, {"ok": True, **result}
 
 
 def workouts_write(headers, payload=None):
@@ -956,6 +996,10 @@ def dispatch_client_route(
             if method == "POST"
             else available_body(headers)
         )
+    if route == "exercise":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return exercise_write(headers, payload)
     if route == "workouts":
         return (
             workouts_write(headers, payload)
@@ -1007,6 +1051,7 @@ __all__ = [
     "available_body",
     "available_read",
     "available_write",
+    "exercise_write",
     "agent_today_body",
     "agent_generate_plan_body",
     "client_route_name",
