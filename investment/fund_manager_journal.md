@@ -2250,3 +2250,38 @@
 - SELL BE $None [filled_prior] 6aa01d5b-ac89-4b74-9489-0d3cdee5658d
 - BUY CCJ $5.0 [filled_prior] 6aa02006-e4c1-4b40-970d-10e678abc224
 
+
+## 2026-09-08T15:50:36 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.10 BP $25.10 (deployable $25.10 ≥ min_trade $1.00)
+**Book:** NAV $292.1278 · BP $25.1
+**Weights before (deployed):** BTC-complex 0.4038 · Stocks 0.5962
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $292.13 BP $25.10 cash $25.10
+- **thesis:** ok — deployed BTC 0.4038 stocks 0.5962
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-08T15:58:21 — hold
+**Summary:** Mid-session team HOLD on agentic ••••1752: NAV $297.70, cash/BP $0.03 < min $1. Live mix ~40.6% BTC-complex / ~59.4% stocks (in ±5% band). This morning STRC $5 + SATA $5 + NVDA $10 + incident BE $5 (sold) + CCJ $5 already filled. pending_deposits $25 is phantom — not spendable. Full research/rotate. Snapshot refreshed from live Pi MCP (stale Mac $25.10 cash print replaced). No new orders.
+**Book:** NAV $297.7 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.4057 · Stocks 0.5943
+**Why now:** User-run mid-session review (~11:56 ET). Live Pi MCP shows NAV $297.70, BP $0.03. Sleeves in ±5% band. Morning deploys already filled STRC/SATA/NVDA/CCJ. pending_deposits $25 is not buying power. Size-invariant research/rotate still required; only ticket size is zero because residual cannot fill min_trade.
+**Why not alternatives:** Did not spend phantom $25 or stale Mac snapshot cash. Did not reseat BE (blocked). Did not default to topping TSLA/SPCX/MSTR (held-only inertia). Did not skip STRC/SATA as MSTR-cover — seats already exist (~$21.10); skip of adds is residual=0. Did not reject miners for overlap — 5-name sleeve is complete; skip of adds is no-capital. Did not buy STRK (RV vs STRC fails; spread $0.62). Did not basket BWXT with CCJ. Did not trim TSLA (in-band, not day-trading, no thesis break). Next free dollar ≥$1 ranks BWXT.
+**Team:**
+- **scout:** ok — Agentic ••••1752 live Pi MCP NAV $297.70 equity $297.67 cash/BP $0.03; unsettled $4.93 (BE sale); pending_deposits $25 phantom; held MSTR STRC SATA BITA MARA IREN CLSK RIOT WULF TSLA SPCX GOOGL NVDA CCJ; BE sold 14:36Z; CCJ filled 14:47Z; deployed ~40.6/59.4 in band; ~11:56 ET mid-session. RH MCP via Pi stored OAuth (Mac session tools disconnected / Mac token revoked). Snapshot rewritten from live MCP so rules path no longer sees stale $25.10.
+- **thesis:** ok — HOLD. Theme holes filled this session (STRC+SATA credit; NVDA silicon; CCJ nuclear). STRC/SATA seats ~$21.10; credit 65.6% of complex. Next residual rank BWXT — not this pass. Not MSTR/TSLA habit. No rotate.
+- **risk:** ok — Agentic cash only; BP $0.03 < min $1; limited_margin; no open orders; unsettled $4.93. Guardrail: no trade without deployable BP. Do not spend pending $25. Do not reseat BE. Miner 5-name is diversification. TSLA 26.6% is observation, not a trim after this morning's fills.
+- **critic:** ok — Block phantom $25. Block BE reseat. Block held-only. STRC/SATA under-allocation: seats exist ~$21.10; skip of adds is residual=0 not MSTR-cover; tape tight (STRC $0.03 / SATA $0.02) so liquidity is not the rebuttal. Miner skip of adds is no-capital, not overlap-reject. Block CCJ+BWXT basket. Block STRK (spread $0.62). Block TSLA trim. No size-down because no new orders.
+- **executor:** hold — No place/cancel. Confirmed prior agentic fills already logged this session: STRC $5 / SATA $5 / NVDA $10 / BE $5 (sold) / CCJ $5. Residual $0.03. Venue Pi stored OAuth HTTP. Mac token revoked.
+**Actions:**
+- BUY STRC $5.0 [filled_prior] 6aa014ea-a024-4530-bb78-b98ad9caaddc
+- BUY SATA $5.0 [filled_prior] 6aa014eb-0273-4d1e-9e78-5aec4c6727a9
+- BUY NVDA $10.0 [filled_prior] 6aa014ed-b7ef-4d26-b373-708a4ac9a1ad
+- BUY BE $5.0 [filled_prior_incident_sold] 6aa014ee-32a3-4b03-80ae-b29db0b9a0cf
+- SELL BE $None [filled_prior] 6aa01d5b-ac89-4b74-9489-0d3cdee5658d
+- BUY CCJ $5.0 [filled_prior] 6aa02006-e4c1-4b40-970d-10e678abc224
+

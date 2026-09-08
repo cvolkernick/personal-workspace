@@ -1,6 +1,6 @@
 {
   "source": "live_mcp_http_pi",
-  "as_of": "2026-09-08T15:34:01.109847+00:00",
+  "as_of": "2026-09-08T15:56:45.037158+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live_mcp_http_pi",
-    "as_of": "2026-09-08T15:34:01.109843+00:00",
-    "total_value": 296.3825832257,
-    "equity_value": 296.3525832257,
+    "as_of": "2026-09-08T15:56:45.037154+00:00",
+    "total_value": 297.6999694755,
+    "equity_value": 297.6699694755,
     "cash": 0.03,
     "buying_power": 0.03,
     "unleveraged_buying_power": 0.03,
@@ -39,7 +39,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 137.34
+        "last_price": 138.605
       },
       {
         "symbol": "MARA",
@@ -53,7 +53,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 11.805
+        "last_price": 11.895
       },
       {
         "symbol": "TSLA",
@@ -67,7 +67,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 367.75
+        "last_price": 367.17
       },
       {
         "symbol": "SPCX",
@@ -81,7 +81,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 151.6801
+        "last_price": 153.145
       },
       {
         "symbol": "BITA",
@@ -109,7 +109,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 48.325
+        "last_price": 48.915
       },
       {
         "symbol": "CLSK",
@@ -123,7 +123,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 13.315
+        "last_price": 13.385
       },
       {
         "symbol": "STRC",
@@ -137,7 +137,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 97.9475
+        "last_price": 97.9537
       },
       {
         "symbol": "SATA",
@@ -151,7 +151,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 99.98
+        "last_price": 99.99
       },
       {
         "symbol": "GOOGL",
@@ -165,7 +165,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 338.435
+        "last_price": 338.62
       },
       {
         "symbol": "RIOT",
@@ -179,7 +179,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 22.4101
+        "last_price": 22.79
       },
       {
         "symbol": "WULF",
@@ -193,7 +193,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 17.46
+        "last_price": 17.67
       },
       {
         "symbol": "NVDA",
@@ -207,7 +207,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 226.9402
+        "last_price": 226.31
       },
       {
         "symbol": "CCJ",
@@ -221,7 +221,7 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": 103.715
+        "last_price": 103.7
       }
     ]
   },
@@ -266,5 +266,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Fund-manager mid-session review 2026-09-08 ~15:31Z. Mac OAuth revoked; Pi stored OAuth HTTP."
+  "notes": "Fund-manager mid-session review 2026-09-08 ~15:56Z. Mac OAuth revoked; Pi stored OAuth HTTP. last_price attached from get_equity_quotes."
 }
