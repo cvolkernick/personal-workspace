@@ -1,0 +1,21 @@
+{
+  "schema": "fcc_consider_share_stamps_v0",
+  "as_of": "2026-09-08",
+  "unit": "new_money_consider_share_pct",
+  "sum_to": 100,
+  "not_a_nav_target": true,
+  "not_a_sleeve_target": true,
+  "not_an_order": true,
+  "not_for_autopilot": true,
+  "not_for_monday_residual": true,
+  "not_a_forced_rebalance": true,
+  "authoritative_for_bias_pins": true,
+  "notes": "Unified Bias TARGET SoT as of 2026-09-08. Pins are Bias / new-money consider-share only — residual mix / relative preference on the 100% consider list. First-pass pins TSLA 15 and SPCX 15, then proportionally rescale every unpinned chip so the list still sums to 100%. No Other bucket. The 2026-09-08 BITA 2 / STRC 5 / MARA 3 / NVDA 5 stamp is superseded — those four float on role-score / watchlist residual only and must not be pinned. Flatten-only outside Monday $25: do not trim and do not top up. Monday $25 stays theme-gap (prefer underweights; not forced onto these pins). BE is pass / dropped off this axis; historical reallocate BE→[TSLA, SPCX] stays for audit and is a no-op when BE is absent. NOT a live NAV target, NOT a sleeve target, NOT an order, NOT a forced rebalance. fund_manager.py / autopilot must not read this file as a fill ticket.",
+  "pins": {
+    "TSLA": 15.0,
+    "SPCX": 15.0
+  },
+  "reallocate": {
+    "BE": ["TSLA", "SPCX"]
+  }
+}

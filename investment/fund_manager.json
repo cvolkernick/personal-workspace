@@ -167,7 +167,12 @@
     "stocks_growth_pct": 0.6,
     "band_pct": 0.05,
     "cash_is_unallocated": true,
-    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, small bias toward STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash) \u2014 not MSTR-only by habit, not 40% all-credit."
+    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, small bias toward STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash) \u2014 not MSTR-only by habit, not 40% all-credit.",
+    "symbol_targets": {
+      "bias_pin_sot": "investment/consider_share.json",
+      "pins": {},
+      "notes": "investment/consider_share.json is authoritative for Bias Spectrum pins going forward (TSLA 15 / SPCX 15 only). BITA / STRC / MARA / NVDA are not pinned here and must not be re-added \u2014 they float on role-score / watchlist residual. These pins are new-money consider-share only: not NAV/sleeve targets, not orders, not for fund_manager autopilot, not a forced rebalance, not Monday $25 theme-gap."
+    }
   },
   "sleeves": {
     "btc_digital_credit": {
