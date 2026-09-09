@@ -516,6 +516,8 @@ def sessions_from_dicts(items: Any) -> List[Session]:
                     exercises=exercises,
                     notes=str(raw.get("notes") or ""),
                     source_file=str(raw.get("source_file") or ""),
+                    closed_at=str(raw.get("closed_at") or raw.get("created_at") or "")
+                    or None,
                 )
             )
         except Exception:

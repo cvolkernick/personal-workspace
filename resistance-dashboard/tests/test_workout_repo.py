@@ -45,6 +45,7 @@ class WorkoutRepoTests(unittest.TestCase):
         self.assertEqual(sessions[0].date, "2026-08-01")
         self.assertEqual(sessions[0].exercises[0].name, "DB Flat Press")
         self.assertEqual(sessions[0].exercises[0].sets[0].weight_lbs, 50)
+        self.assertTrue(sessions[0].closed_at)
 
     def test_upsert_replaces_same_day_type(self) -> None:
         self.repo.upsert_session(self._session())

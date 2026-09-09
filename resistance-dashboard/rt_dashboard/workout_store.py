@@ -238,6 +238,8 @@ def stamp_today_session(
     fill_rest: bool = True,
     next_st_override: Optional[str] = None,
     train_parent_completed: bool = False,
+    last_wake_at: Optional[str] = None,
+    now: Optional[Any] = None,
 ) -> dict:
     """Hybrid Today fill: session_type + continuity. Never invent exercises.
 
@@ -245,18 +247,19 @@ def stamp_today_session(
     null only if goals/rotation are missing. Rest gate may fill a rest-day
     slot (is_rest_day + session_type=rest) while keeping next_session_type.
 
-    If a PPL session is already logged on ``as_of``, pin today's letter to
-    that session and skip the rest gate. That pin is not day-complete —
+    If a PPL session already closed in the current wake (or on civil
+    ``as_of`` when last_wake is unknown), pin today's letter to that
+    session and skip the rest gate. That pin is not day-complete —
     ``already_trained_today`` is only set when ``train_parent_completed``.
     Parent complete advances next_session_type to tomorrow; a partial log
     keeps next_session_type on today's letter.
     """
     from .timeutil import local_today_iso
+    from .training_day import last_wake_from, ppl_logged_for_planning
     from .workout_planner import (
         next_letter_after,
         next_session_type,
         normalize_goals,
-        ppl_logged_on_day,
     )
 
     plan = dict(workout) if isinstance(workout, dict) else {}
@@ -266,7 +269,13 @@ def stamp_today_session(
     ctx["training_continuity"] = continuity
     ctx["days_since_last"] = continuity.get("days_since")
     day = str(as_of or local_today_iso())[:10]
-    logged = ppl_logged_on_day(sessions or [], day)
+    wake = last_wake_from(recovery=recovery, last_wake_at=last_wake_at)
+    logged = ppl_logged_for_planning(
+        sessions or [],
+        as_of=day,
+        last_wake_at=wake,
+        now=now,
+    )
     norms = normalize_goals(goals) if _rotation_set(goals) else {}
 
     next_st = None

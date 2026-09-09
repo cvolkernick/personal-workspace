@@ -52,6 +52,35 @@
     return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
   }
 
+  function trainingDayISO(data) {
+    const metaDay = data && data.meta && data.meta.training_day;
+    if (metaDay && /^\d{4}-\d{2}-\d{2}$/.test(String(metaDay))) {
+      return String(metaDay).slice(0, 10);
+    }
+    const wake =
+      (data &&
+        data.today &&
+        data.today.wake_window &&
+        data.today.wake_window.last_wake_at) ||
+      (data && data.sleep_battery && data.sleep_battery.last_wake_at) ||
+      "";
+    const m = String(wake).match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) {
+      const wakeMs = Date.parse(wake);
+      if (!Number.isNaN(wakeMs) && wakeMs <= Date.now()) return m[1];
+    }
+    return todayISO();
+  }
+
+  function setLogDateFromTrainingDay(data) {
+    const el = $("log-date");
+    if (!el) return;
+    const next = trainingDayISO(data);
+    if (!el.value || el.value === todayISO() || el.value === next) {
+      el.value = next;
+    }
+  }
+
   /** Fill missing civil days with 0h sleep (sleep debt). End = today. */
   function fillSleepCalendarDays(points, windowDays = 90) {
     const by = {};
@@ -6054,6 +6083,7 @@
       }
       lastLiveFingerprint = fp;
       render(data, { quiet });
+      setLogDateFromTrainingDay(data);
       if (!quiet && data.meta && data.meta.error) {
         showAlert(`Partial load: ${data.meta.error}`, "warn");
       }
@@ -6101,6 +6131,14 @@
       notes: $("log-notes").value,
       exercises: collectExercises(),
     };
+    const wake =
+      (state &&
+        state.today &&
+        state.today.wake_window &&
+        state.today.wake_window.last_wake_at) ||
+      (state && state.sleep_battery && state.sleep_battery.last_wake_at) ||
+      "";
+    if (wake) body.last_wake_at = wake;
     try {
       const res = await fetch("/api/workouts", {
         method: "POST",

@@ -76,10 +76,17 @@ def _plan_exercise_row(ex: Any) -> Optional[Dict[str, Any]]:
     return row
 
 
-def _logged_exercises_for_day(sessions: Sequence[Any], day: str) -> List[Dict[str, Any]]:
+def _logged_exercises_for_day(
+    sessions: Sequence[Any],
+    day: str,
+    *,
+    last_wake_at: Any = None,
+) -> List[Dict[str, Any]]:
     day = _civil_day(day)
     if not day:
         return []
+    from .training_day import session_in_wake
+
     out: List[Dict[str, Any]] = []
     for session in sessions or []:
         if hasattr(session, "to_dict"):
@@ -91,7 +98,10 @@ def _logged_exercises_for_day(sessions: Sequence[Any], day: str) -> List[Dict[st
             raw = session
         else:
             continue
-        if _civil_day(raw.get("date")) != day:
+        if last_wake_at:
+            if not session_in_wake(raw, last_wake_at=last_wake_at):
+                continue
+        elif _civil_day(raw.get("date")) != day:
             continue
         for ex in raw.get("exercises") or []:
             row = _exercise_row(ex)
@@ -301,7 +311,16 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         if row:
             plan_exercises.append(row)
 
-    logged = _logged_exercises_for_day(payload.get("sessions") or [], day)
+    from .training_day import last_wake_from, session_in_wake, wake_covers_as_of
+
+    wake = last_wake_from(payload=payload)
+    if wake and not wake_covers_as_of(wake, day):
+        wake = None
+    logged = _logged_exercises_for_day(
+        payload.get("sessions") or [],
+        day,
+        last_wake_at=wake,
+    )
     message = slot.get("message") or plan.get("message") or coach_wo.get("message")
     if message is not None:
         message = str(message) if message != "" else None
@@ -309,11 +328,19 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     planning = _planning_sessions(payload)
     recent = _recent_logged_sessions(planning, day)
     stamped = _stamp_today_letter(payload, planning, day)
-    today_logged = [
-        r
-        for r in planning
-        if _civil_day(r.get("date")) == day and _ppl_letter(r.get("session_type"))
-    ]
+    if wake:
+        today_logged = [
+            r
+            for r in planning
+            if _ppl_letter(r.get("session_type"))
+            and session_in_wake(r, last_wake_at=wake)
+        ]
+    else:
+        today_logged = [
+            r
+            for r in planning
+            if _civil_day(r.get("date")) == day and _ppl_letter(r.get("session_type"))
+        ]
     if today_logged:
         # Already training/logged today — letter is that session, not the next slot.
         session_type = _ppl_letter(today_logged[0].get("session_type"))
@@ -854,12 +881,16 @@ def _logged_session_row(session: Any) -> Optional[Dict[str, Any]]:
     session_type = raw.get("session_type")
     if session_type == "":
         session_type = None
-    return {
+    closed = raw.get("closed_at") or raw.get("created_at")
+    row_out = {
         "date": date,
         "session_type": session_type,
         "volume": volume,
         "exercises": exercises,
     }
+    if closed:
+        row_out["closed_at"] = closed
+    return row_out
 
 
 def _logged_sessions_week(

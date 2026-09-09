@@ -234,6 +234,8 @@ def preview_workout_plan(
     as_of=None,
     equipment=None,
     train_parent_completed=False,
+    last_wake_at=None,
+    now=None,
 ) -> dict:
     """Same local planner as Pi ``generate_workout_plan``. Fail is explicit."""
     from rt_dashboard.workout_planner import generate_workout_plan
@@ -248,6 +250,8 @@ def preview_workout_plan(
         as_of=as_of,
         equipment=equipment,
         train_parent_completed=bool(train_parent_completed),
+        last_wake_at=last_wake_at,
+        now=now,
     )
 
 
@@ -483,11 +487,19 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         catalog, equipment, sessions
     )
     library_removals = suggest_library_removals(catalog, equipment, sessions)
+    from rt_dashboard.training_day import last_wake_from, training_day_iso
+
+    last_wake = last_wake_from(
+        recovery=recovery_dict, sleep_battery=sleep_battery
+    )
+    train_day = training_day_iso(
+        now=now, last_wake_at=last_wake, tz_name=tz_name
+    )
     train_parent_done = False
     try:
         from rt_dashboard.daily_plan_tasks import training_day_complete
 
-        train_parent_done = bool(training_day_complete(today))
+        train_parent_done = bool(training_day_complete(train_day))
     except Exception:
         train_parent_done = False
     try:
@@ -501,6 +513,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             as_of=today,
             equipment=equipment,
             train_parent_completed=train_parent_done,
+            last_wake_at=last_wake,
+            now=now,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"workout_plan: {type(exc).__name__}")
@@ -541,6 +555,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         or not (workout_plan.get("exercises") or []),
         next_st_override=nxt.get("next_session_type"),
         train_parent_completed=train_parent_done,
+        last_wake_at=last_wake,
+        now=now,
     )
     pack = build_training_pack(
         effective_goals, catalog, sessions, next_brief=nxt, limit=5
@@ -634,6 +650,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "cache": "none",
         "timezone": tz_name,
         "local_today": today,
+        "training_day": train_day,
         "health_days": HEALTH_COLD_DAYS,
         "error": "; ".join(errors) if errors else None,
     }

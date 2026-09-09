@@ -1094,9 +1094,9 @@ def last_session_type(sessions: Sequence[Any]) -> Optional[str]:
 def ppl_logged_on_day(sessions: Sequence[Any], day: Optional[str]) -> Optional[str]:
     """PPL letter already logged on civil ``day``, if any.
 
-    One slot per day: the first push/pull/legs session on that date.
-    Does not invent a second type. ``next_session_type`` remains the
-    following rotation letter (tomorrow).
+    Charts and history still bucket by civil date. Planning / letter
+    advancement uses ``training_day.ppl_logged_for_planning`` (wake window)
+    when last_wake is known.
     """
     target = str(day or "")[:10]
     if not target:
@@ -1356,6 +1356,8 @@ def generate_workout_plan(
     as_of: Optional[str] = None,
     equipment: Optional[dict] = None,
     train_parent_completed: bool = False,
+    last_wake_at: Optional[str] = None,
+    now: Optional[datetime] = None,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -1366,9 +1368,10 @@ def generate_workout_plan(
     a low recovery score does not force a rest day — zero-filled sleep debt
     would otherwise score ~30 Caution and blank the plan on cold cache.
 
-    If a PPL session is already logged on ``as_of``, pin to that letter and
-    do not generate the next rotation for the same civil day. Pass an
-    explicit ``session_type`` (force Push/Pull/Legs) to override.
+    If a PPL session already closed in the current wake window (or on
+    civil ``as_of`` when last_wake is unknown), pin to that letter and do
+    not generate the next rotation for the same training day. Pass an
+    explicit ``session_type`` (force Push/Pull/Legs) for a second session.
 
     Day-complete (``already_trained_today``) is only when
     ``train_parent_completed`` is true. A partial session row is a pin, not
@@ -1436,7 +1439,14 @@ def generate_workout_plan(
     }
 
     explicit = str(session_type or "").strip().lower()
-    logged_today = ppl_logged_on_day(sessions, day)
+    from .training_day import ppl_logged_for_planning
+
+    logged_today = ppl_logged_for_planning(
+        sessions,
+        as_of=day,
+        last_wake_at=last_wake_at,
+        now=now,
+    )
     force_letter = explicit in ("push", "pull", "legs")
     # Parent complete is day-complete SoT. A partial PPL row only pins today.
     if train_parent_completed and not force_letter:
@@ -1535,7 +1545,20 @@ def generate_workout_plan(
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
     last_family_ids = last_pattern_family_ids(sessions, by_id)
     logged_ids = _logged_catalog_ids(sessions, by_id)
-    today_sessions = [s for s in sessions if session_date_of(s) == day]
+    if last_wake_at:
+        from .training_day import session_in_wake as _in_wake
+        from .training_day import wake_covers_as_of as _wake_ok
+
+        if _wake_ok(last_wake_at, day, now=now):
+            today_sessions = [
+                s
+                for s in sessions
+                if _in_wake(s, last_wake_at=last_wake_at, now=now)
+            ]
+        else:
+            today_sessions = [s for s in sessions if session_date_of(s) == day]
+    else:
+        today_sessions = [s for s in sessions if session_date_of(s) == day]
     today_logged_ids = _logged_catalog_ids(today_sessions, by_id)
     today_logged_names = {
         _norm_name(n)

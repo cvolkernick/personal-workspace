@@ -1203,6 +1203,11 @@ def build_coach_brief(
             lines.append(bullets[-1] if "Focus:" in bullets[-1] else bullets[1])
 
     lines.append(
+        "Training day follows last wake → next wake, not midnight. A late-night "
+        "finish still counts as this wake; the next PPL letter waits for real sleep. "
+        "Volume charts stay civil-day."
+    )
+    lines.append(
         "Complete a lift quest to auto-log, or use the Log tab for manual entry. "
         "Ask Grok for deeper questions "
         "(or try: `set stock chicken-breast off`, `refresh meal plan`)."

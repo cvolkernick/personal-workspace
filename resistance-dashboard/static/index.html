@@ -625,6 +625,9 @@
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Planner goals for the Today prescription. Day-to-day training view stays on
           <strong>Today</strong>; use Push/Pull/Legs there to force session type.
+          Training day = last wake → next wake (not midnight). Late-night finish
+          still counts as this wake; next letter waits for real sleep. Charts stay
+          civil-day.
         </p>
         <form class="log-form" id="workout-goals-form">
           <div class="row cols-3">
@@ -810,7 +813,9 @@
             One card per exercise. Use <strong>+ Set</strong> for different weights/reps
             (saved as <code>50 lbs x 1 x 10, 45 lbs x 1 x 8</code>). Same load for all
             sets: one set row with Sets = 3. PR is auto-tagged from history on save.
-            Completing a lift quest auto-logs that exercise. Manual entries pick
+            Completing a lift quest auto-logs that exercise. Date defaults to the
+            current training day (last wake), so a session that finishes after
+            midnight still lands on this wake. Manual entries pick
             from the exercise library only (More → Exercise library). Add a new
             movement on that screen if it is missing — Log cannot take a typed name.
           </p>

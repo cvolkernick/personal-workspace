@@ -99,6 +99,30 @@ class StampTodaySession(unittest.TestCase):
         self.assertEqual(slot["next_session_type"], "legs")
         self.assertEqual(slot["exercises"], [])
 
+    def test_after_wake_prior_civil_log_does_not_pin(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        et = ZoneInfo("America/New_York")
+        goals, _ = load_workspace_goals()
+        prior = _session("2026-09-09", "legs")
+        prior.closed_at = "2026-09-09T00:30:00-04:00"
+        slot = stamp_today_session(
+            {"exercises": [], "empty": True},
+            [prior],
+            goals,
+            {
+                "score": 80,
+                "sparse": False,
+                "sleep_battery": {"last_wake_at": "2026-09-09T08:00:00-04:00"},
+            },
+            as_of="2026-09-09",
+            now=datetime(2026, 9, 9, 9, 0, tzinfo=et),
+        )
+        self.assertFalse(slot.get("ppl_logged_today"))
+        self.assertEqual(slot["session_type"], "push")
+        self.assertEqual(slot["next_session_type"], "push")
+
     def test_train_parent_completed_marks_day_done_advances_next(self):
         goals, _ = load_workspace_goals()
         slot = stamp_today_session(
