@@ -30,7 +30,9 @@ from rt_dashboard.daily_plan_tasks import (
     collect_sleep_battery_low_tasks,
     collect_sleep_quest_tasks,
     ensure_daily_tasks,
+    is_fitdash_grocery_task,
     is_meal_plan_owned_task,
+    skip_gt_seed,
     is_protect_bedtime_owned_task,
     is_protein_remaining_owned_task,
     is_sleep_battery_low_owned_task,
@@ -1142,7 +1144,7 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertIn("old-meal", store)
         self.assertIn("jot", store)
         self.assertIn("lift", store)
-        self.assertIn("shop", store)
+        self.assertNotIn("shop", store)
         self.assertIn("sleep", store)
         self.assertIn("protein", store)
         self.assertEqual(store["jot"]["title"], "Text the vet")
@@ -2719,6 +2721,162 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertTrue(result.get("ok"), result)
         self.assertEqual(store["g-nut"]["status"], "needsAction")
         self.assertIn(("g-nut", False), complete_calls)
+
+
+class GroceryTasksStayOffGoogleTasks(unittest.TestCase):
+    """#554: restock/grocery is FitDash→cart. Do not create or recreate GTs."""
+
+    def test_skip_gt_seed_for_shopping(self):
+        self.assertTrue(skip_gt_seed("shopping"))
+        self.assertTrue(
+            skip_gt_seed(
+                "shopping",
+                PlannedItem(group="shopping", slug="buy-broccoli", title="Restock: Broccoli"),
+            )
+        )
+        self.assertFalse(
+            skip_gt_seed(
+                "training",
+                PlannedItem(group="training", slug="train-session", title="Complete today's PUSH"),
+            )
+        )
+        self.assertTrue(is_fitdash_grocery_task({
+            "title": "Restock: Broccoli",
+            "notes": "[fitdash-quest:2026-09-09] [fitdash-kind:shopping|buy-broccoli]",
+        }))
+        self.assertFalse(is_fitdash_grocery_task({
+            "title": "Get milk if you think of it",
+            "notes": "",
+        }))
+        with mock.patch.dict("os.environ", {"FITDASH_QUEST_GT_SYNC": "0"}):
+            self.assertTrue(
+                skip_gt_seed(
+                    "training",
+                    PlannedItem(
+                        group="training",
+                        slug="train-session",
+                        title="Complete today's PUSH",
+                    ),
+                )
+            )
+        with mock.patch.dict("os.environ", {"FITDASH_QUEST_GT_SYNC": "1"}):
+            self.assertFalse(
+                skip_gt_seed(
+                    "training",
+                    PlannedItem(
+                        group="training",
+                        slug="train-session",
+                        title="Complete today's PUSH",
+                    ),
+                )
+            )
+
+    def test_ensure_does_not_create_or_recreate_grocery_gts(self):
+        store = {
+            "shop": {
+                "id": "shop",
+                "title": "Restock: Broccoli",
+                "notes": "[fitdash-quest:2026-09-09] [fitdash-kind:shopping|buy-broccoli]",
+                "status": "needsAction",
+                "due": "2026-09-09T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Call the vet",
+                "notes": "",
+                "status": "needsAction",
+            },
+        }
+        created: list[dict] = []
+
+        def fake_list(list_id, show_completed=True, show_hidden=True):
+            return {"ok": True, "tasks": list(store.values())}
+
+        def fake_delete(list_id, task_id):
+            store.pop(task_id, None)
+            return {"ok": True}
+
+        def fake_create(list_id, title, notes="", due=None, parent=None):
+            tid = f"new-{len(created) + 1}"
+            task = {
+                "id": tid,
+                "title": title,
+                "notes": notes,
+                "due": due,
+                "status": "needsAction",
+                "parent": parent,
+            }
+            created.append(task)
+            store[tid] = task
+            return {"ok": True, "task": task}
+
+        def fake_get(list_id, task_id):
+            task = store.get(task_id)
+            return {"ok": True, "task": task} if task else {"ok": False}
+
+        board = {
+            "date": "2026-09-09",
+            "actions": [
+                {"kind": "training", "text": "Rest / recover today", "id": "train-session"},
+                {"kind": "shopping", "text": "Restock: Broccoli", "id": "shop-top"},
+            ],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {"meals": [], "items": []},
+            "purchases": [{"name": "Broccoli", "action": "restock", "reason": "OOS"}],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": True, "source": "session"},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id",
+                return_value="L1",
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks", side_effect=fake_list
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.delete_task", side_effect=fake_delete
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task", side_effect=fake_create
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.get_task", side_effect=fake_get
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.update_task",
+                return_value={"ok": True},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                return_value={"ok": True},
+            ):
+                first = ensure_daily_tasks(board, day="2026-09-09")
+                second = ensure_daily_tasks(board, day="2026-09-09")
+        self.assertTrue(first.get("ok"), first)
+        self.assertNotIn("shop", store)
+        self.assertIn("jot", store)
+        self.assertFalse(
+            any(
+                "Restock" in str(t.get("title") or "") or "Shopping" in str(t.get("title") or "")
+                for t in created
+            ),
+            created,
+        )
+        shop_groups = [g for g in first.get("groups") or [] if g.get("group") == "shopping"]
+        if shop_groups:
+            for item in shop_groups[0].get("items") or []:
+                self.assertFalse(item.get("task_id"))
+        self.assertFalse(
+            any(
+                "Restock" in str(t.get("title") or "")
+                for t in created
+            )
+        )
+        grocery = (first.get("purge") or {}).get("grocery") or {}
+        self.assertIn("shop", grocery.get("deleted") or [])
+        self.assertTrue(second.get("ok"), second)
+        self.assertFalse(
+            any("Restock" in str(t.get("title") or "") for t in created),
+            created,
+        )
 
 
 if __name__ == "__main__":

@@ -206,6 +206,10 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(nut["targets"]["protein_g"], 210.0)
         self.assertEqual(nut["meals"], [])
         self.assertIsNone(nut["source"])
+        restock = today["restock"]
+        self.assertEqual(restock["items"], [])
+        self.assertFalse(restock["google_tasks"])
+        self.assertFalse(restock["checkout"])
         week = body["week"]
         self.assertIsNone(week["start"])
         self.assertIsNone(week["end"])

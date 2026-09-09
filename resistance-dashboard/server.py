@@ -1622,6 +1622,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/restock":
+            from api.workout._util import restock_list_body
+
+            status, body = restock_list_body(
+                getattr(self, "headers", {}),
+                client_host=(self.client_address or ("", 0))[0],
+            )
+            self._send_json(body, status=status)
+            return
         if parsed.path == "/api/sessions":
             user = self._require_user()
             if user is None and _auth_required():
@@ -2164,6 +2173,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path in (
+            "/api/restock/cart",
+            "/api/restock/retry",
+            "/api/restock/confirm",
+        ):
+            from api.workout._util import (
+                restock_cart_body,
+                restock_confirm_body,
+                restock_retry_body,
+            )
+
+            payload = self._read_json()
+            host = (self.client_address or ("", 0))[0]
+            headers = getattr(self, "headers", {})
+            if parsed.path == "/api/restock/cart":
+                status, body = restock_cart_body(headers, payload, "POST", host)
+            elif parsed.path == "/api/restock/retry":
+                status, body = restock_retry_body(headers, payload, "POST", host)
+            else:
+                status, body = restock_confirm_body(headers, payload, "POST", host)
+            self._send_json(body, status=status)
             return
         if parsed.path == "/api/daily-tasks/complete":
             try:

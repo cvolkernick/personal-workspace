@@ -118,7 +118,7 @@ Re-consent after this lands (sign in again). Health-only Connect does **not** re
 
 Honest gaps (no fake events):
 
-- Session missing `calendar.events` → skip Calendar, Google Tasks checklist still writes.
+- Session missing `calendar.events` → skip Calendar; FitDash-owned daily quests stay on FitDash (grocery never writes Google Tasks).
 - Calendar API disabled on the Cloud project → same skip + error string.
 - Pi file-token Today (no login session) → no Calendar writes. Vercel / signed-in session only.
 - No `eat_at` on the meal slot → no event.
@@ -131,7 +131,11 @@ Honest gaps (no fake events):
 - `GET /api/warm` — incremental 14-day Health + Hidrate cache warm (loopback / service token; no page load)
 - `GET /api/agent/today` — read-only Today + this-week brief for agents (workout letter + last-session history, hydration wake pace, bottle, wake window, `today.active_zone_minutes`, `today.nutrition`, `week.nutrition` / `week.logged_sessions` / `week.sleep`). `today.wake_window.segments` is last recovered night + nap with absolute America/New_York start/end when GH intervals exist; omitted when sparse — never invented from daily hours. Same loopback / `FITDASH_SERVICE_TOKEN` gate as `/api/sleep_battery`. Cookie-less without token is 401 on the function; the production alias is cookie-less 200 via that gate. Does not invent ml / loads / sessions / AZM / intake / sleep. Nutrition is logged calories/protein + live books (or 2100/210P) + meal slots if present. Week is the ISO week Monday→today. `today.workout.session_type` is the same PPL letter as signed-in Today (`stamp_today_session` / next after last real log, rest flag separate). `today.workout.recent_sessions` is last 2+ real sessions or the last ~14d (honest `[]` if none); this-week `week.logged_sessions` stays empty when those logs are older. Cookie-less Today auto-generates a SuperGrok plan once per day when the letter stamps, it is not a rest day, and `plan_exercises` is empty; SuperGrok failures surface as `today.workout.generate_error` instead of a silent empty list. Personal `/api/dashboard` and `/api/workouts` stay session-gated.
 - `POST /api/agent/generate-plan` — cookie-less SuperGrok generate (same path as UI `POST /api/ask/plan`). Loopback / `FITDASH_SERVICE_TOKEN` (not a public unauthenticated route; not a Google session). Idempotent once per user+civil day; skips rest days. Persists so `GET /api/agent/today` returns non-empty `plan_exercises` matching the letter. Does not invent lifts offline of SuperGrok. Optional morning cron backup if the letter stamps late.
-- `POST /api/inventory/stock` `{ "id": "<ingredient_id>", "in_stock": true }` — Kitchen Google session, **or** Chris-bound `FITDASH_INVENTORY_AGENT_TOKEN` (Bearer / `X-FitDash-Service-Token`) whose tenant is `FITDASH_INVENTORY_AGENT_USER_ID`. House `FITDASH_SERVICE_TOKEN` / loopback do **not** write pantry. Unknown id → 404, no create. Idempotent stock-true is 2xx. After grocery confirm: complete matching Google Tasks, then POST each bought id with the Chris-bound credential.
+- `POST /api/inventory/stock` `{ "id": "<ingredient_id>", "in_stock": true }` — Kitchen Google session, **or** Chris-bound `FITDASH_INVENTORY_AGENT_TOKEN` (Bearer / `X-FitDash-Service-Token`) whose tenant is `FITDASH_INVENTORY_AGENT_USER_ID`. House `FITDASH_SERVICE_TOKEN` / loopback do **not** write pantry. Unknown id → 404, no create. Idempotent stock-true is 2xx. After a received grocery order: `POST /api/restock/confirm` (or stock-write each bought id). **No Google Tasks complete step.**
+- `GET /api/restock` — venue-tagged restock list (Walmart / Costco / other). FitDash SoT. Does not create Google Tasks.
+- `POST /api/restock/cart` `{ "items": [...] }` — add Walmart-tagged items to the signed-in Walmart cart and Costco-tagged items to the Costco list/cart. No checkout. Auth/session failure parks a Keep holding checklist (`[venue] Restock: Name`) plus a retry hold.
+- `POST /api/restock/retry` — replay the Keep/hold queue into carts.
+- `POST /api/restock/confirm` `{ "items": [...] }` — pantry in-stock/qty after Chris confirms the order. Same inventory agent gate as stock-write.
 - `POST /api/workouts` — log a session  
   ```json
   {

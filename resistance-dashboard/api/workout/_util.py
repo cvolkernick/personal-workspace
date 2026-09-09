@@ -39,11 +39,16 @@ _ROUTES = (
     "labs",
     "labs_upload",
     "labs_delete",
+    "restock_retry",
+    "restock_cart",
+    "restock_confirm",
+    "restock",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
 _EQ_ROUTES = ("eq_add", "eq_remove", "eq_update")
 _MEAL_ROUTES = ("meal_plan", "meal_generate")
 _LABS_WRITE_ROUTES = ("labs_upload", "labs_delete")
+_RESTOCK_WRITE_ROUTES = ("restock_cart", "restock_retry", "restock_confirm")
 
 
 def read_json(handler: BaseHTTPRequestHandler) -> dict:
@@ -123,6 +128,14 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "labs_delete"
     if "/api/labs" in blob:
         return "labs"
+    if "/api/restock/retry" in blob:
+        return "restock_retry"
+    if "/api/restock/cart" in blob:
+        return "restock_cart"
+    if "/api/restock/confirm" in blob:
+        return "restock_confirm"
+    if "/api/restock" in blob:
+        return "restock"
     return ""
 
 
@@ -1057,6 +1070,122 @@ def _agent_today_from_stores(headers, query: str = ""):
     return 200, export_agent_today(slice_payload)
 
 
+def _restock_auth(headers, client_host=None):
+    """Signed-in session or service token / loopback (same as agent/today)."""
+    from api.auth.session_util import session_from_headers
+    from rt_dashboard.service_auth import service_auth_denied, service_auth_ok
+
+    user = session_from_headers(headers)
+    if user:
+        return user, None
+    if service_auth_ok(headers, client_host):
+        return {"id": "service", "service": True}, None
+    return None, (401, service_auth_denied("restock"))
+
+
+def restock_list_body(headers, client_host=None):
+    """GET /api/restock — venue-tagged restock SoT. No Google Tasks."""
+    user, err = _restock_auth(headers, client_host)
+    if err:
+        return err
+    from api.dashboard import dashboard_body
+    from rt_dashboard.restock_cart import purchases_from_board, restock_list
+
+    if user and not user.get("service"):
+        status, dashboard = dashboard_body(headers)
+        if status != 200:
+            return status, dashboard
+        today = ((dashboard.get("coach") or {}).get("today")) or {}
+        payload = restock_list(purchases_from_board(today))
+        payload["source"] = "fitdash"
+        return 200, payload
+    import os
+
+    from rt_dashboard.inventory_store import load_preview_inventory
+    from rt_dashboard.nutrition_planner import suggest_inventory_staples
+
+    uid = (os.environ.get("FITDASH_USER_ID") or "default").strip() or "default"
+    inv, _src = load_preview_inventory(uid)
+    sug = suggest_inventory_staples(inv if isinstance(inv, dict) else {})
+    payload = restock_list(sug.get("suggestions") or [])
+    payload["source"] = "fitdash"
+    return 200, payload
+
+
+def restock_cart_body(headers, payload=None, method="POST", client_host=None):
+    """POST /api/restock/cart — add venue-tagged items to retailer carts. No checkout."""
+    user, err = _restock_auth(headers, client_host)
+    if err:
+        return err
+    if (method or "POST").upper() != "POST":
+        return 405, {"ok": False, "error": "method_not_allowed"}
+    from api.dashboard import dashboard_body
+    from rt_dashboard.restock_cart import purchases_from_board, push_items, restock_list
+
+    body = payload if isinstance(payload, dict) else {}
+    items = body.get("items")
+    if not isinstance(items, list):
+        if user and not user.get("service"):
+            status, dashboard = dashboard_body(headers)
+            if status != 200:
+                return status, dashboard
+            today = ((dashboard.get("coach") or {}).get("today")) or {}
+            items = purchases_from_board(today)
+        else:
+            items = restock_list([]).get("items") or []
+    return 200, push_items(items)
+
+
+def restock_retry_body(headers, payload=None, method="POST", client_host=None):
+    """POST /api/restock/retry — replay Keep/hold items into carts."""
+    _, err = _restock_auth(headers, client_host)
+    if err:
+        return err
+    if (method or "POST").upper() != "POST":
+        return 405, {"ok": False, "error": "method_not_allowed"}
+    from rt_dashboard.restock_cart import retry_held
+
+    return 200, retry_held()
+
+
+def restock_confirm_body(headers, payload=None, method="POST", client_host=None):
+    """POST /api/restock/confirm — pantry in-stock after a received order. No GT."""
+    if (method or "POST").upper() != "POST":
+        return 405, {"ok": False, "error": "method_not_allowed"}
+    from rt_dashboard.inventory_store import (
+        inventory_principal_uid,
+        load_preview_inventory,
+        save_preview_inventory,
+    )
+    from rt_dashboard.restock_cart import confirm_received
+    from rt_dashboard.service_auth import (
+        inventory_agent_denied,
+        inventory_agent_principal,
+        inventory_session_uid,
+    )
+
+    user, err = require_user(headers)
+    if err:
+        user = inventory_agent_principal(headers)
+        if not user:
+            return 401, inventory_agent_denied()
+        try:
+            uid = inventory_principal_uid(inventory_session_uid(user))
+        except ValueError:
+            return 401, inventory_agent_denied()
+    else:
+        uid = inventory_session_uid(user)
+    body = payload if isinstance(payload, dict) else {}
+    items = body.get("items") if isinstance(body.get("items"), list) else []
+    current, _src = load_preview_inventory(uid)
+    result = confirm_received(items, inventory=current)
+    if result.get("wrote") and isinstance(result.get("inventory"), dict):
+        saved = save_preview_inventory(result["inventory"], uid)
+        result["inventory"] = saved if isinstance(saved, dict) else result["inventory"]
+        result["write"] = {"ok": True}
+    return 200, result
+
+
 def dispatch_client_route(
     headers, query: str, method: str, payload=None, path: str = "", client_host=None
 ):
@@ -1121,6 +1250,22 @@ def dispatch_client_route(
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return labs_write(headers, route, payload or {})
+    if route == "restock":
+        if method != "GET":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return restock_list_body(headers, client_host=client_host)
+    if route == "restock_cart":
+        return restock_cart_body(
+            headers, payload, method, client_host=client_host
+        )
+    if route == "restock_retry":
+        return restock_retry_body(
+            headers, payload, method, client_host=client_host
+        )
+    if route == "restock_confirm":
+        return restock_confirm_body(
+            headers, payload, method, client_host=client_host
+        )
     return None
 
 
@@ -1146,6 +1291,10 @@ __all__ = [
     "stamp_quest_list_ids",
     "meal_plan_body",
     "refresh_body",
+    "restock_list_body",
+    "restock_cart_body",
+    "restock_retry_body",
+    "restock_confirm_body",
     "goals_read",
     "goals_write",
     "read_json",

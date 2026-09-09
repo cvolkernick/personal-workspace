@@ -220,6 +220,7 @@ class TestCoach(unittest.TestCase):
             any("egg" in str(p.get("name") or "").lower() for p in purchases)
             or any(p.get("action") == "restock" for p in purchases)
         )
+        self.assertTrue(all(p.get("venue") in ("walmart", "costco", "other") for p in purchases))
 
     def test_today_remaining_macros_track_logged_intake(self):
         rec = RecoveryStatus(label="Ready", score=75.0, reasons=[])
