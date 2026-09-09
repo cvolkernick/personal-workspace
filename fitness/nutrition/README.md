@@ -41,3 +41,5 @@
 | `COACH_TARGETS.md` | How the coach layer *recommends* those targets from goals vs data |
 
 The resistance dashboard reads today's intake from Google Health, compares to **applied** `targets.json`, and builds a plan from **in-stock** items in `inventory.json`. Recommendations must not silently overwrite that file.
+
+Restock / shopping is **not** Google Tasks. Venue-tagged items go to Walmart or Costco carts (Keep only if the cart write is blocked). SOP: [RESTOCK.md](./RESTOCK.md).

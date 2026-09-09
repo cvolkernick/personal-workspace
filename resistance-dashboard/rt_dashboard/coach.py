@@ -17,6 +17,7 @@ from .models import (
     WeightSample,
 )
 from .cardio_quest import cardio_spec
+from .restock_venues import venue_for_item
 from .sleep_quest import sleep_spec
 from .labs_store import labs_summary_for_coach
 from .test_noise import filter_sessions
@@ -496,20 +497,20 @@ def build_today_board(
     for s in (sug.get("suggestions") if isinstance(sug, dict) else None) or []:
         if not isinstance(s, dict):
             continue
-        purchases.append(
-            {
-                "action": s.get("action") or "add",
-                "id": s.get("id"),
-                "name": s.get("name"),
-                "reason": s.get("reason") or s.get("need") or "",
-                "need": s.get("need") or s.get("reason") or "",
-                "category": s.get("category"),
-                "calories": s.get("calories"),
-                "protein_g": s.get("protein_g"),
-                "suggested_qty": s.get("suggested_qty"),
-                "proposal": True,
-            }
-        )
+        purchase = {
+            "action": s.get("action") or "add",
+            "id": s.get("id"),
+            "name": s.get("name"),
+            "reason": s.get("reason") or s.get("need") or "",
+            "need": s.get("need") or s.get("reason") or "",
+            "category": s.get("category"),
+            "calories": s.get("calories"),
+            "protein_g": s.get("protein_g"),
+            "suggested_qty": s.get("suggested_qty"),
+            "proposal": True,
+            "venue": s.get("venue") or venue_for_item(s),
+        }
+        purchases.append(purchase)
         if len(purchases) >= 6:
             break
     # If meal plan empty and stock low, emphasize purchases.
@@ -533,6 +534,7 @@ def build_today_board(
                         "inventing food. Restock protein/veg staples, then refresh."
                     ),
                     "category": "protein",
+                    "venue": "other",
                 }
             )
         else:
@@ -546,6 +548,7 @@ def build_today_board(
                         "restock pantry staples (chicken, Greek yogurt, eggs, rice) to unlock today."
                     ),
                     "category": "protein",
+                    "venue": "other",
                 }
             )
 

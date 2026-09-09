@@ -1,5 +1,12 @@
 """Daily plan quests synced to Google Tasks (Fitness list).
 
+FitDash owns daily quests (lifts / meals / hydration / sleep / Duchess /
+weigh-in / restock). Grocery / restock is never written to Google Tasks
+(#554): restock→cart is the default. Day rollover / quest sync must not
+recreate purged FitDash grocery GTs. Other FitDash-owned kinds still
+mirror to GT unless ``FITDASH_QUEST_GT_SYNC=0``. GTs remain for outside
+one-offs and Grok Bot voice capture.
+
 Sync identity:
   * Durable marker in notes: ``[fitdash-quest:YYYY-MM-DD]`` (titles stay human-only).
   * Kind key ``[fitdash-kind:group|slug]`` so title metrics (battery %, grams)
@@ -136,6 +143,13 @@ GROUP_META = {
     "recovery": {"title": "Sleep & recovery", "order": 5, "emoji": "😴"},
     "other": {"title": "Other", "order": 9, "emoji": "✓"},
 }
+# FitDash-owned daily quests. Grocery/shopping never seeds GT (#554).
+FITDASH_OWNED_QUEST_GROUPS = frozenset(
+    {"training", "cardio", "nutrition", "shopping", "sleep", "recovery"}
+)
+FITDASH_GROCERY_GROUPS = frozenset({"shopping"})
+SHOPPING_HEADER_TITLES = frozenset({"Shopping"})
+QUEST_GT_SYNC_ENV = "FITDASH_QUEST_GT_SYNC"
 
 
 def _slug(text: str, limit: int = 48) -> str:
@@ -202,6 +216,53 @@ def group_header_titles() -> set:
         for m in GROUP_META.values()
         if str(m.get("title") or "").strip()
     }
+
+
+def quest_gt_sync_enabled() -> bool:
+    """Non-grocery FitDash quest GT mirror. Default on so Today complete still works.
+
+    Grocery is always skipped. Set ``FITDASH_QUEST_GT_SYNC=0`` to stop creating
+    lifts/meals/sleep/cardio GTs as well (FitDash-owned; GTs stay for one-offs).
+    """
+    raw = (os.environ.get(QUEST_GT_SYNC_ENV) or "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def is_grocery_planned_item(item: Optional[PlannedItem]) -> bool:
+    if item is None:
+        return False
+    if str(item.group or "").lower() in FITDASH_GROCERY_GROUPS:
+        return True
+    if str(item.slug or "").startswith("buy-") or item.slug == SHOP_TOP_SLUG:
+        return True
+    return bool(SHOP_LEAF_TITLE_RE.match(item.title or ""))
+
+
+def skip_gt_seed(group: str = "", item: Optional[PlannedItem] = None) -> bool:
+    """True → do not create/recreate this leaf as a Google Task."""
+    g = str(group or (item.group if item is not None else "") or "").lower()
+    if g in FITDASH_GROCERY_GROUPS or is_grocery_planned_item(item):
+        return True
+    if g in FITDASH_OWNED_QUEST_GROUPS and not quest_gt_sync_enabled():
+        return True
+    return False
+
+
+def is_fitdash_grocery_task(task: Optional[dict]) -> bool:
+    """FitDash-originated grocery/restock GT — not a Chris jot."""
+    if not isinstance(task, dict):
+        return False
+    title = str(task.get("title") or "").strip()
+    notes = task.get("notes") or ""
+    kind = kind_from_notes(notes) or ""
+    marked = bool(quest_mark_day(notes) or kind)
+    if kind.startswith("shopping|") or kind == "shopping":
+        return True
+    if title in SHOPPING_HEADER_TITLES and marked:
+        return True
+    if SHOP_LEAF_TITLE_RE.match(title) and marked:
+        return True
+    return False
 
 
 def quest_marker(day: str) -> str:
@@ -1752,6 +1813,70 @@ def purge_stale_quest_tasks(
     }
 
 
+def purge_grocery_quest_tasks(
+    *,
+    list_id: str,
+    cache: Optional[dict] = None,
+    save: bool = True,
+    listed_tasks: Optional[Sequence[dict]] = None,
+) -> Dict[str, Any]:
+    """Delete incomplete FitDash grocery/restock GTs so rollover cannot recreate them.
+
+    Completed grocery history stays. Chris jots without FitDash markers stay.
+    """
+    stats: Dict[str, Any] = {
+        "ok": True,
+        "deleted": [],
+        "failed": 0,
+        "errors": [],
+    }
+    if not list_id:
+        stats["ok"] = False
+        stats["error"] = "missing list_id"
+        return stats
+    if cache is None:
+        cache = _load_cache()
+    if listed_tasks is None:
+        try:
+            listed = gtb.list_tasks(list_id, show_completed=True, show_hidden=True)
+            listed_tasks = [
+                t for t in (listed.get("tasks") or []) if isinstance(t, dict)
+            ] if listed and listed.get("ok") else []
+        except Exception as exc:  # noqa: BLE001
+            stats["ok"] = False
+            stats["error"] = str(exc) or type(exc).__name__
+            return stats
+    already: set = set()
+    for task in listed_tasks or []:
+        if not is_fitdash_grocery_task(task) or not _is_incomplete(task):
+            continue
+        tid = str(task.get("id") or "")
+        if not tid or tid in already:
+            continue
+        try:
+            result = gtb.delete_task(list_id, tid)
+            already.add(tid)
+            if result.get("ok"):
+                stats["deleted"].append(tid)
+            else:
+                stats["failed"] += 1
+                stats["errors"].append(result.get("error") or "delete failed")
+        except Exception as exc:  # noqa: BLE001
+            stats["failed"] += 1
+            stats["errors"].append(str(exc) or type(exc).__name__)
+    if already:
+        for day_key, entry in list(cache.items()):
+            if not isinstance(entry, dict) or not isinstance(entry.get("ids"), dict):
+                continue
+            ids = entry["ids"]
+            for ck, cached in list(ids.items()):
+                if cached in already or str(ck).startswith("shopping|"):
+                    ids.pop(ck, None)
+        if save:
+            _save_cache(cache)
+    return stats
+
+
 def meal_food_identities_from_planned(planned: Sequence[PlannedGroup]) -> set:
     names = set()
     for group in planned or []:
@@ -2112,6 +2237,10 @@ def ensure_daily_tasks(
         purge_stats = purge_stale_quest_tasks(
             list_id=list_id, today=day, cache=cache, save=True
         )
+        grocery_purge = purge_grocery_quest_tasks(
+            list_id=list_id, cache=cache, save=True
+        )
+        purge_stats["grocery"] = grocery_purge
 
         day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
         if day_cache.get("list_id") != list_id:
@@ -2291,10 +2420,14 @@ def ensure_daily_tasks(
         created_meal_ids: List[str] = []
 
         for g in planned:
+            skip_group = skip_gt_seed(g.group)
             parent_ck = cache_key(g.group, "group")
             parent_id = ids.get(parent_ck)
             parent_task = _get_task_safe(list_id, parent_id) if parent_id else None
-            if not parent_task and create_missing:
+            if skip_group:
+                parent_task = None
+                parent_id = None
+            if not parent_task and create_missing and not skip_group:
                 created = gtb.create_task(
                     list_id,
                     g.title,  # no date stamp in the title
@@ -2313,9 +2446,10 @@ def ensure_daily_tasks(
             for it in g.items:
                 protein_item = is_protein_remaining_item(it)
                 ck = item_kind_key(it)
-                tid = ids.get(ck)
+                skip_item = skip_group or skip_gt_seed(g.group, it)
+                tid = None if skip_item else ids.get(ck)
                 task = _get_task_safe(list_id, tid) if tid else None
-                existing_kind = collect_kind_tasks(
+                existing_kind = [] if skip_item else collect_kind_tasks(
                     listed_tasks,
                     day=day,
                     match=lambda t, item=it: task_matches_item(t, item, day),
@@ -2332,6 +2466,7 @@ def ensure_daily_tasks(
                 if (
                     task
                     and create_missing
+                    and not skip_item
                     and _is_incomplete(task)
                     and (task.get("title") or "").strip() != it.title.strip()
                 ):
@@ -2361,7 +2496,7 @@ def ensure_daily_tasks(
                     if protein_item:
                         protein_stats["upserted"] = True
                         protein_stats["kept"] = str(task.get("id") or tid)
-                if not task and create_missing and not existing_kind:
+                if not task and create_missing and not existing_kind and not skip_item:
                     if is_meal_plan_item(it):
                         notes = meal_quest_notes(
                             it.notes_extra or "", day, foods_fp, kind_key=ck

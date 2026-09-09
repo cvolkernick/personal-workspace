@@ -85,6 +85,16 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertNotIn("api/labs.py", raw)
         self.assertFalse((ROOT / "api" / "labs.py").exists())
         self.assertFalse((ROOT / "api" / "labs").is_dir())
+        self.assertIn("/api/restock", raw)
+        self.assertIn("/api/dashboard?_r=restock", raw)
+        self.assertIn("/api/restock/cart", raw)
+        self.assertIn("/api/dashboard?_r=restock_cart", raw)
+        self.assertIn("/api/restock/retry", raw)
+        self.assertIn("/api/dashboard?_r=restock_retry", raw)
+        self.assertIn("/api/restock/confirm", raw)
+        self.assertIn("/api/dashboard?_r=restock_confirm", raw)
+        self.assertNotIn("api/restock.py", raw)
+        self.assertFalse((ROOT / "api" / "restock.py").exists())
 
     def test_hobby_function_count_stays_at_12(self):
         api = ROOT / "api"
@@ -146,6 +156,7 @@ class CookieLessClientRoutes(unittest.TestCase):
                 "daily_tasks_complete",
                 "agent_today",
                 "labs",
+                "restock",
             ):
                 status, body = dispatch_client_route({}, f"_r={route}", "GET")
                 self.assertEqual(status, 401, route)
@@ -166,6 +177,7 @@ class CookieLessClientRoutes(unittest.TestCase):
                 ("/api/daily-tasks/complete", "daily_tasks_complete"),
                 ("/api/agent/today", "agent_today"),
                 ("/api/labs", "labs"),
+                ("/api/restock", "restock"),
             )
             for path, route in pairs:
                 status, body = dispatch_client_route({}, "", "GET", path=path)
@@ -178,6 +190,16 @@ class CookieLessClientRoutes(unittest.TestCase):
             self.assertEqual(body["error"], "method_not_allowed")
             status, body = dispatch_client_route(
                 {}, "", "POST", path="/api/agent/generate-plan"
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(body["error"], "auth_required")
+            status, body = dispatch_client_route(
+                {}, "", "POST", payload={}, path="/api/restock/cart"
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(body["error"], "auth_required")
+            status, body = dispatch_client_route(
+                {}, "", "POST", payload={}, path="/api/restock/retry"
             )
             self.assertEqual(status, 401)
             self.assertEqual(body["error"], "auth_required")

@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from .models import FoodLogEntry, NutritionDay
 from .nutrition_micros import merge_day_micros, micros_from_nutrients
+from .restock_venues import venue_for_item
 
 INVENTORY_PATH = "fitness/nutrition/inventory.json"
 TARGETS_PATH = "fitness/nutrition/targets.json"
@@ -2893,18 +2894,18 @@ def suggest_inventory_staples(
             reason = "Marked out of stock — restock if you still use it."
             score += 10
         qty = suggested_qty_for_item(ing)
-        _push(
-            {
-                **ing,
-                "action": "restock",
-                "reason": reason,
-                "need": reason,
-                "score": round(score, 1),
-                "source": "inventory",
-                "proposal": True,
-                "suggested_qty": qty,
-            }
-        )
+        restock_row = {
+            **ing,
+            "action": "restock",
+            "reason": reason,
+            "need": reason,
+            "score": round(score, 1),
+            "source": "inventory",
+            "proposal": True,
+            "suggested_qty": qty,
+        }
+        restock_row["venue"] = venue_for_item(restock_row)
+        _push(restock_row)
 
     # Log counts are a soft *negative* for low-quality over-representation only.
     # Never a positive add signal (#502 AC1).
@@ -3038,6 +3039,7 @@ def suggest_inventory_staples(
         }
         if qty.get("portion_g") is not None:
             row["portion_g"] = qty["portion_g"]
+        row["venue"] = venue_for_item(row)
         _push(row)
 
     suggestions.sort(key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))

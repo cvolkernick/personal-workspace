@@ -1029,6 +1029,21 @@ def _empty_week() -> Dict[str, Any]:
     }
 
 
+def _restock_today(today_board: Dict[str, Any]) -> Dict[str, Any]:
+    """Venue-tagged restock list. FitDash SoT — not Google Tasks."""
+    from .restock_cart import restock_list
+
+    purchases = today_board.get("purchases") if isinstance(today_board, dict) else []
+    payload = restock_list(purchases if isinstance(purchases, list) else [])
+    return {
+        "items": payload.get("items") or [],
+        "by_venue": payload.get("by_venue") or {},
+        "counts": payload.get("counts") or {},
+        "google_tasks": False,
+        "checkout": False,
+    }
+
+
 def export_agent_today(
     payload: Optional[Dict[str, Any]] = None,
     *,
@@ -1051,6 +1066,7 @@ def export_agent_today(
         "wake_window": _wake_window(data),
         "active_zone_minutes": _active_zone_minutes(data),
         "nutrition": _nutrition_today(data, day, targets),
+        "restock": _restock_today(today_board),
     }
     week = (
         _empty_week()
