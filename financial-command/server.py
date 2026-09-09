@@ -7,6 +7,7 @@ Serves static UI + APIs:
   GET  /api/watchlist  — watchlist + deep-dive summaries
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
+  GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/coach         — financial coach allocation plan (pay on time)
   GET  /api/ask/status    — Ask Grok financial advisor auth + model
@@ -86,6 +87,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
     build_watchlist_dashboard,
     get_deep_dive_markdown,
 )
+from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 ORCHESTRA_PORT = 8790
@@ -649,6 +651,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "coach",
                         "watchlist",
                         "capital_flows",
+                        "interest_spectrum",
                     ],
                 },
             )
@@ -675,6 +678,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/capital-flows":
             try:
                 self._json(200, _capital_flows_payload())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/interest-spectrum":
+            try:
+                self._json(200, build_interest_spectrum())
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -767,6 +776,11 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/financial-command/capital-flows/",
         ):
             self.path = "/financial-command/capital-flows.html"
+        elif path in (
+            "/financial-command/interest-spectrum",
+            "/financial-command/interest-spectrum/",
+        ):
+            self.path = "/financial-command/interest-spectrum.html"
         return super().do_GET()
 
     def _load_treasury_payload(self) -> dict:
