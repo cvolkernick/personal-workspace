@@ -49,6 +49,10 @@
       "destination": "/api/dashboard?_r=exercise"
     },
     {
+      "source": "/api/workouts/date",
+      "destination": "/api/dashboard?_r=workouts_date"
+    },
+    {
       "source": "/api/workouts",
       "destination": "/api/dashboard?_r=workouts"
     },

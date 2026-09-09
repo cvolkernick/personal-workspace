@@ -111,6 +111,7 @@ from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.workout_log import (  # noqa: E402
     merge_log_with_history,
     parse_log_body,
+    plan_session_date_move,
 )
 from rt_dashboard.timeutil import local_now, local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
@@ -1759,6 +1760,66 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 result = start_google_auth_flow(force=force)
                 status = 200 if result.get("ok") else 400
                 self._send_json(result, status=status)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/workouts/date":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            try:
+                uid = user.get("user_id") if user else None
+                body = self._read_json()
+                from rt_dashboard.workout_planner import (
+                    next_session_type,
+                    ppl_logged_on_day,
+                )
+
+                history, _, _, _ = pull_merged_sessions(user_id=uid)
+                from_date = str(body.get("from_date") or body.get("date") or "")
+                to_date = str(body.get("to_date") or body.get("new_date") or "")
+                session_type = str(body.get("session_type") or "")
+                moved = plan_session_date_move(
+                    history,
+                    session_type=session_type,
+                    from_date=from_date,
+                    to_date=to_date,
+                )
+                if workout_use_sqlite():
+                    repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
+                    result = repo.relocate_session(moved, from_date)
+                else:
+                    from rt_dashboard.turso_repo import relocate_session as turso_relocate
+
+                    result = turso_relocate(uid or "default", moved, from_date)
+                sessions, source, _err, _gh = pull_merged_sessions(user_id=uid)
+                from rt_dashboard.workout_store import load_workspace_goals
+
+                goals, _ = load_workspace_goals()
+                old_day = str(from_date or "")[:10]
+                self._send_json(
+                    {
+                        "ok": True,
+                        "write": result,
+                        "source": source,
+                        "session_count": len(sessions),
+                        "sessions_head": [s.to_dict() for s in sessions[:5]],
+                        "session": moved.to_dict(),
+                        "from_date": old_day,
+                        "to_date": moved.date,
+                        "old_day_logged": ppl_logged_on_day(sessions, old_day),
+                        "new_day_logged": ppl_logged_on_day(sessions, moved.date),
+                        "next_session_type": next_session_type(sessions, goals),
+                    }
+                )
+            except ValueError as e:
+                msg = str(e)
+                status = 400
+                if msg == "session not found":
+                    status = 404
+                elif msg == "target date already has that session":
+                    status = 409
+                self._send_json({"ok": False, "error": msg}, status=status)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return

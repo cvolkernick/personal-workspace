@@ -69,6 +69,11 @@ FROM workout_sessions
 WHERE user_id = ? AND date = ? AND session_type = ?
 """
 
+DELETE_SQL = """
+DELETE FROM workout_sessions
+WHERE user_id = ? AND date = ? AND session_type = ?
+"""
+
 
 def _uid(user_id: str) -> str:
     return (user_id or DEFAULT_USER).strip() or DEFAULT_USER
@@ -138,6 +143,7 @@ def _get_row(conn, uid: str, date: str, session_type: str):
 
 
 def _insert_row(conn, uid: str, session: Session, payload: str, now: str) -> None:
+    created = (session.closed_at or "").strip() or now
     args_full = (
         uid,
         session.date,
@@ -145,7 +151,7 @@ def _insert_row(conn, uid: str, session: Session, payload: str, now: str) -> Non
         session.notes or "",
         session.source_file or "",
         payload,
-        now,
+        created,
         now,
     )
     try:
@@ -199,6 +205,28 @@ def upsert_session(user_id: str, session: Session) -> Dict[str, Any]:
         "session_type": session.session_type,
         "verified_on_readback": True,
     }
+
+
+def delete_session(user_id: str, date: str, session_type: str) -> bool:
+    """Delete one (date, session_type) row. True when gone on readback."""
+    if not turso_enabled():
+        raise RuntimeError("turso env missing")
+    uid = _uid(user_id)
+    day = str(date or "")[:10]
+    st = str(session_type or "").lower().strip()
+    with connect() as conn:
+        conn.execute(DELETE_SQL, (uid, day, st))
+        row = _get_row(conn, uid, day, st)
+    return row is None
+
+
+def relocate_session(user_id: str, session: Session, from_date: str) -> Dict[str, Any]:
+    """Write ``session`` at its date; delete ``from_date`` if different."""
+    result = upsert_session(user_id, session)
+    src_day = str(from_date or "")[:10]
+    if src_day and src_day != str(session.date)[:10]:
+        delete_session(user_id, src_day, session.session_type)
+    return result
 
 
 def save_preview_session(user_id: str, session: Session) -> Dict[str, Any]:

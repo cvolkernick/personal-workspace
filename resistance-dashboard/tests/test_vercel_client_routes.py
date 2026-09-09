@@ -51,6 +51,8 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("/api/dashboard?_r=exercise", raw)
         self.assertIn("/api/workouts", raw)
         self.assertIn("/api/dashboard?_r=workouts", raw)
+        self.assertIn("/api/workouts/date", raw)
+        self.assertIn("/api/dashboard?_r=workouts_date", raw)
         self.assertIn("/api/meal-plan/generate", raw)
         self.assertIn("/api/dashboard?_r=meal_generate", raw)
         self.assertIn("/api/refresh", raw)
