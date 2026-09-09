@@ -124,13 +124,28 @@ def _open_exercises(user_id: str, stored: str) -> List[ExerciseEntry]:
         return []
 
 
+def _row_get(row: Any, key: str, default: str = "") -> str:
+    try:
+        if isinstance(row, dict):
+            val = row.get(key, default)
+        else:
+            val = row[key]
+    except (KeyError, IndexError, TypeError):
+        return default
+    if val is None:
+        return default
+    return str(val)
+
+
 def _row_to_session(row: sqlite3.Row, user_id: str) -> Session:
+    closed = _row_get(row, "created_at") or _row_get(row, "closed_at")
     return Session(
         date=str(row["date"]),
         session_type=str(row["session_type"]),
         exercises=_open_exercises(user_id, str(row["exercises_json"] or "[]")),
         notes=str(row["notes"] or ""),
         source_file=str(row["source_file"] or ""),
+        closed_at=closed or None,
     )
 
 
@@ -175,7 +190,8 @@ class WorkoutRepository:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT date, session_type, notes, source_file, exercises_json
+                SELECT date, session_type, notes, source_file, exercises_json,
+                       created_at
                 FROM workout_sessions
                 WHERE user_id = ?
                 ORDER BY date DESC, session_type ASC

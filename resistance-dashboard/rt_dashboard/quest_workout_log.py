@@ -397,23 +397,29 @@ def quest_log_context(
     headers: Optional[dict] = None,
     load_sessions: Optional[Callable[[str], Sequence[Session]]] = None,
 ) -> Tuple[str, List[Session], Dict[str, Any]]:
-    """Civil day + sessions + PPL slot for a quest log write.
+    """Training-day + sessions + PPL slot for a quest log write.
 
-    Viewer date from payload.date, else request TZ (not Vercel UTC).
-    session_type prefers an explicit PPL value, then next_session_type —
-    never ``rest``.
+    Viewer date from payload.date, remapped onto the wake-window training
+    day when last_wake is known (after-midnight finish stays on this wake).
+    Explicit non-today dates are kept. session_type prefers an explicit
+    PPL value, then next_session_type — never ``rest``.
     """
     payload = payload if isinstance(payload, dict) else {}
     day = str(payload.get("date") or "")[:10]
-    if not day:
-        tz_name = None
-        try:
-            from api.dashboard import request_tz_name
+    tz_name = None
+    try:
+        from api.dashboard import request_tz_name
 
-            tz_name = request_tz_name(headers or {}, "")
-        except Exception:  # noqa: BLE001
-            tz_name = None
+        tz_name = request_tz_name(headers or {}, "")
+    except Exception:  # noqa: BLE001
+        tz_name = None
+    if not day:
         day = local_today_iso(tz_name)
+    from .training_day import last_wake_from, resolve_log_date
+
+    wake = last_wake_from(payload=payload)
+    if wake:
+        day = resolve_log_date(day, last_wake_at=wake, tz_name=tz_name)
     loader = load_sessions or _default_load_sessions
     try:
         sessions = list(loader(user_id) or [])

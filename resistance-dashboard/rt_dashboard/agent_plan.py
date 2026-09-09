@@ -184,6 +184,20 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
         for f in (health.food_logs or [])
         if str(getattr(f, "date", "") or "")[:10] == today
     ]
+    try:
+        from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
+
+        bat = sleep_battery_from_fitdash_sleep(
+            health.sleep or [], now=now, tz_name=tz_name
+        )
+        if isinstance(bat, dict):
+            recovery["sleep_battery"] = bat
+    except Exception:  # noqa: BLE001
+        pass
+    from rt_dashboard.training_day import last_wake_from, training_day_iso
+
+    wake = last_wake_from(recovery=recovery)
+    train_day = training_day_iso(now=now, last_wake_at=wake, tz_name=tz_name)
     nxt = None
     stamped = stamp_today_session(
         {"session_type": None, "is_rest_day": False, "exercises": [], "empty": True},
@@ -192,10 +206,14 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
         recovery,
         as_of=today,
         fill_rest=True,
+        last_wake_at=wake,
+        now=now,
     )
     nxt = stamped.get("next_session_type") or stamped.get("session_type")
     return {
         "day": today,
+        "training_day": train_day,
+        "last_wake_at": wake,
         "sessions": sessions,
         "sessions_brief": brief_sessions(sessions, limit=5),
         "goals": goals,
@@ -223,35 +241,23 @@ def ensure_today_grok_plan(
 ) -> Dict[str, Any]:
     """Generate+persist today's SuperGrok workout, or skip.
 
-    Skip rest days. Skip when a good plan for this letter already exists.
-    Fail loudly (ok=False + error) instead of inventing lifts.
+    Skip rest days. Skip when a good plan for this letter already exists
+    on the current training day (wake window). Fail loudly (ok=False +
+    error) instead of inventing lifts.
     """
     uid = (user_id or "").strip() or house_plan_user_id()
     from rt_dashboard.timeutil import local_today_iso
 
     probe_day = str(day or "")[:10] or local_today_iso()
-    if not force:
-        saved = load_last_good_workout_plan(uid, probe_day)
-        if is_good_workout_plan(saved):
-            return {
-                "ok": True,
-                "skipped": "already_generated",
-                "generated": False,
-                "workout": saved,
-                "persist": {
-                    "ok": True,
-                    "store": "existing",
-                    "key": persist_key(uid, probe_day),
-                },
-                "error": None,
-            }
     ctx = context if isinstance(context, dict) else None
     if ctx is None or not ctx.get("catalog"):
         loaded = _load_generate_kwargs(uid, headers=headers, query=query)
         if ctx:
             loaded.update({k: v for k, v in ctx.items() if v is not None})
         ctx = loaded
-    local_today = str(day or ctx.get("day") or probe_day or "")[:10]
+    local_today = str(
+        ctx.get("training_day") or day or ctx.get("day") or probe_day or ""
+    )[:10]
     stamped = ctx.get("stamped") if isinstance(ctx.get("stamped"), dict) else {}
     if not stamped:
         stamped = stamp_today_session(
@@ -259,11 +265,21 @@ def ensure_today_grok_plan(
             ctx.get("sessions") or [],
             ctx.get("goals") or {},
             ctx.get("recovery") or {},
-            as_of=local_today or None,
+            as_of=str(ctx.get("day") or local_today or None),
             fill_rest=True,
+            last_wake_at=ctx.get("last_wake_at"),
         )
     is_rest = bool(stamped.get("is_rest_day"))
     letter = _letter(stamped.get("session_type"))
+    if stamped.get("already_trained_today"):
+        return {
+            "ok": True,
+            "skipped": "already_trained",
+            "generated": False,
+            "workout": stamped,
+            "persist": {"ok": False, "error": "already trained this wake"},
+            "error": None,
+        }
     empty = honest_empty_workout()
     empty = stamp_today_session(
         empty,

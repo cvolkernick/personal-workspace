@@ -16,7 +16,6 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Sequence
 
 from .models import ExerciseEntry, Session, SetEntry
-from .timeutil import local_today_iso
 
 
 def _norm_name(name: str) -> str:
@@ -67,12 +66,14 @@ def merge_same_day_session(
         by_key[key] = ex
     notes = (incoming.notes or "").strip() or (existing.notes or "")
     source = (incoming.source_file or "").strip() or (existing.source_file or "")
+    closed = (existing.closed_at or "").strip() or (incoming.closed_at or "")
     return Session(
         date=incoming.date,
         session_type=incoming.session_type,
         exercises=[by_key[k] for k in order],
         notes=notes,
         source_file=source,
+        closed_at=closed or None,
     )
 
 
@@ -85,14 +86,22 @@ def merge_log_with_history(
     return merge_same_day_session(incoming, existing)
 
 
-def parse_log_body(data: dict) -> Session:
+def parse_log_body(data: dict, *, now=None) -> Session:
     payload: Dict[str, Any] = data if isinstance(data, dict) else {}
     st = str(payload.get("session_type", "")).lower().strip()
     date = str(payload.get("date", "")).strip()
     if st not in ("push", "pull", "legs"):
         raise ValueError("session_type must be push, pull, or legs")
-    if not date:
-        date = local_today_iso()
+    from .training_day import last_wake_from, resolve_log_date
+    from .timeutil import local_now_iso
+
+    tz_name = str(payload.get("tz") or "") or None
+    date = resolve_log_date(
+        date,
+        now=now,
+        last_wake_at=last_wake_from(payload=payload),
+        tz_name=tz_name,
+    )
     # validate date
     datetime.strptime(date, "%Y-%m-%d")
     exercises_in = payload.get("exercises") or []
@@ -149,9 +158,11 @@ def parse_log_body(data: dict) -> Session:
             )
         )
     notes = str(payload.get("notes") or "")
+    closed = str(payload.get("closed_at") or "").strip() or local_now_iso()
     return Session(
         date=date,
         session_type=st,
         exercises=exercises,
         notes=notes,
+        closed_at=closed,
     )

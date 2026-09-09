@@ -87,13 +87,14 @@ class Session:
     exercises: List[ExerciseEntry] = field(default_factory=list)
     notes: str = ""
     source_file: str = ""
+    closed_at: Optional[str] = None  # ISO datetime of first persist (session-close)
 
     @property
     def volume(self) -> float:
         return sum(e.volume for e in self.exercises)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        out: Dict[str, Any] = {
             "date": self.date,
             "session_type": self.session_type,
             "exercises": [e.to_dict() for e in self.exercises],
@@ -101,6 +102,9 @@ class Session:
             "source_file": self.source_file,
             "volume": self.volume,
         }
+        if self.closed_at:
+            out["closed_at"] = self.closed_at
+        return out
 
 
 @dataclass

@@ -190,6 +190,48 @@ class EnsureToday(unittest.TestCase):
         self.assertIn("Connect SuperGrok", out["error"])
         self.assertEqual((out["workout"] or {}).get("exercises") or [], [])
 
+    def test_prior_wake_plan_on_civil_day_does_not_block_next_letter(self):
+        from rt_dashboard.workout_plan_store import save_last_good_workout_plan
+
+        save_last_good_workout_plan(
+            "sub-1",
+            "2026-09-09",
+            {
+                "session_type": "legs",
+                "is_rest_day": False,
+                "exercises": [{"name": "RDL", "sets": 2, "reps": 7, "weight_lbs": 40}],
+            },
+        )
+        grok = {
+            "ok": True,
+            "workout": PULL_PLAN,
+            "meal": {"items": [], "empty": True},
+            "model": "grok-test",
+        }
+        ctx = {
+            "day": "2026-09-09",
+            "training_day": "2026-09-09",
+            "catalog": {"exercises": [{"name": "DB Row"}]},
+            "sessions": [],
+            "goals": {"rotation": ["push", "pull", "legs"]},
+            "recovery": {},
+            "stamped": {
+                "session_type": "pull",
+                "is_rest_day": False,
+                "exercises": [],
+                "next_session_type": "pull",
+            },
+            "next_session_type": "pull",
+        }
+        with mock.patch(
+            "rt_dashboard.agent_plan.generate_grok_plans", return_value=grok
+        ) as gen:
+            out = ensure_today_grok_plan("sub-1", day="2026-09-09", context=ctx)
+        gen.assert_called_once()
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["generated"])
+        self.assertEqual(out["workout"]["session_type"], "pull")
+
     def test_empty_grok_success_is_loud_fail(self):
         ctx = {
             "day": "2026-09-06",

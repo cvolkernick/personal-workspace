@@ -185,6 +185,95 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertFalse(plan.get("already_trained_today"))
         self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
 
+    def test_after_midnight_same_wake_pins_letter(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        et = ZoneInfo("America/New_York")
+        legs = _session("2026-09-09", "legs", "RDL", 40, 2, 7)
+        legs.closed_at = "2026-09-09T00:30:00-04:00"
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [legs],
+            recovery_score=80,
+            as_of="2026-09-09",
+            last_wake_at="2026-09-08T07:00:00-04:00",
+            now=datetime(2026, 9, 9, 0, 45, tzinfo=et),
+        )
+        self.assertEqual(plan["session_type"], "legs")
+        self.assertEqual(plan["ppl_logged_today"], "legs")
+        self.assertEqual(plan["next_session_type"], "legs")
+        self.assertFalse(plan["already_trained_today"])
+        names = [e.get("name") for e in plan["exercises"]]
+        self.assertNotIn("DB Flat Press", names)
+        self.assertIn("Seated Leg Curls", names)
+
+    def test_new_wake_generates_next_letter_despite_civil_date(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        et = ZoneInfo("America/New_York")
+        legs = _session("2026-09-09", "legs", "RDL", 40, 2, 7)
+        legs.closed_at = "2026-09-09T00:30:00-04:00"
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [legs],
+            recovery_score=80,
+            as_of="2026-09-09",
+            last_wake_at="2026-09-09T08:00:00-04:00",
+            now=datetime(2026, 9, 9, 9, 0, tzinfo=et),
+        )
+        self.assertEqual(plan["session_type"], "push")
+        self.assertFalse(plan.get("ppl_logged_today"))
+        self.assertFalse(plan.get("already_trained_today"))
+        self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
+
+    def test_new_wake_parent_complete_does_not_pin(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        et = ZoneInfo("America/New_York")
+        legs = _session("2026-09-09", "legs", "RDL", 40, 2, 7)
+        legs.closed_at = "2026-09-09T00:30:00-04:00"
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [legs],
+            recovery_score=80,
+            as_of="2026-09-09",
+            last_wake_at="2026-09-09T08:00:00-04:00",
+            now=datetime(2026, 9, 9, 9, 0, tzinfo=et),
+            train_parent_completed=True,
+        )
+        self.assertEqual(plan["session_type"], "push")
+        self.assertFalse(plan.get("ppl_logged_today"))
+        self.assertFalse(plan["already_trained_today"])
+        self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
+
+    def test_same_wake_parent_complete_does_not_seed_next_letter(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        et = ZoneInfo("America/New_York")
+        legs = _session("2026-09-09", "legs", "RDL", 40, 2, 7)
+        legs.closed_at = "2026-09-09T00:30:00-04:00"
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [legs],
+            recovery_score=80,
+            as_of="2026-09-09",
+            last_wake_at="2026-09-08T07:00:00-04:00",
+            now=datetime(2026, 9, 9, 0, 45, tzinfo=et),
+            train_parent_completed=True,
+        )
+        self.assertTrue(plan["already_trained_today"])
+        self.assertEqual(plan["session_type"], "legs")
+        self.assertEqual(plan["next_session_type"], "push")
+        self.assertEqual(plan["exercises"], [])
+
     def test_session_types_for_lift_name(self):
         types = session_types_for_lift_name("DB Flat Press", self.catalog)
         self.assertEqual(types, ("push",))

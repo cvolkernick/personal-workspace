@@ -877,6 +877,19 @@ def load_dashboard_data(
         catalog = merge_custom_universe(wo["catalog"], custom)
         catalog = apply_library_overlay(catalog, overlay)
         catalog = apply_goals_volume_caps(catalog, wo["goals"])
+        from rt_dashboard.training_day import last_wake_from, training_day_iso
+
+        last_wake = last_wake_from(sleep_battery=sleep_battery)
+        train_day = training_day_iso(
+            now=now, last_wake_at=last_wake, tz_name=tz_name
+        )
+        train_parent_done = False
+        try:
+            from rt_dashboard.daily_plan_tasks import training_day_complete
+
+            train_parent_done = bool(training_day_complete(train_day))
+        except Exception:
+            train_parent_done = False
         workout_plan = generate_workout_plan(
             catalog,
             wo["goals"],
@@ -887,6 +900,9 @@ def load_dashboard_data(
             recovery_sparse=not had_real_sleep,
             as_of=local_today,
             equipment=equipment,
+            train_parent_completed=train_parent_done,
+            last_wake_at=last_wake,
+            now=now,
         )
         # Effective goals include autonomous focus_muscles from plan gen
         effective_goals = dict(wo["goals"] or {})
@@ -998,6 +1014,9 @@ def load_dashboard_data(
         payload["day_constraints"] = None
 
     elapsed_ms = int((datetime.utcnow() - t0).total_seconds() * 1000)
+    from rt_dashboard.training_day import last_wake_from as _last_wake_from
+    from rt_dashboard.training_day import training_day_iso as _training_day_iso
+
     payload["meta"] = {
         "source": source,
         "error": "; ".join(errors) if errors else None,
@@ -1020,6 +1039,11 @@ def load_dashboard_data(
         "cache": cache_notes,
         "cache_ttl_sec": cache_ttl,
         "local_today": local_today,
+        "training_day": _training_day_iso(
+            now=now,
+            last_wake_at=_last_wake_from(sleep_battery=sleep_battery),
+            tz_name=tz_name,
+        ),
         "timezone": tz_name,
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "user_id": uid,
@@ -1231,6 +1255,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
             from rt_dashboard.dashboard_cache import sessions_from_dicts
 
             sessions = sessions_from_dicts(data.get("sessions") or [])
+            bat = data.get("sleep_battery") or rec.get("sleep_battery") or {}
             plan = generate_workout_plan(
                 wo.get("catalog") or {"exercises": []},
                 wo.get("goals") or {},
@@ -1239,6 +1264,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 recovery_score=rec.get("score"),
                 recovery_sparse=bool(rec.get("sparse")),
                 session_type=action.get("session_type"),
+                last_wake_at=(bat or {}).get("last_wake_at") if isinstance(bat, dict) else None,
             )
             return {"ok": True, "action": kind, "plan": plan}
         return {"ok": False, "action": kind, "error": f"unknown action {kind}"}
@@ -2234,6 +2260,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
                 sessions = sessions_from_dicts(sessions_raw)
                 session_type = body.get("session_type")
+                bat = data.get("sleep_battery") or rec.get("sleep_battery") or {}
                 plan = generate_workout_plan(
                     wo.get("catalog") or {"exercises": []},
                     wo.get("goals") or {},
@@ -2243,6 +2270,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     recovery_sparse=bool(rec.get("sparse")),
                     session_type=str(session_type).lower() if session_type else None,
                     equipment=wo.get("equipment"),
+                    last_wake_at=(bat or {}).get("last_wake_at") if isinstance(bat, dict) else None,
                 )
                 self._send_json({"ok": True, "plan": plan})
             except Exception as e:

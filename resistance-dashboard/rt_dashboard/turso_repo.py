@@ -15,7 +15,7 @@ from .workout_repo import (
 from .models import Session
 
 LIST_SQL = """
-SELECT date, session_type, notes, source_file, exercises_json
+SELECT date, session_type, notes, source_file, exercises_json, created_at
 FROM workout_sessions
 WHERE user_id = ?
 ORDER BY date DESC, session_type ASC
@@ -64,7 +64,7 @@ INSERT INTO workout_sessions(
 """
 
 GET_SQL = """
-SELECT date, session_type, notes, source_file, exercises_json
+SELECT date, session_type, notes, source_file, exercises_json, created_at
 FROM workout_sessions
 WHERE user_id = ? AND date = ? AND session_type = ?
 """
