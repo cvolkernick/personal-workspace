@@ -77,6 +77,11 @@ launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null \
 rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 ```
 
+**#555:** leave `rh-refresh` unloaded. If Mac `fund-manager-daily` /
+`fund-manager-bp-poll` still page false RH / `rh_checking` stale, boot those
+out (plist comments + commands in `RH_PRODUCER.md`). ntfy is also gated in
+nest: `skipped` / `no_refresh_path` / timeout-with-fresh-as_of do not page.
+
 ### 6) ntfy = Pi host + error class
 Alerts include **producer host** and **error class** (`FCC · RH auth_fail · prism`).
 Unit sets `FCC_HOST_TAG=prism`. Override with `config.json` → `notifications.host_tag`.

@@ -20,6 +20,7 @@ Pi FCC is still an offline consumer of those pushed files. RH is the exception.
 | 4 | Braiins launchd every **4h** (`com.personalworkspace.braiins-refresh`) — still Mac |
 | 5 | After Mac **non-RH** success → push CB/YNAB/Sheet/Braiins/treasury → Pi. **Not** `robinhood_latest.json` |
 | 6 | **Coinbase + Solana** Mac producer hourly (`com.personalworkspace.cb-solana-refresh`) |
+| 7 | **#555** ntfy gates: no page on `skipped` / `no_refresh_path`; no page on `local_mcp_timeout` if `as_of` is under 6h or MCP is not the live path; Mac leftover fund-manager must not treat `rh_checking` as RH brokerage. Do **not** reload Mac `rh-refresh`. |
 
 ## Install / reload
 

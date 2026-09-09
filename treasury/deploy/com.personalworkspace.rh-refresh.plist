@@ -8,7 +8,9 @@
   steps 1–2). Disarming first = no writer. Leaving it loaded after Pi
   SoT = dual-writer. Mac tokens do not travel.
 
-  Disarm (step 3 — only after Pi smoke green):
+  Disarm (step 3 — only after Pi smoke green). #555: stay unloaded.
+  Do NOT reload this unit. False RH ntfy leftover is fund-manager-daily /
+  fund-manager-bp-poll (gated in nest) — not this plist.
     launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null || true
     rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 

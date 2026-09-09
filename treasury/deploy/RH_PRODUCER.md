@@ -175,7 +175,29 @@ feeding FCC. After step 2 + step 3:
 - Freshness window: **6h** (`TREASURY_RH_MAX_AGE_HOURS`, FCC stale threshold)
 - Producer timer: **3h** (`rh-refresh.timer`)
 - Status sidecar: `treasury/snapshots/rh_producer_status.json`
-- Error classes: `auth_fail`, `timeout`, `grok`, `mcp`, `stale`, `unreachable`, …
+- Error classes: `auth_fail`, `timeout`, `grok`, `mcp`, `stale`, `unreachable`, `skipped`, …
+
+## #555 — do not page expected skip / leftover Mac / timeout-while-fresh
+
+Post-#518 cutover, status/log still records `skipped` / `no_refresh_path` /
+`local_mcp_timeout`. **Do not ntfy** those when:
+
+1. Host is a gateway / non-producer (`no_refresh_path`, `skipped`) — expected.
+2. Mac leftover fund-manager / `rh_checking` scores a frozen local age (~17.8h)
+   while prism `robinhood.as_of` is fresh. Mac `rh-refresh` stays **unloaded**.
+3. `local_mcp_timeout` and existing `robinhood_latest.json` as_of is **under 6h**,
+   or `rh_mcp_enabled` is false/null and local MCP is not the live producer path.
+
+Quiet leftover Mac RH freshness ntfy (do **not** reload `rh-refresh`):
+
+```bash
+# on Mac — only if these units are still paging false RH / rh_checking stale
+launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-daily 2>/dev/null || true
+launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-bp-poll 2>/dev/null || true
+rm -f ~/Library/LaunchAgents/com.personalworkspace.fund-manager-daily.plist
+rm -f ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
+# keep com.personalworkspace.rh-refresh unloaded
+```
 
 ## Revert
 

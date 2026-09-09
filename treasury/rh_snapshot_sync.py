@@ -181,6 +181,10 @@ def _rh_role() -> str:
         return cfg_role
     host = _this_host().lower()
     sot = _sot_host().lower()
+    # Gateway / non-SoT prism* hosts are not the producer (#555). Explicit
+    # TREASURY_RH_ROLE above still wins. Do not auto-promote prism-gateway.
+    if host and "gateway" in host and host != sot:
+        return "consumer"
     # Only auto-promote obvious prism hosts. systemd must set TREASURY_RH_ROLE=producer.
     if host and (host == sot or host.startswith("prism")):
         return "producer"
@@ -217,6 +221,98 @@ def write_producer_status(status: Dict[str, Any]) -> Optional[Path]:
         return None
 
 
+def existing_rh_snapshot_fresh(
+    *,
+    max_age_hours: Optional[float] = None,
+    status: Optional[Dict[str, Any]] = None,
+) -> Tuple[bool, Optional[float], Optional[str]]:
+    """True when robinhood_latest.json as_of is inside the freshness window."""
+    if max_age_hours is None:
+        max_age_hours = DEFAULT_MAX_AGE_H
+    dest = SNAPSHOTS_DIR / RH_SNAP
+    as_of = None
+    if dest.is_file():
+        ok, parsed, _ = _valid_rh_snapshot(dest)
+        if ok:
+            as_of = parsed
+    if as_of is None and status:
+        as_of = _parse_as_of(status.get("as_of"))
+    age = _age_hours(as_of)
+    iso = as_of.isoformat() if as_of else None
+    if age is None:
+        return False, None, iso
+    return age < float(max_age_hours), round(age, 2), iso
+
+
+def local_mcp_is_live_producer_path(status: Dict[str, Any]) -> bool:
+    """True only when this host is the producer and local MCP is the live path."""
+    role = str(status.get("role") or _rh_role() or "").lower()
+    this_host = str(status.get("this_host") or _this_host() or "").lower()
+    if role != "producer":
+        return False
+    if "gateway" in this_host:
+        return False
+    if os.environ.get("TREASURY_SKIP_LOCAL_MCP") == "1":
+        return False
+    if status.get("rh_mcp_enabled") is False:
+        return False
+    local_mcp = status.get("local_mcp")
+    if isinstance(local_mcp, dict) and str(local_mcp.get("error") or "") in (
+        "local_mcp_skipped",
+        "no_refresh_path",
+    ):
+        return False
+    return True
+
+
+def rh_failure_should_page(status: Dict[str, Any]) -> Dict[str, Any]:
+    """Gate RH ntfy. Status/log stays; page only for real producer failures.
+
+    #555: skipped / no_refresh_path never page (expected on gateway / non-producer).
+    local_mcp_timeout does not page when SoT as_of is under 6h, or when local MCP
+    is not the live producer path (rh_mcp_enabled false/null + no MCP run).
+    """
+    if status.get("ok"):
+        return {"page": False, "reason": "success"}
+    err = str(status.get("error") or "")
+    err_class = str(status.get("error_class") or classify_rh_error(err) or "")
+    fresh, age, as_of = existing_rh_snapshot_fresh(status=status)
+    if (
+        err_class == "skipped"
+        or "no_refresh_path" in err
+        or err == "local_mcp_skipped"
+        or "local_mcp_skipped" in err
+    ):
+        return {
+            "page": False,
+            "reason": "skipped_or_no_refresh_path",
+            "error_class": err_class or "skipped",
+            "age_hours": age,
+            "as_of": as_of,
+        }
+    timeout = err_class == "timeout" or "local_mcp_timeout" in err
+    mcp_live = local_mcp_is_live_producer_path(status)
+    if timeout:
+        if fresh:
+            return {
+                "page": False,
+                "reason": "timeout_as_of_fresh",
+                "age_hours": age,
+                "as_of": as_of,
+            }
+        if not mcp_live:
+            return {
+                "page": False,
+                "reason": "timeout_non_producer_mcp",
+                "age_hours": age,
+                "as_of": as_of,
+            }
+    role = status.get("role") or _rh_role()
+    if role != "producer":
+        return {"page": False, "reason": "not_producer", "error_class": err_class}
+    return {"page": True, "reason": "producer_failure", "error_class": err_class}
+
+
 def notify_rh_producer_failure(
     status: Dict[str, Any], *, force: bool = False
 ) -> Dict[str, Any]:
@@ -224,6 +320,14 @@ def notify_rh_producer_failure(
     role = status.get("role") or _rh_role()
     if status.get("ok"):
         return {"ok": True, "notified": False, "reason": "success"}
+    gate = rh_failure_should_page(status)
+    if not gate.get("page") and not force:
+        return {
+            "ok": True,
+            "notified": False,
+            "reason": gate.get("reason") or "gated",
+            "gate": gate,
+        }
     if role != "producer" and not force:
         return {"ok": True, "notified": False, "reason": "not_producer"}
     try:
@@ -908,7 +1012,7 @@ def sync_rh_snapshot(
             write_producer_status(payload)
         except Exception:
             pass
-        if notify and (not payload.get("ok")) and role == "producer":
+        if notify and (not payload.get("ok")):
             try:
                 payload["notify"] = notify_rh_producer_failure(payload)
             except Exception as exc:
@@ -961,6 +1065,9 @@ def sync_rh_snapshot(
         return _finish(result)
 
     result["error"] = (result.get("pi") or {}).get("error") or "no_refresh_path"
+    result["error_class"] = classify_rh_error(str(result.get("error") or ""))
+    # Status/log keep the last honest as_of; ntfy is gated (#555).
+    _attach_existing_as_of(result, SNAPSHOTS_DIR / RH_SNAP)
     return _finish(result)
 
 

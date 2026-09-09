@@ -3,7 +3,8 @@
 # 1) RH refresh (MCP via grok if available)
 # 2) Rules path: HOLD if in band (no LLM)
 # 3) Else team/LLM via grok headless
-# 4) Notify ntfy only on need_llm / error / stale RH
+# 4) Notify ntfy only on need_llm / error / stale RH *brokerage*
+#    (#555: rh_checking / skipped / no_refresh_path / fresh as_of do not page)
 # 5) Write FCC treasury JSON
 #
 # Cron (ET):  30 12 * * 1-5  /path/to/treasury/fund_manager_daily.sh
