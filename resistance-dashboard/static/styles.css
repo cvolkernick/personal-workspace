@@ -2474,6 +2474,24 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   flex-wrap: wrap;
 }
 
+/* Phone-only gym-door handoff. Hidden on desktop; cannot launch the phone app. */
+#btn-planet-fitness,
+.pf-club-pass {
+  display: none;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.55rem;
+  min-height: 34px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+@media (max-width: 720px) {
+  #btn-planet-fitness,
+  .pf-club-pass {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
 .today-session-force {
   margin: 0;
   gap: 0.3rem;

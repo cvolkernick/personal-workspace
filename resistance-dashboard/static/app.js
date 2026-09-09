@@ -5894,6 +5894,87 @@
     }
   }
 
+  /* Planet Fitness Club Pass — launch the app, do not deep-link check-in. */
+  const PF_ANDROID_PACKAGE = "com.planetfitness";
+  const PF_PLAY_STORE =
+    "https://play.google.com/store/apps/details?id=com.planetfitness";
+  const PF_IOS_STORE = "https://apps.apple.com/app/id399857015";
+  const PF_IOS_SCHEME = "planetfitness://";
+
+  function planetFitnessLaunchHref(ua) {
+    const agent = ua || "";
+    if (/Android/i.test(agent)) {
+      return (
+        "intent://open#Intent;scheme=https;package=" +
+        PF_ANDROID_PACKAGE +
+        ";S.browser_fallback_url=" +
+        PF_PLAY_STORE +
+        ";end"
+      );
+    }
+    if (/iPhone|iPad|iPod/i.test(agent)) {
+      return PF_IOS_SCHEME;
+    }
+    return "";
+  }
+
+  function planetFitnessIosStoreHref() {
+    return PF_IOS_STORE;
+  }
+
+  function openPlanetFitnessApp(ua, nav, clock) {
+    const agent =
+      ua ||
+      (typeof navigator !== "undefined" && navigator.userAgent) ||
+      "";
+    const href = planetFitnessLaunchHref(agent);
+    const go =
+      nav ||
+      function (url) {
+        if (url) window.location.href = url;
+      };
+    if (!href) return false;
+    if (/^planetfitness:/i.test(href)) {
+      const t = clock || {
+        now: function () {
+          return Date.now();
+        },
+        wait: function (fn, ms) {
+          return window.setTimeout(fn, ms);
+        },
+        cancel: function (id) {
+          window.clearTimeout(id);
+        },
+      };
+      const started = t.now();
+      const timer = t.wait(function () {
+        if (t.now() - started < 2000) go(planetFitnessIosStoreHref());
+      }, 900);
+      if (typeof document !== "undefined" && document.addEventListener) {
+        document.addEventListener(
+          "visibilitychange",
+          function () {
+            if (document.hidden && timer != null && t.cancel) t.cancel(timer);
+          },
+          { once: true }
+        );
+      }
+      go(href);
+      return true;
+    }
+    go(href);
+    return true;
+  }
+
+  function bindPlanetFitnessLaunch() {
+    const btn = $("btn-planet-fitness");
+    if (!btn) return;
+    btn.addEventListener("click", function (ev) {
+      if (ev && ev.preventDefault) ev.preventDefault();
+      openPlanetFitnessApp();
+    });
+  }
+
   /** Unified tab shell on web + phone — same Today / Trends / Kitchen / Log / More. */
   function useTabShell() {
     return true;
@@ -6861,6 +6942,7 @@
     if ($("exercise-rows") && !$("exercise-rows").children.length) addExerciseRow();
     bindInventoryListOnce();
     initMobileShell();
+    bindPlanetFitnessLaunch();
     registerServiceWorker();
     if ($("btn-add-ex")) $("btn-add-ex").addEventListener("click", () => addExerciseRow());
     if ($("log-form")) $("log-form").addEventListener("submit", submitWorkout);
