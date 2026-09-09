@@ -23,6 +23,7 @@ Opens: http://localhost:8000/financial-command/index.html
 | `/api/treasury` | GET | Latest evaluation |
 | `/api/config` | GET/POST | Read/merge-save `treasury/config.json` |
 | `/api/refresh` | POST | Re-run evaluation (`{"offline": true}` optional) |
+| `/api/btc-network` | GET | Bitcoin network hashrate + difficulty (mempool.space, 6h cache) |
 
 ## Data flow
 
@@ -34,6 +35,7 @@ Opens: http://localhost:8000/financial-command/index.html
 5. Manual Morpho LTV / vault (and optional card override) from `treasury/config.json`.
 6. **Solana** public RPC + Jupiter prices → `treasury/snapshots/solana_latest.json` (whitelist SOL / USDC / JR-strcUSX; JR is not HY).
 7. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
+8. **Bitcoin network** hashrate + difficulty via mempool.space → `treasury/snapshots/btc_network_latest.json` (public; Pi can fetch).
 
 ```bash
 # Agent refreshes RH via MCP, then:
