@@ -1,0 +1,19 @@
+[Unit]
+Description=Read-only Plaid MCP (X Money audit SoT)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace
+Environment=PLAID_MCP_HOST=0.0.0.0
+Environment=PLAID_MCP_PORT=18801
+EnvironmentFile=-%h/.config/plaid-bank/env
+ExecStart=/usr/bin/python3 -m treasury.plaid_mcp --host 0.0.0.0 --port 18801
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

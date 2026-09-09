@@ -24,6 +24,7 @@ Default host is in `deploy/endpoints.json` (`pi_host`). Override anytime with en
 | auto-fleet | **8796** | `auto-fleet.service` (+ `auto-fleet-turo-writer.timer`) |
 | Horizon Macro (`research/horizon`) | **8795** | `horizon-dashboard.service` |
 | oomwoo | **8798** | `oomwoo-dashboard.service` |
+| plaid-bank MCP (X Money, read-only) | **18801** | `plaid-bank-mcp.service` |
 
 Each unit: **bind all interfaces (`0.0.0.0`)**, **`--no-browser`**, **`--local`** (API handled on the Pi), **Restart=always**.
 
