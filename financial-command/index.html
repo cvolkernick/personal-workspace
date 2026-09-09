@@ -46,6 +46,31 @@
       border-bottom: 1px solid var(--border);
       padding: 0.75rem 1.25rem;
     }
+    .broker-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.35rem;
+      width: 100%;
+      margin: 0 0 0.4rem;
+    }
+    .broker-link {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 999px;
+      padding: 0.14rem 0.5rem;
+      line-height: 1.2;
+    }
+    .broker-link:hover { filter: brightness(1.1); border-color: var(--accent); }
     .sticky-top .row {
       max-width: 1000px;
       margin: 0 auto;
@@ -1746,7 +1771,9 @@
       }
       /* Hide secondary nav links on very tight chrome; keep Refresh + status */
       #nav-orchestra,
-      #nav-capital-flows {
+      #nav-capital-flows,
+      #nav-interest-spectrum,
+      #nav-fleet {
         display: none;
       }
     }
@@ -1928,6 +1955,12 @@
 </head>
 <body>
   <div class="sticky-top">
+    <div class="broker-links" aria-label="Broker and expense sheet">
+      <a class="broker-link" href="https://www.coinbase.com/home" id="nav-coinbase" target="_blank" rel="noopener noreferrer" title="Open Coinbase">Coinbase</a>
+      <a class="broker-link" href="https://robinhood.com/" id="nav-robinhood" target="_blank" rel="noopener noreferrer" title="Open Robinhood">Robinhood</a>
+      <a class="broker-link" href="https://docs.google.com/spreadsheets/d/15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ/edit" id="nav-expenses" target="_blank" rel="noopener noreferrer" title="Open personal expense spreadsheet">Expenses</a>
+      <a class="broker-link" href="http://127.0.0.1:8796/" id="link-fleet-chip" data-nav-fleet title="Auto Fleet ops (same host :8796)">Fleet</a>
+    </div>
     <div class="row">
       <div>
         <h1><span class="title-ico" aria-hidden="true">₿</span> Financial Command Center</h1>
@@ -1936,7 +1969,9 @@
       <div class="controls">
         <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
         <a class="btn" href="capital-flows.html" id="nav-capital-flows" title="Income → channels flow map">Capital Flows</a>
+        <a class="btn" href="interest-spectrum.html" id="nav-interest-spectrum" title="APR / APY interest spectrum">Interest Spectrum</a>
         <a class="btn" href="watchlist.html" id="nav-watchlist" title="Watchlist research">Watchlist</a>
+        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet ops (same host :8796)">Fleet</a>
         <span class="poll-note" id="poll-note" title="Local treasury JSON poll">auto 5m</span>
         <button type="button" id="btn-refresh" class="primary">Refresh</button>
         <div id="overall-pill" class="pill yellow">loading</div>
@@ -2134,8 +2169,23 @@
           <div id="braiins-workers" class="braiins-workers-grid"></div>
           <p class="hint" style="margin:0.35rem 0 0">
             <a href="capital-flows.html">Capital Flows →</a>
+            · <a href="interest-spectrum.html">Interest Spectrum →</a>
           </p>
         </div>
+      </div>
+    </details>
+
+    <details class="panel" id="interest-spectrum-card" data-m-panel="more">
+      <summary>Interest Spectrum <a class="btn" href="interest-spectrum.html" id="link-interest-spectrum-full" style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
+      <div class="body">
+        <p class="hint">APR / APY across debt cost and asset yield. Opens the dedicated spectrum page.</p>
+      </div>
+    </details>
+
+    <details class="panel" id="fleet-card" data-m-panel="more">
+      <summary>Fleet dashboard <a class="btn" href="http://127.0.0.1:8796/" id="link-fleet-full" data-nav-fleet style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
+      <div class="body">
+        <p class="hint">Auto Fleet ops on this host :8796. Separate service — not a tab inside FCC.</p>
       </div>
     </details>
 
@@ -5274,6 +5324,7 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="nav-orchestra.js"></script>
+  <script src="nav-fleet.js"></script>
 
 </body>
 </html>

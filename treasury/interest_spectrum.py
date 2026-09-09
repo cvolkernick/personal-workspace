@@ -1,0 +1,1592 @@
+"""APR/APY interest spectrum for FCC (Nakatoshi strip AC).
+
+One shared 0% → ~30% axis. Yield chips above (gain); debt chips below (cost).
+Honest rates only: locked debt seeds, locked yield seeds (Chris 2026-08-23),
+and APR/APY already on books. Never invent yields. Equity/BTC
+assumed-return stays off-axis. Wells/20 Tesla stays off FCC.
+JR-strcUSX is a spectrum chip only (not HY/LTV). Coach is display-only
+on this ruler: a qualitative FCF nudge after essentials are current.
+No numeric threshold X.
+
+Chris / Nakatoshi lock (2026-08-26) — Interest Spectrum precedence (#360):
+  **live books > settings > seeds**
+  Settings are a fallback only when live is blank, 0, or source-blocked.
+  Settings are NOT an override of honest live. Empty / 0 / missing live
+  still does NOT beat seed. If a live field is wrong, fix or remove it —
+  do not paper over a bad live value with settings.
+  This supersedes #306 (settings > live > seed).
+
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho HY USDC:
+  ``vault_apy`` = Morpho GraphQL vaultV2 ``avgNetApy`` — vault reference only
+  ``product_apy`` = Coinbase One / in-app rate when honest, else settings
+  Product chip: product_apy > settings fallback > seed 7%
+  Naked ``vault_apy`` must NOT set chip ``source=books`` as product APY
+  After the live-first flip, vault GraphQL still must not win the product
+  chip (Naka AC). Do not invent a Coinbase One %. Do not scrape Coinbase.
+
+Morpho HY product-chip precedence (product_apy > settings > seed):
+  1. Honest books ``product_apy`` (Coinbase One / in-app) — never GraphQL
+  2. FCC settings manual ``config.coinbase_manual.product_apy``
+     (legacy ``vault_apy`` / dedicated ``morpho_hy_apy_est``) when live
+     product_apy is blank / 0
+  3. Seed 7%
+  Vault GraphQL stays on books as ``vault_apy`` for reference only.
+  Treating ``vault_apy`` (~2.9%) as honest live snaps the chip — fail.
+
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum USDG HY:
+  Preferred: live apy_est when a trustworthy source exists
+  Fallback: settings when live is blank / 0 / blocked; else seed 7%
+           + Gold-cancel caveat (do not invent a post-Gold rate)
+  Do not invent rates.
+
+USDG HY precedence (live books > settings > seed):
+  1. Live books ``evaluation.inputs.rh_usdg_earn_apy_est`` and
+     snapshot ``usdg_hy`` paths from a trusted feed (Morpho GraphQL
+     vaultV2 ``avgNetApy`` — Steakhouse USDG / Robinhood Chain)
+  2. FCC settings manual ``config.robinhood.usdg_earn_apy_est``
+     (or dedicated ``usdg_hy_apy_est``) when live is blank / 0
+  3. Seed 7% + Gold-cancel note
+
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho borrow:
+  Preferred: live variable APR when a trustworthy source exists
+  Fallback: settings when live is blank / 0 / blocked; else seed ~5%
+  Do not invent rates.
+
+Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Morpho loan + RH margin (#343):
+  Debt-lane APR borrow/margin only — not Morpho HY / USDG yield, not est. CAGR.
+  Reuse ``morpho_borrow`` (do not duplicate). Label: Coinbase BTC-backed
+  Morpho loan (margin/borrow interest).
+  New debt chip ``rh_margin``: RH margin interest · seed 5%
+  (Chris: 5% up to $50k product framing; chip rate stays the APR %).
+  Empty / 0 live or settings must not paint 0% as books.
+  Do not invent or scrape a RH margin rate. Wells stays off FCC.
+
+Morpho borrow precedence (live books > settings > seed):
+  1. Live books ``evaluation.inputs.variable_apr`` and snapshot
+     ``morpho_borrow`` paths from a trusted feed (Morpho GraphQL
+     ``marketById`` ``avgBorrowApy`` — cbBTC/USDC / Base
+     ``0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836``)
+  2. FCC settings manual ``config.coinbase_manual.variable_apr``
+     (or dedicated ``morpho_borrow_apr``) when live is blank / 0
+  3. Seed ~5%
+
+RH margin interest precedence (live books > settings > seed):
+  1. Live books rate if already present (no invent, no scrape)
+  2. FCC settings manual ``config.robinhood.rh_margin_apr``
+     (or ``margin_apr``) when live is blank / 0
+  3. Seed 5%
+
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
+  Not a locked seed. Live Solstice quote only if already on books
+  (``jr_strcusx_apy`` / ``solstice_apy`` / ``strcusx_apy``). Else ~20%
+  docs_target. Do not invent a live print. No wallet notional. No HTML scrape.
+
+Chris 2026-08-27 — poll app.solstice.finance/strcusx:
+  The app has no public JSON APY. It computes ``juniorApy`` from STRC-USX
+  on-chain AccountingState. FCC polls that account (public getAccountInfo)
+  on treasury refresh. Precedence: live on-chain > prior sidecar > ~20%
+  docs_target. Partner REST stays instruction-only. HTML scrape rejected.
+
+Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Bitcoin + Agentic Fund (#336):
+  Two locked yield seeds only. Explicit est. CAGR exception — not cash
+  APR/APY, not Morpho-style live APY. Cash venues stay ``apr_apy_only``.
+  Do not open a general equity axis (NVDA/AAPL/GOOGL/BE etc.).
+  Do not invent live BTC / agentic returns. No scrape. No notionals
+  unless already on books.
+  1. Bitcoin — seed 30% · rate_kind ``est. CAGR``
+  2. Agentic Fund — seed 15% · rate_kind ``est. CAGR``
+  Precedence: FCC settings fallback > locked est. CAGR seed (no live invent).
+  Generic ``btc_expected_return`` / ``equity_expected_return`` /
+  ``assumed_return`` / ``appreciation_pct`` stay off these chips.
+  Payload flags ``est_cagr`` on the chips and ``policy.est_cagr_exception``
+  so honesty checks do not treat them as cash APR.
+
+Soft-fail live poller never writes a seed. No Coinbase / Robinhood HTML scrape.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import date, datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+ROOT = Path(__file__).resolve().parent.parent
+CONFIG_PATH = ROOT / "treasury" / "config.json"
+FCC_STUB = ROOT / "financial-command" / "interest-spectrum.json"
+TREASURY_FCC = ROOT / "financial-command" / "treasury_latest.json"
+TREASURY_SNAP = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
+EXPENSES_SNAP = ROOT / "treasury" / "snapshots" / "expenses_latest.json"
+ONE_CARD_SNAP = ROOT / "treasury" / "snapshots" / "one_card_latest.json"
+XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
+SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
+MORPHO_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_hy_latest.json"
+USDG_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "usdg_hy_latest.json"
+MORPHO_BORROW_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_borrow_latest.json"
+SOLSTICE_JR_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solstice_jr_latest.json"
+FLEET_NOTES = ROOT / "auto-fleet" / "data" / "notes.json"
+FLEET_ROSTER = ROOT / "auto-fleet" / "data" / "roster.json"
+
+# Locked fleet APRs on the FCC spectrum (cost-of-debt chips, not balances).
+# Wells / 20 Tesla is Auto Fleet metadata only — off FCC.
+LOCKED_FLEET: tuple[dict[str, Any], ...] = (
+    {
+        "id": "corolla-2024",
+        "venue": "Santander",
+        "label": "Santander",
+        "detail": "24 Corolla",
+        "kind": "debt",
+        "rate_pct": 10.18,
+        "rate_kind": "APR",
+        "notes": "cost-of-debt chip",
+        "fcc_liability": True,
+        "deep_link": "fleet",
+    },
+    {
+        "id": "corolla-2022",
+        "venue": "Capital One",
+        "label": "Capital One",
+        "detail": "22 Corolla",
+        "kind": "debt",
+        "rate_pct": 11.14,
+        "rate_kind": "APR",
+        "notes": "cost-of-debt chip",
+        "fcc_liability": True,
+        "deep_link": "fleet",
+    },
+    {
+        "id": "m3-2022",
+        "venue": "GM Financial",
+        "label": "GM Financial",
+        "detail": "22 Tesla",
+        "kind": "debt",
+        "rate_pct": 18.15,
+        "rate_kind": "APR",
+        "notes": "cost-of-debt chip",
+        "fcc_liability": True,
+        "deep_link": "fleet",
+    },
+    {
+        "id": "r1s-2023",
+        "venue": "Rivian",
+        "label": "Rivian",
+        "detail": "23 Rivian · Vivek",
+        "kind": "debt",
+        "rate_pct": 0.0,
+        "rate_kind": "APR",
+        "notes": "$1350/mo · 0% APR",
+        "fcc_liability": True,
+        "monthly_payment": 1350,
+        "deep_link": "fleet",
+    },
+)
+
+# Nakatoshi locked seeds (approximate). Books override when a real field exists.
+LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "morpho_borrow",
+        "venue": "CB BTC Morpho loan",
+        "label": "Coinbase BTC-backed Morpho loan",
+        "detail": "margin/borrow interest",
+        "kind": "debt",
+        "rate_pct": 5.0,
+        "approx": True,
+        "rate_kind": "APR",
+        "unit": "fraction",
+        "notes": (
+            "locked seed ~5% APR · Coinbase BTC-backed Morpho loan · "
+            "margin/borrow interest · variable · "
+            "precedence: live books (Morpho GraphQL marketById avgBorrowApy · "
+            "cbBTC/USDC / Base) > FCC settings variable_apr / morpho_borrow_apr "
+            "fallback > seed · blank/0 live or settings must not paint 0% · "
+            "do not invent rates"
+        ),
+        "deep_link": "index.html#morpho",
+        "fcc_liability": True,
+        # settings_paths are fallback when live is blank / 0 / blocked.
+        "settings_paths": (
+            ("config", "coinbase_manual", "variable_apr"),
+            ("config", "coinbase_manual", "morpho_borrow_apr"),
+        ),
+        "paths": (
+            ("evaluation", "inputs", "variable_apr"),
+            ("evaluation", "inputs", "morpho_borrow_apr"),
+            ("snapshot", "morpho_borrow", "apr"),
+            ("snapshot", "morpho_borrow", "variable_apr"),
+            ("snapshot", "morpho_borrow", "avg_borrow_apy"),
+            ("snapshot", "morpho_borrow", "apy"),
+            ("morpho_borrow", "apr"),
+            ("morpho_borrow", "variable_apr"),
+            ("morpho_borrow", "apy"),
+        ),
+    },
+    {
+        "id": "rh_margin",
+        "venue": "RH margin interest",
+        "label": "RH margin interest",
+        "detail": "borrow cost · 5% up to $50k",
+        "kind": "debt",
+        "rate_pct": 5.0,
+        "approx": True,
+        "rate_kind": "APR",
+        "unit": "fraction",
+        "notes": (
+            "locked seed 5% APR · RH margin interest · borrow cost · "
+            "5% up to $50k product framing · "
+            "precedence: live books (when already present) > "
+            "FCC settings rh_margin_apr / margin_apr fallback > seed · "
+            "blank/0 live or settings must not paint 0% · "
+            "do not invent or scrape a RH margin rate"
+        ),
+        "deep_link": "index.html#rh-margin",
+        "fcc_liability": True,
+        "settings_paths": (
+            ("config", "robinhood", "rh_margin_apr"),
+            ("config", "robinhood", "margin_apr"),
+        ),
+        "paths": (
+            ("evaluation", "inputs", "rh_margin_apr"),
+            ("evaluation", "inputs", "rh_margin_interest_apr"),
+            ("snapshot", "robinhood", "margin_apr"),
+            ("snapshot", "robinhood", "rh_margin_apr"),
+            ("snapshot", "robinhood", "margin_interest_apr"),
+        ),
+    },
+    {
+        "id": "one_card",
+        "venue": "One Card",
+        "label": "One Card",
+        "kind": "debt",
+        "rate_pct": 29.0,
+        "approx": True,
+        "rate_kind": "APR",
+        "notes": "locked seed ~29% contractual",
+        "deep_link": "index.html#one-card",
+        "fcc_liability": True,
+    },
+)
+
+# Bitcoin / Agentic Fund (#336) — explicit est. CAGR exception, not cash APR/APY.
+BITCOIN_ID = "bitcoin"
+AGENTIC_FUND_ID = "agentic_fund"
+EST_CAGR_KIND = "est. CAGR"
+EST_CAGR_LABEL = "est. CAGR"
+EST_CAGR_NOTE = "est. CAGR · not cash APR/APY"
+# Back-compat aliases for the first #336 draft labels.
+CAGR_AS_APY_LABEL = EST_CAGR_LABEL
+CAGR_AS_APY_NOTE = EST_CAGR_NOTE
+EST_CAGR_IDS = frozenset({BITCOIN_ID, AGENTIC_FUND_ID})
+
+# Chris 2026-08-23 locked yield seeds. Always show; books override when an
+# honest product APY is already present. Morpho HY vault GraphQL is
+# reference only — it must not paint the product chip. Pattern matches
+# Morpho borrow ~5% / One Card ~29%. Bitcoin / Agentic Fund (#336) are
+# est. CAGR seeds (not cash APR/APY) — not a general equity axis.
+LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "x_money",
+        "venue": "X Money",
+        "label": "X Money",
+        "kind": "yield",
+        "rate_pct": 6.0,
+        "approx": True,
+        "rate_kind": "APY",
+        "unit": "fraction",
+        "notes": "locked seed 6% APY · books override when apy_est present",
+        "deep_link": "index.html#x-money",
+        "paths": (
+            ("evaluation", "inputs", "x_money_apy_est"),
+            ("snapshot", "x_money", "apy_est"),
+            ("x_money", "apy_est"),
+        ),
+        "notional_paths": (
+            ("evaluation", "inputs", "x_money_cash"),
+            ("snapshot", "x_money", "cash"),
+            ("x_money", "cash"),
+        ),
+    },
+    {
+        "id": "morpho_hy",
+        "venue": "Morpho HY",
+        "label": "Morpho HY",
+        "kind": "yield",
+        "rate_pct": 7.0,
+        "approx": True,
+        "rate_kind": "APY",
+        "unit": "fraction",
+        "notes": (
+            "locked seed 7% APY · Coinbase One Morpho HY · variable · "
+            "precedence: product_apy (Coinbase One / in-app when honest) > "
+            "FCC settings product_apy / vault_apy / morpho_hy_apy_est "
+            "fallback > seed · vault GraphQL avgNetApy is vault reference "
+            "only · ≠ Coinbase One product rate · do not invent a One %"
+        ),
+        "deep_link": "index.html#hy",
+        # settings_paths are fallback when product_apy is blank / 0.
+        "settings_paths": (
+            ("config", "coinbase_manual", "product_apy"),
+            ("config", "coinbase_manual", "vault_apy"),
+            ("config", "coinbase_manual", "morpho_hy_apy_est"),
+        ),
+        # Product-chip books only. Naked vault_apy / GraphQL apy_est stay off.
+        # snapshot.coinbase_manual.product_apy is a settings overlay — not live.
+        "paths": (
+            ("evaluation", "inputs", "product_apy"),
+            ("evaluation", "inputs", "morpho_hy_product_apy"),
+            ("snapshot", "morpho_hy", "product_apy"),
+            ("morpho_hy", "product_apy"),
+        ),
+        "vault_ref_paths": (
+            ("evaluation", "inputs", "vault_apy"),
+            ("evaluation", "inputs", "hy_vault_apy"),
+            ("snapshot", "morpho_hy", "vault_apy"),
+            ("snapshot", "morpho_hy", "apy_est"),
+            ("snapshot", "morpho_hy", "apy"),
+            ("snapshot", "morpho_hy", "avg_net_apy"),
+            ("morpho_hy", "vault_apy"),
+            ("morpho_hy", "apy_est"),
+            ("morpho_hy", "apy"),
+        ),
+        "notional_paths": (
+            ("evaluation", "inputs", "vault_usdc"),
+            ("snapshot", "coinbase_manual", "vault_usdc"),
+            ("config", "coinbase_manual", "vault_usdc"),
+        ),
+    },
+    {
+        "id": "usdg_earn",
+        "venue": "RH USDG Earn",
+        "label": "RH USDG Earn",
+        "kind": "yield",
+        "rate_pct": 7.0,
+        "approx": True,
+        "rate_kind": "APY",
+        "unit": "fraction",
+        "notes": (
+            "locked seed 7% APY · RH USDG Earn · variable · "
+            "precedence: live books (Morpho GraphQL vaultV2 avgNetApy · "
+            "Steakhouse USDG / Robinhood Chain) > FCC settings "
+            "usdg_earn_apy_est / usdg_hy_apy_est fallback > seed · "
+            "may end when RH Gold cancels — do not invent a post-Gold rate"
+        ),
+        "deep_link": "index.html#panel-brokerage",
+        # settings_paths are fallback when live is blank / 0 / blocked.
+        "settings_paths": (
+            ("config", "robinhood", "usdg_earn_apy_est"),
+            ("config", "robinhood", "usdg_hy_apy_est"),
+        ),
+        "paths": (
+            ("evaluation", "inputs", "rh_usdg_earn_apy_est"),
+            ("evaluation", "inputs", "usdg_hy_apy_est"),
+            ("snapshot", "usdg_hy", "apy_est"),
+            ("snapshot", "usdg_hy", "apy"),
+            ("usdg_hy", "apy_est"),
+            ("usdg_hy", "apy"),
+        ),
+        "notional_paths": (
+            ("evaluation", "inputs", "rh_usdg_earn_usdg"),
+            ("snapshot", "robinhood", "usdg_earn_usdg"),
+        ),
+    },
+    {
+        "id": BITCOIN_ID,
+        "venue": "Bitcoin",
+        "label": "Bitcoin",
+        "detail": EST_CAGR_NOTE,
+        "kind": "yield",
+        "rate_pct": 30.0,
+        "approx": True,
+        "rate_kind": EST_CAGR_KIND,
+        "unit": "fraction",
+        "est_cagr": True,
+        "notes": (
+            f"locked seed 30% · {EST_CAGR_NOTE} · "
+            "these two lines only · "
+            "precedence: FCC settings bitcoin_cagr_est / "
+            "btc_cagr_est fallback > locked seed · "
+            "do not invent a live BTC return · no scrape"
+        ),
+        "deep_link": "index.html#bitcoin",
+        "settings_paths": (
+            ("config", "coinbase_manual", "bitcoin_cagr_est"),
+            ("config", "coinbase_manual", "btc_cagr_est"),
+            ("config", "coinbase_manual", "bitcoin_cagr_apy_est"),
+            ("config", "coinbase_manual", "btc_cagr_apy_est"),
+        ),
+        # No live books paths — do not invent BTC returns.
+        "paths": (),
+    },
+    {
+        "id": AGENTIC_FUND_ID,
+        "venue": "Agentic Fund",
+        "label": "Agentic Fund",
+        "detail": EST_CAGR_NOTE,
+        "kind": "yield",
+        "rate_pct": 15.0,
+        "approx": True,
+        "rate_kind": EST_CAGR_KIND,
+        "unit": "fraction",
+        "est_cagr": True,
+        "notes": (
+            f"locked seed 15% · {EST_CAGR_NOTE} · "
+            "these two lines only · "
+            "precedence: FCC settings agentic_fund_cagr_est / "
+            "agentic_cagr_est fallback > locked seed · "
+            "do not invent a live agentic return · no scrape · "
+            "no equity basket expansion"
+        ),
+        "deep_link": "index.html#agentic-fund",
+        "settings_paths": (
+            ("config", "robinhood", "agentic_fund_cagr_est"),
+            ("config", "robinhood", "agentic_cagr_est"),
+            ("config", "robinhood", "agentic_fund_cagr_apy_est"),
+            ("config", "robinhood", "agentic_cagr_apy_est"),
+        ),
+        # No live books paths — do not invent agentic returns.
+        "paths": (),
+    },
+)
+
+# Back-compat alias: yield venues are now always-on seeds (books still win).
+YIELD_VENUES = LOCKED_YIELD_SEEDS
+
+USDG_GOLD_CAVEAT = "may end when RH Gold cancels — do not invent a post-Gold rate"
+
+# Honest Morpho HY framing: GraphQL avgNetApy is the vault rate, not One.
+MORPHO_HY_VAULT_NE_PRODUCT_NOTE = (
+    "vault GraphQL avgNetApy is vault reference only · ≠ Coinbase One product rate"
+)
+
+# Vault GraphQL / books vault_apy — reference only; never product-chip paths.
+MORPHO_HY_VAULT_REF_PATHS = (
+    ("evaluation", "inputs", "vault_apy"),
+    ("evaluation", "inputs", "hy_vault_apy"),
+    ("snapshot", "morpho_hy", "vault_apy"),
+    ("snapshot", "morpho_hy", "apy_est"),
+    ("snapshot", "morpho_hy", "apy"),
+    ("snapshot", "morpho_hy", "avg_net_apy"),
+    ("morpho_hy", "vault_apy"),
+    ("morpho_hy", "apy_est"),
+    ("morpho_hy", "apy"),
+)
+
+# JR-strcUSX is not a locked seed. Live Solstice quote from STRC-USX
+# AccountingState juniorApy (app.solstice.finance/strcusx formula). Else
+# ~20% target (docs), spectrum chip only. Populate: treasury/solstice_jr_sync.py.
+JR_STRCUSX_ID = "jr_strcusx"
+JR_TARGET_PCT = 20.0
+JR_TARGET_LABEL = "~20% target"
+JR_DOCS_NOTES = (
+    "approx target · not a locked seed · docs.solstice.finance strcUSX · "
+    "solstice.finance/vaults/strcusx · does not count toward HY/LTV floors · "
+    "spectrum chip only"
+)
+JR_LIVE_APY_PATHS = (
+    ("evaluation", "inputs", "jr_strcusx_apy"),
+    ("evaluation", "inputs", "solstice_apy"),
+    ("evaluation", "inputs", "strcusx_apy"),
+    ("snapshot", "solstice_jr", "jr_strcusx_apy"),
+    ("snapshot", "solstice_jr", "apy"),
+    ("snapshot", "solstice_jr", "apy_est"),
+    ("snapshot", "solana", "jr_strcusx_apy"),
+    ("snapshot", "solana", "solstice_apy"),
+    ("snapshot", "solana", "strcusx_apy"),
+    ("snapshot", "solana", "vault_apy"),
+    ("solstice_jr", "jr_strcusx_apy"),
+    ("solstice_jr", "apy"),
+    ("solana", "jr_strcusx_apy"),
+    ("solana", "solstice_apy"),
+    ("solana", "strcusx_apy"),
+    ("solana", "vault_apy"),
+)
+
+# Live/books paths only — settings stay on LOCKED_SEEDS morpho_borrow.settings_paths.
+# snapshot.coinbase_manual.variable_apr is a settings overlay — not live.
+MORPHO_BOOK_PATHS = (
+    ("evaluation", "inputs", "variable_apr"),
+    ("evaluation", "inputs", "morpho_borrow_apr"),
+    ("snapshot", "morpho_borrow", "apr"),
+    ("snapshot", "morpho_borrow", "variable_apr"),
+    ("snapshot", "morpho_borrow", "avg_borrow_apy"),
+    ("snapshot", "morpho_borrow", "apy"),
+    ("morpho_borrow", "apr"),
+    ("morpho_borrow", "variable_apr"),
+    ("morpho_borrow", "apy"),
+)
+MORPHO_NOTIONAL_PATHS = (
+    ("evaluation", "inputs", "loan_principal_usdc"),
+    ("snapshot", "coinbase_manual", "loan_principal_usdc"),
+    ("config", "coinbase_manual", "loan_principal_usdc"),
+)
+# Live/books RH margin APR only — no invent/scrape. Settings stay on
+# LOCKED_SEEDS rh_margin.settings_paths. Do not read rh_margin_use /
+# rh_margin_use_max (utilization, not APR).
+RH_MARGIN_ID = "rh_margin"
+RH_MARGIN_BOOK_PATHS = (
+    ("evaluation", "inputs", "rh_margin_apr"),
+    ("evaluation", "inputs", "rh_margin_interest_apr"),
+    ("snapshot", "robinhood", "margin_apr"),
+    ("snapshot", "robinhood", "rh_margin_apr"),
+    ("snapshot", "robinhood", "margin_interest_apr"),
+)
+RH_MARGIN_NOTIONAL_PATHS = (
+    ("evaluation", "inputs", "rh_margin_loan_usd"),
+    ("snapshot", "robinhood", "margin_loan_usd"),
+    ("config", "robinhood", "margin_loan_usd"),
+)
+ONE_CARD_NOTIONAL_PATHS = (
+    ("evaluation", "inputs", "card_balance"),
+    ("snapshot", "one_card", "balance"),
+    ("snapshot", "one_card", "cleared_balance"),
+    ("config", "coinbase_manual", "card_balance"),
+)
+DEBT_SEED_NOTIONAL_PATHS = {
+    "morpho_borrow": MORPHO_NOTIONAL_PATHS,
+    RH_MARGIN_ID: RH_MARGIN_NOTIONAL_PATHS,
+    "one_card": ONE_CARD_NOTIONAL_PATHS,
+}
+
+# Wells / 20 Tesla — Auto Fleet metadata only; never a FCC spectrum chip.
+WELLS_OFF_FCC_ID = "m3-2020"
+
+# Household Do-now overdue set for the FCF nudge gate (#372).
+# Wells stays off. Cap One / Gold CIC stay existing Do-now SOP (not this nudge).
+FCC_AUTO_UNIT_IDS = frozenset({"corolla-2024", "corolla-2022", "m3-2022", "r1s-2023"})
+SURE_PAYABLE_DEBT_IDS = frozenset({"one_card"}) | FCC_AUTO_UNIT_IDS
+LIQUID_YIELD_IDS = frozenset({"x_money", "morpho_hy", "usdg_earn"})
+PARK_FCF_NEVER_IDS = frozenset({JR_STRCUSX_ID, BITCOIN_ID, AGENTIC_FUND_ID})
+# Morpho LTV < 0.50 is current. 0.45 is a manage ping, not a fail of current.
+MORPHO_LTV_CURRENT_MAX = 0.50
+NUDGE_LABELS = {
+    "one_card": "One Card",
+    "morpho_hy": "HY",
+    "x_money": "X Money",
+    "usdg_earn": "USDG",
+    "corolla-2024": "Santander",
+    "corolla-2022": "Capital One",
+    "m3-2022": "GM Financial",
+    "r1s-2023": "Rivian",
+}
+_NUDGE_NEVER = (
+    "mint jr",
+    "mint",
+    "overlay",
+    "dip",
+    "sleeve-while-red",
+    "sleeve while red",
+    "cagr",
+    "cic",
+    "invent",
+    "trade",
+    "size",
+)
+
+ALLOWED_CHIP_KINDS = frozenset({"debt", "yield"})
+ALLOWED_SOURCES = frozenset({"locked_financing", "locked_seed", "books", "docs_target"})
+# Chris / Nakatoshi lock #360 — one order for every spectrum line.
+RATE_PRECEDENCE = "live > settings > seeds"
+LOCKED_RATE_BY_ID = {row["id"]: float(row["rate_pct"]) for row in LOCKED_FLEET}
+LOCKED_SEED_RATE_BY_ID = {
+    **{row["id"]: float(row["rate_pct"]) for row in LOCKED_SEEDS},
+    **{row["id"]: float(row["rate_pct"]) for row in LOCKED_YIELD_SEEDS},
+}
+
+# Axis tick marks from locked seeds (percent).
+SEED_TICKS_PCT: tuple[float, ...] = (0.0, 5.0, 10.18, 11.14, 18.15, 29.0)
+DEFAULT_AXIS_MAX_PCT = 30.0
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _load_json(path: Path) -> Dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _dig(root: Any, path: Iterable[str]) -> Any:
+    cur = root
+    for key in path:
+        if not isinstance(cur, dict) or key not in cur:
+            return None
+        cur = cur[key]
+    return cur
+
+
+def _as_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fraction_field_to_pct(value: Any) -> Optional[float]:
+    """Convert a books field documented as 0–1 into percent.
+
+    Values already stored as percent (> 1) pass through. Missing stays missing.
+    0 is a real rate (e.g. 0% APR), not unknown.
+    """
+    n = _as_float(value)
+    if n is None:
+        return None
+    if n > 1.0:
+        return n
+    return n * 100.0
+
+
+def _first_number(ctx: Dict[str, Any], paths: Iterable[Iterable[str]]) -> Optional[float]:
+    for path in paths:
+        n = _as_float(_dig(ctx, path))
+        if n is not None:
+            return n
+    return None
+
+
+def _books_ctx(
+    treasury: Dict[str, Any],
+    config: Dict[str, Any],
+    x_money: Dict[str, Any],
+    solana: Optional[Dict[str, Any]] = None,
+    morpho_hy: Optional[Dict[str, Any]] = None,
+    usdg_hy: Optional[Dict[str, Any]] = None,
+    morpho_borrow: Optional[Dict[str, Any]] = None,
+    solstice_jr: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    snap = dict(snap)
+    sol = solana if isinstance(solana, dict) else {}
+    if not sol and isinstance(snap.get("solana"), dict):
+        sol = snap["solana"]
+    mh = morpho_hy if isinstance(morpho_hy, dict) else {}
+    if not mh and isinstance(snap.get("morpho_hy"), dict):
+        mh = snap["morpho_hy"]
+    if mh and not isinstance(snap.get("morpho_hy"), dict):
+        snap["morpho_hy"] = mh
+    uh = usdg_hy if isinstance(usdg_hy, dict) else {}
+    if not uh and isinstance(snap.get("usdg_hy"), dict):
+        uh = snap["usdg_hy"]
+    if uh and not isinstance(snap.get("usdg_hy"), dict):
+        snap["usdg_hy"] = uh
+    mb = morpho_borrow if isinstance(morpho_borrow, dict) else {}
+    if not mb and isinstance(snap.get("morpho_borrow"), dict):
+        mb = snap["morpho_borrow"]
+    if mb and not isinstance(snap.get("morpho_borrow"), dict):
+        snap["morpho_borrow"] = mb
+    sj = solstice_jr if isinstance(solstice_jr, dict) else {}
+    if not sj and isinstance(snap.get("solstice_jr"), dict):
+        sj = snap["solstice_jr"]
+    if sj and not isinstance(snap.get("solstice_jr"), dict):
+        snap["solstice_jr"] = sj
+    return {
+        "evaluation": treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {},
+        "snapshot": snap,
+        "config": config if isinstance(config, dict) else {},
+        "x_money": x_money if isinstance(x_money, dict) else {},
+        "solana": sol,
+        "morpho_hy": mh,
+        "usdg_hy": uh,
+        "morpho_borrow": mb,
+        "solstice_jr": sj,
+    }
+
+
+def _fleet_chips() -> List[Dict[str, Any]]:
+    """Locked financing table. Rates stay locked; roster only supplies vehicle labels."""
+    roster_by_id: Dict[str, Any] = {}
+    roster = _load_json(FLEET_ROSTER)
+    for unit in roster.get("units") or []:
+        if isinstance(unit, dict) and unit.get("id"):
+            roster_by_id[str(unit["id"])] = unit
+
+    chips: List[Dict[str, Any]] = []
+    for row in LOCKED_FLEET:
+        unit_id = str(row["id"])
+        if unit_id == WELLS_OFF_FCC_ID:
+            continue
+        roster_u = roster_by_id.get(unit_id) or {}
+        venue = str(row["venue"])
+        chip: Dict[str, Any] = {
+            "id": unit_id,
+            "venue": venue,
+            "label": venue,
+            "detail": row.get("detail"),
+            "kind": "debt",
+            "lane": "below",
+            "rate_pct": float(row["rate_pct"]),
+            "rate_kind": "APR",
+            "approx": False,
+            "source": "locked_financing",
+            "notes": row.get("notes"),
+            "fcc_liability": True,
+            "deep_link": "fleet",
+            "fleet_unit": unit_id,
+            "placed": True,
+        }
+        if row.get("monthly_payment") is not None:
+            chip["monthly_payment"] = row["monthly_payment"]
+            chip["notional"] = row["monthly_payment"]
+            chip["notional_kind"] = "monthly"
+        if roster_u.get("year") and roster_u.get("model"):
+            chip["vehicle"] = (
+                f"{roster_u.get('year')} {roster_u.get('make') or ''} {roster_u.get('model')}"
+                .replace("  ", " ")
+                .strip()
+            )
+        chips.append(chip)
+    return chips
+
+
+def _is_empty_override(value: Any) -> bool:
+    """Blank / 0 must not paint as a books rate (#343 / #360)."""
+    if value is None or value == "":
+        return True
+    n = _as_float(value)
+    return n is not None and n == 0.0
+
+
+def _value_is_source_blocked(value: Any) -> bool:
+    if value is True:
+        return True
+    if not isinstance(value, str):
+        return False
+    lowered = value.strip().lower()
+    return "source blocked" in lowered or lowered in ("source_blocked", "blocked")
+
+
+_JR_BLOCK_KEYS = (
+    "jr_strcusx_apy_error",
+    "solstice_apy_error",
+    "strcusx_apy_error",
+    "source_blocked",
+    "jr_strcusx_source_blocked",
+    "jr_strcusx_apy_source_blocked",
+)
+_JR_BLOCK_BUCKETS = (
+    ("snapshot", "solstice_jr"),
+    ("snapshot", "solana"),
+    ("solstice_jr",),
+    ("solana",),
+    ("evaluation", "inputs"),
+)
+
+
+def _live_is_source_blocked(ctx: Dict[str, Any], chip_id: str) -> bool:
+    """True when the live feed for this chip is explicitly source-blocked."""
+    if chip_id != JR_STRCUSX_ID:
+        return False
+    for bucket_path in _JR_BLOCK_BUCKETS:
+        bucket = _dig(ctx, bucket_path)
+        if not isinstance(bucket, dict):
+            continue
+        for key in _JR_BLOCK_KEYS:
+            if _value_is_source_blocked(bucket.get(key)):
+                return True
+    return False
+
+
+def _resolve_spectrum_rate(
+    ctx: Dict[str, Any],
+    *,
+    live_paths: Iterable[Iterable[str]] = (),
+    settings_paths: Iterable[Iterable[str]] = (),
+    unit: str = "fraction",
+    chip_id: str = "",
+    allow_live: bool = True,
+) -> tuple[Optional[float], Optional[str], Optional[str]]:
+    """Honest live > settings fallback > seed (#360).
+
+    Returns ``(rate_pct, hit_path, origin)`` where origin is ``\"live\"``,
+    ``\"settings\"``, or ``None`` (caller keeps the seed). Empty / 0 /
+    source-blocked live does not win. Empty / 0 settings does not win.
+    Morpho HY ``vault_apy`` / GraphQL must not be in ``live_paths``.
+    """
+    if allow_live and live_paths and not _live_is_source_blocked(ctx, chip_id):
+        rate, hit = _first_apy_hit(ctx, live_paths, unit=unit, skip_zero=True)
+        if rate is not None:
+            return rate, hit, "live"
+    if settings_paths:
+        rate, hit = _first_apy_hit(ctx, settings_paths, unit=unit, skip_zero=True)
+        if rate is not None:
+            return rate, hit, "settings"
+    return None, None, None
+
+
+def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    chips: List[Dict[str, Any]] = []
+    for row in LOCKED_SEEDS:
+        chip: Dict[str, Any] = {
+            "id": row["id"],
+            "venue": row["venue"],
+            "label": row["label"],
+            "kind": "debt",
+            "lane": "below",
+            "rate_kind": "APR",
+            "approx": True,
+            "source": "locked_seed",
+            "notes": row.get("notes"),
+            "fcc_liability": True,
+            "deep_link": row.get("deep_link"),
+            "placed": True,
+            "rate_pct": float(row["rate_pct"]),
+        }
+        if row.get("detail"):
+            chip["detail"] = row["detail"]
+        unit = str(row.get("unit") or "fraction")
+        settings_paths = row.get("settings_paths") or ()
+        live_paths = row.get("paths") or ()
+        if row["id"] == "morpho_borrow" and not live_paths:
+            live_paths = MORPHO_BOOK_PATHS
+        if settings_paths or live_paths:
+            # live > settings > seed. skip_zero: blank/0 must not paint 0%.
+            rate, hit, origin = _resolve_spectrum_rate(
+                ctx,
+                live_paths=live_paths,
+                settings_paths=settings_paths,
+                unit=unit,
+                chip_id=str(row["id"]),
+            )
+            if rate is not None:
+                chip["rate_pct"] = rate
+                chip["approx"] = False
+                chip["source"] = "books"
+                notes = f"from {hit}" if hit else "from books"
+                if origin == "settings":
+                    notes = f"{notes} · FCC settings fallback"
+                else:
+                    notes = f"{notes} · live books"
+                if row["id"] == RH_MARGIN_ID:
+                    notes = f"{notes} · 5% up to $50k product framing"
+                chip["notes"] = notes
+        notional = _first_number(ctx, DEBT_SEED_NOTIONAL_PATHS.get(row["id"]) or ())
+        if notional is not None:
+            chip["notional"] = notional
+            if row["id"] == "morpho_borrow":
+                chip["notional_kind"] = "principal"
+            elif row["id"] == "one_card":
+                chip["notional_kind"] = "balance"
+            else:
+                chip["notional_kind"] = "principal"
+        chips.append(chip)
+    return chips
+
+
+def _first_apy_hit(
+    ctx: Dict[str, Any],
+    paths: Iterable[Iterable[str]],
+    *,
+    unit: str = "fraction",
+    skip_zero: bool = False,
+) -> tuple[Optional[float], Optional[str]]:
+    for path in paths:
+        raw = _dig(ctx, path)
+        if raw is None or raw == "":
+            continue
+        if skip_zero and _is_empty_override(raw):
+            continue
+        rate = _fraction_field_to_pct(raw) if unit == "fraction" else _as_float(raw)
+        if rate is None:
+            continue
+        return rate, ".".join(path)
+    return None, None
+
+
+def _jr_row_has_apy(row: Any) -> bool:
+    """True when a Solstice sidecar / snapshot row already has a live fraction."""
+    if not isinstance(row, dict):
+        return False
+    for key in ("jr_strcusx_apy", "solstice_apy", "strcusx_apy", "apy", "apy_est"):
+        n = _as_float(row.get(key))
+        if n is not None and n >= 0:
+            return True
+    return False
+
+
+def _jr_live_rate_pct(ctx: Dict[str, Any]) -> tuple[Optional[float], Optional[str]]:
+    """JR books APY is always a 0+ fraction (epoch can exceed 100% → fraction > 1)."""
+    for path in JR_LIVE_APY_PATHS:
+        raw = _dig(ctx, path)
+        if raw is None or raw == "":
+            continue
+        n = _as_float(raw)
+        # 0 / empty live does not beat the ~20% docs_target (#360).
+        if n is None or n <= 0:
+            continue
+        return n * 100.0, ".".join(path)
+    return None, None
+
+
+def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Spectrum-only JR chip. Live Solstice APY if already on books; else ~20% target.
+
+    Never attaches wallet balances. Never counts toward HY / LTV floors.
+    """
+    chip: Dict[str, Any] = {
+        "id": JR_STRCUSX_ID,
+        "venue": "JR-strcUSX",
+        "label": "JR-strcUSX",
+        "kind": "yield",
+        "lane": "above",
+        "rate_kind": "APY",
+        "fcc_liability": False,
+        "counts_toward_hy": False,
+        "counts_toward_ltv_defense": False,
+        "deep_link": "index.html#panel-solana",
+        "placed": True,
+    }
+    live, hit = (None, None)
+    if not _live_is_source_blocked(ctx, JR_STRCUSX_ID):
+        live, hit = _jr_live_rate_pct(ctx)
+    if live is not None:
+        chip["rate_pct"] = live
+        chip["approx"] = False
+        chip["source"] = "books"
+        chip["notes"] = (
+            f"from {hit} · live epoch APY (app.solstice.finance/strcusx) · "
+            "does not count toward HY/LTV floors · spectrum chip only"
+            if hit
+            else (
+                "live Solstice on books · does not count toward HY/LTV floors · "
+                "spectrum chip only"
+            )
+        )
+        return chip
+    chip["rate_pct"] = JR_TARGET_PCT
+    chip["rate_label"] = JR_TARGET_LABEL
+    chip["approx"] = True
+    chip["source"] = "docs_target"
+    chip["notes"] = JR_DOCS_NOTES
+    return chip
+
+
+def _attach_morpho_hy_vault_ref(chip: Dict[str, Any], ctx: Dict[str, Any], spec: Dict[str, Any]) -> None:
+    """Keep GraphQL vault_apy on the chip as reference; never as product rate."""
+    unit = str(spec.get("unit") or "fraction")
+    vault_rate, vault_hit = _first_apy_hit(
+        ctx, spec.get("vault_ref_paths") or MORPHO_HY_VAULT_REF_PATHS, unit=unit
+    )
+    if vault_rate is not None:
+        chip["vault_apy_pct"] = vault_rate
+        chip["vault_apy_source"] = vault_hit
+        chip["vault_rate_kind"] = "vault_reference"
+    notes = chip.get("notes")
+    extra: List[str] = []
+    if vault_rate is not None:
+        extra.append(f"vault reference {vault_rate:.2f}% APY")
+    if MORPHO_HY_VAULT_NE_PRODUCT_NOTE not in str(notes or ""):
+        extra.append(MORPHO_HY_VAULT_NE_PRODUCT_NOTE)
+    if extra:
+        suffix = " · ".join(extra)
+        chip["notes"] = f"{notes} · {suffix}" if notes else suffix
+
+
+def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """X Money / Morpho HY / USDG / Bitcoin / Agentic Fund always appear.
+
+    Morpho HY product chip: product_apy > settings fallback > seed 7%.
+    Naked vault GraphQL ``vault_apy`` is reference only and must not
+    paint the chip — even after the live-first flip (#360 / #329).
+    USDG HY walks live ``paths`` before ``settings_paths``.
+    Bitcoin / Agentic Fund: settings fallback > locked est. CAGR seed only.
+    No live BTC / agentic invent. Generic expected-return fields stay off.
+    """
+    chips: List[Dict[str, Any]] = []
+    for spec in LOCKED_YIELD_SEEDS:
+        est_cagr = bool(spec.get("est_cagr") or spec["id"] in EST_CAGR_IDS)
+        chip: Dict[str, Any] = {
+            "id": spec["id"],
+            "venue": spec["venue"],
+            "label": spec["label"],
+            "kind": "yield",
+            "lane": "above",
+            "rate_kind": EST_CAGR_KIND if est_cagr else "APY",
+            "approx": True,
+            "source": "locked_seed",
+            "notes": spec.get("notes"),
+            "fcc_liability": False,
+            "deep_link": spec.get("deep_link"),
+            "placed": True,
+            "rate_pct": float(spec["rate_pct"]),
+        }
+        if spec.get("detail"):
+            chip["detail"] = spec["detail"]
+        if est_cagr:
+            chip["est_cagr"] = True
+            chip["rate_basis"] = EST_CAGR_LABEL
+        unit = str(spec.get("unit") or "fraction")
+        # Est. CAGR chips: settings only. Never invent a live BTC/agentic print.
+        rate, hit, origin = _resolve_spectrum_rate(
+            ctx,
+            live_paths=() if est_cagr else (spec.get("paths") or ()),
+            settings_paths=spec.get("settings_paths") or (),
+            unit=unit,
+            chip_id=str(spec["id"]),
+            allow_live=not est_cagr,
+        )
+        if rate is not None:
+            chip["rate_pct"] = rate
+            chip["approx"] = False
+            chip["source"] = "books"
+            notes = f"from {hit}" if hit else None
+            if spec["id"] == "morpho_hy" and notes:
+                if origin == "settings":
+                    notes = f"{notes} · FCC settings fallback"
+                else:
+                    notes = f"{notes} · product_apy"
+            elif spec["id"] == "usdg_earn" and notes:
+                if origin == "settings":
+                    notes = f"{notes} · FCC settings fallback"
+                else:
+                    notes = f"{notes} · live books"
+            elif est_cagr and notes:
+                notes = f"{notes} · FCC settings fallback"
+                chip["rate_kind"] = EST_CAGR_KIND
+                chip["est_cagr"] = True
+            if spec["id"] == "usdg_earn":
+                notes = f"{notes} · {USDG_GOLD_CAVEAT}" if notes else USDG_GOLD_CAVEAT
+            chip["notes"] = notes
+        if est_cagr:
+            notes = chip.get("notes")
+            if EST_CAGR_NOTE not in str(notes or ""):
+                chip["notes"] = f"{notes} · {EST_CAGR_NOTE}" if notes else EST_CAGR_NOTE
+            chip["rate_kind"] = EST_CAGR_KIND
+            chip["est_cagr"] = True
+        if spec["id"] == "morpho_hy":
+            _attach_morpho_hy_vault_ref(chip, ctx, spec)
+        if not est_cagr:
+            notional = _first_number(ctx, spec.get("notional_paths") or ())
+            if notional is not None:
+                chip["notional"] = notional
+                chip["notional_kind"] = "balance"
+        chips.append(chip)
+    chips.append(_jr_strcusx_chip(ctx))
+    return chips
+
+
+def _axis_max(placed: List[Dict[str, Any]]) -> float:
+    rates = [abs(float(c["rate_pct"])) for c in placed if c.get("rate_pct") is not None]
+    rates.extend(SEED_TICKS_PCT)
+    span = max(rates) if rates else 0.0
+    if span <= DEFAULT_AXIS_MAX_PCT:
+        return DEFAULT_AXIS_MAX_PCT
+    return float(((int(span) + 4) // 5) * 5)
+
+
+def _norm_item(value: Any) -> str:
+    return " ".join(str(value or "").lower().replace("_", " ").replace("-", " ").split())
+
+
+def _is_wells_item(text: Any) -> bool:
+    n = _norm_item(text)
+    return (
+        "wells" in n
+        or n == WELLS_OFF_FCC_ID.replace("-", " ")
+        or "20 tesla" in n
+        or "m3 2020" in n
+    )
+
+
+def _is_one_card_item(text: Any) -> bool:
+    n = _norm_item(text)
+    return "one card" in n and "coinbase one" != n
+
+
+def _is_fcc_auto_item(text: Any) -> bool:
+    if _is_wells_item(text):
+        return False
+    n = _norm_item(text)
+    needles = (
+        "santander",
+        "capital one",
+        "gm financial",
+        "rivian",
+        "vivek",
+        "corolla 2024",
+        "corolla 2022",
+        "24 corolla",
+        "22 corolla",
+        "22 tesla",
+        "23 rivian",
+        "m3 2022",
+        "r1s 2023",
+    )
+    return any(needle in n for needle in needles)
+
+
+def _is_billed_gold_item(text: Any) -> bool:
+    n = _norm_item(text)
+    if "usdg" in n or "cancel" in n:
+        return False
+    return (
+        n == "gold"
+        or "rh gold" in n
+        or "robinhood gold" in n
+        or "billed gold" in n
+        or "gold membership" in n
+    )
+
+
+def _is_household_item(text: Any) -> bool:
+    if _is_wells_item(text):
+        return False
+    return (
+        _is_one_card_item(text)
+        or _is_fcc_auto_item(text)
+        or _is_billed_gold_item(text)
+    )
+
+
+def _plan_date(treasury: Dict[str, Any]) -> date:
+    for raw in (
+        treasury.get("as_of_plan"),
+        treasury.get("as_of"),
+        (treasury.get("evaluation") or {}).get("as_of")
+        if isinstance(treasury.get("evaluation"), dict)
+        else None,
+    ):
+        if not raw:
+            continue
+        s = str(raw).strip()
+        if "T" in s:
+            s = s.split("T", 1)[0]
+        try:
+            return date.fromisoformat(s[:10])
+        except ValueError:
+            continue
+    return datetime.now(timezone.utc).date()
+
+
+def _read_next_free_dollar(treasury: Dict[str, Any]) -> float:
+    """Numeric remaining FCF only. Do not invent a residual or a threshold X."""
+    ev = treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {}
+    ca = ev.get("cashflow_allocation") if isinstance(ev.get("cashflow_allocation"), dict) else {}
+    inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+    for raw in (
+        ca.get("next_free_dollar"),
+        inp.get("next_free_dollar"),
+        treasury.get("next_free_dollar"),
+        ca.get("free_liquid_residual"),
+    ):
+        if isinstance(raw, bool) or raw is None or raw == "":
+            continue
+        n = _as_float(raw)
+        if n is not None:
+            return n
+    return 0.0
+
+
+def _read_ltv(treasury: Dict[str, Any]) -> Optional[float]:
+    ev = treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {}
+    inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    man = snap.get("coinbase_manual") if isinstance(snap.get("coinbase_manual"), dict) else {}
+    for raw in (inp.get("ltv"), man.get("ltv"), ev.get("ltv")):
+        if raw is None or raw == "":
+            continue
+        n = _as_float(raw)
+        if n is not None:
+            return n
+    return None
+
+
+def _usdg_still_live(treasury: Dict[str, Any]) -> bool:
+    ev = treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {}
+    inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    rh = snap.get("robinhood") if isinstance(snap.get("robinhood"), dict) else {}
+    uh = snap.get("usdg_hy") if isinstance(snap.get("usdg_hy"), dict) else {}
+    if (
+        inp.get("gold_cancelled")
+        or rh.get("gold_cancelled")
+        or uh.get("gold_cancelled")
+        or uh.get("ended")
+        or uh.get("live") is False
+    ):
+        return False
+    return True
+
+
+def _one_card_snapshot_overdue(one_card: Dict[str, Any], today: date) -> bool:
+    if not isinstance(one_card, dict) or not one_card:
+        return False
+    if one_card.get("overdue") is True:
+        return True
+    days = one_card.get("days_until_due")
+    d = _as_float(days)
+    if d is not None and d < 0:
+        return True
+    from treasury.expenses_sync import parse_sheet_date
+
+    due_dt = parse_sheet_date(
+        one_card.get("due_date") or one_card.get("payment_due") or one_card.get("date")
+    )
+    if due_dt is None:
+        return False
+    due_d = due_dt.date() if hasattr(due_dt, "date") else due_dt
+    return due_d < today
+
+
+def _fleet_notes_overdue(notes: Dict[str, Any]) -> List[str]:
+    units = notes.get("units") if isinstance(notes, dict) else None
+    if not isinstance(units, dict):
+        return []
+    overdue: List[str] = []
+    for unit_id, row in units.items():
+        uid = str(unit_id)
+        if uid == WELLS_OFF_FCC_ID or uid not in FCC_AUTO_UNIT_IDS:
+            continue
+        if not isinstance(row, dict):
+            continue
+        past = _as_float(row.get("past_due"))
+        if past is not None and past > 0:
+            overdue.append(uid)
+    return overdue
+
+
+def household_overdue_count(
+    treasury: Dict[str, Any],
+    *,
+    expenses: Optional[Dict[str, Any]] = None,
+    one_card: Optional[Dict[str, Any]] = None,
+    fleet_notes: Optional[Dict[str, Any]] = None,
+    today: Optional[date] = None,
+) -> Tuple[int, List[str]]:
+    """FCC Do-now overdue household count. Wells off. Due-soon does not count."""
+    from treasury.financial_coach import extract_expense_items, rank_obligations
+
+    t = today or _plan_date(treasury)
+    ids: List[str] = []
+    exp = expenses if isinstance(expenses, dict) else {}
+    ranked = rank_obligations(extract_expense_items(exp), today=t)
+    for row in ranked:
+        if not row.get("overdue"):
+            continue
+        label = f"{row.get('item') or ''} {row.get('id') or ''}"
+        if not _is_household_item(label):
+            continue
+        ids.append(str(row.get("id") or row.get("item") or "household"))
+    oc = one_card if isinstance(one_card, dict) else {}
+    if _one_card_snapshot_overdue(oc, t) and "one_card" not in ids:
+        ids.append("one_card")
+    for uid in _fleet_notes_overdue(fleet_notes or {}):
+        if uid not in ids:
+            ids.append(uid)
+    return len(ids), ids
+
+
+def _fmt_nudge_pct(rate: Any) -> str:
+    n = float(rate)
+    if abs(n - round(n)) < 1e-9:
+        return f"{int(round(n))}%"
+    return f"{n:.2f}".rstrip("0").rstrip(".") + "%"
+
+
+def _nudge_label(chip: Dict[str, Any]) -> str:
+    cid = str(chip.get("id") or "")
+    if cid in NUDGE_LABELS:
+        return NUDGE_LABELS[cid]
+    return str(chip.get("venue") or chip.get("label") or cid)
+
+
+def _pick_tallest_payable_debt(chips: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    eligible = [
+        c
+        for c in chips
+        if isinstance(c, dict)
+        and str(c.get("id")) in SURE_PAYABLE_DEBT_IDS
+        and str(c.get("id")) != WELLS_OFF_FCC_ID
+        and c.get("rate_pct") is not None
+    ]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda c: float(c.get("rate_pct") or 0))
+
+
+def _pick_best_liquid_yield(
+    chips: List[Dict[str, Any]], *, usdg_live: bool
+) -> Optional[Dict[str, Any]]:
+    eligible = []
+    for c in chips:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id") or "")
+        if cid in PARK_FCF_NEVER_IDS or c.get("est_cagr"):
+            continue
+        if cid not in LIQUID_YIELD_IDS:
+            continue
+        if cid == "usdg_earn" and not usdg_live:
+            continue
+        if c.get("rate_pct") is None:
+            continue
+        eligible.append(c)
+    if not eligible:
+        return None
+    return max(eligible, key=lambda c: float(c.get("rate_pct") or 0))
+
+
+def _nudge_copy_is_clean(line: str) -> bool:
+    low = line.lower()
+    return not any(tok in low for tok in _NUDGE_NEVER)
+
+
+def build_fcf_coach(
+    chips: List[Dict[str, Any]],
+    treasury: Dict[str, Any],
+    *,
+    expenses: Optional[Dict[str, Any]] = None,
+    one_card: Optional[Dict[str, Any]] = None,
+    fleet_notes: Optional[Dict[str, Any]] = None,
+    today: Optional[date] = None,
+) -> Dict[str, Any]:
+    """Qualitative FCF nudge. Display-only. Never a trade, mint, or size."""
+    overdue_n, overdue_ids = household_overdue_count(
+        treasury,
+        expenses=expenses,
+        one_card=one_card,
+        fleet_notes=fleet_notes,
+        today=today,
+    )
+    ltv = _read_ltv(treasury)
+    free_dollar = _read_next_free_dollar(treasury)
+    ltv_current = ltv is not None and ltv < MORPHO_LTV_CURRENT_MAX
+    essentials_current = overdue_n == 0 and ltv_current
+    wired = bool(essentials_current and free_dollar > 0)
+    debt = _pick_tallest_payable_debt(chips) if wired else None
+    yld = (
+        _pick_best_liquid_yield(chips, usdg_live=_usdg_still_live(treasury))
+        if wired
+        else None
+    )
+    nudge = None
+    if wired and debt is not None and yld is not None:
+        line = (
+            f"next free dollar: {_nudge_label(debt)} {_fmt_nudge_pct(debt['rate_pct'])}"
+            f" vs {_nudge_label(yld)} {_fmt_nudge_pct(yld['rate_pct'])}"
+        )
+        if _nudge_copy_is_clean(line):
+            nudge = {
+                "line": line,
+                "debt_id": debt.get("id"),
+                "debt_label": _nudge_label(debt),
+                "debt_rate_pct": float(debt["rate_pct"]),
+                "yield_id": yld.get("id"),
+                "yield_label": _nudge_label(yld),
+                "yield_rate_pct": float(yld["rate_pct"]),
+            }
+        else:
+            wired = False
+    else:
+        wired = False
+    return {
+        "wired": wired,
+        "nudge": nudge,
+        "essentials_current": essentials_current,
+        "household_overdue_count": overdue_n,
+        "household_overdue_ids": overdue_ids,
+        "next_free_dollar": free_dollar,
+        "ltv": ltv,
+    }
+
+
+def build_interest_spectrum(
+    *,
+    treasury: Optional[Dict[str, Any]] = None,
+    config: Optional[Dict[str, Any]] = None,
+    x_money: Optional[Dict[str, Any]] = None,
+    solana: Optional[Dict[str, Any]] = None,
+    solstice_jr: Optional[Dict[str, Any]] = None,
+    stub: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Assemble APR/APY chips on a shared 0→~30% two-lane axis."""
+    # Disk path (FCC /api/interest-spectrum) must read solstice_jr_latest.json.
+    # treasury_latest.json often omits snapshot.solstice_jr (offline FCC +
+    # work/treasury auto-save). Tests pass an explicit treasury dict and must
+    # not pick up a machine-local sidecar.
+    treasury_from_disk = not isinstance(treasury, dict)
+    treasury = treasury if isinstance(treasury, dict) else _load_json(
+        TREASURY_FCC if TREASURY_FCC.is_file() else TREASURY_SNAP
+    )
+    config = config if isinstance(config, dict) else _load_json(CONFIG_PATH)
+    x_money = x_money if isinstance(x_money, dict) else _load_json(XM_SNAPSHOT)
+    if not x_money:
+        snap_xm = (treasury.get("snapshot") or {}).get("x_money")
+        if isinstance(snap_xm, dict):
+            x_money = snap_xm
+    solana = solana if isinstance(solana, dict) else _load_json(SOLANA_SNAPSHOT)
+    if not solana:
+        snap_sol = (treasury.get("snapshot") or {}).get("solana")
+        if isinstance(snap_sol, dict):
+            solana = snap_sol
+    snap_mh = (treasury.get("snapshot") or {}).get("morpho_hy")
+    morpho_hy = snap_mh if isinstance(snap_mh, dict) else {}
+    snap_uh = (treasury.get("snapshot") or {}).get("usdg_hy")
+    usdg_hy = snap_uh if isinstance(snap_uh, dict) else {}
+    snap_mb = (treasury.get("snapshot") or {}).get("morpho_borrow")
+    morpho_borrow = snap_mb if isinstance(snap_mb, dict) else {}
+    if not isinstance(solstice_jr, dict):
+        snap_sj = (treasury.get("snapshot") or {}).get("solstice_jr")
+        solstice_jr = snap_sj if isinstance(snap_sj, dict) else {}
+        if treasury_from_disk and not _jr_row_has_apy(solstice_jr):
+            sidecar = _load_json(SOLSTICE_JR_SNAPSHOT)
+            if _jr_row_has_apy(sidecar):
+                solstice_jr = sidecar
+    # stub is retained as a blank file only — no numeric threshold X.
+    _ = stub if stub is not None else _load_json(FCC_STUB)
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    expenses = snap.get("expenses") if isinstance(snap.get("expenses"), dict) else {}
+    if not expenses:
+        root_exp = treasury.get("expenses")
+        expenses = root_exp if isinstance(root_exp, dict) else {}
+    if treasury_from_disk and not expenses:
+        expenses = _load_json(EXPENSES_SNAP)
+    one_card = snap.get("one_card") if isinstance(snap.get("one_card"), dict) else {}
+    if treasury_from_disk and not one_card:
+        one_card = _load_json(ONE_CARD_SNAP)
+    fleet_notes = snap.get("fleet_notes") if isinstance(snap.get("fleet_notes"), dict) else {}
+    if treasury_from_disk and not fleet_notes:
+        fleet_notes = _load_json(FLEET_NOTES)
+
+    ctx = _books_ctx(
+        treasury,
+        config,
+        x_money,
+        solana,
+        morpho_hy,
+        usdg_hy,
+        morpho_borrow,
+        solstice_jr,
+    )
+    chips = _fleet_chips() + _seed_debt_chips(ctx) + _yield_chips(ctx)
+    for chip in chips:
+        if chip.get("kind") not in ALLOWED_CHIP_KINDS:
+            chip["kind"] = "debt" if chip.get("rate_kind") == "APR" else "yield"
+        chip["lane"] = "below" if chip["kind"] == "debt" else "above"
+        if chip.get("id") == WELLS_OFF_FCC_ID:
+            raise AssertionError("Wells/20 Tesla must stay off the FCC spectrum")
+
+    placed = [c for c in chips if c.get("rate_pct") is not None]
+    unknown: List[Dict[str, Any]] = []
+    books_used = any(c.get("source") == "books" for c in chips)
+    coach = build_fcf_coach(
+        chips,
+        treasury,
+        expenses=expenses,
+        one_card=one_card,
+        fleet_notes=fleet_notes,
+        today=_plan_date(treasury),
+    )
+    coach_wired = bool(coach.get("wired"))
+
+    return {
+        "ok": True,
+        "title": "Interest Spectrum",
+        "brand": "FCC",
+        "as_of": _now(),
+        "axis": {
+            "layout": "two_lane",
+            "left": "0%",
+            "right": "~30%",
+            "min_pct": 0.0,
+            "max_pct": _axis_max(placed),
+            "debt_lane": "below",
+            "yield_lane": "above",
+            "ticks": list(SEED_TICKS_PCT),
+        },
+        "chips": chips,
+        "placed": placed,
+        "unknown": unknown,
+        "coach_wired": coach_wired,
+        "coach_nudge": coach.get("nudge"),
+        "coach": coach,
+        "policy": {
+            "apr_apy_only": True,
+            "est_cagr_exception": True,
+            "est_cagr_ids": [BITCOIN_ID, AGENTIC_FUND_ID],
+            "equity_btc_assumed_return": False,
+            "invented_rates": False,
+            "wells_is_fcc_liability": False,
+            "wells_on_fcc_spectrum": False,
+            "chip_size_is_notional": False,
+            "coach_wired": coach_wired,
+            "rate_precedence": RATE_PRECEDENCE,
+            "settings_are_fallback": True,
+            "morpho_hy_vault_graphql_is_product": False,
+        },
+        "sources": {
+            "locked_financing": True,
+            "locked_seed": True,
+            "books": books_used,
+            "fleet_notes": FLEET_NOTES.is_file(),
+        },
+    }
+
+
+def rates_are_honest(payload: Dict[str, Any]) -> bool:
+    """True when every placed rate is locked-fleet, locked-seed, books, JR docs, or est. CAGR exception."""
+    if not isinstance(payload, dict):
+        return False
+    policy = payload.get("policy") if isinstance(payload.get("policy"), dict) else {}
+    est_ids = {
+        str(x)
+        for x in (policy.get("est_cagr_ids") or EST_CAGR_IDS)
+        if x
+    }
+    for chip in payload.get("chips") or []:
+        if not isinstance(chip, dict):
+            return False
+        chip_id = str(chip.get("id"))
+        if chip_id == WELLS_OFF_FCC_ID:
+            return False
+        if chip.get("kind") not in ALLOWED_CHIP_KINDS:
+            return False
+        est_cagr = bool(chip.get("est_cagr") or chip_id in est_ids)
+        if est_cagr:
+            # Explicit #336 exception — never treat as cash APR/APY.
+            if not policy.get("est_cagr_exception"):
+                return False
+            if chip.get("rate_kind") != EST_CAGR_KIND:
+                return False
+            if chip.get("rate_kind") in ("APR", "APY"):
+                return False
+            if chip_id not in EST_CAGR_IDS:
+                return False
+        elif chip.get("rate_kind") not in ("APR", "APY"):
+            return False
+        rate = chip.get("rate_pct")
+        if rate is None:
+            return False
+        source = chip.get("source")
+        if source not in ALLOWED_SOURCES:
+            return False
+        if source == "locked_financing":
+            locked = LOCKED_RATE_BY_ID.get(chip_id)
+            if locked is None or abs(float(rate) - locked) > 1e-9:
+                return False
+            continue
+        if source == "locked_seed":
+            locked = LOCKED_SEED_RATE_BY_ID.get(chip_id)
+            if locked is None or abs(float(rate) - locked) > 1e-9:
+                return False
+            continue
+        if source == "docs_target":
+            if chip_id != JR_STRCUSX_ID:
+                return False
+            if abs(float(rate) - JR_TARGET_PCT) > 1e-9:
+                return False
+            if chip.get("rate_label") != JR_TARGET_LABEL:
+                return False
+            continue
+        if source != "books":
+            return False
+        if est_cagr:
+            # Settings override of the est. CAGR seed — still not cash APR.
+            if chip.get("rate_kind") != EST_CAGR_KIND:
+                return False
+    return True
