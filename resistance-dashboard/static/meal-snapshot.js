@@ -263,7 +263,7 @@
     const hasTargets = tgt.calories != null || tgt.protein_g != null;
     const rem = n.remaining || {};
     macros.innerHTML =
-      "<strong>Logged so far</strong>" +
+      "<strong>Logged today (calendar day)</strong>" +
       (nLogs != null && nLogs !== ""
         ? " (" + nLogs + " meal log" + (nLogs === 1 ? "" : "s") + ")"
         : "") +

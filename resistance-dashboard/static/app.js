@@ -3022,7 +3022,7 @@
       <div class="macro-progress-meta">
         <span class="macro-progress-label">${label}</span>
         <span class="macro-progress-nums">${fmtNum(intake)} / ${fmtNum(target)}${
-      pct != null ? ` · <strong>${pct}%</strong>` : ""
+      pct != null ? ` · <strong>${pct}%</strong> target hit` : ""
     }${paceHint}</span>
       </div>
       <div class="macro-pace-track band-${band}" role="img" aria-label="${label} pace ${side} ${band}" title="${paceTitle.replace(
@@ -5835,7 +5835,7 @@
             rem.carbs_g != null ||
             rem.fat_g != null);
         $("today-macros").innerHTML = `
-        <strong>Logged so far</strong>${
+        <strong>Logged today (calendar day)</strong>${
           nLogs !== "" && nLogs != null ? ` (${nLogs} meal log${nLogs === 1 ? "" : "s"})` : ""
         }: ${fmtNum(cons.calories)} kcal · P${fmtNum(cons.protein_g)}
         C${fmtNum(cons.carbs_g)} F${fmtNum(cons.fat_g)}

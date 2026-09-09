@@ -76,6 +76,8 @@ assert(
 );
 
 assert(SRC.includes("pctSuffix: \" target hit\""), "calorie tile labels target hit");
+assert(SRC.includes("%</strong> target hit"), "pace rows label % as target hit");
+assert(SRC.includes("Logged today (calendar day)"), "today hub civil totals labeled");
 assert(SRC.includes("wake-window intake"), "legend says wake-window");
 assert(SRC.includes("After bedtime, pace uses the calendar day"), "after-empty copy");
 

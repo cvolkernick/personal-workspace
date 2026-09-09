@@ -469,6 +469,7 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         self.assertIn("paceRowIntake(pace, consumed)", progress)
         self.assertIn("fmtNum(intake)", progress)
         self.assertNotIn("fmtNum(consumed)", progress)
+        self.assertIn("target hit", progress)
         legend = js.split("function renderTargetsAndRemaining", 1)[1].split(
             "function renderFoodLogsToday", 1
         )[0]
