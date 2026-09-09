@@ -1,4 +1,4 @@
-"""FitDash #254/#258/#268: Trends avgs on the Σ 60d paired window.
+"""FitDash #254/#258/#268: Trends avgs on the Σ 75d paired window.
 
 Overlay only — same pairDays set as the Σ chips (days with both series).
 Avg deficit = mean(intake_i − burned_i). Deficit negative/red, surplus
@@ -16,12 +16,13 @@ HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 APP_JS = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 OVERLAY = (ROOT / "static" / "trends-paired-avgs.js").read_text(encoding="utf-8")
 GH = (ROOT / "rt_dashboard" / "google_health.py").read_text(encoding="utf-8")
+DASH = (ROOT / "api" / "dashboard.py").read_text(encoding="utf-8")
 VERCEL = (ROOT / "vercel.json").read_text(encoding="utf-8")
 
 
 class TrendsPairedAvgMarkup(unittest.TestCase):
     def test_overlay_wired_under_trends_card(self):
-        self.assertIn("Calories intake vs burned · 60d", HTML)
+        self.assertIn("Calories intake vs burned · 75d", HTML)
         self.assertIn('id="nutrition-note"', HTML)
         self.assertIn("/trends-paired-avgs.js?v=paired-avgs-6", HTML)
         self.assertNotIn("/trends-paired-avgs.js?v=paired-avgs-5", HTML)
@@ -36,11 +37,11 @@ class TrendsPairedAvgMarkup(unittest.TestCase):
         self.assertIn("trends-avg-burned", OVERLAY)
         self.assertIn("trends-avg-delta", OVERLAY)
 
-    def test_same_60d_paired_window_as_sigma_chips(self):
-        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 60;", APP_JS)
-        self.assertIn("var SPAN_DAYS = 60;", OVERLAY)
-        self.assertNotIn("const CAL_IN_OUT_SPAN_DAYS = 75;", APP_JS)
-        self.assertNotIn("var SPAN_DAYS = 75;", OVERLAY)
+    def test_same_75d_paired_window_as_sigma_chips(self):
+        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 75;", APP_JS)
+        self.assertIn("var SPAN_DAYS = 75;", OVERLAY)
+        self.assertNotIn("const CAL_IN_OUT_SPAN_DAYS = 60;", APP_JS)
+        self.assertNotIn("var SPAN_DAYS = 60;", OVERLAY)
         self.assertIn("pairDays", APP_JS)
         self.assertIn("pairDays", OVERLAY)
         self.assertIn("sumIn += vin;", APP_JS)
@@ -95,6 +96,10 @@ class TrendsPairedAvgSourceLock(unittest.TestCase):
         self.assertIn("parse_nutrition_log_points", GH)
         self.assertNotIn("return []  # stub", GH)
         self.assertNotIn("invented food", GH.lower())
+        # UI span is 75d; GH still fetches a 90d health payload (no silent truncation).
+        self.assertIn("HEALTH_COLD_DAYS = 90", DASH)
+        self.assertIn("def fetch_calories_burned(self, days: int = 90)", GH)
+        self.assertIn("def fetch_nutrition_bundle(\n        self, days: int = 90", GH)
 
     def test_not_hidrate_bottle_charge(self):
         self.assertNotIn("bottle charge", OVERLAY.lower())

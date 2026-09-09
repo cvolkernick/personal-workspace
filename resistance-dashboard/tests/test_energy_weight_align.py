@@ -45,8 +45,8 @@ class EnergyWeightAlignMarkup(unittest.TestCase):
         self.assertIn("Do not deepen the cut on this gap.", OVERLAY)
 
     def test_does_not_touch_other_surfaces(self):
-        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 60;", APP_JS)
-        self.assertIn("Calories intake vs burned · 60d", HTML)
+        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 75;", APP_JS)
+        self.assertIn("Calories intake vs burned · 75d", HTML)
         self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
         self.assertNotIn("chart.js", OVERLAY.lower())
         self.assertNotIn(".sb-shell", OVERLAY)
