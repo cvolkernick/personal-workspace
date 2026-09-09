@@ -95,3 +95,11 @@ python3 projects-dashboard/worktrees.py path resistance-dashboard
 - Full session transcripts live under `~/.grok/sessions` (survive reboot; not for git).
 - Lightweight **session index** (IDs, titles, resume commands) → `ops/session-index/` via `session_backup.py` / sync.
 - Optional offline tarball (outside repo): `python3 projects-dashboard/session_backup.py archive`
+
+## Deploy conventions
+
+**Read `deploy/DEPLOY_CONVENTIONS.md` before touching anything that deploys.**
+`personal-workspace` is a monorepo: every push fans out to the `fitdash` and `mikrafts` Vercel projects.
+Key rules: deploy via git push only (never `vercel deploy` from a CLI/dirty worktree), `CANCELED` from the
+Ignored Build Step is normal and not a failure, batch pushes (limited concurrent builds), keep changes
+scoped to your project's directory.
