@@ -376,6 +376,16 @@ button:disabled {
   line-height: 1.2;
 }
 
+#nutrition-stats .macro-split-sub {
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  opacity: 0.62;
+  line-height: 1.2;
+  margin-top: 0.05rem;
+}
+
 #nutrition-stats .macro-split-v {
   font-size: 1.05rem;
   font-weight: 700;
@@ -1810,6 +1820,16 @@ footer {
 
 .macro-pace-legend {
   line-height: 1.35;
+}
+
+.macro-pace-clock {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+}
+
+.macro-civil-day-line {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
 }
 
 .macro-progress-nums .pace-delta {

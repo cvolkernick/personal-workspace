@@ -324,7 +324,7 @@
         aria-label="Today calories in versus out"
       >
         <div class="calorie-bar-header">
-          <h2 class="calorie-bar-title">Today · calories in vs out</h2>
+          <h2 class="calorie-bar-title">Today · calories in vs out (calendar day)</h2>
         </div>
         <div class="delta-track" id="calorie-delta-track" role="img" aria-label="Calorie surplus or deficit">
           <div class="delta-mid" aria-hidden="true"></div>
@@ -346,7 +346,8 @@
           <div class="label">Calories</div>
           <div class="macro-split" id="stat-calories" aria-live="polite">
             <div class="macro-split-half">
-              <div class="macro-split-k">Today</div>
+              <div class="macro-split-k">Logged today</div>
+              <div class="macro-split-sub">calendar day</div>
               <div class="macro-split-v">—</div>
             </div>
             <div class="macro-split-rule" aria-hidden="true"></div>
@@ -360,7 +361,8 @@
           <div class="label">Protein · % kcal</div>
           <div class="macro-split" id="stat-protein" aria-live="polite">
             <div class="macro-split-half">
-              <div class="macro-split-k">Today</div>
+              <div class="macro-split-k">Logged today</div>
+              <div class="macro-split-sub">calendar day</div>
               <div class="macro-split-v">—</div>
             </div>
             <div class="macro-split-rule" aria-hidden="true"></div>
@@ -374,7 +376,8 @@
           <div class="label">Carbs · % kcal</div>
           <div class="macro-split" id="stat-carbs" aria-live="polite">
             <div class="macro-split-half">
-              <div class="macro-split-k">Today</div>
+              <div class="macro-split-k">Logged today</div>
+              <div class="macro-split-sub">calendar day</div>
               <div class="macro-split-v">—</div>
             </div>
             <div class="macro-split-rule" aria-hidden="true"></div>
@@ -388,7 +391,8 @@
           <div class="label">Fat · % kcal</div>
           <div class="macro-split" id="stat-fat" aria-live="polite">
             <div class="macro-split-half">
-              <div class="macro-split-k">Today</div>
+              <div class="macro-split-k">Logged today</div>
+              <div class="macro-split-sub">calendar day</div>
               <div class="macro-split-v">—</div>
             </div>
             <div class="macro-split-rule" aria-hidden="true"></div>
@@ -415,8 +419,11 @@
         >
           <h2>Today so far</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            Pace bars = intake vs expected for this time in the eating window.
-            Day totals live in the <strong>macro tiles</strong> above · targets under
+            Pace bars = wake-window intake vs expected now (same clock as calorie pace).
+            After bedtime, pace falls back to the calendar day.
+            <strong>Logged today (calendar day)</strong> is a separate total — not the pace score.
+            Leftover vs daily target lives in the <strong>macro tiles</strong> above
+            (<strong>target hit %</strong>, not pace) · targets under
             <strong>More → Daily targets</strong>.
           </p>
           <div id="macro-pace-bars" style="margin-top: 0.75rem"></div>

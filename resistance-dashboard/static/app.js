@@ -2949,12 +2949,46 @@
   }
 
   /**
-   * Today "Today so far" row: day totals + pace-relative center bar.
+   * Intake number for a pace / on-pace / ahead / behind row.
+   * Prefers wake-window ``pace.consumed``; civil-day totals are not the pace score.
+   */
+  function paceRowIntake(pace, civilFallback) {
+    if (pace && pace.consumed != null && pace.consumed !== "") {
+      const n = Number(pace.consumed);
+      if (!Number.isNaN(n)) return n;
+    }
+    return civilFallback;
+  }
+
+  function loggedTodayCalendarLabel() {
+    return "logged today (calendar day)";
+  }
+
+  /** Compact calendar-day totals. Only keys present on ``civil`` — never invented. */
+  function formatLoggedTodayCalendarLine(civil) {
+    if (!civil || typeof civil !== "object") return "";
+    const bits = [];
+    if (civil.calories != null && civil.calories !== "")
+      bits.push(`${fmtNum(civil.calories)} kcal`);
+    if (civil.protein_g != null && civil.protein_g !== "")
+      bits.push(`${fmtNum(civil.protein_g)}g P`);
+    if (civil.carbs_g != null && civil.carbs_g !== "")
+      bits.push(`${fmtNum(civil.carbs_g)}g C`);
+    if (civil.fat_g != null && civil.fat_g !== "")
+      bits.push(`${fmtNum(civil.fat_g)}g F`);
+    if (!bits.length) return "";
+    return `Logged today (calendar day): ${bits.join(" · ")}`;
+  }
+
+  /**
+   * Today "Today so far" row: wake-window intake + pace-relative center bar.
    * pace = server pace_vs_expected payload (band green|yellow|red, side, bar_pct).
    * Center = on pace for this point in the eating window (not day-empty→full).
+   * Civil-day totals belong on the labeled calendar-day line, not these nums.
    */
   function progressRow(label, consumed, target, kind, pace) {
-    const pct = targetPct(consumed, target);
+    const intake = paceRowIntake(pace, consumed);
+    const pct = targetPct(intake, target);
     const p = pace || null;
     const band = (p && p.band) || (pct != null && pct > 120 ? "red" : pct != null && pct > 105 ? "yellow" : "green");
     const side = (p && p.side) || "on";
@@ -2987,8 +3021,8 @@
     return `<div class="macro-progress-row">
       <div class="macro-progress-meta">
         <span class="macro-progress-label">${label}</span>
-        <span class="macro-progress-nums">${fmtNum(consumed)} / ${fmtNum(target)}${
-      pct != null ? ` · <strong>${pct}%</strong>` : ""
+        <span class="macro-progress-nums">${fmtNum(intake)} / ${fmtNum(target)}${
+      pct != null ? ` · <strong>${pct}%</strong> target hit` : ""
     }${paceHint}</span>
       </div>
       <div class="macro-pace-track band-${band}" role="img" aria-label="${label} pace ${side} ${band}" title="${paceTitle.replace(
@@ -3005,17 +3039,21 @@
     </div>`;
   }
 
-  function fillMacroSplit(el, todayVal, targetVal, unit, todayPct, targetPct) {
+  function fillMacroSplit(el, todayVal, targetVal, unit, todayPct, targetPct, opts) {
     if (!el) return;
+    const o = opts || {};
+    const todayLabel = o.todayLabel || "Logged today";
+    const todaySub = o.todaySub != null ? o.todaySub : "calendar day";
+    const pctSuffix = o.pctSuffix || "";
     const hasToday = todayVal != null && !Number.isNaN(Number(todayVal));
     const hasTarget = targetVal != null && !Number.isNaN(Number(targetVal));
     const t = hasToday ? Number(todayVal) : null;
     const g = hasTarget ? Number(targetVal) : null;
     const unitSuf = unit ? ` ${unit}` : "";
-    // % of total calories from this macro (P×4 / C×4 / F×9 basis)
+    // todayPct: calories = target hit %; P/C/F = kcal share (card title says % kcal)
     const pctBit = (pct) =>
       pct != null && !Number.isNaN(Number(pct))
-        ? `<span class="macro-split-pct"> · ${pct}%</span>`
+        ? `<span class="macro-split-pct"> · ${pct}%${pctSuffix}</span>`
         : "";
     let deltaHtml = "";
     if (t != null && g != null && g > 0) {
@@ -3030,7 +3068,8 @@
     }
     el.innerHTML = `
       <div class="macro-split-half">
-        <div class="macro-split-k">Today</div>
+        <div class="macro-split-k">${todayLabel}</div>
+        ${todaySub ? `<div class="macro-split-sub">${todaySub}</div>` : ""}
         <div class="macro-split-v">${
           hasToday ? fmtNum(t) + unitSuf + pctBit(todayPct) : "—"
         }</div>
@@ -3053,7 +3092,9 @@
     const tgtPct = macroCalPct(t.protein_g, t.carbs_g, t.fat_g);
     // Calories tile: show % of daily calorie target on Today side
     const calHit = targetPct(c.calories, t.calories);
-    fillMacroSplit($("stat-calories"), c.calories, t.calories, "", calHit, null);
+    fillMacroSplit($("stat-calories"), c.calories, t.calories, "", calHit, null, {
+      pctSuffix: " target hit",
+    });
     fillMacroSplit(
       $("stat-protein"),
       c.protein_g,
@@ -3255,6 +3296,11 @@
           bits.push(`${Math.round(Number(win.fraction) * 100)}% of window`);
         if (pacing.paced_budget != null)
           bits.push(`paced ~${fmtNum(pacing.paced_budget)} kcal`);
+        if (pacing.pace_clock) bits.push(pacing.pace_clock);
+        if (pacing.civil_day_consumed != null)
+          bits.push(
+            `${loggedTodayCalendarLabel()} ${fmtNum(pacing.civil_day_consumed)} kcal`
+          );
         if (pacing.intake_source === "eating_window_logs")
           bits.push("intake = logs in window (spans midnight)");
         paceMeta.textContent = bits.join(" · ");
@@ -3281,9 +3327,11 @@
       }
       if (dSum) dSum.textContent = delta.summary || "—";
       if (dMeta) {
-        dMeta.textContent = `in ${fmtNum(delta.intake)} · out ${fmtNum(
-          delta.burned
-        )} · scale ±${fmtNum(delta.scale_kcal)} kcal`;
+        dMeta.textContent = `${loggedTodayCalendarLabel()} ${fmtNum(
+          delta.intake
+        )} in · out ${fmtNum(delta.burned)} · scale ±${fmtNum(
+          delta.scale_kcal
+        )} kcal`;
       }
     } else if (dSum) {
       dSum.textContent =
@@ -3300,6 +3348,9 @@
     const c = (store && store.today_consumed) || {};
     const mp =
       (state && state.calorie_bars && state.calorie_bars.macro_pace) || {};
+    const civil = mp.civil_day || c;
+    const civilLine = formatLoggedTodayCalendarLine(civil);
+    const clock = mp.pace_clock || "";
     if ($("tgt-cal")) {
       $("tgt-cal").value = t.calories ?? 2100;
       $("tgt-p").value = t.protein_g ?? 210;
@@ -3320,13 +3371,24 @@
       $("macro-pace-bars").innerHTML = `
         <div class="macro-progress-list">
           <p class="muted macro-pace-legend" style="margin:0 0 0.35rem;font-size:0.78rem">
-            Bars = vs <strong>pace now</strong> in the eating window (center = on target for this time).
+            Bars = <strong>wake-window intake</strong> vs <strong>pace now</strong>
+            (center = on pace for this time). After bedtime, pace uses the calendar day.
             Green ≤5% · yellow ≤20% · red &gt;20% · protein over stays green longer.
           </p>
+          ${
+            clock
+              ? `<p class="muted macro-pace-clock">${clock}</p>`
+              : ""
+          }
           ${progressRow("Calories", c.calories, t.calories, "cals", mp.calories)}
           ${progressRow("Protein", c.protein_g, t.protein_g, "protein", mp.protein_g)}
           ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
           ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
+          ${
+            civilLine
+              ? `<p class="muted macro-civil-day-line">${civilLine}</p>`
+              : ""
+          }
         </div>
         ${
           (function () {
@@ -5773,7 +5835,7 @@
             rem.carbs_g != null ||
             rem.fat_g != null);
         $("today-macros").innerHTML = `
-        <strong>Logged so far</strong>${
+        <strong>Logged today (calendar day)</strong>${
           nLogs !== "" && nLogs != null ? ` (${nLogs} meal log${nLogs === 1 ? "" : "s"})` : ""
         }: ${fmtNum(cons.calories)} kcal · P${fmtNum(cons.protein_g)}
         C${fmtNum(cons.carbs_g)} F${fmtNum(cons.fat_g)}

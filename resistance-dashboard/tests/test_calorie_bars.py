@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -10,7 +11,9 @@ from rt_dashboard.calorie_bars import (
     build_calorie_bars_payload,
     calorie_in_out_delta,
     calorie_pacing,
+    civil_day_macros,
     eating_window_fraction,
+    pace_clock_copy,
     pace_vs_expected,
     sum_intake_in_window,
 )
@@ -224,6 +227,14 @@ class TestCalorieBars(unittest.TestCase):
         # Yesterday's meals must not count as today's pacing intake
         self.assertEqual(payload["pacing"]["window"]["source"], "civil_day_after_empty")
         self.assertEqual(payload["pacing"]["consumed"], 0.0)
+        self.assertEqual(
+            payload["pacing"]["pace_clock"],
+            "pace clock = calendar day (after bedtime)",
+        )
+        self.assertEqual(
+            payload["macro_pace"]["pace_clock"],
+            "pace clock = calendar day (after bedtime)",
+        )
 
         hydro_win = eating_window_fraction(
             now=now,
@@ -305,6 +316,89 @@ class TestCalorieBars(unittest.TestCase):
         self.assertIn("protein_g", mp)
         self.assertEqual(mp["calories"]["band"], "green")
         self.assertEqual(payload["pacing"].get("band"), "green")
+        self.assertEqual(mp["civil_day"]["calories"], 1000.0)
+        self.assertEqual(mp["window_macros"]["calories"], 1000.0)
+        self.assertEqual(payload["pacing"]["civil_day"]["protein_g"], 100.0)
+        self.assertEqual(payload["pacing"]["pace_clock"], "pace clock = wake window")
+        self.assertEqual(mp["pace_clock"], "pace clock = wake window")
+
+
+class TestCivilDayVsPaceClocks(unittest.TestCase):
+    def test_civil_day_macros_zero_missing_never_invent(self):
+        self.assertEqual(
+            civil_day_macros(None),
+            {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0},
+        )
+        self.assertEqual(civil_day_macros({"calories": 800})["protein_g"], 0.0)
+        self.assertEqual(civil_day_macros({"calories": "bad"})["calories"], 0.0)
+
+    def test_pace_clock_copy_after_empty_and_fallbacks(self):
+        self.assertEqual(
+            pace_clock_copy("civil_day_after_empty"),
+            "pace clock = calendar day (after bedtime)",
+        )
+        self.assertEqual(
+            pace_clock_copy("civil_day_fallback"),
+            "pace clock = calendar day (no wake yet)",
+        )
+        self.assertEqual(
+            pace_clock_copy("civil_day_before_wake"),
+            "pace clock = calendar day (no wake yet)",
+        )
+        self.assertEqual(pace_clock_copy("sleep_battery"), "pace clock = wake window")
+        self.assertEqual(pace_clock_copy(""), "")
+
+    def test_window_macros_differ_from_civil_day_and_delta_stays_civil(self):
+        """Pace comparison uses wake-window logs; in/out delta stays calendar day."""
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        wake = datetime(2026, 7, 29, 12, 7, 0, tzinfo=local)
+        bed = wake + timedelta(hours=16)
+        now = datetime(2026, 7, 30, 0, 14, 0, tzinfo=local)
+        logs = [
+            FoodLogEntry(
+                date="2026-07-29",
+                name="Dinner",
+                calories=900,
+                protein_g=60,
+                carbs_g=50,
+                fat_g=30,
+                time="21:00",
+            ),
+        ]
+        payload = build_calorie_bars_payload(
+            today_consumed={
+                "calories": 200,
+                "protein_g": 10,
+                "carbs_g": 20,
+                "fat_g": 5,
+            },
+            targets={
+                "calories": 2000,
+                "protein_g": 200,
+                "carbs_g": 180,
+                "fat_g": 55,
+            },
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": bed.isoformat(),
+                "awake_budget_hours": 16,
+            },
+            calories_burned_today=1600,
+            food_logs=logs,
+            now=now,
+        )
+        mp = payload["macro_pace"]
+        self.assertEqual(mp["intake_source"], "eating_window_logs")
+        self.assertEqual(mp["window_macros"]["calories"], 900.0)
+        self.assertEqual(mp["window_macros"]["protein_g"], 60.0)
+        self.assertEqual(mp["civil_day"]["calories"], 200.0)
+        self.assertEqual(mp["civil_day"]["protein_g"], 10.0)
+        self.assertEqual(mp["calories"]["consumed"], 900.0)
+        self.assertNotEqual(mp["window_macros"]["calories"], mp["civil_day"]["calories"])
+        # In/out SoT is civil day, not wake-window pace
+        self.assertEqual(payload["delta"]["intake"], 200.0)
+        self.assertEqual(payload["delta"]["burned"], 1600.0)
+        self.assertEqual(payload["pacing"]["pace_clock"], "pace clock = wake window")
 
 
 class TestCalorieBarCardLayout(unittest.TestCase):
@@ -342,6 +436,67 @@ class TestCalorieBarCardLayout(unittest.TestCase):
             html.find('id="hydration-pacing-meta"'),
             html.find('id="hydration-pacing-summary"'),
         )
+
+    def test_today_so_far_copy_separates_pace_from_calendar_day(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "static" / "index.html").read_text(encoding="utf-8")
+        js = (root / "static" / "app.js").read_text(encoding="utf-8")
+        so_far = html[
+            html.find('id="today-so-far-card"') : html.find('id="meal-plan-card"')
+        ]
+        tiles = html[
+            html.find('id="nutrition-stats"') : html.find('id="nutrition-micros"')
+        ]
+        delta = html[
+            html.find('id="calorie-delta-section"') : html.find('id="nutrition-stats"')
+        ]
+        self.assertIn("Logged today (calendar day)", so_far)
+        self.assertIn("After bedtime, pace falls back to the calendar day", so_far)
+        self.assertIn("target hit %", so_far)
+        self.assertIn("not the pace score", so_far)
+        self.assertIn("Logged today", tiles)
+        self.assertIn("calendar day", tiles)
+        self.assertNotIn('macro-split-k">Today<', tiles)
+        self.assertIn("calendar day", delta)
+        self.assertIn("paceRowIntake", js)
+        self.assertIn("formatLoggedTodayCalendarLine", js)
+        self.assertIn("logged today (calendar day)", js)
+        self.assertIn("target hit", js)
+        # Pace rows must paint wake-window consumed, not civil today_consumed
+        progress = js.split("function progressRow", 1)[1].split(
+            "function fillMacroSplit", 1
+        )[0]
+        self.assertIn("paceRowIntake(pace, consumed)", progress)
+        self.assertIn("fmtNum(intake)", progress)
+        self.assertNotIn("fmtNum(consumed)", progress)
+        self.assertIn("target hit", progress)
+        legend = js.split("function renderTargetsAndRemaining", 1)[1].split(
+            "function renderFoodLogsToday", 1
+        )[0]
+        self.assertIn("wake-window intake", legend)
+        self.assertIn("After bedtime, pace uses the calendar day", legend)
+        self.assertIn("formatLoggedTodayCalendarLine", legend)
+        self.assertIn("civil_day", legend)
+        # In/out delta stays civil day and is labeled as such
+        bars = js.split("function renderCalorieBars", 1)[1].split(
+            "function renderTargetsAndRemaining", 1
+        )[0]
+        self.assertIn("loggedTodayCalendarLabel()", bars)
+        self.assertIn("delta.intake", bars)
+        self.assertIn("pace_clock", bars)
+
+    def test_js_helpers_keep_window_intake_off_civil_totals(self):
+        root = Path(__file__).resolve().parents[1]
+        script = root / "tests" / "pace_civil_day_labels.js"
+        proc = subprocess.run(
+            ["node", str(script)],
+            cwd=str(root),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("ok pace-civil-day-labels", proc.stdout)
 
 
 if __name__ == "__main__":
