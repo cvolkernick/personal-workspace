@@ -1,7 +1,8 @@
-"""#241: surface fiber/sodium/sugar only when nutrients{} already has them."""
+"""#241 / #537: surface fiber/sodium/sugar only when nutrients{} already has them."""
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -9,7 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from rt_dashboard.models import FoodLogEntry, NutritionDay  # noqa: E402
+from api.dashboard import _today_consumed  # noqa: E402
+from rt_dashboard.models import FoodLogEntry, HealthSnapshot, NutritionDay  # noqa: E402
 from rt_dashboard.nutrition_micros import (  # noqa: E402
     merge_day_micros,
     micros_from_nutrients,
@@ -148,6 +150,122 @@ class TestTodayConsumedMicros(unittest.TestCase):
         self.assertEqual(rows[0]["micros"]["fiber_g"], 0)
         self.assertEqual(rows[0]["micros"]["sodium_mg"], 120)
         self.assertNotIn("micros", rows[1])
+
+
+class TestDashboardTodayConsumedMicros(unittest.TestCase):
+    """Vercel ``_today_consumed`` must merge day micros like Pi (#537)."""
+
+    def test_food_logs_attach_fiber_sodium_sugar(self):
+        health = HealthSnapshot(
+            nutrition=[
+                NutritionDay(
+                    date="2026-09-08",
+                    calories=900,
+                    protein_g=80,
+                    carbs_g=60,
+                    fat_g=20,
+                )
+            ],
+            food_logs=[
+                FoodLogEntry(
+                    date="2026-09-08",
+                    name="Oats",
+                    calories=300,
+                    protein_g=10,
+                    nutrients={"DIETARY_FIBER": 8, "SODIUM": 0.04, "SUGAR": 6},
+                ),
+                FoodLogEntry(
+                    date="2026-09-08",
+                    name="Chicken",
+                    calories=280,
+                    protein_g=52,
+                    nutrients={"DIETARY_FIBER": 0, "SODIUM": 0.12},
+                ),
+            ],
+        )
+        consumed = _today_consumed(health, "2026-09-08")
+        self.assertEqual(consumed["calories"], 900)
+        self.assertEqual(consumed["protein_g"], 80)
+        self.assertEqual(consumed["carbs_g"], 60)
+        self.assertEqual(consumed["fat_g"], 20)
+        self.assertEqual(consumed["micros"]["fiber_g"], 8)
+        self.assertEqual(consumed["micros"]["sodium_mg"], 160)
+        self.assertEqual(consumed["micros"]["sugar_g"], 6)
+
+    def test_logs_only_still_merge_micros(self):
+        health = HealthSnapshot(
+            food_logs=[
+                FoodLogEntry(
+                    date="2026-09-08",
+                    name="Yogurt",
+                    calories=150,
+                    protein_g=20,
+                    nutrients={"DIETARY_FIBER": 0, "SUGAR": 9},
+                )
+            ]
+        )
+        consumed = _today_consumed(health, "2026-09-08")
+        self.assertEqual(consumed["calories"], 150)
+        self.assertEqual(consumed["source"], "food_logs")
+        self.assertEqual(consumed["micros"]["fiber_g"], 0)
+        self.assertEqual(consumed["micros"]["sugar_g"], 9)
+        self.assertNotIn("sodium_g", consumed["micros"])
+        self.assertNotIn("sodium_mg", consumed["micros"])
+
+    def test_absent_keys_omitted_empty_day_is_empty(self):
+        health = HealthSnapshot(
+            nutrition=[
+                NutritionDay(date="2026-09-08", calories=400, protein_g=30, carbs_g=20, fat_g=10)
+            ],
+            food_logs=[
+                FoodLogEntry(date="2026-09-08", name="Whey", calories=120, nutrients={})
+            ],
+        )
+        consumed = _today_consumed(health, "2026-09-08")
+        self.assertEqual(consumed["calories"], 400)
+        self.assertNotIn("micros", consumed)
+        self.assertNotIn("nutrients", consumed)
+        self.assertEqual(_today_consumed(HealthSnapshot(), "2026-09-08"), {})
+
+    def test_dashboard_food_logs_for_day_attaches_meal_micros(self):
+        src = (ROOT / "api" / "dashboard.py").read_text(encoding="utf-8")
+        self.assertIn("today_consumed_from_nutrition", src)
+        self.assertIn("merge_day_micros", src)
+        self.assertIn("food_logs_for_day", src)
+        logs = [
+            FoodLogEntry(
+                date="2026-09-08",
+                name="Oats",
+                calories=300,
+                nutrients={"DIETARY_FIBER": 8, "SODIUM": 0.04, "SUGAR": 6},
+            )
+        ]
+        rows = food_logs_for_day(logs, as_of="2026-09-08")
+        self.assertEqual(rows[0]["micros"]["fiber_g"], 8)
+        self.assertEqual(rows[0]["micros"]["sodium_mg"], 40)
+        self.assertEqual(rows[0]["micros"]["sugar_g"], 6)
+
+
+class TestMicrosLineFromStoreJs(unittest.TestCase):
+    def test_fallback_from_food_logs_when_consumed_empty(self):
+        script = ROOT / "tests" / "nutrition_micros_line.js"
+        proc = subprocess.run(
+            ["node", str(script)],
+            cwd=str(ROOT),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("ok nutrition-micros-line", proc.stdout)
+
+    def test_render_uses_store_fallback(self):
+        js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        render = js.split("function renderNutritionMicros", 1)[1].split(
+            "function fmtNumShort", 1
+        )[0]
+        self.assertIn("microsLineFromStore(store)", render)
+        self.assertNotIn("microsLine(c)", render)
 
 
 if __name__ == "__main__":

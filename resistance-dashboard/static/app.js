@@ -1927,6 +1927,41 @@
     return bits.join(" · ");
   }
 
+  function foodLogsTodayFromStore(store) {
+    if (!store) return [];
+    if (Array.isArray(store.food_logs_today)) return store.food_logs_today;
+    const nested = store.nutrition_store && store.nutrition_store.food_logs_today;
+    return Array.isArray(nested) ? nested : [];
+  }
+
+  function sumMicrosFromFoodLogs(logs) {
+    const sums = {};
+    (logs || []).forEach((row) => {
+      const m = microsFromPayload(row);
+      if (m.fiber_g != null) sums.fiber_g = (sums.fiber_g || 0) + Number(m.fiber_g);
+      if (m.sugar_g != null) sums.sugar_g = (sums.sugar_g || 0) + Number(m.sugar_g);
+      if (m.sodium_g != null) sums.sodium_g = (sums.sodium_g || 0) + Number(m.sodium_g);
+      else if (m.sodium_mg != null)
+        sums.sodium_g = (sums.sodium_g || 0) + Number(m.sodium_mg) / 1000;
+    });
+    const out = {};
+    if (sums.fiber_g != null) out.fiber_g = sums.fiber_g;
+    if (sums.sugar_g != null) out.sugar_g = sums.sugar_g;
+    if (sums.sodium_g != null) {
+      out.sodium_g = sums.sodium_g;
+      out.sodium_mg = sums.sodium_g * 1000;
+    }
+    return out;
+  }
+
+  /** Day micros from today_consumed, else summed meal-log nutrients (never invent). */
+  function microsLineFromStore(store) {
+    const c = (store && store.today_consumed) || {};
+    const fromConsumed = microsLine(c);
+    if (fromConsumed) return fromConsumed;
+    return microsLine({ micros: sumMicrosFromFoodLogs(foodLogsTodayFromStore(store)) });
+  }
+
   function invMicroStrip(obj, compact = false) {
     const m = microsFromPayload(obj);
     const pills = [];
@@ -2965,8 +3000,7 @@
   function renderNutritionMicros(store) {
     const el = $("nutrition-micros");
     if (!el) return;
-    const c = (store && store.today_consumed) || {};
-    const line = microsLine(c);
+    const line = microsLineFromStore(store);
     if (!line) {
       el.hidden = true;
       el.innerHTML = "";
@@ -3218,7 +3252,7 @@
         </div>
         ${
           (function () {
-            const line = microsLine(c);
+            const line = microsLineFromStore(store);
             return line
               ? `<p class="muted today-micros-line">${line}</p>`
               : "";
