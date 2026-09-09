@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-09-08T15:50:31.034080+00:00",
+  "as_of": "2026-09-08T19:47:13.097492+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -217,7 +217,7 @@
       "category_name": "\ud83c\udf7d\ufe0f Dining out"
     },
     {
-      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -228,7 +228,7 @@
       "category_name": "\ud83d\ude98 Transportation"
     },
     {
-      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,

@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-09-08T15:50:35.317887+00:00",
+  "as_of": "2026-09-08T19:47:17.984331+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -679,13 +679,13 @@
     },
     "Fleet": {
       "role": "fleet_ops",
-      "item_count": 10,
+      "item_count": 11,
       "totals": {
         "daily": 189.06,
         "weekly": 1323.41,
         "biweekly": 2646.81,
         "monthly": 5681.05,
-        "annually": 29389.57,
+        "annually": 29400.82,
         "quarterly": 6465.96
       },
       "items": [
@@ -815,10 +815,23 @@
           "budget_allocation": null,
           "quarterly": 24.75,
           "tab": "Fleet"
+        },
+        {
+          "date": "9/7/2027",
+          "from": "X Money",
+          "item": "Panamerica Auto Domain",
+          "daily": 0.03,
+          "weekly": 0.22,
+          "biweekly": 0.43,
+          "monthly": 0.94,
+          "annually": 11.25,
+          "budget_allocation": null,
+          "quarterly": 2.81,
+          "tab": "Fleet"
         }
       ],
       "by_source_monthly": {
-        "X Money": 4331.05,
+        "X Money": 4331.99,
         "NFCU (Zelle)": 1350.0
       },
       "top_monthly": [
@@ -899,6 +912,14 @@
           "monthly": 8.25,
           "from": "X Money",
           "date": "2/1/2027",
+          "budget_allocation": null,
+          "tab": "Fleet"
+        },
+        {
+          "item": "Panamerica Auto Domain",
+          "monthly": 0.94,
+          "from": "X Money",
+          "date": "9/7/2027",
           "budget_allocation": null,
           "tab": "Fleet"
         }
@@ -983,6 +1004,14 @@
           "monthly": 8.25,
           "weekly": 1.9,
           "tab": "Fleet"
+        },
+        {
+          "date": "9/7/2027",
+          "item": "Panamerica Auto Domain",
+          "from": "X Money",
+          "monthly": 0.94,
+          "weekly": 0.22,
+          "tab": "Fleet"
         }
       ],
       "label": "Fleet",
@@ -992,21 +1021,21 @@
       "role": "collateral_investments",
       "item_count": 3,
       "totals": {
-        "daily": 22.65,
-        "weekly": 158.58,
-        "biweekly": 317.17,
-        "monthly": 687.2,
-        "annually": 8246.4
+        "daily": 20.15,
+        "weekly": 141.08,
+        "biweekly": 282.17,
+        "monthly": 611.37,
+        "annually": 7336.4
       },
       "items": [
         {
           "item": "JR-strcUSX Allocation",
           "date": "9/11/2026",
-          "daily": 5.0,
-          "weekly": 35.0,
-          "biweekly": 70.0,
-          "monthly": 151.67,
-          "annually": 1820.0,
+          "daily": 2.5,
+          "weekly": 17.5,
+          "biweekly": 35.0,
+          "monthly": 75.83,
+          "annually": 910.0,
           "from": "X Money",
           "to": null,
           "tab": "Collateral"
@@ -1046,18 +1075,18 @@
           "tab": "Collateral"
         },
         {
-          "item": "JR-strcUSX Allocation",
-          "monthly": 151.67,
-          "from": "X Money",
-          "date": "9/11/2026",
-          "budget_allocation": null,
-          "tab": "Collateral"
-        },
-        {
           "item": "Agentic Fund Allocation",
           "monthly": 108.33,
           "from": "X Money",
           "date": "9/14/2026",
+          "budget_allocation": null,
+          "tab": "Collateral"
+        },
+        {
+          "item": "JR-strcUSX Allocation",
+          "monthly": 75.83,
+          "from": "X Money",
+          "date": "9/11/2026",
           "budget_allocation": null,
           "tab": "Collateral"
         }
@@ -1072,18 +1101,18 @@
           "tab": "Collateral"
         },
         {
-          "item": "JR-strcUSX Allocation",
-          "monthly": 151.67,
-          "from": "X Money",
-          "date": "9/11/2026",
-          "budget_allocation": null,
-          "tab": "Collateral"
-        },
-        {
           "item": "Agentic Fund Allocation",
           "monthly": 108.33,
           "from": "X Money",
           "date": "9/14/2026",
+          "budget_allocation": null,
+          "tab": "Collateral"
+        },
+        {
+          "item": "JR-strcUSX Allocation",
+          "monthly": 75.83,
+          "from": "X Money",
+          "date": "9/11/2026",
           "budget_allocation": null,
           "tab": "Collateral"
         }
@@ -2159,7 +2188,7 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 22661.63,
+    "upcoming_expense_monthly": 22662.57,
     "essential_monthly": 16980.58,
     "personal_monthly": 16980.58,
     "personal_daily": 558.36,
@@ -2168,26 +2197,26 @@
     "personal_annually": 43716.92,
     "fleet_monthly": 5681.05,
     "fleet_daily": 189.06,
-    "fleet_annually": 29389.57,
-    "collateral_investments_monthly": 687.2,
-    "collateral_monthly": 687.2,
+    "fleet_annually": 29400.82,
+    "collateral_investments_monthly": 611.37,
+    "collateral_monthly": 611.37,
     "capital_targets_monthly": 3000.0,
     "productive_discretionary_monthly": 3000.0,
     "discretionary_monthly": 3000.0,
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 22661.63,
-    "combined_daily": 747.42,
+    "combined_monthly": 22662.57,
+    "combined_daily": 747.45,
     "by_source_monthly": {
       "Coinbase": 15623.07,
-      "X Money": 5688.56,
+      "X Money": 5689.5,
       "NFCU (Zelle)": 1350.0
     },
     "coinbase_funded_monthly": 15623.07,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5688.56
+    "x_money_funded_monthly": 5689.5
   },
   "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }

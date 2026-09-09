@@ -2285,3 +2285,38 @@
 - SELL BE $None [filled_prior] 6aa01d5b-ac89-4b74-9489-0d3cdee5658d
 - BUY CCJ $5.0 [filled_prior] 6aa02006-e4c1-4b40-970d-10e678abc224
 
+
+## 2026-09-08T16:14:24 — hold
+**Summary:** Rules HOLD: deployed mix in ±5% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.03/$0.03 < min_trade $1.00 (not deployable)
+**Book:** NAV $297.0724 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.4034 · Stocks 0.5966
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** In-band + low cash → skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.
+**Team:**
+- **scout:** observe — NAV $297.07 BP $0.03 cash $0.03
+- **thesis:** ok — deployed BTC 0.4034 stocks 0.5966
+- **risk:** ok — Agentic capital only; no trade if hold
+- **critic:** ok — Hold preferred when bands ok — avoid churn
+- **executor:** hold — No MCP orders on pure rules HOLD
+
+
+
+## 2026-09-08 — symbol targets (Chris CIC via Grok)
+- Pins: BITA 2%, STRC 5%, MARA 3%, NVDA 5% (pct NAV). Sleeve 40/60 unchanged.
+- Not forced rebalance; flatten-only + Monday $25 theme-gap unchanged.
+- SoT: `fund_manager.json` → `targets.symbol_targets` + sleeve `target_pct_nav` stamps; `positions.md` table.
+
+## 2026-09-08 — Bias SoT unify (Chris CIC via Grok)
+
+- Restored `investment/consider_share.json` on treasury worktree as Bias pin SoT.
+- Pins: TSLA 15, SPCX 15, BITA 2, STRC 5, MARA 3, NVDA 5. Sum pins 45; residual rescale via bias_spectrum.
+- `targets.symbol_targets.bias_pin_sot` → consider_share.json (avoid two-source drift).
+- Policy unchanged: not forced rebalance; flatten-only outside Monday $25; Monday theme-gap.
+- Engine wire / PR: cloud agent + Forge eng-gate.
+
+## 2026-09-08 — Bias pins supersede (Chris CIC UPDATE via Grok)
+
+- Pins ONLY: TSLA 15, SPCX 15 on `investment/consider_share.json`.
+- Removed BITA/STRC/MARA/NVDA from consider_share pins and fund_manager symbol_targets pins (empty).
+- Those four float on Bias via role-score residual only.
+- Policy otherwise unchanged. Cloud agent bc-59f5ed97 steered to match.
