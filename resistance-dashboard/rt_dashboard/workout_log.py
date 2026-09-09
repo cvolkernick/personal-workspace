@@ -86,6 +86,49 @@ def merge_log_with_history(
     return merge_same_day_session(incoming, existing)
 
 
+def _civil_day(value: Any) -> str:
+    day = str(value or "").strip()[:10]
+    datetime.strptime(day, "%Y-%m-%d")
+    return day
+
+
+def plan_session_date_move(
+    history: Sequence[Session],
+    *,
+    session_type: str,
+    from_date: str,
+    to_date: str,
+) -> Session:
+    """Move a logged session's civil date. Sets/loads are unchanged.
+
+    Explicit edit — does not remap through training-day SoT. Same-letter
+    already on the target day is a conflict, not a merge.
+    """
+    st = str(session_type or "").lower().strip()
+    if st not in ("push", "pull", "legs"):
+        raise ValueError("session_type must be push, pull, or legs")
+    try:
+        src_day = _civil_day(from_date)
+        dest_day = _civil_day(to_date)
+    except ValueError as exc:
+        raise ValueError("date must be YYYY-MM-DD") from exc
+    src = find_same_day_session(history, src_day, st)
+    if src is None:
+        raise ValueError("session not found")
+    if src_day != dest_day:
+        dest = find_same_day_session(history, dest_day, st)
+        if dest is not None:
+            raise ValueError("target date already has that session")
+    return Session(
+        date=dest_day,
+        session_type=st,
+        exercises=list(src.exercises or []),
+        notes=src.notes or "",
+        source_file=src.source_file or "",
+        closed_at=src.closed_at,
+    )
+
+
 def parse_log_body(data: dict, *, now=None) -> Session:
     payload: Dict[str, Any] = data if isinstance(data, dict) else {}
     st = str(payload.get("session_type", "")).lower().strip()

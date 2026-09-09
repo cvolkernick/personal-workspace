@@ -19,6 +19,7 @@ _ROUTES = (
     "goals",
     "available",
     "exercise",
+    "workouts_date",
     "workouts",
     "generate",
     "inv_add",
@@ -84,6 +85,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "exercise"
     if "/workout-plan/generate" in blob:
         return "generate"
+    if "/api/workouts/date" in blob:
+        return "workouts_date"
     if "/api/workouts" in blob:
         return "workouts"
     if "/api/inventory/update" in blob:
@@ -371,6 +374,78 @@ def workouts_write(headers, payload=None):
         "sessions_head": head,
         "auto_prs": pr_names,
         "session": session.to_dict(),
+        "error": "; ".join(errors) if errors else None,
+    }
+
+
+def workouts_date_write(headers, payload=None):
+    """POST /api/workouts/date — move civil date of an existing log in place."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "default")
+    try:
+        from api.dashboard import _load_sessions
+        from rt_dashboard.turso_repo import relocate_session
+        from rt_dashboard.workout_log import plan_session_date_move
+        from rt_dashboard.workout_planner import next_session_type, ppl_logged_on_day
+        from rt_dashboard.workout_store import load_workspace_goals
+
+        history, _hist_err, _hist_src = _load_sessions(uid)
+        from_date = str(payload.get("from_date") or payload.get("date") or "")
+        to_date = str(payload.get("to_date") or payload.get("new_date") or "")
+        session_type = str(payload.get("session_type") or "")
+        moved = plan_session_date_move(
+            history,
+            session_type=session_type,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        result = relocate_session(uid, moved, from_date)
+        sessions, errors, source = _load_sessions(uid)
+        goals, _ = load_workspace_goals()
+    except ValueError as exc:
+        msg = str(exc)
+        if msg == "session not found":
+            return 404, {"ok": False, "error": msg}
+        if msg == "target date already has that session":
+            return 409, {"ok": False, "error": msg}
+        return 400, {"ok": False, "error": msg}
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc) or type(exc).__name__
+        if "turso env missing" in msg:
+            return 503, {
+                "ok": False,
+                "error": "turso_env_missing",
+                "message": (
+                    "Workout date edit needs TURSO_DATABASE_URL and TURSO_AUTH_TOKEN."
+                ),
+            }
+        return 500, {
+            "ok": False,
+            "error": msg,
+            "write": {"ok": False, "source": "turso"},
+        }
+    head = []
+    for s in (sessions or [])[:5]:
+        if hasattr(s, "to_dict"):
+            head.append(s.to_dict())
+        elif isinstance(s, dict):
+            head.append(s)
+    old_day = str(payload.get("from_date") or "")[:10]
+    return 200, {
+        "ok": True,
+        "write": result,
+        "source": source,
+        "session_count": len(sessions or []),
+        "sessions_head": head,
+        "session": moved.to_dict(),
+        "from_date": old_day,
+        "to_date": moved.date,
+        "old_day_logged": ppl_logged_on_day(sessions or [], old_day),
+        "new_day_logged": ppl_logged_on_day(sessions or [], moved.date),
+        "next_session_type": next_session_type(sessions or [], goals),
         "error": "; ".join(errors) if errors else None,
     }
 
@@ -1006,6 +1081,10 @@ def dispatch_client_route(
             if method == "POST"
             else workouts_body(headers)
         )
+    if route == "workouts_date":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return workouts_date_write(headers, payload)
     if route == "generate":
         return generate_body(headers, payload)
     if route == "agent_generate":
@@ -1072,6 +1151,7 @@ __all__ = [
     "read_json",
     "require_user",
     "workouts_body",
+    "workouts_date_write",
     "workouts_read",
     "workouts_write",
     "write_json",

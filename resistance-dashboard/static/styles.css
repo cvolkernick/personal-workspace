@@ -938,6 +938,25 @@ textarea {
   font-weight: 600;
 }
 
+.session-list .hist-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+}
+
+.session-list .hist-date-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.session-list .hist-date {
+  font-weight: 500;
+}
+
 .session-list .ex {
   font-size: 0.9rem;
   color: var(--text);

@@ -1810,13 +1810,62 @@
       const exHtml = rows.length
         ? rows.map((r) => `<div class="ex-row">${r}</div>`).join("")
         : "No parsed sets";
+      const day = String(s.date || "").slice(0, 10);
+      const st = String(s.session_type || "").toLowerCase();
       li.innerHTML = `
-        <div class="title">${s.session_type.toUpperCase()} · ${s.date}</div>
+        <div class="title hist-head">
+          <span>${st.toUpperCase()}</span>
+          <label class="hist-date-label">Date
+            <input type="date" class="hist-date" value="${day}" data-from="${day}" data-type="${st}" required />
+          </label>
+          <button type="button" class="hist-date-save btn-touch">Save date</button>
+        </div>
         <div class="meta">Volume ${fmtNum(s.volume)} lb · ${exercises.length} exercises</div>
         <div class="ex">${exHtml}</div>
       `;
       list.appendChild(li);
     });
+  }
+
+  async function submitHistoryDate(ev) {
+    const btn = ev.target && ev.target.closest && ev.target.closest(".hist-date-save");
+    if (!btn) return;
+    const row = btn.closest("li");
+    const input = row && row.querySelector(".hist-date");
+    if (!input) return;
+    const fromDate = input.getAttribute("data-from") || "";
+    const toDate = input.value || "";
+    const sessionType = input.getAttribute("data-type") || "";
+    if (!fromDate || !toDate || !sessionType) return;
+    if (fromDate === toDate) {
+      showAlert("Already on that date.", "ok");
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/workouts/date", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_type: sessionType,
+          from_date: fromDate,
+          to_date: toDate,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || data.error || `HTTP ${res.status}`);
+      }
+      showAlert(
+        `Moved ${sessionType.toUpperCase()} ${fromDate} → ${toDate}. Sets unchanged.`,
+        "ok"
+      );
+      await loadDashboard(false);
+    } catch (e) {
+      showAlert(`Date edit failed: ${e.message}`, "err");
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function ingredientStock(ing) {
@@ -6747,6 +6796,7 @@
     registerServiceWorker();
     if ($("btn-add-ex")) $("btn-add-ex").addEventListener("click", () => addExerciseRow());
     if ($("log-form")) $("log-form").addEventListener("submit", submitWorkout);
+    if ($("session-list")) $("session-list").addEventListener("click", submitHistoryDate);
     if ($("btn-refresh")) $("btn-refresh").addEventListener("click", () => loadDashboard(true));
     if ($("btn-google-auth")) {
       $("btn-google-auth").addEventListener("click", () => refreshGoogleAuth());

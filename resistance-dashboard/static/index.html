@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=library-add-1" defer></script>
+    <script src="/app.js?v=edit-log-date-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -831,6 +831,10 @@
       <!-- Bottom of Log tab: session list after the log form -->
       <section class="card" style="margin-top: 1rem" id="history-card" data-m-panel="log">
         <h2>Workout history</h2>
+        <p class="muted desktop-help" style="margin: 0 0 0.5rem; font-size: 0.85rem">
+          Change the civil date of a logged session in place. Sets and loads stay
+          the same. Moving a session off a day clears that day if nothing else remains.
+        </p>
         <ul class="session-list" id="session-list"></ul>
       </section>
 

@@ -200,9 +200,36 @@ class WorkoutRepository:
             ).fetchall()
         return [_row_to_session(r, self.user_id) for r in rows]
 
+    def delete_session(self, date: str, session_type: str) -> bool:
+        """Delete one (date, session_type) row. True when a row was removed."""
+        day = str(date or "")[:10]
+        st = str(session_type or "").lower().strip()
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                DELETE FROM workout_sessions
+                WHERE user_id = ? AND date = ? AND session_type = ?
+                """,
+                (self.user_id, day, st),
+            )
+            conn.commit()
+            return int(cur.rowcount or 0) > 0
+
+    def relocate_session(self, session: Session, from_date: str) -> Dict[str, Any]:
+        """Write ``session`` at its date; delete ``from_date`` if different.
+
+        Keeps ``closed_at`` (created_at) so wake membership does not jump.
+        """
+        src_day = str(from_date or "")[:10]
+        result = self.upsert_session(session)
+        if src_day and src_day != str(session.date)[:10]:
+            self.delete_session(src_day, session.session_type)
+        return result
+
     def upsert_session(self, session: Session) -> Dict[str, Any]:
         """Insert or replace by (user_id, date, session_type)."""
         now = _utc_now()
+        created = (session.closed_at or "").strip() or now
         payload = _seal_exercises(self.user_id, session.exercises)
         with self._connect() as conn:
             conn.execute(
@@ -224,7 +251,7 @@ class WorkoutRepository:
                     session.notes or "",
                     session.source_file or "",
                     payload,
-                    now,
+                    created,
                     now,
                 ),
             )
