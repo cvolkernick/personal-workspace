@@ -472,6 +472,30 @@ def pace_vs_expected(
     }
 
 
+def civil_day_macros(today_consumed: Optional[dict] = None) -> Dict[str, float]:
+    """Calendar-day intake totals (midnight–midnight). Missing keys are 0, not invented."""
+    civil = today_consumed or {}
+    out: Dict[str, float] = {}
+    for key in ("calories", "protein_g", "carbs_g", "fat_g"):
+        try:
+            out[key] = round(float(civil.get(key) or 0), 1)
+        except (TypeError, ValueError):
+            out[key] = 0.0
+    return out
+
+
+def pace_clock_copy(window_source: Optional[str] = None) -> str:
+    """Athlete-facing label for which clock pace / on-pace / ahead / behind uses."""
+    src = str(window_source or "").strip()
+    if src == "civil_day_after_empty":
+        return "pace clock = calendar day (after bedtime)"
+    if src in ("civil_day_fallback", "civil_day_before_wake"):
+        return "pace clock = calendar day (no wake yet)"
+    if src:
+        return "pace clock = wake window"
+    return ""
+
+
 def calorie_in_out_delta(
     *,
     intake: float,
@@ -569,7 +593,8 @@ def build_calorie_bars_payload(
         now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
 
     civil = today_consumed or {}
-    civil_consumed = float(civil.get("calories") or 0)
+    civil_macros = civil_day_macros(civil)
+    civil_consumed = civil_macros["calories"]
     targets = targets or {}
     target = float(targets.get("calories") or 0)
     bat = sleep_battery or {}
@@ -615,7 +640,9 @@ def build_calorie_bars_payload(
     pacing["window"] = window
     pacing["intake_source"] = pacing_source
     pacing["window_intake"] = win_intake
-    pacing["civil_day_consumed"] = round(civil_consumed, 1)
+    pacing["civil_day_consumed"] = civil_macros["calories"]
+    pacing["civil_day"] = civil_macros
+    pacing["pace_clock"] = pace_clock_copy(window.get("source"))
 
     # Severity band for the main calorie pacing fill (same ladder as macros)
     cal_pace = pace_vs_expected(
@@ -650,6 +677,14 @@ def build_calorie_bars_payload(
         ),
         "window_fraction": round(frac, 4),
         "intake_source": pacing_source,
+        "window_macros": {
+            "calories": round(macro_intake["calories"], 1),
+            "protein_g": round(macro_intake["protein_g"], 1),
+            "carbs_g": round(macro_intake["carbs_g"], 1),
+            "fat_g": round(macro_intake["fat_g"], 1),
+        },
+        "civil_day": civil_macros,
+        "pace_clock": pace_clock_copy(window.get("source")),
     }
 
     delta = calorie_in_out_delta(
