@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 from unittest import mock
 
 from treasury.fund_manager import (  # noqa: E402
+    _is_rh_brokerage_stale_msg,
     analyze_agentic_book,
     append_decision,
     load_decision_log,
@@ -285,6 +286,29 @@ class TestNotifyIfNeeded(unittest.TestCase):
         self.assertFalse(out.get("notified"))
         self.assertIn("hold", (out.get("reason") or "").lower())
 
+    def test_rh_checking_stale_does_not_page(self):
+        from treasury import fund_manager as fm
+
+        leftover = {
+            "data_quality": {
+                "stale": [
+                    "one_card data 17.8h old (>6.0h)",
+                    "rh_checking data 17.8h old (>6.0h)",
+                    "x_money data 17.8h old (>6.0h)",
+                ],
+                "warnings": [],
+            }
+        }
+        self.assertFalse(_is_rh_brokerage_stale_msg("rh_checking data 17.8h old (>6.0h)"))
+        self.assertTrue(_is_rh_brokerage_stale_msg("robinhood snapshot is old"))
+        with mock.patch("urllib.request.urlopen") as urlopen:
+            out = notify_if_needed(
+                decision_or_review={"kind": "hold", "outcome": "hold"},
+                treasury_eval=leftover,
+            )
+        self.assertFalse(out.get("notified"), out)
+        self.assertEqual(urlopen.call_count, 0)
+
     def test_stale_rh_cooldown(self):
         import tempfile
         from datetime import datetime, timezone
@@ -299,8 +323,11 @@ class TestNotifyIfNeeded(unittest.TestCase):
             }
         }
         with tempfile.TemporaryDirectory() as td:
-            state = Path(td) / "ntfy_stale_rh_state.json"
+            snap = Path(td)
+            state = snap / "ntfy_stale_rh_state.json"
             with mock.patch.object(fm, "NTFY_STALE_RH_STATE", state), mock.patch.object(
+                fm, "SNAPSHOTS_DIR", snap
+            ), mock.patch.object(
                 fm, "load_config", return_value={"notifications": {"enabled": True, "stale_rh_cooldown_hours": 6}}
             ), mock.patch("urllib.request.urlopen") as urlopen:
                 resp = mock.MagicMock()
@@ -333,6 +360,76 @@ class TestNotifyIfNeeded(unittest.TestCase):
                 )
                 self.assertTrue(third.get("notified"), third)
                 self.assertEqual(urlopen.call_count, 2)
+
+    def test_leftover_robinhood_age_quiet_when_sot_fresh(self):
+        import tempfile
+        from datetime import datetime, timedelta, timezone
+        from pathlib import Path
+
+        from treasury import fund_manager as fm
+
+        leftover = {
+            "data_quality": {
+                "stale": ["robinhood data 17.8h old (>6.0h)"],
+                "warnings": [],
+            }
+        }
+        with tempfile.TemporaryDirectory() as td:
+            snap = Path(td)
+            as_of = datetime.now(timezone.utc) - timedelta(hours=1)
+            (snap / "robinhood_latest.json").write_text(
+                json.dumps({"as_of": as_of.isoformat(), "source": "live"}),
+                encoding="utf-8",
+            )
+            with mock.patch.object(fm, "SNAPSHOTS_DIR", snap), mock.patch.object(
+                fm, "NTFY_STALE_RH_STATE", snap / "ntfy_stale_rh_state.json"
+            ), mock.patch.object(
+                fm, "load_config", return_value={"notifications": {"enabled": True}}
+            ), mock.patch("urllib.request.urlopen") as urlopen:
+                out = notify_if_needed(
+                    decision_or_review={"kind": "hold", "outcome": "hold"},
+                    treasury_eval=leftover,
+                )
+        self.assertFalse(out.get("notified"), out)
+        self.assertIn("fresh", (out.get("reason") or "").lower())
+        self.assertEqual(urlopen.call_count, 0)
+
+    def test_skipped_producer_status_does_not_page(self):
+        import tempfile
+        from pathlib import Path
+
+        from treasury import fund_manager as fm
+
+        stale_eval = {
+            "data_quality": {
+                "stale": ["robinhood snapshot is old"],
+                "warnings": [],
+            }
+        }
+        with tempfile.TemporaryDirectory() as td:
+            snap = Path(td)
+            (snap / "rh_producer_status.json").write_text(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": "no_refresh_path",
+                        "error_class": "skipped",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(fm, "SNAPSHOTS_DIR", snap), mock.patch.object(
+                fm, "NTFY_STALE_RH_STATE", snap / "ntfy_stale_rh_state.json"
+            ), mock.patch.object(
+                fm, "load_config", return_value={"notifications": {"enabled": True}}
+            ), mock.patch("urllib.request.urlopen") as urlopen:
+                out = notify_if_needed(
+                    decision_or_review={"kind": "hold", "outcome": "hold"},
+                    treasury_eval=stale_eval,
+                )
+        self.assertFalse(out.get("notified"), out)
+        self.assertIn("skipped", (out.get("reason") or "").lower())
+        self.assertEqual(urlopen.call_count, 0)
 
 
 class TestAnalyze(unittest.TestCase):

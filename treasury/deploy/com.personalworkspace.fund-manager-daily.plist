@@ -2,11 +2,20 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Daily mid-session fund-manager review (Mon–Fri ~12:30 America/New_York).
+
+  #555 leftover Mac RH freshness/ntfy:
+  This agent still calls rh_refresh.sh + fund_manager --notify. After #518,
+  RH SoT is prism — Mac rh-refresh stays UNLOADED. Do NOT reload it.
+  ntfy is gated in nest (skipped / no_refresh_path / rh_checking / fresh as_of).
+  If this Mac unit is only paging false RH / rh_checking ~17.8h stale, boot it
+  out; keep it only for real fund-manager need_llm / deploy review.
+
   Install:
     cp treasury/deploy/com.personalworkspace.fund-manager-daily.plist ~/Library/LaunchAgents/
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.fund-manager-daily.plist
-  Unload:
+  Unload (leftover RH freshness ntfy — do not reload com.personalworkspace.rh-refresh):
     launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-daily
+    rm -f ~/Library/LaunchAgents/com.personalworkspace.fund-manager-daily.plist
 -->
 <plist version="1.0">
 <dict>

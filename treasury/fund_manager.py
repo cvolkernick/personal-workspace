@@ -829,6 +829,50 @@ def _mark_stale_rh_notified(*, at: Optional[str] = None) -> None:
     save_json(NTFY_STALE_RH_STATE, {"last_notified_at": at or _now()})
 
 
+def _is_rh_brokerage_stale_msg(msg: str) -> bool:
+    """True for RH *brokerage* staleness — not YNAB rh_checking (#555)."""
+    t = str(msg).lower()
+    if "rh_checking" in t:
+        return False
+    if "robinhood" in t:
+        return True
+    if "rh feed" in t or "stale rh" in t or t.startswith("rh ") or " rh " in t:
+        return True
+    return False
+
+
+def _robinhood_sot_fresh(max_age_hours: float = 6.0) -> bool:
+    """True when on-disk robinhood_latest.json as_of is inside the window."""
+    data = load_json(SNAPSHOTS_DIR / "robinhood_latest.json") or {}
+    raw = data.get("as_of") if isinstance(data, dict) else None
+    if not raw and isinstance(data, dict) and isinstance(data.get("primary"), dict):
+        raw = data["primary"].get("as_of")
+    if not raw:
+        return False
+    try:
+        t = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return False
+    age_h = (datetime.now(timezone.utc) - t).total_seconds() / 3600.0
+    return 0.0 <= age_h < float(max_age_hours)
+
+
+def _quiet_rh_producer_status() -> Optional[str]:
+    """Return a quiet reason when producer status is skipped / no_refresh_path."""
+    prod = load_json(SNAPSHOTS_DIR / "rh_producer_status.json") or {}
+    if not isinstance(prod, dict):
+        return None
+    err = str(prod.get("error") or "")
+    err_class = str(prod.get("error_class") or "")
+    if err_class == "skipped" or "no_refresh_path" in err or "local_mcp_skipped" in err:
+        return "quiet skipped/no_refresh_path"
+    if err_class == "timeout" and _robinhood_sot_fresh():
+        return "quiet timeout; robinhood SoT as_of fresh"
+    return None
+
+
 def notify_if_needed(
     *,
     decision_or_review: Dict[str, Any],
@@ -862,15 +906,16 @@ def notify_if_needed(
     need_llm = rules.get("need_llm")
     summary = rules.get("summary") or decision_or_review.get("summary") or ""
 
-    # Stale RH from treasury eval
+    # Stale RH *brokerage* from treasury eval. Do not match YNAB rh_checking
+    # via a bare "rh" substring — that leftover page reported false ~17.8h (#555).
     stale_msgs: List[str] = []
     if treasury_eval:
         dq = (treasury_eval.get("data_quality") or {}) if isinstance(treasury_eval, dict) else {}
         for s in dq.get("stale") or []:
-            if "robinhood" in str(s).lower() or "rh" in str(s).lower():
+            if _is_rh_brokerage_stale_msg(str(s)):
                 stale_msgs.append(str(s))
         for w in dq.get("warnings") or []:
-            if "robinhood" in str(w).lower() and "old" in str(w).lower():
+            if _is_rh_brokerage_stale_msg(str(w)) and "old" in str(w).lower():
                 stale_msgs.append(str(w))
 
     should = False
@@ -910,6 +955,26 @@ def notify_if_needed(
             # Annotate body; keep primary title (actionable > stale)
             body_parts.extend(stale_msgs[:3])
         else:
+            quiet = _quiet_rh_producer_status()
+            if quiet and not force:
+                return {
+                    "ok": True,
+                    "notified": False,
+                    "reason": quiet,
+                    "stale": stale_msgs[:3],
+                }
+            # Leftover Mac freshness scores "robinhood data Nh old" against a
+            # frozen treasury_latest while prism SoT as_of is still <6h.
+            leftover_age = all(
+                " data " in s.lower() and "old" in s.lower() for s in stale_msgs
+            )
+            if leftover_age and _robinhood_sot_fresh() and not force:
+                return {
+                    "ok": True,
+                    "notified": False,
+                    "reason": "robinhood SoT as_of fresh",
+                    "stale": stale_msgs[:3],
+                }
             cooldown_h = _f(
                 ncfg.get("stale_rh_cooldown_hours"), DEFAULT_STALE_RH_COOLDOWN_HOURS
             )

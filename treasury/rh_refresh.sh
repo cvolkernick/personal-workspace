@@ -38,8 +38,11 @@ if python3 -m treasury.rh_snapshot_sync --print; then
 fi
 
 echo "WARN: rh_snapshot_sync failed — leaving existing snapshot (no invent)"
-# Re-evaluate offline + NTFY (title includes producer host + error class)
-python3 -m treasury.fund_manager --write --notify 2>/dev/null || true
+# Re-evaluate offline. Producer ntfy already ran inside sync (gated #555:
+# skipped / no_refresh_path / timeout-with-fresh-as_of do not page).
+# Do not --notify here — leftover Mac fund-manager scoring rh_checking as
+# "stale RH" was a false page after the #518 cutover.
+python3 -m treasury.fund_manager --write 2>/dev/null || true
 python3 -m treasury.run_treasury --offline 2>/dev/null || true
 ln -sfn "$LOG" "${LOG_DIR}/rh_refresh_latest.log" 2>/dev/null || cp "$LOG" "${LOG_DIR}/rh_refresh_latest.log"
 echo "=== rh_refresh done (failed) ==="

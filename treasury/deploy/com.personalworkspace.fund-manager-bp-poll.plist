@@ -4,14 +4,22 @@
   Poll agentic BP/cash every 15 minutes during market hours (script self-gates).
   When cash>0 or BP>0, runs full fund-manager team deploy.
 
+  #555 leftover Mac RH freshness/ntfy:
+  This agent still calls rh_refresh.sh + fund_manager --notify. After #518,
+  RH SoT is prism — Mac rh-refresh stays UNLOADED. Do NOT reload it.
+  ntfy is gated in nest (skipped / no_refresh_path / rh_checking / fresh as_of).
+  If this Mac unit is only paging false RH / rh_checking stale, boot it out.
+
   Install:
     cp treasury/deploy/com.personalworkspace.fund-manager-bp-poll.plist ~/Library/LaunchAgents/
     # Edit WorkingDirectory + script path if your clone path differs
     launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist 2>/dev/null || true
     launchctl load ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
 
-  Unload:
-    launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
+  Unload leftover RH freshness ntfy (do not reload com.personalworkspace.rh-refresh):
+    launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-bp-poll 2>/dev/null \
+      || launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
+    rm -f ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
 -->
 <plist version="1.0">
 <dict>

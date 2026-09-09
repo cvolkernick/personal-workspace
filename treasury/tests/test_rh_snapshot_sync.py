@@ -247,7 +247,121 @@ class RhProducerRoleTests(unittest.TestCase):
         self.assertEqual(rss.classify_rh_error("grok_not_found"), "grok")
         self.assertEqual(rss.classify_rh_error("pi_unreachable:x"), "unreachable")
         self.assertEqual(rss.classify_rh_error("remote_stale:50.1h>6h"), "stale")
+        self.assertEqual(rss.classify_rh_error("no_refresh_path"), "skipped")
+        self.assertEqual(rss.classify_rh_error("local_mcp_skipped"), "skipped")
         self.assertEqual(rss.classify_rh_error(""), "unknown")
+
+    def test_gateway_host_is_not_auto_producer(self) -> None:
+        cleared = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("TREASURY_RH_ROLE", "TREASURY_RH_PRODUCER", "TREASURY_RH_BACKUP")
+        }
+        with mock.patch.dict(os.environ, cleared, clear=True), mock.patch.object(
+            rss, "_this_host", return_value="prism-gateway"
+        ), mock.patch.object(rss, "_sot_host", return_value="prism"):
+            self.assertEqual(rss._rh_role(), "consumer")
+
+    def test_notify_skips_no_refresh_path(self) -> None:
+        status = {
+            "ok": False,
+            "role": "producer",
+            "this_host": "prism-gateway",
+            "producer_host": "prism",
+            "error": "no_refresh_path",
+            "error_class": "skipped",
+        }
+        with mock.patch.object(rss, "existing_rh_snapshot_fresh", return_value=(True, 1.2, "x")):
+            gate = rss.rh_failure_should_page(status)
+            out = rss.notify_rh_producer_failure(status)
+        self.assertFalse(gate["page"])
+        self.assertEqual(gate["reason"], "skipped_or_no_refresh_path")
+        self.assertFalse(out.get("notified"))
+        self.assertEqual(out.get("reason"), "skipped_or_no_refresh_path")
+
+    def test_notify_skips_local_mcp_timeout_when_as_of_fresh(self) -> None:
+        as_of = datetime.now(timezone.utc) - timedelta(hours=1)
+        status = {
+            "ok": False,
+            "role": "producer",
+            "this_host": "prism",
+            "producer_host": "prism",
+            "error": "local_mcp_timeout:240s",
+            "error_class": "timeout",
+            "as_of": as_of.isoformat(),
+            "age_hours": 1.0,
+            "local_mcp": {"error": "local_mcp_timeout:240s", "error_class": "timeout"},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            snap = Path(td)
+            dest = snap / rss.RH_SNAP
+            dest.write_text(
+                json.dumps(
+                    {
+                        "as_of": as_of.isoformat(),
+                        "source": "live",
+                        "primary": {"buying_power": 1.0},
+                        "agentic": {"nav_usd": 100},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(rss, "SNAPSHOTS_DIR", snap):
+                gate = rss.rh_failure_should_page(status)
+                out = rss.notify_rh_producer_failure(status)
+        self.assertFalse(gate["page"])
+        self.assertEqual(gate["reason"], "timeout_as_of_fresh")
+        self.assertFalse(out.get("notified"))
+
+    def test_notify_skips_timeout_when_rh_mcp_disabled(self) -> None:
+        status = {
+            "ok": False,
+            "role": "producer",
+            "this_host": "prism-gateway",
+            "producer_host": "prism",
+            "error": "local_mcp_timeout:240s",
+            "error_class": "timeout",
+            "rh_mcp_enabled": False,
+            "local_mcp": None,
+        }
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(rss, "SNAPSHOTS_DIR", Path(td)):
+                gate = rss.rh_failure_should_page(status)
+        self.assertFalse(gate["page"])
+        self.assertEqual(gate["reason"], "timeout_non_producer_mcp")
+
+    def test_notify_pages_producer_timeout_when_as_of_stale(self) -> None:
+        as_of = datetime.now(timezone.utc) - timedelta(hours=17.8)
+        status = {
+            "ok": False,
+            "role": "producer",
+            "this_host": "prism",
+            "producer_host": "prism",
+            "error": "local_mcp_timeout:240s",
+            "error_class": "timeout",
+            "as_of": as_of.isoformat(),
+            "local_mcp": {"error": "local_mcp_timeout:240s"},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            snap = Path(td)
+            dest = snap / rss.RH_SNAP
+            dest.write_text(
+                json.dumps(
+                    {
+                        "as_of": as_of.isoformat(),
+                        "source": "live",
+                        "primary": {"buying_power": 1.0},
+                        "agentic": {"nav_usd": 100},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(rss, "SNAPSHOTS_DIR", snap), mock.patch.object(
+                rss, "notify_rh_producer_failure", wraps=rss.notify_rh_producer_failure
+            ):
+                gate = rss.rh_failure_should_page(status)
+        self.assertTrue(gate["page"])
+        self.assertEqual(gate["reason"], "producer_failure")
 
     def test_strip_rh_push_default_no_dual_write(self) -> None:
         files = ["robinhood_latest.json", "coinbase_latest.json"]
@@ -307,6 +421,27 @@ class RhProducerRoleTests(unittest.TestCase):
         self.assertEqual(out["source"], "local_mcp")
         pull.assert_not_called()
         push.assert_not_called()
+
+    def test_sync_no_refresh_path_does_not_page(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"TREASURY_RH_ROLE": "producer", "TREASURY_SKIP_LOCAL_MCP": "1"},
+        ), mock.patch.object(rss, "write_producer_status"), mock.patch.object(
+            rss, "notify_rh_producer_failure", wraps=rss.notify_rh_producer_failure
+        ) as notify:
+            out = rss.sync_rh_snapshot(
+                prefer_pi=True,
+                allow_local_mcp=True,
+                reevaluate=False,
+                push_to_pi=False,
+                notify=True,
+            )
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error"], "no_refresh_path")
+        self.assertEqual(out["error_class"], "skipped")
+        self.assertFalse((out.get("notify") or {}).get("notified"))
+        self.assertEqual((out.get("notify") or {}).get("reason"), "skipped_or_no_refresh_path")
+        notify.assert_called_once()
 
     def test_consumer_does_not_run_mcp_when_pi_ok(self) -> None:
         pi_ok = {
