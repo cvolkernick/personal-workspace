@@ -1,5 +1,5 @@
 [Unit]
-Description=Pull personal-workspace master and restart dashboard units if changed
+Description=Pull personal-workspace work/treasury (FCC SoT pin) and restart dashboard units if changed
 After=network-online.target
 Wants=network-online.target
 
@@ -7,5 +7,5 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=%h/personal-workspace
 Environment=WORKSPACE_DIR=%h/personal-workspace
-Environment=SYNC_BRANCH=master
+Environment=SYNC_BRANCH=work/treasury
 ExecStart=/bin/bash %h/personal-workspace/deploy/workspace_sync.sh
