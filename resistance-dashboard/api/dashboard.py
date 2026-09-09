@@ -84,10 +84,13 @@ def _civil_day(value) -> str:
 
 
 def _today_consumed(health, today: str) -> dict:
-    """Logged kcal/P/C/F for local today. Targets/inventory may be unset."""
+    """Logged kcal/P/C/F for local today. Day micros from rollup + meal logs."""
     today = _civil_day(today)
     if not today:
         return {}
+    from rt_dashboard.nutrition_micros import merge_day_micros
+    from rt_dashboard.nutrition_planner import today_consumed_from_nutrition
+
     logs = [
         f
         for f in (health.food_logs or [])
@@ -114,18 +117,35 @@ def _today_consumed(health, today: str) -> dict:
             out["carbs_g"] = sum(float(getattr(f, "carbs_g", 0) or 0) for f in logs)
             out["fat_g"] = sum(float(getattr(f, "fat_g", 0) or 0) for f in logs)
             out["source"] = "food_logs"
-        return out
-    if not logs:
+    elif logs:
+        out = {
+            "date": today,
+            "calories": sum(float(getattr(f, "calories", 0) or 0) for f in logs),
+            "protein_g": sum(float(getattr(f, "protein_g", 0) or 0) for f in logs),
+            "carbs_g": sum(float(getattr(f, "carbs_g", 0) or 0) for f in logs),
+            "fat_g": sum(float(getattr(f, "fat_g", 0) or 0) for f in logs),
+            "source": "food_logs",
+            "food_log_count": len(logs),
+        }
+    else:
         return {}
-    return {
-        "date": today,
-        "calories": sum(float(getattr(f, "calories", 0) or 0) for f in logs),
-        "protein_g": sum(float(getattr(f, "protein_g", 0) or 0) for f in logs),
-        "carbs_g": sum(float(getattr(f, "carbs_g", 0) or 0) for f in logs),
-        "fat_g": sum(float(getattr(f, "fat_g", 0) or 0) for f in logs),
-        "source": "food_logs",
-        "food_log_count": len(logs),
-    }
+
+    # Same day-micros merge as Pi today_consumed_from_nutrition. Never invent.
+    # Civil-day logs are a fallback if exact-date merge misses a row.
+    merged = today_consumed_from_nutrition(
+        health.nutrition or [],
+        as_of=today,
+        food_logs=health.food_logs or [],
+    )
+    day_nutrients = dict((day or {}).get("nutrients") or {})
+    log_maps = [getattr(f, "nutrients", None) or {} for f in logs]
+    micros = merged.get("micros") or merge_day_micros(day_nutrients, log_maps)
+    nutrients = merged.get("nutrients") or (day_nutrients or None)
+    if nutrients:
+        out["nutrients"] = dict(nutrients)
+    if micros:
+        out["micros"] = micros
+    return out
 
 
 def preview_meal_plan(
@@ -322,11 +342,9 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     recovery_dict["sparse"] = not had_real_sleep
 
     consumed = _today_consumed(health, today)
-    today_logs = [
-        f.to_dict()
-        for f in (health.food_logs or [])
-        if _civil_day(getattr(f, "date", "")) == today
-    ]
+    from rt_dashboard.nutrition_planner import food_logs_for_day
+
+    today_logs = food_logs_for_day(health.food_logs or [], as_of=today)
     burned_today = None
     for b in health.calories_burned or []:
         if str(getattr(b, "date", "") or "")[:10] == today:
