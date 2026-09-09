@@ -92,6 +92,50 @@ def wake_covers_as_of(
     return delta is not None and delta <= 1
 
 
+def wake_is_current(
+    last_wake_at: Any,
+    as_of: Optional[str] = None,
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> bool:
+    """True when last_wake is known, not in the future, and covers as_of."""
+    from .timeutil import local_now
+
+    wake = parse_dt(last_wake_at)
+    if wake is None:
+        return False
+    clock = local_now(tz_name, now=now)
+    if wake.astimezone(clock.tzinfo) > clock:
+        return False
+    return wake_covers_as_of(
+        last_wake_at, as_of, now=clock, tz_name=tz_name
+    )
+
+
+def day_complete_for_planning(
+    train_parent_completed: bool,
+    *,
+    ppl_logged_today: Optional[str] = None,
+    last_wake_at: Any = None,
+    as_of: Optional[str] = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> bool:
+    """``already_trained_today`` SoT for planner + stamp.
+
+    Civil fallback (no current wake): Training parent complete is enough.
+    When last_wake is current: parent complete alone must not pin — a PPL
+    session has to have closed in that wake. After-midnight quest complete
+    that still sits on the civil GT parent must not block the next letter.
+    """
+    if not train_parent_completed:
+        return False
+    if wake_is_current(last_wake_at, as_of, now=now, tz_name=tz_name):
+        return bool(ppl_logged_today)
+    return True
+
+
 def training_day_iso(
     *,
     now: Optional[datetime] = None,
@@ -245,17 +289,10 @@ def ppl_logged_for_planning(
     tz_name: Optional[str] = None,
 ) -> Optional[str]:
     """Planning pin: wake window when last_wake is known, else civil ``as_of``."""
-    wake = parse_dt(last_wake_at)
     from .timeutil import local_now
 
     clock = local_now(tz_name, now=now)
-    if (
-        wake is not None
-        and wake.astimezone(clock.tzinfo) <= clock
-        and wake_covers_as_of(
-            last_wake_at, as_of, now=clock, tz_name=tz_name
-        )
-    ):
+    if wake_is_current(last_wake_at, as_of, now=clock, tz_name=tz_name):
         return ppl_logged_in_wake(
             sessions, last_wake_at=last_wake_at, now=clock, tz_name=tz_name
         )

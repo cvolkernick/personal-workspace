@@ -230,6 +230,28 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertFalse(plan.get("already_trained_today"))
         self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
 
+    def test_new_wake_parent_complete_does_not_pin(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        et = ZoneInfo("America/New_York")
+        legs = _session("2026-09-09", "legs", "RDL", 40, 2, 7)
+        legs.closed_at = "2026-09-09T00:30:00-04:00"
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [legs],
+            recovery_score=80,
+            as_of="2026-09-09",
+            last_wake_at="2026-09-09T08:00:00-04:00",
+            now=datetime(2026, 9, 9, 9, 0, tzinfo=et),
+            train_parent_completed=True,
+        )
+        self.assertEqual(plan["session_type"], "push")
+        self.assertFalse(plan.get("ppl_logged_today"))
+        self.assertFalse(plan["already_trained_today"])
+        self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
+
     def test_same_wake_parent_complete_does_not_seed_next_letter(self):
         from datetime import datetime
         from zoneinfo import ZoneInfo

@@ -1373,9 +1373,10 @@ def generate_workout_plan(
     not generate the next rotation for the same training day. Pass an
     explicit ``session_type`` (force Push/Pull/Legs) for a second session.
 
-    Day-complete (``already_trained_today``) is only when
-    ``train_parent_completed`` is true. A partial session row is a pin, not
-    a finished day — remaining lifts of that letter still generate.
+    Day-complete (``already_trained_today``) is ``train_parent_completed``
+    on the civil fallback. When last_wake is current it also requires a
+    PPL session in that wake — parent complete alone must not pin the
+    next letter. A partial session row is a pin, not a finished day.
     """
     goals = normalize_goals(goals)
     if as_of is None:
@@ -1439,7 +1440,7 @@ def generate_workout_plan(
     }
 
     explicit = str(session_type or "").strip().lower()
-    from .training_day import ppl_logged_for_planning
+    from .training_day import day_complete_for_planning, ppl_logged_for_planning
 
     logged_today = ppl_logged_for_planning(
         sessions,
@@ -1448,8 +1449,15 @@ def generate_workout_plan(
         now=now,
     )
     force_letter = explicit in ("push", "pull", "legs")
-    # Parent complete is day-complete SoT. A partial PPL row only pins today.
-    if train_parent_completed and not force_letter:
+    day_complete = day_complete_for_planning(
+        train_parent_completed,
+        ppl_logged_today=logged_today,
+        last_wake_at=last_wake_at,
+        as_of=day,
+        now=now,
+    )
+    # Parent complete pins only when this wake actually trained (or civil fallback).
+    if day_complete and not force_letter:
         pin = logged_today or next_session_type(sessions, goals)
         nxt = next_letter_after(pin, goals) if pin in ("push", "pull", "legs") else pin
         balance = volume_balance_report(tally, goals)

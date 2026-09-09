@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.training_day import (
+    day_complete_for_planning,
     ppl_logged_for_planning,
     ppl_logged_in_wake,
     resolve_log_date,
@@ -147,6 +148,42 @@ class WakeMembership(unittest.TestCase):
                 last_wake_at="2026-08-17T07:00:00-04:00",
                 now=datetime(2026, 9, 9, 9, 0, tzinfo=ET),
                 tz_name="America/New_York",
+            )
+        )
+
+
+class DayCompleteForPlanning(unittest.TestCase):
+    def test_new_wake_parent_complete_without_wake_log_is_not_trained(self):
+        self.assertFalse(
+            day_complete_for_planning(
+                True,
+                ppl_logged_today=None,
+                last_wake_at="2026-09-09T08:00:00-04:00",
+                as_of="2026-09-09",
+                now=datetime(2026, 9, 9, 9, 0, tzinfo=ET),
+                tz_name="America/New_York",
+            )
+        )
+
+    def test_same_wake_parent_complete_with_log_is_trained(self):
+        self.assertTrue(
+            day_complete_for_planning(
+                True,
+                ppl_logged_today="legs",
+                last_wake_at="2026-09-08T07:00:00-04:00",
+                as_of="2026-09-09",
+                now=datetime(2026, 9, 9, 0, 45, tzinfo=ET),
+                tz_name="America/New_York",
+            )
+        )
+
+    def test_civil_fallback_parent_complete_is_trained(self):
+        self.assertTrue(
+            day_complete_for_planning(
+                True,
+                ppl_logged_today=None,
+                last_wake_at=None,
+                as_of="2026-08-29",
             )
         )
 
