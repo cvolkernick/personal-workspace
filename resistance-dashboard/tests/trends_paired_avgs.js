@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * #254/#258/#268: Avg intake / Avg burned / Avg deficit share the Σ 60d
+ * #254/#258/#268: Avg intake / Avg burned / Avg deficit share the Σ 75d
  * paired-days window. Same pair-day honesty as #243. Sign: surplus +,
  * deficit − (mean intake − burned). No invented rows.
  */
@@ -20,13 +20,13 @@ function almostEqual(a, b, msg) {
   assert(Math.abs(a - b) < 1e-9, msg + " got " + a + " expected " + b);
 }
 
-assert(avgs.SPAN_DAYS === 60, "span must be the same 60d window as Σ chips");
+assert(avgs.SPAN_DAYS === 75, "span must be the same 75d window as Σ chips");
 
 const now = new Date(2026, 7, 22, 12, 0, 0);
 const labels = avgs.windowLabels(avgs.SPAN_DAYS, now);
-assert(labels.length === 60, "60 civil labels");
+assert(labels.length === 75, "75 civil labels");
 assert(labels[labels.length - 1] === "2026-08-22", "window ends today");
-assert(labels[0] === "2026-06-24", "window starts 59 days earlier");
+assert(labels[0] === "2026-06-09", "window starts 74 days earlier");
 
 const recentPaired = [
   { date: "2026-08-20", calories: 2000 },
@@ -56,21 +56,27 @@ const burned = [
 const nutritionCopy = JSON.parse(JSON.stringify(nutrition));
 const burnedCopy = JSON.parse(JSON.stringify(burned));
 
-const stats = avgs.pairedCalorieWindow(nutrition, burned, 60, now);
-assert(stats.pairDays === 4, "only days with both series inside 60d");
+const stats = avgs.pairedCalorieWindow(nutrition, burned, avgs.SPAN_DAYS, now);
+assert(stats.pairDays === 5, "only days with both series inside 75d");
 assert(
-  stats.sumIn === 2000 + 2200 + 1800 + 1111,
-  "Σ intake is the paired sum (includes 2026-07-01, now inside 60d)"
+  stats.sumIn === 2000 + 2200 + 1800 + 1111 + 3333,
+  "Σ intake is the paired sum (includes 2026-07-01 and 2026-06-20, now inside 75d)"
 );
 assert(
-  stats.sumOut === 2500 + 2300 + 2400 + 2222,
-  "Σ burned is the paired sum (includes 2026-07-01, now inside 60d)"
+  stats.sumOut === 2500 + 2300 + 2400 + 2222 + 4444,
+  "Σ burned is the paired sum (includes 2026-07-01 and 2026-06-20, now inside 75d)"
 );
-almostEqual(stats.avgIn, stats.sumIn / 4, "avg intake = Σ intake / N");
-almostEqual(stats.avgOut, stats.sumOut / 4, "avg burned = Σ burned / N");
-almostEqual(stats.avgIn, 1777.75, "avg intake 1777.75");
-almostEqual(stats.avgOut, 2355.5, "avg burned 2355.5");
-const perDayDeltas = [2000 - 2500, 2200 - 2300, 1800 - 2400, 1111 - 2222];
+almostEqual(stats.avgIn, stats.sumIn / 5, "avg intake = Σ intake / N");
+almostEqual(stats.avgOut, stats.sumOut / 5, "avg burned = Σ burned / N");
+almostEqual(stats.avgIn, 2088.8, "avg intake 2088.8");
+almostEqual(stats.avgOut, 2773.2, "avg burned 2773.2");
+const perDayDeltas = [
+  2000 - 2500,
+  2200 - 2300,
+  1800 - 2400,
+  1111 - 2222,
+  3333 - 4444,
+];
 const meanDelta =
   perDayDeltas.reduce(function (a, b) {
     return a + b;
@@ -84,7 +90,7 @@ almostEqual(
   stats.avgIn - stats.avgOut,
   "mean(delta) matches intake_avg − burned_avg on the same pair set"
 );
-almostEqual(stats.avgDelta, -577.75, "avg deficit −577.75 (negative = deficit)");
+almostEqual(stats.avgDelta, -684.4, "avg deficit −684.4 (negative = deficit)");
 assert(stats.avgDelta < 0, "this fixture is a net deficit");
 assert(
   JSON.stringify(nutrition) === JSON.stringify(nutritionCopy),
@@ -106,8 +112,8 @@ assert(
   "explicit 45d still excludes 2026-07-01 (pairing is window-honest, not invented)"
 );
 assert(
-  stats.pairDays === 4,
-  "60d excludes 2026-06-20 and 2026-06-01 (outside the window)"
+  stats.pairDays === 5,
+  "75d includes 2026-06-20; excludes 2026-06-01 (outside the window)"
 );
 
 const empty = avgs.pairedCalorieWindow([], [], 60, now);
