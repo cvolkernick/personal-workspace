@@ -1618,6 +1618,10 @@
           .reverse()
           .find((v) => v != null && !Number.isNaN(v)) ?? null;
 
+      // #551: 7d target = house mint (goal). Rolling 7d actual = house coral (measured).
+      // Chart.js legend + tooltip swatches follow borderColor/backgroundColor on each dataset.
+      const HYD_TREND_TARGET = "#5ce1a8";
+      const HYD_TREND_ACTUAL_ROLL = "#f07178";
       const hydDatasets = [
         {
           type: "bar",
@@ -1631,7 +1635,8 @@
           type: "line",
           label: "7d rolling avg",
           data: hydRoll7,
-          borderColor: "#5ce1a8",
+          borderColor: HYD_TREND_ACTUAL_ROLL,
+          backgroundColor: HYD_TREND_ACTUAL_ROLL,
           borderWidth: 2.5,
           pointRadius: 0,
           tension: 0.25,
@@ -1667,7 +1672,8 @@
           type: "line",
           label: "7d rolling target",
           data: hydTargetRoll7,
-          borderColor: "rgba(240, 113, 120, 0.85)",
+          borderColor: HYD_TREND_TARGET,
+          backgroundColor: HYD_TREND_TARGET,
           borderWidth: 2,
           pointRadius: 0,
           tension: 0.2,
