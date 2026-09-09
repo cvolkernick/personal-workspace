@@ -45,7 +45,7 @@
       "only": "horizon"
     },
     {
-      "prefixes": ["business/panamerica-auto/"],
+      "prefixes": ["archive/legacy/panamerica-auto-website/"],
       "unit": "panamerica-auto.service",
       "service_key": "panamerica",
       "only": "panamerica"

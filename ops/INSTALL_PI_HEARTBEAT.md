@@ -73,7 +73,7 @@ Recorded while implementing #50:
 | holistic-dashboard.service | active (not on v0 critical set) |
 | iot-dashboard.service | **inactive** (yellow; health may still answer if process elsewhere) |
 | b2.service | **not installed** (optional yellow) |
-| panamerica-auto.service | activating/auto-restart (not on v0 set) |
+| panamerica-auto.service | **retired** (legacy site archived; live site is Vercel Next.js app) |
 | workflow-scheduler.service | failed (not on v0 set) |
 
 ## Orchestra restart

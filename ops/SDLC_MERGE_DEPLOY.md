@@ -41,7 +41,7 @@ Source of truth: `deploy/path_unit_map.json`.
 | `iot/` | `iot-dashboard.service` | iot |
 | `resistance-dashboard/`, `fitness/` | `resistance-dashboard.service` | resistance |
 | `research/horizon/`, `horizon/` | `horizon-dashboard.service` | horizon |
-| `business/panamerica-auto/` | `panamerica-auto.service` | panamerica |
+| `archive/legacy/panamerica-auto-website/` (archived, legacy static MVP) | `panamerica-auto.service` (retired) | panamerica |
 | `remote_backend.py`, `dashboard_endpoints.py` | all auto units | (joined) |
 | `treasury/`, secrets, `deploy/`, `investment/` | **manual** | — |
 
