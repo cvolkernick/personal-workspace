@@ -91,11 +91,12 @@ class ClubPassJs(unittest.TestCase):
 
 class ClubPassCacheAndHobby(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=coach-micro-1", HTML)
-        self.assertIn("/app.js?v=coach-micro-1", SW)
-        self.assertIn("/styles.css?v=meal-carousel-fill-3", HTML)
-        self.assertIn("/styles.css?v=meal-carousel-fill-3", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v92"', SW)
+        self.assertIn("/app.js?v=phase-baro-home-1", HTML)
+        self.assertIn("/app.js?v=phase-baro-home-1", SW)
+        self.assertIn("/styles.css?v=phase-baro-home-1", HTML)
+        self.assertIn("/styles.css?v=phase-baro-home-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v94"', SW)
+        self.assertNotIn("fitdash-shell-v93", SW)
         self.assertNotIn("fitdash-shell-v91", SW)
         self.assertNotIn("fitdash-shell-v90", SW)
         self.assertNotIn("fitdash-shell-v89", SW)
@@ -111,6 +112,8 @@ class ClubPassCacheAndHobby(unittest.TestCase):
         self.assertNotIn("/app.js?v=edit-log-date-1", SW)
         self.assertNotIn("fitdash-shell-v83", SW)
         self.assertNotIn("fitdash-shell-v86", SW)
+        self.assertNotIn("/styles.css?v=meal-carousel-fill-3", HTML)
+        self.assertNotIn("/styles.css?v=meal-carousel-fill-3", SW)
         self.assertNotIn("/styles.css?v=library-1", HTML)
         self.assertNotIn("/styles.css?v=library-1", SW)
 

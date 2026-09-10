@@ -139,6 +139,7 @@ def empty_store() -> dict:
         "weekly_snapshots": [],
         "last_decision": None,
         "dismiss_banner_until": None,
+        "dismissed_verdict": None,
         "audit": [],
     }
 
@@ -190,15 +191,38 @@ def save_store(store: dict, user_id: Optional[str] = None) -> dict:
     return payload
 
 
+def verdict_fingerprint(obj: Optional[dict]) -> str:
+    blob = obj if isinstance(obj, dict) else {}
+    return "|".join(
+        [
+            str(blob.get("reading") or ""),
+            str(blob.get("status") or ""),
+            str(blob.get("next_phase") or ""),
+            str(blob.get("explanation") or ""),
+        ]
+    )
+
+
 def dismiss_banner(*, as_of: Optional[str] = None, user_id: Optional[str] = None) -> dict:
     day = as_of or local_today_iso()
     until_dt = _parse_day(day)
     until = (until_dt + timedelta(days=7)).strftime("%Y-%m-%d") if until_dt else day
     store = load_store(user_id)
     store["dismiss_banner_until"] = until
+    last = store.get("last_decision") if isinstance(store.get("last_decision"), dict) else {}
+    store["dismissed_verdict"] = verdict_fingerprint(last)
     store.setdefault("audit", []).append(
         {"at": day, "action": "dismiss_banner", "until": until}
     )
+    return save_store(store, user_id)
+
+
+def undismiss_banner(*, as_of: Optional[str] = None, user_id: Optional[str] = None) -> dict:
+    day = as_of or local_today_iso()
+    store = load_store(user_id)
+    store["dismiss_banner_until"] = None
+    store["dismissed_verdict"] = None
+    store.setdefault("audit", []).append({"at": day, "action": "undismiss_banner"})
     return save_store(store, user_id)
 
 
@@ -841,6 +865,14 @@ def build_phase_barometer(
     decision = evaluate_decision(
         kpis, prior, dismiss_until=store.get("dismiss_banner_until")
     )
+    fp = verdict_fingerprint(decision)
+    stored_fp = str(store.get("dismissed_verdict") or "")
+    if store.get("dismiss_banner_until") and stored_fp and stored_fp != fp:
+        store["dismiss_banner_until"] = None
+        store["dismissed_verdict"] = None
+        decision = evaluate_decision(kpis, prior, dismiss_until=None)
+    elif store.get("dismiss_banner_until") and not stored_fp:
+        store["dismissed_verdict"] = fp
     store = upsert_week(store, kpis)
     weeks = [
         {

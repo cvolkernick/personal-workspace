@@ -16,6 +16,7 @@ from rt_dashboard.phase_barometer import (
     iso_week_key,
     load_store,
     save_store,
+    undismiss_banner,
     upsert_week,
 )
 
@@ -374,6 +375,69 @@ class PersistWeeks(unittest.TestCase):
         self.assertEqual(d2["reading"], "pivot")
         self.assertFalse(d2["banner"])
         self.assertIn("Consider Bulk", d2["status"])
+        self.assertEqual(d2["dismissed_until"], "2026-09-09")
+
+    def test_changed_verdict_clears_dismiss(self):
+        payload = {
+            "meta": {"local_today": "2026-09-02", "user_id": "u-clear"},
+            "recovery": {
+                "score": 60,
+                "inputs": {
+                    "training_volume_7d": 18000,
+                    "weight_delta_7d_lbs": 0.1,
+                    "latest_weight_lbs": 173,
+                },
+            },
+            "sleep_battery": {"pct_charged": 40.0},
+            "coach": {
+                "adherence_7d": {"protein": {"pct": 75.0}},
+                "nutrition_targets": {
+                    "phase": "cut",
+                    "tdee_kcal": 2500,
+                    "applied": {"calories": 2100},
+                    "recommended": {
+                        "protein_g": 175,
+                        "carbs_g": 215,
+                        "fat_g": 60,
+                        "calories": 2100,
+                    },
+                    "reasons": ["14d scale weekly +0.10 lb/week", "deficit 400 kcal"],
+                },
+            },
+            "nutrition_store": {
+                "labs": {"cluster": {"id": "energy_availability"}, "markers": {}},
+                "targets": {"phase": "cut"},
+            },
+            "workout_store": {"plan": {"volume": {"muscles": []}}, "goals": {}},
+        }
+        save_store(upsert_week({}, _good_cut("2026-08-26")), user_id="u-clear")
+        first = build_phase_barometer(payload, user_id="u-clear", persist=True)
+        self.assertEqual(first["reading"], "pivot")
+        dismiss_banner(as_of="2026-09-02", user_id="u-clear")
+        still = build_phase_barometer(payload, user_id="u-clear", persist=True)
+        self.assertTrue(still["dismissed_until"])
+        self.assertFalse(still["banner"])
+        payload["coach"]["adherence_7d"]["protein"]["pct"] = 42.9
+        payload["coach"]["nutrition_targets"]["reasons"] = [
+            "14d scale weekly +1.65 lb/week"
+        ]
+        changed = build_phase_barometer(payload, user_id="u-clear", persist=True)
+        self.assertIsNone(changed["dismissed_until"])
+        self.assertEqual(changed["reading"], "keep")
+        self.assertFalse(changed["banner"])
+
+    def test_undismiss_restores_banner(self):
+        hist = [{"week": iso_week_key("2026-08-26"), "kpis": _good_cut("2026-08-26")}]
+        dismiss_banner(as_of="2026-09-02", user_id="u-undo")
+        undismiss_banner(as_of="2026-09-02", user_id="u-undo")
+        store = load_store("u-undo")
+        self.assertIsNone(store.get("dismiss_banner_until"))
+        d = evaluate_decision(
+            _good_cut("2026-09-02"),
+            history=hist,
+            dismiss_until=store.get("dismiss_banner_until"),
+        )
+        self.assertTrue(d["banner"])
 
     def test_attach_writes_three_surfaces(self):
         payload = {
@@ -411,21 +475,33 @@ class Wiring(unittest.TestCase):
         self.assertIn("phase_barometer", ASK_PY)
 
     def test_widget_mounts(self):
-        self.assertIn('id="phase-barometer-today"', HTML)
-        self.assertIn('id="phase-barometer-weekly"', HTML)
-        self.assertIn('id="phase-barometer-nutrition"', HTML)
+        self.assertIn('id="phase-barometer-targets"', HTML)
         self.assertIn('id="phase-barometer-banner"', HTML)
+        self.assertNotIn('id="phase-barometer-today"', HTML)
+        self.assertNotIn('id="phase-barometer-weekly"', HTML)
+        self.assertNotIn('id="phase-barometer-nutrition"', HTML)
+        self.assertEqual(HTML.count('id="phase-barometer-'), 2)
         self.assertIn("renderPhaseBarometer", APP_JS)
+        self.assertIn("phaseBaroAlertHtml", APP_JS)
+        self.assertIn("phaseBaroDismissedHtml", APP_JS)
+        self.assertIn("Review on More", APP_JS)
+        self.assertIn("Barometer dismissed until", APP_JS)
+        self.assertIn("undismiss", APP_JS)
+        self.assertIn("open_home", APP_JS)
         self.assertIn("Apply coach recommended targets", APP_JS)
         self.assertIn("Switch phase to Bulk", APP_JS)
         self.assertIn("Dismiss for 7d", APP_JS)
         self.assertIn("/api/phase-barometer", APP_JS)
-        self.assertIn(".phase-baro", CSS)
+        self.assertIn(".phase-baro-alert", CSS)
+        self.assertIn("reading === \"pivot\"", APP_JS)
+        self.assertIn("phase-barometer-targets", APP_JS)
 
     def test_api_routes(self):
         self.assertIn("/api/phase-barometer", SERVER_PY)
         self.assertIn("/api/phase-barometer", VERCEL)
         self.assertIn("phase_barometer", UTIL_PY)
+        self.assertIn("undismiss", UTIL_PY)
+        self.assertIn("undismiss", SERVER_PY)
 
     def test_apply_uses_recommended_object(self):
         d = evaluate_decision(_kpis("2026-09-09"))
