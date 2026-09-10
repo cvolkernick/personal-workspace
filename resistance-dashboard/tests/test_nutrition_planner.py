@@ -37,6 +37,13 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     normalize_ingredient,
     remaining_macros,
     remove_ingredient,
+    resolve_micro_target,
+    estimated_sugar_g,
+    estimated_sodium_mg,
+    estimated_fiber_g,
+    consumed_sugar_g,
+    consumed_sodium_mg,
+    _score_ingredient,
     scale_plan_item_to_inventory,
     serving_grams_nudge_text,
     serving_grams_required,
@@ -2379,6 +2386,153 @@ class TestEggPairing(unittest.TestCase):
         ids = [it["id"] for it in egg_meals[0]["items"] if egg_role(it)]
         self.assertEqual(ids, ["eggs-whole", "egg-whites"])
         self.assertTrue(egg_meals[0]["egg_pair"]["complete"])
+
+
+class TestMealPlanMicroTargets(unittest.TestCase):
+    """#592: fiber/sugar/sodium honor coach targets."""
+
+    def test_fiber_target_applied_then_recommended_then_25(self):
+        self.assertEqual(
+            resolve_micro_target({"fiber_g": 30}, {"fiber_g": 40}, "fiber_g", fallback=25),
+            30,
+        )
+        self.assertEqual(
+            resolve_micro_target({}, {"fiber_g": 40}, "fiber_g", fallback=25),
+            40,
+        )
+        self.assertEqual(
+            resolve_micro_target({}, {}, "fiber_g", fallback=25),
+            25,
+        )
+        self.assertIsNone(resolve_micro_target({}, {}, "sugar_g"))
+        self.assertIsNone(resolve_micro_target({}, {}, "sodium_mg"))
+
+    def test_fiber_applied_30_not_25(self):
+        inv = {
+            "ingredients": [
+                _ing("chicken", "Chicken", category="protein", calories=280, protein_g=52, fat_g=6),
+                _ing(
+                    "broccoli",
+                    "Broccoli",
+                    category="veg",
+                    calories=55,
+                    protein_g=4,
+                    carbs_g=11,
+                    fiber_g=8,
+                ),
+            ]
+        }
+        plan25 = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        plan30 = generate_meal_plan(
+            inv, {**FULL_TARGETS, "fiber_g": 30}, EMPTY_CONSUMED
+        )
+        self.assertEqual(plan25["notes"]["fiber_soft_target_g"], 25)
+        self.assertEqual(plan30["notes"]["fiber_soft_target_g"], 30)
+        rec = generate_meal_plan(
+            inv, FULL_TARGETS, EMPTY_CONSUMED, recommended_targets={"fiber_g": 30}
+        )
+        self.assertEqual(rec["notes"]["fiber_soft_target_g"], 30)
+
+    def test_unknown_sugar_sodium_not_invented(self):
+        candy = _ing("candy", "Candy", calories=250, protein_g=1, carbs_g=40, fat_g=10)
+        self.assertIsNone(estimated_sugar_g(candy))
+        self.assertIsNone(estimated_sodium_mg(candy))
+        self.assertGreaterEqual(estimated_fiber_g(_ing("broccoli", "Broccoli", category="veg")), 2)
+
+    def test_sugar_penalty_near_ceiling_and_absent_without_target(self):
+        soda = _ing(
+            "soda",
+            "Soda",
+            calories=140,
+            protein_g=0,
+            carbs_g=39,
+            sugar_g=39,
+            sodium_mg=20,
+        )
+        chicken = _ing(
+            "chicken",
+            "Chicken",
+            category="protein",
+            calories=140,
+            protein_g=26,
+            fat_g=3,
+            sugar_g=0,
+            sodium_mg=70,
+        )
+        rem = {"calories": 400, "protein_g": 40, "carbs_g": 40, "fat_g": 10}
+        with_pen = _score_ingredient(soda, rem, sugar_room_g=10.0)
+        no_pen = _score_ingredient(soda, rem)
+        self.assertLess(with_pen, no_pen)
+        chick_pen = _score_ingredient(chicken, rem, sugar_room_g=10.0)
+        self.assertGreater(chick_pen, with_pen)
+
+    def test_logged_sugar_nets_out_and_plan_still_completes(self):
+        inv = {
+            "ingredients": [
+                _ing(
+                    "soda",
+                    "Soda",
+                    calories=400,
+                    protein_g=20,
+                    carbs_g=90,
+                    sugar_g=80,
+                    sodium_mg=40,
+                ),
+                _ing(
+                    "chicken",
+                    "Chicken",
+                    category="protein",
+                    calories=280,
+                    protein_g=52,
+                    fat_g=6,
+                    sugar_g=0,
+                    sodium_mg=70,
+                ),
+            ]
+        }
+        logs = [{"name": "cookie", "nutrients": {"SUGAR": 40, "SODIUM": 900}}]
+        plan = generate_meal_plan(
+            inv,
+            {**FULL_TARGETS, "sugar_g": 50, "sodium_mg": 2300},
+            EMPTY_CONSUMED,
+            food_logs_today=logs,
+        )
+        self.assertGreater(plan["stocked_count"], 0)
+        self.assertFalse(plan["notes"]["empty_plan"])
+        self.assertGreater(plan["notes"]["sugar_consumed_g"], 0)
+        self.assertTrue(plan["notes"]["sugar_miss"] or plan["items"])
+        self.assertIn("sugar_miss", plan["notes"])
+        self.assertIn("sodium_miss", plan["notes"])
+
+    def test_no_penalty_or_display_without_resolved_target(self):
+        inv = {
+            "ingredients": [
+                _ing("chicken", "Chicken", category="protein", calories=280, protein_g=52, fat_g=6),
+            ]
+        }
+        plan = generate_meal_plan(inv, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertIsNone(plan["notes"]["sugar_target_g"])
+        self.assertIsNone(plan["notes"]["sodium_target_mg"])
+        self.assertFalse(plan["notes"]["sugar_miss"])
+        self.assertFalse(plan["notes"]["sodium_miss"])
+        self.assertFalse(any(h.get("kind") in ("sugar", "sodium") for h in plan["honesty"]))
+
+    def test_meal_card_shows_micros_only_when_target_resolves(self):
+        js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("function mealPlanMicroVsTarget", js)
+        self.assertIn("notes.fiber_soft_target_g", js)
+        self.assertIn("notes.sugar_target_g", js)
+        self.assertIn("notes.sodium_target_mg", js)
+        self.assertIn("mealPlanMicroVsTarget(plan)", js)
+
+    def test_consumed_sugar_sodium_from_gh_keys(self):
+        logs = [
+            {"nutrients": {"SUGAR": 12.5, "SODIUM": 800}},
+            {"nutrients": {"TOTAL_SUGARS": 2, "SODIUM": 0.2}},
+        ]
+        self.assertAlmostEqual(consumed_sugar_g(logs), 14.5, places=1)
+        # 800 ≥20 → mg-scale → 800mg; 0.2g → 200mg
+        self.assertGreater(consumed_sodium_mg(logs), 900)
 
 
 if __name__ == "__main__":

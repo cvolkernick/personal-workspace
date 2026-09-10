@@ -566,6 +566,21 @@ def normalize_ingredient(raw: dict) -> dict:
             out["fiber_g"] = max(0.0, float(raw.get("fiber_g") or 0))
         except (TypeError, ValueError):
             pass
+    if raw.get("sugar_g") is not None:
+        try:
+            out["sugar_g"] = max(0.0, float(raw.get("sugar_g") or 0))
+        except (TypeError, ValueError):
+            pass
+    if raw.get("sodium_mg") is not None:
+        try:
+            out["sodium_mg"] = max(0.0, float(raw.get("sodium_mg") or 0))
+        except (TypeError, ValueError):
+            pass
+    elif raw.get("sodium_g") is not None:
+        try:
+            out["sodium_mg"] = max(0.0, float(raw.get("sodium_g") or 0) * 1000.0)
+        except (TypeError, ValueError):
+            pass
     return out
 
 
@@ -757,6 +772,35 @@ def remaining_macros(targets: dict, consumed: dict) -> dict:
     for k in ("calories", "protein_g", "carbs_g", "fat_g"):
         rem[k] = round(max(0.0, float(targets.get(k) or 0) - float(consumed.get(k) or 0)), 1)
     return rem
+
+
+def _optional_micro_float(raw: Any) -> Optional[float]:
+    if raw is None or raw == "":
+        return None
+    try:
+        n = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if n != n:
+        return None
+    return n
+
+
+def resolve_micro_target(
+    applied: Optional[dict],
+    recommended: Optional[dict],
+    key: str,
+    *,
+    fallback: Optional[float] = None,
+) -> Optional[float]:
+    """Applied first, then coach recommended, then optional fallback. Never invent 0."""
+    for src in (applied, recommended):
+        if not isinstance(src, dict):
+            continue
+        n = _optional_micro_float(src.get(key))
+        if n is not None:
+            return n
+    return fallback
 
 
 # Soft food-quality constraints (#501). Never invent items; pantry only.
@@ -980,32 +1024,70 @@ def estimated_fiber_g(ing: dict) -> float:
     return 0.0
 
 
+def estimated_sugar_g(ing: dict) -> Optional[float]:
+    """Per-serving sugar. Explicit only — never a name heuristic."""
+    n = _optional_micro_float((ing or {}).get("sugar_g"))
+    if n is None:
+        return None
+    return max(0.0, n)
+
+
+def estimated_sodium_mg(ing: dict) -> Optional[float]:
+    """Per-serving sodium mg. Explicit only — never a name heuristic."""
+    n = _optional_micro_float((ing or {}).get("sodium_mg"))
+    if n is None:
+        g = _optional_micro_float((ing or {}).get("sodium_g"))
+        if g is not None:
+            n = g * 1000.0
+    if n is None:
+        return None
+    return max(0.0, n)
+
+
 def consumed_fiber_g(food_logs_today: Optional[Sequence[dict]] = None) -> float:
     """Sum logged dietary fiber when GH nutrients{} present; else 0 (unknown)."""
+    return _consumed_micro_g(food_logs_today, "fiber_g")
+
+
+def consumed_sugar_g(food_logs_today: Optional[Sequence[dict]] = None) -> float:
+    """Sum logged total sugars (GH SUGAR); else 0 (unknown)."""
+    return _consumed_micro_g(food_logs_today, "sugar_g")
+
+
+def consumed_sodium_mg(food_logs_today: Optional[Sequence[dict]] = None) -> float:
+    """Sum logged sodium mg (GH SODIUM, ≥20 treated as mg-scale); else 0."""
+    return _consumed_micro_g(food_logs_today, "sodium_mg")
+
+
+def _consumed_micro_g(
+    food_logs_today: Optional[Sequence[dict]], key: str
+) -> float:
+    from .nutrition_micros import micros_from_nutrients
+
     total = 0.0
     found = False
     for row in food_logs_today or []:
         if not isinstance(row, dict):
             continue
-        nuts = row.get("nutrients") if isinstance(row.get("nutrients"), dict) else {}
-        raw = (
-            nuts.get("DIETARY_FIBER")
-            if nuts.get("DIETARY_FIBER") is not None
-            else nuts.get("fiber_g")
-            if nuts.get("fiber_g") is not None
-            else row.get("fiber_g")
-        )
-        if raw is None:
+        m = micros_from_nutrients(row.get("nutrients"))
+        n = m.get(key)
+        if n is None:
+            n = _optional_micro_float(row.get(key))
+        if n is None:
             continue
-        try:
-            total += float(raw)
-            found = True
-        except (TypeError, ValueError):
-            continue
+        total += float(n)
+        found = True
     return round(total, 1) if found else 0.0
 
 
-def _score_ingredient(ing: dict, rem: dict, *, fiber_need_g: float = 0.0) -> float:
+def _score_ingredient(
+    ing: dict,
+    rem: dict,
+    *,
+    fiber_need_g: float = 0.0,
+    sugar_room_g: Optional[float] = None,
+    sodium_room_mg: Optional[float] = None,
+) -> float:
     """Higher is better for filling remaining needs (protein-weighted)."""
     if rem["calories"] <= 0 and rem["protein_g"] <= 0:
         return -1.0
@@ -1020,6 +1102,20 @@ def _score_ingredient(ing: dict, rem: dict, *, fiber_need_g: float = 0.0) -> flo
         sc += (fg / max(fiber_need_g, 1.0)) * 1.2
         if is_veg_or_fruit(ing):
             sc += 0.4
+    if sugar_room_g is not None:
+        sg = estimated_sugar_g(ing)
+        if sg:
+            if sugar_room_g <= 0:
+                sc -= min(sg, 50.0) * 0.05
+            else:
+                sc -= (sg / max(sugar_room_g, 1.0)) * 0.9
+    if sodium_room_mg is not None:
+        na = estimated_sodium_mg(ing)
+        if na:
+            if sodium_room_mg <= 0:
+                sc -= min(na / 50.0, 20.0) * 0.05
+            else:
+                sc -= (na / max(sodium_room_mg, 1.0)) * 0.9
     return sc
 
 
@@ -1081,7 +1177,14 @@ def _append_egg_mate(
         pick = _one_serving_pick(ing)
     servings_n, portion_g = pick
     row = _plan_item_from_ingredient(ing, servings=servings_n, portion_g=portion_g)
-    row["fiber_g"] = round(estimated_fiber_g(ing) * float(row.get("servings") or 1), 1)
+    n = float(row.get("servings") or 1)
+    row["fiber_g"] = round(estimated_fiber_g(ing) * n, 1)
+    sg = estimated_sugar_g(ing)
+    if sg is not None:
+        row["sugar_g"] = round(sg * n, 1)
+    na = estimated_sodium_mg(ing)
+    if na is not None:
+        row["sodium_mg"] = round(na * n, 0)
     row["is_shake"] = is_shake_or_powder(ing)
     row["is_veg_or_fruit"] = is_veg_or_fruit(ing)
     _mark_egg_group(row)
@@ -1092,6 +1195,14 @@ def _append_egg_mate(
     totals["fiber_g"] = round(
         float(totals.get("fiber_g") or 0) + float(row.get("fiber_g") or 0), 1
     )
+    if row.get("sugar_g") is not None:
+        totals["sugar_g"] = round(
+            float(totals.get("sugar_g") or 0) + float(row["sugar_g"]), 1
+        )
+    if row.get("sodium_mg") is not None:
+        totals["sodium_mg"] = round(
+            float(totals.get("sodium_mg") or 0) + float(row["sodium_mg"]), 0
+        )
 
 
 def ensure_egg_pair(
@@ -1209,6 +1320,7 @@ def generate_meal_plan(
     window_end: Any = None,
     eat_slots: Optional[Sequence[Any]] = None,
     sleep_battery: Optional[dict] = None,
+    recommended_targets: Optional[dict] = None,
 ) -> dict:
     """
     Greedy remaining-day plan from stocked ingredients.
@@ -1250,15 +1362,30 @@ def generate_meal_plan(
     targets = normalize_targets(targets)
     remaining_before = remaining_macros(targets, consumed)
     rem = remaining_macros(targets, consumed)
+    fiber_target = resolve_micro_target(
+        targets, recommended_targets, "fiber_g", fallback=SOFT_FIBER_TARGET_G
+    )
+    sugar_target = resolve_micro_target(targets, recommended_targets, "sugar_g")
+    sodium_target = resolve_micro_target(targets, recommended_targets, "sodium_mg")
     # Meal plan MUST only use actively in-stock inventory (never out-of-stock).
     stocked = stocked_ingredients(inventory)
     stocked_ids = {str(i.get("id") or "") for i in stocked}
     stocked_names = {str(i.get("name") or "").strip().lower() for i in stocked}
     plan_items: List[dict] = []
-    totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "fiber_g": 0.0}
+    totals = {
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "carbs_g": 0.0,
+        "fat_g": 0.0,
+        "fiber_g": 0.0,
+        "sugar_g": 0.0,
+        "sodium_mg": 0.0,
+    }
     logged = list(food_logs_today or [])
     logged_names = {str(x.get("name") or "").strip().lower() for x in logged if x}
     fiber_logged = consumed_fiber_g(logged)
+    sugar_logged = consumed_sugar_g(logged)
+    sodium_logged = consumed_sodium_mg(logged)
     veg_stocked = [i for i in stocked if is_veg_or_fruit(i)]
     shake_stocked = [i for i in stocked if is_shake_or_powder(i)]
 
@@ -1282,7 +1409,12 @@ def generate_meal_plan(
         return {
             "meals": [],
             "items": [],
-            "planned_totals": {k: 0.0 for k in _MACRO_KEYS},
+            "planned_totals": {
+                **{k: 0.0 for k in _MACRO_KEYS},
+                "fiber_g": 0.0,
+                "sugar_g": 0.0,
+                "sodium_mg": 0.0,
+            },
             "remaining_after_plan": rem,
             "remaining_before_plan": remaining_before,
             "targets": targets,
@@ -1304,11 +1436,23 @@ def generate_meal_plan(
                 "shake_powder_protein_g": 0.0,
                 "shake_cap_applied": False,
                 "shake_cap_escaped": False,
-                "fiber_soft_target_g": SOFT_FIBER_TARGET_G,
+                "fiber_soft_target_g": fiber_target,
                 "fiber_planned_g": 0.0,
                 "fiber_consumed_g": fiber_logged,
-                "fiber_miss": fiber_logged < SOFT_FIBER_TARGET_G,
+                "fiber_miss": fiber_logged < float(fiber_target or 0),
                 "fiber_miss_reason": "no_fiber_foods",
+                "sugar_target_g": sugar_target,
+                "sugar_planned_g": 0.0,
+                "sugar_consumed_g": sugar_logged,
+                "sugar_miss": bool(
+                    sugar_target is not None and sugar_logged > float(sugar_target)
+                ),
+                "sodium_target_mg": sodium_target,
+                "sodium_planned_mg": 0.0,
+                "sodium_consumed_mg": sodium_logged,
+                "sodium_miss": bool(
+                    sodium_target is not None and sodium_logged > float(sodium_target)
+                ),
                 **_diversity_notes_fields(distinct=0, limited=False),
             },
             "honesty": [
@@ -1334,7 +1478,20 @@ def generate_meal_plan(
         return n, p
 
     def _fiber_need() -> float:
-        return max(0.0, SOFT_FIBER_TARGET_G - fiber_logged - float(totals.get("fiber_g") or 0))
+        return max(
+            0.0,
+            float(fiber_target or 0) - fiber_logged - float(totals.get("fiber_g") or 0),
+        )
+
+    def _sugar_room() -> Optional[float]:
+        if sugar_target is None:
+            return None
+        return float(sugar_target) - sugar_logged - float(totals.get("sugar_g") or 0)
+
+    def _sodium_room() -> Optional[float]:
+        if sodium_target is None:
+            return None
+        return float(sodium_target) - sodium_logged - float(totals.get("sodium_mg") or 0)
 
     def _cal_ceiling(relax: bool) -> float:
         base = remaining_before["calories"] + max(80.0, remaining_before["calories"] * 0.1)
@@ -1353,6 +1510,12 @@ def generate_meal_plan(
         row = _plan_item_from_ingredient(ing, servings=servings_n, portion_g=portion_g)
         n = float(row.get("servings") or 1)
         row["fiber_g"] = round(estimated_fiber_g(ing) * n, 1)
+        sg = estimated_sugar_g(ing)
+        if sg is not None:
+            row["sugar_g"] = round(sg * n, 1)
+        na = estimated_sodium_mg(ing)
+        if na is not None:
+            row["sodium_mg"] = round(na * n, 0)
         row["is_shake"] = is_shake_or_powder(ing)
         row["is_veg_or_fruit"] = is_veg_or_fruit(ing)
         plan_items.append(row)
@@ -1361,6 +1524,14 @@ def generate_meal_plan(
             totals[k] += float(row.get(k) or 0)
             rem[k] = round(max(0.0, rem[k] - float(row.get(k) or 0)), 1)
         totals["fiber_g"] = round(float(totals.get("fiber_g") or 0) + float(row["fiber_g"]), 1)
+        if row.get("sugar_g") is not None:
+            totals["sugar_g"] = round(
+                float(totals.get("sugar_g") or 0) + float(row["sugar_g"]), 1
+            )
+        if row.get("sodium_mg") is not None:
+            totals["sodium_mg"] = round(
+                float(totals.get("sodium_mg") or 0) + float(row["sodium_mg"]), 0
+            )
 
     def _collect_candidates(
         *, relax: bool, allow_shake_escape: bool, veg_only: bool = False
@@ -1440,7 +1611,13 @@ def generate_meal_plan(
                     and not is_veg_or_fruit(ing)
                 ):
                     continue
-            sc = _score_ingredient(ing, rem, fiber_need_g=_fiber_need())
+            sc = _score_ingredient(
+                ing,
+                rem,
+                fiber_need_g=_fiber_need(),
+                sugar_room_g=_sugar_room(),
+                sodium_room_mg=_sodium_room(),
+            )
             iname = str(ing.get("name") or "").strip().lower()
             if iname and any(iname in ln or ln in iname for ln in logged_names if ln):
                 sc *= 0.85
@@ -1582,7 +1759,21 @@ def generate_meal_plan(
     if fiber_planned <= 0:
         fiber_planned = round(float(totals.get("fiber_g") or 0), 1)
     fiber_total = fiber_logged + fiber_planned
-    fiber_miss = fiber_total < SOFT_FIBER_TARGET_G
+    fiber_miss = fiber_total < float(fiber_target or 0)
+    sugar_planned = round(sum(float(it.get("sugar_g") or 0) for it in plan_items), 1)
+    if sugar_planned <= 0:
+        sugar_planned = round(float(totals.get("sugar_g") or 0), 1)
+    sodium_planned = round(sum(float(it.get("sodium_mg") or 0) for it in plan_items), 0)
+    if sodium_planned <= 0:
+        sodium_planned = round(float(totals.get("sodium_mg") or 0), 0)
+    sugar_miss = bool(
+        sugar_target is not None
+        and (sugar_logged + sugar_planned) > float(sugar_target)
+    )
+    sodium_miss = bool(
+        sodium_target is not None
+        and (sodium_logged + sodium_planned) > float(sodium_target)
+    )
     fiber_foods = [
         i for i in stocked if estimated_fiber_g(i) >= 2.0 or is_veg_or_fruit(i)
     ]
@@ -1637,11 +1828,19 @@ def generate_meal_plan(
         "shake_powder_protein_g": round(shake_p, 1),
         "shake_cap_applied": shake_cap_applied and not shake_cap_escaped,
         "shake_cap_escaped": shake_cap_escaped,
-        "fiber_soft_target_g": SOFT_FIBER_TARGET_G,
+        "fiber_soft_target_g": fiber_target,
         "fiber_planned_g": fiber_planned,
         "fiber_consumed_g": fiber_logged,
         "fiber_miss": fiber_miss,
         "fiber_miss_reason": fiber_miss_reason,
+        "sugar_target_g": sugar_target,
+        "sugar_planned_g": sugar_planned,
+        "sugar_consumed_g": sugar_logged,
+        "sugar_miss": sugar_miss,
+        "sodium_target_mg": sodium_target,
+        "sodium_planned_mg": sodium_planned,
+        "sodium_consumed_mg": sodium_logged,
+        "sodium_miss": sodium_miss,
         **_diversity_notes_fields(distinct=distinct_n, limited=diversity_limited),
         "egg_pair": egg_pair_note,
     }
@@ -1725,7 +1924,7 @@ def generate_meal_plan(
                     "level": "warn",
                     "kind": "fiber",
                     "text": (
-                        f"Soft fiber ~{int(SOFT_FIBER_TARGET_G)}g missed "
+                        f"Soft fiber ~{int(fiber_target or 0)}g missed "
                         f"(planned {fiber_planned:.0f}g + logged {fiber_logged:.0f}g). "
                         "No fiber-rich stock — not inventing items."
                     ),
@@ -1737,12 +1936,36 @@ def generate_meal_plan(
                     "level": "warn",
                     "kind": "fiber",
                     "text": (
-                        f"Soft fiber ~{int(SOFT_FIBER_TARGET_G)}g missed "
+                        f"Soft fiber ~{int(fiber_target or 0)}g missed "
                         f"(planned {fiber_planned:.0f}g + logged {fiber_logged:.0f}g; "
                         "pantry-limited, not inventing items)."
                     ),
                 }
             )
+    if sugar_miss and not empty:
+        honesty.append(
+            {
+                "level": "warn",
+                "kind": "sugar",
+                "text": (
+                    f"Sugar ceiling {int(sugar_target)}g missed "
+                    f"(planned {sugar_planned:.0f}g + logged {sugar_logged:.0f}g; "
+                    "pantry-limited, not inventing items)."
+                ),
+            }
+        )
+    if sodium_miss and not empty:
+        honesty.append(
+            {
+                "level": "warn",
+                "kind": "sodium",
+                "text": (
+                    f"Salt (sodium) ceiling {int(sodium_target)}mg missed "
+                    f"(planned {sodium_planned:.0f}mg + logged {sodium_logged:.0f}mg; "
+                    "pantry-limited, not inventing items)."
+                ),
+            }
+        )
     if diversity_limited:
         honesty.append(
             {
@@ -1759,7 +1982,12 @@ def generate_meal_plan(
     return {
         "meals": meals,
         "items": plan_items,
-        "planned_totals": {k: totals[k] for k in _MACRO_KEYS},
+        "planned_totals": {
+            **{k: totals[k] for k in _MACRO_KEYS},
+            "fiber_g": round(float(totals.get("fiber_g") or 0), 1),
+            "sugar_g": round(float(totals.get("sugar_g") or 0), 1),
+            "sodium_mg": round(float(totals.get("sodium_mg") or 0), 0),
+        },
         "remaining_before_plan": remaining_before,
         "remaining_after_plan": remaining_after,
         "targets": targets,
@@ -1822,6 +2050,12 @@ def _plan_item_from_ingredient(
         "is_shake": is_shake_or_powder(ing),
         "is_veg_or_fruit": is_veg_or_fruit(ing),
     }
+    sg = estimated_sugar_g(ing)
+    if sg is not None:
+        row["sugar_g"] = round(sg * n, 1)
+    na = estimated_sodium_mg(ing)
+    if na is not None:
+        row["sodium_mg"] = round(na * n, 0)
     if base_g is not None and float(base_g) > 0:
         row["serving_g"] = float(base_g)
     if display_g is not None:
@@ -2314,6 +2548,9 @@ def _expand_serving_units(items: Sequence[dict]) -> List[dict]:
                 scale = cg / total
                 for k in _MACRO_KEYS:
                     unit[k] = round(float(it.get(k) or 0) * scale, 1)
+                for mk in ("fiber_g", "sugar_g", "sodium_mg"):
+                    if it.get(mk) is not None:
+                        unit[mk] = round(float(it.get(mk) or 0) * scale, 1 if mk != "sodium_mg" else 0)
                 unit["portion_g"] = float(int(round(cg)))
                 unit["servings"] = round(cg / base_g, 2)
                 unit["serving_label"] = format_portion_label(
@@ -2332,6 +2569,9 @@ def _expand_serving_units(items: Sequence[dict]) -> List[dict]:
         base = deepcopy(it)
         for k in _MACRO_KEYS:
             base[k] = round(float(it.get(k) or 0) / count, 1)
+        for mk in ("fiber_g", "sugar_g", "sodium_mg"):
+            if it.get(mk) is not None:
+                base[mk] = round(float(it.get(mk) or 0) / count, 1 if mk != "sodium_mg" else 0)
         if it.get("portion_g") is not None:
             try:
                 base["portion_g"] = round(float(it["portion_g"]) / count)
@@ -2975,7 +3215,8 @@ def suggest_inventory_staples(
     fiber_stocked = sum(estimated_fiber_g(i) for i in stocked)
     shake_n = sum(1 for i in stocked if is_shake_or_powder(i))
     protein_gap = rem_p > 40 or len(stocked_whole_p) < 2
-    fiber_gap = veg_n < 1 or fiber_stocked < SOFT_FIBER_TARGET_G
+    fiber_tgt = resolve_micro_target(targets, None, "fiber_g", fallback=SOFT_FIBER_TARGET_G)
+    fiber_gap = veg_n < 1 or fiber_stocked < float(fiber_tgt or SOFT_FIBER_TARGET_G)
     shake_heavy = shake_n > 0 and len(stocked_whole_p) < 2
 
     honesty: List[dict] = []
@@ -3033,7 +3274,7 @@ def suggest_inventory_staples(
             score += 32
         if fiber_gap and (veg or fiber >= 3):
             reasons.append(
-                f"Fills soft fiber / veg gap (target ~{int(SOFT_FIBER_TARGET_G)}g; pantry produce thin)."
+                f"Fills soft fiber / veg gap (target ~{int(fiber_tgt or SOFT_FIBER_TARGET_G)}g; pantry produce thin)."
             )
             score += 36
             if shake:
