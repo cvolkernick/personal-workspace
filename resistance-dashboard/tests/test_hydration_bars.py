@@ -109,6 +109,35 @@ class TestHydrationBars(unittest.TestCase):
         self.assertEqual(pac["sip_count"], 1)
         self.assertIn(pac.get("band"), ("green", "yellow", "red", "muted"))
 
+    def test_payload_ahead_of_pace_is_green(self):
+        """#573: 20%+ ahead of hydration pace must not paint the bar red."""
+        wake = datetime(2026, 8, 10, 7, 0, 0, tzinfo=timezone.utc)
+        now = wake + timedelta(hours=8)
+        payload = build_hydration_bars_payload(
+            samples=[
+                {
+                    "logged_at": (wake + timedelta(hours=1)).isoformat(),
+                    "water_ml": 2000,
+                    "source": "hidrate",
+                }
+            ],
+            weight=[WeightSample(date="2026-08-09", weight_lbs=200)],
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-10",
+            now=now,
+        )
+        pac = payload["pacing"]
+        # 200 lb → ~3175; mid-window paced ~1588; 2000 is ~26% ahead
+        self.assertEqual(pac["status"], "ahead")
+        self.assertGreater(pac["delta_vs_pace"], 0)
+        self.assertGreater(pac["rel_error"], 0.20)
+        self.assertEqual(pac["band"], "green")
+        self.assertTrue(pac["sip_aware"])
+
     def test_pacing_without_sips_is_unknown_not_on_pace(self):
         pac = hydration_pacing(
             consumed_ml=0, target_ml=3000, window_fraction=0.03, sip_aware=False
