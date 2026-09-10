@@ -239,12 +239,17 @@ class RecommendCut(unittest.TestCase):
 
 class MicrosFormula(unittest.TestCase):
     def test_fiber_sugar_sodium_from_calories(self):
-        m = micros_for_calories(2100)
-        self.assertEqual(m["fiber_g"], round_g(14.0 * 2100 / 1000.0))
-        self.assertEqual(m["sugar_g"], round_g(2100 * 0.10 / 4.0))
-        self.assertEqual(m["sodium_mg"], 2300)
-        self.assertEqual(m["fiber_g"] % 5, 0)
-        self.assertEqual(m["sugar_g"] % 5, 0)
+        m2100 = micros_for_calories(2100)
+        self.assertEqual(m2100, {"fiber_g": 30, "sugar_g": 50, "sodium_mg": 2300})
+        m1800 = micros_for_calories(1800)
+        self.assertEqual(m1800["fiber_g"], 25)
+        self.assertEqual(m1800["sugar_g"], 45)
+        self.assertEqual(m1800["sodium_mg"], 2300)
+        m2500 = micros_for_calories(2500)
+        self.assertEqual(m2500["fiber_g"], 35)
+        self.assertEqual(m2500["sugar_g"], round_g(2500 * 0.10 / 4.0))
+        self.assertEqual(m2500["sodium_mg"], 2300)
+        self.assertEqual(micros_for_calories(1000)["fiber_g"], 20)
 
     def test_recommend_includes_micros_with_reasons(self):
         rec = recommend_nutrition_targets(
@@ -252,18 +257,18 @@ class MicrosFormula(unittest.TestCase):
             targets={"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
             as_of="2026-08-27",
         )
-        m = micros_for_calories(2100)
-        self.assertEqual(rec["recommended"]["fiber_g"], m["fiber_g"])
-        self.assertEqual(rec["recommended"]["sugar_g"], m["sugar_g"])
+        self.assertTrue(rec["abstain"])
+        self.assertEqual(rec["recommended"]["calories"], 2100)
+        self.assertEqual(rec["recommended"]["fiber_g"], 30)
+        self.assertEqual(rec["recommended"]["sugar_g"], 50)
         self.assertEqual(rec["recommended"]["sodium_mg"], 2300)
         self.assertNotIn("fiber_g", rec["applied"])
-        self.assertEqual(rec["delta"]["fiber_g"], m["fiber_g"])
+        self.assertEqual(rec["delta"]["fiber_g"], 30)
         blob = " ".join(rec["reasons"]).lower()
-        self.assertIn("fiber", blob)
-        self.assertIn("14 g", blob)
-        self.assertIn("sugar", blob)
-        self.assertIn("who", blob)
-        self.assertIn("2300", blob)
+        self.assertIn("fiber 30g", blob)
+        self.assertIn("total sugars", blob)
+        self.assertIn("not added sugars", blob)
+        self.assertIn("salt (sodium) 2300mg", blob)
 
     def test_does_not_invent_applied_micros(self):
         rec = recommend_nutrition_targets(
@@ -361,6 +366,13 @@ class WiringLock(unittest.TestCase):
         self.assertIn("coach-targets-rec", HTML)
         self.assertIn("applyCoachTargets", APP_JS)
         self.assertIn("tgt-phase", HTML)
+        self.assertIn("tgt-fiber", HTML)
+        self.assertIn("tgt-sugar", HTML)
+        self.assertIn("tgt-sodium", HTML)
+        self.assertIn("Salt (sodium)", HTML)
+        self.assertIn("btn.disabled = !recd", APP_JS)
+        self.assertNotIn("btn.disabled = !!rec.abstain", APP_JS)
+        self.assertIn('progressRow("Salt (sodium)"', APP_JS)
 
     def test_phase_normalized(self):
         self.assertIn('"phase"', PLANNER)

@@ -94,7 +94,7 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(writes[0][0], "fitness/nutrition/targets.json")
         self.assertIn("update daily macro targets", writes[0][2])
 
-    def test_apply_coach_abstain_is_400_json(self):
+    def test_apply_coach_missing_rec_is_400_json(self):
         rec = {"abstain": True, "recommended": None, "reasons": ["not enough days"]}
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True), mock.patch(
@@ -115,6 +115,43 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(body["action"], "apply_coach_targets")
         self.assertNotIn("<html", json.dumps(body).lower())
         write.assert_not_called()
+
+    def test_apply_coach_abstain_still_writes_micros(self):
+        rec = {
+            "abstain": True,
+            "phase": "cut",
+            "as_of": "2026-09-10",
+            "recommended": {
+                "calories": 2100,
+                "protein_g": 210,
+                "carbs_g": 180,
+                "fat_g": 55,
+                "fiber_g": 30,
+                "sugar_g": 50,
+                "sodium_mg": 2300,
+            },
+        }
+        writes = []
+
+        def fake_write(client, rel, data, message=""):
+            writes.append(dict(data))
+            return {"ok": True, "path": rel, "github": True}
+
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "api.dashboard.dashboard_body",
+            return_value=(200, {"coach": {"nutrition_targets": rec}}),
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.write_nutrition_file",
+            side_effect=fake_write,
+        ):
+            status, body = targets_write(_headers(), {"apply_coach": True})
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["targets"]["fiber_g"], 30)
+        self.assertEqual(body["targets"]["sugar_g"], 50)
+        self.assertEqual(body["targets"]["sodium_mg"], 2300)
+        self.assertEqual(writes[0]["fiber_g"], 30)
 
     def test_apply_coach_writes_merged_targets(self):
         rec = {

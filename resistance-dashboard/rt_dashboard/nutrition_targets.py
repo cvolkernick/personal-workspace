@@ -142,15 +142,20 @@ MICRO_KEYS = ("fiber_g", "sugar_g", "sodium_mg")
 def micros_for_calories(calories: int) -> Dict[str, int]:
     """Fiber / sugar / sodium recs from the calorie target (formula v2).
 
-    Fiber: 14 g per 1000 kcal, rounded to 5 g.
-    Sugar: WHO ≤10% of kcal as grams (kcal * 0.10 / 4), rounded to 5 g.
-    Sodium: 2300 mg/day unless a caller states a reason to go lower.
+    Fiber: 14 g per 1000 kcal, rounded to 5 g, floor 20 g.
+    Sugar: WHO ≤10% of kcal as *total* sugars (kcal * 0.10 / 4), rounded to 5 g.
+    Sodium: 2300 mg/day, rounded to 50 mg.
     """
     cal = max(0, int(calories or 0))
+    fiber = int(round_g(14.0 * cal / 1000.0)) if cal else 0
+    if cal and fiber < 20:
+        fiber = 20
+    sugar = int(round_g(cal * 0.10 / 4.0)) if cal else 0
+    sodium = int(round(float(SODIUM_DEFAULT_MG) / 50.0) * 50)
     return {
-        "fiber_g": int(round_g(14.0 * cal / 1000.0)) if cal else 0,
-        "sugar_g": int(round_g(cal * 0.10 / 4.0)) if cal else 0,
-        "sodium_mg": int(SODIUM_DEFAULT_MG),
+        "fiber_g": fiber,
+        "sugar_g": sugar,
+        "sodium_mg": sodium,
     }
 
 
@@ -342,13 +347,9 @@ def recommend_nutrition_targets(
 
     micros = micros_for_calories(int(rec_cal))
     reasons.append(
-        f"fiber {micros['fiber_g']} g · 14 g per 1000 kcal of {int(rec_cal)} kcal, rounded 5 g"
-    )
-    reasons.append(
-        f"sugar {micros['sugar_g']} g · WHO ≤10% of {int(rec_cal)} kcal as grams, rounded 5 g"
-    )
-    reasons.append(
-        f"sodium {micros['sodium_mg']} mg · default {SODIUM_DEFAULT_MG} mg/day"
+        f"fiber {micros['fiber_g']}g (14g/1000kcal of {int(rec_cal)} kcal, floor 20g); "
+        f"sugar ceiling {micros['sugar_g']}g total sugars (WHO ≤10% kcal, not added sugars); "
+        f"salt (sodium) {micros['sodium_mg']}mg"
     )
 
     recommended = {

@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=pf-launcher-2" defer></script>
+    <script src="/app.js?v=coach-micro-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -600,15 +600,15 @@
           </div>
           <div class="row cols-4" style="margin-top: 0.5rem">
             <label title="Daily fiber floor (g). Blank = unset."
-              >Fiber (g)
-              <input type="number" id="tgt-fiber" min="0" max="200" step="1" placeholder="e.g. 30" />
+              >Fiber floor (g)
+              <input type="number" id="tgt-fiber" min="0" max="100" step="1" placeholder="e.g. 30" />
             </label>
-            <label title="Daily sugar limit (g). Blank = unset."
-              >Sugar (g)
-              <input type="number" id="tgt-sugar" min="0" max="400" step="1" placeholder="e.g. 50" />
+            <label title="Daily total-sugars ceiling (g). Not added sugars. Blank = unset."
+              >Sugar max (g)
+              <input type="number" id="tgt-sugar" min="0" max="300" step="1" placeholder="e.g. 50" />
             </label>
-            <label title="Daily sodium limit (mg). Blank = unset."
-              >Sodium (mg)
+            <label title="Daily sodium ceiling (mg). Blank = unset."
+              >Salt (sodium)
               <input type="number" id="tgt-sodium" min="0" max="10000" step="1" placeholder="e.g. 2300" />
             </label>
           </div>

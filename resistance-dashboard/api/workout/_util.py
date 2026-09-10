@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from http.server import BaseHTTPRequestHandler
 
 from api.ask._json import auth_required, require_user, write_json
@@ -901,7 +902,7 @@ def targets_write(headers, payload=None):
                 err_body.setdefault("error", "dashboard_failed")
                 return status, err_body
             rec = ((dash.get("coach") or {}).get("nutrition_targets") or {})
-            if rec.get("abstain") or not rec.get("recommended"):
+            if not rec.get("recommended"):
                 return 400, {
                     "ok": False,
                     "action": "apply_coach_targets",
@@ -935,8 +936,10 @@ def targets_write(headers, payload=None):
         )
         return 200, {"ok": True, "targets": updated, "write": write}
     except ValueError as exc:
+        logging.getLogger("fitdash.targets").exception("POST /api/targets failed")
         return 400, {"ok": False, "error": str(exc)}
     except Exception as exc:  # noqa: BLE001
+        logging.getLogger("fitdash.targets").exception("POST /api/targets failed")
         return 500, {
             "ok": False,
             "error": str(exc) or type(exc).__name__,

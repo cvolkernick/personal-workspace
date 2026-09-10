@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import logging
 import os
 import re
 import sys
@@ -837,6 +838,13 @@ def load_dashboard_data(
                 except (TypeError, ValueError):
                     burned_today = None
                 break
+        from rt_dashboard.nutrition_targets import recommend_nutrition_targets
+
+        rec_nt = recommend_nutrition_targets(
+            health=health,
+            targets=nut.get("targets") or {},
+            as_of=local_today,
+        )
         payload["calorie_bars"] = build_calorie_bars_payload(
             today_consumed=consumed,
             targets=nut.get("targets") or {},
@@ -846,6 +854,7 @@ def load_dashboard_data(
             food_logs=health.food_logs or [],
             now=now,
             tz_name=tz_name,
+            recommended_targets=(rec_nt or {}).get("recommended"),
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"calorie_bars: {e}")
@@ -1081,7 +1090,7 @@ def _apply_coach_targets(client, *, user_id: Optional[str] = None) -> dict:
     """Write subroutine recommended macros. Never called from dashboard load."""
     data = load_dashboard_data(force_refresh=False, user_id=user_id)
     rec = ((data.get("coach") or {}).get("nutrition_targets") or {})
-    if rec.get("abstain") or not rec.get("recommended"):
+    if not rec.get("recommended"):
         return {
             "ok": False,
             "action": "apply_coach_targets",
@@ -2172,8 +2181,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
                 self._send_json({"ok": True, "targets": updated, "write": write})
             except (ValueError, json.JSONDecodeError) as e:
+                logging.getLogger("fitdash.targets").exception(
+                    "POST /api/targets failed"
+                )
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
+                logging.getLogger("fitdash.targets").exception(
+                    "POST /api/targets failed"
+                )
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/ask":

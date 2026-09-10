@@ -88,19 +88,19 @@ Round kcal to nearest **50**, macros to nearest **5 g**. Recompute carbs as rema
 
 Do **not** invent TDEE from intake. Intake is a cross-check in `reasons` (“logged 14d mean 2300 vs burn 2450”), not the calorie target.
 
-## Formula (v2 — micros; #571)
+## Formula (v2 — micros; #571 / #590)
 
-Derived from the **calorie recommendation** (applied calories when calorie rec abstains). Never invented from missing nutrient logs.
+Derived from the **calorie recommendation** (applied calories when calorie rec abstains). Never invented from missing nutrient logs. Micros do not depend on TDEE.
 
-**Fiber (floor):** `round_g(14 * calories / 1000)` — 14 g per 1000 kcal.
+**Fiber (floor — higher is better):** `max(20, round_g(14 * calories / 1000))` — 14 g per 1000 kcal, nearest 5 g, floor 20 g. (2100 kcal → 30 g.)
 
-**Sugar (limit):** `round_g(calories * 0.10 / 4)` — WHO ≤10% of energy as grams.
+**Sugar (ceiling — lower is better):** `round_g(calories * 0.10 / 4)` — WHO ≤10% of energy as **total sugars** (GH SUGAR enum; added sugars are skipped). Never label this “added sugars”. (2100 kcal → 50 g.) Stored as `sugar_g`.
 
-**Sodium (limit):** `2300` mg/day default. Lower only with a stated reason in `reasons`.
+**Salt / sodium (ceiling — lower is better):** `2300` mg/day, rounded to 50 mg. Displayed as “Salt (sodium)”. Stored as `sodium_mg`.
 
-Pace bars reuse `pace_vs_expected` kinds from #573: fiber = `floor`, sugar/sodium = `limit`. Missing logged keys stay muted — never plotted as 0.
+Pace bars reuse `pace_vs_expected` kinds from #573: fiber = `floor`, sugar/sodium = `limit`. Today so far resolves each micro as **applied → coach recommended → omit the bar**. Missing logged keys stay muted — never plotted as 0.
 
-Chat: `set fiber to 30`, `set sugar 40`, `set sodium 2000` (mg). `apply coach targets` merges the three keys with macros.
+`apply coach targets` still writes micros when calorie rec abstains (recommended calories stay applied). Chat: `set fiber to 30`, `set sugar 40`, `set sodium 2000` (mg).
 
 ## Module / API (v1)
 

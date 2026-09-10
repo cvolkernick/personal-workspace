@@ -435,6 +435,11 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         ),
     }
     try:
+        from rt_dashboard.nutrition_targets import recommend_nutrition_targets
+
+        rec_nt = recommend_nutrition_targets(
+            health=health, targets=targets, as_of=today
+        )
         payload["calorie_bars"] = build_calorie_bars_payload(
             today_consumed=consumed,
             targets=targets,
@@ -443,6 +448,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             food_logs=health.food_logs or [],
             now=now,
             tz_name=tz_name,
+            recommended_targets=(rec_nt or {}).get("recommended"),
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"calorie_bars: {type(exc).__name__}")
