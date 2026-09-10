@@ -5,6 +5,8 @@
 
 **Product → branch (#560):** FCC + treasury PRs land on **`work/treasury` only**. FitDash PRs land on **`master`** (Vercel). Pi `workspace-sync` allowlist is `work/treasury`; it refuses `master` / `work/holistic` and will not reset the FCC live tip to master. Map: `deploy/product_branch_map.py`.
 
+**Live tree (#561):** Pi FCC is the **main** clone `~/personal-workspace`, **attached** `work/treasury`. Do not let `~/personal-workspace-worktrees/treasury` own that branch name (that forces detached HEAD + HEAD.lock races). `FCC_LIVE_TREE=main` skips ensure/repair of a treasury worktree on this host. Mac still uses the treasury worktree.
+
 ## What happens after you merge
 
 ```

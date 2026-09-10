@@ -1,6 +1,7 @@
 """Tests for worktree prune classification helpers."""
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -13,6 +14,23 @@ class TestMonorepoRoot(unittest.TestCase):
         root = wt.monorepo_root()
         self.assertTrue(isinstance(root, Path))
         self.assertTrue(str(root))
+
+
+class TestFccLiveTreeMain(unittest.TestCase):
+    def test_env_true(self) -> None:
+        with mock.patch.dict("os.environ", {"FCC_LIVE_TREE": "main"}, clear=False):
+            self.assertTrue(wt.fcc_live_tree_is_main())
+
+    def test_env_unset(self) -> None:
+        env = {k: v for k, v in os.environ.items() if k != "FCC_LIVE_TREE"}
+        with mock.patch.dict("os.environ", env, clear=True):
+            self.assertFalse(wt.fcc_live_tree_is_main())
+
+    def test_ensure_skips_treasury(self) -> None:
+        with mock.patch.dict("os.environ", {"FCC_LIVE_TREE": "main"}, clear=False):
+            r = wt.ensure_area("treasury")
+        self.assertTrue(r.get("ok"))
+        self.assertEqual(r.get("status"), "skipped_fcc_live_main")
 
 
 class TestClassifyMain(unittest.TestCase):
