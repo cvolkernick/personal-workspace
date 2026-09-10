@@ -225,7 +225,8 @@ def quest_gt_sync_enabled() -> bool:
     Grocery is always skipped. Set ``FITDASH_QUEST_GT_SYNC=0`` to stop creating
     lifts/meals/sleep/cardio GTs as well (FitDash-owned; GTs stay for one-offs).
     Completion then uses local daily-tasks state (slug + group + date) so
-    Today complete still works without Google Tasks ids.
+    Today complete still works without Google Tasks ids. Wearable hits
+    (AZM / sleep) auto-complete that local cache on ensure and first paint.
     """
     raw = (os.environ.get(QUEST_GT_SYNC_ENV) or "1").strip().lower()
     return raw not in ("0", "false", "no", "off")
@@ -247,6 +248,20 @@ def skip_gt_seed(group: str = "", item: Optional[PlannedItem] = None) -> bool:
     if g in FITDASH_GROCERY_GROUPS or is_grocery_planned_item(item):
         return True
     if g in FITDASH_OWNED_QUEST_GROUPS and not quest_gt_sync_enabled():
+        return True
+    return False
+
+
+def wearable_quest_hit(
+    item: PlannedItem,
+    *,
+    cardio_hit: bool = False,
+    sleep_hit: bool = False,
+) -> bool:
+    """True when the board already meets this leaf's wearable target."""
+    if is_cardio_azm_item(item) and cardio_hit:
+        return True
+    if is_sleep_recovery_item(item) and sleep_hit:
         return True
     return False
 
@@ -2228,6 +2243,7 @@ def ensure_daily_tasks(
             day=day,
             error=cred.get("error") or "Google Tasks not configured",
             meal_regen=meal_stats,
+            today_board=today_board,
         )
 
     try:
@@ -2238,6 +2254,7 @@ def ensure_daily_tasks(
                 day=day,
                 error=f"Task list '{list_title}' not found",
                 meal_regen=meal_stats,
+                today_board=today_board,
             )
 
         cache = _load_cache()
@@ -2562,6 +2579,14 @@ def ensure_daily_tasks(
                     else:
                         task = dict(task)
                         task["status"] = "completed"
+                if (
+                    skip_item
+                    and create_missing
+                    and wearable_quest_hit(
+                        it, cardio_hit=cardio_hit, sleep_hit=sleep_hit
+                    )
+                ):
+                    local_completed[ck] = True
                 if not task:
                     items_out.append(
                         {
@@ -2719,6 +2744,7 @@ def ensure_daily_tasks(
             error=str(e),
             meal_regen=meal_stats,
             protein_remaining=protein_stats,
+            today_board=today_board,
         )
 
 
@@ -2726,7 +2752,13 @@ def plan_preview(today_board: dict, *, day: Optional[str] = None) -> dict:
     """Fast local structure for UI skeleton before GT ensure finishes."""
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
-    return _local_payload(planned, day=day, error=None, source="plan_preview")
+    return _local_payload(
+        planned,
+        day=day,
+        error=None,
+        source="plan_preview",
+        today_board=today_board,
+    )
 
 
 def _local_payload(
@@ -2737,22 +2769,33 @@ def _local_payload(
     source: str = "local_preview",
     meal_regen: Optional[dict] = None,
     protein_remaining: Optional[dict] = None,
+    today_board: Optional[dict] = None,
 ) -> dict:
+    board = today_board if isinstance(today_board, dict) else {}
+    cardio_hit = bool(cardio_spec(board, as_of=day).get("hit")) if board else False
+    sleep_hit = bool(sleep_spec(board, as_of=day).get("hit")) if board else False
     groups_out = []
+    summary_done = 0
     for g in planned:
-        items = [
-            {
-                "slug": it.slug,
-                "title": it.title,
-                "completed": False,
-                "task_id": None,
-                "list_id": None,
-                "group": g.group,
-                "meal_label": it.meal_label or None,
-                "local": True,
-            }
-            for it in g.items
-        ]
+        items = []
+        for it in g.items:
+            done = wearable_quest_hit(
+                it, cardio_hit=cardio_hit, sleep_hit=sleep_hit
+            )
+            items.append(
+                {
+                    "slug": it.slug,
+                    "title": it.title,
+                    "completed": done,
+                    "task_id": None,
+                    "list_id": None,
+                    "group": g.group,
+                    "meal_label": it.meal_label or None,
+                    "local": True,
+                }
+            )
+        done_n = sum(1 for x in items if x["completed"])
+        summary_done += done_n
         groups_out.append(
             {
                 "group": g.group,
@@ -2760,11 +2803,11 @@ def _local_payload(
                 "emoji": g.emoji,
                 "task_id": None,
                 "list_id": None,
-                "completed": False,
-                "done": 0,
+                "completed": bool(items) and done_n == len(items),
+                "done": done_n,
                 "total": len(items),
                 "items": items,
-                "open_items": items,
+                "open_items": [x for x in items if not x["completed"]],
             }
         )
     total = sum(g["total"] for g in groups_out)
@@ -2776,7 +2819,7 @@ def _local_payload(
         "list_id": None,
         "day": day,
         "groups": groups_out,
-        "summary": {"done": 0, "total": total},
+        "summary": {"done": summary_done, "total": total},
         "error": error,
         "meal_regen": meal_regen
         or meal_regen_payload(

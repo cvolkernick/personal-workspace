@@ -3109,6 +3109,126 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
         self.assertFalse(done[0].get("task_id"))
         self.assertIn("jot", store)
 
+    def _azm_board(self, day="2026-09-10", minutes=90):
+        board = self._lift_board(day)
+        board["active_zone_minutes"] = [
+            {"date": day, "total_minutes": minutes},
+        ]
+        return board
+
+    def _sleep_hit_board(self, day="2026-09-06"):
+        board = self._lift_board(day)
+        board["now"] = f"{day}T16:00:00-04:00"
+        board["sleep_battery"] = {
+            "mode": "awake",
+            "last_sleep_hours": 8.2,
+            "sleep_target_hours": 8.0,
+        }
+        prev = "2026-09-05"
+        board["sleep_intervals"] = [
+            {"start": f"{prev}T22:00:00-04:00", "end": f"{day}T06:00:00-04:00"}
+        ]
+        return board
+
+    def _cardio_leaf(self, result):
+        cardio = [
+            g for g in result.get("groups") or [] if g.get("group") == "cardio"
+        ]
+        self.assertTrue(cardio, result)
+        leaf = next(
+            (it for it in cardio[0].get("items") or [] if it.get("slug") == "azm"),
+            None,
+        )
+        self.assertIsNotNone(leaf, cardio[0])
+        return leaf
+
+    def _sleep_leaf(self, result):
+        sleep = [
+            g
+            for g in result.get("groups") or []
+            if g.get("group") in ("sleep", "recovery")
+        ]
+        self.assertTrue(sleep, result)
+        leaf = next(
+            (
+                it
+                for it in sleep[0].get("items") or []
+                if it.get("slug") == SLEEP_RECOVERY_SLUG
+            ),
+            None,
+        )
+        self.assertIsNotNone(leaf, sleep[0])
+        return leaf
+
+    def test_ensure_auto_completes_azm_hit_without_gt(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task"
+            ) as gt_complete:
+                first = ensure_daily_tasks(self._azm_board(day, 90), day=day)
+                second = ensure_daily_tasks(self._azm_board(day, 90), day=day)
+        self.assertTrue(first.get("ok"), first)
+        leaf = self._cardio_leaf(first)
+        self.assertTrue(leaf.get("completed"), leaf)
+        self.assertFalse(leaf.get("task_id"))
+        self.assertFalse(
+            any("AZM" in str(t.get("title") or "") for t in created), created
+        )
+        gt_complete.assert_not_called()
+        self.assertTrue(self._cardio_leaf(second).get("completed"))
+
+    def test_ensure_azm_below_target_stays_open_without_gt(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ):
+                result = ensure_daily_tasks(self._azm_board(day, 1), day=day)
+        leaf = self._cardio_leaf(result)
+        self.assertFalse(leaf.get("completed"), leaf)
+        self.assertFalse(leaf.get("task_id"))
+
+    def test_ensure_auto_completes_sleep_hit_without_gt(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-06"
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task"
+            ) as gt_complete:
+                result = ensure_daily_tasks(self._sleep_hit_board(day), day=day)
+        self.assertTrue(result.get("ok"), result)
+        leaf = self._sleep_leaf(result)
+        self.assertTrue(leaf.get("completed"), leaf)
+        self.assertFalse(leaf.get("task_id"))
+        gt_complete.assert_not_called()
+
+    def test_plan_preview_marks_azm_hit_complete(self):
+        prev = plan_preview(self._azm_board("2026-09-10", 90), day="2026-09-10")
+        leaf = self._cardio_leaf(prev)
+        self.assertTrue(leaf.get("completed"), leaf)
+        self.assertIsNone(leaf.get("task_id"))
+
+    def test_no_gt_creds_marks_azm_hit_complete(self):
+        day = "2026-09-10"
+        with mock.patch(
+            "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+            return_value={"ok": False, "error": "Google Tasks not configured"},
+        ):
+            result = ensure_daily_tasks(self._azm_board(day, 90), day=day)
+        leaf = self._cardio_leaf(result)
+        self.assertTrue(leaf.get("completed"), leaf)
+        self.assertFalse(leaf.get("task_id"))
+
 
 if __name__ == "__main__":
     unittest.main()
