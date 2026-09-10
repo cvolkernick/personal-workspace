@@ -70,7 +70,8 @@ class EnergyWeightAlignNode(unittest.TestCase):
 
 class EnergyWeightAlignCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v87"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v88"', SW)
+        self.assertNotIn("fitdash-shell-v87", SW)
         self.assertNotIn("fitdash-shell-v86", SW)
         self.assertIn("/app.js?v=phase-baro-1", SW)
         self.assertNotIn("fitdash-shell-v81", SW)

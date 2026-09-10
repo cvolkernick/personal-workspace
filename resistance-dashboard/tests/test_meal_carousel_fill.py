@@ -1,7 +1,8 @@
 """Today meal-plan carousel fills the card height vs Today so far (#577).
 
-Desktop 2-col: no 14rem cap — existing flex chain stretches the carousel.
-Mobile stacked: keep the 14rem cap so the page does not grow with meals.
+Desktop 2-col (≥800px): meal card does not contribute max-content to the
+grid row (height: 0; min-height: 100%); carousel fills leftover.
+Stacked (≤799px): 14rem cap so extra meals do not grow the page.
 Per-meal snap buckets keep 11.5–12.5rem. CSS only.
 """
 
@@ -29,23 +30,47 @@ def _block_after(src: str, needle: str) -> str:
 
 
 class MealCarouselFillLayout(unittest.TestCase):
-    def test_desktop_carousel_drops_14rem_cap(self):
-        desktop = _block_after(CSS, "#today-exec-row .meal-vcarousel {")
-        self.assertTrue(desktop)
-        self.assertIn("max-height: none", desktop)
-        self.assertNotIn("14rem", desktop)
-        self.assertIn("min-height: 0", desktop)
-        self.assertIn("flex: 1 1 auto", desktop)
-        self.assertIn("height: 100%", desktop)
+    def test_two_col_card_zeroes_max_content_contribution(self):
+        marker = "2-col: size the row from Today so far; meal card fills leftover."
+        media = CSS.split(marker, 1)[1]
+        self.assertTrue(media.lstrip().startswith("*/\n@media (min-width: 800px)"))
+        card = _block_after(media, "#today-exec-row #meal-plan-card")
+        self.assertIn("height: 0", card)
+        self.assertIn("min-height: 100%", card)
+        self.assertIn("overflow: hidden", card)
+        first = CSS.find("#today-exec-row #meal-plan-card")
+        self.assertGreater(first, CSS.find(marker))
+        self.assertEqual(CSS.find("#today-exec-row #meal-plan-card", first + 1), -1)
 
-    def test_mobile_keeps_bounded_max_height(self):
-        stacked = CSS.split("Stack so-far + meal plan on narrow phones", 1)[1]
+    def test_desktop_carousel_drops_14rem_cap_only_in_two_col(self):
+        unscoped = _block_after(CSS, "#today-exec-row .meal-vcarousel {")
+        self.assertTrue(unscoped)
+        self.assertNotIn("max-height: none", unscoped)
+        self.assertNotIn("14rem", unscoped)
+        self.assertIn("min-height: 0", unscoped)
+        self.assertIn("flex: 1 1 auto", unscoped)
+        two_col = CSS.split(
+            "2-col: size the row from Today so far; meal card fills leftover.", 1
+        )[1]
+        desktop = _block_after(two_col, "#today-exec-row .meal-vcarousel {")
+        self.assertIn("max-height: none", desktop)
+        self.assertIn("height: 100%", desktop)
+        self.assertNotIn("14rem", desktop)
+
+    def test_stacked_cap_covers_all_single_column_widths(self):
+        stacked = CSS.split(
+            "Stacked: cap height so extra meals don't lengthen the page.", 1
+        )[1]
+        self.assertTrue(stacked.lstrip().startswith("*/\n@media (max-width: 799px)"))
         mobile = _block_after(stacked, "#today-exec-row .meal-vcarousel {")
         self.assertTrue(mobile)
         self.assertIn("max-height: 14rem", mobile)
+        self.assertIn("height: auto", mobile)
         self.assertIn("min-height: 11rem", mobile)
-        desktop = _block_after(CSS, "#today-exec-row .meal-vcarousel {")
-        self.assertNotEqual(desktop, mobile)
+        phone = CSS.split("Stack so-far + meal plan on narrow phones", 1)[1]
+        phone_only = phone.split(".pace-fill.band-green", 1)[0]
+        self.assertNotIn("14rem", phone_only)
+        self.assertNotIn("meal-vcarousel", phone_only)
 
     def test_flex_chain_still_stretches(self):
         for sel in (
@@ -57,8 +82,6 @@ class MealCarouselFillLayout(unittest.TestCase):
             block = _block_after(CSS, sel)
             self.assertIn("flex: 1 1 auto", block, sel)
             self.assertIn("min-height: 0", block, sel)
-        card = _block_after(CSS, "#today-exec-row #meal-plan-card")
-        self.assertIn("overflow: hidden", card)
 
     def test_snap_buckets_unchanged(self):
         slide = _block_after(CSS, ".meal-vslide.meal-bucket {")
@@ -80,11 +103,14 @@ class MealCarouselFillLayout(unittest.TestCase):
         self.assertIn("scroll-snap-align", CSS)
 
     def test_cache_bumped(self):
-        self.assertIn("/styles.css?v=meal-carousel-fill-1", HTML)
-        self.assertIn("/styles.css?v=meal-carousel-fill-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v87"', SW)
+        self.assertIn("/styles.css?v=meal-carousel-fill-2", HTML)
+        self.assertIn("/styles.css?v=meal-carousel-fill-2", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v88"', SW)
+        self.assertNotIn("/styles.css?v=meal-carousel-fill-1", HTML)
+        self.assertNotIn("/styles.css?v=meal-carousel-fill-1", SW)
         self.assertNotIn("/styles.css?v=phase-baro-1", HTML)
         self.assertNotIn("/styles.css?v=phase-baro-1", SW)
+        self.assertNotIn("fitdash-shell-v87", SW)
         self.assertNotIn("fitdash-shell-v86", SW)
 
 
