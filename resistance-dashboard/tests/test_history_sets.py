@@ -76,7 +76,7 @@ class HistorySetsMarkup(unittest.TestCase):
         self.assertIn("root.FitDashHistorySets = api", HIST_JS)
 
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v86"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v87"', SW)
         self.assertIn("/history-sets.js?v=history-sets-1", SW)
         self.assertIn("/app.js?v=phase-baro-1", SW)
         self.assertNotIn("fitdash-shell-v81", SW)

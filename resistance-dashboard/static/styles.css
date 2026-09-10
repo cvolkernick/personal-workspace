@@ -1218,6 +1218,11 @@ textarea {
   min-height: 0;
 }
 
+/* Grid min-size 0 so a 4-meal track cannot grow the row past Today so far. */
+#today-exec-row #meal-plan-card {
+  overflow: hidden;
+}
+
 #today-exec-row #meal-plan-result {
   flex: 1 1 auto;
   min-height: 0;
@@ -1246,7 +1251,10 @@ textarea {
 
 #today-exec-row .meal-vcarousel {
   flex: 1 1 auto;
-  max-height: 14rem;
+  align-self: stretch;
+  min-height: 0;
+  max-height: none;
+  height: 100%;
 }
 
 .meal-item-list {
@@ -1841,6 +1849,13 @@ footer {
 @media (max-width: 720px) {
   #today-exec-row.grid.two {
     grid-template-columns: 1fr;
+  }
+  /* Stacked: no sibling stretch. Keep the historical cap so a 4-meal
+     plan cannot grow the page. */
+  #today-exec-row .meal-vcarousel {
+    max-height: 14rem;
+    height: auto;
+    min-height: 11rem;
   }
 }
 
