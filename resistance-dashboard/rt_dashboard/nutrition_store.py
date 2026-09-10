@@ -160,6 +160,24 @@ def write_nutrition_file(
         }
 
 
+def nutrition_write_ok(write: Optional[Dict[str, Any]]) -> Tuple[bool, str]:
+    """Whether write_nutrition_file actually stuck.
+
+    GitHub success always counts. A GitHub *error* (token configured, remote
+    write attempted) is a failure even if a local copy was saved. Local-only
+    setups (no token / prefer_local) succeed when ``local`` is True.
+    """
+    write = write or {}
+    if write.get("github"):
+        return True, ""
+    if write.get("error"):
+        err = str(write.get("error") or "").strip() or "GitHub nutrition write failed"
+        return False, err
+    if write.get("local"):
+        return True, ""
+    return False, "nutrition write did not persist"
+
+
 def load_inventory_and_targets(client: GitHubLiftClient) -> Dict[str, Any]:
     inv, inv_src = read_nutrition_file(
         client, INVENTORY_PATH, default_inventory()

@@ -3486,16 +3486,8 @@
     }
   }
 
-  function renderTargetsAndRemaining(store) {
-    // Hydrates More → Daily targets form + optional macro pace bars under Today so far.
-    // Day totals / remaining chips stay in the Today|Target tiles above (not duplicated).
-    const t = (store && store.targets) || {};
-    const c = (store && store.today_consumed) || {};
-    const mp =
-      (state && state.calorie_bars && state.calorie_bars.macro_pace) || {};
-    const civil = mp.civil_day || c;
-    const civilLine = formatLoggedTodayCalendarLine(civil);
-    const clock = mp.pace_clock || "";
+  function hydrateTargetsForm(t) {
+    t = t || {};
     if ($("tgt-cal")) {
       $("tgt-cal").value = t.calories ?? 2100;
       $("tgt-p").value = t.protein_g ?? 210;
@@ -3523,6 +3515,33 @@
       $("tgt-sodium").value =
         t.sodium_mg != null && t.sodium_mg !== "" ? t.sodium_mg : "";
     }
+  }
+
+  function formatCoachAppliedMessage(t) {
+    t = t || {};
+    const bits = [];
+    if (t.calories != null && t.calories !== "") bits.push(`${t.calories} kcal`);
+    if (t.protein_g != null && t.protein_g !== "") bits.push(`P${t.protein_g}`);
+    if (t.carbs_g != null && t.carbs_g !== "") bits.push(`C${t.carbs_g}`);
+    if (t.fat_g != null && t.fat_g !== "") bits.push(`F${t.fat_g}`);
+    if (t.fiber_g != null && t.fiber_g !== "") bits.push(`fiber ${t.fiber_g}g`);
+    if (t.sugar_g != null && t.sugar_g !== "") bits.push(`sugar ≤${t.sugar_g}g`);
+    if (t.sodium_mg != null && t.sodium_mg !== "") bits.push(`sodium ≤${t.sodium_mg}mg`);
+    const detail = bits.join(" · ");
+    return detail ? `Coach targets applied: ${detail}` : "Coach targets applied";
+  }
+
+  function renderTargetsAndRemaining(store) {
+    // Hydrates More → Daily targets form + optional macro pace bars under Today so far.
+    // Day totals / remaining chips stay in the Today|Target tiles above (not duplicated).
+    const t = (store && store.targets) || {};
+    const c = (store && store.today_consumed) || {};
+    const mp =
+      (state && state.calorie_bars && state.calorie_bars.macro_pace) || {};
+    const civil = mp.civil_day || c;
+    const civilLine = formatLoggedTodayCalendarLine(civil);
+    const clock = mp.pace_clock || "";
+    hydrateTargetsForm(t);
     renderCoachTargetRec(state && state.coach);
     if ($("macro-pace-bars")) {
       $("macro-pace-bars").innerHTML = `
@@ -6874,9 +6893,21 @@
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || res.status);
-      if (status) status.textContent = "Coach targets applied";
-      showAlert("Coach targets applied", "ok");
-      await loadDashboard();
+      const t = data.targets || {};
+      hydrateTargetsForm(t);
+      const msg = formatCoachAppliedMessage(t);
+      if (status) status.textContent = msg;
+      showAlert(msg, "ok");
+      try {
+        await loadDashboard();
+      } catch (reloadErr) {
+        showAlert(
+          `Targets written; dashboard reload failed: ${reloadErr.message}`,
+          "err"
+        );
+      } finally {
+        hydrateTargetsForm(t);
+      }
     } catch (e) {
       if (status) status.textContent = "";
       showAlert(`Apply coach targets failed: ${e.message}`, "err");

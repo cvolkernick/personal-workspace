@@ -11,6 +11,7 @@ from unittest import mock
 
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.workout._util import dispatch_client_route, targets_write
+from rt_dashboard.nutrition_store import nutrition_write_ok
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_JS = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
@@ -187,6 +188,160 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(body["targets"]["protein_g"], 200)
         self.assertEqual(len(writes), 1)
         self.assertIn("apply coach targets", writes[0][2])
+
+    def test_apply_coach_github_write_fail_is_not_ok(self):
+        rec = {
+            "abstain": False,
+            "recommended": {
+                "calories": 1950,
+                "protein_g": 175,
+                "carbs_g": 180,
+                "fat_g": 60,
+                "fiber_g": 25,
+                "sugar_g": 50,
+                "sodium_mg": 2300,
+            },
+        }
+
+        def fake_write(client, rel, data, message=""):
+            return {
+                "path": rel,
+                "local": True,
+                "github": False,
+                "error": "Bad credentials",
+            }
+
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "api.dashboard.dashboard_body",
+            return_value=(200, {"coach": {"nutrition_targets": rec}}),
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.write_nutrition_file",
+            side_effect=fake_write,
+        ):
+            status, body = targets_write(_headers(), {"apply_coach": True})
+        self.assertEqual(status, 502)
+        self.assertFalse(body["ok"])
+        self.assertIn("Bad credentials", body["error"])
+        self.assertTrue(body["write"]["local"])
+        self.assertFalse(body["write"]["github"])
+
+    def test_apply_coach_local_only_write_is_ok(self):
+        rec = {
+            "abstain": False,
+            "recommended": {
+                "calories": 1950,
+                "protein_g": 175,
+                "carbs_g": 180,
+                "fat_g": 60,
+            },
+        }
+
+        def fake_write(client, rel, data, message=""):
+            return {
+                "path": rel,
+                "local": True,
+                "github": False,
+                "note": "Saved locally (no GITHUB_TOKEN for remote write)",
+            }
+
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "api.dashboard.dashboard_body",
+            return_value=(200, {"coach": {"nutrition_targets": rec}}),
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.write_nutrition_file",
+            side_effect=fake_write,
+        ):
+            status, body = targets_write(_headers(), {"apply_coach": True})
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertTrue(body["write"]["local"])
+        self.assertFalse(body["write"]["github"])
+        self.assertNotIn("error", body)
+
+    def test_apply_coach_nothing_persisted_is_not_ok(self):
+        rec = {
+            "abstain": False,
+            "recommended": {"calories": 1950, "protein_g": 175, "carbs_g": 180, "fat_g": 60},
+        }
+
+        def fake_write(client, rel, data, message=""):
+            return {
+                "path": rel,
+                "local": False,
+                "github": False,
+                "note": "Saved locally (no GITHUB_TOKEN for remote write)",
+            }
+
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "api.dashboard.dashboard_body",
+            return_value=(200, {"coach": {"nutrition_targets": rec}}),
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.write_nutrition_file",
+            side_effect=fake_write,
+        ):
+            status, body = targets_write(_headers(), {"apply_coach": True})
+        self.assertEqual(status, 502)
+        self.assertFalse(body["ok"])
+        self.assertEqual(body["error"], "nutrition write did not persist")
+
+
+class NutritionWriteOk(unittest.TestCase):
+    def test_github_success(self):
+        ok, err = nutrition_write_ok({"github": True, "local": False})
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+
+    def test_github_error_even_if_local_saved(self):
+        ok, err = nutrition_write_ok(
+            {"github": False, "local": True, "error": "Bad credentials"}
+        )
+        self.assertFalse(ok)
+        self.assertEqual(err, "Bad credentials")
+
+    def test_local_only(self):
+        ok, err = nutrition_write_ok({"github": False, "local": True})
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+
+    def test_empty_did_not_persist(self):
+        ok, err = nutrition_write_ok({})
+        self.assertFalse(ok)
+        self.assertEqual(err, "nutrition write did not persist")
+
+
+class ApplyCoachFrontend(unittest.TestCase):
+    def test_toast_names_written_macros_and_micros(self):
+        self.assertIn("function formatCoachAppliedMessage", APP_JS)
+        self.assertIn("function hydrateTargetsForm", APP_JS)
+        self.assertIn("Coach targets applied:", APP_JS)
+        self.assertIn("sugar ≤", APP_JS)
+        self.assertIn("sodium ≤", APP_JS)
+        self.assertNotIn('showAlert("Coach targets applied", "ok")', APP_JS)
+        self.assertIn("nutrition_write_ok", (ROOT / "server.py").read_text(encoding="utf-8"))
+        self.assertIn(
+            "nutrition_write_ok",
+            (ROOT / "api" / "workout" / "_util.py").read_text(encoding="utf-8"),
+        )
+
+    def test_vercel_static_no_store_headers(self):
+        headers = VERCEL.get("headers") or []
+        by_src = {h["source"]: h for h in headers}
+        for src in ("/app.js", "/index.html", "/", "/sw.js"):
+            self.assertIn(src, by_src, src)
+            keys = {item["key"]: item["value"] for item in by_src[src]["headers"]}
+            self.assertIn("no-store", keys["Cache-Control"], src)
+
+    def test_app_js_cache_bust(self):
+        html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+        sw = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
+        self.assertIn("/app.js?v=apply-coach-1", html)
+        self.assertIn("/app.js?v=apply-coach-1", sw)
+        self.assertIn('const CACHE = "fitdash-shell-v97"', sw)
+        self.assertNotIn("/app.js?v=quest-gt-local-1", html)
+        self.assertNotIn("/app.js?v=quest-gt-local-1", sw)
 
 
 if __name__ == "__main__":
