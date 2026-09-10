@@ -59,6 +59,9 @@ REMOTE_DIR="${REMOTE_DIR:-/home/${RUSER}/personal-workspace}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 UNITS_SRC="$(cd "$(dirname "$0")/units" && pwd)"
 
+# FCC HTTPS (Tailscale Serve) is NOT in this list. install_remote rsyncs the
+# local tree onto the Pi FCC clone — that clone is work/treasury only. Use
+# deploy/fcc_tailscale_serve.sh (optionally --install-unit) instead.
 ALL_UNITS=(
   orchestra-dashboard.service
   financial-command.service

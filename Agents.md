@@ -115,6 +115,7 @@ python3 projects-dashboard/worktrees.py path resistance-dashboard
 
 **Read `deploy/DEPLOY_CONVENTIONS.md` before touching anything that deploys.**
 `personal-workspace` is a monorepo: every push fans out to the `fitdash` and `mikrafts` Vercel projects.
+FCC is **not** Vercel — private HTTPS is Tailscale Serve on prism-gateway (`https://prism-gateway.tailb1085a.ts.net/`, never Funnel).
 Key rules: deploy via git push only (never `vercel deploy` from a CLI/dirty worktree), `CANCELED` from the
 Ignored Build Step is normal and not a failure, batch pushes (limited concurrent builds), keep changes
 scoped to your project's directory.

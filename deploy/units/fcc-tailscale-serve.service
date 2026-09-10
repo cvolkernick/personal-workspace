@@ -1,0 +1,14 @@
+[Unit]
+Description=FCC Tailscale Serve HTTPS (tailnet-only → :8000)
+After=network-online.target financial-command.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# OperatorUser is unset on prism-gateway; passwordless sudo is required to write serve config.
+# Never Funnel. `serve --bg` persists in tailscaled until reset; this unit re-applies after reboot.
+ExecStart=/usr/bin/sudo /usr/bin/tailscale serve --bg --yes http://127.0.0.1:8000
+
+[Install]
+WantedBy=default.target

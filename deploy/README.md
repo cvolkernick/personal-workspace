@@ -28,6 +28,8 @@ Default host is in `deploy/endpoints.json` (`pi_host`). Override anytime with en
 
 Each unit: **bind all interfaces (`0.0.0.0`)**, **`--no-browser`**, **`--local`** (API handled on the Pi), **Restart=always**.
 
+FCC PWA origin (Tailscale Serve, tailnet only): `https://prism-gateway.tailb1085a.ts.net/` → loopback `:8000`. See **FCC HTTPS** below.
+
 ## Install on Pi
 
 From monorepo root (SSH key required):
@@ -101,7 +103,21 @@ Unit pin: `deploy/units/workspace-sync.service` sets `Environment=SYNC_BRANCH=wo
    `http://prism-gateway:8790` or `http://100.x.y.z:8790`.
 4. Same terminal frontend commands work on-LAN and off-network — only the host part of the URL changes.
 
-Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access private (access policies), not a bare open port.
+### FCC HTTPS (PWA install)
+
+Browsers will not offer a PWA install prompt on `http://100.67.114.2:8000`. FCC is served at a **private** trusted origin:
+
+`https://prism-gateway.tailb1085a.ts.net/` → `http://127.0.0.1:8000` via Tailscale Serve (tailnet only, not Funnel, not Vercel).
+
+```bash
+# Apply or re-apply on prism-gateway. Does not rsync the repo.
+bash deploy/fcc_tailscale_serve.sh
+bash deploy/fcc_tailscale_serve.sh --install-unit   # persist oneshot after reboot
+```
+
+Do **not** run `install_remote.sh` from `master` onto the FCC live clone to “fix HTTPS” — that tree is `work/treasury` only.
+
+Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access private (access policies), not a bare open port. FCC is not a Cloudflare/Vercel app.
 
 ## Security notes
 

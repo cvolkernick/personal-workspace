@@ -12,6 +12,16 @@
 
 Both projects deploy from this **one monorepo**. Every push fans out to both Vercel projects.
 
+## Private HTTPS (not Vercel)
+
+FCC is a personal-finance dashboard. It is **not** a Vercel project and must stay off the public internet.
+
+| Product | Origin | How |
+|---|---|---|
+| **FCC** (`financial-command/`, live on `work/treasury`) | `https://prism-gateway.tailb1085a.ts.net/` | Tailscale Serve on **prism-gateway** → `http://127.0.0.1:8000`. Trusted cert, tailnet only. **Never Vercel. Never Funnel.** Re-apply: `bash deploy/fcc_tailscale_serve.sh` (does not rsync master onto the FCC clone). |
+
+PWA `start_url` / `scope` / `id` are `/`, so Serve must proxy FCC at the origin root. FitDash production stays Vercel (`fitdash` row above); do not steal this origin back without a new CIC.
+
 ## Rules
 
 ### 1. Deploy via git push only
@@ -48,4 +58,4 @@ Both projects deploy from this **one monorepo**. Every push fans out to both Ver
 - Changes under `mikrafts/` → mikrafts owners
 - Changes at repo root or shared dirs → coordinate; expect both projects to attempt builds
 
-*Last verified: 2026-09-09. If project settings change in the Vercel dashboard, update this file in the same PR.*
+*Last verified: 2026-09-10. If project settings change in the Vercel dashboard, update this file in the same PR. FCC HTTPS is Tailscale Serve, not a Vercel setting.*
