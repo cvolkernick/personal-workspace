@@ -1,7 +1,8 @@
 """Today meal-plan carousel fills the card height vs Today so far (#577).
 
 Desktop 2-col (≥800px): meal card does not contribute max-content to the
-grid row (height: 0; min-height: 100%); carousel fills leftover.
+grid row (height: 0; min-height: 100%); inner carousel row is
+minmax(0, 1fr) so extra meals scroll instead of clipping.
 Stacked (≤799px): 14rem cap so extra meals do not grow the page.
 Per-meal snap buckets keep 11.5–12.5rem. CSS only.
 """
@@ -41,6 +42,15 @@ class MealCarouselFillLayout(unittest.TestCase):
         first = CSS.find("#today-exec-row #meal-plan-card")
         self.assertGreater(first, CSS.find(marker))
         self.assertEqual(CSS.find("#today-exec-row #meal-plan-card", first + 1), -1)
+
+    def test_two_col_inner_row_caps_grid_track(self):
+        two_col = CSS.split(
+            "2-col: size the row from Today so far; meal card fills leftover.", 1
+        )[1]
+        row = _block_after(two_col, "#today-exec-row .meal-vcarousel-row")
+        self.assertIn("grid-template-rows: minmax(0, 1fr)", row)
+        unscoped = _block_after(CSS, "#today-exec-row .meal-vcarousel-row {")
+        self.assertNotIn("grid-template-rows", unscoped)
 
     def test_desktop_carousel_drops_14rem_cap_only_in_two_col(self):
         unscoped = _block_after(CSS, "#today-exec-row .meal-vcarousel {")
@@ -103,13 +113,14 @@ class MealCarouselFillLayout(unittest.TestCase):
         self.assertIn("scroll-snap-align", CSS)
 
     def test_cache_bumped(self):
-        self.assertIn("/styles.css?v=meal-carousel-fill-2", HTML)
-        self.assertIn("/styles.css?v=meal-carousel-fill-2", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v88"', SW)
-        self.assertNotIn("/styles.css?v=meal-carousel-fill-1", HTML)
-        self.assertNotIn("/styles.css?v=meal-carousel-fill-1", SW)
+        self.assertIn("/styles.css?v=meal-carousel-fill-3", HTML)
+        self.assertIn("/styles.css?v=meal-carousel-fill-3", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v89"', SW)
+        self.assertNotIn("/styles.css?v=meal-carousel-fill-2", HTML)
+        self.assertNotIn("/styles.css?v=meal-carousel-fill-2", SW)
         self.assertNotIn("/styles.css?v=phase-baro-1", HTML)
         self.assertNotIn("/styles.css?v=phase-baro-1", SW)
+        self.assertNotIn("fitdash-shell-v88", SW)
         self.assertNotIn("fitdash-shell-v87", SW)
         self.assertNotIn("fitdash-shell-v86", SW)
 

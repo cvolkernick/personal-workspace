@@ -1257,6 +1257,9 @@ textarea {
     min-height: 100%;
     overflow: hidden;
   }
+  #today-exec-row .meal-vcarousel-row {
+    grid-template-rows: minmax(0, 1fr);
+  }
   #today-exec-row .meal-vcarousel {
     max-height: none;
     height: 100%;
