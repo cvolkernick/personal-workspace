@@ -119,6 +119,18 @@ Do **not** run `install_remote.sh` from `master` onto the FCC live clone to “f
 
 Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access private (access policies), not a bare open port. FCC is not a Cloudflare/Vercel app.
 
+## FCC tip health (#562)
+
+Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Mismatch → log + ntfy once (6h cooldown). **Never** auto-reset to master/holistic.
+
+```bash
+# On prism-gateway (unit file + durable script only — no repo rsync)
+scp deploy/fcc_tip_health.py prism-agent@prism-gateway:~/.config/personal-workspace/fcc_tip_health.py
+scp deploy/units/fcc-tip-health.service deploy/units/fcc-tip-health.timer \
+  prism-agent@prism-gateway:~/.config/systemd/user/
+ssh prism-agent@prism-gateway 'systemctl --user daemon-reload && systemctl --user enable --now fcc-tip-health.timer && systemctl --user start fcc-tip-health.service'
+```
+
 ## Security notes
 
 - These servers are personal tools with little/no app-level auth.

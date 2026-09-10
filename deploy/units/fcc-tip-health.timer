@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 15 minutes: FCC tip SHA / branch-attachment assert (#562)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=fcc-tip-health.service
+
+[Install]
+WantedBy=timers.target
