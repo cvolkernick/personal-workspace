@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -30,6 +30,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     colocate_egg_pair,
     egg_role,
     ensure_egg_pair,
+    _resolve_eat_times,
     inventory_gap_role,
     is_shake_or_powder,
     is_veg_or_fruit,
@@ -676,8 +677,15 @@ class TestNutritionPlanner(unittest.TestCase):
             if datetime.fromisoformat(m["eat_at"]) >= now
         ]
         self.assertEqual(next_eat, min(upcoming))
-        self.assertEqual(next_eat.hour, 19)
-        self.assertEqual(next_eat.minute, 0)
+        for meal in meals:
+            eat = datetime.fromisoformat(meal["eat_at"])
+            self.assertGreaterEqual(eat, now - timedelta(minutes=20))
+        hours = {
+            (datetime.fromisoformat(m["eat_at"]).hour, datetime.fromisoformat(m["eat_at"]).minute)
+            for m in meals
+        }
+        self.assertNotIn((12, 0), hours)
+        self.assertNotIn((15, 30), hours)
 
     def test_eat_slots_override_defaults_without_inventing_food(self):
         now = datetime(2026, 8, 22, 9, 0, tzinfo=ET)
@@ -702,6 +710,112 @@ class TestNutritionPlanner(unittest.TestCase):
         names = {it["name"] for m in meals for it in m["items"]}
         self.assertTrue(names <= {"Chicken", "Rice", "Greek yogurt", "Broccoli"})
         self.assertNotIn("Candy", names)
+
+    def test_afternoon_regen_drops_noon_slot(self):
+        now = datetime(2026, 8, 22, 15, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+        )
+        meals = plan["meals"]
+        self.assertTrue(meals)
+        self.assertNotIn("Earlier meal", [m["label"] for m in meals])
+        times = [datetime.fromisoformat(m["eat_at"]) for m in meals]
+        for t in times:
+            self.assertGreaterEqual(t, now - timedelta(minutes=20))
+        hours = {(t.hour, t.minute) for t in times}
+        self.assertNotIn((12, 0), hours)
+        self.assertIn((15, 30), hours)
+        if len(times) >= 2:
+            gaps = [(b - a).total_seconds() for a, b in zip(times, times[1:])]
+            self.assertTrue(all(g >= 60 * 60 for g in gaps))
+        self.assertFalse(all(abs((t - now).total_seconds()) < 120 for t in times))
+
+    def test_grace_keeps_in_progress_slot(self):
+        now = datetime(2026, 8, 22, 15, 40, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+        )
+        hours = {
+            (
+                datetime.fromisoformat(m["eat_at"]).hour,
+                datetime.fromisoformat(m["eat_at"]).minute,
+            )
+            for m in plan["meals"]
+        }
+        self.assertIn((15, 30), hours)
+        self.assertNotIn((12, 0), hours)
+        for m in plan["meals"]:
+            eat = datetime.fromisoformat(m["eat_at"])
+            self.assertGreaterEqual(eat, now - timedelta(minutes=20))
+
+    def test_late_window_does_not_stack_full_grid(self):
+        now = datetime(2026, 8, 22, 21, 0, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            window_start=start,
+            window_end=end,
+        )
+        meals = plan["meals"]
+        self.assertLessEqual(len(meals), 1)
+        for m in meals:
+            eat = datetime.fromisoformat(m["eat_at"])
+            self.assertLessEqual(eat, end)
+            self.assertGreaterEqual(eat, now - timedelta(minutes=20))
+
+    def test_logged_meals_stay_out_of_upcoming_buckets(self):
+        now = datetime(2026, 8, 22, 15, 0, tzinfo=ET)
+        logs = [
+            {
+                "name": "Oatmeal",
+                "calories": 300,
+                "protein_g": 12,
+                "carbs_g": 50,
+                "fat_g": 6,
+                "time": "08:00",
+            }
+        ]
+        consumed = {"calories": 300, "protein_g": 12, "carbs_g": 50, "fat_g": 6}
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            consumed,
+            food_logs_today=logs,
+            now=now,
+            tz_name="America/New_York",
+        )
+        self.assertEqual(len(plan["food_logs_today"]), 1)
+        self.assertEqual(plan["food_logs_today"][0]["name"], "Oatmeal")
+        for m in plan["meals"]:
+            eat = datetime.fromisoformat(m["eat_at"])
+            self.assertGreaterEqual(eat, now - timedelta(minutes=20))
+            names = {it["name"] for it in m["items"]}
+            self.assertNotIn("Oatmeal", names)
+
+    def test_resolve_eat_times_drops_past_defaults(self):
+        now = datetime(2026, 8, 22, 15, 0, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        times = _resolve_eat_times(3, now=now, start=start, end=end, tz=ET)
+        hours = [(t.hour, t.minute) for t in times]
+        self.assertNotIn((12, 0), hours)
+        self.assertTrue(all(t >= now - timedelta(minutes=20) for t in times))
+        self.assertTrue(all(start <= t <= end for t in times))
+        self.assertIn((15, 30), hours)
+        self.assertIn((19, 0), hours)
 
     def test_no_invented_grams_when_row_has_no_mass(self):
         inv = {

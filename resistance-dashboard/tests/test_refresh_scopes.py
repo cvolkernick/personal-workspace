@@ -88,6 +88,15 @@ class InventoryMealOnly(unittest.TestCase):
         self.assertIn("today-meal-bucket-time", today)
         self.assertIn(".meal-bucket-time", CSS)
 
+    def test_today_and_plan_hide_past_eat_at(self):
+        self.assertIn("function mealEatAtIsUpcoming", JS)
+        self.assertIn("MEAL_SLOT_GRACE_MS", JS)
+        render = _fn("function renderMealPlan", "function liveFingerprint")
+        self.assertIn("mealEatAtIsUpcoming", render)
+        today = _fn('if ($("today-meal"))', 'if ($("today-purchases"))')
+        self.assertIn("mealEatAtIsUpcoming", today)
+        self.assertIn("allMeals.filter", today)
+
     def test_inventory_mutations_call_generate_plan_only(self):
         submit = _fn("async function submitIngredient", "async function submitTargets")
         self.assertIn("await generatePlan()", submit)
