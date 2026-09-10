@@ -874,6 +874,15 @@ def phase_barometer_write(headers, payload=None):
             "action": "dismiss",
             "dismiss_banner_until": store.get("dismiss_banner_until"),
         }
+    if action == "undismiss":
+        from rt_dashboard.phase_barometer import undismiss_banner
+
+        store = undismiss_banner(user_id=uid)
+        return 200, {
+            "ok": True,
+            "action": "undismiss",
+            "dismiss_banner_until": store.get("dismiss_banner_until"),
+        }
     if action == "switch_phase":
         return 400, dict(PREVIEW_READ_ONLY)
     return 400, {"ok": False, "error": "unknown_action", "action": action}

@@ -237,9 +237,9 @@ class HistoryDateMarkup(unittest.TestCase):
         self.assertNotIn("delete + re-log", APP_JS)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=coach-micro-1", HTML)
-        self.assertIn("/app.js?v=coach-micro-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v92"', SW)
+        self.assertIn("/app.js?v=phase-baro-home-1", HTML)
+        self.assertIn("/app.js?v=phase-baro-home-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v93"', SW)
         self.assertNotIn("fitdash-shell-v90", SW)
         self.assertNotIn("fitdash-shell-v89", SW)
         self.assertNotIn("fitdash-shell-v88", SW)

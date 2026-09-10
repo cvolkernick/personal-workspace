@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=coach-micro-1" defer></script>
+    <script src="/app.js?v=phase-baro-home-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -184,8 +184,7 @@
         </div>
         <p class="muted today-headline" id="today-headline" style="margin: 0.5rem 0 0; font-size: 0.9rem"></p>
         <p class="muted today-overview-line" id="today-overview" style="margin: 0.2rem 0 0; font-size: 0.8rem"></p>
-        <div id="phase-barometer-banner" class="phase-baro-banner" hidden></div>
-        <div id="phase-barometer-today" class="phase-baro" data-phase-baro-surface="today"></div>
+        <div id="phase-barometer-banner" class="phase-baro-banner" hidden data-phase-baro-surface="today-alert"></div>
         <!-- Daily Quests first; Lift/Meal/Targets pills sit directly above the panels they control -->
         <div id="today-actions" class="today-actions today-actions-compact" style="margin-top: 0.55rem"></div>
         <div class="today-mobile-pills" id="today-mobile-pills" hidden role="tablist" aria-label="Today sections">
@@ -286,10 +285,9 @@
         style="margin-top: 1rem"
         id="weekly-review-card"
         data-m-panel="today"
-        aria-label="Weekly review and phase barometer"
+        aria-label="Weekly review"
       >
         <h2>Weekly review</h2>
-        <div id="phase-barometer-weekly" class="phase-baro" data-phase-baro-surface="weekly"></div>
         <ul class="reasons" id="weekly-review-bullets" style="margin-top: 0.6rem"></ul>
       </section>
 
@@ -519,7 +517,6 @@
           working and what to improve. Use inventory stock flags and staple suggestions
           when the meal plan is blocked by missing pantry items.
         </p>
-        <div id="phase-barometer-nutrition" class="phase-baro" data-phase-baro-surface="nutrition"></div>
         <div id="food-coach-commentary" class="food-coach" style="margin-top: 0.5rem"></div>
         <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
       </section>

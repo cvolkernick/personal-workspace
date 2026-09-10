@@ -5712,7 +5712,7 @@
     );
   }
 
-  function phaseBaroWidgetHtml(baro, { banner } = {}) {
+  function phaseBaroWidgetHtml(baro) {
     if (!baro || baro.available === false) {
       return `<p class="muted" style="margin:0;font-size:0.85rem">Phase barometer needs coach nutrition data.</p>`;
     }
@@ -5741,7 +5741,7 @@
       .join("");
     const focus = (baro.focus_muscles || []).join(", ");
     return `
-      <div class="phase-baro-card tone-${tone}${banner ? " is-banner" : ""}">
+      <div class="phase-baro-card tone-${tone}">
         <div class="phase-baro-top">
           <span class="phase-baro-pill">${phaseBaroEsc(baro.phase_label || baro.phase || "—")}</span>
           <span class="phase-baro-status">${phaseBaroEsc(baro.status || "")}</span>
@@ -5761,28 +5761,39 @@
       </div>`;
   }
 
+  function phaseBaroAlertHtml(baro) {
+    const tone = baro.tone === "red" ? "red" : baro.tone === "amber" ? "amber" : "green";
+    return `
+      <div class="phase-baro-alert tone-${tone}">
+        <span class="phase-baro-pill">${phaseBaroEsc(baro.phase_label || baro.phase || "—")}</span>
+        <span class="phase-baro-status">${phaseBaroEsc(baro.status || "")}</span>
+        <span class="phase-baro-why">${phaseBaroEsc(baro.explanation || "")}</span>
+        <button type="button" class="phase-baro-btn" data-phase-baro-action="open_home">Review on More</button>
+      </div>`;
+  }
+
+  function phaseBaroDismissedHtml(baro) {
+    const until = baro && baro.dismissed_until ? baro.dismissed_until : "—";
+    return `<p class="muted phase-baro-dismissed">Barometer dismissed until ${phaseBaroEsc(
+      until
+    )} <button type="button" class="phase-baro-btn" data-phase-baro-action="undismiss">Undo</button></p>`;
+  }
+
   function renderPhaseBarometer(data) {
     const baro = phaseBaroFromData(data);
-    const mounts = [
-      "phase-barometer-today",
-      "phase-barometer-weekly",
-      "phase-barometer-nutrition",
-      "phase-barometer-targets",
-    ];
-    mounts.forEach((id) => {
-      const el = $(id);
-      if (!el) return;
-      if (!baro) {
-        el.innerHTML = "";
-        return;
-      }
-      el.innerHTML = phaseBaroWidgetHtml(baro);
-    });
+    const home = $("phase-barometer-targets");
+    if (home) {
+      if (!baro) home.innerHTML = "";
+      else if (baro.dismissed_until) home.innerHTML = phaseBaroDismissedHtml(baro);
+      else home.innerHTML = phaseBaroWidgetHtml(baro);
+    }
     const banner = $("phase-barometer-banner");
     if (banner) {
-      if (baro && baro.banner) {
+      const showAlert =
+        baro && baro.reading === "pivot" && !baro.dismissed_until && baro.available !== false;
+      if (showAlert) {
         banner.hidden = false;
-        banner.innerHTML = phaseBaroWidgetHtml(baro, { banner: true });
+        banner.innerHTML = phaseBaroAlertHtml(baro);
       } else {
         banner.hidden = true;
         banner.innerHTML = "";
@@ -5805,10 +5816,28 @@
         await applyCoachTargets();
         return;
       }
+      if (action === "open_home") {
+        goMobileTab("more");
+        const el = $("phase-barometer-targets");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
       if (action === "log_labs") {
         goMobileTab("more");
         const el = $("labs-section");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      if (action === "undismiss") {
+        const res = await fetch("/api/phase-barometer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "undismiss" }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+        showAlert("Phase barometer restored", "ok");
+        await loadDashboard();
         return;
       }
       if (action === "dismiss") {

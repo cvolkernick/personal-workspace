@@ -2131,6 +2131,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         }
                     )
                     return
+                if action == "undismiss":
+                    from rt_dashboard.phase_barometer import undismiss_banner
+
+                    store = undismiss_banner(user_id=uid)
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "action": "undismiss",
+                            "dismiss_banner_until": store.get("dismiss_banner_until"),
+                        }
+                    )
+                    return
                 if action == "switch_phase":
                     client = build_github_client(for_write=True)
                     raw_phase = body.get("phase") or body.get("next_phase") or "slow_bulk"
