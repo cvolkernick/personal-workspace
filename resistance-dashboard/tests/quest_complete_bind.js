@@ -42,6 +42,13 @@ function assert(cond, msg) {
 }
 
 const questLeafIds = loadFn("questLeafIds");
+const isFitdashOwnedQuestGroup = loadFn("isFitdashOwnedQuestGroup");
+const questGtSyncEnabled = loadFn("questGtSyncEnabled");
+const dailyHasReadyLeaf = loadFn("dailyHasReadyLeaf");
+global.isFitdashOwnedQuestGroup = isFitdashOwnedQuestGroup;
+global.questGtSyncEnabled = questGtSyncEnabled;
+global.questLeafIds = questLeafIds;
+global.dailyHasReadyLeaf = dailyHasReadyLeaf;
 
 const inherited = questLeafIds(
   { task_id: "t1" },
@@ -56,6 +63,55 @@ assert(fromRoot.ready === true && fromRoot.tid === "t2" && fromRoot.lid === "L-r
 
 const pending = questLeafIds({ title: "Eat oats" }, {}, "");
 assert(pending.ready === false, "preview leaf without ids is not ready");
+
+assert(isFitdashOwnedQuestGroup("training") === true, "training is FitDash-owned");
+assert(isFitdashOwnedQuestGroup("other") === false, "other stays GT-backed");
+assert(questGtSyncEnabled({}) === true, "missing flag defaults on");
+assert(questGtSyncEnabled({ quest_gt_sync: false }) === false, "explicit off");
+
+const localIds = questLeafIds(
+  { slug: "ex-db-flat-press", title: "DB Flat Press", group: "training" },
+  { group: "training" },
+  "",
+  false
+);
+assert(localIds.ready === true, "GT-less owned leaf is ready when GT sync off");
+
+const previewIds = questLeafIds(
+  { slug: "ex-db-flat-press", title: "DB Flat Press" },
+  { group: "training" },
+  "",
+  true
+);
+assert(previewIds.ready === false, "same leaf stays pending when GT sync on");
+
+assert(
+  dailyHasReadyLeaf({
+    ok: true,
+    quest_gt_sync: false,
+    error: null,
+    groups: [
+      {
+        group: "training",
+        items: [{ slug: "ex-db-flat-press", title: "DB Flat Press", completed: false }],
+      },
+    ],
+  }) === true,
+  "clean local ensure counts as sync-ready"
+);
+assert(
+  dailyHasReadyLeaf({
+    ok: true,
+    quest_gt_sync: true,
+    groups: [
+      {
+        group: "training",
+        items: [{ slug: "ex-db-flat-press", title: "DB Flat Press", completed: false }],
+      },
+    ],
+  }) === false,
+  "flag-on preview without GT ids is not sync-ready"
+);
 
 const fetches = [];
 global.fetch = async (url, opts) => {
@@ -346,6 +402,67 @@ async function click(btn) {
   await click(bare);
   assert(fetches.length === 0, "leaf without ids must not POST complete");
   assert(alerted.length > 0, "missing ids show an honest error");
+
+  fetches.length = 0;
+  alerted = "";
+  global.state.daily_tasks = { quest_gt_sync: false, ok: true, groups: [] };
+  global.showAlert = (msg) => {
+    alerted = String(msg || "");
+  };
+  global.fetch = async (url, opts) => {
+    fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        workout_log: {
+          action: "upsert",
+          wrote: true,
+          name: "DB Flat Press",
+          session_type: "push",
+          exercise: { name: "DB Flat Press", quest_seeded: true },
+        },
+      }),
+    };
+  };
+  const localLift = makeBtn({
+    pending: true,
+    group: "training",
+    title: "DB Flat Press (50 lb 3×10)",
+    slug: "ex-db-flat-press",
+  });
+  await click(localLift);
+  assert(fetches.length === 1, "GT-less lift in local mode POSTs complete");
+  const localBody = JSON.parse(fetches[0].body);
+  assert(!localBody.list_id && !localBody.task_id, "local complete omits GT ids");
+  assert(localBody.slug === "ex-db-flat-press", "local complete sends slug");
+  assert(localBody.group === "training", "local complete sends group");
+  assert(localBody.completed === true, "local complete sends completed");
+  assert(alerted.length === 0, "local complete does not alert not-synced");
+
+  fetches.length = 0;
+  alerted = "";
+  const localDone = makeBtn({
+    pending: true,
+    done: true,
+    group: "training",
+    title: "DB Flat Press (50 lb 3×10)",
+    slug: "ex-db-flat-press",
+  });
+  global.fetch = async (url, opts) => {
+    fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, workout_log: { action: "uncheck_remove", name: "DB Flat Press" } }),
+    };
+  };
+  await click(localDone);
+  assert(fetches.length === 1, "GT-less done lift POSTs uncheck");
+  const localUncheck = JSON.parse(fetches[0].body);
+  assert(localUncheck.completed === false, "local uncheck sends completed:false");
+  assert(localUncheck.slug === "ex-db-flat-press", "local uncheck keeps slug");
 
   fetches.length = 0;
   alerted = "";

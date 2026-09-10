@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -500,6 +501,46 @@ class AttachAndRoute(unittest.TestCase):
         self.assertEqual(session.exercises[0].sets[0].weight_lbs, 50)
         self.assertTrue(session.exercises[0].quest_seeded)
         self.assertFalse(session.exercises[0].is_pr)
+
+    def test_complete_route_gt_less_local_still_upserts_lift(self):
+        env = {
+            "GOOGLE_CLIENT_SECRET": "test-secret",
+            "FITDASH_QUEST_GT_SYNC": "0",
+        }
+        persist = mock.Mock(return_value={"ok": True, "path": "turso"})
+        with tempfile.TemporaryDirectory() as tmp:
+            env["RESISTANCE_DASHBOARD_CONFIG_DIR"] = tmp
+            with mock.patch.dict(os.environ, env, clear=True):
+                with mock.patch(
+                    "rt_dashboard.quest_workout_log.persist_quest_session",
+                    persist,
+                ), mock.patch(
+                    "rt_dashboard.quest_workout_log._default_load_sessions",
+                    return_value=[],
+                ), mock.patch(
+                    "rt_dashboard.quest_workout_log.local_today_iso",
+                    return_value="2026-08-23",
+                ), mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task"
+                ) as gt_complete:
+                    status, body = daily_tasks_complete_body(
+                        _headers(),
+                        {
+                            "completed": True,
+                            "group": "training",
+                            "title": "DB Flat Press (50 lb 3×10)",
+                            "slug": "ex-db-flat-press",
+                            "session_type": "push",
+                            "date": "2026-08-23",
+                        },
+                    )
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["ok"])
+        self.assertTrue(body.get("local"))
+        gt_complete.assert_not_called()
+        self.assertTrue(body["workout_log"]["wrote"])
+        self.assertEqual(body["workout_log"]["action"], "upsert")
+        persist.assert_called_once()
 
     def test_complete_route_meal_does_not_write(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}

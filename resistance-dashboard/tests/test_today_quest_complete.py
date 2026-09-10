@@ -59,7 +59,8 @@ class PlanPreviewStaysPending(unittest.TestCase):
                 self.assertIsNone(item.get("list_id"))
 
     def test_renderer_marks_null_id_leaves_pending(self):
-        self.assertIn("ready: !!(tid && lid)", JS)
+        self.assertIn("!!(tid && lid)", JS)
+        self.assertIn("localReady", JS)
         render = JS.split("const renderCard = (it, g) =>", 1)[1].split(
             "Object.keys(byMeal)", 1
         )[0]
@@ -72,12 +73,16 @@ class LeafQuestIsARealControl(unittest.TestCase):
         self.assertIn("function questLeafIds", JS)
         self.assertIn("it.task_id || it.id", JS)
         self.assertIn("it.list_id || g.list_id || dailyListId", JS)
-        self.assertIn("ready: !!(tid && lid)", JS)
+        self.assertIn("!!(tid && lid)", JS)
+        self.assertIn("localReady", JS)
+        self.assertIn("function isFitdashOwnedQuestGroup", JS)
+        self.assertIn("function questGtSyncEnabled", JS)
+        self.assertIn("Local · complete here", JS)
         # Native disabled swallows clicks — ready leaves must stay a real button.
         render = JS.split("const renderCard = (it, g) =>", 1)[1].split(
             "Object.keys(byMeal)", 1
         )[0]
-        self.assertIn("questLeafIds(it, g, listId)", render)
+        self.assertIn("questLeafIds(it, g, listId, !localMode)", render)
         self.assertNotIn('${ready ? "" : "disabled"}', render)
         self.assertIn('aria-disabled="true"', render)
         self.assertIn("data-task-id=", render)

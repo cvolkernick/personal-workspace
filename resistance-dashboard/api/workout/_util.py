@@ -616,10 +616,12 @@ def daily_tasks_body(headers, payload=None):
 
 
 def daily_tasks_complete_body(headers, payload=None, method="POST"):
-    """POST /api/daily-tasks/complete — Pi complete_leaf on the GT Fitness list.
+    """POST /api/daily-tasks/complete — Pi complete_leaf (GT or local).
 
     Same signed-in gate as GET /api/daily-tasks. Failed complete is 4xx/5xx
     JSON (not a silent 200). Cookie-less is 401, never HTML 404.
+    GT-less FitDash-owned quests (``FITDASH_QUEST_GT_SYNC=0``) complete via
+    slug + group + date without list_id/task_id.
     """
     user, err = require_user(headers)
     if err:
@@ -650,6 +652,10 @@ def daily_tasks_complete_body(headers, payload=None, method="POST"):
                 sibling_all_done=sibling_all_done
                 if sibling_all_done is None
                 else bool(sibling_all_done),
+                group=str(payload.get("group") or "").strip() or None,
+                slug=str(payload.get("slug") or "").strip() or None,
+                date=str(payload.get("date") or "").strip()[:10] or None,
+                title=str(payload.get("title") or "").strip() or None,
             )
     except Exception as exc:  # noqa: BLE001
         return 500, {"ok": False, "error": str(exc) or type(exc).__name__}

@@ -2309,6 +2309,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     sibling_all_done=sibling_all_done
                     if sibling_all_done is None
                     else bool(sibling_all_done),
+                    group=str(body.get("group") or "").strip() or None,
+                    slug=str(body.get("slug") or "").strip() or None,
+                    date=str(body.get("date") or "").strip()[:10] or None,
+                    title=str(body.get("title") or "").strip() or None,
                 )
                 if result.get("ok"):
                     from rt_dashboard.quest_inventory_stock import (
