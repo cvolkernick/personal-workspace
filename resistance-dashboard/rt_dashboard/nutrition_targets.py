@@ -135,6 +135,40 @@ def infer_phase(targets: dict, current_lb: Optional[float]) -> str:
     return "maintain"
 
 
+SODIUM_DEFAULT_MG = 2300
+MICRO_KEYS = ("fiber_g", "sugar_g", "sodium_mg")
+
+
+def micros_for_calories(calories: int) -> Dict[str, int]:
+    """Fiber / sugar / sodium recs from the calorie target (formula v2).
+
+    Fiber: 14 g per 1000 kcal, rounded to 5 g.
+    Sugar: WHO ≤10% of kcal as grams (kcal * 0.10 / 4), rounded to 5 g.
+    Sodium: 2300 mg/day unless a caller states a reason to go lower.
+    """
+    cal = max(0, int(calories or 0))
+    return {
+        "fiber_g": int(round_g(14.0 * cal / 1000.0)) if cal else 0,
+        "sugar_g": int(round_g(cal * 0.10 / 4.0)) if cal else 0,
+        "sodium_mg": int(SODIUM_DEFAULT_MG),
+    }
+
+
+def _optional_applied_micro(raw: dict, key: str) -> Optional[float]:
+    if not raw or key not in raw:
+        return None
+    v = raw.get(key)
+    if v is None or v == "":
+        return None
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    if n != n:  # NaN
+        return None
+    return n
+
+
 def _macros_for(
     *,
     calories: int,
@@ -177,6 +211,10 @@ def recommend_nutrition_targets(
         "carbs_g": round(float(applied_in.get("carbs_g") or 180)),
         "fat_g": round(float(applied_in.get("fat_g") or 55)),
     }
+    for mk in MICRO_KEYS:
+        mv = _optional_applied_micro(applied_in, mk)
+        if mv is not None:
+            applied[mk] = round(mv)
     snap = health or HealthSnapshot()
     reasons: List[str] = []
     dates14 = _dates_back(day, TDEE_WINDOW_DAYS)
@@ -302,11 +340,25 @@ def recommend_nutrition_targets(
             "fat_g": int(applied["fat_g"]),
         }
 
+    micros = micros_for_calories(int(rec_cal))
+    reasons.append(
+        f"fiber {micros['fiber_g']} g · 14 g per 1000 kcal of {int(rec_cal)} kcal, rounded 5 g"
+    )
+    reasons.append(
+        f"sugar {micros['sugar_g']} g · WHO ≤10% of {int(rec_cal)} kcal as grams, rounded 5 g"
+    )
+    reasons.append(
+        f"sodium {micros['sodium_mg']} mg · default {SODIUM_DEFAULT_MG} mg/day"
+    )
+
     recommended = {
         "calories": int(rec_cal),
         "protein_g": macros["protein_g"],
         "carbs_g": macros["carbs_g"],
         "fat_g": macros["fat_g"],
+        "fiber_g": micros["fiber_g"],
+        "sugar_g": micros["sugar_g"],
+        "sodium_mg": micros["sodium_mg"],
     }
     delta = {
         "calories": recommended["calories"] - applied["calories"],
@@ -314,6 +366,12 @@ def recommend_nutrition_targets(
         "carbs_g": recommended["carbs_g"] - applied["carbs_g"],
         "fat_g": recommended["fat_g"] - applied["fat_g"],
     }
+    for mk in MICRO_KEYS:
+        rec_v = recommended[mk]
+        if mk in applied:
+            delta[mk] = rec_v - applied[mk]
+        else:
+            delta[mk] = rec_v
     abstain = bool(calorie_abstain)
 
     return {
@@ -335,7 +393,7 @@ def merge_recommended_into_applied(applied: dict, rec: dict) -> dict:
     """Build a targets dict for ``update_targets``. Preserves weight_goal_lbs."""
     base = dict(applied or {})
     recd = (rec or {}).get("recommended") or {}
-    for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+    for k in ("calories", "protein_g", "carbs_g", "fat_g") + MICRO_KEYS:
         if recd.get(k) is not None:
             base[k] = recd[k]
     if rec.get("phase") in PHASES:

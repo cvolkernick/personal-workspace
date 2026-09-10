@@ -13,8 +13,10 @@ from rt_dashboard.calorie_bars import (
     calorie_pacing,
     civil_day_macros,
     eating_window_fraction,
+    micro_pace_vs_expected,
     pace_clock_copy,
     pace_vs_expected,
+    present_micro,
     sum_intake_in_window,
 )
 from rt_dashboard.models import FoodLogEntry
@@ -437,6 +439,112 @@ class TestPaceVsExpectedDirection(unittest.TestCase):
         self.assertEqual(p_over["band"], "green")
 
 
+class TestMicroPaceBars(unittest.TestCase):
+    """#571: fiber floor / sugar+sodium limit bars; missing logged stays muted."""
+
+    def test_present_micro_never_invents(self):
+        self.assertIsNone(present_micro({}, "fiber_g"))
+        self.assertIsNone(present_micro({"calories": 900}, "sugar_g"))
+        self.assertEqual(
+            present_micro({"micros": {"fiber_g": 12, "sodium_mg": 800}}, "fiber_g"),
+            12,
+        )
+        self.assertEqual(
+            present_micro({"micros": {"sodium_g": 2.3}}, "sodium_mg"),
+            2300,
+        )
+        self.assertEqual(present_micro({"fiber_g": 0}, "fiber_g"), 0.0)
+
+    def test_ac_end_of_window_bands(self):
+        sugar = pace_vs_expected(
+            consumed=75, target=50, window_fraction=1.0, kind="sugar"
+        )
+        self.assertEqual(sugar["band"], "red")
+        self.assertEqual(sugar["side"], "ahead")
+        fiber = pace_vs_expected(
+            consumed=15, target=30, window_fraction=1.0, kind="fiber"
+        )
+        self.assertEqual(fiber["band"], "red")
+        self.assertEqual(fiber["side"], "behind")
+        sodium = pace_vs_expected(
+            consumed=3000, target=2300, window_fraction=1.0, kind="sodium"
+        )
+        self.assertEqual(sodium["band"], "red")
+        under_sugar = pace_vs_expected(
+            consumed=20, target=50, window_fraction=1.0, kind="sugar"
+        )
+        self.assertEqual(under_sugar["band"], "green")
+        under_na = pace_vs_expected(
+            consumed=1000, target=2300, window_fraction=1.0, kind="sodium"
+        )
+        self.assertEqual(under_na["band"], "green")
+
+    def test_missing_logged_is_muted_not_zero(self):
+        muted = micro_pace_vs_expected(
+            consumed=None, target=30, window_fraction=0.5, kind="fiber"
+        )
+        self.assertEqual(muted["status"], "no_data")
+        self.assertEqual(muted["band"], "muted")
+        self.assertIsNone(muted["consumed"])
+        no_tgt = micro_pace_vs_expected(
+            consumed=None, target=None, window_fraction=0.5, kind="sugar"
+        )
+        self.assertEqual(no_tgt["status"], "no_target")
+        logged_zero = micro_pace_vs_expected(
+            consumed=0, target=30, window_fraction=1.0, kind="fiber"
+        )
+        self.assertEqual(logged_zero["consumed"], 0)
+        self.assertEqual(logged_zero["side"], "behind")
+        self.assertEqual(logged_zero["band"], "red")
+
+    def test_payload_includes_micro_pace(self):
+        wake = datetime(2026, 7, 26, 8, 0, 0, tzinfo=timezone.utc)
+        now = wake + timedelta(hours=16)
+        payload = build_calorie_bars_payload(
+            today_consumed={
+                "calories": 2000,
+                "protein_g": 200,
+                "carbs_g": 180,
+                "fat_g": 55,
+                "micros": {"fiber_g": 15, "sugar_g": 75, "sodium_mg": 3000},
+            },
+            targets={
+                "calories": 2000,
+                "protein_g": 200,
+                "carbs_g": 180,
+                "fat_g": 55,
+                "fiber_g": 30,
+                "sugar_g": 50,
+                "sodium_mg": 2300,
+            },
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            now=now,
+        )
+        mp = payload["macro_pace"]
+        self.assertEqual(mp["fiber_g"]["direction"], "floor")
+        self.assertEqual(mp["fiber_g"]["band"], "red")
+        self.assertEqual(mp["sugar_g"]["direction"], "limit")
+        self.assertEqual(mp["sugar_g"]["band"], "red")
+        self.assertEqual(mp["sodium_mg"]["direction"], "limit")
+        self.assertEqual(mp["sodium_mg"]["band"], "red")
+        self.assertEqual(mp["fiber_g"]["consumed"], 15)
+        self.assertEqual(mp["window_macros"]["fiber_g"], 15)
+
+    def test_payload_omits_fabricated_micros(self):
+        payload = build_calorie_bars_payload(
+            today_consumed={"calories": 900, "protein_g": 80, "carbs_g": 60, "fat_g": 20},
+            targets={"calories": 2100, "protein_g": 210, "fiber_g": 30},
+        )
+        fiber = payload["macro_pace"]["fiber_g"]
+        self.assertEqual(fiber["status"], "no_data")
+        self.assertEqual(fiber["band"], "muted")
+        self.assertNotIn("fiber_g", payload["macro_pace"]["window_macros"])
+
+
 class TestCivilDayVsPaceClocks(unittest.TestCase):
     def test_civil_day_macros_zero_missing_never_invent(self):
         self.assertEqual(
@@ -598,6 +706,26 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         self.assertIn("loggedTodayCalendarLabel()", bars)
         self.assertIn("delta.intake", bars)
         self.assertIn("pace_clock", bars)
+
+    def test_today_so_far_renders_micro_pace_rows(self):
+        root = Path(__file__).resolve().parents[1]
+        js = (root / "static" / "app.js").read_text(encoding="utf-8")
+        html = (root / "static" / "index.html").read_text(encoding="utf-8")
+        legend = js.split("function renderTargetsAndRemaining", 1)[1].split(
+            "function renderFoodLogsToday", 1
+        )[0]
+        self.assertIn('progressRow("Fiber"', legend)
+        self.assertIn('progressRow("Sugar"', legend)
+        self.assertIn('progressRow("Sodium"', legend)
+        self.assertIn('kind === "sodium"', js.split("function progressRow", 1)[1])
+        so_far = html[
+            html.find('id="today-so-far-card"') : html.find('id="meal-plan-card"')
+        ]
+        self.assertIn('id="macro-pace-bars"', so_far)
+        micros = html[
+            html.find('id="nutrition-micros"') : html.find('id="today-so-far-card"')
+        ]
+        self.assertIn("nutrition-micros", micros)
 
     def test_js_helpers_keep_window_intake_off_civil_totals(self):
         root = Path(__file__).resolve().parents[1]

@@ -98,26 +98,29 @@ def _extract_target_vals(text: str) -> Dict[str, float]:
     # key=value or key: value
     for m in re.finditer(
         r"\b(cal(?:ories)?|cals|kcal|protein(?:_g)?|carbs?(?:_g)?|"
-        r"carb(?:ohydrates?)?|fat(?:_g)?|p|c|f)\s*[=:]\s*(\d+(?:\.\d+)?)",
+        r"carb(?:ohydrates?)?|fat(?:_g)?|p|c|f|"
+        r"fiber(?:_g)?|sugar(?:_g)?|sodium(?:_mg)?|salt)\s*[=:]\s*(\d+(?:\.\d+)?)",
         low,
     ):
         _assign_target_key(vals, m.group(1), m.group(2))
 
-    # "protein to/at/of 220" / "set protein 220" / "protein 220g"
+    # "protein to/at/of 220" / "set protein 220" / "protein 220g" / "set fiber 30"
     for m in re.finditer(
         r"\b(?:set\s+|update\s+|change\s+|adjust\s+|make\s+)?"
-        r"(calories?|cals|kcal|protein|carbs?|carbohydrates?|fat)"
+        r"(calories?|cals|kcal|protein|carbs?|carbohydrates?|fat|"
+        r"fiber|sugar|sodium|salt)"
         r"(?:\s+target)?(?:\s+(?:to|at|of|=|:))?\s*"
-        r"(\d+(?:\.\d+)?)\s*(?:g|grams?|kcal|cal(?:ories)?)?\b",
+        r"(\d+(?:\.\d+)?)\s*(?:g|grams?|mg|milligrams?|kcal|cal(?:ories)?)?\b",
         low,
     ):
         _assign_target_key(vals, m.group(1), m.group(2))
 
-    # "220g protein" / "2100 calories" / "55g fat"
+    # "220g protein" / "2100 calories" / "55g fat" / "2000mg sodium"
     # Negative lookbehind: skip values already bound via key=val (e.g. cal=2100 protein=…)
     for m in re.finditer(
-        r"(?<![=:])\b(\d+(?:\.\d+)?)\s*(?:g|grams?)?\s*"
-        r"(calories?|cals|kcal|protein|carbs?|carbohydrates?|fat)\b(?!\s*[=:])",
+        r"(?<![=:])\b(\d+(?:\.\d+)?)\s*(?:g|grams?|mg|milligrams?)?\s*"
+        r"(calories?|cals|kcal|protein|carbs?|carbohydrates?|fat|"
+        r"fiber|sugar|sodium|salt)\b(?!\s*[=:])",
         low,
     ):
         _assign_target_key(vals, m.group(2), m.group(1))
@@ -164,6 +167,12 @@ def _assign_target_key(vals: Dict[str, float], key: str, raw_num: str) -> None:
         vals["carbs_g"] = n
     elif k in ("f", "fat", "fat_g"):
         vals["fat_g"] = n
+    elif k in ("fiber", "fiber_g"):
+        vals["fiber_g"] = n
+    elif k in ("sugar", "sugar_g"):
+        vals["sugar_g"] = n
+    elif k in ("sodium", "sodium_mg", "salt"):
+        vals["sodium_mg"] = n
 
 
 def _targets_from_history(history: Optional[Sequence[dict]]) -> Dict[str, float]:
@@ -361,7 +370,8 @@ def try_parse_coach_action(
         if (
             re.match(
                 r"^(?:please\s+)?(?:set|update|change|adjust|save)\s+"
-                r"(?:my\s+)?(?:daily\s+)?(?:targets?|macros?|calories?|protein|carbs?|fat)\b",
+                r"(?:my\s+)?(?:daily\s+)?(?:targets?|macros?|calories?|protein|carbs?|fat|"
+                r"fiber|sugar|sodium|salt)\b",
                 low,
             )
             and vals
@@ -426,6 +436,12 @@ def format_action_reply(result: Dict[str, Any]) -> str:
             bits.append(f"C{t.get('carbs_g')}")
         if t.get("fat_g") is not None:
             bits.append(f"F{t.get('fat_g')}")
+        if t.get("fiber_g") is not None:
+            bits.append(f"fiber {t.get('fiber_g')}g")
+        if t.get("sugar_g") is not None:
+            bits.append(f"sugar {t.get('sugar_g')}g")
+        if t.get("sodium_mg") is not None:
+            bits.append(f"sodium {t.get('sodium_mg')}mg")
         detail = " · ".join(bits) if bits else str(t)
         if action == "apply_coach_targets":
             return f"**Coach targets applied:** {detail}."

@@ -73,7 +73,7 @@ class TestNutritionParse(unittest.TestCase):
                 },
             ]
         }
-        days = parse_nutrition_log_points(payload, days=60)
+        days = parse_nutrition_log_points(payload, days=120)
         self.assertEqual(len(days), 1)
         self.assertEqual(days[0].calories, 150.0)
         self.assertEqual(days[0].protein_g, 30.0)
@@ -130,7 +130,7 @@ class TestNutritionParse(unittest.TestCase):
                 },
             ]
         }
-        entries = parse_food_log_entries(payload, days=60)
+        entries = parse_food_log_entries(payload, days=120)
         self.assertEqual(len(entries), 2)
         self.assertEqual(entries[0].name, "Chicken breast")
         self.assertEqual(entries[0].meal_type, "Lunch")
@@ -208,7 +208,7 @@ class TestNutritionParse(unittest.TestCase):
                 },
             ]
         }
-        days = parse_nutrition_log_points(payload, days=60)
+        days = parse_nutrition_log_points(payload, days=120)
         self.assertEqual(days[0].nutrients["DIETARY_FIBER"], 0)
         self.assertEqual(days[0].nutrients["SODIUM"], 0.12)
         self.assertEqual(days[0].nutrients["SUGAR"], 6)

@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=pf-club-pass-1" />
+    <link rel="stylesheet" href="/styles.css?v=micros-bars-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=pf-club-pass-1" defer></script>
+    <script src="/app.js?v=micros-bars-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -581,6 +581,20 @@
             <label>Protein<input type="number" id="tgt-p" min="0" step="1" required /></label>
             <label>Carbs<input type="number" id="tgt-c" min="0" step="1" required /></label>
             <label>Fat<input type="number" id="tgt-f" min="0" step="1" required /></label>
+          </div>
+          <div class="row cols-4" style="margin-top: 0.5rem">
+            <label title="Daily fiber floor (g). Blank = unset."
+              >Fiber (g)
+              <input type="number" id="tgt-fiber" min="0" max="200" step="1" placeholder="e.g. 30" />
+            </label>
+            <label title="Daily sugar limit (g). Blank = unset."
+              >Sugar (g)
+              <input type="number" id="tgt-sugar" min="0" max="400" step="1" placeholder="e.g. 50" />
+            </label>
+            <label title="Daily sodium limit (mg). Blank = unset."
+              >Sodium (mg)
+              <input type="number" id="tgt-sodium" min="0" max="10000" step="1" placeholder="e.g. 2300" />
+            </label>
           </div>
           <div class="row cols-4" style="margin-top: 0.5rem">
             <label title="Horizontal guide on Trends → Weight chart. Leave blank to hide."

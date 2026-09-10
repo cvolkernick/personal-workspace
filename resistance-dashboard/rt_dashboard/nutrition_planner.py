@@ -72,6 +72,24 @@ def normalize_targets(raw: Optional[dict]) -> dict:
         for k in ("calories", "protein_g", "carbs_g", "fat_g"):
             if k in raw and raw[k] is not None:
                 t[k] = float(raw[k])
+        fiber = _coerce_optional_micro(raw.get("fiber_g"), lo=0.0, hi=200.0)
+        if "fiber_g" in raw:
+            if fiber is None:
+                t.pop("fiber_g", None)
+            else:
+                t["fiber_g"] = fiber
+        sugar = _coerce_optional_micro(raw.get("sugar_g"), lo=0.0, hi=400.0)
+        if "sugar_g" in raw:
+            if sugar is None:
+                t.pop("sugar_g", None)
+            else:
+                t["sugar_g"] = sugar
+        sodium = _coerce_optional_micro(raw.get("sodium_mg"), lo=0.0, hi=10000.0)
+        if "sodium_mg" in raw:
+            if sodium is None:
+                t.pop("sodium_mg", None)
+            else:
+                t["sodium_mg"] = sodium
         if "weight_goal_lbs" in raw:
             t["weight_goal_lbs"] = _coerce_weight_goal_lbs(raw.get("weight_goal_lbs"))
         if "phase" in raw:
@@ -94,11 +112,30 @@ def normalize_targets(raw: Optional[dict]) -> dict:
     t["protein_g"] = max(0.0, min(500.0, float(t["protein_g"])))
     t["carbs_g"] = max(0.0, min(800.0, float(t["carbs_g"])))
     t["fat_g"] = max(0.0, min(300.0, float(t["fat_g"])))
+    if t.get("fiber_g") is not None:
+        t["fiber_g"] = max(0.0, min(200.0, float(t["fiber_g"])))
+    if t.get("sugar_g") is not None:
+        t["sugar_g"] = max(0.0, min(400.0, float(t["sugar_g"])))
+    if t.get("sodium_mg") is not None:
+        t["sodium_mg"] = max(0.0, min(10000.0, float(t["sodium_mg"])))
     if "weight_goal_lbs" not in t:
         t["weight_goal_lbs"] = None
     if "phase" not in t:
         t["phase"] = None
     return t
+
+
+def _coerce_optional_micro(raw: Any, *, lo: float, hi: float) -> Optional[float]:
+    """Optional fiber/sugar/sodium — None if unset/invalid. Never invent."""
+    if raw is None or raw == "":
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if v != v:  # NaN
+        return None
+    return round(max(lo, min(hi, v)), 1)
 
 
 def _coerce_phase(raw: Any) -> Optional[str]:
