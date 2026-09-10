@@ -8,6 +8,7 @@ Public FitDash and Pi share this read/write contract.
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Tuple
@@ -27,6 +28,30 @@ SOT_TURSO = "turso"
 SOT_FILE = INVENTORY_PATH
 FALLBACK_TURSO_DARK = "turso_dark"
 NAMED_INVENTORY_SOTS = (SOT_TURSO, SOT_FILE)
+
+# #581: pantry row is one sandwich; logged serving is a sold 2-pack.
+UNCRUSTABLE_NAMES = frozenset({"honey uncrustable"})
+UNCRUSTABLE_IDS = frozenset({"honey-uncrustable", "honey_uncrustable"})
+UNCRUSTABLE_2PACK_LABEL = "2-pack (2 sandwiches)"
+_UNCRUSTABLE_SKIP_KEYS = frozenset(
+    {
+        "id",
+        "name",
+        "category",
+        "serving_label",
+        "notes",
+        "stock",
+        "in_stock",
+        "qty",
+        "quantity",
+        "count",
+        "servings",
+        "venue",
+        "updated_at",
+    }
+)
+_UNCRUSTABLE_DOUBLE_KEYS = frozenset({"calories", "serving_g"})
+_UNCRUSTABLE_DOUBLE_SUFFIXES = ("_g", "_mg", "_mcg", "_iu")
 
 
 def canonicalize_inventory_source(source: str) -> str:
@@ -88,6 +113,61 @@ def _as_inventory(raw: Any) -> dict:
     out = {k: v for k, v in raw.items() if k != "ingredients"}
     out["ingredients"] = kept
     return out
+
+
+def _is_honey_uncrustable(ing: dict) -> bool:
+    name = " ".join(str(ing.get("name") or "").lower().split())
+    iid = str(ing.get("id") or "").strip().lower()
+    return name in UNCRUSTABLE_NAMES or iid in UNCRUSTABLE_IDS
+
+
+def _double_uncrustable_field(key: str, value: Any) -> Any:
+    k = str(key or "").strip().lower()
+    if k in _UNCRUSTABLE_SKIP_KEYS:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if k in _UNCRUSTABLE_DOUBLE_KEYS or k.endswith(_UNCRUSTABLE_DOUBLE_SUFFIXES):
+        return value * 2
+    return None
+
+
+def apply_honey_uncrustable_2pack(inventory: dict) -> Tuple[dict, bool]:
+    """Double honey uncrustable nutrients to a 2-pack serving. Idempotent.
+
+    Only that row. Stock qty / identity fields stay. Already-2-pack (label
+    contains ``2-pack``) is a no-op. Does not invent the item if missing.
+    """
+    inv = _as_inventory(deepcopy(inventory) if inventory else {"ingredients": []})
+    changed = False
+    for ing in inv.get("ingredients") or []:
+        if not _is_honey_uncrustable(ing):
+            continue
+        label = str(ing.get("serving_label") or "").lower()
+        if "2-pack" in label:
+            continue
+        for key, value in list(ing.items()):
+            doubled = _double_uncrustable_field(key, value)
+            if doubled is not None:
+                ing[key] = doubled
+        ing["serving_label"] = UNCRUSTABLE_2PACK_LABEL
+        changed = True
+    return inv, changed
+
+
+def _heal_honey_uncrustable_2pack(user_id: str, inventory: dict) -> dict:
+    """Persist #581 2-pack once on a live Turso row. Fail open to the stored row."""
+    patched, changed = apply_honey_uncrustable_2pack(inventory)
+    if not changed:
+        return inventory
+    try:
+        _turso_put_inventory(user_id, patched)
+        readback = _turso_get_inventory(user_id)
+    except Exception:
+        return inventory
+    if _turso_row_empty(readback):
+        return inventory
+    return _as_inventory(readback)
 
 
 def load_workspace_inventory() -> Tuple[dict, str]:
@@ -216,7 +296,8 @@ def load_preview_inventory(user_id: str = "") -> Tuple[dict, str]:
     except Exception:
         return file_inv, file_src
     if not _turso_row_empty(existing):
-        return _as_inventory(existing), SOT_TURSO
+        inv = _as_inventory(existing)
+        return _heal_honey_uncrustable_2pack(user_id, inv), SOT_TURSO
     if not file_inv.get("ingredients"):
         return file_inv, file_src
     try:
