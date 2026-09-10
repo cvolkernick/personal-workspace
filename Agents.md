@@ -27,12 +27,27 @@ python3 projects-dashboard/git_workflow.py protect "fix(area): short reason"   #
 - Never commit secrets (`.env`, OAuth tokens, `~/.config/**`, credentials).
 - **Always check `git branch --show-current` before commit.** Do not land finance work on `work/iot` or `work/orchestra`.
 
+## Product → branch (Pi live / PR base)
+
+SoT: `deploy/product_branch_map.py`. Do not mix these in one PR.
+
+| Product | PR base / live SoT | Never |
+|---------|-------------------|--------|
+| **FCC + treasury** | `work/treasury` only (Pi `~/personal-workspace`) | Pull `master` or `work/holistic` onto the FCC live root; reset tip to master |
+| **FitDash** | `master` (Vercel production) | Land FitDash-only work onto `work/treasury` as if it were SoT |
+
+```bash
+python3 deploy/product_branch_map.py pr-base --product fcc      # work/treasury
+python3 deploy/product_branch_map.py pr-base --path resistance-dashboard/server.py  # master
+python3 deploy/product_branch_map.py check-sync --branch master  # exit 1
+```
+
 ## Branch conventions
 | Branch | Purpose |
 |--------|---------|
-| `master` | Integration only — keep green and pushed; merge via PR when stable |
+| `master` | Integration + FitDash/Vercel production — keep green and pushed; merge via PR when stable |
 | `work/<area>` | Long-lived domain branch + **auto-protect** target for durable ops |
-| `feature/<slug>` / `fix/<slug>` | Reviewable product slices — PR into `work/<area>` or `master` |
+| `feature/<slug>` / `fix/<slug>` | Reviewable product slices — PR into `work/<area>` (FCC → `work/treasury`) or `master` (FitDash) |
 
 ### Top-level directories → work branches
 

@@ -8,4 +8,7 @@ Type=oneshot
 WorkingDirectory=%h/personal-workspace
 Environment=WORKSPACE_DIR=%h/personal-workspace
 Environment=SYNC_BRANCH=work/treasury
+# Unit file lives in ~/.config (survives git reset). Refuse a wrong SYNC_BRANCH
+# even if an operator overrides the env — never reset FCC live root to master.
+ExecStartPre=/bin/bash -c 'if [ "${SYNC_BRANCH}" != "work/treasury" ]; then echo "FCC live root refuses SYNC_BRANCH=${SYNC_BRANCH:-unset} (allowlist: work/treasury only)" >&2; exit 1; fi'
 ExecStart=/bin/bash %h/personal-workspace/deploy/workspace_sync.sh
