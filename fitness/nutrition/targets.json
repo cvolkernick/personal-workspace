@@ -3,7 +3,10 @@
   "protein_g": 210.0,
   "carbs_g": 180.0,
   "fat_g": 55.0,
+  "fiber_g": 30,
+  "sugar_g": 50,
+  "sodium_mg": 2300,
   "weight_goal_lbs": 150.0,
-  "notes": "Default cutting targets",
-  "updated_at": "2026-08-11"
+  "notes": "Default cutting targets; coach micro baselines set 2026-09-10 (formula v2)",
+  "updated_at": "2026-09-10"
 }
