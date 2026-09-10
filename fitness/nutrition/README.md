@@ -15,7 +15,7 @@
 
 ## Daily targets — live store vs this page
 
-**Live applied targets** are `targets.json` (FitDash Kitchen + meal planner + calorie pacing + 7d adherence). Do not treat the April table below as current.
+**Live applied targets** are Turso `nutrition_targets` (FitDash Kitchen + meal planner + calorie pacing + 7d adherence). `targets.json` is the empty-start seed. Do not treat the April table below as current.
 
 **Coach-owned recommendations (v1 shipped):** recommended kcal/macros come from `recommend_nutrition_targets` (goal vs current weight, wearable TDEE, recovery, adherence). Applied values change only on explicit apply. Contract: [COACH_TARGETS.md](./COACH_TARGETS.md).
 
@@ -37,9 +37,10 @@
 | File | Purpose |
 |------|---------|
 | `inventory.json` | Curated ingredients you currently have (add/remove from dashboard) |
-| `targets.json` | **Applied** daily calorie + macro targets (SoT for pacing, remaining, meal plan, adherence) |
+| Turso `nutrition_targets` | **Applied** daily calorie + macro + micro targets (SoT for pacing, remaining, meal plan, adherence) |
+| `targets.json` | Seed only — first Turso miss backfills these live values. GitHub-as-database dropped. |
 | `COACH_TARGETS.md` | How the coach layer *recommends* those targets from goals vs data |
 
-The resistance dashboard reads today's intake from Google Health, compares to **applied** `targets.json`, and builds a plan from **in-stock** items in `inventory.json`. Recommendations must not silently overwrite that file.
+The resistance dashboard reads today's intake from Google Health, compares to **applied** Turso targets, and builds a plan from **in-stock** items in `inventory.json`. Recommendations must not silently overwrite applied targets.
 
 Restock / shopping is **not** Google Tasks. Venue-tagged items go to Walmart or Costco carts (Keep only if the cart write is blocked). SOP: [RESTOCK.md](./RESTOCK.md).

@@ -25,7 +25,10 @@ class VercelTargetsFromFile(unittest.TestCase):
         self.assertEqual(raw["carbs_g"], 180.0)
         self.assertEqual(raw["fat_g"], 55.0)
         self.assertEqual(raw["weight_goal_lbs"], 150.0)
-        self.assertEqual(raw["updated_at"], "2026-08-11")
+        self.assertEqual(raw["updated_at"], "2026-09-10")
+        self.assertEqual(raw["fiber_g"], 30)
+        self.assertEqual(raw["sugar_g"], 50)
+        self.assertEqual(raw["sodium_mg"], 2300)
 
     def test_bundle_copy_matches_repo_file(self):
         self.assertTrue(BUNDLE_TARGETS.is_file(), BUNDLE_TARGETS)
@@ -77,7 +80,8 @@ class VercelTargetsFromFile(unittest.TestCase):
         self.assertNotIn('"targets": {}', text)
         self.assertNotIn("'targets': {}", text)
         self.assertNotIn('"targets": "unset"', text)
-        self.assertIn("load_workspace_targets", text)
+        self.assertIn("load_preview_targets", text)
+        self.assertIn("targets_source_fields", text)
 
 
 if __name__ == "__main__":

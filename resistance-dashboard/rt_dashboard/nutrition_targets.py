@@ -1,8 +1,9 @@
 """Deterministic coach recommendations for calorie/macro targets.
 
-Recommend on every dashboard load. Never write ``targets.json``.
-Applied values change only on explicit apply (Kitchen form, ``set targets``,
-or ``apply coach targets``). Formula v1: ``fitness/nutrition/COACH_TARGETS.md``.
+Recommend on every dashboard load. Never persist applied targets on load.
+Applied SoT is Turso (``targets.json`` is seed only). Values change only on
+explicit apply (Kitchen form, ``set targets``, or ``apply coach targets``).
+Formula v1: ``fitness/nutrition/COACH_TARGETS.md``.
 """
 
 from __future__ import annotations

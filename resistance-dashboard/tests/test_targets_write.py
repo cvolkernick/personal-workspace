@@ -1,4 +1,4 @@
-"""#583: POST /api/targets is JSON on Vercel (rewrite onto dashboard)."""
+"""#583/#605/#609: POST /api/targets JSON; Turso persist; honest ok."""
 
 from __future__ import annotations
 
@@ -23,6 +23,19 @@ def _headers():
         {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
     )
     return {"Cookie": f"{SESSION_COOKIE}={token}"}
+
+
+def _turso_ok(targets, message=""):
+    return {
+        "ok": True,
+        "source": "turso",
+        "turso": True,
+        "github": False,
+        "local": False,
+        "verified_on_readback": True,
+        "targets": dict(targets),
+        "message": message,
+    }
 
 
 class TargetsRouteParity(unittest.TestCase):
@@ -67,18 +80,20 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertNotIn("<html", dumped)
         self.assertNotIn("the page c", dumped)
 
-    def test_save_targets_writes_and_returns_json(self):
+    def test_save_targets_writes_turso_and_returns_json(self):
         writes = []
 
-        def fake_write(client, rel, data, message=""):
-            writes.append((rel, dict(data), message))
-            return {"ok": True, "path": rel, "github": True, "local": False}
+        def fake_persist(targets, user_id="", file_client=None, message=""):
+            writes.append((dict(targets), user_id, message))
+            return _turso_ok(targets, message)
 
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ), mock.patch(
             "rt_dashboard.nutrition_store.write_nutrition_file",
-            side_effect=fake_write,
-        ):
+        ) as gh_write:
             status, body = targets_write(
                 _headers(),
                 {
@@ -91,9 +106,29 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
         self.assertEqual(body["targets"]["calories"], 2000)
+        self.assertTrue(body["write"]["turso"])
+        self.assertFalse(body["write"]["github"])
         self.assertEqual(len(writes), 1)
-        self.assertEqual(writes[0][0], "fitness/nutrition/targets.json")
+        self.assertEqual(writes[0][1], "sub-1")
         self.assertIn("update daily macro targets", writes[0][2])
+        gh_write.assert_not_called()
+
+    def test_save_targets_turso_fail_is_not_ok(self):
+        def fake_persist(targets, user_id="", file_client=None, message=""):
+            raise RuntimeError("turso env missing")
+
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ):
+            status, body = targets_write(
+                _headers(),
+                {"calories": 2000, "protein_g": 180, "carbs_g": 160, "fat_g": 50},
+            )
+        self.assertEqual(status, 502)
+        self.assertFalse(body["ok"])
+        self.assertIn("turso env missing", body["error"])
 
     def test_apply_coach_missing_rec_is_400_json(self):
         rec = {"abstain": True, "recommended": None, "reasons": ["not enough days"]}
@@ -102,8 +137,8 @@ class TargetsWriteJson(unittest.TestCase):
             "api.dashboard.dashboard_body",
             return_value=(200, {"coach": {"nutrition_targets": rec}}),
         ), mock.patch(
-            "rt_dashboard.nutrition_store.write_nutrition_file",
-        ) as write:
+            "rt_dashboard.nutrition_store.persist_targets",
+        ) as persist:
             status, body = dispatch_client_route(
                 _headers(),
                 "_r=targets",
@@ -115,7 +150,7 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(body["error"], "Coach has no recommendation to apply")
         self.assertEqual(body["action"], "apply_coach_targets")
         self.assertNotIn("<html", json.dumps(body).lower())
-        write.assert_not_called()
+        persist.assert_not_called()
 
     def test_apply_coach_abstain_still_writes_micros(self):
         rec = {
@@ -134,17 +169,28 @@ class TargetsWriteJson(unittest.TestCase):
         }
         writes = []
 
-        def fake_write(client, rel, data, message=""):
-            writes.append(dict(data))
-            return {"ok": True, "path": rel, "github": True}
+        def fake_persist(targets, user_id="", file_client=None, message=""):
+            writes.append(dict(targets))
+            return _turso_ok(targets, message)
 
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True), mock.patch(
             "api.dashboard.dashboard_body",
             return_value=(200, {"coach": {"nutrition_targets": rec}}),
         ), mock.patch(
-            "rt_dashboard.nutrition_store.write_nutrition_file",
-            side_effect=fake_write,
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.load_preview_targets",
+            return_value=(
+                {
+                    "calories": 2100,
+                    "protein_g": 210,
+                    "carbs_g": 180,
+                    "fat_g": 55,
+                },
+                "turso",
+            ),
         ):
             status, body = targets_write(_headers(), {"apply_coach": True})
         self.assertEqual(status, 200)
@@ -153,6 +199,7 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(body["targets"]["sugar_g"], 50)
         self.assertEqual(body["targets"]["sodium_mg"], 2300)
         self.assertEqual(writes[0]["fiber_g"], 30)
+        self.assertTrue(body["write"]["turso"])
 
     def test_apply_coach_writes_merged_targets(self):
         rec = {
@@ -168,17 +215,28 @@ class TargetsWriteJson(unittest.TestCase):
         }
         writes = []
 
-        def fake_write(client, rel, data, message=""):
-            writes.append((rel, dict(data), message))
-            return {"ok": True, "path": rel, "github": True}
+        def fake_persist(targets, user_id="", file_client=None, message=""):
+            writes.append((dict(targets), message))
+            return _turso_ok(targets, message)
 
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True), mock.patch(
             "api.dashboard.dashboard_body",
             return_value=(200, {"coach": {"nutrition_targets": rec}}),
         ), mock.patch(
-            "rt_dashboard.nutrition_store.write_nutrition_file",
-            side_effect=fake_write,
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.load_preview_targets",
+            return_value=(
+                {
+                    "calories": 2100,
+                    "protein_g": 210,
+                    "carbs_g": 180,
+                    "fat_g": 55,
+                },
+                "turso",
+            ),
         ):
             status, body = targets_write(_headers(), {"apply_coach": True})
         self.assertEqual(status, 200)
@@ -187,9 +245,9 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(body["targets"]["calories"], 1900)
         self.assertEqual(body["targets"]["protein_g"], 200)
         self.assertEqual(len(writes), 1)
-        self.assertIn("apply coach targets", writes[0][2])
+        self.assertIn("apply coach targets", writes[0][1])
 
-    def test_apply_coach_github_write_fail_is_not_ok(self):
+    def test_apply_coach_turso_write_fail_is_not_ok(self):
         rec = {
             "abstain": False,
             "recommended": {
@@ -203,28 +261,26 @@ class TargetsWriteJson(unittest.TestCase):
             },
         }
 
-        def fake_write(client, rel, data, message=""):
-            return {
-                "path": rel,
-                "local": True,
-                "github": False,
-                "error": "Bad credentials",
-            }
+        def fake_persist(targets, user_id="", file_client=None, message=""):
+            raise RuntimeError("turso write not visible on readback")
 
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True), mock.patch(
             "api.dashboard.dashboard_body",
             return_value=(200, {"coach": {"nutrition_targets": rec}}),
         ), mock.patch(
-            "rt_dashboard.nutrition_store.write_nutrition_file",
-            side_effect=fake_write,
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.load_preview_targets",
+            return_value=({"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55}, "turso"),
         ):
             status, body = targets_write(_headers(), {"apply_coach": True})
         self.assertEqual(status, 502)
         self.assertFalse(body["ok"])
-        self.assertIn("Bad credentials", body["error"])
-        self.assertTrue(body["write"]["local"])
-        self.assertFalse(body["write"]["github"])
+        self.assertIn("readback", body["error"])
+        self.assertFalse(body["write"].get("turso"))
+        self.assertFalse(body["write"].get("github"))
 
     def test_apply_coach_local_only_write_is_ok(self):
         rec = {
@@ -237,12 +293,15 @@ class TargetsWriteJson(unittest.TestCase):
             },
         }
 
-        def fake_write(client, rel, data, message=""):
+        def fake_persist(targets, user_id="", file_client=None, message=""):
             return {
-                "path": rel,
-                "local": True,
+                "ok": True,
+                "source": "fitness/nutrition/targets.json",
+                "turso": False,
                 "github": False,
-                "note": "Saved locally (no GITHUB_TOKEN for remote write)",
+                "local": True,
+                "targets": dict(targets),
+                "note": "Saved locally (Turso dark; GitHub-as-database dropped)",
             }
 
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
@@ -250,8 +309,11 @@ class TargetsWriteJson(unittest.TestCase):
             "api.dashboard.dashboard_body",
             return_value=(200, {"coach": {"nutrition_targets": rec}}),
         ), mock.patch(
-            "rt_dashboard.nutrition_store.write_nutrition_file",
-            side_effect=fake_write,
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.load_preview_targets",
+            return_value=({"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55}, "file"),
         ):
             status, body = targets_write(_headers(), {"apply_coach": True})
         self.assertEqual(status, 200)
@@ -266,12 +328,13 @@ class TargetsWriteJson(unittest.TestCase):
             "recommended": {"calories": 1950, "protein_g": 175, "carbs_g": 180, "fat_g": 60},
         }
 
-        def fake_write(client, rel, data, message=""):
+        def fake_persist(targets, user_id="", file_client=None, message=""):
             return {
-                "path": rel,
-                "local": False,
+                "ok": False,
+                "turso": False,
                 "github": False,
-                "note": "Saved locally (no GITHUB_TOKEN for remote write)",
+                "local": False,
+                "note": "Saved locally (Turso dark; GitHub-as-database dropped)",
             }
 
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
@@ -279,8 +342,11 @@ class TargetsWriteJson(unittest.TestCase):
             "api.dashboard.dashboard_body",
             return_value=(200, {"coach": {"nutrition_targets": rec}}),
         ), mock.patch(
-            "rt_dashboard.nutrition_store.write_nutrition_file",
-            side_effect=fake_write,
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.load_preview_targets",
+            return_value=({"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55}, "file"),
         ):
             status, body = targets_write(_headers(), {"apply_coach": True})
         self.assertEqual(status, 502)
@@ -320,9 +386,9 @@ class ApplyCoachFrontend(unittest.TestCase):
         self.assertIn("sugar ≤", APP_JS)
         self.assertIn("sodium ≤", APP_JS)
         self.assertNotIn('showAlert("Coach targets applied", "ok")', APP_JS)
-        self.assertIn("nutrition_write_ok", (ROOT / "server.py").read_text(encoding="utf-8"))
+        self.assertIn("applied_targets_write", (ROOT / "server.py").read_text(encoding="utf-8"))
         self.assertIn(
-            "nutrition_write_ok",
+            "applied_targets_write",
             (ROOT / "api" / "workout" / "_util.py").read_text(encoding="utf-8"),
         )
 

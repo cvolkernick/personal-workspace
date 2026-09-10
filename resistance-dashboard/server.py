@@ -155,10 +155,10 @@ from rt_dashboard.inventory_store import (  # noqa: E402
     persist_inventory,
 )
 from rt_dashboard.nutrition_store import (  # noqa: E402
-    TARGETS_PATH,
+    applied_targets_write,
     load_inventory_and_targets,
-    nutrition_write_ok,
-    write_nutrition_file,
+    load_preview_targets,
+    targets_source_fields,
 )
 from rt_dashboard.nutrition_targets import (  # noqa: E402
     merge_recommended_into_applied,
@@ -518,7 +518,7 @@ def load_dashboard_data(
         token=token,
     )
     try:
-        nut = load_inventory_and_targets(nut_client)
+        nut = load_inventory_and_targets(nut_client, user_id=str(uid or ""))
     except Exception as e:  # noqa: BLE001
         nut = {
             "inventory": {"ingredients": []},
@@ -526,11 +526,14 @@ def load_dashboard_data(
             "sources": {"inventory": "error", "targets": "error"},
         }
         errors.append(f"nutrition_store: {e}")
-    # Named pantry SoT (same contract as public FitDash). Targets stay file/GH.
+    # Named pantry SoT (same contract as public FitDash). Targets in Turso.
     inv, inv_src = load_preview_inventory(str(uid or ""))
+    targets, tgt_src = load_preview_targets(str(uid or ""))
     nut["inventory"] = inv
+    nut["targets"] = targets
     sources = dict(nut.get("sources") or {})
     sources.update(inventory_source_fields(inv_src))
+    sources.update(targets_source_fields(tgt_src))
     nut["sources"] = sources
 
     # --- Cached remote layers ---
@@ -1115,20 +1118,19 @@ def _apply_coach_targets(client, *, user_id: Optional[str] = None) -> dict:
             "reasons": rec.get("reasons") or [],
             "recommendation": rec,
         }
-    store = load_inventory_and_targets(client)
-    base = merge_recommended_into_applied(store.get("targets") or {}, rec)
+    current, _src = load_preview_targets(str(user_id or ""))
+    base = merge_recommended_into_applied(current or {}, rec)
     updated = update_targets(base)
-    write = write_nutrition_file(
-        client,
-        TARGETS_PATH,
+    stuck, err, write, persisted = applied_targets_write(
         updated,
+        str(user_id or ""),
+        file_client=client,
         message="nutrition: apply coach targets",
     )
-    stuck, err = nutrition_write_ok(write)
     body = {
         "ok": stuck,
         "action": "apply_coach_targets",
-        "targets": updated,
+        "targets": persisted,
         "recommendation": rec,
         "write": write,
     }
@@ -1184,8 +1186,8 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
         if kind == "set_targets":
             raw = action.get("targets") or {}
             # Merge with existing targets
-            store = load_inventory_and_targets(client)
-            base = dict(store.get("targets") or {})
+            current, _src = load_preview_targets(str(uid or ""))
+            base = dict(current or {})
             base.update(raw)
             # Guard: refuse absurd calorie targets that look like gram values
             try:
@@ -1197,19 +1199,22 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 if "calories" in raw and float(raw.get("calories") or 0) < 800:
                     base.pop("calories", None)
                     # re-merge without bad cal so normalize can heal from macros
-                    base = dict(store.get("targets") or {})
+                    base = dict(current or {})
                     for k, v in raw.items():
                         if k == "calories":
                             continue
                         base[k] = v
             updated = update_targets(base)
-            write = write_nutrition_file(
-                client,
-                TARGETS_PATH,
+            stuck, err, write, persisted = applied_targets_write(
                 updated,
+                str(uid or ""),
+                file_client=client,
                 message="nutrition: targets via coach",
             )
-            return {"ok": True, "action": kind, "targets": updated, "write": write}
+            body = {"ok": stuck, "action": kind, "targets": persisted, "write": write}
+            if not stuck:
+                body["error"] = err
+            return body
         if kind == "apply_coach_targets":
             return _apply_coach_targets(client, user_id=uid)
         if kind == "set_focus_muscles":
@@ -2171,24 +2176,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if action == "switch_phase":
                     client = build_github_client(for_write=True)
                     raw_phase = body.get("phase") or body.get("next_phase") or "slow_bulk"
-                    store = load_inventory_and_targets(client)
-                    base = dict(store.get("targets") or {})
+                    current, _src = load_preview_targets(str(uid or ""))
+                    base = dict(current or {})
                     base["phase"] = raw_phase
                     updated = update_targets(base)
-                    write = write_nutrition_file(
-                        client,
-                        TARGETS_PATH,
+                    stuck, err, write, persisted = applied_targets_write(
                         updated,
+                        str(uid or ""),
+                        file_client=client,
                         message=f"nutrition: switch phase to {updated.get('phase')}",
                     )
-                    self._send_json(
-                        {
-                            "ok": True,
-                            "action": "switch_phase",
-                            "targets": updated,
-                            "write": write,
-                        }
-                    )
+                    result = {
+                        "ok": stuck,
+                        "action": "switch_phase",
+                        "targets": persisted,
+                        "write": write,
+                    }
+                    if not stuck:
+                        result["error"] = err
+                        self._send_json(result, status=502)
+                        return
+                    self._send_json(result)
                     return
                 self._send_json(
                     {"ok": False, "error": "unknown_action", "action": action},
@@ -2215,13 +2223,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self._send_json(result, status=status)
                     return
                 updated = update_targets(body)
-                write = write_nutrition_file(
-                    client,
-                    TARGETS_PATH,
+                stuck, err, write, persisted = applied_targets_write(
                     updated,
+                    str(uid or ""),
+                    file_client=client,
                     message="nutrition: update daily macro targets",
                 )
-                self._send_json({"ok": True, "targets": updated, "write": write})
+                result = {"ok": stuck, "targets": persisted, "write": write}
+                if not stuck:
+                    result["error"] = err
+                    self._send_json(result, status=502)
+                    return
+                self._send_json(result)
             except (ValueError, json.JSONDecodeError) as e:
                 logging.getLogger("fitdash.targets").exception(
                     "POST /api/targets failed"

@@ -141,7 +141,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
     from rt_dashboard.custom_movements import load_universe_catalog
     from rt_dashboard.library_store import apply_library_overlay, load_library_overlay
     from rt_dashboard.models import HealthSnapshot
-    from rt_dashboard.nutrition_store import load_workspace_targets
+    from rt_dashboard.nutrition_store import load_preview_targets
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_series import expand_sleep_calendar
     from rt_dashboard.timeutil import local_now, local_today_iso
@@ -194,7 +194,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
     catalog = apply_goals_volume_caps(catalog, goals)
     equipment, _es = load_preview_equipment(user_id)
     inventory, _isrc = load_preview_inventory(user_id)
-    targets, _ts = load_workspace_targets()
+    targets, _ts = load_preview_targets(user_id)
     consumed = _today_consumed(health, today) or {}
     food_logs = [
         f.to_dict() if hasattr(f, "to_dict") else f
