@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=micros-bars-1" />
+    <link rel="stylesheet" href="/styles.css?v=phase-baro-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=micros-bars-1" defer></script>
+    <script src="/app.js?v=phase-baro-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -184,6 +184,8 @@
         </div>
         <p class="muted today-headline" id="today-headline" style="margin: 0.5rem 0 0; font-size: 0.9rem"></p>
         <p class="muted today-overview-line" id="today-overview" style="margin: 0.2rem 0 0; font-size: 0.8rem"></p>
+        <div id="phase-barometer-banner" class="phase-baro-banner" hidden></div>
+        <div id="phase-barometer-today" class="phase-baro" data-phase-baro-surface="today"></div>
         <!-- Daily Quests first; Lift/Meal/Targets pills sit directly above the panels they control -->
         <div id="today-actions" class="today-actions today-actions-compact" style="margin-top: 0.55rem"></div>
         <div class="today-mobile-pills" id="today-mobile-pills" hidden role="tablist" aria-label="Today sections">
@@ -277,6 +279,18 @@
             <p class="muted" id="health-note" style="margin-top: 0.5rem; font-size: 0.8rem"></p>
           </div>
         </div>
+      </section>
+
+      <section
+        class="card"
+        style="margin-top: 1rem"
+        id="weekly-review-card"
+        data-m-panel="today"
+        aria-label="Weekly review and phase barometer"
+      >
+        <h2>Weekly review</h2>
+        <div id="phase-barometer-weekly" class="phase-baro" data-phase-baro-surface="weekly"></div>
+        <ul class="reasons" id="weekly-review-bullets" style="margin-top: 0.6rem"></ul>
       </section>
 
       <!-- Pacing group: hydration · calorie pace · in vs out (keep together above meal exec). -->
@@ -505,6 +519,7 @@
           working and what to improve. Use inventory stock flags and staple suggestions
           when the meal plan is blocked by missing pantry items.
         </p>
+        <div id="phase-barometer-nutrition" class="phase-baro" data-phase-baro-surface="nutrition"></div>
         <div id="food-coach-commentary" class="food-coach" style="margin-top: 0.5rem"></div>
         <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
       </section>
@@ -574,6 +589,7 @@
           <strong>Refresh plan</strong> rebuilds the workout plan only.
           <strong>Refresh data</strong> pulls Health and logs only.
         </p>
+        <div id="phase-barometer-targets" class="phase-baro" data-phase-baro-surface="targets"></div>
         <div id="coach-targets-rec" class="coach-targets-rec" hidden></div>
         <form class="log-form" id="targets-form">
           <div class="row cols-4">

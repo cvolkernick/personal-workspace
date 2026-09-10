@@ -4436,6 +4436,87 @@ body.m-shell #alerts {
   color: var(--warn);
 }
 
+.phase-baro {
+  margin-top: 0.65rem;
+}
+.phase-baro-banner {
+  margin: 0.65rem 0 0;
+}
+.phase-baro-banner[hidden] {
+  display: none !important;
+}
+.phase-baro-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  padding: 0.7rem 0.8rem;
+}
+.phase-baro-card.tone-green {
+  border-color: rgba(92, 225, 168, 0.45);
+  box-shadow: inset 3px 0 0 var(--accent-2);
+}
+.phase-baro-card.tone-amber {
+  border-color: rgba(240, 180, 41, 0.55);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.phase-baro-card.tone-red {
+  border-color: rgba(240, 113, 120, 0.55);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+.phase-baro-card.is-banner {
+  background: var(--bg-card);
+}
+.phase-baro-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.7rem;
+}
+.phase-baro-pill {
+  display: inline-block;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.phase-baro-status {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+.phase-baro-card.tone-green .phase-baro-status {
+  color: var(--accent-2);
+}
+.phase-baro-card.tone-amber .phase-baro-status {
+  color: var(--warn);
+}
+.phase-baro-card.tone-red .phase-baro-status {
+  color: var(--danger);
+}
+.phase-baro-explain {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.phase-baro-rec,
+.phase-baro-focus {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
+.phase-baro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.phase-baro-btn {
+  font-size: 0.8rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

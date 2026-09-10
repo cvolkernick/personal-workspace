@@ -93,6 +93,10 @@ from rt_dashboard.dashboard_cache import (  # noqa: E402
     ttl_sec,
 )
 from rt_dashboard.coach import build_coach_payload  # noqa: E402
+from rt_dashboard.phase_barometer import (  # noqa: E402
+    attach_phase_barometer,
+    dismiss_banner,
+)
 from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_action  # noqa: E402
 from rt_dashboard.agent_today import export_agent_today  # noqa: E402
 from rt_dashboard.day_constraints import (  # noqa: E402
@@ -970,6 +974,11 @@ def load_dashboard_data(
             "weekly_review": {"bullets": [f"Coach layer error: {e}"]},
             "brief": {"title": "Coach brief", "markdown": f"Coach unavailable: {e}"},
         }
+
+    try:
+        attach_phase_barometer(payload, user_id=uid)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"phase_barometer: {e}")
 
     # Daily quests: fast local plan on dashboard paint; GT ensure is async via GET /api/daily-tasks
     try:
@@ -2094,6 +2103,52 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 else:
                     self._send_json({"ok": False, "error": msg}, status=400)
             except json.JSONDecodeError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/phase-barometer":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
+                action = str(body.get("action") or "").strip().lower()
+                if action == "dismiss":
+                    store = dismiss_banner(user_id=uid)
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "action": "dismiss",
+                            "dismiss_banner_until": store.get("dismiss_banner_until"),
+                        }
+                    )
+                    return
+                if action == "switch_phase":
+                    client = build_github_client(for_write=True)
+                    raw_phase = body.get("phase") or body.get("next_phase") or "slow_bulk"
+                    store = load_inventory_and_targets(client)
+                    base = dict(store.get("targets") or {})
+                    base["phase"] = raw_phase
+                    updated = update_targets(base)
+                    write = write_nutrition_file(
+                        client,
+                        TARGETS_PATH,
+                        updated,
+                        message=f"nutrition: switch phase to {updated.get('phase')}",
+                    )
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "action": "switch_phase",
+                            "targets": updated,
+                            "write": write,
+                        }
+                    )
+                    return
+                self._send_json(
+                    {"ok": False, "error": "unknown_action", "action": action},
+                    status=400,
+                )
+            except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)

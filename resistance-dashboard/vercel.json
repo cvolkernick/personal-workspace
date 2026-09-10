@@ -97,6 +97,10 @@
       "destination": "/api/dashboard?_r=labs"
     },
     {
+      "source": "/api/phase-barometer",
+      "destination": "/api/dashboard?_r=phase_barometer"
+    },
+    {
       "source": "/api/restock/retry",
       "destination": "/api/dashboard?_r=restock_retry"
     },
