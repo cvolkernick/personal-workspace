@@ -98,6 +98,8 @@ python3 projects-dashboard/worktrees.py path resistance-dashboard
 | Workflow | `…/projects-dashboard` | `work/projects-dashboard` |
 | Finance | `…/treasury` | `work/treasury` |
 
+**Pi FCC live tree** is the main clone (`~/personal-workspace`) attached to `work/treasury` — not the treasury worktree. A second checkout of that branch on prism forces detached HEAD on the live unit path (issue #561). Mac worktrees are unchanged.
+
 - **Start scripts** (`resistance-dashboard/start.sh`, `holistic/start.command`, …) prefer
   the matching worktree when it exists, so launchers keep working even if the main
   checkout is on another branch.

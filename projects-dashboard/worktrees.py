@@ -84,6 +84,17 @@ DEFAULT_BASE = Path(
 )
 
 
+def fcc_live_tree_is_main() -> bool:
+    """Pi FCC live tree is the main clone (issue #561 Option 1).
+
+    When true, do not ensure/repair a treasury worktree — that worktree owning
+    ``work/treasury`` forces the live clone into detached HEAD (dual-SoT).
+    Mac agents leave this unset so the treasury worktree still exists there.
+    """
+    raw = (os.environ.get("FCC_LIVE_TREE") or "").strip().lower()
+    return raw in {"main", "clone", "primary", "1", "true", "yes"}
+
+
 def _run(*args: str, check: bool = False) -> tuple[int, str, str]:
     try:
         p = subprocess.run(
@@ -168,6 +179,18 @@ def ensure_area(area: str, *, base: Optional[Path] = None) -> dict:
             f"Unknown area {area!r}. Choose from: {', '.join(AREA_WORKTREES)}"
         )
     branch, desc = AREA_WORKTREES[area]
+    if area == "treasury" and fcc_live_tree_is_main():
+        return {
+            "ok": True,
+            "area": area,
+            "branch": branch,
+            "status": "skipped_fcc_live_main",
+            "reason": (
+                "FCC live tree is the main clone (issue #561); "
+                "a treasury worktree would dual-SoT work/treasury"
+            ),
+            "description": desc,
+        }
     base = Path(base or worktree_base())
     base.mkdir(parents=True, exist_ok=True)
     path = base / area
@@ -483,6 +506,15 @@ def repair_areas(*, apply: bool = False) -> dict:
             "action": "missing",
             "applied": False,
         }
+        if area == "treasury" and fcc_live_tree_is_main():
+            item["action"] = "skip_fcc_live_main"
+            item["reason"] = (
+                "FCC live tree is the main clone — do not attach "
+                "work/treasury in a second worktree"
+            )
+            results.append(item)
+            continue
+
         if not path.is_dir():
             item["action"] = "missing_worktree"
             item["reason"] = "path not present — run ensure"

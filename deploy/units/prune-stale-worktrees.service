@@ -7,6 +7,7 @@ Type=oneshot
 WorkingDirectory=%h/personal-workspace
 Environment=PERSONAL_WORKSPACE=%h/personal-workspace
 Environment=PERSONAL_WORKSPACE_LOG_DIR=%h/personal-workspace/ops/logs
+Environment=FCC_LIVE_TREE=main
 ExecStart=/bin/bash %h/personal-workspace/ops/prune_stale_worktrees.sh
 Nice=10
 

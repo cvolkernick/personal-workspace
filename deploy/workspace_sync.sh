@@ -48,8 +48,10 @@ elif [[ "$BRANCH" != "work/treasury" ]]; then
   exit 1
 fi
 
-# Keep origin URL free of embedded credentials
-git remote set-url "$REMOTE" "https://github.com/cvolkernick/personal-workspace.git" 2>/dev/null || true
+# Keep origin URL free of embedded credentials (tests may keep a local origin)
+if [[ -z "${WORKSPACE_SYNC_KEEP_REMOTE:-}" ]]; then
+  git remote set-url "$REMOTE" "https://github.com/cvolkernick/personal-workspace.git" 2>/dev/null || true
+fi
 
 git_auth() {
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
@@ -161,8 +163,36 @@ clean_blocking_untracked() {
     >/dev/null 2>&1 || true
 }
 
+other_worktrees_holding_branch() {
+  # Paths of worktrees (other than $DIR) that currently have $BRANCH checked out.
+  local line wt
+  while IFS= read -r line; do
+    if [[ "$line" == *"[$BRANCH]"* ]]; then
+      wt="${line%% *}"
+      if [[ "$wt" != "$DIR" && "$wt" != "${DIR}/" ]]; then
+        printf '%s\n' "$wt"
+      fi
+    fi
+  done < <(git worktree list 2>/dev/null || true)
+}
+
+release_branch_from_other_worktrees() {
+  # Issue #561: live FCC is this clone. Do not stay detached because
+  # ~/personal-workspace-worktrees/treasury owns the branch name.
+  local wt
+  while IFS= read -r wt; do
+    [[ -z "$wt" ]] && continue
+    log "releasing $BRANCH from worktree $wt (detach — live FCC is $DIR)"
+    git -C "$wt" checkout -f --detach HEAD >/dev/null 2>&1 || \
+      git -C "$wt" checkout -f --detach >/dev/null 2>&1 || \
+      log "WARN: could not detach $wt"
+  done < <(other_worktrees_holding_branch)
+}
+
 land_on_remote_branch() {
-  # Prefer atomic force-checkout; fall back to symbolic-ref + hard reset.
+  # Attach $BRANCH on this clone. If another worktree holds the name, detach
+  # that worktree first — never leave live FCC detached (HEAD.lock dual-SoT).
+  release_branch_from_other_worktrees
   if git_auth checkout -f -B "$BRANCH" "$REMOTE/$BRANCH" 2>/dev/null; then
     git_auth reset --hard "$REMOTE/$BRANCH"
     return 0
