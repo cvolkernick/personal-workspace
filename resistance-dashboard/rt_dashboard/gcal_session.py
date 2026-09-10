@@ -1,7 +1,8 @@
 """Google Calendar via the FitDash Google login session (stdlib only).
 
-Timed meal reminders only. Same OAuth as Tasks — no second client, no Pi
-file token on Vercel. Health-only connect does not request Calendar.
+Timed meal reminders and gym sessions. Same OAuth as Tasks — no second
+client, no Pi file token on Vercel. Health-only connect does not request
+Calendar.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ PREFERRED_CALENDAR_ID = "cvolkern@gmail.com"
 
 MISSING_CALENDAR_SCOPE = (
     "Google sign-in is missing Calendar permission. "
-    "Sign in again to allow meal reminders."
+    "Sign in again to allow Calendar."
 )
 CALENDAR_API_NOT_ENABLED = (
     "Google Calendar API is not enabled for this Google Cloud project."
@@ -201,6 +202,8 @@ def list_events(
     *,
     private_props: Optional[dict[str, str]] = None,
     page_size: int = 50,
+    time_min: Optional[str] = None,
+    time_max: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     if not calendar_id:
         return []
@@ -216,6 +219,12 @@ def list_events(
         }
         if page_token:
             query["pageToken"] = page_token
+        if time_min:
+            query["timeMin"] = time_min
+        if time_max:
+            query["timeMax"] = time_max
+        if time_min or time_max:
+            query["orderBy"] = "startTime"
         if private_props:
             query["privateExtendedProperty"] = [
                 f"{k}={v}" for k, v in private_props.items() if k and v is not None
