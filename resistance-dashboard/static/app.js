@@ -6172,7 +6172,7 @@
     const agent = ua || "";
     if (/Android/i.test(agent)) {
       return (
-        "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=" +
+        "intent://#Intent;scheme=planetfitness;package=" +
         PF_ANDROID_PACKAGE +
         ";S.browser_fallback_url=" +
         encodeURIComponent(PF_PLAY_STORE) +
