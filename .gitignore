@@ -71,3 +71,13 @@ Backups/
 
 # Auto Fleet local inbox dumps / runtime (never commit)
 auto-fleet/data/runtime/
+
+# Android remote-loop harness (#617) — build + emulator artifacts
+android-loop/out/
+android-loop/fixture/.gradle/
+android-loop/fixture/build/
+android-loop/fixture/app/build/
+android-loop/fixture/local.properties
+*.apk
+*.ap_
+*.dex
