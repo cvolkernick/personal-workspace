@@ -23,6 +23,23 @@ from .workout_store import stamp_today_session
 _GEN_LOCK = threading.Lock()
 
 
+def _with_gym_calendar(result: dict, workout: Optional[dict], day: str) -> dict:
+    """Best-effort gym Calendar sync. Never fails SuperGrok persist."""
+    out = dict(result)
+    try:
+        from .gym_calendar import sync_gym_from_workout
+
+        out["gym_calendar"] = sync_gym_from_workout(workout, day=day, role="coach")
+    except Exception as exc:  # noqa: BLE001
+        out["gym_calendar"] = {
+            "ok": False,
+            "skipped": True,
+            "error": str(exc),
+            "error_code": "calendar_error",
+        }
+    return out
+
+
 def house_plan_user_id() -> str:
     """Cookie-less tenant for SuperGrok persist.
 
@@ -272,14 +289,18 @@ def ensure_today_grok_plan(
     is_rest = bool(stamped.get("is_rest_day"))
     letter = _letter(stamped.get("session_type"))
     if stamped.get("already_trained_today"):
-        return {
-            "ok": True,
-            "skipped": "already_trained",
-            "generated": False,
-            "workout": stamped,
-            "persist": {"ok": False, "error": "already trained this wake"},
-            "error": None,
-        }
+        return _with_gym_calendar(
+            {
+                "ok": True,
+                "skipped": "already_trained",
+                "generated": False,
+                "workout": stamped,
+                "persist": {"ok": False, "error": "already trained this wake"},
+                "error": None,
+            },
+            stamped,
+            local_today,
+        )
     empty = honest_empty_workout()
     empty = stamp_today_session(
         empty,
@@ -291,25 +312,36 @@ def ensure_today_grok_plan(
         next_st_override=ctx.get("next_session_type"),
     )
     if is_rest or letter == "rest":
-        return {
-            "ok": True,
-            "skipped": "rest",
-            "generated": False,
-            "workout": empty,
-            "persist": {"ok": False, "error": "rest day"},
-            "error": None,
-        }
+        rest_workout = dict(empty)
+        rest_workout["is_rest_day"] = True
+        rest_workout["session_type"] = str(rest_workout.get("session_type") or "rest")
+        return _with_gym_calendar(
+            {
+                "ok": True,
+                "skipped": "rest",
+                "generated": False,
+                "workout": empty,
+                "persist": {"ok": False, "error": "rest day"},
+                "error": None,
+            },
+            rest_workout,
+            local_today,
+        )
     with _GEN_LOCK:
         saved = None if force else load_last_good_workout_plan(uid, local_today)
         if _covers_today(saved, letter):
-            return {
-                "ok": True,
-                "skipped": "already_generated",
-                "generated": False,
-                "workout": saved,
-                "persist": {"ok": True, "store": "existing", "key": persist_key(uid, local_today)},
-                "error": None,
-            }
+            return _with_gym_calendar(
+                {
+                    "ok": True,
+                    "skipped": "already_generated",
+                    "generated": False,
+                    "workout": saved,
+                    "persist": {"ok": True, "store": "existing", "key": persist_key(uid, local_today)},
+                    "error": None,
+                },
+                saved,
+                local_today,
+            )
         grok_kwargs = {
             "targets": ctx.get("targets") or {},
             "consumed": ctx.get("consumed") or {},
@@ -351,16 +383,20 @@ def ensure_today_grok_plan(
                 "persist": persist,
                 "error": err,
             }
-        return {
-            "ok": True,
-            "skipped": None,
-            "generated": True,
-            "workout": workout,
-            "persist": persist,
-            "error": None,
-            "meal": result.get("meal"),
-            "model": result.get("model"),
-        }
+        return _with_gym_calendar(
+            {
+                "ok": True,
+                "skipped": None,
+                "generated": True,
+                "workout": workout,
+                "persist": persist,
+                "error": None,
+                "meal": result.get("meal"),
+                "model": result.get("model"),
+            },
+            workout,
+            local_today,
+        )
 
 
 def stamp_and_fill_workout(

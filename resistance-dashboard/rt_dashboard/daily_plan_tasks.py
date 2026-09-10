@@ -2302,23 +2302,31 @@ def ensure_daily_tasks(
 
     cred = gtb.credentials_status()
     if not cred.get("ok"):
-        return _local_payload(
-            planned,
-            day=day,
-            error=cred.get("error") or "Google Tasks not configured",
-            meal_regen=meal_stats,
-            today_board=today_board,
+        return _with_gym_calendar(
+            _local_payload(
+                planned,
+                day=day,
+                error=cred.get("error") or "Google Tasks not configured",
+                meal_regen=meal_stats,
+                today_board=today_board,
+            ),
+            today_board,
+            day,
         )
 
     try:
         list_id = gtb.resolve_list_id(list_title)
         if not list_id:
-            return _local_payload(
-                planned,
-                day=day,
-                error=f"Task list '{list_title}' not found",
-                meal_regen=meal_stats,
-                today_board=today_board,
+            return _with_gym_calendar(
+                _local_payload(
+                    planned,
+                    day=day,
+                    error=f"Task list '{list_title}' not found",
+                    meal_regen=meal_stats,
+                    today_board=today_board,
+                ),
+                today_board,
+                day,
             )
 
         cache = _load_cache()
@@ -2795,29 +2803,37 @@ def ensure_daily_tasks(
                 if slug:
                     completed_by_ck[cache_key(kind, slug)] = bool(row.get("completed"))
         calendar = _sync_meal_calendar(planned, ids, completed_by_ck, day)
-        return {
-            "ok": True,
-            "source": "google_tasks",
-            "quest_gt_sync": quest_gt_sync_enabled(),
-            "list_title": list_title,
-            "list_id": list_id,
-            "day": day,
-            "groups": groups_out,
-            "summary": {"done": done, "total": total},
-            "purge": purge_stats,
-            "meal_regen": meal_stats,
-            "protein_remaining": protein_stats,
-            "calendar": calendar,
-            "error": None,
-        }
+        return _with_gym_calendar(
+            {
+                "ok": True,
+                "source": "google_tasks",
+                "quest_gt_sync": quest_gt_sync_enabled(),
+                "list_title": list_title,
+                "list_id": list_id,
+                "day": day,
+                "groups": groups_out,
+                "summary": {"done": done, "total": total},
+                "purge": purge_stats,
+                "meal_regen": meal_stats,
+                "protein_remaining": protein_stats,
+                "calendar": calendar,
+                "error": None,
+            },
+            today_board,
+            day,
+        )
     except Exception as e:
-        return _local_payload(
-            planned,
-            day=day,
-            error=str(e),
-            meal_regen=meal_stats,
-            protein_remaining=protein_stats,
-            today_board=today_board,
+        return _with_gym_calendar(
+            _local_payload(
+                planned,
+                day=day,
+                error=str(e),
+                meal_regen=meal_stats,
+                protein_remaining=protein_stats,
+                today_board=today_board,
+            ),
+            today_board,
+            day,
         )
 
 
@@ -2984,6 +3000,30 @@ def _sync_meal_calendar(
             "upserted": 0,
             "deleted": 0,
         }
+
+
+def _sync_gym_calendar(today_board: Optional[dict], day: str) -> dict:
+    """Best-effort gym event upsert beside plan publish. Never fails the checklist."""
+    try:
+        from .gym_calendar import sync_gym_from_workout
+
+        workout = (today_board or {}).get("workout") or {}
+        return sync_gym_from_workout(workout, day=day, role="coach")
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "skipped": True,
+            "error": str(exc),
+            "error_code": "calendar_error",
+            "upserted": 0,
+            "deleted": 0,
+        }
+
+
+def _with_gym_calendar(payload: dict, today_board: Optional[dict], day: str) -> dict:
+    out = dict(payload)
+    out["gym_calendar"] = _sync_gym_calendar(today_board, day)
+    return out
 
 
 def _complete_local_leaf(
