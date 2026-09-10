@@ -323,6 +323,120 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(mp["pace_clock"], "pace clock = wake window")
 
 
+class TestPaceVsExpectedDirection(unittest.TestCase):
+    """Direction-aware ladder: floor (hydration/fiber) vs limit (sugar/sodium).
+
+    Shared primitive for #573 and #571 — one kind parameter, not two forks.
+    Mid-window day target 2000 → paced 1000 unless noted.
+    """
+
+    def test_hydration_ahead_is_green_not_red(self):
+        # 21% ahead of pace used to paint the bar red while copy said "+ahead"
+        ahead = pace_vs_expected(
+            consumed=1210, target=2000, window_fraction=0.5, kind="hydration"
+        )
+        self.assertEqual(ahead["direction"], "floor")
+        self.assertEqual(ahead["kind"], "hydration")
+        self.assertEqual(ahead["side"], "ahead")
+        self.assertEqual(ahead["band"], "green")
+        self.assertIn("ahead", ahead["summary"])
+
+        # 12% ahead was yellow on the symmetric ladder; floor stays green
+        mild = pace_vs_expected(
+            consumed=1120, target=2000, window_fraction=0.5, kind="hydration"
+        )
+        self.assertEqual(mild["side"], "ahead")
+        self.assertEqual(mild["band"], "green")
+
+    def test_hydration_on_and_behind_bands(self):
+        on = pace_vs_expected(
+            consumed=1000, target=2000, window_fraction=0.5, kind="hydration"
+        )
+        self.assertEqual(on["side"], "on")
+        self.assertEqual(on["band"], "green")
+        self.assertIn("on pace", on["summary"])
+
+        # 5% band still green (on-pace window)
+        edge = pace_vs_expected(
+            consumed=1050, target=2000, window_fraction=0.5, kind="hydration"
+        )
+        self.assertEqual(edge["band"], "green")
+
+        yel = pace_vs_expected(
+            consumed=880, target=2000, window_fraction=0.5, kind="hydration"
+        )
+        self.assertEqual(yel["side"], "behind")
+        self.assertEqual(yel["band"], "yellow")
+        self.assertIn("behind", yel["summary"])
+
+        red = pace_vs_expected(
+            consumed=750, target=2000, window_fraction=0.5, kind="hydration"
+        )
+        self.assertEqual(red["side"], "behind")
+        self.assertEqual(red["band"], "red")
+        self.assertIn("behind", red["summary"])
+
+    def test_floor_kind_aliases_match_hydration(self):
+        kwargs = dict(consumed=1210, target=2000, window_fraction=0.5)
+        hydro = pace_vs_expected(kind="hydration", **kwargs)
+        fiber = pace_vs_expected(kind="fiber", **kwargs)
+        floor = pace_vs_expected(kind="floor", **kwargs)
+        self.assertEqual(fiber["direction"], "floor")
+        self.assertEqual(floor["direction"], "floor")
+        self.assertEqual(hydro["band"], "green")
+        self.assertEqual(fiber["band"], "green")
+        self.assertEqual(floor["band"], "green")
+
+    def test_limit_kind_ahead_warns_behind_stays_green(self):
+        # Sugar/sodium: over pace is the problem; under is fine.
+        over = pace_vs_expected(
+            consumed=1210, target=2000, window_fraction=0.5, kind="limit"
+        )
+        self.assertEqual(over["direction"], "limit")
+        self.assertEqual(over["side"], "ahead")
+        self.assertEqual(over["band"], "red")
+
+        yel = pace_vs_expected(
+            consumed=1120, target=2000, window_fraction=0.5, kind="sugar"
+        )
+        self.assertEqual(yel["direction"], "limit")
+        self.assertEqual(yel["kind"], "sugar")
+        self.assertEqual(yel["band"], "yellow")
+
+        under = pace_vs_expected(
+            consumed=750, target=2000, window_fraction=0.5, kind="sodium"
+        )
+        self.assertEqual(under["direction"], "limit")
+        self.assertEqual(under["kind"], "sodium")
+        self.assertEqual(under["side"], "behind")
+        self.assertEqual(under["band"], "green")
+
+        on = pace_vs_expected(
+            consumed=1000, target=2000, window_fraction=0.5, kind="sodium_mg"
+        )
+        self.assertEqual(on["kind"], "sodium")
+        self.assertEqual(on["band"], "green")
+
+    def test_calories_stay_symmetric_protein_over_stays_looser(self):
+        cal_ahead = pace_vs_expected(
+            consumed=1210, target=2000, window_fraction=0.5, kind="calories"
+        )
+        self.assertEqual(cal_ahead["direction"], "symmetric")
+        self.assertEqual(cal_ahead["band"], "red")
+
+        cal_behind = pace_vs_expected(
+            consumed=750, target=2000, window_fraction=0.5, kind="carbs"
+        )
+        self.assertEqual(cal_behind["direction"], "symmetric")
+        self.assertEqual(cal_behind["band"], "red")
+
+        p_over = pace_vs_expected(
+            consumed=112, target=200, window_fraction=0.5, kind="protein"
+        )
+        self.assertEqual(p_over["direction"], "symmetric")
+        self.assertEqual(p_over["band"], "green")
+
+
 class TestCivilDayVsPaceClocks(unittest.TestCase):
     def test_civil_day_macros_zero_missing_never_invent(self):
         self.assertEqual(

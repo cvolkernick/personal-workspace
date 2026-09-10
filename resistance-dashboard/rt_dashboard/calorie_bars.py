@@ -341,6 +341,72 @@ def calorie_pacing(
     }
 
 
+# Nutrient kind → canonical key. Unknown kinds fall back to calories/symmetric.
+_PACE_KIND_ALIASES = {
+    "calories": "calories",
+    "kcal": "calories",
+    "cal": "calories",
+    "protein": "protein",
+    "protein_g": "protein",
+    "p": "protein",
+    "carbs": "carbs",
+    "carbs_g": "carbs",
+    "c": "carbs",
+    "carbohydrates": "carbs",
+    "fat": "fat",
+    "fat_g": "fat",
+    "f": "fat",
+    "hydration": "hydration",
+    "water": "hydration",
+    "water_ml": "hydration",
+    "ml": "hydration",
+    "fiber": "fiber",
+    "fiber_g": "fiber",
+    "floor": "floor",
+    "sugar": "sugar",
+    "sugar_g": "sugar",
+    "sodium": "sodium",
+    "sodium_mg": "sodium",
+    "sodium_g": "sodium",
+    "salt": "sodium",
+    "limit": "limit",
+}
+# floor: behind is the problem (hydration, fiber). Ahead stays green.
+# limit: ahead is the problem (sugar, sodium). Behind stays green.
+_PACE_FLOOR_KINDS = frozenset({"hydration", "fiber", "floor"})
+_PACE_LIMIT_KINDS = frozenset({"sugar", "sodium", "limit"})
+
+
+def _canonical_pace_kind(kind: Optional[str]) -> str:
+    key = (kind or "calories").strip().lower()
+    return _PACE_KIND_ALIASES.get(key, "calories")
+
+
+def _pace_direction(kind_key: str) -> str:
+    """Which side of pace is the problem state.
+
+    ``floor`` — under/behind is bad (hydration, fiber). Ahead is fine.
+    ``limit`` — over/ahead is bad (sugar, sodium). Behind is fine.
+    ``symmetric`` — both sides use the |rel| ladder (calories, carbs, fat).
+    Protein is symmetric with a looser *over* threshold, applied separately.
+    """
+    if kind_key in _PACE_FLOOR_KINDS:
+        return "floor"
+    if kind_key in _PACE_LIMIT_KINDS:
+        return "limit"
+    return "symmetric"
+
+
+def _pace_unit(kind_key: str) -> str:
+    if kind_key == "calories":
+        return "kcal"
+    if kind_key == "hydration":
+        return "ml"
+    if kind_key == "sodium":
+        return "mg"
+    return "g"
+
+
 def pace_vs_expected(
     *,
     consumed: float,
@@ -354,10 +420,17 @@ def pace_vs_expected(
     ``max(paced, 5% of day target)`` so early-window tiny budgets don't go red
     after a normal first meal.
 
-    Color bands (coach defaults):
-      green  |rel| ≤ 5% of paced floor
+    Color bands (coach defaults) on the *problem* side of ``direction``:
+      green  |rel| ≤ 5% of paced denom
       yellow 5% < |rel| ≤ 20%
       red    |rel| > 20%
+
+    Direction (from ``kind``, one ladder — do not fork for #571):
+      ``floor`` (hydration, fiber, or kind=floor): behind uses the ladder;
+        ahead is always green.
+      ``limit`` (sugar, sodium, or kind=limit): ahead uses the ladder;
+        behind is always green.
+      ``symmetric`` (calories, carbs, fat): both sides use the ladder.
 
     Protein *over* is looser (green to 15%, yellow to 30%) — surplus protein on
     a cut is usually fine; under-protein stays on the tight ladder.
@@ -365,21 +438,13 @@ def pace_vs_expected(
     consumed = max(0.0, float(consumed or 0))
     target = max(0.0, float(target or 0))
     frac = max(0.0, min(1.0, float(window_fraction or 0)))
-    kind_key = (kind or "calories").strip().lower()
-    if kind_key in ("protein", "protein_g", "p"):
-        kind_key = "protein"
-    elif kind_key in ("carbs", "carbs_g", "c", "carbohydrates"):
-        kind_key = "carbs"
-    elif kind_key in ("fat", "fat_g", "f"):
-        kind_key = "fat"
-    elif kind_key in ("hydration", "water", "water_ml", "ml"):
-        kind_key = "hydration"
-    else:
-        kind_key = "calories"
+    kind_key = _canonical_pace_kind(kind)
+    direction = _pace_direction(kind_key)
 
     if target <= 0:
         return {
             "kind": kind_key,
+            "direction": direction,
             "consumed": round(consumed, 1),
             "target": 0.0,
             "window_fraction": round(frac, 4),
@@ -395,10 +460,10 @@ def pace_vs_expected(
         }
 
     paced = target * frac
-    # Floor avoids divide-by-near-zero early in the window
-    floor = max(paced, target * 0.05, 1.0)
+    # Denom avoids divide-by-near-zero early in the window
+    rel_denom = max(paced, target * 0.05, 1.0)
     delta = consumed - paced
-    rel = abs(delta) / floor
+    rel = abs(delta) / rel_denom
 
     # Half-track scale: 30% relative error fills the side (readable severity)
     bar_pct = min(100.0, (rel / 0.30) * 100.0)
@@ -423,7 +488,14 @@ def pace_vs_expected(
         else:
             green_max, yellow_max = 0.05, 0.20
 
-        if rel <= green_max:
+        # Direction-aware: the good side of floor/limit never warns.
+        if direction == "floor" and side == "ahead":
+            band, color = "green", "green"
+            status = "ahead_ok"
+        elif direction == "limit" and side == "behind":
+            band, color = "green", "green"
+            status = "behind_ok"
+        elif rel <= green_max:
             band, color = "green", "green"
             status = "on_pace" if side in ("on", "start") else f"{side}_ok"
         elif rel <= yellow_max:
@@ -433,12 +505,7 @@ def pace_vs_expected(
             band, color = "red", "red"
             status = f"{side}_off"
 
-        if kind_key == "calories":
-            unit = "kcal"
-        elif kind_key == "hydration":
-            unit = "ml"
-        else:
-            unit = "g"
+        unit = _pace_unit(kind_key)
         if side == "on":
             summary = (
                 f"{consumed:g} / paced ~{paced:.0f} {unit} · on pace "
@@ -457,6 +524,7 @@ def pace_vs_expected(
 
     return {
         "kind": kind_key,
+        "direction": direction,
         "consumed": round(consumed, 1),
         "target": round(target, 1),
         "window_fraction": round(frac, 4),
