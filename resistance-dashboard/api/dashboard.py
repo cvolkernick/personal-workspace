@@ -293,7 +293,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         load_preview_inventory,
     )
     from rt_dashboard.labs_store import load_labs
-    from rt_dashboard.nutrition_store import load_workspace_targets
+    from rt_dashboard.nutrition_store import load_preview_targets, targets_source_fields
     from rt_dashboard.grok_planner import dashboard_plan_slots
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
@@ -366,9 +366,11 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
-    targets, targets_src = load_workspace_targets()
-    inventory, inventory_src = load_preview_inventory(str(user.get("id") or ""))
+    uid = str(user.get("id") or "")
+    targets, targets_src = load_preview_targets(uid)
+    inventory, inventory_src = load_preview_inventory(uid)
     inv_fields = inventory_source_fields(inventory_src)
+    tgt_fields = targets_source_fields(targets_src)
     inv_suggestions, inv_removals = preview_inventory_carousels(
         inventory,
         targets,
@@ -409,7 +411,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "inventory": inventory,
         "sources": {
             **inv_fields,
-            "targets": targets_src,
+            **tgt_fields,
             "meal_plan": meal_plan.get("source") or "generate",
         },
         "meal_plan": meal_plan,

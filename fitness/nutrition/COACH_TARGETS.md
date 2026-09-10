@@ -1,6 +1,6 @@
 # Coach-owned nutrition targets
 
-**Status:** shipped v1 (2026-08-27); **v2 micros** (fiber / sugar / sodium) with #571. `recommend_nutrition_targets()` is live. Dashboard load does **not** write `targets.json`. Coach writes on **Apply coach targets** / chat `apply coach targets` only.
+**Status:** shipped v1 (2026-08-27); **v2 micros** (fiber / sugar / sodium) with #571; **Turso applied SoT** with #609. `recommend_nutrition_targets()` is live. Dashboard load does **not** persist applied targets. Coach writes on **Apply coach targets** / chat `apply coach targets` only. Applied values live in Turso (`nutrition_targets`). `targets.json` is the empty-start seed — GitHub-as-database is dropped.
 
 **Origin:** Chris, #fitness — calorie/macro targets should come from coach subroutine(s) given **goals vs current data**, not only a sticky Kitchen form.
 
@@ -13,7 +13,7 @@
 | **Recommended** kcal / P / C / F / fiber / sugar / sodium | Deterministic Python `recommend_nutrition_targets()` | Every dashboard load (cheap, pure) |
 | **Applied** kcal / P / C / F / fiber / sugar / sodium | Human form, `set targets …`, or **`apply coach targets`** | Explicit write only |
 
-Dashboard load, meal-plan refresh, and background cache **must not** write `targets.json`.
+Dashboard load, meal-plan refresh, and background cache **must not** persist applied targets.
 
 This matches training: `suggest_focus_muscles` computes; `set_focus_muscles` writes. Recovery already works that way (`compute_recovery_status` never persists a score).
 
@@ -34,7 +34,7 @@ This matches training: `suggest_focus_muscles` computes; `set_focus_muscles` wri
 | Recent intake | 14d mean of present nutrition calories | Logging gap ≠ low intake |
 | Recovery | `compute_recovery_status` | Do **not** deepen a cut when score < 40 |
 | Protein adherence 7d | `compute_adherence_7d` | Do **not** cut kcal harder if protein hit rate < 50% (compliance, not energy) |
-| Applied targets | `targets.json` | Starting point; recommendation is a delta from here, not a random walk |
+| Applied targets | Turso `nutrition_targets` (seed: `targets.json`) | Starting point; recommendation is a delta from here, not a random walk |
 
 Wearable burn is an estimate. Put that in `reasons`.
 

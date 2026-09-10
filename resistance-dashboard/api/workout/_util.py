@@ -901,15 +901,15 @@ def targets_write(headers, payload=None):
         return err
     payload = payload if isinstance(payload, dict) else {}
     from rt_dashboard.github_client import GitHubLiftClient
-    from rt_dashboard.nutrition_planner import TARGETS_PATH, update_targets
+    from rt_dashboard.nutrition_planner import update_targets
     from rt_dashboard.nutrition_store import (
-        load_workspace_targets,
-        nutrition_write_ok,
-        write_nutrition_file,
+        applied_targets_write,
+        load_preview_targets,
     )
     from rt_dashboard.nutrition_targets import merge_recommended_into_applied
 
     client = GitHubLiftClient()
+    uid = str(user.get("id") or "")
     try:
         if payload.get("apply_coach"):
             from api.dashboard import dashboard_body
@@ -929,21 +929,20 @@ def targets_write(headers, payload=None):
                     "reasons": rec.get("reasons") or [],
                     "recommendation": rec,
                 }
-            current, _src = load_workspace_targets()
+            current, _src = load_preview_targets(uid)
             updated = update_targets(
                 merge_recommended_into_applied(current or {}, rec)
             )
-            write = write_nutrition_file(
-                client,
-                TARGETS_PATH,
+            stuck, err, write, persisted = applied_targets_write(
                 updated,
+                uid,
+                file_client=client,
                 message="nutrition: apply coach targets",
             )
-            stuck, err = nutrition_write_ok(write)
             body = {
                 "ok": stuck,
                 "action": "apply_coach_targets",
-                "targets": updated,
+                "targets": persisted,
                 "recommendation": rec,
                 "write": write,
             }
@@ -952,13 +951,17 @@ def targets_write(headers, payload=None):
                 return 502, body
             return 200, body
         updated = update_targets(payload)
-        write = write_nutrition_file(
-            client,
-            TARGETS_PATH,
+        stuck, err, write, persisted = applied_targets_write(
             updated,
+            uid,
+            file_client=client,
             message="nutrition: update daily macro targets",
         )
-        return 200, {"ok": True, "targets": updated, "write": write}
+        body = {"ok": stuck, "targets": persisted, "write": write}
+        if not stuck:
+            body["error"] = err
+            return 502, body
+        return 200, body
     except ValueError as exc:
         logging.getLogger("fitdash.targets").exception("POST /api/targets failed")
         return 400, {"ok": False, "error": str(exc)}
@@ -1155,9 +1158,9 @@ def _agent_today_from_stores(headers, query: str = ""):
     nutrition_store: dict = {}
     try:
         from rt_dashboard.meal_plan_store import load_last_good_meal_plan
-        from rt_dashboard.nutrition_store import load_workspace_targets
+        from rt_dashboard.nutrition_store import load_preview_targets
 
-        targets, _t_src = load_workspace_targets()
+        targets, _t_src = load_preview_targets(uid)
         consumed = _today_consumed(health, today)
         meal_plan = None
         try:
