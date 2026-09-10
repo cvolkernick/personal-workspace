@@ -72,13 +72,13 @@ def normalize_targets(raw: Optional[dict]) -> dict:
         for k in ("calories", "protein_g", "carbs_g", "fat_g"):
             if k in raw and raw[k] is not None:
                 t[k] = float(raw[k])
-        fiber = _coerce_optional_micro(raw.get("fiber_g"), lo=0.0, hi=200.0)
+        fiber = _coerce_optional_micro(raw.get("fiber_g"), lo=0.0, hi=100.0)
         if "fiber_g" in raw:
             if fiber is None:
                 t.pop("fiber_g", None)
             else:
                 t["fiber_g"] = fiber
-        sugar = _coerce_optional_micro(raw.get("sugar_g"), lo=0.0, hi=400.0)
+        sugar = _coerce_optional_micro(raw.get("sugar_g"), lo=0.0, hi=300.0)
         if "sugar_g" in raw:
             if sugar is None:
                 t.pop("sugar_g", None)
@@ -113,9 +113,9 @@ def normalize_targets(raw: Optional[dict]) -> dict:
     t["carbs_g"] = max(0.0, min(800.0, float(t["carbs_g"])))
     t["fat_g"] = max(0.0, min(300.0, float(t["fat_g"])))
     if t.get("fiber_g") is not None:
-        t["fiber_g"] = max(0.0, min(200.0, float(t["fiber_g"])))
+        t["fiber_g"] = max(0.0, min(100.0, float(t["fiber_g"])))
     if t.get("sugar_g") is not None:
-        t["sugar_g"] = max(0.0, min(400.0, float(t["sugar_g"])))
+        t["sugar_g"] = max(0.0, min(300.0, float(t["sugar_g"])))
     if t.get("sodium_mg") is not None:
         t["sodium_mg"] = max(0.0, min(10000.0, float(t["sodium_mg"])))
     if "weight_goal_lbs" not in t:

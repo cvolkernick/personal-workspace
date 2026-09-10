@@ -3067,6 +3067,22 @@
    * Civil-day totals belong on the labeled calendar-day line, not these nums.
    */
   function progressRow(label, consumed, target, kind, pace) {
+    const micro = kind === "fiber" || kind === "sugar" || kind === "sodium";
+    if (micro) {
+      const paceT = pace && pace.status !== "no_target" ? pace.target : null;
+      const applied =
+        target != null && target !== "" && !Number.isNaN(Number(target))
+          ? Number(target)
+          : null;
+      const resolved =
+        applied != null && applied > 0
+          ? applied
+          : paceT != null && Number(paceT) > 0
+            ? Number(paceT)
+            : null;
+      if (resolved == null) return "";
+      target = resolved;
+    }
     const intake = paceRowIntake(pace, consumed);
     const pct = targetPct(intake, target);
     const p = pace || null;
@@ -3507,7 +3523,7 @@
           ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
           ${progressRow("Fiber", presentMicroVal(c, "fiber_g"), t.fiber_g, "fiber", mp.fiber_g)}
           ${progressRow("Sugar", presentMicroVal(c, "sugar_g"), t.sugar_g, "sugar", mp.sugar_g)}
-          ${progressRow("Sodium", presentMicroVal(c, "sodium_mg"), t.sodium_mg, "sodium", mp.sodium_mg)}
+          ${progressRow("Salt (sodium)", presentMicroVal(c, "sodium_mg"), t.sodium_mg, "sodium", mp.sodium_mg)}
           ${
             civilLine
               ? `<p class="muted macro-civil-day-line">${civilLine}</p>`
@@ -6736,7 +6752,7 @@
         ${reasons.map((r) => `<li>${r}</li>`).join("")}
       </ul>
     `;
-    if (btn) btn.disabled = !!rec.abstain;
+    if (btn) btn.disabled = !recd;
   }
 
   async function applyCoachTargets() {

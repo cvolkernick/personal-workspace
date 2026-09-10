@@ -544,6 +544,31 @@ class TestMicroPaceBars(unittest.TestCase):
         self.assertEqual(fiber["band"], "muted")
         self.assertNotIn("fiber_g", payload["macro_pace"]["window_macros"])
 
+    def test_micro_target_falls_back_to_recommended(self):
+        payload = build_calorie_bars_payload(
+            today_consumed={
+                "calories": 900,
+                "protein_g": 80,
+                "micros": {"fiber_g": 15},
+            },
+            targets={"calories": 2100, "protein_g": 210},
+            recommended_targets={"fiber_g": 30, "sugar_g": 50, "sodium_mg": 2300},
+        )
+        fiber = payload["macro_pace"]["fiber_g"]
+        self.assertEqual(fiber["target"], 30)
+        self.assertNotEqual(fiber["status"], "no_target")
+        sugar = payload["macro_pace"]["sugar_g"]
+        self.assertEqual(sugar["target"], 50)
+        self.assertEqual(sugar["status"], "no_data")
+
+    def test_applied_micro_wins_over_recommended(self):
+        payload = build_calorie_bars_payload(
+            today_consumed={"calories": 900, "micros": {"fiber_g": 10}},
+            targets={"calories": 2100, "fiber_g": 40},
+            recommended_targets={"fiber_g": 30},
+        )
+        self.assertEqual(payload["macro_pace"]["fiber_g"]["target"], 40)
+
 
 class TestCivilDayVsPaceClocks(unittest.TestCase):
     def test_civil_day_macros_zero_missing_never_invent(self):
@@ -716,8 +741,10 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         )[0]
         self.assertIn('progressRow("Fiber"', legend)
         self.assertIn('progressRow("Sugar"', legend)
-        self.assertIn('progressRow("Sodium"', legend)
-        self.assertIn('kind === "sodium"', js.split("function progressRow", 1)[1])
+        self.assertIn('progressRow("Salt (sodium)"', legend)
+        row = js.split("function progressRow", 1)[1]
+        self.assertIn('kind === "sodium"', row)
+        self.assertIn("if (resolved == null) return \"\"", row)
         so_far = html[
             html.find('id="today-so-far-card"') : html.find('id="meal-plan-card"')
         ]

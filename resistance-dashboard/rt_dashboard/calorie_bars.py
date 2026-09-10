@@ -465,6 +465,16 @@ def _optional_target(targets: Optional[dict], key: str) -> Optional[float]:
     return n
 
 
+def _resolved_micro_target(
+    applied: Optional[dict], recommended: Optional[dict], key: str
+) -> Optional[float]:
+    """Applied micro first; else coach recommended. Never invent 0."""
+    got = _optional_target(applied, key)
+    if got is not None:
+        return got
+    return _optional_target(recommended, key)
+
+
 def _muted_micro_pace(
     *,
     kind: str,
@@ -758,6 +768,7 @@ def build_calorie_bars_payload(
     food_logs: Optional[Sequence[Any]] = None,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
+    recommended_targets: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Compose both bar payloads for the dashboard JSON.
 
@@ -870,19 +881,19 @@ def build_calorie_bars_payload(
         ),
         "fiber_g": micro_pace_vs_expected(
             consumed=_micro_consumed("fiber_g"),
-            target=_optional_target(targets, "fiber_g"),
+            target=_resolved_micro_target(targets, recommended_targets, "fiber_g"),
             window_fraction=frac,
             kind="fiber",
         ),
         "sugar_g": micro_pace_vs_expected(
             consumed=_micro_consumed("sugar_g"),
-            target=_optional_target(targets, "sugar_g"),
+            target=_resolved_micro_target(targets, recommended_targets, "sugar_g"),
             window_fraction=frac,
             kind="sugar",
         ),
         "sodium_mg": micro_pace_vs_expected(
             consumed=_micro_consumed("sodium_mg"),
-            target=_optional_target(targets, "sodium_mg"),
+            target=_resolved_micro_target(targets, recommended_targets, "sodium_mg"),
             window_fraction=frac,
             kind="sodium",
         ),
