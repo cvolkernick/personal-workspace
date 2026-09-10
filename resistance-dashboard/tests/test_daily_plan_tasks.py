@@ -29,6 +29,7 @@ from rt_dashboard.daily_plan_tasks import (
     collect_protein_remaining_tasks,
     collect_sleep_battery_low_tasks,
     collect_sleep_quest_tasks,
+    complete_leaf,
     ensure_daily_tasks,
     is_fitdash_grocery_task,
     is_meal_plan_owned_task,
@@ -2877,6 +2878,236 @@ class GroceryTasksStayOffGoogleTasks(unittest.TestCase):
             any("Restock" in str(t.get("title") or "") for t in created),
             created,
         )
+
+
+class QuestGtSyncOffLocalComplete(unittest.TestCase):
+    """#593: FITDASH_QUEST_GT_SYNC=0 completes FitDash quests without GT ids."""
+
+    def _lift_board(self, day="2026-09-10"):
+        return {
+            "date": day,
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Complete today's PUSH session (1 lift as prescribed).",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "session_type": "push",
+                "exercises": [
+                    {
+                        "name": "DB Flat Press",
+                        "sets": 3,
+                        "reps": 10,
+                        "weight_lbs": 50,
+                    }
+                ],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+
+    def _gtb_patches(self, store, created, tmp, extra_env=None):
+        env = {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+        if extra_env:
+            env.update(extra_env)
+
+        def fake_list(list_id, show_completed=True, show_hidden=True):
+            return {"ok": True, "tasks": list(store.values())}
+
+        def fake_create(list_id, title, notes="", due=None, parent=None):
+            tid = f"new-{len(created) + 1}"
+            task = {
+                "id": tid,
+                "title": title,
+                "notes": notes,
+                "due": due,
+                "status": "needsAction",
+                "parent": parent,
+            }
+            created.append(task)
+            store[tid] = task
+            return {"ok": True, "task": task}
+
+        def fake_get(list_id, task_id):
+            task = store.get(task_id)
+            return {"ok": True, "task": task} if task else {"ok": False}
+
+        def fake_delete(list_id, task_id):
+            store.pop(task_id, None)
+            return {"ok": True}
+
+        stack = ExitStack()
+        stack.enter_context(mock.patch.dict("os.environ", env))
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": True, "source": "session"},
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id",
+                return_value="L1",
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks",
+                side_effect=fake_list,
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task",
+                side_effect=fake_create,
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.get_task",
+                side_effect=fake_get,
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.delete_task",
+                side_effect=fake_delete,
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.update_task",
+                return_value={"ok": True},
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                return_value={"ok": True, "task": {"id": "gt"}},
+            )
+        )
+        return stack
+
+    def test_plan_preview_includes_quest_gt_sync_flag(self):
+        with mock.patch.dict("os.environ", {"FITDASH_QUEST_GT_SYNC": "0"}):
+            prev = plan_preview(self._lift_board())
+        self.assertIs(prev.get("quest_gt_sync"), False)
+        with mock.patch.dict("os.environ", {"FITDASH_QUEST_GT_SYNC": "1"}):
+            prev_on = plan_preview(self._lift_board())
+        self.assertIs(prev_on.get("quest_gt_sync"), True)
+
+    def test_complete_leaf_without_ids_is_local_when_flag_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ",
+                {
+                    "RESISTANCE_DASHBOARD_CONFIG_DIR": tmp,
+                    "FITDASH_QUEST_GT_SYNC": "0",
+                },
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task"
+            ) as gt_complete:
+                result = complete_leaf(
+                    "",
+                    "",
+                    completed=True,
+                    group="training",
+                    slug="ex-db-flat-press",
+                    date="2026-09-10",
+                    title="DB Flat Press (50 lb 3×10)",
+                )
+                undone = complete_leaf(
+                    "",
+                    "",
+                    completed=False,
+                    group="training",
+                    slug="ex-db-flat-press",
+                    date="2026-09-10",
+                )
+        self.assertTrue(result.get("ok"), result)
+        self.assertTrue(result.get("local"))
+        self.assertEqual(result.get("slug"), "ex-db-flat-press")
+        gt_complete.assert_not_called()
+        self.assertTrue(undone.get("ok"), undone)
+        self.assertFalse(undone.get("completed"))
+
+    def test_complete_leaf_without_ids_still_errors_when_flag_on(self):
+        with mock.patch.dict("os.environ", {"FITDASH_QUEST_GT_SYNC": "1"}):
+            result = complete_leaf(
+                "",
+                "",
+                completed=True,
+                group="training",
+                slug="ex-db-flat-press",
+                date="2026-09-10",
+            )
+        self.assertFalse(result.get("ok"))
+        self.assertIn("missing", (result.get("error") or "").lower())
+
+    def test_ensure_skips_gt_seed_and_hydrates_local_complete(self):
+        store: dict = {
+            "jot": {
+                "id": "jot",
+                "title": "Call the vet",
+                "notes": "",
+                "status": "needsAction",
+            }
+        }
+        created: list[dict] = []
+        day = "2026-09-10"
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ):
+                first = ensure_daily_tasks(self._lift_board(day), day=day)
+                self.assertTrue(first.get("ok"), first)
+                self.assertIs(first.get("quest_gt_sync"), False)
+                train = [
+                    g
+                    for g in first.get("groups") or []
+                    if g.get("group") == "training"
+                ]
+                self.assertTrue(train)
+                lifts = [
+                    it
+                    for it in train[0].get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                ]
+                self.assertTrue(lifts)
+                for it in lifts:
+                    self.assertFalse(it.get("task_id"))
+                    self.assertFalse(it.get("completed"))
+                self.assertFalse(
+                    any("DB Flat Press" in str(t.get("title") or "") for t in created),
+                    created,
+                )
+                marked = complete_leaf(
+                    "",
+                    "",
+                    completed=True,
+                    group="training",
+                    slug=lifts[0]["slug"],
+                    date=day,
+                    title=lifts[0]["title"],
+                )
+                self.assertTrue(marked.get("ok"), marked)
+                second = ensure_daily_tasks(self._lift_board(day), day=day)
+        self.assertTrue(second.get("ok"), second)
+        train2 = [
+            g for g in second.get("groups") or [] if g.get("group") == "training"
+        ]
+        done = [
+            it
+            for it in train2[0].get("items") or []
+            if it.get("slug") == lifts[0]["slug"]
+        ]
+        self.assertTrue(done)
+        self.assertTrue(done[0].get("completed"))
+        self.assertFalse(done[0].get("task_id"))
+        self.assertIn("jot", store)
 
 
 if __name__ == "__main__":

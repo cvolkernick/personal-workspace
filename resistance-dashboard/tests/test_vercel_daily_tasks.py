@@ -299,6 +299,10 @@ class CompleteUsesPiLeaf(unittest.TestCase):
             completed=True,
             parent_id="p1",
             sibling_all_done=True,
+            group=None,
+            slug=None,
+            date=None,
+            title=None,
         )
 
     def test_failed_complete_is_honest_not_silent_200(self):

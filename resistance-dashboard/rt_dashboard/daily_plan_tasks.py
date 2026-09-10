@@ -20,7 +20,8 @@ Sync identity:
     can still be swept.
 
   ~/.config/resistance-dashboard/daily_quest_cache.json
-  { "day": { "list_id": "...", "ids": { "training|group": "taskId", "training|ex-foo": "..." } } }
+  { "day": { "list_id": "...", "ids": { "training|group": "taskId", "training|ex-foo": "..." },
+             "local_completed": { "training|ex-foo": true } } }
 
 Due date = civil day. Notes = optional motivation + the FitDash marker.
 Chris jots, Turo, and Orchestra NOW/NEXT that are not FitDash quests are
@@ -219,10 +220,12 @@ def group_header_titles() -> set:
 
 
 def quest_gt_sync_enabled() -> bool:
-    """Non-grocery FitDash quest GT mirror. Default on so Today complete still works.
+    """Non-grocery FitDash quest GT mirror. Default on.
 
     Grocery is always skipped. Set ``FITDASH_QUEST_GT_SYNC=0`` to stop creating
     lifts/meals/sleep/cardio GTs as well (FitDash-owned; GTs stay for one-offs).
+    Completion then uses local daily-tasks state (slug + group + date) so
+    Today complete still works without Google Tasks ids.
     """
     raw = (os.environ.get(QUEST_GT_SYNC_ENV) or "1").strip().lower()
     return raw not in ("0", "false", "no", "off")
@@ -1967,7 +1970,12 @@ def purge_unplanned_training_leaves(
         if str(ids.get(ck) or "") in drop:
             ids.pop(ck, None)
     if deleted:
-        cache[day] = {"list_id": list_id, "ids": ids}
+        prev = cache.get(day) if isinstance(cache.get(day), dict) else {}
+        cache[day] = {
+            "list_id": list_id,
+            "ids": ids,
+            "local_completed": dict(prev.get("local_completed") or {}),
+        }
         if save:
             _save_cache(cache)
     stats["deleted"] = deleted
@@ -2244,8 +2252,17 @@ def ensure_daily_tasks(
 
         day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
         if day_cache.get("list_id") != list_id:
-            day_cache = {"list_id": list_id, "ids": {}}
+            kept_local = dict(day_cache.get("local_completed") or {})
+            day_cache = {
+                "list_id": list_id,
+                "ids": {},
+                "local_completed": kept_local,
+            }
         ids: Dict[str, str] = dict(day_cache.get("ids") or {})
+        local_completed: Dict[str, bool] = {
+            str(k): bool(v)
+            for k, v in dict(day_cache.get("local_completed") or {}).items()
+        }
         try:
             listed = gtb.list_tasks(
                 list_id, show_completed=True, show_hidden=True
@@ -2550,7 +2567,9 @@ def ensure_daily_tasks(
                         {
                             "slug": it.slug,
                             "title": it.title,
-                            "completed": False,
+                            "completed": bool(local_completed.get(ck))
+                            if skip_item
+                            else False,
                             "task_id": tid,
                             "list_id": list_id if tid else None,
                             "group": g.group,
@@ -2643,7 +2662,11 @@ def ensure_daily_tasks(
                 }
             )
 
-        day_cache = {"list_id": list_id, "ids": ids}
+        day_cache = {
+            "list_id": list_id,
+            "ids": ids,
+            "local_completed": local_completed,
+        }
         cache[day] = day_cache
         # prune old days (keep last 14)
         if len(cache) > 16:
@@ -2677,6 +2700,7 @@ def ensure_daily_tasks(
         return {
             "ok": True,
             "source": "google_tasks",
+            "quest_gt_sync": quest_gt_sync_enabled(),
             "list_title": list_title,
             "list_id": list_id,
             "day": day,
@@ -2747,6 +2771,7 @@ def _local_payload(
     return {
         "ok": error is None,
         "source": source,
+        "quest_gt_sync": quest_gt_sync_enabled(),
         "list_title": DEFAULT_LIST_TITLE,
         "list_id": None,
         "day": day,
@@ -2841,6 +2866,42 @@ def _sync_meal_calendar(
         }
 
 
+def _complete_local_leaf(
+    *,
+    group: Optional[str] = None,
+    slug: Optional[str] = None,
+    date: Optional[str] = None,
+    title: Optional[str] = None,
+    completed: bool = True,
+) -> dict:
+    """Mark a GT-less FitDash-owned quest complete in local daily-tasks cache."""
+    g = str(group or "").strip()
+    s = str(slug or "").strip()
+    if not g or not s or not skip_gt_seed(g):
+        return {"ok": False, "error": "missing list_id or task_id"}
+    day = str(date or local_today_iso())[:10]
+    cache = _load_cache()
+    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+    local_completed = dict(day_cache.get("local_completed") or {})
+    ck = item_kind_key(PlannedItem(group=g, slug=s, title=str(title or "")))
+    local_completed[ck] = bool(completed)
+    day_cache = dict(day_cache)
+    day_cache["local_completed"] = local_completed
+    cache[day] = day_cache
+    _save_cache(cache)
+    return {
+        "ok": True,
+        "local": True,
+        "group": g,
+        "slug": s,
+        "day": day,
+        "completed": bool(completed),
+        "task": None,
+        "parent_id": None,
+        "calendar": None,
+    }
+
+
 def complete_leaf(
     list_id: str,
     task_id: str,
@@ -2848,9 +2909,19 @@ def complete_leaf(
     completed: bool = True,
     parent_id: Optional[str] = None,
     sibling_all_done: Optional[bool] = None,
+    group: Optional[str] = None,
+    slug: Optional[str] = None,
+    date: Optional[str] = None,
+    title: Optional[str] = None,
 ) -> dict:
     if not list_id or not task_id:
-        return {"ok": False, "error": "missing list_id or task_id"}
+        return _complete_local_leaf(
+            group=group,
+            slug=slug,
+            date=date,
+            title=title,
+            completed=completed,
+        )
     try:
         result = gtb.complete_task(list_id, task_id, completed=completed)
         if not result.get("ok"):

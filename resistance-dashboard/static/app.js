@@ -4873,23 +4873,54 @@
       .replace(/"/g, "&quot;");
   }
 
-  function questLeafIds(item, group, dailyListId) {
+  function isFitdashOwnedQuestGroup(group) {
+    const g = String(group || "").trim().toLowerCase();
+    return (
+      g === "training" ||
+      g === "train" ||
+      g === "cardio" ||
+      g === "nutrition" ||
+      g === "shopping" ||
+      g === "sleep" ||
+      g === "recovery"
+    );
+  }
+
+  function questGtSyncEnabled(daily) {
+    const d =
+      daily ||
+      (typeof state !== "undefined" && state && state.daily_tasks) ||
+      {};
+    return d.quest_gt_sync !== false;
+  }
+
+  function questLeafIds(item, group, dailyListId, gtSyncOn) {
     const it = item || {};
     const g = group || {};
     const tid = String(it.task_id || it.id || "").trim();
     const lid = String(it.list_id || g.list_id || dailyListId || "").trim();
     const pid = String(g.task_id || g.id || "").trim();
-    return { tid, lid, pid, ready: !!(tid && lid) };
+    const slug = String(it.slug || "").trim();
+    const grp = String((g && g.group) || it.group || "").trim();
+    const syncOn = gtSyncOn !== false;
+    const localReady = !syncOn && isFitdashOwnedQuestGroup(grp) && !!slug;
+    return { tid, lid, pid, slug, group: grp, ready: !!(tid && lid) || localReady };
   }
 
   const QUEST_SYNC_FAIL = "Could not sync quests with Google Tasks";
+  const QUEST_LOCAL_NOTE = "Local · complete here";
   let questSyncUi = { status: "idle", error: "" };
 
   function dailyHasReadyLeaf(daily) {
     const listId = (daily && daily.list_id) || "";
+    const gtSyncOn = questGtSyncEnabled(daily);
+    if (!gtSyncOn) {
+      if (daily && (daily.ok === false || daily.error || daily.sync_failed)) return false;
+      return true;
+    }
     for (const g of (daily && daily.groups) || []) {
       for (const it of g.open_items || g.items || []) {
-        if (it && !it.completed && questLeafIds(it, g, listId).ready) return true;
+        if (it && !it.completed && questLeafIds(it, g, listId, gtSyncOn).ready) return true;
       }
     }
     return false;
@@ -4925,16 +4956,21 @@
   }
 
   /** Build quest body HTML (sync note + groups) — never includes the collapsible shell. */
-  function buildDailyQuestBodyHtml(groups, { syncing, err, src, listId, failed }) {
+  function buildDailyQuestBodyHtml(groups, { syncing, err, src, listId, failed, gtSyncOn }) {
     let html = "";
+    const localMode = gtSyncOn === false;
     if (syncing) {
-      html += `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`;
+      html += localMode
+        ? `<p class="muted quest-sync-note">Loading quests…</p>`
+        : `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`;
     } else if (failed || err) {
       html += `<p class="quest-sync-note quest-sync-error">${QUEST_SYNC_FAIL}</p>`;
       if (err && String(err) !== QUEST_SYNC_FAIL) {
         html += `<p class="muted quest-sync-note">${escQuest(err)}</p>`;
       }
       html += `<button type="button" class="quest-sync-retry" data-quest-retry>Retry sync</button>`;
+    } else if (localMode) {
+      html += `<p class="muted quest-sync-note">${QUEST_LOCAL_NOTE}</p>`;
     } else if (src === "google_tasks") {
       html += `<p class="muted quest-sync-note">Fitness list · complete here or in Google Tasks</p>`;
     }
@@ -4967,7 +5003,7 @@
           } else noMeal.push(it);
         });
         const renderCard = (it, g) => {
-          const { tid, lid, pid, ready } = questLeafIds(it, g, listId);
+          const { tid, lid, pid, ready } = questLeafIds(it, g, listId, !localMode);
           const done = !!it.completed;
           const liftDone = done && looksLikeLiftQuest(g.group || it.group, it.title, it.slug);
           // Strip redundant "Next meal: " prefix if already under meal header
@@ -5040,6 +5076,7 @@
     const sum = (daily && daily.summary) || {};
     const err = daily && daily.error;
     const src = (daily && daily.source) || "";
+    const gtSyncOn = questGtSyncEnabled(daily);
     const failed = !!(daily && (daily.sync_failed || questSyncUi.status === "failed"));
     const syncing =
       !failed && daily && daily.needs_sync && src !== "google_tasks";
@@ -5059,7 +5096,7 @@
                   : "") +
                 `<button type="button" class="quest-sync-retry" data-quest-retry>Retry sync</button>`
               : syncing
-                ? `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`
+                ? `<p class="muted quest-sync-note">${gtSyncOn === false ? "Loading quests…" : "Syncing with Google Tasks…"}</p>`
                 : `<p class="muted quest-sync-note">No open quests.</p>`;
           }
           applyQuestsCollapseDom(existing);
@@ -5083,6 +5120,7 @@
       err,
       src,
       failed,
+      gtSyncOn,
       listId: (daily && daily.list_id) || "",
     });
 
@@ -5186,9 +5224,11 @@
     btn.classList.remove("is-completing");
   }
 
-  function patchLocalQuestCompleted(taskId, completed) {
+  function patchLocalQuestCompleted(taskId, completed, keys) {
     const tid = String(taskId || "").trim();
-    if (!tid) return;
+    const slug = String((keys && keys.slug) || "").trim();
+    const groupName = String((keys && keys.group) || "").trim();
+    if (!tid && !(slug && groupName)) return;
     const seen = new Set();
     const synced =
       typeof lastSyncedDailyTasks !== "undefined" ? lastSyncedDailyTasks : null;
@@ -5197,9 +5237,17 @@
       seen.add(daily);
       for (const g of daily.groups || []) {
         let found = false;
+        const gName = String(g.group || "").trim();
         for (const key of ["items", "open_items"]) {
           for (const it of g[key] || []) {
-            if (String(it.task_id || it.id || "").trim() === tid) {
+            const sameId = tid && String(it.task_id || it.id || "").trim() === tid;
+            const sameLocal =
+              !tid &&
+              slug &&
+              groupName &&
+              String(it.slug || "").trim() === slug &&
+              String(gName || it.group || "").trim() === groupName;
+            if (sameId || sameLocal) {
               it.completed = !!completed;
               found = true;
             }
@@ -5422,12 +5470,19 @@
         (state && state.coach && state.coach.today && state.coach.today.date) ||
         ""
     ).slice(0, 10);
+    const localReady =
+      !questGtSyncEnabled(state && state.daily_tasks) &&
+      isFitdashOwnedQuestGroup(questGroup) &&
+      !!questSlug;
     // Leaf with both ids is a real control even if a stale pending/disabled paint remains.
+    // GT-less FitDash-owned leaves complete locally when GT sync is off (#593).
     if (!taskId || !listId) {
-      if (btn.getAttribute("aria-disabled") === "true" || btn.classList.contains("quest-card-pending")) {
-        showAlert((state && state.daily_tasks && state.daily_tasks.error) || "Quest is not synced to Google Tasks yet", "err");
+      if (!localReady) {
+        if (btn.getAttribute("aria-disabled") === "true" || btn.classList.contains("quest-card-pending")) {
+          showAlert((state && state.daily_tasks && state.daily_tasks.error) || "Quest is not synced to Google Tasks yet", "err");
+        }
+        return;
       }
-      return;
     }
     ev.preventDefault();
     btn.classList.remove("quest-card-pending");
@@ -5476,7 +5531,10 @@
       }
       const log = data.workout_log || {};
       const stock = data.inventory_stock || {};
-      patchLocalQuestCompleted(taskId, wantCompleted);
+      patchLocalQuestCompleted(taskId, wantCompleted, {
+        slug: questSlug,
+        group: questGroup,
+      });
       if (wantCompleted && stock.wrote && stock.inventory) {
         applyInventoryUpdate(stock.inventory);
       }
