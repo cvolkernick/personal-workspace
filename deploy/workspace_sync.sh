@@ -242,8 +242,18 @@ if [[ "$ON_BRANCH" != "$BRANCH" ]]; then
   exit 1
 fi
 
+run_fcc_tip_health() {
+  # Issue #562: read-only SHA/branch assert. Never blocks sync; never mutates git.
+  local py="${HOME}/.config/personal-workspace/fcc_tip_health.py"
+  [[ -f "$py" ]] || py="$DIR/deploy/fcc_tip_health.py"
+  [[ -f "$py" ]] || return 0
+  python3 "$py" --workspace "$DIR" --no-fetch --dry-run >/dev/null || \
+    log "WARN: fcc tip health mismatch (logged; ntfy is the timer's job)"
+}
+
 if [[ "$BEFORE" == "$AFTER" ]]; then
   log "no code change — skip restart"
+  run_fcc_tip_health
   exit 0
 fi
 
@@ -261,6 +271,7 @@ if [[ -f "$ON_MERGE" ]]; then
     exit 1
   }
   log "path-scoped deploy done"
+  run_fcc_tip_health
   exit 0
 fi
 
