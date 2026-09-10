@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from rt_dashboard.coach_actions import try_parse_coach_action
+from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_action
 
 
 class TestCoachActions(unittest.TestCase):
@@ -99,6 +99,42 @@ class TestCoachActions(unittest.TestCase):
     def test_refresh_meal_natural(self):
         a = try_parse_coach_action("please regenerate my meal plan")
         self.assertEqual(a["action"], "refresh_meal_plan")
+
+    def test_set_fiber_sugar_sodium_natural(self):
+        a = try_parse_coach_action("set fiber to 30")
+        self.assertEqual(a["action"], "set_targets")
+        self.assertEqual(a["targets"]["fiber_g"], 30)
+        self.assertNotIn("calories", a["targets"])
+        b = try_parse_coach_action("set sugar 40")
+        self.assertEqual(b["targets"]["sugar_g"], 40)
+        c = try_parse_coach_action("set sodium 2000")
+        self.assertEqual(c["targets"]["sodium_mg"], 2000)
+        d = try_parse_coach_action(
+            "set targets fiber=30 sugar=40 sodium=2000"
+        )
+        self.assertEqual(d["targets"]["fiber_g"], 30)
+        self.assertEqual(d["targets"]["sugar_g"], 40)
+        self.assertEqual(d["targets"]["sodium_mg"], 2000)
+        e = try_parse_coach_action("set salt to 2300")
+        self.assertEqual(e["targets"]["sodium_mg"], 2300)
+
+    def test_format_reply_lists_micros(self):
+        msg = format_action_reply(
+            {
+                "ok": True,
+                "action": "set_targets",
+                "targets": {
+                    "calories": 2100,
+                    "protein_g": 210,
+                    "fiber_g": 30,
+                    "sugar_g": 40,
+                    "sodium_mg": 2000,
+                },
+            }
+        )
+        self.assertIn("fiber 30g", msg)
+        self.assertIn("sugar 40g", msg)
+        self.assertIn("sodium 2000mg", msg)
 
     def test_fat_does_not_set_calories(self):
         a = try_parse_coach_action("set fat to 45")

@@ -264,7 +264,10 @@ class TestMicrosLineFromStoreJs(unittest.TestCase):
         render = js.split("function renderNutritionMicros", 1)[1].split(
             "function fmtNumShort", 1
         )[0]
-        self.assertIn("microsLineFromStore(store)", render)
+        self.assertIn("microsFromStore(store)", render)
+        self.assertIn("microChipHtml", render)
+        self.assertIn("Fiber · Sodium · Sugar", render)
+        self.assertNotIn("<details open", render)
         self.assertNotIn("microsLine(c)", render)
 
 

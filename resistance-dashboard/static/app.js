@@ -2039,11 +2039,82 @@
   }
 
   /** Day micros from today_consumed, else summed meal-log nutrients (never invent). */
+  function presentMicroVal(consumed, key) {
+    const m = microsFromPayload(consumed || {});
+    if (key === "sodium_mg") {
+      if (m.sodium_mg != null) return m.sodium_mg;
+      if (m.sodium_g != null) return m.sodium_g * 1000;
+      return null;
+    }
+    return m[key] != null ? m[key] : null;
+  }
+
+  function microsFromStore(store) {
+    const c = (store && store.today_consumed) || {};
+    const fromConsumed = microsFromPayload(c);
+    if (fromConsumed && (fromConsumed.fiber_g != null || fromConsumed.sugar_g != null || fromConsumed.sodium_mg != null || fromConsumed.sodium_g != null))
+      return fromConsumed;
+    return sumMicrosFromFoodLogs(foodLogsTodayFromStore(store));
+  }
+
   function microsLineFromStore(store) {
     const c = (store && store.today_consumed) || {};
     const fromConsumed = microsLine(c);
     if (fromConsumed) return fromConsumed;
     return microsLine({ micros: sumMicrosFromFoodLogs(foodLogsTodayFromStore(store)) });
+  }
+
+  /**
+   * Direction-aware chip color vs the day target (not pace).
+   * Fiber is a floor (under = yellow/red). Sugar/sodium are limits (over = red).
+   */
+  function microChipBand(kind, logged, target) {
+    if (logged == null || logged === "" || Number.isNaN(Number(logged))) return null;
+    if (target == null || target === "" || !(Number(target) > 0)) return null;
+    const ratio = Number(logged) / Number(target);
+    if (kind === "fiber") {
+      if (ratio >= 1) return "green";
+      if (ratio >= 0.8) return "yellow";
+      return "red";
+    }
+    if (ratio > 1) return "red";
+    return "green";
+  }
+
+  function microChipHtml(label, kind, unit, logged, target) {
+    if (logged == null || logged === "" || Number.isNaN(Number(logged))) return "";
+    const band = microChipBand(kind, logged, target);
+    const hasTarget = target != null && target !== "" && !Number.isNaN(Number(target));
+    const g = hasTarget ? Number(target) : null;
+    const t = Number(logged);
+    const unitSuf = unit ? ` ${unit}` : "";
+    let deltaHtml = "";
+    if (g != null && g > 0) {
+      const left = g - t;
+      if (Math.abs(left) < 0.05) {
+        deltaHtml = `<div class="macro-split-delta">on target</div>`;
+      } else if (left > 0) {
+        deltaHtml = `<div class="macro-split-delta under">${fmtNum(left)}${unitSuf} left</div>`;
+      } else {
+        deltaHtml = `<div class="macro-split-delta over">+${fmtNum(-left)}${unitSuf} over</div>`;
+      }
+    }
+    const bandClass = band ? ` band-${band}` : "";
+    return `<div class="card stat macro-stat micro-stat micro-${kind}${bandClass}">
+      <div class="label">${label}</div>
+      <div class="macro-split">
+        <div class="macro-split-half">
+          <div class="macro-split-k">Logged today</div>
+          <div class="macro-split-v">${fmtNum(t)}${unitSuf}</div>
+        </div>
+        <div class="macro-split-rule" aria-hidden="true"></div>
+        <div class="macro-split-half">
+          <div class="macro-split-k">Target</div>
+          <div class="macro-split-v">${hasTarget ? fmtNum(g) + unitSuf : "—"}</div>
+          ${deltaHtml}
+        </div>
+      </div>
+    </div>`;
   }
 
   function invMicroStrip(obj, compact = false) {
@@ -2959,6 +3030,9 @@
    * Prefers wake-window ``pace.consumed``; civil-day totals are not the pace score.
    */
   function paceRowIntake(pace, civilFallback) {
+    if (pace && (pace.status === "no_data" || pace.status === "no_target")) {
+      if (pace.consumed == null || pace.consumed === "") return null;
+    }
     if (pace && pace.consumed != null && pace.consumed !== "") {
       const n = Number(pace.consumed);
       if (!Number.isNaN(n)) return n;
@@ -3002,11 +3076,22 @@
     const halfW = barPct * 0.5;
     const leftW = side === "behind" ? halfW : 0;
     const rightW = side === "ahead" ? halfW : 0;
-    const unit = kind === "cals" || kind === "calories" ? "kcal" : "g";
+    const unit =
+      kind === "cals" || kind === "calories"
+        ? "kcal"
+        : kind === "sodium"
+          ? "mg"
+          : "g";
     const paced = p && p.paced_expected != null ? fmtNum(p.paced_expected) : "—";
     let paceHint = "";
     let paceTitle = (p && p.summary) || `${label} vs pace`;
-    if (p && p.status !== "no_target" && p.paced_expected != null) {
+    if (
+      p &&
+      p.status !== "no_target" &&
+      p.status !== "no_data" &&
+      p.band !== "muted" &&
+      p.paced_expected != null
+    ) {
       // pace now = expected by this time in the eating window
       // signed delta = consumed − expected (positive = ahead of pace)
       const d = Number(p.delta_vs_pace);
@@ -3125,8 +3210,26 @@
   function renderNutritionMicros(store) {
     const el = $("nutrition-micros");
     if (!el) return;
-    const line = microsLineFromStore(store);
-    if (!line) {
+    const m = microsFromStore(store);
+    const t = (store && store.targets) || {};
+    const chips = [
+      m.fiber_g != null
+        ? microChipHtml("Fiber", "fiber", "g", m.fiber_g, t.fiber_g)
+        : "",
+      m.sugar_g != null
+        ? microChipHtml("Sugar", "sugar", "g", m.sugar_g, t.sugar_g)
+        : "",
+      m.sodium_mg != null || m.sodium_g != null
+        ? microChipHtml(
+            "Sodium",
+            "sodium",
+            "mg",
+            m.sodium_mg != null ? m.sodium_mg : m.sodium_g * 1000,
+            t.sodium_mg
+          )
+        : "",
+    ].filter(Boolean);
+    if (!chips.length) {
       el.hidden = true;
       el.innerHTML = "";
       return;
@@ -3134,8 +3237,8 @@
     el.hidden = false;
     el.innerHTML = `<details class="micros-details">
       <summary>Fiber · Sodium · Sugar</summary>
-      <p class="micros-values">${line}</p>
-      <p class="muted micros-hint">Only nutrients already on the meal or day log. Missing keys are omitted — never invented.</p>
+      <div class="micro-chip-row">${chips.join("")}</div>
+      <p class="muted micros-hint">Logged today vs target. Only nutrients already on the meal or day log. Missing keys are omitted — never invented.</p>
     </details>`;
   }
 
@@ -3372,6 +3475,18 @@
     if ($("tgt-phase")) {
       $("tgt-phase").value = t.phase || "";
     }
+    if ($("tgt-fiber")) {
+      $("tgt-fiber").value =
+        t.fiber_g != null && t.fiber_g !== "" ? t.fiber_g : "";
+    }
+    if ($("tgt-sugar")) {
+      $("tgt-sugar").value =
+        t.sugar_g != null && t.sugar_g !== "" ? t.sugar_g : "";
+    }
+    if ($("tgt-sodium")) {
+      $("tgt-sodium").value =
+        t.sodium_mg != null && t.sodium_mg !== "" ? t.sodium_mg : "";
+    }
     renderCoachTargetRec(state && state.coach);
     if ($("macro-pace-bars")) {
       $("macro-pace-bars").innerHTML = `
@@ -3390,6 +3505,9 @@
           ${progressRow("Protein", c.protein_g, t.protein_g, "protein", mp.protein_g)}
           ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
           ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
+          ${progressRow("Fiber", presentMicroVal(c, "fiber_g"), t.fiber_g, "fiber", mp.fiber_g)}
+          ${progressRow("Sugar", presentMicroVal(c, "sugar_g"), t.sugar_g, "sugar", mp.sugar_g)}
+          ${progressRow("Sodium", presentMicroVal(c, "sodium_mg"), t.sodium_mg, "sodium", mp.sodium_mg)}
           ${
             civilLine
               ? `<p class="muted macro-civil-day-line">${civilLine}</p>`
@@ -6450,7 +6568,13 @@
       <div class="chart-summary-row">
         <div class="chart-summary-chip">
           <span class="chip-k">Recommended</span>
-          <span class="chip-v">${recd.calories} / ${recd.protein_g}P / ${recd.carbs_g}C / ${recd.fat_g}F</span>
+          <span class="chip-v">${recd.calories} / ${recd.protein_g}P / ${recd.carbs_g}C / ${recd.fat_g}F${
+            recd.fiber_g != null || recd.sugar_g != null || recd.sodium_mg != null
+              ? ` · Fi ${recd.fiber_g != null ? recd.fiber_g : "—"}g / Su ${
+                  recd.sugar_g != null ? recd.sugar_g : "—"
+                }g / Na ${recd.sodium_mg != null ? recd.sodium_mg : "—"}mg`
+              : ""
+          }</span>
           <span class="chip-s">${dSign}${dCal} kcal vs applied ${applied.calories || "—"}</span>
         </div>
         <div class="chart-summary-chip">
@@ -6492,11 +6616,17 @@
     if (status) status.textContent = "Saving…";
     const wgRaw = $("tgt-weight-goal") ? $("tgt-weight-goal").value : "";
     const phaseRaw = $("tgt-phase") ? $("tgt-phase").value : "";
+    const fiberRaw = $("tgt-fiber") ? $("tgt-fiber").value : "";
+    const sugarRaw = $("tgt-sugar") ? $("tgt-sugar").value : "";
+    const sodiumRaw = $("tgt-sodium") ? $("tgt-sodium").value : "";
     const body = {
       calories: Number($("tgt-cal").value),
       protein_g: Number($("tgt-p").value),
       carbs_g: Number($("tgt-c").value),
       fat_g: Number($("tgt-f").value),
+      fiber_g: fiberRaw === "" || fiberRaw == null ? null : Number(fiberRaw),
+      sugar_g: sugarRaw === "" || sugarRaw == null ? null : Number(sugarRaw),
+      sodium_mg: sodiumRaw === "" || sodiumRaw == null ? null : Number(sodiumRaw),
       // Empty string clears the goal; omit is not used so chart stays in sync
       weight_goal_lbs: wgRaw === "" || wgRaw == null ? null : Number(wgRaw),
       phase: phaseRaw || null,

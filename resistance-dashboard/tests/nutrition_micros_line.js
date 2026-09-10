@@ -142,4 +142,29 @@ assert(summed.sugar_g === 6, "sugar not invented on chicken");
 assert(foodLogsTodayFromStore(null).length === 0, "null store is empty");
 assert(foodLogsTodayFromStore({ food_logs_today: meals }).length === 3, "top-level logs");
 
+const microChipBand = loadFn("microChipBand");
+assert(microChipBand("fiber", 15, 30) === "red", "fiber 50% of target is red");
+assert(microChipBand("fiber", 27, 30) === "yellow", "fiber 90% is yellow");
+assert(microChipBand("fiber", 30, 30) === "green", "fiber on target is green");
+assert(microChipBand("fiber", 40, 30) === "green", "fiber over target is green");
+assert(microChipBand("sugar", 75, 50) === "red", "sugar 150% is red");
+assert(microChipBand("sugar", 40, 50) === "green", "sugar under target is green");
+assert(microChipBand("sodium", 2500, 2300) === "red", "sodium over is red");
+assert(microChipBand("sodium", 1000, 2300) === "green", "sodium under is green");
+assert(microChipBand("fiber", null, 30) === null, "missing logged is omitted");
+assert(microChipBand("sugar", 10, null) === null, "missing target is uncolored");
+
+const microsFromStore = loadFn(
+  "microsFromStore",
+  `${KEYS}; ${extractFn("pickNutrientGrams")}; ${extractFn("microsFromNutrients")}; ${extractFn(
+    "microsFromPayload"
+  )}; ${extractFn("foodLogsTodayFromStore")}; ${extractFn("sumMicrosFromFoodLogs")}`
+);
+const fromStore = microsFromStore({
+  today_consumed: { micros: { fiber_g: 20, sugar_g: 18 } },
+});
+assert(fromStore.fiber_g === 20, "store fiber");
+assert(fromStore.sugar_g === 18, "store sugar");
+assert(fromStore.sodium_mg == null, "missing sodium stays missing");
+
 console.log("ok nutrition-micros-line");

@@ -1,6 +1,6 @@
 # Coach-owned nutrition targets
 
-**Status:** shipped v1 (2026-08-27). `recommend_nutrition_targets()` is live. Dashboard load does **not** write `targets.json`. Coach writes on **Apply coach targets** / chat `apply coach targets` only.
+**Status:** shipped v1 (2026-08-27); **v2 micros** (fiber / sugar / sodium) with #571. `recommend_nutrition_targets()` is live. Dashboard load does **not** write `targets.json`. Coach writes on **Apply coach targets** / chat `apply coach targets` only.
 
 **Origin:** Chris, #fitness — calorie/macro targets should come from coach subroutine(s) given **goals vs current data**, not only a sticky Kitchen form.
 
@@ -10,8 +10,8 @@
 
 | Object | Who writes | When |
 |--------|------------|------|
-| **Recommended** kcal / P / C / F | Deterministic Python `recommend_nutrition_targets()` | Every dashboard load (cheap, pure) |
-| **Applied** kcal / P / C / F | Human form, `set targets …`, or **`apply coach targets`** | Explicit write only |
+| **Recommended** kcal / P / C / F / fiber / sugar / sodium | Deterministic Python `recommend_nutrition_targets()` | Every dashboard load (cheap, pure) |
+| **Applied** kcal / P / C / F / fiber / sugar / sodium | Human form, `set targets …`, or **`apply coach targets`** | Explicit write only |
 
 Dashboard load, meal-plan refresh, and background cache **must not** write `targets.json`.
 
@@ -51,8 +51,8 @@ Training `fitness/exercises/goals.json` (`strength_hypertrophy`, DeanT volume) i
   "current_weight_lbs": 168.4,
   "weight_goal_lbs": 150.0,
   "applied": {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
-  "recommended": {"calories": 2050, "protein_g": 170, "carbs_g": 185, "fat_g": 60},
-  "delta": {"calories": -50, "protein_g": -40, "carbs_g": 5, "fat_g": 5},
+  "recommended": {"calories": 2050, "protein_g": 170, "carbs_g": 185, "fat_g": 60, "fiber_g": 30, "sugar_g": 50, "sodium_mg": 2300},
+  "delta": {"calories": -50, "protein_g": -40, "carbs_g": 5, "fat_g": 5, "fiber_g": 30, "sugar_g": 50, "sodium_mg": 2300},
   "abstain": false,
   "reasons": [
     "14d mean wearable burn 2450 kcal (12 present days)",
@@ -88,6 +88,20 @@ Round kcal to nearest **50**, macros to nearest **5 g**. Recompute carbs as rema
 
 Do **not** invent TDEE from intake. Intake is a cross-check in `reasons` (“logged 14d mean 2300 vs burn 2450”), not the calorie target.
 
+## Formula (v2 — micros; #571)
+
+Derived from the **calorie recommendation** (applied calories when calorie rec abstains). Never invented from missing nutrient logs.
+
+**Fiber (floor):** `round_g(14 * calories / 1000)` — 14 g per 1000 kcal.
+
+**Sugar (limit):** `round_g(calories * 0.10 / 4)` — WHO ≤10% of energy as grams.
+
+**Sodium (limit):** `2300` mg/day default. Lower only with a stated reason in `reasons`.
+
+Pace bars reuse `pace_vs_expected` kinds from #573: fiber = `floor`, sugar/sodium = `limit`. Missing logged keys stay muted — never plotted as 0.
+
+Chat: `set fiber to 30`, `set sugar 40`, `set sodium 2000` (mg). `apply coach targets` merges the three keys with macros.
+
 ## Module / API (v1)
 
 - `rt_dashboard/nutrition_targets.py` `recommend_nutrition_targets(...)` (pure; imported by coach).
@@ -111,7 +125,7 @@ Do **not** invent TDEE from intake. Intake is a cross-check in `reasons` (“log
 
 - Other Trends canvases, AZM spark, 75d calorie chart window
 - Hydration / Recovery `.sb-shell` / Hidrate
-- Micronutrient targets (backlog #142)
+- Other micronutrient targets beyond fiber / sugar / sodium (backlog #142 leftovers)
 - Auto-apply on a weekly cron (v2 only, after v1 apply-button exists)
 - Changing live `targets.json` numbers in the lock PR
 

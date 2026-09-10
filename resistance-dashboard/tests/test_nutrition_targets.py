@@ -16,9 +16,11 @@ from rt_dashboard.models import (
     RecoveryStatus,
     WeightSample,
 )
+from rt_dashboard.nutrition_planner import normalize_targets
 from rt_dashboard.nutrition_targets import (
     infer_phase,
     merge_recommended_into_applied,
+    micros_for_calories,
     recommend_nutrition_targets,
     round_g,
     round_kcal,
@@ -235,6 +237,65 @@ class RecommendCut(unittest.TestCase):
         self.assertEqual(rec["recommended"]["calories"], 2100)
 
 
+class MicrosFormula(unittest.TestCase):
+    def test_fiber_sugar_sodium_from_calories(self):
+        m = micros_for_calories(2100)
+        self.assertEqual(m["fiber_g"], round_g(14.0 * 2100 / 1000.0))
+        self.assertEqual(m["sugar_g"], round_g(2100 * 0.10 / 4.0))
+        self.assertEqual(m["sodium_mg"], 2300)
+        self.assertEqual(m["fiber_g"] % 5, 0)
+        self.assertEqual(m["sugar_g"] % 5, 0)
+
+    def test_recommend_includes_micros_with_reasons(self):
+        rec = recommend_nutrition_targets(
+            health=_snap(burned=[], weights=[]),
+            targets={"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            as_of="2026-08-27",
+        )
+        m = micros_for_calories(2100)
+        self.assertEqual(rec["recommended"]["fiber_g"], m["fiber_g"])
+        self.assertEqual(rec["recommended"]["sugar_g"], m["sugar_g"])
+        self.assertEqual(rec["recommended"]["sodium_mg"], 2300)
+        self.assertNotIn("fiber_g", rec["applied"])
+        self.assertEqual(rec["delta"]["fiber_g"], m["fiber_g"])
+        blob = " ".join(rec["reasons"]).lower()
+        self.assertIn("fiber", blob)
+        self.assertIn("14 g", blob)
+        self.assertIn("sugar", blob)
+        self.assertIn("who", blob)
+        self.assertIn("2300", blob)
+
+    def test_does_not_invent_applied_micros(self):
+        rec = recommend_nutrition_targets(
+            health=_snap(burned=[], weights=[]),
+            targets={"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            as_of="2026-08-27",
+        )
+        self.assertNotIn("fiber_g", rec["applied"])
+        self.assertNotIn("sugar_g", rec["applied"])
+        self.assertNotIn("sodium_mg", rec["applied"])
+
+    def test_normalize_targets_persists_micros_and_does_not_invent(self):
+        bare = normalize_targets({"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55})
+        self.assertNotIn("fiber_g", bare)
+        self.assertNotIn("sugar_g", bare)
+        self.assertNotIn("sodium_mg", bare)
+        filled = normalize_targets(
+            {
+                "calories": 2100,
+                "protein_g": 210,
+                "carbs_g": 180,
+                "fat_g": 55,
+                "fiber_g": 30,
+                "sugar_g": 40,
+                "sodium_mg": 2000,
+            }
+        )
+        self.assertEqual(filled["fiber_g"], 30)
+        self.assertEqual(filled["sugar_g"], 40)
+        self.assertEqual(filled["sodium_mg"], 2000)
+
+
 class ApplyMerge(unittest.TestCase):
     def test_preserves_weight_goal(self):
         rec = {
@@ -260,6 +321,28 @@ class ApplyMerge(unittest.TestCase):
         self.assertEqual(merged["calories"], 2000)
         self.assertEqual(merged["weight_goal_lbs"], 150)
         self.assertEqual(merged["phase"], "cut")
+
+    def test_merge_carries_micros(self):
+        rec = {
+            "as_of": "2026-08-27",
+            "phase": "cut",
+            "recommended": {
+                "calories": 2000,
+                "protein_g": 175,
+                "carbs_g": 180,
+                "fat_g": 60,
+                "fiber_g": 30,
+                "sugar_g": 50,
+                "sodium_mg": 2300,
+            },
+        }
+        merged = merge_recommended_into_applied(
+            {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            rec,
+        )
+        self.assertEqual(merged["fiber_g"], 30)
+        self.assertEqual(merged["sugar_g"], 50)
+        self.assertEqual(merged["sodium_mg"], 2300)
 
 
 class WiringLock(unittest.TestCase):

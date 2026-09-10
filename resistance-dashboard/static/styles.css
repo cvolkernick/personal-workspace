@@ -2254,6 +2254,100 @@ footer {
   font-size: 0.82rem;
 }
 
+#nutrition-micros .micro-chip-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+#nutrition-micros .micro-stat {
+  padding: 0.4rem 0.5rem;
+  border-left-width: 3px;
+  border-left-style: solid;
+  min-width: 0;
+}
+#nutrition-micros .micro-stat .label {
+  font-size: 0.72rem;
+  margin: 0;
+}
+#nutrition-micros .micro-stat .macro-split {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 0.2rem;
+  min-height: 0;
+}
+#nutrition-micros .micro-stat .macro-split-half {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+#nutrition-micros .micro-stat .macro-split-half:first-child {
+  padding-right: 0.35rem;
+}
+#nutrition-micros .micro-stat .macro-split-half:last-child {
+  padding-left: 0.35rem;
+  text-align: right;
+}
+#nutrition-micros .micro-stat .macro-split-rule {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(255, 255, 255, 0.14);
+  flex: 0 0 1px;
+}
+#nutrition-micros .micro-stat .macro-split-k {
+  font-size: 0.58rem;
+}
+#nutrition-micros .micro-stat .macro-split-v {
+  font-size: 0.86rem;
+  margin-top: 0.05rem;
+}
+#nutrition-micros .micro-stat .macro-split-delta {
+  font-size: 0.6rem;
+  margin-top: 0.08rem;
+}
+#nutrition-micros .micro-stat.micro-fiber {
+  border-left-color: #7dce91;
+  background: linear-gradient(
+    135deg,
+    rgba(94, 196, 120, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-micros .micro-stat.micro-sugar {
+  border-left-color: #f0b27a;
+  background: linear-gradient(
+    135deg,
+    rgba(244, 162, 97, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-micros .micro-stat.micro-sodium {
+  border-left-color: #c5d0de;
+  background: linear-gradient(
+    135deg,
+    rgba(148, 163, 184, 0.16),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-micros .micro-stat.band-green .macro-split-v {
+  color: #5ce1a8;
+}
+#nutrition-micros .micro-stat.band-yellow .macro-split-v {
+  color: #f0c14d;
+}
+#nutrition-micros .micro-stat.band-red .macro-split-v,
+#nutrition-micros .micro-stat.band-red .macro-split-delta {
+  color: #f07178;
+}
+@media (max-width: 640px) {
+  #nutrition-micros .micro-chip-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 .inv-card.editing {
   border-color: var(--accent);

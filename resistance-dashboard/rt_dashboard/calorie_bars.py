@@ -53,6 +53,7 @@ def _food_log_as_dict(log: Any) -> Optional[dict]:
         "carbs_g": getattr(log, "carbs_g", None),
         "fat_g": getattr(log, "fat_g", None),
         "name": getattr(log, "name", None),
+        "nutrients": getattr(log, "nutrients", None) or {},
     }
 
 
@@ -136,6 +137,7 @@ def sum_intake_in_window(
 
     totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
     count = 0
+    nutrient_maps: List[Any] = []
     for log in food_logs or []:
         dt = food_log_event_time(log, default_tz=now.tzinfo)  # type: ignore[arg-type]
         if dt is None:
@@ -150,10 +152,14 @@ def sum_intake_in_window(
             totals["carbs_g"] += float(d.get("carbs_g") or 0)
             totals["fat_g"] += float(d.get("fat_g") or 0)
             count += 1
+            nutrient_maps.append(d.get("nutrients"))
         except (TypeError, ValueError):
             continue
 
-    return {
+    from .nutrition_micros import sum_micros
+
+    micros = sum_micros(nutrient_maps) if count else {}
+    out = {
         "calories": round(totals["calories"], 1),
         "protein_g": round(totals["protein_g"], 1),
         "carbs_g": round(totals["carbs_g"], 1),
@@ -164,6 +170,9 @@ def sum_intake_in_window(
         "window_end": end.isoformat(timespec="seconds"),
         "cutoff": cutoff.isoformat(timespec="seconds"),
     }
+    if micros:
+        out["micros"] = micros
+    return out
 
 
 def eating_window_fraction(
@@ -405,6 +414,112 @@ def _pace_unit(kind_key: str) -> str:
     if kind_key == "sodium":
         return "mg"
     return "g"
+
+
+def present_micro(blob: Optional[dict], key: str) -> Optional[float]:
+    """fiber_g / sugar_g / sodium_mg from a consumed dict. Absent → None (never 0)."""
+    if not blob:
+        return None
+    nested = blob.get("micros") if isinstance(blob.get("micros"), dict) else None
+    sources = [blob]
+    if nested:
+        sources.append(nested)
+    if key == "sodium_mg":
+        for src in sources:
+            raw = src.get("sodium_mg")
+            if raw is not None and raw != "":
+                try:
+                    return float(raw)
+                except (TypeError, ValueError):
+                    pass
+            raw_g = src.get("sodium_g")
+            if raw_g is not None and raw_g != "":
+                try:
+                    return float(raw_g) * 1000.0
+                except (TypeError, ValueError):
+                    pass
+        return None
+    for src in sources:
+        raw = src.get(key)
+        if raw is None or raw == "":
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _optional_target(targets: Optional[dict], key: str) -> Optional[float]:
+    if not targets:
+        return None
+    raw = targets.get(key)
+    if raw is None or raw == "":
+        return None
+    try:
+        n = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if n != n:
+        return None
+    return n
+
+
+def _muted_micro_pace(
+    *,
+    kind: str,
+    consumed: Optional[float],
+    target: float,
+    window_fraction: float,
+    status: str,
+) -> Dict[str, Any]:
+    kind_key = _canonical_pace_kind(kind)
+    frac = max(0.0, min(1.0, float(window_fraction or 0)))
+    if status == "no_data":
+        summary = f"No logged {kind_key} yet."
+    else:
+        summary = f"Set a {kind_key} target to pace intake."
+    return {
+        "kind": kind_key,
+        "direction": _pace_direction(kind_key),
+        "consumed": None if consumed is None else round(float(consumed), 1),
+        "target": round(float(target or 0), 1),
+        "window_fraction": round(frac, 4),
+        "paced_expected": 0.0,
+        "delta_vs_pace": None,
+        "rel_error": None,
+        "side": "none",
+        "band": "muted",
+        "color": "muted",
+        "bar_pct": 0.0,
+        "status": status,
+        "summary": summary,
+    }
+
+
+def micro_pace_vs_expected(
+    *,
+    consumed: Optional[float],
+    target: Optional[float],
+    window_fraction: float,
+    kind: str,
+) -> Dict[str, Any]:
+    """Pace a micro: missing logged values stay muted — never fabricated as 0."""
+    tgt = float(target) if target is not None else 0.0
+    if consumed is None:
+        return _muted_micro_pace(
+            kind=kind,
+            consumed=None,
+            target=tgt,
+            window_fraction=window_fraction,
+            status="no_data" if tgt > 0 else "no_target",
+        )
+    return pace_vs_expected(
+        consumed=consumed,
+        target=tgt,
+        window_fraction=window_fraction,
+        kind=kind,
+    )
 
 
 def pace_vs_expected(
@@ -689,6 +804,7 @@ def build_calorie_bars_payload(
             "carbs_g": float(win_intake.get("carbs_g") or 0),
             "fat_g": float(win_intake.get("fat_g") or 0),
         }
+        micro_src = win_intake
     else:
         pacing_consumed = civil_consumed
         pacing_source = "civil_day_fallback"
@@ -698,6 +814,15 @@ def build_calorie_bars_payload(
             "carbs_g": float(civil.get("carbs_g") or 0),
             "fat_g": float(civil.get("fat_g") or 0),
         }
+        micro_src = civil
+
+    def _micro_consumed(key: str) -> Optional[float]:
+        v = present_micro(micro_src, key)
+        if v is not None:
+            return v
+        if micro_src is not civil:
+            return present_micro(civil, key)
+        return None
 
     frac = float(window["fraction"])
     pacing = calorie_pacing(
@@ -743,6 +868,24 @@ def build_calorie_bars_payload(
             window_fraction=frac,
             kind="fat",
         ),
+        "fiber_g": micro_pace_vs_expected(
+            consumed=_micro_consumed("fiber_g"),
+            target=_optional_target(targets, "fiber_g"),
+            window_fraction=frac,
+            kind="fiber",
+        ),
+        "sugar_g": micro_pace_vs_expected(
+            consumed=_micro_consumed("sugar_g"),
+            target=_optional_target(targets, "sugar_g"),
+            window_fraction=frac,
+            kind="sugar",
+        ),
+        "sodium_mg": micro_pace_vs_expected(
+            consumed=_micro_consumed("sodium_mg"),
+            target=_optional_target(targets, "sodium_mg"),
+            window_fraction=frac,
+            kind="sodium",
+        ),
         "window_fraction": round(frac, 4),
         "intake_source": pacing_source,
         "window_macros": {
@@ -754,6 +897,10 @@ def build_calorie_bars_payload(
         "civil_day": civil_macros,
         "pace_clock": pace_clock_copy(window.get("source")),
     }
+    for mk in ("fiber_g", "sugar_g", "sodium_mg"):
+        mv = _micro_consumed(mk)
+        if mv is not None:
+            macro_pace["window_macros"][mk] = round(mv, 1)
 
     delta = calorie_in_out_delta(
         intake=civil_consumed,
