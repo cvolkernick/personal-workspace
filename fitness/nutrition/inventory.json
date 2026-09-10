@@ -12,7 +12,10 @@
       "protein_g": 45,
       "carbs_g": 0,
       "fat_g": 4,
-      "in_stock": false
+      "in_stock": false,
+      "fiber_g": 0,
+      "sugar_g": 0,
+      "sodium_mg": 80
     },
     {
       "id": "eggs-whole",
@@ -24,7 +27,10 @@
       "protein_g": 18,
       "carbs_g": 2,
       "fat_g": 15,
-      "in_stock": true
+      "in_stock": true,
+      "fiber_g": 0,
+      "sugar_g": 1.2,
+      "sodium_mg": 210
     },
     {
       "id": "egg-whites",
@@ -36,7 +42,10 @@
       "protein_g": 26,
       "carbs_g": 2,
       "fat_g": 0,
-      "in_stock": true
+      "in_stock": true,
+      "fiber_g": 0,
+      "sugar_g": 1.7,
+      "sodium_mg": 400
     },
     {
       "id": "greek-yogurt",
@@ -48,7 +57,10 @@
       "protein_g": 30,
       "carbs_g": 12,
       "fat_g": 0,
-      "in_stock": true
+      "in_stock": true,
+      "fiber_g": 0,
+      "sugar_g": 14,
+      "sodium_mg": 180
     },
     {
       "id": "brown-rice",
@@ -60,7 +72,10 @@
       "protein_g": 5,
       "carbs_g": 45,
       "fat_g": 2,
-      "in_stock": true
+      "in_stock": true,
+      "fiber_g": 3.1,
+      "sugar_g": 0.5,
+      "sodium_mg": 8
     },
     {
       "id": "sweet-potato",
@@ -72,7 +87,10 @@
       "protein_g": 3,
       "carbs_g": 37,
       "fat_g": 0,
-      "in_stock": false
+      "in_stock": false,
+      "fiber_g": 6,
+      "sugar_g": 8,
+      "sodium_mg": 70
     },
     {
       "id": "broccoli",
@@ -84,7 +102,10 @@
       "protein_g": 4,
       "carbs_g": 11,
       "fat_g": 0,
-      "in_stock": true
+      "in_stock": true,
+      "fiber_g": 2.4,
+      "sugar_g": 1.5,
+      "sodium_mg": 30
     },
     {
       "id": "oats",
@@ -96,7 +117,10 @@
       "protein_g": 5,
       "carbs_g": 27,
       "fat_g": 3,
-      "in_stock": true
+      "in_stock": true,
+      "fiber_g": 4,
+      "sugar_g": 0.4,
+      "sodium_mg": 2
     },
     {
       "id": "boneless-skinless-chicken-breast",
@@ -108,7 +132,10 @@
       "carbs_g": 0.0,
       "fat_g": 7.3,
       "in_stock": true,
-      "notes": ""
+      "notes": "",
+      "fiber_g": 0,
+      "sugar_g": 0,
+      "sodium_mg": 160
     },
     {
       "id": "chocolate-whey-protein",
@@ -121,7 +148,10 @@
       "carbs_g": 2.7,
       "fat_g": 1.3,
       "in_stock": true,
-      "notes": "Macros from logged serving avg; ~1 scoop powder"
+      "notes": "Macros from logged serving avg; ~1 scoop powder",
+      "fiber_g": 0.5,
+      "sugar_g": 1.5,
+      "sodium_mg": 80
     },
     {
       "id": "red-lentil-tofu",
@@ -134,7 +164,10 @@
       "fat_g": 1.0,
       "in_stock": true,
       "notes": "",
-      "serving_g": 45.0
+      "serving_g": 45.0,
+      "fiber_g": 3,
+      "sugar_g": 1,
+      "sodium_mg": 5
     },
     {
       "id": "men-s-vitamins-natural-berry-flavor",
@@ -146,7 +179,10 @@
       "carbs_g": 4.0,
       "fat_g": 0.0,
       "in_stock": true,
-      "notes": ""
+      "notes": "",
+      "fiber_g": 0,
+      "sugar_g": 4,
+      "sodium_mg": 0
     },
     {
       "id": "sugar-free-vanilla-iced-coffee-large",
@@ -158,7 +194,10 @@
       "carbs_g": 9.0,
       "fat_g": 11.0,
       "in_stock": true,
-      "notes": ""
+      "notes": "",
+      "fiber_g": 0,
+      "sugar_g": 0,
+      "sodium_mg": 90
     },
     {
       "id": "chicken-burrito-bowl",
@@ -170,7 +209,10 @@
       "carbs_g": 87.0,
       "fat_g": 33.0,
       "in_stock": true,
-      "notes": ""
+      "notes": "",
+      "fiber_g": 8,
+      "sugar_g": 6,
+      "sodium_mg": 1800
     },
     {
       "id": "double-cheeseburger",
@@ -182,7 +224,10 @@
       "carbs_g": 35.0,
       "fat_g": 22.0,
       "in_stock": true,
-      "notes": ""
+      "notes": "",
+      "fiber_g": 2,
+      "sugar_g": 7,
+      "sodium_mg": 980
     }
   ]
 }

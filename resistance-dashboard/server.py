@@ -778,6 +778,11 @@ def load_dashboard_data(
         food_logs=health.food_logs or [],
     )
     inv_base = nut["inventory"] or {"ingredients": []}
+    from rt_dashboard.nutrition_targets import recommend_nutrition_targets
+
+    rec_nt = recommend_nutrition_targets(
+        health=health, targets=nut["targets"] or {}, as_of=local_today
+    )
     auto_plan = generate_meal_plan(
         inv_base,
         nut["targets"] or {},
@@ -786,6 +791,7 @@ def load_dashboard_data(
         now=now,
         tz_name=tz_name,
         sleep_battery=sleep_battery,
+        recommended_targets=(rec_nt or {}).get("recommended"),
     )
     from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
@@ -1247,6 +1253,9 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
             win = ((data.get("calorie_bars") or {}).get("pacing") or {}).get(
                 "window"
             ) or {}
+            rec = ((data.get("coach") or {}).get("nutrition_targets") or {}).get(
+                "recommended"
+            )
             plan = generate_meal_plan(
                 store.get("inventory") or {"ingredients": []},
                 store.get("targets") or {},
@@ -1257,6 +1266,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 window_start=win.get("window_start"),
                 window_end=win.get("window_end"),
                 sleep_battery=bat if isinstance(bat, dict) else None,
+                recommended_targets=rec,
             )
             from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
@@ -2396,6 +2406,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 win = ((data.get("calorie_bars") or {}).get("pacing") or {}).get(
                     "window"
                 ) or {}
+                rec = ((data.get("coach") or {}).get("nutrition_targets") or {}).get(
+                    "recommended"
+                )
                 plan = generate_meal_plan(
                     store.get("inventory") or {"ingredients": []},
                     store.get("targets") or {},
@@ -2407,6 +2420,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     window_end=win.get("window_end") or body.get("window_end"),
                     eat_slots=body.get("eat_slots") or body.get("slots"),
                     sleep_battery=bat if isinstance(bat, dict) else None,
+                    recommended_targets=rec,
                 )
                 from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
                 from rt_dashboard.timeutil import local_today_iso as _local_today_iso

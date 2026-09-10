@@ -2146,6 +2146,26 @@
     return `<div class="inv-macro-strip ${compact ? "compact " : ""}inv-micro-strip">${pills.join("")}</div>`;
   }
 
+  function mealPlanMicroVsTarget(plan) {
+    const notes = (plan && plan.notes) || {};
+    const pt = (plan && plan.planned_totals) || {};
+    const bits = [];
+    function row(label, kind, unit, logged, target, miss) {
+      if (target == null || target === "" || Number.isNaN(Number(target))) return;
+      const t = Number(target);
+      const v = logged == null || logged === "" || Number.isNaN(Number(logged)) ? 0 : Number(logged);
+      const band = microChipBand(kind, v, t) || (miss ? "red" : "green");
+      bits.push(
+        `<span class="inv-macro-pill micro-${kind} band-${band}">${label} ${fmtNum(v)} / ${fmtNum(t)}${unit}</span>`
+      );
+    }
+    row("Fiber", "fiber", "g", pt.fiber_g, notes.fiber_soft_target_g, notes.fiber_miss);
+    row("Sugar", "sugar", "g", pt.sugar_g, notes.sugar_target_g, notes.sugar_miss);
+    row("Salt", "sodium", "mg", pt.sodium_mg, notes.sodium_target_mg, notes.sodium_miss);
+    if (!bits.length) return "";
+    return `<div class="meal-plan-micros">${bits.join("")}</div>`;
+  }
+
   function invMacroStrip(ing, compact = false) {
     const pct = macroCalPct(ing.protein_g, ing.carbs_g, ing.fat_g);
     if (compact) {
@@ -4403,6 +4423,7 @@
         ${invMacroStrip(ra, true)}
       </div>
     </div>`;
+    html += mealPlanMicroVsTarget(plan);
     if (!meals.length) {
       const remB = plan.remaining_before_plan || {};
       const remCals = Number(remB.calories);

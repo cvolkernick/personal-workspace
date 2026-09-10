@@ -4498,6 +4498,12 @@ body.m-shell #alerts {
   margin: 0;
   font-size: 0.85rem;
 }
+.meal-plan-micros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0.55rem;
+}
 .phase-baro-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
