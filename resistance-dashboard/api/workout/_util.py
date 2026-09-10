@@ -40,6 +40,7 @@ _ROUTES = (
     "labs_upload",
     "labs_delete",
     "phase_barometer",
+    "targets",
     "restock_retry",
     "restock_cart",
     "restock_confirm",
@@ -131,6 +132,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "labs"
     if "/api/phase-barometer" in blob or "/phase-barometer" in blob:
         return "phase_barometer"
+    if "/api/targets" in blob:
+        return "targets"
     if "/api/restock/retry" in blob:
         return "restock_retry"
     if "/api/restock/cart" in blob:
@@ -875,6 +878,71 @@ def phase_barometer_write(headers, payload=None):
     return 400, {"ok": False, "error": "unknown_action", "action": action}
 
 
+def targets_write(headers, payload=None):
+    """POST /api/targets — apply coach rec or save macros. Cookie-less 401 JSON."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    from rt_dashboard.github_client import GitHubLiftClient
+    from rt_dashboard.nutrition_planner import TARGETS_PATH, update_targets
+    from rt_dashboard.nutrition_store import load_workspace_targets, write_nutrition_file
+    from rt_dashboard.nutrition_targets import merge_recommended_into_applied
+
+    client = GitHubLiftClient()
+    try:
+        if payload.get("apply_coach"):
+            from api.dashboard import dashboard_body
+
+            status, dash = dashboard_body(headers)
+            if status != 200 or not isinstance(dash, dict):
+                err_body = dash if isinstance(dash, dict) else {"ok": False}
+                err_body.setdefault("ok", False)
+                err_body.setdefault("error", "dashboard_failed")
+                return status, err_body
+            rec = ((dash.get("coach") or {}).get("nutrition_targets") or {})
+            if rec.get("abstain") or not rec.get("recommended"):
+                return 400, {
+                    "ok": False,
+                    "action": "apply_coach_targets",
+                    "error": "Coach has no recommendation to apply",
+                    "reasons": rec.get("reasons") or [],
+                    "recommendation": rec,
+                }
+            current, _src = load_workspace_targets()
+            updated = update_targets(
+                merge_recommended_into_applied(current or {}, rec)
+            )
+            write = write_nutrition_file(
+                client,
+                TARGETS_PATH,
+                updated,
+                message="nutrition: apply coach targets",
+            )
+            return 200, {
+                "ok": True,
+                "action": "apply_coach_targets",
+                "targets": updated,
+                "recommendation": rec,
+                "write": write,
+            }
+        updated = update_targets(payload)
+        write = write_nutrition_file(
+            client,
+            TARGETS_PATH,
+            updated,
+            message="nutrition: update daily macro targets",
+        )
+        return 200, {"ok": True, "targets": updated, "write": write}
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {
+            "ok": False,
+            "error": str(exc) or type(exc).__name__,
+        }
+
+
 def equipment_write(headers, route: str, payload=None):
     """Add/update/remove owned gear + max load. Cookie-less 401. Failed persist is 5xx."""
     user, err = require_user(headers)
@@ -1279,6 +1347,10 @@ def dispatch_client_route(
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return phase_barometer_write(headers, payload or {})
+    if route == "targets":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return targets_write(headers, payload or {})
     if route == "restock":
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}
@@ -1316,6 +1388,7 @@ __all__ = [
     "labs_body",
     "labs_write",
     "phase_barometer_write",
+    "targets_write",
     "daily_tasks_body",
     "daily_tasks_complete_body",
     "stamp_quest_list_ids",

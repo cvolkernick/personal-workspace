@@ -95,6 +95,10 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("/api/dashboard?_r=restock_confirm", raw)
         self.assertNotIn("api/restock.py", raw)
         self.assertFalse((ROOT / "api" / "restock.py").exists())
+        self.assertIn("/api/targets", raw)
+        self.assertIn("/api/dashboard?_r=targets", raw)
+        self.assertNotIn("api/targets.py", raw)
+        self.assertFalse((ROOT / "api" / "targets.py").exists())
 
     def test_hobby_function_count_stays_at_12(self):
         api = ROOT / "api"
@@ -213,6 +217,17 @@ class CookieLessClientRoutes(unittest.TestCase):
             )
             self.assertEqual(status, 401)
             self.assertEqual(body["error"], "auth_required")
+            status, body = dispatch_client_route(
+                {}, "", "GET", path="/api/targets"
+            )
+            self.assertEqual(status, 405)
+            self.assertEqual(body["error"], "method_not_allowed")
+            status, body = dispatch_client_route(
+                {}, "", "POST", payload={}, path="/api/targets"
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(body["error"], "auth_required")
+            self.assertNotIn("<html", json.dumps(body).lower())
 
     def test_dispatch_labs_post_cookie_less_401(self):
         with mock.patch.dict(os.environ, {}, clear=True):
