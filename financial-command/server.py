@@ -565,7 +565,52 @@ def _capital_flows_payload() -> dict:
     return data
 
 
+def _root_fcc_file_remap(path: str) -> str | None:
+    """Map /foo.ext → /financial-command/foo.ext when that sibling exists.
+
+    Live FCC is served with directory=ROOT. GET/HEAD / remaps to
+    /financial-command/index.html, so relative More-page links
+    (interest-spectrum.html, nav-fleet.js, …) hit origin-root 404s
+    unless we remap. Workspace files/dirs at ROOT keep priority.
+    Only a basename under financial-command/ is eligible (no path traversal).
+    Pretty /interest-spectrum maps to interest-spectrum.html when that file exists.
+    """
+    name = path.lstrip("/")
+    if not name or "/" in name or name.startswith(".") or ".." in name:
+        return None
+    if (ROOT / name).exists():
+        return None
+    fcc_dir = ROOT / "financial-command"
+    direct = fcc_dir / name
+    if direct.is_file():
+        return f"/financial-command/{name}"
+    if "." not in name:
+        html = fcc_dir / f"{name}.html"
+        if html.is_file():
+            return f"/financial-command/{name}.html"
+    return None
+
+
+def _root_fcc_js_remap(path: str) -> str | None:
+    """JS-only slice of origin aliases (kept for existing tests)."""
+    name = path.lstrip("/")
+    if not name.endswith(".js"):
+        return None
+    return _root_fcc_file_remap(path)
+
+
 class FCCHandler(SimpleHTTPRequestHandler):
+    # PWA manifest MIME (stdlib map often serves .webmanifest as octet-stream)
+    extensions_map = {
+        **getattr(SimpleHTTPRequestHandler, "extensions_map", {}),
+        ".webmanifest": "application/manifest+json",
+        ".js": "text/javascript; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".png": "image/png",
+        ".html": "text/html; charset=utf-8",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -575,6 +620,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         # Phone browsers 304-cache index.html hard; always revalidate static UI.
         self.send_header("Cache-Control", "no-store, max-age=0")
+        path = urlparse(getattr(self, "path", "") or "").path
+        if path.endswith("/sw.js") or path == "/sw.js":
+            self.send_header("Service-Worker-Allowed", "/")
         super().end_headers()
 
     def _json(self, code: int, payload: dict) -> None:
@@ -793,6 +841,21 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
+        self._remap_static_path()
+        return super().do_GET()
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        # Android / Chromium A2HS probes manifest, SW, and icons with HEAD.
+        # GET remaps origin aliases onto financial-command/; HEAD used to skip
+        # that and 404 (or serve the workspace stub at /). FitDash HEAD matches GET
+        # because its document root actually has those files.
+        path = urlparse(self.path).path
+        if not path.startswith("/api/"):
+            self._remap_static_path()
+        return super().do_HEAD()
+
+    def _remap_static_path(self) -> None:
+        path = urlparse(self.path).path
         if path in ("/", "/financial-command", "/financial-command/"):
             self.path = "/financial-command/index.html"
         elif path in ("/financial-command/watchlist", "/financial-command/watchlist/"):
@@ -807,7 +870,38 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/financial-command/interest-spectrum/",
         ):
             self.path = "/financial-command/interest-spectrum.html"
-        return super().do_GET()
+        elif path in ("/favicon.ico", "/financial-command/favicon.ico"):
+            # iOS Safari fetches /favicon.ico at the origin root, not the page dir.
+            self.path = "/financial-command/favicon.ico"
+        elif path in ("/favicon.svg", "/financial-command/favicon.svg"):
+            self.path = "/financial-command/favicon.svg"
+        elif path in ("/favicon-32.png", "/financial-command/favicon-32.png"):
+            self.path = "/financial-command/favicon-32.png"
+        elif path in (
+            "/apple-touch-icon.png",
+            "/apple-touch-icon-precomposed.png",
+            "/apple-touch-icon-120x120.png",
+            "/apple-touch-icon-120x120-precomposed.png",
+            "/apple-touch-icon-180x180.png",
+            "/apple-touch-icon-180x180-precomposed.png",
+        ):
+            self.path = "/financial-command/apple-touch-icon.png"
+        elif path in (
+            "/manifest.webmanifest",
+            "/financial-command/manifest.webmanifest",
+        ):
+            # Chromium probes /manifest.webmanifest at the origin root.
+            self.path = "/financial-command/manifest.webmanifest"
+        elif path in ("/sw.js", "/financial-command/sw.js"):
+            self.path = "/financial-command/sw.js"
+        elif path in ("/icon-192.png", "/financial-command/icon-192.png"):
+            self.path = "/financial-command/icon-192.png"
+        elif path in ("/icon-512.png", "/financial-command/icon-512.png"):
+            self.path = "/financial-command/icon-512.png"
+        else:
+            remapped = _root_fcc_file_remap(path)
+            if remapped:
+                self.path = remapped
 
     def _load_treasury_payload(self) -> dict:
         p = ROOT / "financial-command" / "treasury_latest.json"
@@ -1154,6 +1248,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Accepted for systemd parity with other dashboards; bind is --host",
+    )
     parser.add_argument(
         "--offline",
         action="store_true",
