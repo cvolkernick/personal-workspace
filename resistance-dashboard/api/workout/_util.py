@@ -902,7 +902,11 @@ def targets_write(headers, payload=None):
     payload = payload if isinstance(payload, dict) else {}
     from rt_dashboard.github_client import GitHubLiftClient
     from rt_dashboard.nutrition_planner import TARGETS_PATH, update_targets
-    from rt_dashboard.nutrition_store import load_workspace_targets, write_nutrition_file
+    from rt_dashboard.nutrition_store import (
+        load_workspace_targets,
+        nutrition_write_ok,
+        write_nutrition_file,
+    )
     from rt_dashboard.nutrition_targets import merge_recommended_into_applied
 
     client = GitHubLiftClient()
@@ -935,13 +939,18 @@ def targets_write(headers, payload=None):
                 updated,
                 message="nutrition: apply coach targets",
             )
-            return 200, {
-                "ok": True,
+            stuck, err = nutrition_write_ok(write)
+            body = {
+                "ok": stuck,
                 "action": "apply_coach_targets",
                 "targets": updated,
                 "recommendation": rec,
                 "write": write,
             }
+            if not stuck:
+                body["error"] = err
+                return 502, body
+            return 200, body
         updated = update_targets(payload)
         write = write_nutrition_file(
             client,

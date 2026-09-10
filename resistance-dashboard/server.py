@@ -157,6 +157,7 @@ from rt_dashboard.inventory_store import (  # noqa: E402
 from rt_dashboard.nutrition_store import (  # noqa: E402
     TARGETS_PATH,
     load_inventory_and_targets,
+    nutrition_write_ok,
     write_nutrition_file,
 )
 from rt_dashboard.nutrition_targets import (  # noqa: E402
@@ -1113,13 +1114,17 @@ def _apply_coach_targets(client, *, user_id: Optional[str] = None) -> dict:
         updated,
         message="nutrition: apply coach targets",
     )
-    return {
-        "ok": True,
+    stuck, err = nutrition_write_ok(write)
+    body = {
+        "ok": stuck,
         "action": "apply_coach_targets",
         "targets": updated,
         "recommendation": rec,
         "write": write,
     }
+    if not stuck:
+        body["error"] = err
+    return body
 
 
 def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dict:
@@ -2191,7 +2196,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 uid = (getattr(self, "_request_user", None) or {}).get("user_id")
                 if body.get("apply_coach"):
                     result = _apply_coach_targets(client, user_id=uid)
-                    status = 200 if result.get("ok") else 400
+                    if result.get("ok"):
+                        status = 200
+                    elif "write" in result:
+                        status = 502
+                    else:
+                        status = 400
                     self._send_json(result, status=status)
                     return
                 updated = update_targets(body)
