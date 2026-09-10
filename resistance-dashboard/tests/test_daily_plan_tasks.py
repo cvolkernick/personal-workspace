@@ -19,6 +19,8 @@ from rt_dashboard.daily_plan_tasks import (
     TRAIN_SESSION_SLUG,
     PlannedGroup,
     PlannedItem,
+    train_parent_completed_for_planning,
+    training_day_complete,
     training_day_complete_from_tasks,
     _delete_order,
     _hydrate_ids_from_listed,
@@ -3228,6 +3230,209 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
         leaf = self._cardio_leaf(result)
         self.assertTrue(leaf.get("completed"), leaf)
         self.assertFalse(leaf.get("task_id"))
+
+    def _train_session_leaf(self, result):
+        train = [
+            g for g in result.get("groups") or [] if g.get("group") == "training"
+        ]
+        self.assertTrue(train, result)
+        leaf = next(
+            (
+                it
+                for it in train[0].get("items") or []
+                if it.get("slug") == TRAIN_SESSION_SLUG
+            ),
+            None,
+        )
+        self.assertIsNotNone(leaf, train[0])
+        return train[0], leaf
+
+    def test_plan_preview_marks_trained_session_complete(self):
+        board = self._lift_board("2026-09-10")
+        board["workout"]["already_trained_today"] = True
+        prev = plan_preview(board, day="2026-09-10")
+        group, leaf = self._train_session_leaf(prev)
+        self.assertTrue(leaf.get("completed"), leaf)
+        self.assertTrue(group.get("completed"), group)
+        leftover = [
+            it
+            for it in group.get("items") or []
+            if str(it.get("slug") or "").startswith("ex-")
+        ]
+        self.assertTrue(
+            all(not it.get("completed") for it in leftover), leftover
+        )
+
+    def test_plan_preview_logged_partial_stays_open(self):
+        board = self._lift_board("2026-09-10")
+        board["workout"]["ppl_logged_today"] = "push"
+        board["workout"]["already_trained_today"] = False
+        prev = plan_preview(board, day="2026-09-10")
+        group, leaf = self._train_session_leaf(prev)
+        self.assertFalse(leaf.get("completed"), leaf)
+        self.assertFalse(group.get("completed"), group)
+
+    def test_ensure_auto_completes_trained_session_without_gt(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        board = self._lift_board(day)
+        board["workout"]["already_trained_today"] = True
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task"
+            ) as gt_complete:
+                result = ensure_daily_tasks(board, day=day)
+        self.assertTrue(result.get("ok"), result)
+        group, leaf = self._train_session_leaf(result)
+        self.assertTrue(leaf.get("completed"), leaf)
+        self.assertTrue(group.get("completed"), group)
+        self.assertFalse(leaf.get("task_id"))
+        leftover = [
+            it
+            for it in group.get("items") or []
+            if str(it.get("slug") or "").startswith("ex-")
+        ]
+        self.assertTrue(
+            all(not it.get("completed") for it in leftover), leftover
+        )
+        gt_complete.assert_not_called()
+
+    def test_training_day_complete_reads_local_cache(self):
+        day = "2026-09-10"
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ",
+                {
+                    "RESISTANCE_DASHBOARD_CONFIG_DIR": tmp,
+                    "FITDASH_QUEST_GT_SYNC": "0",
+                },
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": False, "error": "Google Tasks not configured"},
+            ):
+                self.assertFalse(training_day_complete(day))
+                complete_leaf(
+                    "",
+                    "",
+                    completed=True,
+                    group="training",
+                    slug=TRAIN_SESSION_SLUG,
+                    date=day,
+                    title="Already trained today (PUSH).",
+                )
+                self.assertTrue(training_day_complete(day))
+
+    def test_all_local_lifts_complete_training_parent(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        board = self._lift_board(day)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ):
+                first = ensure_daily_tasks(board, day=day)
+                train = [
+                    g
+                    for g in first.get("groups") or []
+                    if g.get("group") == "training"
+                ][0]
+                lifts = [
+                    it
+                    for it in train.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                ]
+                self.assertTrue(lifts, train)
+                for it in lifts:
+                    marked = complete_leaf(
+                        "",
+                        "",
+                        completed=True,
+                        group="training",
+                        slug=it["slug"],
+                        date=day,
+                        title=it["title"],
+                    )
+                    self.assertTrue(marked.get("ok"), marked)
+                second = ensure_daily_tasks(board, day=day)
+                group, leaf = self._train_session_leaf(second)
+                self.assertTrue(leaf.get("completed"), leaf)
+                self.assertTrue(group.get("completed"), group)
+                self.assertTrue(training_day_complete(day))
+
+    def test_train_parent_planning_ors_log_hit(self):
+        from rt_dashboard.models import ExerciseEntry, Session, SetEntry
+        from rt_dashboard.quest_workout_log import seed_exercise
+
+        day = "2026-09-10"
+        logged = Session(
+            date=day,
+            session_type="push",
+            exercises=[
+                ExerciseEntry(
+                    name="DB Flat Press",
+                    sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+                )
+            ],
+        )
+        seeded = Session(
+            date=day,
+            session_type="push",
+            exercises=[
+                seed_exercise(
+                    "DB Flat Press",
+                    title_rx={"weight_lbs": 50, "sets": 3, "reps": 10},
+                )
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": False},
+            ):
+                self.assertTrue(
+                    train_parent_completed_for_planning(day, sessions=[logged])
+                )
+                self.assertFalse(
+                    train_parent_completed_for_planning(day, sessions=[seeded])
+                )
+
+    def test_stale_wake_log_does_not_complete_today(self):
+        from datetime import datetime, timezone
+
+        from rt_dashboard.models import ExerciseEntry, Session, SetEntry
+
+        old = Session(
+            date="2026-08-17",
+            session_type="push",
+            exercises=[
+                ExerciseEntry(
+                    name="DB Flat Press",
+                    sets=[SetEntry(weight_lbs=45, sets=2, reps=10)],
+                )
+            ],
+        )
+        now = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": False},
+            ):
+                self.assertFalse(
+                    train_parent_completed_for_planning(
+                        "2026-08-17",
+                        sessions=[old],
+                        last_wake_at="2026-08-17T11:00:00+00:00",
+                        now=now,
+                    )
+                )
 
 
 if __name__ == "__main__":

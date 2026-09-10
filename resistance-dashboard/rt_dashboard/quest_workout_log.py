@@ -64,6 +64,115 @@ def is_unedited_seed(entry: ExerciseEntry) -> bool:
     return flagged
 
 
+def _as_exercise_entry(ex: Any) -> Optional[ExerciseEntry]:
+    if isinstance(ex, ExerciseEntry):
+        return ex
+    if not isinstance(ex, dict):
+        return None
+    name = str(ex.get("name") or "").strip()
+    if not name:
+        return None
+    sets: List[SetEntry] = []
+    raw_sets = ex.get("sets")
+    if isinstance(raw_sets, list):
+        for st in raw_sets:
+            if isinstance(st, SetEntry):
+                sets.append(st)
+                continue
+            if not isinstance(st, dict):
+                continue
+            try:
+                sets.append(
+                    SetEntry(
+                        weight_lbs=float(st.get("weight_lbs") or 0),
+                        sets=int(st.get("sets") or 1),
+                        reps=int(st.get("reps") or 0),
+                    )
+                )
+            except (TypeError, ValueError):
+                continue
+    return ExerciseEntry(
+        name=name,
+        sets=sets,
+        is_pr=bool(ex.get("is_pr")),
+        raw=str(ex.get("raw") or ""),
+        quest_seeded=bool(ex.get("quest_seeded") or ex.get("movement_only")),
+    )
+
+
+def exercise_is_real_log(ex: Any) -> bool:
+    """True when this row is a Log-tab / edited lift, not an unedited seed."""
+    entry = _as_exercise_entry(ex)
+    if entry is None or not str(entry.name or "").strip():
+        return False
+    return not is_unedited_seed(entry)
+
+
+def training_log_hit(
+    sessions: Sequence[Any] = (),
+    *,
+    as_of: Optional[str] = None,
+    last_wake_at: Any = None,
+    now: Any = None,
+    tz_name: Optional[str] = None,
+) -> bool:
+    """True when today's PPL log has at least one real (non-quest-seed) lift.
+
+    Quest-seeded-only rows from checking a lift leaf must not complete the
+    Training parent (#527). A Log-tab or edited session does (#604).
+
+    Wake currency is vs civil today, not ``as_of``. A weeks-old last_wake
+    still covers that old as_of, and a date-only noon close then sits in
+    ``[stale_wake, now]``. After-midnight on the current wake still uses
+    the wake window.
+    """
+    from .timeutil import local_today_iso as _today
+    from .training_day import ppl_logged_for_planning, session_in_wake, wake_is_current
+
+    civil = _today(tz_name, now=now)
+    use_wake = wake_is_current(last_wake_at, civil, now=now, tz_name=tz_name)
+    day = str(as_of or civil)[:10]
+    letter = ppl_logged_for_planning(
+        sessions,
+        as_of=day,
+        last_wake_at=last_wake_at if use_wake else None,
+        now=now,
+        tz_name=tz_name,
+    )
+    if letter not in SESSION_TYPES:
+        return False
+    for session in sessions or []:
+        st = str(
+            getattr(session, "session_type", None)
+            or (session.get("session_type") if isinstance(session, dict) else "")
+            or ""
+        ).lower()
+        if st != letter:
+            continue
+        if use_wake:
+            if not session_in_wake(
+                session, last_wake_at=last_wake_at, now=now, tz_name=tz_name
+            ):
+                continue
+        else:
+            sdate = str(
+                getattr(session, "date", None)
+                or (session.get("date") if isinstance(session, dict) else "")
+                or ""
+            )[:10]
+            if sdate != day:
+                continue
+        exercises = (
+            getattr(session, "exercises", None)
+            or (session.get("exercises") if isinstance(session, dict) else None)
+            or []
+        )
+        for ex in exercises:
+            if exercise_is_real_log(ex):
+                return True
+    return False
+
+
 def parse_quest_title(title: str) -> Dict[str, Any]:
     """Pull exercise name + optional prescription baked into the quest title."""
     text = (title or "").strip()

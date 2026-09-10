@@ -16,12 +16,14 @@ from rt_dashboard.agent_today import export_agent_today
 from rt_dashboard.quest_workout_log import (
     apply_quest_to_session,
     attach_lift_quest_log,
+    exercise_is_real_log,
     is_unedited_seed,
     looks_like_lift_quest,
     parse_quest_title,
     ppl_session_type,
     seed_exercise,
     seed_fingerprint,
+    training_log_hit,
 )
 from rt_dashboard.workout_log import parse_log_body
 
@@ -111,6 +113,82 @@ class LiftDetection(unittest.TestCase):
                 group="training",
                 title="Complete today's PUSH session",
                 slug="train-session",
+            )
+        )
+
+
+class TrainingLogHit(unittest.TestCase):
+    def test_quest_seed_only_is_not_a_hit(self):
+        seeded = seed_exercise(
+            "DB Flat Press",
+            title_rx={"weight_lbs": 50, "sets": 3, "reps": 10},
+        )
+        session = Session(
+            date="2026-09-10",
+            session_type="push",
+            exercises=[seeded],
+        )
+        self.assertFalse(exercise_is_real_log(seeded))
+        self.assertFalse(training_log_hit([session], as_of="2026-09-10"))
+
+    def test_log_tab_lift_is_a_hit(self):
+        logged = ExerciseEntry(
+            name="DB Flat Press",
+            sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+        )
+        session = Session(
+            date="2026-09-10",
+            session_type="push",
+            exercises=[logged],
+        )
+        self.assertTrue(exercise_is_real_log(logged))
+        self.assertTrue(training_log_hit([session], as_of="2026-09-10"))
+
+    def test_edited_seed_counts_as_real(self):
+        seeded = seed_exercise(
+            "DB Flat Press",
+            title_rx={"weight_lbs": 50, "sets": 3, "reps": 10},
+        )
+        seeded.sets[0].weight_lbs = 55
+        session = Session(
+            date="2026-09-10",
+            session_type="push",
+            exercises=[seeded],
+        )
+        self.assertTrue(exercise_is_real_log(seeded))
+        self.assertTrue(training_log_hit([session], as_of="2026-09-10"))
+
+    def test_other_day_is_not_a_hit(self):
+        logged = ExerciseEntry(
+            name="DB Flat Press",
+            sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+        )
+        session = Session(
+            date="2026-09-09",
+            session_type="push",
+            exercises=[logged],
+        )
+        self.assertFalse(training_log_hit([session], as_of="2026-09-10"))
+
+    def test_stale_wake_old_log_is_not_today(self):
+        from datetime import datetime, timezone
+
+        logged = ExerciseEntry(
+            name="DB Flat Press",
+            sets=[SetEntry(weight_lbs=45, sets=2, reps=10)],
+        )
+        session = Session(
+            date="2026-08-17",
+            session_type="push",
+            exercises=[logged],
+        )
+        now = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+        self.assertFalse(
+            training_log_hit(
+                [session],
+                as_of="2026-09-10",
+                last_wake_at="2026-08-17T11:00:00+00:00",
+                now=now,
             )
         )
 

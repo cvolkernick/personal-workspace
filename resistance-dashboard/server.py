@@ -906,9 +906,19 @@ def load_dashboard_data(
         )
         train_parent_done = False
         try:
-            from rt_dashboard.daily_plan_tasks import training_day_complete
+            from rt_dashboard.daily_plan_tasks import (
+                train_parent_completed_for_planning,
+            )
 
-            train_parent_done = bool(training_day_complete(train_day))
+            train_parent_done = bool(
+                train_parent_completed_for_planning(
+                    train_day,
+                    sessions=sessions,
+                    last_wake_at=last_wake,
+                    now=now,
+                    tz_name=tz_name,
+                )
+            )
         except Exception:
             train_parent_done = False
         workout_plan = generate_workout_plan(
