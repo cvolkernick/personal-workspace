@@ -6,7 +6,7 @@
 |--------|------|
 | **Pi (systemd user units)** | Always-on backends on `0.0.0.0` for all six dashboards |
 | **Terminal / laptop** | Browser only: open Pi URLs via `deploy/open_dashboard.sh` / `*.command` (no local server) |
-| **workspace-sync.timer** | Every 5m: `git pull` `origin/master` on the Pi; restart units when HEAD moves |
+| **workspace-sync.timer** | Every 5m: land `origin/work/treasury` on the Pi FCC live root (never `master` / `work/holistic`); restart units when HEAD moves |
 | **Private mesh (Tailscale)** | Off-home-network reachability — **not** public port-forward of bare HTTP |
 
 Default host is in `deploy/endpoints.json` (`pi_host`). Override anytime with env `PI_HOST` / `DASHBOARD_HOST`.
@@ -80,13 +80,16 @@ python3 orchestra/server.py --backend http://PI_OR_TAILSCALE:8790 --no-browser
 `workspace-sync.timer` runs `deploy/workspace_sync.sh` every 5 minutes:
 
 1. Uses `GITHUB_TOKEN` from `~/.config/workflow-scheduler.env` when present  
-2. Clears stuck rebase/merge/cherry-pick if any (prod must not sit detached)  
-3. Hard-resets **`master`** to **`origin/master`** (durable runtime paths restored after)  
-4. If `HEAD` moved → `deploy/on_merge.sh` path-scoped restart (**not** thrash-all)
+2. **Refuses** `SYNC_BRANCH` other than `work/treasury` (exit non-zero; never `master` or `work/holistic`)  
+3. Clears stuck rebase/merge/cherry-pick if any (prod must not sit detached)  
+4. Hard-resets **`work/treasury`** to **`origin/work/treasury`** (durable runtime paths restored after)  
+5. If `HEAD` moved → `deploy/on_merge.sh` path-scoped restart (**not** thrash-all)
 
 Manual: `systemctl --user start workspace-sync.service`
 
-**Keep the timer enabled.** Package-level rsync installers are emergency/hot only; the next successful sync replaces app trees with merged `master`. See `ops/SDLC_MERGE_DEPLOY.md`.
+Unit pin: `deploy/units/workspace-sync.service` sets `Environment=SYNC_BRANCH=work/treasury` plus `ExecStartPre` allowlist. FitDash production is **Vercel from `master`**, not this checkout.
+
+**Keep the timer enabled.** Package-level rsync installers are emergency/hot only; the next successful sync replaces app trees with merged `work/treasury`. See `ops/SDLC_MERGE_DEPLOY.md` and `deploy/product_branch_map.py`.
 
 ## Off-network access (Tailscale or equivalent)
 
@@ -108,8 +111,9 @@ Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access 
 
 ## Merge → path-scoped auto-deploy (issue #25)
 
-After **human** merge to `master`, Pi pulls via `workspace-sync.timer` and runs
+After **human** merge of FCC work to `work/treasury`, Pi pulls via `workspace-sync.timer` and runs
 `deploy/on_merge.sh` so **only mapped dashboard/platform units** restart.
+FitDash merges to `master` (Vercel). Do not land FCC-only PRs on `master`.
 
 | Piece | Path |
 |-------|------|

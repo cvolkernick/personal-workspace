@@ -1,7 +1,7 @@
 # Deploy Conventions — personal-workspace monorepo
 
-> Source of truth for code: **GitHub** (`cvolkernick/personal-workspace`, production branch `master`).
-> Source of truth for deploys: **Vercel**. Every agent team working in this repo must follow these rules.
+> Source of truth for code: **GitHub** (`cvolkernick/personal-workspace`).
+> FitDash production: **Vercel from `master`**. FCC / treasury live: **`work/treasury`** on Pi (never pull `master` or `work/holistic` onto that checkout). See `deploy/product_branch_map.py`.
 
 ## Project map
 

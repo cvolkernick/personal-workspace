@@ -37,7 +37,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 
 **Pi hosts backends 24/7** via systemd (`deploy/install_remote.sh` → bind `0.0.0.0`, restart always).  
 **Double-click / open launchers open the Pi URL** (not localhost). Default host: `192.168.100.98` (`deploy/endpoints.json`; override with `PI_HOST`).  
-**Pi auto-pulls `origin/master` every 5 minutes** (`workspace-sync.timer`) and restarts units when code changes.  
+**Pi FCC live root auto-pulls `origin/work/treasury` every 5 minutes** (`workspace-sync.timer`; refuses `master` / `work/holistic`) and restarts units when code changes. FitDash production is Vercel from `master`.  
 **Off-network:** Tailscale (or equivalent) + `PI_HOST=<mesh>` — not public port-forward.
 
 ```bash

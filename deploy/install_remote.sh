@@ -72,7 +72,7 @@ ALL_UNITS=(
   oomwoo-dashboard.service
   plaid-bank-mcp.service
 )
-# Always install git auto-sync timer (pull master + restart on change)
+# Always install git auto-sync timer (pull work/treasury + restart on change)
 # + continuous Board/Fit day packet export for Orchestra day_plan (A)
 SYNC_UNITS=(
   workspace-sync.service
@@ -185,7 +185,7 @@ for u in $UNITS; do
   systemctl --user status "$u" --no-pager | head -12 || true
 done
 
-# Autonomous git pull + restart (master)
+# Autonomous git pull + restart (work/treasury, FCC SoT)
 systemctl --user enable --now workspace-sync.timer 2>/dev/null || true
 systemctl --user start workspace-sync.service 2>/dev/null || true
 systemctl --user list-timers --all 2>/dev/null | grep -i workspace || true
@@ -205,6 +205,6 @@ echo "Deploy complete."
 echo "  Open dashboards (no local server):  bash deploy/open_dashboard.sh orchestra"
 echo "  Backends (LAN):  http://$RHOST:8790  :8000  :8765  :8770  :8780  :8787  :8796"
 echo "  Off-network:     PI_HOST=<tailscale> bash deploy/open_dashboard.sh orchestra"
-echo "  Auto-sync:       workspace-sync.timer pulls origin/master every 5m + restarts units"
+echo "  Auto-sync:       workspace-sync.timer pulls origin/work/treasury every 5m + restarts units"
 echo "  Docs:            deploy/README.md"
 echo "  Logs:            ssh $REMOTE 'journalctl --user -u orchestra-dashboard -f'"

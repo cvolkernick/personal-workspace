@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Pull origin/master into the Pi monorepo clone and restart dashboard units when HEAD moves.
-# Preserves durable runtime state (secrets, snapshots, backlog, fitness data, sprint ceremony).
+# Pull origin/work/treasury into the Pi FCC live clone and restart dashboard units
+# when HEAD moves. Preserves durable runtime state (secrets, snapshots, backlog,
+# fitness data, sprint ceremony).
 #
-# Prod truth: after merge to master, this timer (≤5m) is the default deploy path.
-# Package-level rsync (e.g. resistance-dashboard/deploy/install_remote.sh) is emergency /
-# pre-merge only — the next successful sync hard-resets code trees to origin/master.
+# Product → branch (#560): FCC/treasury = work/treasury only; FitDash = master
+# (Vercel). This script is the FCC live-root sync — it refuses master and
+# work/holistic before any git mutation. Do not reset this checkout to master.
+#
+# Package-level rsync (e.g. resistance-dashboard/deploy/install_remote.sh) is
+# emergency / pre-merge only — the next successful sync hard-resets code trees
+# to origin/work/treasury.
 set -euo pipefail
 
 DIR="${WORKSPACE_DIR:-$HOME/personal-workspace}"
-BRANCH="${SYNC_BRANCH:-master}"
+BRANCH="${SYNC_BRANCH:-work/treasury}"
 REMOTE="${SYNC_REMOTE:-origin}"
 LOG_TAG="workspace-sync"
 DURABLE_TAR="${TMPDIR:-/tmp}/workspace-sync-durable-$$.tgz"
@@ -27,6 +32,19 @@ cd "$DIR"
 
 if [[ ! -d .git ]]; then
   log "ERROR: $DIR is not a git repo"
+  exit 1
+fi
+
+# Refuse wrong pulls before any git mutation (issue #560).
+# Allowlist is work/treasury only on the FCC live root.
+MAP_PY="$DIR/deploy/product_branch_map.py"
+if command -v python3 >/dev/null 2>&1 && [[ -f "$MAP_PY" ]]; then
+  if ! python3 "$MAP_PY" check-sync --branch "$BRANCH" >/dev/null; then
+    log "ERROR: refused SYNC_BRANCH=${BRANCH} for FCC live root (allowlist: work/treasury only)"
+    exit 1
+  fi
+elif [[ "$BRANCH" != "work/treasury" ]]; then
+  log "ERROR: FCC live root refuses SYNC_BRANCH=${BRANCH} (allowlist: work/treasury only)"
   exit 1
 fi
 

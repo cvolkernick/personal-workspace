@@ -1,5 +1,5 @@
 [Unit]
-Description=Every 5 minutes: sync personal-workspace from origin/master
+Description=Every 5 minutes: sync personal-workspace from origin/work/treasury (FCC SoT)
 
 [Timer]
 OnBootSec=2min

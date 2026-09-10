@@ -1,20 +1,24 @@
 # SDLC: merge → path-scoped Pi auto-deploy (issue #25)
 
 **Status:** Phase 1 shipped on branch `feature/sdlc-auto-deploy-25`.  
-**Human gate:** PR merge stays Chris-only. This automation only runs **after** merge to `master`.
+**Human gate:** PR merge stays Chris-only for dangerous paths; Grok eng-gate otherwise.
+
+**Product → branch (#560):** FCC + treasury PRs land on **`work/treasury` only**. FitDash PRs land on **`master`** (Vercel). Pi `workspace-sync` allowlist is `work/treasury`; it refuses `master` / `work/holistic` and will not reset the FCC live tip to master. Map: `deploy/product_branch_map.py`.
 
 ## What happens after you merge
 
 ```
-merge to master
-  → GitHub Action deploy-on-merge (map + optional SSH kick)
+FCC PR merge to work/treasury
   → Pi workspace-sync.timer (≤5 min) OR immediate systemctl start
-  → git pull origin/master (durable state preserved)
+  → land origin/work/treasury (durable state preserved; master/holistic refused)
   → deploy/on_merge.sh --mode local
        · map changed paths via deploy/path_unit_map.json
        · restart ONLY mapped dashboard/platform units
        · health-check those units
        · post result to #workflow when buzz CLI is available
+
+FitDash PR merge to master
+  → Vercel Git integration (not this Pi checkout)
 ```
 
 ## Safety rails
@@ -90,11 +94,12 @@ Failures exit non-zero so the systemd oneshot / CI can surface them. Buzz notify
 
 | Path | When to use | What it does | Git on Pi |
 |------|-------------|--------------|-----------|
-| **Default:** merge → `workspace-sync.timer` | After PR lands on `master` | `git` hard-reset to `origin/master` + path-scoped unit restart | Always matches `master` tip |
-| **Mac `deploy/install_remote.sh --only …`** | Unit files changed, first-time install, or sync broken | rsync selected packages + reinstall systemd units | Does **not** advance git; next sync overwrites code from `master` |
-| **Package rsync** (e.g. `resistance-dashboard/deploy/install_remote.sh`) | Emergency / pre-merge hot fix only | rsync one app tree | Leaves monorepo **dirty vs git**; next successful `workspace-sync` **replaces** rsynced code with `master` |
+| **Default (FCC live):** `workspace-sync.timer` | After FCC PR lands on `work/treasury` | `git` hard-reset to `origin/work/treasury` + path-scoped unit restart | Always matches `work/treasury` tip |
+| **FitDash prod** | After FitDash PR lands on `master` | Vercel Git integration | Not this checkout |
+| **Mac `deploy/install_remote.sh --only …`** | Unit files changed, first-time install, or sync broken | rsync selected packages + reinstall systemd units | Does **not** advance git; next sync overwrites code from `work/treasury` |
+| **Package rsync** (e.g. `resistance-dashboard/deploy/install_remote.sh`) | Emergency / pre-merge hot fix only | rsync one app tree | Leaves monorepo **dirty vs git**; next successful `workspace-sync` **replaces** rsynced code with `work/treasury` |
 
-**Do not** treat package rsync as durable prod. If you hot-fix, either merge the same tree to `master` before the next sync cycle, or expect prod to snap back to merged tip.
+**Do not** treat package rsync as durable prod. If you hot-fix FCC, merge the same tree to `work/treasury` before the next sync cycle, or expect prod to snap back to that tip. **Do not** `git checkout master` / `git pull origin master` / `git pull origin work/holistic` on the Pi FCC clone.
 
 **Do not** disable `workspace-sync.timer` without a written reason + re-enable plan. When it is off, Pi freezes at whatever last landed (the 2026-08-11 FitDash “old shell” incident).
 
@@ -102,7 +107,7 @@ Failures exit non-zero so the systemd oneshot / CI can surface them. Buzz notify
 
 Symptoms:
 
-- `git status` shows `(no branch, rebasing master)` or detached HEAD far behind `origin/master`
+- `git status` shows `(no branch, rebasing …)` or detached HEAD far behind `origin/work/treasury`
 - `systemctl --user status workspace-sync.service` → status 127 / `deploy/workspace_sync.sh: No such file`
 - `workspace-sync.timer` inactive/disabled while dashboards still run stale trees
 
@@ -112,13 +117,15 @@ On Pi (`prism-agent@prism-gateway`):
 cd ~/personal-workspace
 # Prefer the script once any copy exists (Mac can scp deploy/workspace_sync.sh first):
 bash deploy/workspace_sync.sh
-# Or force:
+# Or force — FCC live root, never master / work/holistic:
 git rebase --abort 2>/dev/null || rm -rf .git/rebase-merge .git/rebase-apply
-git fetch origin master
-git checkout -f -B master origin/master
-git reset --hard origin/master
-# re-enable timer (unit files live under deploy/units/)
-cp -f deploy/units/workspace-sync.{service,timer} ~/.config/systemd/user/
+git fetch origin work/treasury
+git checkout -f -B work/treasury origin/work/treasury
+git reset --hard origin/work/treasury
+# re-enable timer (unit files live on master; copy from Mac if missing on this branch)
+# scp deploy/workspace_sync.sh prism-agent@prism-gateway:~/personal-workspace/deploy/
+# scp deploy/units/workspace-sync.{service,timer} prism-agent@prism-gateway:~/.config/systemd/user/
+cp -f deploy/units/workspace-sync.{service,timer} ~/.config/systemd/user/ 2>/dev/null || true
 systemctl --user daemon-reload
 systemctl --user enable --now workspace-sync.timer
 systemctl --user start workspace-sync.service
