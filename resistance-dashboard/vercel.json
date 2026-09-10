@@ -101,6 +101,10 @@
       "destination": "/api/dashboard?_r=phase_barometer"
     },
     {
+      "source": "/api/targets",
+      "destination": "/api/dashboard?_r=targets"
+    },
+    {
       "source": "/api/restock/retry",
       "destination": "/api/dashboard?_r=restock_retry"
     },
