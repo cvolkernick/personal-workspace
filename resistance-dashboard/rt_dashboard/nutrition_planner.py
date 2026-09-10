@@ -38,6 +38,10 @@ DEFAULT_SLOT_HM = ((12, 0), (15, 30), (19, 0))
 FOURTH_SLOT_HM = (21, 0)
 UPCOMING_MEAL_LABELS = ("Next meal", "Later meal", "Evening", "Optional snack")
 PAST_MEAL_LABEL = "Earlier meal"
+# Keep a slot you're currently eating; drop anything older (#613).
+SLOT_GRACE = timedelta(minutes=20)
+# Late-day regen must not stack leftover hinges on top of each other.
+MIN_MEAL_GAP = timedelta(minutes=75)
 
 
 def _slug(name: str) -> str:
@@ -1336,8 +1340,10 @@ def generate_meal_plan(
     Meal buckets get America/New_York (or viewer) ``eat_at`` clocks. Times use
     the FitDash eating window (wake→end) when known; optional ``eat_slots``
     only if a caller passes them. Defaults otherwise: ~12:00 / 15:30 / 19:00.
-    Slot count is 1–4 from remaining macros + in-stock items — never empty
-    timed hinges, never invented food.
+    Regen drops past slots (20 min grace) and re-times remaining meals in the
+    leftover window — never lists noon as upcoming at 3 PM. Slot count is 1–4
+    from remaining macros + in-stock items, capped by remaining-window
+    capacity — never empty timed hinges, never invented food.
 
     Food quality (#501): ≥1 veg/fruit slot before shake fill when pantry
     allows; soft fiber ~25g biases fill order; shake/powder cap ≤2 servings
@@ -2390,6 +2396,49 @@ def _default_slot_hms(n: int) -> List[tuple]:
     return list(DEFAULT_SLOT_HM) + [FOURTH_SLOT_HM]
 
 
+def _slot_horizon(now: datetime) -> datetime:
+    return now - SLOT_GRACE
+
+
+def _remaining_meal_capacity(
+    now: datetime,
+    start: datetime,
+    end: datetime,
+    *,
+    n_max: int = 4,
+) -> int:
+    """How many meals still fit in the remaining eating window.
+
+    Late-day regen must not invent extra stacked hinges. While the window
+    is open, keep at least the next upcoming meal if food remains.
+    """
+    if end <= start:
+        return 0
+    horizon = _slot_horizon(now)
+    if now >= end:
+        return 1 if horizon < end else 0
+    lo = now if now > start else start
+    if lo >= end:
+        return 0
+    span = end - lo
+    extra = int(span.total_seconds() // MIN_MEAL_GAP.total_seconds())
+    return max(1, min(n_max, 1 + extra))
+
+
+def _clamp_gap_times(times: Sequence[datetime], n: int, end: datetime) -> List[datetime]:
+    """Keep chronological times that are inside the window and not stacked."""
+    out: List[datetime] = []
+    for t in _dedupe_sorted_times(times):
+        if t > end:
+            continue
+        if out and (t - out[-1]) < MIN_MEAL_GAP:
+            continue
+        out.append(t)
+        if len(out) >= n:
+            break
+    return out
+
+
 def _resolve_eat_times(
     n: int,
     *,
@@ -2399,14 +2448,16 @@ def _resolve_eat_times(
     tz,
     eat_slots: Optional[Sequence[Any]] = None,
 ) -> List[datetime]:
-    """n clock times inside the eating window. Never invents food slots.
+    """n clock times inside the remaining eating window. Never invents food.
 
-    Prefer a stable day plan (~12:00 / 15:30 / 19:00, or caller ``eat_slots``).
-    Only spread when clamping collapsed two hinges onto the same minute.
+    Morning plans keep the stable ~12:00 / 15:30 / 19:00 hinges (or caller
+    ``eat_slots``). After a slot is past (20 min grace), drop it and schedule
+    only remaining-day meals — do not keep noon as upcoming at 3 PM.
     """
     if n <= 0:
         return []
     day = now.replace(second=0, microsecond=0)
+    horizon = _slot_horizon(now)
     parsed: List[datetime] = []
     for raw in eat_slots or []:
         dt = _parse_eat_slot(raw, tz, day)
@@ -2426,12 +2477,12 @@ def _resolve_eat_times(
                 for h, m in DEFAULT_SLOT_HM
             ]
         )
-        upcoming = [t for t in cands if t >= now]
+        upcoming = [t for t in cands if t >= horizon]
         if upcoming:
             return [upcoming[0]]
         if start <= now < end:
             return [_clamp_into_window(now, start, end)]
-        return [cands[-1] if cands else _clamp_into_window(day.replace(hour=12, minute=0), start, end)]
+        return []
 
     if parsed:
         chosen = parsed[:n]
@@ -2446,11 +2497,37 @@ def _resolve_eat_times(
                 for h, m in _default_slot_hms(n)
             ]
         )
-    if len(chosen) < n:
-        chosen = _dedupe_sorted_times(
-            chosen + _space_in_range(n - len(chosen), start, end, avoid=chosen)
-        )
-    return chosen[:n]
+    valid = [t for t in chosen if t >= horizon]
+    if len(valid) >= n:
+        return valid[:n]
+
+    lo = now if now > start else start
+    grace_kept = [t for t in valid if t < now]
+    if lo >= end:
+        return valid[:n]
+
+    # Two or more hinges still in the remaining day: keep them, fill gaps
+    # only when the extra time is not stacked on a kept hinge.
+    if len(valid) >= 2:
+        need = n - len(valid)
+        spaced = _space_in_range(need, lo, end, avoid=valid) if need else []
+        kept = _clamp_gap_times(valid, n, end)
+        extra: List[datetime] = []
+        for t in spaced:
+            if len(kept) + len(extra) >= n:
+                break
+            if t > end:
+                continue
+            if any(abs((t - k).total_seconds()) < MIN_MEAL_GAP.total_seconds() for k in kept + extra):
+                continue
+            extra.append(t)
+        return _dedupe_sorted_times(kept + extra)[:n]
+
+    # Most default slots are past: re-time remaining meals across the rest
+    # of the window. Keep an in-progress (grace) slot so it does not vanish.
+    need = n - len(grace_kept)
+    spaced = _space_in_range(need, lo, end, avoid=grace_kept) if need else []
+    return _clamp_gap_times(list(grace_kept) + spaced, n, end)
 
 
 def _serving_unit_count(items: Sequence[dict]) -> int:
@@ -2636,27 +2713,25 @@ def _bucket_meals(
         window_end=window_end,
         sleep_battery=sleep_battery,
     )
+    cap = _remaining_meal_capacity(now, start, end)
+    if cap <= 0:
+        return []
     n_slots = _desired_slot_count(items, remaining)
     units = _expand_serving_units(items)
-    n_slots = max(1, min(n_slots, len(units)))
-    chunks = _chunk_units(units, n_slots)
+    n_slots = max(1, min(n_slots, cap, len(units)))
     times = _resolve_eat_times(
-        len(chunks), now=now, start=start, end=end, tz=tz, eat_slots=eat_slots
+        n_slots, now=now, start=start, end=end, tz=tz, eat_slots=eat_slots
     )
-    while len(times) < len(chunks):
-        times.append(times[-1] if times else now)
+    horizon = _slot_horizon(now)
+    times = [t for t in times if t >= horizon]
+    if not times:
+        return []
+    n_slots = min(n_slots, len(times), len(units))
+    chunks = _chunk_units(units, n_slots)
+    times = times[: len(chunks)]
 
     meals: List[dict] = []
-    next_idx = None
-    for i, t in enumerate(times[: len(chunks)]):
-        if t >= now:
-            next_idx = i
-            break
-    if next_idx is None:
-        next_idx = 0
-
     upcoming_i = 0
-    past_used = False
     for i, part in enumerate(chunks):
         collapsed = _collapse_plan_items(list(part))
         sub = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
@@ -2664,12 +2739,8 @@ def _bucket_meals(
             for k in sub:
                 sub[k] += float(it.get(k) or 0)
         eat_at = times[i]
-        if i < next_idx:
-            label = PAST_MEAL_LABEL if not past_used else "Afternoon"
-            past_used = True
-        else:
-            label = UPCOMING_MEAL_LABELS[min(upcoming_i, len(UPCOMING_MEAL_LABELS) - 1)]
-            upcoming_i += 1
+        label = UPCOMING_MEAL_LABELS[min(upcoming_i, len(UPCOMING_MEAL_LABELS) - 1)]
+        upcoming_i += 1
         meals.append(
             {
                 "label": label,

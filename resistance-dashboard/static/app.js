@@ -2215,6 +2215,16 @@
     return String((m && m.eat_at_label) || "").trim();
   }
 
+  /** Match planner SLOT_GRACE (20 min) so a meal in progress still shows. */
+  const MEAL_SLOT_GRACE_MS = 20 * 60 * 1000;
+
+  function mealEatAtIsUpcoming(iso, nowMs) {
+    if (!iso) return true;
+    const t = new Date(iso).getTime();
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    return Number.isFinite(t) && t >= now - MEAL_SLOT_GRACE_MS;
+  }
+
   /** Prefer weighable grams on meal-plan / inventory lines (food scale). */
   function formatPlanPortion(it) {
     if (!it) return "1 serving";
@@ -4412,7 +4422,7 @@
       box.innerHTML = "";
       return;
     }
-    const meals = plan.meals || [];
+    const meals = (plan.meals || []).filter((m) => mealEatAtIsUpcoming(m && m.eat_at));
     const pt = plan.planned_totals || {};
     const ra = plan.remaining_after_plan || {};
     const honesty = Array.isArray(plan.honesty) ? plan.honesty : [];
@@ -6093,10 +6103,11 @@
     // Meal plan from coach.today.meal (stock-only planner)
     if ($("today-meal")) {
       const meal = today.meal || {};
-      const meals = meal.meals || [];
+      const allMeals = meal.meals || [];
+      const meals = allMeals.filter((bucket) => mealEatAtIsUpcoming(bucket && bucket.eat_at));
       const items = meal.items || [];
       let html = "";
-      if (meal.empty || (!meals.length && !items.length)) {
+      if (meal.empty || (!allMeals.length && !items.length)) {
         let copy = meal.message || "";
         if (meal.pantry_dark || meal.empty_reason === "pantry_unavailable") {
           copy = "Pantry unavailable";
@@ -6137,7 +6148,7 @@
           });
           html += `</ul></div>`;
         });
-      } else if (items.length) {
+      } else if (!allMeals.length && items.length) {
         html += `<ul style="margin:0;padding-left:1.1rem">`;
         items.forEach((it) => {
           html += `<li><strong>${it.name}</strong> · ${fmtNum(it.calories)} kcal · P${fmtNum(it.protein_g)}</li>`;
