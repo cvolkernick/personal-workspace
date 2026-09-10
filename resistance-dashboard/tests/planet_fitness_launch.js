@@ -68,11 +68,24 @@ const desktop =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36";
 
 const androidHref = planetFitnessLaunchHref(android);
-assert(androidHref.indexOf("intent://") === 0, "android starts with intent://");
-assert(androidHref.indexOf("package=com.planetfitness") >= 0, "android package");
+assert(androidHref.indexOf("intent:#Intent;") === 0, "android starts with intent:#Intent");
 assert(
-  androidHref.indexOf("play.google.com/store/apps/details?id=com.planetfitness") >= 0,
-  "android play fallback"
+  androidHref.indexOf("action=android.intent.action.MAIN") >= 0,
+  "android MAIN action"
+);
+assert(
+  androidHref.indexOf("category=android.intent.category.LAUNCHER") >= 0,
+  "android LAUNCHER category"
+);
+assert(androidHref.indexOf("package=com.planetfitness") >= 0, "android package");
+assert(androidHref.indexOf("scheme=https") < 0, "android has no https scheme");
+assert(androidHref.indexOf("intent://open") < 0, "android is not https://open");
+const encodedPlay = encodeURIComponent(
+  "https://play.google.com/store/apps/details?id=com.planetfitness"
+);
+assert(
+  androidHref.indexOf("S.browser_fallback_url=" + encodedPlay) >= 0,
+  "android encoded play fallback"
 );
 
 assert(planetFitnessLaunchHref(ios) === "planetfitness://", "ios scheme");
