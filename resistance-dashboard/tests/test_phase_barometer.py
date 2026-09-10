@@ -127,6 +127,33 @@ class CurrentSnapshotBlocks(unittest.TestCase):
         self.assertEqual(d["reading"], "keep")
         self.assertFalse(d["consecutive_weeks_met"])
 
+    def test_iso_week_cliff_is_not_two_weeks(self):
+        """Sunday 2026-09-06 = W36, Monday 2026-09-07 = W37 — 1 day, not 2 weeks."""
+        hist = [
+            {
+                "week": iso_week_key("2026-09-06"),
+                "as_of": "2026-09-06",
+                "kpis": _good_cut("2026-09-06"),
+            }
+        ]
+        d = evaluate_decision(_good_cut("2026-09-07"), history=hist)
+        self.assertEqual(iso_week_key("2026-09-06"), "2026-W36")
+        self.assertEqual(iso_week_key("2026-09-07"), "2026-W37")
+        self.assertEqual(d["reading"], "keep")
+        self.assertFalse(d["consecutive_weeks_met"])
+
+    def test_prior_as_of_exactly_7_days_still_counts(self):
+        hist = [
+            {
+                "week": iso_week_key("2026-08-31"),
+                "as_of": "2026-08-31",
+                "kpis": _good_cut("2026-08-31"),
+            }
+        ]
+        d = evaluate_decision(_good_cut("2026-09-07"), history=hist)
+        self.assertEqual(d["reading"], "pivot")
+        self.assertTrue(d["consecutive_weeks_met"])
+
 
 class BulkAndMaintain(unittest.TestCase):
     def test_bulk_to_cut(self):
@@ -221,6 +248,80 @@ class CollectFromJson(unittest.TestCase):
         self.assertEqual(rec["carbs_g"], 215)
         self.assertEqual(rec["fat_g"], 60)
 
+    def test_deficit_uses_tdee_minus_applied_not_reason_string(self):
+        """Applied maintenance (or <300 gap) must not inherit recommended 'deficit N kcal'."""
+        nt = {
+            "phase": "cut",
+            "tdee_kcal": 2500,
+            "applied": {"calories": 2500, "protein_g": 210, "carbs_g": 250, "fat_g": 70},
+            "recommended": {"calories": 2100, "protein_g": 175, "carbs_g": 215, "fat_g": 60},
+            "reasons": ["14d scale weekly +0.10 lb/week", "phase=cut; deficit 400 kcal"],
+        }
+        kpis = collect_kpis(
+            as_of="2026-09-09",
+            recovery={"score": 60, "inputs": {"training_volume_7d": 18000}},
+            sleep_battery={"pct_charged": 40.0},
+            coach={"adherence_7d": {"protein": {"pct": 75.0}}, "nutrition_targets": nt},
+            nutrition_store={"labs": {"cluster": {"id": "energy_availability"}, "markers": {}}},
+            workout_store={"plan": {"volume": {"muscles": []}}},
+        )
+        self.assertEqual(kpis["deficit_kcal"], 0)
+        hist = [{"week": iso_week_key("2026-08-26"), "kpis": _good_cut("2026-08-26")}]
+        now = _good_cut("2026-09-02", deficit=kpis["deficit_kcal"])
+        d = evaluate_decision(now, history=hist)
+        self.assertEqual(d["reading"], "keep")
+        self.assertFalse(d["gates"]["deficit"])
+        self.assertFalse(d["consecutive_weeks_met"])
+        thin = dict(nt)
+        thin["applied"] = {"calories": 2300}
+        thin_kpis = collect_kpis(
+            as_of="2026-09-09",
+            recovery={"score": 60, "inputs": {"training_volume_7d": 18000}},
+            sleep_battery={"pct_charged": 40.0},
+            coach={"adherence_7d": {"protein": {"pct": 75.0}}, "nutrition_targets": thin},
+            nutrition_store={"labs": {"cluster": {"id": "energy_availability"}, "markers": {}}},
+            workout_store={"plan": {"volume": {"muscles": []}}},
+        )
+        self.assertEqual(thin_kpis["deficit_kcal"], 200)
+        d_thin = evaluate_decision(_good_cut("2026-09-02", deficit=200), history=hist)
+        self.assertEqual(d_thin["reading"], "keep")
+        self.assertFalse(d_thin["gates"]["deficit"])
+
+    def test_deficit_falls_back_to_recommended_then_reasons(self):
+        rec_only = collect_kpis(
+            as_of="2026-09-09",
+            recovery={"score": 60, "inputs": {"training_volume_7d": 18000}},
+            sleep_battery={"pct_charged": 40.0},
+            coach={
+                "adherence_7d": {"protein": {"pct": 75.0}},
+                "nutrition_targets": {
+                    "phase": "cut",
+                    "tdee_kcal": 2500,
+                    "applied": {"protein_g": 210},
+                    "recommended": {"calories": 2100},
+                    "reasons": ["phase=cut; deficit 999 kcal"],
+                },
+            },
+            nutrition_store={"labs": {}},
+            workout_store={"plan": {"volume": {"muscles": []}}},
+        )
+        self.assertEqual(rec_only["deficit_kcal"], 400)
+        reasons_only = collect_kpis(
+            as_of="2026-09-09",
+            recovery={"score": 60, "inputs": {"training_volume_7d": 18000}},
+            sleep_battery={"pct_charged": 40.0},
+            coach={
+                "adherence_7d": {"protein": {"pct": 75.0}},
+                "nutrition_targets": {
+                    "phase": "cut",
+                    "reasons": ["phase=cut; deficit 350 kcal"],
+                },
+            },
+            nutrition_store={"labs": {}},
+            workout_store={"plan": {"volume": {"muscles": []}}},
+        )
+        self.assertEqual(reasons_only["deficit_kcal"], 350)
+
 
 class PersistWeeks(unittest.TestCase):
     def setUp(self):
@@ -299,6 +400,8 @@ class PersistWeeks(unittest.TestCase):
         self.assertIn("phase_barometer", payload["nutrition_store"])
         rec = payload["phase_barometer"]["recommended"]
         self.assertEqual(rec["protein_g"], 175)
+        self.assertNotIn("_path", payload["phase_barometer"])
+        self.assertNotIn("_path", payload["coach"]["today"]["phase_barometer"])
 
 
 class Wiring(unittest.TestCase):

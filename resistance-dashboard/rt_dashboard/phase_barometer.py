@@ -20,6 +20,7 @@ from .timeutil import local_today_iso
 VERSION = 1
 MAX_WEEKS = 8
 MAX_AUDIT = 20
+MIN_WEEK_GAP_DAYS = 7
 
 THRESHOLDS: Dict[str, Any] = {
     "cut_to_bulk": {
@@ -312,10 +313,12 @@ def _weekly_from_reasons(reasons: Sequence[Any]) -> Optional[float]:
 
 
 def _deficit_kcal(nt: dict, reasons: Sequence[Any]) -> Optional[float]:
-    for raw in reasons or []:
-        m = _DEFICIT_RE.search(str(raw or ""))
-        if m:
-            return _as_float(m.group(1))
+    """Actual cut size: TDEE − applied calories. Reasons are last resort.
+
+    Cut recommendations always emit `phase=cut; deficit N kcal`, so matching
+    that string first would pass the deficit gate even when applied is
+    maintenance (or a <300 kcal gap).
+    """
     tdee = _as_float(nt.get("tdee_kcal"))
     applied = _as_dict(nt.get("applied"))
     cal = _as_float(applied.get("calories"))
@@ -325,6 +328,10 @@ def _deficit_kcal(nt: dict, reasons: Sequence[Any]) -> Optional[float]:
     rec_cal = _as_float(rec.get("calories"))
     if tdee is not None and rec_cal is not None:
         return tdee - rec_cal
+    for raw in reasons or []:
+        m = _DEFICIT_RE.search(str(raw or ""))
+        if m:
+            return _as_float(m.group(1))
     return None
 
 
@@ -523,6 +530,26 @@ def _snapshot_for_week(history: Sequence[dict], week: str) -> Optional[dict]:
     return None
 
 
+def _snapshot_as_of(snap: dict) -> str:
+    if not isinstance(snap, dict):
+        return ""
+    day = str(snap.get("as_of") or "")[:10]
+    if day:
+        return day
+    kpis = snap.get("kpis") if isinstance(snap.get("kpis"), dict) else None
+    if isinstance(kpis, dict):
+        return str(kpis.get("as_of") or "")[:10]
+    return ""
+
+
+def _as_of_gap_days(prior_as_of: str, current_as_of: str) -> Optional[int]:
+    a = _parse_day(prior_as_of)
+    b = _parse_day(current_as_of)
+    if not a or not b:
+        return None
+    return (b - a).days
+
+
 def _prior_weeks(as_of: str, n: int) -> List[str]:
     day = _parse_day(as_of)
     if not day:
@@ -533,51 +560,64 @@ def _prior_weeks(as_of: str, n: int) -> List[str]:
     return out
 
 
+def _prior_elapsed_snapshots(
+    current: dict, history: Sequence[dict], n: int
+) -> Optional[List[dict]]:
+    """Prior ISO-week rows whose as_of is at least 7 days before current.
+
+    ISO week labels flip Sunday→Monday, so as_of−7d keys alone would treat
+    2026-09-06 (W36) and 2026-09-07 (W37) as two consecutive weeks.
+    """
+    as_of = str(current.get("as_of") or "")[:10]
+    priors = _prior_weeks(as_of, n)
+    if len(priors) < n:
+        return None
+    out: List[dict] = []
+    for week in priors:
+        snap = _snapshot_for_week(history, week)
+        if not snap:
+            return None
+        gap = _as_of_gap_days(_snapshot_as_of(snap), as_of)
+        if gap is None or gap < MIN_WEEK_GAP_DAYS:
+            return None
+        out.append(snap)
+    return out
+
+
+def _kpis_from_snap(snap: dict) -> dict:
+    if isinstance(snap.get("kpis"), dict):
+        return snap["kpis"]
+    return snap
+
+
 def _consecutive_cut(current: dict, history: Sequence[dict]) -> bool:
     need = int(THRESHOLDS["cut_to_bulk"]["consecutive_weeks"])
     if not _cut_week_gates(current)["all"]:
         return False
-    priors = _prior_weeks(str(current.get("as_of") or ""), need - 1)
-    if len(priors) < need - 1:
+    priors = _prior_elapsed_snapshots(current, history, need - 1)
+    if not priors:
         return False
-    for week in priors:
-        snap = _snapshot_for_week(history, week)
-        if not snap:
-            return False
-        kpis = snap.get("kpis") if isinstance(snap.get("kpis"), dict) else snap
-        if not _cut_week_gates(kpis)["all"]:
-            return False
-    return True
+    return all(_cut_week_gates(_kpis_from_snap(snap))["all"] for snap in priors)
 
 
 def _consecutive_bulk(current: dict, history: Sequence[dict]) -> bool:
     need = int(THRESHOLDS["bulk_to_cut"]["consecutive_weeks"])
     if not _bulk_week_gates(current)["all"]:
         return False
-    priors = _prior_weeks(str(current.get("as_of") or ""), need - 1)
-    for week in priors:
-        snap = _snapshot_for_week(history, week)
-        if not snap:
-            return False
-        kpis = snap.get("kpis") if isinstance(snap.get("kpis"), dict) else snap
-        if not _bulk_week_gates(kpis)["all"]:
-            return False
-    return True
+    priors = _prior_elapsed_snapshots(current, history, need - 1)
+    if not priors:
+        return False
+    return all(_bulk_week_gates(_kpis_from_snap(snap))["all"] for snap in priors)
 
 
 def _consecutive_maintain_drift(current: dict, history: Sequence[dict]) -> bool:
     need = int(THRESHOLDS["maintain"]["consecutive_weeks"])
     if not _maintain_week_drift(current):
         return False
-    priors = _prior_weeks(str(current.get("as_of") or ""), need - 1)
-    for week in priors:
-        snap = _snapshot_for_week(history, week)
-        if not snap:
-            return False
-        kpis = snap.get("kpis") if isinstance(snap.get("kpis"), dict) else snap
-        if not _maintain_week_drift(kpis):
-            return False
-    return True
+    priors = _prior_elapsed_snapshots(current, history, need - 1)
+    if not priors:
+        return False
+    return all(_maintain_week_drift(_kpis_from_snap(snap)) for snap in priors)
 
 
 def _keep_status(phase: str) -> str:
@@ -833,9 +873,8 @@ def build_phase_barometer(
     )
     if persist:
         try:
-            saved = save_store(store, user_id)
+            save_store(store, user_id)
             decision["persisted"] = True
-            decision["_path"] = saved.get("_path")
         except Exception as exc:  # noqa: BLE001
             decision["persisted"] = False
             decision["persist_error"] = str(exc)
