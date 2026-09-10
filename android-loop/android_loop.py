@@ -308,24 +308,40 @@ def adb_devices(android_home: Path, env: dict[str, str]) -> list[dict[str, str]]
     return devices
 
 
+def is_emulator_device(dev: dict[str, str]) -> bool:
+    """True for AVD serials only. USB / wireless phones are never emulators."""
+    serial = dev.get("serial", "")
+    raw = dev.get("raw", "")
+    return serial.startswith("emulator-") or "emulator" in raw
+
+
+def select_online_emulator(devices: Iterable[dict[str, str]]) -> Optional[str]:
+    """First online emulator serial. Never a physical device — even if one is authorized."""
+    for dev in devices:
+        if dev.get("state") == "device" and is_emulator_device(dev):
+            return dev["serial"]
+    return None
+
+
 def listed_emulator(android_home: Path, env: dict[str, str]) -> Optional[str]:
     """Serial of an emulator even if it is still offline/authorizing."""
     for dev in adb_devices(android_home, env):
-        if dev["serial"].startswith("emulator-") or "emulator" in dev.get("raw", ""):
+        if is_emulator_device(dev):
             return dev["serial"]
     return None
 
 
 def online_emulator(android_home: Path, env: dict[str, str]) -> Optional[str]:
-    for dev in adb_devices(android_home, env):
-        if dev["state"] == "device" and (
-            dev["serial"].startswith("emulator-") or "emulator" in dev.get("raw", "")
-        ):
-            return dev["serial"]
-    for dev in adb_devices(android_home, env):
-        if dev["state"] == "device":
-            return dev["serial"]
-    return None
+    return select_online_emulator(adb_devices(android_home, env))
+
+
+def pin_android_serial(env: dict[str, str], serial: str) -> dict[str, str]:
+    """Force Gradle/adb connected work onto one emulator. Never inherit a phone serial."""
+    if not is_emulator_device({"serial": serial, "raw": serial, "state": "device"}):
+        raise HarnessError(f"refusing to pin ANDROID_SERIAL to non-emulator {serial!r}")
+    pinned = dict(env)
+    pinned["ANDROID_SERIAL"] = serial
+    return pinned
 
 
 def boot_completed(android_home: Path, env: dict[str, str], serial: str) -> bool:
@@ -845,9 +861,9 @@ def cmd_run(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_test(args: argparse.Namespace) -> dict[str, Any]:
-    java_home = require_java()
+    require_java()
     android_home, env, serial, avd = _ready_device(args)
-    env = tool_env(java_home=java_home, android_home=android_home)
+    env = pin_android_serial(env, serial)
     project = Path(args.project).expanduser().resolve()
     write_local_properties(project, android_home)
     result = gradle(project, env, "connectedDebugAndroidTest")

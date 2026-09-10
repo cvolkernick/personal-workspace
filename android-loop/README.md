@@ -75,3 +75,5 @@ python3 android-loop/android_loop.py phrase "Build the debug APK and report whet
 ## What `test` returns
 
 `failures` is a list of `{test, stack}`. That is the AC "paste the failing stack traces" payload. `ok` is false when Gradle fails or any instrumented test fails.
+
+Screenshot / install / launch / connected tests target **emulator serials only**. A USB phone that is authorized for `adb` is never selected; if no AVD is listed, the harness starts `Pixel_3a_API_29`. `test` pins `ANDROID_SERIAL` to that emulator so `connectedDebugAndroidTest` cannot fan out to every device.

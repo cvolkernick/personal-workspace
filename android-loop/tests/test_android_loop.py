@@ -176,5 +176,81 @@ class TestStaleStudioJavaIgnored(unittest.TestCase):
             self.assertFalse(al._java_home_usable(missing))
 
 
+PHONE = {
+    "serial": "R58M30ABCDE",
+    "state": "device",
+    "raw": "R58M30ABCDE device usb:1-1 product:starqltesq model:SM_G960U device:starqltesq",
+}
+EMU_ONLINE = {
+    "serial": "emulator-5554",
+    "state": "device",
+    "raw": "emulator-5554 device product:sdk_gphone_arm64 model:sdk_gphone_arm64",
+}
+EMU_OFFLINE = {
+    "serial": "emulator-5554",
+    "state": "offline",
+    "raw": "emulator-5554 offline",
+}
+
+
+class TestEmulatorOnlySelection(unittest.TestCase):
+    def test_physical_serial_not_selected_when_emulator_absent(self) -> None:
+        self.assertIsNone(al.select_online_emulator([PHONE]))
+
+    def test_prefers_emulator_when_phone_is_also_online(self) -> None:
+        self.assertEqual(al.select_online_emulator([PHONE, EMU_ONLINE]), "emulator-5554")
+
+    def test_offline_emulator_does_not_fall_through_to_phone(self) -> None:
+        self.assertIsNone(al.select_online_emulator([EMU_OFFLINE, PHONE]))
+
+    def test_phone_is_not_an_emulator_device(self) -> None:
+        self.assertFalse(al.is_emulator_device(PHONE))
+        self.assertTrue(al.is_emulator_device(EMU_ONLINE))
+
+
+class TestPinAndroidSerial(unittest.TestCase):
+    def test_pins_emulator(self) -> None:
+        pinned = al.pin_android_serial({"PATH": "/bin", "ANDROID_SERIAL": "R58M30ABCDE"}, "emulator-5554")
+        self.assertEqual(pinned["ANDROID_SERIAL"], "emulator-5554")
+
+    def test_refuses_physical_serial(self) -> None:
+        with self.assertRaises(al.HarnessError):
+            al.pin_android_serial({}, "R58M30ABCDE")
+
+
+class TestCmdTestPinsSerial(unittest.TestCase):
+    def test_connected_tests_set_android_serial(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_gradle(project, env, *tasks, **kwargs):  # type: ignore[no-untyped-def]
+            captured["env"] = env
+            captured["tasks"] = tasks
+            return {
+                "exit": 0,
+                "successful": True,
+                "duration_s": 0.1,
+                "output": SUCCESS_CONNECTED,
+                "tasks": list(tasks),
+            }
+
+        with mock.patch.object(al, "require_java", return_value=Path("/tmp/jdk")), mock.patch.object(
+            al,
+            "_ready_device",
+            return_value=(
+                Path("/tmp/sdk"),
+                {"PATH": "/bin", "ANDROID_SERIAL": "R58M30ABCDE"},
+                "emulator-5554",
+                "Pixel_3a_API_29",
+            ),
+        ), mock.patch.object(al, "write_local_properties"), mock.patch.object(
+            al, "gradle", side_effect=fake_gradle
+        ):
+            payload = al.cmd_test(argparse_ns(project=str(HERE / "fixture")))
+        self.assertEqual(payload["serial"], "emulator-5554")
+        env = captured["env"]
+        assert isinstance(env, dict)
+        self.assertEqual(env["ANDROID_SERIAL"], "emulator-5554")
+
+
 if __name__ == "__main__":
     unittest.main()
