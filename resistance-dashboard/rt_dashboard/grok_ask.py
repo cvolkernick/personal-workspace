@@ -42,7 +42,7 @@ Volume framework (baked into FitDash workout planning — Dean Turner / DeanTTra
   commands: "focus on chest and glutes", "auto focus", "clear focus".
 
 Rules:
-- Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review, coach.nutrition_targets.
+- Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review, coach.nutrition_targets, coach.phase_barometer.
 - If something is missing from the data, say so clearly. Do not invent sessions, weights, macros, or dates.
 - Prefer concise, practical coach advice. Use bullet lists when helpful.
 - When discussing progress, cite specific numbers and dates from the data.
@@ -526,6 +526,19 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
                     )
                     or []
                 )[:6]
+            },
+            "phase_barometer": {
+                k: ((dashboard.get("coach") or {}).get("phase_barometer") or {}).get(k)
+                for k in (
+                    "phase",
+                    "phase_label",
+                    "reading",
+                    "status",
+                    "explanation",
+                    "next_phase",
+                    "protein_blocks_pivot",
+                    "consecutive_weeks_met",
+                )
             },
             "brief": ((dashboard.get("coach") or {}).get("brief") or {}).get(
                 "markdown"

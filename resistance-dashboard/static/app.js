@@ -5674,12 +5674,161 @@
     return logs;
   }
 
+  function phaseBaroEsc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function phaseBaroFromData(data) {
+    return (
+      (data && data.phase_barometer) ||
+      (data && data.coach && data.coach.phase_barometer) ||
+      (data && data.coach && data.coach.today && data.coach.today.phase_barometer) ||
+      (data &&
+        data.coach &&
+        data.coach.weekly_review &&
+        data.coach.weekly_review.phase_barometer) ||
+      (data && data.nutrition_store && data.nutrition_store.phase_barometer) ||
+      null
+    );
+  }
+
+  function phaseBaroWidgetHtml(baro, { banner } = {}) {
+    if (!baro || baro.available === false) {
+      return `<p class="muted" style="margin:0;font-size:0.85rem">Phase barometer needs coach nutrition data.</p>`;
+    }
+    const tone = baro.tone === "red" ? "red" : baro.tone === "amber" ? "amber" : "green";
+    const rec = baro.recommended || {};
+    const recLine =
+      rec.protein_g != null
+        ? `${rec.protein_g} P / ${rec.carbs_g} C / ${rec.fat_g} F`
+        : "";
+    const defaults = {
+      apply_recommended: "Apply coach recommended targets",
+      switch_phase: "Switch phase to Bulk",
+      dismiss: "Dismiss for 7d",
+      log_labs: "Log new labs",
+    };
+    const actions = (baro.actions || [])
+      .map((a) => {
+        const id = a.id || "";
+        const label = a.label || defaults[id] || id;
+        const disabled = a.enabled === false ? "disabled" : "";
+        const phase = a.phase ? ` data-phase="${phaseBaroEsc(a.phase)}"` : "";
+        return `<button type="button" class="phase-baro-btn" data-phase-baro-action="${phaseBaroEsc(
+          id
+        )}"${phase} ${disabled}>${phaseBaroEsc(label)}</button>`;
+      })
+      .join("");
+    const focus = (baro.focus_muscles || []).join(", ");
+    return `
+      <div class="phase-baro-card tone-${tone}${banner ? " is-banner" : ""}">
+        <div class="phase-baro-top">
+          <span class="phase-baro-pill">${phaseBaroEsc(baro.phase_label || baro.phase || "—")}</span>
+          <span class="phase-baro-status">${phaseBaroEsc(baro.status || "")}</span>
+        </div>
+        <p class="phase-baro-explain">${phaseBaroEsc(baro.explanation || "")}</p>
+        ${
+          recLine
+            ? `<p class="muted phase-baro-rec">Coach recommended: ${phaseBaroEsc(recLine)}</p>`
+            : ""
+        }
+        ${
+          focus
+            ? `<p class="muted phase-baro-focus">Focus muscles (DeanT 4–8): ${phaseBaroEsc(focus)}</p>`
+            : `<p class="muted phase-baro-focus">Volume: DeanT 4–8 hard sets/muscle/week</p>`
+        }
+        <div class="phase-baro-actions">${actions}</div>
+      </div>`;
+  }
+
+  function renderPhaseBarometer(data) {
+    const baro = phaseBaroFromData(data);
+    const mounts = [
+      "phase-barometer-today",
+      "phase-barometer-weekly",
+      "phase-barometer-nutrition",
+      "phase-barometer-targets",
+    ];
+    mounts.forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      if (!baro) {
+        el.innerHTML = "";
+        return;
+      }
+      el.innerHTML = phaseBaroWidgetHtml(baro);
+    });
+    const banner = $("phase-barometer-banner");
+    if (banner) {
+      if (baro && baro.banner) {
+        banner.hidden = false;
+        banner.innerHTML = phaseBaroWidgetHtml(baro, { banner: true });
+      } else {
+        banner.hidden = true;
+        banner.innerHTML = "";
+      }
+    }
+    const bullets = $("weekly-review-bullets");
+    if (bullets) {
+      const rows =
+        (data && data.coach && data.coach.weekly_review && data.coach.weekly_review.bullets) ||
+        [];
+      bullets.innerHTML = rows
+        .map((b) => `<li>${phaseBaroEsc(b)}</li>`)
+        .join("");
+    }
+  }
+
+  async function phaseBaroAct(action, phase) {
+    try {
+      if (action === "apply_recommended") {
+        await applyCoachTargets();
+        return;
+      }
+      if (action === "log_labs") {
+        goMobileTab("more");
+        const el = $("labs-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      if (action === "dismiss") {
+        const res = await fetch("/api/phase-barometer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "dismiss" }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+        showAlert("Phase barometer banner dismissed for 7 days", "ok");
+        await loadDashboard();
+        return;
+      }
+      if (action === "switch_phase") {
+        const res = await fetch("/api/phase-barometer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "switch_phase", phase: phase || "slow_bulk" }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || data.message || res.status);
+        showAlert(`Phase switched to ${phase || data.targets && data.targets.phase || "bulk"}`, "ok");
+        await loadDashboard();
+      }
+    } catch (e) {
+      showAlert(`Phase barometer: ${e.message}`, "err");
+    }
+  }
+
   function renderTodayHub(data) {
     const coach = data.coach || {};
     const today = coach.today || {};
     const adh = coach.adherence_7d || {};
-    // coach.brief / coach.weekly_review still on payload for Ask Grok — not rendered on Today
     const nutStore = data.nutrition_store || {};
+    renderPhaseBarometer(data);
 
     if ($("today-hub-date")) {
       const rec = today.recommendation || "—";
@@ -7123,6 +7272,16 @@
     }
     if ($("btn-apply-coach-targets")) {
       $("btn-apply-coach-targets").addEventListener("click", applyCoachTargets);
+    }
+    if (!document.body.dataset.phaseBaroBound) {
+      document.body.dataset.phaseBaroBound = "1";
+      document.body.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-phase-baro-action]");
+        if (!btn || btn.disabled) return;
+        const action = btn.getAttribute("data-phase-baro-action");
+        const phase = btn.getAttribute("data-phase") || "";
+        phaseBaroAct(action, phase);
+      });
     }
 
     if ($("equipment-form")) {

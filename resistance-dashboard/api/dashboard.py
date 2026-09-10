@@ -642,6 +642,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"day_constraints: {type(exc).__name__}")
         payload["day_constraints"] = None
+    try:
+        from rt_dashboard.phase_barometer import attach_phase_barometer
+
+        attach_phase_barometer(payload, user_id=str(user.get("id") or "") or None)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"phase_barometer: {type(exc).__name__}")
     payload["meta"] = {
         "role": "vercel-preview",
         "source": source,

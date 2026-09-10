@@ -86,11 +86,11 @@ class ClubPassJs(unittest.TestCase):
 
 class ClubPassCacheAndHobby(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=micros-bars-1", HTML)
-        self.assertIn("/app.js?v=micros-bars-1", SW)
-        self.assertIn("/styles.css?v=micros-bars-1", HTML)
-        self.assertIn("/styles.css?v=micros-bars-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v85"', SW)
+        self.assertIn("/app.js?v=phase-baro-1", HTML)
+        self.assertIn("/app.js?v=phase-baro-1", SW)
+        self.assertIn("/styles.css?v=phase-baro-1", HTML)
+        self.assertIn("/styles.css?v=phase-baro-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v86"', SW)
         self.assertNotIn("/app.js?v=edit-log-date-1", HTML)
         self.assertNotIn("/app.js?v=edit-log-date-1", SW)
         self.assertNotIn("fitdash-shell-v83", SW)

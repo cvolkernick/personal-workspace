@@ -39,6 +39,7 @@ _ROUTES = (
     "labs",
     "labs_upload",
     "labs_delete",
+    "phase_barometer",
     "restock_retry",
     "restock_cart",
     "restock_confirm",
@@ -128,6 +129,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "labs_delete"
     if "/api/labs" in blob:
         return "labs"
+    if "/api/phase-barometer" in blob or "/phase-barometer" in blob:
+        return "phase_barometer"
     if "/api/restock/retry" in blob:
         return "restock_retry"
     if "/api/restock/cart" in blob:
@@ -850,6 +853,28 @@ def labs_write(headers, route: str, payload=None):
         }
 
 
+def phase_barometer_write(headers, payload=None):
+    """POST /api/phase-barometer — dismiss banner (disk) or switch phase."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "")
+    action = str(payload.get("action") or "").strip().lower()
+    if action == "dismiss":
+        from rt_dashboard.phase_barometer import dismiss_banner
+
+        store = dismiss_banner(user_id=uid)
+        return 200, {
+            "ok": True,
+            "action": "dismiss",
+            "dismiss_banner_until": store.get("dismiss_banner_until"),
+        }
+    if action == "switch_phase":
+        return 400, dict(PREVIEW_READ_ONLY)
+    return 400, {"ok": False, "error": "unknown_action", "action": action}
+
+
 def equipment_write(headers, route: str, payload=None):
     """Add/update/remove owned gear + max load. Cookie-less 401. Failed persist is 5xx."""
     user, err = require_user(headers)
@@ -1250,6 +1275,10 @@ def dispatch_client_route(
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return labs_write(headers, route, payload or {})
+    if route == "phase_barometer":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return phase_barometer_write(headers, payload or {})
     if route == "restock":
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}
@@ -1286,6 +1315,7 @@ __all__ = [
     "inventory_write",
     "labs_body",
     "labs_write",
+    "phase_barometer_write",
     "daily_tasks_body",
     "daily_tasks_complete_body",
     "stamp_quest_list_ids",
