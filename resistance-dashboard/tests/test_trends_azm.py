@@ -248,9 +248,9 @@ class HobbyAndIgnoreLock(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
-        self.assertIn("styles.css?v=phase-baro-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v86"', SW)
-        self.assertIn("/styles.css?v=phase-baro-1", SW)
+        self.assertIn("styles.css?v=meal-carousel-fill-3", HTML)
+        self.assertIn('const CACHE = "fitdash-shell-v89"', SW)
+        self.assertIn("/styles.css?v=meal-carousel-fill-3", SW)
         self.assertNotIn("fitdash-shell-v60", SW)
         self.assertNotIn("fitdash-shell-v61", SW)
         self.assertNotIn("fitdash-shell-v62", SW)
@@ -272,6 +272,7 @@ class HobbyAndIgnoreLock(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v79", SW)
         self.assertNotIn("fitdash-shell-v80", SW)
         self.assertNotIn("fitdash-shell-v81", SW)
+        self.assertNotIn("fitdash-shell-v86", SW)
         self.assertNotIn("azm-week-1", HTML)
         self.assertNotIn("azm-week-2", HTML)
         self.assertNotIn("azm-spark-1", HTML)

@@ -1246,7 +1246,33 @@ textarea {
 
 #today-exec-row .meal-vcarousel {
   flex: 1 1 auto;
-  max-height: 14rem;
+  align-self: stretch;
+  min-height: 0;
+}
+
+/* 2-col: size the row from Today so far; meal card fills leftover. */
+@media (min-width: 800px) {
+  #today-exec-row #meal-plan-card {
+    height: 0;
+    min-height: 100%;
+    overflow: hidden;
+  }
+  #today-exec-row .meal-vcarousel-row {
+    grid-template-rows: minmax(0, 1fr);
+  }
+  #today-exec-row .meal-vcarousel {
+    max-height: none;
+    height: 100%;
+  }
+}
+
+/* Stacked: cap height so extra meals don't lengthen the page. */
+@media (max-width: 799px) {
+  #today-exec-row .meal-vcarousel {
+    max-height: 14rem;
+    height: auto;
+    min-height: 11rem;
+  }
 }
 
 .meal-item-list {
