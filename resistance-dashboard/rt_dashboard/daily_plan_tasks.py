@@ -226,7 +226,8 @@ def quest_gt_sync_enabled() -> bool:
     lifts/meals/sleep/cardio GTs as well (FitDash-owned; GTs stay for one-offs).
     Completion then uses local daily-tasks state (slug + group + date) so
     Today complete still works without Google Tasks ids. Wearable hits
-    (AZM / sleep) auto-complete that local cache on ensure and first paint.
+    (AZM / sleep) and a real Log-tab workout auto-complete that local cache
+    on ensure and first paint. Quest-seeded-only lifts do not (#527 / #604).
     """
     raw = (os.environ.get(QUEST_GT_SYNC_ENV) or "1").strip().lower()
     return raw not in ("0", "false", "no", "off")
@@ -252,13 +253,22 @@ def skip_gt_seed(group: str = "", item: Optional[PlannedItem] = None) -> bool:
     return False
 
 
+def is_train_session_item(item: PlannedItem) -> bool:
+    if str(item.slug or "") == TRAIN_SESSION_SLUG:
+        return True
+    return looks_like_train_session_title(item.title)
+
+
 def wearable_quest_hit(
     item: PlannedItem,
     *,
     cardio_hit: bool = False,
     sleep_hit: bool = False,
+    train_hit: bool = False,
 ) -> bool:
-    """True when the board already meets this leaf's wearable target."""
+    """True when the board already meets this leaf's target."""
+    if is_train_session_item(item) and train_hit:
+        return True
     if is_cardio_azm_item(item) and cardio_hit:
         return True
     if is_sleep_recovery_item(item) and sleep_hit:
@@ -711,20 +721,30 @@ def training_day_complete_from_tasks(
 
 
 def training_day_complete(day: Optional[str] = None) -> bool:
-    """Best-effort GT peek: Training parent completed for civil ``day``.
+    """True when Training parent or train-session is complete for ``day``.
 
-    Uses the quest cache ids + get_task. Cold cache or GT down → False
-    (session-row presence must not fill that gap).
+    GT-less path (#593/#604): ``local_completed`` for ``training|train-session``
+    or ``training|group``. Flag-on path still peeks Google Tasks. Session-row
+    presence is not enough (#527) — callers OR ``training_log_hit`` for a
+    real Log-tab session.
     """
+    day = str(day or local_today_iso())[:10]
+    cache = _load_cache()
+    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+    local_completed = {
+        str(k): bool(v)
+        for k, v in dict(day_cache.get("local_completed") or {}).items()
+    }
+    if local_completed.get("training|group") or local_completed.get(
+        TRAIN_SESSION_CACHE_KEY
+    ):
+        return True
     try:
         cred = gtb.credentials_status()
         if not cred.get("ok"):
             return False
     except Exception:
         return False
-    day = str(day or local_today_iso())[:10]
-    cache = _load_cache()
-    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
     ids = dict(day_cache.get("ids") or {})
     list_id = str(day_cache.get("list_id") or "")
     if not list_id or not ids:
@@ -738,6 +758,47 @@ def training_day_complete(day: Optional[str] = None) -> bool:
         if task:
             peeked.append(task)
     return training_day_complete_from_tasks(peeked, day=day, cache_ids=ids)
+
+
+def train_parent_completed_for_planning(
+    day: Optional[str] = None,
+    *,
+    sessions: Sequence[Any] = (),
+    last_wake_at: Any = None,
+    now: Any = None,
+    tz_name: Optional[str] = None,
+) -> bool:
+    """Training parent complete: local/GT quest SoT, or a real Log-tab session.
+
+    Stale last_wake (weeks-old sleep battery) must not treat that old day's
+    log as today's parent. After-midnight on the current wake still uses
+    ``training_day_iso`` so last night's session can complete the parent.
+    """
+    from .timeutil import local_today_iso
+    from .training_day import wake_is_current
+
+    civil = local_today_iso(tz_name, now=now)
+    as_of = str(day or civil)[:10]
+    if not wake_is_current(
+        last_wake_at, civil, now=now, tz_name=tz_name
+    ):
+        as_of = civil
+    if training_day_complete(as_of):
+        return True
+    try:
+        from .quest_workout_log import training_log_hit
+
+        return bool(
+            training_log_hit(
+                sessions,
+                as_of=as_of,
+                last_wake_at=last_wake_at,
+                now=now,
+                tz_name=tz_name,
+            )
+        )
+    except Exception:
+        return False
 
 
 def _strip_training_ex_leaves(planned: List[PlannedGroup]) -> List[PlannedGroup]:
@@ -2222,6 +2283,9 @@ def ensure_daily_tasks(
     cardio_hit = bool(cardio.get("hit"))
     sleep = sleep_spec(today_board or {}, as_of=day)
     sleep_hit = bool(sleep.get("hit"))
+    train_hit = bool(
+        ((today_board or {}).get("workout") or {}).get("already_trained_today")
+    )
     foods_fp = board_food_logs_fingerprint(today_board or {}, day=day)
     meal_stats = meal_regen_payload(fingerprint=foods_fp, silent=True)
     protein_title = next(
@@ -2558,17 +2622,15 @@ def ensure_daily_tasks(
                                 protein_stats["created"] = True
                                 protein_stats["kept"] = tid
                 if (
-                    is_cardio_azm_item(it)
-                    and create_missing
+                    create_missing
                     and task
-                    and cardio_hit
                     and _is_incomplete(task)
-                ) or (
-                    is_sleep_recovery_item(it)
-                    and create_missing
-                    and task
-                    and sleep_hit
-                    and _is_incomplete(task)
+                    and wearable_quest_hit(
+                        it,
+                        cardio_hit=cardio_hit,
+                        sleep_hit=sleep_hit,
+                        train_hit=train_hit,
+                    )
                 ):
                     tid_done = str(task.get("id") or tid)
                     done = gtb.complete_task(
@@ -2583,7 +2645,10 @@ def ensure_daily_tasks(
                     skip_item
                     and create_missing
                     and wearable_quest_hit(
-                        it, cardio_hit=cardio_hit, sleep_hit=sleep_hit
+                        it,
+                        cardio_hit=cardio_hit,
+                        sleep_hit=sleep_hit,
+                        train_hit=train_hit,
                     )
                 ):
                     local_completed[ck] = True
@@ -2619,50 +2684,58 @@ def ensure_daily_tasks(
             parent_completed = (
                 parent_task is not None
                 and str(parent_task.get("status") or "") == "completed"
-            )
-            if parent_id and create_missing:
-                if g.group == "training":
-                    # Training parent is day-complete SoT. Completing all
-                    # lift leaves still completes it (happy path). Leftover
-                    # incomplete lifts must not uncomplete a checked parent.
-                    lift_items = [
-                        x
-                        for x in items_out
-                        if str(x.get("slug") or "").startswith("ex-")
-                    ]
-                    lifts_all_done = bool(lift_items) and all(
-                        x["completed"] for x in lift_items
-                    )
-                    if lifts_all_done:
-                        for x in items_out:
-                            tid_sess = str(x.get("task_id") or "")
-                            if (
-                                x.get("slug") == TRAIN_SESSION_SLUG
-                                and not x["completed"]
-                                and tid_sess
-                            ):
-                                done = gtb.complete_task(
-                                    list_id, tid_sess, completed=True
-                                )
-                                if done.get("ok"):
-                                    x["completed"] = True
-                    session_done = any(
-                        x.get("slug") == TRAIN_SESSION_SLUG and x["completed"]
-                        for x in items_out
-                    )
-                    if (lifts_all_done or session_done) and not parent_completed:
+            ) or bool(local_completed.get(parent_ck))
+            if g.group == "training":
+                # Training parent is day-complete SoT. Completing all
+                # lift leaves still completes it (happy path). Leftover
+                # incomplete lifts must not uncomplete a checked parent.
+                # GT-less: same rollup via local_completed (#593/#604).
+                lift_items = [
+                    x
+                    for x in items_out
+                    if str(x.get("slug") or "").startswith("ex-")
+                ]
+                lifts_all_done = bool(lift_items) and all(
+                    x["completed"] for x in lift_items
+                )
+                if train_hit or lifts_all_done:
+                    for x in items_out:
+                        if (
+                            x.get("slug") != TRAIN_SESSION_SLUG
+                            or x["completed"]
+                        ):
+                            continue
+                        x["completed"] = True
+                        local_completed[TRAIN_SESSION_CACHE_KEY] = True
+                        tid_sess = str(x.get("task_id") or "")
+                        if tid_sess and create_missing and not skip_group:
+                            done = gtb.complete_task(
+                                list_id, tid_sess, completed=True
+                            )
+                            if done.get("ok"):
+                                pass
+                session_done = any(
+                    x.get("slug") == TRAIN_SESSION_SLUG and x["completed"]
+                    for x in items_out
+                )
+                if (
+                    lifts_all_done or session_done or train_hit
+                ) and not parent_completed:
+                    parent_completed = True
+                    local_completed[parent_ck] = True
+                    if parent_id and create_missing:
                         gtb.complete_task(
                             list_id, str(parent_id), completed=True
                         )
-                        parent_completed = True
-                    elif not all_done and parent_completed:
-                        pass
-                    elif all_done and not parent_completed:
-                        gtb.complete_task(
-                            list_id, str(parent_id), completed=True
-                        )
-                        parent_completed = True
                 elif all_done and not parent_completed:
+                    parent_completed = True
+                    local_completed[parent_ck] = True
+                    if parent_id and create_missing:
+                        gtb.complete_task(
+                            list_id, str(parent_id), completed=True
+                        )
+            elif parent_id and create_missing:
+                if all_done and not parent_completed:
                     gtb.complete_task(list_id, str(parent_id), completed=True)
                     parent_completed = True
                 elif not all_done and parent_completed:
@@ -2774,13 +2847,17 @@ def _local_payload(
     board = today_board if isinstance(today_board, dict) else {}
     cardio_hit = bool(cardio_spec(board, as_of=day).get("hit")) if board else False
     sleep_hit = bool(sleep_spec(board, as_of=day).get("hit")) if board else False
+    train_hit = bool((board.get("workout") or {}).get("already_trained_today"))
     groups_out = []
     summary_done = 0
     for g in planned:
         items = []
         for it in g.items:
             done = wearable_quest_hit(
-                it, cardio_hit=cardio_hit, sleep_hit=sleep_hit
+                it,
+                cardio_hit=cardio_hit,
+                sleep_hit=sleep_hit,
+                train_hit=train_hit,
             )
             items.append(
                 {
