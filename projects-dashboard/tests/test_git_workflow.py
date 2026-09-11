@@ -55,6 +55,10 @@ class TestGitWorkflow(unittest.TestCase):
         self.repo = Path(self._td.name) / "ws"
         self.repo.mkdir()
         _git(self.repo, "init", "-b", "master")
+        # protect_work commits without GIT_AUTHOR_* env; ubuntu-latest has no
+        # global identity. Local _git() env is not inherited by that subprocess.
+        _git(self.repo, "config", "user.name", "Test")
+        _git(self.repo, "config", "user.email", "t@example.com")
         (self.repo / "treasury").mkdir()
         (self.repo / "treasury" / "a.txt").write_text("1\n", encoding="utf-8")
         _git(self.repo, "add", ".")

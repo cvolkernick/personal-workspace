@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -80,6 +81,75 @@ class TestBiasSpectrumPage(unittest.TestCase):
         self.assertIn("not current book weight", html)
 
 
+def _api_policy() -> dict:
+    """Committed consider-set so ubuntu CI does not need the Mac treasury worktree."""
+    return {
+        "as_of": "2026-09-08",
+        "targets": {
+            "btc_digital_credit_pct": 0.4,
+            "stocks_growth_pct": 0.6,
+            "band_pct": 0.05,
+        },
+        "allowlist": {"core": ["MSTR", "STRC", "SATA", "TSLA", "SPCX"]},
+        "sleeves": {
+            "btc_digital_credit": {
+                "target_pct": 0.4,
+                "symbols": ["MSTR", "STRC", "SATA"],
+                "watchlist_symbols": ["STRK"],
+                "sub_sleeves": {
+                    "digital_credit": {"preferred_core": ["STRC", "SATA"]},
+                },
+            },
+            "stocks_growth": {
+                "target_pct": 0.6,
+                "symbols": ["TSLA", "SPCX"],
+                "watchlist_symbols": ["NVDA", "BITA", "MARA"],
+            },
+        },
+    }
+
+
+def _api_watchlist() -> dict:
+    return {
+        "entries": [
+            {
+                "symbol": "NVDA",
+                "name": "NVIDIA",
+                "priority": "high",
+                "status": "ready",
+                "sleeve_if_owned": "stocks_growth",
+            },
+            {
+                "symbol": "BITA",
+                "name": "BITA",
+                "priority": "med",
+                "status": "ready",
+                "sleeve_if_owned": "stocks_growth",
+            },
+            {
+                "symbol": "MARA",
+                "name": "MARA",
+                "priority": "low",
+                "status": "ready",
+                "sleeve_if_owned": "stocks_growth",
+            },
+        ]
+    }
+
+
+def _api_spectrum() -> dict:
+    stamps = json.loads(
+        (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
+    )
+    return build_bias_spectrum(
+        fund_manager={"ok": True, "analysis": {"ok": True, "positions": []}},
+        treasury={},
+        policy=_api_policy(),
+        watchlist=_api_watchlist(),
+        consider_share_stamps=stamps,
+    )
+
+
 class TestBiasSpectrumApi(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -104,7 +174,10 @@ class TestBiasSpectrumApi(unittest.TestCase):
             return exc.code, exc.read()
 
     def test_api_and_pretty_url(self) -> None:
-        code, body = self._get("/api/bias-spectrum")
+        # Live disk SoT (fund_manager.json / origin/work/treasury) is absent on
+        # ubuntu-latest. Fixture the handler so stamp assertions are deterministic.
+        with patch.object(self.mod, "build_bias_spectrum", side_effect=lambda *a, **k: _api_spectrum()):
+            code, body = self._get("/api/bias-spectrum")
         self.assertEqual(code, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data.get("ok"))
