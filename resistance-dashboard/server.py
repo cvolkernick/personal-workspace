@@ -1665,7 +1665,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 from rt_dashboard.timeutil import local_today_iso
 
                 day = today.get("date") or local_today_iso()
-                result = ensure_daily_tasks(today, day=day)
+                bat = data.get("sleep_battery") or (data.get("recovery") or {}).get(
+                    "sleep_battery"
+                )
+                result = ensure_daily_tasks(
+                    today,
+                    day=day,
+                    sleep_battery=bat if isinstance(bat, dict) else None,
+                )
                 self._send_json({"ok": True, "daily_tasks": result})
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
