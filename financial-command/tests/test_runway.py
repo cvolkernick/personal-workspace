@@ -10,7 +10,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timezone
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
@@ -137,6 +137,50 @@ def _free_port() -> int:
     return port
 
 
+def _fresh_sheet(
+    essential=None,
+    fleet=None,
+    as_of: str | None = None,
+) -> dict:
+    return {
+        "source": "google_sheets",
+        "as_of": as_of or datetime.now(timezone.utc).isoformat(),
+        "sheet_name": "Personal Expense Sheet",
+        "tabs": {
+            "Essential": {
+                "role": "upcoming_expense_estimates",
+                "items": list(essential or []),
+            },
+            "Fleet": {
+                "role": "fleet_ops",
+                "items": list(fleet or []),
+            },
+        },
+    }
+
+
+def _sheet_item(
+    *,
+    item: str,
+    date_s: str,
+    monthly: float,
+    annually: float | None = None,
+    quarterly: float | None = None,
+    frm: str = "X Money",
+    tab: str = "Essential",
+) -> dict:
+    annual = annually if annually is not None else monthly
+    return {
+        "item": item,
+        "date": date_s,
+        "from": frm,
+        "monthly": monthly,
+        "annually": annual,
+        "quarterly": quarterly if quarterly is not None else annual,
+        "tab": tab,
+    }
+
+
 class TestRunwayBuilder(unittest.TestCase):
     def test_clamp_threshold(self) -> None:
         self.assertEqual(clamp_threshold(500), 500.0)
@@ -177,6 +221,7 @@ class TestRunwayBuilder(unittest.TestCase):
             category_groups=GROUPS,
             accounts=accounts,
             on_budget_ids={"onb"},
+            sheet_unreachable=True,
         )
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["today"], "2026-09-11")
@@ -221,6 +266,7 @@ class TestRunwayBuilder(unittest.TestCase):
             category_groups=GROUPS,
             accounts=accounts,
             on_budget_ids={"onb"},
+            sheet_unreachable=True,
         )
         self.assertEqual(payload["assumptions"]["bill_source"], "scheduled")
         self.assertIn("scheduled", payload["assumptions"]["bill_source_label"].lower())
@@ -249,6 +295,7 @@ class TestRunwayBuilder(unittest.TestCase):
             category_groups=GROUPS,
             accounts=accounts,
             on_budget_ids={"onb"},
+            sheet_unreachable=True,
         )
         self.assertEqual(payload["assumptions"]["bill_source"], "detected")
         self.assertIn("detected", payload["assumptions"]["bill_source_label"].lower())
@@ -277,6 +324,7 @@ class TestRunwayBuilder(unittest.TestCase):
             category_groups=GROUPS,
             accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=100_000)],
             on_budget_ids={"onb"},
+            sheet_unreachable=True,
         )
         rate = payload["assumptions"]["income_rate_daily"]
         day = next(r for r in payload["daily"] if r["date"] == "2026-09-20")
@@ -311,12 +359,190 @@ class TestRunwayBuilder(unittest.TestCase):
             today=TODAY,
             stale=True,
             fetch=fake_fetch,
+            expenses_fetch=lambda: _fresh_sheet(),
         )
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["ynab"]["stale"])
         self.assertEqual(payload["starting_buffer"], 100.0)
         self.assertEqual(payload["ynab"]["as_of"], "2026-09-11T00:00:00+00:00")
         self.assertEqual(len(payload["daily"]), 90)
+        self.assertEqual(payload["assumptions"]["bill_source"], "sheet")
+
+    def test_sheet_bills_once_and_monthly(self) -> None:
+        expenses = _fresh_sheet(
+            essential=[
+                _sheet_item(
+                    item="September Rent",
+                    date_s="9/1/2026",
+                    monthly=2100.0,
+                    annually=2100.0,
+                    quarterly=2100.0,
+                    frm="Coinbase",
+                ),
+                _sheet_item(
+                    item="October Rent",
+                    date_s="10/1/2026",
+                    monthly=2100.0,
+                    annually=2100.0,
+                    quarterly=2100.0,
+                    frm="Coinbase",
+                ),
+                _sheet_item(
+                    item="Planet Fitness",
+                    date_s="9/17/2026",
+                    monthly=27.0,
+                    annually=324.0,
+                    quarterly=81.0,
+                ),
+            ]
+        )
+        payload = build_runway(
+            days=90,
+            today=TODAY,
+            transactions=[_tx(amount=900_000, payee="Lyft", date_s="2026-07-01")],
+            expenses=expenses,
+            accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=1_000_000)],
+            on_budget_ids={"onb"},
+        )
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["threshold"], DEFAULT_THRESHOLD)
+        self.assertEqual(DEFAULT_THRESHOLD, 200.0)
+        self.assertEqual(payload["assumptions"]["bill_source"], "sheet")
+        payees = {ev["payee"] for ev in payload["bill_events"]}
+        self.assertIn("October Rent", payees)
+        self.assertNotIn("September Rent", payees)  # dated 9/1, before today
+        oct1 = next(r for r in payload["daily"] if r["date"] == "2026-10-01")
+        self.assertGreaterEqual(oct1["bills"], 2100.0)
+        pf = [ev for ev in payload["bill_events"] if ev["payee"] == "Planet Fitness"]
+        self.assertGreaterEqual(len(pf), 3)  # monthly across 90d
+
+    def test_stale_sheet_is_loud_not_detection(self) -> None:
+        expenses = _fresh_sheet(
+            essential=[_sheet_item(item="Rent", date_s="10/1/2026", monthly=2100.0, annually=2100.0)],
+            as_of="2026-08-01T00:00:00+00:00",
+        )
+        txs = [
+            _tx(amount=3_000_000, payee="Lyft", date_s="2026-06-20"),
+            _tx(amount=-1_000_000, payee="Landlord", date_s="2026-06-15", category_id="c-rent"),
+            _tx(amount=-1_000_000, payee="Landlord", date_s="2026-07-15", category_id="c-rent"),
+            _tx(amount=-1_000_000, payee="Landlord", date_s="2026-08-15", category_id="c-rent"),
+        ]
+        payload = build_runway(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            expenses=expenses,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertFalse(payload["ok"])
+        self.assertIn("stale", payload["error"].lower())
+        self.assertEqual(payload["daily"], [])
+        self.assertTrue(payload["sheet"]["stale"])
+        self.assertNotEqual(payload["assumptions"].get("bill_source"), "detected")
+
+    def test_missing_sheet_is_loud(self) -> None:
+        payload = build_runway(days=90, today=TODAY)
+        self.assertFalse(payload["ok"])
+        self.assertIn("missing", payload["error"].lower())
+        self.assertEqual(payload["daily"], [])
+
+    def test_sheet_beats_scheduled(self) -> None:
+        expenses = _fresh_sheet(
+            essential=[
+                _sheet_item(
+                    item="October Rent",
+                    date_s="10/1/2026",
+                    monthly=2100.0,
+                    annually=2100.0,
+                    quarterly=2100.0,
+                )
+            ]
+        )
+        scheduled = [
+            _stx(
+                amount=-1_200_000,
+                payee="Landlord",
+                date_next="2026-10-01",
+                frequency="monthly",
+                category_id="c-rent",
+            )
+        ]
+        payload = build_runway(
+            days=90,
+            today=TODAY,
+            scheduled=scheduled,
+            expenses=expenses,
+            category_groups=GROUPS,
+            accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=1_000_000)],
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(payload["assumptions"]["bill_source"], "sheet")
+        self.assertTrue(any(ev["payee"] == "October Rent" for ev in payload["bill_events"]))
+        self.assertFalse(any(ev["payee"] == "Landlord" for ev in payload["bill_events"]))
+
+    def test_progressive_one_off_excluded_from_income_rate(self) -> None:
+        txs = [
+            _tx(amount=900_000, payee="Lyft", date_s="2026-07-01"),
+            _tx(amount=1_000_000, payee="Progressive", date_s="2026-08-15"),
+        ]
+        payload = build_runway(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            expenses=_fresh_sheet(),
+            accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=100_000)],
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(payload["assumptions"]["income_rate_daily"], round(900.0 / LOOKBACK_DAYS, 2))
+        self.assertEqual(payload["assumptions"]["income_one_offs_excluded"], 1000.0)
+        self.assertEqual(payload["assumptions"]["income_one_offs"][0]["payee"], "Progressive")
+
+    def test_empty_from_fleet_not_a_bill(self) -> None:
+        expenses = _fresh_sheet(
+            essential=[],
+            fleet=[
+                {
+                    "item": "Rivian",
+                    "date": "10/1/2026",
+                    "from": None,
+                    "monthly": 1350.0,
+                    "annually": 1350.0,
+                    "tab": "Fleet",
+                },
+                {
+                    "item": "Santander",
+                    "date": "10/21/2026",
+                    "from": "X Money",
+                    "monthly": 1082.52,
+                    "annually": 1082.52,
+                    "tab": "Fleet",
+                },
+            ],
+        )
+        payload = build_runway(
+            days=90,
+            today=TODAY,
+            expenses=expenses,
+            accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=100_000)],
+            on_budget_ids={"onb"},
+        )
+        payees = {ev["payee"] for ev in payload["bill_events"]}
+        self.assertIn("Santander", payees)
+        self.assertNotIn("Rivian", payees)
+
+    def test_load_stale_sheet_does_not_hit_ynab_fallback(self) -> None:
+        def boom(since: str) -> dict:
+            raise AssertionError("YNAB must not be the silent fallback for a stale sheet")
+
+        payload = load_runway(
+            days=90,
+            today=TODAY,
+            fetch=boom,
+            expenses_fetch=lambda: _fresh_sheet(as_of="2026-08-01T00:00:00+00:00"),
+        )
+        self.assertFalse(payload["ok"])
+        self.assertIn("stale", payload["error"].lower())
 
 
 class TestRunwayPage(unittest.TestCase):
@@ -343,6 +569,8 @@ class TestRunwayPage(unittest.TestCase):
         self.assertIn("data-days=\"30\"", html)
         self.assertIn("data-days=\"180\"", html)
         self.assertIn("threshold", html.lower())
+        self.assertIn('value="200"', html)
+        self.assertIn("income_one_offs", html)
 
     def test_index_links_runway(self) -> None:
         html = INDEX.read_text(encoding="utf-8")
@@ -384,16 +612,17 @@ class TestRunwayApi(unittest.TestCase):
             transactions=[_tx(amount=10_000, payee="Lyft")],
             accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=100_000)],
             on_budget_ids={"onb"},
+            expenses=_fresh_sheet(),
             ynab_stale=False,
             ynab_as_of="2026-09-11T00:00:00+00:00",
         )
         with mock.patch.object(self.mod, "load_runway", return_value=fixture):
-            code, body = self._get("/api/runway?days=90&threshold=500")
+            code, body = self._get("/api/runway?days=90&threshold=200")
         self.assertEqual(code, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data.get("ok"))
         self.assertEqual(data["days"], 90)
-        self.assertEqual(data["threshold"], 500.0)
+        self.assertEqual(data["threshold"], 200.0)
         self.assertIn("daily", data)
         self.assertIn("bill_events", data)
         self.assertIn("assumptions", data)

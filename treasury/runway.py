@@ -1,13 +1,16 @@
-"""FCC Runway: live YNAB cash-flow forecast (today → +N days).
+"""FCC Runway: live cash-flow forecast (today → +N days).
 
-Canonical source: YNAB transactions + scheduled via ``treasury.ynab_sync``.
-Computed per request; never stored. Transfers excluded (same rule as Cash
-Streams). Credit-card balances are not part of the starting buffer.
+Bills SoT: Personal Expense Sheet via ``treasury.expenses_sync`` (Essential +
+funded unique Fleet). YNAB scheduled only if the sheet is unreachable;
+recurrence detection last. Stale/missing sheet is a loud error, never a
+silent fallback. Income from YNAB actuals; transfers excluded. Forecast is
+computed per request and never stored.
 """
 
 from __future__ import annotations
 
 import calendar
+import re
 import statistics
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -32,7 +35,7 @@ from treasury.ynab_sync import account_balance_units  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 
 LOOKBACK_DAYS = 90
-DEFAULT_THRESHOLD = 500.0
+DEFAULT_THRESHOLD = 200.0
 MAX_THRESHOLD = 1_000_000.0
 MIN_DETECT_N = 3
 AMOUNT_CV_MAX = 0.3
@@ -40,6 +43,23 @@ MIN_CADENCE_DAYS = 6
 INTERVAL_CV_MAX = 0.4
 LIQUID_TYPES = {"checking", "savings", "cash"}
 MAX_OCCURRENCES = 400
+SHEET_STALE_HOURS = 6.0
+PROGRESSIVE_MIN = 500.0
+PROGRESSIVE_MAX = 1500.0
+MONTH_TOKEN = re.compile(
+    r"\b("
+    r"january|february|march|april|may|june|july|august|september|"
+    r"october|november|december|"
+    r"jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec"
+    r")\b",
+    re.I,
+)
+SOURCE_LABELS = {
+    "sheet": "Personal Expense Sheet (Essential + funded unique Fleet)",
+    "scheduled": "YNAB scheduled transactions (sheet unreachable)",
+    "detected": "detected from history (last resort; sheet unreachable)",
+    "none": "none (sheet unreachable; no scheduled or detectable bills)",
+}
 
 
 def clamp_threshold(raw: Any, default: float = DEFAULT_THRESHOLD) -> float:
@@ -157,6 +177,7 @@ def _empty(
     ynab_stale: bool,
     ynab_soft_preserved: bool,
     ynab_as_of: Optional[str],
+    sheet: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     return {
         "ok": False,
@@ -173,7 +194,264 @@ def _empty(
             "soft_preserved": bool(ynab_soft_preserved),
             "as_of": ynab_as_of,
         },
+        "sheet": sheet
+        or {
+            "stale": False,
+            "missing": False,
+            "unreachable": False,
+            "as_of": None,
+            "error": error,
+        },
     }
+
+
+def _parse_as_of(raw: Any) -> Optional[datetime]:
+    if not raw:
+        return None
+    try:
+        t = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return t
+    except (TypeError, ValueError):
+        return None
+
+
+def _amounts_close(a: Optional[float], b: Optional[float]) -> bool:
+    if a is None or b is None:
+        return False
+    return abs(float(a) - float(b)) <= max(1.0, 0.08 * max(abs(float(a)), abs(float(b)), 1.0))
+
+
+def sheet_item_core_name(name: str) -> str:
+    s = MONTH_TOKEN.sub(" ", name or "")
+    s = re.sub(r"[^a-z0-9\s]", " ", s.lower())
+    return " ".join(s.split())
+
+
+def native_sheet_cadence(item: Dict[str, Any]) -> Optional[Tuple[str, float]]:
+    """Pick one native cadence. Finer columns are conversions of the same obligation."""
+    daily = item.get("daily")
+    weekly = item.get("weekly")
+    biweekly = item.get("biweekly")
+    monthly = item.get("monthly")
+    quarterly = item.get("quarterly")
+    annually = item.get("annually")
+    if monthly is not None and annually is not None and _amounts_close(monthly, annually):
+        return ("once", float(monthly))
+    if annually is not None and monthly is not None and _amounts_close(annually, float(monthly) * 12):
+        return ("monthly", float(monthly))
+    if annually is not None and quarterly is not None and _amounts_close(annually, float(quarterly) * 4):
+        return ("quarterly", float(quarterly))
+    if annually is not None and biweekly is not None and _amounts_close(annually, float(biweekly) * 26):
+        return ("biweekly", float(biweekly))
+    if annually is not None and weekly is not None and _amounts_close(annually, float(weekly) * 52):
+        return ("weekly", float(weekly))
+    if annually is not None and daily is not None and _amounts_close(annually, float(daily) * 365):
+        return ("daily", float(daily))
+    if annually is not None and float(annually) > 0:
+        return ("annually", float(annually))
+    if quarterly is not None and float(quarterly) > 0:
+        return ("quarterly", float(quarterly))
+    if monthly is not None and float(monthly) > 0:
+        return ("monthly", float(monthly))
+    if biweekly is not None and float(biweekly) > 0:
+        return ("biweekly", float(biweekly))
+    if weekly is not None and float(weekly) > 0:
+        return ("weekly", float(weekly))
+    if daily is not None and float(daily) > 0:
+        return ("daily", float(daily))
+    return None
+
+
+def _advance_sheet_cadence(d: date, cadence: str) -> Optional[date]:
+    if cadence == "daily":
+        return d + timedelta(days=1)
+    if cadence == "weekly":
+        return d + timedelta(days=7)
+    if cadence == "biweekly":
+        return d + timedelta(days=14)
+    if cadence == "monthly":
+        return _add_months(d, 1)
+    if cadence == "quarterly":
+        return _add_months(d, 3)
+    if cadence == "annually":
+        return _add_months(d, 12)
+    return None
+
+
+def sheet_bill_items(expenses: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Essential + funded unique Fleet. Capital/wishlist tabs are not burn bills."""
+    from treasury.expenses_sync import (
+        FLEET_TAB,
+        essential_tab_block,
+        funded_unique_fleet_items,
+    )
+
+    tabs = (expenses or {}).get("tabs") or {}
+    essential = essential_tab_block(tabs)
+    ess_items = [i for i in (essential.get("items") or []) if isinstance(i, dict)]
+    fleet_block = tabs.get(FLEET_TAB) if isinstance(tabs.get(FLEET_TAB), dict) else {}
+    fleet_items = [i for i in (fleet_block.get("items") or []) if isinstance(i, dict)]
+    unique_fleet = funded_unique_fleet_items(ess_items, fleet_items)
+    out: List[Dict[str, Any]] = []
+    for i in ess_items:
+        rec = dict(i)
+        rec.setdefault("tab", "Essential")
+        out.append(rec)
+    for i in unique_fleet:
+        rec = dict(i)
+        rec.setdefault("tab", "Fleet")
+        out.append(rec)
+    return out
+
+
+def expand_sheet_bills(
+    items: Sequence[Dict[str, Any]],
+    *,
+    today: date,
+    horizon_end: date,
+) -> List[Dict[str, Any]]:
+    from treasury.expenses_sync import parse_sheet_date
+
+    events: List[Dict[str, Any]] = []
+    for item in items:
+        native = native_sheet_cadence(item)
+        if not native:
+            continue
+        cadence, amount = native
+        if amount <= 0:
+            continue
+        payee = str(item.get("item") or "").strip() or "Sheet bill"
+        cat = sheet_item_core_name(payee)
+        parsed = parse_sheet_date(item.get("date"))
+        start = parsed.date() if parsed else None
+        if cadence == "once":
+            if start is not None and today <= start <= horizon_end:
+                events.append(_bill_event(start, payee, amount, cat))
+            continue
+        d = start or today
+        guard = 0
+        while d < today and guard < MAX_OCCURRENCES:
+            nxt = _advance_sheet_cadence(d, cadence)
+            if nxt is None or nxt <= d:
+                break
+            d = nxt
+            guard += 1
+        while d <= horizon_end and guard < MAX_OCCURRENCES:
+            if d >= today:
+                events.append(_bill_event(d, payee, amount, cat))
+            nxt = _advance_sheet_cadence(d, cadence)
+            if nxt is None or nxt <= d:
+                break
+            d = nxt
+            guard += 1
+    return events
+
+
+def classify_sheet(
+    expenses: Optional[Dict[str, Any]],
+    *,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """usable / stale / missing / unreachable. Stale/missing is never a silent fallback."""
+    from treasury.expenses_sync import essential_tab_block
+
+    now = now or datetime.now(timezone.utc)
+    if not expenses or expenses.get("source") in (None, "empty"):
+        err = "Personal Expense Sheet missing"
+        if expenses:
+            err = str(expenses.get("live_error") or err)
+        unreachable = bool(expenses and expenses.get("live_error"))
+        return {
+            "usable": False,
+            "unreachable": unreachable,
+            "stale": False,
+            "missing": True,
+            "error": (
+                f"{err}. Sheet unreachable — falling back to YNAB scheduled."
+                if unreachable
+                else "Personal Expense Sheet missing. Not a silent fallback."
+            ),
+            "as_of": (expenses or {}).get("as_of"),
+            "snapshot": None,
+        }
+    as_of_raw = expenses.get("as_of")
+    as_of = _parse_as_of(as_of_raw)
+    age_h = None
+    if as_of is not None:
+        age_h = (now - as_of).total_seconds() / 3600.0
+    stale = age_h is None or age_h > SHEET_STALE_HOURS
+    tabs = expenses.get("tabs") or {}
+    has_essential = bool(essential_tab_block(tabs))
+    if stale:
+        return {
+            "usable": False,
+            "unreachable": False,
+            "stale": True,
+            "missing": False,
+            "error": (
+                f"Personal Expense Sheet stale as_of {as_of_raw or 'unknown'} "
+                f"(>{SHEET_STALE_HOURS:.0f}h). Not a silent fallback."
+            ),
+            "as_of": as_of_raw,
+            "snapshot": expenses,
+        }
+    if not has_essential:
+        return {
+            "usable": False,
+            "unreachable": False,
+            "stale": False,
+            "missing": True,
+            "error": "Personal Expense Sheet missing Essential tab. Not a silent fallback.",
+            "as_of": as_of_raw,
+            "snapshot": expenses,
+        }
+    return {
+        "usable": True,
+        "unreachable": False,
+        "stale": False,
+        "missing": False,
+        "error": None,
+        "as_of": as_of_raw,
+        "snapshot": expenses,
+    }
+
+
+def split_progressive_one_offs(
+    inflows: Sequence[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Exclude the $1k Progressive one-off from the trailing income average."""
+    kept: List[Dict[str, Any]] = []
+    flagged: List[Dict[str, Any]] = []
+    for row in inflows:
+        payee = str(row.get("payee") or "")
+        amt = float(row.get("amount") or 0)
+        if "progressive" in payee.lower() and PROGRESSIVE_MIN <= amt <= PROGRESSIVE_MAX:
+            flagged.append(
+                {
+                    "date": row.get("date"),
+                    "payee": payee,
+                    "amount": round(amt, 2),
+                    "reason": "one-off excluded from income average",
+                }
+            )
+        else:
+            kept.append(row)
+    return kept, flagged
+
+
+def _is_bill_like_row(row: Dict[str, Any], bill_keys: set) -> bool:
+    cat = str(row.get("category") or "").strip().lower()
+    payee = str(row.get("payee") or "").strip().lower()
+    for key in bill_keys:
+        if not key:
+            continue
+        if key == cat or key in cat or (cat and cat in key):
+            return True
+        if key in payee or (payee and payee in key):
+            return True
+    return False
 
 
 def _bill_event(day: date, payee: str, amount: float, category: str = "") -> Dict[str, Any]:
@@ -332,6 +610,8 @@ def build_runway(
     category_groups: Optional[Sequence[Dict[str, Any]]] = None,
     accounts: Optional[Sequence[Dict[str, Any]]] = None,
     on_budget_ids: Optional[Iterable[str]] = None,
+    expenses: Optional[Dict[str, Any]] = None,
+    sheet_unreachable: bool = False,
     ynab_stale: bool = False,
     ynab_soft_preserved: bool = False,
     ynab_as_of: Optional[str] = None,
@@ -341,6 +621,29 @@ def build_runway(
     days = clamp_days(days)
     threshold_f = clamp_threshold(threshold)
     end = today or date.today()
+    sheet_state = classify_sheet(expenses) if expenses is not None else {
+        "usable": False,
+        "unreachable": bool(sheet_unreachable),
+        "stale": False,
+        "missing": not sheet_unreachable,
+        "error": (
+            None
+            if sheet_unreachable
+            else "Personal Expense Sheet missing. Not a silent fallback."
+        ),
+        "as_of": None,
+        "snapshot": None,
+    }
+    if sheet_unreachable:
+        sheet_state["unreachable"] = True
+        sheet_state["usable"] = False
+    sheet_payload = {
+        "stale": bool(sheet_state.get("stale")),
+        "missing": bool(sheet_state.get("missing")),
+        "unreachable": bool(sheet_state.get("unreachable")),
+        "as_of": sheet_state.get("as_of"),
+        "error": sheet_state.get("error"),
+    }
     if error:
         return _empty(
             days=days,
@@ -350,6 +653,18 @@ def build_runway(
             ynab_stale=ynab_stale,
             ynab_soft_preserved=ynab_soft_preserved,
             ynab_as_of=ynab_as_of,
+            sheet=sheet_payload,
+        )
+    if not sheet_state.get("usable") and not sheet_state.get("unreachable"):
+        return _empty(
+            days=days,
+            today=end,
+            threshold=threshold_f,
+            error=str(sheet_state.get("error") or "Personal Expense Sheet unavailable"),
+            ynab_stale=ynab_stale,
+            ynab_soft_preserved=ynab_soft_preserved,
+            ynab_as_of=ynab_as_of,
+            sheet=sheet_payload,
         )
 
     lookback_start, lookback_end, lookback_days = lookback_bounds(end)
@@ -369,7 +684,8 @@ def build_runway(
     )
     inflows = [row for row in countable if float(row["amount"]) > 0]
     outflows = [row for row in countable if float(row["amount"]) < 0]
-    income_total = round(sum(float(r["amount"]) for r in inflows), 2)
+    income_kept, income_one_offs = split_progressive_one_offs(inflows)
+    income_total = round(sum(float(r["amount"]) for r in income_kept), 2)
     income_rate = round(income_total / float(lookback_days), 2) if lookback_days else 0.0
 
     scheduled_in, scheduled_out = expand_scheduled(
@@ -380,7 +696,11 @@ def build_runway(
         lookup=lookup,
     )
 
-    if scheduled_out:
+    if sheet_state.get("usable"):
+        sheet_items = sheet_bill_items(sheet_state.get("snapshot") or expenses)
+        bill_events = expand_sheet_bills(sheet_items, today=end, horizon_end=horizon_end)
+        bill_source = "sheet"
+    elif scheduled_out:
         bill_events = scheduled_out
         bill_source = "scheduled"
     else:
@@ -388,15 +708,17 @@ def build_runway(
         bill_events = expand_detected(detected, today=end, horizon_end=horizon_end)
         bill_source = "detected" if bill_events else "none"
 
-    bill_categories = {
-        str(ev.get("category") or "").strip()
+    bill_keys = {
+        str(ev.get("category") or "").strip().lower()
         for ev in bill_events
         if str(ev.get("category") or "").strip()
     }
+    for ev in bill_events:
+        core = sheet_item_core_name(str(ev.get("payee") or ""))
+        if core:
+            bill_keys.add(core)
     variable_rows = [
-        row
-        for row in outflows
-        if str(row.get("category") or "").strip() not in bill_categories
+        row for row in outflows if not _is_bill_like_row(row, bill_keys)
     ]
     variable_total = round(sum(abs(float(r["amount"])) for r in variable_rows), 2)
     variable_rate = (
@@ -433,11 +755,7 @@ def build_runway(
         )
         prev = buffer
 
-    source_label = {
-        "scheduled": "YNAB scheduled transactions",
-        "detected": "detected from history (stable amount, cadence ≥ 6d)",
-        "none": "none (no scheduled or detectable bills)",
-    }[bill_source]
+    source_label = SOURCE_LABELS[bill_source]
 
     return {
         "ok": True,
@@ -463,12 +781,17 @@ def build_runway(
             "starting_buffer": seed,
             "liquid_accounts": liquid,
             "horizon_end": horizon_end.isoformat(),
+            "income_one_offs": income_one_offs,
+            "income_one_offs_excluded": round(
+                sum(float(x["amount"]) for x in income_one_offs), 2
+            ),
         },
         "ynab": {
             "stale": bool(ynab_stale),
             "soft_preserved": bool(ynab_soft_preserved),
             "as_of": ynab_as_of,
         },
+        "sheet": sheet_payload,
     }
 
 
@@ -542,8 +865,9 @@ def load_runway(
     stale: Optional[bool] = None,
     root: Optional[Path] = None,
     fetch=None,
+    expenses_fetch=None,
 ) -> Dict[str, Any]:
-    """Orchestrate live YNAB pull + forecast. ``fetch`` is injectable for tests."""
+    """Orchestrate sheet + YNAB pull + forecast. Fetchers are injectable for tests."""
     days = clamp_days(days)
     end = today or date.today()
     lookback_start, _lookback_end, _n = lookback_bounds(end)
@@ -551,19 +875,40 @@ def load_runway(
     stale_flag = _fallback_cash_stale(base) if stale is None else bool(stale)
     soft = ynab_soft_preserved(base)
     snap_as_of = ynab_as_of_from_snapshots(base)
+    exp_fetcher = expenses_fetch
+    if exp_fetcher is None:
+        from treasury.expenses_sync import fetch_expenses
+
+        exp_fetcher = fetch_expenses
+    expenses = exp_fetcher()
+    sheet_state = classify_sheet(expenses)
+    ynab_kwargs = {
+        "ynab_stale": stale_flag,
+        "ynab_soft_preserved": soft,
+        "ynab_as_of": snap_as_of,
+        "expenses": expenses,
+        "sheet_unreachable": bool(sheet_state.get("unreachable")),
+    }
+    if not sheet_state.get("usable") and not sheet_state.get("unreachable"):
+        return build_runway(
+            days=days,
+            threshold=threshold,
+            today=end,
+            error=str(sheet_state.get("error") or "Personal Expense Sheet unavailable"),
+            **ynab_kwargs,
+        )
     fetcher = fetch or fetch_ynab_runway
     pulled = fetcher(lookback_start.isoformat())
+    if pulled.get("ok") and pulled.get("as_of"):
+        ynab_kwargs["ynab_as_of"] = pulled.get("as_of")
     if not pulled.get("ok"):
         return build_runway(
             days=days,
             threshold=threshold,
             today=end,
-            ynab_stale=stale_flag,
-            ynab_soft_preserved=soft,
-            ynab_as_of=snap_as_of,
             error=str(pulled.get("error") or "YNAB fetch failed"),
+            **ynab_kwargs,
         )
-    as_of = pulled.get("as_of") or datetime.now(timezone.utc).isoformat()
     return build_runway(
         days=days,
         threshold=threshold,
@@ -573,7 +918,5 @@ def load_runway(
         category_groups=pulled.get("category_groups") or [],
         accounts=pulled.get("accounts") or [],
         on_budget_ids=pulled.get("on_budget_ids"),
-        ynab_stale=stale_flag,
-        ynab_soft_preserved=soft,
-        ynab_as_of=as_of,
+        **ynab_kwargs,
     )

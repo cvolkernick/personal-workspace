@@ -204,8 +204,8 @@
       </div>
       <div class="slider-row" style="margin-top:0.75rem">
         <label for="threshold-slider">Minimum buffer</label>
-        <input type="range" id="threshold-slider" min="0" max="5000" step="50" value="500" />
-        <strong id="threshold-label">$500</strong>
+        <input type="range" id="threshold-slider" min="0" max="5000" step="50" value="200" />
+        <strong id="threshold-label">$200</strong>
       </div>
     </section>
 
@@ -255,7 +255,7 @@
   <script src="vendor/d3.min.js"></script>
   <script>
     let currentDays = 90;
-    let currentThreshold = 500;
+    let currentThreshold = 200;
     let lastPayload = null;
 
     function esc(s) {
@@ -493,6 +493,11 @@
         "<dt>Bill source</dt><dd>" + esc(a.bill_source_label || a.bill_source || "unknown") +
           " · " + (a.bill_event_count || 0) + " events</dd>" +
         "<dt>Typical variable</dt><dd>" + money(a.variable_rate_daily) + "/day (hatched, bill categories excluded)" + est + "</dd>" +
+        (a.income_one_offs && a.income_one_offs.length
+          ? "<dt>Income one-offs excluded</dt><dd>" +
+            a.income_one_offs.map((x) => esc(x.payee) + " " + money(x.amount) + " (" + esc(x.reason || "one-off") + ")").join("<br>") +
+            "</dd>"
+          : "") +
         "<dt>Starting buffer</dt><dd>" + money(data.starting_buffer) +
           " from open on-budget checking/savings/cash" + est + "<br>" + accounts + "</dd>" +
         "<dt>Lookback</dt><dd>" + esc(a.lookback_start || "") + " → " + esc(a.lookback_end || "") + "</dd>";
