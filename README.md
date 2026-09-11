@@ -95,6 +95,16 @@ Grouped by domain. Git work branches follow the same groups (see `Agents.md`).
 - **oomwoo/** — Project-status tracker for makerspet/oomwoo (open-source robot vacuum).
 - **strategy/** / **initiatives/** — Planning content (bets, daily focus, initiative briefs).
 
+### Tests / CI
+Canonical definition: [`ops/github-workflows/test.yml`](ops/github-workflows/test.yml) (#584). Install into `.github/workflows/` needs a PAT with `workflow` scope. Local:
+
+```bash
+pip install -r requirements-ci.txt   # once
+python3 scripts/run_ci_tests.py
+```
+
+Red CI blocks merge on `master` (branch protection). New/changed code without tests does not merge — see `deploy/DEPLOY_CONVENTIONS.md`.
+
 ### Git
 ```bash
 python3 projects-dashboard/git_workflow.py start treasury   # finance / FCC

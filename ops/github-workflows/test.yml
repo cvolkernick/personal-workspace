@@ -1,0 +1,62 @@
+# Install: mkdir -p .github/workflows && cp ops/github-workflows/test.yml .github/workflows/
+# (requires git auth with `workflow` scope to push under .github/workflows/)
+# Canonical test definition (#584). Docs link here; do not copy the suite list.
+# Local: python3 scripts/run_ci_tests.py
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [master, "work/**"]
+  schedule:
+    # 07:20 America/New_York in EST (06:20 EDT). Nightly on default branch.
+    - cron: "20 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install CI Python deps
+        run: pip install -r requirements-ci.txt
+
+      - name: Run Python + JS suites
+        run: python3 scripts/run_ci_tests.py
+
+      - name: Report scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BODY="Nightly CI failed on \`${GITHUB_REF_NAME}\`.
+
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+          Workflow: \`.github/workflows/test.yml\` (#584)."
+          EXISTING="$(gh issue list --repo "$GITHUB_REPOSITORY" --label ci-nightly --state open --json number --jq '.[0].number // empty')"
+          if [[ -n "$EXISTING" ]]; then
+            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "CI nightly failed" --label "ci-nightly" --body "$BODY" || \
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "CI nightly failed" --body "$BODY"
+          fi

@@ -1,0 +1,4 @@
+# CI / local unified runner deps (#584). Not runtime for dashboards.
+pytest>=8.0,<9
+google-auth>=2.0
+pypdf>=5.0

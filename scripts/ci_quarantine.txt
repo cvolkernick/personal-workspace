@@ -1,0 +1,11 @@
+# Baseline skips for #584 CI. One tracking issue per line. Do not delete tests.
+# Pattern is repo-relative path, optionally ::Class::test_name.
+# See scripts/run_ci_tests.py and ops/github-workflows/test.yml.
+
+# auto-fleet product drift vs current Turo/export fixtures
+auto-fleet/tests/test_agent_fleet.py::AgentFleetExportTests::test_dump_derived_bookings_no_invented_trips  https://github.com/cvolkernick/personal-workspace/issues/637
+auto-fleet/tests/test_agent_fleet.py::VercelStyleExportTests::test_vercel_handler_allow_with_token_and_snapshot  https://github.com/cvolkernick/personal-workspace/issues/637
+auto-fleet/tests/test_glance.py::FormatTests::test_turo_line_does_not_invent_bookings  https://github.com/cvolkernick/personal-workspace/issues/637
+
+# workspace_sync.sh no longer pulls master / try-restart (#560)
+tests/test_dashboard_endpoints.py::EndpointResolveTests::test_workspace_sync_script_pulls_master  https://github.com/cvolkernick/personal-workspace/issues/638

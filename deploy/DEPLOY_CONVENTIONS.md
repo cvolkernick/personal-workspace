@@ -58,4 +58,15 @@ PWA `start_url` / `scope` / `id` are `/`, so Serve must proxy FCC at the origin 
 - Changes under `mikrafts/` → mikrafts owners
 - Changes at repo root or shared dirs → coordinate; expect both projects to attempt builds
 
-*Last verified: 2026-09-10. If project settings change in the Vercel dashboard, update this file in the same PR. FCC HTTPS is Tailscale Serve, not a Vercel setting.*
+## Tests and merge gate (#584)
+
+Canonical runner: [`ops/github-workflows/test.yml`](../ops/github-workflows/test.yml) (invokes `python3 scripts/run_ci_tests.py`). Copy into `.github/workflows/` with a `workflow`-scoped PAT. Do not copy the suite list into issues or chat.
+
+- Every issue's acceptance criteria includes test coverage for new or changed behavior.
+- New/changed code without tests does not merge.
+- PRs to `master` (and pushes to `master` / `work/**`) run the full Python + JS suites. Red CI = no merge. Exceptions need a tracking issue and an entry in `scripts/ci_quarantine.txt` (skip, never silent delete).
+- Nightly full-suite on `master` reports failures as a GitHub issue (`ci-nightly`).
+
+Local: `pip install -r requirements-ci.txt && python3 scripts/run_ci_tests.py`.
+
+*Last verified: 2026-09-11. If project settings change in the Vercel dashboard, update this file in the same PR. FCC HTTPS is Tailscale Serve, not a Vercel setting.*
