@@ -19,12 +19,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 FCC = ROOT / "financial-command"
-# work/treasury does not yet have bias-spectrum.html / position.html (master-only).
+# work/treasury does not yet have position.html (master-only).
 SURFACES = (
     "index.html",
     "capital-flows.html",
     "watchlist.html",
     "interest-spectrum.html",
+    "bias-spectrum.html",
 )
 
 
@@ -227,6 +228,7 @@ class TestFccPwaHttp(unittest.TestCase):
             "/interest-spectrum.html",
             "/watchlist.html",
             "/capital-flows.html",
+            "/bias-spectrum.html",
         ):
             get_code, get_ctype, get_body = self._get(path)
             head_code, head_ctype, head_len = self._head(path)
