@@ -1,0 +1,10 @@
+{
+  "days": 14,
+  "grok_home": "~/.grok",
+  "out": "ops/learn/reports",
+  "cadence": "weekly",
+  "on_calendar": "Mon *-*-* 16:00:00 UTC",
+  "include_headless": false,
+  "post_buzz": false,
+  "channel": "db0e8f97-0c81-4976-b299-1c460b87134e"
+}

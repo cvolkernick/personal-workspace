@@ -1,0 +1,14 @@
+[Unit]
+Description=Weekly read-only harness /learn report (#575)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=GROK_HOME=%h/.grok
+ExecStart=/usr/bin/python3 %h/personal-workspace/ops/learn/harness_learn.py --config %h/.config/personal-workspace/harness-learn.json --out %h/personal-workspace/ops/learn/reports --workspace %h/personal-workspace
+Nice=10
+
+[Install]
+WantedBy=default.target

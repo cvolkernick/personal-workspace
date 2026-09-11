@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly harness /learn report (#575)
+
+[Timer]
+OnCalendar=Mon *-*-* 16:00:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=5min
+Unit=harness-learn.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cvolkernick.harness-learn</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/cvolkernick/personal-workspace/ops/learn/harness_learn.py</string>
+    <string>--config</string>
+    <string>/Users/cvolkernick/.config/personal-workspace/harness-learn.json</string>
+    <string>--out</string>
+    <string>/Users/cvolkernick/personal-workspace/ops/learn/reports</string>
+    <string>--workspace</string>
+    <string>/Users/cvolkernick/personal-workspace</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>GROK_HOME</key>
+    <string>/Users/cvolkernick/.grok</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>12</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/Library/Logs/personal-workspace/harness-learn.launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/Library/Logs/personal-workspace/harness-learn.launchd.err.log</string>
+  <key>Nice</key>
+  <integer>10</integer>
+</dict>
+</plist>
