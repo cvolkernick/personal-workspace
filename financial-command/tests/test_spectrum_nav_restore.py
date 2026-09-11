@@ -23,7 +23,13 @@ from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
 
 FCC = ROOT / "financial-command"
 INDEX = FCC / "index.html"
-SURFACES = ("index.html", "capital-flows.html", "watchlist.html", "interest-spectrum.html")
+SURFACES = (
+    "index.html",
+    "capital-flows.html",
+    "cash-streams.html",
+    "watchlist.html",
+    "interest-spectrum.html",
+)
 
 
 class _AnchorParser(HTMLParser):

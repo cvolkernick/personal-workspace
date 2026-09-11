@@ -7,6 +7,7 @@ Serves static UI + APIs:
   GET  /api/watchlist  — watchlist + deep-dive summaries
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
+  GET  /api/cash-streams — rolling YNAB income → expense Sankey (live, no model file)
   GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
   GET  /api/bias-spectrum — new-money consider-share (core + ready watchlist; not book weight)
   GET  /api/position?symbol=STRC — ticker dossier (stance, dive, policy, related)
@@ -90,6 +91,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
 from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
 from treasury.bias_spectrum import build_bias_spectrum  # noqa: E402
 from treasury.position_dossier import get_position_dossier  # noqa: E402
+from treasury.cash_streams import load_cash_streams  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 BTC_NETWORK_SNAPSHOT = ROOT / "treasury" / "snapshots" / "btc_network_latest.json"
@@ -541,6 +543,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "coach",
                         "watchlist",
                         "capital_flows",
+                        "cash_streams",
                         "interest_spectrum",
                         "bias_spectrum",
                         "position_dossier",
@@ -572,6 +575,24 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 self._json(200, _capital_flows_payload())
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/cash-streams":
+            try:
+                qs = parse_qs(parsed.query or "")
+                days_raw = (qs.get("days") or ["90"])[0]
+                payload = load_cash_streams(days=days_raw, stale=_ynab_cash_stale(6.0))
+                self._json(200, payload)
+            except Exception as e:
+                self._json(
+                    500,
+                    {
+                        "ok": False,
+                        "error": str(e),
+                        "nodes": [],
+                        "links": [],
+                        "totals": {"inflow": 0.0, "outflow": 0.0, "retained": 0.0},
+                    },
+                )
             return
         if path == "/api/interest-spectrum":
             try:
@@ -679,6 +700,11 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/financial-command/capital-flows/",
         ):
             self.path = "/financial-command/capital-flows.html"
+        elif path in (
+            "/financial-command/cash-streams",
+            "/financial-command/cash-streams/",
+        ):
+            self.path = "/financial-command/cash-streams.html"
         elif path in (
             "/financial-command/interest-spectrum",
             "/financial-command/interest-spectrum/",
@@ -1126,6 +1152,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Watchlist research        → {wl}")
     print(
         f"Capital Flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
+    )
+    print(
+        f"Cash Streams              → http://127.0.0.1:{args.port}/financial-command/cash-streams.html"
     )
     print(
         f"Bias Spectrum             → http://127.0.0.1:{args.port}/financial-command/bias-spectrum.html"
