@@ -602,9 +602,18 @@ def daily_tasks_body(headers, payload=None):
         return status, dashboard
     today = ((dashboard.get("coach") or {}).get("today")) or {}
     day = today.get("date") or (dashboard.get("meta") or {}).get("local_today")
+    bat = dashboard.get("sleep_battery") or (dashboard.get("recovery") or {}).get(
+        "sleep_battery"
+    )
     google = session_google_from_headers(headers) or {}
     with bound_session_google(google):
-        result = stamp_quest_list_ids(ensure_daily_tasks(today, day=day))
+        result = stamp_quest_list_ids(
+            ensure_daily_tasks(
+                today,
+                day=day,
+                sleep_battery=bat if isinstance(bat, dict) else None,
+            )
+        )
     if not result.get("ok"):
         return 200, {
             "ok": False,

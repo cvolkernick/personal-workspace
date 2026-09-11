@@ -1,8 +1,8 @@
 """Google Calendar via the FitDash Google login session (stdlib only).
 
-Timed meal reminders and gym sessions. Same OAuth as Tasks — no second
-client, no Pi file token on Vercel. Health-only connect does not request
-Calendar.
+Timed meal reminders, gym sessions, and nightly wind-down. Same OAuth as
+Tasks — no second client, no Pi file token on Vercel. Health-only connect
+does not request Calendar.
 """
 
 from __future__ import annotations

@@ -2260,6 +2260,7 @@ def ensure_daily_tasks(
     list_title: str = DEFAULT_LIST_TITLE,
     day: Optional[str] = None,
     create_missing: bool = True,
+    sleep_battery: Optional[dict] = None,
 ) -> dict:
     """Ensure / refresh quests. Titles stay human-only; notes carry markers.
 
@@ -2277,6 +2278,9 @@ def ensure_daily_tasks(
     portion / slot-label shift upsert like every other family. Hand jots
     and non-FitDash Tasks are never touched.
     """
+    today_board = dict(today_board or {})
+    if isinstance(sleep_battery, dict):
+        today_board["sleep_battery"] = sleep_battery
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
     cardio = cardio_spec(today_board or {}, as_of=day)
@@ -3020,9 +3024,32 @@ def _sync_gym_calendar(today_board: Optional[dict], day: str) -> dict:
         }
 
 
+def _sync_winddown_calendar(today_board: Optional[dict]) -> dict:
+    """Best-effort wind-down upsert from sleep battery empty_at."""
+    try:
+        from .winddown_calendar import sync_winddown_from_battery
+
+        board = today_board if isinstance(today_board, dict) else {}
+        bat = board.get("sleep_battery")
+        if not isinstance(bat, dict):
+            rec = board.get("recovery") if isinstance(board.get("recovery"), dict) else {}
+            bat = rec.get("sleep_battery") if isinstance(rec, dict) else None
+        return sync_winddown_from_battery(bat if isinstance(bat, dict) else None)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "skipped": True,
+            "error": str(exc),
+            "error_code": "calendar_error",
+            "upserted": 0,
+            "deleted": 0,
+        }
+
+
 def _with_gym_calendar(payload: dict, today_board: Optional[dict], day: str) -> dict:
     out = dict(payload)
     out["gym_calendar"] = _sync_gym_calendar(today_board, day)
+    out["winddown_calendar"] = _sync_winddown_calendar(today_board)
     return out
 
 
