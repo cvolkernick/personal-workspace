@@ -165,11 +165,23 @@ class TestClassify(unittest.TestCase):
         self.assertEqual(status, "skipped")
         self.assertEqual(reason, "no_prod_log")
 
-    def test_missing_log_broken_on_prod(self):
+    def test_missing_log_unknown_on_prod(self):
         scan = H.LogScan(missing_log=True)
         status, reason = H.classify_status(scan, now=NOW, writer_present=True)
-        self.assertEqual(status, "broken")
+        self.assertEqual(status, "unknown")
         self.assertEqual(reason, "missing_log")
+
+    def test_empty_log_unknown_on_prod(self):
+        scan = H.LogScan(empty_log=True)
+        status, reason = H.classify_status(scan, now=NOW, writer_present=True)
+        self.assertEqual(status, "unknown")
+        self.assertEqual(reason, "empty_log")
+
+    def test_no_parseable_tick_is_unknown(self):
+        scan = H.scan_log(_log("2026-09-06T12:00:10Z noise only, no listed= and no error"))
+        status, reason = H.classify_status(scan, now=NOW, writer_present=True)
+        self.assertEqual(status, "unknown")
+        self.assertEqual(reason, "no_parseable_tick")
 
 
 class TestDedupAlerts(unittest.TestCase):
@@ -283,6 +295,24 @@ class TestDedupAlerts(unittest.TestCase):
         self.assertEqual(result["would_alert"], "broken")
         self.assertFalse(result["posted"])
         self.assertEqual(poster.calls, [])
+
+    def test_missing_log_alert_is_check_failed_not_broken(self):
+        poster = RecordingPoster()
+        result = H.run_check(
+            log_path=self.dir / "no-such-groom.log",
+            health_path=self.health,
+            now=NOW,
+            dry_run=False,
+            poster=poster,
+            writer_present=True,
+        )
+        self.assertEqual(result["status"], "unknown")
+        self.assertEqual(result["would_alert"], "check_failed")
+        self.assertEqual(len(poster.calls), 1)
+        content = poster.calls[0][0]
+        self.assertIn("check failed", content)
+        self.assertIn("Not a verified groom failure", content)
+        self.assertNotIn("BROKEN", content)
 
     def test_dry_run_json_no_persist_no_post(self):
         poster = RecordingPoster()

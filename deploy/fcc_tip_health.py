@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Periodic FCC tip SHA / branch-attachment assert (issues #562, #628 / #704).
+"""Periodic FCC tip SHA / branch-attachment assert (issues #562, #628, #630 / #704).
 
-Live clone HEAD must equal origin/work/treasury, the checkout must be
-attached to that branch, and financial-command/current-branch.txt must
-match. On mismatch: log + GitHub comment on the standing ops issue
-(#701). SUSTAINED (>1h red) and FCC_ALERT_KILL_SWITCH use the same sink
-with a distinctive title. ntfy is retired.
+Three outcomes — a check that cannot determine state never reports drift:
+
+1. **ok** / kind=healthy — HEAD, origin/work/treasury, attached branch, and
+   ``financial-command/current-branch.txt`` all verified good. Silent.
+2. **violation** / kind=drift — those preconditions passed and the tip/branch
+   /stamp is wrong. GitHub title says git tip drift.
+3. **unknown** / kind=not_a_repo or kind=unknown — directory missing, not a
+   git repo, HEAD/origin unreadable, timeout, or ``current-branch.txt``
+   missing. GitHub title says git check path. Never "git tip drift".
+
+On mismatch: log + GitHub comment on the standing ops issue (#701).
+SUSTAINED (>1h red) and FCC_ALERT_KILL_SWITCH use the same sink with a
+distinctive title. ntfy is retired.
 Never mutates git — no checkout, reset, merge, or SYNC_BRANCH change.
 
 ``not a git repository`` is kind=not_a_repo (check-path / broken gitdir),
@@ -59,15 +67,20 @@ def _git_env() -> dict[str, str]:
 
 def _git(workspace: Path, *args: str, timeout: float = 20.0) -> tuple[int, str, str]:
     cfg = ["-c", "gc.auto=0", "-c", "maintenance.auto=false"]
-    proc = subprocess.run(
-        ["git", *cfg, *args],
-        cwd=str(workspace),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-        env=_git_env(),
-    )
+    try:
+        proc = subprocess.run(
+            ["git", *cfg, *args],
+            cwd=str(workspace),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env=_git_env(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        return 124, "", f"timeout after {timeout}s: {exc}"
+    except OSError as exc:
+        return 1, "", str(exc)
     return proc.returncode, (proc.stdout or "").strip(), (proc.stderr or "").strip()
 
 
@@ -79,7 +92,8 @@ def _read_current_branch_file(workspace: Path) -> Optional[str]:
         text = path.read_text(encoding="utf-8").strip().splitlines()
     except OSError:
         return None
-    return text[0].strip() if text else ""
+    value = text[0].strip() if text else ""
+    return value or None
 
 
 def _gitdir_status(workspace: Path) -> tuple[str, str]:
@@ -106,6 +120,44 @@ def _gitdir_status(workspace: Path) -> tuple[str, str]:
     return "git", ""
 
 
+def _base_result(
+    ws: Path,
+    *,
+    expected_branch: str,
+    origin_ref: str,
+    outcome: str,
+    kind: str = "",
+    unknown_reason: str = "",
+    head: str = "",
+    origin_sha: str = "",
+    attached: str = "",
+    stamp: Optional[str] = None,
+    mismatches: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    if not kind:
+        if outcome == "ok":
+            kind = "healthy"
+        elif outcome == "violation":
+            kind = "drift"
+        else:
+            kind = "unknown"
+    return {
+        "ok": outcome == "ok",
+        "outcome": outcome,
+        "kind": kind,
+        "unknown_reason": unknown_reason,
+        "workspace": str(ws),
+        "expected_branch": expected_branch,
+        "head": head,
+        "origin_sha": origin_sha,
+        "origin_ref": origin_ref,
+        "attached": attached,
+        "current_branch_txt": stamp,
+        "mismatches": list(mismatches or []),
+        "as_of": utc_now_iso(),
+    }
+
+
 def inspect(
     workspace: Path,
     *,
@@ -113,75 +165,146 @@ def inspect(
     fetch: bool = False,
     remote: str = "origin",
 ) -> dict[str, Any]:
-    """Read-only inspect. Never checkout/reset."""
-    ws = Path(workspace).expanduser().resolve()
-    mismatches: list[str] = []
-    stamp = _read_current_branch_file(ws)
+    """Read-only inspect. Preconditions first; first failure is UNKNOWN (#630)."""
+    ws = Path(workspace).expanduser()
+    try:
+        ws = ws.resolve()
+    except OSError:
+        ws = Path(workspace).expanduser()
+    origin_ref = f"{remote}/{expected_branch}"
+
+    if not ws.exists() or not ws.is_dir():
+        return _base_result(
+            ws,
+            expected_branch=expected_branch,
+            origin_ref=origin_ref,
+            outcome="unknown",
+            kind="not_a_repo",
+            unknown_reason="workspace missing",
+            mismatches=[f"{ws} is not a directory"],
+        )
+
     repo_kind, repo_detail = _gitdir_status(ws)
     if repo_kind == "not_a_repo":
-        mismatches.append(f"not a git repository: {repo_detail}")
-        if stamp is None:
-            mismatches.append("current-branch.txt missing")
-        elif stamp != expected_branch:
-            mismatches.append(
-                f"current-branch.txt={stamp!r} expected={expected_branch}"
-            )
-        return {
-            "ok": False,
-            "kind": "not_a_repo",
-            "workspace": str(ws),
-            "expected_branch": expected_branch,
-            "head": "",
-            "origin_sha": "",
-            "origin_ref": f"{remote}/{expected_branch}",
-            "attached": "",
-            "current_branch_txt": stamp,
-            "mismatches": mismatches,
-            "as_of": utc_now_iso(),
-        }
+        return _base_result(
+            ws,
+            expected_branch=expected_branch,
+            origin_ref=origin_ref,
+            outcome="unknown",
+            kind="not_a_repo",
+            unknown_reason="not a git repository",
+            stamp=_read_current_branch_file(ws),
+            mismatches=[f"not a git repository: {repo_detail}"],
+        )
 
     rc, head, err = _git(ws, "rev-parse", "HEAD")
-    if rc != 0:
-        mismatches.append(f"cannot read HEAD: {err or 'rev-parse failed'}")
-        head = ""
-    attached_rc, attached, _ = _git(ws, "branch", "--show-current")
-    attached = attached if attached_rc == 0 else ""
-    origin_ref = f"{remote}/{expected_branch}"
+    if rc != 0 or not head:
+        return _base_result(
+            ws,
+            expected_branch=expected_branch,
+            origin_ref=origin_ref,
+            outcome="unknown",
+            kind="unknown",
+            unknown_reason="HEAD unreadable",
+            mismatches=[f"cannot read HEAD: {err or 'rev-parse failed'}"],
+        )
+
+    attached_rc, attached, attached_err = _git(ws, "branch", "--show-current")
+    if attached_rc != 0:
+        return _base_result(
+            ws,
+            expected_branch=expected_branch,
+            origin_ref=origin_ref,
+            outcome="unknown",
+            kind="unknown",
+            unknown_reason="HEAD unreadable",
+            head=head,
+            mismatches=[
+                f"cannot read attached branch: {attached_err or 'branch --show-current failed'}"
+            ],
+        )
+
     if fetch:
         _git(ws, "fetch", "--prune", remote, expected_branch)
-    rc_o, origin_sha, err_o = _git(ws, "rev-parse", origin_ref)
-    if rc_o != 0:
-        mismatches.append(f"cannot read {origin_ref}: {err_o or 'missing ref'}")
-        origin_sha = ""
 
+    rc_o, origin_sha, err_o = _git(ws, "rev-parse", origin_ref)
+    if rc_o != 0 or not origin_sha:
+        return _base_result(
+            ws,
+            expected_branch=expected_branch,
+            origin_ref=origin_ref,
+            outcome="unknown",
+            kind="unknown",
+            unknown_reason="origin ref unreadable",
+            head=head,
+            attached=attached or "detached",
+            mismatches=[f"cannot read {origin_ref}: {err_o or 'missing ref'}"],
+        )
+
+    stamp = _read_current_branch_file(ws)
+    if stamp is None:
+        return _base_result(
+            ws,
+            expected_branch=expected_branch,
+            origin_ref=origin_ref,
+            outcome="unknown",
+            kind="unknown",
+            unknown_reason="current-branch.txt missing",
+            head=head,
+            origin_sha=origin_sha,
+            attached=attached or "detached",
+            stamp=None,
+            mismatches=["current-branch.txt missing"],
+        )
+
+    mismatches: list[str] = []
     if attached != expected_branch:
         mismatches.append(
             f"attached={attached or 'detached'} expected={expected_branch}"
         )
     if attached in REFUSED_BRANCHES:
         mismatches.append(f"refused branch attached: {attached}")
-    if stamp is None:
-        mismatches.append("current-branch.txt missing")
-    elif stamp != expected_branch:
+    if stamp != expected_branch:
         mismatches.append(f"current-branch.txt={stamp!r} expected={expected_branch}")
-    if head and origin_sha and head != origin_sha:
+    if head != origin_sha:
         mismatches.append(
             f"HEAD {head[:12]} != {origin_ref} {origin_sha[:12]}"
         )
 
-    return {
-        "ok": not mismatches,
-        "kind": "healthy" if not mismatches else "drift",
-        "workspace": str(ws),
-        "expected_branch": expected_branch,
-        "head": head,
-        "origin_sha": origin_sha,
-        "origin_ref": origin_ref,
-        "attached": attached or "detached",
-        "current_branch_txt": stamp,
-        "mismatches": mismatches,
-        "as_of": utc_now_iso(),
-    }
+    if mismatches:
+        return _base_result(
+            ws,
+            expected_branch=expected_branch,
+            origin_ref=origin_ref,
+            outcome="violation",
+            head=head,
+            origin_sha=origin_sha,
+            attached=attached or "detached",
+            stamp=stamp,
+            mismatches=mismatches,
+        )
+    return _base_result(
+        ws,
+        expected_branch=expected_branch,
+        origin_ref=origin_ref,
+        outcome="ok",
+        head=head,
+        origin_sha=origin_sha,
+        attached=attached or "detached",
+        stamp=stamp,
+    )
+
+
+def _outcome(result: dict[str, Any]) -> str:
+    raw = result.get("outcome")
+    if raw in {"ok", "violation", "unknown"}:
+        return raw
+    if result.get("ok"):
+        return "ok"
+    kind = str(result.get("kind") or "")
+    if kind in {"not_a_repo", "unknown"}:
+        return "unknown"
+    return "violation"
 
 
 def _leftover_ntfy_topic(workspace: Path) -> Optional[str]:
@@ -287,6 +410,7 @@ def _mark_notified(path: Path, payload: dict[str, Any]) -> None:
         "last_notified_at": utc_now_iso(),
         "last_mismatches": payload.get("mismatches"),
         "kind": payload.get("kind"),
+        "outcome": _outcome(payload),
         "workspace": payload.get("workspace"),
         "head": payload.get("head"),
         "attached": payload.get("attached"),
@@ -312,6 +436,7 @@ def _record_violation_seen(path: Path, payload: dict[str, Any]) -> None:
     body = dict(prev)
     body["last_mismatches"] = payload.get("mismatches")
     body["kind"] = payload.get("kind")
+    body["outcome"] = _outcome(payload)
     body["workspace"] = payload.get("workspace")
     body["head"] = payload.get("head")
     body["attached"] = payload.get("attached")
@@ -397,7 +522,7 @@ def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str
 
 
 def _alert_kind_label(kind: str) -> str:
-    if kind == "not_a_repo":
+    if kind in {"not_a_repo", "unknown"}:
         return "git check path"
     return "git tip drift"
 
@@ -422,12 +547,15 @@ def alert_mismatch(
     dry_run: bool = False,
 ) -> dict[str, Any]:
     _warn_retired_ntfy(topic=_leftover_ntfy_topic(workspace))
-    if result.get("ok"):
+    outcome = _outcome(result)
+    if outcome == "ok":
         if not dry_run:
             _mark_healthy(state_path)
         return {"ok": True, "notified": False, "skipped": "healthy"}
 
     kind = str(result.get("kind") or "drift")
+    if outcome == "unknown" and kind == "drift":
+        kind = "unknown"
     prev = _load_state(state_path)
     # --dry-run (workspace-sync hook) must not write state / consume cooldown.
     if not dry_run and not prev.get("first_violation_at"):
@@ -435,7 +563,13 @@ def alert_mismatch(
         prev = _load_state(state_path)
     age_h = _violation_age_hours(prev)
     sustained = age_h >= float(sustained_hours)
-    result = {**result, "kind": kind, "sustained": sustained, "sustained_hours": age_h}
+    result = {
+        **result,
+        "kind": kind,
+        "outcome": outcome,
+        "sustained": sustained,
+        "sustained_hours": age_h,
+    }
 
     effective_cd = (
         float(sustained_cooldown_hours) if sustained else float(cooldown_hours)
@@ -459,6 +593,7 @@ def alert_mismatch(
         else "Do not auto-reset to master/holistic. Silent to Chris unless kill-switch."
     )
     lines = [
+        f"outcome={outcome}",
         f"kind={kind}",
         f"workspace={result.get('workspace') or workspace}",
         f"expected={result.get('expected_branch')}",
@@ -472,6 +607,13 @@ def alert_mismatch(
         *[f"- {m}" for m in (result.get("mismatches") or [])],
         action,
     ]
+    if outcome == "unknown":
+        reason = str(result.get("unknown_reason") or "check failed")
+        lines.insert(1, f"unknown_reason={reason}")
+        lines.insert(
+            0,
+            "CHECK FAILED — could not determine git tip. This is not verified drift.",
+        )
     text = "\n".join(lines)
     if dry_run:
         return {
@@ -543,7 +685,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         dry_run=args.dry_run,
     )
     result["alert"] = alert
-    if result["ok"]:
+    outcome = _outcome(result)
+    if outcome == "ok":
         print(
             f"[fcc-tip-health] ok HEAD={(result.get('head') or '')[:8]} "
             f"on {result.get('attached')}",
@@ -551,7 +694,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
     else:
         print(
-            f"[fcc-tip-health] {result.get('kind')} "
+            f"[fcc-tip-health] {outcome} kind={result.get('kind')} "
             f"workspace={result.get('workspace')} "
             f"mismatches={result.get('mismatches')} "
             f"github={((alert.get('github') or {}).get('posted'))} "
@@ -561,7 +704,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.json:
         print(json.dumps(result, indent=2))
     # Non-zero so the timer unit shows failed, but comments are cooldown-gated.
-    return 0 if result["ok"] else 1
+    # 1 = verified violation (drift). 2 = check could not determine state.
+    if outcome == "ok":
+        return 0
+    if outcome == "unknown":
+        return 2
+    return 1
 
 
 if __name__ == "__main__":
