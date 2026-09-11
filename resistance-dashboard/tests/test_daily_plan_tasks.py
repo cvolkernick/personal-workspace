@@ -3364,43 +3364,69 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
                 self.assertTrue(training_day_complete(day))
 
     def test_train_parent_planning_ors_log_hit(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
         from rt_dashboard.models import ExerciseEntry, Session, SetEntry
         from rt_dashboard.quest_workout_log import seed_exercise
+        from rt_dashboard.timeutil import local_today_iso
 
-        day = "2026-09-10"
-        logged = Session(
-            date=day,
-            session_type="push",
-            exercises=[
-                ExerciseEntry(
-                    name="DB Flat Press",
-                    sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
-                )
-            ],
+        tz_name = "America/New_York"
+        tz = ZoneInfo(tz_name)
+        # wake_is_current(None) is False, so as_of snaps to civil today unless
+        # now= is frozen. Hardcoded day=2026-09-10 passed before ET midnight
+        # and failed after (#649).
+        clocks = (
+            datetime(2026, 9, 10, 23, 30, tzinfo=tz),
+            datetime(2026, 9, 11, 0, 30, tzinfo=tz),
         )
-        seeded = Session(
-            date=day,
-            session_type="push",
-            exercises=[
-                seed_exercise(
-                    "DB Flat Press",
-                    title_rx={"weight_lbs": 50, "sets": 3, "reps": 10},
-                )
-            ],
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.dict(
-                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
-            ), mock.patch(
-                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
-                return_value={"ok": False},
-            ):
-                self.assertTrue(
-                    train_parent_completed_for_planning(day, sessions=[logged])
-                )
-                self.assertFalse(
-                    train_parent_completed_for_planning(day, sessions=[seeded])
-                )
+        for now in clocks:
+            day = local_today_iso(tz_name, now=now)
+            logged = Session(
+                date=day,
+                session_type="push",
+                exercises=[
+                    ExerciseEntry(
+                        name="DB Flat Press",
+                        sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+                    )
+                ],
+            )
+            seeded = Session(
+                date=day,
+                session_type="push",
+                exercises=[
+                    seed_exercise(
+                        "DB Flat Press",
+                        title_rx={"weight_lbs": 50, "sets": 3, "reps": 10},
+                    )
+                ],
+            )
+            with tempfile.TemporaryDirectory() as tmp:
+                with mock.patch.dict(
+                    "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+                ), mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                    return_value={"ok": False},
+                ):
+                    self.assertTrue(
+                        train_parent_completed_for_planning(
+                            day,
+                            sessions=[logged],
+                            now=now,
+                            tz_name=tz_name,
+                        ),
+                        now,
+                    )
+                    self.assertFalse(
+                        train_parent_completed_for_planning(
+                            day,
+                            sessions=[seeded],
+                            now=now,
+                            tz_name=tz_name,
+                        ),
+                        now,
+                    )
 
     def test_stale_wake_log_does_not_complete_today(self):
         from datetime import datetime, timezone
