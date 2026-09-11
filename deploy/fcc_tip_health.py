@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Periodic FCC tip SHA / branch-attachment assert (issue #562 / #704).
+"""Periodic FCC tip SHA / branch-attachment assert (issues #562, #628 / #704).
 
 Live clone HEAD must equal origin/work/treasury, the checkout must be
 attached to that branch, and financial-command/current-branch.txt must
@@ -7,6 +7,9 @@ match. On mismatch: log + GitHub comment on the standing ops issue
 (#701). SUSTAINED (>1h red) and FCC_ALERT_KILL_SWITCH use the same sink
 with a distinctive title. ntfy is retired.
 Never mutates git — no checkout, reset, merge, or SYNC_BRANCH change.
+
+``not a git repository`` is kind=not_a_repo (check-path / broken gitdir),
+not kind=drift (wrong branch or SHA). Alerts include the workspace path.
 """
 
 from __future__ import annotations
@@ -28,16 +31,30 @@ DEFAULT_COOLDOWN_HOURS = 6.0
 DEFAULT_SUSTAINED_HOURS = 1.0
 DEFAULT_SUSTAINED_COOLDOWN_HOURS = 1.0
 DEFAULT_OPS_ISSUE = "701"
+DEFAULT_WORKSPACE = Path.home() / "personal-workspace"
 _NTFY_RETIRED_WARNED = False
 OPS_REPO = "cvolkernick/personal-workspace"
 SCHEDULER_ENV = Path.home() / ".config" / "workflow-scheduler.env"
 STATE_NAME = "fcc_tip_health_state.json"
+_GIT_ENV_BLOCK = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+)
 
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(
         "+00:00", "Z"
     )
+
+
+def _git_env() -> dict[str, str]:
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    for key in _GIT_ENV_BLOCK:
+        env.pop(key, None)
+    return env
 
 
 def _git(workspace: Path, *args: str, timeout: float = 20.0) -> tuple[int, str, str]:
@@ -49,7 +66,7 @@ def _git(workspace: Path, *args: str, timeout: float = 20.0) -> tuple[int, str, 
         text=True,
         timeout=timeout,
         check=False,
-        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        env=_git_env(),
     )
     return proc.returncode, (proc.stdout or "").strip(), (proc.stderr or "").strip()
 
@@ -65,6 +82,30 @@ def _read_current_branch_file(workspace: Path) -> Optional[str]:
     return text[0].strip() if text else ""
 
 
+def _gitdir_status(workspace: Path) -> tuple[str, str]:
+    """Return ('git', '') or ('not_a_repo', detail). Does not mutate git."""
+    git_path = workspace / ".git"
+    if not git_path.exists():
+        return "not_a_repo", f"{workspace} has no .git"
+    if git_path.is_file():
+        try:
+            text = git_path.read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            return "not_a_repo", f"cannot read {git_path}: {exc}"
+        if text.lower().startswith("gitdir:"):
+            raw = text.split(":", 1)[1].strip()
+            gitdir = Path(raw)
+            if not gitdir.is_absolute():
+                gitdir = (workspace / gitdir).resolve()
+            if not gitdir.exists():
+                return "not_a_repo", f"broken worktree gitdir: {gitdir} missing"
+    rc, out, err = _git(workspace, "rev-parse", "--is-inside-work-tree")
+    if rc != 0 or out != "true":
+        detail = (err or out or "rev-parse --is-inside-work-tree failed").strip()
+        return "not_a_repo", detail
+    return "git", ""
+
+
 def inspect(
     workspace: Path,
     *,
@@ -73,15 +114,38 @@ def inspect(
     remote: str = "origin",
 ) -> dict[str, Any]:
     """Read-only inspect. Never checkout/reset."""
-    ws = Path(workspace)
+    ws = Path(workspace).expanduser().resolve()
     mismatches: list[str] = []
+    stamp = _read_current_branch_file(ws)
+    repo_kind, repo_detail = _gitdir_status(ws)
+    if repo_kind == "not_a_repo":
+        mismatches.append(f"not a git repository: {repo_detail}")
+        if stamp is None:
+            mismatches.append("current-branch.txt missing")
+        elif stamp != expected_branch:
+            mismatches.append(
+                f"current-branch.txt={stamp!r} expected={expected_branch}"
+            )
+        return {
+            "ok": False,
+            "kind": "not_a_repo",
+            "workspace": str(ws),
+            "expected_branch": expected_branch,
+            "head": "",
+            "origin_sha": "",
+            "origin_ref": f"{remote}/{expected_branch}",
+            "attached": "",
+            "current_branch_txt": stamp,
+            "mismatches": mismatches,
+            "as_of": utc_now_iso(),
+        }
+
     rc, head, err = _git(ws, "rev-parse", "HEAD")
     if rc != 0:
         mismatches.append(f"cannot read HEAD: {err or 'rev-parse failed'}")
         head = ""
     attached_rc, attached, _ = _git(ws, "branch", "--show-current")
     attached = attached if attached_rc == 0 else ""
-    stamp = _read_current_branch_file(ws)
     origin_ref = f"{remote}/{expected_branch}"
     if fetch:
         _git(ws, "fetch", "--prune", remote, expected_branch)
@@ -107,6 +171,7 @@ def inspect(
 
     return {
         "ok": not mismatches,
+        "kind": "healthy" if not mismatches else "drift",
         "workspace": str(ws),
         "expected_branch": expected_branch,
         "head": head,
@@ -221,6 +286,8 @@ def _mark_notified(path: Path, payload: dict[str, Any]) -> None:
     body = {
         "last_notified_at": utc_now_iso(),
         "last_mismatches": payload.get("mismatches"),
+        "kind": payload.get("kind"),
+        "workspace": payload.get("workspace"),
         "head": payload.get("head"),
         "attached": payload.get("attached"),
         "first_violation_at": first,
@@ -244,6 +311,8 @@ def _record_violation_seen(path: Path, payload: dict[str, Any]) -> None:
     prev = _load_state(path)
     body = dict(prev)
     body["last_mismatches"] = payload.get("mismatches")
+    body["kind"] = payload.get("kind")
+    body["workspace"] = payload.get("workspace")
     body["head"] = payload.get("head")
     body["attached"] = payload.get("attached")
     if not body.get("first_violation_at"):
@@ -327,6 +396,21 @@ def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str
         return {"ok": False, "posted": False, "error": str(exc), "issue": issue}
 
 
+def _alert_kind_label(kind: str) -> str:
+    if kind == "not_a_repo":
+        return "git check path"
+    return "git tip drift"
+
+
+def _alert_title(kind: str, *, sustained: bool, age_h: float, kill: bool) -> str:
+    label = _alert_kind_label(kind)
+    if sustained:
+        return f"FCC · {label} SUSTAINED {age_h:.1f}h · prism-gateway"
+    if kill:
+        return f"FCC · {label} KILL-SWITCH · prism-gateway"
+    return f"FCC · {label} · prism-gateway"
+
+
 def alert_mismatch(
     result: dict[str, Any],
     *,
@@ -339,22 +423,26 @@ def alert_mismatch(
 ) -> dict[str, Any]:
     _warn_retired_ntfy(topic=_leftover_ntfy_topic(workspace))
     if result.get("ok"):
-        _mark_healthy(state_path)
+        if not dry_run:
+            _mark_healthy(state_path)
         return {"ok": True, "notified": False, "skipped": "healthy"}
 
+    kind = str(result.get("kind") or "drift")
     prev = _load_state(state_path)
-    if not prev.get("first_violation_at"):
+    # --dry-run (workspace-sync hook) must not write state / consume cooldown.
+    if not dry_run and not prev.get("first_violation_at"):
         _record_violation_seen(state_path, result)
         prev = _load_state(state_path)
     age_h = _violation_age_hours(prev)
     sustained = age_h >= float(sustained_hours)
-    result = {**result, "sustained": sustained, "sustained_hours": age_h}
+    result = {**result, "kind": kind, "sustained": sustained, "sustained_hours": age_h}
 
     effective_cd = (
         float(sustained_cooldown_hours) if sustained else float(cooldown_hours)
     )
     if _on_cooldown(state_path, effective_cd):
-        _record_violation_seen(state_path, result)
+        if not dry_run:
+            _record_violation_seen(state_path, result)
         return {
             "ok": True,
             "notified": False,
@@ -364,21 +452,17 @@ def alert_mismatch(
 
     kill = _kill_switch()
     page = bool(sustained or kill)
-    title = (
-        f"FCC · git tip drift SUSTAINED {age_h:.1f}h · prism-gateway"
-        if sustained
-        else "FCC · git tip drift · prism-gateway"
-    )
-    if kill and not sustained:
-        title = "FCC · git tip drift KILL-SWITCH · prism-gateway"
+    title = _alert_title(kind, sustained=sustained, age_h=age_h, kill=kill)
     action = (
         "Sustained >1h — page #workflow (Forge). Do not auto-reset to master/holistic."
         if sustained
         else "Do not auto-reset to master/holistic. Silent to Chris unless kill-switch."
     )
     lines = [
+        f"kind={kind}",
+        f"workspace={result.get('workspace') or workspace}",
         f"expected={result.get('expected_branch')}",
-        f"attached={result.get('attached')}",
+        f"attached={result.get('attached')!r}",
         f"HEAD={(result.get('head') or '')[:12]}",
         f"origin={(result.get('origin_sha') or '')[:12]}",
         f"current-branch.txt={result.get('current_branch_txt')!r}",
@@ -389,17 +473,31 @@ def alert_mismatch(
         action,
     ]
     text = "\n".join(lines)
-    github = post_ops_github(title, text, dry_run=dry_run)
+    if dry_run:
+        return {
+            "ok": True,
+            "notified": False,
+            "skipped": "dry-run",
+            "title": title,
+            "text": text,
+            "sustained": sustained,
+            "page": page,
+            "github": {
+                "ok": True,
+                "posted": False,
+                "skipped": "dry-run",
+                "issue": _ops_issue(),
+            },
+        }
+    github = post_ops_github(title, text, dry_run=False)
     gh_ok = bool(
         github.get("posted")
-        or github.get("skipped") in {"dry-run", "no-github-token", "no-issue"}
+        or github.get("skipped") in {"no-github-token", "no-issue"}
     )
     if gh_ok:
         _mark_notified(state_path, result)
     skipped = None
-    if dry_run:
-        skipped = "dry-run"
-    elif not github.get("posted"):
+    if not github.get("posted"):
         skipped = github.get("skipped")
     return {
         "ok": bool(github.get("ok", True)),
@@ -416,19 +514,25 @@ def alert_mismatch(
 
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--workspace", type=Path, default=None)
+    p.add_argument(
+        "--workspace",
+        type=Path,
+        default=None,
+        help="FCC live clone (default: ~/personal-workspace, not cwd)",
+    )
     p.add_argument("--fetch", action="store_true", help="git fetch origin work/treasury (read-only)")
     p.add_argument("--no-fetch", action="store_true")
     p.add_argument("--json", action="store_true")
     p.add_argument(
         "--dry-run",
         action="store_true",
-        help="Do not POST GitHub",
+        help="Do not POST GitHub or write cooldown state",
     )
     p.add_argument("--state", type=Path, default=None)
     p.add_argument("--cooldown-hours", type=float, default=DEFAULT_COOLDOWN_HOURS)
     args = p.parse_args(argv)
-    workspace = (args.workspace or Path.cwd()).resolve()
+    workspace = args.workspace if args.workspace is not None else DEFAULT_WORKSPACE
+    workspace = workspace.expanduser().resolve()
     fetch = bool(args.fetch) and not args.no_fetch
     result = inspect(workspace, fetch=fetch)
     alert = alert_mismatch(
@@ -447,7 +551,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
     else:
         print(
-            f"[fcc-tip-health] MISMATCH {result.get('mismatches')} "
+            f"[fcc-tip-health] {result.get('kind')} "
+            f"workspace={result.get('workspace')} "
+            f"mismatches={result.get('mismatches')} "
             f"github={((alert.get('github') or {}).get('posted'))} "
             f"skip={alert.get('skipped')}",
             file=sys.stderr,
