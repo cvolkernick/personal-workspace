@@ -1,6 +1,7 @@
 {
   "schema": "fcc_consider_share_stamps_v0",
   "as_of": "2026-09-08",
+  "verified_as_of": "2026-09-11",
   "unit": "new_money_consider_share_pct",
   "sum_to": 100,
   "not_a_nav_target": true,
