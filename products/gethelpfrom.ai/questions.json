@@ -1,0 +1,477 @@
+{
+  "version": "1.0.0",
+  "effort_budget_minutes": 3,
+  "track_select": {
+    "id": "Q0",
+    "prompt": "What should we focus on?",
+    "type": "single",
+    "options": [
+      {
+        "id": "personal",
+        "label": "My personal life"
+      },
+      {
+        "id": "business",
+        "label": "My business"
+      },
+      {
+        "id": "both",
+        "label": "Both"
+      }
+    ],
+    "branch": {
+      "personal": [
+        "personal"
+      ],
+      "business": [
+        "business"
+      ],
+      "both": [
+        "personal",
+        "business"
+      ]
+    }
+  },
+  "stage1": {
+    "prompt": "Which areas feel heaviest right now? Pick up to 3.",
+    "max": 3,
+    "buckets": {
+      "personal": [
+        {
+          "id": "money_bills",
+          "label": "Money & bills"
+        },
+        {
+          "id": "home_paper",
+          "label": "Home & paperwork"
+        },
+        {
+          "id": "time_cal",
+          "label": "Time & calendar"
+        },
+        {
+          "id": "messages",
+          "label": "Messages & inbox"
+        },
+        {
+          "id": "health",
+          "label": "Health & habits"
+        },
+        {
+          "id": "learning",
+          "label": "Learning"
+        }
+      ],
+      "business": [
+        {
+          "id": "leads",
+          "label": "Leads & sales"
+        },
+        {
+          "id": "ops",
+          "label": "Operations & fulfillment"
+        },
+        {
+          "id": "biz_money",
+          "label": "Money & admin"
+        },
+        {
+          "id": "marketing",
+          "label": "Marketing & content"
+        },
+        {
+          "id": "support",
+          "label": "Customer support"
+        },
+        {
+          "id": "team",
+          "label": "Team & hiring"
+        }
+      ]
+    }
+  },
+  "stage2": {
+    "prompt": "Tap the ones that sting.",
+    "max_per_bucket": 4,
+    "subs": {
+      "money_bills": [
+        {
+          "id": "medical_bills_eobs",
+          "label": "Medical bills & EOBs"
+        },
+        {
+          "id": "subscriptions_auto_pays",
+          "label": "Subscriptions piling up"
+        },
+        {
+          "id": "who_paid_what",
+          "label": "Who paid what"
+        },
+        {
+          "id": "late_fees_tax_packets",
+          "label": "Late fees & tax packets"
+        }
+      ],
+      "home_paper": [
+        {
+          "id": "school_forms",
+          "label": "School / kid forms"
+        },
+        {
+          "id": "parent_care_papers",
+          "label": "Parent / elder paperwork"
+        },
+        {
+          "id": "mail_the_junk_drawer",
+          "label": "Mail in the junk drawer"
+        },
+        {
+          "id": "family_calendar_mix_ups",
+          "label": "Family calendar mix-ups"
+        }
+      ],
+      "time_cal": [
+        {
+          "id": "double_booked_days",
+          "label": "Double-booked days"
+        },
+        {
+          "id": "meetings_that_should_be_email",
+          "label": "Meetings that should be email"
+        },
+        {
+          "id": "focus_time_gets_eaten",
+          "label": "Focus time gets eaten"
+        },
+        {
+          "id": "family_calendar_vs_work",
+          "label": "Family calendar vs work"
+        }
+      ],
+      "messages": [
+        {
+          "id": "inbox_never_at_zero",
+          "label": "Inbox never at zero"
+        },
+        {
+          "id": "i_ll_reply_later",
+          "label": "I'll reply later"
+        },
+        {
+          "id": "follow_ups_that_slip",
+          "label": "Follow-ups that slip"
+        },
+        {
+          "id": "work_and_family_in_one_pocket",
+          "label": "Work and family in one pocket"
+        }
+      ],
+      "health": [
+        {
+          "id": "habit_ghost",
+          "label": "Apps I ghost after 4 days"
+        },
+        {
+          "id": "meals",
+          "label": "What's for dinner"
+        },
+        {
+          "id": "sleep",
+          "label": "Sleep keeps sliding"
+        },
+        {
+          "id": "meds_appts",
+          "label": "Meds / appointments"
+        }
+      ],
+      "learning": [
+        {
+          "id": "course_hoard",
+          "label": "Bought courses, never finished"
+        },
+        {
+          "id": "cert_lapse",
+          "label": "Certs / licenses slipping"
+        },
+        {
+          "id": "notes_lost",
+          "label": "Notes I can't find later"
+        },
+        {
+          "id": "skill_practice",
+          "label": "No time to actually practice"
+        }
+      ],
+      "leads": [
+        {
+          "id": "slow_first_reply",
+          "label": "Leads wait hours"
+        },
+        {
+          "id": "leads_slip",
+          "label": "Warm leads go cold"
+        },
+        {
+          "id": "quoting_slow",
+          "label": "Quoting takes forever"
+        },
+        {
+          "id": "dms_on_three_apps",
+          "label": "DMs on three apps"
+        }
+      ],
+      "ops": [
+        {
+          "id": "dispatch_chaos",
+          "label": "Who goes where tomorrow"
+        },
+        {
+          "id": "inventory_mismatch",
+          "label": "Stock doesn't match sales"
+        },
+        {
+          "id": "returns_exceptions",
+          "label": "Returns & exceptions"
+        },
+        {
+          "id": "nightly_copy_paste",
+          "label": "Copy-paste between tools"
+        }
+      ],
+      "biz_money": [
+        {
+          "id": "invoice_chase",
+          "label": "Invoices not chased"
+        },
+        {
+          "id": "month_end_close",
+          "label": "Books never close"
+        },
+        {
+          "id": "payroll_1099s",
+          "label": "Payroll / 1099s"
+        },
+        {
+          "id": "tax_packets_receipts",
+          "label": "Tax packets & receipts"
+        }
+      ],
+      "marketing": [
+        {
+          "id": "post_drought",
+          "label": "We never post"
+        },
+        {
+          "id": "review_ask",
+          "label": "Don't ask for reviews"
+        },
+        {
+          "id": "photos_die",
+          "label": "Job photos die on the phone"
+        },
+        {
+          "id": "same_caption",
+          "label": "Same caption every time"
+        }
+      ],
+      "support": [
+        {
+          "id": "missed_calls_after_hours",
+          "label": "Missed calls / after hours"
+        },
+        {
+          "id": "status_chase_texts",
+          "label": "Status-chase texts"
+        },
+        {
+          "id": "reviews_nobody_asks_for",
+          "label": "Reviews nobody asks for"
+        },
+        {
+          "id": "complaints_i_see_too_late",
+          "label": "Complaints I see too late"
+        }
+      ],
+      "team": [
+        {
+          "id": "unread_apps",
+          "label": "Applications unread"
+        },
+        {
+          "id": "paper_onboard",
+          "label": "Day-one is a folder"
+        },
+        {
+          "id": "crew_texts",
+          "label": "Crew comms are 14 group texts"
+        },
+        {
+          "id": "no_show",
+          "label": "No-shows / call-outs"
+        }
+      ]
+    }
+  },
+  "context": {
+    "when": "after_stage1",
+    "prompt": "A few taps so we don't guess.",
+    "items": [
+      {
+        "id": "role",
+        "tracks": [
+          "personal"
+        ],
+        "prompt": "Which fits you today?",
+        "type": "single",
+        "options": [
+          "employed",
+          "gig",
+          "self_employed",
+          "student",
+          "retired",
+          "between_roles"
+        ]
+      },
+      {
+        "id": "biz_role",
+        "tracks": [
+          "business"
+        ],
+        "prompt": "Your role?",
+        "type": "single",
+        "options": [
+          "owner",
+          "ops",
+          "sales",
+          "marketing",
+          "finance",
+          "other"
+        ]
+      },
+      {
+        "id": "team_size",
+        "tracks": [
+          "business"
+        ],
+        "prompt": "Team size?",
+        "type": "single",
+        "options": [
+          "just_me",
+          "2-10",
+          "11-50",
+          "51-200",
+          "200+"
+        ]
+      },
+      {
+        "id": "hours",
+        "tracks": [
+          "personal",
+          "business"
+        ],
+        "prompt": "Hours/week this mess eats?",
+        "type": "single",
+        "options": [
+          "0-2",
+          "3-5",
+          "6-10",
+          "10+"
+        ]
+      },
+      {
+        "id": "tools",
+        "tracks": [
+          "personal",
+          "business"
+        ],
+        "prompt": "What do you already use? (any that apply)",
+        "type": "multi",
+        "options": [
+          "gmail",
+          "outlook",
+          "google_calendar",
+          "apple_calendar",
+          "spreadsheets",
+          "quickbooks",
+          "jobber",
+          "housecall_pro",
+          "shopify",
+          "hubspot",
+          "slack",
+          "phone",
+          "none"
+        ]
+      },
+      {
+        "id": "trust",
+        "tracks": [
+          "personal",
+          "business"
+        ],
+        "prompt": "AI that drafts is fine. AI that sends?",
+        "type": "likert",
+        "scale": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "low": "I approve everything",
+        "high": "Run it"
+      },
+      {
+        "id": "urgency",
+        "tracks": [
+          "personal",
+          "business"
+        ],
+        "prompt": "How hot is this?",
+        "type": "single",
+        "options": [
+          "curious",
+          "this_quarter",
+          "weekly_pain",
+          "losing_sleep_or_money"
+        ]
+      },
+      {
+        "id": "budget",
+        "tracks": [
+          "business"
+        ],
+        "prompt": "If we actually built the top pick, budget band?",
+        "type": "single",
+        "options": [
+          "<200/mo",
+          "200-750",
+          "750-2k",
+          "2k+",
+          "project"
+        ]
+      },
+      {
+        "id": "worth",
+        "tracks": [
+          "personal"
+        ],
+        "prompt": "If this just handled itself, worth to you monthly?",
+        "type": "single",
+        "options": [
+          "<25",
+          "25-75",
+          "75-200",
+          "200+",
+          "not_sure"
+        ]
+      }
+    ]
+  },
+  "anti_gaming": {
+    "straight_line_not_me": "If 8+ consecutive not_me on shown cards, re-prompt once: 'Tap the closest sting \u2014 skip the rest.' Then allow continue.",
+    "all_thats_me": "If every shown card is thats_me (>10), keep scores but flag digest low_effort_all_yes.",
+    "stage1_skip": "Require at least 1 bucket. No skip on Q0 or Stage 1.",
+    "stage3_min": "Need \u22653 scenario responses (not skipped) or Stage 4 uses cold-start set.",
+    "escape_hatch_short": "If free text < 12 chars, one re-prompt, then allow skip."
+  }
+}

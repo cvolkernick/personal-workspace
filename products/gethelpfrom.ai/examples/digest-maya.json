@@ -1,0 +1,63 @@
+{
+  "schema_version": "1",
+  "scoring_version": "1.0.0",
+  "questions_version": "1.0.0",
+  "scenarios_version": "1.0.0",
+  "session_id": "00000000-0000-4000-8000-000000000621",
+  "completed_at": "2026-09-11T03:40:00Z",
+  "contact": {
+    "name": "Maya Chen",
+    "email": "maya@example.com",
+    "phone": null,
+    "consent": true
+  },
+  "tracks": ["personal"],
+  "context": {
+    "role": "employed",
+    "hours": "6-10",
+    "urgency": "weekly_pain",
+    "trust": "3",
+    "worth": "75-200"
+  },
+  "ranked": [
+    {
+      "rank": 1,
+      "solution_id": "eob_explainer",
+      "tag": "must_have",
+      "value": 12.6,
+      "feasibility": 0.75,
+      "confidence": 1.0
+    },
+    {
+      "rank": 2,
+      "solution_id": "bill_pay_agent",
+      "tag": "must_have",
+      "value": 8.4,
+      "feasibility": 0.75,
+      "confidence": 1.0
+    }
+  ],
+  "rejected": [],
+  "escape_hatch": null,
+  "why": [
+    {
+      "solution_id": "eob_explainer",
+      "lines": [
+        "We suggested this because that's you: “I open an EOB and still can't tell if we owe $40 or $400.”"
+      ]
+    }
+  ],
+  "flags": [],
+  "demo_prep": {
+    "build_before_call": [
+      "Sample EOB → 'what you owe / who to call' card",
+      "No live insurance login on the first demo"
+    ],
+    "show_live": ["Paste one redacted EOB, show the translation"],
+    "ask_on_call": [
+      "Where EOBs arrive (portal vs mail vs email)",
+      "Who is allowed to call the insurer"
+    ]
+  },
+  "summary_md": "## Maya Chen — personal\n\n**#1 must-have:** Insurance EOB translator.\n**Why:** She cannot tell what a visit actually costs after the EOB.\n**Build (3–5d):** one EOB → plain-language card. No auto-pay.\n**Ask:** portal vs mail; who may call."
+}

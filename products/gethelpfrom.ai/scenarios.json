@@ -1,0 +1,1734 @@
+{
+  "version": "1.0.0",
+  "notes": "Compiled from 6 independent persona rounds. Hallway tests still required before live.",
+  "scenarios": [
+    {
+      "id": "p_health_ghost_01",
+      "bucket": "health",
+      "sub": "habit_ghost",
+      "text": "I logged food for 4 days then ghosted the app until Sunday.",
+      "pain": "habit_ghost",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_ghost_02",
+      "bucket": "health",
+      "sub": "habit_ghost",
+      "text": "I have MyFitnessPal, Hevy, and a water app, and none of them know I skipped the gym all week.",
+      "pain": "habit_ghost",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_ghost_03",
+      "bucket": "health",
+      "sub": "habit_ghost",
+      "text": "My streak died on day 6 so I deleted the widget so I wouldn't see the goose egg.",
+      "pain": "habit_ghost",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_ghost_04",
+      "bucket": "health",
+      "sub": "habit_ghost",
+      "text": "I installed a 25-minute study timer for the cert, used it twice, and now it's just a red badge I ignore.",
+      "pain": "habit_ghost",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meals_01",
+      "bucket": "health",
+      "sub": "meals",
+      "text": "It's 6:15 and I'm standing in the fridge deciding between takeout and the same chicken again.",
+      "pain": "meal_decision",
+      "solution": "meal_plan_from_inventory",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meals_02",
+      "bucket": "health",
+      "sub": "meals",
+      "text": "I bought spinach on Sunday and found it slime in the crisper on Thursday.",
+      "pain": "meal_decision",
+      "solution": "meal_plan_from_inventory",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meals_03",
+      "bucket": "health",
+      "sub": "meals",
+      "text": "I meal-prepped Sunday, ate it Monday, and ordered DoorDash the rest of the week.",
+      "pain": "meal_decision",
+      "solution": "meal_plan_from_inventory",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meals_04",
+      "bucket": "health",
+      "sub": "meals",
+      "text": "I skip lunch between classes, graze on cereal, then Uber Eats at 9 because nothing is actually planned.",
+      "pain": "meal_decision",
+      "solution": "meal_plan_from_inventory",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_sleep_01",
+      "bucket": "health",
+      "sub": "sleep",
+      "text": "I said I'd be in bed at 10 and I'm still scrolling at 12:40.",
+      "pain": "sleep_drift",
+      "solution": "sleep_wind_down",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_sleep_02",
+      "bucket": "health",
+      "sub": "sleep",
+      "text": "I sleep at 1am on weeknights, then 'catch up' Saturday until noon and feel worse.",
+      "pain": "sleep_drift",
+      "solution": "sleep_wind_down",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_sleep_03",
+      "bucket": "health",
+      "sub": "sleep",
+      "text": "I set a wind-down alarm, snoozed it, and opened one more YouTube video.",
+      "pain": "sleep_drift",
+      "solution": "sleep_wind_down",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_sleep_04",
+      "bucket": "health",
+      "sub": "sleep",
+      "text": "I study until 1am because that's the only quiet hour, then I'm wrecked for the 8am shift.",
+      "pain": "sleep_drift",
+      "solution": "sleep_wind_down",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meds_01",
+      "bucket": "health",
+      "sub": "meds_appts",
+      "text": "I remember the refill when the bottle has two pills left and the pharmacy is already closed.",
+      "pain": "habit_ghost",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meds_02",
+      "bucket": "health",
+      "sub": "meds_appts",
+      "text": "I rescheduled the dentist twice and the reminder card is still on the fridge from March.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meds_03",
+      "bucket": "health",
+      "sub": "meds_appts",
+      "text": "I take the morning med with coffee on weekdays and completely blank on weekends.",
+      "pain": "habit_ghost",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_health_meds_04",
+      "bucket": "health",
+      "sub": "meds_appts",
+      "text": "The physical was supposed to happen before my insurance year reset and I missed it.",
+      "pain": "followup_slip",
+      "solution": "calendar_deflect",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_course_01",
+      "bucket": "learning",
+      "sub": "course_hoard",
+      "text": "I have 47 Udemy courses at 12% and I keep buying the next one when it's $11.99.",
+      "pain": "course_hoard",
+      "solution": "course_prune",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_course_02",
+      "bucket": "learning",
+      "sub": "course_hoard",
+      "text": "My Coursera tab has said Resume for eight months and I still pay the monthly.",
+      "pain": "course_hoard",
+      "solution": "course_prune",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_course_03",
+      "bucket": "learning",
+      "sub": "course_hoard",
+      "text": "I paid for a bootcamp cohort, missed week 3, and never logged back in.",
+      "pain": "course_hoard",
+      "solution": "course_prune",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_course_04",
+      "bucket": "learning",
+      "sub": "course_hoard",
+      "text": "I bought a 12-week lifting program in January and I'm still on week 2 in September.",
+      "pain": "course_hoard",
+      "solution": "course_prune",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_cert_01",
+      "bucket": "learning",
+      "sub": "cert_lapse",
+      "text": "My AWS cert expires in six weeks and I haven't sat a practice exam.",
+      "pain": "cert_lapse",
+      "solution": "spaced_rep_coach",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_cert_02",
+      "bucket": "learning",
+      "sub": "cert_lapse",
+      "text": "I passed the exam last year and I couldn't answer the same question if you asked me tonight.",
+      "pain": "cert_lapse",
+      "solution": "spaced_rep_coach",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_cert_03",
+      "bucket": "learning",
+      "sub": "cert_lapse",
+      "text": "HR asked for the PDF of my cert and I spent 40 minutes digging through old email.",
+      "pain": "notes_lost",
+      "solution": "document_inbox",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_cert_04",
+      "bucket": "learning",
+      "sub": "cert_lapse",
+      "text": "I told people I was 'working on the PMP' in January and it's September.",
+      "pain": "course_hoard",
+      "solution": "course_prune",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_notes_01",
+      "bucket": "learning",
+      "sub": "notes_lost",
+      "text": "I took great Notion notes in the course and I can't find the one trick I need tonight.",
+      "pain": "notes_lost",
+      "solution": "spaced_rep_coach",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_notes_02",
+      "bucket": "learning",
+      "sub": "notes_lost",
+      "text": "My highlight export from three books is a 90-page dump I never reopen.",
+      "pain": "notes_lost",
+      "solution": "spaced_rep_coach",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_notes_03",
+      "bucket": "learning",
+      "sub": "notes_lost",
+      "text": "I wrote Anki cards for two weeks, then the deck sat untouched until the night before the exam.",
+      "pain": "notes_lost",
+      "solution": "spaced_rep_coach",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_notes_04",
+      "bucket": "learning",
+      "sub": "notes_lost",
+      "text": "I recorded the lecture on my phone and never replayed it because I don't remember which file it is.",
+      "pain": "notes_lost",
+      "solution": "document_inbox",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_practice_01",
+      "bucket": "learning",
+      "sub": "skill_practice",
+      "text": "I watch the tutorial at 1.5x, nod along, then never open the editor.",
+      "pain": "skill_practice",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_practice_02",
+      "bucket": "learning",
+      "sub": "skill_practice",
+      "text": "I blocked Saturday morning for LeetCode and cleaned the kitchen instead.",
+      "pain": "skill_practice",
+      "solution": "calendar_deflect",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_practice_03",
+      "bucket": "learning",
+      "sub": "skill_practice",
+      "text": "I can explain the concept out loud and then freeze when I have to do it without the video.",
+      "pain": "skill_practice",
+      "solution": "spaced_rep_coach",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "p_learn_practice_04",
+      "bucket": "learning",
+      "sub": "skill_practice",
+      "text": "I saved 40 workout videos to Watch later and I've actually done two of them.",
+      "pain": "skill_practice",
+      "solution": "habit_nudge",
+      "source": "persona-health-learn.md"
+    },
+    {
+      "id": "eob_still_cant_tell_what_we_owe",
+      "bucket": "money_bills",
+      "sub": "medical_bills_eobs",
+      "text": "I open an EOB and still can't tell if we owe $40 or $400.",
+      "pain": "eob_unreadable",
+      "solution": "eob_explainer",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "hospital_bill_months_later",
+      "bucket": "money_bills",
+      "sub": "medical_bills_eobs",
+      "text": "A hospital bill shows up three months later for a visit I thought insurance already closed.",
+      "pain": "surprise_balance_bill",
+      "solution": "eob_explainer",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "mom_copay_then_second_bill",
+      "bucket": "money_bills",
+      "sub": "medical_bills_eobs",
+      "text": "I pay Mom's copay at the desk and then get another bill at home for the same visit.",
+      "pain": "duplicate_medical_charge",
+      "solution": "bill_pay_agent",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "kids_urgent_care_drawer",
+      "bucket": "money_bills",
+      "sub": "medical_bills_eobs",
+      "text": "The kids' urgent-care bills sit in a drawer because I don't know which ones are actually paid.",
+      "pain": "unfinished_medical_bills",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "mystery_streaming_on_joint_card",
+      "bucket": "money_bills",
+      "sub": "subscriptions_auto_pays",
+      "text": "A streaming charge hits the joint card that neither of us remembers turning on.",
+      "pain": "forgotten_subscription",
+      "solution": "subscription_audit",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "kids_apps_auto_renew",
+      "bucket": "money_bills",
+      "sub": "subscriptions_auto_pays",
+      "text": "The kids' school and game apps auto-renew and I only notice on the statement.",
+      "pain": "kids_app_renewals",
+      "solution": "subscription_audit",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "mom_pharmacy_autoship_after_switch",
+      "bucket": "money_bills",
+      "sub": "subscriptions_auto_pays",
+      "text": "Mom's pharmacy auto-ship keeps charging after we already switched her meds.",
+      "pain": "stale_autoship",
+      "solution": "subscription_audit",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "canceled_still_bills",
+      "bucket": "money_bills",
+      "sub": "subscriptions_auto_pays",
+      "text": "I cancel a subscription and it still bills us the next month.",
+      "pain": "cancel_didnt_stick",
+      "solution": "subscription_audit",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "spouse_handles_it_until_they_dont",
+      "bucket": "money_bills",
+      "sub": "who_paid_what",
+      "text": "My spouse 'handles the bills' until a late notice shows up and they didn't.",
+      "pain": "spouse_bill_handoff",
+      "solution": "bill_pay_agent",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "both_thought_other_paid_electric",
+      "bucket": "money_bills",
+      "sub": "who_paid_what",
+      "text": "We both think the other one paid the electric bill until it's past due.",
+      "pain": "double_assume_paid",
+      "solution": "bill_pay_agent",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "sitter_on_my_card",
+      "bucket": "money_bills",
+      "sub": "who_paid_what",
+      "text": "I put the sitter on my card and then forget to pull it from the joint account.",
+      "pain": "unreimbursed_household_spend",
+      "solution": "bill_pay_agent",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "529_skips_a_month",
+      "bucket": "money_bills",
+      "sub": "who_paid_what",
+      "text": "Our 529 contribution skips a month and nobody notices until the quarterly email.",
+      "pain": "missed_family_transfer",
+      "solution": "bill_pay_agent",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "late_fee_most_months",
+      "bucket": "money_bills",
+      "sub": "late_fees_tax_packets",
+      "text": "I pay at least one late fee most months.",
+      "pain": "recurring_late_fees",
+      "solution": "bill_pay_agent",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "hoa_property_tax_penalty",
+      "bucket": "money_bills",
+      "sub": "late_fees_tax_packets",
+      "text": "The HOA and property-tax envelopes sit unopened until a penalty letter arrives.",
+      "pain": "ignored_homeowner_dues",
+      "solution": "bill_pay_agent",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "tax_season_daycare_hunt",
+      "bucket": "money_bills",
+      "sub": "late_fees_tax_packets",
+      "text": "Tax season starts and I'm still hunting W-2s, 1099s, and the daycare receipt.",
+      "pain": "scattered_tax_docs",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "mom_care_receipts_three_places",
+      "bucket": "money_bills",
+      "sub": "late_fees_tax_packets",
+      "text": "I can't add up Mom's medical expenses because the receipts are in three different places.",
+      "pain": "caregiver_expense_scatter",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "permission_slip_in_backpack",
+      "bucket": "home_paper",
+      "sub": "school_forms",
+      "text": "A permission slip lives in a backpack until the morning it's due.",
+      "pain": "last_minute_school_form",
+      "solution": "form_filler",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "same_emergency_contact_every_season",
+      "bucket": "home_paper",
+      "sub": "school_forms",
+      "text": "I fill out the same emergency-contact form for school, camp, and soccer every season.",
+      "pain": "repeated_kid_forms",
+      "solution": "form_filler",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "iep_packet_on_counter",
+      "bucket": "home_paper",
+      "sub": "school_forms",
+      "text": "The IEP packet sits on the counter because I don't know which pages need a signature.",
+      "pain": "unread_school_packet",
+      "solution": "form_filler",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "sports_physical_three_portals",
+      "bucket": "home_paper",
+      "sub": "school_forms",
+      "text": "Sports physicals and shot records are in three portals and I still can't print one by Friday.",
+      "pain": "split_health_records",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "mom_medicare_mail_to_our_house",
+      "bucket": "home_paper",
+      "sub": "parent_care_papers",
+      "text": "Mom's Medicare mail comes to our house and I don't know what actually needs an answer.",
+      "pain": "elder_mail_triage",
+      "solution": "eob_explainer",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "cant_find_poa_at_doctors",
+      "bucket": "home_paper",
+      "sub": "parent_care_papers",
+      "text": "A doctor's office asks for Mom's power of attorney and I still can't put my hands on it.",
+      "pain": "missing_poa",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "prior_auth_in_purse",
+      "bucket": "home_paper",
+      "sub": "parent_care_papers",
+      "text": "The pharmacy wants a prior-auth form that's in her purse or our junk drawer.",
+      "pain": "buried_prior_auth",
+      "solution": "form_filler",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "specialist_visit_no_notes",
+      "bucket": "home_paper",
+      "sub": "parent_care_papers",
+      "text": "I leave her specialist visit with no notes and then can't remember what they changed.",
+      "pain": "lost_care_instructions",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "kitchen_counter_mail_stack",
+      "bucket": "home_paper",
+      "sub": "mail_the_junk_drawer",
+      "text": "The kitchen counter is a stack of mail I swear I'll sort this weekend.",
+      "pain": "mail_pile",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "phone_scan_then_lost",
+      "bucket": "home_paper",
+      "sub": "mail_the_junk_drawer",
+      "text": "I photograph a form with my phone and then can't find it when school asks again.",
+      "pain": "lost_phone_scan",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "warranties_in_two_inboxes",
+      "bucket": "home_paper",
+      "sub": "mail_the_junk_drawer",
+      "text": "Appliance warranties and HOA PDFs live in two inboxes and a drawer.",
+      "pain": "scattered_home_pdfs",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "recycled_needed_letter",
+      "bucket": "home_paper",
+      "sub": "mail_the_junk_drawer",
+      "text": "I recycle a letter that turns out to be something we needed to keep.",
+      "pain": "shredded_keep",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "conference_on_spouse_calendar",
+      "bucket": "home_paper",
+      "sub": "family_calendar_mix_ups",
+      "text": "A school conference is on my spouse's calendar and I find out the morning of.",
+      "pain": "spouse_calendar_blind_spot",
+      "solution": "form_filler",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "two_practices_and_mom_overlap",
+      "bucket": "home_paper",
+      "sub": "family_calendar_mix_ups",
+      "text": "Two kids' practices and Mom's appointment land on the same afternoon and nobody flags it.",
+      "pain": "sandwich_schedule_clash",
+      "solution": "form_filler",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "rsvp_forgot_to_tell_house",
+      "bucket": "home_paper",
+      "sub": "family_calendar_mix_ups",
+      "text": "I say yes to a birthday party and then forget to tell anyone else in the house.",
+      "pain": "unshared_rsvp",
+      "solution": "form_filler",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "sticky_note_fell_off_fridge",
+      "bucket": "home_paper",
+      "sub": "family_calendar_mix_ups",
+      "text": "The pediatrician reminder is a sticky note that fell off the fridge.",
+      "pain": "fridge_sticky_note",
+      "solution": "document_inbox",
+      "source": "persona-household.md"
+    },
+    {
+      "id": "p_time_double_book_01",
+      "bucket": "time_cal",
+      "sub": "double_booked_days",
+      "text": "I accept a meeting invite and only notice it overlaps something I already had once I'm already late.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_double_book_02",
+      "bucket": "time_cal",
+      "sub": "double_booked_days",
+      "text": "I keep a work calendar and a phone calendar, and they never agree on where I'm supposed to be.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_double_book_03",
+      "bucket": "time_cal",
+      "sub": "double_booked_days",
+      "text": "My partner books dinner on a night I already have a work thing, and we find out that afternoon.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_double_book_04",
+      "bucket": "time_cal",
+      "sub": "double_booked_days",
+      "text": "I spend Sunday night dragging calendar blocks around just to make next week physically possible.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_junk_meeting_01",
+      "bucket": "time_cal",
+      "sub": "meetings_that_should_be_email",
+      "text": "I sit through 30-minute meetings that could have been a three-line email.",
+      "pain": "meeting_sludge",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_junk_meeting_02",
+      "bucket": "time_cal",
+      "sub": "meetings_that_should_be_email",
+      "text": "I leave a call with no notes and later text someone, wait, what did we decide?",
+      "pain": "meeting_sludge",
+      "solution": "meeting_notes_agent",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_junk_meeting_03",
+      "bucket": "time_cal",
+      "sub": "meetings_that_should_be_email",
+      "text": "Recurring meetings stay on my calendar long after nobody has anything to say.",
+      "pain": "meeting_sludge",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_junk_meeting_04",
+      "bucket": "time_cal",
+      "sub": "meetings_that_should_be_email",
+      "text": "I get invited to a meeting with no agenda and still feel rude declining it.",
+      "pain": "meeting_sludge",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_focus_eaten_01",
+      "bucket": "time_cal",
+      "sub": "focus_time_gets_eaten",
+      "text": "I block focus time on my calendar and people still drop meetings on top of it.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_focus_eaten_02",
+      "bucket": "time_cal",
+      "sub": "focus_time_gets_eaten",
+      "text": "I don't start real work until after 4 because the day filled with quick calls.",
+      "pain": "meeting_sludge",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_focus_eaten_03",
+      "bucket": "time_cal",
+      "sub": "focus_time_gets_eaten",
+      "text": "I eat lunch at my desk on a call I didn't need to be on.",
+      "pain": "meeting_sludge",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_focus_eaten_04",
+      "bucket": "time_cal",
+      "sub": "focus_time_gets_eaten",
+      "text": "I decline a meeting and then get pinged asking why I wasn't there.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_family_cal_01",
+      "bucket": "time_cal",
+      "sub": "family_calendar_vs_work",
+      "text": "I miss school pickup because a work meeting ran long and nobody flagged the conflict.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_family_cal_02",
+      "bucket": "time_cal",
+      "sub": "family_calendar_vs_work",
+      "text": "Doctor and dentist appointments live in my head until the reminder text the morning of.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_family_cal_03",
+      "bucket": "time_cal",
+      "sub": "family_calendar_vs_work",
+      "text": "Work travel shows up on the family calendar two days before I leave.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_time_family_cal_04",
+      "bucket": "time_cal",
+      "sub": "family_calendar_vs_work",
+      "text": "I get pulled into a parent conference during my only prep period because nobody checked the duty roster.",
+      "pain": "calendar_clash",
+      "solution": "calendar_deflect",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_never_zero_01",
+      "bucket": "messages",
+      "sub": "inbox_never_at_zero",
+      "text": "I open email, answer two things, and somehow have more unread than when I started.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_never_zero_02",
+      "bucket": "messages",
+      "sub": "inbox_never_at_zero",
+      "text": "Important mail sits under newsletters I keep meaning to unsubscribe from.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_never_zero_03",
+      "bucket": "messages",
+      "sub": "inbox_never_at_zero",
+      "text": "I search my inbox for something I know I saw last week and still can't find it.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_never_zero_04",
+      "bucket": "messages",
+      "sub": "inbox_never_at_zero",
+      "text": "I archive a thread so I can deal with it later, and then it vanishes from my brain.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_reply_later_01",
+      "bucket": "messages",
+      "sub": "i_ll_reply_later",
+      "text": "I star a message so I'll reply later, and later never comes.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_reply_later_02",
+      "bucket": "messages",
+      "sub": "i_ll_reply_later",
+      "text": "I type a reply, get interrupted, and the draft sits there for days.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_reply_later_03",
+      "bucket": "messages",
+      "sub": "i_ll_reply_later",
+      "text": "I tell someone I'll get back to you this afternoon, and then I don't.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_reply_later_04",
+      "bucket": "messages",
+      "sub": "i_ll_reply_later",
+      "text": "I see a text from my supervisor during a shift, say I'll answer on break, and forget until I'm already home.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_followup_01",
+      "bucket": "messages",
+      "sub": "follow_ups_that_slip",
+      "text": "I owe someone an answer and only remember when they ping me again.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_followup_02",
+      "bucket": "messages",
+      "sub": "follow_ups_that_slip",
+      "text": "I wait on a reply, forget I was waiting, and the thing just dies.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_followup_03",
+      "bucket": "messages",
+      "sub": "follow_ups_that_slip",
+      "text": "I promised to send a file after a call and find the reminder three days later in my notes app.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_followup_04",
+      "bucket": "messages",
+      "sub": "follow_ups_that_slip",
+      "text": "I follow up once, feel annoying, and then never follow up again.",
+      "pain": "followup_slip",
+      "solution": "followup_nudge",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_mixed_01",
+      "bucket": "messages",
+      "sub": "work_and_family_in_one_pocket",
+      "text": "Family texts, work Slack, and email all buzz at once and I answer the wrong one first.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_mixed_02",
+      "bucket": "messages",
+      "sub": "work_and_family_in_one_pocket",
+      "text": "I miss a can-you-pick-up-milk text because Slack ate the notification.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_mixed_03",
+      "bucket": "messages",
+      "sub": "work_and_family_in_one_pocket",
+      "text": "I check three chat apps every morning just to be sure I didn't miss my boss.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "p_msg_mixed_04",
+      "bucket": "messages",
+      "sub": "work_and_family_in_one_pocket",
+      "text": "A group chat with 40 unread messages sits on top of the one message that actually needed me.",
+      "pain": "inbox_bury",
+      "solution": "inbox_triage",
+      "source": "persona-inbox-time.md"
+    },
+    {
+      "id": "marketing.post_drought.01",
+      "bucket": "marketing",
+      "sub": "post_drought",
+      "text": "I last posted in February. I only remember when a customer asks if we're still in business.",
+      "pain": "content_drought",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.post_drought.02",
+      "bucket": "marketing",
+      "sub": "post_drought",
+      "text": "Sunday night I open Instagram, stare at a blank box, and close it so I can pack the truck.",
+      "pain": "content_drought",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.post_drought.03",
+      "bucket": "marketing",
+      "sub": "post_drought",
+      "text": "The crew finished three bathrooms this week and the page still shows last summer's deck.",
+      "pain": "content_drought",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.post_drought.04",
+      "bucket": "marketing",
+      "sub": "post_drought",
+      "text": "I told myself I'd post every job. I post when I feel guilty, which is never on a busy week.",
+      "pain": "content_drought",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.review_ask.01",
+      "bucket": "marketing",
+      "sub": "review_ask",
+      "text": "I mean to ask for a Google review when we wrap a job, then the truck is already rolling.",
+      "pain": "review_ask_miss",
+      "solution": "review_ask",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.review_ask.02",
+      "bucket": "marketing",
+      "sub": "review_ask",
+      "text": "We have 11 Google reviews from 2022 and the kitchen is busier than it's ever been.",
+      "pain": "review_ask_miss",
+      "solution": "review_ask",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.review_ask.03",
+      "bucket": "marketing",
+      "sub": "review_ask",
+      "text": "Customers text me 'you guys were great' and I never turn that into a public review.",
+      "pain": "review_ask_miss",
+      "solution": "review_gen",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.review_ask.04",
+      "bucket": "marketing",
+      "sub": "review_ask",
+      "text": "I only remember to ask when they're already walking out the warehouse door with the invoice.",
+      "pain": "review_ask_miss",
+      "solution": "review_ask",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.photos_die.01",
+      "bucket": "marketing",
+      "sub": "photos_die",
+      "text": "Before-and-after shots of the tile job are still in my camera roll from March.",
+      "pain": "photo_graveyard",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.photos_die.02",
+      "bucket": "marketing",
+      "sub": "photos_die",
+      "text": "The line cook sent me tonight's special. It's sitting in a group chat I haven't opened.",
+      "pain": "photo_graveyard",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.photos_die.03",
+      "bucket": "marketing",
+      "sub": "photos_die",
+      "text": "I have 400 job photos on my phone and zero of them made it to the page.",
+      "pain": "photo_graveyard",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.photos_die.04",
+      "bucket": "marketing",
+      "sub": "photos_die",
+      "text": "The warehouse restock looked great. That picture is buried under 80 screenshots of tracking numbers.",
+      "pain": "photo_graveyard",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.same_caption.01",
+      "bucket": "marketing",
+      "sub": "same_caption",
+      "text": "Every post I start with 'Another happy customer!' and delete it because it sounds fake.",
+      "pain": "caption_blank",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.same_caption.02",
+      "bucket": "marketing",
+      "sub": "same_caption",
+      "text": "I rewrite the HVAC tune-up caption from scratch because I can never find last month's.",
+      "pain": "caption_blank",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.same_caption.03",
+      "bucket": "marketing",
+      "sub": "same_caption",
+      "text": "I don't know what to say about a pick-pack warehouse job so I just don't post.",
+      "pain": "caption_blank",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "marketing.same_caption.04",
+      "bucket": "marketing",
+      "sub": "same_caption",
+      "text": "I asked ChatGPT once, hated the voice, and went back to posting nothing.",
+      "pain": "caption_blank",
+      "solution": "content_batch",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.unread_apps.01",
+      "bucket": "team",
+      "sub": "unread_apps",
+      "text": "I still personally read every Indeed application at 10pm after the warehouse closes.",
+      "pain": "hire_slush",
+      "solution": "job_screener",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.unread_apps.02",
+      "bucket": "team",
+      "sub": "unread_apps",
+      "text": "Forty applicants for dishwasher. I hired the one who texted me back first.",
+      "pain": "hire_slush",
+      "solution": "job_screener",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.unread_apps.03",
+      "bucket": "team",
+      "sub": "unread_apps",
+      "text": "The Indeed inbox is a graveyard. I last opened it when we were already short two techs.",
+      "pain": "hire_slush",
+      "solution": "job_screener",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.unread_apps.04",
+      "bucket": "team",
+      "sub": "unread_apps",
+      "text": "My hiring process is screenshotting r\u00e9sum\u00e9s and texting whoever looks like they can drive a van.",
+      "pain": "hire_slush",
+      "solution": "job_screener",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.paper_onboard.01",
+      "bucket": "team",
+      "sub": "paper_onboard",
+      "text": "New hires fill out a paper packet I printed in 2019 and nobody knows where the W-4s go.",
+      "pain": "onboard_paper",
+      "solution": "onboarding_packet",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.paper_onboard.02",
+      "bucket": "team",
+      "sub": "paper_onboard",
+      "text": "Day one is a manila folder, a faded handbook, and 'follow Mike on the truck.'",
+      "pain": "onboard_paper",
+      "solution": "onboarding_packet",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.paper_onboard.03",
+      "bucket": "team",
+      "sub": "paper_onboard",
+      "text": "The line cook's first day was a photocopy of the allergy sheet and a locker combo on a sticky note.",
+      "pain": "onboard_paper",
+      "solution": "onboarding_packet",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.paper_onboard.04",
+      "bucket": "team",
+      "sub": "paper_onboard",
+      "text": "I still collect I-9s in an office drawer that only I have a key to.",
+      "pain": "onboard_paper",
+      "solution": "onboarding_packet",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.crew_texts.01",
+      "bucket": "team",
+      "sub": "crew_texts",
+      "text": "Tomorrow's shift lives in a group text with 40 unread messages and three people who already quit.",
+      "pain": "shift_chaos",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.crew_texts.02",
+      "bucket": "team",
+      "sub": "crew_texts",
+      "text": "I text the whole HVAC crew about Saturday and get six thumbs-up and two 'what?'",
+      "pain": "shift_chaos",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.crew_texts.03",
+      "bucket": "team",
+      "sub": "crew_texts",
+      "text": "Kitchen call-outs happen in a thread named TEAM!!! with old vendors still in it.",
+      "pain": "shift_chaos",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.crew_texts.04",
+      "bucket": "team",
+      "sub": "crew_texts",
+      "text": "The warehouse lead texts me, I text the picker, the picker texts the driver. Nobody has the same list.",
+      "pain": "shift_chaos",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.no_show.01",
+      "bucket": "team",
+      "sub": "no_show",
+      "text": "Someone no-shows the breakfast shift and I find out when the tickets start stacking.",
+      "pain": "no_show_cover",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.no_show.02",
+      "bucket": "team",
+      "sub": "no_show",
+      "text": "I find out a tech isn't coming when the customer calls asking where we are.",
+      "pain": "no_show_cover",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.no_show.03",
+      "bucket": "team",
+      "sub": "no_show",
+      "text": "Call-outs land as 'can't come' at 4:45am with no list of who else is free.",
+      "pain": "no_show_cover",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "team.no_show.04",
+      "bucket": "team",
+      "sub": "no_show",
+      "text": "We lost two warehouse pickers this month and I still don't have a standby list.",
+      "pain": "no_show_cover",
+      "solution": "shift_comms",
+      "source": "persona-mkt-team.md"
+    },
+    {
+      "id": "b.ops.dispatch.double_book",
+      "bucket": "ops",
+      "sub": "dispatch_chaos",
+      "text": "Tomorrow's board has two techs on the same 10am and nobody noticed until the customer called from the driveway.",
+      "pain": "dispatch_chaos",
+      "solution": "dispatch_assist",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.dispatch.sheet_routes",
+      "bucket": "ops",
+      "sub": "dispatch_chaos",
+      "text": "I rebuild the day's route in a spreadsheet every morning because Jobber/Housecall Pro lists jobs in the order they were booked, not the order that makes sense on the map.",
+      "pain": "dispatch_chaos",
+      "solution": "dispatch_assist",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.dispatch.whats_next",
+      "bucket": "ops",
+      "sub": "dispatch_chaos",
+      "text": "A tech is sitting in a parking lot texting 'what's next?' while the next job is 40 minutes the other way.",
+      "pain": "dispatch_chaos",
+      "solution": "dispatch_assist",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.dispatch.parts_not_on_truck",
+      "bucket": "ops",
+      "sub": "dispatch_chaos",
+      "text": "We promised a 2-hour window and the van is still at the supply house because dispatch never checked that the part was actually on the truck.",
+      "pain": "dispatch_chaos",
+      "solution": "dispatch_assist",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.inventory.shopify_lie",
+      "bucket": "ops",
+      "sub": "inventory_mismatch",
+      "text": "Shopify says 14 in stock, the warehouse bin has 3, and we just sold 8 on a flash sale.",
+      "pain": "stock_drift",
+      "solution": "inventory_sync",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.inventory.sku_guess",
+      "bucket": "ops",
+      "sub": "inventory_mismatch",
+      "text": "The SKU on the packing slip doesn't match the SKU in the spreadsheet, so pickers guess and we ship the wrong variant.",
+      "pain": "stock_drift",
+      "solution": "inventory_sync",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.inventory.van_ghost_part",
+      "bucket": "ops",
+      "sub": "inventory_mismatch",
+      "text": "Housecall Pro says the part is 'on the truck' and the tech is at Home Depot buying it again.",
+      "pain": "stock_drift",
+      "solution": "inventory_sync",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.inventory.reorder_in_head",
+      "bucket": "ops",
+      "sub": "inventory_mismatch",
+      "text": "Reorder points live in my head. We stock out of the one SKU that actually sells and the rest of the shelf is dead weight.",
+      "pain": "stock_drift",
+      "solution": "inventory_sync",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.returns.sunday_pile",
+      "bucket": "ops",
+      "sub": "returns_exceptions",
+      "text": "Returns sit in a pile by the back door until I steal a Sunday to decide restock vs refund vs trash.",
+      "pain": "returns_pile",
+      "solution": "inventory_sync",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.returns.double_count",
+      "bucket": "ops",
+      "sub": "returns_exceptions",
+      "text": "The customer already got the Shopify refund and the 3PL still shows the unit inbound, so inventory double-counts until I untangle it by hand.",
+      "pain": "stock_drift",
+      "solution": "inventory_sync",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.returns.exception_middleman",
+      "bucket": "ops",
+      "sub": "returns_exceptions",
+      "text": "Every wrong-address / split-shipment / backorder exception becomes a 20-minute email thread, and I am the middle of it.",
+      "pain": "returns_pile",
+      "solution": "inventory_sync",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.returns.reprint_slips",
+      "bucket": "ops",
+      "sub": "returns_exceptions",
+      "text": "I reprint packing slips by hand because the 3PL portal and Shopify disagree on what actually shipped.",
+      "pain": "human_api",
+      "solution": "integration_agent",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.glue.nightly_three_systems",
+      "bucket": "ops",
+      "sub": "nightly_copy_paste",
+      "text": "Every night I copy completed jobs out of Jobber/Housecall Pro into QuickBooks, then into a spreadsheet so the owner can see the day.",
+      "pain": "human_api",
+      "solution": "integration_agent",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.glue.three_names",
+      "bucket": "ops",
+      "sub": "nightly_copy_paste",
+      "text": "The same customer has three names \u2014 one in Jobber, one in QuickBooks, one in the sheet. I am the merge algorithm.",
+      "pain": "human_api",
+      "solution": "integration_agent",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.glue.done_not_invoiced",
+      "bucket": "ops",
+      "sub": "nightly_copy_paste",
+      "text": "The job is marked done in the field app and still not an invoice, because I haven't done the 11pm paste yet.",
+      "pain": "job_unbilled",
+      "solution": "job_to_invoice",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.ops.glue.wrong_today_sheet",
+      "bucket": "ops",
+      "sub": "nightly_copy_paste",
+      "text": "I keep a running Google Sheet of 'what the software got wrong today' because nobody trusts any one system.",
+      "pain": "human_api",
+      "solution": "integration_agent",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.invoice.three_weeks_cold",
+      "bucket": "biz_money",
+      "sub": "invoice_chase",
+      "text": "I send an invoice and then forget to chase it for 3 weeks.",
+      "pain": "invoice_lag",
+      "solution": "invoice_chase",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.invoice.retype_line_items",
+      "bucket": "biz_money",
+      "sub": "invoice_chase",
+      "text": "The job was finished Friday; the invoice is still a draft because I have to retype line items from Jobber into QuickBooks.",
+      "pain": "job_unbilled",
+      "solution": "integration_agent",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.invoice.net30_day62",
+      "bucket": "biz_money",
+      "sub": "invoice_chase",
+      "text": "Net-30 customers pay on day 62 and my only reminder system is scrolling the aging report when cash feels tight.",
+      "pain": "invoice_lag",
+      "solution": "invoice_chase",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.invoice.eyeball_deposits",
+      "bucket": "biz_money",
+      "sub": "invoice_chase",
+      "text": "Stripe/Square deposits hit the bank and I match them to invoices by eyeballing amounts.",
+      "pain": "payout_unmatched",
+      "solution": "invoice_chase",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.close.uncategorized_weekend",
+      "bucket": "biz_money",
+      "sub": "month_end_close",
+      "text": "Month-end is a weekend of uncategorized QuickBooks transactions and a folder of 'ask the owner' screenshots.",
+      "pain": "books_mess",
+      "solution": "books_close",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.close.shopify_mystery_payouts",
+      "bucket": "biz_money",
+      "sub": "month_end_close",
+      "text": "The bank feed is 200 uncleared lines because Shopify payouts, refunds, and fees all land as mystery deposits.",
+      "pain": "payout_unmatched",
+      "solution": "books_close",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.close.cogs_by_hand",
+      "bucket": "biz_money",
+      "sub": "month_end_close",
+      "text": "The P&L is a lie until I fix inventory COGS by hand, so we never actually close.",
+      "pain": "books_mess",
+      "solution": "books_close",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.close.accountant_csv_nights",
+      "bucket": "biz_money",
+      "sub": "month_end_close",
+      "text": "The accountant asks for 'the usual packet' and I spend two nights exporting CSVs that still don't match.",
+      "pain": "books_mess",
+      "solution": "books_close",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.payroll.texts_into_gusto",
+      "bucket": "biz_money",
+      "sub": "payroll_1099s",
+      "text": "Techs text their hours from the field; I retype them into Gusto and pray the overtime math is right.",
+      "pain": "hours_scatter",
+      "solution": "payroll_packet",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.payroll.january_1099_panic",
+      "bucket": "biz_money",
+      "sub": "payroll_1099s",
+      "text": "January is 1099 panic: 40 contractors, half the W-9s missing, and last year's sheet has three spellings of the same person.",
+      "pain": "contractor_1099",
+      "solution": "tax_1099",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.payroll.paid_four_ways",
+      "bucket": "biz_money",
+      "sub": "payroll_1099s",
+      "text": "A new 1099 vendor got paid from three different cards plus Venmo and none of it is tagged contractor.",
+      "pain": "contractor_1099",
+      "solution": "tax_1099",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.payroll.paste_register",
+      "bucket": "biz_money",
+      "sub": "payroll_1099s",
+      "text": "Payroll is 'done' when I click submit, then I spend an hour pasting the register into QuickBooks so the books aren't a lie.",
+      "pain": "human_api",
+      "solution": "integration_agent",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.tax.shoebox_april",
+      "bucket": "biz_money",
+      "sub": "tax_packets_receipts",
+      "text": "Receipts live in a camera roll, a glovebox, and my inbox. April is a shoebox.",
+      "pain": "receipt_shoebox",
+      "solution": "receipt_inbox",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.tax.three_sales_tax_numbers",
+      "bucket": "biz_money",
+      "sub": "tax_packets_receipts",
+      "text": "Sales tax in Shopify, the 3PL, and QuickBooks are three different numbers and I pick one for the return.",
+      "pain": "sales_tax_fog",
+      "solution": "sales_tax_packet",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.tax.quarterlies_six_tabs",
+      "bucket": "biz_money",
+      "sub": "tax_packets_receipts",
+      "text": "I cannot tell you what we owe in quarterly estimates without opening six tabs.",
+      "pain": "tax_packet",
+      "solution": "books_close",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "b.money.tax.writeoffs_tax_week",
+      "bucket": "biz_money",
+      "sub": "tax_packets_receipts",
+      "text": "Mileage, job materials, and Amazon business orders never make it into the write-off pile until tax week.",
+      "pain": "receipt_shoebox",
+      "solution": "receipt_inbox",
+      "source": "persona-ops-money.md"
+    },
+    {
+      "id": "facebook_lead_sat_6h",
+      "bucket": "leads",
+      "sub": "slow_first_reply",
+      "text": "A Facebook lead sat 6 hours because I was on a job.",
+      "pain": "first_reply_while_on_job",
+      "solution": "speed_to_lead",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "zillow_during_showing",
+      "bucket": "leads",
+      "sub": "slow_first_reply",
+      "text": "A Zillow lead hits during a showing and I don't reply until I'm in the car at 9.",
+      "pain": "first_reply_during_showing",
+      "solution": "speed_to_lead",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "rental_voicemail_at_handover",
+      "bucket": "leads",
+      "sub": "slow_first_reply",
+      "text": "Someone calls about a rental while I'm at a handover and the voicemail is still unplayed.",
+      "pain": "unplayed_lead_voicemail",
+      "solution": "after_hours_sms",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "google_lsa_silenced_on_install",
+      "bucket": "leads",
+      "sub": "slow_first_reply",
+      "text": "I silence a Google lead ping to finish the install and they already booked the other guy.",
+      "pain": "silenced_lead_ping",
+      "solution": "speed_to_lead",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "loved_the_house_no_checkin",
+      "bucket": "leads",
+      "sub": "leads_slip",
+      "text": "The couple who loved the house Saturday went quiet because I never sent the 'just checking in' text.",
+      "pain": "warm_lead_no_nurture",
+      "solution": "followup_nudge",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "condenser_quote_never_chased",
+      "bucket": "leads",
+      "sub": "leads_slip",
+      "text": "I quoted a condenser last Tuesday and never followed up, and now they're not answering.",
+      "pain": "quote_no_chase",
+      "solution": "quote_followup",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "turo_thread_starred_and_forgot",
+      "bucket": "leads",
+      "sub": "leads_slip",
+      "text": "A guest asked about next month, I starred the Turo thread, and I still haven't answered.",
+      "pain": "starred_thread_decay",
+      "solution": "followup_nudge",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "open_house_signins_in_truck",
+      "bucket": "leads",
+      "sub": "leads_slip",
+      "text": "Open-house sign-ins from two weeks ago are still on a clipboard in the truck.",
+      "pain": "paper_leads_uncalled",
+      "solution": "followup_nudge",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "driveway_notepad_unreadable",
+      "bucket": "leads",
+      "sub": "quoting_slow",
+      "text": "I scribble a price on a notepad in the driveway and then can't read it when I get home.",
+      "pain": "handwritten_quote",
+      "solution": "quote_builder",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "monday_quote_still_in_my_head",
+      "bucket": "leads",
+      "sub": "quoting_slow",
+      "text": "They asked for a written quote on Monday and I'm still building it in my head.",
+      "pain": "quote_not_sent",
+      "solution": "quote_builder",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "texted_a_number_they_wanted_pdf",
+      "bucket": "leads",
+      "sub": "quoting_slow",
+      "text": "I texted a round number, they wanted it on letterhead, and I never sent the PDF.",
+      "pain": "quote_format_stall",
+      "solution": "quote_followup",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "rental_quote_calendar_and_old_dms",
+      "bucket": "leads",
+      "sub": "quoting_slow",
+      "text": "Every rental quote means I open the calendar, a spreadsheet, and three old DMs.",
+      "pain": "quote_data_scatter",
+      "solution": "quote_builder",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "buyer_instagram_email_and_text",
+      "bucket": "leads",
+      "sub": "dms_on_three_apps",
+      "text": "The same buyer DMed me on Instagram, emailed, and texted, and I answered two of the three.",
+      "pain": "split_lead_threads",
+      "solution": "inbox_unify",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "facebook_cell_and_housecall",
+      "bucket": "leads",
+      "sub": "dms_on_three_apps",
+      "text": "Facebook, the business cell, and Housecall Pro all have the same AC lead and I don't know which thread is current.",
+      "pain": "duplicate_lead_threads",
+      "solution": "inbox_unify",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "guest_in_turo_sms_and_email",
+      "bucket": "leads",
+      "sub": "dms_on_three_apps",
+      "text": "A guest is in Turo chat, SMS, and email and I keep repeating myself.",
+      "pain": "guest_thread_scatter",
+      "solution": "inbox_unify",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "zillow_names_in_notes_app",
+      "bucket": "leads",
+      "sub": "dms_on_three_apps",
+      "text": "I copy names from Zillow into my notes app and still lose who wanted the Tuesday showing.",
+      "pain": "lead_not_in_crm",
+      "solution": "crm_capture",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "nocool_voicemail_at_11pm",
+      "bucket": "support",
+      "sub": "missed_calls_after_hours",
+      "text": "The no-cool call came in at 11pm and I found the voicemail at 7am \u2014 they already hired the 24-hour shop.",
+      "pain": "after_hours_voicemail",
+      "solution": "after_hours_sms",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "saturday_lockouts_heard_monday",
+      "bucket": "support",
+      "sub": "missed_calls_after_hours",
+      "text": "Saturday the van number filled up with lockout calls and I didn't hear them until Monday.",
+      "pain": "weekend_call_pileup",
+      "solution": "after_hours_sms",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "see_it_tonight_ringer_off",
+      "bucket": "support",
+      "sub": "missed_calls_after_hours",
+      "text": "A buyer texted 'can we see it tonight' at 8:30 and I was at my kid's game with the ringer off.",
+      "pain": "after_hours_showing_request",
+      "solution": "after_hours_sms",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "lockbox_code_at_1am",
+      "bucket": "support",
+      "sub": "missed_calls_after_hours",
+      "text": "The lockbox-code question hit Turo at 1am and I was asleep, so they left a one-star.",
+      "pain": "overnight_guest_lockout",
+      "solution": "after_hours_sms",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "where_is_the_tech_four_times",
+      "bucket": "support",
+      "sub": "status_chase_texts",
+      "text": "The homeowner texts 'where is the tech' four times before I can pull over.",
+      "pain": "eta_chase_texts",
+      "solution": "eta_sms",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "part_came_in_they_had_to_chase",
+      "bucket": "support",
+      "sub": "status_chase_texts",
+      "text": "I promised a callback when the part came in and they had to chase me two days later.",
+      "pain": "missed_promised_callback",
+      "solution": "callback_queue",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "gate_code_sent_in_wrong_thread",
+      "bucket": "support",
+      "sub": "status_chase_texts",
+      "text": "The renter asks for the gate code again because I sent it in the wrong thread.",
+      "pain": "repeated_access_question",
+      "solution": "faq_replies",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "did_the_other_side_sign",
+      "bucket": "support",
+      "sub": "status_chase_texts",
+      "text": "A client texts 'did the other side sign?' during a showing and I don't see it until I'm back in the car.",
+      "pain": "mid_showing_client_text",
+      "solution": "eta_sms",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "never_sent_the_google_link",
+      "bucket": "support",
+      "sub": "reviews_nobody_asks_for",
+      "text": "I finished a 5-star job last week and never texted the Google review link.",
+      "pain": "no_review_ask",
+      "solution": "review_ask",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "only_the_mad_reviews_show_up",
+      "bucket": "support",
+      "sub": "reviews_nobody_asks_for",
+      "text": "The only reviews that show up are the mad ones, because happy people don't think to post.",
+      "pain": "happy_customers_silent",
+      "solution": "review_ask",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "review_screenshot_still_unsent",
+      "bucket": "support",
+      "sub": "reviews_nobody_asks_for",
+      "text": "I screenshot the review link after every walkthrough and still forget to send it.",
+      "pain": "review_ask_forgotten",
+      "solution": "review_ask",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "closing_went_great_no_ask",
+      "bucket": "support",
+      "sub": "reviews_nobody_asks_for",
+      "text": "The closing went great and I never asked them to review me on Google or Zillow.",
+      "pain": "post_close_no_review",
+      "solution": "review_ask",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "angry_facebook_comment_two_days",
+      "bucket": "support",
+      "sub": "complaints_i_see_too_late",
+      "text": "An angry Facebook comment sat for two days because I don't check the Page inbox.",
+      "pain": "unseen_public_complaint",
+      "solution": "complaint_watch",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "google_listing_message_then_star",
+      "bucket": "support",
+      "sub": "complaints_i_see_too_late",
+      "text": "They replied on my Google listing instead of calling, and I only saw it after the one-star.",
+      "pain": "listing_message_missed",
+      "solution": "inbox_unify",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "damage_dispute_while_in_turo_chat",
+      "bucket": "support",
+      "sub": "complaints_i_see_too_late",
+      "text": "A guest's damage dispute sat in email while I was answering Turo chat.",
+      "pain": "dispute_in_wrong_inbox",
+      "solution": "inbox_unify",
+      "source": "persona-sales-support.md"
+    },
+    {
+      "id": "inspection_objection_on_the_portal",
+      "bucket": "support",
+      "sub": "complaints_i_see_too_late",
+      "text": "The inspection objection landed in the brokerage portal and I was only watching my phone texts.",
+      "pain": "portal_message_missed",
+      "solution": "inbox_unify",
+      "source": "persona-sales-support.md"
+    }
+  ]
+}
