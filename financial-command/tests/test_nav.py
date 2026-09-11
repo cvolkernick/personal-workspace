@@ -25,6 +25,7 @@ SURFACES = (
     "index.html",
     "capital-flows.html",
     "cash-streams.html",
+    "runway.html",
     "watchlist.html",
     "interest-spectrum.html",
     "bias-spectrum.html",
@@ -193,6 +194,10 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(cs["text"], "Cash Streams")
         self.assertEqual(cs["href"], "cash-streams.html")
 
+        rw = _by_id(index, "nav-runway")
+        self.assertEqual(rw["text"], "Runway")
+        self.assertEqual(rw["href"], "runway.html")
+
         wl = _by_id(index, "nav-watchlist")
         self.assertEqual(wl["text"], "Watchlist")
         self.assertEqual(wl["href"], "watchlist.html")
@@ -212,6 +217,8 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(_by_id(flows, "nav-watchlist")["text"], "Watchlist")
         self.assertEqual(_by_id(flows, "nav-cash-streams")["href"], "cash-streams.html")
         self.assertEqual(_by_id(flows, "nav-cash-streams")["text"], "Cash Streams")
+        self.assertEqual(_by_id(flows, "nav-runway")["href"], "runway.html")
+        self.assertEqual(_by_id(flows, "nav-runway")["text"], "Runway")
         self.assertEqual(_by_id(flows, "nav-interest-spectrum")["href"], "interest-spectrum.html")
         self.assertEqual(_by_id(flows, "nav-bias-spectrum")["href"], "bias-spectrum.html")
 
@@ -225,12 +232,16 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(_by_id(watch, "nav-bias-spectrum")["href"], "bias-spectrum.html")
         self.assertEqual(_by_id(watch, "nav-cash-streams")["href"], "cash-streams.html")
         self.assertEqual(_by_id(watch, "nav-cash-streams")["text"], "Cash Streams")
+        self.assertEqual(_by_id(watch, "nav-runway")["href"], "runway.html")
+        self.assertEqual(_by_id(watch, "nav-runway")["text"], "Runway")
 
         fcc_from_spec = _by_id(spectrum, "nav-fcc")
         self.assertIn("FCC", fcc_from_spec["text"])
         self.assertEqual(fcc_from_spec["href"], "index.html")
         self.assertEqual(_by_id(spectrum, "nav-capital-flows")["href"], "capital-flows.html")
         self.assertEqual(_by_id(spectrum, "nav-cash-streams")["href"], "cash-streams.html")
+        self.assertEqual(_by_id(spectrum, "nav-runway")["href"], "runway.html")
+        self.assertEqual(_by_id(spectrum, "nav-runway")["text"], "Runway")
         self.assertEqual(_by_id(spectrum, "nav-watchlist")["href"], "watchlist.html")
         self.assertEqual(_by_id(spectrum, "nav-bias-spectrum")["href"], "bias-spectrum.html")
         bias_page = _parse_anchors((FCC / "bias-spectrum.html").read_text(encoding="utf-8"))
@@ -239,6 +250,13 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(_by_id(bias_page, "nav-interest-spectrum")["href"], "interest-spectrum.html")
         self.assertEqual(_by_id(bias_page, "nav-cash-streams")["href"], "cash-streams.html")
         self.assertEqual(_by_id(bias_page, "nav-cash-streams")["text"], "Cash Streams")
+        self.assertEqual(_by_id(bias_page, "nav-runway")["href"], "runway.html")
+        self.assertEqual(_by_id(bias_page, "nav-runway")["text"], "Runway")
+        runway_page = _parse_anchors((FCC / "runway.html").read_text(encoding="utf-8"))
+        self.assertIn("FCC", _by_id(runway_page, "nav-fcc")["text"])
+        self.assertEqual(_by_id(runway_page, "nav-fcc")["href"], "index.html")
+        self.assertEqual(_by_id(runway_page, "nav-cash-streams")["href"], "cash-streams.html")
+        self.assertEqual(_by_id(runway_page, "nav-cash-streams")["text"], "Cash Streams")
 
         for name in SURFACES:
             html = (FCC / name).read_text(encoding="utf-8")
@@ -295,7 +313,7 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertIn("#nav-watchlist", spec_html)
         self.assertRegex(
             spec_html,
-            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-cash-streams,\s*#nav-watchlist,\s*#nav-bias-spectrum,\s*#nav-fleet",
+            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-cash-streams,\s*#nav-runway,\s*#nav-watchlist,\s*#nav-bias-spectrum,\s*#nav-fleet",
         )
         self.assertNotRegex(
             spec_html,
@@ -412,7 +430,7 @@ class TestFccNavHorizon(unittest.TestCase):
         index_html = (FCC / "index.html").read_text(encoding="utf-8")
         self.assertRegex(
             index_html,
-            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-cash-streams,\s*#nav-interest-spectrum,\s*#nav-bias-spectrum,\s*#nav-fleet",
+            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-cash-streams,\s*#nav-runway,\s*#nav-interest-spectrum,\s*#nav-bias-spectrum,\s*#nav-fleet",
         )
         self.assertNotRegex(index_html, r"#link-fleet-chip\s*[,\{]")
         self.assertNotRegex(index_html, r"#link-fleet-full\s*[,\{]")
@@ -536,6 +554,8 @@ class TestRootNavJsRemap(unittest.TestCase):
         self.assertEqual(remap("/capital-flows.html"), "/financial-command/capital-flows.html")
         self.assertEqual(remap("/cash-streams.html"), "/financial-command/cash-streams.html")
         self.assertEqual(remap("/cash-streams"), "/financial-command/cash-streams.html")
+        self.assertEqual(remap("/runway.html"), "/financial-command/runway.html")
+        self.assertEqual(remap("/runway"), "/financial-command/runway.html")
         self.assertEqual(remap("/bias-spectrum"), "/financial-command/bias-spectrum.html")
         self.assertEqual(remap("/interest-spectrum"), "/financial-command/interest-spectrum.html")
         self.assertEqual(remap("/position"), "/financial-command/position.html")

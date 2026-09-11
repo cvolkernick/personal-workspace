@@ -23,6 +23,7 @@ SURFACES = (
     "index.html",
     "capital-flows.html",
     "cash-streams.html",
+    "runway.html",
     "watchlist.html",
     "interest-spectrum.html",
     "bias-spectrum.html",
@@ -184,6 +185,7 @@ class TestFccPwaHttp(unittest.TestCase):
             "/watchlist.html",
             "/capital-flows.html",
             "/cash-streams.html",
+            "/runway.html",
             "/interest-spectrum",
         ):
             code, _, _ = self._get(path)
@@ -231,6 +233,7 @@ class TestFccPwaHttp(unittest.TestCase):
             "/watchlist.html",
             "/capital-flows.html",
             "/cash-streams.html",
+            "/runway.html",
             "/bias-spectrum.html",
         ):
             get_code, get_ctype, get_body = self._get(path)
