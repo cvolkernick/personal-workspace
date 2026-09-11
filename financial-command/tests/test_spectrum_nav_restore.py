@@ -27,6 +27,7 @@ SURFACES = (
     "index.html",
     "capital-flows.html",
     "cash-streams.html",
+    "runway.html",
     "watchlist.html",
     "interest-spectrum.html",
 )
