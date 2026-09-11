@@ -8,6 +8,7 @@ Serves static UI + APIs:
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
+  GET  /api/bias-spectrum — new-money consider-share (core + ready watchlist; not book weight)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/btc-network   — Bitcoin network hashrate + difficulty (mempool.space)
   GET  /api/coach         — financial coach allocation plan (pay on time)
@@ -89,6 +90,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
     get_deep_dive_markdown,
 )
 from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
+from treasury.bias_spectrum import build_bias_spectrum  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 BTC_NETWORK_SNAPSHOT = ROOT / "treasury" / "snapshots" / "btc_network_latest.json"
@@ -574,6 +576,7 @@ def _root_fcc_file_remap(path: str) -> str | None:
     unless we remap. Workspace files/dirs at ROOT keep priority.
     Only a basename under financial-command/ is eligible (no path traversal).
     Pretty /interest-spectrum maps to interest-spectrum.html when that file exists.
+    Pretty /bias-spectrum maps to bias-spectrum.html when that file exists.
     """
     name = path.lstrip("/")
     if not name or "/" in name or name.startswith(".") or ".." in name:
@@ -726,6 +729,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "watchlist",
                         "capital_flows",
                         "interest_spectrum",
+                        "bias_spectrum",
                     ],
                 },
             )
@@ -758,6 +762,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/interest-spectrum":
             try:
                 self._json(200, build_interest_spectrum())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/bias-spectrum":
+            try:
+                self._json(200, build_bias_spectrum())
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -870,6 +880,11 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/financial-command/interest-spectrum/",
         ):
             self.path = "/financial-command/interest-spectrum.html"
+        elif path in (
+            "/financial-command/bias-spectrum",
+            "/financial-command/bias-spectrum/",
+        ):
+            self.path = "/financial-command/bias-spectrum.html"
         elif path in ("/favicon.ico", "/financial-command/favicon.ico"):
             # iOS Safari fetches /favicon.ico at the origin root, not the page dir.
             self.path = "/financial-command/favicon.ico"
@@ -1310,6 +1325,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Watchlist research        → {wl}")
     print(
         f"Capital Flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
+    )
+    print(
+        f"Bias Spectrum             → http://127.0.0.1:{args.port}/financial-command/bias-spectrum.html"
     )
     print(f"[fcc] bind {bind_host}:{args.port}", file=sys.stderr)
     httpd = ThreadingHTTPServer((bind_host, args.port), FCCHandler)
