@@ -2166,6 +2166,10 @@
 
 
     <section class="card compact-metrics" id="cash-credit" data-m-panel="cash">
+      <span id="one-card" hidden></span>
+      <span id="hy" hidden></span>
+      <span id="x-money" hidden></span>
+      <span id="bitcoin" hidden></span>
       <div class="card-head">
         <h2>Cash &amp; credit</h2>
       </div>
@@ -2186,6 +2190,7 @@
     </details>
 
     <section class="card" id="fund-manager-card" data-m-panel="cash">
+      <span id="agentic-fund" hidden></span>
       <div class="card-head">
         <h2>Fund manager</h2>
         <span class="live-dot" id="fm-live-dot">Autopilot</span>
@@ -2340,7 +2345,9 @@
     <details class="panel" id="panel-settings" data-m-panel="more">
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
+        <span id="morpho" hidden></span>
         <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (Morpho ~7% est.)</div>
+        <div id="morpho-live" class="hint"></div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
             <label>CB loan principal (USDC)</label>
@@ -2355,12 +2362,22 @@
             <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="e.g. 0.0487" />
             <label>Morpho liquidation price (BTC USD)</label>
             <input id="m-liq-price" type="number" step="any" placeholder="e.g. 16559.79" />
+            <label>Bitcoin est. CAGR override (0–1 · blank = seed 30%)</label>
+            <input id="m-btc-cagr" type="number" step="0.001" min="0" max="2" placeholder="blank = seed 30% · est. CAGR" />
+            <p class="hint">Interest Spectrum Bitcoin line only. Est. CAGR — not cash APR/APY. Blank keeps the 30% seed. Do not invent a live BTC return.</p>
           </div>
           <div>
             <label>RH USDG Earn (lent principal)</label>
             <input id="m-usdg-earn" type="number" step="any" placeholder="Robinhood Earn · Morpho USDG" />
             <label>RH USDG Earn APY est. (0–1)</label>
             <input id="m-usdg-apy" type="number" step="0.001" min="0" max="1" placeholder="e.g. 0.07" />
+            <label>Agentic Fund est. CAGR override (0–1 · blank = seed 15%)</label>
+            <input id="m-agentic-cagr" type="number" step="0.001" min="0" max="2" placeholder="blank = seed 15% · est. CAGR" />
+            <p class="hint">Interest Spectrum Agentic Fund line only. Est. CAGR — not cash APR/APY. Blank keeps the 15% seed. Do not invent a live agentic return.</p>
+            <span id="rh-margin" hidden></span>
+            <label>RH margin interest APR override (0–1 · blank = live or seed 5%)</label>
+            <input id="m-rh-margin-apr" type="number" step="0.0001" min="0" max="1" placeholder="blank = books or seed 5% · 5% up to $50k" />
+            <p class="hint">Interest Spectrum RH margin interest chip. Borrow cost — not USDG Earn. Honest live books beat this fallback. Blank/0 keeps live if present, else seed 5%. Do not invent or scrape a RH margin rate. 5% up to $50k is product framing; chip rate is the APR %.</p>
             <label>RH margin loan used (USD)</label>
             <input id="m-rh-margin-loan" type="number" step="any" placeholder="optional · funding Earn" />
             <label>RH equity collateral (USD)</label>
@@ -4474,6 +4491,7 @@
       set("m-vault", man.vault_usdc);
       set("m-var-apr", man.variable_apr);
       set("m-liq-price", man.liquidation_price_btc_usd);
+      set("m-btc-cagr", man.bitcoin_cagr_est ?? man.btc_cagr_est ?? man.bitcoin_cagr_apy_est ?? man.btc_cagr_apy_est);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
       set("m-card-bal", man.card_balance);
       set(
@@ -4487,8 +4505,38 @@
       const rhMan = snap.robinhood || {};
       set("m-usdg-earn", rhMan.usdg_earn_usdg ?? inp.rh_usdg_earn_usdg);
       set("m-usdg-apy", rhMan.usdg_earn_apy_est ?? inp.rh_usdg_earn_apy_est ?? 0.07);
+      set("m-agentic-cagr", rhMan.agentic_fund_cagr_est ?? rhMan.agentic_cagr_est ?? rhMan.agentic_fund_cagr_apy_est ?? rhMan.agentic_cagr_apy_est);
+      set("m-rh-margin-apr", rhMan.rh_margin_apr ?? rhMan.margin_apr);
       set("m-rh-margin-loan", rhMan.margin_loan_usd ?? inp.rh_margin_loan_usd);
       set("m-rh-eq-coll", rhMan.equity_collateral_usd ?? inp.rh_equity_collateral_usd);
+      const liveEl = document.getElementById("morpho-live");
+      if (liveEl) {
+        const pos = snap.morpho_position || {};
+        const p = inp.loan_principal_usdc ?? pos.loan_principal_usdc;
+        const c = inp.collateral_btc_usd ?? pos.collateral_btc_usd;
+        const btc = inp.collateral_btc ?? pos.collateral_btc;
+        const liveLtv = inp.ltv ?? pos.ltv;
+        const liq = inp.liquidation_price_btc_usd ?? pos.liquidation_price_btc_usd;
+        const hf = inp.health_factor ?? pos.health_factor;
+        const apr =
+          inp.variable_apr != null
+            ? inp.variable_apr
+            : pos.variable_apr != null
+              ? pos.variable_apr
+              : null;
+        const src = pos.source || (snap.meta && snap.meta.morpho_position_source) || "—";
+        const wallet = pos.wallet || inp.morpho_wallet || "";
+        const bits = [];
+        if (p != null && p !== "") bits.push(`principal ${money(f(p))}`);
+        if (c != null && c !== "") bits.push(`collateral ${money(f(c))}` + (btc ? ` (${Number(btc).toFixed(8)} cbBTC)` : ""));
+        if (liveLtv != null && liveLtv !== "") bits.push(`LTV ${pct(f(liveLtv))}`);
+        if (apr != null && Number(apr) > 0) bits.push(`APR ${(f(apr) * 100).toFixed(2)}%`);
+        if (liq != null && Number(liq) > 0) bits.push(`liq ${money(f(liq))} / BTC`);
+        if (hf != null && Number(hf) > 0) bits.push(`health ${f(hf).toFixed(2)}`);
+        liveEl.textContent = bits.length
+          ? `Live Morpho loan (${src}${wallet ? " · " + wallet.slice(0, 6) + "…" + wallet.slice(-4) : ""}): ${bits.join(" · ")}. Writes stay in the Coinbase app.`
+          : `Morpho loan not on the wallet feed (${src}). Vault/card below stay Settings.`;
+      }
 
       renderBraiins(data.braiins);
       window.__treasury = data;
@@ -4982,6 +5030,7 @@
         vault_usdc: num("m-vault"),
         variable_apr: num("m-var-apr"),
         liquidation_price_btc_usd: num("m-liq-price"),
+        bitcoin_cagr_est: num("m-btc-cagr"),
         card_balance: num("m-card-bal"),
         one_card_security_deposit_usdc: num("m-card-deposit"),
         card_available_credit: num("m-card-avail"),
@@ -4998,6 +5047,8 @@
       return {
         usdg_earn_usdg: num("m-usdg-earn"),
         usdg_earn_apy_est: num("m-usdg-apy"),
+        agentic_fund_cagr_est: num("m-agentic-cagr"),
+        rh_margin_apr: num("m-rh-margin-apr"),
         margin_loan_usd: num("m-rh-margin-loan"),
         equity_collateral_usd: num("m-rh-eq-coll"),
       };
