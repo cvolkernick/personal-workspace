@@ -5,10 +5,12 @@ Reads Pi ``~/.local/share/youtube-groom/groom.log`` (override with
 ``YOUTUBE_GROOM_DIR``). Never calls the YouTube Data API, never copies
 over the live writer at ``~/.local/lib/youtube-groom/youtube_groom.py``.
 
-Unhealthy when:
-  * no successful ``listed=`` / INFO completion within STALE_AFTER of now
-    (2h — two missed hourly fires), OR
-  * last tick shows RefreshError / invalid_grant / uncaught exception.
+Verified **broken** when the log is readable and:
+  * last tick shows RefreshError / invalid_grant / uncaught exception, OR
+  * last successful ``listed=`` is older than STALE_AFTER (2h).
+
+**unknown** (check failed, never "BROKEN") when the log is missing, empty,
+unreadable, or has no parseable tick. "I couldn't tell" is not a groom failure.
 
 Alerts Grok on #workflow only: one message on broken transition, one on
 recovery, optional daily reminder if still broken >24h. Never DMs Chris
@@ -131,7 +133,7 @@ class LogScan:
 
 @dataclass
 class HealthDecision:
-    status: str  # healthy | broken | skipped
+    status: str  # healthy | broken | skipped | unknown
     reason: str
     scan: LogScan
     alert_kind: Optional[str] = None  # broken | recovery | reminder
@@ -239,18 +241,23 @@ def grok_mention_tags() -> list[list[str]]:
 
 
 def classify_status(scan: LogScan, *, now: datetime, writer_present: bool) -> tuple[str, str]:
-    """Return (status, reason). skipped = no prod surface, do not alert."""
+    """Return (status, reason). skipped = no prod surface, do not alert.
+
+    unknown = could not determine tick state. Never report that as broken.
+    """
     if scan.missing_log or scan.empty_log:
         if writer_present:
-            return "broken", "missing_log" if scan.missing_log else "empty_log"
+            return "unknown", "missing_log" if scan.missing_log else "empty_log"
         return "skipped", "no_prod_log"
-    last_ok = scan.last_success_at
     # Last-tick is scan order (later line in the file), not last_fail >= last_ok.
     # Mixed clocks: ISO UTC success vs asctime-as-UTC would hide a later invalid_grant.
     if scan.last_tick == "failure":
         return "broken", scan.last_failure_kind or "uncaught"
+    if scan.last_tick != "success":
+        return "unknown", "no_parseable_tick"
+    last_ok = scan.last_success_at
     if last_ok is None:
-        return "broken", "no_success"
+        return "unknown", "unreadable_timestamp"
     if now - last_ok > STALE_AFTER:
         return "broken", "stale_success"
     return "healthy", "ok"
@@ -267,6 +274,16 @@ def format_alert(kind: str, decision: HealthDecision) -> str:
         body = (
             f"youtube-groom **recovered** — successful `listed=` at {last_ok} "
             f"(prior status was `{decision.previous_status}`). "
+            f"Ledger: `{ledger}`."
+        )
+    elif kind == "check_failed" or (
+        kind == "reminder" and decision.status == "unknown"
+    ):
+        still = " still" if kind == "reminder" else ""
+        horizon = " (>24h)" if kind == "reminder" else ""
+        body = (
+            f"youtube-groom{still} **check failed**{horizon} — could not determine "
+            f"tick state (reason=`{decision.reason}`). Not a verified groom failure. "
             f"Ledger: `{ledger}`."
         )
     elif kind == "reminder":
@@ -331,9 +348,19 @@ def decide(
             decision.alert_kind = "reminder"
         else:
             decision.alert_kind = None
+    elif status == "unknown":
+        decision.broken_since = None
+        if prev_status != "unknown":
+            decision.alert_kind = "check_failed"
+        elif prev_alert_at is None:
+            decision.alert_kind = "check_failed"
+        elif (now - prev_alert_at) >= REMINDER_AFTER:
+            decision.alert_kind = "reminder"
+        else:
+            decision.alert_kind = None
     else:
         decision.broken_since = None
-        if prev_status == "broken":
+        if prev_status in {"broken", "unknown"}:
             decision.alert_kind = "recovery"
         else:
             decision.alert_kind = None
@@ -524,8 +551,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(json.dumps(summary, indent=2))
     if result["status"] == "broken":
         return 1
-    if result["status"] == "skipped":
-        return 0
+    if result["status"] == "unknown":
+        return 2
     return 0
 
 

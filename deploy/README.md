@@ -121,7 +121,7 @@ Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access 
 
 ## FCC tip health (#562)
 
-Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Mismatch → log + ntfy once (6h cooldown). **Never** auto-reset to master/holistic.
+Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Three outcomes (#630): **ok** (silent), **violation** (ntfy `FCC git tip drift …`), **unknown** (ntfy `FCC drift check failed …` — not a git repo / HEAD / origin / missing stamp). Never title a check failure as drift. Cooldown 6h. **Never** auto-reset to master/holistic.
 
 ```bash
 # On prism-gateway (unit file + durable script only — no repo rsync)
