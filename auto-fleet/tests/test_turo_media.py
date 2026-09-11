@@ -41,7 +41,8 @@ class TuroMediaTests(unittest.TestCase):
             self.assertIsNotNone(rec)
             self.assertEqual(rec["relpath"], "m1/fuel.jpg")
             found = turo_media.resolve_media_file(media, rec["relpath"])
-            self.assertEqual(found, Path(rec["path"]))
+            # macOS tempfile is /var/folders → /private/var/folders.
+            self.assertEqual(found.resolve(), Path(rec["path"]).resolve())
             self.assertIsNone(turo_media.resolve_media_file(media, "../secret.jpg"))
             self.assertIsNone(turo_media.resolve_media_file(media, "m1/../../etc/passwd"))
             self.assertIsNone(turo_media.resolve_media_file(media, "missing/nope.jpg"))

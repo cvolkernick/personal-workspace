@@ -2,6 +2,7 @@
 
 | Tool | Purpose |
 |------|---------|
+| `run_ci_tests.py` | Unified Python + JS CI runner (#584). Canonical: `ops/github-workflows/test.yml` |
 | `buzz-board` | Buzz Board (GitHub Project #1) CLI — `list`, `get`, `set-status N Done`, … |
 | `eng_gate_post_merge.py` | After eng-gate merge: mark board Done / residual / sweep (#58) |
 | `youtube_groom.py` | AI Curated house-cap policy (not the Pi writer; do not copy over `~/.local/lib/youtube-groom/youtube_groom.py`) |

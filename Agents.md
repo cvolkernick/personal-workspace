@@ -26,6 +26,7 @@ python3 projects-dashboard/git_workflow.py protect "fix(area): short reason"   #
 - **Never** push `master` via protect (blocked).
 - Never commit secrets (`.env`, OAuth tokens, `~/.config/**`, credentials).
 - **Always check `git branch --show-current` before commit.** Do not land finance work on `work/iot` or `work/orchestra`.
+- **CI:** `ops/github-workflows/test.yml` is the canonical test definition (#584); install copy lives under `.github/workflows/` once a `workflow`-scoped PAT can push it. Local: `python3 scripts/run_ci_tests.py`. Red CI does not merge.
 
 ## Product → branch (Pi live / PR base)
 
