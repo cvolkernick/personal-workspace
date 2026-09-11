@@ -1,0 +1,14 @@
+[Unit]
+Description=Nightly private-repo backup of agent home context (#580 E1)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=GROK_HOME=%h/.grok
+ExecStart=/usr/bin/python3 %h/personal-workspace/ops/context/persist.py backup --apply --config %h/.config/personal-workspace/context-persist.json --workspace %h/personal-workspace --out %h/personal-workspace/ops/context/reports
+Nice=10
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cvolkernick.context-drift</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>/usr/bin/python3 /Users/cvolkernick/personal-workspace/ops/context/persist.py drift --workspace /Users/cvolkernick/personal-workspace --out /Users/cvolkernick/personal-workspace/ops/context/reports/drift.txt; /usr/bin/python3 /Users/cvolkernick/personal-workspace/ops/context/persist.py contradict --paths /Users/cvolkernick/.openclaw/workspace/MEMORY.md /Users/cvolkernick/.openclaw/workspace/memory /Users/cvolkernick/MEMORY.md /Users/cvolkernick/memory</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>7</integer>
+    <key>Minute</key>
+    <integer>20</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/Library/Logs/personal-workspace/context-drift.launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/Library/Logs/personal-workspace/context-drift.launchd.err.log</string>
+  <key>Nice</key>
+  <integer>10</integer>
+</dict>
+</plist>

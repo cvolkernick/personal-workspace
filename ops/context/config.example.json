@@ -1,0 +1,25 @@
+{
+  "remote": "git@github.com:cvolkernick/agent-context.git",
+  "branch": "main",
+  "context_homes": ["~/.openclaw/workspace", "~"],
+  "include": [
+    "MEMORY.md",
+    "USER.md",
+    "AGENTS.md",
+    "TOOLS.md",
+    "SOUL.md",
+    "CONTEXT.md",
+    "memory/",
+    "goals/",
+    "skills/",
+    "cron.d/",
+    "workspace/goals/",
+    "workspace/skills/",
+    "workspace/cron.d/"
+  ],
+  "grok_home": "~/.grok",
+  "grok_include": ["skills/", "memory/", "workflows/"],
+  "clone_dir": "~/.cache/personal-workspace/agent-context",
+  "post_buzz": false,
+  "channel": "db0e8f97-0c81-4976-b299-1c460b87134e"
+}

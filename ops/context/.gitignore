@@ -1,0 +1,3 @@
+.staging/
+reports/*
+!reports/.gitignore

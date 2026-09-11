@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly agent-context backup (#580 E1)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 America/New_York
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=5min
+Unit=context-backup.service
+
+[Install]
+WantedBy=timers.target
