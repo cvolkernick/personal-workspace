@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for deploy/fcc_tip_health.py (issue #562)."""
+"""Tests for deploy/fcc_tip_health.py (issues #562, #628, #630)."""
 
 from __future__ import annotations
 
@@ -90,6 +90,7 @@ class TestNoGitMutation(unittest.TestCase):
             self.assertNotIn(needle, src)
         self.assertIn("Never mutates git", src)
         self.assertIn("rev-parse", src)
+        self.assertIn("unknown", src)
 
 
 class TestInspect(unittest.TestCase):
@@ -98,47 +99,129 @@ class TestInspect(unittest.TestCase):
         try:
             result = M.inspect(repo)
             self.assertTrue(result["ok"], result)
+            self.assertEqual(result["outcome"], "ok")
+            self.assertEqual(result["kind"], "healthy")
             self.assertEqual(result["attached"], "work/treasury")
             self.assertEqual(result["current_branch_txt"], "work/treasury")
             self.assertEqual(result["head"], result["origin_sha"])
         finally:
             td.cleanup()
 
-    def test_detached_is_mismatch(self) -> None:
+    def test_detached_is_violation(self) -> None:
         td, repo = _repo()
         try:
             _git(repo, "checkout", "--detach")
             result = M.inspect(repo)
             self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "violation")
+            self.assertEqual(result["kind"], "drift")
             self.assertTrue(any("detached" in m for m in result["mismatches"]))
-            # inspect must not re-attach
             self.assertEqual(_git(repo, "branch", "--show-current"), "")
         finally:
             td.cleanup()
 
-    def test_wrong_stamp_is_mismatch(self) -> None:
+    def test_wrong_stamp_is_violation(self) -> None:
         td, repo = _repo()
         try:
             (repo / "financial-command" / "current-branch.txt").write_text(
                 "master\n", encoding="utf-8"
             )
             result = M.inspect(repo)
-            self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "violation")
             self.assertTrue(
                 any("current-branch.txt" in m for m in result["mismatches"])
             )
         finally:
             td.cleanup()
 
-    def test_sha_drift_is_mismatch(self) -> None:
+    def test_missing_stamp_is_unknown_not_drift(self) -> None:
+        td, repo = _repo()
+        try:
+            (repo / "financial-command" / "current-branch.txt").unlink()
+            result = M.inspect(repo)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "current-branch.txt missing")
+            self.assertNotEqual(result["kind"], "drift")
+        finally:
+            td.cleanup()
+
+    def test_sha_drift_is_violation(self) -> None:
         td, repo = _repo()
         try:
             (repo / "README").write_text("y\n", encoding="utf-8")
             _git(repo, "add", "README")
             _git(repo, "commit", "-m", "ahead")
             result = M.inspect(repo)
-            self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "violation")
+            self.assertEqual(result["kind"], "drift")
             self.assertTrue(any("HEAD" in m for m in result["mismatches"]))
+        finally:
+            td.cleanup()
+
+    def test_not_a_repo_is_unknown_not_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            result = M.inspect(ws)
+            self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "not a git repository")
+            self.assertEqual(result["kind"], "unknown")
+            self.assertEqual(result["attached"], "")
+            self.assertEqual(result["head"], "")
+            self.assertTrue(
+                any("not a git repository" in m for m in result["mismatches"])
+            )
+            self.assertFalse(
+                any(m.startswith("attached=") for m in result["mismatches"])
+            )
+            self.assertIn(str(ws.resolve()), result["workspace"])
+
+    def test_broken_worktree_gitdir_is_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td) / "live"
+            ws.mkdir()
+            (ws / ".git").write_text("gitdir: /no/such/gitdir\n", encoding="utf-8")
+            result = M.inspect(ws)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "not a git repository")
+            self.assertTrue(
+                any("gitdir" in m.lower() for m in result["mismatches"]),
+                result["mismatches"],
+            )
+
+    def test_head_unreadable_is_unknown_not_drift(self) -> None:
+        td, repo = _repo()
+        try:
+            (repo / ".git" / "HEAD").write_text(
+                "ref: refs/heads/does-not-exist\n", encoding="utf-8"
+            )
+            result = M.inspect(repo)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "HEAD unreadable")
+            self.assertFalse(
+                any(m.startswith("attached=") for m in result["mismatches"]),
+                result["mismatches"],
+            )
+        finally:
+            td.cleanup()
+
+    def test_origin_unreadable_is_unknown(self) -> None:
+        td, repo = _repo()
+        try:
+            _git(repo, "remote", "remove", "origin")
+            result = M.inspect(repo)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "origin ref unreadable")
+        finally:
+            td.cleanup()
+
+    def test_ignores_git_dir_env(self) -> None:
+        td, repo = _repo()
+        try:
+            with mock.patch.dict(os.environ, {"GIT_DIR": "/tmp/does-not-exist-fcc-tip"}):
+                result = M.inspect(repo)
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(result["outcome"], "ok")
         finally:
             td.cleanup()
 
@@ -148,7 +231,7 @@ class TestNtfyOnce(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "state.json"
             out = M.ntfy_mismatch(
-                {"ok": True, "mismatches": []},
+                {"ok": True, "outcome": "ok", "mismatches": []},
                 workspace=Path(td),
                 state_path=state,
             )
@@ -160,6 +243,8 @@ class TestNtfyOnce(unittest.TestCase):
             state = Path(td) / "state.json"
             result = {
                 "ok": False,
+                "outcome": "violation",
+                "kind": "drift",
                 "mismatches": ["detached"],
                 "expected_branch": "work/treasury",
                 "head": "abc",
@@ -174,6 +259,8 @@ class TestNtfyOnce(unittest.TestCase):
                 dry_run=True,
             )
             self.assertEqual(first.get("skipped"), "dry-run")
+            self.assertFalse(state.exists(), "dry-run must not consume ntfy cooldown")
+            M._mark_notified(state, result)
             second = M.ntfy_mismatch(
                 result,
                 workspace=Path(td),
@@ -181,6 +268,43 @@ class TestNtfyOnce(unittest.TestCase):
                 dry_run=True,
             )
             self.assertEqual(second.get("skipped"), "cooldown")
+
+    def test_unknown_title_is_check_failed_not_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            result = M.inspect(ws)
+            out = M.ntfy_mismatch(
+                result,
+                workspace=ws,
+                state_path=ws / "state.json",
+                dry_run=True,
+            )
+            title = out["title"].lower()
+            self.assertIn("check failed", title)
+            self.assertIn("not a git repository", title)
+            self.assertNotIn("git tip drift", title)
+            self.assertIn(str(ws.resolve()), out["text"])
+            self.assertIn("outcome=unknown", out["text"])
+            self.assertIn("CHECK FAILED", out["text"])
+
+    def test_violation_title_names_expected_and_found(self) -> None:
+        td, repo = _repo()
+        try:
+            _git(repo, "checkout", "--detach")
+            result = M.inspect(repo)
+            out = M.ntfy_mismatch(
+                result,
+                workspace=repo,
+                state_path=repo / "state.json",
+                dry_run=True,
+            )
+            title = out["title"]
+            self.assertIn("git tip drift", title)
+            self.assertIn("expected work/treasury", title)
+            self.assertIn("found detached", title)
+            self.assertNotIn("check failed", title.lower())
+        finally:
+            td.cleanup()
 
 
 class TestCli(unittest.TestCase):
@@ -202,7 +326,7 @@ class TestCli(unittest.TestCase):
         finally:
             td.cleanup()
 
-    def test_main_mismatch_exit_1_does_not_reattach(self) -> None:
+    def test_main_violation_exit_1_does_not_reattach(self) -> None:
         td, repo = _repo()
         try:
             _git(repo, "checkout", "--detach")
@@ -221,6 +345,20 @@ class TestCli(unittest.TestCase):
             self.assertEqual(_git(repo, "branch", "--show-current"), "")
         finally:
             td.cleanup()
+
+    def test_main_unknown_exit_2(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            code = M.main(
+                [
+                    "--workspace",
+                    td,
+                    "--no-fetch",
+                    "--dry-run",
+                    "--state",
+                    str(Path(td) / "s.json"),
+                ]
+            )
+        self.assertEqual(code, 2)
 
 
 if __name__ == "__main__":
