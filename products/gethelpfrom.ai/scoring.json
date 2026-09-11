@@ -1,0 +1,474 @@
+{
+  "version": "1.0.0",
+  "notes": "Simple v1. Coverage of scenarios beats clever weights. Bump version on any weight or mapping change. Never silent-edit.",
+  "weights": {
+    "value": 0.5,
+    "feasibility": 0.3,
+    "confidence": 0.2
+  },
+  "tap_scores": {
+    "thats_me": 2,
+    "sort_of": 1,
+    "not_me": -1,
+    "skipped": 0
+  },
+  "shortlist": {
+    "default_n": 5,
+    "expand_n": 8,
+    "min_value_taps": 1
+  },
+  "hours_multiplier": {
+    "0-2": 1.0,
+    "3-5": 1.4,
+    "6-10": 1.8,
+    "10+": 2.2
+  },
+  "urgency_multiplier": {
+    "curious": 0.7,
+    "this_quarter": 1.0,
+    "weekly_pain": 1.4,
+    "losing_sleep_or_money": 1.8
+  },
+  "trust_feasibility": {
+    "1": 0.4,
+    "2": 0.55,
+    "3": 0.75,
+    "4": 0.9,
+    "5": 1.0
+  },
+  "pains": {
+    "late_bills": {
+      "label": "Bills paid late"
+    },
+    "sub_pile": {
+      "label": "Subscriptions piling up"
+    },
+    "budget_fog": {
+      "label": "No idea where money went"
+    },
+    "tax_packet": {
+      "label": "Tax paperwork scramble"
+    },
+    "medical_paper": {
+      "label": "Medical / insurance paper"
+    },
+    "school_forms": {
+      "label": "School / household forms"
+    },
+    "doc_chaos": {
+      "label": "Documents in 6 places"
+    },
+    "calendar_clash": {
+      "label": "Calendar collisions"
+    },
+    "meeting_sludge": {
+      "label": "Meetings that should be notes"
+    },
+    "inbox_bury": {
+      "label": "Inbox never at zero"
+    },
+    "followup_slip": {
+      "label": "Follow-ups slip"
+    },
+    "habit_ghost": {
+      "label": "Habit apps ghosted"
+    },
+    "meal_decision": {
+      "label": "Meal decision fatigue"
+    },
+    "sleep_drift": {
+      "label": "Sleep schedule drift"
+    },
+    "course_hoard": {
+      "label": "Unused courses"
+    },
+    "lead_lag": {
+      "label": "Slow lead reply"
+    },
+    "quote_stall": {
+      "label": "Quotes stall"
+    },
+    "after_hours": {
+      "label": "After-hours missed calls"
+    },
+    "support_scatter": {
+      "label": "Support across apps"
+    },
+    "human_api": {
+      "label": "Human copy-paste glue"
+    },
+    "invoice_lag": {
+      "label": "Invoices not chased"
+    },
+    "books_mess": {
+      "label": "Books never close"
+    },
+    "stock_drift": {
+      "label": "Inventory mismatch"
+    },
+    "dispatch_chaos": {
+      "label": "Dispatch chaos"
+    },
+    "content_drought": {
+      "label": "Inconsistent posting"
+    },
+    "review_ask_miss": {
+      "label": "Never ask for reviews"
+    },
+    "hire_slush": {
+      "label": "Hiring pile unread"
+    },
+    "onboard_paper": {
+      "label": "Paper onboarding"
+    }
+  },
+  "solutions": {
+    "bill_pay_agent": {
+      "label": "Bill-due radar + pay reminders",
+      "track": "personal",
+      "pattern": "Watch due dates, nudge before late fees, never auto-pay without you.",
+      "tools": [
+        "gmail",
+        "apple_wallet",
+        "spreadsheets"
+      ]
+    },
+    "subscription_audit": {
+      "label": "Subscription hunter",
+      "track": "personal",
+      "pattern": "List recurring charges, flag unused, one-tap cancel list.",
+      "tools": [
+        "gmail",
+        "spreadsheets"
+      ]
+    },
+    "eob_explainer": {
+      "label": "Insurance EOB translator",
+      "track": "personal",
+      "pattern": "Turn EOBs into 'what you owe / what to call about'.",
+      "tools": [
+        "gmail",
+        "files"
+      ]
+    },
+    "form_filler": {
+      "label": "Form packet filler",
+      "track": "personal",
+      "pattern": "Reuse household facts onto school/clinic/insurance forms; you sign.",
+      "tools": [
+        "files",
+        "gmail"
+      ]
+    },
+    "document_inbox": {
+      "label": "One document inbox",
+      "track": "personal",
+      "pattern": "Photo/email \u2192 tagged folder (tax, medical, warranty).",
+      "tools": [
+        "gmail",
+        "files"
+      ]
+    },
+    "inbox_triage": {
+      "label": "Inbox triage drafts",
+      "track": "personal",
+      "pattern": "Sort + draft replies; you send.",
+      "tools": [
+        "gmail",
+        "outlook"
+      ]
+    },
+    "followup_nudge": {
+      "label": "Follow-up nudges",
+      "track": "both",
+      "pattern": "If you said you'd reply, ping you before it goes cold.",
+      "tools": [
+        "gmail",
+        "calendar"
+      ]
+    },
+    "calendar_deflect": {
+      "label": "Calendar shield",
+      "track": "personal",
+      "pattern": "Propose times, decline junk, protect family blocks.",
+      "tools": [
+        "google_calendar",
+        "apple_calendar"
+      ]
+    },
+    "meeting_notes_agent": {
+      "label": "Meeting \u2192 next actions",
+      "track": "personal",
+      "pattern": "Notes + owners + due dates after the call.",
+      "tools": [
+        "google_calendar",
+        "slack"
+      ]
+    },
+    "habit_nudge": {
+      "label": "Tiny habit pings that quit nagging",
+      "track": "personal",
+      "pattern": "One ping at the right time; silence after two ignores.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "meal_plan_from_inventory": {
+      "label": "Meals from what's already in the house",
+      "track": "personal",
+      "pattern": "Plan from pantry/fridge, not a fantasy grocery list.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "sleep_wind_down": {
+      "label": "Wind-down that actually starts",
+      "track": "personal",
+      "pattern": "Lights/phone/schedule cue at a civil hour.",
+      "tools": [
+        "phone",
+        "iot"
+      ]
+    },
+    "course_prune": {
+      "label": "Course graveyard prune",
+      "track": "personal",
+      "pattern": "Pick one course, archive the rest, 20-min next step.",
+      "tools": [
+        "browser"
+      ]
+    },
+    "spaced_rep_coach": {
+      "label": "Remember-this coach",
+      "track": "personal",
+      "pattern": "Spaced questions from what you actually need to keep.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "speed_to_lead": {
+      "label": "Speed-to-lead text",
+      "track": "business",
+      "pattern": "New lead \u2192 SMS in under 2 minutes with your voice; you take it from there.",
+      "tools": [
+        "jobber",
+        "housecall_pro",
+        "hubspot",
+        "gmail"
+      ]
+    },
+    "quote_followup": {
+      "label": "Quote chase",
+      "track": "business",
+      "pattern": "Unanswered quotes get a polite bump on a schedule you set.",
+      "tools": [
+        "jobber",
+        "housecall_pro",
+        "gmail"
+      ]
+    },
+    "after_hours_sms": {
+      "label": "After-hours catcher",
+      "track": "business",
+      "pattern": "Missed call / after-hours form \u2192 text back, book or hold.",
+      "tools": [
+        "phone",
+        "jobber"
+      ]
+    },
+    "inbox_unify": {
+      "label": "One customer inbox",
+      "track": "business",
+      "pattern": "FB / IG / SMS / email in one queue with drafts.",
+      "tools": [
+        "gmail",
+        "phone"
+      ]
+    },
+    "review_ask": {
+      "label": "Ask for the review",
+      "track": "business",
+      "pattern": "After a good job, send the ask once. Never beg twice.",
+      "tools": [
+        "jobber",
+        "housecall_pro"
+      ]
+    },
+    "integration_agent": {
+      "label": "Stop being the human API",
+      "track": "business",
+      "pattern": "Copy the same fields between two tools you already pay for.",
+      "tools": [
+        "jobber",
+        "quickbooks",
+        "spreadsheets",
+        "shopify"
+      ]
+    },
+    "invoice_chase": {
+      "label": "Invoice chase",
+      "track": "business",
+      "pattern": "Send, remind, escalate \u2014 you approve the tone once.",
+      "tools": [
+        "quickbooks",
+        "stripe"
+      ]
+    },
+    "books_close": {
+      "label": "Monthly close packet",
+      "track": "business",
+      "pattern": "Uncategorized txs sorted, questions listed, you click.",
+      "tools": [
+        "quickbooks",
+        "spreadsheets"
+      ]
+    },
+    "inventory_sync": {
+      "label": "Stock vs sales matcher",
+      "track": "business",
+      "pattern": "Flag SKUs that sales and shelves disagree on.",
+      "tools": [
+        "shopify",
+        "spreadsheets"
+      ]
+    },
+    "dispatch_assist": {
+      "label": "Dispatch helper",
+      "track": "business",
+      "pattern": "Tomorrow's jobs sequenced; gaps and double-books called out.",
+      "tools": [
+        "jobber",
+        "housecall_pro"
+      ]
+    },
+    "content_batch": {
+      "label": "One afternoon of posts",
+      "track": "business",
+      "pattern": "Batch 8 posts from jobs you already did. You pick captions.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "review_gen": {
+      "label": "Review \u2192 post",
+      "track": "business",
+      "pattern": "Turn a 5-star into a shareable snippet.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "job_screener": {
+      "label": "Application first-pass",
+      "track": "business",
+      "pattern": "Must-have filter + 5 interview questions. You still hire.",
+      "tools": [
+        "gmail"
+      ]
+    },
+    "onboarding_packet": {
+      "label": "Day-one packet",
+      "track": "business",
+      "pattern": "Checklist + forms + 'who to text' for a new hire.",
+      "tools": [
+        "files",
+        "gmail"
+      ]
+    },
+    "shift_comms": {
+      "label": "Crew text that isn't chaos",
+      "track": "business",
+      "pattern": "Tomorrow's roster + one channel, not 14 group texts.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "job_to_invoice": {
+      "label": "Job \u2192 invoice without retyping",
+      "track": "business",
+      "pattern": "Turn the finished job into an invoice from the same fields.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "payroll_packet": {
+      "label": "Payroll packet",
+      "track": "business",
+      "pattern": "Hours in, paycheck questions out \u2014 you still approve.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "tax_1099": {
+      "label": "1099 / contractor packet",
+      "track": "business",
+      "pattern": "Who got paid what, in a list your CPA can open.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "receipt_inbox": {
+      "label": "Receipt inbox",
+      "track": "both",
+      "pattern": "Photo a receipt, it lands in the right pile.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "sales_tax_packet": {
+      "label": "Sales-tax packet",
+      "track": "business",
+      "pattern": "What to file this period, from the tools you already use.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "quote_builder": {
+      "label": "Quote from the visit notes",
+      "track": "business",
+      "pattern": "Leave the job with a draft quote, not a blank page tonight.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "crm_capture": {
+      "label": "Lead actually hits the CRM",
+      "track": "business",
+      "pattern": "The Facebook/Zillow name doesn't die in a screenshot.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "eta_sms": {
+      "label": "On-the-way text",
+      "track": "business",
+      "pattern": "Customer gets an ETA without you typing it at a red light.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "callback_queue": {
+      "label": "Callback queue",
+      "track": "business",
+      "pattern": "Missed calls become a list, not a guilt pile.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "faq_replies": {
+      "label": "The same 8 answers, drafted",
+      "track": "business",
+      "pattern": "Draft the FAQ reply; you tap send.",
+      "tools": [
+        "phone"
+      ]
+    },
+    "complaint_watch": {
+      "label": "Complaint before it's a review",
+      "track": "business",
+      "pattern": "Angry message flagged so you see it before Google does.",
+      "tools": [
+        "phone"
+      ]
+    }
+  }
+}

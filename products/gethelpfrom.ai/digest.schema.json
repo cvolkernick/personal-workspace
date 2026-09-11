@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gethelpfrom.ai/schema/digest-v1.json",
+  "title": "GetHelpFrom.ai lead digest v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "scoring_version",
+    "questions_version",
+    "scenarios_version",
+    "session_id",
+    "completed_at",
+    "contact",
+    "tracks",
+    "ranked",
+    "why",
+    "demo_prep"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "scoring_version": { "type": "string" },
+    "questions_version": { "type": "string" },
+    "scenarios_version": { "type": "string" },
+    "session_id": { "type": "string", "format": "uuid" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "contact": {
+      "type": "object",
+      "required": ["name", "email", "consent"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": ["string", "null"] },
+        "consent": { "type": "boolean", "const": true }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "items": { "enum": ["personal", "business"] },
+      "minItems": 1
+    },
+    "context": { "type": "object" },
+    "taps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["scenario_id", "response"],
+        "properties": {
+          "scenario_id": { "type": "string" },
+          "response": { "enum": ["thats_me", "sort_of", "not_me", "skipped"] }
+        }
+      }
+    },
+    "ranked": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["rank", "solution_id", "tag", "value", "feasibility", "confidence"],
+        "properties": {
+          "rank": { "type": "integer", "minimum": 1 },
+          "solution_id": { "type": "string" },
+          "tag": { "enum": ["must_have", "nice_to_have"] },
+          "value": { "type": "number" },
+          "feasibility": { "type": "number" },
+          "confidence": { "type": "number" }
+        }
+      }
+    },
+    "rejected": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "escape_hatch": {
+      "type": ["object", "null"],
+      "properties": {
+        "text": { "type": "string" },
+        "classifier_pass": { "type": "string" }
+      }
+    },
+    "why": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["solution_id", "lines"],
+        "properties": {
+          "solution_id": { "type": "string" },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "flags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "demo_prep": {
+      "type": "object",
+      "required": ["build_before_call", "show_live", "ask_on_call"],
+      "properties": {
+        "build_before_call": { "type": "array", "items": { "type": "string" } },
+        "show_live": { "type": "array", "items": { "type": "string" } },
+        "ask_on_call": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "summary_md": { "type": "string" }
+  }
+}
