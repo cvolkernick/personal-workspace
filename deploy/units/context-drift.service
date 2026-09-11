@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily context SoT drift + contradiction report (#580 E8/E6)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/personal-workspace/ops/context/persist.py drift --workspace %h/personal-workspace --out %h/personal-workspace/ops/context/reports/drift.txt
+ExecStart=/usr/bin/python3 %h/personal-workspace/ops/context/persist.py contradict --paths %h/.openclaw/workspace/MEMORY.md %h/.openclaw/workspace/memory %h/MEMORY.md %h/memory
+Nice=10
+
+[Install]
+WantedBy=default.target

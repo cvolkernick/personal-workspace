@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily context SoT drift (#580 E8)
+
+[Timer]
+OnCalendar=*-*-* 07:20:00 America/New_York
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=5min
+Unit=context-drift.service
+
+[Install]
+WantedBy=timers.target
