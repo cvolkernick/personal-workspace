@@ -119,9 +119,14 @@ Do **not** run `install_remote.sh` from `master` onto the FCC live clone to “f
 
 Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access private (access policies), not a bare open port. FCC is not a Cloudflare/Vercel app.
 
-## FCC tip health (#562)
+## FCC tip health (#562, #628)
 
-Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Mismatch → log + ntfy once (6h cooldown). **Never** auto-reset to master/holistic.
+Periodic read-only assert on **`~/personal-workspace`** (prism FCC live clone): HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match.
+
+- **drift** → ntfy title `FCC · git tip drift · prism-gateway` (wrong branch / SHA).
+- **not_a_repo** → ntfy title `FCC · git check path · prism-gateway` (path has no `.git` or broken worktree gitdir). Not the same as drift.
+
+`--workspace` defaults to `~/personal-workspace` (not cwd) so a manual run from `~/.config/personal-workspace` cannot false-alert. Alerts include `workspace=`. `--dry-run` (workspace-sync hook) does **not** consume the 6h ntfy cooldown. **Never** auto-reset to master/holistic.
 
 ```bash
 # On prism-gateway (unit file + durable script only — no repo rsync)

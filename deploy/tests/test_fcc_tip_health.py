@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for deploy/fcc_tip_health.py (issue #562)."""
+"""Tests for deploy/fcc_tip_health.py (issues #562, #628)."""
 
 from __future__ import annotations
 
@@ -98,6 +98,7 @@ class TestInspect(unittest.TestCase):
         try:
             result = M.inspect(repo)
             self.assertTrue(result["ok"], result)
+            self.assertEqual(result["kind"], "healthy")
             self.assertEqual(result["attached"], "work/treasury")
             self.assertEqual(result["current_branch_txt"], "work/treasury")
             self.assertEqual(result["head"], result["origin_sha"])
@@ -110,6 +111,7 @@ class TestInspect(unittest.TestCase):
             _git(repo, "checkout", "--detach")
             result = M.inspect(repo)
             self.assertFalse(result["ok"], result)
+            self.assertEqual(result["kind"], "drift")
             self.assertTrue(any("detached" in m for m in result["mismatches"]))
             # inspect must not re-attach
             self.assertEqual(_git(repo, "branch", "--show-current"), "")
@@ -138,7 +140,46 @@ class TestInspect(unittest.TestCase):
             _git(repo, "commit", "-m", "ahead")
             result = M.inspect(repo)
             self.assertFalse(result["ok"], result)
+            self.assertEqual(result["kind"], "drift")
             self.assertTrue(any("HEAD" in m for m in result["mismatches"]))
+        finally:
+            td.cleanup()
+
+    def test_not_a_repo_is_not_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            result = M.inspect(ws)
+            self.assertFalse(result["ok"], result)
+            self.assertEqual(result["kind"], "not_a_repo")
+            self.assertEqual(result["attached"], "")
+            self.assertEqual(result["head"], "")
+            self.assertTrue(
+                any("not a git repository" in m for m in result["mismatches"])
+            )
+            self.assertFalse(
+                any(m.startswith("attached=") for m in result["mismatches"])
+            )
+            self.assertIn(str(ws.resolve()), result["workspace"])
+
+    def test_broken_worktree_gitdir(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td) / "live"
+            ws.mkdir()
+            (ws / ".git").write_text("gitdir: /no/such/gitdir\n", encoding="utf-8")
+            result = M.inspect(ws)
+            self.assertEqual(result["kind"], "not_a_repo")
+            self.assertTrue(
+                any("gitdir" in m.lower() for m in result["mismatches"]),
+                result["mismatches"],
+            )
+
+    def test_ignores_git_dir_env(self) -> None:
+        td, repo = _repo()
+        try:
+            with mock.patch.dict(os.environ, {"GIT_DIR": "/tmp/does-not-exist-fcc-tip"}):
+                result = M.inspect(repo)
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(result["kind"], "healthy")
         finally:
             td.cleanup()
 
@@ -174,6 +215,8 @@ class TestNtfyOnce(unittest.TestCase):
                 dry_run=True,
             )
             self.assertEqual(first.get("skipped"), "dry-run")
+            self.assertFalse(state.exists(), "dry-run must not consume ntfy cooldown")
+            M._mark_notified(state, result)
             second = M.ntfy_mismatch(
                 result,
                 workspace=Path(td),
@@ -181,6 +224,21 @@ class TestNtfyOnce(unittest.TestCase):
                 dry_run=True,
             )
             self.assertEqual(second.get("skipped"), "cooldown")
+
+    def test_not_a_repo_title_is_check_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            result = M.inspect(ws)
+            out = M.ntfy_mismatch(
+                result,
+                workspace=ws,
+                state_path=ws / "state.json",
+                dry_run=True,
+            )
+            self.assertIn("check path", out["title"].lower())
+            self.assertNotIn("tip drift", out["title"].lower())
+            self.assertIn(str(ws.resolve()), out["text"])
+            self.assertIn("kind=not_a_repo", out["text"])
 
 
 class TestCli(unittest.TestCase):
@@ -221,6 +279,9 @@ class TestCli(unittest.TestCase):
             self.assertEqual(_git(repo, "branch", "--show-current"), "")
         finally:
             td.cleanup()
+
+    def test_default_workspace_is_home_personal_workspace(self) -> None:
+        self.assertEqual(M.DEFAULT_WORKSPACE, Path.home() / "personal-workspace")
 
 
 if __name__ == "__main__":
