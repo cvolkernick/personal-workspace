@@ -170,10 +170,11 @@
   <main>
     <div id="load-error" class="error hidden"></div>
     <div id="stale-banner" class="stale-banner hidden"></div>
+    <div id="mining-banner" class="stale-banner hidden"></div>
 
     <section class="card">
       <h2>Window</h2>
-      <p class="hint">Live YNAB, rolling window ending today. Transfers excluded. Uncategorized stays visible. No CDN.</p>
+      <p class="hint">Live YNAB + Braiins mining, rolling window ending today. Transfers excluded. Coinbase→Main withdrawals are transfers, not income. Uncategorized stays visible. Missing mining feeds are a loud unknown, never a silent $0. No CDN.</p>
       <div class="controls" id="period-toggle">
         <button type="button" data-days="30">30d</button>
         <button type="button" data-days="60">60d</button>
@@ -204,7 +205,7 @@
   <footer>
     <a href="index.html">← FCC</a> ·
     <a href="runway.html">Runway</a> ·
-    Cash Streams · live YNAB · rolling window · no model file
+    Cash Streams · live YNAB + Braiins mining · rolling window · no model file
   </footer>
 
   <div id="tooltip" class="tooltip hidden"></div>
@@ -338,6 +339,22 @@
         const data = await res.json();
         if (!data || typeof data !== "object") {
           throw new Error("cash-streams contract missing object");
+        }
+        const mining = data.mining || {};
+        const mineBanner = document.getElementById("mining-banner");
+        if (mining.status !== "ok") {
+          mineBanner.className = "error";
+          mineBanner.textContent =
+            "Bitcoin mining income unknown: " +
+            (mining.error || "Braiins payout feed or Coinbase price feed missing/stale") +
+            ". Not omitted — not a clean $0.";
+        } else {
+          mineBanner.className = "hint";
+          const n = Number(mining.payout_count || 0);
+          mineBanner.textContent =
+            "Bitcoin mining · " + money(mining.usd) +
+            " · " + n + " payout" + (n === 1 ? "" : "s") +
+            " × BTC/USD at payout (Coinbase snapshot). Coinbase → Main withdrawals are transfers, not income.";
         }
         if (data.ok === false) {
           showError(

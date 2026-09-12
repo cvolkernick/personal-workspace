@@ -1,8 +1,15 @@
-"""Rolling-window YNAB income → expense Sankey for FCC Cash Streams.
+"""Rolling-window income → expense Sankey for FCC Cash Streams.
 
-Canonical source: live YNAB via ``treasury.ynab_sync`` (token + GET). No
-committed model file. Transfers between on-budget accounts are excluded.
-Uncategorized outflows stay an explicit node.
+Canonical sources:
+- YNAB (live via ``treasury.ynab_sync``) for payee inflows and expenses
+- Braiins Pool payout history (``braiins_latest.json``) for Bitcoin mining
+  income, valued at Coinbase ``btc_usd_price`` stamped at first observation
+
+No committed model file. Transfers between on-budget accounts are excluded.
+Coinbase→Main withdrawals (payee contains "coinbase") are inflows excluded so
+mining is not double-counted when USD later hits Main. Uncategorized outflows
+stay an explicit node. Missing/stale Braiins or Coinbase price feeds are a
+loud mining-unknown state, never a silent omit.
 """
 
 from __future__ import annotations
@@ -27,6 +34,9 @@ CASH_SNAPSHOTS = (
     "one_card_latest.json",
     "rh_checking_latest.json",
 )
+FEED_STALE_HOURS = 6.0
+MINING_NODE_ID = "in-mining"
+MINING_NODE_NAME = "Bitcoin mining"
 
 
 def clamp_days(raw: Any, default: int = DEFAULT_DAYS) -> int:
@@ -96,6 +106,11 @@ def _is_cc_payment(tx: Dict[str, Any], group_name: str) -> bool:
     return False
 
 
+def _is_coinbase_inflow_payee(payee: str) -> bool:
+    """True for Coinbase→Main withdrawal inflows (not income). Outflows stay."""
+    return "coinbase" in (payee or "").strip().lower()
+
+
 def category_lookup(category_groups: Sequence[Dict[str, Any]]) -> Dict[str, Tuple[str, str]]:
     """category_id → (group_name, category_name)."""
     out: Dict[str, Tuple[str, str]] = {}
@@ -163,6 +178,8 @@ def _iter_countable(
             if amount == 0:
                 continue
             payee = str(row.get("payee_name") or row.get("payee") or parent_payee).strip()
+            if amount > 0 and _is_coinbase_inflow_payee(payee):
+                continue
             yield {
                 "date": day.isoformat(),
                 "payee": payee,
@@ -170,6 +187,165 @@ def _iter_countable(
                 "group": group_name,
                 "category": cat_name,
             }
+
+
+def _snapshot_stale(
+    data: Dict[str, Any],
+    *,
+    now: Optional[datetime] = None,
+    max_hours: float = FEED_STALE_HOURS,
+) -> bool:
+    iso = data.get("as_of") if data else None
+    if not iso:
+        return True
+    try:
+        t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return True
+    current = now or datetime.now(timezone.utc)
+    return (current - t).total_seconds() / 3600.0 > max_hours
+
+
+def _mining_contract(mining: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not mining:
+        return {
+            "status": "ok",
+            "error": None,
+            "usd": 0.0,
+            "payout_btc": 0.0,
+            "payout_count": 0,
+            "price_usd": None,
+            "as_of": None,
+            "stale": False,
+        }
+    status = str(mining.get("status") or "unknown")
+    ok = status == "ok"
+    return {
+        "status": status,
+        "error": mining.get("error"),
+        "usd": mining.get("usd") if ok else None,
+        "payout_btc": mining.get("payout_btc") if ok else None,
+        "payout_count": int(mining.get("payout_count") or 0),
+        "price_usd": mining.get("price_usd"),
+        "as_of": mining.get("as_of"),
+        "stale": bool(
+            mining["stale"] if mining.get("stale") is not None else not ok
+        ),
+    }
+
+
+def mining_from_snapshots(
+    *,
+    start: date,
+    end: date,
+    root: Optional[Path] = None,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Σ(payout_btc × usd_price_at_payout) for confirmed payouts in the window.
+
+    Loud unknown when the Braiins payout list or Coinbase price feed is
+    missing/stale. Never returns a silent zero for a missing feed.
+    """
+    base = (root or ROOT) / "treasury" / "snapshots"
+    brai = _load_snapshot(base / "braiins_latest.json")
+    cb = _load_snapshot(base / "coinbase_latest.json")
+    current = now or datetime.now(timezone.utc)
+
+    def unknown(error: str) -> Dict[str, Any]:
+        return {
+            "status": "unknown",
+            "error": error,
+            "usd": None,
+            "payout_btc": None,
+            "payout_count": 0,
+            "price_usd": None,
+            "as_of": brai.get("as_of") if brai else None,
+            "stale": True,
+        }
+
+    if not brai:
+        return unknown("Braiins payout feed missing (no braiins_latest.json)")
+    if not brai.get("ok"):
+        return unknown(
+            "Braiins payout feed error: " + str(brai.get("error") or "ok=false")
+        )
+    if "payouts" not in brai or not isinstance(brai.get("payouts"), list):
+        return unknown(
+            "Braiins payout history missing from snapshot — run python3 treasury/braiins_sync.py"
+        )
+    if _snapshot_stale(brai, now=current):
+        return unknown(
+            f"Braiins payout feed stale (as_of {brai.get('as_of') or 'unknown'})"
+        )
+    if not cb:
+        return unknown("Coinbase price feed missing (no coinbase_latest.json)")
+    try:
+        price = float(cb.get("btc_usd_price"))
+    except (TypeError, ValueError):
+        price = None
+    if price is None or price <= 0:
+        err = "Coinbase price feed missing btc_usd_price"
+        if cb.get("btc_price_error"):
+            err += f": {cb.get('btc_price_error')}"
+        return unknown(err)
+    if _snapshot_stale(cb, now=current):
+        return unknown(
+            f"Coinbase price feed stale (as_of {cb.get('as_of') or 'unknown'})"
+        )
+
+    usd_total = 0.0
+    btc_total = 0.0
+    count = 0
+    priced: List[Dict[str, Any]] = []
+    for row in brai.get("payouts") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("status") or "").lower() != "confirmed":
+            continue
+        day = _parse_day(row.get("at"))
+        if day is None or day < start or day > end:
+            continue
+        try:
+            btc_f = float(row.get("amount_btc"))
+        except (TypeError, ValueError):
+            return unknown("Braiins payout in window missing amount_btc")
+        if btc_f <= 0:
+            continue
+        stamped = row.get("usd_price_at_payout")
+        try:
+            px = float(stamped) if stamped is not None else price
+        except (TypeError, ValueError):
+            px = price
+        if px is None or px <= 0:
+            return unknown(
+                "Payout in window has no usd_price_at_payout and Coinbase price is unusable"
+            )
+        usd_total += btc_f * px
+        btc_total += btc_f
+        count += 1
+        priced.append(
+            {
+                "at": row.get("at"),
+                "amount_btc": btc_f,
+                "usd_price_at_payout": px,
+                "usd": round(btc_f * px, 2),
+                "tx_id": row.get("tx_id"),
+            }
+        )
+
+    return {
+        "status": "ok",
+        "error": None,
+        "usd": _money(usd_total),
+        "payout_btc": round(btc_total, 8),
+        "payout_count": count,
+        "price_usd": price,
+        "as_of": brai.get("as_of"),
+        "stale": False,
+        "payouts": priced,
+    }
 
 
 def build_cash_streams(
@@ -183,6 +359,7 @@ def build_cash_streams(
     ynab_soft_preserved: bool = False,
     ynab_as_of: Optional[str] = None,
     error: Optional[str] = None,
+    mining: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the Sankey payload. Pure: no I/O."""
     start, end, days = window_bounds(days, today=today)
@@ -196,6 +373,7 @@ def build_cash_streams(
         "soft_preserved": bool(ynab_soft_preserved),
         "as_of": ynab_as_of,
     }
+    mining_out = _mining_contract(mining)
     if error:
         return {
             "ok": False,
@@ -205,6 +383,7 @@ def build_cash_streams(
             "links": [],
             "totals": {"inflow": 0.0, "outflow": 0.0, "retained": 0.0},
             "ynab": ynab,
+            "mining": mining_out,
         }
 
     lookup = category_lookup(category_groups or [])
@@ -245,6 +424,12 @@ def build_cash_streams(
     else:
         source_nodes = [(f"in-{i}", name, _money(val)) for i, (name, val) in enumerate(ranked)]
 
+    mining_usd = 0.0
+    if mining_out.get("status") == "ok":
+        mining_usd = _money(mining_out.get("usd") or 0.0)
+        if mining_usd > 0.004:
+            source_nodes.insert(0, (MINING_NODE_ID, MINING_NODE_NAME, mining_usd))
+
     inflow = _money(sum(v for _, _, v in source_nodes))
     outflow = _money(sum(group_totals.values()))
     retained = _money(inflow - outflow)
@@ -257,6 +442,7 @@ def build_cash_streams(
             "links": [],
             "totals": {"inflow": 0.0, "outflow": 0.0, "retained": 0.0},
             "ynab": ynab,
+            "mining": mining_out,
         }
 
     nodes: List[Dict[str, Any]] = []
@@ -333,6 +519,7 @@ def build_cash_streams(
             "retained": retained,
         },
         "ynab": ynab,
+        "mining": mining_out,
     }
 
 
@@ -434,6 +621,7 @@ def load_cash_streams(
     stale: Optional[bool] = None,
     root: Optional[Path] = None,
     fetch=None,
+    now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Orchestrate live YNAB pull + Sankey. ``fetch`` is injectable for tests."""
     start, end, days = window_bounds(days, today=today)
@@ -443,6 +631,7 @@ def load_cash_streams(
     snap_as_of = ynab_as_of_from_snapshots(base)
     fetcher = fetch or fetch_ynab_window
     pulled = fetcher(start.isoformat())
+    mining = mining_from_snapshots(start=start, end=end, root=base, now=now)
     if not pulled.get("ok"):
         return build_cash_streams(
             days=days,
@@ -451,6 +640,7 @@ def load_cash_streams(
             ynab_soft_preserved=soft,
             ynab_as_of=snap_as_of,
             error=str(pulled.get("error") or "YNAB fetch failed"),
+            mining=mining,
         )
     as_of = pulled.get("as_of") or datetime.now(timezone.utc).isoformat()
     return build_cash_streams(
@@ -462,6 +652,7 @@ def load_cash_streams(
         ynab_stale=stale_flag,
         ynab_soft_preserved=soft,
         ynab_as_of=as_of,
+        mining=mining,
     )
 
 
