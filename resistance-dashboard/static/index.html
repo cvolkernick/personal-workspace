@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=meal-micro-1" />
+    <link rel="stylesheet" href="/styles.css?v=recipes-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=apply-coach-1" defer></script>
+    <script src="/app.js?v=recipes-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -519,6 +519,56 @@
         </p>
         <div id="food-coach-commentary" class="food-coach" style="margin-top: 0.5rem"></div>
         <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
+      </section>
+
+      <!-- Kitchen: named recipes (Turso). Coach/user library — no seed catalog. -->
+      <section class="card" style="margin-top: 1rem" id="recipes-section" data-m-panel="kitchen">
+        <article class="card-fill" id="recipes-card">
+          <h2>Recipes</h2>
+          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
+            Named recipes with a yield (makes N servings). Ingredient amounts are
+            batch totals; per-serving is divided. Coach composes from pantry;
+            save to keep. Loose ingredients still work as a quick-add on the meal plan.
+          </p>
+          <form class="log-form" id="recipe-form">
+            <div class="row cols-3">
+              <label>
+                Name
+                <input type="text" id="recipe-name" required placeholder="e.g. Chicken rice bowl" />
+              </label>
+              <label>
+                Makes (servings)
+                <input type="number" id="recipe-yield" min="0.5" step="0.5" value="1" required />
+              </label>
+              <label>
+                Source
+                <select id="recipe-source">
+                  <option value="user">Mine</option>
+                  <option value="coach">Coach</option>
+                </select>
+              </label>
+            </div>
+            <p class="muted" style="margin:0.35rem 0 0.2rem;font-size:0.8rem">
+              Ingredients — pick from inventory, grams for the <em>whole batch</em>.
+            </p>
+            <div id="recipe-ing-rows" class="recipe-ing-rows"></div>
+            <div class="actions" style="margin-top:0.35rem">
+              <button type="button" id="recipe-add-ing">Add ingredient</button>
+            </div>
+            <label style="display:block;margin-top:0.5rem">
+              Instructions (one step per line)
+              <textarea id="recipe-steps" rows="3" placeholder="Season chicken.&#10;Cook rice."></textarea>
+            </label>
+            <input type="hidden" id="recipe-id" value="" />
+            <div class="actions">
+              <button type="submit" class="primary">Save recipe</button>
+              <button type="button" id="recipe-form-reset">Clear</button>
+            </div>
+            <p class="muted" id="recipe-form-status" style="margin:0"></p>
+          </form>
+          <div id="recipes-list" class="recipes-list" style="margin-top:0.85rem"></div>
+          <div id="recipe-detail" class="recipe-detail" hidden></div>
+        </article>
       </section>
 
       <!-- Kitchen ops: Ingredient Inventory (Daily Targets under More) -->

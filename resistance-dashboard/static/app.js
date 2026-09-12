@@ -1926,6 +1926,14 @@
     renderInventory(state.nutrition_store);
     renderInventorySuggestions(state.nutrition_store);
     renderInventoryRemovals(state.nutrition_store);
+    renderRecipes(state.nutrition_store);
+  }
+
+  function applyRecipesUpdate(recipes) {
+    if (!state) state = {};
+    if (!state.nutrition_store) state.nutrition_store = {};
+    if (Array.isArray(recipes)) state.nutrition_store.recipes = recipes;
+    renderRecipes(state.nutrition_store);
   }
 
   const FIBER_KEYS = ["DIETARY_FIBER", "FIBER", "TOTAL_DIETARY_FIBER", "TOTAL_FIBER"];
@@ -2482,6 +2490,189 @@
     </div>`;
   }
 
+  function pantryIngredients() {
+    return (
+      (state &&
+        state.nutrition_store &&
+        state.nutrition_store.inventory &&
+        state.nutrition_store.inventory.ingredients) ||
+      []
+    );
+  }
+
+  function recipeIngSelect(selected) {
+    const cur = String(selected || "");
+    let opts = `<option value="">Ingredient…</option>`;
+    pantryIngredients().forEach((ing) => {
+      const iid = String(ing.id || "");
+      if (!iid) return;
+      const sel = iid === cur ? " selected" : "";
+      opts += `<option value="${invEscapeAttr(iid)}"${sel}>${ing.name || iid}</option>`;
+    });
+    return opts;
+  }
+
+  function addRecipeIngRow(line) {
+    const rows = $("recipe-ing-rows");
+    if (!rows) return;
+    const wrap = document.createElement("div");
+    wrap.className = "recipe-ing-row";
+    const grams = line && line.grams_batch != null ? line.grams_batch : "";
+    wrap.innerHTML = `
+      <label>Item
+        <select data-recipe-ing>${recipeIngSelect(line && line.ingredient_id)}</select>
+      </label>
+      <label>Batch g
+        <input type="number" min="0" step="1" data-recipe-grams value="${invEscapeAttr(grams)}" />
+      </label>
+      <button type="button" data-action="recipe-drop-ing" aria-label="Remove">×</button>`;
+    rows.appendChild(wrap);
+  }
+
+  function collectRecipeForm() {
+    const id = String(($("recipe-id") && $("recipe-id").value) || "").trim();
+    const name = String(($("recipe-name") && $("recipe-name").value) || "").trim();
+    const yld = Number(($("recipe-yield") && $("recipe-yield").value) || 1);
+    const source = String(($("recipe-source") && $("recipe-source").value) || "user");
+    const steps = String(($("recipe-steps") && $("recipe-steps").value) || "")
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const ingredients = [];
+    document.querySelectorAll("#recipe-ing-rows .recipe-ing-row").forEach((row) => {
+      const sel = row.querySelector("[data-recipe-ing]");
+      const gramsEl = row.querySelector("[data-recipe-grams]");
+      const iid = String((sel && sel.value) || "").trim();
+      const grams = Number((gramsEl && gramsEl.value) || 0);
+      if (!iid || !(grams > 0)) return;
+      ingredients.push({ ingredient_id: iid, grams_batch: grams });
+    });
+    return {
+      id,
+      name,
+      yield_servings: yld > 0 ? yld : 1,
+      source: source === "coach" ? "coach" : "user",
+      instructions: steps,
+      ingredients,
+    };
+  }
+
+  function resetRecipeForm() {
+    if ($("recipe-id")) $("recipe-id").value = "";
+    if ($("recipe-name")) $("recipe-name").value = "";
+    if ($("recipe-yield")) $("recipe-yield").value = "1";
+    if ($("recipe-source")) $("recipe-source").value = "user";
+    if ($("recipe-steps")) $("recipe-steps").value = "";
+    const rows = $("recipe-ing-rows");
+    if (rows) rows.innerHTML = "";
+    addRecipeIngRow();
+    const st = $("recipe-form-status");
+    if (st) st.textContent = "";
+  }
+
+  function fillRecipeForm(rec) {
+    if (!rec) return resetRecipeForm();
+    if ($("recipe-id")) $("recipe-id").value = rec.id || "";
+    if ($("recipe-name")) $("recipe-name").value = rec.name || "";
+    if ($("recipe-yield")) $("recipe-yield").value = rec.yield_servings || 1;
+    if ($("recipe-source")) $("recipe-source").value = rec.source === "coach" ? "coach" : "user";
+    if ($("recipe-steps")) $("recipe-steps").value = (rec.instructions || []).join("\n");
+    const rows = $("recipe-ing-rows");
+    if (rows) rows.innerHTML = "";
+    const ings = rec.ingredients || [];
+    if (!ings.length) addRecipeIngRow();
+    ings.forEach((line) => addRecipeIngRow(line));
+    const card = $("recipes-card");
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderRecipes(store) {
+    const list = $("recipes-list");
+    if (!list) return;
+    const recipes = (store && store.recipes) || [];
+    const sot = (store && store.recipes_sot) || "";
+    if (sot === "turso_dark" && !recipes.length) {
+      list.innerHTML = `<p class="muted" style="margin:0">Recipes unavailable (Turso dark). Not inventing a library.</p>`;
+      return;
+    }
+    if (!recipes.length) {
+      list.innerHTML = `<p class="muted" style="margin:0">No saved recipes yet. Generate a meal plan (coach composes from pantry) or save one above.</p>`;
+      return;
+    }
+    let html = "";
+    recipes.forEach((rec) => {
+      const macros = rec.macros_per_serving || {};
+      const stale = rec.stale
+        ? ` <span class="recipe-stale-badge">stale ingredient</span>`
+        : "";
+      html += `<button type="button" class="recipe-card${rec.stale ? " is-stale" : ""}" data-action="recipe-open" data-id="${invEscapeAttr(rec.id || "")}">
+        <div class="recipe-card-name">${rec.name || "Recipe"}${stale}</div>
+        <div class="recipe-card-meta muted">Makes ${rec.yield_servings || 1} · ${rec.source || "user"} · per serving</div>
+        ${invMacroStrip(macros, true)}
+      </button>`;
+    });
+    const shop = (store && store.recipe_shopping) || [];
+    if (shop.length) {
+      html += `<div class="muted" style="margin-top:0.5rem;font-size:0.82rem">Shopping from planned recipes</div>`;
+      shop.forEach((line) => {
+        html += `<div class="recipe-card-meta">${line.name || line.id}: ${line.grams}g · ${line.reason || "restock"}</div>`;
+      });
+    }
+    list.innerHTML = html;
+  }
+
+  function renderRecipeDetail(rec) {
+    const box = $("recipe-detail");
+    if (!box) return;
+    if (!rec) {
+      box.hidden = true;
+      box.innerHTML = "";
+      return;
+    }
+    const yld = Number(rec.yield_servings) || 1;
+    const macros = rec.macros_per_serving || {};
+    let rows = "";
+    (rec.ingredients || []).forEach((line) => {
+      const miss = line.missing ? " (missing)" : "";
+      const batch = line.grams_batch != null ? `${line.grams_batch}g` : "—";
+      const per = line.per_serving_g != null ? `${line.per_serving_g}g` : "—";
+      rows += `<tr><td>${line.name || line.ingredient_id}${miss}</td><td>${batch}</td><td>${per}</td></tr>`;
+    });
+    const steps = (rec.instructions || [])
+      .map((s, i) => `<li>${s}</li>`)
+      .join("");
+    const stale = rec.stale
+      ? `<p class="recipe-stale-badge">Referenced ingredient is gone — update or delete this recipe.</p>`
+      : "";
+    box.hidden = false;
+    box.innerHTML = `
+      <div class="recipe-card-name">${rec.name || "Recipe"}</div>
+      <div class="recipe-card-meta muted">Makes ${yld} serving${yld === 1 ? "" : "s"} · ${rec.source || "user"}</div>
+      ${stale}
+      ${invMacroStrip(macros, true)}
+      <p class="muted" style="margin:0.5rem 0 0.2rem;font-size:0.8rem">Batch totals and per serving</p>
+      <table>
+        <thead><tr><th>Ingredient</th><th>Batch</th><th>Per serving</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="3">No ingredients</td></tr>`}</tbody>
+      </table>
+      ${steps ? `<ol style="margin:0.5rem 0 0;padding-left:1.2rem">${steps}</ol>` : `<p class="muted" style="margin:0.5rem 0 0">No steps yet.</p>`}
+      <div class="actions" style="margin-top:0.65rem">
+        <label>Log servings
+          <input type="number" id="recipe-log-n" min="0.25" step="0.25" value="1" style="max-width:5rem" />
+        </label>
+        <button type="button" class="primary" data-action="recipe-log" data-id="${invEscapeAttr(rec.id || "")}">Ate servings</button>
+        <button type="button" data-action="recipe-edit" data-id="${invEscapeAttr(rec.id || "")}">Edit</button>
+        <button type="button" class="btn-remove" data-action="recipe-delete" data-id="${invEscapeAttr(rec.id || "")}">Delete</button>
+        <button type="button" data-action="recipe-close">Close</button>
+      </div>`;
+    if (box.scrollIntoView) box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function recipeById(id) {
+    const recipes = (state && state.nutrition_store && state.nutrition_store.recipes) || [];
+    return recipes.find((r) => String(r.id || "") === String(id || "")) || null;
+  }
+
   function renderInventoryHonesty(honesty) {
     const rows = Array.isArray(honesty) ? honesty : [];
     if (!rows.length) return "";
@@ -2734,6 +2925,135 @@
     showAlert(`Added ${name || body.id} to inventory`, "ok");
   }
 
+  function bindRecipesOnce() {
+    if (document.documentElement.dataset.recipesBound === "1") return;
+    document.documentElement.dataset.recipesBound = "1";
+    document.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("[data-action]");
+      if (!btn) return;
+      const action = btn.getAttribute("data-action") || "";
+      if (action === "recipe-add-ing" || btn.id === "recipe-add-ing") {
+        ev.preventDefault();
+        addRecipeIngRow();
+        return;
+      }
+      if (btn.id === "recipe-form-reset") {
+        ev.preventDefault();
+        resetRecipeForm();
+        return;
+      }
+      if (!action.startsWith("recipe-")) return;
+      ev.preventDefault();
+      const id = (btn.getAttribute("data-id") || "").trim();
+      try {
+        if (action === "recipe-drop-ing") {
+          const row = btn.closest(".recipe-ing-row");
+          if (row && row.parentNode) row.parentNode.removeChild(row);
+          return;
+        }
+        if (action === "recipe-close") {
+          renderRecipeDetail(null);
+          return;
+        }
+        if (action === "recipe-open") {
+          const rec = recipeById(id);
+          if (rec) {
+            renderRecipeDetail(rec);
+            goMobileTab("kitchen");
+          }
+          return;
+        }
+        if (action === "recipe-edit") {
+          const rec = recipeById(id);
+          if (rec) fillRecipeForm(rec);
+          return;
+        }
+        if (action === "recipe-delete") {
+          const res = await fetch("/api/recipes/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          const store = state && state.nutrition_store;
+          if (store && Array.isArray(store.recipes)) {
+            store.recipes = store.recipes.filter((r) => String(r.id) !== id);
+          }
+          renderRecipes(store);
+          renderRecipeDetail(null);
+          showAlert("Recipe deleted", "ok");
+          return;
+        }
+        if (action === "recipe-log") {
+          const nEl = $("recipe-log-n");
+          const servings = Number((nEl && nEl.value) || 1);
+          const res = await fetch("/api/recipes/log", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipe_id: id, servings }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          showAlert(`Logged ${servings} serving${servings === 1 ? "" : "s"}`, "ok");
+          try {
+            await loadDashboard();
+          } catch (_) {
+            /* optional */
+          }
+        }
+      } catch (err) {
+        showAlert(err.message || String(err), "err");
+      }
+    });
+    if ($("recipe-form")) {
+      $("recipe-form").addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const body = collectRecipeForm();
+        const st = $("recipe-form-status");
+        if (!body.name) {
+          if (st) st.textContent = "Name required";
+          return;
+        }
+        if (!body.ingredients.length) {
+          if (st) st.textContent = "Add at least one ingredient with grams";
+          return;
+        }
+        try {
+          const res = await fetch("/api/recipes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          const store = state && state.nutrition_store;
+          if (store) {
+            const list = Array.isArray(store.recipes) ? store.recipes.slice() : [];
+            const idx = list.findIndex((r) => r.id === data.recipe.id);
+            if (idx >= 0) list[idx] = data.recipe;
+            else list.unshift(data.recipe);
+            store.recipes = list;
+            applyRecipesUpdate(list);
+            renderRecipeDetail(data.recipe);
+          }
+          resetRecipeForm();
+          if (st) st.textContent = "Saved";
+          showAlert(`Saved ${data.recipe.name}`, "ok");
+        } catch (err) {
+          if (st) st.textContent = err.message || String(err);
+          showAlert(err.message || String(err), "err");
+        }
+      });
+    }
+    if ($("recipe-add-ing")) {
+      $("recipe-add-ing").addEventListener("click", (ev) => {
+        ev.preventDefault();
+        addRecipeIngRow();
+      });
+    }
+  }
+
   /** One delegated listener — survives re-renders and avoids dead buttons. */
   function bindInventoryListOnce() {
     // Cover inventory + meal plan so shared carousel arrows work in both columns
@@ -2839,6 +3159,14 @@
             body: JSON.stringify({ id, name }),
           });
           const data = await res.json().catch(() => ({}));
+          if (res.status === 409 || data.error === "ingredient_in_use") {
+            const names = (data.recipes || []).map((r) => r.name || r.id).filter(Boolean);
+            throw new Error(
+              names.length
+                ? `Used by recipes: ${names.join(", ")}. Edit/delete those first.`
+                : data.message || "Ingredient is used by a recipe"
+            );
+          }
           if (!res.ok || !data.ok) {
             throw new Error(data.error || `HTTP ${res.status}`);
           }
@@ -2967,6 +3295,14 @@
             body: JSON.stringify({ id, name }),
           });
           const data = await res.json().catch(() => ({}));
+          if (res.status === 409 || data.error === "ingredient_in_use") {
+            const names = (data.recipes || []).map((r) => r.name || r.id).filter(Boolean);
+            throw new Error(
+              names.length
+                ? `Used by recipes: ${names.join(", ")}. Edit/delete those first.`
+                : data.message || "Ingredient is used by a recipe"
+            );
+          }
           if (!res.ok || !data.ok) {
             throw new Error(data.error || `HTTP ${res.status}`);
           }
@@ -4520,9 +4856,16 @@
         const clockBit = clock
           ? ` · <span class="meal-bucket-time">${clock}</span>`
           : "";
+        const recipeName = m.recipe_name || (m.recipe && m.recipe.name) || "";
+        const recipeId = m.recipe_id || (m.recipe && m.recipe.id) || "";
+        const recipeBit = recipeName
+          ? ` · <button type="button" class="meal-recipe-name" data-action="recipe-open" data-id="${invEscapeAttr(
+              recipeId
+            )}">${recipeName}</button>`
+          : "";
         mealSlides += `<div class="meal-vslide meal-bucket" data-meal-idx="${mi}">
           <div class="meal-bucket-head">
-            <div class="title">${m.label || "Meal"}${clockBit} · ${items.length} item${
+            <div class="title">${m.label || "Meal"}${clockBit}${recipeBit} · ${items.length} item${
           items.length === 1 ? "" : "s"
         }</div>
             ${invMacroStrip(m.totals || {}, true)}
@@ -4870,6 +5213,7 @@
     renderInventory(data.nutrition_store);
     renderInventorySuggestions(data.nutrition_store);
     renderInventoryRemovals(data.nutrition_store);
+    renderRecipes(data.nutrition_store);
     renderTargetsAndRemaining(data.nutrition_store);
     renderFoodLogsToday(data.nutrition_store);
     // Auto meal plan is computed server-side on every dashboard load
@@ -7427,6 +7771,8 @@
     if ($("ingredient-form")) {
       $("ingredient-form").addEventListener("submit", submitIngredient);
     }
+    bindRecipesOnce();
+    resetRecipeForm();
     if ($("targets-form")) {
       $("targets-form").addEventListener("submit", submitTargets);
     }

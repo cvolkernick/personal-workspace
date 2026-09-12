@@ -137,6 +137,18 @@
     {
       "source": "/api/restock",
       "destination": "/api/dashboard?_r=restock"
+    },
+    {
+      "source": "/api/recipes/delete",
+      "destination": "/api/dashboard?_r=recipes_delete"
+    },
+    {
+      "source": "/api/recipes/log",
+      "destination": "/api/dashboard?_r=recipes_log"
+    },
+    {
+      "source": "/api/recipes",
+      "destination": "/api/dashboard?_r=recipes"
     }
   ],
   "functions": {

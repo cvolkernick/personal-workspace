@@ -396,6 +396,19 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         generated_plan,
         inventory,
     )
+    from rt_dashboard.recipe_store import overlay_recipes_on_nutrition
+
+    recipe_overlay = overlay_recipes_on_nutrition(
+        user_id=str(user.get("id") or ""),
+        day=str(today or ""),
+        inventory=inventory,
+        meal_plan=meal_plan,
+        consumed=consumed,
+        food_logs_today=today_logs,
+    )
+    meal_plan = recipe_overlay.get("meal_plan") or meal_plan
+    consumed = recipe_overlay.get("today_consumed") or consumed
+    today_logs = recipe_overlay.get("food_logs_today") or today_logs
     labs = load_labs(
         user_id=str(user.get("id") or ""),
         targets=targets,
@@ -418,6 +431,10 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "inventory_suggestions": inv_suggestions,
         "inventory_removals": inv_removals,
         "labs": labs,
+        "recipes": recipe_overlay.get("recipes") or [],
+        "recipes_sot": recipe_overlay.get("recipes_sot"),
+        "recipe_shopping": recipe_overlay.get("recipe_shopping") or [],
+        "recipe_logs_today": recipe_overlay.get("recipe_logs_today") or [],
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,
         "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],

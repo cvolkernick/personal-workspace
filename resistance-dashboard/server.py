@@ -805,6 +805,19 @@ def load_dashboard_data(
         auto_plan,
         inv_base,
     )
+    from rt_dashboard.recipe_store import overlay_recipes_on_nutrition
+
+    recipe_overlay = overlay_recipes_on_nutrition(
+        user_id=str(uid or ""),
+        day=str(local_today or ""),
+        inventory=inv_base,
+        meal_plan=auto_plan,
+        consumed=consumed,
+        food_logs_today=today_logs,
+    )
+    auto_plan = recipe_overlay.get("meal_plan") or auto_plan
+    consumed = recipe_overlay.get("today_consumed") or consumed
+    today_logs = recipe_overlay.get("food_logs_today") or today_logs
     inv_suggestions = suggest_inventory_staples(
         inv_base,
         targets=nut.get("targets") or {},
@@ -834,6 +847,10 @@ def load_dashboard_data(
         "inventory_suggestions": inv_suggestions,
         "inventory_removals": inv_removals,
         "labs": labs,
+        "recipes": recipe_overlay.get("recipes") or [],
+        "recipes_sot": recipe_overlay.get("recipes_sot"),
+        "recipe_shopping": recipe_overlay.get("recipe_shopping") or [],
+        "recipe_logs_today": recipe_overlay.get("recipe_logs_today") or [],
     }
 
     # Full-width calorie pacing + same-day in/out delta bars
@@ -1296,7 +1313,17 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 plan,
                 store.get("inventory") or {"ingredients": []},
             )
-            return {"ok": True, "action": kind, "plan": plan}
+            from rt_dashboard.recipe_store import overlay_recipes_on_nutrition
+
+            overlay = overlay_recipes_on_nutrition(
+                user_id=str(uid or ""),
+                day=str((data.get("meta") or {}).get("local_today") or ""),
+                inventory=store.get("inventory") or {"ingredients": []},
+                meal_plan=plan,
+                consumed=store.get("today_consumed") or {},
+                food_logs_today=store.get("food_logs_today") or [],
+            )
+            return {"ok": True, "action": kind, "plan": overlay.get("meal_plan") or plan}
         if kind == "refresh_workout_plan":
             data = load_dashboard_data(force_refresh=False, user_id=uid)
             wo = data.get("workout_store") or {}
@@ -1713,6 +1740,29 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
+        if parsed.path == "/api/recipes":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            try:
+                from rt_dashboard.recipe_store import get_recipe, list_recipes
+
+                uid = (user or {}).get("user_id") or ""
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                inventory = (data.get("nutrition_store") or {}).get("inventory")
+                rid = (parse_qs(parsed.query).get("id") or [""])[0]
+                if rid:
+                    rec = get_recipe(str(uid), str(rid), inventory=inventory)
+                    if not rec:
+                        self._send_json({"ok": False, "error": "not_found"}, status=404)
+                        return
+                    self._send_json({"ok": True, "recipe": rec})
+                    return
+                recipes, src = list_recipes(str(uid), inventory=inventory)
+                self._send_json({"ok": True, "recipes": recipes, "source": src})
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         # All remaining /api/* GETs require auth when FITDASH_REQUIRE_AUTH=1
         if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
             user = self._require_user()
@@ -2084,9 +2134,36 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
                 client = build_github_client(for_write=True)
                 current, _src = load_preview_inventory(str(uid))
+                from rt_dashboard.recipe_store import (
+                    IngredientInUseError,
+                    assert_ingredient_not_in_use,
+                    mark_recipes_stale_for_ingredient,
+                )
+
+                iid = str(body.get("id") or "").strip()
+                force = bool(body.get("force"))
+                if iid and not force:
+                    try:
+                        assert_ingredient_not_in_use(str(uid), iid)
+                    except IngredientInUseError as exc:
+                        self._send_json(
+                            {
+                                "ok": False,
+                                "error": exc.error_code,
+                                "message": str(exc),
+                                "recipes": [
+                                    {"id": r.get("id"), "name": r.get("name")}
+                                    for r in exc.recipes
+                                ],
+                            },
+                            status=409,
+                        )
+                        return
+                if iid and force:
+                    mark_recipes_stale_for_ingredient(str(uid), iid)
                 updated = remove_ingredient(
                     current,
-                    ingredient_id=str(body.get("id") or ""),
+                    ingredient_id=iid,
                     name=str(body.get("name") or ""),
                 )
                 write = persist_inventory(
@@ -2149,6 +2226,54 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 else:
                     self._send_json({"ok": False, "error": msg}, status=400)
             except json.JSONDecodeError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/recipes":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                from rt_dashboard.recipe_store import upsert_recipe
+
+                inventory, _src = load_preview_inventory(str(uid))
+                saved = upsert_recipe(str(uid), body, inventory=inventory)
+                self._send_json({"ok": True, "recipe": saved})
+            except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/recipes/delete":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                from rt_dashboard.recipe_store import delete_recipe
+
+                delete_recipe(str(uid), str(body.get("id") or ""))
+                self._send_json({"ok": True})
+            except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/recipes/log":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                from rt_dashboard.recipe_store import log_recipe_servings
+                from rt_dashboard.timeutil import local_today_iso as _today
+
+                inventory, _src = load_preview_inventory(str(uid))
+                entry = log_recipe_servings(
+                    str(uid),
+                    str(body.get("recipe_id") or body.get("id") or ""),
+                    float(body.get("servings") or 0),
+                    day=str(body.get("date") or _today()),
+                    inventory=inventory,
+                )
+                self._send_json({"ok": True, "log": entry})
+            except ValueError as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
@@ -2475,7 +2600,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     plan,
                     store.get("inventory") or {"ingredients": []},
                 )
-                self._send_json({"ok": True, "plan": plan})
+                from rt_dashboard.recipe_store import overlay_recipes_on_nutrition
+
+                overlay = overlay_recipes_on_nutrition(
+                    user_id=str(uid or ""),
+                    day=str(
+                        (data.get("meta") or {}).get("local_today") or _local_today_iso()
+                    ),
+                    inventory=store.get("inventory") or {"ingredients": []},
+                    meal_plan=plan,
+                    consumed=consumed,
+                    food_logs_today=today_logs,
+                )
+                self._send_json({"ok": True, "plan": overlay.get("meal_plan") or plan})
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return

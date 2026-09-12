@@ -46,6 +46,9 @@ _ROUTES = (
     "restock_cart",
     "restock_confirm",
     "restock",
+    "recipes",
+    "recipes_delete",
+    "recipes_log",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
 _EQ_ROUTES = ("eq_add", "eq_remove", "eq_update")
@@ -143,6 +146,12 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "restock_confirm"
     if "/api/restock" in blob:
         return "restock"
+    if "/api/recipes/delete" in blob:
+        return "recipes_delete"
+    if "/api/recipes/log" in blob:
+        return "recipes_log"
+    if "/api/recipes" in blob:
+        return "recipes"
     return ""
 
 
@@ -748,9 +757,32 @@ def inventory_write(headers, route: str, payload=None):
         if route == "inv_add":
             updated = add_ingredient(current, payload)
         elif route == "inv_remove":
+            from rt_dashboard.recipe_store import (
+                IngredientInUseError,
+                assert_ingredient_not_in_use,
+                mark_recipes_stale_for_ingredient,
+            )
+
+            iid = str(payload.get("id") or "").strip()
+            force = bool(payload.get("force"))
+            if iid and not force:
+                try:
+                    assert_ingredient_not_in_use(uid, iid)
+                except IngredientInUseError as exc:
+                    return 409, {
+                        "ok": False,
+                        "error": exc.error_code,
+                        "message": str(exc),
+                        "recipes": [
+                            {"id": r.get("id"), "name": r.get("name")}
+                            for r in exc.recipes
+                        ],
+                    }
+            if iid and force:
+                mark_recipes_stale_for_ingredient(uid, iid)
             updated = remove_ingredient(
                 current,
-                ingredient_id=str(payload.get("id") or ""),
+                ingredient_id=iid,
                 name=str(payload.get("name") or ""),
             )
         elif route == "inv_stock":
@@ -1318,6 +1350,83 @@ def restock_confirm_body(headers, payload=None, method="POST", client_host=None)
     return 200, result
 
 
+def recipes_body(headers, payload=None, method="GET", query=""):
+    """GET/POST /api/recipes — list/get or upsert. Cookie-less 401."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    uid = str(user.get("id") or "")
+    from rt_dashboard.inventory_store import load_preview_inventory
+    from rt_dashboard.recipe_store import get_recipe, list_recipes, upsert_recipe
+
+    inventory, _src = load_preview_inventory(uid)
+    method = (method or "GET").upper()
+    if method == "GET":
+        rid = str(query_first(query, "id") or "").strip()
+        if rid:
+            rec = get_recipe(uid, rid, inventory=inventory)
+            if not rec:
+                return 404, {"ok": False, "error": "not_found"}
+            return 200, {"ok": True, "recipe": rec}
+        recipes, src = list_recipes(uid, inventory=inventory)
+        return 200, {"ok": True, "recipes": recipes, "source": src}
+    if method != "POST":
+        return 405, {"ok": False, "error": "method_not_allowed"}
+    try:
+        saved = upsert_recipe(uid, payload if isinstance(payload, dict) else {}, inventory=inventory)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+    return 200, {"ok": True, "recipe": saved}
+
+
+def recipes_delete_body(headers, payload=None):
+    user, err = require_user(headers)
+    if err:
+        return err
+    uid = str(user.get("id") or "")
+    from rt_dashboard.recipe_store import delete_recipe
+
+    try:
+        delete_recipe(uid, str((payload or {}).get("id") or ""))
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+    return 200, {"ok": True}
+
+
+def recipes_log_body(headers, payload=None):
+    user, err = require_user(headers)
+    if err:
+        return err
+    uid = str(user.get("id") or "")
+    body = payload if isinstance(payload, dict) else {}
+    from rt_dashboard.inventory_store import load_preview_inventory
+    from rt_dashboard.recipe_store import log_recipe_servings
+    from rt_dashboard.timeutil import local_today_iso
+
+    inventory, _src = load_preview_inventory(uid)
+    try:
+        servings = float(body.get("servings") or 0)
+    except (TypeError, ValueError):
+        return 400, {"ok": False, "error": "servings must be > 0"}
+    try:
+        entry = log_recipe_servings(
+            uid,
+            str(body.get("recipe_id") or body.get("id") or ""),
+            servings,
+            day=str(body.get("date") or local_today_iso())[:10],
+            inventory=inventory,
+        )
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+    return 200, {"ok": True, "log": entry}
+
+
 def dispatch_client_route(
     headers, query: str, method: str, payload=None, path: str = "", client_host=None
 ):
@@ -1406,6 +1515,16 @@ def dispatch_client_route(
         return restock_confirm_body(
             headers, payload, method, client_host=client_host
         )
+    if route == "recipes":
+        return recipes_body(headers, payload, method, query)
+    if route == "recipes_delete":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return recipes_delete_body(headers, payload or {})
+    if route == "recipes_log":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return recipes_log_body(headers, payload or {})
     return None
 
 

@@ -357,6 +357,7 @@ def build_today_board(
     sleep_battery: Optional[dict] = None,
     calorie_bars: Optional[dict] = None,
     food_logs_today: Optional[Sequence[Any]] = None,
+    inventory: Optional[dict] = None,
     inventory_dark: bool = False,
     active_zone_minutes: Optional[Sequence[Any]] = None,
     sleep_intervals: Optional[Sequence[Any]] = None,
@@ -513,6 +514,37 @@ def build_today_board(
         purchases.append(purchase)
         if len(purchases) >= 6:
             break
+    try:
+        from .recipe_store import shopping_from_plans
+
+        seen = {
+            str(p.get("id") or "").strip()
+            for p in purchases
+            if str(p.get("id") or "").strip()
+        }
+        for line in shopping_from_plans([mp], inventory):
+            iid = str(line.get("id") or "").strip()
+            if iid and iid in seen:
+                continue
+            purchases.append(
+                {
+                    "action": line.get("action") or "restock",
+                    "id": line.get("id"),
+                    "name": line.get("name"),
+                    "reason": line.get("reason") or "",
+                    "need": line.get("reason") or "",
+                    "category": "other",
+                    "proposal": True,
+                    "source": "recipe_plan",
+                    "grams": line.get("grams"),
+                }
+            )
+            if iid:
+                seen.add(iid)
+            if len(purchases) >= 8:
+                break
+    except Exception:
+        pass
     # If meal plan empty and stock low, emphasize purchases.
     # Vercel preview: Pi inventory is dark — never invent a pantry.
     if meal_block["empty"] and not purchases and not inventory_dark:
@@ -1279,6 +1311,7 @@ def build_coach_payload(
         sleep_battery=sleep_battery,
         calorie_bars=calorie_bars,
         food_logs_today=today_logs,
+        inventory=inventory,
         inventory_dark=inventory_dark,
         active_zone_minutes=health.active_zone_minutes if health else None,
         sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
