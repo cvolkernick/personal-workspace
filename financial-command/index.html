@@ -2138,7 +2138,7 @@
         <div>
           <h2 style="margin:0">Bills &amp; cash coach</h2>
           <p class="hint" style="margin:0.2rem 0 0">
-            Overdue first · pay-from cash · advisory only
+            Overdue first · pay-from cash · advisory only<span id="coach-updated"></span>
           </p>
         </div>
         <button type="button" class="btn" id="btn-coach-refresh">Refresh</button>
@@ -5178,8 +5178,28 @@
       }
     }
 
+    let coachRefreshInFlight = false;
+
+    function stampCoachUpdated(when) {
+      const el = document.getElementById("coach-updated");
+      if (!el) return;
+      const d = when instanceof Date ? when : new Date();
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      el.textContent = " · Updated " + hh + ":" + mm;
+    }
+
     async function loadCoach(opts) {
-      const force = opts && opts.refresh;
+      const force = !!(opts && opts.refresh);
+      const btn = document.getElementById("btn-coach-refresh");
+      if (force) {
+        if (coachRefreshInFlight) return;
+        coachRefreshInFlight = true;
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Refreshing…";
+        }
+      }
       try {
         const q =
           "/api/coach?ts=" +
@@ -5189,8 +5209,25 @@
         if (!res.ok) throw new Error("HTTP " + res.status);
         const plan = await res.json();
         renderCoach(plan);
+        if (force) {
+          if (plan && plan.ok) {
+            stampCoachUpdated();
+            toast("Coach refreshed");
+          } else {
+            toast("Coach refresh failed");
+          }
+        }
       } catch (e) {
         renderCoach({ ok: false, error: e.message });
+        if (force) toast("Coach refresh failed");
+      } finally {
+        if (force) {
+          coachRefreshInFlight = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Refresh";
+          }
+        }
       }
     }
 
