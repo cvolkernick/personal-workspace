@@ -20,9 +20,11 @@ from rt_dashboard.gym_calendar import (
     PROP_DATE,
     PROP_GYM,
     PROP_PLANNED_START,
+    clock_label,
     event_body,
     gym_day_from_workout,
     gym_desc_tag,
+    gym_quest_label_for_day,
     is_user_locked,
     load_busyness,
     location_for,
@@ -701,6 +703,166 @@ class VercelBundlesBusyness(unittest.TestCase):
         for key in ("api/dashboard.py", "api/ask.py", "api/ask/plan.py"):
             files = cfg["functions"][key]["includeFiles"]
             self.assertIn("fitness/gym/busyness.json", files, key)
+
+
+class QuestGymTime(unittest.TestCase):
+    """#691: Today's Quests training header uses the tagged gym event start."""
+
+    def test_clock_label_is_et_ampm(self):
+        self.assertEqual(
+            clock_label(datetime(2026, 9, 14, 5, 0, tzinfo=ET)), "5:00 AM"
+        )
+        self.assertEqual(
+            clock_label(datetime(2026, 9, 14, 22, 30, tzinfo=ET)), "10:30 PM"
+        )
+        # 09:00Z is 05:00 America/New_York (EDT).
+        from datetime import timezone
+
+        self.assertEqual(
+            clock_label(datetime(2026, 9, 14, 9, 0, tzinfo=timezone.utc)),
+            "5:00 AM",
+        )
+
+    def test_label_empty_without_calendar_session(self):
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={
+                "ok": False,
+                "skipped": True,
+                "error_code": "no_session",
+            },
+        ):
+            self.assertEqual(gym_quest_label_for_day("2026-09-14"), "")
+
+    def test_label_from_tagged_event(self):
+        ev = _ev(eid="ev-1", day="2026-09-14", start="2026-09-14T05:00:00-04:00")
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="cvolkern@gmail.com",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            return_value=[ev],
+        ):
+            self.assertEqual(gym_quest_label_for_day("2026-09-14"), "Gym · 5:00 AM")
+
+    def test_label_empty_when_no_event(self):
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="cvolkern@gmail.com",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            return_value=[],
+        ):
+            self.assertEqual(gym_quest_label_for_day("2026-09-14"), "")
+
+    def test_user_moved_event_shows_current_start(self):
+        ev = _ev(
+            eid="ev-moved",
+            day="2026-09-14",
+            start="2026-09-14T07:00:00-04:00",
+            planned="2026-09-14T05:00:00-04:00",
+        )
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="cvolkern@gmail.com",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            return_value=[ev],
+        ):
+            self.assertEqual(gym_quest_label_for_day("2026-09-14"), "Gym · 7:00 AM")
+
+    def test_ensure_stamps_training_quest_meal_label(self):
+        board = {
+            "date": "2026-09-14",
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Complete today's PUSH session",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "session_type": "push",
+                "exercises": [{"name": "Bench"}],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": True},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id",
+                return_value="L1",
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks",
+                return_value={"ok": True, "tasks": []},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task",
+                side_effect=lambda *a, **k: {
+                    "ok": True,
+                    "task": {
+                        "id": "t1",
+                        "title": a[1] if len(a) > 1 else "x",
+                        "status": "needsAction",
+                    },
+                },
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.delete_task",
+                return_value={"ok": True},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks._get_task_safe",
+                return_value=None,
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks._load_cache",
+                return_value={},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks._save_cache"
+            ), mock.patch(
+                "rt_dashboard.meal_calendar.sync_meal_reminders",
+                return_value={"ok": True, "upserted": 0, "deleted": 0},
+            ), mock.patch(
+                "rt_dashboard.gym_calendar.sync_gym_from_workout",
+                return_value={"ok": True, "created": 1, "upserted": 1},
+            ), mock.patch(
+                "rt_dashboard.gym_calendar.gym_quest_label_for_day",
+                return_value="Gym · 5:00 AM",
+            ):
+                result = ensure_daily_tasks(board, day="2026-09-14")
+        self.assertTrue(result.get("ok"), result)
+        training = next(g for g in result["groups"] if g["group"] == "training")
+        session = next(
+            i for i in training["items"] if i.get("slug") == "train-session"
+        )
+        self.assertEqual(session["meal_label"], "Gym · 5:00 AM")
+        bench = next(
+            i for i in training["items"] if str(i.get("slug") or "").startswith("ex-")
+        )
+        self.assertEqual(bench["meal_label"], "Gym · 5:00 AM")
+
+    def test_renderer_buckets_meal_label_for_any_group(self):
+        js = (RD_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        render = js.split("function buildDailyQuestBodyHtml", 1)[1].split(
+            "function applyQuestsCollapseDom", 1
+        )[0]
+        self.assertIn("if (it.meal_label)", render)
+        self.assertIn("quest-meal-label", render)
+        # Header is not gated on nutrition — training reuses the same bucket.
+        after = render.split("if (it.meal_label)", 1)[1][:400]
+        self.assertNotIn("nutrition", after.lower())
 
 
 if __name__ == "__main__":
