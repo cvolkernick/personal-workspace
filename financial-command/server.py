@@ -19,6 +19,8 @@ Serves static UI + APIs:
   POST /api/ask           — {question} ask Grok about FCC/treasury domain
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
+  ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796, LAN-debug still :8796)
+  ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795, LAN-debug still :8795)
 
 Usage:
   python3 financial-command/server.py
@@ -33,6 +35,8 @@ import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.request
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -411,6 +415,92 @@ def _root_fcc_file_remap(path: str) -> str | None:
     return None
 
 
+# Same-origin PWA lenses. Direct :8795 / :8796 stay LAN-debug fallbacks.
+# Fleet backend: auto-fleet/server.py (auto-fleet.service on Pi). Not on this
+# work branch; proxy talks to the live process.
+LENS_UPSTREAMS = {
+    "/fleet": ("127.0.0.1", 8796),
+    "/horizon": ("127.0.0.1", 8795),
+}
+_HOP_BY_HOP = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+    "content-length",
+    "content-encoding",
+}
+_PROXY_TIMEOUT = 20.0
+_ROOT_ABS_REF = re.compile(
+    rb'(?P<pre>((?:src|href|action)\s*=\s*["\']|fetch\(\s*["\']|url\(\s*["\']?))'
+    rb'/(?!/)'
+    rb'(?P<rest>[^"\')\s]*)'
+)
+
+
+def lens_proxy_spec(path: str) -> tuple[str, str, tuple[str, int]] | None:
+    """Map /fleet/foo → ('/fleet', '/foo', upstream). None if not a lens path."""
+    for prefix, addr in LENS_UPSTREAMS.items():
+        if path == prefix or path.startswith(prefix + "/"):
+            rest = path[len(prefix) :] or "/"
+            if not rest.startswith("/"):
+                rest = "/" + rest
+            return prefix, rest, addr
+    return None
+
+
+def rewrite_root_absolute(body: bytes, prefix: str, content_type: str) -> bytes:
+    """Prefix root-absolute asset/API URLs so they stay under /fleet or /horizon.
+
+    Auto Fleet and Horizon were written for their own origin root (fetch("/api/…")).
+    Under a path prefix those requests would escape to FCC. Same bug class as #677,
+    in reverse.
+    """
+    ctype = (content_type or "").lower()
+    is_html = "html" in ctype
+    is_js = "javascript" in ctype or "ecmascript" in ctype
+    is_css = "css" in ctype
+    if not (is_html or is_js or is_css) or not body:
+        return body
+    pref = prefix.encode("ascii")
+    if not pref.startswith(b"/"):
+        pref = b"/" + pref
+    pref = pref.rstrip(b"/")
+    token = pref[1:]  # b"fleet"
+
+    def _sub(m: re.Match[bytes]) -> bytes:
+        rest = m.group("rest") or b""
+        if rest == token or rest.startswith(token + b"/"):
+            return m.group(0)
+        return m.group("pre") + pref + b"/" + rest
+
+    out = _ROOT_ABS_REF.sub(_sub, body)
+    if is_html and b"<base " not in out.lower():
+        base = b'<base href="' + pref + b'/">'
+        out, n = re.subn(rb"(<head[^>]*>)", rb"\1" + base, out, count=1, flags=re.I)
+        if n == 0:
+            out = base + out
+    return out
+
+
+def rewrite_location(location: str, prefix: str, host: str, port: int) -> str:
+    if not location:
+        return location
+    loc = location.strip()
+    origin = f"http://{host}:{port}"
+    if loc.startswith(origin):
+        loc = loc[len(origin) :] or "/"
+    if loc.startswith("/"):
+        if loc == prefix or loc.startswith(prefix + "/"):
+            return loc
+        return prefix + loc
+    return loc
+
+
 def _root_fcc_js_remap(path: str) -> str | None:
     """JS-only slice of origin aliases (kept for existing tests)."""
     name = path.lstrip("/")
@@ -472,7 +562,94 @@ class FCCHandler(SimpleHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
 
+    def _maybe_proxy_lens(self) -> bool:
+        path = urlparse(self.path).path
+        if path in LENS_UPSTREAMS:
+            self.send_response(302)
+            self.send_header("Location", path + "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        spec = lens_proxy_spec(path)
+        if spec is None:
+            return False
+        self._proxy_lens(*spec)
+        return True
+
+    def _proxy_lens(self, prefix: str, upstream_path: str, addr: tuple[str, int]) -> None:
+        host, port = addr
+        parsed = urlparse(self.path)
+        qs = ("?" + parsed.query) if parsed.query else ""
+        target = f"http://{host}:{port}{upstream_path}{qs}"
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length > 0 else None
+        headers = {}
+        for key, val in self.headers.items():
+            if key.lower() in _HOP_BY_HOP or key.lower() == "host":
+                continue
+            headers[key] = val
+        headers["Host"] = f"{host}:{port}"
+        headers["X-Forwarded-Prefix"] = prefix
+        headers["X-Forwarded-Host"] = self.headers.get("Host") or ""
+        req = urllib.request.Request(
+            target,
+            data=body,
+            method=self.command,
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=_PROXY_TIMEOUT) as resp:
+                raw = resp.read() if self.command != "HEAD" else b""
+                ctype = resp.headers.get("Content-Type") or ""
+                if self.command != "HEAD":
+                    raw = rewrite_root_absolute(raw, prefix, ctype)
+                self.send_response(resp.status)
+                for key, val in resp.headers.items():
+                    if key.lower() in _HOP_BY_HOP:
+                        continue
+                    if key.lower() == "location":
+                        val = rewrite_location(val, prefix, host, port)
+                    self.send_header(key, val)
+                if self.command != "HEAD":
+                    self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(raw)
+        except urllib.error.HTTPError as exc:
+            raw = exc.read() if self.command != "HEAD" else b""
+            ctype = (exc.headers.get("Content-Type") if exc.headers else "") or ""
+            if self.command != "HEAD":
+                raw = rewrite_root_absolute(raw, prefix, ctype)
+            self.send_response(exc.code)
+            if exc.headers:
+                for key, val in exc.headers.items():
+                    if key.lower() in _HOP_BY_HOP:
+                        continue
+                    self.send_header(key, val)
+            if self.command != "HEAD":
+                self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(raw)
+        except urllib.error.URLError as exc:
+            msg = f"{prefix} upstream unreachable at {host}:{port} ({exc.reason})"
+            if "/api/" in upstream_path:
+                self._json(502, {"ok": False, "error": msg, "upstream": f"{host}:{port}"})
+                return
+            html = (
+                "<!doctype html><meta charset=utf-8><title>Lens offline</title>"
+                f"<p>{msg}. Direct LAN debug: http://{host}:{port}/</p>"
+            ).encode("utf-8")
+            self.send_response(502)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(html)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(html)
+
     def do_GET(self) -> None:  # noqa: N802
+        if self._maybe_proxy_lens():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/api/treasury":
@@ -718,6 +895,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
         # GET remaps origin aliases onto financial-command/; HEAD used to skip
         # that and 404 (or serve the workspace stub at /). FitDash HEAD matches GET
         # because its document root actually has those files.
+        if self._maybe_proxy_lens():
+            return
         path = urlparse(self.path).path
         if not path.startswith("/api/"):
             self._remap_static_path()
@@ -823,6 +1002,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
         return data
 
     def do_POST(self) -> None:  # noqa: N802
+        if self._maybe_proxy_lens():
+            return
         path = urlparse(self.path).path
         if path in ("/api/ask", "/api/advisor"):
             body = self._read_json()

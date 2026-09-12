@@ -1,24 +1,19 @@
 /**
- * Deep-link FCC surfaces → Horizon Macro on the same host.
+ * Deep-link FCC surfaces → Horizon Macro on the same HTTPS origin.
  *
- * Port comes from research/horizon/server.py DEFAULT_PORT (do not invent).
  * Horizon is a nested aspect of FCC, not a merged UI. No iframe, no embed.
- * LAN (192.168.x) and Tailscale (100.x) both work because the host comes
- * from window.location.hostname — never a hardcoded IP or public URL.
+ * Installed PWA scope is "/": same-origin /horizon/ stays in the standalone window.
+ * Direct :8795 remains a LAN-debug fallback (not linked from FCC).
  */
 (function (global) {
   "use strict";
 
-  var HORIZON_PORT = 8795;
-
-  function horizonHref(hostname) {
-    var host = hostname || "127.0.0.1";
-    return "http://" + host + ":" + HORIZON_PORT + "/";
+  function horizonHref() {
+    return "/horizon/";
   }
 
   function wireHorizonNav() {
-    var host = (global.location && global.location.hostname) || "127.0.0.1";
-    var href = horizonHref(host);
+    var href = horizonHref();
     var nodes = document.querySelectorAll("#nav-horizon, a[data-nav-horizon]");
     for (var i = 0; i < nodes.length; i++) {
       nodes[i].setAttribute("href", href);

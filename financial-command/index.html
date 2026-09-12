@@ -2014,7 +2014,7 @@
       <a class="broker-link" href="https://www.coinbase.com/home" id="nav-coinbase" target="_blank" rel="noopener noreferrer" title="Open Coinbase">Coinbase</a>
       <a class="broker-link" href="https://robinhood.com/" id="nav-robinhood" target="_blank" rel="noopener noreferrer" title="Open Robinhood">Robinhood</a>
       <a class="broker-link" href="https://docs.google.com/spreadsheets/d/15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ/edit" id="nav-expenses" target="_blank" rel="noopener noreferrer" title="Open personal expense spreadsheet">Expenses</a>
-      <a class="broker-link" href="http://127.0.0.1:8796/" id="link-fleet-chip" data-nav-fleet title="Auto Fleet ops (same host :8796)">Fleet</a>
+      <a class="broker-link" href="/fleet/" id="link-fleet-chip" data-nav-fleet title="Auto Fleet ops (same origin)">Fleet</a>
     </div>
     <div class="row">
       <div>
@@ -2022,14 +2022,14 @@
         <div class="sub">Liquidity · fund manager · bills · spend</div>
       </div>
       <div class="controls">
-        <a class="btn" href="http://127.0.0.1:8795/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
+        <a class="btn" href="/horizon/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
         <a class="btn" href="capital-flows.html" id="nav-capital-flows" title="Income → channels flow map">Capital Flows</a>
         <a class="btn" href="cash-streams.html" id="nav-cash-streams" title="Rolling 90-day income → expense Sankey">Cash Streams</a>
         <a class="btn" href="runway.html" id="nav-runway" title="90-day forward cash-flow forecast">Runway</a>
         <a class="btn" href="interest-spectrum.html" id="nav-interest-spectrum" title="APR / APY interest spectrum">Interest Spectrum</a>
         <a class="btn" href="bias-spectrum.html" id="nav-bias-spectrum" title="New-money consider-share across core + watchlist">Bias Spectrum</a>
         <a class="btn" href="watchlist.html" id="nav-watchlist" title="Watchlist research">Watchlist</a>
-        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet ops (same host :8796)">Fleet</a>
+        <a class="btn" href="/fleet/" id="nav-fleet" title="Auto Fleet ops (same origin)">Fleet</a>
         <span class="poll-note" id="poll-note" title="Local treasury JSON poll">auto 5m</span>
         <button type="button" id="btn-refresh" class="primary">Refresh</button>
         <div id="overall-pill" class="pill yellow">loading</div>
@@ -2287,9 +2287,9 @@
     </details>
 
     <details class="panel" id="fleet-card" data-m-panel="more">
-      <summary>Fleet dashboard <a class="btn" href="http://127.0.0.1:8796/" id="link-fleet-full" data-nav-fleet style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
+      <summary>Fleet dashboard <a class="btn" href="/fleet/" id="link-fleet-full" data-nav-fleet style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
       <div class="body">
-        <p class="hint">Auto Fleet ops on this host :8796. Separate service — not a tab inside FCC.</p>
+        <p class="hint">Auto Fleet ops on this origin. Separate service — not a tab inside FCC.</p>
       </div>
     </details>
 
@@ -2427,7 +2427,7 @@
     <a href="runway.html">Runway</a> ·
     <a href="interest-spectrum.html">Interest Spectrum</a> ·
     <a href="bias-spectrum.html">Bias Spectrum</a> ·
-    <a href="http://127.0.0.1:8796/" id="link-fleet-footer" data-nav-fleet>Fleet</a> ·
+    <a href="/fleet/" id="link-fleet-footer" data-nav-fleet>Fleet</a> ·
     <a href="../investment/treasury-action-items.md">action items</a> ·
     <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
   </footer>

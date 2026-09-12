@@ -16,6 +16,19 @@ python3 financial-command/server.py --port 8000
 
 Opens: http://localhost:8000/financial-command/index.html
 
+### Same-origin Fleet + Horizon (installed PWA)
+
+The PWA manifest is origin-scoped (`scope: "/"`, `start_url: "/"`). Cross-port `http://host:8796/` / `:8795/` links leave the standalone window and are mixed-content on the Tailscale HTTPS origin.
+
+FCC `server.py` reverse-proxies:
+
+- `/fleet/` → Auto Fleet backend (`auto-fleet/server.py`, Pi unit `auto-fleet.service`, bind `:8796`)
+- `/horizon/` → Horizon Macro (`research/horizon/server.py`, Pi unit `horizon-dashboard.service`, bind `:8795`)
+
+Nav emits `/fleet/` and `/horizon/` — no `http://` deep-links. Direct `:8795` / `:8796` stay as LAN-debug fallbacks; they are not linked from FCC.
+
+Root-absolute assets from those apps (`fetch("/api/…")`, `<script src="/app.js">`) are rewritten under the prefix so they do not escape to FCC (same bug class as #677, in reverse).
+
 ### APIs (FCC server)
 
 | Endpoint | Method | Purpose |
@@ -25,6 +38,8 @@ Opens: http://localhost:8000/financial-command/index.html
 | `/api/refresh` | POST | Re-run evaluation (`{"offline": true}` optional) |
 | `/api/btc-network` | GET | Bitcoin network hashrate + difficulty (mempool.space, 6h cache) |
 | `/api/runway` | GET | Cash-flow forecast. Default min-buffer from `policy.min_liquid_buffer_usd`. `?threshold=` overrides per-view. |
+| `/fleet/*` | * | Reverse-proxy → Auto Fleet (`127.0.0.1:8796`). Same-origin for the installed PWA. |
+| `/horizon/*` | * | Reverse-proxy → Horizon Macro (`127.0.0.1:8795`). Same-origin for the installed PWA. |
 
 ## Data flow
 

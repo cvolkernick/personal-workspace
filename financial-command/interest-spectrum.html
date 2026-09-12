@@ -202,14 +202,14 @@
         <div class="sub" id="subtitle">APR / APY · FCC</div>
       </div>
       <div class="controls">
-        <a class="btn" href="http://127.0.0.1:8795/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
+        <a class="btn" href="/horizon/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
         <a class="btn" href="index.html" id="nav-fcc">← FCC</a>
         <a class="btn" href="capital-flows.html" id="nav-capital-flows">Capital Flows</a>
         <a class="btn" href="cash-streams.html" id="nav-cash-streams">Cash Streams</a>
         <a class="btn" href="runway.html" id="nav-runway">Runway</a>
         <a class="btn" href="watchlist.html" id="nav-watchlist">Watchlist</a>
         <a class="btn" href="bias-spectrum.html" id="nav-bias-spectrum">Bias Spectrum</a>
-        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet">Fleet</a>
+        <a class="btn" href="/fleet/" id="nav-fleet" title="Auto Fleet">Fleet</a>
         <button type="button" class="primary" id="btn-refresh">Refresh</button>
       </div>
     </div>
@@ -308,8 +308,7 @@
 
     function chipHref(chip) {
       if (chip.deep_link === "fleet") {
-        const host = (window.location && window.location.hostname) || "127.0.0.1";
-        const base = window.fccFleetHref ? window.fccFleetHref(host) : ("http://" + host + ":8796/");
+        const base = window.fccFleetHref ? window.fccFleetHref() : "/fleet/";
         return base + (chip.fleet_unit ? "#unit-" + chip.fleet_unit : "");
       }
       return chip.deep_link || "";

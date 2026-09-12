@@ -206,6 +206,7 @@ class HorizonHandler(SimpleHTTPRequestHandler):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Horizon visual dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument(
         "--bootstrap",
@@ -219,8 +220,8 @@ def main(argv: list[str] | None = None) -> int:
         print("[horizon] bootstrapping offline world-state + brief…", flush=True)
         run_pipeline(workspace=ROOT, data_dir=DEFAULT_DATA_DIR, offline=True)
 
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), HorizonHandler)
-    url = f"http://127.0.0.1:{args.port}/"
+    server = ThreadingHTTPServer((args.host, args.port), HorizonHandler)
+    url = f"http://{args.host}:{args.port}/"
     print(f"[horizon] dashboard at {url}", flush=True)
     if not args.no_browser:
         webbrowser.open(url)

@@ -90,19 +90,16 @@ def _by_id(anchors: list[dict[str, str]], aid: str) -> dict[str, str]:
     raise AssertionError(f"missing anchor id={aid!r}")
 
 
-def fleet_href(hostname: str) -> str:
+def fleet_href(hostname: str = "") -> str:
     """Same contract as financial-command/nav-fleet.js fccFleetHref."""
-    host = hostname or "127.0.0.1"
-    return f"http://{host}:8796/"
+    del hostname  # same-origin path; host/port no longer in the href
+    return "/fleet/"
 
 
-def horizon_href(hostname: str) -> str:
-    """Same contract as financial-command/nav-horizon.js fccHorizonHref.
-
-    Port is research/horizon/server.py DEFAULT_PORT — not invented here.
-    """
-    host = hostname or "127.0.0.1"
-    return f"http://{host}:{HORIZON_PORT}/"
+def horizon_href(hostname: str = "") -> str:
+    """Same contract as financial-command/nav-horizon.js fccHorizonHref."""
+    del hostname
+    return "/horizon/"
 
 
 class TestFccNavFleet(unittest.TestCase):
@@ -112,10 +109,10 @@ class TestFccNavFleet(unittest.TestCase):
             anchors = _parse_anchors(html)
             fleet = _by_id(anchors, "nav-fleet")
             self.assertEqual(fleet["text"], "Fleet", name)
-            self.assertIn(":8796", fleet["href"], name)
-            self.assertTrue(
+            self.assertEqual(fleet["href"], "/fleet/", name)
+            self.assertFalse(
                 fleet["href"].startswith("http://"),
-                f"{name} Fleet href must be an origin, not a relative FCC path",
+                f"{name} Fleet href must be same-origin /fleet/, not a different-origin port",
             )
             self.assertNotIn("<iframe", html.lower(), name)
             self.assertIn("nav-fleet.js", html, name)
@@ -123,26 +120,20 @@ class TestFccNavFleet(unittest.TestCase):
                 self.assertNotIn(ip, fleet["href"], name)
                 self.assertNotIn(ip, html, name)
 
-    def test_fleet_href_uses_current_hostname_port_8796(self) -> None:
+    def test_fleet_href_is_same_origin_path(self) -> None:
         js = (FCC / "nav-fleet.js").read_text(encoding="utf-8")
-        self.assertIn("location.hostname", js)
-        self.assertIn("FLEET_PORT = 8796", js)
+        self.assertIn('"/fleet/"', js)
         self.assertIn("fccFleetHref", js)
         self.assertNotIn("<iframe", js.lower())
+        self.assertNotIn("http://", js)
+        self.assertNotIn("FLEET_PORT", js)
         for ip in HARDCODED_IPS:
             self.assertNotIn(ip, js)
 
-        self.assertEqual(fleet_href("192.168.100.98"), "http://192.168.100.98:8796/")
-        self.assertEqual(fleet_href("100.67.114.2"), "http://100.67.114.2:8796/")
-        self.assertEqual(fleet_href("prism-gateway"), "http://prism-gateway:8796/")
-        self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
-        self.assertEqual(fleet_href(""), "http://127.0.0.1:8796/")
-
-        # JS builder must concatenate hostname + :8796 (not a baked-in IP).
-        self.assertRegex(
-            js,
-            r"""["']http://["']\s*\+\s*host\s*\+\s*["']:["']\s*\+\s*FLEET_PORT\s*\+\s*["']/["']""",
-        )
+        self.assertEqual(fleet_href("192.168.100.98"), "/fleet/")
+        self.assertEqual(fleet_href("prism-gateway"), "/fleet/")
+        self.assertEqual(fleet_href("127.0.0.1"), "/fleet/")
+        self.assertEqual(fleet_href(""), "/fleet/")
 
     def test_existing_fcc_capital_flows_watchlist_still_work(self) -> None:
         index = _parse_anchors((FCC / "index.html").read_text(encoding="utf-8"))
@@ -284,8 +275,8 @@ class TestFccNavFleet(unittest.TestCase):
         # Mobile header hides #nav-fleet; the visible path is the top chip + More card.
         fleet_chip = _by_id(index, "link-fleet-chip")
         self.assertEqual(fleet_chip["text"], "Fleet")
-        self.assertIn(":8796", fleet_chip["href"])
-        self.assertTrue(fleet_chip["href"].startswith("http://"))
+        self.assertEqual(fleet_chip["href"], "/fleet/")
+        self.assertFalse(fleet_chip["href"].startswith("http://"))
         self.assertEqual(fleet_chip.get("target") or "", "")
         chip_at = index_html.find('id="link-fleet-chip"')
         self.assertGreater(chip_at, 0)
@@ -295,7 +286,7 @@ class TestFccNavFleet(unittest.TestCase):
 
         more_fleet = _by_id(index, "link-fleet-full")
         self.assertIn("Open", more_fleet["text"])
-        self.assertIn(":8796", more_fleet["href"])
+        self.assertEqual(more_fleet["href"], "/fleet/")
         self.assertIn('id="fleet-card"', index_html)
         fleet_card_idx = index_html.find('id="fleet-card"')
         self.assertGreater(fleet_card_idx, 0)
@@ -305,7 +296,7 @@ class TestFccNavFleet(unittest.TestCase):
 
         footer_fleet = _by_id(index, "link-fleet-footer")
         self.assertEqual(footer_fleet["text"], "Fleet")
-        self.assertIn(":8796", footer_fleet["href"])
+        self.assertEqual(footer_fleet["href"], "/fleet/")
 
         spec_html = (FCC / "interest-spectrum.html").read_text(encoding="utf-8")
         # Mobile cull hides satellite siblings, never the FCC back-link.
@@ -338,18 +329,14 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertNotIn(":8796", fitdash)
         self.assertNotIn('id="nav-fleet"', fitdash)
 
-    def test_live_entry_fleet_href_is_page_host_not_loopback(self) -> None:
-        """Live AC: FCC / Fleet href after JS is same-host :8796.
-
-        Not 127.0.0.1 unless the page host is localhost / 127.0.0.1.
-        Phone / LAN / Tailscale entry uses window.location.hostname.
-        """
-        self.assertEqual(fleet_href("prism-gateway"), "http://prism-gateway:8796/")
-        self.assertEqual(fleet_href("192.168.100.98"), "http://192.168.100.98:8796/")
-        self.assertEqual(fleet_href("100.67.114.2"), "http://100.67.114.2:8796/")
-        self.assertNotEqual(fleet_href("prism-gateway"), "http://127.0.0.1:8796/")
-        self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
-        self.assertEqual(fleet_href("localhost"), "http://localhost:8796/")
+    def test_live_entry_fleet_href_is_same_origin_path(self) -> None:
+        """Installed PWA: Fleet stays on the HTTPS origin, not :8796."""
+        self.assertEqual(fleet_href("prism-gateway"), "/fleet/")
+        self.assertEqual(fleet_href("192.168.100.98"), "/fleet/")
+        self.assertEqual(fleet_href("100.67.114.2"), "/fleet/")
+        self.assertEqual(fleet_href("127.0.0.1"), "/fleet/")
+        self.assertEqual(fleet_href("localhost"), "/fleet/")
+        self.assertNotIn("http://", fleet_href("prism-gateway"))
 
 
 class TestFccNavHorizon(unittest.TestCase):
@@ -360,7 +347,6 @@ class TestFccNavHorizon(unittest.TestCase):
         self.assertNotEqual(HORIZON_PORT, 8791)  # seasonal plan, not Horizon Macro
 
     def test_nav_contains_horizon_link_on_every_fcc_surface(self) -> None:
-        port_token = f":{HORIZON_PORT}"
         for name in SURFACES:
             html = (FCC / name).read_text(encoding="utf-8")
             anchors = _parse_anchors(html)
@@ -368,10 +354,10 @@ class TestFccNavHorizon(unittest.TestCase):
             self.assertEqual(hz["text"], "Horizon", name)
             self.assertNotIn(str(HORIZON_PORT), hz["text"], name)
             self.assertNotRegex(hz["title"], r"\d{4}", name)
-            self.assertIn(port_token, hz["href"], name)
-            self.assertTrue(
+            self.assertEqual(hz["href"], "/horizon/", name)
+            self.assertFalse(
                 hz["href"].startswith("http://"),
-                f"{name} Horizon href must be an origin, not a relative FCC path",
+                f"{name} Horizon href must be same-origin /horizon/, not a different-origin port",
             )
             self.assertNotIn("<iframe", html.lower(), name)
             self.assertIn("nav-horizon.js", html, name)
@@ -383,29 +369,34 @@ class TestFccNavHorizon(unittest.TestCase):
                 self.assertNotIn(needle, hz["href"], name)
                 self.assertNotIn(needle, html, name)
 
-    def test_horizon_href_uses_current_hostname_and_server_port(self) -> None:
+    def test_horizon_href_is_same_origin_path(self) -> None:
         js = (FCC / "nav-horizon.js").read_text(encoding="utf-8")
-        self.assertIn("location.hostname", js)
-        self.assertIn(f"HORIZON_PORT = {HORIZON_PORT}", js)
+        self.assertIn('"/horizon/"', js)
         self.assertIn("fccHorizonHref", js)
         self.assertNotIn("<iframe", js.lower())
         self.assertNotIn("vercel", js.lower())
+        self.assertNotIn("http://", js)
+        self.assertNotIn("HORIZON_PORT", js)
         for ip in HARDCODED_IPS:
             self.assertNotIn(ip, js)
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(horizon_href("192.168.100.98"), f"http://192.168.100.98:{HORIZON_PORT}/")
-        self.assertEqual(horizon_href("100.67.114.2"), f"http://100.67.114.2:{HORIZON_PORT}/")
-        self.assertEqual(horizon_href("prism-gateway"), f"http://prism-gateway:{HORIZON_PORT}/")
-        self.assertEqual(horizon_href("127.0.0.1"), f"http://127.0.0.1:{HORIZON_PORT}/")
-        self.assertEqual(horizon_href(""), f"http://127.0.0.1:{HORIZON_PORT}/")
-        self.assertNotEqual(horizon_href("prism-gateway"), "http://127.0.0.1:8795/")
+        self.assertEqual(horizon_href("192.168.100.98"), "/horizon/")
+        self.assertEqual(horizon_href("prism-gateway"), "/horizon/")
+        self.assertEqual(horizon_href("127.0.0.1"), "/horizon/")
+        self.assertEqual(horizon_href(""), "/horizon/")
 
-        self.assertRegex(
-            js,
-            r"""["']http://["']\s*\+\s*host\s*\+\s*["']:["']\s*\+\s*HORIZON_PORT\s*\+\s*["']/["']""",
-        )
+    def test_fcc_surfaces_have_no_http_lens_ports(self) -> None:
+        pages = list(SURFACES) + ["position.html"]
+        for name in pages:
+            html = (FCC / name).read_text(encoding="utf-8")
+            self.assertNotIn("http://127.0.0.1:8796", html, name)
+            self.assertNotIn("http://127.0.0.1:8795", html, name)
+            self.assertNotIn(":8796/", html, name)
+            self.assertNotIn(":8795/", html, name)
+            self.assertIn('href="/fleet/"', html, name)
+            self.assertIn('href="/horizon/"', html, name)
 
     def test_orchestra_controls_are_gone_from_fcc(self) -> None:
         self.assertFalse((FCC / "nav-orchestra.js").is_file())

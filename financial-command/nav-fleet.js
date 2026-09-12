@@ -1,23 +1,19 @@
 /**
- * Deep-link FCC surfaces → Auto Fleet on the same host, port 8796.
+ * Deep-link FCC surfaces → Auto Fleet on the same HTTPS origin.
  *
  * Fleet is a nested aspect of FCC, not a merged UI. No iframe, no embed.
- * LAN (192.168.x) and Tailscale (100.x) both work because the host comes
- * from window.location.hostname — never a hardcoded IP.
+ * Installed PWA scope is "/": same-origin /fleet/ stays in the standalone window.
+ * Direct :8796 remains a LAN-debug fallback (not linked from FCC).
  */
 (function (global) {
   "use strict";
 
-  var FLEET_PORT = 8796;
-
-  function fleetHref(hostname) {
-    var host = hostname || "127.0.0.1";
-    return "http://" + host + ":" + FLEET_PORT + "/";
+  function fleetHref() {
+    return "/fleet/";
   }
 
   function wireFleetNav() {
-    var host = (global.location && global.location.hostname) || "127.0.0.1";
-    var href = fleetHref(host);
+    var href = fleetHref();
     var nodes = document.querySelectorAll("#nav-fleet, a[data-nav-fleet]");
     for (var i = 0; i < nodes.length; i++) {
       nodes[i].setAttribute("href", href);
