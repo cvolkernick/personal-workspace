@@ -23,9 +23,12 @@ from treasury.runway import (  # noqa: E402
     ALLOWED_DAYS,
     DEFAULT_THRESHOLD,
     LOOKBACK_DAYS,
+    POLICY_MIN_BUFFER_KEY,
     build_runway,
     clamp_threshold,
     load_runway,
+    parse_forecast_buffer_target,
+    resolve_min_buffer,
     starting_buffer,
 )
 
@@ -188,6 +191,57 @@ class TestRunwayBuilder(unittest.TestCase):
         self.assertEqual(clamp_threshold("nope"), DEFAULT_THRESHOLD)
         self.assertEqual(clamp_threshold(-10), 0.0)
         self.assertEqual(ALLOWED_DAYS, (30, 60, 90, 180))
+
+    def test_resolve_min_buffer_from_policy(self) -> None:
+        resolved = resolve_min_buffer(policy={POLICY_MIN_BUFFER_KEY: 350})
+        self.assertEqual(resolved["usd"], 350.0)
+        self.assertEqual(resolved["source"], "treasury_policy")
+        self.assertIn("treasury policy", resolved["source_label"])
+        self.assertFalse(resolved["sheet_config_drift"])
+
+    def test_resolve_min_buffer_fallback_is_labeled(self) -> None:
+        missing = resolve_min_buffer(policy={})
+        self.assertEqual(missing["usd"], DEFAULT_THRESHOLD)
+        self.assertEqual(missing["source"], "fallback_default")
+        self.assertIn("hardcoded fallback", missing["source_label"])
+        self.assertIn("missing", missing["source_label"])
+        bad = resolve_min_buffer(policy={POLICY_MIN_BUFFER_KEY: "nope"})
+        self.assertEqual(bad["source"], "fallback_default")
+        self.assertIn("unparseable", bad["source_label"])
+
+    def test_resolve_min_buffer_explicit_overrides_policy(self) -> None:
+        resolved = resolve_min_buffer(
+            explicit=500,
+            policy={POLICY_MIN_BUFFER_KEY: 200},
+        )
+        self.assertEqual(resolved["usd"], 500.0)
+        self.assertEqual(resolved["source"], "explicit")
+        self.assertIn("?threshold=", resolved["source_label"])
+        self.assertIn("$200", resolved["source_label"])
+
+    def test_sheet_config_drift_is_visible(self) -> None:
+        aligned = resolve_min_buffer(
+            policy={POLICY_MIN_BUFFER_KEY: 200},
+            sheet_forecast_buffer=200,
+        )
+        self.assertFalse(aligned["sheet_config_drift"])
+        drifted = resolve_min_buffer(
+            policy={POLICY_MIN_BUFFER_KEY: 200},
+            sheet_forecast_buffer=500,
+        )
+        self.assertTrue(drifted["sheet_config_drift"])
+        self.assertEqual(drifted["sheet_forecast_buffer_usd"], 500.0)
+        self.assertEqual(drifted["usd"], 200.0)
+
+    def test_parse_forecast_buffer_target_row(self) -> None:
+        csv_text = (
+            "Metric,Sep 2026,Oct 2026\n"
+            "Essential,2475.76,3564\n"
+            "Buffer target,200,\n"
+            "Room for discretionary,-1092,-6236\n"
+        )
+        self.assertEqual(parse_forecast_buffer_target(csv_text), 200.0)
+        self.assertIsNone(parse_forecast_buffer_target("Metric,Sep\nIncome,1\n"))
 
     def test_starting_buffer_excludes_credit_and_closed(self) -> None:
         total, liquid = starting_buffer(
@@ -360,6 +414,8 @@ class TestRunwayBuilder(unittest.TestCase):
             stale=True,
             fetch=fake_fetch,
             expenses_fetch=lambda: _fresh_sheet(),
+            policy={POLICY_MIN_BUFFER_KEY: 200},
+            forecast_fetch=lambda: 200,
         )
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["ynab"]["stale"])
@@ -367,6 +423,63 @@ class TestRunwayBuilder(unittest.TestCase):
         self.assertEqual(payload["ynab"]["as_of"], "2026-09-11T00:00:00+00:00")
         self.assertEqual(len(payload["daily"]), 90)
         self.assertEqual(payload["assumptions"]["bill_source"], "sheet")
+        self.assertEqual(payload["threshold"], 200.0)
+        self.assertEqual(payload["assumptions"]["min_buffer_source"], "treasury_policy")
+
+    def test_load_runway_reads_config_policy_without_code_change(self) -> None:
+        import tempfile
+
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=10_000, payee="Lyft")],
+                "scheduled": [],
+                "category_groups": GROUPS,
+                "accounts": [_acct(aid="onb", name="Checking", typ="checking", balance=100_000)],
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-09-11T00:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "treasury").mkdir()
+            (root / "treasury" / "config.json").write_text(
+                json.dumps({"policy": {POLICY_MIN_BUFFER_KEY: 425}}),
+                encoding="utf-8",
+            )
+            payload = load_runway(
+                days=90,
+                today=TODAY,
+                stale=True,
+                root=root,
+                fetch=fake_fetch,
+                expenses_fetch=lambda: _fresh_sheet(),
+                forecast_fetch=lambda: 200,
+            )
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["threshold"], 425.0)
+        self.assertEqual(payload["assumptions"]["min_buffer_source"], "treasury_policy")
+        self.assertTrue(payload["assumptions"]["sheet_config_drift"])
+        self.assertEqual(payload["assumptions"]["sheet_forecast_buffer_usd"], 200.0)
+
+    def test_expenses_forecast_tab_drives_drift_not_default(self) -> None:
+        expenses = _fresh_sheet(
+            essential=[_sheet_item(item="Rent", date_s="10/1/2026", monthly=2100.0, annually=2100.0)],
+        )
+        expenses["tabs"]["Forecast"] = {"buffer_target_usd": 500}
+        payload = build_runway(
+            days=90,
+            today=TODAY,
+            transactions=[_tx(amount=900_000, payee="Lyft", date_s="2026-07-01")],
+            expenses=expenses,
+            accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=1_000_000)],
+            on_budget_ids={"onb"},
+            policy={POLICY_MIN_BUFFER_KEY: 200},
+        )
+        self.assertEqual(payload["threshold"], 200.0)
+        self.assertEqual(payload["assumptions"]["min_buffer_source"], "treasury_policy")
+        self.assertEqual(payload["assumptions"]["sheet_forecast_buffer_usd"], 500.0)
+        self.assertTrue(payload["assumptions"]["sheet_config_drift"])
 
     def test_sheet_bills_once_and_monthly(self) -> None:
         expenses = _fresh_sheet(
@@ -403,11 +516,16 @@ class TestRunwayBuilder(unittest.TestCase):
             expenses=expenses,
             accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=1_000_000)],
             on_budget_ids={"onb"},
+            policy={POLICY_MIN_BUFFER_KEY: 200},
+            sheet_forecast_buffer=200,
         )
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["threshold"], DEFAULT_THRESHOLD)
+        self.assertEqual(payload["threshold"], 200.0)
         self.assertEqual(DEFAULT_THRESHOLD, 200.0)
         self.assertEqual(payload["assumptions"]["bill_source"], "sheet")
+        self.assertEqual(payload["assumptions"]["min_buffer_source"], "treasury_policy")
+        self.assertIn("treasury policy", payload["assumptions"]["min_buffer_source_label"])
+        self.assertFalse(payload["assumptions"]["sheet_config_drift"])
         payees = {ev["payee"] for ev in payload["bill_events"]}
         self.assertIn("October Rent", payees)
         self.assertNotIn("September Rent", payees)  # dated 9/1, before today
@@ -540,6 +658,8 @@ class TestRunwayBuilder(unittest.TestCase):
             today=TODAY,
             fetch=boom,
             expenses_fetch=lambda: _fresh_sheet(as_of="2026-08-01T00:00:00+00:00"),
+            policy={POLICY_MIN_BUFFER_KEY: 200},
+            forecast_fetch=lambda: 200,
         )
         self.assertFalse(payload["ok"])
         self.assertIn("stale", payload["error"].lower())
@@ -571,6 +691,10 @@ class TestRunwayPage(unittest.TestCase):
         self.assertIn("threshold", html.lower())
         self.assertIn('value="200"', html)
         self.assertIn("income_one_offs", html)
+        self.assertIn("thresholdOverridden", html)
+        self.assertIn("min_buffer_source_label", html)
+        self.assertIn("sheet_config_drift", html)
+        self.assertIn("if (thresholdOverridden && currentThreshold != null)", html)
 
     def test_index_links_runway(self) -> None:
         html = INDEX.read_text(encoding="utf-8")
@@ -616,13 +740,14 @@ class TestRunwayApi(unittest.TestCase):
             ynab_stale=False,
             ynab_as_of="2026-09-11T00:00:00+00:00",
         )
-        with mock.patch.object(self.mod, "load_runway", return_value=fixture):
+        with mock.patch.object(self.mod, "load_runway", return_value=fixture) as mocked:
             code, body = self._get("/api/runway?days=90&threshold=200")
         self.assertEqual(code, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data.get("ok"))
         self.assertEqual(data["days"], 90)
         self.assertEqual(data["threshold"], 200.0)
+        self.assertEqual(mocked.call_args.kwargs.get("threshold"), "200")
         self.assertIn("daily", data)
         self.assertIn("bill_events", data)
         self.assertIn("assumptions", data)
@@ -637,6 +762,25 @@ class TestRunwayApi(unittest.TestCase):
         root_code, root_body = self._get("/runway.html")
         self.assertEqual(root_code, 200)
         self.assertIn(b"<h1>Runway</h1>", root_body)
+
+    def test_api_omitted_threshold_does_not_force_hardcoded(self) -> None:
+        fixture = build_runway(
+            days=90,
+            today=TODAY,
+            transactions=[_tx(amount=10_000, payee="Lyft")],
+            accounts=[_acct(aid="onb", name="Checking", typ="checking", balance=100_000)],
+            on_budget_ids={"onb"},
+            expenses=_fresh_sheet(),
+            policy={POLICY_MIN_BUFFER_KEY: 350},
+        )
+        self.assertEqual(fixture["threshold"], 350.0)
+        self.assertEqual(fixture["assumptions"]["min_buffer_source"], "treasury_policy")
+        with mock.patch.object(self.mod, "load_runway", return_value=fixture) as mocked:
+            code, body = self._get("/api/runway?days=90")
+        self.assertEqual(code, 200)
+        self.assertIsNone(mocked.call_args.kwargs.get("threshold"))
+        data = json.loads(body.decode("utf-8"))
+        self.assertEqual(data["threshold"], 350.0)
 
     def test_api_error_is_json_not_empty(self) -> None:
         err = build_runway(days=90, today=TODAY, error="no YNAB token")

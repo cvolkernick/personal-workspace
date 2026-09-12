@@ -24,6 +24,7 @@ Opens: http://localhost:8000/financial-command/index.html
 | `/api/config` | GET/POST | Read/merge-save `treasury/config.json` |
 | `/api/refresh` | POST | Re-run evaluation (`{"offline": true}` optional) |
 | `/api/btc-network` | GET | Bitcoin network hashrate + difficulty (mempool.space, 6h cache) |
+| `/api/runway` | GET | Cash-flow forecast. Default min-buffer from `policy.min_liquid_buffer_usd`. `?threshold=` overrides per-view. |
 
 ## Data flow
 
@@ -32,6 +33,7 @@ Opens: http://localhost:8000/financial-command/index.html
 3. **Coinbase One Card** via YNAB API (`~/.config/ynab/token`) → `treasury/snapshots/one_card_latest.json`.
 4. **Personal Expense Sheet** (Google) via CSV export-by-gid → `treasury/snapshots/expenses_latest.json`.
    Tabs: **Personal/Essential** = burn; **Fleet** = `fleet_ops` (combined adds funded unique names only; empty-From out); **Collateral** = investments (not burn); **Productive / Consumer Discretionary** = capital targets.
+   **Forecast tab "Buffer target"** is the monthly planning floor. Runway's daily min-buffer is `treasury/config.json` `policy.min_liquid_buffer_usd` (currently $200, matching the sheet). They are intentionally separate; disagreement is visible drift on Runway, never silent.
 5. Manual Morpho LTV / vault (and optional card override) from `treasury/config.json`.
 6. **Solana** public RPC + Jupiter prices → `treasury/snapshots/solana_latest.json` (whitelist SOL / USDC / JR-strcUSX; JR is not HY).
 7. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.

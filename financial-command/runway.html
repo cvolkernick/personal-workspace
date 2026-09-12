@@ -119,6 +119,7 @@
     }
     .assumptions dt { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
     .assumptions dd { margin: 0 0 0.35rem; }
+    .assumptions .drift { color: var(--yellow); }
     .slider-row {
       display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center;
     }
@@ -255,7 +256,8 @@
   <script src="vendor/d3.min.js"></script>
   <script>
     let currentDays = 90;
-    let currentThreshold = 200;
+    let currentThreshold = null;
+    let thresholdOverridden = false;
     let lastPayload = null;
 
     function esc(s) {
@@ -500,6 +502,16 @@
           : "") +
         "<dt>Starting buffer</dt><dd>" + money(data.starting_buffer) +
           " from open on-budget checking/savings/cash" + est + "<br>" + accounts + "</dd>" +
+        "<dt>Min buffer</dt><dd>" + esc(a.min_buffer_source_label || ("Min buffer " + money(data.threshold))) +
+          (a.sheet_config_drift
+            ? "<br><span class=\"drift\">DRIFT: sheet Forecast Buffer target " +
+              money(a.sheet_forecast_buffer_usd) + " ≠ policy " + money(a.min_buffer_config_usd) +
+              " (config = daily Runway floor; sheet = monthly planning)</span>"
+            : (a.sheet_forecast_buffer_usd != null
+                ? "<br>Sheet Forecast Buffer target " + money(a.sheet_forecast_buffer_usd) +
+                  " (monthly planning floor; not the Runway default)"
+                : "<br>Sheet Forecast Buffer target unread")) +
+          "</dd>" +
         "<dt>Lookback</dt><dd>" + esc(a.lookback_start || "") + " → " + esc(a.lookback_end || "") + "</dd>";
     }
 
@@ -536,9 +548,11 @@
         b.classList.toggle("active", Number(b.getAttribute("data-days")) === currentDays);
       });
       try {
-        const res = await fetch(
-          "/api/runway?days=" + currentDays + "&threshold=" + currentThreshold + "&ts=" + Date.now()
-        );
+        let url = "/api/runway?days=" + currentDays + "&ts=" + Date.now();
+        if (thresholdOverridden && currentThreshold != null) {
+          url += "&threshold=" + currentThreshold;
+        }
+        const res = await fetch(url);
         const data = await res.json();
         if (!data || typeof data !== "object") {
           throw new Error("runway contract missing object");
@@ -583,6 +597,7 @@
     });
     document.getElementById("btn-refresh").addEventListener("click", () => load(currentDays));
     document.getElementById("threshold-slider").addEventListener("input", (ev) => {
+      thresholdOverridden = true;
       currentThreshold = Number(ev.target.value);
       document.getElementById("threshold-label").textContent = money(currentThreshold);
       if (lastPayload && lastPayload.ok) applyPayload(lastPayload, currentThreshold);

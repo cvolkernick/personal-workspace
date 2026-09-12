@@ -40,6 +40,11 @@ DEFAULT_POLICY: Dict[str, Any] = {
     # Illustrative APR spread for refinance actions (not live quotes)
     "morpho_borrow_apr_est": 0.05,
     "one_card_apr_est": 0.29,
+    # Daily Runway liquid-cash floor (checking/savings/cash). Not HY LTV, not
+    # card float, not rh_bp_floor. Canonical vs sheet Forecast "Buffer target":
+    # this config is the daily forecast floor; the sheet is the monthly planning
+    # floor. Disagreement is visible drift on Runway, never silent.
+    "min_liquid_buffer_usd": 200.0,
 }
 
 MANUAL_FIELDS = (
