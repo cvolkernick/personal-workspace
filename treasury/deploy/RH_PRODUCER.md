@@ -145,7 +145,7 @@ laptop-FCC option and still must not push RH.
 
 ---
 
-## Step 4 — NTFY = Pi host + error class
+## Step 4 — NTFY = Pi host + error class (#699 Option B)
 
 Failure / stale RH alerts must name the **producer** (Pi), not the Mac
 alerter alone:
@@ -154,8 +154,22 @@ alerter alone:
 - Body starts `producer=prism error_class=auth_fail`
 - Host tag: `FCC_HOST_TAG=prism` on the systemd unit
 
+**Routing (2026-09-12):**
+
+| Signal | Sink |
+|--------|------|
+| Stale RH (gated #555) | GitHub comment on standing [#701](https://github.com/cvolkernick/personal-workspace/issues/701) |
+| `need_llm` / deploy / rebalance | GitHub #701 only |
+| `error`, or `FCC_ALERT_KILL_SWITCH=1` | GitHub #701 **and** ntfy pri-5 |
+
+ntfy stays the paging channel. Optional `NTFY_TOKEN` (Bearer) in
+`~/.config/workflow-scheduler.env` — do not commit it. Live topic ACL on
+ntfy.sh needs a reserved/Pro topic or a self-hosted server; the publisher
+sends the token when present.
+
 Cooldown stays 6h (shared with stale-RH). Auth down leaves the last honest
-`as_of` in place — dashboard stays stale; NTFY tells you why.
+`as_of` in place — dashboard stays stale; the ops issue (and ntfy on error)
+tells you why.
 
 ---
 

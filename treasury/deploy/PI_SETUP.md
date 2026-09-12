@@ -88,9 +88,19 @@ rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 out (plist comments + commands in `RH_PRODUCER.md`). ntfy is also gated in
 nest: `skipped` / `no_refresh_path` / timeout-with-fresh-as_of do not page.
 
-### 6) ntfy = Pi host + error class
+### 6) Alerts = GitHub routine + ntfy pages (#699 Option B)
 Alerts include **producer host** and **error class** (`FCC · RH auth_fail · prism`).
 Unit sets `FCC_HOST_TAG=prism`. Override with `config.json` → `notifications.host_tag`.
+
+Routine / observability (stale RH, need_llm) comments on standing GitHub
+issue [#701](https://github.com/cvolkernick/personal-workspace/issues/701)
+(`GITHUB_TOKEN` from `~/.config/workflow-scheduler.env`). ntfy is **only**
+for pages: fund-manager `error`, tip-health SUSTAINED, or
+`FCC_ALERT_KILL_SWITCH=1`. Optional `NTFY_TOKEN` in the same env file.
+
+The phone topic `cvolk-grok-7f3k9x` no longer receives routine drift or
+stale-RH. Unsubscribe that topic if it still shows historical noise; new
+routine will not be published there.
 
 **ntfy reply is not a CLI prompt** — inbound replies are not wired to Grok. Alerts only.
 
@@ -121,8 +131,9 @@ Default SSH target: `prism-agent@192.168.100.98` → `/home/prism-agent/personal
 
 ## Notifications
 `config.json` → `notifications.ntfy_topic` (or default topic).  
-Alerts on need_llm / error / stale RH — quiet on routine HOLD.  
-Host tag identifies which machine posted.
+GitHub #701 on need_llm / stale RH; ntfy pri-5 on error / kill-switch.
+Quiet on routine HOLD. Host tag identifies which machine posted.
+`PI_OPS_ALERT_ISSUE` overrides the standing issue number (default 701).
 
 ## Auth (producer host = Pi)
 See **`RH_PRODUCER.md` step 1**. Chris OAuth is created on Pi. Mac tokens do

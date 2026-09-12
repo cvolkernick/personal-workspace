@@ -24,6 +24,11 @@ from treasury.adapters import (  # noqa: E402
     load_json,
     save_json,
 )
+from treasury.pi_ops_alert import (  # noqa: E402
+    kill_switch as _alert_kill_switch,
+    post_ntfy_page,
+    post_ops_github,
+)
 
 POLICY_PATH = ROOT / "investment" / "fund_manager.json"
 WATCHLIST_PATH = ROOT / "investment" / "watchlist.json"
@@ -879,14 +884,15 @@ def notify_if_needed(
     treasury_eval: Optional[Dict[str, Any]] = None,
     force: bool = False,
 ) -> Dict[str, Any]:
-    """Push ntfy alert for non-HOLD decisions or stale RH (optional email later).
+    """Route alerts for non-HOLD decisions or stale RH (#699 Option B).
 
     Quiet by default on HOLD. Stale-RH-only alerts are rate-limited (default 6h)
     so a broken MCP feed does not page every poll cycle. force=True still bypasses
     the enabled flag and stale cooldown (use sparingly — not for routine HOLD).
+
+    Routine (stale RH, need_llm / deploy / rebalance) → GitHub #701.
+    Pages (error, or FCC_ALERT_KILL_SWITCH) → ntfy pri-5 as well.
     """
-    import urllib.error
-    import urllib.request
 
     cfg = load_config()
     ncfg = (cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}
@@ -1033,32 +1039,39 @@ def notify_if_needed(
     text = "\n".join(body_parts) or summary or "FCC alert"
     text = f"[{host_short}] {text}"
     title = f"{title} · {host_short}" if " · " + host_short not in title else title
-    url = f"https://ntfy.sh/{topic}"
-    try:
-        req = urllib.request.Request(
-            url,
-            data=text.encode("utf-8"),
-            headers={
-                "Title": title,
-                "Priority": "3",
-                "Tags": "chart_with_upwards_trend,robot",
-                "X-Tags": f"chart_with_upwards_trend,robot,{host_short}",
-            },
-            method="POST",
+    page = bool(
+        (outcome == "error" or kind == "error") or _alert_kill_switch()
+    )
+    github = post_ops_github(title, text)
+    ntfy_out: Dict[str, Any]
+    if page:
+        ntfy_out = post_ntfy_page(
+            str(topic),
+            title,
+            text,
+            priority="5",
+            tags=f"chart_with_upwards_trend,robot,{host_short}",
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            if stale_only:
-                _mark_stale_rh_notified()
-            return {
-                "ok": True,
-                "notified": True,
-                "status": resp.status,
-                "title": title,
-                "host": host_short,
-                "stale_only": stale_only,
-            }
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        return {"ok": False, "notified": False, "error": str(e)}
+    else:
+        ntfy_out = {"ok": True, "notified": False, "skipped": "routine"}
+    delivered = bool(github.get("posted") or ntfy_out.get("notified"))
+    if delivered and stale_only:
+        _mark_stale_rh_notified()
+    elif github.get("skipped") in {"no-github-token", "no-issue", "dry-run"} and stale_only:
+        _mark_stale_rh_notified()
+    return {
+        "ok": bool(github.get("ok", True) and ntfy_out.get("ok", True)),
+        "notified": delivered,
+        "ntfy": bool(ntfy_out.get("notified")),
+        "page": page,
+        "github": github,
+        "status": github.get("status") or ntfy_out.get("status"),
+        "title": title,
+        "host": host_short,
+        "stale_only": stale_only,
+        "error": github.get("error") or ntfy_out.get("error"),
+        "skipped": None if delivered else (github.get("skipped") or ntfy_out.get("skipped")),
+    }
 
 
 def main(argv: Optional[List[str]] = None) -> int:
