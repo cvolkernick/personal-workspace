@@ -30,6 +30,9 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     colocate_egg_pair,
     egg_role,
     ensure_egg_pair,
+    MIN_MEAL_GAP,
+    _apply_pace_delay,
+    _catch_up_delay,
     _resolve_eat_times,
     inventory_gap_role,
     is_shake_or_powder,
@@ -692,7 +695,7 @@ class TestNutritionPlanner(unittest.TestCase):
         plan = generate_meal_plan(
             STOCKED_CUTTING,
             FULL_TARGETS,
-            {"calories": 1600, "protein_g": 150, "carbs_g": 140, "fat_g": 40},
+            EMPTY_CONSUMED,
             now=now,
             tz_name="America/New_York",
             eat_slots=["13:15", "18:45"],
@@ -816,6 +819,119 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertTrue(all(start <= t <= end for t in times))
         self.assertIn((15, 30), hours)
         self.assertIn((19, 0), hours)
+
+    def test_catch_up_is_ahead_over_target_times_window(self):
+        now = datetime(2026, 8, 22, 12, 0, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        # frac = 4/14, paced = 2100 * 4/14 = 600; consumed 1020 → ahead 420
+        delay = _catch_up_delay(
+            consumed={"calories": 1020},
+            targets=FULL_TARGETS,
+            now=now,
+            start=start,
+            end=end,
+        )
+        window = end - start
+        expected = (420.0 / 2100.0) * window.total_seconds()
+        self.assertAlmostEqual(delay.total_seconds(), expected, delta=1)
+        behind = _catch_up_delay(
+            consumed=EMPTY_CONSUMED,
+            targets=FULL_TARGETS,
+            now=now,
+            start=start,
+            end=end,
+        )
+        self.assertEqual(behind, timedelta(0))
+        on_pace = _catch_up_delay(
+            consumed={"calories": 600},
+            targets=FULL_TARGETS,
+            now=now,
+            start=start,
+            end=end,
+        )
+        self.assertEqual(on_pace, timedelta(0))
+
+    def test_ahead_of_pace_delays_first_upcoming_hinge(self):
+        now = datetime(2026, 8, 22, 12, 0, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        consumed = {"calories": 1500, "protein_g": 80, "carbs_g": 100, "fat_g": 40}
+        times = _resolve_eat_times(
+            3,
+            now=now,
+            start=start,
+            end=end,
+            tz=ET,
+            consumed=consumed,
+            targets=FULL_TARGETS,
+        )
+        self.assertTrue(times)
+        catch_up = _catch_up_delay(
+            consumed=consumed, targets=FULL_TARGETS, now=now, start=start, end=end
+        )
+        self.assertGreater(catch_up, timedelta(0))
+        floor = now + catch_up
+        self.assertGreaterEqual(times[0], floor.replace(second=0, microsecond=0))
+        self.assertTrue(all(start <= t <= end for t in times))
+        for a, b in zip(times, times[1:]):
+            self.assertGreaterEqual(b - a, MIN_MEAL_GAP)
+
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            consumed,
+            now=now,
+            tz_name="America/New_York",
+            window_start=start,
+            window_end=end,
+        )
+        meals = plan["meals"]
+        self.assertTrue(meals)
+        first = datetime.fromisoformat(meals[0]["eat_at"])
+        self.assertGreaterEqual(first, floor.replace(second=0, microsecond=0))
+        self.assertNotEqual(
+            (first.hour, first.minute),
+            (12, 0),
+            "ahead of pace must not schedule the just-reached hinge at now",
+        )
+
+    def test_behind_or_on_pace_keeps_default_hinges(self):
+        now = datetime(2026, 8, 22, 12, 0, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        times = _resolve_eat_times(
+            3,
+            now=now,
+            start=start,
+            end=end,
+            tz=ET,
+            consumed=EMPTY_CONSUMED,
+            targets=FULL_TARGETS,
+        )
+        hours = [(t.hour, t.minute) for t in times]
+        self.assertIn((12, 0), hours)
+        self.assertIn((15, 30), hours)
+        self.assertIn((19, 0), hours)
+
+    def test_pace_delay_clamps_to_window_and_gap(self):
+        now = datetime(2026, 8, 22, 20, 0, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        delayed = _apply_pace_delay(
+            [now, now + timedelta(minutes=30), now + timedelta(hours=2)],
+            now=now,
+            start=start,
+            end=end,
+            catch_up=timedelta(hours=4),
+        )
+        self.assertTrue(delayed)
+        self.assertLessEqual(delayed[-1], end)
+        self.assertGreaterEqual(delayed[0], now)
+        for t in delayed:
+            self.assertLessEqual(t, end)
+        for a, b in zip(delayed, delayed[1:]):
+            self.assertGreaterEqual(b - a, MIN_MEAL_GAP)
 
     def test_no_invented_grams_when_row_has_no_mass(self):
         inv = {
