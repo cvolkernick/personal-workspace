@@ -248,7 +248,7 @@ class TestRulesReview(unittest.TestCase):
         self.assertEqual(rr["outcome"], "hold")
 
     def test_hold_when_dust_below_min_trade(self):
-        # Dust < min_trade ($1) must not wake the team / ntfy every 15m
+        # Dust < min_trade ($1) must not wake the team / #701 every 15m
         rh = {
             "agentic": {
                 "account_number_last4": "1752",
@@ -381,11 +381,11 @@ class TestNotifyIfNeeded(unittest.TestCase):
                     treasury_eval=stale_eval,
                 )
                 self.assertTrue(first.get("notified"), first)
-                self.assertFalse(first.get("ntfy"), first)
                 self.assertFalse(first.get("page"), first)
+                self.assertTrue((first.get("github") or {}).get("posted"), first)
                 self.assertEqual(len(urls), 1)
                 self.assertIn("api.github.com", urls[0])
-                self.assertNotIn("ntfy.sh", urls[0])
+                self.assertFalse(any("ntfy.sh" in u for u in urls), urls)
 
                 # Immediate re-notify should be suppressed by cooldown
                 second = notify_if_needed(
@@ -477,7 +477,7 @@ class TestNotifyIfNeeded(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 0)
 
 
-    def test_error_pages_ntfy_and_github(self):
+    def test_error_comments_github_not_ntfy(self):
         import os
 
         urls: list[str] = []
@@ -511,10 +511,12 @@ class TestNotifyIfNeeded(unittest.TestCase):
                 },
                 treasury_eval={},
             )
+        self.assertTrue(out.get("ok"), out)
         self.assertTrue(out.get("page"), out)
-        self.assertTrue(out.get("ntfy"), out)
-        self.assertTrue(any("api.github.com" in u for u in urls), urls)
-        self.assertTrue(any("ntfy.sh" in u for u in urls), urls)
+        self.assertTrue(out.get("notified"), out)
+        self.assertTrue((out.get("github") or {}).get("posted"), out)
+        self.assertTrue(any("issues/701/comments" in u for u in urls), urls)
+        self.assertFalse(any("ntfy.sh" in u for u in urls), urls)
 
     def test_need_llm_github_not_ntfy(self):
         import os
@@ -552,8 +554,8 @@ class TestNotifyIfNeeded(unittest.TestCase):
             )
         self.assertTrue(out.get("notified"), out)
         self.assertFalse(out.get("page"), out)
-        self.assertFalse(out.get("ntfy"), out)
-        self.assertTrue(any("api.github.com" in u for u in urls), urls)
+        self.assertTrue((out.get("github") or {}).get("posted"), out)
+        self.assertTrue(any("issues/701/comments" in u for u in urls), urls)
         self.assertFalse(any("ntfy.sh" in u for u in urls), urls)
 
 

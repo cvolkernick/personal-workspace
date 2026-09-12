@@ -573,8 +573,13 @@ class RhNotifyAc4Tests(unittest.TestCase):
                     treasury_eval=stale_eval,
                 )
         self.assertTrue(out.get("notified"), out)
+        self.assertTrue((out.get("github") or {}).get("posted"), out)
         self.assertIn("auth_fail", out.get("title") or "")
         self.assertIn("prism", out.get("title") or "")
+        self.assertTrue(urlopen.called)
+        posted = urlopen.call_args[0][0].full_url
+        self.assertIn("issues/701/comments", posted)
+        self.assertNotIn("ntfy.sh", posted)
 
 
 def _fake_pi_settings() -> dict:

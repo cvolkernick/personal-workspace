@@ -15,7 +15,7 @@ Do these in order. **Do not skip ahead.**
 | **1** | Chris on **Pi** | `grok` CLI + `[mcp_servers.robinhood-trading]` + **Chris OAuth on Pi** | Mac tokens are copied / `sync_pi_grok_auth` is treated as SoT |
 | **2** | Pi | Smoke: `./treasury/rh_refresh.sh` writes `robinhood_latest.json` **and** FCC RH `as_of` **moves** | `as_of` invented, unchanged, or FCC still stale |
 | **3** | Mac | **Then** `launchctl bootout` `com.personalworkspace.rh-refresh` | Mac launchd still loaded after Pi is SoT |
-| **4** | Naka | Failure NTFY names **Pi host** + **error class** | Alert says `mac` or has no `error_class` |
+| **4** | Naka | Failure alert names **Pi host** + **error class** (#701) | Alert says `mac` or has no `error_class` |
 | **5** | Ops | Mac re-auth is **short-term only** until step 2 is green | Mac re-auth used as the durable fix |
 
 **Wrong if:**
@@ -33,8 +33,8 @@ Create OAuth on the producer host. Box MCP stays spare.
 |----|----------|
 | AC1 | SoT host documented here + `config.rh_producer.sot_host=prism` |
 | AC2 | After step 2 is green, Pi timer refreshes while Mac is offline / revoked |
-| AC3 | Step 2: Pi `robinhood_latest.json` + FCC `as_of` move; 3h timer under 6h NTFY |
-| AC4 | Step 4: NTFY title/body `producer=<Pi host>` + `error_class=` |
+| AC3 | Step 2: Pi `robinhood_latest.json` + FCC `as_of` move; 3h timer under 6h stale window |
+| AC4 | Step 4: #701 title/body `producer=<Pi host>` + `error_class=` |
 | AC5 | Step 1: OAuth SOP is **on Pi** (not Mac) |
 | AC6 | Step 3: Mac launchd stopped **after** smoke green; RH omitted from Mac→Pi push |
 | AC7 | Success moves `as_of`; auth-fail leaves prior `as_of` (no invent) |
@@ -145,7 +145,7 @@ laptop-FCC option and still must not push RH.
 
 ---
 
-## Step 4 — NTFY = Pi host + error class (#699 Option B)
+## Step 4 — Alerts = Pi host + error class (GitHub #701)
 
 Failure / stale RH alerts must name the **producer** (Pi), not the Mac
 alerter alone:
@@ -154,22 +154,19 @@ alerter alone:
 - Body starts `producer=prism error_class=auth_fail`
 - Host tag: `FCC_HOST_TAG=prism` on the systemd unit
 
-**Routing (2026-09-12):**
+**Routing (2026-09-12, #704):**
 
 | Signal | Sink |
 |--------|------|
 | Stale RH (gated #555) | GitHub comment on standing [#701](https://github.com/cvolkernick/personal-workspace/issues/701) |
-| `need_llm` / deploy / rebalance | GitHub #701 only |
-| `error`, or `FCC_ALERT_KILL_SWITCH=1` | GitHub #701 **and** ntfy pri-5 |
+| `need_llm` / deploy / rebalance | GitHub #701 |
+| `error`, or `FCC_ALERT_KILL_SWITCH=1` | GitHub #701 (same sink; distinctive title) |
 
-ntfy stays the paging channel. Optional `NTFY_TOKEN` (Bearer) in
-`~/.config/workflow-scheduler.env` — do not commit it. Live topic ACL on
-ntfy.sh needs a reserved/Pro topic or a self-hosted server; the publisher
-sends the token when present.
+ntfy is retired. Leftover `NTFY_TOKEN` / `notifications.ntfy_topic` is
+ignored with a warning and never fails the publisher.
 
 Cooldown stays 6h (shared with stale-RH). Auth down leaves the last honest
-`as_of` in place — dashboard stays stale; the ops issue (and ntfy on error)
-tells you why.
+`as_of` in place — dashboard stays stale; the ops issue tells you why.
 
 ---
 
@@ -184,7 +181,7 @@ feeding FCC. After step 2 + step 3:
 
 ---
 
-## NTFY / as_of reference
+## Alert / as_of reference
 
 - Freshness window: **6h** (`TREASURY_RH_MAX_AGE_HOURS`, FCC stale threshold)
 - Producer timer: **3h** (`rh-refresh.timer`)
@@ -194,7 +191,7 @@ feeding FCC. After step 2 + step 3:
 ## #555 — do not page expected skip / leftover Mac / timeout-while-fresh
 
 Post-#518 cutover, status/log still records `skipped` / `no_refresh_path` /
-`local_mcp_timeout`. **Do not ntfy** those when:
+`local_mcp_timeout`. **Do not comment on #701** when:
 
 1. Host is a gateway / non-producer (`no_refresh_path`, `skipped`) — expected.
 2. Mac leftover fund-manager / `rh_checking` scores a frozen local age (~17.8h)
@@ -202,7 +199,7 @@ Post-#518 cutover, status/log still records `skipped` / `no_refresh_path` /
 3. `local_mcp_timeout` and existing `robinhood_latest.json` as_of is **under 6h**,
    or `rh_mcp_enabled` is false/null and local MCP is not the live producer path.
 
-Quiet leftover Mac RH freshness ntfy (do **not** reload `rh-refresh`):
+Quiet leftover Mac RH freshness alerts (do **not** reload `rh-refresh`):
 
 ```bash
 # on Mac — only if these units are still paging false RH / rh_checking stale

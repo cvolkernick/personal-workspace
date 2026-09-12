@@ -46,7 +46,7 @@ def _now() -> str:
 
 # Re-fetch YNAB if an on-disk snapshot is older than this (matches FCC stale_after_hours).
 # Without this, fetch_rh_checking/fetch_x_money return a "good" cached file forever and
-# as_of freezes → ntfy "rh_checking data Nh old" even while launchd is healthy.
+# as_of freezes → "rh_checking data Nh old" even while launchd is healthy.
 DEFAULT_YNAB_MAX_AGE_HOURS = 6.0
 
 
@@ -801,7 +801,7 @@ def fetch_rh_checking(
     """Load RH Checking snapshot; re-sync when missing/error/older than max_age_hours.
 
     Intent: after one_card live sync writes the YNAB bundle, a fresh file is reused.
-    Previously we reused *any* non-error file forever, so as_of froze and FCC/ntfy
+    Previously we reused *any* non-error file forever, so as_of froze and FCC
     reported multi-day rh_checking staleness while the job still looked healthy.
     """
     snap_path = snapshot_path or (SNAPSHOTS_DIR / "rh_checking_latest.json")

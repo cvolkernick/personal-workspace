@@ -9,7 +9,7 @@ Issue #518 model — Pi (prism) is the always-on live producer:
   3) Mac launchd is backup-only / unloaded. Optional ``TREASURY_RH_ROLE=backup``
      may run local MCP for laptop FCC but still must not overwrite Pi RH.
   4) Auth/MCP failure leaves the existing as_of untouched (honest stale).
-  5) Failure NTFY names producer host + error class.
+  5) Failure alert names producer host + error class (GitHub #701).
 
 Env (optional):
   TREASURY_RH_ROLE=producer|backup|consumer
@@ -279,10 +279,10 @@ def local_mcp_is_live_producer_path(status: Dict[str, Any]) -> bool:
 
 
 def rh_failure_should_page(status: Dict[str, Any]) -> Dict[str, Any]:
-    """Gate RH ntfy. Status/log stays; page only for real producer failures.
+    """Gate RH #701 comments. Status/log stays; alert only for real producer failures.
 
-    #555: skipped / no_refresh_path never page (expected on gateway / non-producer).
-    local_mcp_timeout does not page when SoT as_of is under 6h, or when local MCP
+    #555: skipped / no_refresh_path never alert (expected on gateway / non-producer).
+    local_mcp_timeout does not alert when SoT as_of is under 6h, or when local MCP
     is not the live producer path (rh_mcp_enabled false/null + no MCP run).
     """
     if status.get("ok"):
@@ -1079,7 +1079,7 @@ def sync_rh_snapshot(
 
     result["error"] = (result.get("pi") or {}).get("error") or "no_refresh_path"
     result["error_class"] = classify_rh_error(str(result.get("error") or ""))
-    # Status/log keep the last honest as_of; ntfy is gated (#555).
+    # Status/log keep the last honest as_of; #701 comments are gated (#555).
     _attach_existing_as_of(result, SNAPSHOTS_DIR / RH_SNAP)
     return _finish(result)
 

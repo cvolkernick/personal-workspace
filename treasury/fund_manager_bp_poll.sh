@@ -94,7 +94,7 @@ if [[ -x "${ROOT}/treasury/rh_refresh.sh" ]]; then
   bash "${ROOT}/treasury/rh_refresh.sh" || echo "WARN: rh_refresh failed"
 fi
 
-# Live YNAB + treasury before notify (prevents frozen rh_checking as_of → false stale ntfy)
+# Live YNAB + treasury before notify (prevents frozen rh_checking as_of → false stale #701)
 echo "YNAB + treasury live before BP rules…"
 python3 -m treasury.ynab_sync || echo "WARN: ynab_sync failed"
 python3 -m treasury.run_treasury || echo "WARN: run_treasury live failed"
@@ -115,7 +115,7 @@ if [[ "${RR}" -eq 2 ]]; then
       --yolo \
       --output-format plain \
       || echo "WARN: grok headless exited non-zero"
-    # Notify only on non-HOLD decisions — never force on quiet HOLD (avoids double ntfy spam)
+    # Notify only on non-HOLD decisions — never force on quiet HOLD (avoids double #701 spam)
     python3 - <<'PY' || true
 from treasury.fund_manager import notify_if_needed, load_decision_log
 from treasury.adapters import load_json, SNAPSHOTS_DIR

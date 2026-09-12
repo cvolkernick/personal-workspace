@@ -3,7 +3,7 @@
 **#518 (2026-09):** Robinhood trade snapshot SoT is **prism/Pi**, not Mac.
 Cutover order is locked in `RH_PRODUCER.md`: **(1) Pi grok + MCP + Chris OAuth
 on Pi (Mac tokens do not travel) → (2) smoke writes snapshot + FCC as_of moves
-→ (3) then stop Mac launchd → (4) NTFY = Pi host + error class.**
+→ (3) then stop Mac launchd → (4) alerts = Pi host + error class (GitHub #701).**
 Mac re-auth is short-term only until step 2 is green. Do not disarm Mac before
 Pi OAuth is healthy. Do not invent `as_of`.
 
@@ -17,12 +17,12 @@ price are Pi-produced.
 | # | Change |
 |---|--------|
 | 1 | Local MCP timeout **90 → 240s** (`TREASURY_RH_MCP_TIMEOUT_S` / `pi_sync.mcp_timeout_s`) |
-| 2 | Pi pull accept window **12 → 6h** (matches FCC stale / NTFY threshold) |
+| 2 | Pi pull accept window **12 → 6h** (matches FCC stale / alert threshold) |
 | 3 | **#518** RH producer = prism/Pi (`TREASURY_RH_ROLE=producer`). Mac launchd unloaded or consumer-only |
 | 4 | **#689** Braiins producer = prism/Pi (`braiins-refresh.timer` every **4h**). Mac launchd retired. Token at `~/.config/braiins/token` on prism-agent, never `treasury/config.json`. |
 | 5 | After Mac **non-RH / non-Braiins / non-CB-price** success → push YNAB/Sheet/Solana/treasury → Pi. **Not** `robinhood_latest.json`, `braiins_latest.json`, or `coinbase_latest.json` |
 | 6 | **Coinbase balances + Solana** Mac producer hourly (`com.personalworkspace.cb-solana-refresh`). **BTC/USD price** is Pi (`coinbase-price-refresh.timer` every **2h**, #695). |
-| 7 | **#555** ntfy gates: no page on `skipped` / `no_refresh_path`; no page on `local_mcp_timeout` if `as_of` is under 6h or MCP is not the live path; Mac leftover fund-manager must not treat `rh_checking` as RH brokerage. Do **not** reload Mac `rh-refresh`. |
+| 7 | **#555** #701 gates: no comment on `skipped` / `no_refresh_path`; no comment on `local_mcp_timeout` if `as_of` is under 6h or MCP is not the live path; Mac leftover fund-manager must not treat `rh_checking` as RH brokerage. Do **not** reload Mac `rh-refresh`. |
 | 8 | **#668** YNAB cash snapshots (One Card / RH Checking / X Money): dedicated `ynab-refresh` every **3h** on Pi systemd + Mac launchd. Not a fund-manager sidecar (weekdays/market-hours only). |
 | 9 | **#689** Braiins cutover: see `BRAIINS_PRODUCER.md`. Smoke `payouts` list on Pi, then disarm Mac launchd. |
 | 10 | **#695** Coinbase BTC/USD price: see `COINBASE_PRICE_PRODUCER.md`. Public spot on Pi every 2h. Mac still does not push `coinbase_latest.json`. |
