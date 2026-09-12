@@ -316,7 +316,9 @@ def mining_from_snapshots(
         )
     if "payouts" not in brai or not isinstance(brai.get("payouts"), list):
         return unknown(
-            "Braiins payout history missing from snapshot — run python3 treasury/braiins_sync.py"
+            "Braiins payout history missing from snapshot — Pi is the producer "
+            "(braiins-refresh.timer, token at ~/.config/braiins/token). "
+            "Check `systemctl status braiins-refresh` / last log."
         )
     if _snapshot_stale(brai, now=current):
         return unknown(

@@ -7,8 +7,9 @@ on Pi (Mac tokens do not travel) → (2) smoke writes snapshot + FCC as_of moves
 Mac re-auth is short-term only until step 2 is green. Do not disarm Mac before
 Pi OAuth is healthy. Do not invent `as_of`.
 
-Mac remains the live producer for **Coinbase CLI + Braiins pool token**.
-Pi FCC is still an offline consumer of those pushed files. RH is the exception.
+Mac remains the live producer for **Coinbase CLI**. Braiins pool token and
+snapshot live on **prism/Pi** (#689). Pi FCC is an offline consumer of Mac-pushed
+CB files. RH + Braiins are Pi-produced.
 
 ## What changed
 
@@ -17,11 +18,12 @@ Pi FCC is still an offline consumer of those pushed files. RH is the exception.
 | 1 | Local MCP timeout **90 → 240s** (`TREASURY_RH_MCP_TIMEOUT_S` / `pi_sync.mcp_timeout_s`) |
 | 2 | Pi pull accept window **12 → 6h** (matches FCC stale / NTFY threshold) |
 | 3 | **#518** RH producer = prism/Pi (`TREASURY_RH_ROLE=producer`). Mac launchd unloaded or consumer-only |
-| 4 | Braiins launchd every **4h** (`com.personalworkspace.braiins-refresh`) — still Mac |
-| 5 | After Mac **non-RH** success → push CB/YNAB/Sheet/Braiins/treasury → Pi. **Not** `robinhood_latest.json` |
+| 4 | **#689** Braiins producer = prism/Pi (`braiins-refresh.timer` every **4h**). Mac launchd retired. Token at `~/.config/braiins/token` on prism-agent, never `treasury/config.json`. |
+| 5 | After Mac **non-RH / non-Braiins** success → push CB/YNAB/Sheet/treasury → Pi. **Not** `robinhood_latest.json` or `braiins_latest.json` |
 | 6 | **Coinbase + Solana** Mac producer hourly (`com.personalworkspace.cb-solana-refresh`) |
 | 7 | **#555** ntfy gates: no page on `skipped` / `no_refresh_path`; no page on `local_mcp_timeout` if `as_of` is under 6h or MCP is not the live path; Mac leftover fund-manager must not treat `rh_checking` as RH brokerage. Do **not** reload Mac `rh-refresh`. |
 | 8 | **#668** YNAB cash snapshots (One Card / RH Checking / X Money): dedicated `ynab-refresh` every **3h** on Pi systemd + Mac launchd. Not a fund-manager sidecar (weekdays/market-hours only). |
+| 9 | **#689** Braiins cutover: see `BRAIINS_PRODUCER.md`. Smoke `payouts` list on Pi, then disarm Mac launchd. |
 
 ## Install / reload
 
@@ -45,18 +47,17 @@ launchctl bootout gui/$UID_N/com.personalworkspace.rh-refresh 2>/dev/null || tru
 rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 ```
 
-Keep Braiins + CB/Solana launchd if those Mac producers are still wanted:
+Keep **CB/Solana** Mac launchd. **Do not** reload Braiins launchd (#689 Pi SoT):
 
 ```bash
 cd ~/personal-workspace-worktrees/treasury   # or monorepo root
 
-cp treasury/deploy/com.personalworkspace.braiins-refresh.plist ~/Library/LaunchAgents/
 cp treasury/deploy/com.personalworkspace.cb-solana-refresh.plist ~/Library/LaunchAgents/
 
 UID_N=$(id -u)
 launchctl bootout gui/$UID_N/com.personalworkspace.braiins-refresh 2>/dev/null || true
+rm -f ~/Library/LaunchAgents/com.personalworkspace.braiins-refresh.plist
 launchctl bootout gui/$UID_N/com.personalworkspace.cb-solana-refresh 2>/dev/null || true
-launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/com.personalworkspace.braiins-refresh.plist
 launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/com.personalworkspace.cb-solana-refresh.plist
 ```
 
@@ -66,7 +67,7 @@ launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/com.personalworkspace.cb-s
 # Coinbase + Solana + push (RH file excluded from push)
 bash treasury/cb_solana_refresh.sh
 
-# Braiins + push
+# Braiins on producer (Pi) — no Mac→Pi push
 bash treasury/braiins_refresh.sh
 
 # RH on producer (Pi)
@@ -93,6 +94,6 @@ bash treasury/ynab_refresh.sh
 
 - No public port-forward of FCC.
 - Push is SCP of **snapshot JSON only** (balances / hashrate ages) — not API tokens.
-- Pool token stays on Mac (`~/.config/braiins/token`).
+- Pool token stays on **prism** (`~/.config/braiins/token`, mode 600). Never `treasury/config.json`.
 - RH OAuth tokens stay on **prism** (producer). Box MCP is spare only.
 - Producer does not place orders.

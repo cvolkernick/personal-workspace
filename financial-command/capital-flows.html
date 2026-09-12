@@ -294,7 +294,7 @@
 
     <section class="card">
       <h2>Open questions / next integrations</h2>
-      <p class="hint">Cadences are set. Braiins: put token in <code>~/.config/braiins/token</code> then <code>python3 treasury/braiins_sync.py</code>.</p>
+      <p class="hint">Cadences are set. Braiins: Pi producer <code>braiins-refresh.timer</code>, token at <code>~/.config/braiins/token</code> on prism-agent (never the repo).</p>
       <ol class="q-list" id="questions"></ol>
       <div id="integrations" class="hint" style="margin-top:0.75rem"></div>
     </section>
@@ -678,7 +678,7 @@
           bits.push(
             esc(
               brai.notes ||
-                "No braiins_latest.json yet — set token and run: python3 treasury/braiins_sync.py"
+                "No braiins_latest.json yet — Pi producer braiins-refresh.timer (token on prism-agent)"
             )
           );
         }

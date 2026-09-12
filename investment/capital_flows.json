@@ -93,6 +93,8 @@
       "status": "ready",
       "purpose": "ASIC pool stats",
       "sync_command": "python3 treasury/braiins_sync.py",
+      "producer": "prism",
+      "notes": "#689: Pi braiins-refresh.timer. Token at ~/.config/braiins/token on prism-agent, not in repo.",
       "payout_threshold_btc": 0.005
     }
   },

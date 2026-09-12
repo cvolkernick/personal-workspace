@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Refresh Braiins Pool mining snapshot for local FCC + push to Pi.
+# Refresh Braiins Pool mining snapshot for FCC.
 #
-# Mac is the live producer (token at ~/.config/braiins/token). Pi has no pool
-# token by default — it serves braiins_latest.json offline after we push.
+# Issue #689 — Pi (prism-agent) is the live producer. Token lives at
+# ~/.config/braiins/token (mode 600) on this host, never treasury/config.json.
+# Mac launchd com.personalworkspace.braiins-refresh is retired (no dual-writer).
 #
-# Schedule every 4h (under FCC 6h stale threshold), e.g.:
-#   launchd: treasury/deploy/com.personalworkspace.braiins-refresh.plist
-#   cron:    25 */4 * * * /path/to/treasury/braiins_refresh.sh
+# Schedule every 4h (under FCC 6h stale threshold):
+#   Pi systemd: treasury/deploy/braiins-refresh.timer
 #
 # Env:
-#   TREASURY_SKIP_PUSH_PI=1   skip Mac → Pi snapshot push
+#   TREASURY_SKIP_PUSH_PI=1   Pi unit sets this; do not Mac→Pi overwrite
 #   BRAIINS_POOL_TOKEN / ~/.config/braiins/token
 #
 set -euo pipefail
@@ -20,7 +20,7 @@ mkdir -p "$LOG_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG="${LOG_DIR}/braiins_refresh_${STAMP}.log"
 exec >>"$LOG" 2>&1
-echo "=== braiins_refresh ${STAMP} ==="
+echo "=== braiins_refresh ${STAMP} host=${FCC_HOST_TAG:-local} ==="
 
 rc=0
 if python3 -m treasury.braiins_sync; then
@@ -30,11 +30,9 @@ else
   echo "WARN: braiins_sync exit ${rc}"
 fi
 
-# Best-effort push even if sync failed but an older good file exists
-if python3 -m treasury.rh_snapshot_sync --push-only; then
-  echo "push_to_pi: ok (or disabled)"
-else
-  echo "WARN: push_to_pi failed (Pi off-LAN is fine)"
+# Producer does not push. Mac→Pi braiins_latest.json is omitted from push_files.
+if [[ "${TREASURY_SKIP_PUSH_PI:-}" != "1" && "${FCC_HOST_TAG:-}" != "prism" ]]; then
+  echo "WARN: unexpected non-Pi host; refusing snapshot push (no dual-write)"
 fi
 
 # Re-merge treasury offline so capital-flows / main dash pick up mining pane

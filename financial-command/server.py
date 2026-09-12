@@ -212,8 +212,8 @@ def _braiins_live() -> dict:
             "ok": False,
             "status": "missing",
             "error": (
-                "no braiins_latest.json — run: python3 treasury/braiins_sync.py "
-                "(token at ~/.config/braiins/token)"
+                "no braiins_latest.json — Pi producer braiins-refresh.timer "
+                "(token at ~/.config/braiins/token on prism-agent)"
             ),
         }
     try:
@@ -226,8 +226,8 @@ def _braiins_live() -> dict:
         err = bd.get("error") or "sync failed"
         if err == "token_missing":
             err = (
-                "token missing — ~/.config/braiins/token or BRAIINS_POOL_TOKEN, "
-                "then python3 treasury/braiins_sync.py"
+                "token missing on Pi — ~/.config/braiins/token (prism-agent, mode 600) "
+                "or BRAIINS_POOL_TOKEN; never treasury/config.json"
             )
         return {
             "ok": False,

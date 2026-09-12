@@ -377,6 +377,25 @@ class RhProducerRoleTests(unittest.TestCase):
             out = rss._strip_rh_push(files)
         self.assertIn("robinhood_latest.json", out)
 
+    def test_strip_braiins_push_default_no_dual_write(self) -> None:
+        files = ["braiins_latest.json", "coinbase_latest.json"]
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("TREASURY_BRAIINS_PUSH", None)
+            out = rss._strip_rh_push(files)
+        self.assertNotIn("braiins_latest.json", out)
+        self.assertIn("coinbase_latest.json", out)
+
+    def test_strip_braiins_push_explicit_override(self) -> None:
+        files = ["braiins_latest.json", "coinbase_latest.json"]
+        with mock.patch.dict(os.environ, {"TREASURY_BRAIINS_PUSH": "1"}):
+            out = rss._strip_rh_push(files)
+        self.assertIn("braiins_latest.json", out)
+
+    def test_default_push_files_omit_pi_sot(self) -> None:
+        self.assertNotIn("robinhood_latest.json", rss.DEFAULT_PUSH_FILES)
+        self.assertNotIn("braiins_latest.json", rss.DEFAULT_PUSH_FILES)
+        self.assertIn("coinbase_latest.json", rss.DEFAULT_PUSH_FILES)
+
     def test_role_env_producer(self) -> None:
         with mock.patch.dict(os.environ, {"TREASURY_RH_ROLE": "producer"}):
             self.assertEqual(rss._rh_role(), "producer")
