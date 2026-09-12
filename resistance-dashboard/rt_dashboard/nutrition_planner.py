@@ -1341,9 +1341,12 @@ def generate_meal_plan(
     the FitDash eating window (wake→end) when known; optional ``eat_slots``
     only if a caller passes them. Defaults otherwise: ~12:00 / 15:30 / 19:00.
     Regen drops past slots (20 min grace) and re-times remaining meals in the
-    leftover window — never lists noon as upcoming at 3 PM. Slot count is 1–4
-    from remaining macros + in-stock items, capped by remaining-window
-    capacity — never empty timed hinges, never invented food.
+    leftover window — never lists noon as upcoming at 3 PM. When intake is
+    ahead of eating-window calorie pace past the on-pace band, the first
+    upcoming meal is pushed to ``now + (ahead / target) * window_duration``,
+    clamped to the window with ``MIN_MEAL_GAP``; behind / on-pace is unchanged.
+    Slot count is 1–4 from remaining macros + in-stock items, capped by
+    remaining-window capacity — never empty timed hinges, never invented food.
 
     Food quality (#501): ≥1 veg/fruit slot before shake fill when pantry
     allows; soft fiber ~25g biases fill order; shake/powder cap ≤2 servings
@@ -1733,6 +1736,8 @@ def generate_meal_plan(
         window_end=window_end,
         eat_slots=eat_slots,
         sleep_battery=sleep_battery,
+        consumed=consumed,
+        targets=targets,
     )
     meals = colocate_egg_pair(meals)
     for k in _MACRO_KEYS:
@@ -2439,6 +2444,88 @@ def _clamp_gap_times(times: Sequence[datetime], n: int, end: datetime) -> List[d
     return out
 
 
+def _kcal_field(raw: Any, key: str = "calories") -> float:
+    if raw is None:
+        return 0.0
+    if isinstance(raw, dict):
+        raw = raw.get(key)
+    try:
+        return max(0.0, float(raw or 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _catch_up_delay(
+    *,
+    consumed: Any,
+    targets: Any,
+    now: datetime,
+    start: datetime,
+    end: datetime,
+) -> timedelta:
+    """Delay for the first upcoming meal when ahead of eating-window pace.
+
+    ``catch_up = (ahead / target) * window_duration``. Zero when behind or
+    on pace (same band as ``calorie_bars.calorie_pacing``).
+    """
+    target = _kcal_field(targets)
+    consumed_kcal = _kcal_field(consumed)
+    window_sec = (end - start).total_seconds()
+    if target <= 0 or window_sec <= 0:
+        return timedelta(0)
+    elapsed = max(0.0, (now - start).total_seconds())
+    frac = min(1.0, elapsed / window_sec)
+    from .calorie_bars import calorie_pacing
+
+    pacing = calorie_pacing(
+        consumed=consumed_kcal, target=target, window_fraction=frac
+    )
+    if pacing.get("status") != "ahead":
+        return timedelta(0)
+    ahead = max(0.0, float(pacing.get("delta_vs_pace") or 0))
+    if ahead <= 0:
+        return timedelta(0)
+    return timedelta(seconds=(ahead / target) * window_sec)
+
+
+def _apply_pace_delay(
+    times: Sequence[datetime],
+    *,
+    now: datetime,
+    start: datetime,
+    end: datetime,
+    catch_up: timedelta,
+) -> List[datetime]:
+    """Push the first upcoming meal to ``now + catch_up``; keep MIN_MEAL_GAP.
+
+    In-progress grace slots (``t < now``) stay. Later hinges are never pulled
+    earlier. Times that cannot fit in the window after the push are dropped.
+    """
+    if not times or catch_up <= timedelta(0):
+        return list(times)
+    floor = _clamp_into_window(now + catch_up, start, end)
+    out: List[datetime] = []
+    pushed = False
+    for t in _dedupe_sorted_times(times):
+        if t < now:
+            out.append(t)
+            continue
+        if not pushed:
+            t = max(t, floor)
+            pushed = True
+        if out:
+            min_next = out[-1] + MIN_MEAL_GAP
+            if t < min_next:
+                t = min_next
+        t = _clamp_into_window(t, start, end)
+        if out and t < out[-1] + MIN_MEAL_GAP:
+            continue
+        if t > end:
+            continue
+        out.append(t)
+    return out
+
+
 def _resolve_eat_times(
     n: int,
     *,
@@ -2447,15 +2534,28 @@ def _resolve_eat_times(
     end: datetime,
     tz,
     eat_slots: Optional[Sequence[Any]] = None,
+    consumed: Any = None,
+    targets: Any = None,
 ) -> List[datetime]:
     """n clock times inside the remaining eating window. Never invents food.
 
     Morning plans keep the stable ~12:00 / 15:30 / 19:00 hinges (or caller
     ``eat_slots``). After a slot is past (20 min grace), drop it and schedule
     only remaining-day meals — do not keep noon as upcoming at 3 PM.
+    Ahead of calorie pace: first upcoming meal moves to
+    ``now + (ahead / target) * window``; behind / on-pace unchanged.
     """
     if n <= 0:
         return []
+    catch_up = _catch_up_delay(
+        consumed=consumed, targets=targets, now=now, start=start, end=end
+    )
+
+    def _finish(times: Sequence[datetime]) -> List[datetime]:
+        return _apply_pace_delay(
+            times, now=now, start=start, end=end, catch_up=catch_up
+        )
+
     day = now.replace(second=0, microsecond=0)
     horizon = _slot_horizon(now)
     parsed: List[datetime] = []
@@ -2479,9 +2579,9 @@ def _resolve_eat_times(
         )
         upcoming = [t for t in cands if t >= horizon]
         if upcoming:
-            return [upcoming[0]]
+            return _finish([upcoming[0]])
         if start <= now < end:
-            return [_clamp_into_window(now, start, end)]
+            return _finish([_clamp_into_window(now, start, end)])
         return []
 
     if parsed:
@@ -2499,12 +2599,12 @@ def _resolve_eat_times(
         )
     valid = [t for t in chosen if t >= horizon]
     if len(valid) >= n:
-        return valid[:n]
+        return _finish(valid[:n])
 
     lo = now if now > start else start
     grace_kept = [t for t in valid if t < now]
     if lo >= end:
-        return valid[:n]
+        return _finish(valid[:n])
 
     # Two or more hinges still in the remaining day: keep them, fill gaps
     # only when the extra time is not stacked on a kept hinge.
@@ -2521,13 +2621,13 @@ def _resolve_eat_times(
             if any(abs((t - k).total_seconds()) < MIN_MEAL_GAP.total_seconds() for k in kept + extra):
                 continue
             extra.append(t)
-        return _dedupe_sorted_times(kept + extra)[:n]
+        return _finish(_dedupe_sorted_times(kept + extra)[:n])
 
     # Most default slots are past: re-time remaining meals across the rest
     # of the window. Keep an in-progress (grace) slot so it does not vanish.
     need = n - len(grace_kept)
     spaced = _space_in_range(need, lo, end, avoid=grace_kept) if need else []
-    return _clamp_gap_times(list(grace_kept) + spaced, n, end)
+    return _finish(_clamp_gap_times(list(grace_kept) + spaced, n, end))
 
 
 def _serving_unit_count(items: Sequence[dict]) -> int:
@@ -2691,6 +2791,8 @@ def _bucket_meals(
     window_end: Any = None,
     eat_slots: Optional[Sequence[Any]] = None,
     sleep_battery: Optional[dict] = None,
+    consumed: Any = None,
+    targets: Any = None,
 ) -> List[dict]:
     """Split in-stock plan items into 1–4 timed buckets. No empty hinges."""
     if not items:
@@ -2720,7 +2822,14 @@ def _bucket_meals(
     units = _expand_serving_units(items)
     n_slots = max(1, min(n_slots, cap, len(units)))
     times = _resolve_eat_times(
-        n_slots, now=now, start=start, end=end, tz=tz, eat_slots=eat_slots
+        n_slots,
+        now=now,
+        start=start,
+        end=end,
+        tz=tz,
+        eat_slots=eat_slots,
+        consumed=consumed,
+        targets=targets,
     )
     horizon = _slot_horizon(now)
     times = [t for t in times if t >= horizon]
