@@ -92,6 +92,25 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("turo", [s["id"] for s in model["income_sources"]])
         self.assertIn("asics", [s["id"] for s in model["income_sources"]])
         self.assertGreater(len(model.get("edges") or []), 5)
+        lyft = next(s for s in model["income_sources"] if s["id"] == "lyft")
+        self.assertEqual(lyft["label"], "Lyft / GrubHub")
+        self.assertEqual(lyft["landing_label"], "X Money")
+        self.assertEqual(lyft["typical_landing"], "x_money")
+        self.assertNotIn("engine_target", lyft)
+        asics = next(s for s in model["income_sources"] if s["id"] == "asics")
+        self.assertEqual(asics.get("engine_target"), "digital_credit")
+        self.assertEqual(model["version"], 41)
+        self.assertEqual(model["as_of"], "2026-09-11")
+        lyft_edges = [
+            (e["from"], e["to"])
+            for e in model["edges"]
+            if e.get("from") == "lyft" or e.get("to") == "lyft"
+        ]
+        self.assertEqual(lyft_edges, [("lyft", "x_money")])
+        self.assertNotIn("Lyft → both X Money and Digital Credit", html)
+        self.assertNotIn("Lyft → X Money + Digital Credit", html)
+        self.assertIn("Lyft → X Money", html)
+        self.assertIn("Lyft / GrubHub on X Money", html)
 
     def test_action_items_doc(self):
         p = ROOT / "investment" / "treasury-action-items.md"

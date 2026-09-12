@@ -1,8 +1,8 @@
 {
-  "version": 40,
-  "as_of": "2026-08-25",
+  "version": 41,
+  "as_of": "2026-09-11",
   "title": "Capital Flows — X Money · Digital Credit ↔ Margin ↔ JR-strcUSX",
-  "notes": "v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). v39 spine otherwise unchanged: X Money → Digital Credit → Margin. Turo → X Money only. Lyft → both X Money and Digital Credit. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "notes": "v41: Drop Lyft → Digital Credit. Lyft card is Lyft / GrubHub and lands X Money only (owner 2026-09-11). v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). v39 spine otherwise unchanged: X Money → Digital Credit → Margin. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -45,13 +45,12 @@
     },
     {
       "id": "lyft",
-      "label": "Lyft",
+      "label": "Lyft / GrubHub",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Lyft splits to both X Money (ops) and Digital Credit (Coinbase/Morpho engine).",
+      "evidence": "Lyft / GrubHub payouts land on X Money (ops). No longer routes to Digital Credit (owner 2026-09-11).",
       "typical_landing": "x_money",
-      "landing_label": "X Money · Digital Credit",
-      "engine_target": "digital_credit",
+      "landing_label": "X Money",
       "cadence": "weekly"
     },
     {
@@ -105,7 +104,7 @@
       "stroke": "liq-gray",
       "subtitle": "~6% · ops float",
       "confidence": "owner_stated",
-      "notes": "Ops cash sleeve (left of LE). Receives Turo + half of Lyft; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
+      "notes": "Ops cash sleeve (left of LE). Receives Turo + Lyft / GrubHub; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
     },
     {
       "id": "digital_credit",
@@ -184,14 +183,7 @@
       "to": "x_money",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Lyft share to ops cash."
-    },
-    {
-      "from": "lyft",
-      "to": "digital_credit",
-      "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Lyft share to Morpho/BTC engine."
+      "notes": "Lyft / GrubHub payouts land X Money (ops)."
     },
     {
       "from": "asics",
