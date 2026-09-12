@@ -10,7 +10,9 @@ import sys
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -45,6 +47,46 @@ def _free_port() -> int:
     port = int(s.getsockname()[1])
     s.close()
     return port
+
+
+class _SubresourceParser(HTMLParser):
+    """Collect script/link/img URLs from an FCC HTML page."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.refs: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        ad = {k: (v or "") for k, v in attrs}
+        if tag == "script" and ad.get("src"):
+            self.refs.append(ad["src"])
+        elif tag == "link" and ad.get("href"):
+            self.refs.append(ad["href"])
+        elif tag in ("img", "source") and ad.get("src"):
+            self.refs.append(ad["src"])
+
+
+def _same_origin_paths(page_url: str, html: bytes) -> list[str]:
+    parser = _SubresourceParser()
+    parser.feed(html.decode("utf-8", errors="replace"))
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in parser.refs:
+        ref = (raw or "").strip()
+        if not ref or ref.startswith(("#", "data:", "javascript:", "mailto:")):
+            continue
+        joined = urllib.parse.urljoin(page_url, ref)
+        parsed = urllib.parse.urlparse(joined)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        page = urllib.parse.urlparse(page_url)
+        if (parsed.hostname, parsed.port) != (page.hostname, page.port):
+            continue
+        path = parsed.path or "/"
+        if path not in seen:
+            seen.add(path)
+            out.append(path)
+    return out
 
 
 def _png_size(data: bytes) -> tuple[int, int]:
@@ -252,6 +294,20 @@ class TestFccPwaHttp(unittest.TestCase):
         self.assertEqual(get_code, 200)
         self.assertEqual(head_len, len(get_body))
         self.assertGreater(head_len, 10_000)
+
+    def test_origin_root_pages_have_no_404_subresources(self) -> None:
+        """Installed PWA nav uses origin-root aliases. Nested relative assets 404."""
+        pages = ["/", *(f"/{name}" for name in SURFACES)]
+        missing: list[str] = []
+        for page in pages:
+            code, _, body = self._get(page)
+            self.assertEqual(code, 200, page)
+            page_url = f"http://127.0.0.1:{self.port}{page}"
+            for asset in _same_origin_paths(page_url, body):
+                asset_code, _, _ = self._get(asset)
+                if asset_code != 200:
+                    missing.append(f"{page} → {asset} ({asset_code})")
+        self.assertEqual(missing, [])
 
     def test_head_sw_allowed_header_is_origin(self) -> None:
         url = f"http://127.0.0.1:{self.port}/sw.js"

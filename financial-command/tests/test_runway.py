@@ -670,7 +670,8 @@ class TestRunwayPage(unittest.TestCase):
         html = PAGE.read_text(encoding="utf-8")
         self.assertIn("<h1>Runway</h1>", html)
         self.assertIn("/api/runway", html)
-        self.assertIn("vendor/d3.min.js", html)
+        self.assertIn('src="/financial-command/vendor/d3.min.js"', html)
+        self.assertNotIn('src="vendor/d3.min.js"', html)
         self.assertIn('id="nav-fcc"', html)
         self.assertIn('id="nav-fleet"', html)
         self.assertIn('id="nav-cash-streams"', html)
@@ -762,6 +763,17 @@ class TestRunwayApi(unittest.TestCase):
         root_code, root_body = self._get("/runway.html")
         self.assertEqual(root_code, 200)
         self.assertIn(b"<h1>Runway</h1>", root_body)
+
+    def test_origin_root_runway_loads_vendored_d3(self) -> None:
+        code, body = self._get("/runway.html")
+        self.assertEqual(code, 200)
+        self.assertIn(b'src="/financial-command/vendor/d3.min.js"', body)
+        self.assertNotIn(b'src="vendor/d3.min.js"', body)
+        d3_code, d3_body = self._get("/financial-command/vendor/d3.min.js")
+        self.assertEqual(d3_code, 200)
+        self.assertIn(b"d3js.org", d3_body.splitlines()[0])
+        nested_code, _ = self._get("/vendor/d3.min.js")
+        self.assertEqual(nested_code, 404)
 
     def test_api_omitted_threshold_does_not_force_hardcoded(self) -> None:
         fixture = build_runway(

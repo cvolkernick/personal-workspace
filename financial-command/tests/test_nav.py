@@ -563,6 +563,8 @@ class TestRootNavJsRemap(unittest.TestCase):
         self.assertIsNone(remap("/../bias-spectrum.html"))
         self.assertIsNone(remap("/treasury"))
         self.assertIsNone(remap("/no-such-page.html"))
+        self.assertIsNone(remap("/vendor/d3.min.js"))
+        self.assertIsNone(remap("/vendor/d3-sankey.min.js"))
 
 
 if __name__ == "__main__":
