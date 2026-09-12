@@ -9,6 +9,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -181,6 +182,48 @@ class TestNtfyOnce(unittest.TestCase):
                 dry_run=True,
             )
             self.assertEqual(second.get("skipped"), "cooldown")
+
+    def test_sustained_bypasses_6h_cooldown(self) -> None:
+        """Issue #661: still-red after 1h pages again (1h cooldown), not 6h silence."""
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "state.json"
+            now = datetime.now(timezone.utc)
+            past = (now - timedelta(hours=2)).replace(microsecond=0).isoformat().replace(
+                "+00:00", "Z"
+            )
+            notified = (now - timedelta(hours=1, minutes=30)).replace(
+                microsecond=0
+            ).isoformat().replace("+00:00", "Z")
+            state.write_text(
+                json.dumps(
+                    {
+                        "last_notified_at": notified,
+                        "first_violation_at": past,
+                        "last_mismatches": ["HEAD abc != origin/work/treasury def"],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            result = {
+                "ok": False,
+                "mismatches": ["HEAD abc != origin/work/treasury def"],
+                "expected_branch": "work/treasury",
+                "head": "abc",
+                "origin_sha": "def",
+                "attached": "work/treasury",
+                "current_branch_txt": "work/treasury",
+            }
+            out = M.ntfy_mismatch(
+                result,
+                workspace=Path(td),
+                state_path=state,
+                dry_run=True,
+            )
+            self.assertTrue(out.get("sustained"), out)
+            self.assertEqual(out.get("skipped"), "dry-run")
+            self.assertIn("SUSTAINED", out.get("title") or "")
+            self.assertIn("#workflow", out.get("text") or "")
 
 
 class TestCli(unittest.TestCase):

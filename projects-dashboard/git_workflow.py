@@ -1090,6 +1090,23 @@ def protect_work(
     except ValueError as e:
         return {"ok": False, "error": str(e), "committed": False, "pushed": False}
 
+    # Issue #661: Pi FCC live clone is origin/work/treasury SoT. Local
+    # protect(treasury) commits are phantom SHAs; workspace-sync durable tar
+    # already preserves snapshots. FCC_LIVE_TREE=main is set on prism-gateway.
+    live_flag = (os.environ.get("FCC_LIVE_TREE") or "").strip().lower()
+    if live_flag in {"main", "clone", "primary", "1", "true", "yes"}:
+        return {
+            "ok": True,
+            "committed": False,
+            "pushed": False,
+            "mode": resolved_mode,
+            "message": (
+                "FCC live clone refuses local commits (#661); "
+                "durable tar preserves snapshots — do not protect here"
+            ),
+            "skipped_live_clone": True,
+        }
+
     all_dirty = dirty_paths(repo)
     if paths is not None:
         candidates = paths

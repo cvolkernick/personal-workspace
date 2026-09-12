@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 DASH = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(DASH))
@@ -182,6 +183,22 @@ class TestGitWorkflow(unittest.TestCase):
         # product still dirty
         dirty = dirty_paths(self.repo)
         self.assertTrue(any(p.endswith("fund_manager.py") for p in dirty), dirty)
+
+    def test_fcc_live_tree_refuses_protect_commits(self) -> None:
+        """Issue #661: Pi FCC live clone must not create phantom protect SHAs."""
+        start_work("treasury", repo=self.repo)
+        snap = self.repo / "treasury" / "snapshots"
+        snap.mkdir(parents=True)
+        (snap / "latest.json").write_text('{"ok":true}\n', encoding="utf-8")
+        env = {**os.environ, "FCC_LIVE_TREE": "main"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            r = protect_work(self.repo, mode="auto", push=True)
+        self.assertTrue(r["ok"], r)
+        self.assertFalse(r.get("committed"), r)
+        self.assertTrue(r.get("skipped_live_clone"), r)
+        self.assertIn("#661", r.get("message") or "")
+        dirty = dirty_paths(self.repo)
+        self.assertTrue(any("snapshots" in p for p in dirty), dirty)
 
     def test_auto_refuses_feature_branch(self) -> None:
         _git(self.repo, "checkout", "-b", "fix/ntfy-quiet")

@@ -13,7 +13,8 @@
 FCC PR merge to work/treasury
   → Pi workspace-sync.timer (≤5 min) OR immediate systemctl start
   → land origin/work/treasury (durable state preserved; master/holistic refused)
-  → deploy/on_merge.sh --mode local
+  → bounce FCC when origin SHA ≠ last-served (on_merge.sh is not on work/treasury)
+  → deploy/on_merge.sh --mode local when that script exists and BEFORE is an ancestor
        · map changed paths via deploy/path_unit_map.json
        · restart ONLY mapped dashboard/platform units
        · health-check those units

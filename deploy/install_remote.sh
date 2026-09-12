@@ -153,10 +153,15 @@ for f in "${UNITS[@]}" "${SYNC_UNITS[@]}"; do
 done
 
 echo "→ Installing systemd user units…"
-ssh "$REMOTE" "mkdir -p ~/.config/systemd/user"
+ssh "$REMOTE" "mkdir -p ~/.config/systemd/user ~/.config/personal-workspace"
 for f in "${UNITS[@]}" "${SYNC_UNITS[@]}"; do
   [[ -f "$TMP/$f" ]] && scp "$TMP/$f" "$REMOTE:~/.config/systemd/user/"
 done
+
+echo "→ Installing durable workspace-sync + fcc-tip-health (survive work/treasury reset)…"
+scp "$ROOT/deploy/workspace_sync.sh" "$REMOTE:~/.config/personal-workspace/workspace_sync.sh"
+scp "$ROOT/deploy/fcc_tip_health.py" "$REMOTE:~/.config/personal-workspace/fcc_tip_health.py"
+ssh "$REMOTE" "chmod +x ~/.config/personal-workspace/workspace_sync.sh ~/.config/personal-workspace/fcc_tip_health.py"
 
 # shellcheck disable=SC2087
 ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "${UNITS[*]}" <<'REMOTE'

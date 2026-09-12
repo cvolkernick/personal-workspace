@@ -216,6 +216,7 @@ class TestUnitPin(unittest.TestCase):
         self.assertIn("Environment=SYNC_BRANCH=work/treasury", text)
         self.assertNotIn("SYNC_BRANCH=master", text)
         self.assertIn("work/treasury", text)
+        self.assertIn("ExecStart=/bin/bash %h/.config/personal-workspace/workspace_sync.sh", text)
 
     def test_timer_does_not_say_origin_master(self):
         text = (ROOT / "deploy" / "units" / "workspace-sync.timer").read_text(

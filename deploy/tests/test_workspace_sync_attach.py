@@ -84,6 +84,26 @@ class TestAttachReleasesOtherWorktree(unittest.TestCase):
             other_br = _git(other, "branch", "--show-current")
             self.assertEqual(other_br, "")
             self.assertIn("releasing work/treasury", combined)
+            hook = repo / ".git" / "hooks" / "pre-commit"
+            self.assertTrue(hook.is_file(), "live clone must refuse local commits")
+            hook_rc = subprocess.run(
+                ["bash", str(hook)], capture_output=True, text=True
+            )
+            self.assertNotEqual(hook_rc.returncode, 0)
+            self.assertIn("#661", hook_rc.stderr)
+            served = td_path / ".config" / "personal-workspace" / "last_served_origin_sha"
+            self.assertTrue(served.is_file())
+            self.assertEqual(served.read_text(encoding="utf-8").strip(), _git(repo, "rev-parse", "HEAD"))
+
+
+class TestSyncScriptGuards(unittest.TestCase):
+    def test_does_not_overlay_master_fitdash(self) -> None:
+        text = SYNC_SH.read_text(encoding="utf-8")
+        self.assertNotIn("checkout \"$REMOTE/master\" -- resistance-dashboard", text)
+        self.assertNotIn("checkout origin/master -- fitness", text)
+        self.assertIn("last_served_origin_sha", text)
+        self.assertIn("install_live_commit_hook", text)
+        self.assertIn("refuses local commits", text)
 
 
 if __name__ == "__main__":

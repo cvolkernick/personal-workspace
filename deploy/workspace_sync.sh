@@ -17,6 +17,9 @@ BRANCH="${SYNC_BRANCH:-work/treasury}"
 REMOTE="${SYNC_REMOTE:-origin}"
 LOG_TAG="workspace-sync"
 DURABLE_TAR="${TMPDIR:-/tmp}/workspace-sync-durable-$$.tgz"
+LOG_DIR="${HOME}/.local/share/workspace-sync"
+LOG_FILE="${LOG_DIR}/sync.log"
+SERVED_SHA_FILE="${HOME}/.config/personal-workspace/last_served_origin_sha"
 
 # Load GITHUB_TOKEN etc. for private HTTPS remotes (never echo token)
 if [[ -f "${HOME}/.config/workflow-scheduler.env" ]]; then
@@ -26,7 +29,11 @@ if [[ -f "${HOME}/.config/workflow-scheduler.env" ]]; then
   set +a
 fi
 
-log() { echo "[$LOG_TAG] $*"; }
+log() {
+  echo "[$LOG_TAG] $*"
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [$LOG_TAG] $*" >>"$LOG_FILE" 2>/dev/null || true
+}
 
 cd "$DIR"
 
@@ -54,10 +61,12 @@ if [[ -z "${WORKSPACE_SYNC_KEEP_REMOTE:-}" ]]; then
 fi
 
 git_auth() {
+  # gc.auto=0: protect(treasury) + sync racing HEAD.lock was the #661 stall.
+  local -a cfg=(-c gc.auto=0 -c maintenance.auto=false)
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    git -c "url.https://x-access-token:${GITHUB_TOKEN}@github.com/.insteadOf=https://github.com/" "$@"
+    git "${cfg[@]}" -c "url.https://x-access-token:${GITHUB_TOKEN}@github.com/.insteadOf=https://github.com/" "$@"
   else
-    git "$@"
+    git "${cfg[@]}" "$@"
   fi
 }
 
@@ -87,6 +96,7 @@ preserve_durable() {
     ops/board/youtube_groom_health.json
     fitness/data/day_constraints.json
     financial-command/treasury_latest.json
+    financial-command/current-branch.txt
     orchestra/data/heartbeat/latest.json
     investment/fund_manager_journal.md
     investment/positions.md
@@ -208,6 +218,49 @@ land_on_remote_branch() {
   return 0
 }
 
+# Issue #661: local protect(treasury) / RH snapshot commits on the serving
+# clone are phantom SHAs. Snapshots stay dirty; durable tar preserves them.
+install_live_commit_hook() {
+  local gitdir hookdir hook
+  gitdir=$(git rev-parse --git-dir 2>/dev/null) || return 0
+  hookdir="${gitdir}/hooks"
+  mkdir -p "$hookdir"
+  hook="${hookdir}/pre-commit"
+  cat >"$hook" <<'HOOK'
+#!/bin/bash
+# Installed by deploy/workspace_sync.sh — FCC live clone (issue #661).
+echo "FCC live clone refuses local commits (#661)." >&2
+echo "Snapshots stay uncommitted; workspace-sync durable tar preserves them." >&2
+echo "Do not git commit in ~/personal-workspace on prism-gateway." >&2
+exit 1
+HOOK
+  chmod +x "$hook"
+}
+
+restart_fcc() {
+  if command -v systemctl >/dev/null 2>&1 && \
+     systemctl --user cat financial-command.service >/dev/null 2>&1; then
+    log "restarting financial-command.service"
+    systemctl --user restart financial-command.service
+    return $?
+  fi
+  log "WARN: financial-command.service absent — skip FCC bounce (non-prod)"
+  return 0
+}
+
+mark_served() {
+  local sha="$1"
+  mkdir -p "$(dirname "$SERVED_SHA_FILE")"
+  printf '%s\n' "$sha" >"$SERVED_SHA_FILE"
+  log "marked served origin ${sha:0:8}"
+}
+
+read_served() {
+  if [[ -f "$SERVED_SHA_FILE" ]]; then
+    tr -d '[:space:]' <"$SERVED_SHA_FILE"
+  fi
+}
+
 BEFORE="$(git rev-parse HEAD 2>/dev/null || echo none)"
 CURRENT="$(git branch --show-current 2>/dev/null || true)"
 log "sync start branch=${CURRENT:-detached} HEAD=${BEFORE:0:8}"
@@ -233,12 +286,23 @@ fi
 
 restore_durable
 
+# Stamp expected branch for FCC UI / tip-health (issue #628). File is in git on
+# work/treasury; rewriting keeps it correct if a local protect overwrote it.
+mkdir -p financial-command
+echo "$BRANCH" >financial-command/current-branch.txt
+install_live_commit_hook
+
 AFTER="$(git rev-parse HEAD)"
 ON_BRANCH="$(git branch --show-current 2>/dev/null || echo '?')"
-log "HEAD ${BEFORE:0:8} → ${AFTER:0:8} on ${ON_BRANCH}"
+ORIGIN_SHA="$(git rev-parse "$REMOTE/$BRANCH")"
+log "HEAD ${BEFORE:0:8} → ${AFTER:0:8} on ${ON_BRANCH} origin=${ORIGIN_SHA:0:8}"
 
 if [[ "$ON_BRANCH" != "$BRANCH" ]]; then
   log "ERROR: expected branch $BRANCH after sync, got ${ON_BRANCH:-detached}"
+  exit 1
+fi
+if [[ "$AFTER" != "$ORIGIN_SHA" ]]; then
+  log "ERROR: HEAD ${AFTER:0:8} does not match $REMOTE/$BRANCH ${ORIGIN_SHA:0:8}"
   exit 1
 fi
 
@@ -251,31 +315,47 @@ run_fcc_tip_health() {
     log "WARN: fcc tip health mismatch (logged; ntfy is the timer's job)"
 }
 
-if [[ "$BEFORE" == "$AFTER" ]]; then
-  log "no code change — skip restart"
-  run_fcc_tip_health
-  exit 0
-fi
-
-# Path-scoped restart (issue #25): never thrash-all; never auto treasury/secrets.
-# on_merge.sh maps BEFORE..AFTER → units, restarts only those, health-checks, optional Buzz notify.
+# Issue #661: bounce FCC when origin SHA is not the last served SHA — even if
+# this tick's BEFORE==AFTER (a prior tick reset HEAD then skipped restart
+# because on_merge.sh is not on work/treasury). Do not treat a phantom local
+# commit as a merge range for on_merge.
+LAST_SERVED="$(read_served)"
 ON_MERGE="$DIR/deploy/on_merge.sh"
 if [[ ! -x "$ON_MERGE" && -f "$ON_MERGE" ]]; then
   chmod +x "$ON_MERGE" 2>/dev/null || true
 fi
-if [[ -f "$ON_MERGE" ]]; then
-  log "code updated — path-scoped on_merge (local)"
-  # Buzz may be absent on Pi; on_merge falls back to structured log.
-  bash "$ON_MERGE" --before "$BEFORE" --after "$AFTER" --mode local || {
-    log "ERROR: on_merge failed (HEAD already advanced; units may need manual restart)"
-    exit 1
-  }
-  log "path-scoped deploy done"
+
+if [[ "$ORIGIN_SHA" == "$LAST_SERVED" ]]; then
+  log "origin ${ORIGIN_SHA:0:8} already served — skip restart"
   run_fcc_tip_health
   exit 0
 fi
 
-# Fallback if on_merge missing (should not happen after #25 lands)
-log "WARN: deploy/on_merge.sh missing — refusing thrash-all restart"
-log "Operator: bash deploy/on_merge.sh --before $BEFORE --after $AFTER --mode local"
-exit 1
+log "origin ${ORIGIN_SHA:0:8} not yet served (last=${LAST_SERVED:-none})"
+
+served_ok=0
+if [[ "$BEFORE" != "$AFTER" && -f "$ON_MERGE" ]] && \
+   git cat-file -e "${BEFORE}^{commit}" 2>/dev/null && \
+   git merge-base --is-ancestor "$BEFORE" "$AFTER" 2>/dev/null; then
+  log "code updated — path-scoped on_merge (local)"
+  if bash "$ON_MERGE" --before "$BEFORE" --after "$AFTER" --mode local; then
+    log "path-scoped deploy done"
+    served_ok=1
+  else
+    log "ERROR: on_merge failed — falling back to FCC restart"
+  fi
+fi
+if [[ "$served_ok" -ne 1 ]]; then
+  if restart_fcc; then
+    served_ok=1
+  else
+    log "ERROR: FCC restart failed; not marking served"
+    run_fcc_tip_health
+    exit 1
+  fi
+fi
+if [[ "$served_ok" -eq 1 ]]; then
+  mark_served "$ORIGIN_SHA"
+fi
+run_fcc_tip_health
+exit 0
