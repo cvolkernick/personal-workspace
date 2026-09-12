@@ -312,7 +312,7 @@ run_fcc_tip_health() {
   [[ -f "$py" ]] || py="$DIR/deploy/fcc_tip_health.py"
   [[ -f "$py" ]] || return 0
   python3 "$py" --workspace "$DIR" --no-fetch --dry-run >/dev/null || \
-    log "WARN: fcc tip health mismatch (logged; ntfy is the timer's job)"
+    log "WARN: fcc tip health mismatch (logged; GitHub #701 is the timer's job)"
 }
 
 # Issue #661: bounce FCC when origin SHA is not the last served SHA — even if

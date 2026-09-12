@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=%h/personal-workspace
 Environment=PYTHONUNBUFFERED=1
-# GITHUB_TOKEN (ops comments) + optional NTFY_TOKEN. '-' = missing file is ok.
+# GITHUB_TOKEN (ops comments on #701). '-' = missing file is ok.
 EnvironmentFile=-%h/.config/workflow-scheduler.env
 # Never mutates git. Durable copy survives FCC hard-reset (deploy/ is master-only).
 ExecStart=/usr/bin/python3 %h/.config/personal-workspace/fcc_tip_health.py --workspace %h/personal-workspace --fetch

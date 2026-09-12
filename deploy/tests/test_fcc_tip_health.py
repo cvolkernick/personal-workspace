@@ -91,6 +91,8 @@ class TestNoGitMutation(unittest.TestCase):
             self.assertNotIn(needle, src)
         self.assertIn("Never mutates git", src)
         self.assertIn("rev-parse", src)
+        self.assertNotIn("ntfy.sh", src)
+        self.assertNotIn("post_ntfy_page", src)
 
 
 class TestInspect(unittest.TestCase):
@@ -144,11 +146,11 @@ class TestInspect(unittest.TestCase):
             td.cleanup()
 
 
-class TestNtfyOnce(unittest.TestCase):
+class TestAlertOnce(unittest.TestCase):
     def test_healthy_skips(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "state.json"
-            out = M.ntfy_mismatch(
+            out = M.alert_mismatch(
                 {"ok": True, "mismatches": []},
                 workspace=Path(td),
                 state_path=state,
@@ -168,14 +170,14 @@ class TestNtfyOnce(unittest.TestCase):
                 "attached": "detached",
                 "current_branch_txt": "work/treasury",
             }
-            first = M.ntfy_mismatch(
+            first = M.alert_mismatch(
                 result,
                 workspace=Path(td),
                 state_path=state,
                 dry_run=True,
             )
             self.assertEqual(first.get("skipped"), "dry-run")
-            second = M.ntfy_mismatch(
+            second = M.alert_mismatch(
                 result,
                 workspace=Path(td),
                 state_path=state,
@@ -184,7 +186,7 @@ class TestNtfyOnce(unittest.TestCase):
             self.assertEqual(second.get("skipped"), "cooldown")
 
     def test_sustained_bypasses_6h_cooldown(self) -> None:
-        """Issue #661: still-red after 1h pages again (1h cooldown), not 6h silence."""
+        """Issue #661: still-red after 1h comments again (1h cooldown), not 6h silence."""
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "state.json"
             now = datetime.now(timezone.utc)
@@ -214,7 +216,7 @@ class TestNtfyOnce(unittest.TestCase):
                 "attached": "work/treasury",
                 "current_branch_txt": "work/treasury",
             }
-            out = M.ntfy_mismatch(
+            out = M.alert_mismatch(
                 result,
                 workspace=Path(td),
                 state_path=state,
@@ -227,7 +229,7 @@ class TestNtfyOnce(unittest.TestCase):
             self.assertTrue(out.get("page"), out)
 
     def test_routine_mismatch_github_not_ntfy(self) -> None:
-        """#699 B: first mismatch comments #701; does not POST ntfy.sh."""
+        """#704: first mismatch comments #701; does not POST ntfy.sh."""
         result = {
             "ok": False,
             "mismatches": ["detached"],
@@ -260,19 +262,18 @@ class TestNtfyOnce(unittest.TestCase):
             with mock.patch.dict(os.environ, env, clear=False), mock.patch(
                 "urllib.request.urlopen", side_effect=fake_urlopen
             ):
-                out = M.ntfy_mismatch(
+                out = M.alert_mismatch(
                     result,
                     workspace=Path(td),
                     state_path=state,
                 )
         self.assertFalse(out.get("page"), out)
-        self.assertFalse(out.get("notified"), out)
-        self.assertEqual(out.get("skipped"), "routine")
+        self.assertTrue(out.get("notified"), out)
         self.assertTrue((out.get("github") or {}).get("posted"), out)
-        self.assertTrue(any("api.github.com" in u for u in captured), captured)
+        self.assertTrue(any("issues/701/comments" in u for u in captured), captured)
         self.assertFalse(any("ntfy.sh" in u for u in captured), captured)
 
-    def test_sustained_posts_ntfy_and_github(self) -> None:
+    def test_sustained_github_not_ntfy(self) -> None:
         now = datetime.now(timezone.utc)
         past = (now - timedelta(hours=2)).replace(microsecond=0).isoformat().replace(
             "+00:00", "Z"
@@ -286,10 +287,10 @@ class TestNtfyOnce(unittest.TestCase):
             "attached": "work/treasury",
             "current_branch_txt": "work/treasury",
         }
-        captured: list[tuple[str, dict]] = []
+        captured: list[str] = []
 
         def fake_urlopen(req, timeout=15):
-            captured.append((req.full_url, dict(req.headers)))
+            captured.append(req.full_url)
             resp = mock.MagicMock()
             resp.status = 200
             resp.getcode.return_value = 200
@@ -311,22 +312,19 @@ class TestNtfyOnce(unittest.TestCase):
             with mock.patch.dict(os.environ, env, clear=False), mock.patch(
                 "urllib.request.urlopen", side_effect=fake_urlopen
             ):
-                out = M.ntfy_mismatch(
+                out = M.alert_mismatch(
                     result,
                     workspace=Path(td),
                     state_path=state,
                 )
+        self.assertTrue(out.get("ok"), out)
         self.assertTrue(out.get("page"), out)
         self.assertTrue(out.get("notified"), out)
-        urls = [u for u, _ in captured]
-        self.assertTrue(any("api.github.com" in u for u in urls), urls)
-        self.assertTrue(any("ntfy.sh" in u for u in urls), urls)
-        ntfy_headers = next(h for u, h in captured if "ntfy.sh" in u)
-        # urllib request header names are canonicalized
-        auth = ntfy_headers.get("Authorization") or ntfy_headers.get("authorization")
-        self.assertEqual(auth, "Bearer tk_test")
+        self.assertIn("SUSTAINED", out.get("title") or "")
+        self.assertTrue(any("issues/701/comments" in u for u in captured), captured)
+        self.assertFalse(any("ntfy.sh" in u for u in captured), captured)
 
-    def test_kill_switch_pages_first_mismatch(self) -> None:
+    def test_kill_switch_github_not_ntfy(self) -> None:
         result = {
             "ok": False,
             "mismatches": ["detached"],
@@ -352,19 +350,22 @@ class TestNtfyOnce(unittest.TestCase):
             env = {
                 "GITHUB_TOKEN": "ghs_test",
                 "FCC_ALERT_KILL_SWITCH": "1",
+                "NTFY_TOKEN": "tk_test",
                 "PI_OPS_ALERT_ISSUE": "701",
             }
             with mock.patch.dict(os.environ, env, clear=False), mock.patch(
                 "urllib.request.urlopen", side_effect=fake_urlopen
             ):
-                out = M.ntfy_mismatch(
+                out = M.alert_mismatch(
                     result,
                     workspace=Path(td),
                     state_path=state,
                 )
         self.assertTrue(out.get("page"), out)
         self.assertIn("KILL-SWITCH", out.get("title") or "")
-        self.assertTrue(any("ntfy.sh" in u for u in captured), captured)
+        self.assertTrue(out.get("notified"), out)
+        self.assertTrue(any("issues/701/comments" in u for u in captured), captured)
+        self.assertFalse(any("ntfy.sh" in u for u in captured), captured)
 
 
 class TestCli(unittest.TestCase):

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Periodic FCC tip SHA / branch-attachment assert (issue #562 / #699).
+"""Periodic FCC tip SHA / branch-attachment assert (issue #562 / #704).
 
 Live clone HEAD must equal origin/work/treasury, the checkout must be
 attached to that branch, and financial-command/current-branch.txt must
 match. On mismatch: log + GitHub comment on the standing ops issue
-(#701). ntfy only for SUSTAINED (>1h red) or FCC_ALERT_KILL_SWITCH.
+(#701). SUSTAINED (>1h red) and FCC_ALERT_KILL_SWITCH use the same sink
+with a distinctive title. ntfy is retired.
 Never mutates git — no checkout, reset, merge, or SYNC_BRANCH change.
 """
 
@@ -26,8 +27,8 @@ REFUSED_BRANCHES = frozenset({"master", "main", "work/holistic"})
 DEFAULT_COOLDOWN_HOURS = 6.0
 DEFAULT_SUSTAINED_HOURS = 1.0
 DEFAULT_SUSTAINED_COOLDOWN_HOURS = 1.0
-DEFAULT_NTFY_TOPIC = "cvolk-grok-7f3k9x"
 DEFAULT_OPS_ISSUE = "701"
+_NTFY_RETIRED_WARNED = False
 OPS_REPO = "cvolkernick/personal-workspace"
 SCHEDULER_ENV = Path.home() / ".config" / "workflow-scheduler.env"
 STATE_NAME = "fcc_tip_health_state.json"
@@ -118,7 +119,8 @@ def inspect(
     }
 
 
-def _topic(workspace: Path) -> Optional[str]:
+def _leftover_ntfy_topic(workspace: Path) -> Optional[str]:
+    """Return leftover ntfy topic config so we can warn. Never used to POST."""
     env = (os.environ.get("FCC_NTFY_TOPIC") or "").strip()
     if env:
         return env
@@ -130,12 +132,36 @@ def _topic(workspace: Path) -> Optional[str]:
             cfg = {}
         ncfg = cfg.get("notifications") if isinstance(cfg, dict) else None
         if isinstance(ncfg, dict):
-            if ncfg.get("enabled") is False:
-                return None
             topic = str(ncfg.get("ntfy_topic") or "").strip()
             if topic:
                 return topic
-    return DEFAULT_NTFY_TOPIC
+    return None
+
+
+def _warn_retired_ntfy(*, topic: Optional[str] = None) -> None:
+    """If leftover ntfy config is set, warn once and ignore. Never fail (#704)."""
+    global _NTFY_RETIRED_WARNED
+    if _NTFY_RETIRED_WARNED:
+        return
+    _load_scheduler_env()
+    leftover: list[str] = []
+    if (os.environ.get("NTFY_TOKEN") or "").strip():
+        leftover.append("NTFY_TOKEN")
+    if (os.environ.get("FCC_NTFY_TOKEN") or "").strip():
+        leftover.append("FCC_NTFY_TOKEN")
+    if (os.environ.get("FCC_NTFY_TOPIC") or "").strip():
+        leftover.append("FCC_NTFY_TOPIC")
+    if (topic or "").strip():
+        leftover.append("notifications.ntfy_topic")
+    if not leftover:
+        return
+    _NTFY_RETIRED_WARNED = True
+    print(
+        "WARN: ntfy is retired (#704); ignoring "
+        + ", ".join(leftover)
+        + " — alerts go to GitHub issue #701 only",
+        file=sys.stderr,
+    )
 
 
 def _state_path(explicit: Optional[Path] = None) -> Path:
@@ -214,7 +240,7 @@ def _mark_healthy(path: Path) -> None:
 
 
 def _record_violation_seen(path: Path, payload: dict[str, Any]) -> None:
-    """Persist first_violation_at even when ntfy is on cooldown (#661)."""
+    """Persist first_violation_at even when the alert is on cooldown (#661)."""
     prev = _load_state(path)
     body = dict(prev)
     body["last_mismatches"] = payload.get("mismatches")
@@ -255,13 +281,6 @@ def _github_token() -> str:
     )
 
 
-def _ntfy_token() -> str:
-    return (
-        (os.environ.get("NTFY_TOKEN") or "").strip()
-        or (os.environ.get("FCC_NTFY_TOKEN") or "").strip()
-    )
-
-
 def _ops_issue() -> str:
     return (os.environ.get("PI_OPS_ALERT_ISSUE") or DEFAULT_OPS_ISSUE).strip()
 
@@ -280,6 +299,7 @@ def _http_post(url: str, data: bytes, headers: dict[str, str], timeout: float = 
 def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str, Any]:
     """Comment on the standing ops issue (#701). Never logs tokens."""
     _load_scheduler_env()
+    _warn_retired_ntfy()
     issue = _ops_issue()
     if not issue:
         return {"ok": True, "posted": False, "skipped": "no-issue"}
@@ -307,42 +327,7 @@ def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str
         return {"ok": False, "posted": False, "error": str(exc), "issue": issue}
 
 
-def post_ntfy_page(
-    topic: Optional[str],
-    title: str,
-    text: str,
-    *,
-    priority: str = "5",
-    tags: str = "warning,rotating_light",
-    dry_run: bool = False,
-) -> dict[str, Any]:
-    """Page via ntfy. Auth header when NTFY_TOKEN is set; public topic otherwise."""
-    _load_scheduler_env()
-    if not topic:
-        return {"ok": True, "notified": False, "skipped": "no-topic"}
-    if dry_run:
-        return {"ok": True, "notified": False, "skipped": "dry-run", "title": title}
-    headers = {
-        "Title": title,
-        "Priority": str(priority),
-        "Tags": tags,
-        "Click": f"https://github.com/{OPS_REPO}/issues/{_ops_issue()}",
-    }
-    token = _ntfy_token()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    url = f"https://ntfy.sh/{topic}"
-    try:
-        out = _http_post(url, text.encode("utf-8"), headers)
-        out["notified"] = True
-        out["title"] = title
-        out["authed"] = bool(token)
-        return out
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        return {"ok": False, "notified": False, "error": str(exc)}
-
-
-def ntfy_mismatch(
+def alert_mismatch(
     result: dict[str, Any],
     *,
     workspace: Path,
@@ -352,6 +337,7 @@ def ntfy_mismatch(
     sustained_cooldown_hours: float = DEFAULT_SUSTAINED_COOLDOWN_HOURS,
     dry_run: bool = False,
 ) -> dict[str, Any]:
+    _warn_retired_ntfy(topic=_leftover_ntfy_topic(workspace))
     if result.get("ok"):
         _mark_healthy(state_path)
         return {"ok": True, "notified": False, "skipped": "healthy"}
@@ -404,52 +390,27 @@ def ntfy_mismatch(
     ]
     text = "\n".join(lines)
     github = post_ops_github(title, text, dry_run=dry_run)
-    ntfy_out: dict[str, Any]
-    if page:
-        ntfy_out = post_ntfy_page(
-            _topic(workspace),
-            title,
-            text,
-            priority="5",
-            tags="warning,git",
-            dry_run=dry_run,
-        )
-    else:
-        ntfy_out = {
-            "ok": True,
-            "notified": False,
-            "skipped": "routine",
-            "title": title,
-        }
     gh_ok = bool(
         github.get("posted")
         or github.get("skipped") in {"dry-run", "no-github-token", "no-issue"}
     )
-    ntfy_ok = bool(
-        (not page)
-        or ntfy_out.get("notified")
-        or ntfy_out.get("skipped") in {"dry-run", "no-topic"}
-    )
-    if gh_ok and ntfy_ok:
+    if gh_ok:
         _mark_notified(state_path, result)
     skipped = None
     if dry_run:
         skipped = "dry-run"
-    elif not page:
-        skipped = ntfy_out.get("skipped") or "routine"
-    elif not ntfy_out.get("notified"):
-        skipped = ntfy_out.get("skipped")
+    elif not github.get("posted"):
+        skipped = github.get("skipped")
     return {
-        "ok": bool(github.get("ok", True) and ntfy_out.get("ok", True)),
-        "notified": bool(ntfy_out.get("notified")),
+        "ok": bool(github.get("ok", True)),
+        "notified": bool(github.get("posted")),
         "skipped": skipped,
         "title": title,
         "text": text,
         "sustained": sustained,
         "page": page,
         "github": github,
-        "ntfy": ntfy_out,
-        "error": github.get("error") or ntfy_out.get("error"),
+        "error": github.get("error"),
     }
 
 
@@ -462,7 +423,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument(
         "--dry-run",
         action="store_true",
-        help="Do not POST GitHub or ntfy",
+        help="Do not POST GitHub",
     )
     p.add_argument("--state", type=Path, default=None)
     p.add_argument("--cooldown-hours", type=float, default=DEFAULT_COOLDOWN_HOURS)
@@ -470,14 +431,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     workspace = (args.workspace or Path.cwd()).resolve()
     fetch = bool(args.fetch) and not args.no_fetch
     result = inspect(workspace, fetch=fetch)
-    ntfy = ntfy_mismatch(
+    alert = alert_mismatch(
         result,
         workspace=workspace,
         state_path=_state_path(args.state),
         cooldown_hours=args.cooldown_hours,
         dry_run=args.dry_run,
     )
-    result["ntfy"] = ntfy
+    result["alert"] = alert
     if result["ok"]:
         print(
             f"[fcc-tip-health] ok HEAD={(result.get('head') or '')[:8]} "
@@ -487,13 +448,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     else:
         print(
             f"[fcc-tip-health] MISMATCH {result.get('mismatches')} "
-            f"ntfy={ntfy.get('notified')} github={((ntfy.get('github') or {}).get('posted'))} "
-            f"skip={ntfy.get('skipped')}",
+            f"github={((alert.get('github') or {}).get('posted'))} "
+            f"skip={alert.get('skipped')}",
             file=sys.stderr,
         )
     if args.json:
         print(json.dumps(result, indent=2))
-    # Non-zero so the timer unit shows failed, but ntfy is cooldown-gated.
+    # Non-zero so the timer unit shows failed, but comments are cooldown-gated.
     return 0 if result["ok"] else 1
 
 
