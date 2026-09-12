@@ -603,7 +603,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
             try:
                 qs = parse_qs(parsed.query or "")
                 days_raw = (qs.get("days") or ["90"])[0]
-                threshold_raw = (qs.get("threshold") or ["200"])[0]
+                if "threshold" in qs:
+                    threshold_raw = (qs.get("threshold") or [None])[0]
+                    if threshold_raw is not None and str(threshold_raw).strip() == "":
+                        threshold_raw = None
+                else:
+                    threshold_raw = None
                 payload = load_runway(
                     days=days_raw,
                     threshold=threshold_raw,

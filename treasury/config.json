@@ -17,7 +17,8 @@
     "count_vault_toward_card_float": false,
     "one_card_security_deposit_usdc": "500",
     "morpho_borrow_apr_est": 0.05,
-    "one_card_apr_est": 0.29
+    "one_card_apr_est": 0.29,
+    "min_liquid_buffer_usd": 200
   },
   "coinbase_manual": {
     "loan_principal_usdc": "120.50",

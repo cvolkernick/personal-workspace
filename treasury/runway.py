@@ -5,11 +5,23 @@ funded unique Fleet). YNAB scheduled only if the sheet is unreachable;
 recurrence detection last. Stale/missing sheet is a loud error, never a
 silent fallback. Income from YNAB actuals; transfers excluded. Forecast is
 computed per request and never stored.
+
+Min-buffer SoT: ``treasury/config.json`` policy ``min_liquid_buffer_usd``
+(daily forecast floor). Hardcoded ``DEFAULT_THRESHOLD`` is a labeled fallback
+only (config missing/unparseable) — never a silent second default.
+``?threshold=`` is a per-view override.
+
+Sheet Forecast tab "Buffer target" is the monthly planning floor, not the
+Runway default. Config and sheet may differ; disagreement is visible drift
+on the Assumptions card, never papered over. Distinct from HY LTV
+(``cb_loan_buffer_usdc``), card float, and ``rh_bp_floor``.
 """
 
 from __future__ import annotations
 
 import calendar
+import csv
+import io
 import re
 import statistics
 from collections import Counter, defaultdict
@@ -35,8 +47,12 @@ from treasury.ynab_sync import account_balance_units  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 
 LOOKBACK_DAYS = 90
-DEFAULT_THRESHOLD = 200.0
+DEFAULT_THRESHOLD = 200.0  # labeled fallback only; canonical is policy.min_liquid_buffer_usd
 MAX_THRESHOLD = 1_000_000.0
+POLICY_MIN_BUFFER_KEY = "min_liquid_buffer_usd"
+FORECAST_TAB = "Forecast"
+_BUFFER_TARGET_LABEL = re.compile(r"^buffer\s*target$", re.I)
+_UNSET = object()
 MIN_DETECT_N = 3
 AMOUNT_CV_MAX = 0.3
 MIN_CADENCE_DAYS = 6
@@ -72,6 +88,179 @@ def clamp_threshold(raw: Any, default: float = DEFAULT_THRESHOLD) -> float:
     if v > MAX_THRESHOLD:
         return MAX_THRESHOLD
     return round(v, 2)
+
+
+def _fmt_usd(n: float) -> str:
+    if abs(n - round(n)) < 1e-9:
+        return f"${int(round(n))}"
+    return f"${n:.2f}"
+
+
+def _parse_money_cell(raw: Any) -> Optional[float]:
+    if raw is None or raw == "":
+        return None
+    s = str(raw).strip()
+    if not s or s.lower() in ("none", "nan", "-"):
+        return None
+    s = s.replace("$", "").replace(",", "").replace("%", "").strip()
+    if not s:
+        return None
+    try:
+        return round(float(s), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def policy_min_buffer(policy: Optional[Dict[str, Any]]) -> Tuple[Optional[float], str]:
+    """Return (value, status) for policy.min_liquid_buffer_usd.
+
+    status: ok | missing | unparseable
+    """
+    if not isinstance(policy, dict) or POLICY_MIN_BUFFER_KEY not in policy:
+        return None, "missing"
+    raw = policy.get(POLICY_MIN_BUFFER_KEY)
+    if raw is None or raw == "":
+        return None, "missing"
+    parsed = _parse_money_cell(raw)
+    if parsed is None:
+        return None, "unparseable"
+    return clamp_threshold(parsed), "ok"
+
+
+def parse_forecast_buffer_target(csv_text: str) -> Optional[float]:
+    """First numeric cell on the Forecast-tab 'Buffer target' row."""
+    if not csv_text or not str(csv_text).strip():
+        return None
+    text = str(csv_text).lstrip("\ufeff")
+    for row in csv.reader(io.StringIO(text)):
+        if not row:
+            continue
+        label = (row[0] or "").strip()
+        if not _BUFFER_TARGET_LABEL.match(label):
+            continue
+        for cell in row[1:]:
+            parsed = _parse_money_cell(cell)
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def forecast_buffer_from_expenses(expenses: Optional[Dict[str, Any]]) -> Optional[float]:
+    """Read a Forecast-tab buffer target already present on an expenses snapshot."""
+    if not isinstance(expenses, dict):
+        return None
+    tabs = expenses.get("tabs")
+    if not isinstance(tabs, dict):
+        return None
+    block = tabs.get(FORECAST_TAB)
+    if not isinstance(block, dict):
+        return None
+    for key in ("buffer_target_usd", "buffer_target", "Buffer target"):
+        parsed = _parse_money_cell(block.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def fetch_forecast_buffer_target(*, root: Optional[Path] = None) -> Optional[float]:
+    """Live-fetch Forecast tab Buffer target. None on any failure (never raises)."""
+    try:
+        from treasury.adapters import load_config
+        from treasury.expenses_sync import DEFAULT_SHEET_ID, fetch_sheet_csv
+    except Exception:
+        return None
+    try:
+        cfg_path = (root / "treasury" / "config.json") if root is not None else None
+        cfg = load_config(cfg_path)
+        gcfg = (cfg or {}).get("expenses_sheet") or {}
+        sid = gcfg.get("sheet_id") or DEFAULT_SHEET_ID
+        csv_text = fetch_sheet_csv(sid, FORECAST_TAB, timeout=8.0)
+        return parse_forecast_buffer_target(csv_text)
+    except Exception:
+        return None
+
+
+def resolve_min_buffer(
+    *,
+    explicit: Any = None,
+    policy: Optional[Dict[str, Any]] = None,
+    sheet_forecast_buffer: Any = None,
+) -> Dict[str, Any]:
+    """Pick the Runway min-buffer and name its source.
+
+    Config policy is canonical for the daily forecast floor. An explicit
+    ``?threshold=`` overrides per view. Hardcoded DEFAULT_THRESHOLD is used
+    only when the policy key is missing or unparseable, and that fallback is
+    labeled. Sheet Forecast Buffer target is compared for drift; it does not
+    drive the default.
+    """
+    config_usd, config_status = policy_min_buffer(policy)
+    has_explicit = explicit is not None and str(explicit).strip() != ""
+    if has_explicit:
+        default_for_clamp = config_usd if config_status == "ok" else DEFAULT_THRESHOLD
+        used = clamp_threshold(explicit, default=default_for_clamp)
+        source = "explicit"
+        label = (
+            f"Min buffer {_fmt_usd(used)} from ?threshold= (per-view override)"
+        )
+        if config_status == "ok" and config_usd is not None:
+            label += f"; policy default {_fmt_usd(config_usd)}"
+        elif config_status == "unparseable":
+            label += "; policy min_liquid_buffer_usd unparseable"
+        else:
+            label += "; policy min_liquid_buffer_usd missing"
+    elif config_status == "ok" and config_usd is not None:
+        used = config_usd
+        source = "treasury_policy"
+        label = (
+            f"Min buffer {_fmt_usd(used)} from treasury policy "
+            f"({POLICY_MIN_BUFFER_KEY})"
+        )
+    else:
+        used = DEFAULT_THRESHOLD
+        source = "fallback_default"
+        why = "unparseable" if config_status == "unparseable" else "missing"
+        label = (
+            f"Min buffer {_fmt_usd(used)} hardcoded fallback "
+            f"(treasury policy {POLICY_MIN_BUFFER_KEY} {why})"
+        )
+
+    sheet_usd = _parse_money_cell(sheet_forecast_buffer)
+    drift = (
+        sheet_usd is not None
+        and config_usd is not None
+        and abs(sheet_usd - config_usd) > 0.009
+    )
+    return {
+        "usd": used,
+        "source": source,
+        "source_label": label,
+        "config_usd": config_usd,
+        "config_status": config_status,
+        "fallback_usd": DEFAULT_THRESHOLD,
+        "policy_key": POLICY_MIN_BUFFER_KEY,
+        "role": "daily forecast floor (canonical: treasury/config.json policy)",
+        "sheet_forecast_buffer_usd": sheet_usd,
+        "sheet_forecast_role": (
+            "monthly planning floor (Forecast tab Buffer target; not the Runway default)"
+        ),
+        "sheet_config_drift": drift,
+    }
+
+
+def min_buffer_assumptions(resolved: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "min_buffer_usd": resolved["usd"],
+        "min_buffer_source": resolved["source"],
+        "min_buffer_source_label": resolved["source_label"],
+        "min_buffer_config_usd": resolved["config_usd"],
+        "min_buffer_fallback_usd": resolved["fallback_usd"],
+        "min_buffer_policy_key": resolved["policy_key"],
+        "min_buffer_role": resolved["role"],
+        "sheet_forecast_buffer_usd": resolved["sheet_forecast_buffer_usd"],
+        "sheet_forecast_role": resolved["sheet_forecast_role"],
+        "sheet_config_drift": resolved["sheet_config_drift"],
+    }
 
 
 def lookback_bounds(today: Optional[date] = None) -> Tuple[date, date, int]:
@@ -178,6 +367,7 @@ def _empty(
     ynab_soft_preserved: bool,
     ynab_as_of: Optional[str],
     sheet: Optional[Dict[str, Any]] = None,
+    assumptions: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     return {
         "ok": False,
@@ -188,7 +378,7 @@ def _empty(
         "starting_buffer": 0.0,
         "daily": [],
         "bill_events": [],
-        "assumptions": {},
+        "assumptions": assumptions or {},
         "ynab": {
             "stale": bool(ynab_stale),
             "soft_preserved": bool(ynab_soft_preserved),
@@ -603,7 +793,7 @@ def expand_detected(
 def build_runway(
     *,
     days: int = DEFAULT_DAYS,
-    threshold: Any = DEFAULT_THRESHOLD,
+    threshold: Any = None,
     today: Optional[date] = None,
     transactions: Optional[Sequence[Dict[str, Any]]] = None,
     scheduled: Optional[Sequence[Dict[str, Any]]] = None,
@@ -616,10 +806,21 @@ def build_runway(
     ynab_soft_preserved: bool = False,
     ynab_as_of: Optional[str] = None,
     error: Optional[str] = None,
+    policy: Optional[Dict[str, Any]] = None,
+    sheet_forecast_buffer: Any = None,
 ) -> Dict[str, Any]:
     """Build the forecast payload. Pure: no I/O."""
     days = clamp_days(days)
-    threshold_f = clamp_threshold(threshold)
+    sheet_floor = _parse_money_cell(sheet_forecast_buffer)
+    if sheet_floor is None:
+        sheet_floor = forecast_buffer_from_expenses(expenses)
+    resolved = resolve_min_buffer(
+        explicit=threshold,
+        policy=policy,
+        sheet_forecast_buffer=sheet_floor,
+    )
+    threshold_f = float(resolved["usd"])
+    buffer_assumptions = min_buffer_assumptions(resolved)
     end = today or date.today()
     sheet_state = classify_sheet(expenses) if expenses is not None else {
         "usable": False,
@@ -654,6 +855,7 @@ def build_runway(
             ynab_soft_preserved=ynab_soft_preserved,
             ynab_as_of=ynab_as_of,
             sheet=sheet_payload,
+            assumptions=buffer_assumptions,
         )
     if not sheet_state.get("usable") and not sheet_state.get("unreachable"):
         return _empty(
@@ -665,6 +867,7 @@ def build_runway(
             ynab_soft_preserved=ynab_soft_preserved,
             ynab_as_of=ynab_as_of,
             sheet=sheet_payload,
+            assumptions=buffer_assumptions,
         )
 
     lookback_start, lookback_end, lookback_days = lookback_bounds(end)
@@ -785,6 +988,7 @@ def build_runway(
             "income_one_offs_excluded": round(
                 sum(float(x["amount"]) for x in income_one_offs), 2
             ),
+            **buffer_assumptions,
         },
         "ynab": {
             "stale": bool(ynab_stale),
@@ -860,12 +1064,14 @@ def fetch_ynab_runway(since: str) -> Dict[str, Any]:
 def load_runway(
     *,
     days: int = DEFAULT_DAYS,
-    threshold: Any = DEFAULT_THRESHOLD,
+    threshold: Any = None,
     today: Optional[date] = None,
     stale: Optional[bool] = None,
     root: Optional[Path] = None,
     fetch=None,
     expenses_fetch=None,
+    policy: Optional[Dict[str, Any]] = None,
+    forecast_fetch: Any = _UNSET,
 ) -> Dict[str, Any]:
     """Orchestrate sheet + YNAB pull + forecast. Fetchers are injectable for tests."""
     days = clamp_days(days)
@@ -881,6 +1087,21 @@ def load_runway(
 
         exp_fetcher = fetch_expenses
     expenses = exp_fetcher()
+    if policy is None:
+        from treasury.adapters import load_config
+
+        cfg = load_config(base / "treasury" / "config.json")
+        raw_pol = (cfg or {}).get("policy") if isinstance(cfg, dict) else None
+        policy = raw_pol if isinstance(raw_pol, dict) else {}
+    sheet_forecast = forecast_buffer_from_expenses(expenses)
+    if sheet_forecast is None:
+        if forecast_fetch is _UNSET:
+            sheet_forecast = fetch_forecast_buffer_target(root=base)
+        elif callable(forecast_fetch):
+            try:
+                sheet_forecast = forecast_fetch()
+            except Exception:
+                sheet_forecast = None
     sheet_state = classify_sheet(expenses)
     ynab_kwargs = {
         "ynab_stale": stale_flag,
@@ -888,6 +1109,8 @@ def load_runway(
         "ynab_as_of": snap_as_of,
         "expenses": expenses,
         "sheet_unreachable": bool(sheet_state.get("unreachable")),
+        "policy": policy,
+        "sheet_forecast_buffer": sheet_forecast,
     }
     if not sheet_state.get("usable") and not sheet_state.get("unreachable"):
         return build_runway(

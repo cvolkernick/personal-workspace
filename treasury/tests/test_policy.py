@@ -21,6 +21,12 @@ from treasury.policy import (  # noqa: E402
 )
 
 
+class TestDefaultPolicyMinBuffer(unittest.TestCase):
+    def test_min_liquid_buffer_usd_is_tracked(self):
+        self.assertIn("min_liquid_buffer_usd", DEFAULT_POLICY)
+        self.assertEqual(DEFAULT_POLICY["min_liquid_buffer_usd"], 200.0)
+
+
 class TestClassifyLiquid(unittest.TestCase):
     def test_shortfall_when_under_floors(self):
         r = classify_liquid_usdc(
