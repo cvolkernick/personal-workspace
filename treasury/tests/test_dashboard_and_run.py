@@ -33,6 +33,8 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("status-split", html)
         self.assertIn("Capital targets", html)
         self.assertIn("Settings", html)
+        self.assertIn('id="btn-loan-paid-off"', html)
+        self.assertIn("Mark Morpho loan paid off", html)
         self.assertIn("/api/refresh", html)
         self.assertIn('id="btc-network-card"', html)
         self.assertIn("/api/btc-network", html)
