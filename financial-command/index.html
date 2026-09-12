@@ -4727,8 +4727,8 @@
           `<p class="hint" style="margin:0">${escapeHtml(
             br.error || "Braiins not synced"
           )}</p>` +
-          `<p class="hint">Token at <code>~/.config/braiins/token</code> then ` +
-          `<code>python3 treasury/braiins_sync.py</code></p>`;
+          `<p class="hint">Pi producer: <code>braiins-refresh.timer</code>, token at ` +
+          `<code>~/.config/braiins/token</code> (prism-agent)</p>`;
         if (metricsB) metricsB.innerHTML = "";
         if (workersEl) workersEl.innerHTML = "";
         return;

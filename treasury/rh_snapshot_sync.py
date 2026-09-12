@@ -16,6 +16,7 @@ Env (optional):
   TREASURY_RH_PRODUCER=1 / TREASURY_RH_BACKUP=1
   TREASURY_RH_SOT_HOST=prism
   TREASURY_RH_PUSH=1           allow Mac→Pi robinhood_latest.json (off by default)
+  TREASURY_BRAIINS_PUSH=1      allow Mac→Pi braiins_latest.json (off by default; #689)
   TREASURY_PI_SSH     e.g. prism-agent@192.168.100.98
   TREASURY_PI_ROOT    e.g. /home/prism-agent/personal-workspace
   TREASURY_PI_CONNECT_TIMEOUT  (seconds, default 5)
@@ -68,9 +69,9 @@ RH_SNAP = "robinhood_latest.json"
 FM_SNAP = "fund_manager_latest.json"
 RH_PRODUCER_STATUS = "rh_producer_status.json"
 DEFAULT_SOT_HOST = "prism"
-# Mac may still push CB/YNAB/Sheet. RH is Pi SoT — omitted unless TREASURY_RH_PUSH=1.
+BRAIINS_SNAP = "braiins_latest.json"
+# Mac may still push CB/YNAB/Sheet. RH (#518) and Braiins (#689) are Pi SoT.
 DEFAULT_PUSH_FILES = (
-    "braiins_latest.json",
     "fund_manager_latest.json",
     "treasury_latest.json",
     "coinbase_latest.json",
@@ -192,10 +193,17 @@ def _rh_role() -> str:
 
 
 def _strip_rh_push(files: List[str]) -> List[str]:
-    """Drop robinhood_latest.json unless TREASURY_RH_PUSH=1 (no dual-write)."""
-    if os.environ.get("TREASURY_RH_PUSH") == "1":
-        return list(files)
-    return [f for f in files if str(f) != RH_SNAP]
+    """Drop Pi-SoT snapshots unless an emergency override env is set.
+
+    RH: omit unless TREASURY_RH_PUSH=1 (#518).
+    Braiins: omit unless TREASURY_BRAIINS_PUSH=1 (#689).
+    """
+    out = list(files)
+    if os.environ.get("TREASURY_RH_PUSH") != "1":
+        out = [f for f in out if str(f) != RH_SNAP]
+    if os.environ.get("TREASURY_BRAIINS_PUSH") != "1":
+        out = [f for f in out if str(f) != BRAIINS_SNAP]
+    return out
 
 
 def write_producer_status(status: Dict[str, Any]) -> Optional[Path]:

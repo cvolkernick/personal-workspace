@@ -60,6 +60,9 @@ class TestPayoutOutlook(unittest.TestCase):
         asics = next(s for s in flows["income_sources"] if s["id"] == "asics")
         self.assertEqual(asics["payout_threshold_btc"], 0.005)
         self.assertEqual(flows["integrations"]["braiins_pool"]["payout_threshold_btc"], 0.005)
+        self.assertEqual(flows["integrations"]["braiins_pool"]["producer"], "prism")
+        cfg_push = cfg.get("pi_sync", {}).get("push_files") or []
+        self.assertNotIn("braiins_latest.json", cfg_push)
 
 
 class TestPayoutHistory(unittest.TestCase):

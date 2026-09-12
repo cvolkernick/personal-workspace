@@ -1,0 +1,11 @@
+[Unit]
+Description=Braiins Pool snapshot producer every 4h (FCC freshness, #689)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=4h
+Persistent=true
+Unit=braiins-refresh.service
+
+[Install]
+WantedBy=timers.target

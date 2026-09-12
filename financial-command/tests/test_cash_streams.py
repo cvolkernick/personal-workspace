@@ -517,6 +517,8 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertEqual(got["status"], "unknown")
         self.assertIsNone(got["usd"])
         self.assertIn("payout history missing", got["error"])
+        self.assertIn("braiins-refresh.timer", got["error"])
+        self.assertNotIn("python3 treasury/", got["error"])
 
     def test_mining_unknown_when_price_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
