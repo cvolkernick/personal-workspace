@@ -31,7 +31,7 @@ FitDash PR merge to master
 | Path-scoped | Only units mapped from changed prefixes restart |
 | No thrash-all | Full unit list is never the default |
 | Treasury / secrets | **Manual only** — no auto-restart |
-| Deploy glue (`deploy/`) | Lands via git pull; unit install remains operator-run |
+| Deploy glue (`deploy/`) | **Does not** land via FCC `work/treasury` sync (`deploy/` is master-only). Permanent path: `scp` / `install_remote.sh` into `~/.config/personal-workspace/` (#664). Do not cherry-pick onto `work/treasury`. |
 | One at a time | Lockfile under `$XDG_RUNTIME_DIR` / `/tmp` |
 | Merge authority | Still human (Chris) |
 
@@ -118,17 +118,16 @@ On Pi (`prism-agent@prism-gateway`):
 
 ```bash
 cd ~/personal-workspace
-# Prefer the script once any copy exists (Mac can scp deploy/workspace_sync.sh first):
-bash deploy/workspace_sync.sh
+# Durable copy — never ~/personal-workspace/deploy/ (wiped on the next work/treasury reset).
+# From Mac, if the durable script/units are missing:
+#   scp deploy/workspace_sync.sh prism-agent@prism-gateway:~/.config/personal-workspace/
+#   scp deploy/units/workspace-sync.{service,timer} prism-agent@prism-gateway:~/.config/systemd/user/
+bash ~/.config/personal-workspace/workspace_sync.sh
 # Or force — FCC live root, never master / work/holistic:
 git rebase --abort 2>/dev/null || rm -rf .git/rebase-merge .git/rebase-apply
 git fetch origin work/treasury
 git checkout -f -B work/treasury origin/work/treasury
 git reset --hard origin/work/treasury
-# re-enable timer (unit files live on master; copy from Mac if missing on this branch)
-# scp deploy/workspace_sync.sh prism-agent@prism-gateway:~/personal-workspace/deploy/
-# scp deploy/units/workspace-sync.{service,timer} prism-agent@prism-gateway:~/.config/systemd/user/
-cp -f deploy/units/workspace-sync.{service,timer} ~/.config/systemd/user/ 2>/dev/null || true
 systemctl --user daemon-reload
 systemctl --user enable --now workspace-sync.timer
 systemctl --user start workspace-sync.service

@@ -96,6 +96,23 @@ Unit pin: `deploy/units/workspace-sync.service` sets `Environment=SYNC_BRANCH=wo
 
 **Keep the timer enabled.** Package-level rsync installers are emergency/hot only; the next successful sync replaces app trees with merged `work/treasury`. See `ops/SDLC_MERGE_DEPLOY.md` and `deploy/product_branch_map.py`.
 
+### Deploy glue is scp / `install_remote.sh` — permanent (not `work/treasury`)
+
+`work/treasury` has no `deploy/` tree (#560). The #661/#662 sync fix **must not** be cherry-picked onto `work/treasury`. A successful FCC sync will never refresh these scripts from git.
+
+Permanent install path (scripts live **outside** the live clone so a hard-reset cannot delete them):
+
+```bash
+# From a master checkout — copies only the durable scripts, not the FCC tree
+scp deploy/workspace_sync.sh deploy/fcc_tip_health.py \
+  prism-agent@prism-gateway:~/.config/personal-workspace/
+# or:
+bash deploy/install_remote.sh prism-agent@prism-gateway
+# Do **not** rsync/install the rest of master onto the FCC live clone.
+```
+
+Do **not** “fix” a stale `~/.config/personal-workspace/` copy by adding `deploy/` to `work/treasury` or by expecting the next sync to pick it up. After changing `workspace_sync.sh` / `fcc_tip_health.py` on `master`, scp (or `install_remote.sh`) again.
+
 ## Off-network access (Tailscale or equivalent)
 
 **Do not** port-forward these dashboards to the open internet.
