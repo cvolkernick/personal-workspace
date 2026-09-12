@@ -7,7 +7,7 @@ Serves static UI + APIs:
   GET  /api/watchlist  — watchlist + deep-dive summaries
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
-  GET  /api/cash-streams — rolling YNAB income → expense Sankey (live, no model file)
+  GET  /api/cash-streams — rolling YNAB + Braiins mining Sankey (live, no model file)
   GET  /api/runway — cash-flow forecast timeline (live, never stored)
   GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
   GET  /api/bias-spectrum — new-money consider-share (core + ready watchlist; not book weight)

@@ -29,7 +29,7 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from statistics import median
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -136,20 +136,112 @@ def _payout_rows(payouts: Dict[str, Any]) -> List[Dict[str, Any]]:
     return rows
 
 
+def _payout_at(row: Dict[str, Any]) -> Optional[str]:
+    ts = row.get("resolved_at_ts") or row.get("requested_at_ts")
+    if not ts:
+        return None
+    try:
+        return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OSError):
+        return str(ts)
+
+
+def _compact_payouts(payouts: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Compact onchain+lightning history for Cash Streams. No destination addresses."""
+    rows: List[Dict[str, Any]] = []
+    for raw in _payout_rows(payouts):
+        rows.append(
+            {
+                "kind": raw.get("_kind"),
+                "status": raw.get("status"),
+                "amount_btc": _sats_to_btc(raw.get("amount_sats")),
+                "amount_sats": raw.get("amount_sats"),
+                "at": _payout_at(raw),
+                "tx_id": raw.get("tx_id"),
+                "trigger_type": raw.get("trigger_type"),
+            }
+        )
+    return rows
+
+
+def _stamp_payout_prices(
+    payouts: Sequence[Dict[str, Any]],
+    *,
+    previous: Optional[Sequence[Dict[str, Any]]] = None,
+    price: Optional[float] = None,
+) -> List[Dict[str, Any]]:
+    """Keep first-seen Coinbase BTC/USD per tx_id; stamp new rows with ``price``."""
+    prev_by_tx: Dict[str, Dict[str, Any]] = {}
+    for p in previous or []:
+        if isinstance(p, dict) and p.get("tx_id"):
+            prev_by_tx[str(p["tx_id"])] = p
+    try:
+        price_f = float(price) if price is not None else None
+    except (TypeError, ValueError):
+        price_f = None
+    if price_f is not None and price_f <= 0:
+        price_f = None
+    out: List[Dict[str, Any]] = []
+    for p in payouts:
+        if not isinstance(p, dict):
+            continue
+        row = dict(p)
+        old = prev_by_tx.get(str(row.get("tx_id") or "")) or {}
+        stamped = old.get("usd_price_at_payout")
+        try:
+            stamped_f = float(stamped) if stamped is not None else None
+        except (TypeError, ValueError):
+            stamped_f = None
+        if stamped_f is None:
+            stamped_f = price_f
+        row["usd_price_at_payout"] = stamped_f
+        btc = row.get("amount_btc")
+        try:
+            btc_f = float(btc) if btc is not None else None
+        except (TypeError, ValueError):
+            btc_f = None
+        if stamped_f is not None and btc_f is not None:
+            row["usd_at_payout"] = round(btc_f * stamped_f, 2)
+        else:
+            row["usd_at_payout"] = None
+        out.append(row)
+    return out
+
+
+def _coinbase_btc_usd_price(root: Optional[Path] = None) -> Optional[float]:
+    path = (root or ROOT) / "treasury" / "snapshots" / "coinbase_latest.json"
+    data = load_json(path) or {}
+    try:
+        price = float(data.get("btc_usd_price"))
+    except (TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
+def finalize_payout_prices(
+    snap: Dict[str, Any],
+    *,
+    previous: Optional[Dict[str, Any]] = None,
+    price: Optional[float] = None,
+) -> Dict[str, Any]:
+    if "payouts" not in snap or not isinstance(snap.get("payouts"), list):
+        return snap
+    prev_rows: List[Dict[str, Any]] = []
+    if isinstance(previous, dict) and isinstance(previous.get("payouts"), list):
+        prev_rows = [p for p in previous["payouts"] if isinstance(p, dict)]
+    out = dict(snap)
+    out["payouts"] = _stamp_payout_prices(
+        snap["payouts"], previous=prev_rows, price=price
+    )
+    return out
+
+
 def _latest_payout(payouts: Dict[str, Any]) -> Dict[str, Any]:
     """Pick most recent confirmed/queued payout from onchain + lightning lists."""
     rows = _payout_rows(payouts)
     if not rows:
         return {}
     best = rows[0]
-    btc = _sats_to_btc(best.get("amount_sats"))
-    ts = best.get("resolved_at_ts") or best.get("requested_at_ts")
-    at = None
-    if ts:
-        try:
-            at = datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
-        except (TypeError, ValueError, OSError):
-            at = str(ts)
     dest = best.get("destination") or ""
     # Redact middle of address for snapshot hygiene
     if isinstance(dest, str) and len(dest) > 16 and not dest.startswith("ln"):
@@ -157,12 +249,12 @@ def _latest_payout(payouts: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "kind": best.get("_kind"),
         "status": best.get("status"),
-        "amount_btc": btc,
+        "amount_btc": _sats_to_btc(best.get("amount_sats")),
         "amount_sats": best.get("amount_sats"),
         "fee_sats": best.get("fee_sats"),
         "destination_redacted": dest,
         "tx_id": best.get("tx_id"),
-        "at": at,
+        "at": _payout_at(best),
         "trigger_type": best.get("trigger_type"),
     }
 
@@ -354,8 +446,9 @@ def fetch_snapshot(token: str, *, coin: str = COIN, sleep_s: float = REQUEST_GAP
             }
         )
 
-    payouts = raw.get("payouts") or {}
-    last_pay = _latest_payout(payouts if isinstance(payouts, dict) else {})
+    payouts_raw = raw.get("payouts") if "payouts" in raw else None
+    payouts = payouts_raw if isinstance(payouts_raw, dict) else {}
+    last_pay = _latest_payout(payouts)
     balance = _f(coin_block.get("current_balance"))
     daily_avg = _daily_rewards_avg(raw.get("rewards") or {}, coin=coin, days=14)
     cfg = load_config()
@@ -364,7 +457,7 @@ def fetch_snapshot(token: str, *, coin: str = COIN, sleep_s: float = REQUEST_GAP
     if brai_cfg.get("payout_threshold_btc") is not None:
         thr_override = _f(brai_cfg.get("payout_threshold_btc"))
     outlook = _infer_payout_outlook(
-        payouts if isinstance(payouts, dict) else {},
+        payouts,
         balance_btc=balance,
         daily_reward_avg_btc=daily_avg,
         threshold_override=thr_override,
@@ -400,9 +493,13 @@ def fetch_snapshot(token: str, *, coin: str = COIN, sleep_s: float = REQUEST_GAP
             "days_to_next_payout_est": outlook.get("days_to_threshold_est"),
         }
     )
+    if "payouts" in raw and isinstance(raw.get("payouts"), dict):
+        out["payouts"] = _compact_payouts(raw["payouts"])
+    elif "payouts" in errors:
+        out["payouts_error"] = errors["payouts"]
     if errors:
         out["partial_errors"] = errors
-    # Keep compact raw slices for debugging (not full payout history dump)
+    # Compact payouts list is the Cash Streams SoT; skip raw destination dump.
     out["raw_keys"] = sorted(raw.keys())
     return out
 
@@ -460,6 +557,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     sleep_s = 0.0 if args.no_sleep else REQUEST_GAP_S
     snap = fetch_snapshot(token, sleep_s=sleep_s)
     snap["token_source"] = source
+    prev = load_json(args.out or OUT_PATH) or {}
+    snap = finalize_payout_prices(
+        snap,
+        previous=prev if isinstance(prev, dict) else {},
+        price=_coinbase_btc_usd_price(),
+    )
     path = write_snapshot(snap, path=args.out)
 
     if args.print:

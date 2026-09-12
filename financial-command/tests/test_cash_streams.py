@@ -6,11 +6,12 @@ import importlib.util
 import json
 import socket
 import sys
+import tempfile
 import threading
 import unittest
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timezone
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
@@ -22,16 +23,20 @@ if str(ROOT) not in sys.path:
 from treasury.cash_streams import (  # noqa: E402
     ALLOWED_DAYS,
     DEFAULT_DAYS,
+    MINING_NODE_NAME,
     TOP_N_INCOME,
     build_cash_streams,
     clamp_days,
     load_cash_streams,
+    mining_from_snapshots,
 )
 
 FCC = ROOT / "financial-command"
 PAGE = FCC / "cash-streams.html"
 INDEX = FCC / "index.html"
 TODAY = date(2026, 9, 11)
+AS_OF = "2026-09-11T12:00:00+00:00"
+NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 
 GROUPS = [
     {
@@ -76,6 +81,32 @@ def _tx(
 
 def _ids(payload: dict, layer: str) -> list[str]:
     return [n["name"] for n in payload["nodes"] if n["layer"] == layer]
+
+
+def _write_snaps(root: Path, *, braiins=None, coinbase=None) -> None:
+    snap = root / "treasury" / "snapshots"
+    snap.mkdir(parents=True, exist_ok=True)
+    if braiins is not None:
+        (snap / "braiins_latest.json").write_text(
+            json.dumps(braiins), encoding="utf-8"
+        )
+    if coinbase is not None:
+        (snap / "coinbase_latest.json").write_text(
+            json.dumps(coinbase), encoding="utf-8"
+        )
+
+
+def _ok_mining(*, usd: float = 1000.0, count: int = 1, btc: float = 0.01) -> dict:
+    return {
+        "status": "ok",
+        "error": None,
+        "usd": usd,
+        "payout_btc": btc,
+        "payout_count": count,
+        "price_usd": 100000.0,
+        "as_of": AS_OF,
+        "stale": False,
+    }
 
 
 def _load_fcc_server():
@@ -205,16 +236,235 @@ class TestCashStreamsBuilder(unittest.TestCase):
                 "as_of": "2026-09-11T00:00:00+00:00",
             }
 
-        payload = load_cash_streams(
-            days=90,
-            today=TODAY,
-            stale=True,
-            fetch=fake_fetch,
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = load_cash_streams(
+                days=90,
+                today=TODAY,
+                stale=True,
+                fetch=fake_fetch,
+                root=Path(tmp),
+            )
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["ynab"]["stale"])
         self.assertEqual(payload["totals"]["inflow"], 10.0)
         self.assertEqual(payload["ynab"]["as_of"], "2026-09-11T00:00:00+00:00")
+        self.assertEqual(payload["mining"]["status"], "unknown")
+        self.assertIn("Braiins payout feed missing", payload["mining"]["error"])
+
+    def test_coinbase_inflow_excluded_subscription_outflow_kept(self) -> None:
+        txs = [
+            _tx(amount=10_000, payee="Lyft"),
+            _tx(amount=100_000, payee="Coinbase"),
+            _tx(amount=50_000, payee="COINBASE INC."),
+            _tx(amount=-29_990, payee="Coinbase", category_id="c-groc"),
+        ]
+        payload = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            mining=_ok_mining(usd=1000.0),
+        )
+        self.assertEqual(payload["totals"]["inflow"], 1010.0)
+        self.assertEqual(payload["totals"]["outflow"], 29.99)
+        self.assertEqual(set(_ids(payload, "inflow")), {MINING_NODE_NAME, "Lyft"})
+        self.assertNotIn("Coinbase", _ids(payload, "inflow"))
+        self.assertNotIn("COINBASE INC.", _ids(payload, "inflow"))
+        self.assertIn("Groceries", _ids(payload, "category"))
+
+    def test_mining_node_pinned_outside_top_n(self) -> None:
+        txs = [
+            _tx(amount=(TOP_N_INCOME + 1 - i) * 1000, payee=f"P{i}")
+            for i in range(TOP_N_INCOME + 2)
+        ]
+        payload = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            mining=_ok_mining(usd=12.34),
+        )
+        names = _ids(payload, "inflow")
+        self.assertEqual(names[0], MINING_NODE_NAME)
+        self.assertIn("Other income", names)
+        self.assertAlmostEqual(
+            next(n["amount"] for n in payload["nodes"] if n["id"] == "in-mining"),
+            12.34,
+        )
+        ynab_in = [
+            n["name"]
+            for n in payload["nodes"]
+            if n["layer"] == "inflow" and n["id"] not in {"in-mining", "deficit"}
+        ]
+        self.assertEqual(len([n for n in ynab_in if n != "Other income"]), TOP_N_INCOME)
+
+    def test_mining_unknown_does_not_add_zero_node(self) -> None:
+        txs = [_tx(amount=10_000, payee="Lyft")]
+        payload = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            mining={
+                "status": "unknown",
+                "error": "Braiins payout feed stale",
+                "usd": None,
+                "payout_count": 0,
+                "stale": True,
+            },
+        )
+        self.assertEqual(payload["totals"]["inflow"], 10.0)
+        self.assertNotIn(MINING_NODE_NAME, _ids(payload, "inflow"))
+        self.assertEqual(payload["mining"]["status"], "unknown")
+        self.assertIsNone(payload["mining"]["usd"])
+        self.assertIn("stale", payload["mining"]["error"])
+
+    def test_payout_then_withdrawal_counts_income_once(self) -> None:
+        txs = [
+            _tx(amount=10_000, payee="Lyft"),
+            _tx(amount=773_115, payee="Coinbase"),
+        ]
+        payload = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            mining=_ok_mining(usd=773.12, btc=0.01),
+        )
+        self.assertEqual(payload["totals"]["inflow"], 783.12)
+        self.assertEqual(set(_ids(payload, "inflow")), {MINING_NODE_NAME, "Lyft"})
+
+    def test_mining_from_snapshots_sums_window_at_stamped_price(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": AS_OF,
+                    "payouts": [
+                        {
+                            "status": "confirmed",
+                            "amount_btc": 0.01,
+                            "at": "2026-09-01T00:00:00+00:00",
+                            "tx_id": "in-window",
+                            "usd_price_at_payout": 100000.0,
+                        },
+                        {
+                            "status": "confirmed",
+                            "amount_btc": 0.02,
+                            "at": "2025-01-01T00:00:00+00:00",
+                            "tx_id": "out-of-window",
+                            "usd_price_at_payout": 50000.0,
+                        },
+                        {
+                            "status": "queued",
+                            "amount_btc": 0.01,
+                            "at": "2026-09-02T00:00:00+00:00",
+                            "tx_id": "not-confirmed",
+                            "usd_price_at_payout": 100000.0,
+                        },
+                    ],
+                },
+                coinbase={
+                    "as_of": AS_OF,
+                    "btc_usd_price": 99999.0,
+                    "source": "live",
+                },
+            )
+            start, end, _days = (date(2026, 6, 13), date(2026, 9, 11), 90)
+            got = mining_from_snapshots(
+                start=start, end=end, root=root, now=NOW
+            )
+        self.assertEqual(got["status"], "ok")
+        self.assertEqual(got["usd"], 1000.0)
+        self.assertEqual(got["payout_count"], 1)
+        self.assertEqual(got["payouts"][0]["tx_id"], "in-window")
+
+    def test_mining_unknown_when_payouts_key_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": AS_OF,
+                    "last_payout_btc": 0.005,
+                },
+                coinbase={"as_of": AS_OF, "btc_usd_price": 100000.0},
+            )
+            got = mining_from_snapshots(
+                start=date(2026, 6, 13),
+                end=date(2026, 9, 11),
+                root=root,
+                now=NOW,
+            )
+        self.assertEqual(got["status"], "unknown")
+        self.assertIsNone(got["usd"])
+        self.assertIn("payout history missing", got["error"])
+
+    def test_mining_unknown_when_price_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": AS_OF,
+                    "payouts": [],
+                },
+                coinbase={
+                    "as_of": "2026-09-10T00:00:00+00:00",
+                    "btc_usd_price": 100000.0,
+                },
+            )
+            got = mining_from_snapshots(
+                start=date(2026, 6, 13),
+                end=date(2026, 9, 11),
+                root=root,
+                now=NOW,
+            )
+        self.assertEqual(got["status"], "unknown")
+        self.assertIn("Coinbase price feed stale", got["error"])
+
+    def test_load_adds_mining_from_snapshots(self) -> None:
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=10_000, payee="Lyft")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": AS_OF,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": AS_OF,
+                    "payouts": [
+                        {
+                            "status": "confirmed",
+                            "amount_btc": 0.005,
+                            "at": "2026-09-02T02:40:25+00:00",
+                            "tx_id": "e2a9",
+                            "usd_price_at_payout": 80000.0,
+                        }
+                    ],
+                },
+                coinbase={"as_of": AS_OF, "btc_usd_price": 80000.0},
+            )
+            payload = load_cash_streams(
+                days=90,
+                today=TODAY,
+                stale=False,
+                fetch=fake_fetch,
+                root=root,
+                now=NOW,
+            )
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["mining"]["status"], "ok")
+        self.assertEqual(payload["totals"]["inflow"], 410.0)
+        self.assertIn(MINING_NODE_NAME, _ids(payload, "inflow"))
 
 
 class TestCashStreamsPage(unittest.TestCase):
@@ -235,6 +485,8 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn("estimated", html.lower())
         self.assertIn("load-error", html)
         self.assertIn("stale-banner", html)
+        self.assertIn("mining-banner", html)
+        self.assertIn("Bitcoin mining", html)
         self.assertIn('id="nav-capital-flows"', html)
 
     def test_index_links_cash_streams(self) -> None:
@@ -293,6 +545,8 @@ class TestCashStreamsApi(unittest.TestCase):
         self.assertIn("ynab", data)
         self.assertIn("stale", data["ynab"])
         self.assertIn("soft_preserved", data["ynab"])
+        self.assertIn("mining", data)
+        self.assertIn("status", data["mining"])
 
         page_code, page_body = self._get("/financial-command/cash-streams")
         self.assertEqual(page_code, 200)

@@ -11,7 +11,12 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from treasury.braiins_sync import _infer_payout_outlook  # noqa: E402
+from treasury.braiins_sync import (  # noqa: E402
+    _compact_payouts,
+    _infer_payout_outlook,
+    _stamp_payout_prices,
+    finalize_payout_prices,
+)
 
 
 class TestPayoutOutlook(unittest.TestCase):
@@ -55,6 +60,65 @@ class TestPayoutOutlook(unittest.TestCase):
         asics = next(s for s in flows["income_sources"] if s["id"] == "asics")
         self.assertEqual(asics["payout_threshold_btc"], 0.005)
         self.assertEqual(flows["integrations"]["braiins_pool"]["payout_threshold_btc"], 0.005)
+
+
+class TestPayoutHistory(unittest.TestCase):
+    RAW = {
+        "onchain": [
+            {
+                "status": "confirmed",
+                "amount_sats": 509546,
+                "resolved_at_ts": 1788316825,
+                "tx_id": "abc",
+                "destination": "3K9pyUufLpazzUC1NTD16JkwCouQmF3TLg",
+                "trigger_type": "triggered",
+            }
+        ],
+        "lightning": [],
+    }
+
+    def test_compact_omits_destination(self) -> None:
+        rows = _compact_payouts(self.RAW)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["tx_id"], "abc")
+        self.assertAlmostEqual(rows[0]["amount_btc"], 0.00509546)
+        self.assertEqual(rows[0]["at"], "2026-09-02T02:40:25+00:00")
+        self.assertNotIn("destination", rows[0])
+        self.assertNotIn("destination_redacted", rows[0])
+
+    def test_stamp_preserves_previous_price(self) -> None:
+        compact = _compact_payouts(self.RAW)
+        first = _stamp_payout_prices(compact, previous=[], price=80000.0)
+        self.assertEqual(first[0]["usd_price_at_payout"], 80000.0)
+        self.assertEqual(first[0]["usd_at_payout"], 407.64)
+        second = _stamp_payout_prices(
+            compact, previous=first, price=90000.0
+        )
+        self.assertEqual(second[0]["usd_price_at_payout"], 80000.0)
+        self.assertEqual(second[0]["usd_at_payout"], 407.64)
+
+    def test_finalize_skips_when_payouts_missing(self) -> None:
+        snap = {"ok": True, "payouts_error": "HTTP 500"}
+        out = finalize_payout_prices(snap, previous={}, price=80000.0)
+        self.assertNotIn("payouts", out)
+
+    def test_new_payout_gets_current_price(self) -> None:
+        prev = [
+            {
+                "tx_id": "old",
+                "amount_btc": 0.005,
+                "usd_price_at_payout": 70000.0,
+            }
+        ]
+        new_rows = [
+            {"tx_id": "old", "amount_btc": 0.005},
+            {"tx_id": "new", "amount_btc": 0.01},
+        ]
+        stamped = _stamp_payout_prices(new_rows, previous=prev, price=80000.0)
+        by_tx = {r["tx_id"]: r for r in stamped}
+        self.assertEqual(by_tx["old"]["usd_price_at_payout"], 70000.0)
+        self.assertEqual(by_tx["new"]["usd_price_at_payout"], 80000.0)
+        self.assertEqual(by_tx["new"]["usd_at_payout"], 800.0)
 
 
 if __name__ == "__main__":
