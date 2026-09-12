@@ -338,8 +338,8 @@ class TestNotifyIfNeeded(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 0)
 
     def test_stale_rh_cooldown(self):
+        import os
         import tempfile
-        from datetime import datetime, timezone
         from pathlib import Path
 
         from treasury import fund_manager as fm
@@ -350,26 +350,42 @@ class TestNotifyIfNeeded(unittest.TestCase):
                 "warnings": [],
             }
         }
+        urls: list[str] = []
+
+        def fake_urlopen(req, timeout=15):
+            urls.append(req.full_url)
+            resp = mock.MagicMock()
+            resp.status = 201
+            resp.getcode.return_value = 201
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = None
+            return resp
+
         with tempfile.TemporaryDirectory() as td:
             snap = Path(td)
             state = snap / "ntfy_stale_rh_state.json"
+            env = {
+                "GITHUB_TOKEN": "ghs_test",
+                "PI_OPS_ALERT_ISSUE": "701",
+                "FCC_ALERT_KILL_SWITCH": "",
+            }
             with mock.patch.object(fm, "NTFY_STALE_RH_STATE", state), mock.patch.object(
                 fm, "SNAPSHOTS_DIR", snap
             ), mock.patch.object(
                 fm, "load_config", return_value={"notifications": {"enabled": True, "stale_rh_cooldown_hours": 6}}
-            ), mock.patch("urllib.request.urlopen") as urlopen:
-                resp = mock.MagicMock()
-                resp.status = 200
-                resp.__enter__.return_value = resp
-                resp.__exit__.return_value = None
-                urlopen.return_value = resp
-
+            ), mock.patch.dict(os.environ, env, clear=False), mock.patch(
+                "urllib.request.urlopen", side_effect=fake_urlopen
+            ):
                 first = notify_if_needed(
                     decision_or_review={"kind": "hold", "outcome": "hold"},
                     treasury_eval=stale_eval,
                 )
                 self.assertTrue(first.get("notified"), first)
-                self.assertEqual(urlopen.call_count, 1)
+                self.assertFalse(first.get("ntfy"), first)
+                self.assertFalse(first.get("page"), first)
+                self.assertEqual(len(urls), 1)
+                self.assertIn("api.github.com", urls[0])
+                self.assertNotIn("ntfy.sh", urls[0])
 
                 # Immediate re-notify should be suppressed by cooldown
                 second = notify_if_needed(
@@ -378,7 +394,7 @@ class TestNotifyIfNeeded(unittest.TestCase):
                 )
                 self.assertFalse(second.get("notified"), second)
                 self.assertIn("cooldown", second.get("reason") or "")
-                self.assertEqual(urlopen.call_count, 1)
+                self.assertEqual(len(urls), 1)
 
                 # force bypasses cooldown
                 third = notify_if_needed(
@@ -387,7 +403,8 @@ class TestNotifyIfNeeded(unittest.TestCase):
                     force=True,
                 )
                 self.assertTrue(third.get("notified"), third)
-                self.assertEqual(urlopen.call_count, 2)
+                self.assertEqual(len(urls), 2)
+                self.assertTrue(all("api.github.com" in u for u in urls), urls)
 
     def test_leftover_robinhood_age_quiet_when_sot_fresh(self):
         import tempfile
@@ -458,6 +475,86 @@ class TestNotifyIfNeeded(unittest.TestCase):
         self.assertFalse(out.get("notified"), out)
         self.assertIn("skipped", (out.get("reason") or "").lower())
         self.assertEqual(urlopen.call_count, 0)
+
+
+    def test_error_pages_ntfy_and_github(self):
+        import os
+
+        urls: list[str] = []
+
+        def fake_urlopen(req, timeout=15):
+            urls.append(req.full_url)
+            resp = mock.MagicMock()
+            resp.status = 200
+            resp.getcode.return_value = 200
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = None
+            return resp
+
+        env = {
+            "GITHUB_TOKEN": "ghs_test",
+            "NTFY_TOKEN": "tk_test",
+            "PI_OPS_ALERT_ISSUE": "701",
+            "FCC_ALERT_KILL_SWITCH": "",
+        }
+        with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+            "urllib.request.urlopen", side_effect=fake_urlopen
+        ), mock.patch(
+            "treasury.fund_manager.load_config",
+            return_value={"notifications": {"enabled": True, "ntfy_topic": "cvolk-grok-7f3k9x"}},
+        ):
+            out = notify_if_needed(
+                decision_or_review={
+                    "kind": "error",
+                    "outcome": "error",
+                    "summary": "no agentic block",
+                },
+                treasury_eval={},
+            )
+        self.assertTrue(out.get("page"), out)
+        self.assertTrue(out.get("ntfy"), out)
+        self.assertTrue(any("api.github.com" in u for u in urls), urls)
+        self.assertTrue(any("ntfy.sh" in u for u in urls), urls)
+
+    def test_need_llm_github_not_ntfy(self):
+        import os
+
+        urls: list[str] = []
+
+        def fake_urlopen(req, timeout=15):
+            urls.append(req.full_url)
+            resp = mock.MagicMock()
+            resp.status = 201
+            resp.getcode.return_value = 201
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = None
+            return resp
+
+        env = {
+            "GITHUB_TOKEN": "ghs_test",
+            "PI_OPS_ALERT_ISSUE": "701",
+            "FCC_ALERT_KILL_SWITCH": "",
+        }
+        with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+            "urllib.request.urlopen", side_effect=fake_urlopen
+        ), mock.patch(
+            "treasury.fund_manager.load_config",
+            return_value={"notifications": {"enabled": True, "ntfy_topic": "cvolk-grok-7f3k9x"}},
+        ):
+            out = notify_if_needed(
+                decision_or_review={
+                    "kind": "deploy",
+                    "outcome": "need_llm",
+                    "summary": "idle cash",
+                    "rules_review": {"outcome": "need_llm", "need_llm": True, "summary": "idle cash"},
+                },
+                treasury_eval={},
+            )
+        self.assertTrue(out.get("notified"), out)
+        self.assertFalse(out.get("page"), out)
+        self.assertFalse(out.get("ntfy"), out)
+        self.assertTrue(any("api.github.com" in u for u in urls), urls)
+        self.assertFalse(any("ntfy.sh" in u for u in urls), urls)
 
 
 class TestAnalyze(unittest.TestCase):
