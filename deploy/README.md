@@ -79,13 +79,16 @@ python3 orchestra/server.py --backend http://PI_OR_TAILSCALE:8790 --no-browser
 
 ## Autonomous git sync on the Pi (default prod path)
 
-`workspace-sync.timer` runs `deploy/workspace_sync.sh` every 5 minutes:
+`workspace-sync.timer` runs the **durable** copy `~/.config/personal-workspace/workspace_sync.sh` every 5 minutes (`work/treasury` does not contain `deploy/`):
 
 1. Uses `GITHUB_TOKEN` from `~/.config/workflow-scheduler.env` when present  
 2. **Refuses** `SYNC_BRANCH` other than `work/treasury` (exit non-zero; never `master` or `work/holistic`)  
 3. Clears stuck rebase/merge/cherry-pick if any (prod must not sit detached)  
 4. Hard-resets **`work/treasury`** to **`origin/work/treasury`** (durable runtime paths restored after)  
-5. If `HEAD` moved → `deploy/on_merge.sh` path-scoped restart (**not** thrash-all)
+5. Installs a live-clone `pre-commit` hook that refuses local `protect(treasury)` commits (#661)  
+6. Restarts FCC when `origin/work/treasury` ≠ last-served SHA — even if this tick's HEAD did not move (`on_merge.sh` is absent on `work/treasury`)
+
+Do **not** overlay `origin/master` FitDash trees onto this clone. Do **not** `git pull` `work/holistic` onto the FCC live root.
 
 Manual: `systemctl --user start workspace-sync.service`
 
@@ -121,7 +124,7 @@ Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access 
 
 ## FCC tip health (#562)
 
-Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Mismatch → log + ntfy once (6h cooldown). **Never** auto-reset to master/holistic.
+Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Mismatch → log + ntfy once (6h cooldown). If still red after **1h**, ntfy again at priority 5 titled `SUSTAINED` (1h cooldown while red) so a multi-hour stall cannot sit silent (#661). **Never** auto-reset to master/holistic.
 
 ```bash
 # On prism-gateway (unit file + durable script only — no repo rsync)

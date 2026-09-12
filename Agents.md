@@ -22,6 +22,7 @@ python3 projects-dashboard/git_workflow.py protect "fix(area): short reason"   #
 # open PR into work/<area> — do NOT commit the fix onto work/<area> then PR that tip
 ```
 
+- **Never** `protect` / `git commit` on the Pi FCC live clone (`~/personal-workspace`, `FCC_LIVE_TREE=main`). Snapshots stay dirty; `workspace-sync` durable tar preserves them. Phantom `protect(treasury)` commits are what #661 sat on all day.
 - **Never** put a reviewable fix on `work/<area>` and open a PR *into* that same branch — auto-push of durable state advances the base and GitHub can auto-close the PR as merged.
 - **Never** push `master` via protect (blocked).
 - Never commit secrets (`.env`, OAuth tokens, `~/.config/**`, credentials).

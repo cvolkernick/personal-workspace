@@ -23,6 +23,8 @@ from typing import Any, Optional
 EXPECTED_BRANCH = "work/treasury"
 REFUSED_BRANCHES = frozenset({"master", "main", "work/holistic"})
 DEFAULT_COOLDOWN_HOURS = 6.0
+DEFAULT_SUSTAINED_HOURS = 1.0
+DEFAULT_SUSTAINED_COOLDOWN_HOURS = 1.0
 DEFAULT_NTFY_TOPIC = "cvolk-grok-7f3k9x"
 STATE_NAME = "fcc_tip_health_state.json"
 
@@ -138,39 +140,85 @@ def _state_path(explicit: Optional[Path] = None) -> Path:
     return Path.home() / ".config" / "personal-workspace" / STATE_NAME
 
 
-def _on_cooldown(path: Path, cooldown_hours: float, *, now: Optional[datetime] = None) -> bool:
+def _parse_iso(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _load_state(path: Path) -> dict[str, Any]:
     if not path.is_file():
-        return False
+        return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return False
-    last = data.get("last_notified_at")
-    if not last:
-        return False
-    try:
-        last_dt = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
-        if last_dt.tzinfo is None:
-            last_dt = last_dt.replace(tzinfo=timezone.utc)
-    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_state(path: Path, body: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _on_cooldown(path: Path, cooldown_hours: float, *, now: Optional[datetime] = None) -> bool:
+    last_dt = _parse_iso(_load_state(path).get("last_notified_at"))
+    if last_dt is None:
         return False
     now_dt = now or datetime.now(timezone.utc)
-    return (now_dt - last_dt.astimezone(timezone.utc)).total_seconds() < float(
-        cooldown_hours
-    ) * 3600.0
+    return (now_dt - last_dt).total_seconds() < float(cooldown_hours) * 3600.0
+
+
+def _violation_age_hours(data: dict[str, Any], *, now: Optional[datetime] = None) -> float:
+    first = _parse_iso(data.get("first_violation_at"))
+    if first is None:
+        return 0.0
+    now_dt = now or datetime.now(timezone.utc)
+    return max(0.0, (now_dt - first).total_seconds() / 3600.0)
 
 
 def _mark_notified(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    prev = _load_state(path)
+    first = prev.get("first_violation_at") or utc_now_iso()
     body = {
         "last_notified_at": utc_now_iso(),
         "last_mismatches": payload.get("mismatches"),
         "head": payload.get("head"),
         "attached": payload.get("attached"),
+        "first_violation_at": first,
+        "sustained": bool(payload.get("sustained")),
     }
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    _write_state(path, body)
+
+
+def _mark_healthy(path: Path) -> None:
+    prev = _load_state(path)
+    if not prev:
+        return
+    body = {k: v for k, v in prev.items() if k != "first_violation_at"}
+    body["outcome"] = "ok"
+    body["sustained"] = False
+    _write_state(path, body)
+
+
+def _record_violation_seen(path: Path, payload: dict[str, Any]) -> None:
+    """Persist first_violation_at even when ntfy is on cooldown (#661)."""
+    prev = _load_state(path)
+    body = dict(prev)
+    body["last_mismatches"] = payload.get("mismatches")
+    body["head"] = payload.get("head")
+    body["attached"] = payload.get("attached")
+    if not body.get("first_violation_at"):
+        body["first_violation_at"] = utc_now_iso()
+    _write_state(path, body)
 
 
 def ntfy_mismatch(
@@ -179,41 +227,87 @@ def ntfy_mismatch(
     workspace: Path,
     state_path: Path,
     cooldown_hours: float = DEFAULT_COOLDOWN_HOURS,
+    sustained_hours: float = DEFAULT_SUSTAINED_HOURS,
+    sustained_cooldown_hours: float = DEFAULT_SUSTAINED_COOLDOWN_HOURS,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     if result.get("ok"):
+        _mark_healthy(state_path)
         return {"ok": True, "notified": False, "skipped": "healthy"}
-    if _on_cooldown(state_path, cooldown_hours):
-        return {"ok": True, "notified": False, "skipped": "cooldown"}
+
+    prev = _load_state(state_path)
+    if not prev.get("first_violation_at"):
+        _record_violation_seen(state_path, result)
+        prev = _load_state(state_path)
+    age_h = _violation_age_hours(prev)
+    sustained = age_h >= float(sustained_hours)
+    result = {**result, "sustained": sustained, "sustained_hours": age_h}
+
+    effective_cd = (
+        float(sustained_cooldown_hours) if sustained else float(cooldown_hours)
+    )
+    if _on_cooldown(state_path, effective_cd):
+        _record_violation_seen(state_path, result)
+        return {
+            "ok": True,
+            "notified": False,
+            "skipped": "cooldown",
+            "sustained": sustained,
+        }
+
     topic = _topic(workspace)
-    if not topic:
-        _mark_notified(state_path, result)
-        return {"ok": True, "notified": False, "skipped": "no-topic"}
-    title = "FCC · git tip drift · prism-gateway"
+    title = (
+        f"FCC · git tip drift SUSTAINED {age_h:.1f}h · prism-gateway"
+        if sustained
+        else "FCC · git tip drift · prism-gateway"
+    )
+    action = (
+        "Sustained >1h — page #workflow (Forge). Do not auto-reset to master/holistic."
+        if sustained
+        else "Do not auto-reset to master/holistic. Silent to Chris unless kill-switch."
+    )
     lines = [
         f"expected={result.get('expected_branch')}",
         f"attached={result.get('attached')}",
         f"HEAD={(result.get('head') or '')[:12]}",
         f"origin={(result.get('origin_sha') or '')[:12]}",
         f"current-branch.txt={result.get('current_branch_txt')!r}",
+        f"sustained_hours={age_h:.2f}",
         "mismatches:",
         *[f"- {m}" for m in (result.get("mismatches") or [])],
-        "Do not auto-reset to master/holistic. Silent to Chris unless kill-switch.",
+        action,
     ]
     text = "\n".join(lines)
+    headers = {
+        "Title": title,
+        "Priority": "5" if sustained else "4",
+        "Tags": "warning,git",
+    }
     if dry_run:
         _mark_notified(state_path, result)
-        return {"ok": True, "notified": False, "skipped": "dry-run", "title": title, "text": text}
+        return {
+            "ok": True,
+            "notified": False,
+            "skipped": "dry-run",
+            "title": title,
+            "text": text,
+            "sustained": sustained,
+        }
+    if not topic:
+        _mark_notified(state_path, result)
+        return {
+            "ok": True,
+            "notified": False,
+            "skipped": "no-topic",
+            "title": title,
+            "sustained": sustained,
+        }
     url = f"https://ntfy.sh/{topic}"
     try:
         req = urllib.request.Request(
             url,
             data=text.encode("utf-8"),
-            headers={
-                "Title": title,
-                "Priority": "4",
-                "Tags": "warning,git",
-            },
+            headers=headers,
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -223,6 +317,7 @@ def ntfy_mismatch(
                 "notified": True,
                 "status": getattr(resp, "status", None) or resp.getcode(),
                 "title": title,
+                "sustained": sustained,
             }
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         return {"ok": False, "notified": False, "error": str(exc)}
