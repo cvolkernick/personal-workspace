@@ -21,9 +21,9 @@
     "min_liquid_buffer_usd": 200
   },
   "coinbase_manual": {
-    "loan_principal_usdc": "120.50",
+    "loan_principal_usdc": "0",
     "collateral_btc_usd": "242.84",
-    "ltv": "0.5",
+    "ltv": "0",
     "vault_usdc": "100",
     "card_balance": null,
     "card_available_credit": null,
