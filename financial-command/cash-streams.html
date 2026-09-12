@@ -162,7 +162,7 @@
         <a class="btn" href="interest-spectrum.html" id="nav-interest-spectrum">Interest Spectrum</a>
         <a class="btn" href="bias-spectrum.html" id="nav-bias-spectrum">Bias Spectrum</a>
         <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet">Fleet</a>
-        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+        <button type="button" class="primary" id="btn-refresh" title="Re-fetch live YNAB transactions for this chart. Does not sync X Money / One Card / RH Checking balance snapshots.">Refresh</button>
       </div>
     </div>
   </div>
@@ -174,7 +174,7 @@
 
     <section class="card">
       <h2>Window</h2>
-      <p class="hint">Live YNAB + Braiins mining, rolling window ending today. Transfers excluded. Coinbase→Main withdrawals are transfers, not income. Uncategorized stays visible. Missing mining feeds are a loud unknown, never a silent $0. No CDN.</p>
+      <p class="hint">Live YNAB transactions + Braiins mining, rolling window ending today. Refresh re-fetches this chart from YNAB now — it does not sync cash-balance snapshots (X Money / One Card / RH Checking). Transfers excluded. Coinbase→Main withdrawals are transfers, not income. Uncategorized stays visible. Missing mining feeds are a loud unknown, never a silent $0. No CDN.</p>
       <div class="controls" id="period-toggle">
         <button type="button" data-days="30">30d</button>
         <button type="button" data-days="60">60d</button>
@@ -331,6 +331,8 @@
       currentDays = days || currentDays;
       hideError();
       document.getElementById("stale-banner").classList.add("hidden");
+      const btn = document.getElementById("btn-refresh");
+      btn.disabled = true;
       document.querySelectorAll("#period-toggle button").forEach((b) => {
         b.classList.toggle("active", Number(b.getAttribute("data-days")) === currentDays);
       });
@@ -373,8 +375,8 @@
           const banner = document.getElementById("stale-banner");
           banner.classList.remove("hidden");
           const why = ynab.soft_preserved
-            ? "YNAB live refresh failed; preserved feed in use."
-            : "YNAB cash feeds older than 6h.";
+            ? "Live YNAB transaction pull failed; preserved feed in use."
+            : "Live YNAB transaction pull is stale.";
           banner.textContent =
             why + " as_of " + (ynab.as_of || "unknown") + ". Numbers marked estimated — not a clean chart on stale data.";
         }
@@ -396,6 +398,8 @@
         renderSankey(data);
       } catch (e) {
         showError("Could not load Cash Streams (" + e.message + "). Start FCC: python3 financial-command/server.py");
+      } finally {
+        btn.disabled = false;
       }
     }
 

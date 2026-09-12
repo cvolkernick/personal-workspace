@@ -10,6 +10,10 @@ Coinbase→Main withdrawals (payee contains "coinbase") are inflows excluded so
 mining is not double-counted when USD later hits Main. Uncategorized outflows
 stay an explicit node. Missing/stale Braiins or Coinbase price feeds are a
 loud mining-unknown state, never a silent omit.
+
+Cash Streams freshness is the live YNAB *transaction* pull ``as_of``, not the
+age of balance snapshots (``x_money`` / ``one_card`` / ``rh_checking``). Those
+files feed the main FCC cash stack; this page does not read them.
 """
 
 from __future__ import annotations
@@ -623,34 +627,39 @@ def load_cash_streams(
     fetch=None,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """Orchestrate live YNAB pull + Sankey. ``fetch`` is injectable for tests."""
+    """Orchestrate live YNAB pull + Sankey. ``fetch`` is injectable for tests.
+
+    ``stale`` is an explicit overlay for tests. Default freshness is the live
+    pull: success → not stale; failure → stale. Balance-snapshot mtimes are
+    not this page's clock (#668).
+    """
     start, end, days = window_bounds(days, today=today)
     base = root or ROOT
-    stale_flag = _fallback_cash_stale(base) if stale is None else bool(stale)
-    soft = ynab_soft_preserved(base)
-    snap_as_of = ynab_as_of_from_snapshots(base)
     fetcher = fetch or fetch_ynab_window
     pulled = fetcher(start.isoformat())
     mining = mining_from_snapshots(start=start, end=end, root=base, now=now)
     if not pulled.get("ok"):
+        snap_as_of = ynab_as_of_from_snapshots(base)
+        fail_stale = True if stale is None else bool(stale)
         return build_cash_streams(
             days=days,
             today=end,
-            ynab_stale=stale_flag,
-            ynab_soft_preserved=soft,
-            ynab_as_of=snap_as_of,
+            ynab_stale=fail_stale,
+            ynab_soft_preserved=False,
+            ynab_as_of=pulled.get("as_of") or snap_as_of,
             error=str(pulled.get("error") or "YNAB fetch failed"),
             mining=mining,
         )
     as_of = pulled.get("as_of") or datetime.now(timezone.utc).isoformat()
+    ok_stale = False if stale is None else bool(stale)
     return build_cash_streams(
         days=days,
         today=end,
         transactions=pulled.get("transactions") or [],
         category_groups=pulled.get("category_groups") or [],
         on_budget_ids=pulled.get("on_budget_ids"),
-        ynab_stale=stale_flag,
-        ynab_soft_preserved=soft,
+        ynab_stale=ok_stale,
+        ynab_soft_preserved=False,
         ynab_as_of=as_of,
         mining=mining,
     )

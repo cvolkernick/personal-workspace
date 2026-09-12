@@ -583,7 +583,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
             try:
                 qs = parse_qs(parsed.query or "")
                 days_raw = (qs.get("days") or ["90"])[0]
-                payload = load_cash_streams(days=days_raw, stale=_ynab_cash_stale(6.0))
+                # Freshness is the live YNAB txn pull inside load_cash_streams.
+                # Do not pass balance-snapshot mtimes (#668 false-positive banner).
+                payload = load_cash_streams(days=days_raw)
                 self._json(200, payload)
             except Exception as e:
                 self._json(

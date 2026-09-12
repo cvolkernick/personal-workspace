@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Install (macOS user launchd) — YNAB cash snapshots every 3 hours (#668):
+    cp treasury/deploy/com.personalworkspace.ynab-refresh.plist ~/Library/LaunchAgents/
+    launchctl bootout gui/$(id -u)/com.personalworkspace.ynab-refresh 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.ynab-refresh.plist
+
+  Requires: ~/.config/ynab/token (or YNAB_TOKEN)
+
+  Unload:
+    launchctl bootout gui/$(id -u)/com.personalworkspace.ynab-refresh
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.personalworkspace.ynab-refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/ynab_refresh.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/opt/homebrew/sbin:/Users/cvolkernick/.local/bin:/usr/local/bin:/Users/cvolkernick/.grok/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/cvolkernick</string>
+    <key>FCC_HOST_TAG</key>
+    <string>mac</string>
+  </dict>
+  <!-- 3 hours — under FCC 6h stale threshold; covers nights/weekends -->
+  <key>StartInterval</key>
+  <integer>10800</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/ynab_refresh_launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/ynab_refresh_launchd.err.log</string>
+</dict>
+</plist>

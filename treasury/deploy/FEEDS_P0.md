@@ -21,6 +21,7 @@ Pi FCC is still an offline consumer of those pushed files. RH is the exception.
 | 5 | After Mac **non-RH** success → push CB/YNAB/Sheet/Braiins/treasury → Pi. **Not** `robinhood_latest.json` |
 | 6 | **Coinbase + Solana** Mac producer hourly (`com.personalworkspace.cb-solana-refresh`) |
 | 7 | **#555** ntfy gates: no page on `skipped` / `no_refresh_path`; no page on `local_mcp_timeout` if `as_of` is under 6h or MCP is not the live path; Mac leftover fund-manager must not treat `rh_checking` as RH brokerage. Do **not** reload Mac `rh-refresh`. |
+| 8 | **#668** YNAB cash snapshots (One Card / RH Checking / X Money): dedicated `ynab-refresh` every **3h** on Pi systemd + Mac launchd. Not a fund-manager sidecar (weekdays/market-hours only). |
 
 ## Install / reload
 
@@ -76,6 +77,9 @@ TREASURY_RH_ROLE=consumer TREASURY_SKIP_LOCAL_MCP=1 python3 -m treasury.rh_snaps
 
 # Push only (non-RH snapshots)
 python3 -m treasury.rh_snapshot_sync --push-only
+
+# YNAB cash snapshots (One Card / RH Checking / X Money)
+bash treasury/ynab_refresh.sh
 ```
 
 ## Logs

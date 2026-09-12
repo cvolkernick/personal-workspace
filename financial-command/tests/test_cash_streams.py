@@ -251,6 +251,57 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertEqual(payload["mining"]["status"], "unknown")
         self.assertIn("Braiins payout feed missing", payload["mining"]["error"])
 
+    def test_live_pull_ignores_stale_balance_snapshots(self) -> None:
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=10_000, payee="Lyft")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-09-12T08:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            snap = root / "treasury" / "snapshots"
+            snap.mkdir(parents=True, exist_ok=True)
+            old = {
+                "source": "ynab",
+                "as_of": "2026-09-08T19:47:13+00:00",
+            }
+            for name in (
+                "x_money_latest.json",
+                "one_card_latest.json",
+                "rh_checking_latest.json",
+            ):
+                (snap / name).write_text(json.dumps(old), encoding="utf-8")
+            payload = load_cash_streams(
+                days=90,
+                today=TODAY,
+                fetch=fake_fetch,
+                root=root,
+            )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["ynab"]["stale"])
+        self.assertFalse(payload["ynab"]["soft_preserved"])
+        self.assertEqual(payload["ynab"]["as_of"], "2026-09-12T08:00:00+00:00")
+
+    def test_live_fail_is_stale_without_snapshot_soft_preserve(self) -> None:
+        def fake_fetch(since: str) -> dict:
+            return {"ok": False, "error": "YNAB HTTP 401"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = load_cash_streams(
+                days=90,
+                today=TODAY,
+                fetch=fake_fetch,
+                root=Path(tmp),
+            )
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["ynab"]["stale"])
+        self.assertFalse(payload["ynab"]["soft_preserved"])
+        self.assertIn("YNAB HTTP 401", payload["error"])
+
     def test_coinbase_inflow_excluded_subscription_outflow_kept(self) -> None:
         txs = [
             _tx(amount=10_000, payee="Lyft"),
@@ -488,6 +539,9 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn("mining-banner", html)
         self.assertIn("Bitcoin mining", html)
         self.assertIn('id="nav-capital-flows"', html)
+        self.assertIn("Does not sync", html)
+        self.assertIn("Re-fetch live YNAB transactions", html)
+        self.assertNotIn("YNAB cash feeds older than 6h", html)
 
     def test_index_links_cash_streams(self) -> None:
         html = INDEX.read_text(encoding="utf-8")

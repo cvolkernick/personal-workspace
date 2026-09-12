@@ -1,0 +1,18 @@
+[Unit]
+Description=YNAB cash snapshot producer (One Card / RH Checking / X Money, #668)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=prism-agent
+Group=prism-agent
+WorkingDirectory=/home/prism-agent/personal-workspace
+ExecStart=/home/prism-agent/personal-workspace/treasury/ynab_refresh.sh
+Environment=HOME=/home/prism-agent
+Environment=FCC_HOST_TAG=prism
+Environment=PATH=/home/prism-agent/.grok/bin:/home/prism-agent/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Read-only YNAB pull. Does not place orders.
+
+[Install]
+WantedBy=multi-user.target
