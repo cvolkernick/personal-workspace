@@ -21,10 +21,10 @@ SW = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
 class EnergyWeightAlignMarkup(unittest.TestCase):
     def test_overlay_wired_before_app_js(self):
         self.assertIn("/energy-weight-align.js?v=ewi-cap-1", HTML)
-        self.assertIn("/app.js?v=recipes-1", HTML)
+        self.assertIn("/app.js?v=cals-90d-1", HTML)
         self.assertLess(
             HTML.find("/energy-weight-align.js?v=ewi-cap-1"),
-            HTML.find("/app.js?v=recipes-1"),
+            HTML.find("/app.js?v=cals-90d-1"),
         )
         self.assertIn("FitDashEnergyWeightAlign", APP_JS)
         self.assertIn("energyWeightAlignment", APP_JS)
@@ -45,8 +45,8 @@ class EnergyWeightAlignMarkup(unittest.TestCase):
         self.assertIn("Do not deepen the cut on this gap.", OVERLAY)
 
     def test_does_not_touch_other_surfaces(self):
-        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 75;", APP_JS)
-        self.assertIn("Calories intake vs burned · 75d", HTML)
+        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 90;", APP_JS)
+        self.assertIn("Calories intake vs burned · 90d", HTML)
         self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
         self.assertNotIn("chart.js", OVERLAY.lower())
         self.assertNotIn(".sb-shell", OVERLAY)
@@ -70,14 +70,15 @@ class EnergyWeightAlignNode(unittest.TestCase):
 
 class EnergyWeightAlignCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v98"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v99"', SW)
+        self.assertNotIn("fitdash-shell-v98", SW)
         self.assertNotIn("fitdash-shell-v96", SW)
         self.assertNotIn("fitdash-shell-v90", SW)
         self.assertNotIn("fitdash-shell-v89", SW)
         self.assertNotIn("fitdash-shell-v88", SW)
         self.assertNotIn("fitdash-shell-v87", SW)
         self.assertNotIn("fitdash-shell-v86", SW)
-        self.assertIn("/app.js?v=recipes-1", SW)
+        self.assertIn("/app.js?v=cals-90d-1", SW)
         self.assertNotIn("fitdash-shell-v81", SW)
         self.assertNotIn("fitdash-shell-v80", SW)
         self.assertNotIn("fitdash-shell-v79", SW)
