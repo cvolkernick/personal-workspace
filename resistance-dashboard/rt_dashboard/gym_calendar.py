@@ -108,6 +108,21 @@ def parse_dt(raw: str) -> Optional[datetime]:
     return dt
 
 
+def clock_label(dt: datetime) -> str:
+    """Gym clock in America/New_York, matching nutrition eat_at_label (h:mm AM/PM)."""
+    local = dt.astimezone(gym_tz()) if dt.tzinfo else dt.replace(tzinfo=gym_tz())
+    h24 = local.hour
+    h = h24 % 12 or 12
+    return f"{h}:{local.minute:02d} {'AM' if h24 < 12 else 'PM'}"
+
+
+def gym_clock_label_from_event(ev: dict) -> str:
+    dt = parse_dt(event_start_iso(ev))
+    if dt is None:
+        return ""
+    return clock_label(dt)
+
+
 def same_instant(a: str, b: str) -> bool:
     da, db = parse_dt(a), parse_dt(b)
     if da is None or db is None:
@@ -488,6 +503,42 @@ def list_day_gym_events(calendar_id: str, day: str) -> List[dict]:
         calendar_id,
         private_props={PROP_GYM: "1", PROP_DATE: str(day)[:10]},
     )
+
+
+def lookup_gym_clock_label(day: str) -> str:
+    """Start clock of today's tagged gym event. Empty when none / no Calendar."""
+    civil = str(day or "")[:10]
+    if not civil:
+        return ""
+    try:
+        status = gcal.credentials_status()
+        if not status.get("ok"):
+            return ""
+        cal_id = gcal.resolve_calendar_id()
+        events = list_day_gym_events(cal_id, civil)
+    except Exception:  # noqa: BLE001 — display-only; never fail the quest payload
+        return ""
+    clocks: List[Tuple[datetime, str]] = []
+    for ev in events:
+        if not is_gym_event(ev, civil):
+            continue
+        label = gym_clock_label_from_event(ev)
+        dt = parse_dt(event_start_iso(ev))
+        if not label or dt is None:
+            continue
+        clocks.append((dt, label))
+    if not clocks:
+        return ""
+    clocks.sort(key=lambda row: row[0])
+    return clocks[0][1]
+
+
+def gym_quest_label_for_day(day: str) -> str:
+    """Blue quest header text, e.g. ``Gym · 5:00 AM``. Silent skip when no event."""
+    clock = lookup_gym_clock_label(day)
+    if not clock:
+        return ""
+    return f"{EVENT_TITLE} · {clock}"
 
 
 def civil_day_bounds(day: str) -> Tuple[datetime, datetime]:

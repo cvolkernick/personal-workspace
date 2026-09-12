@@ -2845,12 +2845,15 @@ def plan_preview(today_board: dict, *, day: Optional[str] = None) -> dict:
     """Fast local structure for UI skeleton before GT ensure finishes."""
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
-    return _local_payload(
-        planned,
-        day=day,
-        error=None,
-        source="plan_preview",
-        today_board=today_board,
+    return _stamp_gym_quest_time(
+        _local_payload(
+            planned,
+            day=day,
+            error=None,
+            source="plan_preview",
+            today_board=today_board,
+        ),
+        day,
     )
 
 
@@ -3051,11 +3054,41 @@ def _sync_sleep_block_calendar(today_board: Optional[dict]) -> dict:
         }
 
 
+def apply_gym_quest_time_label(payload: dict, label: str) -> dict:
+    """Stamp ``meal_label`` on training quest cards so Today reuses the nutrition clock header.
+
+    Empty label is a silent skip (rest day / no tagged gym event). Display-only —
+    does not change complete / GT identity.
+    """
+    text = str(label or "").strip()
+    if not text or not isinstance(payload, dict):
+        return payload
+    for group in payload.get("groups") or []:
+        if str(group.get("group") or "") != "training":
+            continue
+        for key in ("items", "open_items"):
+            for item in group.get(key) or []:
+                if not isinstance(item, dict):
+                    continue
+                item["meal_label"] = text
+    return payload
+
+
+def _stamp_gym_quest_time(payload: dict, day: str) -> dict:
+    try:
+        from .gym_calendar import gym_quest_label_for_day
+
+        label = gym_quest_label_for_day(day)
+    except Exception:  # noqa: BLE001 — quests still render without a clock
+        return payload
+    return apply_gym_quest_time_label(payload, label)
+
+
 def _with_gym_calendar(payload: dict, today_board: Optional[dict], day: str) -> dict:
     out = dict(payload)
     out["gym_calendar"] = _sync_gym_calendar(today_board, day)
     out["sleep_block_calendar"] = _sync_sleep_block_calendar(today_board)
-    return out
+    return _stamp_gym_quest_time(out, day)
 
 
 def _complete_local_leaf(

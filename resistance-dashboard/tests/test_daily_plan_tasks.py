@@ -31,6 +31,7 @@ from rt_dashboard.daily_plan_tasks import (
     collect_protein_remaining_tasks,
     collect_sleep_battery_low_tasks,
     collect_sleep_quest_tasks,
+    apply_gym_quest_time_label,
     complete_leaf,
     ensure_daily_tasks,
     is_fitdash_grocery_task,
@@ -2724,6 +2725,107 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertTrue(result.get("ok"), result)
         self.assertEqual(store["g-nut"]["status"], "needsAction")
         self.assertIn(("g-nut", False), complete_calls)
+
+
+class GymTimeOnTrainingQuest(unittest.TestCase):
+    """#691: tagged gym event clock on Today's Quests training cards."""
+
+    def test_apply_label_stamps_training_only(self):
+        session = {
+            "slug": TRAIN_SESSION_SLUG,
+            "title": "Complete today's PUSH session",
+            "meal_label": None,
+        }
+        lift = {"slug": "ex-bench", "title": "Bench", "meal_label": None}
+        meal = {
+            "slug": "meal-0-chicken-0",
+            "title": "Chicken",
+            "meal_label": "Next meal · 3:30 PM",
+        }
+        payload = {
+            "groups": [
+                {
+                    "group": "training",
+                    "items": [session, lift],
+                    "open_items": [session, lift],
+                },
+                {"group": "nutrition", "items": [meal], "open_items": [meal]},
+            ]
+        }
+        apply_gym_quest_time_label(payload, "Gym · 5:00 AM")
+        self.assertEqual(session["meal_label"], "Gym · 5:00 AM")
+        self.assertEqual(lift["meal_label"], "Gym · 5:00 AM")
+        self.assertEqual(meal["meal_label"], "Next meal · 3:30 PM")
+
+    def test_empty_label_is_silent_skip(self):
+        session = {
+            "slug": TRAIN_SESSION_SLUG,
+            "title": "Complete today's LEGS session",
+            "meal_label": None,
+        }
+        payload = {
+            "groups": [
+                {"group": "training", "items": [session], "open_items": [session]}
+            ]
+        }
+        apply_gym_quest_time_label(payload, "")
+        self.assertIsNone(session["meal_label"])
+
+    def test_plan_preview_stamps_from_calendar_lookup(self):
+        board = {
+            "date": "2026-09-14",
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Complete today's PUSH session",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "session_type": "push",
+                "exercises": [{"name": "Bench"}],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gym_quest_label_for_day",
+            return_value="Gym · 5:00 AM",
+        ):
+            prev = plan_preview(board, day="2026-09-14")
+        training = next(g for g in prev["groups"] if g["group"] == "training")
+        session = next(
+            i for i in training["items"] if i["slug"] == TRAIN_SESSION_SLUG
+        )
+        self.assertEqual(session["meal_label"], "Gym · 5:00 AM")
+        bench = next(i for i in training["items"] if str(i["slug"]).startswith("ex-"))
+        self.assertEqual(bench["meal_label"], "Gym · 5:00 AM")
+
+    def test_plan_preview_silent_when_no_gym_event(self):
+        board = {
+            "date": "2026-09-14",
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Rest / recover today",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {"is_rest_day": True, "session_type": "rest", "exercises": []},
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gym_quest_label_for_day",
+            return_value="",
+        ):
+            prev = plan_preview(board, day="2026-09-14")
+        training = next(g for g in prev["groups"] if g["group"] == "training")
+        session = next(
+            i for i in training["items"] if i["slug"] == TRAIN_SESSION_SLUG
+        )
+        self.assertIsNone(session.get("meal_label"))
 
 
 class GroceryTasksStayOffGoogleTasks(unittest.TestCase):
