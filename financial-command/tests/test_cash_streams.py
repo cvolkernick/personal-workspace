@@ -27,7 +27,9 @@ from treasury.cash_streams import (  # noqa: E402
     TOP_N_INCOME,
     build_cash_streams,
     clamp_days,
+    display_payee,
     load_cash_streams,
+    load_payee_display_names,
     mining_from_snapshots,
 )
 
@@ -322,6 +324,71 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertNotIn("Coinbase", _ids(payload, "inflow"))
         self.assertNotIn("COINBASE INC.", _ids(payload, "inflow"))
         self.assertIn("Groceries", _ids(payload, "category"))
+
+    def test_seed_maps_grubhub_bank_descriptor(self) -> None:
+        names = load_payee_display_names(ROOT)
+        self.assertEqual(names.get("HW*GrubHub Holdings Inc."), "GrubHub")
+        self.assertEqual(
+            display_payee("HW*GrubHub Holdings Inc.", names), "GrubHub"
+        )
+        self.assertEqual(display_payee("Lyft", names), "Lyft")
+
+    def test_payee_map_then_group_merges_raw_and_clean(self) -> None:
+        mapping = {"HW*GrubHub Holdings Inc.": "GrubHub"}
+        txs = [
+            _tx(amount=40_000, payee="HW*GrubHub Holdings Inc."),
+            _tx(amount=10_000, payee="GrubHub"),
+            _tx(amount=20_000, payee="Lyft"),
+        ]
+        payload = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            payee_display_names=mapping,
+        )
+        self.assertEqual(set(_ids(payload, "inflow")), {"GrubHub", "Lyft"})
+        self.assertNotIn("HW*GrubHub Holdings Inc.", _ids(payload, "inflow"))
+        amounts = {n["name"]: n["amount"] for n in payload["nodes"] if n["layer"] == "inflow"}
+        self.assertEqual(amounts["GrubHub"], 50.0)
+        self.assertEqual(payload["totals"]["inflow"], 70.0)
+
+    def test_unmapped_payee_stays_raw(self) -> None:
+        payload = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=[_tx(amount=10_000, payee="HW*GrubHub Holdings Inc.")],
+            payee_display_names={},
+        )
+        self.assertEqual(_ids(payload, "inflow"), ["HW*GrubHub Holdings Inc."])
+
+    def test_missing_or_bad_payee_map_file_falls_back(self) -> None:
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [
+                    _tx(amount=10_000, payee="HW*GrubHub Holdings Inc.")
+                ],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": AS_OF,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = load_cash_streams(
+                days=90, today=TODAY, fetch=fake_fetch, root=Path(tmp)
+            )
+            bad_root = Path(tmp) / "bad"
+            (bad_root / "treasury").mkdir(parents=True)
+            (bad_root / "treasury" / "payee_display_names.json").write_text(
+                "{not json", encoding="utf-8"
+            )
+            broken = load_cash_streams(
+                days=90, today=TODAY, fetch=fake_fetch, root=bad_root
+            )
+        self.assertTrue(missing["ok"])
+        self.assertTrue(broken["ok"])
+        self.assertEqual(_ids(missing, "inflow"), ["HW*GrubHub Holdings Inc."])
+        self.assertEqual(_ids(broken, "inflow"), ["HW*GrubHub Holdings Inc."])
 
     def test_mining_node_pinned_outside_top_n(self) -> None:
         txs = [

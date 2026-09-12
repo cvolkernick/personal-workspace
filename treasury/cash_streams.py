@@ -14,6 +14,11 @@ loud mining-unknown state, never a silent omit.
 Cash Streams freshness is the live YNAB *transaction* pull ``as_of``, not the
 age of balance snapshots (``x_money`` / ``one_card`` / ``rh_checking``). Those
 files feed the main FCC cash stack; this page does not read them.
+
+Income-node labels: ``treasury/payee_display_names.json`` maps raw YNAB payee
+→ display name (map-then-group). Missing/unparseable file falls back to raw
+names; the chart still builds. Coinbase inflow exclusion stays on the raw
+payee. Expense nodes are YNAB categories today — same helper if payees render.
 """
 
 from __future__ import annotations
@@ -41,6 +46,7 @@ CASH_SNAPSHOTS = (
 FEED_STALE_HOURS = 6.0
 MINING_NODE_ID = "in-mining"
 MINING_NODE_NAME = "Bitcoin mining"
+PAYEE_DISPLAY_NAMES_FILE = "payee_display_names.json"
 
 
 def clamp_days(raw: Any, default: int = DEFAULT_DAYS) -> int:
@@ -113,6 +119,39 @@ def _is_cc_payment(tx: Dict[str, Any], group_name: str) -> bool:
 def _is_coinbase_inflow_payee(payee: str) -> bool:
     """True for Coinbase→Main withdrawal inflows (not income). Outflows stay."""
     return "coinbase" in (payee or "").strip().lower()
+
+
+def load_payee_display_names(root: Optional[Path] = None) -> Dict[str, str]:
+    """Raw YNAB payee → display label. Empty dict on missing/bad file (#669)."""
+    path = (root or ROOT) / "treasury" / PAYEE_DISPLAY_NAMES_FILE
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError, TypeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    out: Dict[str, str] = {}
+    for key, val in raw.items():
+        if not isinstance(key, str) or key.startswith("_"):
+            continue
+        if not isinstance(val, str):
+            continue
+        src = key.strip()
+        dst = val.strip()
+        if src and dst:
+            out[src] = dst
+    return out
+
+
+def display_payee(raw: str, mapping: Optional[Dict[str, str]] = None) -> str:
+    """Map a YNAB payee to its Cash Streams node label. Unmapped → raw."""
+    name = (raw or "").strip() or "Unknown payee"
+    mapped = (mapping or {}).get(name)
+    if isinstance(mapped, str) and mapped.strip():
+        return mapped.strip()
+    return name
 
 
 def category_lookup(category_groups: Sequence[Dict[str, Any]]) -> Dict[str, Tuple[str, str]]:
@@ -364,6 +403,7 @@ def build_cash_streams(
     ynab_as_of: Optional[str] = None,
     error: Optional[str] = None,
     mining: Optional[Dict[str, Any]] = None,
+    payee_display_names: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """Build the Sankey payload. Pure: no I/O."""
     start, end, days = window_bounds(days, today=today)
@@ -405,7 +445,7 @@ def build_cash_streams(
     ):
         amt = row["amount"]
         if amt > 0:
-            payee = row["payee"] or "Unknown payee"
+            payee = display_payee(row["payee"] or "Unknown payee", payee_display_names)
             inflows[payee] = _money(inflows.get(payee, 0) + amt)
         elif amt < 0:
             spent = abs(amt)
@@ -638,6 +678,7 @@ def load_cash_streams(
     fetcher = fetch or fetch_ynab_window
     pulled = fetcher(start.isoformat())
     mining = mining_from_snapshots(start=start, end=end, root=base, now=now)
+    names = load_payee_display_names(base)
     if not pulled.get("ok"):
         snap_as_of = ynab_as_of_from_snapshots(base)
         fail_stale = True if stale is None else bool(stale)
@@ -649,6 +690,7 @@ def load_cash_streams(
             ynab_as_of=pulled.get("as_of") or snap_as_of,
             error=str(pulled.get("error") or "YNAB fetch failed"),
             mining=mining,
+            payee_display_names=names,
         )
     as_of = pulled.get("as_of") or datetime.now(timezone.utc).isoformat()
     ok_stale = False if stale is None else bool(stale)
@@ -662,6 +704,7 @@ def load_cash_streams(
         ynab_soft_preserved=False,
         ynab_as_of=as_of,
         mining=mining,
+        payee_display_names=names,
     )
 
 
