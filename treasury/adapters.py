@@ -6,6 +6,8 @@ import json
 import os
 import shutil
 import subprocess
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple  # noqa: F401
@@ -13,6 +15,9 @@ from typing import Any, Dict, Optional, Tuple  # noqa: F401
 TREASURY_DIR = Path(__file__).resolve().parent
 SNAPSHOTS_DIR = TREASURY_DIR / "snapshots"
 CONFIG_PATH = TREASURY_DIR / "config.json"
+# Public, unauthenticated. Mining valuation and the Pi price timer use this
+# instead of `coinbase products get` (CLI needs node; launchd PATH often lacks it).
+BTC_USD_SPOT_URL = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
 
 def _resolve_coinbase_bin() -> Optional[str]:
     """Locate coinbase CLI even when PATH is stripped (launchd / ensure script)."""
@@ -102,33 +107,51 @@ def _parse_coinbase_balance_payload(payload: Dict[str, Any]) -> Dict[str, float]
 
 
 def fetch_btc_usd_price(*, timeout: float = 20.0) -> Tuple[Optional[float], Optional[str]]:
-    """Fetch mid/last BTC-USD via coinbase products get."""
-    cb = _resolve_coinbase_bin()
-    if not cb:
-        return None, "coinbase CLI not found"
+    """Fetch BTC-USD spot via Coinbase's public HTTP API.
+
+    No CLI, no node, no secrets. Pi (and Mac) can refresh the mining price
+    even when the Coinbase Node CLI is missing from PATH.
+    """
+    req = urllib.request.Request(
+        BTC_USD_SPOT_URL,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "personal-workspace-treasury/btc-usd-spot",
+        },
+        method="GET",
+    )
     try:
-        proc = subprocess.run(
-            [cb, "products", "get", "BTC-USD"],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env=_subprocess_env(),
-        )
-    except FileNotFoundError:
-        return None, "coinbase CLI not found"
-    except subprocess.TimeoutExpired:
-        return None, "coinbase products get timed out"
-    if proc.returncode != 0:
-        return None, (proc.stderr or proc.stdout or "products get failed").strip()[:300]
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", errors="replace")[:400]
+        except Exception:
+            pass
+        return None, f"HTTP {e.code}: {body or e.reason}"
+    except urllib.error.URLError as e:
+        return None, f"URL error: {e.reason}"
+    except TimeoutError:
+        return None, "BTC-USD spot request timed out"
     try:
-        data = json.loads(proc.stdout)
+        data = json.loads(raw)
     except json.JSONDecodeError as e:
-        return None, f"invalid products JSON: {e}"
-    price = data.get("price")
+        return None, f"invalid spot JSON: {e}"
+    amount = None
+    if isinstance(data, dict):
+        inner = data.get("data")
+        if isinstance(inner, dict):
+            amount = inner.get("amount")
+        if amount is None:
+            amount = data.get("amount") or data.get("price")
     try:
-        return float(price), None
+        price = float(amount)
     except (TypeError, ValueError):
-        return None, "no price in products get response"
+        return None, "no amount in BTC-USD spot response"
+    if price <= 0:
+        return None, f"non-positive BTC-USD spot: {price}"
+    return price, None
 
 
 def fetch_coinbase_liquid_live(

@@ -1,0 +1,11 @@
+[Unit]
+Description=Coinbase BTC/USD spot producer every 2h (FCC freshness, #695)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2h
+Persistent=true
+Unit=coinbase-price-refresh.service
+
+[Install]
+WantedBy=timers.target

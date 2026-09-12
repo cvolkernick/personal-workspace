@@ -53,6 +53,10 @@ BRAIINS_PRODUCER_HINT = (
     "Pi is the Braiins producer (braiins-refresh.timer every 4h; "
     "token at ~/.config/braiins/token). This dashboard cannot run a sync."
 )
+COINBASE_PRICE_HINT = (
+    "Pi is the BTC/USD price producer (coinbase-price-refresh.timer every 2h; "
+    "public Coinbase spot, no CLI). This dashboard cannot run a sync."
+)
 
 
 def clamp_days(raw: Any, default: int = DEFAULT_DAYS) -> int:
@@ -384,7 +388,8 @@ def mining_from_snapshots(
         return unknown(err)
     if _snapshot_stale(cb, now=current):
         return unknown(
-            f"Coinbase price feed stale (as_of {cb.get('as_of') or 'unknown'})"
+            f"Coinbase price feed stale (as_of {cb.get('as_of') or 'unknown'}). "
+            + COINBASE_PRICE_HINT
         )
 
     usd_total = 0.0
