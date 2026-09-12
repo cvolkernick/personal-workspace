@@ -1,6 +1,6 @@
 """Google Calendar via the FitDash Google login session (stdlib only).
 
-Timed meal reminders, gym sessions, and nightly wind-down. Same OAuth as
+Timed meal reminders, gym sessions, and nightly sleep block. Same OAuth as
 Tasks — no second client, no Pi file token on Vercel. Health-only connect
 does not request Calendar.
 """

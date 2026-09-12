@@ -1,4 +1,8 @@
-"""FitDash nightly wind-down → Google Calendar (mirror of gym_calendar).
+"""FitDash nightly wind-down → Google Calendar (superseded by sleep block).
+
+#672 writes a 9h tagged Sleep block that already includes this 30 min
+window. New daily-tasks publishes go through ``sleep_block_calendar``;
+this module stays for tests and for retiring leftover tagged wind-downs.
 
 One tagged 30-minute ``Wind-down`` event per night, timed from the sleep
 battery ``empty_at`` (start of wind-down, not already-asleep). FitDash
