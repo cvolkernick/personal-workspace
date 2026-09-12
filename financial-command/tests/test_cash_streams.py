@@ -519,6 +519,9 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertIn("payout history missing", got["error"])
         self.assertIn("braiins-refresh.timer", got["error"])
         self.assertNotIn("python3 treasury/", got["error"])
+        self.assertNotIn("systemctl", got["error"])
+        self.assertNotIn("launchctl", got["error"])
+        self.assertNotIn("run braiins_sync", got["error"])
 
     def test_mining_unknown_when_price_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -618,6 +621,11 @@ class TestCashStreamsPage(unittest.TestCase):
         html = INDEX.read_text(encoding="utf-8")
         self.assertIn("cash-streams.html", html)
         self.assertIn('id="nav-cash-streams"', html)
+        self.assertNotIn("run braiins_sync", html)
+        self.assertNotIn("python3 treasury/braiins_sync.py", html)
+        self.assertNotIn("launchctl", html)
+        self.assertNotIn("systemctl", html)
+        self.assertIn("Braiins data missing.", html)
 
     def test_vendor_files_exist(self) -> None:
         d3 = (FCC / "vendor" / "d3.min.js").read_text(encoding="utf-8")

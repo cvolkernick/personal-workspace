@@ -47,6 +47,12 @@ FEED_STALE_HOURS = 6.0
 MINING_NODE_ID = "in-mining"
 MINING_NODE_NAME = "Bitcoin mining"
 PAYEE_DISPLAY_NAMES_FILE = "payee_display_names.json"
+# Phone viewers cannot run the Pi producer. Never tell them to execute
+# python3 / systemctl / launchctl / braiins_sync.py.
+BRAIINS_PRODUCER_HINT = (
+    "Pi is the Braiins producer (braiins-refresh.timer every 4h; "
+    "token at ~/.config/braiins/token). This dashboard cannot run a sync."
+)
 
 
 def clamp_days(raw: Any, default: int = DEFAULT_DAYS) -> int:
@@ -279,6 +285,55 @@ def _mining_contract(mining: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _braiins_feed_detail(brai: Dict[str, Any]) -> str:
+    """payouts_error / partial_errors from the last Pi snapshot."""
+    bits: List[str] = []
+    pe = brai.get("payouts_error")
+    if pe:
+        bits.append("payouts API: " + str(pe))
+    partial = brai.get("partial_errors")
+    if isinstance(partial, dict):
+        for key, val in partial.items():
+            if key == "payouts" and pe:
+                continue
+            bits.append(f"{key}: {val}")
+    return "; ".join(bits)
+
+
+def braiins_unknown_error(kind: str, brai: Optional[Dict[str, Any]] = None) -> str:
+    """Cash Streams mining-unknown copy. Pi-timer topology; no terminal hint."""
+    snap = brai or {}
+    as_of = str(snap.get("as_of") or "unknown")
+    detail = _braiins_feed_detail(snap)
+    if kind == "missing_file":
+        head = "Braiins payout feed missing (no braiins_latest.json)"
+    elif kind == "ok_false":
+        head = "Braiins payout feed error: " + str(snap.get("error") or "ok=false")
+        if detail:
+            head += " (" + detail + ")"
+    elif kind == "payouts_missing":
+        if detail:
+            head = (
+                "Braiins payout history missing from snapshot ("
+                + detail
+                + f"; as_of {as_of})"
+            )
+        else:
+            head = (
+                "Braiins payout history missing from snapshot "
+                f"(ok=true, no payouts list, as_of {as_of})"
+            )
+    elif kind == "stale":
+        head = f"Braiins payout feed stale (as_of {as_of})"
+        if detail:
+            head += " (" + detail + ")"
+    else:
+        head = "Braiins payout feed unknown"
+        if detail:
+            head += " (" + detail + ")"
+    return head + ". " + BRAIINS_PRODUCER_HINT
+
+
 def mining_from_snapshots(
     *,
     start: date,
@@ -309,21 +364,13 @@ def mining_from_snapshots(
         }
 
     if not brai:
-        return unknown("Braiins payout feed missing (no braiins_latest.json)")
+        return unknown(braiins_unknown_error("missing_file"))
     if not brai.get("ok"):
-        return unknown(
-            "Braiins payout feed error: " + str(brai.get("error") or "ok=false")
-        )
+        return unknown(braiins_unknown_error("ok_false", brai))
     if "payouts" not in brai or not isinstance(brai.get("payouts"), list):
-        return unknown(
-            "Braiins payout history missing from snapshot — Pi is the producer "
-            "(braiins-refresh.timer, token at ~/.config/braiins/token). "
-            "Check `systemctl status braiins-refresh` / last log."
-        )
+        return unknown(braiins_unknown_error("payouts_missing", brai))
     if _snapshot_stale(brai, now=current):
-        return unknown(
-            f"Braiins payout feed stale (as_of {brai.get('as_of') or 'unknown'})"
-        )
+        return unknown(braiins_unknown_error("stale", brai))
     if not cb:
         return unknown("Coinbase price feed missing (no coinbase_latest.json)")
     try:
