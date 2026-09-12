@@ -355,8 +355,8 @@ class MonitorReconcile(unittest.TestCase):
         self.assertEqual(updated, [])
 
 
-class EnsureWiresWinddown(unittest.TestCase):
-    def test_ensure_syncs_winddown_beside_gym(self):
+class EnsureNoLongerWiresWinddown(unittest.TestCase):
+    def test_ensure_does_not_create_standalone_winddown(self):
         board = {
             "date": "2026-09-11",
             "actions": [],
@@ -409,16 +409,18 @@ class EnsureWiresWinddown(unittest.TestCase):
                 "rt_dashboard.gym_calendar.sync_gym_from_workout",
                 return_value={"ok": True, "created": 1, "upserted": 1},
             ), mock.patch(
-                "rt_dashboard.winddown_calendar.sync_winddown_from_battery",
+                "rt_dashboard.sleep_block_calendar.sync_sleep_block_from_battery",
                 return_value={"ok": True, "created": 1, "upserted": 1},
+            ), mock.patch(
+                "rt_dashboard.winddown_calendar.sync_winddown_from_battery",
             ) as wind:
                 result = ensure_daily_tasks(
                     board, day="2026-09-11", sleep_battery=bat
                 )
         self.assertTrue(result.get("ok"), result)
-        self.assertEqual(result["winddown_calendar"]["created"], 1)
-        wind.assert_called_once()
-        self.assertEqual(wind.call_args[0][0]["empty_at"], bat["empty_at"])
+        self.assertNotIn("winddown_calendar", result)
+        self.assertEqual(result["sleep_block_calendar"]["created"], 1)
+        wind.assert_not_called()
 
 
 if __name__ == "__main__":

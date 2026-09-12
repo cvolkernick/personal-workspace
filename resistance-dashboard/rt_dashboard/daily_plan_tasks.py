@@ -3024,17 +3024,22 @@ def _sync_gym_calendar(today_board: Optional[dict], day: str) -> dict:
         }
 
 
-def _sync_winddown_calendar(today_board: Optional[dict]) -> dict:
-    """Best-effort wind-down upsert from sleep battery empty_at."""
-    try:
-        from .winddown_calendar import sync_winddown_from_battery
+def _sleep_battery_from_board(today_board: Optional[dict]) -> Optional[dict]:
+    board = today_board if isinstance(today_board, dict) else {}
+    bat = board.get("sleep_battery")
+    if isinstance(bat, dict):
+        return bat
+    rec = board.get("recovery") if isinstance(board.get("recovery"), dict) else {}
+    nested = rec.get("sleep_battery") if isinstance(rec, dict) else None
+    return nested if isinstance(nested, dict) else None
 
-        board = today_board if isinstance(today_board, dict) else {}
-        bat = board.get("sleep_battery")
-        if not isinstance(bat, dict):
-            rec = board.get("recovery") if isinstance(board.get("recovery"), dict) else {}
-            bat = rec.get("sleep_battery") if isinstance(rec, dict) else None
-        return sync_winddown_from_battery(bat if isinstance(bat, dict) else None)
+
+def _sync_sleep_block_calendar(today_board: Optional[dict]) -> dict:
+    """Best-effort 9h sleep-block upsert from sleep battery empty_at (#672)."""
+    try:
+        from .sleep_block_calendar import sync_sleep_block_from_battery
+
+        return sync_sleep_block_from_battery(_sleep_battery_from_board(today_board))
     except Exception as exc:  # noqa: BLE001
         return {
             "ok": False,
@@ -3049,7 +3054,7 @@ def _sync_winddown_calendar(today_board: Optional[dict]) -> dict:
 def _with_gym_calendar(payload: dict, today_board: Optional[dict], day: str) -> dict:
     out = dict(payload)
     out["gym_calendar"] = _sync_gym_calendar(today_board, day)
-    out["winddown_calendar"] = _sync_winddown_calendar(today_board)
+    out["sleep_block_calendar"] = _sync_sleep_block_calendar(today_board)
     return out
 
 
