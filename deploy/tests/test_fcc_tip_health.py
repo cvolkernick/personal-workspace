@@ -224,6 +224,147 @@ class TestNtfyOnce(unittest.TestCase):
             self.assertEqual(out.get("skipped"), "dry-run")
             self.assertIn("SUSTAINED", out.get("title") or "")
             self.assertIn("#workflow", out.get("text") or "")
+            self.assertTrue(out.get("page"), out)
+
+    def test_routine_mismatch_github_not_ntfy(self) -> None:
+        """#699 B: first mismatch comments #701; does not POST ntfy.sh."""
+        result = {
+            "ok": False,
+            "mismatches": ["detached"],
+            "expected_branch": "work/treasury",
+            "head": "abc",
+            "origin_sha": "abc",
+            "attached": "detached",
+            "current_branch_txt": "work/treasury",
+        }
+        captured: list[str] = []
+
+        def fake_urlopen(req, timeout=15):
+            captured.append(req.full_url)
+            resp = mock.MagicMock()
+            resp.status = 201
+            resp.getcode.return_value = 201
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = None
+            return resp
+
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "state.json"
+            env = {
+                "GITHUB_TOKEN": "ghs_test",
+                "PI_OPS_ALERT_ISSUE": "701",
+                "FCC_ALERT_KILL_SWITCH": "",
+                "NTFY_TOKEN": "",
+                "FCC_NTFY_TOKEN": "",
+            }
+            with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+                "urllib.request.urlopen", side_effect=fake_urlopen
+            ):
+                out = M.ntfy_mismatch(
+                    result,
+                    workspace=Path(td),
+                    state_path=state,
+                )
+        self.assertFalse(out.get("page"), out)
+        self.assertFalse(out.get("notified"), out)
+        self.assertEqual(out.get("skipped"), "routine")
+        self.assertTrue((out.get("github") or {}).get("posted"), out)
+        self.assertTrue(any("api.github.com" in u for u in captured), captured)
+        self.assertFalse(any("ntfy.sh" in u for u in captured), captured)
+
+    def test_sustained_posts_ntfy_and_github(self) -> None:
+        now = datetime.now(timezone.utc)
+        past = (now - timedelta(hours=2)).replace(microsecond=0).isoformat().replace(
+            "+00:00", "Z"
+        )
+        result = {
+            "ok": False,
+            "mismatches": ["HEAD abc != origin/work/treasury def"],
+            "expected_branch": "work/treasury",
+            "head": "abc",
+            "origin_sha": "def",
+            "attached": "work/treasury",
+            "current_branch_txt": "work/treasury",
+        }
+        captured: list[tuple[str, dict]] = []
+
+        def fake_urlopen(req, timeout=15):
+            captured.append((req.full_url, dict(req.headers)))
+            resp = mock.MagicMock()
+            resp.status = 200
+            resp.getcode.return_value = 200
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = None
+            return resp
+
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "state.json"
+            state.write_text(
+                json.dumps({"first_violation_at": past}) + "\n", encoding="utf-8"
+            )
+            env = {
+                "GITHUB_TOKEN": "ghs_test",
+                "NTFY_TOKEN": "tk_test",
+                "PI_OPS_ALERT_ISSUE": "701",
+                "FCC_ALERT_KILL_SWITCH": "",
+            }
+            with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+                "urllib.request.urlopen", side_effect=fake_urlopen
+            ):
+                out = M.ntfy_mismatch(
+                    result,
+                    workspace=Path(td),
+                    state_path=state,
+                )
+        self.assertTrue(out.get("page"), out)
+        self.assertTrue(out.get("notified"), out)
+        urls = [u for u, _ in captured]
+        self.assertTrue(any("api.github.com" in u for u in urls), urls)
+        self.assertTrue(any("ntfy.sh" in u for u in urls), urls)
+        ntfy_headers = next(h for u, h in captured if "ntfy.sh" in u)
+        # urllib request header names are canonicalized
+        auth = ntfy_headers.get("Authorization") or ntfy_headers.get("authorization")
+        self.assertEqual(auth, "Bearer tk_test")
+
+    def test_kill_switch_pages_first_mismatch(self) -> None:
+        result = {
+            "ok": False,
+            "mismatches": ["detached"],
+            "expected_branch": "work/treasury",
+            "head": "abc",
+            "origin_sha": "abc",
+            "attached": "detached",
+            "current_branch_txt": "work/treasury",
+        }
+        captured: list[str] = []
+
+        def fake_urlopen(req, timeout=15):
+            captured.append(req.full_url)
+            resp = mock.MagicMock()
+            resp.status = 200
+            resp.getcode.return_value = 200
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = None
+            return resp
+
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "state.json"
+            env = {
+                "GITHUB_TOKEN": "ghs_test",
+                "FCC_ALERT_KILL_SWITCH": "1",
+                "PI_OPS_ALERT_ISSUE": "701",
+            }
+            with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+                "urllib.request.urlopen", side_effect=fake_urlopen
+            ):
+                out = M.ntfy_mismatch(
+                    result,
+                    workspace=Path(td),
+                    state_path=state,
+                )
+        self.assertTrue(out.get("page"), out)
+        self.assertIn("KILL-SWITCH", out.get("title") or "")
+        self.assertTrue(any("ntfy.sh" in u for u in captured), captured)
 
 
 class TestCli(unittest.TestCase):

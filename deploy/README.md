@@ -141,7 +141,7 @@ Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access 
 
 ## FCC tip health (#562)
 
-Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Mismatch → log + ntfy once (6h cooldown). If still red after **1h**, ntfy again at priority 5 titled `SUSTAINED` (1h cooldown while red) so a multi-hour stall cannot sit silent (#661). **Never** auto-reset to master/holistic.
+Periodic read-only assert: live clone HEAD == `origin/work/treasury`, attached branch + `financial-command/current-branch.txt` match. Mismatch → log + GitHub comment on standing issue [#701](https://github.com/cvolkernick/personal-workspace/issues/701) (6h cooldown). If still red after **1h**, also ntfy at priority 5 titled `SUSTAINED` (1h cooldown while red) so a multi-hour stall cannot sit silent (#661 / #699 Option B). `FCC_ALERT_KILL_SWITCH=1` pages ntfy on the first mismatch. **Never** auto-reset to master/holistic. Unit loads `~/.config/workflow-scheduler.env` (`GITHUB_TOKEN`; optional `NTFY_TOKEN`).
 
 ```bash
 # On prism-gateway (unit file + durable script only — no repo rsync)
