@@ -1,0 +1,11 @@
+[Unit]
+Description=YNAB cash snapshot producer every 3h (FCC freshness, #668)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=3h
+Persistent=true
+Unit=ynab-refresh.service
+
+[Install]
+WantedBy=timers.target
