@@ -26,8 +26,8 @@ from treasury.adapters import (  # noqa: E402
 )
 from treasury.pi_ops_alert import (  # noqa: E402
     kill_switch as _alert_kill_switch,
-    post_ntfy_page,
     post_ops_github,
+    warn_retired_ntfy,
 )
 
 POLICY_PATH = ROOT / "investment" / "fund_manager.json"
@@ -808,12 +808,13 @@ def rules_based_review(
     return fm
 
 
+# Filename kept so Pi cooldown state survives the ntfy retirement (#704).
 NTFY_STALE_RH_STATE = SNAPSHOTS_DIR / "ntfy_stale_rh_state.json"
 DEFAULT_STALE_RH_COOLDOWN_HOURS = 6.0
 
 
 def _stale_rh_on_cooldown(cooldown_hours: float, *, now: Optional[datetime] = None) -> bool:
-    """True if a stale-RH-only ntfy was sent within cooldown_hours."""
+    """True if a stale-RH-only #701 comment was sent within cooldown_hours."""
     data = load_json(NTFY_STALE_RH_STATE) or {}
     last = data.get("last_notified_at")
     if not last:
@@ -884,23 +885,23 @@ def notify_if_needed(
     treasury_eval: Optional[Dict[str, Any]] = None,
     force: bool = False,
 ) -> Dict[str, Any]:
-    """Route alerts for non-HOLD decisions or stale RH (#699 Option B).
+    """Route alerts for non-HOLD decisions or stale RH (#704).
 
     Quiet by default on HOLD. Stale-RH-only alerts are rate-limited (default 6h)
-    so a broken MCP feed does not page every poll cycle. force=True still bypasses
-    the enabled flag and stale cooldown (use sparingly — not for routine HOLD).
+    so a broken MCP feed does not comment every poll cycle. force=True still
+    bypasses the enabled flag and stale cooldown (use sparingly — not for
+    routine HOLD).
 
-    Routine (stale RH, need_llm / deploy / rebalance) → GitHub #701.
-    Pages (error, or FCC_ALERT_KILL_SWITCH) → ntfy pri-5 as well.
+    Every signal (stale RH, need_llm / deploy / rebalance, error, kill-switch)
+    comments GitHub standing issue #701. ntfy is retired.
     """
 
     cfg = load_config()
     ncfg = (cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}
-    topic = (
-        ncfg.get("ntfy_topic")
-        or __import__("os").environ.get("FCC_NTFY_TOPIC")
-        or "cvolk-grok-7f3k9x"
-    )
+    leftover_topic = str(
+        ncfg.get("ntfy_topic") or __import__("os").environ.get("FCC_NTFY_TOPIC") or ""
+    ).strip()
+    warn_retired_ntfy(topic=leftover_topic or None)
     enabled = ncfg.get("enabled", True)
     if not enabled and not force:
         return {"ok": False, "skipped": "notifications disabled"}
@@ -1015,7 +1016,7 @@ def notify_if_needed(
     # Short hostname for mobile titles
     host_short = host.split(".")[0] if host else "unknown"
 
-    # AC4 (#518): failure/stale NTFY names producer host + error class
+    # AC4 (#518): failure/stale alert names producer host + error class
     prod_status = load_json(SNAPSHOTS_DIR / "rh_producer_status.json") or {}
     prod_host = (
         (prod_status.get("producer_host") if isinstance(prod_status, dict) else None)
@@ -1043,34 +1044,22 @@ def notify_if_needed(
         (outcome == "error" or kind == "error") or _alert_kill_switch()
     )
     github = post_ops_github(title, text)
-    ntfy_out: Dict[str, Any]
-    if page:
-        ntfy_out = post_ntfy_page(
-            str(topic),
-            title,
-            text,
-            priority="5",
-            tags=f"chart_with_upwards_trend,robot,{host_short}",
-        )
-    else:
-        ntfy_out = {"ok": True, "notified": False, "skipped": "routine"}
-    delivered = bool(github.get("posted") or ntfy_out.get("notified"))
+    delivered = bool(github.get("posted"))
     if delivered and stale_only:
         _mark_stale_rh_notified()
     elif github.get("skipped") in {"no-github-token", "no-issue", "dry-run"} and stale_only:
         _mark_stale_rh_notified()
     return {
-        "ok": bool(github.get("ok", True) and ntfy_out.get("ok", True)),
+        "ok": bool(github.get("ok", True)),
         "notified": delivered,
-        "ntfy": bool(ntfy_out.get("notified")),
         "page": page,
         "github": github,
-        "status": github.get("status") or ntfy_out.get("status"),
+        "status": github.get("status"),
         "title": title,
         "host": host_short,
         "stale_only": stale_only,
-        "error": github.get("error") or ntfy_out.get("error"),
-        "skipped": None if delivered else (github.get("skipped") or ntfy_out.get("skipped")),
+        "error": github.get("error"),
+        "skipped": None if delivered else github.get("skipped"),
     }
 
 
@@ -1086,7 +1075,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument(
         "--notify",
         action="store_true",
-        help="Send ntfy if non-HOLD / stale RH",
+        help="Comment GitHub #701 if non-HOLD / stale RH",
     )
     p.add_argument("--no-log", action="store_true", help="With --rules-review, do not append journal")
     args = p.parse_args(argv)

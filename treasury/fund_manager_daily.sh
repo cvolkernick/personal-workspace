@@ -3,8 +3,8 @@
 # 1) RH refresh (MCP via grok if available)
 # 2) Rules path: HOLD if in band (no LLM)
 # 3) Else team/LLM via grok headless
-# 4) Notify ntfy only on need_llm / error / stale RH *brokerage*
-#    (#555: rh_checking / skipped / no_refresh_path / fresh as_of do not page)
+# 4) Comment GitHub #701 on need_llm / error / stale RH *brokerage*
+#    (#555: rh_checking / skipped / no_refresh_path / fresh as_of do not alert)
 # 5) Write FCC treasury JSON
 #
 # Cron (ET):  30 12 * * 1-5  /path/to/treasury/fund_manager_daily.sh
@@ -44,7 +44,7 @@ if [[ -x "${ROOT}/treasury/rh_refresh.sh" ]]; then
 fi
 
 # Live YNAB + treasury eval *before* rules notify so rh_checking/x_money as_of
-# are current (offline path freezes aged snapshots → false "stale RH" ntfy).
+# are current (offline path freezes aged snapshots → false "stale RH" alert).
 echo "Pre-review live YNAB + treasury eval…"
 python3 -m treasury.ynab_sync || echo "WARN: ynab_sync failed"
 python3 -m treasury.run_treasury || echo "WARN: run_treasury live failed"

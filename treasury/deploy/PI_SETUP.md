@@ -4,11 +4,11 @@
 > **1)** Pi grok + `robinhood-trading` + Chris OAuth **on Pi** (Mac tokens do not travel)
 > **2)** Smoke: Pi refresh writes `robinhood_latest.json` + FCC `as_of` moves
 > **3)** **Then** unload Mac `com.personalworkspace.rh-refresh` (no dual-writer)
-> **4)** NTFY = Pi host + error class
+> **4)** Alerts = Pi host + error class (GitHub #701)
 > Mac re-auth is short-term only until step 2 is green.
 > Wrong: disarm Mac before Pi OAuth is healthy, or invent `as_of`.
 
-Run automation on the **Pi** so ntfy alerts and RH freshness do not depend on the Mac being awake/reauthed in launchd.
+Run automation on the **Pi** so alerts and RH freshness do not depend on the Mac being awake/reauthed in launchd.
 
 ## Prerequisites
 - `personal-workspace` cloned/synced on the Pi (prefer `work/treasury` until merged)
@@ -84,25 +84,23 @@ rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 ```
 
 **#555:** leave `rh-refresh` unloaded. If Mac `fund-manager-daily` /
-`fund-manager-bp-poll` still page false RH / `rh_checking` stale, boot those
-out (plist comments + commands in `RH_PRODUCER.md`). ntfy is also gated in
-nest: `skipped` / `no_refresh_path` / timeout-with-fresh-as_of do not page.
+`fund-manager-bp-poll` still alert false RH / `rh_checking` stale, boot those
+out (plist comments + commands in `RH_PRODUCER.md`). GitHub #701 is gated in
+code: `skipped` / `no_refresh_path` / timeout-with-fresh-as_of do not comment.
 
-### 6) Alerts = GitHub routine + ntfy pages (#699 Option B)
+### 6) Alerts = GitHub #701 only (#704)
 Alerts include **producer host** and **error class** (`FCC · RH auth_fail · prism`).
 Unit sets `FCC_HOST_TAG=prism`. Override with `config.json` → `notifications.host_tag`.
 
-Routine / observability (stale RH, need_llm) comments on standing GitHub
-issue [#701](https://github.com/cvolkernick/personal-workspace/issues/701)
-(`GITHUB_TOKEN` from `~/.config/workflow-scheduler.env`). ntfy is **only**
-for pages: fund-manager `error`, tip-health SUSTAINED, or
-`FCC_ALERT_KILL_SWITCH=1`. Optional `NTFY_TOKEN` in the same env file.
+Every Pi signal (stale RH, need_llm, error, tip-health SUSTAINED,
+`FCC_ALERT_KILL_SWITCH=1`) comments standing GitHub issue
+[#701](https://github.com/cvolkernick/personal-workspace/issues/701)
+(`GITHUB_TOKEN` from `~/.config/workflow-scheduler.env`). ntfy is retired.
+Leftover `NTFY_TOKEN` / `notifications.ntfy_topic` is ignored with a warning
+and never fails the publisher.
 
-The phone topic `cvolk-grok-7f3k9x` no longer receives routine drift or
-stale-RH. Unsubscribe that topic if it still shows historical noise; new
-routine will not be published there.
-
-**ntfy reply is not a CLI prompt** — inbound replies are not wired to Grok. Alerts only.
+The phone topic `cvolk-grok-7f3k9x` is unused. Unsubscribe it in the ntfy
+app if it still shows historical noise.
 
 ## Behavior
 | Timer | Interval | Action |
@@ -130,10 +128,12 @@ TREASURY_RH_ROLE=consumer TREASURY_SKIP_LOCAL_MCP=1 python3 -m treasury.rh_snaps
 Default SSH target: `prism-agent@192.168.100.98` → `/home/prism-agent/personal-workspace`.
 
 ## Notifications
-`config.json` → `notifications.ntfy_topic` (or default topic).  
-GitHub #701 on need_llm / stale RH; ntfy pri-5 on error / kill-switch.
-Quiet on routine HOLD. Host tag identifies which machine posted.
+GitHub standing issue [#701](https://github.com/cvolkernick/personal-workspace/issues/701)
+on need_llm / stale RH / error / kill-switch. Quiet on routine HOLD.
+Host tag identifies which machine posted.
 `PI_OPS_ALERT_ISSUE` overrides the standing issue number (default 701).
+`config.json` → `notifications.ntfy_topic` and `NTFY_TOKEN` are ignored
+(warn-only, #704).
 
 ## Auth (producer host = Pi)
 See **`RH_PRODUCER.md` step 1**. Chris OAuth is created on Pi. Mac tokens do
