@@ -3669,13 +3669,15 @@
         return "under alert";
       }
       function asicHashTone() {
-        if (!br.ok)
+        if (!br.ok) {
+          const feedErr = br.error || br.payouts_error;
           return toneResult(
             "orange",
-            br.error
-              ? `Braiins sync issue: ${String(br.error).slice(0, 80)}`
-              : "Braiins data missing — run braiins_sync."
+            feedErr
+              ? `Braiins sync issue: ${String(feedErr).slice(0, 80)}`
+              : "Braiins data missing."
           );
+        }
         const hr = f(br.hash_rate_24h);
         const off = f(br.off_workers);
         const hrLabel = formatHashrate(br.hash_rate_24h, br.hash_rate_unit);
