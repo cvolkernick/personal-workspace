@@ -122,13 +122,12 @@
     "push_files": [
       "fund_manager_latest.json",
       "treasury_latest.json",
-      "coinbase_latest.json",
       "one_card_latest.json",
       "rh_checking_latest.json",
       "x_money_latest.json",
       "solana_latest.json",
       "expenses_latest.json"
     ],
-    "notes": "#518 RH + #689 Braiins SoT is prism/Pi (not in push_files). Mac may still push CB/YNAB/Sheet. max_age_hours=6; mcp_timeout_s=240. Override: TREASURY_RH_ROLE, TREASURY_RH_PUSH=1 / TREASURY_BRAIINS_PUSH=1 (emergency only), TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
+    "notes": "#518 RH + #689 Braiins + #695 Coinbase price SoT is prism/Pi (not in push_files). Mac may still push YNAB/Sheet/Solana. Liquid CB balances still Mac CLI (out of #695). max_age_hours=6; mcp_timeout_s=240. Override: TREASURY_RH_ROLE, TREASURY_RH_PUSH=1 / TREASURY_BRAIINS_PUSH=1 / TREASURY_COINBASE_PUSH=1 (emergency only), TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }

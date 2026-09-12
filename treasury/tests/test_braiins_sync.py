@@ -63,6 +63,7 @@ class TestPayoutOutlook(unittest.TestCase):
         self.assertEqual(flows["integrations"]["braiins_pool"]["producer"], "prism")
         cfg_push = cfg.get("pi_sync", {}).get("push_files") or []
         self.assertNotIn("braiins_latest.json", cfg_push)
+        self.assertNotIn("coinbase_latest.json", cfg_push)
 
 
 class TestPayoutHistory(unittest.TestCase):

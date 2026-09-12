@@ -17,6 +17,7 @@ Env (optional):
   TREASURY_RH_SOT_HOST=prism
   TREASURY_RH_PUSH=1           allow Mac→Pi robinhood_latest.json (off by default)
   TREASURY_BRAIINS_PUSH=1      allow Mac→Pi braiins_latest.json (off by default; #689)
+  TREASURY_COINBASE_PUSH=1     allow Mac→Pi coinbase_latest.json (off by default; #695)
   TREASURY_PI_SSH     e.g. prism-agent@192.168.100.98
   TREASURY_PI_ROOT    e.g. /home/prism-agent/personal-workspace
   TREASURY_PI_CONNECT_TIMEOUT  (seconds, default 5)
@@ -70,11 +71,12 @@ FM_SNAP = "fund_manager_latest.json"
 RH_PRODUCER_STATUS = "rh_producer_status.json"
 DEFAULT_SOT_HOST = "prism"
 BRAIINS_SNAP = "braiins_latest.json"
-# Mac may still push CB/YNAB/Sheet. RH (#518) and Braiins (#689) are Pi SoT.
+COINBASE_SNAP = "coinbase_latest.json"
+# Mac may still push YNAB/Sheet/Solana. RH (#518), Braiins (#689), and
+# Coinbase price (#695) are Pi SoT.
 DEFAULT_PUSH_FILES = (
     "fund_manager_latest.json",
     "treasury_latest.json",
-    "coinbase_latest.json",
     "one_card_latest.json",
     "rh_checking_latest.json",
     "x_money_latest.json",
@@ -197,12 +199,15 @@ def _strip_rh_push(files: List[str]) -> List[str]:
 
     RH: omit unless TREASURY_RH_PUSH=1 (#518).
     Braiins: omit unless TREASURY_BRAIINS_PUSH=1 (#689).
+    Coinbase: omit unless TREASURY_COINBASE_PUSH=1 (#695).
     """
     out = list(files)
     if os.environ.get("TREASURY_RH_PUSH") != "1":
         out = [f for f in out if str(f) != RH_SNAP]
     if os.environ.get("TREASURY_BRAIINS_PUSH") != "1":
         out = [f for f in out if str(f) != BRAIINS_SNAP]
+    if os.environ.get("TREASURY_COINBASE_PUSH") != "1":
+        out = [f for f in out if str(f) != COINBASE_SNAP]
     return out
 
 

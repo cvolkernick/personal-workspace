@@ -546,6 +546,9 @@ class TestCashStreamsBuilder(unittest.TestCase):
             )
         self.assertEqual(got["status"], "unknown")
         self.assertIn("Coinbase price feed stale", got["error"])
+        self.assertIn("coinbase-price-refresh.timer", got["error"])
+        self.assertNotIn("systemctl", got["error"])
+        self.assertNotIn("python3 treasury/", got["error"])
 
     def test_load_adds_mining_from_snapshots(self) -> None:
         def fake_fetch(since: str) -> dict:

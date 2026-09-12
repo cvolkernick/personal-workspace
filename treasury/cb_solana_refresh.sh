@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Mac producer: live Coinbase CLI + Solana RPC, assemble treasury, push to Pi.
+# Mac producer: live Coinbase CLI (liquid balances) + Solana RPC, assemble
+# treasury, push non-Pi-SoT snapshots to Pi.
 #
-# Pi Refresh cannot live-fetch Coinbase (no CLI). Solana can live on Pi after
-# work/treasury adapters are deployed; this timer still keeps Mac snapshots
-# fresh under the FCC 6h stale threshold and pushes them.
+# #695: Pi owns coinbase_latest.json for BTC/USD price (public spot timer).
+# Do not push that file. Liquid USDC/BTC still Mac CLI; Solana still this job.
 #
 # Schedule hourly:
 #   launchd: treasury/deploy/com.personalworkspace.cb-solana-refresh.plist
