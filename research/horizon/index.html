@@ -829,7 +829,7 @@
       $("pill-status").textContent = "loading";
       $("pill-status").className = "pill warn";
       try {
-        const res = await fetch("/api/dashboard", { cache: "no-store" });
+        const res = await fetch("api/dashboard", { cache: "no-store" });
         const data = await res.json();
         if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
         if (!data.has_brief && !data.has_world_state) {
@@ -850,7 +850,7 @@
       btn.textContent = "Running…";
       setError("");
       try {
-        const res = await fetch("/api/refresh", {
+        const res = await fetch("api/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ offline: !!offline }),

@@ -23,12 +23,16 @@ class TestDashboardArtifacts(unittest.TestCase):
             "Executive brief",
             "Implications for my strategy",
             "Watchlist",
-            "/api/dashboard",
-            "/api/refresh",
+            "api/dashboard",
+            "api/refresh",
             "fact-box",
             "interp-box",
         ):
             self.assertIn(needle, html)
+
+    def test_server_accepts_host_flag(self):
+        src = (HORIZON / "server.py").read_text(encoding="utf-8")
+        self.assertIn('add_argument("--host"', src)
 
     def test_build_dashboard_payload_shipped(self):
         from research.horizon.pipeline import run_pipeline

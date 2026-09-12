@@ -1,5 +1,5 @@
 /* FCC offline shell — caches static UI only, never API or treasury JSON. */
-const CACHE = "fcc-shell-v2";
+const CACHE = "fcc-shell-v3";
 const PRECACHE = [
   "/",
   "/financial-command/",
@@ -20,6 +20,8 @@ const PRECACHE = [
 function isLiveMoney(url) {
   // Never cache /api/* or JSON snapshots (treasury_latest, spectrum, etc.)
   if (url.pathname.startsWith("/api/")) return true;
+  if (url.pathname.startsWith("/fleet/api/")) return true;
+  if (url.pathname.startsWith("/horizon/api/")) return true;
   if (url.pathname.endsWith(".json")) return true;
   return false;
 }

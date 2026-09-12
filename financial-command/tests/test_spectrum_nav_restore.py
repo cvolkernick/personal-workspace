@@ -105,7 +105,7 @@ class TestBrokerAndSpectrumNav(unittest.TestCase):
         self.assertEqual(exp["text"], "Expenses")
         self.assertIn("docs.google.com/spreadsheets", exp["href"])
         self.assertEqual(fleet["text"], "Fleet")
-        self.assertIn(":8796", fleet["href"])
+        self.assertEqual(fleet["href"], "/fleet/")
         self.assertIn('data-nav-fleet', html)
         self.assertIn("nav-fleet.js", html)
         self.assertIn("broker-links", html)
