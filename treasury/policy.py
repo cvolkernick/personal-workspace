@@ -55,6 +55,8 @@ MANUAL_FIELDS = (
     "card_balance",
     "card_available_credit",
 )
+# Morpho Borrow is app-only (no Advanced Trade pull). These three are the loan.
+LOAN_MANUAL_FIELDS = ("loan_principal_usdc", "collateral_btc_usd", "ltv")
 
 
 def _f(x: Any, default: float = 0.0) -> float:
@@ -68,6 +70,19 @@ def _f(x: Any, default: float = 0.0) -> float:
 
 def _is_missing(x: Any) -> bool:
     return x is None or x == ""
+
+
+def loan_is_closed(man: Optional[Dict[str, Any]]) -> bool:
+    """Explicit zero principal = known, no active Morpho loan.
+
+    Missing/blank is *not* closed — that is the fill_morpho path. ``"0"`` and
+    ``0`` are closed. Stale LTV/collateral next to a zero principal must not
+    generate LTV Do-Nows or missing-manual nags.
+    """
+    raw = (man or {}).get("loan_principal_usdc")
+    if _is_missing(raw):
+        return False
+    return _f(raw) <= 0.0
 
 
 def classify_liquid_usdc(
@@ -322,6 +337,10 @@ def assess_data_quality(
         and "ltv" in missing_manual
     ):
         missing_manual = [k for k in missing_manual if k != "ltv"]
+    # Paid-off loan: explicit 0 principal is complete. Do not nag fill_morpho
+    # for leftover-blank LTV/collateral, and do not treat "0" as missing.
+    if loan_is_closed(man):
+        missing_manual = [k for k in missing_manual if k not in LOAN_MANUAL_FIELDS]
 
     warnings: List[str] = []
     # Card fields filled via YNAB one_card count as present for DQ
@@ -987,9 +1006,15 @@ def evaluate_treasury(
         ltv = _f(ltv)
     else:
         ltv = None
-    principal = _f(man.get("loan_principal_usdc")) if not _is_missing(man.get("loan_principal_usdc")) else 0.0
+    principal_raw = man.get("loan_principal_usdc")
+    principal_known = not _is_missing(principal_raw)
+    principal = _f(principal_raw) if principal_known else 0.0
     coll_usd = _f(man.get("collateral_btc_usd")) if not _is_missing(man.get("collateral_btc_usd")) else 0.0
-    if ltv is None and principal > 0 and coll_usd > 0:
+    loan_closed = loan_is_closed(man)
+    if loan_closed:
+        # Ignore leftover LTV/collateral. Zero principal is the closed state.
+        ltv = 0.0
+    elif ltv is None and principal > 0 and coll_usd > 0:
         ltv = principal / coll_usd
 
     one_card = snapshot.get("one_card") or {}
@@ -1252,7 +1277,7 @@ def evaluate_treasury(
             detail="Missing: " + ", ".join(missing),
             api_reachable=False,
         )
-    elif morpho_only:
+    elif morpho_only and not loan_closed:
         add(
             1,
             "fill_morpho",
@@ -1267,7 +1292,9 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
-    if ltv is None and not morpho_only:
+    if loan_closed:
+        pass  # explicit 0 principal: no LTV Do-Nows, no fill_morpho
+    elif ltv is None and not morpho_only:
         add(
             1,
             "ltv_check",
@@ -1702,7 +1729,8 @@ def evaluate_treasury(
             "liquid_btc_usd": liquid_btc_usd,
             "btc_usd_price": btc_usd_price,
             "ltv": ltv,
-            "loan_principal_usdc": principal if principal else None,
+            "loan_principal_usdc": principal if principal_known else None,
+            "loan_closed": loan_closed,
             "collateral_btc_usd": coll_usd if coll_usd else None,
             "vault_usdc": vault_usdc if vault_known else None,
             "card_balance": card_balance if not _is_missing(card_balance_raw) else None,

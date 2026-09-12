@@ -2362,6 +2362,7 @@
             <input id="m-collateral" type="number" step="any" placeholder="BTC collateral USD" />
             <label>CB LTV (0–1, e.g. 0.35)</label>
             <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
+            <p class="hint">Advanced Trade does not expose Borrow. Explicit principal 0 = no active loan (not “missing”). Use Mark paid off instead of leaving a stale LTV.</p>
             <label>CB High Yield vault USDC (LTV buffer)</label>
             <input id="m-vault" type="number" step="any" placeholder="Morpho HY · not card float" />
             <label>Morpho variable APR (0–1, e.g. 0.0487)</label>
@@ -2398,6 +2399,7 @@
         </div>
         <div class="btn-row">
           <button class="primary" type="button" id="btn-save-config">Save to config</button>
+          <button type="button" id="btn-loan-paid-off">Mark Morpho loan paid off</button>
           <button type="button" id="btn-recompute">What-if only</button>
         </div>
         <p class="hint" id="recompute-note"></p>
@@ -2785,9 +2787,13 @@
       const rh = snapshot.robinhood || {};
       const liquid = f(cb.liquid_usdc);
       let ltv = man.ltv == null || man.ltv === "" ? null : f(man.ltv);
-      const principal = f(man.loan_principal_usdc);
+      const principalRaw = man.loan_principal_usdc;
+      const principalKnown = principalRaw != null && principalRaw !== "";
+      const principal = f(principalRaw);
       const coll = f(man.collateral_btc_usd);
-      if (ltv == null && principal > 0 && coll > 0) ltv = principal / coll;
+      const loanClosed = principalKnown && principal <= 0;
+      if (loanClosed) ltv = 0;
+      else if (ltv == null && principal > 0 && coll > 0) ltv = principal / coll;
       const buckets = classifyLiquid(liquid, p);
       const bp = f(rh.buying_power);
       const dca =
@@ -2797,7 +2803,9 @@
       const actions = [];
       const add = (priority, kind, title, actor, detail, api) =>
         actions.push({ priority, kind, title, actor, detail, api_reachable: api });
-      if (ltv == null) add(1, "ltv_check", "Confirm Morpho loan LTV in Coinbase app", "human", "Update config after app check.", false);
+      if (loanClosed) {
+        /* explicit 0 principal: no LTV Do-Nows */
+      } else if (ltv == null) add(1, "ltv_check", "Confirm Morpho loan LTV in Coinbase app", "human", "Update config after app check.", false);
       else if (ltv >= p.cb_target_ltv_max)
         add(1, "ltv_protect", `LTV ${(ltv * 100).toFixed(1)}% at/above max — repay or add collateral`, "human", "In-app only.", false);
       if (f(man.card_balance) > 0)
@@ -2812,6 +2820,8 @@
           liquid_usdc: liquid,
           liquid_btc: f(cb.liquid_btc),
           ltv,
+          loan_principal_usdc: principalKnown ? principal : null,
+          loan_closed: loanClosed,
           card_balance: f(man.card_balance),
           rh_buying_power: bp,
           rh_cash: f(rh.cash),
@@ -3599,6 +3609,8 @@
         );
       }
       function ltvTone() {
+        if (inp.loan_closed)
+          return toneResult("green", "No active Morpho loan (principal 0).");
         if (ltvVal == null || !Number.isFinite(ltvVal))
           return toneResult(
             "yellow",
@@ -3650,6 +3662,7 @@
         );
       }
       function ltvChipSub() {
+        if (inp.loan_closed) return "paid off";
         if (ltvVal == null || !Number.isFinite(ltvVal)) return "unknown";
         if (ltvVal >= ltvMax) return "at max";
         if (ltvVal >= ltvAlert) return "above alert";
@@ -3783,7 +3796,7 @@
         },
         {
           k: "LTV",
-          v: pct(ltvVal),
+          v: inp.loan_closed ? "none" : pct(ltvVal),
           s: ltvChipSub(),
           target: "panel-settings",
           tone: tLtv.tone,
@@ -5366,6 +5379,23 @@
     if (btnCoach)
       btnCoach.addEventListener("click", () => loadCoach({ refresh: true }));
     document.getElementById("btn-save-config").addEventListener("click", saveConfig);
+    document.getElementById("btn-loan-paid-off").addEventListener("click", async () => {
+      if (
+        !confirm(
+          "Mark Morpho loan paid off? This zeros principal, collateral, and LTV in config. LTV Do-Nows will clear. Vault/card fields are unchanged."
+        )
+      )
+        return;
+      const set0 = (id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "0";
+      };
+      set0("m-principal");
+      set0("m-collateral");
+      set0("m-ltv");
+      await saveConfig();
+      toast("Morpho loan marked paid off");
+    });
     // Soft auto-poll: re-read treasury JSON only (does NOT live-sync CB/Sheet/Braiins/RH).
     // Use the Refresh button for live feed ages.
     setInterval(() => {

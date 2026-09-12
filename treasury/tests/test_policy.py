@@ -18,6 +18,7 @@ from treasury.policy import (  # noqa: E402
     evaluate_treasury,
     expense_due_window,
     leverage_band,
+    loan_is_closed,
 )
 
 
@@ -257,6 +258,99 @@ class TestVaultWorkingUsdc(unittest.TestCase):
         ev = evaluate_treasury(snap)
         self.assertEqual(ev["stress"]["coinbase_liquid"], "yellow")
         self.assertIn("vault_unknown", [a["kind"] for a in ev["actions"]])
+
+
+class TestLoanClosed(unittest.TestCase):
+    """Explicit principal 0 is a closed Morpho loan, not missing data."""
+
+    LOAN_KINDS = ("ltv_protect", "ltv_watch", "ltv_check", "fill_morpho")
+
+    def _kinds(self, ev):
+        return [a["kind"] for a in ev["actions"]]
+
+    def test_loan_is_closed_explicit_zero_not_missing(self):
+        self.assertTrue(loan_is_closed({"loan_principal_usdc": 0}))
+        self.assertTrue(loan_is_closed({"loan_principal_usdc": "0"}))
+        self.assertTrue(loan_is_closed({"loan_principal_usdc": 0.0}))
+        self.assertFalse(loan_is_closed({}))
+        self.assertFalse(loan_is_closed({"loan_principal_usdc": None}))
+        self.assertFalse(loan_is_closed({"loan_principal_usdc": ""}))
+        self.assertFalse(loan_is_closed({"loan_principal_usdc": 120.5}))
+
+    def test_zero_principal_ignores_stale_ltv_critical(self):
+        # The paid-off Morpho bug: leftover ltv 0.5 + principal 0 → phantom critical.
+        snap = {
+            "coinbase": {"liquid_usdc": 100, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {
+                "loan_principal_usdc": "0",
+                "collateral_btc_usd": "242.84",
+                "ltv": "0.5",
+                "vault_usdc": 100,
+                "card_balance": 0,
+                "card_available_credit": 500,
+            },
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 500,
+                "equity_value": 10000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap, policy=DEFAULT_POLICY)
+        kinds = self._kinds(ev)
+        for kind in self.LOAN_KINDS:
+            self.assertNotIn(kind, kinds, kinds)
+        self.assertEqual(ev["stress"]["coinbase_ltv"], "green")
+        self.assertTrue(ev["inputs"]["loan_closed"])
+        self.assertEqual(ev["inputs"]["loan_principal_usdc"], 0.0)
+        self.assertEqual(ev["inputs"]["ltv"], 0.0)
+        self.assertNotIn("loan_principal_usdc", ev["data_quality"]["missing_manual_fields"])
+        self.assertNotIn("ltv", ev["data_quality"]["missing_manual_fields"])
+        self.assertNotIn("collateral_btc_usd", ev["data_quality"]["missing_manual_fields"])
+
+    def test_explicit_zero_does_not_nag_fill_morpho_when_ltv_blank(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 100, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {
+                "loan_principal_usdc": 0,
+                "vault_usdc": 100,
+                "card_balance": 0,
+                "card_available_credit": 500,
+            },
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 500,
+                "equity_value": 10000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap, policy=DEFAULT_POLICY)
+        kinds = self._kinds(ev)
+        self.assertNotIn("fill_morpho", kinds)
+        self.assertNotIn("fill_manual", kinds)
+        self.assertNotIn("ltv_check", kinds)
+        self.assertTrue(ev["inputs"]["loan_closed"])
+
+    def test_missing_principal_still_asks_for_morpho(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 100, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {
+                "vault_usdc": 100,
+                "card_balance": 0,
+                "card_available_credit": 500,
+            },
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 500,
+                "equity_value": 10000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap, policy=DEFAULT_POLICY)
+        kinds = self._kinds(ev)
+        self.assertIn("fill_morpho", kinds)
+        self.assertFalse(ev["inputs"]["loan_closed"])
+        self.assertIsNone(ev["inputs"]["loan_principal_usdc"])
 
 
 class TestEvaluateTreasury(unittest.TestCase):
