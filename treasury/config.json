@@ -22,7 +22,7 @@
   },
   "coinbase_manual": {
     "loan_principal_usdc": "0",
-    "collateral_btc_usd": "242.84",
+    "collateral_btc_usd": "0",
     "ltv": "0",
     "vault_usdc": "100",
     "card_balance": null,
