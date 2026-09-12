@@ -67,19 +67,20 @@ class TestFundPolicy(unittest.TestCase):
 
     def test_watchlist_be_energy(self):
         wl = load_watchlist()
-        symbols = {
-            (e.get("symbol") or "").upper() for e in (wl.get("entries") or [])
-        }
-        self.assertIn("BE", symbols)
+        entries = { (e.get("symbol") or "").upper(): e for e in (wl.get("entries") or []) }
+        self.assertIn("BE", entries)
+        self.assertEqual(entries["BE"].get("status"), "pass")
         self.assertFalse((wl.get("policy") or {}).get("auto_buy", True))
         p = load_fund_policy()
         self.assertEqual((p.get("watchlist") or {}).get("path"), "investment/watchlist.json")
+        self.assertIn("BE", [str(s).upper() for s in ((p.get("guardrails") or {}).get("blocked_symbols") or [])])
+        self.assertNotIn("BE", [str(s).upper() for s in ((p.get("sleeves") or {}).get("energy_opportunistic") or {}).get("watchlist_symbols") or []])
         summary = watchlist_summary(p)
         self.assertIn("BE", summary["symbols"])
         self.assertGreaterEqual(summary["count"], 1)
 
     def test_watchlist_nvda_open_weight_note(self):
-        """NVDA thesis note mentions open-source/open-weight; not a held or buy claim."""
+        """NVDA thesis note mentions open-source/open-weight; ready+held, not core."""
         wl = load_watchlist()
         nvda = next(
             (
@@ -108,10 +109,37 @@ class TestFundPolicy(unittest.TestCase):
         ).lower()
         self.assertIn("open-source", blob)
         self.assertIn("open-weight", blob)
-        self.assertIn("not held", blob)
+        self.assertIn("still held", blob)
         p = load_fund_policy()
         core = ((p.get("allowlist") or {}).get("core") or [])
         self.assertNotIn("NVDA", [str(s).upper() for s in core])
+
+    def test_investment_sot_no_contradiction(self):
+        """#618: sleeve lists, watchlist, pins, and blocked BE stay aligned."""
+        p = load_fund_policy()
+        wl = load_watchlist()
+        entries = { (e.get("symbol") or "").upper(): e for e in (wl.get("entries") or []) }
+        stocks_wl = [
+            str(s).upper()
+            for s in ((p.get("sleeves") or {}).get("stocks_growth") or {}).get("watchlist_symbols") or []
+        ]
+        energy_wl = [
+            str(s).upper()
+            for s in ((p.get("sleeves") or {}).get("energy_opportunistic") or {}).get("watchlist_symbols") or []
+        ]
+        core = [str(s).upper() for s in ((p.get("allowlist") or {}).get("core") or [])]
+        for sym in ("GOOGL", "AAPL", "NVDA", "PLTR", "AMZN", "EVGO", "RKLB"):
+            self.assertIn(sym, stocks_wl)
+            self.assertEqual(entries[sym].get("status"), "ready")
+        for sym in ("CCJ", "BWXT"):
+            self.assertIn(sym, energy_wl)
+            self.assertEqual(entries[sym].get("status"), "ready")
+        self.assertNotIn("BE", stocks_wl + energy_wl + core)
+        pins_path = ROOT / "investment" / "consider_share.json"
+        pins = json.loads(pins_path.read_text(encoding="utf-8"))
+        self.assertEqual(sorted((pins.get("pins") or {}).keys()), ["SPCX", "TSLA"])
+        self.assertAlmostEqual(float((pins.get("pins") or {})["TSLA"]), 15.0)
+        self.assertAlmostEqual(float((pins.get("pins") or {})["SPCX"]), 15.0)
 
     def test_book_channel_map_v0_enums_and_anchors(self):
         """Meridian nest: load fixture, lock enums, assert NVDA/MSTR may_change."""

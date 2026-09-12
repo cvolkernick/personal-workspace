@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-09-08",
+  "as_of": "2026-09-11",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -74,7 +74,7 @@
       "last_deep_dive_path": "investment/research/GOOGL_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Next earnings est. ~2026-10-28; FCF/capex guide",
-      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. First agentic seat filled 2026-08-24 ($14). Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/PLTR). Not promoted to core."
+      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. First agentic seat filled 2026-08-24 ($14); still held 2026-09-11. Not promoted to core. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/PLTR)."
     },
     {
       "symbol": "AAPL",
@@ -122,7 +122,7 @@
       "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Open-weight / model-factory follow-through + earnings est. ~2026-08-26 \u2014 event risk for any new size into print",
-      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. 2026-08-23 (Chris via Grok/Nakatoshi AC): NVDA investing in their own open-source/open-weight models \u2014 thesis: may reinforce core GPU franchise via vertical integration / industry lock-in. Note only; not a price target or position. Ready for consider set; not auto-buy. Not held. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with GOOGL/PLTR)."
+      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. 2026-08-23 (Chris via Grok/Nakatoshi AC): NVDA investing in their own open-source/open-weight models \u2014 thesis: may reinforce core GPU franchise via vertical integration / industry lock-in. Note only; not a price target or position. Ready for consider set; not auto-buy. First agentic seat 2026-09-08 ($10); still held 2026-09-11. Not promoted to core. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with GOOGL/PLTR)."
     },
     {
       "symbol": "PLTR",
@@ -264,7 +264,7 @@
       "last_deep_dive_path": "investment/research/CCJ_deep_dive.md",
       "last_verdict": "ready_consider_no_size_until_residual_nuclear_not_energy_basket",
       "next_catalyst": "Westinghouse IPO terms; uranium contract-book roll-off; DOE/DOC AP1000 cancellation; >25% from $100.01 (2026-08-28 close); or 90d age",
-      "notes": "Owner-add via Chris #Orchestration 2b8d1eb2 (Chronometer/Smith option A). Dive same day. Close $100.01 / cap $43.6B / ttm PE ~170 (noisy). Q2'26 adj. EBITDA $391M; uranium realized C$93.13/lb; WEC our-share adj. EBITDA $163M. Confidential WEC IPO draft. Not core. Not auto-buy. No size while red-mode + dust BP. High = owner-named + nuclear gap, BE dropped 2026-09-03 \u2014 do not reseat."
+      "notes": "Owner-add via Chris #Orchestration 2b8d1eb2 (Chronometer/Smith option A). Dive same day. Close $100.01 / cap $43.6B / ttm PE ~170 (noisy). Q2'26 adj. EBITDA $391M; uranium realized C$93.13/lb; WEC our-share adj. EBITDA $163M. Confidential WEC IPO draft. First agentic seat 2026-09-08 ($5); still held 2026-09-11. Not core. Not auto-buy. High = owner-named + nuclear gap, BE dropped 2026-09-03 \u2014 do not reseat."
     },
     {
       "symbol": "BWXT",

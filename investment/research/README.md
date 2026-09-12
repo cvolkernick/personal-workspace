@@ -50,7 +50,7 @@ Documented in `investment/fund_manager.json` → `research` / `watchlist` and in
 | `investment/research/private/{ID}_deep_dive.md` | **Private** deep dive — same process as public (pre-IPO adapted); required on owner add |
 | `investment/research/private/{ID}_brief.md` | Optional short one-pager; does **not** replace the private deep dive |
 | `investment/research/fund_manager_research_latest.md` | Latest portfolio/strategy/watchlist research pass |
-| `investment/watchlist.json` | Public machine watchlist (monitor/ready/pass; not holdings) |
+| `investment/watchlist.json` | Public machine watchlist (monitor/ready/pass). Held is FCC-derived, not a status in this file |
 | `investment/private_watchlist.json` | Private / pre-IPO monitor list (not deployable) |
 
 ## Status vocabulary

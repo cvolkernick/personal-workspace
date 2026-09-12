@@ -5,6 +5,16 @@
 
 Tracking for crypto, equities, and related sleeves. **Canonical live balances, buying power, and RH positions come from the FCC** (treasury snapshots + MCP). This folder holds **thesis, target structure, and allowlists** for humans and for agentic Robinhood trading—not a second ledger.
 
+**Git (2026-09-11):** these machine files live on **`work/treasury`** (FCC live). They are **not** on `master` (FitDash). A clone of the GitHub default branch will look empty — that is the product branch map, not a missing-file bug. Do **not** recreate a second copy on `master`.
+
+| File | Role | as_of |
+|------|------|-------|
+| [`fund_manager.json`](./fund_manager.json) | Machine policy: 60/40 sleeves, core allowlist, watchlist rules, `blocked_symbols` | 2026-09-11 |
+| [`watchlist.json`](./watchlist.json) | Public consider-set (`ready` / `pass`). **Held is derived from FCC**, not this file | 2026-09-11 |
+| [`private_watchlist.json`](./private_watchlist.json) | Pre-IPO monitor. Not deployable | 2026-09-07 |
+| [`consider_share.json`](./consider_share.json) | Bias / new-money pins only (**TSLA 15 / SPCX 15**). Not NAV, not orders, not autopilot | 2026-09-08 (verified 2026-09-11) |
+| [`positions.md`](./positions.md) | Human allowlist + current held names. Not a ledger | 2026-09-11 |
+
 ## Strategy
 
 - **Actively managed** equity book via an **agentic fund manager** (Robinhood Trading MCP) — not a fixed weekly DCA schedule.
@@ -46,7 +56,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | **Bitcoin infrastructure** | Mining / energy-intensive BTC infra | MARA, RIOT, CLSK, WULF, IREN |
 | **AI stack** | Infrastructure (hardware) through foundational models and app layers (software) | Broad AI exposure over time; not limited to “chips only” |
 | **Equity / growth (stocks sleeve)** | Non-BTC-primary growth names in the “60” | e.g. TSLA, SPCX |
-| **Energy** | Overarches BTC mining, AI infra, and hard-money macro | Watchlist: **BE** (equipment / speed-to-power; Smith fuel-cost overlay 2026-08-31), **CCJ** (nuclear fuel + 49% Westinghouse), **BWXT** (Navy hardware). Not a basket. EXE not named. Deep-dive before first buy |
+| **Energy** | Overarches BTC mining, AI infra, and hard-money macro | **BE pass / dropped** (owner exit 2026-09-03; blocked; do not reseat). **Held:** **CCJ** (first seat 2026-09-08). **Watch:** **BWXT** (Navy hardware). Not a basket. EXE not named |
 | **Space economy** | Launch + in-space infrastructure as a **stocks/growth lens**, not a basket | **Held core:** SPCX. **Watch:** **RKLB** (Neutron = the SpaceX-alternative bet). Not every space ticker. |
 
 ### Macro framing
@@ -57,7 +67,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 - **Digital credit (STRC/SATA):** **Small bias inside the ~40% stack** toward a real STRC/SATA seat on deploys — BTC-fundamental high-yield / frequent-dividend credit, not cash. Owner 2026-08-04: yields roughly ~2× typical USDC/USDG cash, so prefer STRC/SATA over pure cash-like residual when deploying into the complex. Not “covered by MSTR+BITA” as a default skip; not 40% all-credit.
 - **STRK (Strike preferred):** Owner-add 2026-08-30. Strategy 8% convertible perpetual preferred (0.1 MSTR). Watchlist `ready` — name it each deploy; **not** preferred_core; **not** a substitute for STRC. Not Jack Mallers Strike / not Starknet STRK / not JR-strcUSX. Dive `research/STRK_deep_dive.md`. No size until residual-after-floors (or BP ≥ min_trade) plus logged RV vs held STRC.
 - **Miners:** Diversify across multiple names (MARA, IREN, CLSK, RIOT, WULF, …). Multi-miner is intentional; do not reject for “overlap” alone.
-- **Energy** is the shared constraint (mining, AI power, electrification); opportunistic, not a mandatory line-item yet. **BE** remains the equipment/speed-to-power seat — Smith/Chronometer 2026-08-31: Bloom **burns gas**; HH $8–10 is a **fuel-cost/TCO risk**, not confirmation of the kit tape; turbine-slot scarcity can cut the other way. **CCJ + BWXT** owner-add 2026-08-31 close the named nuclear gap (fuel+OEM vs Navy/hardware). High ≠ first dollar. Size $0 until residual-after-floors. EXE / RRC / XIFR / Brookfield / CWEN **not** on the consider set.
+- **Energy** is the shared constraint (mining, AI power, electrification); opportunistic, not a mandatory line-item. **BE** is **pass / dropped** (owner exit 2026-09-03; 50/50 TSLA+SPCX; `blocked_symbols`; 2026-09-08 $5 incident buy sold). **CCJ** first agentic seat 2026-09-08 — nuclear fuel + 49% Westinghouse, not a BE substitute. **BWXT** remains watchlist/ready (Navy/hardware). High ≠ first dollar. EXE / RRC / XIFR / Brookfield / CWEN **not** on the consider set.
 - **Space:** SPCX is the core expression (already held). RKLB is watchlist optionality on a second launcher — deep-dive 2026-08-26; **not** a mandate to buy space names. Do not treat LUNR/PL/RDW/FLY as SpaceX competitors.
 
 ## Target structure — “modernized 60/40”
@@ -90,9 +100,9 @@ See [positions.md](./positions.md). Current named holdings focus:
 
 **~40% complex:** BTC, MSTR, SATA, STRC, ASST, BITA, MARA, RIOT, CLSK, WULF, IREN  
 
-**~60% stocks:** TSLA, SPCX  
+**~60% stocks:** TSLA, SPCX (core); **held from watchlist:** GOOGL, NVDA, CCJ  
 
-Energy: open for agentic proposals (no fixed list). Gold: sound-money under ~40%, **below BTC priority**, vehicle TBD, research-only until buy call.
+Energy: opportunistic (CCJ held; BWXT watch; BE blocked). Gold: sound-money under ~40%, **below BTC priority**, vehicle TBD, research-only until buy call.
 
 ## Portfolio assessment
 

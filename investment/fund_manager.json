@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "agentic_fund_manager",
-  "as_of": "2026-09-08",
+  "as_of": "2026-09-11",
   "mode": "active",
   "status": "live_autopilot",
   "live": true,
@@ -267,6 +267,8 @@
         "AAPL",
         "NVDA",
         "PLTR",
+        "AMZN",
+        "EVGO",
         "RKLB"
       ],
       "themes": [
@@ -275,7 +277,7 @@
         "energy_adjacent",
         "space_economy"
       ],
-      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (GOOGL, AAPL, NVDA, PLTR) + space alternative RKLB via investment/watchlist.json \u2014 owner-add triggers auto deep-dive \u2192 ready for consider set each deploy; never auto-buy. SPCX is the space core; RKLB is Neutron optionality, not a substitute."
+      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (GOOGL, AAPL, NVDA, PLTR, AMZN) + EVGO (low-priority charging) + space alternative RKLB via investment/watchlist.json \u2014 owner-add triggers auto deep-dive \u2192 ready for consider set each deploy; never auto-buy. GOOGL/NVDA currently held (not promoted to core). SPCX is the space core; RKLB is Neutron optionality, not a substitute. CCJ is held opportunistic nuclear (energy_opportunistic sleeve list, stocks_growth when owned)."
     },
     "energy_opportunistic": {
       "target_pct": null,

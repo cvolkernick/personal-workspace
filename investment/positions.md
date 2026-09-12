@@ -1,8 +1,33 @@
 # Investment Portfolio — Positions & Allowlist
 
-**As of:** 2026-09-08  
+**As of:** 2026-09-11  
 **Live sizes / prices:** Financial Command Center only (not this file).  
 **Purpose:** Thesis allowlist and sleeve tags for humans + agentic Robinhood trading.
+
+## Current agentic book (held)
+
+Verified 2026-09-11T02:15Z from `treasury/snapshots/fund_manager_latest.json` (account `••1752`). **Quantities live in FCC only.**
+
+| Symbol | Sleeve | Notes |
+|--------|--------|-------|
+| **MSTR** | ~40% complex | Core |
+| **STRC** | ~40% complex | Preferred digital-credit core (small bias) |
+| **SATA** | ~40% complex | Preferred digital-credit core (small bias) |
+| **BITA** | ~40% complex | Digital credit / BTC yield |
+| **MARA** | ~40% complex | Miner |
+| **IREN** | ~40% complex | Miner |
+| **CLSK** | ~40% complex | Miner |
+| **RIOT** | ~40% complex | Miner |
+| **WULF** | ~40% complex | Miner |
+| **TSLA** | ~60% stocks | Core. Bias pin 15 |
+| **SPCX** | ~60% stocks | Core. Bias pin 15 |
+| **GOOGL** | ~60% stocks | Watchlist-ready, **held** (first seat 2026-08-24). Not core |
+| **NVDA** | ~60% stocks | Watchlist-ready, **held** (first seat 2026-09-08). Not core |
+| **CCJ** | ~60% stocks | Watchlist-ready, **held** (first seat 2026-09-08). Energy/nuclear opportunistic; not core |
+
+**Core allowlist unheld on agentic:** BTC (prefer Coinbase / self-custody), **ASST**.  
+**Owner-exited:** BE (sold 2026-09-03; blocked; do not reseat).  
+**Live mix:** ~40.4% BTC-complex / ~59.6% stocks of deployed (in ±5% band). NAV / cash / BP → FCC.
 
 ## Target structure (modernized 60/40)
 
@@ -37,23 +62,23 @@
 | **Energy** | Overarching theme (mining power, AI electricity, electrification). **No mandated core tickers.** Candidates on **watchlist** (below); deep-dive before first buy |
 | **AI stack (broad)** | Infra (hardware), foundation models, application software—additions should still fit modernized 60/40 and FCC floors |
 
-## Thematic watchlist (ready for consideration — not holdings)
+## Thematic watchlist (consider-set — not auto-buy)
 
-Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlist = **active allocation interest** → auto deep-dive → **`ready`** for each systemic deploy consider set. Still **not** auto-buys.
+Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlist = **active allocation interest** → auto deep-dive → **`ready`** for each systemic deploy consider set. Still **not** auto-buys. **`ready` is not “unheld”** — GOOGL / NVDA / CCJ are ready **and** held. Held vs watched is FCC-derived; this table is policy status.
 
-| Symbol | Theme | Status | Notes |
-|--------|-------|--------|-------|
-| **BE** | Energy (Bloom Energy) | **pass / dropped** | OWNER EXIT 2026-09-03 (sold; 50/50 TSLA+SPCX). OFF Agentic holdings, OFF watchlist #1 / NVDA-GOOGL-BE trio, OFF Monday theme-gap / DCA. Do NOT reseat. 2026-09-08 incident: $5 buy still filled (order 6aa014ee…) because status was still ready — nest SoT corrected same day. |
-| **GOOGL** | AI stack (Alphabet / Google) | ready | Dive 2026-08-04. Liquid AI + cash compounder. Class A preferred. |
-| **AAPL** | AI stack (Apple) | ready | Dive 2026-08-04. Quality/ecosystem AI; behind GOOGL/NVDA on pure AI. |
-| **NVDA** | AI stack (NVIDIA) | ready | Dive 2026-08-04. Pure AI infra; next print ~2026-08-26 event risk. |
-| **PLTR** | AI harness/apps (Palantir) | ready | Dive 2026-08-04. Medium priority; high multiple / gov gates. |
-| **EVGO** | Energy (EVgo) | ready | Dive 2026-08-06. Low-priority show-me Superchargers. |
-| **AMZN** | AI stack (Amazon) | ready | Dive 2026-08-24. AWS/AI real; GAAP EPS Anthropic-mark; behind GOOGL/NVDA. |
-| **RKLB** | Space (Rocket Lab) | ready | Dive 2026-08-26. Neutron optionality vs held SPCX. No size until Flight 1 + residual. |
-| **STRK** | Digital credit (Strategy Strike pfd) | ready | Dive 2026-08-30. 8% convertible preferred; junior to held STRC; not core. No size until residual + RV vs STRC. |
-| **CCJ** | Nuclear (Cameco) | ready | Dive 2026-08-31. Fuel + 49% Westinghouse. Named nuclear gap. No size until residual; not a BE substitute. |
-| **BWXT** | Nuclear (BWX Technologies) | ready | Dive 2026-08-31. Navy propulsion floor + commercial components. Second nuclear seat behind CCJ. |
+| Symbol | Theme | Status | Held 2026-09-11? | Notes |
+|--------|-------|--------|------------------|-------|
+| **BE** | Energy (Bloom Energy) | **pass / dropped** | no | OWNER EXIT 2026-09-03 (sold; 50/50 TSLA+SPCX). Blocked. Do NOT reseat. 2026-09-08 incident: $5 buy still filled because status was still ready — nest SoT corrected same day. |
+| **GOOGL** | AI stack (Alphabet / Google) | ready | **yes** | Dive 2026-08-04. First seat 2026-08-24. Still not core. |
+| **AAPL** | AI stack (Apple) | ready | no | Dive 2026-08-04. Quality/ecosystem AI; behind GOOGL/NVDA on pure AI. |
+| **NVDA** | AI stack (NVIDIA) | ready | **yes** | Dive 2026-08-04. First seat 2026-09-08. Still not core. |
+| **PLTR** | AI harness/apps (Palantir) | ready | no | Dive 2026-08-04. High multiple / gov gates. Peer set with NVDA/GOOGL. |
+| **EVGO** | Energy (EVgo) | ready | no | Dive 2026-08-06. Low-priority show-me Superchargers. |
+| **AMZN** | AI stack (Amazon) | ready | no | Dive 2026-08-24. AWS/AI real; GAAP EPS Anthropic-mark; behind GOOGL/NVDA. |
+| **RKLB** | Space (Rocket Lab) | ready | no | Dive 2026-08-26. Neutron optionality vs held SPCX. No size until Flight 1 + residual. |
+| **STRK** | Digital credit (Strategy Strike pfd) | ready | no | Dive 2026-08-30. 8% convertible preferred; junior to held STRC; not core. |
+| **CCJ** | Nuclear (Cameco) | ready | **yes** | Dive 2026-08-31. First seat 2026-09-08. Fuel + 49% Westinghouse. Not a BE substitute. Not core. |
+| **BWXT** | Nuclear (BWX Technologies) | ready | no | Dive 2026-08-31. Navy propulsion floor + commercial components. Second nuclear seat behind CCJ. |
 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60 when relative value favors it; **strong theme bias**.
