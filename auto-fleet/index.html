@@ -1,0 +1,1747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auto Fleet</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --chip: #152033;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #152033 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: rgba(11,15,20,0.92);
+      backdrop-filter: blur(8px);
+      z-index: 20;
+    }
+    header h1 { margin: 0; font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.85rem; }
+    header .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    button, .touch, a.btn {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 0.45rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 44px;
+      min-width: 44px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    button:hover, a.btn:hover { border-color: var(--accent); color: var(--accent); }
+    main { max-width: 1180px; margin: 0 auto; padding: 1rem 1.15rem 3rem; }
+    .meta {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin: 0 0 0.75rem;
+    }
+    .glance {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.35rem;
+      margin: 0 0 0.75rem;
+    }
+    .glance-cell {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.08rem;
+      min-height: 44px;
+      min-width: 0;
+      padding: 0.32rem 0.45rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      color: inherit;
+      text-decoration: none;
+    }
+    a.glance-jump, a.glance-name {
+      color: inherit;
+      text-decoration: none;
+      min-width: 0;
+    }
+    a.glance-jump {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.08rem;
+      flex: 1;
+    }
+    a.chip { text-decoration: none; cursor: pointer; }
+    a.chip:hover { border-color: var(--accent); }
+    .glance-top-end {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.12rem;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .glance-cell:hover { border-color: var(--accent); }
+    .glance-cell.stale { border-color: #6a5a2a; }
+    .glance-cell.dead, .card.dead {
+      border-color: #8a2a2a;
+      box-shadow: inset 3px 0 0 var(--red);
+    }
+    .glance-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.25rem;
+      align-items: baseline;
+      min-width: 0;
+    }
+    .glance-name {
+      font-weight: 700;
+      font-size: 0.72rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .glance-hero { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+    .glance-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.12rem;
+      color: var(--muted);
+      font-size: 0.65rem;
+    }
+    .glance-cell .chip {
+      font-size: 0.58rem;
+      padding: 0.06rem 0.32rem;
+      min-height: 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 132px 1fr;
+      min-height: 110px;
+    }
+    .hero img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      display: block;
+      background: #0a1016;
+    }
+    .hero-text { padding: 0.75rem 0.95rem 0.55rem; min-width: 0; }
+    .card h2 {
+      margin: 0 0 0.3rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; }
+    .chip {
+      font-size: 0.72rem;
+      font-weight: 650;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid #3a4a6a;
+      color: var(--accent);
+      background: var(--chip);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .chip.warn { color: var(--yellow); border-color: #6a5a2a; }
+    .chip.ok { color: var(--green); border-color: #2a5a40; }
+    .chip.err { color: var(--red); border-color: #6a2a2a; }
+    .body { padding: 0 0.95rem 0.85rem; }
+    .strip {
+      border-top: 1px solid var(--border);
+      padding: 0.55rem 0 0.15rem;
+      margin-top: 0.35rem;
+    }
+    .strip h3 {
+      margin: 0 0 0.3rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+    }
+    .strip.host-identity { padding-top: 0.4rem; padding-bottom: 0.15rem; }
+    .strip.host-identity .chips { margin: 0.05rem 0 0.2rem; }
+    .strip.awaiting { padding-top: 0.35rem; padding-bottom: 0.1rem; }
+    .finance-block { margin: 0; }
+    .strip.awaiting .host-ops-item { padding: 0.12rem 0; }
+    .metrics {
+      display: grid;
+      grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr);
+      column-gap: 0.7rem;
+      row-gap: 0.22rem;
+      align-items: baseline;
+    }
+    .metrics .k {
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 650;
+    }
+    .metrics .v { font-size: 0.92rem; min-width: 0; }
+    .row { font-size: 0.88rem; margin: 0.15rem 0; }
+    .muted { color: var(--muted); }
+    .empty { color: var(--muted); font-size: 0.86rem; font-style: italic; }
+    .err { color: var(--red); }
+    .due-lead { color: var(--yellow); font-weight: 650; }
+    .soc {
+      height: 10px;
+      border-radius: 999px;
+      background: #1a2733;
+      overflow: hidden;
+      margin: 0.25rem 0 0.35rem;
+    }
+    .soc > span { display: block; height: 100%; background: var(--green); }
+    .soc.warn > span { background: var(--yellow); }
+    .soc.err > span { background: var(--red); }
+    a.maps {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      color: var(--accent);
+      font-weight: 650;
+      text-decoration: none;
+    }
+    a.maps:hover { text-decoration: underline; }
+    .load-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      z-index: 90;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--green), transparent);
+      background-size: 45% 100%;
+      animation: loadslide 1.05s linear infinite;
+    }
+    .load-bar[hidden] { display: none; }
+    @keyframes loadslide {
+      from { background-position: -50% 0; }
+      to { background-position: 150% 0; }
+    }
+    .page-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(11, 15, 20, 0.82);
+      backdrop-filter: blur(7px);
+    }
+    .page-loader[hidden] { display: none; }
+    .page-loader-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 1.25rem 1.4rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      min-width: 220px;
+      text-align: center;
+    }
+    .page-loader-card .muted { margin: 0; font-size: 0.8rem; }
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+    .fleet-map { margin: 0 0 1rem; padding: 0; overflow: hidden; }
+    .fleet-map .map-head {
+      padding: 0.75rem 0.95rem 0.45rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 1rem;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .fleet-map h2 { margin: 0; font-size: 1.05rem; }
+    #fleet-map-canvas {
+      height: 280px;
+      width: 100%;
+      background: #0a1016;
+    }
+    .leaflet-container { background: #0a1016; font: inherit; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+      background: var(--panel);
+      color: var(--text);
+    }
+    .leaflet-popup-content { margin: 0.55rem 0.75rem; }
+    .leaflet-popup-content a { color: var(--accent); }
+    .shared { margin-top: 0.9rem; padding: 0.95rem 1rem; }
+    .shared ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+    .turo-inbox {
+      margin-top: 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.2rem 0.85rem;
+      background: var(--panel);
+    }
+    .turo-inbox summary {
+      cursor: pointer;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      font-weight: 650;
+      color: var(--muted);
+    }
+    .host-ops {
+      margin: 0 0 1rem;
+      padding: 0.75rem 0.95rem 0.65rem;
+    }
+    .host-ops h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+    }
+    .host-ops-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      margin: 0.2rem 0;
+      min-height: 44px;
+    }
+    .host-ops-item input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      margin-top: 0.35rem;
+      flex: 0 0 auto;
+      accent-color: var(--green);
+      cursor: pointer;
+    }
+    .host-ops-copy { min-width: 0; padding-top: 0.2rem; }
+    .host-ops-copy .title { font-weight: 650; }
+    .host-ops-copy .notes {
+      color: var(--muted);
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      margin: 0.15rem 0 0;
+    }
+    details.trip {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.15rem 0.65rem 0.35rem;
+      margin: 0.35rem 0;
+    }
+    details.trip summary {
+      cursor: pointer;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      font-weight: 650;
+    }
+    .trip-photos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.35rem;
+    }
+    .trip-photos a {
+      display: block;
+    }
+    .trip-photos img {
+      display: block;
+      max-width: 160px;
+      max-height: 120px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .trip-photos .missing {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .ops-flag { color: var(--yellow); }
+    .chip.mute { color: var(--muted); border-color: #3a4a5a; }
+    .chip.next { color: var(--green); border-color: #2a5a40; background: #12301f; }
+    .next30 { margin: 0 0 1rem; padding: 0.75rem 0.95rem 0.65rem; }
+    .next30 h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+    }
+    .queue {
+      display: flex;
+      flex-direction: column;
+      gap: 0.32rem;
+      position: relative;
+      margin: 0.1rem 0 0.35rem;
+      padding: 0.05rem 0 0.1rem;
+    }
+    .queue-cols,
+    .booking {
+      display: grid;
+      grid-template-columns: 10px minmax(6.1rem, 1.05fr) auto minmax(4.2rem, 0.95fr) minmax(5.2rem, 1.25fr) auto;
+      column-gap: 0.4rem;
+      align-items: center;
+      min-width: 0;
+    }
+    .queue-cols {
+      color: var(--muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+      padding: 0 0.45rem 0.05rem 0;
+    }
+    .booking {
+      position: relative;
+      padding: 0.42rem 0.5rem 0.42rem 0.15rem;
+      background: #0e161e;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .booking.next {
+      border-color: #2a5a40;
+      box-shadow: inset 3px 0 0 var(--green);
+    }
+    .booking.canceled,
+    .booking.cancelled {
+      opacity: 0.55;
+      background: #0c1218;
+    }
+    .booking-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      justify-self: center;
+    }
+    .booking.active .booking-dot { background: var(--green); }
+    .booking.canceled .booking-dot,
+    .booking.cancelled .booking-dot { background: #5a6a7a; }
+    .booking-when {
+      font-weight: 750;
+      font-size: 0.92rem;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .booking-when .tz {
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 650;
+      letter-spacing: 0.03em;
+    }
+    .booking-status { display: flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; }
+    .booking-who {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      min-width: 0;
+    }
+    .booking-car {
+      display: block;
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .booking-pickup {
+      color: var(--muted);
+      font-size: 0.8rem;
+      min-width: 0;
+    }
+    .booking-extra {
+      grid-column: 2 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.45rem;
+      align-items: center;
+      margin-top: 0.1rem;
+    }
+    a.booking-phone {
+      color: var(--accent);
+      font-weight: 650;
+      text-decoration: none;
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+    }
+    a.booking-phone:hover { text-decoration: underline; }
+    button.booking-res {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.76rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--text);
+      background: #152033;
+      border: 1px solid #2a3a4a;
+      border-radius: 6px;
+      padding: 0.2rem 0.45rem;
+      min-height: 36px;
+      min-width: 44px;
+    }
+    button.booking-res:hover { border-color: var(--accent); color: var(--accent); }
+    button.booking-res.copied { color: var(--green); border-color: #2a5a40; }
+    .queue-canceled {
+      margin-top: 0.15rem;
+      border: 1px dashed #2a3a4a;
+      border-radius: 10px;
+      padding: 0.1rem 0.45rem 0.25rem;
+    }
+    .queue-canceled summary {
+      cursor: pointer;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 650;
+    }
+    @media (max-width: 720px) {
+      .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid { grid-template-columns: 1fr; }
+      .hero { grid-template-columns: 108px 1fr; }
+      header { padding: 0.85rem 0.9rem; }
+      main { padding: 0.85rem 0.9rem 2.5rem; }
+    }
+    @media (max-width: 390px) {
+      .glance { grid-template-columns: 1fr 1fr; }
+      .metrics { grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr); }
+      .hero { grid-template-columns: 96px 1fr; }
+      #fleet-map-canvas { height: 220px; }
+    }
+    @media (max-width: 560px) {
+      .queue-cols { display: none; }
+      .booking {
+        grid-template-columns: 10px 1fr auto;
+        row-gap: 0.12rem;
+      }
+      .booking-who,
+      .booking-pickup,
+      .booking-extra { grid-column: 2 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="load-bar" class="load-bar" hidden></div>
+  <div id="page-loader" class="page-loader" role="status" aria-live="polite" aria-busy="true">
+    <div class="page-loader-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>Loading fleet…</div>
+      <p class="muted">Pulling DIMO telemetry</p>
+    </div>
+  </div>
+  <header>
+    <div>
+      <h1>Auto Fleet</h1>
+      <div class="sub">Internal ops · five owned units</div>
+    </div>
+    <div class="controls">
+      <a class="btn" id="nav-fcc" href="http://127.0.0.1:8000/financial-command/index.html" title="Financial Command Center (same host)">FCC</a>
+      <button type="button" id="btn-refresh">Refresh</button>
+      <a class="btn" id="nav-turo" href="https://turo.com" target="_blank" rel="noopener noreferrer" title="Open Turo">Turo</a>
+    </div>
+  </header>
+  <main>
+    <p class="meta" id="status">Loading…</p>
+    <section class="card host-ops" id="host-ops" hidden></section>
+    <div class="glance" id="glance"></div>
+    <section class="card fleet-map" id="fleet-map" hidden>
+      <div class="map-head">
+        <h2>Location</h2>
+        <p class="muted" id="fleet-map-meta"></p>
+      </div>
+      <div id="fleet-map-canvas" role="img" aria-label="Fleet vehicle locations"></div>
+    </section>
+    <section class="card next30" id="next30" hidden></section>
+    <div class="grid" id="cards"></div>
+    <section class="card shared" id="shared" hidden></section>
+    <details class="turo-inbox" id="turo-inbox" hidden>
+      <summary>Turo inbox</summary>
+      <p class="muted" id="turo-inbox-body"></p>
+    </details>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const KM_PER_MILE = 1.609344;
+
+    function money(n) {
+      if (n === null || n === undefined || n === "") return "—";
+      const v = Number(n);
+      if (Number.isNaN(v)) return "—";
+      return v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+    }
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function vinShort(vin) {
+      if (!vin) return null;
+      return "…" + String(vin).slice(-6);
+    }
+
+    function chip(text, kind) {
+      return `<span class="chip ${kind || ""}">${esc(text)}</span>`;
+    }
+
+    function httpsUrl(value) {
+      const text = String(value || "").trim();
+      if (text.length < 9 || text.length > 2000) return null;
+      if (!text.toLowerCase().startsWith("https://")) return null;
+      if (/[\s<>"']/.test(text)) return null;
+      return text;
+    }
+
+    function chipLink(text, href, kind) {
+      const url = httpsUrl(href);
+      if (!url) return "";
+      return `<a class="chip ${kind || ""}" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Tracking spreadsheet">${esc(text)}</a>`;
+    }
+
+    function kmToMiles(km) {
+      const n = Number(km);
+      if (!Number.isFinite(n)) return null;
+      return n / KM_PER_MILE;
+    }
+
+    function formatOdoMi(km) {
+      const mi = kmToMiles(km);
+      if (mi == null) return null;
+      return Math.round(mi);
+    }
+
+    function formatRangeMi(km) {
+      const mi = kmToMiles(km);
+      if (mi == null) return null;
+      return Math.round(mi * 10) / 10;
+    }
+
+    function formatSoc(soc) {
+      const n = Number(soc);
+      if (!Number.isFinite(n)) return null;
+      return Math.round(n);
+    }
+
+    function rangeLabel(mi) {
+      if (mi == null) return null;
+      return Number.isInteger(mi) ? String(mi) : mi.toFixed(1);
+    }
+
+    function parseTs(value) {
+      if (!value) return null;
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function relativeAge(ts, now) {
+      const dt = parseTs(ts);
+      if (!dt) return null;
+      const seconds = Math.max(0, ((now || Date.now()) - dt.getTime()) / 1000);
+      if (seconds < 45) return "just now";
+      if (seconds < 3600) return `${Math.max(1, Math.floor(seconds / 60))}m ago`;
+      if (seconds < 86400) return `${Math.max(1, Math.floor(seconds / 3600))}h ago`;
+      return `${Math.max(1, Math.floor(seconds / 86400))}d ago`;
+    }
+
+    function freshness(ts, nowMs) {
+      const dt = parseTs(ts);
+      if (!dt) return "unknown";
+      const seconds = ((nowMs || Date.now()) - dt.getTime()) / 1000;
+      if (seconds > 7 * 86400) return "dead";
+      if (seconds > 86400) return "stale";
+      return "live";
+    }
+
+    function portalOf(f) {
+      return (f && (f.portal || f.portal_override)) || null;
+    }
+
+    function loanOf(f) {
+      return (f && f.loan) || null;
+    }
+
+    function hasDue(f) {
+      const loan = loanOf(f);
+      if (loan) {
+        if (loan.show_balances === false) return false;
+        const arr = loan.arrangement;
+        if (arr && (arr.amount != null || arr.due)) return true;
+        if (loan.amount_due_now != null) return true;
+        if (loan.past_due === true || loan.past_due_amount != null || loan.past_due_days != null) return true;
+        return false;
+      }
+      const portal = portalOf(f);
+      if (!portal) return false;
+      const ptp = portal.promise_to_pay || portal.ptp;
+      if (ptp && (ptp.amount != null || ptp.due)) return true;
+      return portal.amount_due != null || (typeof portal.past_due === "number");
+    }
+
+    function turoOneLine(t, pollS) {
+      const bookings = t.bookings || [];
+      const mins = Math.round((pollS || 900) / 60);
+      if (!bookings.length) return `0 trips · watching ${mins}m`;
+      const first = [...bookings].sort((a, b) => String(a.start || "").localeCompare(String(b.start || "")))[0];
+      return `${first.status || "booked"} · ${first.guest || "guest"} · ${first.start || "?"} → ${first.end || "?"}`;
+    }
+
+    function mapsUrl(loc) {
+      if (!loc) return null;
+      const lat = loc.lat ?? loc.latitude;
+      const lon = loc.lon ?? loc.longitude;
+      if (lat == null || lon == null) return null;
+      return `https://maps.google.com/?q=${lat},${lon}`;
+    }
+
+    function formatCoord(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return null;
+      return String(v.toFixed(5)).replace(/\.?0+$/, "");
+    }
+
+    function coordPair(loc) {
+      if (!loc) return null;
+      const lat = formatCoord(loc.lat ?? loc.latitude);
+      const lon = formatCoord(loc.lon ?? loc.longitude);
+      if (lat == null || lon == null) return null;
+      return `${lat}, ${lon}`;
+    }
+
+    function speedMph(kmh) {
+      const n = Number(kmh);
+      if (!Number.isFinite(n)) return null;
+      return Math.round((n / KM_PER_MILE) * 10) / 10;
+    }
+
+    function unitPhoto(id) {
+      if (id === "m3-2020") return "/static/fleet/tesla-model-3-2020.jpg";
+      if (id === "r1s-2023") return "/static/fleet/rivian-r1s-2023.jpg";
+      if (id === "m3-2022") return "/static/fleet/tesla-model-3-2022.jpg";
+      if (id === "corolla-2022") return "/static/fleet/toyota-corolla-2022.jpg";
+      if (id === "corolla-2024") return "/static/fleet/toyota-corolla-2024.jpg";
+      return null;
+    }
+
+    function glanceOf(u, nowMs, pollS) {
+      if (u.glance && u.glance.year_model) return u.glance;
+      const idn = u.identity || {};
+      const d = u.dimo || {};
+      const soc = formatSoc(d.soc);
+      const odo = formatOdoMi(d.odometer);
+      return {
+        year_model: [idn.year, idn.model].filter(Boolean).join(" "),
+        title: [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id,
+        role: idn.role || "unknown",
+        vin_short: idn.vin ? "…" + String(idn.vin).slice(-6) : null,
+        last_seen_relative: relativeAge(d.last_seen, nowMs),
+        freshness: freshness(d.last_seen, nowMs),
+        soc,
+        range_mi: formatRangeMi(d.range),
+        odo_mi: odo,
+        hero: soc != null ? `${soc}%` : (odo != null ? `${odo.toLocaleString("en-US")} mi` : "—"),
+        available: !((u.turo || {}).bookings || []).length,
+        turo_line: turoOneLine(u.turo || {}, pollS),
+        due: hasDue(u.finance || {}),
+        photo: unitPhoto(u.id),
+        maps_url: mapsUrl(d.location),
+        location_label: coordPair(d.location),
+        location_relative: relativeAge(d.location_timestamp || (d.location ? d.last_seen : null), nowMs),
+        speed_mph: speedMph(d.speed),
+        heading: d.heading,
+        ignition_on: d.ignition_on,
+        show_soc: soc != null,
+      };
+    }
+
+    function dimoStrip(d, g) {
+      const st = d.status || "unconfigured";
+      const kind = st === "ok" ? "ok" : st === "error" ? "err" : "warn";
+      let body = "";
+      if (st === "unconfigured") {
+        body = `<div class="empty">DIMO unconfigured — no ~/.config/auto-fleet/env (or no vehicle token). Stub, not live telemetry.</div>`;
+      } else if (st === "error") {
+        body = `<div class="err">${esc(d.error || "DIMO error")}</div>`;
+      } else {
+        const rows = [];
+        if (g.show_soc && g.soc != null) {
+          const barKind = g.freshness === "dead" || g.soc < 25 ? "err" : (g.soc < 50 ? "warn" : "ok");
+          rows.push(`<div class="k">SoC</div><div class="v">${g.soc}%<div class="soc ${barKind}" data-soc="${g.soc}"><span style="width:${g.soc}%"></span></div></div>`);
+          if (g.range_mi != null) {
+            rows.push(`<div class="k">Range</div><div class="v">${esc(rangeLabel(g.range_mi))} mi</div>`);
+          }
+        }
+        if (g.odo_mi != null && !g.show_soc) {
+          rows.push(`<div class="k">Odo</div><div class="v">${Number(g.odo_mi).toLocaleString("en-US")} mi</div>`);
+        }
+        if (g.show_soc && g.odo_mi != null) {
+          rows.push(`<div class="k">Odo</div><div class="v">${Number(g.odo_mi).toLocaleString("en-US")} mi</div>`);
+        }
+        rows.push(`<div class="k">Last seen</div><div class="v ${g.freshness === "dead" ? "err" : "muted"}">${esc(g.last_seen_relative || "—")}${g.freshness === "dead" || g.freshness === "stale" ? ` · ${esc(g.freshness)}` : ""}</div>`);
+        if (g.maps_url || g.location_label) {
+          const bits = [];
+          if (g.location_label) bits.push(esc(g.location_label));
+          if (g.location_relative) bits.push(esc(g.location_relative));
+          if (g.speed_mph != null && g.speed_mph >= 1) bits.push(`${esc(g.speed_mph)} mph`);
+          const mapLink = g.maps_url
+            ? `<a class="maps" href="${esc(g.maps_url)}" target="_blank" rel="noopener">Map</a>`
+            : "";
+          rows.push(`<div class="k">Location</div><div class="v">${bits.join(" · ")}${mapLink ? (bits.length ? " · " : "") + mapLink : ""}</div>`);
+        }
+        body = `<div class="metrics">${rows.join("")}</div>`;
+      }
+      return `<div class="strip"><h3>DIMO ${chip(st, kind)}</h3>${body}</div>`;
+    }
+
+    function parseDay(value) {
+      if (!value) return null;
+      const text = String(value).trim().slice(0, 10);
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+      if (!m) return null;
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+
+    function parseWhen(value) {
+      if (!value) return null;
+      const text = String(value).trim();
+      const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+      if (dateOnly) {
+        return { y: Number(dateOnly[1]), m: Number(dateOnly[2]) - 1, d: Number(dateOnly[3]), hasClock: false };
+      }
+      const hasClock = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(text);
+      if (!hasClock) {
+        const day = parseDay(text);
+        if (!day) return null;
+        return { y: day.getFullYear(), m: day.getMonth(), d: day.getDate(), hasClock: false };
+      }
+      const dt = new Date(text);
+      if (Number.isNaN(dt.getTime())) {
+        const day = parseDay(text);
+        if (!day) return null;
+        return { y: day.getFullYear(), m: day.getMonth(), d: day.getDate(), hasClock: false };
+      }
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).formatToParts(dt);
+      const get = (type) => (parts.find((p) => p.type === type) || {}).value;
+      const period = String(get("dayPeriod") || "AM").toUpperCase().replace(/\./g, "");
+      return {
+        y: Number(get("year")),
+        m: Number(get("month")) - 1,
+        d: Number(get("day")),
+        hour12: Number(get("hour")),
+        minute: get("minute"),
+        dayPeriod: period.indexOf("P") >= 0 ? "PM" : "AM",
+        hasClock: true,
+      };
+    }
+
+    function clockLabel(p) {
+      return `${p.hour12}:${p.minute} ${p.dayPeriod}`;
+    }
+
+    function humanWhen(start, end) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const a = parseWhen(start);
+      const b = parseWhen(end);
+      const day = (p) => `${months[p.m]} ${p.d}`;
+      const dayTime = (p) => (p.hasClock ? `${day(p)} ${clockLabel(p)}` : day(p));
+      if (!a && !b) return "";
+      if (a && !b) return dayTime(a);
+      if (!a && b) return dayTime(b);
+      const sameDay = a.y === b.y && a.m === b.m && a.d === b.d;
+      const sameMonth = a.y === b.y && a.m === b.m;
+      if (!a.hasClock && !b.hasClock) {
+        if (sameDay) return day(a);
+        if (sameMonth) return `${day(a)} → ${b.d}`;
+        return `${day(a)} → ${day(b)}`;
+      }
+      const left = dayTime(a);
+      if (!b.hasClock) return `${left} → ${sameMonth ? b.d : day(b)}`;
+      if (sameDay) return `${left} → ${clockLabel(b)}`;
+      return `${left} → ${dayTime(b)}`;
+    }
+
+    function tripPhase(b) {
+      const st = String((b && b.status) || "").toLowerCase();
+      if (st === "canceled" || st === "cancelled" || (b && (b.phase === "canceled" || b.phase === "cancelled"))) {
+        return "canceled";
+      }
+      if (b && (b.phase === "active" || b.phase === "upcoming")) return b.phase;
+      return "upcoming";
+    }
+
+    function statusLabel(phase) {
+      return phase === "canceled" ? "cancelled" : phase;
+    }
+
+    function pickupLabel(b) {
+      const raw = String((b && b.pickup) || "").trim();
+      const blob = raw.toLowerCase();
+      if (raw && (blob.includes("fbo") || blob.includes("airport"))) return raw;
+      return "coordinate / driveway";
+    }
+
+    function tripFlags(b, invoiceItems) {
+      const flags = [];
+      if ((b.extra_drivers || []).some((d) => d && d.name)) flags.push("extra driver");
+      if (b.pay_window) flags.push("pay window");
+      if ((b.guest_asks || []).length) flags.push("needs phone tap");
+      const tid = String((b && b.trip_id) || "");
+      if (tid && (invoiceItems || []).some((it) => `${(it && it.title) || ""} ${(it && it.notes) || ""}`.includes(tid))) {
+        flags.push("invoice-ready");
+      }
+      return flags;
+    }
+
+    function startKey(b) {
+      return String((b && b.start) || "");
+    }
+
+    function queueBookings(trips) {
+      const live = [];
+      const canceled = [];
+      (trips || []).forEach((b) => {
+        if (tripPhase(b) === "canceled") canceled.push(b);
+        else live.push(b);
+      });
+      live.sort((a, b) => {
+        const ap = tripPhase(a) === "active" ? 0 : 1;
+        const bp = tripPhase(b) === "active" ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        return startKey(a).localeCompare(startKey(b));
+      });
+      canceled.sort((a, b) => startKey(a).localeCompare(startKey(b)));
+      return { live, canceled };
+    }
+
+    function nextUpcomingIndex(live) {
+      return (live || []).findIndex((b) => tripPhase(b) === "upcoming");
+    }
+
+    function queueHead() {
+      return `<div class="queue-cols" aria-hidden="true"><span></span><span>When</span><span>Status</span><span>Guest</span><span>Pickup</span><span>Res</span></div>`;
+    }
+
+    function bookingRow(b, opts) {
+      const invoiceItems = (opts && opts.invoiceItems) || [];
+      const car = (opts && opts.car) || "";
+      const phase = tripPhase(b);
+      const next = !!(opts && opts.next) && phase === "upcoming";
+      const status = statusLabel(phase);
+      const when = humanWhen(b.start, b.end);
+      const chipKind = phase === "active" ? "ok" : (phase === "canceled" ? "mute" : "");
+      const nextBadge = next ? `<span class="chip next">NEXT</span>` : "";
+      const whoInner = `${car ? `<span class="booking-car">${esc(car)}</span>` : ""}${b.guest ? esc(b.guest) : ""}`;
+      const who = `<div class="booking-who">${whoInner}</div>`;
+      const res = b.trip_id
+        ? `<button type="button" class="booking-res" data-copy="${esc(b.trip_id)}" title="Copy reservation">#${esc(b.trip_id)}</button>`
+        : "";
+      const pickup = `<div class="booking-pickup">${esc(pickupLabel(b))}</div>`;
+      const whenHtml = `<div class="booking-when">${when ? `${esc(when)} <span class="tz">ET</span>` : ""}</div>`;
+      const flags = tripFlags(b, invoiceItems).map((f) => `<span class="chip warn">${esc(f)}</span>`).join("");
+      const phone = b.phone
+        ? `<a class="booking-phone" href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ""))}">${esc(b.phone)}</a>`
+        : "";
+      const extra = (flags || phone) ? `<div class="booking-extra">${flags}${phone}</div>` : "";
+      return `<article class="booking ${esc(phase)}${next ? " next" : ""}" data-phase="${esc(phase)}">
+        <span class="booking-dot" aria-hidden="true"></span>
+        ${whenHtml}
+        <div class="booking-status">${nextBadge}${chip(status, chipKind)}</div>
+        ${who}
+        ${pickup}
+        <div>${res}</div>
+        ${extra}
+      </article>`;
+    }
+
+    function tripIdFromText(text) {
+      const blob = String(text || "");
+      let m = blob.match(/(?:trip|reservation|booking)\s+(?:id|number|#)\s*[:#]?\s*([A-Z0-9-]{4,})/i);
+      if (m) return m[1];
+      m = blob.match(/(?:^|[\s(])#\s*(\d{6,8})\b/);
+      return m ? m[1] : null;
+    }
+
+    function matchTaskUnit(it, units) {
+      if (it && it.unit_id) return it.unit_id;
+      const blob = `${(it && it.title) || ""}\n${(it && it.notes) || ""}`;
+      const trip = tripIdFromText(blob);
+      if (trip) {
+        const hits = (units || []).filter((u) =>
+          (((u.turo || {}).bookings) || []).some((b) => String(b.trip_id || "") === trip)
+        );
+        if (hits.length === 1) return hits[0].id;
+        if (hits.length > 1) return null;
+      }
+      const hay = blob.toLowerCase();
+      const yearHits = [];
+      const plateHits = [];
+      for (const u of units || []) {
+        const idn = u.identity || {};
+        const year = String(idn.year || u.year || "");
+        const make = String(idn.make || u.make || "").toLowerCase();
+        const model = String(idn.model || u.model || "").toLowerCase();
+        const plate = String(idn.plate || u.plate || "").trim();
+        if (year && model) {
+          const name = `${make} ${model}`.trim();
+          if ((name && (hay.includes(`${year} ${name}`) || hay.includes(`${name} ${year}`)))
+            || (hay.includes(year) && hay.includes(model))) {
+            yearHits.push(u.id);
+          }
+        }
+        if (plate) {
+          const escaped = plate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const re = new RegExp("(^|[^A-Za-z0-9])" + escaped + "([^A-Za-z0-9]|$)", "i");
+          if (re.test(blob)) plateHits.push(u.id);
+        }
+      }
+      if (yearHits.length > 1 || plateHits.length > 1) return null;
+      const found = [];
+      if (yearHits.length === 1) found.push(yearHits[0]);
+      if (plateHits.length === 1) found.push(plateHits[0]);
+      const unique = found.filter((id, i) => found.indexOf(id) === i);
+      return unique.length === 1 ? unique[0] : null;
+    }
+
+    function assignInvoiceItems(items, units) {
+      const by = {};
+      const unmatched = [];
+      for (const it of items || []) {
+        if (!it || !(it.title || it.notes)) continue;
+        if ((it.status || "needsAction") !== "needsAction") continue;
+        const uid = matchTaskUnit(it, units);
+        if (uid) {
+          (by[uid] = by[uid] || []).push(it);
+        } else {
+          unmatched.push(it);
+        }
+      }
+      return { by, unmatched };
+    }
+
+    function invoiceItemRow(it, listId) {
+      const tid = esc(it.id || "");
+      const lid = esc(it.list_id || listId || "");
+      const notes = (it.notes || "").trim();
+      return `<label class="host-ops-item">
+        <input type="checkbox" data-task-id="${tid}" data-list-id="${lid}" />
+        <span class="host-ops-copy">
+          <span class="title">${esc(it.title || "")}</span>
+          ${notes ? `<p class="notes">${esc(notes)}</p>` : ""}
+        </span>
+      </label>`;
+    }
+
+    function scheduleOf(t, nowMs) {
+      if (t && Array.isArray(t.schedule)) return t.schedule;
+      return (t && t.bookings) || [];
+    }
+
+    function hostIdentityStrip(idn) {
+      const host = idn && idn.host_identity;
+      if (!host || !host.driver_id) return "";
+      const chips = [
+        host.host_label ? chip(host.host_label) : "",
+        chip(host.driver_id),
+      ].join("");
+      const url = host.public_url || "";
+      const shown = String(url).replace(/^https?:\/\//, "");
+      const link = url
+        ? `<div class="row"><a class="maps" href="${esc(url)}" target="_blank" rel="noopener">${esc(shown)}</a></div>`
+        : "";
+      return `<div class="strip host-identity"><h3>Host</h3><div class="chips">${chips}</div>${link}</div>`;
+    }
+
+    function vehicleStrip(u, g) {
+      const idn = u.identity || {};
+      const f = u.finance || {};
+      const locked = f.locked || {};
+      const meta = [];
+      if (idn.host_label) meta.push(`<div class="row">${esc(idn.host_label)}</div>`);
+      if (idn.plate) {
+        meta.push(
+          `<div class="row">Plate <button type="button" class="booking-res" data-copy="${esc(idn.plate)}" title="Copy plate">${esc(idn.plate)}</button></div>`
+        );
+      }
+      const bits = [];
+      if (locked.lender) bits.push(locked.lender);
+      if (locked.apr_pct != null) bits.push(`${locked.apr_pct}% APR`);
+      if (locked.monthly != null) bits.push(`${money(locked.monthly)}/mo`);
+      if (bits.length) meta.push(`<div class="row muted">${esc(bits.join(" · "))}</div>`);
+      return `<div class="strip"><h3>Vehicle</h3>${meta.join("")}${dimoStrip(u.dimo || {}, g)}</div>`;
+    }
+
+    function scheduleStrip(t, g, invoiceItems) {
+      const trips = scheduleOf(t);
+      const queued = queueBookings(trips);
+      const nextIdx = nextUpcomingIndex(queued.live);
+      const liveRows = queued.live.map((b, i) => bookingRow(b, { next: i === nextIdx, invoiceItems }));
+      const canceledRows = queued.canceled.map((b) => bookingRow(b, { invoiceItems }));
+      const liveBody = liveRows.length
+        ? `<div class="queue">${queueHead()}${liveRows.join("")}</div>`
+        : `<div class="empty">No upcoming trips</div>`;
+      const canceledBody = canceledRows.length
+        ? `<details class="queue-canceled"><summary>Cancelled (${canceledRows.length})</summary><div class="queue">${canceledRows.join("")}</div></details>`
+        : "";
+      return `<div class="strip"><h3>Schedule</h3>${liveBody}${canceledBody}</div>`;
+    }
+
+    function nyYmd(ms) {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(ms));
+    }
+
+    function addDaysYmd(ymd, days) {
+      const parts = String(ymd || "").split("-").map(Number);
+      if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) return "";
+      const dt = new Date(parts[0], parts[1] - 1, parts[2] + days);
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      return `${dt.getFullYear()}-${mm}-${dd}`;
+    }
+
+    function inNext30d(b, nowMs) {
+      if (tripPhase(b) === "canceled") return false;
+      if (tripPhase(b) === "active") return true;
+      const start = String((b && b.start) || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return false;
+      const today = nyYmd(nowMs);
+      const until = addDaysYmd(today, 30);
+      return !!(until && start >= today && start <= until);
+    }
+
+    function next30Strip(units, nowMs) {
+      const items = [];
+      (units || []).forEach((u) => {
+        const idn = u.identity || {};
+        const car = [idn.year, idn.model].filter(Boolean).join(" ") || u.id;
+        const { live } = queueBookings(scheduleOf(u.turo || {}));
+        live.forEach((b) => {
+          if (!inNext30d(b, nowMs)) return;
+          items.push({ b, car, invoiceItems: u.invoice_ready || [] });
+        });
+      });
+      items.sort((a, c) => {
+        const ap = tripPhase(a.b) === "active" ? 0 : 1;
+        const cp = tripPhase(c.b) === "active" ? 0 : 1;
+        if (ap !== cp) return ap - cp;
+        return startKey(a.b).localeCompare(startKey(c.b));
+      });
+      if (!items.length) return "";
+      const nextIdx = nextUpcomingIndex(items.map((it) => it.b));
+      const rows = items.map((it, i) => bookingRow(it.b, {
+        next: i === nextIdx,
+        invoiceItems: it.invoiceItems,
+        car: it.car,
+      }));
+      return `<h2>Next 30 days</h2><div class="queue">${queueHead()}${rows.join("")}</div>`;
+    }
+
+    function awaitingStrip(items, listId) {
+      const open = (items || []).filter((it) => it && (it.title || it.notes)
+        && (it.status || "needsAction") === "needsAction");
+      if (!open.length) return "";
+      const rows = open.map((it) => invoiceItemRow(it, listId)).join("");
+      return `<div class="strip awaiting"><h3>Awaiting</h3>${rows}</div>`;
+    }
+
+    function moneyStrip(f) {
+      const locked = (f && f.locked) || {};
+      const loan = loanOf(f) || {};
+      const showBalances = (loan.show_balances != null ? loan.show_balances : locked.show_balances) !== false;
+      const portal = portalOf(f);
+      const lines = showBalances ? ((f && f.sheet_lines) || []) : [];
+      let body = "";
+      const bits = [];
+      const lender = loan.lender || locked.lender;
+      if (lender) bits.push(lender);
+      if (loan.account_last4) bits.push(`…${loan.account_last4}`);
+      const apr = loan.apr_pct != null ? loan.apr_pct : locked.apr_pct;
+      if (apr != null) bits.push(`${apr}% APR`);
+      const monthly = loan.monthly_payment != null ? loan.monthly_payment : locked.monthly;
+      if (monthly != null) bits.push(`${money(monthly)}/mo`);
+      if (bits.length) body += `<div class="row muted">${esc(bits.join(" · "))}</div>`;
+      if (loan.paid_by) {
+        body += `<div class="row">${esc(loan.paid_by)} pays${loan.off_fcc ? " · off FCC" : ""}</div>`;
+      } else if (loan.off_fcc) {
+        body += `<div class="row">off FCC</div>`;
+      }
+      if (loan.payment_method) body += `<div class="row">${esc(loan.payment_method)}</div>`;
+      if (loan.no_portal) body += `<div class="row muted">No portal</div>`;
+      const arr = loan.arrangement;
+      if (arr && (arr.amount != null || arr.due)) {
+        body += `<div class="row due-lead">Arrangement ${arr.amount != null ? money(arr.amount) : "—"}${arr.due ? ` by ${esc(arr.due)}` : ""}</div>`;
+      }
+      if (showBalances && loan.amount_due_now != null) {
+        body += `<div class="row">Due now ${money(loan.amount_due_now)}</div>`;
+      }
+      if (showBalances && (loan.past_due === true || loan.past_due_amount != null || loan.past_due_days != null)) {
+        const parts = [];
+        if (loan.past_due_amount != null) parts.push(money(loan.past_due_amount));
+        if (loan.past_due_days != null) parts.push(`${loan.past_due_days} days`);
+        body += `<div class="row err">Past due${parts.length ? ` ${esc(parts.join(" · "))}` : ""}</div>`;
+      }
+      if (showBalances && (loan.next_scheduled_amount != null || loan.next_due_date)) {
+        body += `<div class="row">Next${loan.next_scheduled_amount != null ? ` ${money(loan.next_scheduled_amount)}` : ""}${loan.next_due_date ? ` on ${esc(loan.next_due_date)}` : ""}</div>`;
+      }
+      if (showBalances && loan.payoff != null) {
+        body += `<div class="row muted">Payoff ${money(loan.payoff)} — not live</div>`;
+      }
+      const hasLoanPaint = !!(loan.lender || loan.amount_due_now != null || loan.past_due_amount != null
+        || loan.arrangement || loan.paid_by || loan.payment_method);
+      if (!hasLoanPaint) {
+        const ptp = showBalances && portal && (portal.promise_to_pay || portal.ptp);
+        if (ptp) {
+          body += `<div class="row due-lead">PTP ${money(ptp.amount)} due ${esc(ptp.due || "—")}${ptp.installment ? ` · ${esc(ptp.installment)}` : ""}</div>`;
+        }
+        if (showBalances && portal && portal.amount_due != null) {
+          body += `<div class="row">Amount due ${money(portal.amount_due)}</div>`;
+        }
+        if (showBalances && portal && typeof portal.past_due === "number") {
+          body += `<div class="row err">Past due ${money(portal.past_due)}</div>`;
+        }
+        if (showBalances && portal) {
+          const extra = [];
+          if (portal.contractual_monthly != null) extra.push(`${money(portal.contractual_monthly)}/mo`);
+          if (portal.principal_balance != null) extra.push(`principal ${money(portal.principal_balance)} (not payoff)`);
+          if (portal.payoff_quote && portal.payoff_quote.amount != null) {
+            extra.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
+          }
+          if (extra.length) {
+            body += `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(extra.join(" · "))} ${chip("stale", "warn")}</div>`;
+          }
+        }
+      }
+      body += lines.map((l) =>
+        `<div class="row">${esc(l.item)} · ${money(l.monthly)}` +
+        `${l.from ? ` <span class="muted">from ${esc(l.from)}</span>` : ""}` +
+        `${l.date ? ` <span class="muted">due ${esc(l.date)}</span>` : ""}</div>`
+      ).join("");
+      if (showBalances && f && f.sheet_monthly != null) {
+        body += `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>`;
+      }
+      if (loan.as_of) {
+        body += `<div class="row muted">Helm SoT ${esc(loan.as_of)} — not live ${chip("stale", "warn")}</div>`;
+      }
+      if (!body) {
+        body = `<div class="empty">${esc((f && f.note) || "No money items for this unit.")}</div>`;
+      }
+      return `<div class="strip"><h3>Money</h3><div class="finance-block">${body}</div></div>`;
+    }
+
+    function photoHref(a) {
+      if (a && a.relpath) return `/api/turo-inbox-media/${encodeURI(a.relpath)}`;
+      return "";
+    }
+
+    function photoListHtml(atts, missing) {
+      const items = (atts || []).map((a) => {
+        const href = photoHref(a);
+        const label = (a && a.filename) || "photo";
+        if (!href) return "";
+        return `<a href="${esc(href)}" target="_blank" rel="noopener"><img src="${esc(href)}" alt="${esc(label)}" /></a>`;
+      }).join("");
+      const miss = missing
+        ? `<div class="missing">Contains photo(s) — no image MIME parts in this mail</div>`
+        : "";
+      if (!items && !miss) return "";
+      return `<div class="trip-photos">${items}${miss}</div>`;
+    }
+
+    function tripDetailStrip(t) {
+      const trips = scheduleOf(t);
+      const blocks = trips.map((b) => {
+        const flags = [];
+        (b.extra_drivers || []).forEach((d) => {
+          if (d && d.name) {
+            flags.push(`extra driver ${d.name}${d.turo_verified ? " · Turo-verified" : ""}`);
+          }
+        });
+        if (b.drop_off) flags.push(`drop-off ${b.drop_off}`);
+        if (b.phone) flags.push(`phone ${b.phone}`);
+        (b.guest_asks || []).forEach((ask) => flags.push(`phone tap ${ask}`));
+        const summaryBits = [b.status || "booked"];
+        if (b.guest) summaryBits.push(b.guest);
+        if (b.trip_id) summaryBits.push(`#${b.trip_id}`);
+        if (b.start || b.end) summaryBits.push(`${b.start || "?"} → ${b.end || "?"}`);
+        const extra = flags.map((f) => `<div class="row ops-flag">${esc(f)}</div>`).join("");
+        const photos = photoListHtml(b.attachments, b.photos_missing);
+        return `<details class="trip"><summary>${esc(summaryBits.join(" · "))}</summary>${extra}${photos}</details>`;
+      }).join("");
+      const loose = (t.photos || []).filter((p) => (p.attachments || []).length || p.photos_missing);
+      const looseHtml = loose.length
+        ? `<div class="trip-photos">${loose.map((p) => {
+            const bits = photoListHtml(p.attachments, p.photos_missing);
+            const label = p.subject || "guest photo";
+            return `<div><div class="muted">${esc(label)}</div>${bits}</div>`;
+          }).join("")}</div>`
+        : "";
+      if (!blocks && !looseHtml) return "";
+      return `<div class="strip"><h3>Trip detail</h3>${blocks}${looseHtml}</div>`;
+    }
+
+    function turoStrip(t, g) {
+      return scheduleStrip(t, g);
+    }
+
+    function costsStrip(f) {
+      return moneyStrip(f);
+    }
+
+    function glanceStrip(units, nowMs, pollS) {
+      return (units || []).map((u) => renderGlanceCell(u, glanceOf(u, nowMs, pollS))).join("");
+    }
+
+    function renderGlanceCell(u, g) {
+      const freshKind = g.freshness === "dead" ? "err" : (g.freshness === "stale" ? "warn" : "");
+      const sheet = httpsUrl(g.tracking_url || (u.identity || {}).tracking_url);
+      return `
+        <div class="glance-cell ${esc(g.freshness || "")}">
+          <div class="glance-top">
+            <a class="glance-name" href="#unit-${esc(u.id)}">${esc(g.year_model || u.id)}</a>
+            <span class="glance-top-end">
+              ${chip(g.role || "unknown")}
+              ${sheet ? chipLink("sheet", sheet) : ""}
+            </span>
+          </div>
+          <a class="glance-jump" href="#unit-${esc(u.id)}">
+            <div class="glance-hero">${esc(g.hero || "—")}</div>
+            <div class="glance-meta">
+              ${g.last_seen_relative ? `<span class="${freshKind}">${esc(g.last_seen_relative)}</span>` : "<span>—</span>"}
+              ${g.freshness === "stale" || g.freshness === "dead" ? chip(g.freshness, g.freshness === "dead" ? "err" : "warn") : ""}
+              ${g.available ? chip("available", "ok") : chip("booked", "warn")}
+              ${g.due ? chip("due", "err") : ""}
+            </div>
+          </a>
+        </div>`;
+    }
+
+    function renderUnit(u, nowMs, pollS) {
+      const idn = u.identity || {};
+      const g = glanceOf(u, nowMs, pollS);
+      const title = g.title || [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id;
+      const photo = g.photo || unitPhoto(u.id);
+      const fresh = g.freshness || "unknown";
+      const vinChip = g.vin_short || vinShort(idn.vin);
+      const host = idn.host_identity || {};
+      const chips = [
+        chip(idn.role || "unknown"),
+        idn.host_label ? chip(idn.host_label) : "",
+        host.driver_id ? chip(host.driver_id) : "",
+        idn.plate ? chip(idn.plate) : "",
+        vinChip ? chip(vinChip) : "",
+        idn.lender ? chip(idn.lender) : "",
+        chipLink("sheet", g.tracking_url || idn.tracking_url),
+        fresh === "dead" ? chip("dead", "err") : (fresh === "stale" ? chip("stale", "warn") : ""),
+        g.due ? chip("due", "err") : "",
+      ].join("");
+      const invoiceItems = (u.invoice_ready || []);
+      return `
+        <article class="card ${esc(fresh)}" id="unit-${esc(u.id)}" data-unit="${esc(u.id)}" data-freshness="${esc(fresh)}">
+          <div class="hero">
+            ${photo ? `<img src="${esc(photo)}" alt="${esc(title)}" />` : "<div></div>"}
+            <div class="hero-text">
+              <h2>${esc(title)}</h2>
+              <div class="chips">${chips}</div>
+            </div>
+          </div>
+          <div class="body">
+            ${hostIdentityStrip(idn)}
+            ${vehicleStrip(u, g)}
+            ${scheduleStrip(u.turo || {}, g, invoiceItems)}
+            ${awaitingStrip(invoiceItems, u.invoice_list_id || "")}
+            ${moneyStrip(u.finance || {})}
+            ${tripDetailStrip(u.turo || {})}
+          </div>
+        </article>`;
+    }
+
+    function renderShared(payload) {
+      const box = $("shared");
+      const sf = payload.shared_finance || {};
+      const lines = sf.lines || [];
+      const unmatched = payload.turo_unmatched || [];
+      const unmatchedPhotos = payload.turo_unmatched_photos || [];
+      if (!lines.length && !unmatched.length && !unmatchedPhotos.length) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      let html = `<div class="hero-text"><h2>Shared / unassigned</h2></div><div class="body">`;
+      if (lines.length) {
+        html += `<div class="strip"><h3>Fleet-tab lines not pinned to a roster unit</h3><ul>`;
+        html += lines.map((l) =>
+          `<li>${esc(l.item)} · ${money(l.monthly)} <span class="muted">${esc(l.reason || "")}</span></li>`
+        ).join("");
+        html += `</ul></div>`;
+      }
+      if (unmatched.length) {
+        html += `<div class="strip"><h3>Unassigned Mike Turo</h3><ul>`;
+        html += unmatched.map((b) =>
+          `<li>${esc(b.status)} · ${esc(b.vehicle || "vehicle ?")} · ${esc(b.subject || "")}</li>`
+        ).join("");
+        html += `</ul></div>`;
+      }
+      if (unmatchedPhotos.length) {
+        html += `<div class="strip"><h3>Unassigned Turo photos</h3>`;
+        html += unmatchedPhotos.map((p) => {
+          const label = p.subject || "photo mail";
+          return `<div><div class="muted">${esc(label)}</div>${photoListHtml(p.attachments, p.photos_missing)}</div>`;
+        }).join("");
+        html += `</div>`;
+      }
+      html += `</div>`;
+      box.innerHTML = html;
+    }
+
+    function renderHostOps(data) {
+      const box = $("host-ops");
+      if (!box) return;
+      if (!data || !data.ok) {
+        const err = data && data.error;
+        if (!err) {
+          box.hidden = true;
+          box.innerHTML = "";
+          return;
+        }
+        box.hidden = false;
+        box.innerHTML =
+          `<h2>Unassigned invoice-ready</h2><p class="err">${esc(err)}</p>`;
+        return;
+      }
+      const items = (data.unmatched || []).filter((it) => it && (it.title || it.notes));
+      if (!items.length) {
+        box.hidden = true;
+        box.innerHTML = "";
+        return;
+      }
+      const listId = data.list_id || "";
+      const rows = items.map((it) => invoiceItemRow(it, listId)).join("");
+      box.hidden = false;
+      box.innerHTML = `<h2>Unassigned invoice-ready</h2>${rows}`;
+    }
+
+    async function onHostOpsComplete(ev) {
+      const el = ev.target;
+      if (!el || !el.checked) return;
+      const taskId = el.getAttribute("data-task-id") || "";
+      const listId = el.getAttribute("data-list-id") || "";
+      el.disabled = true;
+      try {
+        const res = await fetch("/api/turo-tasks/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task_id: taskId, list_id: listId }),
+        });
+        const data = await res.json();
+        if (!data || !data.ok) {
+          el.checked = false;
+          el.disabled = false;
+          const box = el.closest(".strip") || $("host-ops");
+          const err = (data && data.error) || "Could not complete Google Task";
+          let note = box && box.querySelector(".host-ops-err");
+          if (box && !note) {
+            note = document.createElement("p");
+            note.className = "err host-ops-err";
+            box.appendChild(note);
+          }
+          if (note) note.textContent = err;
+          return;
+        }
+        const row = el.closest(".host-ops-item");
+        if (row) row.remove();
+        const leftover = $("host-ops") && $("host-ops").querySelectorAll(".host-ops-item");
+        if (leftover && !leftover.length) {
+          $("host-ops").hidden = true;
+          $("host-ops").innerHTML = "";
+        }
+      } catch (err) {
+        el.checked = false;
+        el.disabled = false;
+      }
+    }
+
+    function renderTuroFooter(payload) {
+      const box = $("turo-inbox");
+      const body = $("turo-inbox-body");
+      const status = payload.sources && payload.sources.turo && payload.sources.turo.inbox_status;
+      if (!status) {
+        box.hidden = true;
+        body.textContent = "";
+        return;
+      }
+      box.hidden = false;
+      body.textContent = status;
+    }
+
+    let inflight = null;
+    let firstLoad = true;
+    let fleetMap = null;
+    let fleetMarkers = [];
+
+    function setLoading(on) {
+      const bar = $("load-bar");
+      const overlay = $("page-loader");
+      const btn = $("btn-refresh");
+      if (bar) bar.hidden = !on;
+      if (overlay) overlay.hidden = !(on && firstLoad);
+      if (overlay) overlay.setAttribute("aria-busy", on && firstLoad ? "true" : "false");
+      if (btn) {
+        btn.disabled = on;
+        btn.textContent = on ? "Refreshing…" : "Refresh";
+      }
+      document.body.classList.toggle("is-loading", on);
+    }
+
+    function locOf(u) {
+      const loc = ((u && u.dimo) || {}).location || {};
+      const lat = Number(loc.lat ?? loc.latitude);
+      const lon = Number(loc.lon ?? loc.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      return { lat, lon };
+    }
+
+    function renderFleetMap(units, nowMs, pollS) {
+      const box = $("fleet-map");
+      const canvas = $("fleet-map-canvas");
+      const meta = $("fleet-map-meta");
+      if (!box || !canvas) return;
+      const points = [];
+      (units || []).forEach((u) => {
+        const loc = locOf(u);
+        if (!loc) return;
+        points.push({ u, g: glanceOf(u, nowMs, pollS), ...loc });
+      });
+      if (!points.length) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      const liveN = points.filter((p) => p.g.freshness === "live").length;
+      if (meta) {
+        meta.textContent =
+          `${points.length} with GPS · ${liveN} live · DIMO signalsLatest (not a stream)`;
+      }
+      if (typeof L === "undefined") {
+        canvas.innerHTML = points.map((p) => {
+          const name = p.g.year_model || p.u.id;
+          const url = p.g.maps_url || `https://maps.google.com/?q=${p.lat},${p.lon}`;
+          const label = p.g.location_label || `${p.lat}, ${p.lon}`;
+          const age = p.g.location_relative || p.g.last_seen_relative || "";
+          return `<div class="row"><a class="maps" href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a> · ${esc(label)}${age ? ` · ${esc(age)}` : ""}</div>`;
+        }).join("");
+        return;
+      }
+      if (!fleetMap) {
+        canvas.innerHTML = "";
+        fleetMap = L.map(canvas, { scrollWheelZoom: false, attributionControl: true });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap",
+          maxZoom: 18,
+        }).addTo(fleetMap);
+      }
+      fleetMarkers.forEach((m) => m.remove());
+      fleetMarkers = [];
+      const bounds = [];
+      const colors = { live: "#3dd68c", stale: "#f5c542", dead: "#ff6b6b", unknown: "#8aa0b5" };
+      points.forEach((p) => {
+        const fresh = p.g.freshness || "unknown";
+        const color = colors[fresh] || colors.unknown;
+        const marker = L.circleMarker([p.lat, p.lon], {
+          radius: 8,
+          color,
+          fillColor: color,
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(fleetMap);
+        const speed = p.g.speed_mph != null && p.g.speed_mph >= 1 ? `${p.g.speed_mph} mph` : "";
+        const age = p.g.location_relative || p.g.last_seen_relative || "";
+        const maps = p.g.maps_url
+          ? `<br><a href="${esc(p.g.maps_url)}" target="_blank" rel="noopener">Google Maps</a>`
+          : "";
+        marker.bindPopup(
+          `<strong>${esc(p.g.title || p.g.year_model || p.u.id)}</strong><br>` +
+          `${esc(p.g.location_label || `${p.lat}, ${p.lon}`)}` +
+          (age ? `<br>${esc(age)}` : "") +
+          (speed ? `<br>${esc(speed)}` : "") +
+          maps
+        );
+        fleetMarkers.push(marker);
+        bounds.push([p.lat, p.lon]);
+      });
+      if (bounds.length === 1) fleetMap.setView(bounds[0], 13);
+      else fleetMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 13 });
+      window.setTimeout(() => { if (fleetMap) fleetMap.invalidateSize(); }, 0);
+    }
+
+    async function load() {
+      if (inflight) return inflight;
+      inflight = loadInner().finally(() => { inflight = null; });
+      return inflight;
+    }
+
+    async function loadInner() {
+      const status = $("status");
+      setLoading(true);
+      try {
+        const [healthRes, fleetRes, tasksRes] = await Promise.all([
+          fetch("/api/health", { cache: "no-store" }),
+          fetch("/api/fleet", { cache: "no-store" }),
+          fetch("/api/turo-tasks", { cache: "no-store" }).catch(() => null),
+        ]);
+        const health = await healthRes.json();
+        const fleet = await fleetRes.json();
+        let tasks = null;
+        try {
+          tasks = tasksRes ? await tasksRes.json() : null;
+        } catch (_err) {
+          tasks = null;
+        }
+        if (!health.ok) throw new Error(health.error || "health not ok");
+        if (!fleet.ok) throw new Error(fleet.error || "fleet payload not ok");
+        const dimoSrc = fleet.sources && fleet.sources.dimo;
+        const dimoLabel = dimoSrc && dimoSrc.configured ? "configured" : "unconfigured";
+        const turoAt = (fleet.sources && fleet.sources.turo && fleet.sources.turo.refreshed_at) || "—";
+        const expAt = (fleet.sources && fleet.sources.expenses && fleet.sources.expenses.as_of) || "no snapshot";
+        const hasFleet = fleet.sources && fleet.sources.expenses && fleet.sources.expenses.has_fleet_tab;
+        const units = fleet.unit_count != null ? fleet.unit_count : (fleet.units || []).length;
+        const pollS = (fleet.sources && fleet.sources.turo && fleet.sources.turo.poll_interval_s) || 900;
+        const nowMs = Date.parse(fleet.as_of) || Date.now();
+        status.textContent =
+          `Refreshed ${fleet.as_of || "—"} · ${units} units` +
+          ` · DIMO ${dimoLabel}` +
+          ` · Turo ${turoAt}` +
+          (hasFleet ? ` · costs sheet ${expAt}` : ` · costs stale (${expAt})`);
+        const list = fleet.units || [];
+        const assigned = assignInvoiceItems((tasks && tasks.items) || [], list);
+        const taskSrc = (fleet.sources && fleet.sources.turo_tasks) || {};
+        list.forEach((u) => {
+          if (!Array.isArray(u.invoice_ready)) {
+            u.invoice_ready = assigned.by[u.id] || [];
+          }
+          u.invoice_list_id = (tasks && tasks.list_id) || taskSrc.list_id || u.invoice_list_id || "";
+        });
+        const leftover = Object.assign({}, tasks || {}, {
+          ok: tasks ? !!tasks.ok : taskSrc.ok !== false,
+          error: (tasks && tasks.error) || taskSrc.error,
+          list_id: (tasks && tasks.list_id) || taskSrc.list_id || "",
+          unmatched: Array.isArray(fleet.invoice_unmatched)
+            ? fleet.invoice_unmatched
+            : assigned.unmatched,
+        });
+        renderHostOps(leftover);
+        $("glance").innerHTML = list.map((u) => renderGlanceCell(u, glanceOf(u, nowMs, pollS))).join("");
+        const next30 = $("next30");
+        const next30Html = next30Strip(list, nowMs);
+        if (next30) {
+          next30.hidden = !next30Html;
+          next30.innerHTML = next30Html;
+        }
+        $("cards").innerHTML = list.map((u) => renderUnit(u, nowMs, pollS)).join("");
+        renderShared(fleet);
+        renderTuroFooter(fleet);
+        renderFleetMap(list, nowMs, pollS);
+        firstLoad = false;
+      } catch (err) {
+        status.innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
+        firstLoad = false;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", load);
+    document.addEventListener("change", (ev) => {
+      const el = ev.target;
+      if (el && el.matches && el.matches('input[type="checkbox"][data-task-id]')) {
+        onHostOpsComplete(ev);
+      }
+    });
+    document.addEventListener("click", (ev) => {
+      const btn = ev.target && ev.target.closest && ev.target.closest(".booking-res");
+      if (!btn) return;
+      const id = btn.getAttribute("data-copy") || "";
+      if (!id || !navigator.clipboard || !navigator.clipboard.writeText) return;
+      navigator.clipboard.writeText(id).then(() => {
+        btn.classList.add("copied");
+        window.setTimeout(() => btn.classList.remove("copied"), 1200);
+      }).catch(() => {});
+    });
+    load();
+    setInterval(load, 15 * 60 * 1000);
+    setInterval(load, 30 * 1000);
+  </script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="nav-fcc.js"></script>
+</body>
+</html>

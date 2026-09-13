@@ -1,0 +1,11 @@
+{
+  "source": "test",
+  "as_of": "2026-07-18T20:33:04+00:00",
+  "tabs": {
+    "Personal": {
+      "role": "upcoming_expense_estimates",
+      "items": [{"item": "Rent", "monthly": 8400.0}]
+    }
+  },
+  "summary": {"combined_monthly": 8400.0}
+}

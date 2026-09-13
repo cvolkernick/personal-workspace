@@ -43,7 +43,13 @@ def _git(cwd: Path, *args: str) -> None:
 
 class TestWorkAreaMap(unittest.TestCase):
     def test_finance_tlds_share_treasury_branch(self):
-        for tld in ("treasury", "financial-command", "investment", "research"):
+        for tld in (
+            "treasury",
+            "financial-command",
+            "investment",
+            "research",
+            "auto-fleet",
+        ):
             self.assertEqual(work_area_for_tld(tld), "treasury")
             self.assertEqual(work_branch_for_tld(tld), "work/treasury")
 

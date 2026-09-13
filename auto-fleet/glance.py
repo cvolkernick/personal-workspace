@@ -1,0 +1,992 @@
+"""Glance-first presentation helpers for the Auto Fleet dashboard.
+
+Formats existing /api/fleet fields. Does not invent bookings, payoffs, or
+units. DIMO distances are kilometres; the operator is US, so we render miles.
+"""
+
+from __future__ import annotations
+
+import math
+from datetime import datetime, timezone
+from typing import Any, Mapping, Optional, Sequence
+
+try:
+    from . import car_cards
+except ImportError:  # script / unittest path
+    import car_cards  # type: ignore
+
+KM_PER_MILE = 1.609344
+STALE_AFTER_S = 24 * 3600
+DEAD_AFTER_S = 7 * 24 * 3600
+DEFAULT_POLL_S = 900
+
+PHOTOS = {
+    "m3-2020": "/static/fleet/tesla-model-3-2020.jpg",
+    "r1s-2023": "/static/fleet/rivian-r1s-2023.jpg",
+    "m3-2022": "/static/fleet/tesla-model-3-2022.jpg",
+    "corolla-2022": "/static/fleet/toyota-corolla-2022.jpg",
+    "corolla-2024": "/static/fleet/toyota-corolla-2024.jpg",
+}
+
+
+def _esc(value: Any) -> str:
+    text = "" if value is None else str(value)
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
+
+def https_url(value: Any) -> Optional[str]:
+    """Allow only a compact https URL. Reject http, spaces, and quotes."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if len(text) < 9 or len(text) > 2000:
+        return None
+    if not text.lower().startswith("https://"):
+        return None
+    if any(ch.isspace() or ch in "<>\"'" for ch in text):
+        return None
+    return text
+
+
+def _normalize_iso(raw: str) -> str:
+    """Pad/trim fractional seconds so 3.9 fromisoformat accepts DIMO stamps."""
+    text = raw.strip()
+    tz = ""
+    if text.endswith("Z"):
+        text, tz = text[:-1], "+00:00"
+    elif len(text) >= 6 and text[-6] in "+-" and text[-3] == ":":
+        text, tz = text[:-6], text[-6:]
+    elif len(text) >= 5 and text[-5] in "+-":
+        text, tz = text[:-5], text[-5:]
+    if "." in text:
+        head, frac = text.split(".", 1)
+        frac = "".join(ch for ch in frac if ch.isdigit())
+        frac = (frac + "000000")[:6]
+        text = f"{head}.{frac}"
+    return text + tz
+
+
+def parse_ts(value: Any) -> Optional[datetime]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(_normalize_iso(str(value)))
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def miles_from_km(km: Any, ndigits: int = 0) -> Optional[float]:
+    if km is None or km == "":
+        return None
+    try:
+        miles = float(km) / KM_PER_MILE
+    except (TypeError, ValueError):
+        return None
+    if ndigits <= 0:
+        return float(int(round(miles)))
+    return round(miles, ndigits)
+
+
+def odo_miles(km: Any) -> Optional[int]:
+    mi = miles_from_km(km, 0)
+    return None if mi is None else int(mi)
+
+
+def range_miles(km: Any) -> Optional[float]:
+    return miles_from_km(km, 1)
+
+
+def soc_pct(soc: Any) -> Optional[int]:
+    if soc is None or soc == "":
+        return None
+    try:
+        return int(round(float(soc)))
+    except (TypeError, ValueError):
+        return None
+
+
+def relative_age(ts: Any, now: Any) -> Optional[str]:
+    dt = parse_ts(ts)
+    now_dt = parse_ts(now) or datetime.now(timezone.utc)
+    if dt is None:
+        return None
+    seconds = max(0.0, (now_dt - dt).total_seconds())
+    if seconds < 45:
+        return "just now"
+    if seconds < 3600:
+        mins = max(1, int(seconds // 60))
+        return f"{mins}m ago"
+    if seconds < 86400:
+        hours = max(1, int(seconds // 3600))
+        return f"{hours}h ago"
+    days = max(1, int(seconds // 86400))
+    return f"{days}d ago"
+
+
+def freshness(ts: Any, now: Any) -> str:
+    dt = parse_ts(ts)
+    now_dt = parse_ts(now) or datetime.now(timezone.utc)
+    if dt is None:
+        return "unknown"
+    seconds = (now_dt - dt).total_seconds()
+    if seconds > DEAD_AFTER_S:
+        return "dead"
+    if seconds > STALE_AFTER_S:
+        return "stale"
+    return "live"
+
+
+def money(n: Any) -> Optional[str]:
+    if n is None or n == "":
+        return None
+    try:
+        return f"${float(n):,.2f}"
+    except (TypeError, ValueError):
+        return None
+
+
+def _portal(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    if not finance:
+        return {}
+    portal = finance.get("portal") or finance.get("portal_override")
+    return portal if isinstance(portal, dict) else {}
+
+
+def _loan(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    if not finance:
+        return {}
+    loan = finance.get("loan")
+    return loan if isinstance(loan, dict) else {}
+
+
+def due_from_finance(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    empty = {
+        "due": False,
+        "ptp": None,
+        "amount_due": None,
+        "past_due": None,
+        "past_due_days": None,
+    }
+    locked = (finance or {}).get("locked") if isinstance(finance, Mapping) else {}
+    loan = _loan(finance)
+    if isinstance(locked, dict) and locked.get("show_balances") is False:
+        return empty
+    if loan.get("show_balances") is False:
+        return empty
+    portal = _portal(finance)
+    ptp = loan.get("arrangement")
+    if not isinstance(ptp, dict):
+        ptp = portal.get("ptp") or portal.get("promise_to_pay")
+    if not isinstance(ptp, dict):
+        ptp = None
+    amount_due = loan.get("amount_due_now")
+    if amount_due is None:
+        amount_due = portal.get("amount_due")
+    past_due = loan.get("past_due_amount")
+    if past_due is None:
+        raw_past = portal.get("past_due")
+        past_due = raw_past if isinstance(raw_past, (int, float)) else None
+    past_due_days = loan.get("past_due_days")
+    past_flag = (
+        loan.get("past_due") is True
+        or past_due not in (None, "")
+        or past_due_days not in (None, "")
+    )
+    has = bool(ptp) or amount_due not in (None, "") or past_flag
+    return {
+        "due": has,
+        "ptp": ptp,
+        "amount_due": amount_due,
+        "past_due": past_due,
+        "past_due_days": past_due_days,
+    }
+
+
+def money_strip_inner_html(finance: Optional[Mapping[str, Any]]) -> str:
+    """Loan + ops rows for the existing Money strip. Omit empty. No phones."""
+    finance = finance if isinstance(finance, Mapping) else {}
+    locked = finance.get("locked") if isinstance(finance.get("locked"), dict) else {}
+    loan = _loan(finance)
+    portal = _portal(finance)
+    show_balances = loan.get("show_balances")
+    if show_balances is None:
+        show_balances = locked.get("show_balances", True)
+    bits: list[str] = []
+    lender = loan.get("lender") or locked.get("lender")
+    if lender:
+        bits.append(str(lender))
+    if loan.get("account_last4"):
+        bits.append(f"…{loan['account_last4']}")
+    apr = loan.get("apr_pct") if loan.get("apr_pct") is not None else locked.get("apr_pct")
+    if apr is not None:
+        bits.append(f"{apr}% APR")
+    monthly = (
+        loan.get("monthly_payment")
+        if loan.get("monthly_payment") is not None
+        else locked.get("monthly")
+    )
+    if monthly is not None:
+        bits.append(f"{money(monthly)}/mo")
+    rows: list[str] = []
+    if bits:
+        rows.append(f'<div class="row muted">{_esc(" · ".join(bits))}</div>')
+    if loan.get("paid_by"):
+        extra = " · off FCC" if loan.get("off_fcc") else ""
+        rows.append(f'<div class="row">{_esc(loan["paid_by"])} pays{extra}</div>')
+    elif loan.get("off_fcc"):
+        rows.append('<div class="row">off FCC</div>')
+    if loan.get("payment_method"):
+        rows.append(f'<div class="row">{_esc(loan["payment_method"])}</div>')
+    if loan.get("no_portal"):
+        rows.append('<div class="row muted">No portal</div>')
+    arr = loan.get("arrangement") if isinstance(loan.get("arrangement"), dict) else None
+    if arr and (arr.get("amount") is not None or arr.get("due")):
+        rows.append(
+            f'<div class="row due-lead">Arrangement {money(arr.get("amount")) or "—"}'
+            f'{(" by " + _esc(arr["due"])) if arr.get("due") else ""}</div>'
+        )
+    if show_balances and loan.get("amount_due_now") is not None:
+        rows.append(f'<div class="row">Due now {money(loan["amount_due_now"])}</div>')
+    if show_balances and (
+        loan.get("past_due") is True
+        or loan.get("past_due_amount") is not None
+        or loan.get("past_due_days") is not None
+    ):
+        parts = []
+        if loan.get("past_due_amount") is not None:
+            parts.append(money(loan["past_due_amount"]) or "")
+        if loan.get("past_due_days") is not None:
+            parts.append(f'{loan["past_due_days"]} days')
+        suffix = f' {" · ".join(p for p in parts if p)}' if parts else ""
+        rows.append(f'<div class="row err">Past due{suffix}</div>')
+    if show_balances and (
+        loan.get("next_scheduled_amount") is not None or loan.get("next_due_date")
+    ):
+        nxt = "Next"
+        if loan.get("next_scheduled_amount") is not None:
+            nxt += f' {money(loan["next_scheduled_amount"])}'
+        if loan.get("next_due_date"):
+            nxt += f' on {_esc(loan["next_due_date"])}'
+        rows.append(f'<div class="row">{nxt}</div>')
+    if show_balances and loan.get("payoff") is not None:
+        rows.append(
+            f'<div class="row muted">Payoff {money(loan["payoff"])} — not live</div>'
+        )
+
+    due = due_from_finance(finance)
+    has_loan_paint = bool(loan.get("lender") or loan.get("amount_due_now") is not None
+                          or loan.get("past_due_amount") is not None
+                          or loan.get("arrangement") or loan.get("paid_by")
+                          or loan.get("payment_method"))
+    if not has_loan_paint:
+        if due["ptp"]:
+            ptp = due["ptp"]
+            rows.append(
+                f'<div class="row due-lead">PTP {money(ptp.get("amount")) or "—"} '
+                f'due {_esc(ptp.get("due") or "—")}</div>'
+            )
+        if due["amount_due"] not in (None, ""):
+            rows.append(f'<div class="row">Due {money(due["amount_due"])}</div>')
+        if due["past_due"] not in (None, ""):
+            rows.append(f'<div class="row">Past due {money(due["past_due"])}</div>')
+        extra = []
+        if show_balances and portal.get("contractual_monthly") is not None:
+            extra.append(f'{money(portal["contractual_monthly"])}/mo')
+        if locked.get("apr_pct") is not None:
+            extra.append(f'{locked["apr_pct"]}% APR')
+        elif portal.get("apr_pct") is not None:
+            extra.append(f'{portal["apr_pct"]}% APR')
+        if show_balances and portal.get("principal_balance") is not None:
+            extra.append(f'principal {money(portal["principal_balance"])}')
+        if extra:
+            stale = "stale" if portal.get("stale", True) else "sheet"
+            rows.append(
+                f'<div class="row muted">{_esc(" · ".join(extra))} {_chip(stale, "warn")}</div>'
+            )
+
+    lines = finance.get("sheet_lines") or [] if show_balances else []
+    for line in lines:
+        if not isinstance(line, dict):
+            continue
+        rows.append(
+            f'<div class="row">{_esc(line.get("item"))} · {money(line.get("monthly")) or "—"}</div>'
+        )
+    if loan.get("as_of"):
+        rows.append(
+            f'<div class="row muted">Helm SoT {_esc(loan["as_of"])} — not live '
+            f'{_chip("stale", "warn")}</div>'
+        )
+    if not rows:
+        rows.append(
+            f'<div class="empty">{_esc(finance.get("note") or "No money items for this unit.")}</div>'
+        )
+    return f'<div class="finance-block">{"".join(rows)}</div>'
+
+
+def turo_line(
+    turo: Optional[Mapping[str, Any]],
+    poll_interval_s: int | None = DEFAULT_POLL_S,
+    now: Any = None,
+) -> str:
+    mins = int((poll_interval_s or DEFAULT_POLL_S) / 60)
+    raw = turo or {}
+    schedule = raw.get("schedule")
+    if schedule is None:
+        schedule = car_cards.schedule_for_bookings(raw.get("bookings") or [], now)
+    live = car_cards.live_trips(schedule)
+    if live:
+        first = live[0] if isinstance(live[0], dict) else {}
+        status = first.get("status") or "booked"
+        guest = first.get("guest") or "guest"
+        start = first.get("start") or "?"
+        end = first.get("end") or "?"
+        return f"{status} · {guest} · {start} → {end}"
+    canceled = [s for s in schedule if (s or {}).get("phase") == "canceled"]
+    if canceled:
+        first = canceled[0]
+        guest = first.get("guest") or "guest"
+        start = first.get("start") or "?"
+        end = first.get("end") or "?"
+        return f"canceled · {guest} · {start} → {end}"
+    return f"0 trips · watching {mins}m"
+
+
+_MONTHS = (
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
+
+def _clock_label(dt: datetime) -> str:
+    hour = dt.hour % 12 or 12
+    ampm = "AM" if dt.hour < 12 else "PM"
+    return f"{hour}:{dt.minute:02d} {ampm}"
+
+
+def _when_parts(value: Any) -> tuple[Optional[datetime], bool]:
+    """(ET datetime, has_clock). Date-only values do not show a time."""
+    if value is None or value == "":
+        return None, False
+    clock = car_cards.has_clock(value)
+    dt = car_cards.parse_trip_instant(value, end=False)
+    return dt, clock and dt is not None
+
+
+def _day_label(dt: datetime) -> str:
+    return f"{_MONTHS[dt.month - 1]} {dt.day}"
+
+
+def human_when(start: Any, end: Any) -> str:
+    """Compact start → end in America/New_York. Clock shown when mail had one.
+
+    Date-only: ``Aug 23 → 25``. Timed: ``Aug 23 3:00 PM → Aug 25 3:00 PM``.
+    Same-day timed range collapses the end date: ``Aug 23 3:00 PM → 6:00 PM``.
+    ET label is rendered by the When cell, not this string.
+    """
+    a, a_clock = _when_parts(start)
+    b, b_clock = _when_parts(end)
+    if a is None and b is None:
+        return ""
+    if a is not None and b is None:
+        return f"{_day_label(a)} {_clock_label(a)}" if a_clock else _day_label(a)
+    if a is None and b is not None:
+        return f"{_day_label(b)} {_clock_label(b)}" if b_clock else _day_label(b)
+    same_day = a.date() == b.date()
+    same_month = a.month == b.month and a.year == b.year
+    if not a_clock and not b_clock:
+        if same_day:
+            return _day_label(a)
+        if same_month:
+            return f"{_day_label(a)} → {b.day}"
+        return f"{_day_label(a)} → {_day_label(b)}"
+    left = f"{_day_label(a)} {_clock_label(a)}" if a_clock else _day_label(a)
+    if not b_clock:
+        right = str(b.day) if same_month else _day_label(b)
+        return f"{left} → {right}"
+    if same_day:
+        return f"{left} → {_clock_label(b)}"
+    return f"{left} → {_day_label(b)} {_clock_label(b)}"
+
+
+def pickup_label(booking: Mapping[str, Any]) -> str:
+    """FBO name from mail, else coordinate / driveway. Does not invent trips."""
+    raw = str(booking.get("pickup") or "").strip()
+    blob = raw.lower()
+    if raw and ("fbo" in blob or "airport" in blob):
+        return raw
+    return "coordinate / driveway"
+
+
+def trip_flags(
+    booking: Mapping[str, Any],
+    invoice_items: Sequence[Mapping[str, Any]] | None = None,
+) -> list[str]:
+    flags: list[str] = []
+    if any(
+        isinstance(d, dict) and d.get("name")
+        for d in (booking.get("extra_drivers") or [])
+    ):
+        flags.append("extra driver")
+    if booking.get("pay_window"):
+        flags.append("pay window")
+    if booking.get("guest_asks"):
+        flags.append("needs phone tap")
+    tid = str(booking.get("trip_id") or "")
+    if tid and any(
+        tid in f"{(it or {}).get('title') or ''} {(it or {}).get('notes') or ''}"
+        for it in (invoice_items or [])
+        if isinstance(it, dict)
+    ):
+        flags.append("invoice-ready")
+    return flags
+
+
+def trip_phase(booking: Mapping[str, Any]) -> str:
+    status = str(booking.get("status") or "").lower()
+    if status in {"canceled", "cancelled"} or booking.get("phase") == "canceled":
+        return "canceled"
+    phase = booking.get("phase")
+    if phase in {"active", "upcoming"}:
+        return str(phase)
+    return "upcoming"
+
+
+def queue_bookings(
+    trips: Sequence[Mapping[str, Any]] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    live: list[dict[str, Any]] = []
+    canceled: list[dict[str, Any]] = []
+    for raw in trips or []:
+        if not isinstance(raw, dict):
+            continue
+        if trip_phase(raw) == "canceled":
+            canceled.append(dict(raw))
+        else:
+            live.append(dict(raw))
+    live.sort(
+        key=lambda b: (0 if trip_phase(b) == "active" else 1, str(b.get("start") or ""))
+    )
+    canceled.sort(key=lambda b: str(b.get("start") or ""))
+    return live, canceled
+
+
+def next_upcoming_index(live: Sequence[Mapping[str, Any]] | None) -> Optional[int]:
+    """Index of the soonest upcoming trip. Active is in-progress, not next."""
+    for i, booking in enumerate(live or []):
+        if trip_phase(booking) == "upcoming":
+            return i
+    return None
+
+
+def booking_row_html(
+    booking: Mapping[str, Any],
+    *,
+    next_trip: bool = False,
+    invoice_items: Sequence[Mapping[str, Any]] | None = None,
+    car: str = "",
+) -> str:
+    """Structured Schedule row — table columns, not a joined prose line."""
+    phase = trip_phase(booking)
+    status = "cancelled" if phase == "canceled" else phase
+    when = human_when(booking.get("start"), booking.get("end"))
+    chip_kind = "ok" if phase == "active" else ("mute" if phase == "canceled" else "")
+    next_trip = bool(next_trip) and phase == "upcoming"
+    next_badge = _chip("NEXT", "next") if next_trip else ""
+    who_inner = ""
+    if car:
+        who_inner += f'<span class="booking-car">{_esc(car)}</span>'
+    if booking.get("guest"):
+        who_inner += _esc(booking.get("guest"))
+    who = f'<div class="booking-who">{who_inner}</div>'
+    res = ""
+    if booking.get("trip_id"):
+        tid = _esc(booking["trip_id"])
+        res = (
+            f'<button type="button" class="booking-res" data-copy="{tid}" '
+            f'title="Copy reservation">#{tid}</button>'
+        )
+    pickup = f'<div class="booking-pickup">{_esc(pickup_label(booking))}</div>'
+    when_html = (
+        f'<div class="booking-when">{_esc(when)} <span class="tz">ET</span></div>'
+        if when
+        else '<div class="booking-when"></div>'
+    )
+    flag_html = "".join(
+        _chip(flag, "warn") for flag in trip_flags(booking, invoice_items)
+    )
+    phone = ""
+    if booking.get("phone"):
+        tel = "".join(ch for ch in str(booking["phone"]) if ch.isdigit() or ch == "+")
+        phone = (
+            f'<a class="booking-phone" href="tel:{_esc(tel)}">'
+            f'{_esc(booking["phone"])}</a>'
+        )
+    extra = f'<div class="booking-extra">{flag_html}{phone}</div>' if (flag_html or phone) else ""
+    cls = f"booking {phase}" + (" next" if next_trip else "")
+    return (
+        f'<article class="{cls}" data-phase="{_esc(phase)}">'
+        f'<span class="booking-dot" aria-hidden="true"></span>'
+        f"{when_html}"
+        f'<div class="booking-status">{next_badge}{_chip(status, chip_kind)}</div>'
+        f"{who}{pickup}<div>{res}</div>{extra}</article>"
+    )
+
+
+def schedule_queue_html(
+    schedule: Sequence[Mapping[str, Any]] | None,
+    invoice_items: Sequence[Mapping[str, Any]] | None = None,
+) -> str:
+    live, canceled = queue_bookings(schedule)
+    head = (
+        '<div class="queue-cols" aria-hidden="true"><span></span><span>When</span>'
+        "<span>Status</span><span>Guest</span><span>Pickup</span><span>Res</span></div>"
+    )
+    next_idx = next_upcoming_index(live)
+    live_rows = [
+        booking_row_html(b, next_trip=(i == next_idx), invoice_items=invoice_items)
+        for i, b in enumerate(live)
+    ]
+    live_body = (
+        f'<div class="queue">{head}{"".join(live_rows)}</div>'
+        if live_rows
+        else '<div class="empty">No upcoming trips</div>'
+    )
+    canceled_body = ""
+    if canceled:
+        c_rows = "".join(
+            booking_row_html(b, invoice_items=invoice_items) for b in canceled
+        )
+        canceled_body = (
+            f'<details class="queue-canceled"><summary>Cancelled ({len(canceled)})</summary>'
+            f'<div class="queue">{c_rows}</div></details>'
+        )
+    return live_body + canceled_body
+
+
+def awaiting_strip_html(items: Sequence[Mapping[str, Any]] | None) -> str:
+    """Thin awaiting / follow-up line. Omitted when there are no open items."""
+    rows: list[str] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        if (item.get("status") or "needsAction") != "needsAction":
+            continue
+        title = str(item.get("title") or "").strip()
+        notes = str(item.get("notes") or "").strip()
+        if not title and not notes:
+            continue
+        extra = f'<div class="muted">{_esc(notes)}</div>' if title and notes else ""
+        rows.append(f'<div class="row awaiting">{_esc(title or notes)}{extra}</div>')
+    if not rows:
+        return ""
+    return f'<div class="strip awaiting"><h3>Awaiting</h3>{"".join(rows)}</div>'
+
+
+def photo_for(unit: Mapping[str, Any]) -> Optional[str]:
+    uid = str(unit.get("id") or "")
+    if uid in PHOTOS:
+        return PHOTOS[uid]
+    ident = unit.get("identity") if isinstance(unit.get("identity"), dict) else {}
+    make = str(ident.get("make") or "").lower()
+    model = str(ident.get("model") or "").lower()
+    year = ident.get("year")
+    if "tesla" in make and "3" in model:
+        return PHOTOS["m3-2022"]
+    if "rivian" in make or "r1s" in model:
+        return PHOTOS["r1s-2023"]
+    if "corolla" in model and year == 2024:
+        return PHOTOS["corolla-2024"]
+    if "corolla" in model:
+        return PHOTOS["corolla-2022"]
+    return None
+
+
+def maps_url(location: Any) -> Optional[str]:
+    if not isinstance(location, dict):
+        return None
+    lat = location.get("lat", location.get("latitude"))
+    lon = location.get("lon", location.get("longitude"))
+    if lat is None or lon is None:
+        return None
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (TypeError, ValueError):
+        return None
+    return f"https://maps.google.com/?q={lat_f},{lon_f}"
+
+
+def format_coord(value: Any, ndigits: int = 5) -> Optional[str]:
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(n):
+        return None
+    text = f"{n:.{ndigits}f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def coord_pair(location: Any) -> Optional[str]:
+    if not isinstance(location, dict):
+        return None
+    lat = format_coord(location.get("lat", location.get("latitude")))
+    lon = format_coord(location.get("lon", location.get("longitude")))
+    if lat is None or lon is None:
+        return None
+    return f"{lat}, {lon}"
+
+
+def speed_mph(kmh: Any) -> Optional[float]:
+    if kmh is None or kmh == "":
+        return None
+    try:
+        mph = float(kmh) / KM_PER_MILE
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(mph):
+        return None
+    return round(mph, 1)
+
+
+def glance_for_unit(
+    unit: Mapping[str, Any],
+    *,
+    now: Any,
+    poll_interval_s: int | None = DEFAULT_POLL_S,
+) -> dict[str, Any]:
+    ident = unit.get("identity") if isinstance(unit.get("identity"), dict) else {}
+    dimo = unit.get("dimo") if isinstance(unit.get("dimo"), dict) else {}
+    turo = unit.get("turo") if isinstance(unit.get("turo"), dict) else {}
+    finance = unit.get("finance") if isinstance(unit.get("finance"), dict) else {}
+    year = ident.get("year")
+    model = ident.get("model") or ""
+    year_model = " ".join(str(p) for p in (year, model) if p not in (None, ""))
+    soc = soc_pct(dimo.get("soc"))
+    odo = odo_miles(dimo.get("odometer"))
+    rng = range_miles(dimo.get("range"))
+    last_seen = dimo.get("last_seen")
+    loc = dimo.get("location")
+    loc_ts = dimo.get("location_timestamp")
+    fresh = freshness(last_seen, now)
+    due = due_from_finance(finance)
+    schedule = turo.get("schedule")
+    if schedule is None:
+        schedule = car_cards.schedule_for_bookings(turo.get("bookings") or [], now)
+    live = car_cards.live_trips(schedule)
+    hero = f"{soc}%" if soc is not None else (f"{odo:,} mi" if odo is not None else "—")
+    return {
+        "id": unit.get("id"),
+        "year_model": year_model or str(unit.get("id") or "unit"),
+        "title": " ".join(
+            str(p)
+            for p in (ident.get("year"), ident.get("make"), ident.get("model"))
+            if p not in (None, "")
+        )
+        or str(unit.get("id") or "unit"),
+        "role": ident.get("role") or "unknown",
+        "vin_short": ("…" + str(ident.get("vin"))[-6:]) if ident.get("vin") else None,
+        "last_seen": last_seen,
+        "last_seen_relative": relative_age(last_seen, now),
+        "freshness": fresh,
+        "soc": soc,
+        "range_mi": rng,
+        "odo_mi": odo,
+        "hero": hero,
+        "available": len(live) == 0,
+        "turo_line": turo_line(turo, poll_interval_s, now),
+        "due": due["due"],
+        "ptp": due["ptp"],
+        "amount_due": due["amount_due"],
+        "past_due": due["past_due"],
+        "photo": photo_for(unit),
+        "maps_url": maps_url(loc),
+        "location_label": coord_pair(loc),
+        "location_relative": relative_age(loc_ts or (last_seen if loc else None), now),
+        "speed_mph": speed_mph(dimo.get("speed")),
+        "heading": dimo.get("heading"),
+        "ignition_on": dimo.get("ignition_on"),
+        "show_soc": soc is not None,
+        "tracking_url": https_url(ident.get("tracking_url")),
+    }
+
+
+def _chip(text: str, kind: str = "") -> str:
+    cls = f"chip {kind}".strip()
+    return f'<span class="{cls}">{_esc(text)}</span>'
+
+
+def _chip_link(text: str, href: str, kind: str = "") -> str:
+    url = https_url(href)
+    if not url:
+        return ""
+    cls = f"chip {kind}".strip()
+    return (
+        f'<a class="{cls}" href="{_esc(url)}" target="_blank" '
+        f'rel="noopener noreferrer" title="Tracking spreadsheet">'
+        f"{_esc(text)}</a>"
+    )
+
+
+def copyable_html(value: Any, *, title: str) -> str:
+    """Same control as reservation # — button.booking-res + data-copy."""
+    text = _esc(value)
+    return (
+        f'<button type="button" class="booking-res" data-copy="{text}" '
+        f'title="{_esc(title)}">{text}</button>'
+    )
+
+
+def plate_field_html(ident: Mapping[str, Any] | None) -> str:
+    """Vehicle-strip plate field. Blank/omit when roster has no plate."""
+    if not isinstance(ident, Mapping):
+        return ""
+    plate = ident.get("plate")
+    if not plate:
+        return ""
+    return f'<div class="row">Plate {copyable_html(plate, title="Copy plate")}</div>'
+
+
+def host_identity_strip_html(ident: Mapping[str, Any] | None) -> str:
+    """Thin Host strip. Identity only — never bookings or live Turo metrics."""
+    host = None
+    if isinstance(ident, Mapping):
+        raw = ident.get("host_identity")
+        if isinstance(raw, Mapping):
+            host = raw
+    if not host or not host.get("driver_id"):
+        return ""
+    chips: list[str] = []
+    label = host.get("host_label")
+    if label:
+        chips.append(_chip(str(label)))
+    chips.append(_chip(str(host["driver_id"])))
+    url = str(host.get("public_url") or "").strip()
+    link = ""
+    if url:
+        shown = url.replace("https://", "").replace("http://", "")
+        link = (
+            f'<div class="row"><a class="maps" href="{_esc(url)}" '
+            f'target="_blank" rel="noopener">{_esc(shown)}</a></div>'
+        )
+    return (
+        f'<div class="strip host-identity"><h3>Host</h3>'
+        f'<div class="chips">{"".join(chips)}</div>{link}</div>'
+    )
+
+
+def render_unit_card_html(
+    unit: Mapping[str, Any],
+    *,
+    now: Any,
+    poll_interval_s: int | None = DEFAULT_POLL_S,
+    glance: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """Card HTML used by tests. Must not paste inbox_status into the card."""
+    g = dict(glance or glance_for_unit(unit, now=now, poll_interval_s=poll_interval_s))
+    finance = unit.get("finance") if isinstance(unit.get("finance"), dict) else {}
+    dimo = unit.get("dimo") if isinstance(unit.get("dimo"), dict) else {}
+    ident = unit.get("identity") if isinstance(unit.get("identity"), dict) else {}
+    fresh = g.get("freshness") or "unknown"
+    chips = [_chip(str(g.get("role") or "unknown"))]
+    if ident.get("host_label"):
+        chips.append(_chip(str(ident["host_label"])))
+    host = ident.get("host_identity") if isinstance(ident.get("host_identity"), dict) else None
+    if host and host.get("driver_id"):
+        chips.append(_chip(str(host["driver_id"])))
+    if ident.get("plate"):
+        chips.append(_chip(str(ident["plate"])))
+    if g.get("vin_short"):
+        chips.append(_chip(str(g["vin_short"])))
+    if ident.get("lender"):
+        chips.append(_chip(str(ident["lender"])))
+    sheet = https_url(g.get("tracking_url") or ident.get("tracking_url"))
+    if sheet:
+        chips.append(_chip_link("sheet", sheet))
+    if fresh in ("stale", "dead"):
+        chips.append(_chip(str(fresh), "err" if fresh == "dead" else "warn"))
+    if g.get("due"):
+        chips.append(_chip("due", "err"))
+
+    dimo_st = dimo.get("status") or "unconfigured"
+    dimo_body = ""
+    if dimo_st == "unconfigured":
+        dimo_body = '<div class="empty">DIMO unconfigured</div>'
+    elif dimo_st == "error":
+        dimo_body = f'<div class="err">{_esc(dimo.get("error") or "DIMO error")}</div>'
+    else:
+        rows = []
+        if g.get("show_soc"):
+            soc = int(g["soc"])
+            bar_kind = "err" if soc < 25 or fresh == "dead" else ("warn" if soc < 50 else "ok")
+            rows.append(
+                f'<div class="row">SoC {soc}%</div>'
+                f'<div class="soc {bar_kind}" data-soc="{soc}">'
+                f'<span style="width:{soc}%"></span></div>'
+            )
+            if g.get("range_mi") is not None:
+                rows.append(f'<div class="row">Range {g["range_mi"]} mi</div>')
+        if g.get("odo_mi") is not None:
+            rows.append(f'<div class="row">Odo {g["odo_mi"]:,} mi</div>')
+        if g.get("last_seen_relative"):
+            rows.append(
+                f'<div class="row muted">Last seen {_esc(g["last_seen_relative"])}</div>'
+            )
+        if g.get("maps_url"):
+            loc_bits = []
+            if g.get("location_label"):
+                loc_bits.append(str(g["location_label"]))
+            if g.get("location_relative"):
+                loc_bits.append(str(g["location_relative"]))
+            speed = g.get("speed_mph")
+            if speed is not None and speed >= 1:
+                loc_bits.append(f"{speed} mph")
+            prefix = f'{_esc(" · ".join(loc_bits))} ' if loc_bits else ""
+            rows.append(
+                f'<div class="row">{prefix}'
+                f'<a class="maps" href="{_esc(g["maps_url"])}">Map</a></div>'
+            )
+        dimo_body = "".join(rows) or '<div class="empty">No vehicle signals</div>'
+
+    locked = finance.get("locked") if isinstance(finance.get("locked"), dict) else {}
+    locked_bits = []
+    if locked.get("lender"):
+        locked_bits.append(str(locked["lender"]))
+    if locked.get("apr_pct") is not None:
+        locked_bits.append(f'{locked["apr_pct"]}% APR')
+    if locked.get("monthly") is not None:
+        locked_bits.append(f'{money(locked["monthly"])}/mo')
+    locked_html = (
+        f'<div class="row muted">{_esc(" · ".join(locked_bits))}</div>'
+        if locked_bits
+        else ""
+    )
+
+    turo = unit.get("turo") if isinstance(unit.get("turo"), dict) else {}
+    schedule = turo.get("schedule")
+    if schedule is None:
+        schedule = car_cards.schedule_for_bookings(turo.get("bookings") or [], now)
+    schedule = [b for b in schedule if isinstance(b, dict)]
+    invoice_items = (
+        unit.get("invoice_ready")
+        or turo.get("invoice_ready")
+        or finance.get("invoice_ready")
+        or []
+    )
+    schedule_html = schedule_queue_html(schedule, invoice_items)
+    awaiting_html = awaiting_strip_html(invoice_items)
+
+    money_html = money_strip_inner_html(finance)
+
+    trip_bits = []
+    for b in schedule:
+        flags = []
+        for drv in b.get("extra_drivers") or []:
+            if isinstance(drv, dict) and drv.get("name"):
+                ver = " · Turo-verified" if drv.get("turo_verified") else ""
+                flags.append(f'extra driver {drv["name"]}{ver}')
+        if b.get("drop_off"):
+            flags.append(f'drop-off {b["drop_off"]}')
+        if b.get("phone"):
+            flags.append(f'phone {b["phone"]}')
+        for ask in b.get("guest_asks") or []:
+            flags.append(f'phone tap {ask}')
+        if not flags and not b.get("guest"):
+            continue
+        summary = " · ".join(
+            str(p)
+            for p in (b.get("status"), b.get("guest"), b.get("trip_id") and f"#{b['trip_id']}")
+            if p
+        )
+        extra_html = "".join(f'<div class="row">{_esc(f)}</div>' for f in flags)
+        trip_bits.append(
+            f'<details class="trip"><summary>{_esc(summary)}</summary>{extra_html}</details>'
+        )
+
+    photo = g.get("photo")
+    img = (
+        f'<img src="{_esc(photo)}" alt="{_esc(g.get("title"))}" />' if photo else ""
+    )
+    trip_html = ""
+    if trip_bits:
+        trip_html = (
+            '<div class="strip"><h3>Trip detail</h3>'
+            + "".join(trip_bits)
+            + "</div>"
+        )
+    return (
+        f'<article class="card {fresh}" data-unit="{_esc(unit.get("id"))}" '
+        f'data-freshness="{_esc(fresh)}">'
+        f'<div class="hero">{img}<div>'
+        f'<h2>{_esc(g.get("title"))}</h2>'
+        f'<div class="chips">{"".join(chips)}</div>'
+        f"</div></div>"
+        f"{host_identity_strip_html(ident)}"
+        f'<div class="strip"><h3>Vehicle</h3>{plate_field_html(ident)}{locked_html}'
+        f'<h3>DIMO {_chip(str(dimo_st), "ok" if dimo_st == "ok" else "warn")}</h3>'
+        f"{dimo_body}</div>"
+        f'<div class="strip"><h3>Schedule</h3>{schedule_html}</div>'
+        f"{awaiting_html}"
+        f'<div class="strip"><h3>Money</h3>{money_html}</div>'
+        f"{trip_html}"
+        f"</article>"
+    )
+
+
+def render_cards_html(
+    units: Sequence[Mapping[str, Any]],
+    *,
+    now: Any,
+    inbox_status: str | None,
+    poll_interval_s: int | None = DEFAULT_POLL_S,
+) -> str:
+    """Glance + cards + one Turo inbox footer. inbox_status appears once."""
+    cells = []
+    cards = []
+    for unit in units:
+        g = glance_for_unit(unit, now=now, poll_interval_s=poll_interval_s)
+        badges = [_esc(g["year_model"]), _esc(g["role"])]
+        if g.get("last_seen_relative"):
+            badges.append(_esc(g["last_seen_relative"]))
+        if g["freshness"] in ("stale", "dead"):
+            badges.append(_esc(g["freshness"]))
+        badges.append(_esc(g["hero"]))
+        if g.get("available"):
+            badges.append("available")
+        if g.get("due"):
+            badges.append("due")
+        sheet = https_url(g.get("tracking_url"))
+        sheet_chip = _chip_link("sheet", sheet) if sheet else ""
+        cells.append(
+            f'<div class="glance-cell {g["freshness"]}">'
+            f'<a class="glance-jump" href="#unit-{_esc(unit.get("id"))}">'
+            f"{' · '.join(badges)}</a>{sheet_chip}</div>"
+        )
+        cards.append(
+            render_unit_card_html(
+                unit, now=now, poll_interval_s=poll_interval_s, glance=g
+            )
+        )
+    footer = ""
+    if inbox_status:
+        footer = (
+            '<details class="turo-inbox"><summary>Turo inbox</summary>'
+            f"<p>{_esc(inbox_status)}</p></details>"
+        )
+    return (
+        f'<div class="glance">{"".join(cells)}</div>'
+        f'<div class="grid">{"".join(cards)}</div>'
+        f"{footer}"
+    )

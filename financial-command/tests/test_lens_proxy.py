@@ -5,9 +5,13 @@ from __future__ import annotations
 import http.client
 import importlib.util
 import json
+import os
 import socket
+import subprocess
 import sys
+import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -193,6 +197,120 @@ class TestLensProxyHttp(unittest.TestCase):
             code, _, body = self._get("/fleet/")
         self.assertEqual(code, 502)
         self.assertIn(b"unreachable", body)
+
+
+class TestAutoFleetOnTreasuryPin(unittest.TestCase):
+    """#717: Auto Fleet backend must live on the work/treasury pin."""
+
+    def test_server_py_lives_on_this_branch(self) -> None:
+        server = ROOT / "auto-fleet" / "server.py"
+        self.assertTrue(
+            server.is_file(),
+            "auto-fleet/server.py must live on work/treasury so "
+            "workspace-sync keeps :8796 (missing tree → /fleet/ 502)",
+        )
+        text = server.read_text(encoding="utf-8")
+        self.assertIn("DEFAULT_PORT = 8796", text)
+        self.assertIn('service": "auto-fleet"', text)
+
+
+class TestProxyToRealAutoFleet(unittest.TestCase):
+    """Smoke: FCC /fleet/api/health through the real auto-fleet server."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        server = ROOT / "auto-fleet" / "server.py"
+        if not server.is_file():
+            raise unittest.SkipTest("auto-fleet/server.py not on this branch")
+        cls.mod = _load_fcc_server()
+        cls.fleet_port = _free_port()
+        env_path = Path(tempfile.mkdtemp(prefix="auto-fleet-proxy-")) / "env"
+        env_path.write_text("# empty on purpose\n", encoding="utf-8")
+        proc_env = {
+            **os.environ,
+            "PYTHONPATH": str(ROOT),
+            "GOOGLE_TASKS_CONFIG_DIR": str(env_path.parent / "gtasks"),
+            "GOOGLE_TASKS_TOKEN_JSON": "",
+            "GOOGLE_TASKS_REFRESH_TOKEN": "",
+            "GOOGLE_TASKS_CLIENT_ID": "",
+            "GOOGLE_TASKS_CLIENT_SECRET": "",
+        }
+        (env_path.parent / "gtasks").mkdir()
+        cls.proc = subprocess.Popen(
+            [
+                sys.executable,
+                str(server),
+                "--port",
+                str(cls.fleet_port),
+                "--host",
+                "127.0.0.1",
+                "--no-browser",
+                "--env",
+                str(env_path),
+                "--turo-inbox",
+                str(ROOT / "auto-fleet" / "data" / "turo_inbox.json"),
+            ],
+            cwd=str(ROOT),
+            env=proc_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        deadline = time.time() + 10
+        last_err: Exception | None = None
+        while time.time() < deadline:
+            try:
+                url = f"http://127.0.0.1:{cls.fleet_port}/api/health"
+                with urllib.request.urlopen(url, timeout=1) as resp:
+                    if resp.status == 200:
+                        break
+            except Exception as exc:  # noqa: BLE001
+                last_err = exc
+                time.sleep(0.1)
+        else:
+            cls.proc.kill()
+            err = (cls.proc.stderr.read() if cls.proc.stderr else "") or str(last_err)
+            raise unittest.SkipTest(f"auto-fleet did not start: {err}")
+        cls._patch = mock.patch.dict(
+            cls.mod.LENS_UPSTREAMS,
+            {"/fleet": ("127.0.0.1", cls.fleet_port)},
+        )
+        cls._patch.start()
+        cls.port = _free_port()
+        cls.httpd = ThreadingHTTPServer(("127.0.0.1", cls.port), cls.mod.FCCHandler)
+        cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
+        cls.thread.start()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if getattr(cls, "httpd", None) is not None:
+            cls.httpd.shutdown()
+            cls.httpd.server_close()
+            cls.thread.join(timeout=5)
+        if getattr(cls, "_patch", None) is not None:
+            cls._patch.stop()
+        proc = getattr(cls, "proc", None)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+    def test_fleet_api_health_via_fcc_proxy(self) -> None:
+        url = f"http://127.0.0.1:{self.port}/fleet/api/health"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+        self.assertTrue(data.get("ok"))
+        self.assertEqual(data.get("service"), "auto-fleet")
+
+    def test_fleet_html_via_fcc_proxy(self) -> None:
+        url = f"http://127.0.0.1:{self.port}/fleet/"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            self.assertEqual(resp.status, 200)
+            body = resp.read()
+        self.assertIn(b"<base href=\"/fleet/\">", body)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,58 @@
+{
+  "as_of": "2026-09-03",
+  "source": "helm_sot_2026-09-03",
+  "stale": true,
+  "live": false,
+  "disclaimer": "Helm SoT 2026-09-03 flatten of existing loan facts. Not live. Not a payoff quote. Helm may later replace this file from signed portals — no local writer in this slice.",
+  "units": {
+    "corolla-2022": {
+      "lender": "Capital One",
+      "account_last4": "8207",
+      "amount_due_now": 962.98,
+      "past_due": true,
+      "past_due_days": 74,
+      "monthly_payment": 373.85,
+      "payoff": 17974.92,
+      "apr_pct": 11.14
+    },
+    "corolla-2024": {
+      "lender": "Santander",
+      "account_last4": "2877",
+      "past_due": true,
+      "past_due_amount": 788.99,
+      "arrangement": {
+        "amount": 307.15,
+        "due": "2026-09-14"
+      },
+      "next_due_date": "2026-09-21",
+      "next_scheduled_amount": 307.34,
+      "payoff": 14158.38,
+      "apr_pct": 10.18
+    },
+    "m3-2022": {
+      "lender": "GM Financial",
+      "past_due": true,
+      "past_due_amount": 1326.37,
+      "past_due_days": 41,
+      "next_due_date": "2026-09-23",
+      "next_scheduled_amount": 501.08
+    },
+    "m3-2020": {
+      "lender": "Wells Fargo",
+      "apr_pct": 5.65,
+      "paid_by": "Mike",
+      "off_fcc": true,
+      "show_balances": false,
+      "note": "Mike pays. No balance. Off FCC."
+    },
+    "r1s-2023": {
+      "lender": "Vivek",
+      "apr_pct": 0,
+      "monthly_payment": 1350,
+      "payment_method": "NFCU Zelle",
+      "no_portal": true,
+      "show_balances": false,
+      "note": "No portal."
+    }
+  }
+}
