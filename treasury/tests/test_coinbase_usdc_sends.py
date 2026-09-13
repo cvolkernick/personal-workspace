@@ -351,6 +351,22 @@ class TestStandingSendJoin427(unittest.TestCase):
             900.0,
         )
 
+    def test_thais_standing_dest_900_on_sep10_network_object(self) -> None:
+        """Live Coinbase v2 puts network as {network_name, status, hash}."""
+        standing = _send(
+            id="thais-900-sep10-netobj",
+            created_at="2026-09-10T17:00:00Z",
+            amount={"amount": "-900.00", "currency": "USDC"},
+            to={"resource": "address", "address": THAIS_DEST},
+            network={
+                "network_name": "solana",
+                "status": "pending",
+                "hash": "5xLiveSep10ThaisSend",
+            },
+            description="",
+        )
+        self.assertTrue(matches_thais(standing))
+
     def test_weekly_208_never_paints(self) -> None:
         weekly = _send(
             id="thais-weekly-208",
