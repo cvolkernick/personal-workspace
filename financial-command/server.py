@@ -15,6 +15,8 @@ Serves static UI + APIs:
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/btc-network   — Bitcoin network hashrate + difficulty (mempool.space)
   GET  /api/coach         — financial coach allocation plan (pay on time)
+  GET  /api/planned-actual — display-only sheet planned vs YNAB/USDC actual flags
+  GET  /api/coinbase_sends — display-only Coinbase v2 USDC send-book snapshot
   GET  /api/ask/status    — Ask Grok financial advisor auth + model
   POST /api/ask           — {question} ask Grok about FCC/treasury domain
   POST /api/config     — merge-save manual fields / policy
@@ -98,6 +100,11 @@ from treasury.bias_spectrum import build_bias_spectrum  # noqa: E402
 from treasury.position_dossier import get_position_dossier  # noqa: E402
 from treasury.cash_streams import load_cash_streams  # noqa: E402
 from treasury.runway import load_runway  # noqa: E402
+from treasury.planned_actual import load_planned_actual  # noqa: E402
+from treasury.coinbase_usdc_sends import (  # noqa: E402
+    load_send_book,
+    merge_standing_into_book,
+)
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 BTC_NETWORK_SNAPSHOT = ROOT / "treasury" / "snapshots" / "btc_network_latest.json"
@@ -727,6 +734,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "interest_spectrum",
                         "bias_spectrum",
                         "position_dossier",
+                        "planned_actual",
+                        "coinbase_sends",
                     ],
                 },
             )
@@ -826,6 +835,27 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 self._json(200, build_bias_spectrum())
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/planned-actual":
+            try:
+                self._json(200, load_planned_actual())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e), "display_only": True})
+            return
+        if path == "/api/coinbase_sends":
+            try:
+                # Snapshot / fixture book only. Never reads the CDP key.
+                book = merge_standing_into_book(
+                    {
+                        "source": "coinbase_v2_usdc",
+                        "transactions": load_send_book(),
+                    }
+                )
+                book["ok"] = True
+                book["display_only"] = True
+                self._json(200, book)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e), "display_only": True})
             return
         if path == "/api/coach":
             try:
