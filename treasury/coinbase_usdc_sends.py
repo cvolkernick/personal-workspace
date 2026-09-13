@@ -241,13 +241,24 @@ def dest_matches_address(tx: Dict[str, Any], expected: str) -> bool:
     return bool(got) and got == want
 
 
+def _network_label(raw: Any) -> str:
+    """String network name. Coinbase v2 often sends a dict, not a string."""
+    if isinstance(raw, dict):
+        for key in ("network_name", "name", "network"):
+            val = raw.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip().casefold()
+        return ""
+    return str(raw or "").strip().casefold()
+
+
 def tx_network(tx: Dict[str, Any]) -> str:
     dest = tx.get("to") or {}
     if isinstance(dest, dict):
-        raw = dest.get("network") or dest.get("chain")
-        if raw:
-            return str(raw).strip().casefold()
-    return str(tx.get("network") or tx.get("chain") or "").strip().casefold()
+        label = _network_label(dest.get("network") or dest.get("chain"))
+        if label:
+            return label
+    return _network_label(tx.get("network") or tx.get("chain"))
 
 
 def network_ok(tx: Dict[str, Any], expected: str) -> bool:
