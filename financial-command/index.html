@@ -1054,6 +1054,31 @@
       flex-direction: column;
       gap: 0.55rem;
     }
+    .fm-pies {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.85rem;
+      margin-top: 0.85rem;
+    }
+    @media (max-width: 720px) {
+      .fm-pies { grid-template-columns: 1fr; }
+    }
+    .pie-card {
+      background: #0e151c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 0.7rem;
+    }
+    .pie-card .pie-title { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.4rem; }
+    .pie-wrap { display: flex; gap: 0.7rem; align-items: center; }
+    .pie { width: 104px; height: 104px; flex: 0 0 auto; }
+    .pie-legend { list-style: none; margin: 0; padding: 0; font-size: 0.72rem; flex: 1 1 auto; min-width: 0; }
+    .pie-legend li {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.1rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .pie-legend .dot { width: 0.6rem; height: 0.6rem; border-radius: 2px; flex: 0 0 auto; }
+    .pie-legend .pct { color: var(--muted); margin-left: auto; padding-left: 0.5rem; }
     .alloc-row {
       background: #0e151c;
       border: 1px solid var(--border);
@@ -2210,6 +2235,7 @@
           <div id="fm-holdings"></div>
         </div>
       </div>
+      <div class="fm-pies" id="fm-pies"></div>
       <details style="margin-top:0.55rem">
         <summary class="hint" style="cursor:pointer">Decision log</summary>
         <div id="fund-manager-decisions" style="margin-top:0.35rem"></div>
@@ -4314,6 +4340,12 @@
               sleeve: "—",
               market_value: null,
             }))) || [];
+      // Largest position first; unvalued positions sink to the bottom
+      apos.sort((a, b) => {
+        const av = a.market_value == null ? -1 : Number(a.market_value) || 0;
+        const bv = b.market_value == null ? -1 : Number(b.market_value) || 0;
+        return bv - av;
+      });
       document.getElementById("fm-holdings").innerHTML = apos.length
         ? `<table class="pos-table"><thead><tr><th>Symbol</th><th>Sleeve</th><th>Qty</th><th>Est. $</th></tr></thead><tbody>` +
           apos
@@ -4342,6 +4374,88 @@
             .join("") +
           `</tbody></table>`
         : `<p class="hint">No agentic positions</p>`;
+
+      // Allocation pies: all holdings, stocks sleeve, BTC+ sleeve (hand-rolled SVG, no deps)
+      const PIE_COLORS = [
+        "#7eb8e8", "#f5c542", "#7ee2a8", "#e88bb1", "#b39ddb",
+        "#ffb74d", "#80deea", "#a5d6a7", "#ef9a9a", "#90caf9",
+      ];
+      const STOCKS_RAMP = ["#7eb8e8", "#5a9bd5", "#3d7ab8", "#2c5f94", "#1e4468", "#16324e"];
+      const BTC_RAMP = ["#f5c542", "#e0a92e", "#c78f1f", "#a67417", "#856012", "#634a0e"];
+      const pieSVG = (slices) => {
+        const total = slices.reduce((a, s) => a + s.value, 0);
+        if (!total) return "";
+        const cx = 60, cy = 60, r = 54;
+        let ang = -Math.PI / 2;
+        return (
+          `<svg viewBox="0 0 120 120" class="pie" role="img" aria-label="allocation pie chart">` +
+          slices
+            .map((s) => {
+              const frac = s.value / total;
+              const a0 = ang, a1 = ang + frac * Math.PI * 2;
+              ang = a1;
+              const x0 = (cx + r * Math.cos(a0)).toFixed(1), y0 = (cy + r * Math.sin(a0)).toFixed(1);
+              const x1 = (cx + r * Math.cos(a1)).toFixed(1), y1 = (cy + r * Math.sin(a1)).toFixed(1);
+              return (
+                `<path d="M${cx},${cy} L${x0},${y0} A${r},${r} 0 ${frac > 0.5 ? 1 : 0},1 ${x1},${y1} Z" fill="${s.color}">` +
+                `<title>${escapeHtml(s.label)} — ${money(s.value)} (${(frac * 100).toFixed(1)}%)</title></path>`
+              );
+            })
+            .join("") +
+          `</svg>`
+        );
+      };
+      const pieCard = (title, positions, ramp) => {
+        const valued = positions
+          .filter((p) => p.market_value != null && Number(p.market_value) > 0)
+          .map((p, i) => ({
+            label: p.symbol || "—",
+            value: Number(p.market_value),
+            color: (ramp || PIE_COLORS)[i % (ramp || PIE_COLORS).length],
+          }));
+        if (!valued.length) {
+          return `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div><p class="hint">No valued positions</p></div>`;
+        }
+        const MAX_SLICES = 8;
+        let slices = valued;
+        if (valued.length > MAX_SLICES) {
+          const head = valued.slice(0, MAX_SLICES - 1);
+          const rest = valued.slice(MAX_SLICES - 1);
+          head.push({
+            label: "Other",
+            value: rest.reduce((a, s) => a + s.value, 0),
+            color: "#4a5568",
+          });
+          slices = head;
+        }
+        const total = slices.reduce((a, s) => a + s.value, 0);
+        const legend = slices
+          .map(
+            (s) =>
+              `<li><span class="dot" style="background:${s.color}"></span>` +
+              `<span>${escapeHtml(s.label)}</span><span class="pct">${((s.value / total) * 100).toFixed(1)}%</span></li>`
+          )
+          .join("");
+        return (
+          `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div>` +
+          `<div class="pie-wrap">${pieSVG(slices)}<ul class="pie-legend">${legend}</ul></div></div>`
+        );
+      };
+      const fmPiesEl = document.getElementById("fm-pies");
+      if (fmPiesEl) {
+        fmPiesEl.innerHTML =
+          pieCard("Agentic holdings allocation", apos) +
+          pieCard(
+            "Stocks sleeve",
+            apos.filter((p) => p.sleeve === "stocks_growth"),
+            STOCKS_RAMP
+          ) +
+          pieCard(
+            "BTC & digital credit sleeve",
+            apos.filter((p) => p.sleeve === "btc_digital_credit"),
+            BTC_RAMP
+          );
+      }
 
       const wl = fma.watchlist || {};
       const wlSyms = wl.symbols || (wl.entries || []).map((e) => e.symbol).filter(Boolean);
