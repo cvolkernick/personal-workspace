@@ -3652,10 +3652,13 @@ def suggest_inventory_staples(
     veg_n = sum(1 for i in stocked if is_veg_or_fruit(i))
     fiber_stocked = sum(estimated_fiber_g(i) for i in stocked)
     shake_n = sum(1 for i in stocked if is_shake_or_powder(i))
-    protein_gap = rem_p > 40 or len(stocked_whole_p) < 2
+    protein_role_open = len(stocked_whole_p) < 2
+    # Remaining macros today are cook-what-you-have, not a shopping hole, once
+    # two whole-food proteins are already in the pantry (#709).
+    protein_gap = protein_role_open
     fiber_tgt = resolve_micro_target(targets, None, "fiber_g", fallback=SOFT_FIBER_TARGET_G)
     fiber_gap = veg_n < 1 or fiber_stocked < float(fiber_tgt or SOFT_FIBER_TARGET_G)
-    shake_heavy = shake_n > 0 and len(stocked_whole_p) < 2
+    shake_heavy = shake_n > 0 and protein_role_open
     diet = diet_purpose_gaps(targets, logs)
     stocked_roles: set = set()
     for i in stocked:
@@ -3713,7 +3716,7 @@ def suggest_inventory_staples(
             payload.pop("in_stock", None)
             payload.pop("stock", None)
 
-        if diet.get("protein_short") and dens >= 0.08 and not shake:
+        if diet.get("protein_short") and dens >= 0.08 and not shake and protein_role_open:
             short = diet.get("protein_short_g")
             avg = diet.get("protein_avg")
             days = diet.get("days") or 0
@@ -3750,7 +3753,7 @@ def suggest_inventory_staples(
                 # Powder must not win a fiber/veg slot (#504 / #501).
                 score -= 50
         diet_shake = bool(diet.get("shake_heavy"))
-        if (shake_heavy or diet_shake) and dens >= 0.08 and not shake:
+        if (shake_heavy or diet_shake) and dens >= 0.08 and not shake and protein_role_open:
             if diet_shake and diet.get("shake_share") is not None:
                 pct = int(round(float(diet["shake_share"]) * 100))
                 reasons.append(

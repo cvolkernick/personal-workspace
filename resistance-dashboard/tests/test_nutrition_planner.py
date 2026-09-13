@@ -2973,6 +2973,29 @@ class TestStaplesPurpose707(unittest.TestCase):
         self.assertFalse(any("turkey" in n for n in names), msg=names)
         self.assertFalse(any("tuna" in n for n in names), msg=names)
 
+    def test_morning_remaining_protein_is_not_a_shopping_hole(self):
+        """#709: EMPTY_CONSUMED (rem_p ~210) must not add turkey/tuna/cottage/whites."""
+        out = suggest_inventory_staples(
+            _covered_pantry_no_fiber_booster(),
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=EMPTY_CONSUMED,
+            max_suggestions=10,
+        )
+        names = [s["name"].lower() for s in out["suggestions"]]
+        for tok in ("turkey", "tuna", "cottage", "egg white"):
+            self.assertFalse(any(tok in n for n in names), msg=names)
+        boosters = [
+            s
+            for s in out["suggestions"]
+            if s.get("action") == "add"
+            and any(
+                tok in (s.get("name") or "").lower()
+                for tok in ("chia", "flax", "lentil", "black bean")
+            )
+        ]
+        self.assertTrue(boosters, msg=names)
+
     def test_log_frequency_still_not_a_positive_add(self):
         logs = [
             FoodLogEntry(
@@ -2988,11 +3011,13 @@ class TestStaplesPurpose707(unittest.TestCase):
             _covered_pantry_no_fiber_booster(),
             targets=FULL_TARGETS,
             food_logs=logs,
-            consumed=_HIT_CONSUMED,
+            consumed=EMPTY_CONSUMED,
             max_suggestions=10,
         )
         names = [s["name"].lower() for s in out["suggestions"]]
         self.assertFalse(any("candy" in n for n in names))
+        for tok in ("turkey", "tuna", "cottage", "egg white"):
+            self.assertFalse(any(tok in n for n in names), msg=names)
         for s in out["suggestions"]:
             blob = f"{s.get('reason') or ''} {s.get('need') or ''}".lower()
             self.assertNotIn("logged", blob)
