@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for deploy/fcc_tip_health.py (issues #562, #628)."""
+"""Tests for deploy/fcc_tip_health.py (issues #562, #628, #630)."""
 
 from __future__ import annotations
 
@@ -91,6 +91,7 @@ class TestNoGitMutation(unittest.TestCase):
             self.assertNotIn(needle, src)
         self.assertIn("Never mutates git", src)
         self.assertIn("rev-parse", src)
+        self.assertIn("unknown", src)
         self.assertNotIn("ntfy.sh", src)
         self.assertNotIn("post_ntfy_page", src)
 
@@ -101,6 +102,7 @@ class TestInspect(unittest.TestCase):
         try:
             result = M.inspect(repo)
             self.assertTrue(result["ok"], result)
+            self.assertEqual(result["outcome"], "ok")
             self.assertEqual(result["kind"], "healthy")
             self.assertEqual(result["attached"], "work/treasury")
             self.assertEqual(result["current_branch_txt"], "work/treasury")
@@ -114,6 +116,7 @@ class TestInspect(unittest.TestCase):
             _git(repo, "checkout", "--detach")
             result = M.inspect(repo)
             self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "violation")
             self.assertEqual(result["kind"], "drift")
             self.assertTrue(any("detached" in m for m in result["mismatches"]))
             # inspect must not re-attach
@@ -129,9 +132,21 @@ class TestInspect(unittest.TestCase):
             )
             result = M.inspect(repo)
             self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "violation")
             self.assertTrue(
                 any("current-branch.txt" in m for m in result["mismatches"])
             )
+        finally:
+            td.cleanup()
+
+    def test_missing_stamp_is_unknown_not_drift(self) -> None:
+        td, repo = _repo()
+        try:
+            (repo / "financial-command" / "current-branch.txt").unlink()
+            result = M.inspect(repo)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "current-branch.txt missing")
+            self.assertNotEqual(result["kind"], "drift")
         finally:
             td.cleanup()
 
@@ -143,6 +158,7 @@ class TestInspect(unittest.TestCase):
             _git(repo, "commit", "-m", "ahead")
             result = M.inspect(repo)
             self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "violation")
             self.assertEqual(result["kind"], "drift")
             self.assertTrue(any("HEAD" in m for m in result["mismatches"]))
         finally:
@@ -153,6 +169,8 @@ class TestInspect(unittest.TestCase):
             ws = Path(td)
             result = M.inspect(ws)
             self.assertFalse(result["ok"], result)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "not a git repository")
             self.assertEqual(result["kind"], "not_a_repo")
             self.assertEqual(result["attached"], "")
             self.assertEqual(result["head"], "")
@@ -170,6 +188,7 @@ class TestInspect(unittest.TestCase):
             ws.mkdir()
             (ws / ".git").write_text("gitdir: /no/such/gitdir\n", encoding="utf-8")
             result = M.inspect(ws)
+            self.assertEqual(result["outcome"], "unknown")
             self.assertEqual(result["kind"], "not_a_repo")
             self.assertTrue(
                 any("gitdir" in m.lower() for m in result["mismatches"]),
@@ -182,7 +201,36 @@ class TestInspect(unittest.TestCase):
             with mock.patch.dict(os.environ, {"GIT_DIR": "/tmp/does-not-exist-fcc-tip"}):
                 result = M.inspect(repo)
             self.assertTrue(result["ok"], result)
+            self.assertEqual(result["outcome"], "ok")
             self.assertEqual(result["kind"], "healthy")
+        finally:
+            td.cleanup()
+
+    def test_head_unreadable_is_unknown_not_drift(self) -> None:
+        td, repo = _repo()
+        try:
+            (repo / ".git" / "HEAD").write_text(
+                "ref: refs/heads/does-not-exist\n", encoding="utf-8"
+            )
+            result = M.inspect(repo)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "HEAD unreadable")
+            self.assertNotEqual(result["kind"], "drift")
+            self.assertFalse(
+                any(m.startswith("attached=") for m in result["mismatches"]),
+                result["mismatches"],
+            )
+        finally:
+            td.cleanup()
+
+    def test_origin_unreadable_is_unknown(self) -> None:
+        td, repo = _repo()
+        try:
+            _git(repo, "remote", "remove", "origin")
+            result = M.inspect(repo)
+            self.assertEqual(result["outcome"], "unknown")
+            self.assertEqual(result["unknown_reason"], "origin ref unreadable")
+            self.assertNotEqual(result["kind"], "drift")
         finally:
             td.cleanup()
 
@@ -424,10 +472,52 @@ class TestAlertOnce(unittest.TestCase):
             self.assertNotIn("tip drift", out["title"].lower())
             self.assertIn(str(ws.resolve()), out["text"])
             self.assertIn("kind=not_a_repo", out["text"])
+            self.assertIn("outcome=unknown", out["text"])
+            self.assertIn("CHECK FAILED", out["text"])
             self.assertFalse(
                 (ws / "state.json").exists(),
                 "dry-run must not consume GitHub cooldown",
             )
+
+    def test_unknown_title_is_check_path_not_drift(self) -> None:
+        td, repo = _repo()
+        try:
+            (repo / "financial-command" / "current-branch.txt").unlink()
+            result = M.inspect(repo)
+            out = M.alert_mismatch(
+                result,
+                workspace=repo,
+                state_path=repo / "state.json",
+                dry_run=True,
+            )
+            title = out["title"].lower()
+            self.assertIn("check path", title)
+            self.assertNotIn("tip drift", title)
+            self.assertIn("outcome=unknown", out["text"])
+            self.assertIn("current-branch.txt missing", out["text"])
+            self.assertIn("CHECK FAILED", out["text"])
+            self.assertNotIn("kind=drift", out["text"])
+        finally:
+            td.cleanup()
+
+    def test_violation_title_is_tip_drift(self) -> None:
+        td, repo = _repo()
+        try:
+            _git(repo, "checkout", "--detach")
+            result = M.inspect(repo)
+            out = M.alert_mismatch(
+                result,
+                workspace=repo,
+                state_path=repo / "state.json",
+                dry_run=True,
+            )
+            title = out["title"].lower()
+            self.assertIn("tip drift", title)
+            self.assertNotIn("check path", title)
+            self.assertIn("outcome=violation", out["text"])
+            self.assertIn("kind=drift", out["text"])
+        finally:
+            td.cleanup()
 
 
 class TestCli(unittest.TestCase):
@@ -468,6 +558,20 @@ class TestCli(unittest.TestCase):
             self.assertEqual(_git(repo, "branch", "--show-current"), "")
         finally:
             td.cleanup()
+
+    def test_main_unknown_exit_2(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            code = M.main(
+                [
+                    "--workspace",
+                    td,
+                    "--no-fetch",
+                    "--dry-run",
+                    "--state",
+                    str(Path(td) / "s.json"),
+                ]
+            )
+        self.assertEqual(code, 2)
 
     def test_default_workspace_is_home_personal_workspace(self) -> None:
         self.assertEqual(M.DEFAULT_WORKSPACE, Path.home() / "personal-workspace")
