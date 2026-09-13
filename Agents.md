@@ -21,7 +21,7 @@
 
 | Domain | Top-level dirs (TLDs) | Work branch |
 |--------|----------------------|-------------|
-| **Finance** | `treasury/`, `financial-command/`, `investment/`, `research/` | `work/treasury` |
+| **Finance** | `treasury/`, `financial-command/`, `investment/`, `research/`, `auto-fleet/` | `work/treasury` |
 | **Orchestra** | `orchestra/`, root launchers (`launch.py`, `open-command-center.command`) | `work/orchestra` |
 | **Workflow** | `projects-dashboard/`, `ops/` | `work/projects-dashboard` |
 | **Fitness** | `resistance-dashboard/`, `fitness/` | `work/resistance-dashboard` |

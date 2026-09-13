@@ -1,0 +1,16 @@
+[
+  {
+    "from": "noreply@transactional.turo.com",
+    "subject": "Your trip is booked",
+    "date": "2026-04-02T14:11:00+00:00",
+    "message_id": "turo-fixture-booked-1",
+    "body": "Guest: Alex Rivera\nVehicle: 2022 Tesla Model 3\nPickup location: Tampa International Airport\nTrip ID: TRIP-9F3K21\n2026-04-10 to 2026-04-13\n"
+  },
+  {
+    "from": "noreply@turo.com",
+    "subject": "A guest booked your Toyota Corolla",
+    "date": "2026-04-03T09:00:00+00:00",
+    "message_id": "turo-fixture-booked-2",
+    "body": "Guest: Jordan Lee\nVehicle: 2024 Toyota Corolla\nPickup: 123 Palm Ave, Tampa\nReservation # BK-441902\n04/18/2026 to 04/20/2026\n"
+  }
+]

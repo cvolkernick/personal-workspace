@@ -56,6 +56,7 @@ WORK_AREA_FOR_TLD: dict[str, str] = {
     "financial-command": "treasury",
     "investment": "treasury",
     "research": "treasury",
+    "auto-fleet": "treasury",
     # Top-level coordinator
     "orchestra": "orchestra",
     # Domain dashboards
@@ -73,7 +74,7 @@ WORK_AREA_FOR_TLD: dict[str, str] = {
 # Human-readable domain groups for docs / dashboards
 TLD_DOMAIN_GROUPS: dict[str, list[str]] = {
     "orchestra": ["orchestra"],
-    "finance": ["treasury", "financial-command", "investment", "research"],
+    "finance": ["treasury", "financial-command", "investment", "research", "auto-fleet"],
     "workflow": ["projects-dashboard", "ops"],
     "fitness": ["resistance-dashboard", "fitness"],
     "time": ["holistic"],
@@ -89,6 +90,7 @@ KNOWN_PORTS = {
     8770: "holistic",
     8780: "iot",
     8790: "orchestra",
+    8796: "auto-fleet",
 }
 
 

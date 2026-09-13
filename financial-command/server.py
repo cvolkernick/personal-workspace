@@ -416,8 +416,8 @@ def _root_fcc_file_remap(path: str) -> str | None:
 
 
 # Same-origin PWA lenses. Direct :8795 / :8796 stay LAN-debug fallbacks.
-# Fleet backend: auto-fleet/server.py (auto-fleet.service on Pi). Not on this
-# work branch; proxy talks to the live process.
+# Fleet backend: auto-fleet/server.py on this work/treasury pin
+# (auto-fleet.service → 127.0.0.1:8796). Missing tree → /fleet/ 502.
 LENS_UPSTREAMS = {
     "/fleet": ("127.0.0.1", 8796),
     "/horizon": ("127.0.0.1", 8795),

@@ -47,3 +47,6 @@ Backups/
 **/grok-sessions-*.tar.gz
 .vercel
 .env*
+
+# Auto Fleet local inbox dumps / runtime (never commit)
+auto-fleet/data/runtime/

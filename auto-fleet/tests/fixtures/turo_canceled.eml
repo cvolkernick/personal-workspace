@@ -1,0 +1,12 @@
+From: noreply@transactional.turo.com
+To: host@example.com
+Subject: Trip canceled
+Date: Fri, 10 Apr 2026 12:00:00 +0000
+Message-ID: <turo-fixture-canceled-1@turo.com>
+Content-Type: text/plain; charset="utf-8"
+
+Guest: Alex Rivera
+Vehicle: 2022 Tesla Model 3
+Trip ID: TRIP-9F3K21
+2026-04-10 to 2026-04-13
+This reservation was canceled.

@@ -22,7 +22,7 @@ The PWA manifest is origin-scoped (`scope: "/"`, `start_url: "/"`). Cross-port `
 
 FCC `server.py` reverse-proxies:
 
-- `/fleet/` → Auto Fleet backend (`auto-fleet/server.py`, Pi unit `auto-fleet.service`, bind `:8796`)
+- `/fleet/` → Auto Fleet backend (`auto-fleet/server.py` on the `work/treasury` pin, Pi unit `auto-fleet.service`, bind `:8796`)
 - `/horizon/` → Horizon Macro (`research/horizon/server.py`, Pi unit `horizon-dashboard.service`, bind `:8795`)
 
 Nav emits `/fleet/` and `/horizon/` — no `http://` deep-links. Direct `:8795` / `:8796` stay as LAN-debug fallbacks; they are not linked from FCC.
