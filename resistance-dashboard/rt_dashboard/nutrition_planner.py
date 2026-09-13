@@ -965,6 +965,8 @@ _VEG_FRUIT_HINTS = (
     "vegetable",
 )
 _FIBER_HINTS = (
+    ("chia", 10.0),
+    ("flax", 8.0),
     ("black bean", 15.0),
     ("kidney bean", 13.0),
     ("lentil", 15.0),
@@ -3187,6 +3189,42 @@ STAPLE_CATALOG: List[dict] = [
         "fat_g": 11,
     },
     {
+        "id": "chia-seeds",
+        "name": "Chia seeds",
+        "category": "carb",
+        "serving_g": 28,
+        "serving_label": "28g (2 tbsp)",
+        "calories": 138,
+        "protein_g": 5,
+        "carbs_g": 12,
+        "fat_g": 9,
+        "fiber_g": 10,
+    },
+    {
+        "id": "ground-flaxseed",
+        "name": "Ground flaxseed",
+        "category": "carb",
+        "serving_g": 24,
+        "serving_label": "24g (3 tbsp)",
+        "calories": 130,
+        "protein_g": 5,
+        "carbs_g": 7,
+        "fat_g": 9,
+        "fiber_g": 8,
+    },
+    {
+        "id": "lentils",
+        "name": "Lentils",
+        "category": "carb",
+        "serving_g": 198,
+        "serving_label": "198g cooked",
+        "calories": 230,
+        "protein_g": 18,
+        "carbs_g": 40,
+        "fat_g": 1,
+        "fiber_g": 16,
+    },
+    {
         "id": "banana",
         "name": "Banana",
         "category": "carb",
@@ -3273,6 +3311,227 @@ def suggested_qty_for_item(item: dict) -> dict:
     }
 
 
+def _as_food_dict(row: Any) -> Optional[dict]:
+    if hasattr(row, "to_dict"):
+        d = row.to_dict()
+        return d if isinstance(d, dict) else None
+    if isinstance(row, dict):
+        return row
+    return None
+
+
+# Purpose roles for #707 pantry-rounding. Missing role → suggest; filled role
+# without a diet gap is novelty and must not surface.
+PURPOSE_ROLES = (
+    "fiber_booster",
+    "produce",
+    "whole_protein",
+    "quality_fat",
+    "slow_carb",
+)
+_PURPOSE_ROLE_WHY = {
+    "fiber_booster": (
+        "No concentrated fiber staple in pantry; this improves daily fiber density."
+    ),
+    "produce": (
+        "Pantry produce is thin; this improves fiber/volume of the dietary split."
+    ),
+    "whole_protein": (
+        "Pantry lacks a whole-food protein staple; this covers that role."
+    ),
+    "quality_fat": (
+        "No unsaturated-fat staple stocked; this improves the fat-quality split."
+    ),
+    "slow_carb": (
+        "Limited fiber-containing carb staples; this fills remaining carbs without junk."
+    ),
+}
+DIET_GAP_WINDOW_DAYS = 7
+DIET_HIT_FRAC = 0.85
+DIET_FAT_HIT_FRAC = 0.70
+DIET_FIBER_KNOWN_MIN_DAYS = 3
+DIET_SHAKE_SHARE = 0.40
+
+
+def staple_purpose_roles(ing: dict) -> List[str]:
+    """Pantry-role tags used to round a stocked kitchen without novelty adds."""
+    if not isinstance(ing, dict):
+        return []
+    if is_shake_or_powder(ing):
+        return []
+    blob = _ing_blob(ing)
+    if any(
+        tok in blob
+        for tok in (
+            "vitamin",
+            "multivitamin",
+            "supplement",
+            "gummy",
+            "capsule",
+            "tablet",
+            "probiotic",
+        )
+    ):
+        return []
+    roles: List[str] = []
+    fiber = estimated_fiber_g(ing)
+    if fiber >= 6.0 or any(
+        tok in blob
+        for tok in ("chia", "flax", "lentil", "black bean", "kidney bean", "psyllium")
+    ):
+        roles.append("fiber_booster")
+    elif "bean" in blob and "coffee" not in blob:
+        roles.append("fiber_booster")
+    if is_veg_or_fruit(ing):
+        roles.append("produce")
+    if _protein_density(ing) >= 0.08:
+        roles.append("whole_protein")
+    cat = str(ing.get("category") or "").strip().lower()
+    if cat == "fat" or any(tok in blob for tok in ("olive oil", "avocado")):
+        roles.append("quality_fat")
+    if cat == "carb" and fiber >= 2.0 and "fiber_booster" not in roles:
+        roles.append("slow_carb")
+    return roles
+
+
+def diet_purpose_gaps(
+    targets: Optional[dict] = None,
+    food_logs: Optional[Sequence[Any]] = None,
+    *,
+    window_days: int = DIET_GAP_WINDOW_DAYS,
+) -> dict:
+    """Recurring intake gaps vs targets. Unknown micros stay unknown (not 0).
+
+    Log frequency of a *food* is never a positive add signal (#502). This only
+    asks whether protein / fiber / fat / sugar / shake-share miss the target.
+    """
+    targets = normalize_targets(targets or {})
+    p_tgt = float(targets.get("protein_g") or 0)
+    fat_tgt = float(targets.get("fat_g") or 0)
+    fiber_tgt = resolve_micro_target(
+        targets, None, "fiber_g", fallback=SOFT_FIBER_TARGET_G
+    )
+    sugar_tgt = resolve_micro_target(targets, None, "sugar_g")
+    out: Dict[str, Any] = {
+        "days": 0,
+        "protein_short": False,
+        "fiber_short": False,
+        "fat_short": False,
+        "sugar_high": False,
+        "shake_heavy": False,
+        "protein_avg": None,
+        "protein_target": p_tgt or None,
+        "protein_short_g": None,
+        "fiber_avg": None,
+        "fiber_target": fiber_tgt,
+        "fiber_short_g": None,
+        "fiber_known_days": 0,
+        "fat_avg": None,
+        "fat_target": fat_tgt or None,
+        "fat_short_g": None,
+        "sugar_avg": None,
+        "sugar_target": sugar_tgt,
+        "shake_share": None,
+    }
+    rows = [d for d in (_as_food_dict(f) for f in (food_logs or [])) if d]
+    if not rows:
+        return out
+
+    from .nutrition_micros import micros_from_nutrients
+
+    by_day: Dict[str, dict] = {}
+    for d in rows:
+        date = str(d.get("date") or "")[:10]
+        if not date:
+            continue
+        b = by_day.setdefault(
+            date,
+            {
+                "calories": 0.0,
+                "protein_g": 0.0,
+                "carbs_g": 0.0,
+                "fat_g": 0.0,
+                "fiber_g": 0.0,
+                "sugar_g": 0.0,
+                "has_fiber": False,
+                "has_sugar": False,
+                "shake_protein_g": 0.0,
+            },
+        )
+        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            try:
+                b[k] += float(d.get(k) or 0)
+            except (TypeError, ValueError):
+                pass
+        micros = micros_from_nutrients(d.get("nutrients"))
+        fiber = micros.get("fiber_g")
+        if fiber is None:
+            fiber = _optional_micro_float(d.get("fiber_g"))
+        if fiber is not None:
+            b["fiber_g"] += float(fiber)
+            b["has_fiber"] = True
+        sugar = micros.get("sugar_g")
+        if sugar is None:
+            sugar = _optional_micro_float(d.get("sugar_g"))
+        if sugar is not None:
+            b["sugar_g"] += float(sugar)
+            b["has_sugar"] = True
+        try:
+            p = float(d.get("protein_g") or 0)
+        except (TypeError, ValueError):
+            p = 0.0
+        if is_shake_or_powder(d):
+            b["shake_protein_g"] += p
+
+    if not by_day:
+        return out
+
+    dates = sorted(by_day)
+    window = dates[-max(1, int(window_days)) :]
+    n = len(window)
+    out["days"] = n
+
+    def _mean(key: str) -> float:
+        return sum(float(by_day[d][key]) for d in window) / n
+
+    p_avg = _mean("protein_g")
+    out["protein_avg"] = round(p_avg, 1)
+    if p_tgt > 0 and p_avg < p_tgt * DIET_HIT_FRAC:
+        out["protein_short"] = True
+        out["protein_short_g"] = round(p_tgt - p_avg, 1)
+
+    fiber_days = [d for d in window if by_day[d]["has_fiber"]]
+    out["fiber_known_days"] = len(fiber_days)
+    if fiber_days and fiber_tgt:
+        f_avg = sum(by_day[d]["fiber_g"] for d in fiber_days) / len(fiber_days)
+        out["fiber_avg"] = round(f_avg, 1)
+        min_known = min(DIET_FIBER_KNOWN_MIN_DAYS, n)
+        if len(fiber_days) >= min_known and f_avg < float(fiber_tgt) * DIET_HIT_FRAC:
+            out["fiber_short"] = True
+            out["fiber_short_g"] = round(float(fiber_tgt) - f_avg, 1)
+
+    fat_avg = _mean("fat_g")
+    out["fat_avg"] = round(fat_avg, 1)
+    if fat_tgt > 0 and fat_avg < fat_tgt * DIET_FAT_HIT_FRAC:
+        out["fat_short"] = True
+        out["fat_short_g"] = round(fat_tgt - fat_avg, 1)
+
+    sugar_days = [d for d in window if by_day[d]["has_sugar"]]
+    if sugar_days and sugar_tgt:
+        s_avg = sum(by_day[d]["sugar_g"] for d in sugar_days) / len(sugar_days)
+        out["sugar_avg"] = round(s_avg, 1)
+        if s_avg > float(sugar_tgt):
+            out["sugar_high"] = True
+
+    prot_sum = sum(by_day[d]["protein_g"] for d in window)
+    shake_sum = sum(by_day[d]["shake_protein_g"] for d in window)
+    if prot_sum > 0:
+        share = shake_sum / prot_sum
+        out["shake_share"] = round(share, 3)
+        out["shake_heavy"] = share >= DIET_SHAKE_SHARE
+    return out
+
+
 def _find_inventory_match(inventory: dict, name: str, iid: str = "") -> Optional[dict]:
     want_id = (iid or "").strip().lower()
     for raw in inventory.get("ingredients") or []:
@@ -3291,12 +3550,14 @@ def suggest_inventory_staples(
     max_suggestions: int = 8,
     catalog: Optional[Sequence[dict]] = None,
 ) -> dict:
-    """Need-based restock / add proposals from the staple catalog + pantry holes.
+    """Purpose-based restock / add proposals (#502 + #707).
 
-    Ranking (#502): remaining macros, soft fiber/veg, shake-as-filler risk,
-    pantry holes that block a non-shake plan. Log-frequency is **not** a
-    positive signal (may be a soft negative for low-quality over-logged food).
-    Candidates come from ``catalog`` / ``STAPLE_CATALOG``, not “foods Chris logged.”
+    Ranking: restocks first, then catalog adds that close a stated purpose —
+    remaining macros, diet-window shortfalls, shake-as-filler risk, or a
+    missing pantry role (fiber booster / produce / whole protein / quality
+    fat / slow carb). Log-frequency is **not** a positive signal. Missing
+    catalog SKUs with no purpose are novelty and are skipped. Candidates
+    come from ``catalog`` / ``STAPLE_CATALOG``, not “foods Chris logged.”
     Suggestions are proposals — never written as stock-on-hand until accept.
     Recomputed on every dashboard load (inventory / consumed / plan change).
     """
@@ -3368,11 +3629,8 @@ def suggest_inventory_staples(
     # Never a positive add signal (#502 AC1).
     log_counts: Dict[str, int] = {}
     for f in logs:
-        if hasattr(f, "to_dict"):
-            d = f.to_dict()
-        elif isinstance(f, dict):
-            d = f
-        else:
+        d = _as_food_dict(f)
+        if not d:
             continue
         name = str(d.get("name") or "").strip()
         if not name or name.lower() in ("logged food", "unknown"):
@@ -3398,6 +3656,11 @@ def suggest_inventory_staples(
     fiber_tgt = resolve_micro_target(targets, None, "fiber_g", fallback=SOFT_FIBER_TARGET_G)
     fiber_gap = veg_n < 1 or fiber_stocked < float(fiber_tgt or SOFT_FIBER_TARGET_G)
     shake_heavy = shake_n > 0 and len(stocked_whole_p) < 2
+    diet = diet_purpose_gaps(targets, logs)
+    stocked_roles: set = set()
+    for i in stocked:
+        stocked_roles.update(staple_purpose_roles(i))
+    missing_roles = [r for r in PURPOSE_ROLES if r not in stocked_roles]
 
     honesty: List[dict] = []
     if not catalog_rows:
@@ -3430,8 +3693,10 @@ def suggest_inventory_staples(
         shake = is_shake_or_powder(staple)
         veg = is_veg_or_fruit(staple)
         fiber = estimated_fiber_g(staple)
+        roles = staple_purpose_roles(staple)
         score = 8.0 + dens * 20.0
         reasons: List[str] = []
+        purposes: List[str] = []
         if match and needs_restock(match):
             action = "restock"
             reasons.append(
@@ -3439,6 +3704,7 @@ def suggest_inventory_staples(
                 if normalize_stock(match) == STOCK_OUT
                 else "Running low — restock before empty so the plan stays non-shake."
             )
+            purposes.append("restock")
             score += 28
             payload = {**normalize_ingredient(match)}
         else:
@@ -3447,34 +3713,95 @@ def suggest_inventory_staples(
             payload.pop("in_stock", None)
             payload.pop("stock", None)
 
-        if protein_gap and dens >= 0.08 and not shake:
+        if diet.get("protein_short") and dens >= 0.08 and not shake:
+            short = diet.get("protein_short_g")
+            avg = diet.get("protein_avg")
+            days = diet.get("days") or 0
+            reasons.append(
+                f"Protein ~{int(avg)}g/day vs {int(tgt_p)}g target over {int(days)}d"
+                f" (short ~{int(short)}g); this closes that gap."
+            )
+            purposes.append("diet_protein")
+            score += 36
+        elif protein_gap and dens >= 0.08 and not shake:
             reasons.append(
                 f"Closes remaining protein (~{int(rem_p)}g of {int(tgt_p)}g) with whole food, not powder."
             )
+            purposes.append("protein_gap")
             score += 32
-        if fiber_gap and (veg or fiber >= 3):
+        if diet.get("fiber_short") and (veg or fiber >= 3) and not shake:
+            short = diet.get("fiber_short_g")
+            avg = diet.get("fiber_avg")
+            days = diet.get("fiber_known_days") or diet.get("days") or 0
+            tgt_f = diet.get("fiber_target") or fiber_tgt or SOFT_FIBER_TARGET_G
+            reasons.append(
+                f"Fiber ~{int(avg)}g/day vs {int(tgt_f)}g target over {int(days)}d"
+                f" (short ~{int(short)}g); this closes that gap."
+            )
+            purposes.append("diet_fiber")
+            score += 40
+        elif fiber_gap and (veg or fiber >= 3):
             reasons.append(
                 f"Fills soft fiber / veg gap (target ~{int(fiber_tgt or SOFT_FIBER_TARGET_G)}g; pantry produce thin)."
             )
+            purposes.append("fiber_gap")
             score += 36
             if shake:
                 # Powder must not win a fiber/veg slot (#504 / #501).
                 score -= 50
-        if shake_heavy and dens >= 0.08 and not shake:
-            reasons.append("Whole-food protein so the plan is not shake-filled.")
+        diet_shake = bool(diet.get("shake_heavy"))
+        if (shake_heavy or diet_shake) and dens >= 0.08 and not shake:
+            if diet_shake and diet.get("shake_share") is not None:
+                pct = int(round(float(diet["shake_share"]) * 100))
+                reasons.append(
+                    f"~{pct}% of protein intake is powder; whole-food staple improves the split."
+                )
+            else:
+                reasons.append("Whole-food protein so the plan is not shake-filled.")
+            purposes.append("shake_split")
             score += 22
         if shake:
-            if shake_heavy or not protein_gap:
+            if shake_heavy or diet_shake or not protein_gap:
                 score -= 40
             elif protein_gap and len(stocked_whole_p) == 0:
                 reasons.append("Powder only if whole-food protein is missing — last-resort protein.")
+                purposes.append("protein_gap")
                 score += 4
             else:
                 score -= 12
+        if diet.get("fat_short") and "quality_fat" in roles:
+            short = diet.get("fat_short_g")
+            avg = diet.get("fat_avg")
+            days = diet.get("days") or 0
+            tgt_fat = diet.get("fat_target") or float(targets.get("fat_g") or 0)
+            reasons.append(
+                f"Fat ~{int(avg)}g/day vs {int(tgt_fat)}g target over {int(days)}d"
+                f" (short ~{int(short)}g); this improves the split."
+            )
+            purposes.append("diet_fat")
+            score += 22
+        if diet.get("sugar_high") and (veg or "fiber_booster" in roles) and not shake:
+            reasons.append(
+                "Sugar running over target most days; this improves the healthfulness of the split."
+            )
+            purposes.append("diet_sugar")
+            score += 16
         carb_n = sum(1 for i in stocked if (i.get("category") or "") == "carb")
         if (staple.get("category") or "") == "carb" and carb_n < 2 and fiber >= 2 and not shake:
             reasons.append("Carb staple with fiber — helps fill remaining carbs without junk.")
+            purposes.append("slow_carb")
             score += 10
+
+        # Pantry-role hole (#707): only when this staple fills a *missing* role.
+        # Duplicate proteins (turkey while chicken+yogurt are stocked) are novelty.
+        for role in PURPOSE_ROLES:
+            if role in roles and role in missing_roles:
+                why = _PURPOSE_ROLE_WHY.get(role)
+                if why and why not in reasons:
+                    reasons.append(why)
+                purposes.append(role)
+                score += 18
+                break
 
         hits = _log_hits(str(staple.get("name") or ""))
         if hits >= 3 and (shake or dens < 0.04):
@@ -3484,6 +3811,7 @@ def suggest_inventory_staples(
             continue
         if not reasons:
             reasons.append("Pantry hole for a cutting staple.")
+            purposes.append("restock")
         qty = suggested_qty_for_item(payload)
         row = {
             **payload,
@@ -3494,6 +3822,7 @@ def suggest_inventory_staples(
             "source": "catalog",
             "proposal": True,
             "suggested_qty": qty,
+            "purpose": purposes,
         }
         if qty.get("portion_g") is not None:
             row["portion_g"] = qty["portion_g"]
@@ -3518,8 +3847,9 @@ def suggest_inventory_staples(
         bits.append(f"{add_n} add")
     if not top:
         summary = (
-            "No need-based add/restock proposals — pantry already covers protein/veg "
-            "staples, or catalog has nothing new. Not inventing stock-on-hand."
+            "No purpose-based add/restock — restocks clear, diet hitting targets, "
+            "and pantry already covers protein/fiber/produce/fat roles. "
+            "Not inventing stock-on-hand."
         )
         honesty.append(
             {
@@ -3530,9 +3860,9 @@ def suggest_inventory_staples(
         )
     else:
         summary = (
-            f"{len(top)} need-based suggestions ({', '.join(bits)}) from pantry holes "
-            f"and staple catalog. Log frequency is not a positive rank signal. "
-            f"Proposals only until you accept."
+            f"{len(top)} purpose-based suggestions ({', '.join(bits)}) from restocks, "
+            f"diet gaps, and pantry-role holes. Every add answers why. "
+            f"Log frequency is not a positive rank signal. Proposals only until you accept."
         )
     return {
         "suggestions": top,

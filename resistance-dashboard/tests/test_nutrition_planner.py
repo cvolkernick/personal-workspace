@@ -2765,5 +2765,268 @@ class TestMealPlanMicroTargets(unittest.TestCase):
         self.assertGreater(consumed_sodium_mg(logs), 900)
 
 
+# In-stock pantry that already satisfies #502 pantry-hole heuristics
+# (2 whole proteins, produce, fiber_stocked ≥ 25, 2+ carbs, quality fat)
+# but has no concentrated fiber booster (chia/beans/lentils).
+_HIT_CONSUMED = {"calories": 2000, "protein_g": 200, "carbs_g": 170, "fat_g": 50}
+
+
+def _covered_pantry_no_fiber_booster():
+    return {
+        "ingredients": [
+            _ing(
+                "chicken-breast",
+                "Chicken breast",
+                category="protein",
+                calories=280,
+                protein_g=52,
+                fat_g=6,
+                serving_g=170,
+            ),
+            _ing(
+                "nonfat-greek-yogurt",
+                "Greek yogurt (nonfat)",
+                category="protein",
+                calories=200,
+                protein_g=30,
+                carbs_g=12,
+                serving_g=360,
+            ),
+            _ing(
+                "broccoli",
+                "Broccoli",
+                category="veg",
+                calories=60,
+                protein_g=5,
+                carbs_g=12,
+                fiber_g=5,
+                serving_g=180,
+            ),
+            _ing(
+                "spinach",
+                "Spinach",
+                category="veg",
+                calories=20,
+                protein_g=2,
+                carbs_g=3,
+                fiber_g=2,
+                serving_g=90,
+            ),
+            _ing(
+                "oats",
+                "Oats",
+                category="carb",
+                calories=150,
+                protein_g=5,
+                carbs_g=27,
+                fat_g=3,
+                fiber_g=4,
+                serving_g=40,
+            ),
+            _ing(
+                "brown-rice",
+                "Brown rice",
+                category="carb",
+                calories=215,
+                protein_g=5,
+                carbs_g=45,
+                fat_g=2,
+                fiber_g=3.5,
+                serving_g=195,
+            ),
+            _ing(
+                "sweet-potato",
+                "Sweet potato",
+                category="carb",
+                calories=110,
+                protein_g=2,
+                carbs_g=26,
+                fiber_g=4,
+                serving_g=130,
+            ),
+            _ing(
+                "olive-oil",
+                "Olive oil",
+                category="fat",
+                calories=120,
+                fat_g=14,
+                serving_g=14,
+            ),
+            _ing(
+                "avocado",
+                "Avocado",
+                category="fat",
+                calories=120,
+                protein_g=1.5,
+                carbs_g=6,
+                fat_g=11,
+                fiber_g=5,
+                serving_g=68,
+            ),
+            _ing(
+                "berries-mixed",
+                "Mixed berries",
+                category="carb",
+                calories=70,
+                protein_g=1,
+                carbs_g=17,
+                fiber_g=4,
+                serving_g=140,
+            ),
+        ]
+    }
+
+
+class TestStaplesPurpose707(unittest.TestCase):
+    """#707: purpose-driven adds on an in-stock pantry; restocks kept; no novelty."""
+
+    def test_in_stock_pantry_still_suggests_fiber_booster(self):
+        """AC: in-stock kitchen is not an empty section — missing useful role."""
+        out = suggest_inventory_staples(
+            _covered_pantry_no_fiber_booster(),
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        self.assertTrue(out["suggestions"], msg=out.get("summary"))
+        adds = [s for s in out["suggestions"] if s.get("action") == "add"]
+        self.assertTrue(adds, msg=[s.get("name") for s in out["suggestions"]])
+        boosters = [
+            s
+            for s in adds
+            if any(tok in (s.get("name") or "").lower() for tok in ("chia", "flax", "lentil"))
+        ]
+        self.assertTrue(boosters, msg=[s.get("name") for s in adds])
+        pick = boosters[0]
+        blob = f"{pick.get('need') or ''} {pick.get('reason') or ''}".lower()
+        self.assertTrue(blob.strip())
+        self.assertNotIn("logged", blob)
+        self.assertTrue(
+            "fiber" in blob or "purpose" in blob or "density" in blob,
+            msg=blob,
+        )
+        for s in adds:
+            self.assertTrue((s.get("need") or s.get("reason") or "").strip())
+
+    def test_restock_still_surfaces_when_item_is_out(self):
+        inv = _covered_pantry_no_fiber_booster()
+        for row in inv["ingredients"]:
+            if row["id"] == "chicken-breast":
+                row["in_stock"] = False
+                row["stock"] = "out"
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        actions = {s["action"] for s in out["suggestions"]}
+        self.assertIn("restock", actions)
+        names = [s["name"].lower() for s in out["suggestions"]]
+        self.assertTrue(any("chicken" in n for n in names))
+
+    def test_diet_fiber_shortfall_reason_has_numbers(self):
+        logs = [
+            FoodLogEntry(
+                date=f"2026-09-{d:02d}",
+                name="Chicken bowl",
+                calories=1800,
+                protein_g=200,
+                carbs_g=160,
+                fat_g=50,
+                nutrients={"DIETARY_FIBER": 10},
+            )
+            for d in range(1, 8)
+        ]
+        out = suggest_inventory_staples(
+            _covered_pantry_no_fiber_booster(),
+            targets={**FULL_TARGETS, "fiber_g": 30},
+            food_logs=logs,
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        chia = [
+            s
+            for s in out["suggestions"]
+            if "chia" in (s.get("name") or "").lower()
+        ]
+        self.assertTrue(chia, msg=[s.get("name") for s in out["suggestions"]])
+        reason = (chia[0].get("reason") or chia[0].get("need") or "").lower()
+        self.assertIn("fiber", reason)
+        self.assertIn("10", reason)
+        self.assertIn("30", reason)
+        self.assertNotIn("logged", reason)
+        self.assertNotRegex(reason, r"\d+\s*[×x]|times")
+
+    def test_duplicate_protein_is_novelty_when_role_filled(self):
+        """Turkey while chicken+yogurt are stocked and protein is hitting → skip."""
+        out = suggest_inventory_staples(
+            _covered_pantry_no_fiber_booster(),
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        names = [s["name"].lower() for s in out["suggestions"]]
+        self.assertFalse(any("turkey" in n for n in names), msg=names)
+        self.assertFalse(any("tuna" in n for n in names), msg=names)
+
+    def test_log_frequency_still_not_a_positive_add(self):
+        logs = [
+            FoodLogEntry(
+                date="2026-09-01",
+                name="Candy bar",
+                calories=250,
+                protein_g=2,
+                carbs_g=40,
+                fat_g=10,
+            )
+        ] * 12
+        out = suggest_inventory_staples(
+            _covered_pantry_no_fiber_booster(),
+            targets=FULL_TARGETS,
+            food_logs=logs,
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        names = [s["name"].lower() for s in out["suggestions"]]
+        self.assertFalse(any("candy" in n for n in names))
+        for s in out["suggestions"]:
+            blob = f"{s.get('reason') or ''} {s.get('need') or ''}".lower()
+            self.assertNotIn("logged", blob)
+
+    def test_all_roles_stocked_and_diet_hitting_may_be_empty(self):
+        """Honest empty when every purpose is already covered — not novelty filler."""
+        inv = _covered_pantry_no_fiber_booster()
+        inv["ingredients"].append(
+            _ing(
+                "chia-seeds",
+                "Chia seeds",
+                category="carb",
+                calories=138,
+                protein_g=5,
+                carbs_g=12,
+                fat_g=9,
+                fiber_g=10,
+                serving_g=28,
+            )
+        )
+        catalog = [dict(r) for r in inv["ingredients"]]
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+            catalog=catalog,
+        )
+        self.assertEqual(out["suggestions"], [])
+        self.assertEqual(out["count"], 0)
+        kinds = {h["kind"] for h in out.get("honesty") or []}
+        self.assertIn("empty_suggestions", kinds)
+
+
 if __name__ == "__main__":
     unittest.main()
