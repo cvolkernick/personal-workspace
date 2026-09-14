@@ -20,12 +20,14 @@ STALE_AFTER_S = 24 * 3600
 DEAD_AFTER_S = 7 * 24 * 3600
 DEFAULT_POLL_S = 900
 
+# Relative to the dashboard document (LAN :8796/ or HTTPS /fleet/). A leading
+# slash 404s on the Tailscale origin — FCC's rewrite misses JS-built img src.
 PHOTOS = {
-    "m3-2020": "/static/fleet/tesla-model-3-2020.jpg",
-    "r1s-2023": "/static/fleet/rivian-r1s-2023.jpg",
-    "m3-2022": "/static/fleet/tesla-model-3-2022.jpg",
-    "corolla-2022": "/static/fleet/toyota-corolla-2022.jpg",
-    "corolla-2024": "/static/fleet/toyota-corolla-2024.jpg",
+    "m3-2020": "static/fleet/tesla-model-3-2020.jpg",
+    "r1s-2023": "static/fleet/rivian-r1s-2023.jpg",
+    "m3-2022": "static/fleet/tesla-model-3-2022.jpg",
+    "corolla-2022": "static/fleet/toyota-corolla-2022.jpg",
+    "corolla-2024": "static/fleet/toyota-corolla-2024.jpg",
 }
 
 

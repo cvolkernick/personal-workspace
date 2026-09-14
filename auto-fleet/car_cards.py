@@ -1,7 +1,7 @@
 """Car-centric card helpers for Auto Fleet.
 
 Additive on top of the Gmail dump path. Does not invent VINs, plates,
-balances, trips, or guest fields. Invoice-ready stays Google Tasks.
+balances, trips, or guest fields. Invoice-ready is Turso (inbox scan).
 """
 
 from __future__ import annotations

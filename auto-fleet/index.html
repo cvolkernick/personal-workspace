@@ -773,12 +773,16 @@
       return Math.round((n / KM_PER_MILE) * 10) / 10;
     }
 
+    function fleetUrl(path) {
+      return String(path || "").replace(/^\//, "");
+    }
+
     function unitPhoto(id) {
-      if (id === "m3-2020") return "/static/fleet/tesla-model-3-2020.jpg";
-      if (id === "r1s-2023") return "/static/fleet/rivian-r1s-2023.jpg";
-      if (id === "m3-2022") return "/static/fleet/tesla-model-3-2022.jpg";
-      if (id === "corolla-2022") return "/static/fleet/toyota-corolla-2022.jpg";
-      if (id === "corolla-2024") return "/static/fleet/toyota-corolla-2024.jpg";
+      if (id === "m3-2020") return "static/fleet/tesla-model-3-2020.jpg";
+      if (id === "r1s-2023") return "static/fleet/rivian-r1s-2023.jpg";
+      if (id === "m3-2022") return "static/fleet/tesla-model-3-2022.jpg";
+      if (id === "corolla-2022") return "static/fleet/toyota-corolla-2022.jpg";
+      if (id === "corolla-2024") return "static/fleet/toyota-corolla-2024.jpg";
       return null;
     }
 
@@ -1300,7 +1304,7 @@
     }
 
     function photoHref(a) {
-      if (a && a.relpath) return `/api/turo-inbox-media/${encodeURI(a.relpath)}`;
+      if (a && a.relpath) return fleetUrl("api/turo-inbox-media/" + encodeURI(a.relpath));
       return "";
     }
 
@@ -1390,7 +1394,7 @@
       const idn = u.identity || {};
       const g = glanceOf(u, nowMs, pollS);
       const title = g.title || [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id;
-      const photo = g.photo || unitPhoto(u.id);
+      const photo = fleetUrl(g.photo || unitPhoto(u.id) || "");
       const fresh = g.freshness || "unknown";
       const vinChip = g.vin_short || vinShort(idn.vin);
       const host = idn.host_identity || {};
@@ -1498,7 +1502,7 @@
       const listId = el.getAttribute("data-list-id") || "";
       el.disabled = true;
       try {
-        const res = await fetch("/api/turo-tasks/complete", {
+        const res = await fetch(fleetUrl("api/turo-tasks/complete"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ task_id: taskId, list_id: listId }),
@@ -1508,7 +1512,7 @@
           el.checked = false;
           el.disabled = false;
           const box = el.closest(".strip") || $("host-ops");
-          const err = (data && data.error) || "Could not complete Google Task";
+          const err = (data && data.error) || "Could not complete invoice-ready item";
           let note = box && box.querySelector(".host-ops-err");
           if (box && !note) {
             note = document.createElement("p");
@@ -1655,9 +1659,9 @@
       setLoading(true);
       try {
         const [healthRes, fleetRes, tasksRes] = await Promise.all([
-          fetch("/api/health", { cache: "no-store" }),
-          fetch("/api/fleet", { cache: "no-store" }),
-          fetch("/api/turo-tasks", { cache: "no-store" }).catch(() => null),
+          fetch(fleetUrl("api/health"), { cache: "no-store" }),
+          fetch(fleetUrl("api/fleet"), { cache: "no-store" }),
+          fetch(fleetUrl("api/turo-tasks"), { cache: "no-store" }).catch(() => null),
         ]);
         const health = await healthRes.json();
         const fleet = await fleetRes.json();

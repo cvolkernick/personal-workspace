@@ -373,23 +373,23 @@ class FormatTests(unittest.TestCase):
             self.assertGreater(path.stat().st_size, 10_000)
         self.assertEqual(
             glance.photo_for({"id": "m3-2020"}),
-            "/static/fleet/tesla-model-3-2020.jpg",
+            "static/fleet/tesla-model-3-2020.jpg",
         )
         self.assertEqual(
             glance.photo_for({"id": "m3-2022"}),
-            "/static/fleet/tesla-model-3-2022.jpg",
+            "static/fleet/tesla-model-3-2022.jpg",
         )
         self.assertEqual(
             glance.photo_for({"id": "r1s-2023"}),
-            "/static/fleet/rivian-r1s-2023.jpg",
+            "static/fleet/rivian-r1s-2023.jpg",
         )
         self.assertEqual(
             glance.photo_for({"id": "corolla-2024"}),
-            "/static/fleet/toyota-corolla-2024.jpg",
+            "static/fleet/toyota-corolla-2024.jpg",
         )
         self.assertEqual(
             glance.photo_for({"id": "corolla-2022"}),
-            "/static/fleet/toyota-corolla-2022.jpg",
+            "static/fleet/toyota-corolla-2022.jpg",
         )
         self.assertNotEqual(
             glance.photo_for({"id": "m3-2020"}),

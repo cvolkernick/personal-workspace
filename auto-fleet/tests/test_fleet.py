@@ -82,23 +82,23 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertIsNone(by_id["corolla-2024"]["identity"]["tracking_url"])
         self.assertEqual(r1s["glance"]["title"], "2023 Rivian R1S")
         self.assertEqual(
-            r1s["glance"]["photo"], "/static/fleet/rivian-r1s-2023.jpg"
+            r1s["glance"]["photo"], "static/fleet/rivian-r1s-2023.jpg"
         )
         self.assertEqual(
             by_id["m3-2020"]["glance"]["photo"],
-            "/static/fleet/tesla-model-3-2020.jpg",
+            "static/fleet/tesla-model-3-2020.jpg",
         )
         self.assertEqual(
             by_id["m3-2022"]["glance"]["photo"],
-            "/static/fleet/tesla-model-3-2022.jpg",
+            "static/fleet/tesla-model-3-2022.jpg",
         )
         self.assertEqual(
             by_id["corolla-2024"]["glance"]["photo"],
-            "/static/fleet/toyota-corolla-2024.jpg",
+            "static/fleet/toyota-corolla-2024.jpg",
         )
         self.assertEqual(
             by_id["corolla-2022"]["glance"]["photo"],
-            "/static/fleet/toyota-corolla-2022.jpg",
+            "static/fleet/toyota-corolla-2022.jpg",
         )
 
     def test_display_order_tesla_tesla_corolla_corolla_rivian(self) -> None:

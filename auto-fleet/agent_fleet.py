@@ -2,7 +2,7 @@
 
 Mirror FitDash agent-read (#293): service-token HTTP or a published
 snapshot file. Payload is dump / email-ingest derived — no invented trips.
-Invoice-ready Google Tasks stay on ``/api/turo-tasks``. No venue keys.
+Invoice-ready Turso rows stay on ``/api/turo-tasks``. No venue keys.
 """
 
 from __future__ import annotations

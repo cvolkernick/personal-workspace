@@ -314,7 +314,7 @@ def _attach_invoice_ready(
     *,
     gt: Any | None = None,
 ) -> dict[str, Any]:
-    """Nest open GT Turo items on each car. Completed stay off. No invented rows."""
+    """Nest open Turso invoice-ready items on each car. Completed stay off."""
     bookings_by_unit = {
         str(row["id"]): (row.get("turo") or {}).get("bookings") or []
         for row in assembled
@@ -340,7 +340,7 @@ def _attach_invoice_ready(
         "invoice_unmatched": split["unmatched"],
         "turo_tasks": {
             "ok": listed.get("ok"),
-            "source": listed.get("source") or "google_tasks",
+            "source": listed.get("source") or "turso",
             "list_title": listed.get("list_title") or turo_tasks.LIST_TITLE,
             "list_id": listed.get("list_id"),
             "error": listed.get("error"),

@@ -30,8 +30,9 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 try:
-    from . import turo_inbox, turo_media
+    from . import invoice_ready, turo_inbox, turo_media
 except ImportError:  # script path
+    import invoice_ready  # type: ignore
     import turo_inbox  # type: ignore
     import turo_media  # type: ignore
 
@@ -98,6 +99,14 @@ def write_dump(
     except OSError:
         pass
     return dest
+
+
+def sync_invoice_ready(messages: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Panamerica invoice-ready mail → Turso. Dump write must not fail if Turso is dark."""
+    try:
+        return invoice_ready.upsert_from_messages(messages)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "source": "turso", "error": str(exc) or "Turso error"}
 
 
 def _file_env(path: Path | None) -> dict[str, str]:
@@ -505,7 +514,7 @@ def fetch_and_write(
             error=str(exc),
             media_dir=media,
         )
-    return write_dump(
+    dest = write_dump(
         messages,
         dest,
         inbox=inbox,
@@ -513,6 +522,8 @@ def fetch_and_write(
         source="gmail_api",
         media_dir=media,
     )
+    sync_invoice_ready(messages)
+    return dest
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -575,6 +586,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for m in normalize_messages(raw)
     ]
     dest = write_dump(messages, dest, inbox=args.inbox, media_dir=media)
+    sync_invoice_ready(messages)
     n_photos = sum(len(m.get("attachments") or []) for m in messages)
     print(f"wrote {len(messages)} message(s) ({n_photos} photo(s)) to {dest}")
     _publish_agent_snapshot(dest)
