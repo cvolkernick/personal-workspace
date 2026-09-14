@@ -19,6 +19,12 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_LOG="${LOG_DIR}/fund_manager_bp_poll_${STAMP}.log"
 LOCK="${LOG_DIR}/fund_manager_bp_poll.lock"
 
+sync_fm_journal() {
+  # #737: commit+push journal; never fail the run; retry next cycle on git error.
+  echo "Journal sync (#737)…"
+  python3 -m treasury.fund_manager_journal_sync || echo "WARN: journal_sync non-zero (run still ok)"
+}
+
 exec >>"$RUN_LOG" 2>&1
 echo "=== fund_manager_bp_poll start ${STAMP} ==="
 echo "ROOT=${ROOT}"
@@ -70,6 +76,7 @@ PY
 )"
   if [[ "${IN_HOURS}" != "1" ]]; then
     echo "Outside market hours (${ET_NOW}) — skip (FM_BP_POLL_FORCE=1 to override)"
+    sync_fm_journal
     ln -sfn "${RUN_LOG}" "${LOG_DIR}/fund_manager_bp_poll_latest.log" 2>/dev/null || true
     exit 0
   fi
@@ -86,6 +93,7 @@ PY
 )"
 if [[ "${LIVE}" != "1" ]]; then
   echo "live:false — skip bp poll deploy"
+  sync_fm_journal
   exit 0
 fi
 
@@ -138,5 +146,6 @@ else
 fi
 
 python3 -m treasury.run_treasury --offline || true
+sync_fm_journal
 ln -sfn "${RUN_LOG}" "${LOG_DIR}/fund_manager_bp_poll_latest.log" 2>/dev/null || cp "${RUN_LOG}" "${LOG_DIR}/fund_manager_bp_poll_latest.log"
 echo "=== fund_manager_bp_poll done ==="

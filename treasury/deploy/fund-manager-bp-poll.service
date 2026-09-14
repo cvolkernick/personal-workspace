@@ -13,6 +13,7 @@ Nice=10
 TimeoutStartSec=2h
 Environment=HOME=/home/prism-agent
 Environment=FCC_HOST_TAG=prism
+Environment=FM_JOURNAL_BRANCH=work/treasury
 Environment=PATH=/home/prism-agent/.grok/bin:/home/prism-agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 # Live agentic path: grok --yolo may place Robinhood orders. Alerts → GitHub #701.
 

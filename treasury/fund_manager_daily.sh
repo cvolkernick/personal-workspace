@@ -20,6 +20,12 @@ mkdir -p "$LOG_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_LOG="${LOG_DIR}/fund_manager_daily_${STAMP}.log"
 
+sync_fm_journal() {
+  # #737: commit+push journal; never fail the run; retry next cycle on git error.
+  echo "Journal sync (#737)…"
+  python3 -m treasury.fund_manager_journal_sync || echo "WARN: journal_sync non-zero (run still ok)"
+}
+
 exec >>"$RUN_LOG" 2>&1
 echo "=== fund_manager_daily start ${STAMP} ==="
 echo "ROOT=${ROOT}"
@@ -27,6 +33,7 @@ echo "ROOT=${ROOT}"
 DOW="$(date +%u)"
 if [[ "${FM_SKIP_WEEKENDS:-1}" == "1" && "${DOW}" -ge 6 ]]; then
   echo "Weekend — skip (set FM_SKIP_WEEKENDS=0 to force)."
+  sync_fm_journal
   exit 0
 fi
 
@@ -59,6 +66,7 @@ echo "rules_review exit=${RR}"
 
 if [[ "${LIVE}" != "1" ]]; then
   echo "live:false — stop after rules observe"
+  sync_fm_journal
   exit 0
 fi
 
@@ -92,5 +100,6 @@ fi
 
 # Final dashboard refresh (live already ran pre-notify; offline is a no-network fallback)
 python3 -m treasury.run_treasury --offline || true
+sync_fm_journal
 ln -sfn "${RUN_LOG}" "${LOG_DIR}/fund_manager_daily_latest.log" 2>/dev/null || cp "${RUN_LOG}" "${LOG_DIR}/fund_manager_daily_latest.log"
 echo "=== fund_manager_daily done ==="

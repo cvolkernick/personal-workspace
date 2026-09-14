@@ -12,6 +12,8 @@ if str(ROOT) not in sys.path:
 
 DEPLOY = ROOT / "treasury" / "deploy"
 FM_PY = ROOT / "treasury" / "fund_manager.py"
+DAILY = ROOT / "treasury" / "fund_manager_daily.sh"
+BP_POLL = ROOT / "treasury" / "fund_manager_bp_poll.sh"
 
 
 class TestFundManagerProducerDeploy(unittest.TestCase):
@@ -42,6 +44,38 @@ class TestFundManagerProducerDeploy(unittest.TestCase):
         self.assertNotIn("ntfy.sh", text)
         self.assertNotIn("def push_ntfy", text)
         self.assertIn("warn_retired_ntfy", text)
+
+    def test_wrappers_sync_journal_after_every_run(self) -> None:
+        needle = "python3 -m treasury.fund_manager_journal_sync"
+        daily = DAILY.read_text(encoding="utf-8")
+        poll = BP_POLL.read_text(encoding="utf-8")
+        self.assertIn(needle, daily)
+        self.assertIn(needle, poll)
+        self.assertIn("sync_fm_journal", daily)
+        self.assertIn("sync_fm_journal", poll)
+        self.assertGreaterEqual(daily.count("sync_fm_journal"), 4)
+        self.assertGreaterEqual(poll.count("sync_fm_journal"), 4)
+
+    def test_pi_units_pin_journal_branch(self) -> None:
+        for name in ("fund-manager.service", "fund-manager-bp-poll.service"):
+            text = (DEPLOY / name).read_text(encoding="utf-8")
+            self.assertIn("FM_JOURNAL_BRANCH=work/treasury", text)
+            self.assertIn("FCC_HOST_TAG=prism", text)
+            # Auth is load_scheduler_env + insteadOf, not a unit EnvironmentFile (#737).
+            self.assertNotIn("EnvironmentFile=", text)
+            self.assertNotIn("GITHUB_TOKEN=", text)
+
+    def test_journal_sync_uses_workspace_sync_insteadOf(self) -> None:
+        text = (ROOT / "treasury" / "fund_manager_journal_sync.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("load_scheduler_env", text)
+        self.assertIn("github_token", text)
+        self.assertIn(
+            "url.https://x-access-token:{token}@github.com/.insteadOf=https://github.com/",
+            text,
+        )
+        self.assertIn('frozenset({"pull", "push", "fetch", "ls-remote"})', text)
 
 
 if __name__ == "__main__":
