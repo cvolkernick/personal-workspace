@@ -7,16 +7,21 @@ from unittest import mock
 
 from rt_dashboard.recipe_store import (
     IngredientInUseError,
+    RecipeNotADishError,
     add_recipe_logs_to_consumed,
     attach_recipes_to_plan,
     compose_from_meal_items,
     compute_recipe_macros,
+    dish_yield_label,
     fingerprint_ingredients,
+    is_dish,
     name_from_items,
     normalize_recipe,
     recipe_logs_as_food_entries,
     recipes_using_ingredient,
+    require_dish,
     scale_servings,
+    servings_of_dish_label,
     shopping_from_plans,
 )
 
@@ -195,7 +200,7 @@ class LogsAndAttach(unittest.TestCase):
             ]
         )
         self.assertEqual(rows[0]["source"], "fitdash_recipe")
-        self.assertEqual(rows[0]["serving_label"], "1.5 servings")
+        self.assertEqual(rows[0]["serving_label"], "1.5 servings of Bowl")
         self.assertEqual(rows[0]["protein_g"], 78)
 
     def test_consumed_adds_recipe_logs(self):
@@ -218,6 +223,7 @@ class LogsAndAttach(unittest.TestCase):
             "fingerprint": compose_from_meal_items(items)["fingerprint"],
             "yield_servings": 1,
             "ingredients": [{"ingredient_id": "chicken", "grams_batch": 170}],
+            "instructions": ["Grill until 165F."],
         }
         with mock.patch(
             "rt_dashboard.recipe_store.get_recipe", return_value=None
@@ -246,6 +252,131 @@ class LogsAndAttach(unittest.TestCase):
             name_from_items([{"name": "A"}, {"name": "B"}, {"name": "C"}]),
             "A, B + 1 more",
         )
+
+
+class DishNotGrouping(unittest.TestCase):
+    def test_grouping_without_method_is_not_a_dish(self):
+        rec = normalize_recipe(
+            {
+                "name": "Chicken + Rice",
+                "ingredients": [{"ingredient_id": "chicken", "grams_batch": 170}],
+            }
+        )
+        self.assertFalse(is_dish(rec))
+        with self.assertRaises(RecipeNotADishError) as ctx:
+            require_dish(rec)
+        self.assertEqual(ctx.exception.error_code, "recipe_not_a_dish")
+
+    def test_smoothie_with_method_is_a_dish(self):
+        rec = normalize_recipe(
+            {
+                "name": "Berry protein smoothie",
+                "yield_servings": 2,
+                "ingredients": [{"ingredient_id": "banana", "grams_batch": 240}],
+                "instructions": ["Blend until smooth.", "Chill 10 minutes."],
+            }
+        )
+        self.assertTrue(is_dish(rec))
+        require_dish(rec)
+        computed = compute_recipe_macros(rec, _inv())
+        self.assertTrue(computed["is_dish"])
+        self.assertEqual(
+            computed["yield_label"],
+            "Makes 2 servings of Berry protein smoothie",
+        )
+        self.assertEqual(
+            dish_yield_label(rec),
+            "Makes 2 servings of Berry protein smoothie",
+        )
+
+    def test_log_label_is_servings_of_dish(self):
+        rows = recipe_logs_as_food_entries(
+            [
+                {
+                    "date": "2026-09-14",
+                    "name": "Lentil soup",
+                    "servings": 1,
+                    "recipe_id": "r1",
+                    "macros": {"calories": 320, "protein_g": 18, "carbs_g": 40, "fat_g": 6},
+                }
+            ]
+        )
+        self.assertEqual(rows[0]["name"], "Lentil soup")
+        self.assertEqual(rows[0]["serving_label"], "1 serving of Lentil soup")
+        self.assertEqual(
+            servings_of_dish_label(1.5, "Lentil soup"),
+            "1.5 servings of Lentil soup",
+        )
+
+    def test_attach_reuses_dish_fingerprint(self):
+        items = [{"id": "chicken", "name": "Chicken", "portion_g": 170}]
+        meal = {"label": "Next meal", "items": items}
+        plan = {"meals": [meal]}
+        saved = {
+            "id": "abc123",
+            "name": "Grilled chicken",
+            "fingerprint": compose_from_meal_items(items)["fingerprint"],
+            "yield_servings": 1,
+            "ingredients": [{"ingredient_id": "chicken", "grams_batch": 170}],
+            "instructions": ["Season chicken.", "Grill until 165F."],
+        }
+        with mock.patch(
+            "rt_dashboard.recipe_store.get_recipe", return_value=None
+        ), mock.patch(
+            "rt_dashboard.recipe_store.find_recipe_by_fingerprint",
+            return_value=saved,
+        ), mock.patch(
+            "rt_dashboard.recipe_store.upsert_recipe"
+        ) as upsert:
+            out = attach_recipes_to_plan(plan, _inv(CHICKEN), "sub-1")
+        upsert.assert_not_called()
+        self.assertEqual(out["meals"][0]["recipe_id"], "abc123")
+        self.assertEqual(out["meals"][0]["recipe_name"], "Grilled chicken")
+        self.assertTrue(out["meals"][0]["is_dish"])
+
+    def test_attach_does_not_wrap_loose_items_as_recipe(self):
+        items = [
+            {"id": "chicken", "name": "Chicken", "portion_g": 170},
+            {"id": "rice", "name": "Rice", "portion_g": 150},
+        ]
+        plan = {"meals": [{"label": "Next meal", "items": items}]}
+        with mock.patch(
+            "rt_dashboard.recipe_store.get_recipe", return_value=None
+        ), mock.patch(
+            "rt_dashboard.recipe_store.find_recipe_by_fingerprint",
+            return_value=None,
+        ), mock.patch(
+            "rt_dashboard.recipe_store.upsert_recipe"
+        ) as upsert:
+            out = attach_recipes_to_plan(plan, _inv(CHICKEN, RICE), "sub-1")
+        upsert.assert_not_called()
+        self.assertIsNone(out["meals"][0].get("recipe_id"))
+        self.assertFalse(out["meals"][0].get("is_dish"))
+        self.assertEqual(len(out["meals"][0]["items"]), 2)
+
+    def test_attach_skips_instructionless_fingerprint(self):
+        items = [{"id": "chicken", "name": "Chicken", "portion_g": 170}]
+        grouping = {
+            "id": "old-group",
+            "name": "Chicken + Rice",
+            "fingerprint": compose_from_meal_items(items)["fingerprint"],
+            "yield_servings": 1,
+            "ingredients": [{"ingredient_id": "chicken", "grams_batch": 170}],
+            "instructions": [],
+        }
+        plan = {"meals": [{"label": "Next meal", "items": items}]}
+        with mock.patch(
+            "rt_dashboard.recipe_store.get_recipe", return_value=None
+        ), mock.patch(
+            "rt_dashboard.recipe_store.find_recipe_by_fingerprint",
+            return_value=grouping,
+        ), mock.patch(
+            "rt_dashboard.recipe_store.upsert_recipe"
+        ) as upsert:
+            out = attach_recipes_to_plan(plan, _inv(CHICKEN), "sub-1")
+        upsert.assert_not_called()
+        self.assertIsNone(out["meals"][0].get("recipe_id"))
+        self.assertFalse(out["meals"][0].get("is_dish"))
 
 
 if __name__ == "__main__":

@@ -2113,6 +2113,25 @@ footer {
   padding: 0;
   font: inherit;
 }
+button.meal-recipe-item {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.recipe-method {
+  margin: 0.65rem 0 0;
+  padding-left: 1.2rem;
+}
+.recipe-method-label {
+  font-weight: 650;
+  font-size: 0.85rem;
+  margin: 0.65rem 0 0.2rem;
+}
 
 .inv-card.compact {
   padding: 0.55rem 0.6rem;

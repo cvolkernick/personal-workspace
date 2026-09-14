@@ -1,11 +1,16 @@
-"""Named recipes in Turso. Macros computed from inventory — never stored.
+"""Named dishes in Turso. Macros computed from inventory — never stored.
 
-Turso is SoT. There is no seed library; recipes appear as the coach or
-user saves them. File JSON must never overwrite a Turso row.
+A recipe is ingredients transformed by a method into one dish. Yield is
+servings of that finished dish. Loose pantry items eaten as themselves
+are not recipes — they stay on the meal-plan quick-add path.
 
-Servings: yield_servings is the batch size. Ingredient grams_batch are
-totals for that yield. Per-serving = grams_batch / yield. Logging
-multiplies by N servings (fractional OK).
+Turso is SoT. There is no seed library; recipes appear when a user (or
+coach) saves a dish with preparation steps. File JSON must never
+overwrite a Turso row.
+
+Servings: yield_servings is the batch size of the finished dish.
+Ingredient grams_batch are totals for that yield. Per-serving =
+grams_batch / yield. Logging multiplies by N servings (fractional OK).
 
 Drift:
 - Ingredient **edit** (macros/name): recipes recompute on read. No stored macros.
@@ -66,6 +71,52 @@ class IngredientInUseError(ValueError):
         self.ingredient_id = str(ingredient_id or "").strip()
         self.recipes = [r for r in recipes if isinstance(r, dict)]
         self.error_code = "ingredient_in_use"
+
+
+class RecipeNotADishError(ValueError):
+    """Save rejected: no preparation method, so it is a grouping not a dish."""
+
+    def __init__(
+        self,
+        message: str = "recipe requires preparation steps — a dish, not a grouping",
+    ):
+        super().__init__(message)
+        self.error_code = "recipe_not_a_dish"
+
+
+def _instruction_steps(raw: Any) -> List[str]:
+    if not isinstance(raw, list):
+        return []
+    return [str(s).strip() for s in raw if str(s).strip()]
+
+
+def is_dish(recipe: Optional[dict]) -> bool:
+    """True when preparation combines ingredients into one finished dish."""
+    if not isinstance(recipe, dict):
+        return False
+    return bool(_instruction_steps(recipe.get("instructions")))
+
+
+def dish_yield_label(recipe: Optional[dict]) -> str:
+    rec = recipe if isinstance(recipe, dict) else {}
+    yld = _as_float(rec.get("yield_servings"), 1.0)
+    if yld <= 0:
+        yld = 1.0
+    name = str(rec.get("name") or "this dish").strip() or "this dish"
+    unit = "serving" if yld == 1 else "servings"
+    return f"Makes {yld:g} {unit} of {name}"
+
+
+def servings_of_dish_label(servings: float, name: str) -> str:
+    n = _as_float(servings, 0.0)
+    dish = str(name or "this dish").strip() or "this dish"
+    unit = "serving" if n == 1 else "servings"
+    return f"{n:g} {unit} of {dish}"
+
+
+def require_dish(recipe: dict) -> None:
+    if not is_dish(recipe):
+        raise RecipeNotADishError()
 
 
 def _iso_now() -> str:
@@ -155,7 +206,11 @@ def compose_from_meal_items(
     source: str = "coach",
     instructions: Optional[Sequence[str]] = None,
 ) -> dict:
-    """Build a recipe dict from planner meal lines. Does not invent grams."""
+    """Draft a recipe dict from planner meal lines. Does not invent grams.
+
+    A draft without ``instructions`` is a grouping, not a dish — callers
+    must not persist it. Fingerprint matching against saved dishes is OK.
+    """
     lines: List[dict] = []
     for it in items or []:
         if not isinstance(it, dict):
@@ -328,6 +383,8 @@ def compute_recipe_macros(recipe: dict, inventory: Optional[dict]) -> dict:
     }
     rec["stale"] = bool(stale_ids)
     rec["stale_ingredient_ids"] = stale_ids
+    rec["is_dish"] = is_dish(rec)
+    rec["yield_label"] = dish_yield_label(rec)
     return rec
 
 
@@ -536,7 +593,13 @@ def get_recipe(user_id: str, recipe_id: str, inventory: Optional[dict] = None) -
     return compute_recipe_macros(normalize_recipe(data), inventory)
 
 
-def upsert_recipe(user_id: str, raw: dict, inventory: Optional[dict] = None) -> dict:
+def upsert_recipe(
+    user_id: str,
+    raw: dict,
+    inventory: Optional[dict] = None,
+    *,
+    require_method: bool = True,
+) -> dict:
     connect, turso_enabled = _turso()
     uid = str(user_id or "").strip()
     if not uid:
@@ -548,8 +611,14 @@ def upsert_recipe(user_id: str, raw: dict, inventory: Optional[dict] = None) -> 
     if rid:
         existing = get_recipe(uid, rid, inventory=None)
     rec = normalize_recipe(raw or {}, existing=existing)
+    if require_method:
+        require_dish(rec)
     blob = json.dumps(
-        {k: rec[k] for k in rec if k not in ("macros_per_serving", "macros_batch")},
+        {
+            k: rec[k]
+            for k in rec
+            if k not in ("macros_per_serving", "macros_batch", "is_dish", "yield_label")
+        },
         separators=(",", ":"),
     )
     with connect() as conn:
@@ -615,9 +684,33 @@ def mark_recipes_stale_for_ingredient(user_id: str, ingredient_id: str) -> int:
     hit = recipes_blocking_ingredient(user_id, ingredient_id)
     n = 0
     for rec in hit:
-        upsert_recipe(user_id, mark_stale_for_ingredient(rec, ingredient_id))
+        upsert_recipe(
+            user_id,
+            mark_stale_for_ingredient(rec, ingredient_id),
+            require_method=False,
+        )
         n += 1
     return n
+
+
+def _strip_recipe_stamp(row: dict) -> dict:
+    """Leave loose items as items — do not dress a grouping as a recipe."""
+    out = dict(row)
+    out.pop("recipe_id", None)
+    out.pop("recipe_name", None)
+    out.pop("recipe", None)
+    out["is_dish"] = False
+    return out
+
+
+def _stamp_dish(row: dict, rec: dict) -> dict:
+    out = dict(row)
+    out["recipe_id"] = rec.get("id")
+    out["recipe_name"] = rec.get("name")
+    out["servings"] = _as_float(out.get("servings"), 1.0) or 1.0
+    out["recipe"] = rec
+    out["is_dish"] = True
+    return out
 
 
 def attach_recipes_to_plan(
@@ -625,7 +718,12 @@ def attach_recipes_to_plan(
     inventory: Optional[dict],
     user_id: str,
 ) -> dict:
-    """Stamp recipe_id + servings on meal buckets. Persist coach recipes (deduped)."""
+    """Stamp a saved dish onto a meal when one already exists.
+
+    Does **not** wrap loose pantry items into a new recipe. Groupings stay
+    on the quick-add path. A meal becomes a dish only when a saved recipe
+    with preparation steps matches ``recipe_id`` or ingredient fingerprint.
+    """
     out = dict(plan or {})
     meals = list(out.get("meals") or [])
     uid = str(user_id or "").strip()
@@ -634,44 +732,27 @@ def attach_recipes_to_plan(
         if not isinstance(meal, dict):
             continue
         row = dict(meal)
+        rec = None
         existing_id = str(row.get("recipe_id") or "").strip()
-        if existing_id:
-            rec = get_recipe(uid, existing_id, inventory=inventory) if uid else None
-            if rec:
-                row["recipe_id"] = rec["id"]
-                row["recipe_name"] = rec.get("name")
-                row["servings"] = _as_float(row.get("servings"), 1.0) or 1.0
-                row["recipe"] = rec
-                stamped.append(row)
-                continue
-        items = [it for it in (row.get("items") or []) if isinstance(it, dict)]
-        drafted = compose_from_meal_items(items, yield_servings=1.0, source="coach")
-        if not drafted.get("ingredients"):
-            stamped.append(row)
-            continue
-        if not uid:
-            row["recipe_name"] = drafted.get("name")
-            row["servings"] = 1.0
-            stamped.append(row)
-            continue
-        try:
-            found = find_recipe_by_fingerprint(
-                uid, drafted["fingerprint"], inventory=inventory
-            )
-            if found:
-                saved = found
-            else:
-                saved = upsert_recipe(uid, drafted, inventory=inventory)
-        except Exception:
-            row["recipe_name"] = drafted.get("name")
-            row["servings"] = 1.0
-            stamped.append(row)
-            continue
-        row["recipe_id"] = saved["id"]
-        row["recipe_name"] = saved.get("name")
-        row["servings"] = _as_float(row.get("servings"), 1.0) or 1.0
-        row["recipe"] = saved
-        stamped.append(row)
+        if existing_id and uid:
+            try:
+                rec = get_recipe(uid, existing_id, inventory=inventory)
+            except Exception:
+                rec = None
+        if rec is None and uid:
+            items = [it for it in (row.get("items") or []) if isinstance(it, dict)]
+            drafted = compose_from_meal_items(items, yield_servings=1.0, source="coach")
+            if drafted.get("ingredients"):
+                try:
+                    rec = find_recipe_by_fingerprint(
+                        uid, drafted["fingerprint"], inventory=inventory
+                    )
+                except Exception:
+                    rec = None
+        if rec and is_dish(rec):
+            stamped.append(_stamp_dish(row, rec))
+        else:
+            stamped.append(_strip_recipe_stamp(row))
     out["meals"] = stamped
     return out
 
@@ -703,13 +784,15 @@ def log_recipe_servings(
     civil = str(day or local_today_iso())[:10]
     log_id = _new_id()
     now = _iso_now()
+    dish_name = str(rec.get("name") or "Recipe")
     payload = {
         "id": log_id,
         "recipe_id": rid,
-        "name": rec.get("name"),
+        "name": dish_name,
         "servings": n,
         "date": civil,
         "macros": scaled.get("macros") or {},
+        "serving_label": servings_of_dish_label(n, dish_name),
         "source": "fitdash_recipe",
         "created_at": now,
     }
@@ -763,11 +846,14 @@ def recipe_logs_as_food_entries(logs: Sequence[dict]) -> List[dict]:
             continue
         macros = log.get("macros") if isinstance(log.get("macros"), dict) else {}
         servings = _as_float(log.get("servings"), 0.0)
-        serve = f"{servings:g} serving" + ("" if servings == 1 else "s")
+        name = str(log.get("name") or "Recipe")
+        serve = str(log.get("serving_label") or "").strip() or servings_of_dish_label(
+            servings, name
+        )
         out.append(
             {
                 "date": str(log.get("date") or "")[:10],
-                "name": str(log.get("name") or "Recipe"),
+                "name": name,
                 "calories": macros.get("calories"),
                 "protein_g": macros.get("protein_g"),
                 "carbs_g": macros.get("carbs_g"),
