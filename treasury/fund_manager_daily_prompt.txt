@@ -50,7 +50,8 @@ You are running the fund-manager review for personal-workspace (agentic Robinhoo
 - Executor ONLY places/cancels via Robinhood MCP
 
 ## After decision (required)
-Append full decision via append_decision (treasury/fund_manager.py) including:
+Append full decision via append_decision (treasury/fund_manager.py). That call
+also posts the record to GitHub #701 (assistant-readable; do not skip it). Include:
 - summary, kind (hold|rebalance|deploy|rotate)
 - rationale.why_now, rationale.why_not_alternatives
 - names_considered, names_rejected (or equivalent in rationale)

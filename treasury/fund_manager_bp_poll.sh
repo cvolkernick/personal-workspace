@@ -124,7 +124,8 @@ if [[ "${RR}" -eq 2 ]]; then
       --yolo \
       --output-format plain \
       || echo "WARN: grok headless exited non-zero"
-    # Notify only on non-HOLD decisions — never force on quiet HOLD (avoids double #701 spam)
+    # Stale-RH / thin fallback only — full decision already on #701 via append_decision
+    # Never force on quiet HOLD (avoids double #701 spam)
     python3 - <<'PY' || true
 from treasury.fund_manager import notify_if_needed, load_decision_log
 from treasury.adapters import load_json, SNAPSHOTS_DIR

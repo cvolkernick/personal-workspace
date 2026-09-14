@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,6 +37,26 @@ PRIVATE_WATCHLIST_PATH = ROOT / "investment" / "private_watchlist.json"
 FM_SNAPSHOT = SNAPSHOTS_DIR / "fund_manager_latest.json"
 DECISIONS_PATH = SNAPSHOTS_DIR / "fund_manager_decisions.jsonl"
 JOURNAL_PATH = ROOT / "investment" / "fund_manager_journal.md"
+DECISION_GITHUB_MARKER = "<!-- fund-manager-decision schema=1 -->"
+DECISION_RECORD_KEYS = (
+    "as_of",
+    "kind",
+    "outcome",
+    "summary",
+    "rationale",
+    "team_votes",
+    "actions",
+    "weights_before",
+    "weights_after_expected",
+    "weights_after",
+    "nav_usd",
+    "buying_power_usd",
+    "path",
+    "need_llm",
+    "schema_version",
+    "account_scope",
+    "host",
+)
 
 
 def _now() -> str:
@@ -500,19 +521,178 @@ def load_decision_log(
     return list(reversed(rows[-limit:]))
 
 
+def _rationale_dict(entry: Dict[str, Any]) -> Dict[str, Any]:
+    rat = entry.get("rationale") or {}
+    if isinstance(rat, str):
+        return {"summary": rat}
+    if isinstance(rat, dict):
+        return rat
+    return {}
+
+
+def decision_record_payload(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Canonical what+why fields for GitHub #701 (#736)."""
+    out: Dict[str, Any] = {}
+    for k in DECISION_RECORD_KEYS:
+        if k in entry:
+            out[k] = entry[k]
+    for k in (
+        "kind",
+        "summary",
+        "rationale",
+        "team_votes",
+        "actions",
+        "weights_before",
+        "nav_usd",
+        "buying_power_usd",
+    ):
+        out.setdefault(k, entry.get(k))
+    if "weights_after" not in out:
+        out["weights_after"] = entry.get("weights_after") or entry.get(
+            "weights_after_expected"
+        )
+    out["rationale"] = _rationale_dict(entry)
+    return out
+
+
+def format_decision_github_body(entry: Dict[str, Any]) -> str:
+    """Markdown + JSON block an assistant can read from GitHub #701 alone."""
+    rat = _rationale_dict(entry)
+    votes = entry.get("team_votes") or {}
+    actions = entry.get("actions") or []
+    wb = entry.get("weights_before") or {}
+    wa = entry.get("weights_after") or entry.get("weights_after_expected") or {}
+    payload = decision_record_payload(entry)
+    lines = [
+        DECISION_GITHUB_MARKER,
+        f"**kind:** `{entry.get('kind') or 'decision'}`",
+        f"**summary:** {entry.get('summary') or rat.get('summary') or '—'}",
+        f"**NAV:** ${entry.get('nav_usd', '—')} · **BP:** ${entry.get('buying_power_usd', '—')}",
+    ]
+    if wb or wa:
+        lines.append(
+            "**weights_before:** "
+            f"BTC-complex {wb.get('btc_digital_credit', '—')} · "
+            f"stocks {wb.get('stocks_growth', '—')}"
+        )
+        lines.append(
+            "**weights_after:** "
+            f"BTC-complex {wa.get('btc_digital_credit', '—')} · "
+            f"stocks {wa.get('stocks_growth', '—')}"
+        )
+    if rat.get("why_now"):
+        lines.append(f"**why_now:** {rat['why_now']}")
+    if rat.get("why_not_alternatives"):
+        lines.append(f"**why_not_alternatives:** {rat['why_not_alternatives']}")
+    tags = rat.get("thesis_tags")
+    if tags:
+        if isinstance(tags, list):
+            lines.append("**thesis_tags:** " + ", ".join(str(t) for t in tags))
+        else:
+            lines.append(f"**thesis_tags:** {tags}")
+    if votes:
+        lines.append("**team_votes:**")
+        roles = ["scout", "thesis", "risk", "critic", "executor"]
+        seen = set()
+        for role in roles + [k for k in votes if k not in roles]:
+            if role in seen or role not in votes:
+                continue
+            seen.add(role)
+            v = votes[role]
+            if isinstance(v, dict):
+                lines.append(
+                    f"- **{role}:** {v.get('vote', v.get('stance', '—'))} — {v.get('note', '')}"
+                )
+            else:
+                lines.append(f"- **{role}:** {v}")
+    if actions:
+        lines.append("**actions:**")
+        for a in actions:
+            if isinstance(a, dict):
+                lines.append(
+                    f"- {str(a.get('side', '?')).upper()} {a.get('symbol', '?')} "
+                    f"${a.get('notional_usd', a.get('dollar_amount', '?'))} "
+                    f"[{a.get('status', '?')}] {a.get('order_id') or ''}".rstrip()
+                )
+            else:
+                lines.append(f"- {a}")
+    else:
+        lines.append("**actions:** (none)")
+    lines.append("")
+    lines.append("```json")
+    lines.append(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+    lines.append("```")
+    return "\n".join(lines) + "\n"
+
+
+def _skip_decision_github_in_pytest() -> bool:
+    """Never POST to live #701 from unit tests unless explicitly opted in."""
+    if os.environ.get("FM_DECISION_GITHUB_IN_TEST") == "1":
+        return False
+    return bool(os.environ.get("PYTEST_CURRENT_TEST"))
+
+
+def publish_decision_record(
+    entry: Dict[str, Any],
+    *,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Post the full what+why decision to GitHub standing issue #701 (#736)."""
+    import socket
+
+    if _skip_decision_github_in_pytest():
+        return {"ok": True, "posted": False, "skipped": "pytest"}
+    kind = str(entry.get("kind") or "decision").lower()
+    cfg = load_config()
+    ncfg = (cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}
+    host = (
+        ncfg.get("host_tag")
+        or os.environ.get("FCC_HOST_TAG")
+        or socket.gethostname()
+        or "unknown-host"
+    )
+    host_short = host.split(".")[0] if host else "unknown"
+    payload_entry = dict(entry)
+    payload_entry.setdefault("host", host_short)
+    title = f"FCC · fund-manager {kind} · {host_short}"
+    text = format_decision_github_body(payload_entry)
+    github = post_ops_github(title, text, dry_run=dry_run, as_markdown=True)
+    github["title"] = title
+    github["kind"] = kind
+    return github
+
+
+def _decision_already_on_github(d: Dict[str, Any]) -> bool:
+    """True when append_decision already published this record to #701."""
+    if not isinstance(d, dict):
+        return False
+    rr = d.get("rules_review")
+    if isinstance(rr, dict) and rr.get("logged"):
+        return True
+    if d.get("as_of") and (
+        d.get("rationale") or d.get("team_votes") or d.get("schema_version")
+    ):
+        return True
+    return False
+
+
 def append_decision(
     decision: Dict[str, Any],
     *,
     path: Optional[Path] = None,
     also_journal: bool = True,
+    also_github: bool = True,
 ) -> Dict[str, Any]:
-    """Append one decision with rationale for human monitoring (JSONL + optional markdown).
+    """Append one decision with rationale (JSONL + journal + GitHub #701).
 
     Expected keys (flexible): as_of, kind (deploy|rebalance|hold|rotate|error),
     summary, rationale {why_now, why_not_alternatives, thesis_tags},
     team_votes {scout, thesis, risk, critic, executor},
     actions [{symbol, side, notional_usd, status, order_id}],
     weights_before, weights_after_expected, nav_usd, buying_power_usd.
+
+    GitHub #701 is the assistant-readable sink (#736). Same-day HOLD
+    dedup in rules_based_review still skips a second identical HOLD.
     """
     p = path or DECISIONS_PATH
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -525,6 +705,9 @@ def append_decision(
 
     if also_journal:
         _append_journal_markdown(entry)
+
+    if also_github:
+        entry["_github"] = publish_decision_record(entry)
 
     return entry
 
@@ -892,14 +1075,16 @@ def notify_if_needed(
     bypasses the enabled flag and stale cooldown (use sparingly — not for
     routine HOLD).
 
-    Every signal (stale RH, need_llm / deploy / rebalance, error, kill-switch)
-    comments GitHub standing issue #701. ntfy is retired.
+    Decision records (including HOLD) are published by append_decision to
+    #701 with the full what+why (#736). This function still comments #701 for
+    stale RH and for thin need_llm/error payloads that never went through
+    append_decision. ntfy is retired.
     """
 
     cfg = load_config()
     ncfg = (cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}
     leftover_topic = str(
-        ncfg.get("ntfy_topic") or __import__("os").environ.get("FCC_NTFY_TOPIC") or ""
+        ncfg.get("ntfy_topic") or os.environ.get("FCC_NTFY_TOPIC") or ""
     ).strip()
     warn_retired_ntfy(topic=leftover_topic or None)
     enabled = ncfg.get("enabled", True)
@@ -1004,7 +1189,14 @@ def notify_if_needed(
     if not should:
         return {"ok": True, "notified": False, "reason": "quiet hold"}
 
-    import os
+    if actionable and not stale_only and _decision_already_on_github(decision_or_review):
+        return {
+            "ok": True,
+            "notified": False,
+            "reason": "decision already on #701",
+            "stale_only": False,
+        }
+
     import socket
 
     host = (
@@ -1037,13 +1229,35 @@ def notify_if_needed(
             title = f"FCC · stale RH feed · {prod_host}"
             body_parts.insert(0, f"producer={prod_host} error_class=stale")
 
-    text = "\n".join(body_parts) or summary or "FCC alert"
-    text = f"[{host_short}] {text}"
     title = f"{title} · {host_short}" if " · " + host_short not in title else title
     page = bool(
         (outcome == "error" or kind == "error") or _alert_kill_switch()
     )
-    github = post_ops_github(title, text)
+    as_markdown = False
+    if not stale_only and actionable:
+        merged = dict(rules) if isinstance(rules, dict) else {}
+        merged.setdefault("kind", kind or merged.get("kind"))
+        merged.setdefault("summary", summary)
+        merged.setdefault("outcome", outcome)
+        for k in (
+            "rationale",
+            "team_votes",
+            "actions",
+            "weights_before",
+            "weights_after_expected",
+            "weights_after",
+            "nav_usd",
+            "buying_power_usd",
+            "as_of",
+        ):
+            if k in decision_or_review and k not in merged:
+                merged[k] = decision_or_review[k]
+        text = format_decision_github_body(merged)
+        as_markdown = True
+    else:
+        text = "\n".join(body_parts) or summary or "FCC alert"
+        text = f"[{host_short}] {text}"
+    github = post_ops_github(title, text, as_markdown=as_markdown)
     delivered = bool(github.get("posted"))
     if delivered and stale_only:
         _mark_stale_rh_notified()
@@ -1075,7 +1289,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument(
         "--notify",
         action="store_true",
-        help="Comment GitHub #701 if non-HOLD / stale RH",
+        help="Comment GitHub #701 if non-HOLD / stale RH (decisions already go via append_decision)",
     )
     p.add_argument("--no-log", action="store_true", help="With --rules-review, do not append journal")
     args = p.parse_args(argv)
