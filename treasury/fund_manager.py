@@ -632,6 +632,12 @@ def _skip_decision_github_in_pytest() -> bool:
     return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
+def _decision_github_enabled() -> bool:
+    """#701 decision comments. `FM_DECISION_GITHUB=0` keeps local JSONL only."""
+    raw = (os.environ.get("FM_DECISION_GITHUB") or "").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
 def publish_decision_record(
     entry: Dict[str, Any],
     *,
@@ -642,6 +648,8 @@ def publish_decision_record(
 
     if _skip_decision_github_in_pytest():
         return {"ok": True, "posted": False, "skipped": "pytest"}
+    if not _decision_github_enabled():
+        return {"ok": True, "posted": False, "skipped": "disabled"}
     kind = str(entry.get("kind") or "decision").lower()
     cfg = load_config()
     ncfg = (cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}
@@ -662,18 +670,77 @@ def publish_decision_record(
     return github
 
 
-def _decision_already_on_github(d: Dict[str, Any]) -> bool:
-    """True when append_decision already published this record to #701."""
+def _github_public(github: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Persistable #701 result — posted flag only, no tokens."""
+    if not isinstance(github, dict):
+        return {"ok": False, "posted": False}
+    out: Dict[str, Any] = {
+        "ok": bool(github.get("ok", False)),
+        "posted": bool(github.get("posted")),
+    }
+    for k in ("skipped", "issue", "status", "title", "kind"):
+        if github.get(k) not in (None, ""):
+            out[k] = github.get(k)
+    err = github.get("error")
+    if err not in (None, ""):
+        s = str(err)
+        tok = (os.environ.get("GITHUB_TOKEN") or "").strip()
+        if tok:
+            s = s.replace(tok, "REDACTED")
+        out["error"] = s
+    return out
+
+
+def _github_blob(d: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not isinstance(d, dict):
-        return False
+        return None
+    for key in ("_github", "github"):
+        blob = d.get(key)
+        if isinstance(blob, dict):
+            return blob
     rr = d.get("rules_review")
-    if isinstance(rr, dict) and rr.get("logged"):
-        return True
-    if d.get("as_of") and (
-        d.get("rationale") or d.get("team_votes") or d.get("schema_version")
-    ):
-        return True
-    return False
+    if isinstance(rr, dict):
+        for key in ("_github", "github"):
+            blob = rr.get(key)
+            if isinstance(blob, dict):
+                return blob
+    return None
+
+
+def _decision_already_on_github(d: Dict[str, Any]) -> bool:
+    """True only when #701 actually received the comment (`_github.posted`).
+
+    JSONL `logged` / rationale / schema_version mean the local row exists, not
+    that GitHub got it. Token/network miss must not skip the notify fallback.
+    """
+    blob = _github_blob(d)
+    return bool(isinstance(blob, dict) and blob.get("posted"))
+
+
+def _patch_newest_jsonl_github(
+    path: Path,
+    github: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Overwrite `_github` on the newest JSONL row. Do not append a second HOLD."""
+    if not path.is_file():
+        return None
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    for i in range(len(lines) - 1, -1, -1):
+        stripped = lines[i].strip()
+        if not stripped:
+            continue
+        try:
+            row = json.loads(stripped)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(row, dict):
+            return None
+        row["_github"] = github
+        ending = "\n" if lines[i].endswith("\n") else ""
+        lines[i] = json.dumps(row, ensure_ascii=False) + ending
+        path.write_text("".join(lines), encoding="utf-8")
+        return row
+    return None
 
 
 def append_decision(
@@ -690,9 +757,6 @@ def append_decision(
     team_votes {scout, thesis, risk, critic, executor},
     actions [{symbol, side, notional_usd, status, order_id}],
     weights_before, weights_after_expected, nav_usd, buying_power_usd.
-
-    GitHub #701 is the assistant-readable sink (#736). Same-day HOLD
-    dedup in rules_based_review still skips a second identical HOLD.
     """
     p = path or DECISIONS_PATH
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -700,14 +764,17 @@ def append_decision(
     entry.setdefault("as_of", _now())
     entry.setdefault("schema_version", 1)
     entry.setdefault("account_scope", "agentic_only")
-    with p.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    if also_github:
+        entry["_github"] = _github_public(publish_decision_record(entry))
 
     if also_journal:
         _append_journal_markdown(entry)
 
-    if also_github:
-        entry["_github"] = publish_decision_record(entry)
+    # Persist `_github.posted` on the JSONL row so later notify/HOLD-dedup
+    # can tell a real #701 comment from a local log write.
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     return entry
 
@@ -960,9 +1027,12 @@ def rules_based_review(
     }
 
     logged = False
+    github: Optional[Dict[str, Any]] = None
     if log and live:
-        # Avoid spam: only log HOLD if last decision wasn't identical hold same day
+        # Skip a same-day HOLD only after #701 actually posted. Token miss
+        # retries publish in place (no extra JSONL row — bp-poll is ~15m).
         should_log = True
+        retry_unposted = False
         if outcome == "hold":
             recent = load_decision_log(limit=3)
             if recent:
@@ -971,9 +1041,19 @@ def rules_based_review(
                     last_day = (last.get("as_of") or "")[:10]
                     if last_day == _now()[:10]:
                         should_log = False
+                        retry_unposted = not _decision_already_on_github(last)
         if should_log:
-            append_decision(decision)
+            logged_entry = append_decision(decision)
             logged = True
+            gh = logged_entry.get("_github")
+            if isinstance(gh, dict):
+                github = gh
+        elif retry_unposted:
+            recent = load_decision_log(limit=1)
+            last = recent[0] if recent else decision
+            gh = _github_public(publish_decision_record(last))
+            _patch_newest_jsonl_github(DECISIONS_PATH, gh)
+            github = gh
 
     fm["rules_review"] = {
         "outcome": outcome,
@@ -986,6 +1066,7 @@ def rules_based_review(
         "deployable_usd": round(deployable, 4),
         "min_trade_usd": round(min_trade, 4),
         "logged": logged,
+        "github": github,
     }
     write_fund_manager_snapshot(fm)
     return fm
@@ -1141,9 +1222,11 @@ def notify_if_needed(
         if summary:
             body_parts.append(summary)
 
+    already_posted = _decision_already_on_github(decision_or_review)
+
     stale_only = False
     if stale_msgs:
-        if actionable:
+        if actionable and not already_posted:
             # Annotate body; keep primary title (actionable > stale)
             body_parts.extend(stale_msgs[:3])
         else:
@@ -1189,7 +1272,9 @@ def notify_if_needed(
     if not should:
         return {"ok": True, "notified": False, "reason": "quiet hold"}
 
-    if actionable and not stale_only and _decision_already_on_github(decision_or_review):
+    # Skip duplicate decision body only. Stale-RH (cooldown) still runs above
+    # when already_posted — that path sets stale_only and must not return here.
+    if actionable and not stale_only and already_posted:
         return {
             "ok": True,
             "notified": False,
@@ -1292,7 +1377,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Comment GitHub #701 if non-HOLD / stale RH (decisions already go via append_decision)",
     )
     p.add_argument("--no-log", action="store_true", help="With --rules-review, do not append journal")
+    p.add_argument(
+        "--no-github",
+        action="store_true",
+        help="Log JSONL/journal only; skip the #701 decision comment",
+    )
     args = p.parse_args(argv)
+    if args.no_github:
+        os.environ["FM_DECISION_GITHUB"] = "0"
 
     if args.rules_review:
         result = rules_based_review(log=not args.no_log)

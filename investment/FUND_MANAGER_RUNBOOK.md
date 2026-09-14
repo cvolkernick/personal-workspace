@@ -50,7 +50,7 @@ Workflows (preferred when available):
 
 **Assistant-readable sink (no human courier, #736):** GitHub issue **#701** comments.
 
-`append_decision` posts the full what+why on every logged run (deploy / rebalance / hold / error), including the first HOLD of the day. Same-day identical HOLDs stay quiet. Marker: `<!-- fund-manager-decision schema=1 -->` plus a JSON block (`kind`, `summary`, `rationale`, `team_votes`, `actions`, `weights_before` / `weights_after`, `nav_usd`, `buying_power_usd`).
+`append_decision` posts the full what+why on every logged run (deploy / rebalance / hold / error), including the first HOLD of the day. Same-day identical HOLDs stay quiet only after `_github.posted` is true; a token/network miss retries the #701 comment in place (no extra JSONL row). Marker: `<!-- fund-manager-decision schema=1 -->` plus a JSON block (`kind`, `summary`, `rationale`, `team_votes`, `actions`, `weights_before` / `weights_after`, `nav_usd`, `buying_power_usd`). `FM_DECISION_GITHUB=0` / `--no-github` keeps local JSONL only.
 
 FCC → **Brokerage** → **Decision log / rationale** (Pi-local JSONL; producer is Pi only, #729)
 
