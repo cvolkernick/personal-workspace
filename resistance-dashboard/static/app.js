@@ -2500,6 +2500,13 @@
     );
   }
 
+  function isDish(rec) {
+    if (!rec) return false;
+    if (rec.is_dish === true) return true;
+    const steps = rec.instructions || [];
+    return Array.isArray(steps) && steps.some((s) => String(s || "").trim());
+  }
+
   function recipeIngSelect(selected) {
     const cur = String(selected || "");
     let opts = `<option value="">Ingredient…</option>`;
@@ -2596,18 +2603,27 @@
       return;
     }
     if (!recipes.length) {
-      list.innerHTML = `<p class="muted" style="margin:0">No saved recipes yet. Generate a meal plan (coach composes from pantry) or save one above.</p>`;
+      list.innerHTML = `<p class="muted" style="margin:0">No dishes yet. Save a recipe with a method (smoothie, soup, stir-fry). Loose pantry items stay on the meal plan.</p>`;
       return;
     }
     let html = "";
     recipes.forEach((rec) => {
       const macros = rec.macros_per_serving || {};
+      const dish = isDish(rec);
       const stale = rec.stale
         ? ` <span class="recipe-stale-badge">stale ingredient</span>`
         : "";
-      html += `<button type="button" class="recipe-card${rec.stale ? " is-stale" : ""}" data-action="recipe-open" data-id="${invEscapeAttr(rec.id || "")}">
-        <div class="recipe-card-name">${rec.name || "Recipe"}${stale}</div>
-        <div class="recipe-card-meta muted">Makes ${rec.yield_servings || 1} · ${rec.source || "user"} · per serving</div>
+      const needsMethod = dish
+        ? ""
+        : ` <span class="recipe-stale-badge">needs method</span>`;
+      const yieldCopy =
+        rec.yield_label ||
+        `Makes ${rec.yield_servings || 1} serving${
+          Number(rec.yield_servings) === 1 ? "" : "s"
+        } of ${rec.name || "this dish"}`;
+      html += `<button type="button" class="recipe-card${rec.stale || !dish ? " is-stale" : ""}" data-action="recipe-open" data-id="${invEscapeAttr(rec.id || "")}">
+        <div class="recipe-card-name">${rec.name || "Dish"}${stale}${needsMethod}</div>
+        <div class="recipe-card-meta muted">${yieldCopy} · per serving</div>
         ${invMacroStrip(macros, true)}
       </button>`;
     });
@@ -2630,6 +2646,7 @@
       return;
     }
     const yld = Number(rec.yield_servings) || 1;
+    const dishName = rec.name || "this dish";
     const macros = rec.macros_per_serving || {};
     let rows = "";
     (rec.ingredients || []).forEach((line) => {
@@ -2639,28 +2656,40 @@
       rows += `<tr><td>${line.name || line.ingredient_id}${miss}</td><td>${batch}</td><td>${per}</td></tr>`;
     });
     const steps = (rec.instructions || [])
-      .map((s, i) => `<li>${s}</li>`)
+      .map((s) => `<li>${s}</li>`)
       .join("");
     const stale = rec.stale
       ? `<p class="recipe-stale-badge">Referenced ingredient is gone — update or delete this recipe.</p>`
       : "";
+    const needsMethod = isDish(rec)
+      ? ""
+      : `<p class="recipe-stale-badge">Needs a method — this is still a grouping, not a dish.</p>`;
+    const yieldCopy =
+      rec.yield_label ||
+      `Makes ${yld} serving${yld === 1 ? "" : "s"} of ${dishName}`;
     box.hidden = false;
     box.innerHTML = `
-      <div class="recipe-card-name">${rec.name || "Recipe"}</div>
-      <div class="recipe-card-meta muted">Makes ${yld} serving${yld === 1 ? "" : "s"} · ${rec.source || "user"}</div>
-      ${stale}
+      <div class="recipe-card-name">${dishName}</div>
+      <div class="recipe-card-meta muted">${yieldCopy}</div>
+      ${stale}${needsMethod}
       ${invMacroStrip(macros, true)}
-      <p class="muted" style="margin:0.5rem 0 0.2rem;font-size:0.8rem">Batch totals and per serving</p>
+      ${invMicroStrip(macros, true)}
+      <div class="recipe-method-label">Method</div>
+      ${
+        steps
+          ? `<ol class="recipe-method">${steps}</ol>`
+          : `<p class="muted" style="margin:0.35rem 0 0">Add a method to make this a dish.</p>`
+      }
+      <p class="muted" style="margin:0.65rem 0 0.2rem;font-size:0.8rem">What went in (batch → one serving of the dish)</p>
       <table>
-        <thead><tr><th>Ingredient</th><th>Batch</th><th>Per serving</th></tr></thead>
+        <thead><tr><th>Ingredient</th><th>Batch</th><th>Per serving of dish</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="3">No ingredients</td></tr>`}</tbody>
       </table>
-      ${steps ? `<ol style="margin:0.5rem 0 0;padding-left:1.2rem">${steps}</ol>` : `<p class="muted" style="margin:0.5rem 0 0">No steps yet.</p>`}
       <div class="actions" style="margin-top:0.65rem">
-        <label>Log servings
+        <label>Servings of ${dishName}
           <input type="number" id="recipe-log-n" min="0.25" step="0.25" value="1" style="max-width:5rem" />
         </label>
-        <button type="button" class="primary" data-action="recipe-log" data-id="${invEscapeAttr(rec.id || "")}">Ate servings</button>
+        <button type="button" class="primary" data-action="recipe-log" data-id="${invEscapeAttr(rec.id || "")}">Ate servings of ${dishName}</button>
         <button type="button" data-action="recipe-edit" data-id="${invEscapeAttr(rec.id || "")}">Edit</button>
         <button type="button" class="btn-remove" data-action="recipe-delete" data-id="${invEscapeAttr(rec.id || "")}">Delete</button>
         <button type="button" data-action="recipe-close">Close</button>
@@ -2995,7 +3024,9 @@
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-          showAlert(`Logged ${servings} serving${servings === 1 ? "" : "s"}`, "ok");
+          const rec = recipeById(id);
+          const dish = (rec && rec.name) || "this dish";
+          showAlert(`Ate ${servings} serving${servings === 1 ? "" : "s"} of ${dish}`, "ok");
           try {
             await loadDashboard();
           } catch (_) {
@@ -3013,6 +3044,10 @@
         const st = $("recipe-form-status");
         if (!body.name) {
           if (st) st.textContent = "Name required";
+          return;
+        }
+        if (!body.instructions.length) {
+          if (st) st.textContent = "Add a method — a recipe is a dish, not a pile of ingredients";
           return;
         }
         if (!body.ingredients.length) {
@@ -4856,25 +4891,40 @@
         const clockBit = clock
           ? ` · <span class="meal-bucket-time">${clock}</span>`
           : "";
-        const recipeName = m.recipe_name || (m.recipe && m.recipe.name) || "";
-        const recipeId = m.recipe_id || (m.recipe && m.recipe.id) || "";
-        const recipeBit = recipeName
-          ? ` · <button type="button" class="meal-recipe-name" data-action="recipe-open" data-id="${invEscapeAttr(
-              recipeId
-            )}">${recipeName}</button>`
-          : "";
+        const rec = m.recipe && isDish(m.recipe) ? m.recipe : null;
+        const recipeId = rec ? rec.id || m.recipe_id || "" : "";
+        const recipeName = rec ? rec.name || m.recipe_name || "" : "";
+        const dishServings = Number(m.servings) || 1;
+        let bodyHtml;
+        if (rec && recipeName) {
+          const dishMacros = rec.macros_per_serving || m.totals || {};
+          const serveLabel =
+            dishServings === 1 ? "1 serving" : `${dishServings} servings`;
+          bodyHtml = `<button type="button" class="inv-slide meal-item compact meal-recipe-item" data-action="recipe-open" data-id="${invEscapeAttr(
+            recipeId
+          )}">
+            <div class="meal-item-name">${recipeName}</div>
+            <div class="meal-item-meta muted">${serveLabel}</div>
+            ${invMacroStrip(dishMacros, true)}
+            ${invMicroStrip(dishMacros, true)}
+          </button>`;
+        } else if (items.length) {
+          bodyHtml = invCarouselShell(cid, slides, "No items");
+        } else {
+          bodyHtml = `<p class="muted" style="margin:0.35rem 0 0">No items.</p>`;
+        }
+        const countBit =
+          rec && recipeName
+            ? ""
+            : ` · ${items.length} item${items.length === 1 ? "" : "s"}`;
+        const headMacros =
+          rec && recipeName ? "" : invMacroStrip(m.totals || {}, true);
         mealSlides += `<div class="meal-vslide meal-bucket" data-meal-idx="${mi}">
           <div class="meal-bucket-head">
-            <div class="title">${m.label || "Meal"}${clockBit}${recipeBit} · ${items.length} item${
-          items.length === 1 ? "" : "s"
-        }</div>
-            ${invMacroStrip(m.totals || {}, true)}
+            <div class="title">${m.label || "Meal"}${clockBit}${countBit}</div>
+            ${headMacros}
           </div>
-          ${
-            items.length
-              ? invCarouselShell(cid, slides, "No items")
-              : `<p class="muted" style="margin:0.35rem 0 0">No items.</p>`
-          }
+          ${bodyHtml}
         </div>`;
       });
       html += `<div class="meal-vcarousel-shell">
