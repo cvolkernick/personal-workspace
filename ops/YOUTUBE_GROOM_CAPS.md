@@ -15,6 +15,8 @@ CAP                  = 200       # was 100 (breaker reason cap_100); not a targe
 STALE_HARD_DAYS      = 7         # unchanged
 MAX_DELETES_PER_TICK = 80        # unchanged
 keep_n               = 10        # empty fallback; unchanged
+MIN_FIT              = 1         # was 2; skip only fit < 1 (#731)
+SEED_THROTTLE_WEIGHT_FLOOR = 0.25  # was 0.4; skip SEED_THROTTLE only below this (#731)
 ```
 
 Insert budget after prune = `min(slots to HOUSE_TARGET, slots to CAP, remaining playlist slots)`.  

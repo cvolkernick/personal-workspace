@@ -29,6 +29,18 @@ The old 72h fresh cull plus `MAX_INSERTS_PER_TICK` (4, then 8) kept the list sma
 | `MAX_DELETES_PER_TICK` | 80 | 80 |
 | `keep_n` empty fallback | 10 | 10 |
 
+## Volume knobs (#731)
+
+Prefer more fresh content over candidate-starved ticks. Live Pi writer only
+(2026-09-14). Nest documents the constants; **do not copy nest over Pi**.
+
+| Name | Was | Now |
+|------|-----|-----|
+| `MIN_FIT` | **2** (skip `fit < 2`) | **1** (keep `fit ≥ 1`) |
+| `SEED_THROTTLE_WEIGHT_FLOOR` | **0.4** | **0.25** |
+
+`SEED_KEEPERS`, house target ~50, `CAP` 200, prune/dup, OAuth unchanged.
+
 ## Policy that stays
 
 - **Prune-first:** dead/private, dups, rated, swipe-off, `STALE_HARD_DAYS=7`

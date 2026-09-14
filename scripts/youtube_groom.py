@@ -7,11 +7,11 @@ Live writer (prod): prism `~/.local/lib/youtube-groom/youtube_groom.py`
 
 DO NOT copy this module over the Pi binary. PR #429 dropped a fake
 reconstructed writer for that reason. Grok/Forge patches the live file
-in place: remove `MAX_INSERTS_PER_TICK` (last live value 8) and any
-equivalent add/hour clamp. Merge policy only; do not clobber search,
-score, OAuth, or API code.
+in place. Merge policy only; do not clobber search, score, OAuth, or
+API code.
 
-This file is the nest SoT for house caps + insert-budget math so tests
+This file is the nest SoT for house caps, insert-budget math, and the
+#731 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`) so tests
 and ops stay aligned. No YouTube I/O. No second writer. No OAuth.
 """
 
@@ -32,6 +32,9 @@ from typing import Iterable, Optional, Sequence
 #   MAX_DELETES_PER_TICK = 80
 #   keep_n               = 10  (empty fallback)
 # House target ~50 is a fill target, not a YouTube 5000 cap and not CAP.
+# #731 (Pi writer 2026-09-14): looser add-path floors for volume.
+#   MIN_FIT was 2 (skip fit < 2); now 1 (keep fit ≥ 1).
+#   SEED_THROTTLE_WEIGHT_FLOOR was 0.4; now 0.25.
 # ---------------------------------------------------------------------------
 
 PLAYLIST_ID = "PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At"
@@ -50,6 +53,12 @@ FRESH_HOURS = 168  # was 72; aligns with STALE_HARD_DAYS (7d)
 STALE_HARD_DAYS = 7
 MAX_DELETES_PER_TICK = 80
 KEEP_N = 10  # empty-playlist prune fallback on Pi (`keep_n`)
+
+# Add-path floors on the Pi writer (#731). Channel lists stay on Pi.
+MIN_FIT = 1  # skip only fit < 1 (was 2)
+OLD_MIN_FIT = 2
+SEED_THROTTLE_WEIGHT_FLOOR = 0.25  # skip SEED_THROTTLE only below this (was 0.4)
+OLD_SEED_THROTTLE_WEIGHT_FLOOR = 0.4
 
 # YouTube platform ceiling — not our limiter.
 YOUTUBE_PLAYLIST_CEILING = 5000
@@ -74,6 +83,8 @@ HOUSE_CAPS = {
     "KEEP_N": KEEP_N,
     "MAX_INSERTS_PER_TICK": None,
     "MAX_ADD_PER_DAY": MAX_ADD_PER_DAY,
+    "MIN_FIT": MIN_FIT,
+    "SEED_THROTTLE_WEIGHT_FLOOR": SEED_THROTTLE_WEIGHT_FLOOR,
 }
 
 
@@ -108,6 +119,20 @@ def _aware(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def skip_add_reason(
+    *,
+    fit: int,
+    channel_weight: float,
+    is_seed_throttle: bool,
+) -> Optional[str]:
+    """Pi add-path skip reason. Policy only — seed channel ids stay on the writer."""
+    if fit < MIN_FIT:
+        return f"fit={fit}"
+    if is_seed_throttle and channel_weight < SEED_THROTTLE_WEIGHT_FLOOR:
+        return "throttled-decay"
+    return None
 
 
 def slots_to_house_target(after_prune: int, *, target: int = HOUSE_TARGET) -> int:
@@ -233,6 +258,8 @@ def scorecard() -> dict[str, object]:
             "FRESH_HOURS": 72,
             "CAP": 100,
             "STALE_HARD_DAYS": 7,
+            "MIN_FIT": OLD_MIN_FIT,
+            "SEED_THROTTLE_WEIGHT_FLOOR": OLD_SEED_THROTTLE_WEIGHT_FLOOR,
         },
         "new": {
             "MAX_INSERTS_PER_TICK": None,
@@ -243,6 +270,8 @@ def scorecard() -> dict[str, object]:
             "MAX_DELETES_PER_TICK": MAX_DELETES_PER_TICK,
             "KEEP_N": KEEP_N,
             "MAX_ADD_PER_DAY": MAX_ADD_PER_DAY,
+            "MIN_FIT": MIN_FIT,
+            "SEED_THROTTLE_WEIGHT_FLOOR": SEED_THROTTLE_WEIGHT_FLOOR,
         },
         "youtube_ceiling": YOUTUBE_PLAYLIST_CEILING,
         "cap_is_breaker": True,
@@ -269,6 +298,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print(f"    MAX_DELETES_PER_TICK: {new['MAX_DELETES_PER_TICK']}")
     print(f"    KEEP_N:               {new['KEEP_N']}")
     print("    MAX_ADD_PER_DAY:      not invented")
+    print(f"    MIN_FIT:              {new['MIN_FIT']} (was {card['old']['MIN_FIT']})")
+    print(
+        f"    SEED_THROTTLE_WEIGHT_FLOOR: {new['SEED_THROTTLE_WEIGHT_FLOOR']} "
+        f"(was {card['old']['SEED_THROTTLE_WEIGHT_FLOOR']})"
+    )
     return 0
 
 
