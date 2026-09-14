@@ -2,7 +2,7 @@
 
 Same scheme as FitDash ``rt_dashboard/service_auth.py`` (#293). Do not invent
 a second gate. Used by ``GET /api/agent/fleet`` only — ``/api/fleet`` stays
-intranet; invoice-ready ``/api/turo-tasks`` is unchanged.
+intranet; invoice-ready ``/api/turo-tasks`` reads Turso, not Google Tasks.
 
 Env:
   AUTO_FLEET_SERVICE_TOKEN — required for non-loopback machine access

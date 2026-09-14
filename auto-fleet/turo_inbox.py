@@ -301,6 +301,20 @@ def classify_subject(subject: str) -> Optional[str]:
         )
     ):
         return "payout"
+    if any(
+        w in s
+        for w in (
+            "time to invoice",
+            "invoice your guest",
+            "don't forget to invoice",
+            "do not forget to invoice",
+            "add extra charges",
+            "extra charges",
+            "charge your guest",
+            "rebill",
+        )
+    ) or ("invoice" in s and "paid" not in s):
+        return "invoice_ready"
     if any(w in s for w in ("booked", "new trip", "reservation confirmed", "trip confirmed")):
         return "booked"
     if "turo" in s and any(w in s for w in ("trip", "reservation", "guest")):
@@ -412,6 +426,9 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     if status is None and not is_turo:
         return None
     if status is None:
+        return None
+    if status == "invoice_ready":
+        # Invoice-ready mail is a Turso row, not a booking/payout event.
         return None
 
     trip = None

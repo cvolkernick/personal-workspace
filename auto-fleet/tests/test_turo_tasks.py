@@ -1,4 +1,4 @@
-"""Turo invoice-ready strip — Google Tasks read/complete, no local store."""
+"""Turo invoice-ready strip — Turso read/complete, no local store, no Google Tasks."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import json
 import sys
 import unittest
 from pathlib import Path
-from unittest import mock
 
 PKG = Path(__file__).resolve().parents[1]
 ROOT = PKG.parent
@@ -15,96 +14,38 @@ if str(PKG) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import gtasks as gtb  # noqa: E402
+import invoice_ready  # noqa: E402
 import turo_tasks  # noqa: E402
 
 
-class FakeGT:
-    def __init__(
-        self,
-        *,
-        lists: list[dict] | None = None,
-        tasks: list[dict] | None = None,
-        create_list_id: str = "list-turo-new",
-    ) -> None:
-        self.lists = list(lists or [])
-        self.tasks = list(tasks or [])
-        self.create_list_id = create_list_id
-        self.created_titles: list[str] = []
-        self.completed: list[tuple[str, str, bool]] = []
-
-    def list_tasklists(self) -> dict:
-        return {"ok": True, "lists": self.lists}
-
-    def create_tasklist(self, title: str) -> dict:
-        self.created_titles.append(title)
-        row = {"id": self.create_list_id, "title": title}
-        self.lists.append(row)
-        return {"ok": True, "list": row}
-
-    def list_tasks(self, list_id: str, **kwargs) -> dict:
-        return {
-            "ok": True,
-            "list_id": list_id,
-            "tasks": [t for t in self.tasks if t.get("list_id") == list_id],
-        }
-
-    def complete_task(self, list_id: str, task_id: str, *, completed: bool = True) -> dict:
-        self.completed.append((list_id, task_id, completed))
-        for t in self.tasks:
-            if t.get("id") == task_id:
-                t["status"] = "completed" if completed else "needsAction"
-                return {"ok": True, "task": t}
-        return {"ok": False, "error": "not found"}
+def _store(rows: list[dict] | None = None) -> invoice_ready.MemoryStore:
+    return invoice_ready.MemoryStore(rows)
 
 
 class TuroTasksTests(unittest.TestCase):
-    def test_finds_existing_turo_list_without_creating(self) -> None:
-        gt = FakeGT(
-            lists=[
-                {"id": "fitness", "title": "Fitness"},
-                {"id": "turo-1", "title": "Turo"},
-            ]
-        )
-        found = turo_tasks.find_or_create_turo_list(gt)
-        self.assertTrue(found["ok"])
-        self.assertEqual(found["list_id"], "turo-1")
-        self.assertFalse(found["created"])
-        self.assertEqual(gt.created_titles, [])
-
-    def test_creates_only_the_turo_list_when_missing(self) -> None:
-        gt = FakeGT(lists=[{"id": "fitness", "title": "Fitness"}])
-        found = turo_tasks.find_or_create_turo_list(gt)
-        self.assertTrue(found["ok"])
-        self.assertTrue(found["created"])
-        self.assertEqual(found["list_id"], "list-turo-new")
-        self.assertEqual(gt.created_titles, ["Turo"])
-
     def test_open_items_are_title_and_notes_only(self) -> None:
-        gt = FakeGT(
-            lists=[{"id": "turo-1", "title": "Turo"}],
-            tasks=[
+        store = _store(
+            [
                 {
                     "id": "task-1",
-                    "list_id": "turo-1",
-                    "title": "Rebill toll — trip 8841",
+                    "subject": "Rebill toll — trip 8841",
                     "notes": "Guest left a SunPass charge. File on Turo.",
-                    "status": "needsAction",
-                    "updated": "2026-08-21T00:00:00Z",
+                    "status": "open",
+                    "updated_at": "2026-08-21T00:00:00Z",
+                    "source_email_ref": "task-1",
                 },
                 {
                     "id": "task-done",
-                    "list_id": "turo-1",
-                    "title": "already invoiced",
+                    "subject": "already invoiced",
                     "notes": "",
                     "status": "completed",
                 },
-            ],
+            ]
         )
-        payload = turo_tasks.list_open_tasks(gt=gt)
+        payload = turo_tasks.list_open_tasks(store=store)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["source"], "google_tasks")
-        self.assertEqual(payload["list_title"], "Turo")
+        self.assertEqual(payload["source"], "turso")
+        self.assertEqual(payload["list_id"], "turso")
         self.assertEqual(len(payload["items"]), 1)
         item = payload["items"][0]
         self.assertEqual(item["id"], "task-1")
@@ -115,78 +56,43 @@ class TuroTasksTests(unittest.TestCase):
         self.assertNotIn("trip", item)
 
     def test_empty_open_list_returns_no_items(self) -> None:
-        gt = FakeGT(lists=[{"id": "turo-1", "title": "Turo"}], tasks=[])
-        payload = turo_tasks.list_open_tasks(gt=gt)
+        payload = turo_tasks.list_open_tasks(store=_store([]))
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["items"], [])
         self.assertEqual(payload["count"], 0)
 
-    def test_complete_writes_back_to_turo_list(self) -> None:
-        gt = FakeGT(
-            lists=[{"id": "turo-1", "title": "Turo"}],
-            tasks=[
+    def test_complete_writes_back_to_turso(self) -> None:
+        store = _store(
+            [
                 {
                     "id": "task-1",
-                    "list_id": "turo-1",
-                    "title": "Invoice cleaning fee",
+                    "subject": "Invoice cleaning fee",
                     "notes": "",
-                    "status": "needsAction",
+                    "status": "open",
                 }
-            ],
+            ]
         )
-        result = turo_tasks.complete_task("task-1", "turo-1", gt=gt)
+        result = turo_tasks.complete_task("task-1", "turso", store=store)
         self.assertTrue(result["ok"])
-        self.assertEqual(gt.completed, [("turo-1", "task-1", True)])
-
-    def test_complete_rejects_other_list(self) -> None:
-        gt = FakeGT(lists=[{"id": "turo-1", "title": "Turo"}])
-        result = turo_tasks.complete_task("task-1", "fitness", gt=gt)
-        self.assertFalse(result["ok"])
-        self.assertIn("Turo", result["error"])
-        self.assertEqual(gt.completed, [])
-
-    def test_missing_creds_is_honest_error(self) -> None:
-        with mock.patch.object(
-            turo_tasks.gtb,
-            "credentials_status",
-            return_value={"ok": False, "error": "Google Tasks not configured"},
-        ):
-            listed = turo_tasks.list_open_tasks()
-            done = turo_tasks.complete_task("task-1")
-        self.assertFalse(listed["ok"])
+        listed = turo_tasks.list_open_tasks(store=store)
         self.assertEqual(listed["items"], [])
-        self.assertIn("Google Tasks", listed["error"])
-        self.assertFalse(done["ok"])
-        self.assertIn("Google Tasks", done["error"])
 
+    def test_missing_turso_is_empty_not_google_tasks_error(self) -> None:
+        from unittest import mock
 
-class GtasksBridgePathTests(unittest.TestCase):
-    def tearDown(self) -> None:
-        sys.modules.pop(gtb._MOD_NAME, None)
-
-    def test_nest_candidate_is_first_and_exists(self) -> None:
-        nest = (ROOT / "projects-dashboard" / "google_tasks.py").resolve()
-        bundle = (
-            ROOT / "resistance-dashboard" / "projects-dashboard" / "google_tasks.py"
-        ).resolve()
-        cands = gtb._google_tasks_candidates()
-        self.assertIn(nest, cands)
-        self.assertTrue(nest.is_file())
-        self.assertLess(cands.index(nest), cands.index(bundle))
-
-    def test_load_returns_complete_task(self) -> None:
-        sys.modules.pop(gtb._MOD_NAME, None)
-        mod = gtb.load_google_tasks()
-        self.assertTrue(hasattr(mod, "credentials_status"))
-        self.assertTrue(hasattr(mod, "complete_task"))
-        self.assertTrue(hasattr(mod, "create_tasklist"))
-        self.assertTrue(hasattr(mod, "list_tasks"))
+        with mock.patch.object(invoice_ready, "configured", return_value=False):
+            listed = turo_tasks.list_open_tasks()
+        self.assertTrue(listed["ok"])
+        self.assertEqual(listed["items"], [])
+        self.assertEqual(listed["source"], "turso")
+        self.assertNotIn("Google Tasks", str(listed.get("error") or ""))
 
 
 class SurfaceContractTests(unittest.TestCase):
     def test_no_local_task_json(self) -> None:
         self.assertFalse((PKG / "data" / "turo_tasks.json").exists())
         self.assertFalse((PKG / "data" / "tasks.json").exists())
+        self.assertFalse((PKG / "data" / "invoice_ready.json").exists())
 
     def test_index_omits_empty_theater_and_keeps_favicon(self) -> None:
         html = (PKG / "index.html").read_text(encoding="utf-8")
@@ -195,8 +101,8 @@ class SurfaceContractTests(unittest.TestCase):
         self.assertIn('rel="icon"', html)
         self.assertIn('id="host-ops"', html)
         self.assertIn('id="host-ops" hidden', html)
-        self.assertIn("/api/turo-tasks", html)
-        self.assertIn("/api/turo-tasks/complete", html)
+        self.assertIn("api/turo-tasks", html)
+        self.assertIn("api/turo-tasks/complete", html)
         self.assertIn("function renderHostOps", html)
         self.assertIn("function awaitingStrip", html)
         self.assertIn("<h3>Awaiting</h3>", html)
@@ -205,8 +111,12 @@ class SurfaceContractTests(unittest.TestCase):
         self.assertNotIn("Orchestra", html)
         self.assertNotIn("NOW/NEXT", html)
         self.assertNotIn("gmail", html.lower())
-        self.assertIn("/static/fleet/tesla-model-3-2020.jpg", html)
-        self.assertIn("/static/fleet/rivian-r1s-2023.jpg", html)
+        self.assertNotIn("Google Tasks", html)
+        self.assertNotIn("Google Task", html)
+        self.assertIn("static/fleet/tesla-model-3-2020.jpg", html)
+        self.assertIn("static/fleet/rivian-r1s-2023.jpg", html)
+        self.assertNotIn('"/static/fleet/', html)
+        self.assertNotIn('fetch("/api/', html)
         self.assertLess(html.find('id="host-ops"'), html.find('id="glance"'))
         self.assertLess(html.find('id="glance"'), html.find('id="cards"'))
 
@@ -220,20 +130,19 @@ class SurfaceContractTests(unittest.TestCase):
         self.assertNotIn('id="host-ops"', fcc)
 
     def test_fleet_not_added_to_vercel_gtasks_env(self) -> None:
-        vercel = (ROOT / "resistance-dashboard" / "vercel.json").read_text(
-            encoding="utf-8"
-        )
+        path = ROOT / "resistance-dashboard" / "vercel.json"
+        if not path.is_file():
+            self.skipTest("resistance-dashboard/vercel.json not on this pin")
+        vercel = path.read_text(encoding="utf-8")
         self.assertNotIn("auto-fleet", vercel)
-        dumped = json.dumps(
-            json.loads((ROOT / "resistance-dashboard" / "vercel.json").read_text())
-        )
+        dumped = json.dumps(json.loads(vercel))
         self.assertNotIn("GOOGLE_TASKS", dumped)
 
 
 class FleetInvoiceReadySnapshotTests(unittest.TestCase):
-    """#382 — /api/fleet units carry awaiting fields from the GT Turo list."""
+    """#747 — /api/fleet units carry awaiting fields from Turso."""
 
-    def _build(self, gt, inbox=None):
+    def _build(self, store, inbox=None):
         import fleet
 
         return fleet.build_fleet(
@@ -243,18 +152,17 @@ class FleetInvoiceReadySnapshotTests(unittest.TestCase):
             inbox_path=inbox or (PKG / "data" / "turo_inbox.json"),
             dimo_env={},
             now="2026-08-23T12:00:00+00:00",
-            gt=gt,
+            gt=store,
         )
 
     def test_honest_empty_when_turo_list_has_no_open_items(self) -> None:
-        gt = FakeGT(lists=[{"id": "turo-1", "title": "Turo"}], tasks=[])
-        payload = self._build(gt)
+        payload = self._build(_store([]))
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["invoice_unmatched"], [])
         for unit in payload["units"]:
             self.assertEqual(unit["invoice_ready"], [])
             self.assertEqual(unit["turo"]["invoice_ready"], [])
-        self.assertEqual(payload["sources"]["turo_tasks"]["source"], "google_tasks")
+        self.assertEqual(payload["sources"]["turo_tasks"]["source"], "turso")
         self.assertTrue(payload["sources"]["turo_tasks"]["ok"])
         import glance
 
@@ -262,41 +170,36 @@ class FleetInvoiceReadySnapshotTests(unittest.TestCase):
         self.assertNotIn("<h3>Awaiting</h3>", html)
 
     def test_open_item_matches_car_completed_hidden(self) -> None:
-        gt = FakeGT(
-            lists=[{"id": "turo-1", "title": "Turo"}],
-            tasks=[
+        store = _store(
+            [
                 {
                     "id": "open-1",
-                    "list_id": "turo-1",
-                    "title": "Rebill toll — 2024 Corolla",
+                    "subject": "Rebill toll — 2024 Corolla",
                     "notes": "SunPass. File on Turo.",
-                    "status": "needsAction",
+                    "status": "open",
                 },
                 {
                     "id": "done-1",
-                    "list_id": "turo-1",
-                    "title": "2024 Corolla already invoiced",
+                    "subject": "2024 Corolla already invoiced",
                     "notes": "",
                     "status": "completed",
                 },
                 {
                     "id": "plate-1",
-                    "list_id": "turo-1",
-                    "title": "Follow-up — plate 24EWUH",
+                    "subject": "Follow-up — plate 24EWUH",
                     "notes": "",
-                    "status": "needsAction",
+                    "status": "open",
                 },
                 {
                     "id": "loose-1",
-                    "list_id": "turo-1",
-                    "title": "Garage insurance shared",
+                    "subject": "Garage insurance shared",
                     "notes": "No car in this note.",
-                    "status": "needsAction",
+                    "status": "open",
                 },
-            ],
+            ]
         )
         inbox = PKG / "tests" / "fixtures" / "turo_mike_corolla_body_year.json"
-        payload = self._build(gt, inbox=inbox)
+        payload = self._build(store, inbox=inbox)
         by_id = {u["id"]: u for u in payload["units"]}
         c24 = by_id["corolla-2024"]["invoice_ready"]
         c22 = by_id["corolla-2022"]["invoice_ready"]
@@ -320,20 +223,18 @@ class FleetInvoiceReadySnapshotTests(unittest.TestCase):
         self.assertNotIn("<h3>Awaiting</h3>", html20)
 
     def test_trip_id_matches_booking_not_name_guess(self) -> None:
-        gt = FakeGT(
-            lists=[{"id": "turo-1", "title": "Turo"}],
-            tasks=[
+        store = _store(
+            [
                 {
                     "id": "trip-1",
-                    "list_id": "turo-1",
-                    "title": "Invoice cleaning fee #60615645",
+                    "subject": "Invoice cleaning fee #60615645",
                     "notes": "",
-                    "status": "needsAction",
+                    "status": "open",
                 }
-            ],
+            ]
         )
         inbox = PKG / "tests" / "fixtures" / "turo_mike_corolla_body_year.json"
-        payload = self._build(gt, inbox=inbox)
+        payload = self._build(store, inbox=inbox)
         by_id = {u["id"]: u for u in payload["units"]}
         self.assertEqual(
             [i["title"] for i in by_id["corolla-2024"]["invoice_ready"]],
@@ -346,29 +247,30 @@ class TuroTasksHttpTests(unittest.TestCase):
     def setUp(self) -> None:
         import threading
         from http.server import ThreadingHTTPServer
+        from unittest import mock
 
         import server as fleet_server
 
-        self.gt = FakeGT(
-            lists=[{"id": "turo-1", "title": "Turo"}],
-            tasks=[
+        self.store = _store(
+            [
                 {
                     "id": "task-1",
-                    "list_id": "turo-1",
-                    "title": "Rebill toll",
+                    "subject": "Rebill toll",
                     "notes": "File on Turo.",
-                    "status": "needsAction",
+                    "status": "open",
                 }
-            ],
+            ]
         )
         self.list_patch = mock.patch(
             "server.list_open_tasks",
-            side_effect=lambda **kwargs: turo_tasks.list_open_tasks(gt=self.gt, **kwargs),
+            side_effect=lambda **kwargs: turo_tasks.list_open_tasks(
+                store=self.store, **kwargs
+            ),
         )
         self.complete_patch = mock.patch(
             "server.complete_task",
             side_effect=lambda task_id, list_id=None: turo_tasks.complete_task(
-                task_id, list_id, gt=self.gt
+                task_id, list_id, store=self.store
             ),
         )
         self.list_patch.start()
@@ -407,20 +309,20 @@ class TuroTasksHttpTests(unittest.TestCase):
         code, payload = self._json("GET", "/api/turo-tasks")
         self.assertEqual(code, 200, payload)
         self.assertTrue(payload["ok"])
+        self.assertEqual(payload["source"], "turso")
         self.assertEqual(len(payload["items"]), 1)
         self.assertEqual(payload["items"][0]["title"], "Rebill toll")
         self.assertEqual(payload["items"][0]["notes"], "File on Turo.")
 
-    def test_post_completes_in_google_tasks(self) -> None:
+    def test_post_completes_in_turso(self) -> None:
         code, payload = self._json(
             "POST",
             "/api/turo-tasks/complete",
-            {"task_id": "task-1", "list_id": "turo-1"},
+            {"task_id": "task-1", "list_id": "turso"},
         )
         self.assertEqual(code, 200, payload)
         self.assertTrue(payload["ok"])
-        self.assertEqual(self.gt.completed, [("turo-1", "task-1", True)])
-        listed = turo_tasks.list_open_tasks(gt=self.gt)
+        listed = turo_tasks.list_open_tasks(store=self.store)
         self.assertEqual(listed["items"], [])
 
 

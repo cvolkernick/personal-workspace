@@ -2,7 +2,7 @@
 
 Internal **fleet management** dashboard for five owned units. Everything is
 organized **by car**: each card holds vehicle details, schedule (rentals +
-ops dates), money (invoice-ready GT + locked lender/APR), and expandable
+ops dates), money (invoice-ready Turso + locked lender/APR), and expandable
 trip detail. Not a financial interface. Not FCC. Not a global bookings inbox.
 
 **Not TREAD.** Do not fold this into `safewheels-website`, the host-platform
@@ -33,8 +33,8 @@ Open http://127.0.0.1:8796/
 | GET | `/api/health` | `{ok, service: "auto-fleet", port}` |
 | GET | `/api/fleet` | Roster units + strips (intranet) |
 | GET | `/api/agent/fleet` | Read-only Helm brief (token / loopback). No Tailscale required when a published snapshot is present |
-| GET | `/api/turo-tasks` | Open Google Tasks on the **Turo** list |
-| POST | `/api/turo-tasks/complete` | Checkbox write-back (`task_id`, `list_id`) |
+| GET | `/api/turo-tasks` | Open invoice-ready rows from Turso |
+| POST | `/api/turo-tasks/complete` | Checkbox write-back (`task_id`) to Turso |
 
 Tests (full package):
 
@@ -55,7 +55,7 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `static/fleet/` | Per-unit stills (`m3-2020`, `m3-2022`, `r1s-2023`, both Corollas). Not TREAD chrome |
 | `dimo_client.py` | DIMO stub + optional live path |
 | `turo_inbox.py` | Local JSON / maildir / Gmail-dump parser |
-| `gtasks.py` / `turo_tasks.py` | Prism Google Tasks client + Turo list read/complete |
+| `invoice_ready.py` / `turo_tasks.py` / `turso_http.py` | Turso invoice-ready table + dashboard read/complete |
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |
 | `turo_media.py` | Persist image MIME parts next to the dump (`turo_inbox_media/`) |
 | `data/roster.json` | Five-unit seed |
@@ -81,13 +81,17 @@ DIMO_TOKEN_COROLLA_2022=
 # optional — Helm /api/agent/fleet (never commit):
 AUTO_FLEET_SERVICE_TOKEN=
 AUTO_FLEET_AGENT_SNAPSHOT=
+# invoice-ready (never commit):
+TURSO_DATABASE_URL=
+TURSO_AUTH_TOKEN=
 ```
 
 Missing file / missing keys → DIMO `status: unconfigured`. The process does not crash.
 
-Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
-`~/.config/google-tasks-mcp/{token,client_secret}.json`. Do **not** put
-`GOOGLE_TASKS_*` on Vercel — Auto Fleet is intranet-only.
+Invoice-ready (Unassigned strip) uses Turso, not Google Tasks:
+`TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` in `~/.config/auto-fleet/env`
+(or `AUTO_FLEET_TURSO_*`). Do **not** put those on Vercel — Auto Fleet is
+intranet-only. Missing Turso → empty strip, not a config error banner.
 
 ## What is stubbed
 
@@ -98,22 +102,25 @@ Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
 | **Costs / notes** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly`. Missing Fleet tab → `stale: true` and roster + `notes.json`. |
 | **Lien-holders** | No scrape. `notes.json` is the Helm-feedable per-car finance record (SoT 2026-09-03). Amounts are flatten-only — **not** live. `/api/agent/fleet` stays a read-only dump; this slice does not invent a Helm writer. |
 
-## Invoice-ready (Google Tasks)
+## Invoice-ready (Turso)
 
-Open items from the Google Tasks list named **Turo** nest on `/api/fleet`
-as `invoice_ready` and paint as a thin **Awaiting** line on the matching
-car (year/model in title/notes, plate, or reservation # — never guess
-which Corolla). Bookings stay on the email-dump path. Find-or-create that
-list only — no extra lists, no Fleet-local task JSON. Title and notes
-come from the GT item Helm files; this page does not invent amounts,
-VINs, or trips. Checkbox completes the item in Google Tasks.
-Unmatched items stay in a leftover **Unassigned invoice-ready** strip.
-No open items → strip omitted (no empty-state theater). Missing creds →
-honest error, not fake rows. Helm `/api/agent/fleet` stays dump-only.
+Helm's Panamerica inbox scan (`auto-fleet-turo-writer.timer` →
+`python3 -m auto-fleet.turo_gmail --fetch`) writes invoice-ready mail into
+Turso table `fleet_invoice_ready` (id, subject, received_at,
+source_email_ref, status). The dashboard reads that table on
+`/api/turo-tasks` / `/api/fleet` and paints a thin **Awaiting** line on the
+matching car (year/model in title/notes, plate, or reservation # — never
+guess which Corolla). Bookings stay on the email-dump path. Title and
+notes come from the email — this page does not invent amounts, VINs, or
+trips. Checkbox completes the Turso row. Unmatched items stay in a leftover
+**Unassigned invoice-ready** strip. No open items → strip omitted (no
+empty-state theater). Missing Turso env → empty strip, not a
+"Google Tasks not configured" banner. Helm `/api/agent/fleet` stays dump-only.
 
-Auto Fleet is the standing surface for invoice-ready Turo items. Orchestra
-may later show the same Google Task only when it is NOW/NEXT in that
-window — do not add Orchestra chrome here. Chat ping is not this page.
+Do not reintroduce Google Tasks for this section. Auto Fleet is the standing
+surface for invoice-ready Turo items. Orchestra may later show the same
+row only when it is NOW/NEXT in that window — do not add Orchestra chrome
+here. Chat ping is not this page.
 
 ## Honest empty states
 
@@ -155,7 +162,7 @@ Current-host subject hint: `Mike's vehicle` (same shape as the old
 Unit match uses the mail **body** year (`Toyota Corolla 2024` →
 `corolla-2024`) plus reservation #. Yearless Corolla stays unmatched.
 Mike host mail does not attach to Chris personal units. Bookings paint
-on the car card; they are not Google Tasks.
+on the car card; they are not invoice-ready Turso rows.
 
 Static host identity (dashboard `/api/fleet` only): **Mike's** · driver
 `27172979` · public link `https://turo.com/us/en/drivers/27172979`.

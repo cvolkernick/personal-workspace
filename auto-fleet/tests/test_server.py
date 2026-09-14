@@ -112,7 +112,7 @@ class AutoFleetServerTests(unittest.TestCase):
                 self.assertEqual(r1s["identity"]["model"], "R1S")
                 self.assertEqual(r1s["glance"]["title"], "2023 Rivian R1S")
                 self.assertEqual(
-                    r1s["glance"]["photo"], "/static/fleet/rivian-r1s-2023.jpg"
+                    r1s["glance"]["photo"], "static/fleet/rivian-r1s-2023.jpg"
                 )
                 self.assertEqual(r1s["identity"]["vin"], "7PDSGABA3PN028624")
                 self.assertEqual(r1s["identity"]["role"], "turo")
@@ -127,19 +127,19 @@ class AutoFleetServerTests(unittest.TestCase):
                 self.assertIsNone(by_id["m3-2020"]["identity"]["tracking_url"])
                 self.assertEqual(
                     by_id["m3-2020"]["glance"]["photo"],
-                    "/static/fleet/tesla-model-3-2020.jpg",
+                    "static/fleet/tesla-model-3-2020.jpg",
                 )
                 self.assertEqual(
                     by_id["m3-2022"]["glance"]["photo"],
-                    "/static/fleet/tesla-model-3-2022.jpg",
+                    "static/fleet/tesla-model-3-2022.jpg",
                 )
                 self.assertEqual(
                     by_id["corolla-2024"]["glance"]["photo"],
-                    "/static/fleet/toyota-corolla-2024.jpg",
+                    "static/fleet/toyota-corolla-2024.jpg",
                 )
                 self.assertEqual(
                     by_id["corolla-2022"]["glance"]["photo"],
-                    "/static/fleet/toyota-corolla-2022.jpg",
+                    "static/fleet/toyota-corolla-2022.jpg",
                 )
                 for still in (
                     "rivian-r1s-2023.jpg",
@@ -204,16 +204,17 @@ class AutoFleetServerTests(unittest.TestCase):
 
                 code, tasks = _http_json("GET", f"{base}/api/turo-tasks")
                 self.assertEqual(code, 200, tasks)
-                self.assertFalse(tasks.get("ok"))
+                self.assertTrue(tasks.get("ok"))
                 self.assertEqual(tasks.get("items"), [])
-                self.assertTrue(tasks.get("error"))
-                self.assertIn("Google Tasks", str(tasks.get("error")))
+                self.assertEqual(tasks.get("source"), "turso")
+                self.assertFalse(tasks.get("configured"))
+                self.assertNotIn("Google Tasks", str(tasks.get("error") or ""))
 
                 code, page = self._http_text(f"{base}/")
                 self.assertEqual(code, 200)
                 self.assertIn("Auto Fleet", page)
-                self.assertIn("/api/fleet", page)
-                self.assertIn("/api/turo-tasks", page)
+                self.assertIn("api/fleet", page)
+                self.assertIn("api/turo-tasks", page)
                 self.assertIn('id="host-ops"', page)
                 self.assertIn("🚗", page)
                 self.assertIn("<h3>Vehicle", page)
@@ -290,11 +291,15 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn('id="turo-inbox"', html)
         self.assertIn("min-height: 44px", html)
         self.assertIn("grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr)", html)
-        self.assertIn("/static/fleet/tesla-model-3-2020.jpg", html)
-        self.assertIn("/static/fleet/rivian-r1s-2023.jpg", html)
-        self.assertIn("/static/fleet/tesla-model-3-2022.jpg", html)
-        self.assertIn("/static/fleet/toyota-corolla-2022.jpg", html)
-        self.assertIn("/static/fleet/toyota-corolla-2024.jpg", html)
+        self.assertIn("static/fleet/tesla-model-3-2020.jpg", html)
+        self.assertIn("static/fleet/rivian-r1s-2023.jpg", html)
+        self.assertIn("static/fleet/tesla-model-3-2022.jpg", html)
+        self.assertIn("static/fleet/toyota-corolla-2022.jpg", html)
+        self.assertIn("static/fleet/toyota-corolla-2024.jpg", html)
+        self.assertNotIn('"/static/fleet/', html)
+        self.assertNotIn('fetch("/api/', html)
+        self.assertNotIn("Google Tasks", html)
+        self.assertNotIn("Google Task", html)
         self.assertNotIn("TREAD", html)
         self.assertNotIn("SafeWheels", html)
         self.assertNotIn("Mercury", html)

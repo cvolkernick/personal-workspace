@@ -4,8 +4,8 @@
   GET  /api/health  → {ok, service: "auto-fleet", port}
   GET  /api/fleet   → roster units + DIMO / Turo / costs strips
   GET  /api/agent/fleet → read-only Helm brief (token / loopback)
-  GET  /api/turo-tasks → open Google Tasks on the Turo list
-  POST /api/turo-tasks/complete → checkbox write-back to Google Tasks
+  GET  /api/turo-tasks → open invoice-ready rows from Turso
+  POST /api/turo-tasks/complete → checkbox write-back to Turso
   GET  /api/turo-inbox-media/<relpath> → ingested Turo mail photo (email ingest only)
   GET  /            → UI
 
@@ -157,7 +157,7 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
                     200,
                     {
                         "ok": False,
-                        "error": str(exc) or "Google Tasks error",
+                        "error": str(exc) or "invoice-ready error",
                         "items": [],
                     },
                 )

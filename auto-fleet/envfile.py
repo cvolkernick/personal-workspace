@@ -46,7 +46,12 @@ def merge_env(
     merged = dict(file_env or {})
     if process_env:
         for key, val in process_env.items():
-            if key.startswith("DIMO_") or key.startswith("TURO_") or key.startswith("AUTO_FLEET_"):
+            if (
+                key.startswith("DIMO_")
+                or key.startswith("TURO_")
+                or key.startswith("AUTO_FLEET_")
+                or key.startswith("TURSO_")
+            ):
                 if val:
                     merged[key] = val
     return merged
