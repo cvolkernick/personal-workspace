@@ -57,7 +57,7 @@ FCC → **Brokerage** → **Decision log / rationale** (Pi-local JSONL; producer
 Also:
 - GitHub [#701](https://github.com/cvolkernick/personal-workspace/issues/701)
 - `treasury/snapshots/fund_manager_decisions.jsonl` (Pi-local JSONL; also committed when dirty)
-- `investment/fund_manager_journal.md` (committed + pushed to `work/treasury` after every Pi run — #737)
+- `investment/fund_manager_journal.md` (origin `work/treasury` via GitHub API after every Pi run — #737 / #742; never `git commit` on the FCC live clone. workspace-sync pulls it down.)
 - `investment/research/fund_manager_research_latest.md` (when research pass wrote one)
 
 ## Team

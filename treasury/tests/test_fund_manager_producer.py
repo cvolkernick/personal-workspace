@@ -61,6 +61,7 @@ class TestFundManagerProducerDeploy(unittest.TestCase):
             text = (DEPLOY / name).read_text(encoding="utf-8")
             self.assertIn("FM_JOURNAL_BRANCH=work/treasury", text)
             self.assertIn("FCC_HOST_TAG=prism", text)
+            self.assertIn("FCC_LIVE_TREE=main", text)
             # Auth is load_scheduler_env + insteadOf, not a unit EnvironmentFile (#737).
             self.assertNotIn("EnvironmentFile=", text)
             self.assertNotIn("GITHUB_TOKEN=", text)
@@ -76,6 +77,9 @@ class TestFundManagerProducerDeploy(unittest.TestCase):
             text,
         )
         self.assertIn('frozenset({"pull", "push", "fetch", "ls-remote"})', text)
+        self.assertIn("github-api", text)
+        self.assertIn("refuses local git mutation (#742)", text)
+        self.assertIn("FCC live clone", text)
 
 
 if __name__ == "__main__":
