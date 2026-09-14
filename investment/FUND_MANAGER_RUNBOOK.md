@@ -51,8 +51,8 @@ Workflows (preferred when available):
 FCC → **Brokerage** → **Decision log / rationale**
 
 Also:
-- `treasury/snapshots/fund_manager_decisions.jsonl`
-- `investment/fund_manager_journal.md`
+- `treasury/snapshots/fund_manager_decisions.jsonl` (Pi-local JSONL; also committed when dirty)
+- `investment/fund_manager_journal.md` (committed + pushed to `work/treasury` after every Pi run — #737)
 - `investment/research/fund_manager_research_latest.md` (when research pass wrote one)
 
 ## Team
