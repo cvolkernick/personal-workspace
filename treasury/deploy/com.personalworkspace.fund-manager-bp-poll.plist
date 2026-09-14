@@ -1,25 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Poll agentic BP/cash every 15 minutes during market hours (script self-gates).
-  When cash>0 or BP>0, runs full fund-manager team deploy.
+  RETIRED (#729). Pi is the fund-manager producer (fund-manager-bp-poll.timer).
+  Do not bootstrap this LaunchAgent — it dual-runs the team/LLM path and,
+  on a stale Mac checkout, still POSTs ntfy.sh (#704 missed this host).
 
-  #555 leftover Mac RH freshness/ntfy:
-  This agent still calls rh_refresh.sh + fund_manager --notify. After #518,
-  RH SoT is prism — Mac rh-refresh stays UNLOADED. Do NOT reload it.
-  ntfy is gated in nest (skipped / no_refresh_path / rh_checking / fresh as_of).
-  If this Mac unit is only paging false RH / rh_checking stale, boot it out.
-
-  Install:
-    cp treasury/deploy/com.personalworkspace.fund-manager-bp-poll.plist ~/Library/LaunchAgents/
-    # Edit WorkingDirectory + script path if your clone path differs
-    launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist 2>/dev/null || true
-    launchctl load ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
-
-  Unload leftover RH freshness ntfy (do not reload com.personalworkspace.rh-refresh):
-    launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-bp-poll 2>/dev/null \
-      || launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
+  Unload if still present:
+    launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-bp-poll 2>/dev/null || true
+    launchctl disable gui/$(id -u)/com.personalworkspace.fund-manager-bp-poll 2>/dev/null || true
     rm -f ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
+
+  See treasury/deploy/FUND_MANAGER_PRODUCER.md
 -->
 <plist version="1.0">
 <dict>
@@ -27,28 +18,11 @@
   <string>com.personalworkspace.fund-manager-bp-poll</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/bash</string>
-    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/fund_manager_bp_poll.sh</string>
+    <string>/usr/bin/true</string>
   </array>
-  <key>WorkingDirectory</key>
-  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>/opt/homebrew/bin:/opt/homebrew/sbin:/Users/cvolkernick/.local/bin:/usr/local/bin:/Users/cvolkernick/.grok/bin:/usr/bin:/bin</string>
-    <key>HOME</key>
-    <string>/Users/cvolkernick</string>
-    <key>FCC_HOST_TAG</key>
-    <string>mac</string>
-  </dict>
-  <key>StartInterval</key>
-  <integer>900</integer>
   <key>RunAtLoad</key>
   <false/>
-  <key>StandardOutPath</key>
-  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/fund_manager_bp_poll_launchd.out.log</string>
-  <key>StandardErrorPath</key>
-  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/fund_manager_bp_poll_launchd.err.log</string>
+  <key>Disabled</key>
+  <true/>
 </dict>
 </plist>
-

@@ -3,7 +3,8 @@
 # either is > $0. Intended for launchd/cron during market hours so settlement unlocks
 # and capital deposits get deployed without a manual kickoff.
 #
-# launchd: treasury/deploy/com.personalworkspace.fund-manager-bp-poll.plist
+# Pi timer: treasury/deploy/fund-manager-bp-poll.timer (#729 sole producer)
+# Mac launchd com.personalworkspace.fund-manager-bp-poll is retired — do not reload.
 # manual:  ./treasury/fund_manager_bp_poll.sh
 # force outside hours: FM_BP_POLL_FORCE=1 ./treasury/fund_manager_bp_poll.sh
 #

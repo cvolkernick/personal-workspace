@@ -8,9 +8,9 @@ Mac re-auth is short-term only until step 2 is green. Do not disarm Mac before
 Pi OAuth is healthy. Do not invent `as_of`.
 
 Mac remains the live producer for **Coinbase CLI liquid balances**. **BTC/USD
-price** and Braiins pool live on **prism/Pi** (#695 / #689). Pi FCC reads
-`coinbase_latest.json` that the Pi price timer patches. RH + Braiins + CB
-price are Pi-produced.
+price**, Braiins pool, and **fund-manager** live on **prism/Pi** (#695 / #689 /
+#729). Pi FCC reads `coinbase_latest.json` that the Pi price timer patches.
+RH + Braiins + CB price + fund-manager are Pi-produced.
 
 ## What changed
 
@@ -26,6 +26,7 @@ price are Pi-produced.
 | 8 | **#668** YNAB cash snapshots (One Card / RH Checking / X Money): dedicated `ynab-refresh` every **3h** on Pi systemd + Mac launchd. Not a fund-manager sidecar (weekdays/market-hours only). |
 | 9 | **#689** Braiins cutover: see `BRAIINS_PRODUCER.md`. Smoke `payouts` list on Pi, then disarm Mac launchd. |
 | 10 | **#695** Coinbase BTC/USD price: see `COINBASE_PRICE_PRODUCER.md`. Public spot on Pi every 2h. Mac still does not push `coinbase_latest.json`. |
+| 11 | **#729** Fund-manager producer = prism/Pi (`fund-manager.timer` weekdays 12:30 ET + `fund-manager-bp-poll.timer` ~15m). Mac launchd retired. Units use `prism-agent`, not `/home/pi/`. Alerts → #701, never ntfy.sh. |
 
 ## Install / reload
 
@@ -50,7 +51,8 @@ rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 ```
 
 Keep **CB/Solana** Mac launchd (balances + Solana). **Do not** reload Braiins
-launchd (#689 Pi SoT). **Do not** push `coinbase_latest.json` (#695 Pi price):
+launchd (#689 Pi SoT). **Do not** reload fund-manager launchd (#729 Pi SoT).
+**Do not** push `coinbase_latest.json` (#695 Pi price):
 
 ```bash
 cd ~/personal-workspace-worktrees/treasury   # or monorepo root
@@ -60,6 +62,10 @@ cp treasury/deploy/com.personalworkspace.cb-solana-refresh.plist ~/Library/Launc
 UID_N=$(id -u)
 launchctl bootout gui/$UID_N/com.personalworkspace.braiins-refresh 2>/dev/null || true
 rm -f ~/Library/LaunchAgents/com.personalworkspace.braiins-refresh.plist
+launchctl bootout gui/$UID_N/com.personalworkspace.fund-manager-daily 2>/dev/null || true
+launchctl bootout gui/$UID_N/com.personalworkspace.fund-manager-bp-poll 2>/dev/null || true
+rm -f ~/Library/LaunchAgents/com.personalworkspace.fund-manager-daily.plist
+rm -f ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
 launchctl bootout gui/$UID_N/com.personalworkspace.cb-solana-refresh 2>/dev/null || true
 launchctl bootstrap gui/$UID_N ~/Library/LaunchAgents/com.personalworkspace.cb-solana-refresh.plist
 ```
@@ -103,4 +109,5 @@ bash treasury/ynab_refresh.sh
 - Push is SCP of **snapshot JSON only** (balances / hashrate ages) — not API tokens.
 - Pool token stays on **prism** (`~/.config/braiins/token`, mode 600). Never `treasury/config.json`.
 - RH OAuth tokens stay on **prism** (producer). Box MCP is spare only.
-- Producer does not place orders.
+- Snapshot producers (RH / Braiins / CB price) do not place orders.
+- Fund-manager (#729) **does** place agentic orders from Pi. Mac launchd retired.
