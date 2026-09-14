@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
@@ -26,7 +28,9 @@ from treasury.fund_manager_journal_sync import (  # noqa: E402
     _report_failure,
     infer_as_of,
     infer_kind,
+    is_live_clone,
     journal_commit_message,
+    live_clone_reason,
     producer_allowed,
     sync_journal,
 )
@@ -521,6 +525,215 @@ class TestSyncJournal(unittest.TestCase):
         ):
             rc = main(["--repo", str(self.repo), "--no-notify"])
         self.assertEqual(rc, 0)
+
+
+_LIVE_HOOK = """#!/bin/bash
+# Installed by deploy/workspace_sync.sh — FCC live clone (issue #661).
+echo "FCC live clone refuses local commits (#661)." >&2
+exit 1
+"""
+
+
+class _FakeGitHub:
+    def __init__(self) -> None:
+        self.files = {
+            JOURNAL_REL: "# Fund manager journal\n\n",
+            JSONL_REL: "",
+        }
+        self.head = "aaa111"
+        self.tree = "tree111"
+        self.calls: list[tuple] = []
+        self.blobs = 0
+        self.force_seen = False
+        self.patch_fail_once = False
+
+    def __call__(self, method, path, body=None, timeout=30.0):
+        self.calls.append((method, path, body))
+        if method == "GET" and "/contents/" in path:
+            rel = path.split("/contents/", 1)[1].split("?", 1)[0]
+            rel = urllib.parse.unquote(rel)
+            if rel not in self.files:
+                return None, {"status": 404, "error": "not found"}
+            raw = base64.b64encode(self.files[rel].encode()).decode()
+            return {"content": raw, "encoding": "base64"}, None
+        if method == "GET" and "/commits/" in path:
+            return {"sha": self.head, "commit": {"tree": {"sha": self.tree}}}, None
+        if method == "POST" and path.endswith("/git/blobs"):
+            self.blobs += 1
+            sha = f"blob{self.blobs}"
+            if isinstance(body, dict) and body.get("path"):
+                pass
+            if isinstance(body, dict) and "content" in body:
+                # keep origin in sync after a successful ref update only
+                self._pending = getattr(self, "_pending", {})
+            return {"sha": sha}, None
+        if method == "POST" and path.endswith("/git/trees"):
+            self.tree = "tree222"
+            return {"sha": self.tree}, None
+        if method == "POST" and path.endswith("/git/commits"):
+            self.head = "ccc333"
+            return {"sha": self.head}, None
+        if method == "PATCH" and "/git/refs/" in path:
+            if isinstance(body, dict) and body.get("force"):
+                self.force_seen = True
+            if self.patch_fail_once:
+                self.patch_fail_once = False
+                return None, {"status": 422, "error": "Update is not a fast forward"}
+            for _method, pth, bdy in self.calls:
+                if _method == "POST" and pth.endswith("/git/blobs") and isinstance(bdy, dict):
+                    pass
+            return {"object": {"sha": self.head}}, None
+        return None, {"error": f"unhandled {method} {path}"}
+
+
+def _install_live_hook(repo: Path) -> None:
+    hookdir = repo / ".git" / "hooks"
+    hookdir.mkdir(parents=True, exist_ok=True)
+    hook = hookdir / "pre-commit"
+    hook.write_text(_LIVE_HOOK, encoding="utf-8")
+    hook.chmod(0o755)
+
+
+class TestLiveClone(unittest.TestCase):
+    def setUp(self) -> None:
+        self._td = tempfile.TemporaryDirectory(prefix="fm-live-")
+        self.repo = Path(self._td.name) / "ws"
+        self.repo.mkdir()
+        _git_cwd(self.repo, "init", "-b", "work/treasury")
+        _git_cwd(self.repo, "config", "user.name", "Test")
+        _git_cwd(self.repo, "config", "user.email", "t@example.com")
+        _write(self.repo / JOURNAL_REL, "# Fund manager journal\n\n")
+        _write(self.repo / JSONL_REL, "")
+        _git_cwd(self.repo, "add", ".")
+        _git_cwd(self.repo, "commit", "-m", "init")
+        _install_live_hook(self.repo)
+        self.env = {
+            "FM_JOURNAL_SYNC": "1",
+            "FM_JOURNAL_SYNC_IN_TEST": "1",
+            "FCC_HOST_TAG": "prism",
+            "FM_JOURNAL_BRANCH": "work/treasury",
+            "GITHUB_TOKEN": "ghs_testtoken",
+            "PYTEST_CURRENT_TEST": os.environ.get("PYTEST_CURRENT_TEST") or "1",
+        }
+
+    def tearDown(self) -> None:
+        self._td.cleanup()
+
+    def test_hook_marks_live_clone(self) -> None:
+        self.assertTrue(is_live_clone(self.repo))
+        self.assertEqual(live_clone_reason(self.repo), "pre-commit-hook")
+
+    def test_fcc_live_tree_env(self) -> None:
+        other = Path(self._td.name) / "other"
+        other.mkdir()
+        with mock.patch.dict(os.environ, {"FCC_LIVE_TREE": "main"}, clear=False):
+            self.assertEqual(live_clone_reason(other), "FCC_LIVE_TREE")
+
+    def test_pre_commit_hook_still_refuses_git_commit(self) -> None:
+        _write(self.repo / JOURNAL_REL, "# Fund manager journal\n\n## hold\n")
+        proc = subprocess.run(
+            ["git", "-C", str(self.repo), "commit", "-am", "should fail"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("refuses local commits", proc.stderr)
+
+    def test_git_helper_blocks_mutating_commands(self) -> None:
+        code, _, err = _git(self.repo, "commit", "-m", "nope")
+        self.assertEqual(code, 1)
+        self.assertIn("#742", err)
+        code, _, err = _git(self.repo, "push", "origin", "HEAD")
+        self.assertEqual(code, 1)
+        self.assertIn("#742", err)
+
+    def test_sync_uses_github_api_not_local_git(self) -> None:
+        gh = _FakeGitHub()
+        git_calls: list[tuple] = []
+
+        def fake_git(repo, *args, timeout=60.0):
+            git_calls.append(args)
+            return 0, "", ""
+
+        _write(
+            self.repo / JOURNAL_REL,
+            "# Fund manager journal\n\n## 2026-09-14T18:00:00 — hold\n",
+        )
+        with mock.patch.dict(os.environ, self.env, clear=False), mock.patch(
+            "treasury.fund_manager_journal_sync._github_json", side_effect=gh
+        ), mock.patch(
+            "treasury.fund_manager_journal_sync._git", side_effect=fake_git
+        ), mock.patch(
+            "treasury.fund_manager_journal_sync.post_ops_github",
+            return_value={"ok": True, "posted": False},
+        ) as post:
+            out = sync_journal(
+                repo=self.repo,
+                kind="hold",
+                as_of="2026-09-14T18:00:00+00:00",
+                notify=True,
+            )
+        self.assertTrue(out.get("ok"), out)
+        self.assertTrue(out.get("committed"), out)
+        self.assertTrue(out.get("pushed"), out)
+        self.assertEqual(out.get("via"), "github-api")
+        self.assertFalse(post.called)
+        mutating = {a[0] for a in git_calls if a}
+        self.assertFalse(mutating & {"add", "commit", "push", "pull", "fetch", "rebase"})
+        methods = [c[0] for c in gh.calls]
+        self.assertIn("POST", methods)
+        self.assertIn("PATCH", methods)
+        self.assertFalse(gh.force_seen)
+        patch_bodies = [c[2] for c in gh.calls if c[0] == "PATCH"]
+        self.assertTrue(patch_bodies)
+        self.assertFalse(any(isinstance(b, dict) and b.get("force") for b in patch_bodies))
+
+    def test_sync_skips_when_origin_matches(self) -> None:
+        gh = _FakeGitHub()
+        with mock.patch.dict(os.environ, self.env, clear=False), mock.patch(
+            "treasury.fund_manager_journal_sync._github_json", side_effect=gh
+        ), mock.patch(
+            "treasury.fund_manager_journal_sync._git"
+        ) as git:
+            out = sync_journal(repo=self.repo, notify=False)
+        self.assertTrue(out.get("ok"), out)
+        self.assertEqual(out.get("skipped"), "clean")
+        self.assertEqual(out.get("via"), "github-api")
+        self.assertFalse(out.get("committed"))
+        git.assert_not_called()
+
+    def test_api_conflict_retries_without_force(self) -> None:
+        gh = _FakeGitHub()
+        gh.patch_fail_once = True
+        _write(
+            self.repo / JOURNAL_REL,
+            "# Fund manager journal\n\n## 2026-09-14T18:00:00 — hold\n",
+        )
+        with mock.patch.dict(os.environ, self.env, clear=False), mock.patch(
+            "treasury.fund_manager_journal_sync._github_json", side_effect=gh
+        ), mock.patch(
+            "treasury.fund_manager_journal_sync.post_ops_github",
+            return_value={"ok": True, "posted": False},
+        ):
+            out = sync_journal(
+                repo=self.repo,
+                kind="hold",
+                as_of="2026-09-14T18:00:00+00:00",
+                notify=True,
+            )
+        self.assertTrue(out.get("ok"), out)
+        self.assertEqual(out.get("attempt"), 2)
+        self.assertFalse(gh.force_seen)
+        self.assertEqual(sum(1 for c in gh.calls if c[0] == "PATCH"), 2)
+
+    def test_live_hook_message_is_the_661_guard(self) -> None:
+        hook = (self.repo / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
+        self.assertIn("FCC live clone refuses local commits (#661).", hook)
+        src = (ROOT / "treasury" / "fund_manager_journal_sync.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("install_live_commit_hook", src)
+        self.assertIn("refuses local git mutation (#742)", src)
 
 
 if __name__ == "__main__":

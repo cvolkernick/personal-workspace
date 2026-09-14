@@ -12,16 +12,15 @@ This producer **may place Robinhood agentic orders** (`live:true` + grok
 Alerts: GitHub standing issue [#701](https://github.com/cvolkernick/personal-workspace/issues/701)
 only (`FCC_HOST_TAG=prism`). ntfy is retired (#704).
 
-Journal (#737): after every run, `fund_manager_journal_sync` commits
-`investment/fund_manager_journal.md` (and the JSONL when dirty) on
-`work/treasury` with message `journal: fund-manager <kind> <YYYY-MM-DD HH:MM>`,
-then `git pull --rebase --autostash` and push. Never force-push. Git
-failure comments #701 and does **not** fail the review. Mac/manual runs
-no-op unless `FM_JOURNAL_SYNC=1` (`FCC_HOST_TAG=prism` is the producer
-gate). Requires Pi `git config user.email`. Network git (pull/push/fetch)
-loads `~/.config/workflow-scheduler.env` via `load_scheduler_env` and uses
-the same `x-access-token` insteadOf as `deploy/workspace_sync.sh` — do not
-wait for a systemd `EnvironmentFile=` copy. Token is redacted on #701.
+Journal (#737 / #742): after every run, `fund_manager_journal_sync`
+writes `investment/fund_manager_journal.md` (and the JSONL when dirty) to
+`origin/work/treasury` with message `journal: fund-manager <kind> <YYYY-MM-DD HH:MM>`.
+On the FCC live clone it uses the GitHub git API — never `git commit` /
+`push` in `~/personal-workspace` (the #661 pre-commit hook stays).
+workspace-sync pulls the journal on its normal cadence. Git/API failure
+comments #701 and does **not** fail the review. Mac/manual runs no-op
+unless `FM_JOURNAL_SYNC=1` (`FCC_HOST_TAG=prism` is the producer gate).
+`FCC_LIVE_TREE=main` is set on the Pi units. Token is redacted on #701.
 
 ## Eng-gate sequence
 

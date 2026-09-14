@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Commit + push fund-manager journal after each run (#737).
+"""Commit + push fund-manager journal after each run (#737 / #742).
 
 Single-writer is the Pi producer (#729). Never force-push. A git failure
 must not fail the fund-manager run — log it to GitHub #701 and retry next
@@ -8,21 +8,29 @@ cycle.
 The markdown journal is the must-commit human/assistant record. JSONL is
 included in the same commit when dirty.
 
-Network git (pull/push/fetch) loads ``~/.config/workflow-scheduler.env``
-via ``load_scheduler_env`` and uses the same ``x-access-token`` insteadOf
-as ``deploy/workspace_sync.sh``. Do not wait for a systemd EnvironmentFile
-copy. Tokens are redacted on #701.
+The FCC serving checkout (``~/personal-workspace`` on prism) is a deployment
+target, not a workspace (#661). Live-clone sync writes to origin via the
+GitHub git API — never ``git commit`` / ``push`` in that tree. workspace-sync
+pulls the journal down on its normal cadence. The live pre-commit hook stays.
+
+Non-serving checkouts (tests, a dedicated writer clone) still use local git
+with the workspace-sync ``x-access-token`` insteadOf. Tokens are redacted on
+#701. Do not wait for a systemd EnvironmentFile copy.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
 import socket
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -32,6 +40,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.pi_ops_alert import (  # noqa: E402
+    OPS_REPO,
     github_token,
     load_scheduler_env,
     post_ops_github,
@@ -51,6 +60,9 @@ _TOKEN_RE = re.compile(
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off"}
 _PRODUCER_TAGS = {"prism", "pi"}
+_LIVE_TREE_FLAGS = {"main", "clone", "primary", "1", "true", "yes"}
+_SERVING_CLONE = Path.home() / "personal-workspace"
+_MUTATING_GIT = frozenset({"add", "commit", "push", "pull", "fetch", "rebase"})
 
 
 def _insteadOf_config(token: str) -> str:
@@ -101,6 +113,293 @@ def producer_allowed() -> bool:
     return tag in _PRODUCER_TAGS
 
 
+def _git_dir(repo: Path) -> Optional[Path]:
+    git = repo / ".git"
+    if git.is_dir():
+        return git
+    if git.is_file():
+        try:
+            text = git.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        for line in text.splitlines():
+            if line.lower().startswith("gitdir:"):
+                p = Path(line.split(":", 1)[1].strip())
+                if not p.is_absolute():
+                    p = (repo / p).resolve()
+                return p
+    return None
+
+
+def live_clone_reason(repo: Path) -> Optional[str]:
+    """Why this checkout is the FCC serving clone (#661 / #742), or None."""
+    flag = (
+        os.environ.get("FCC_LIVE_TREE") or os.environ.get("FM_JOURNAL_LIVE_CLONE") or ""
+    ).strip().lower()
+    if flag in _LIVE_TREE_FLAGS:
+        return "FCC_LIVE_TREE"
+    gitdir = _git_dir(repo)
+    if gitdir is not None:
+        hook = gitdir / "hooks" / "pre-commit"
+        try:
+            text = hook.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        if "refuses local commits" in text:
+            return "pre-commit-hook"
+    try:
+        resolved = repo.resolve()
+        serving = _SERVING_CLONE.resolve()
+    except OSError:
+        return None
+    if producer_allowed() and resolved == serving:
+        return "serving-path"
+    return None
+
+
+def is_live_clone(repo: Path) -> bool:
+    return live_clone_reason(repo) is not None
+
+
+def _github_json(
+    method: str,
+    path: str,
+    body: Optional[Dict[str, Any]] = None,
+    *,
+    timeout: float = 30.0,
+) -> Tuple[Optional[Any], Optional[Dict[str, Any]]]:
+    """GitHub REST helper. Returns (json, error). Never includes the token."""
+    load_scheduler_env()
+    token = github_token()
+    if not token:
+        return None, {"error": "no-github-token", "status": None}
+    url = "https://api.github.com" + path
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "User-Agent": "personal-workspace-fm-journal-sync",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+            parsed: Any = json.loads(raw) if raw else {}
+            return parsed, None
+    except urllib.error.HTTPError as exc:
+        err_body = exc.read().decode("utf-8", errors="replace")
+        return None, {"status": exc.code, "error": _redact(err_body or str(exc))}
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        return None, {"status": None, "error": _redact(str(exc))}
+
+
+def _origin_file_text(rel: str, branch: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return (text, error). Missing file → (None, None)."""
+    quoted = urllib.parse.quote(rel, safe="/")
+    ref = urllib.parse.quote(branch, safe="")
+    data, err = _github_json(
+        "GET", f"/repos/{OPS_REPO}/contents/{quoted}?ref={ref}"
+    )
+    if err:
+        if err.get("status") == 404:
+            return None, None
+        return None, str(err.get("error") or "contents GET failed")
+    if not isinstance(data, dict):
+        return None, "contents GET unexpected payload"
+    content = str(data.get("content") or "").replace("\n", "")
+    if not content:
+        return "", None
+    try:
+        return base64.b64decode(content).decode("utf-8"), None
+    except (ValueError, UnicodeDecodeError) as exc:
+        return None, str(exc)
+
+
+def _local_file_text(repo: Path, rel: str) -> Optional[str]:
+    p = repo / rel
+    if not p.is_file():
+        return None
+    try:
+        return p.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _files_dirty_vs_origin(repo: Path, branch: str) -> Tuple[Dict[str, str], Optional[str]]:
+    """Local path → text for files that differ from origin. error if origin unreadable."""
+    dirty: Dict[str, str] = {}
+    for rel in COMMIT_PATHS:
+        local = _local_file_text(repo, rel)
+        if local is None:
+            continue
+        remote, err = _origin_file_text(rel, branch)
+        if err:
+            return {}, err
+        if local != remote:
+            dirty[rel] = local
+    return dirty, None
+
+
+def _commit_files_via_github(
+    files: Dict[str, str],
+    *,
+    message: str,
+    branch: str,
+) -> Tuple[bool, Dict[str, Any]]:
+    """Create one origin commit with ``files`` (path → text). Never force-updates."""
+    if not files:
+        return True, {"skipped": "clean"}
+    ref_path = f"/repos/{OPS_REPO}/git/refs/heads/{urllib.parse.quote(branch, safe='')}"
+    last_err = "github commit failed"
+    for attempt in (1, 2):
+        head, err = _github_json("GET", f"/repos/{OPS_REPO}/commits/{urllib.parse.quote(branch, safe='')}")
+        if err or not isinstance(head, dict):
+            last_err = (err or {}).get("error") or "HEAD GET failed"
+            continue
+        parent = str(head.get("sha") or "")
+        tree_sha = str(((head.get("commit") or {}).get("tree") or {}).get("sha") or "")
+        if not parent or not tree_sha:
+            last_err = "HEAD missing sha/tree"
+            continue
+        entries: List[Dict[str, str]] = []
+        blob_ok = True
+        for rel, text in files.items():
+            blob, berr = _github_json(
+                "POST",
+                f"/repos/{OPS_REPO}/git/blobs",
+                {"content": text, "encoding": "utf-8"},
+            )
+            if berr or not isinstance(blob, dict) or not blob.get("sha"):
+                last_err = (berr or {}).get("error") or f"blob failed for {rel}"
+                blob_ok = False
+                break
+            entries.append(
+                {
+                    "path": rel,
+                    "mode": "100644",
+                    "type": "blob",
+                    "sha": str(blob["sha"]),
+                }
+            )
+        if not blob_ok:
+            continue
+        tree, terr = _github_json(
+            "POST",
+            f"/repos/{OPS_REPO}/git/trees",
+            {"base_tree": tree_sha, "tree": entries},
+        )
+        if terr or not isinstance(tree, dict) or not tree.get("sha"):
+            last_err = (terr or {}).get("error") or "tree POST failed"
+            continue
+        commit, cerr = _github_json(
+            "POST",
+            f"/repos/{OPS_REPO}/git/commits",
+            {
+                "message": message,
+                "tree": tree["sha"],
+                "parents": [parent],
+            },
+        )
+        if cerr or not isinstance(commit, dict) or not commit.get("sha"):
+            last_err = (cerr or {}).get("error") or "commit POST failed"
+            continue
+        upd, uerr = _github_json(
+            "PATCH",
+            ref_path,
+            {"sha": commit["sha"], "force": False},
+        )
+        if uerr:
+            status = uerr.get("status")
+            last_err = str(uerr.get("error") or "ref PATCH failed")
+            if status in {409, 422} and attempt == 1:
+                continue
+            return False, {"error": last_err, "attempt": attempt}
+        if not isinstance(upd, dict):
+            last_err = "ref PATCH unexpected payload"
+            continue
+        return True, {
+            "sha": commit["sha"],
+            "attempt": attempt,
+            "paths": list(files),
+        }
+    return False, {"error": last_err}
+
+
+def _sync_via_github_api(
+    repo: Path,
+    *,
+    branch: str,
+    message: str,
+    dry_run: bool,
+    notify: bool,
+    reason: str,
+) -> Dict[str, Any]:
+    """Write journal to origin without mutating the live clone's git history."""
+    dirty, err = _files_dirty_vs_origin(repo, branch)
+    if err:
+        if notify:
+            out = _report_failure(err, {"via": "github-api", "live": reason})
+            out["via"] = "github-api"
+            return out
+        return {
+            "ok": False,
+            "committed": False,
+            "pushed": False,
+            "via": "github-api",
+            "error": err,
+        }
+    if dry_run:
+        return {
+            "ok": True,
+            "committed": False,
+            "pushed": False,
+            "skipped": "dry-run",
+            "dirty": list(dirty),
+            "message": message,
+            "branch": branch,
+            "via": "github-api",
+            "live": reason,
+        }
+    if not dirty:
+        return {
+            "ok": True,
+            "committed": False,
+            "pushed": False,
+            "skipped": "clean",
+            "branch": branch,
+            "via": "github-api",
+            "live": reason,
+        }
+    ok, meta = _commit_files_via_github(dirty, message=message, branch=branch)
+    if not ok:
+        detail = str(meta.get("error") or "github-api commit failed")
+        if notify:
+            out = _report_failure(detail, {"via": "github-api", "live": reason})
+            out["via"] = "github-api"
+            return out
+        return {
+            "ok": False,
+            "committed": False,
+            "pushed": False,
+            "via": "github-api",
+            "error": detail,
+        }
+    return {
+        "ok": True,
+        "committed": True,
+        "pushed": True,
+        "via": "github-api",
+        "live": reason,
+        "branch": branch,
+        "message": message,
+        "paths": list(dirty),
+        "sha": meta.get("sha"),
+        "attempt": meta.get("attempt"),
+    }
+
+
 def _safe_kind(raw: Any) -> str:
     s = _KIND_RE.sub("", str(raw or "").strip().lower().replace(" ", "-"))
     return s or "decision"
@@ -122,6 +421,8 @@ def _git(
         a in _FORCE_FLAGS or a == "-f" for a in args[1:]
     ):
         return 1, "", "force-push forbidden (#737)"
+    if args and args[0] in _MUTATING_GIT and is_live_clone(repo):
+        return 1, "", "FCC live clone refuses local git mutation (#742)"
     extra = _network_git_extra_args() if args and args[0] in _NETWORK_GIT else []
     try:
         proc = subprocess.run(
@@ -275,11 +576,12 @@ def sync_journal(
     dry_run: bool = False,
     notify: bool = True,
 ) -> Dict[str, Any]:
-    """Commit journal (+ JSONL if dirty) and push to origin/work/treasury.
+    """Commit journal (+ JSONL if dirty) to origin/work/treasury.
 
-    Never raises. Never force-pushes. Git failures are reported to #701
-    when notify=True; the caller should still treat the fund-manager run
-    as successful.
+    Live clone (#742): GitHub git API, zero local ``git commit``/``push``.
+    Other checkouts: local git + insteadOf auth (#737). Never force-push.
+    Never raises. Failures comment #701 when notify=True; the fund-manager
+    run still succeeds.
     """
     repo = Path(repo) if repo is not None else ROOT
     if _in_pytest():
@@ -298,6 +600,21 @@ def sync_journal(
         }
 
     branch = (os.environ.get("FM_JOURNAL_BRANCH") or DEFAULT_BRANCH).strip()
+    live_reason = live_clone_reason(repo)
+    kind_s = _safe_kind(kind or infer_kind(repo))
+    message = journal_commit_message(
+        kind_s, _stamp_from_as_of(as_of or infer_as_of(repo))
+    )
+    if live_reason:
+        return _sync_via_github_api(
+            repo,
+            branch=branch,
+            message=message,
+            dry_run=dry_run,
+            notify=notify,
+            reason=live_reason,
+        )
+
     current = _current_branch(repo)
     if current != branch:
         msg = f"branch is {current or 'HEAD'} not {branch}"
@@ -327,10 +644,6 @@ def sync_journal(
         }
 
     dirty = _dirty_paths(repo)
-    kind_s = _safe_kind(kind or infer_kind(repo))
-    message = journal_commit_message(
-        kind_s, _stamp_from_as_of(as_of or infer_as_of(repo))
-    )
     if dry_run:
         return {
             "ok": True,
