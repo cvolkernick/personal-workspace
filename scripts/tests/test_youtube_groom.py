@@ -90,6 +90,10 @@ class TestHearted831Values(unittest.TestCase):
         self.assertEqual(M.MAX_DELETES_PER_TICK, 80)
         self.assertEqual(M.KEEP_N, 10)
         self.assertEqual(M.HOUSE_TARGET, 50)
+        self.assertEqual(M.MIN_FIT, 1)
+        self.assertEqual(M.OLD_MIN_FIT, 2)
+        self.assertEqual(M.SEED_THROTTLE_WEIGHT_FLOOR, 0.25)
+        self.assertEqual(M.OLD_SEED_THROTTLE_WEIGHT_FLOOR, 0.4)
 
     def test_playlist_id(self):
         self.assertEqual(M.PLAYLIST_ID, "PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At")
@@ -101,6 +105,10 @@ class TestHearted831Values(unittest.TestCase):
         self.assertEqual(card["new"]["FRESH_HOURS"], 168)
         self.assertEqual(card["new"]["CAP"], 200)
         self.assertEqual(card["new"]["STALE_HARD_DAYS"], 7)
+        self.assertEqual(card["old"]["MIN_FIT"], 2)
+        self.assertEqual(card["new"]["MIN_FIT"], 1)
+        self.assertEqual(card["old"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.4)
+        self.assertEqual(card["new"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.25)
         self.assertTrue(card["cap_is_breaker"])
         self.assertFalse(card["house_target_is_youtube_5000"])
         self.assertFalse(card["copy_over_pi"])
@@ -156,12 +164,44 @@ class TestPruneFirstThenFill(unittest.TestCase):
         self.assertEqual(len(plan.add), 25)
 
 
+class TestAddPathFloors731(unittest.TestCase):
+    def test_fit_one_is_kept_fit_zero_skipped(self):
+        self.assertIsNone(
+            M.skip_add_reason(fit=1, channel_weight=1.0, is_seed_throttle=False)
+        )
+        self.assertEqual(
+            M.skip_add_reason(fit=0, channel_weight=1.0, is_seed_throttle=False),
+            "fit=0",
+        )
+        self.assertIsNone(
+            M.skip_add_reason(fit=2, channel_weight=1.0, is_seed_throttle=False)
+        )
+
+    def test_throttle_floor_keeps_david_lin_weight(self):
+        # Live 2026-09-14: David Lin channel_weight=0.343 was skipped at 0.4.
+        self.assertIsNone(
+            M.skip_add_reason(fit=3, channel_weight=0.343, is_seed_throttle=True)
+        )
+        self.assertIsNone(
+            M.skip_add_reason(fit=3, channel_weight=0.25, is_seed_throttle=True)
+        )
+        self.assertEqual(
+            M.skip_add_reason(fit=3, channel_weight=0.24, is_seed_throttle=True),
+            "throttled-decay",
+        )
+        self.assertIsNone(
+            M.skip_add_reason(fit=3, channel_weight=0.1, is_seed_throttle=False)
+        )
+
+
 class TestDocsMatchPolicy(unittest.TestCase):
     def test_caps_doc_exists_and_drops_insert_ceiling(self):
         text = CAPS_MD.read_text(encoding="utf-8")
         self.assertIn("FRESH_HOURS          = 168", text)
         self.assertIn("CAP                  = 200", text)
         self.assertIn("STALE_HARD_DAYS      = 7", text)
+        self.assertIn("MIN_FIT              = 1", text)
+        self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR = 0.25", text)
         self.assertIn("MAX_INSERTS_PER_TICK", text)
         self.assertIn("removed", text.lower())
         self.assertNotRegex(text, r"MAX_INSERTS_PER_TICK\s*=\s*\d+")
@@ -175,6 +215,9 @@ class TestDocsMatchPolicy(unittest.TestCase):
         self.assertIn("CAP", text)
         self.assertIn("200", text)
         self.assertIn("Do not invent `MAX_ADD_PER_DAY`", text)
+        self.assertIn("MIN_FIT", text)
+        self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR", text)
+        self.assertIn("0.25", text)
 
 
 class TestMainNoNetwork(unittest.TestCase):
@@ -188,6 +231,8 @@ class TestMainNoNetwork(unittest.TestCase):
         self.assertEqual(rc, 0)
         out = buf.getvalue()
         self.assertIn("8 → removed", out)
+        self.assertIn("MIN_FIT", out)
+        self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR", out)
         self.assertIn(M.PLAYLIST_ID, out)
         self.assertIn("do not copy over Pi writer", out)
 
