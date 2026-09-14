@@ -61,6 +61,21 @@ class TestFundManagerProducerDeploy(unittest.TestCase):
             text = (DEPLOY / name).read_text(encoding="utf-8")
             self.assertIn("FM_JOURNAL_BRANCH=work/treasury", text)
             self.assertIn("FCC_HOST_TAG=prism", text)
+            # Auth is load_scheduler_env + insteadOf, not a unit EnvironmentFile (#737).
+            self.assertNotIn("EnvironmentFile=", text)
+            self.assertNotIn("GITHUB_TOKEN=", text)
+
+    def test_journal_sync_uses_workspace_sync_insteadOf(self) -> None:
+        text = (ROOT / "treasury" / "fund_manager_journal_sync.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("load_scheduler_env", text)
+        self.assertIn("github_token", text)
+        self.assertIn(
+            "url.https://x-access-token:{token}@github.com/.insteadOf=https://github.com/",
+            text,
+        )
+        self.assertIn('frozenset({"pull", "push", "fetch", "ls-remote"})', text)
 
 
 if __name__ == "__main__":

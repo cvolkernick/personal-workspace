@@ -21,6 +21,9 @@ from treasury.fund_manager_journal_sync import (  # noqa: E402
     JSONL_REL,
     _abort_rebase_if_needed,
     _git,
+    _insteadOf_config,
+    _redact,
+    _report_failure,
     infer_as_of,
     infer_kind,
     journal_commit_message,
@@ -142,6 +145,163 @@ class TestForcePushGuard(unittest.TestCase):
                 code, _, err = _git(repo, *args)
                 self.assertEqual(code, 1, args)
                 self.assertIn("force-push forbidden", err)
+
+
+class TestGitAuthInsteadOf(unittest.TestCase):
+    TOKEN = "ghs_testtokenABC"
+
+    def _env_without_github(self) -> dict:
+        drop = {"GITHUB_TOKEN", "GH_TOKEN", "BUZZ_BOARD_GITHUB_TOKEN"}
+        return {k: v for k, v in os.environ.items() if k not in drop}
+
+    def test_insteadOf_matches_workspace_sync(self) -> None:
+        self.assertEqual(
+            _insteadOf_config(self.TOKEN),
+            "url.https://x-access-token:ghs_testtokenABC@github.com/.insteadOf=https://github.com/",
+        )
+
+    def test_network_git_uses_scheduler_env_insteadOf(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            env_path = Path(td) / "workflow-scheduler.env"
+            env_path.write_text(f'GITHUB_TOKEN="{self.TOKEN}"\n', encoding="utf-8")
+            repo = Path(td) / "repo"
+            repo.mkdir()
+            captured: dict = {}
+
+            def fake_run(cmd, **kwargs):
+                captured["cmd"] = list(cmd)
+                captured["env"] = kwargs.get("env") or {}
+                class P:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+                return P()
+
+            with mock.patch.dict(os.environ, self._env_without_github(), clear=True), mock.patch(
+                "treasury.pi_ops_alert.SCHEDULER_ENV", env_path
+            ), mock.patch(
+                "treasury.fund_manager_journal_sync.subprocess.run", side_effect=fake_run
+            ):
+                code, _, _ = _git(repo, "push", "origin", "HEAD:work/treasury")
+            self.assertEqual(code, 0)
+            cmd = captured["cmd"]
+            self.assertEqual(cmd[0], "git")
+            self.assertIn("-c", cmd)
+            cfg = cmd[cmd.index("-c") + 1]
+            self.assertEqual(cfg, _insteadOf_config(self.TOKEN))
+            self.assertEqual(cmd[-3:], ["push", "origin", "HEAD:work/treasury"])
+            self.assertEqual(captured["env"].get("GIT_TERMINAL_PROMPT"), "0")
+
+    def test_pull_and_fetch_also_use_insteadOf(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            seen: list[list[str]] = []
+
+            def fake_run(cmd, **kwargs):
+                seen.append(list(cmd))
+                class P:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+                return P()
+
+            env = {**self._env_without_github(), "GITHUB_TOKEN": self.TOKEN}
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+                "treasury.fund_manager_journal_sync.subprocess.run", side_effect=fake_run
+            ):
+                _git(repo, "pull", "--rebase", "origin", "work/treasury")
+                _git(repo, "fetch", "origin")
+            self.assertEqual(len(seen), 2)
+            for cmd in seen:
+                self.assertIn(_insteadOf_config(self.TOKEN), cmd)
+
+    def test_local_git_does_not_inject_insteadOf(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            captured: dict = {}
+
+            def fake_run(cmd, **kwargs):
+                captured["cmd"] = list(cmd)
+                class P:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+                return P()
+
+            env = {**self._env_without_github(), "GITHUB_TOKEN": self.TOKEN}
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+                "treasury.fund_manager_journal_sync.subprocess.run", side_effect=fake_run
+            ):
+                _git(repo, "status", "--porcelain")
+            joined = " ".join(captured["cmd"])
+            self.assertNotIn("insteadOf", joined)
+            self.assertNotIn("x-access-token", joined)
+            self.assertNotIn(self.TOKEN, joined)
+
+    def test_missing_token_skips_insteadOf(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            env_path = Path(td) / "missing.env"
+            repo = Path(td)
+            captured: dict = {}
+
+            def fake_run(cmd, **kwargs):
+                captured["cmd"] = list(cmd)
+                class P:
+                    returncode = 128
+                    stdout = ""
+                    stderr = "could not read Username for 'https://github.com'"
+                return P()
+
+            with mock.patch.dict(os.environ, self._env_without_github(), clear=True), mock.patch(
+                "treasury.pi_ops_alert.SCHEDULER_ENV", env_path
+            ), mock.patch(
+                "treasury.fund_manager_journal_sync.subprocess.run", side_effect=fake_run
+            ):
+                code, _, err = _git(repo, "push", "origin", "HEAD")
+            self.assertEqual(code, 128)
+            self.assertNotIn("insteadOf", " ".join(captured["cmd"]))
+            self.assertIn("could not read Username", err)
+
+    def test_network_stderr_redacts_token(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+
+            def fake_run(cmd, **kwargs):
+                class P:
+                    returncode = 128
+                    stdout = ""
+                    stderr = (
+                        "fatal: could not read Username for "
+                        f"'https://x-access-token:{self.TOKEN}@github.com'"
+                    )
+                return P()
+
+            env = {**self._env_without_github(), "GITHUB_TOKEN": self.TOKEN}
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+                "treasury.fund_manager_journal_sync.subprocess.run", side_effect=fake_run
+            ):
+                code, _, err = _git(repo, "push", "origin", "HEAD")
+            self.assertEqual(code, 128)
+            self.assertNotIn(self.TOKEN, err)
+            self.assertIn("REDACTED", err)
+
+    def test_report_failure_redacts_token_on_github(self) -> None:
+        env = {**self._env_without_github(), "GITHUB_TOKEN": self.TOKEN}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "treasury.fund_manager_journal_sync.post_ops_github",
+            return_value={"ok": True, "posted": True, "issue": "701"},
+        ) as post:
+            out = _report_failure(
+                f"url=https://x-access-token:{self.TOKEN}@github.com/cvolkernick/personal-workspace.git",
+                {"stderr": f"Authorization: Bearer {self.TOKEN}"},
+            )
+        self.assertFalse(out.get("ok"))
+        self.assertNotIn(self.TOKEN, out.get("error") or "")
+        title, text = post.call_args[0][:2]
+        self.assertIn("journal sync failed", title)
+        self.assertNotIn(self.TOKEN, text)
+        self.assertIn("REDACTED", text)
+        self.assertEqual(_redact(self.TOKEN), "REDACTED")
 
 
 class TestSyncJournal(unittest.TestCase):

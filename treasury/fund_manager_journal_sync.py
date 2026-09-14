@@ -7,6 +7,11 @@ cycle.
 
 The markdown journal is the must-commit human/assistant record. JSONL is
 included in the same commit when dirty.
+
+Network git (pull/push/fetch) loads ``~/.config/workflow-scheduler.env``
+via ``load_scheduler_env`` and uses the same ``x-access-token`` insteadOf
+as ``deploy/workspace_sync.sh``. Do not wait for a systemd EnvironmentFile
+copy. Tokens are redacted on #701.
 """
 
 from __future__ import annotations
@@ -26,13 +31,18 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from treasury.pi_ops_alert import post_ops_github  # noqa: E402
+from treasury.pi_ops_alert import (  # noqa: E402
+    github_token,
+    load_scheduler_env,
+    post_ops_github,
+)
 
 JOURNAL_REL = "investment/fund_manager_journal.md"
 JSONL_REL = "treasury/snapshots/fund_manager_decisions.jsonl"
 COMMIT_PATHS: Tuple[str, ...] = (JOURNAL_REL, JSONL_REL)
 DEFAULT_BRANCH = "work/treasury"
 _FORCE_FLAGS = ("--force", "--force-with-lease")
+_NETWORK_GIT = frozenset({"pull", "push", "fetch", "ls-remote"})
 _KIND_RE = re.compile(r"[^a-z0-9_-]+")
 _TOKEN_RE = re.compile(
     r"(gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|x-access-token:[^@\s]+|Bearer\s+\S+)",
@@ -43,8 +53,26 @@ _FALSE = {"0", "false", "no", "off"}
 _PRODUCER_TAGS = {"prism", "pi"}
 
 
+def _insteadOf_config(token: str) -> str:
+    """Same HTTPS rewrite as deploy/workspace_sync.sh git_auth."""
+    return f"url.https://x-access-token:{token}@github.com/.insteadOf=https://github.com/"
+
+
+def _network_git_extra_args() -> List[str]:
+    """Auth for pull/push/fetch from workflow-scheduler.env — not systemd EnvironmentFile."""
+    load_scheduler_env()
+    token = github_token()
+    if not token:
+        return []
+    return ["-c", _insteadOf_config(token)]
+
+
 def _redact(text: str) -> str:
-    return _TOKEN_RE.sub("REDACTED", text or "")
+    s = text or ""
+    token = github_token()
+    if token:
+        s = s.replace(token, "REDACTED")
+    return _TOKEN_RE.sub("REDACTED", s)
 
 
 def _env_flag(name: str) -> Optional[bool]:
@@ -94,21 +122,22 @@ def _git(
         a in _FORCE_FLAGS or a == "-f" for a in args[1:]
     ):
         return 1, "", "force-push forbidden (#737)"
+    extra = _network_git_extra_args() if args and args[0] in _NETWORK_GIT else []
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo), *args],
+            ["git", "-C", str(repo), *extra, *args],
             capture_output=True,
             text=True,
             timeout=timeout,
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
-        return (
-            proc.returncode,
-            (proc.stdout or "").strip(),
-            (proc.stderr or "").strip(),
-        )
+        out = (proc.stdout or "").strip()
+        err = (proc.stderr or "").strip()
+        if extra:
+            out, err = _redact(out), _redact(err)
+        return proc.returncode, out, err
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
-        return 1, "", str(exc)
+        return 1, "", _redact(str(exc)) if extra else str(exc)
 
 
 def _host_tag() -> str:

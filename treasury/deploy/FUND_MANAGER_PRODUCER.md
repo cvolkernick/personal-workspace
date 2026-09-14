@@ -18,7 +18,10 @@ Journal (#737): after every run, `fund_manager_journal_sync` commits
 then `git pull --rebase --autostash` and push. Never force-push. Git
 failure comments #701 and does **not** fail the review. Mac/manual runs
 no-op unless `FM_JOURNAL_SYNC=1` (`FCC_HOST_TAG=prism` is the producer
-gate). Requires Pi `git config user.email` and push auth to `origin`.
+gate). Requires Pi `git config user.email`. Network git (pull/push/fetch)
+loads `~/.config/workflow-scheduler.env` via `load_scheduler_env` and uses
+the same `x-access-token` insteadOf as `deploy/workspace_sync.sh` — do not
+wait for a systemd `EnvironmentFile=` copy. Token is redacted on #701.
 
 ## Eng-gate sequence
 
