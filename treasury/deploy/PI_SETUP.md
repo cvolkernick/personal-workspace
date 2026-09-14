@@ -10,6 +10,9 @@
 
 Run automation on the **Pi** so alerts and RH freshness do not depend on the Mac being awake/reauthed in launchd.
 
+**#729:** fund-manager producer is Pi-only. See `FUND_MANAGER_PRODUCER.md`. Mac
+`com.personalworkspace.fund-manager-*` LaunchAgents are retired stubs.
+
 ## Prerequisites
 - `personal-workspace` cloned/synced on the Pi (prefer `work/treasury` until merged)
 - `python3` available
@@ -28,18 +31,15 @@ Run automation on the **Pi** so alerts and RH freshness do not depend on the Mac
 ### 1) Sync code on Pi
 ```bash
 # on Pi
-cd /home/pi/personal-workspace   # or your clone path
+cd /home/prism-agent/personal-workspace
 git fetch origin
 git checkout work/treasury       # or master when merged
 git pull --ff-only
 ```
 
-### 2) Fix unit paths
-`rh-refresh.service` defaults to `/home/prism-agent/personal-workspace`.
-Edit if your clone differs:
-- `treasury/deploy/fund-manager*.service`
-- `treasury/deploy/rh-refresh.service`
-- `treasury/deploy/fund-manager-bp-poll.service`
+### 2) Unit paths
+Units default to `/home/prism-agent/personal-workspace` (`User=prism-agent`).
+Do **not** install the old `/home/pi/` fund-manager copies — they 404 on this host.
 
 Ensure systemd can find `grok` (already in the #518 unit):
 ```ini
@@ -83,10 +83,12 @@ launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null \
 rm -f ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 ```
 
-**#555:** leave `rh-refresh` unloaded. If Mac `fund-manager-daily` /
-`fund-manager-bp-poll` still alert false RH / `rh_checking` stale, boot those
-out (plist comments + commands in `RH_PRODUCER.md`). GitHub #701 is gated in
-code: `skipped` / `no_refresh_path` / timeout-with-fresh-as_of do not comment.
+**#555:** leave `rh-refresh` unloaded. GitHub #701 is gated in code:
+`skipped` / `no_refresh_path` / timeout-with-fresh-as_of do not comment.
+
+**#729:** Mac `fund-manager-daily` / `fund-manager-bp-poll` are retired.
+Pi is the sole fund-manager producer (`FUND_MANAGER_PRODUCER.md`). Do not
+reload those LaunchAgents — a stale Mac checkout still POSTs ntfy.sh.
 
 ### 6) Alerts = GitHub #701 only (#704)
 Alerts include **producer host** and **error class** (`FCC · RH auth_fail · prism`).

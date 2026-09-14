@@ -72,12 +72,12 @@ Quorum: Risk + Thesis OK; Critic can force hold or size-down.
 ```text
 rh_refresh (~3h) → snapshot only
 
-bp_poll (~15m, market hours):
+bp_poll (~15m, market hours, Pi):
   rh_refresh → rules review
     ├─ HOLD (cash=0 and BP=0, in band) → quiet
-    └─ any cash>0 or BP>0 → full research_rotate + team → Executor → ntfy
+    └─ any cash>0 or BP>0 → full research_rotate + team → Executor → GitHub #701
 
-daily (~12:30 ET weekdays): same team path as before
+daily (~12:30 ET weekdays, Pi): same team path as before
 ```
 
 **Trigger rule:** free capital = **cash > 0 or BP > 0** (no %NAV floor).
@@ -88,8 +88,9 @@ python3 -m treasury.fund_manager --rules-review --notify
 ./treasury/fund_manager_bp_poll.sh          # or FM_BP_POLL_FORCE=1 outside hours
 ```
 
-**macOS launchd:** `com.personalworkspace.fund-manager-bp-poll` + `com.personalworkspace.rh-refresh`  
-**Pi:** `treasury/deploy/PI_SETUP.md` + `fund-manager-bp-poll.timer`
+**Producer = Pi only (#729).** See `treasury/deploy/FUND_MANAGER_PRODUCER.md`.
+Mac launchd `com.personalworkspace.fund-manager-*` is retired (stale checkout
+kept POSTing ntfy.sh after #704). Do not reload it.
 
 ## Kill switches
 

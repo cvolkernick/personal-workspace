@@ -1,0 +1,48 @@
+"""Fund-manager producer topology (#729): Pi systemd, Mac launchd retired."""
+
+from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+DEPLOY = ROOT / "treasury" / "deploy"
+FM_PY = ROOT / "treasury" / "fund_manager.py"
+
+
+class TestFundManagerProducerDeploy(unittest.TestCase):
+    def test_mac_plists_are_retired_stubs(self) -> None:
+        for name in (
+            "com.personalworkspace.fund-manager-daily.plist",
+            "com.personalworkspace.fund-manager-bp-poll.plist",
+        ):
+            text = (DEPLOY / name).read_text(encoding="utf-8")
+            self.assertIn("RETIRED (#729)", text)
+            self.assertIn("<key>Disabled</key>", text)
+            self.assertIn("/usr/bin/true", text)
+            self.assertNotIn("fund_manager_daily.sh", text)
+            self.assertNotIn("fund_manager_bp_poll.sh", text)
+            self.assertNotIn("personal-workspace-worktrees/treasury", text)
+
+    def test_pi_units_use_prism_agent_not_home_pi(self) -> None:
+        for name in ("fund-manager.service", "fund-manager-bp-poll.service"):
+            text = (DEPLOY / name).read_text(encoding="utf-8")
+            self.assertIn("User=prism-agent", text)
+            self.assertIn("FCC_HOST_TAG=prism", text)
+            self.assertIn("/home/prism-agent/personal-workspace", text)
+            self.assertNotIn("/home/pi/", text)
+            self.assertIn("TimeoutStartSec=2h", text)
+
+    def test_repo_fund_manager_has_no_ntfy_post(self) -> None:
+        text = FM_PY.read_text(encoding="utf-8")
+        self.assertNotIn("ntfy.sh", text)
+        self.assertNotIn("def push_ntfy", text)
+        self.assertIn("warn_retired_ntfy", text)
+
+
+if __name__ == "__main__":
+    unittest.main()

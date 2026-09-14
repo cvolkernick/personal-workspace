@@ -1,13 +1,20 @@
 [Unit]
-Description=Agentic fund manager BP/cash poll (deploy when free capital)
+Description=Agentic fund manager BP/cash poll (prism/Pi SoT, #729)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/pi/personal-workspace
-ExecStart=/home/pi/personal-workspace/treasury/fund_manager_bp_poll.sh
+User=prism-agent
+Group=prism-agent
+WorkingDirectory=/home/prism-agent/personal-workspace
+ExecStart=/home/prism-agent/personal-workspace/treasury/fund_manager_bp_poll.sh
 Nice=10
+TimeoutStartSec=2h
+Environment=HOME=/home/prism-agent
+Environment=FCC_HOST_TAG=prism
+Environment=PATH=/home/prism-agent/.grok/bin:/home/prism-agent/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Live agentic path: grok --yolo may place Robinhood orders. Alerts → GitHub #701.
 
 [Install]
 WantedBy=multi-user.target

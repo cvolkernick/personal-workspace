@@ -7,7 +7,8 @@
 #    (#555: rh_checking / skipped / no_refresh_path / fresh as_of do not alert)
 # 5) Write FCC treasury JSON
 #
-# Cron (ET):  30 12 * * 1-5  /path/to/treasury/fund_manager_daily.sh
+# Pi timer: treasury/deploy/fund-manager.timer (#729 sole producer)
+# Mac launchd com.personalworkspace.fund-manager-daily is retired — do not reload.
 #
 set -euo pipefail
 
