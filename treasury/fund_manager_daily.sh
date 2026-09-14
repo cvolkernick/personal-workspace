@@ -3,7 +3,9 @@
 # 1) RH refresh (MCP via grok if available)
 # 2) Rules path: HOLD if in band (no LLM)
 # 3) Else team/LLM via grok headless
-# 4) Comment GitHub #701 on need_llm / error / stale RH *brokerage*
+# 4) append_decision posts full what+why to GitHub #701 (including first HOLD
+#    of the day, #736). --notify still comments stale RH *brokerage* and thin
+#    need_llm/error fallbacks that skipped the log.
 #    (#555: rh_checking / skipped / no_refresh_path / fresh as_of do not alert)
 # 5) Write FCC treasury JSON
 #
@@ -80,7 +82,7 @@ if [[ "${RR}" -eq 2 ]]; then
       --yolo \
       --output-format plain \
       || echo "WARN: grok headless exited non-zero"
-    # Notify that LLM path ran (may have traded)
+    # Stale-RH / thin fallback only — full decision already on #701 via append_decision
     python3 - <<'PY' || true
 from treasury.fund_manager import notify_if_needed, load_decision_log
 from treasury.adapters import load_json, SNAPSHOTS_DIR

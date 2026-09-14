@@ -93,7 +93,13 @@ def _http_post(url: str, data: bytes, headers: dict[str, str], timeout: float = 
         return {"ok": True, "status": getattr(resp, "status", None) or resp.getcode()}
 
 
-def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str, Any]:
+def post_ops_github(
+    title: str,
+    text: str,
+    *,
+    dry_run: bool = False,
+    as_markdown: bool = False,
+) -> dict[str, Any]:
     load_scheduler_env()
     warn_retired_ntfy()
     issue = ops_issue()
@@ -104,7 +110,10 @@ def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str
     token = github_token()
     if not token:
         return {"ok": True, "posted": False, "skipped": "no-github-token", "issue": issue}
-    body = f"**{title}**\n\n```\n{text}\n```\n"
+    if as_markdown:
+        body = f"**{title}**\n\n{text.rstrip()}\n"
+    else:
+        body = f"**{title}**\n\n```\n{text}\n```\n"
     url = f"https://api.github.com/repos/{OPS_REPO}/issues/{issue}/comments"
     payload = json.dumps({"body": body}).encode("utf-8")
     headers = {

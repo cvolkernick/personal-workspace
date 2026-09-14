@@ -48,9 +48,14 @@ Workflows (preferred when available):
 
 ## Where to watch
 
-FCC → **Brokerage** → **Decision log / rationale**
+**Assistant-readable sink (no human courier, #736):** GitHub issue **#701** comments.
+
+`append_decision` posts the full what+why on every logged run (deploy / rebalance / hold / error), including the first HOLD of the day. Same-day identical HOLDs stay quiet only after `_github.posted` is true; a token/network miss retries the #701 comment in place (no extra JSONL row). Marker: `<!-- fund-manager-decision schema=1 -->` plus a JSON block (`kind`, `summary`, `rationale`, `team_votes`, `actions`, `weights_before` / `weights_after`, `nav_usd`, `buying_power_usd`). `FM_DECISION_GITHUB=0` / `--no-github` keeps local JSONL only.
+
+FCC → **Brokerage** → **Decision log / rationale** (Pi-local JSONL; producer is Pi only, #729)
 
 Also:
+- GitHub [#701](https://github.com/cvolkernick/personal-workspace/issues/701)
 - `treasury/snapshots/fund_manager_decisions.jsonl` (Pi-local JSONL; also committed when dirty)
 - `investment/fund_manager_journal.md` (committed + pushed to `work/treasury` after every Pi run — #737)
 - `investment/research/fund_manager_research_latest.md` (when research pass wrote one)
@@ -74,8 +79,8 @@ rh_refresh (~3h) → snapshot only
 
 bp_poll (~15m, market hours, Pi):
   rh_refresh → rules review
-    ├─ HOLD (cash=0 and BP=0, in band) → quiet
-    └─ any cash>0 or BP>0 → full research_rotate + team → Executor → GitHub #701
+    ├─ HOLD (cash=0 and BP=0, in band) → first of day → JSONL + #701 (no LLM)
+    └─ any cash>0 or BP>0 → full research_rotate + team → Executor → JSONL + #701
 
 daily (~12:30 ET weekdays, Pi): same team path as before
 ```
