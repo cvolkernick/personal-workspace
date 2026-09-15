@@ -105,8 +105,11 @@ preserve_durable() {
   for p in "${paths[@]}"; do
     [[ -e "$p" ]] && echo "$p" >>"$list"
   done
+  # Journals: *journal.md / *journal.jsonl only — never .py/.pyc. Broad *journal*
+  # re-overlays treasury/fund_manager_journal_sync.py after every hard-reset (#758).
   find treasury investment ops fitness financial-command iot -maxdepth 3 \
-    \( -name '*journal*' -o -name '*_latest.json' -o -name 'secrets.json' \) 2>/dev/null >>"$list" || true
+    \( -name '*journal.md' -o -name '*journal.jsonl' -o -name '*_latest.json' -o -name 'secrets.json' \) \
+    ! -name '*.py' ! -name '*.pyc' 2>/dev/null >>"$list" || true
   sort -u "$list" -o "$list"
   if [[ -s "$list" ]]; then
     tar -czf "$DURABLE_TAR" -T "$list" 2>/dev/null || true

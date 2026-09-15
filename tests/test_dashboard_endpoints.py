@@ -51,14 +51,22 @@ class EndpointResolveTests(unittest.TestCase):
         self.assertIn("open_dashboard", text)
         self.assertIn("service_url", text)
 
-    def test_workspace_sync_script_pulls_master(self) -> None:
+    def test_workspace_sync_script_pins_treasury(self) -> None:
         script = ROOT / "deploy" / "workspace_sync.sh"
         self.assertTrue(script.is_file())
         text = script.read_text(encoding="utf-8")
-        self.assertIn("origin", text)
-        self.assertIn("master", text)
-        self.assertIn("try-restart", text)
+        self.assertIn('BRANCH="${SYNC_BRANCH:-work/treasury}"', text)
+        self.assertIn("allowlist: work/treasury only", text)
+        self.assertIn("on_merge.sh", text)
+        self.assertNotIn("try-restart", text)
         self.assertIn("GITHUB_TOKEN", text)
+        self.assertNotIn('fetch --prune "$REMOTE" master', text)
+        # Preserve globs must not match fund_manager_journal_sync.py (#758).
+        self.assertIn("-name '*journal.md'", text)
+        self.assertIn("-name '*journal.jsonl'", text)
+        self.assertNotRegex(text, r"-name '\*journal\*'")
+        self.assertIn("! -name '*.py'", text)
+        self.assertIn("! -name '*.pyc'", text)
 
     def test_horizon_is_registered_from_existing_bind(self) -> None:
         cfg = de.load_endpoints()
