@@ -2320,3 +2320,31 @@
 - Removed BITA/STRC/MARA/NVDA from consider_share pins and fund_manager symbol_targets pins (empty).
 - Those four float on Bias via role-score residual only.
 - Policy otherwise unchanged. Cloud agent bc-59f5ed97 steered to match.
+
+## 2026-09-14T14:06:55 — hold
+**Summary:** Rules HOLD: deployed mix in ±5% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.03/$0.03 < min_trade $1.00 (not deployable)
+**Book:** NAV $314.4548 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.4035 · Stocks 0.5965
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** In-band + low cash → skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.
+**Team:**
+- **scout:** observe — NAV $314.45 BP $0.03 cash $0.03
+- **thesis:** ok — deployed BTC 0.4035 stocks 0.5965
+- **risk:** ok — Agentic capital only; no trade if hold
+- **critic:** ok — Hold preferred when bands ok — avoid churn
+- **executor:** hold — No MCP orders on pure rules HOLD
+
+
+## 2026-09-15T13:38:46 — hold
+**Summary:** Rules HOLD: deployed mix in ±5% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.05/$0.03 < min_trade $1.00 (not deployable)
+**Book:** NAV $311.3934 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.4035 · Stocks 0.5965
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** In-band + low cash → skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.
+**Team:**
+- **scout:** observe — NAV $311.39 BP $0.03 cash $0.05
+- **thesis:** ok — deployed BTC 0.4035 stocks 0.5965
+- **risk:** ok — Agentic capital only; no trade if hold
+- **critic:** ok — Hold preferred when bands ok — avoid churn
+- **executor:** hold — No MCP orders on pure rules HOLD
+
