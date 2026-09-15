@@ -1054,14 +1054,14 @@
       flex-direction: column;
       gap: 0.55rem;
     }
-    .fm-pies {
+    .fm-pies, .cc-pies {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 0.85rem;
       margin-top: 0.85rem;
     }
     @media (max-width: 720px) {
-      .fm-pies { grid-template-columns: 1fr; }
+      .fm-pies, .cc-pies { grid-template-columns: 1fr; }
     }
     .pie-card {
       background: #0e151c;
@@ -1079,6 +1079,11 @@
     }
     .pie-legend .dot { width: 0.6rem; height: 0.6rem; border-radius: 2px; flex: 0 0 auto; }
     .pie-legend .pct { color: var(--muted); margin-left: auto; padding-left: 0.5rem; }
+    .pie-breakdown { margin-top: 0.5rem; font-size: 0.75rem; }
+    .pie-breakdown th:nth-child(2),
+    .pie-breakdown td:nth-child(2),
+    .pie-breakdown th:nth-child(3),
+    .pie-breakdown td:nth-child(3) { text-align: right; }
     .alloc-row {
       background: #0e151c;
       border: 1px solid var(--border);
@@ -2203,6 +2208,8 @@
         <h2>Cash &amp; credit</h2>
       </div>
       <div class="sleeves" id="buffer-sleeves"></div>
+      <div class="cc-pies" id="cc-pies"></div>
+      <p class="hint" id="cc-pies-hint" style="margin-top:0.45rem"></p>
       <div class="grid-2 cash-credit-stats" style="margin-top:0.45rem">
         <div id="cb-metrics"></div>
         <div id="cash-credit-side"></div>
@@ -3923,6 +3930,163 @@
         ),
       ].join("");
 
+      // Allocation pies (Cash & credit + Fund manager). Hand-rolled SVG, no deps.
+      const PIE_COLORS = [
+        "#7eb8e8", "#f5c542", "#7ee2a8", "#e88bb1", "#b39ddb",
+        "#ffb74d", "#80deea", "#a5d6a7", "#ef9a9a", "#90caf9",
+      ];
+      const STOCKS_RAMP = ["#7eb8e8", "#5a9bd5", "#3d7ab8", "#2c5f94", "#1e4468", "#16324e"];
+      const BTC_RAMP = ["#f5c542", "#e0a92e", "#c78f1f", "#a67417", "#856012", "#634a0e"];
+      const CASH_RAMP = ["#7ee2a8", "#5ecf90", "#3db87a", "#2a9a62", "#1e7a4e", "#165c3b", "#80deea", "#a5d6a7"];
+      const DEPOSIT_RAMP = ["#f5c542", "#e0a92e", "#b39ddb", "#7eb8e8", "#ffb74d", "#80deea", "#e88bb1", "#90caf9"];
+      const pieSVG = (slices) => {
+        const total = slices.reduce((a, s) => a + s.value, 0);
+        if (!total) return "";
+        const cx = 60, cy = 60, r = 54;
+        let ang = -Math.PI / 2;
+        return (
+          `<svg viewBox="0 0 120 120" class="pie" role="img" aria-label="allocation pie chart">` +
+          slices
+            .map((s) => {
+              const frac = s.value / total;
+              const a0 = ang, a1 = ang + frac * Math.PI * 2;
+              ang = a1;
+              const x0 = (cx + r * Math.cos(a0)).toFixed(1), y0 = (cy + r * Math.sin(a0)).toFixed(1);
+              const x1 = (cx + r * Math.cos(a1)).toFixed(1), y1 = (cy + r * Math.sin(a1)).toFixed(1);
+              return (
+                `<path d="M${cx},${cy} L${x0},${y0} A${r},${r} 0 ${frac > 0.5 ? 1 : 0},1 ${x1},${y1} Z" fill="${s.color}">` +
+                `<title>${escapeHtml(s.label)} — ${money(s.value)} (${(frac * 100).toFixed(1)}%)</title></path>`
+              );
+            })
+            .join("") +
+          `</svg>`
+        );
+      };
+      const pieCard = (title, positions, ramp, opts) => {
+        const showBreakdown = !!(opts && opts.breakdown);
+        const colors = ramp || PIE_COLORS;
+        const valued = positions
+          .filter((p) => p.market_value != null && Number(p.market_value) > 0)
+          .map((p) => ({
+            label: p.symbol || "—",
+            value: Number(p.market_value),
+          }))
+          .sort((a, b) => b.value - a.value)
+          .map((p, i) => ({ ...p, color: colors[i % colors.length] }));
+        if (!valued.length) {
+          return `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div><p class="hint">No valued positions</p></div>`;
+        }
+        const MAX_SLICES = 8;
+        let slices = valued;
+        if (valued.length > MAX_SLICES) {
+          const head = valued.slice(0, MAX_SLICES - 1);
+          const rest = valued.slice(MAX_SLICES - 1);
+          head.push({
+            label: "Other",
+            value: rest.reduce((a, s) => a + s.value, 0),
+            color: "#4a5568",
+          });
+          slices = head;
+        }
+        const total = valued.reduce((a, s) => a + s.value, 0);
+        const legend = slices
+          .map(
+            (s) =>
+              `<li><span class="dot" style="background:${s.color}"></span>` +
+              `<span>${escapeHtml(s.label)}</span><span class="pct">${((s.value / total) * 100).toFixed(1)}%</span></li>`
+          )
+          .join("");
+        const breakdown = showBreakdown
+          ? `<table class="pos-table pie-breakdown"><thead><tr><th>Account</th><th>$</th><th>%</th></tr></thead><tbody>` +
+            valued
+              .map(
+                (s) =>
+                  `<tr><td>${escapeHtml(s.label)}</td>` +
+                  `<td>${money(s.value)}</td>` +
+                  `<td>${((s.value / total) * 100).toFixed(1)}%</td></tr>`
+              )
+              .join("") +
+            `<tr><td><strong>Total</strong></td><td><strong>${money(total)}</strong></td><td></td></tr>` +
+            `</tbody></table>`
+          : "";
+        return (
+          `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div>` +
+          `<div class="pie-wrap">${pieSVG(slices)}<ul class="pie-legend">${legend}</ul></div>` +
+          breakdown +
+          `</div>`
+        );
+      };
+
+      // MECE capital pools for Cash & credit pies (#756).
+      // Counted once: RH Checking, X Money main (if >0), X Money spaces,
+      // idle spot USDC, Liquid BTC USD, SOL USD, on-chain USDC, JR-strcUSX USD,
+      // HY LTV Buffer (vault), USDC security deposit.
+      // Excluded (derived / overlap / not assets): working_usdc, bank_cash,
+      // bill_pay_cash, solana_book_usd, liquid_btc qty, card_available_credit,
+      // card_balance, x_money_cash aggregate when spaces are sliced,
+      // negative X Money main (liability).
+      const cashAllocationPools = () => {
+        const pool = (symbol, value) => ({
+          symbol,
+          market_value: f(value, NaN),
+        });
+        const pos = (items) =>
+          items.filter((p) => Number.isFinite(p.market_value) && p.market_value > 0);
+        const shortXm = (name) =>
+          String(name || "")
+            .replace(/\s+[–-]\s+\d{4}\s*$/, "")
+            .trim() || String(name || "space");
+        const xmSpaces = Array.isArray(xm.spaces) ? xm.spaces : [];
+        let xmPools;
+        if (xmSpaces.length) {
+          const mainVal = f(xm.main_cash);
+          xmPools = [
+            ...(mainVal > 0
+              ? [pool("X Money · " + shortXm(xm.account_name || "Main"), mainVal)]
+              : []),
+            ...xmSpaces.map((sp) =>
+              pool("X Money · " + shortXm(sp.account_name), sp.cash)
+            ),
+          ];
+        } else {
+          xmPools = [pool("X Money", inp.x_money_cash ?? xm.cash)];
+        }
+        const sol = snap.solana || {};
+        const cashPools = pos([
+          pool("RH Checking", inp.rh_checking_cash ?? rhc.cash),
+          pool("Idle spot USDC", inp.liquid_usdc),
+          ...xmPools,
+        ]);
+        const cryptoPools = pos([
+          pool("Liquid BTC", inp.liquid_btc_usd),
+          pool("SOL", sol.sol_usd),
+          pool("On-chain USDC", inp.solana_usdc ?? sol.usdc),
+          pool("JR-strcUSX", inp.solana_jr_strcusx_usd ?? sol.jr_strcusx_usd),
+          pool("HY LTV Buffer", inp.vault_usdc),
+          pool("USDC security deposit", inp.card_security_deposit_usdc),
+        ]);
+        return { cashPools, cryptoPools, allPools: cashPools.concat(cryptoPools) };
+      };
+
+      const ccPiesEl = document.getElementById("cc-pies");
+      const ccHintEl = document.getElementById("cc-pies-hint");
+      if (ccPiesEl) {
+        const { cashPools, cryptoPools, allPools } = cashAllocationPools();
+        ccPiesEl.innerHTML =
+          pieCard("Capital allocation", allPools, null, { breakdown: true }) +
+          pieCard("Cash accounts", cashPools, CASH_RAMP, { breakdown: true }) +
+          pieCard("Crypto & deposits", cryptoPools, DEPOSIT_RAMP, { breakdown: true });
+        if (ccHintEl) {
+          const tot = allPools.reduce((a, p) => a + p.market_value, 0);
+          ccHintEl.textContent =
+            "Assets only · " +
+            money(tot) +
+            " across " +
+            allPools.length +
+            " pools · each dollar once · One Card owed and X Money overdraft excluded";
+        }
+      }
+
       // Cash & credit stats — split evenly across two columns (no empty column)
       const man = snap.coinbase_manual || {};
       const cashCreditRows = [
@@ -4375,72 +4539,7 @@
           `</tbody></table>`
         : `<p class="hint">No agentic positions</p>`;
 
-      // Allocation pies: all holdings, stocks sleeve, BTC+ sleeve (hand-rolled SVG, no deps)
-      const PIE_COLORS = [
-        "#7eb8e8", "#f5c542", "#7ee2a8", "#e88bb1", "#b39ddb",
-        "#ffb74d", "#80deea", "#a5d6a7", "#ef9a9a", "#90caf9",
-      ];
-      const STOCKS_RAMP = ["#7eb8e8", "#5a9bd5", "#3d7ab8", "#2c5f94", "#1e4468", "#16324e"];
-      const BTC_RAMP = ["#f5c542", "#e0a92e", "#c78f1f", "#a67417", "#856012", "#634a0e"];
-      const pieSVG = (slices) => {
-        const total = slices.reduce((a, s) => a + s.value, 0);
-        if (!total) return "";
-        const cx = 60, cy = 60, r = 54;
-        let ang = -Math.PI / 2;
-        return (
-          `<svg viewBox="0 0 120 120" class="pie" role="img" aria-label="allocation pie chart">` +
-          slices
-            .map((s) => {
-              const frac = s.value / total;
-              const a0 = ang, a1 = ang + frac * Math.PI * 2;
-              ang = a1;
-              const x0 = (cx + r * Math.cos(a0)).toFixed(1), y0 = (cy + r * Math.sin(a0)).toFixed(1);
-              const x1 = (cx + r * Math.cos(a1)).toFixed(1), y1 = (cy + r * Math.sin(a1)).toFixed(1);
-              return (
-                `<path d="M${cx},${cy} L${x0},${y0} A${r},${r} 0 ${frac > 0.5 ? 1 : 0},1 ${x1},${y1} Z" fill="${s.color}">` +
-                `<title>${escapeHtml(s.label)} — ${money(s.value)} (${(frac * 100).toFixed(1)}%)</title></path>`
-              );
-            })
-            .join("") +
-          `</svg>`
-        );
-      };
-      const pieCard = (title, positions, ramp) => {
-        const valued = positions
-          .filter((p) => p.market_value != null && Number(p.market_value) > 0)
-          .map((p, i) => ({
-            label: p.symbol || "—",
-            value: Number(p.market_value),
-            color: (ramp || PIE_COLORS)[i % (ramp || PIE_COLORS).length],
-          }));
-        if (!valued.length) {
-          return `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div><p class="hint">No valued positions</p></div>`;
-        }
-        const MAX_SLICES = 8;
-        let slices = valued;
-        if (valued.length > MAX_SLICES) {
-          const head = valued.slice(0, MAX_SLICES - 1);
-          const rest = valued.slice(MAX_SLICES - 1);
-          head.push({
-            label: "Other",
-            value: rest.reduce((a, s) => a + s.value, 0),
-            color: "#4a5568",
-          });
-          slices = head;
-        }
-        const total = slices.reduce((a, s) => a + s.value, 0);
-        const legend = slices
-          .map(
-            (s) =>
-              `<li><span class="dot" style="background:${s.color}"></span>` +
-              `<span>${escapeHtml(s.label)}</span><span class="pct">${((s.value / total) * 100).toFixed(1)}%</span></li>`
-          )
-          .join("");
-        return (
-          `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div>` +
-          `<div class="pie-wrap">${pieSVG(slices)}<ul class="pie-legend">${legend}</ul></div></div>`
-        );
-      };
+      // Allocation pies: all holdings, stocks sleeve, BTC+ sleeve (shared pieSVG/pieCard)
       const fmPiesEl = document.getElementById("fm-pies");
       if (fmPiesEl) {
         fmPiesEl.innerHTML =
