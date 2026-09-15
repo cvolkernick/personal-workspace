@@ -21,10 +21,10 @@ SW = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
 class EnergyWeightAlignMarkup(unittest.TestCase):
     def test_overlay_wired_before_app_js(self):
         self.assertIn("/energy-weight-align.js?v=ewi-cap-1", HTML)
-        self.assertIn("/app.js?v=recipes-dish-1", HTML)
+        self.assertIn("/app.js?v=vol-7d-1", HTML)
         self.assertLess(
             HTML.find("/energy-weight-align.js?v=ewi-cap-1"),
-            HTML.find("/app.js?v=recipes-dish-1"),
+            HTML.find("/app.js?v=vol-7d-1"),
         )
         self.assertIn("FitDashEnergyWeightAlign", APP_JS)
         self.assertIn("energyWeightAlignment", APP_JS)
@@ -70,7 +70,8 @@ class EnergyWeightAlignNode(unittest.TestCase):
 
 class EnergyWeightAlignCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v100"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v101"', SW)
+        self.assertNotIn("fitdash-shell-v100", SW)
         self.assertNotIn("fitdash-shell-v98", SW)
         self.assertNotIn("fitdash-shell-v96", SW)
         self.assertNotIn("fitdash-shell-v90", SW)
@@ -78,7 +79,8 @@ class EnergyWeightAlignCache(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v88", SW)
         self.assertNotIn("fitdash-shell-v87", SW)
         self.assertNotIn("fitdash-shell-v86", SW)
-        self.assertIn("/app.js?v=recipes-dish-1", SW)
+        self.assertIn("/app.js?v=vol-7d-1", SW)
+        self.assertNotIn("/app.js?v=recipes-dish-1", SW)
         self.assertNotIn("fitdash-shell-v81", SW)
         self.assertNotIn("fitdash-shell-v80", SW)
         self.assertNotIn("fitdash-shell-v79", SW)

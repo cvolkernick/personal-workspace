@@ -690,11 +690,15 @@
 
   function renderCharts(data) {
     // Daily volume = last 90 calendar days, one bar per day (0 if no session).
+    // 7d rolling = trailing weekly volume (day + previous 6; rest days stay 0).
     const vol = data.volume_by_day || [];
     const volLabels = vol.map((v) => v.date);
     const volVals = vol.map((v) => v.volume);
     const volTrend = linearTrend(volVals);
+    const volRoll7 = rollingAverage(volVals, 7);
     const vSlope = trendSlopePerDay(volVals);
+    const lastVolRoll =
+      [...volRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
     destroyChart(volumeChart);
     volumeChart = new Chart($("chart-volume"), {
       data: {
@@ -706,7 +710,19 @@
             data: volVals,
             backgroundColor: "rgba(61,156,240,0.55)",
             borderRadius: 4,
-            order: 2,
+            order: 3,
+          },
+          {
+            type: "line",
+            label: "7d rolling avg",
+            data: volRoll7,
+            borderColor: "#f07178",
+            backgroundColor: "#f07178",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.25,
+            spanGaps: true,
+            order: 1,
           },
           {
             type: "line",
@@ -717,7 +733,7 @@
             borderWidth: 2.5,
             pointRadius: 0,
             tension: 0,
-            order: 1,
+            order: 2,
           },
         ],
       },
@@ -739,13 +755,17 @@
     if ($("volume-trend-note")) {
       const trained = volVals.filter((v) => v > 0).length;
       const total = volVals.reduce((s, v) => s + (Number(v) || 0), 0);
+      const rollTxt =
+        lastVolRoll == null
+          ? ""
+          : ` · 7d avg ${fmtNum(lastVolRoll)} lb`;
       if (vSlope == null || trained < 2) {
         $("volume-trend-note").textContent =
-          `Last ${vol.length} days · ${trained} training days · total ${fmtNum(total)} lb`;
+          `Last ${vol.length} days · ${trained} training days · total ${fmtNum(total)} lb${rollTxt}`;
       } else {
         const dir = vSlope > 0 ? "up" : vSlope < 0 ? "down" : "flat";
         $("volume-trend-note").textContent =
-          `Last ${vol.length} days · ${trained} training days · total ${fmtNum(total)} lb · ` +
+          `Last ${vol.length} days · ${trained} training days · total ${fmtNum(total)} lb${rollTxt} · ` +
           `trend ${dir} (~${vSlope >= 0 ? "+" : ""}${Math.round(vSlope * 7).toLocaleString()} lb/week)`;
       }
     }
