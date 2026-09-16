@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import shutil
 import subprocess
@@ -104,6 +105,76 @@ class TestSyncScriptGuards(unittest.TestCase):
         self.assertIn("last_served_origin_sha", text)
         self.assertIn("install_live_commit_hook", text)
         self.assertIn("refuses local commits", text)
+
+    def test_journal_preserve_globs_skip_python(self) -> None:
+        text = SYNC_SH.read_text(encoding="utf-8")
+        self.assertIn("-name '*journal.md'", text)
+        self.assertIn("-name '*journal.jsonl'", text)
+        self.assertNotRegex(text, r"-name '\*journal\*'")
+        self.assertIn("! -name '*.py'", text)
+        self.assertIn("! -name '*.pyc'", text)
+        self.assertIn("#661", text)
+
+        names = (
+            "fund_manager_journal.md",
+            "fund_manager_journal.jsonl",
+            "fund_manager_decisions.jsonl",
+            "fund_manager_journal_sync.py",
+            "fund_manager_journal_sync.pyc",
+            "secrets.json",
+            "treasury_latest.json",
+        )
+        journal_ok = {"fund_manager_journal.md", "fund_manager_journal.jsonl"}
+        always_ok = {"secrets.json", "treasury_latest.json"}
+        for name in names:
+            if name.endswith(".py") or name.endswith(".pyc"):
+                matched = False
+            else:
+                matched = any(
+                    fnmatch.fnmatch(name, pat)
+                    for pat in ("*journal.md", "*journal.jsonl", "*_latest.json", "secrets.json")
+                )
+            if name in journal_ok or name in always_ok:
+                self.assertTrue(matched, name)
+            else:
+                self.assertFalse(matched, name)
+
+        with tempfile.TemporaryDirectory(prefix="ws-journal-glob-") as td:
+            root = Path(td)
+            for d in (
+                "treasury",
+                "investment",
+                "ops",
+                "fitness",
+                "financial-command",
+                "iot",
+            ):
+                (root / d).mkdir()
+            (root / "treasury" / "fund_manager_journal_sync.py").write_text("x\n")
+            (root / "treasury" / "fund_manager_journal_sync.pyc").write_bytes(b"x")
+            (root / "investment" / "fund_manager_journal.md").write_text("x\n")
+            (root / "investment" / "fund_manager_journal.jsonl").write_text("{}\n")
+            (root / "investment" / "fund_manager_decisions.jsonl").write_text("{}\n")
+            proc = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    "find treasury investment ops fitness financial-command iot -maxdepth 3 "
+                    "\\( -name '*journal.md' -o -name '*journal.jsonl' "
+                    "-o -name '*_latest.json' -o -name 'secrets.json' \\) "
+                    "! -name '*.py' ! -name '*.pyc'",
+                ],
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            found = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+            self.assertIn("investment/fund_manager_journal.md", found)
+            self.assertIn("investment/fund_manager_journal.jsonl", found)
+            self.assertNotIn("investment/fund_manager_decisions.jsonl", found)
+            self.assertNotIn("treasury/fund_manager_journal_sync.py", found)
+            self.assertNotIn("treasury/fund_manager_journal_sync.pyc", found)
 
 
 if __name__ == "__main__":
