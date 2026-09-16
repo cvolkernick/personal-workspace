@@ -403,9 +403,9 @@ class ApplyCoachFrontend(unittest.TestCase):
     def test_app_js_cache_bust(self):
         html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
         sw = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
-        self.assertIn("/app.js?v=pf-applink-582-1", html)
-        self.assertIn("/app.js?v=pf-applink-582-1", sw)
-        self.assertIn('const CACHE = "fitdash-shell-v104"', sw)
+        self.assertIn("/app.js?v=ing-micros-612-1", html)
+        self.assertIn("/app.js?v=ing-micros-612-1", sw)
+        self.assertIn('const CACHE = "fitdash-shell-v105"', sw)
         self.assertNotIn("/app.js?v=recipes-dish-1", html)
         self.assertNotIn("/app.js?v=recipes-dish-1", sw)
         self.assertNotIn("fitdash-shell-v100", sw)

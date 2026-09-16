@@ -2359,6 +2359,13 @@
     renderInventory(state && state.nutrition_store);
   }
 
+  function optionalMicroNumber(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (s === "") return null;
+    const n = Number(s);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
   function collectInventoryEdit(card) {
     const get = (field) => {
       const el = card && card.querySelector(`[data-edit-field="${field}"]`);
@@ -2375,6 +2382,9 @@
       protein_g: Number(get("protein_g")),
       carbs_g: Number(get("carbs_g")),
       fat_g: Number(get("fat_g")),
+      fiber_g: optionalMicroNumber(get("fiber_g")),
+      sugar_g: optionalMicroNumber(get("sugar_g")),
+      sodium_mg: optionalMicroNumber(get("sodium_mg")),
     };
     if (Number.isFinite(servingG) && servingG > 0) {
       body.serving_g = servingG;
@@ -2397,6 +2407,16 @@
     const cat = String(ing.category || "other");
     const sg = Number(ing.serving_g);
     const gVal = Number.isFinite(sg) && sg > 0 ? String(Math.round(sg)) : "";
+    const fiberVal =
+      ing.fiber_g != null && ing.fiber_g !== "" ? String(ing.fiber_g) : "";
+    const sugarVal =
+      ing.sugar_g != null && ing.sugar_g !== "" ? String(ing.sugar_g) : "";
+    let sodiumVal = "";
+    if (ing.sodium_mg != null && ing.sodium_mg !== "") {
+      sodiumVal = String(ing.sodium_mg);
+    } else if (ing.sodium_g != null && ing.sodium_g !== "") {
+      sodiumVal = String(Math.round(Number(ing.sodium_g) * 1000));
+    }
     const cats = ["protein", "carb", "veg", "fat", "other"];
     const opts = cats
       .map((c) => {
@@ -2436,6 +2456,17 @@
           <label>Fat (g) <input type="number" data-edit-field="fat_g" min="0" step="0.1" value="${invEscapeAttr(
             ing.fat_g
           )}" required /></label>
+        </div>
+        <div class="inv-edit-row macros">
+          <label>Fiber (g) <input type="number" data-edit-field="fiber_g" min="0" max="100" step="0.1" value="${invEscapeAttr(
+            fiberVal
+          )}" placeholder="e.g. 3" /></label>
+          <label>Sugar (g) <input type="number" data-edit-field="sugar_g" min="0" max="300" step="0.1" value="${invEscapeAttr(
+            sugarVal
+          )}" placeholder="e.g. 5" /></label>
+          <label>Salt (sodium mg) <input type="number" data-edit-field="sodium_mg" min="0" max="10000" step="1" value="${invEscapeAttr(
+            sodiumVal
+          )}" placeholder="e.g. 120" /></label>
         </div>
         <div class="actions inv-card-actions">
           <button type="submit" class="primary" data-action="edit-save" data-id="${iid}">Save</button>
@@ -7260,6 +7291,12 @@
       stock: "in",
       in_stock: true,
     };
+    const fiber = optionalMicroNumber($("ing-fiber") && $("ing-fiber").value);
+    const sugar = optionalMicroNumber($("ing-sugar") && $("ing-sugar").value);
+    const sodium = optionalMicroNumber($("ing-sodium") && $("ing-sodium").value);
+    if (fiber != null) body.fiber_g = fiber;
+    if (sugar != null) body.sugar_g = sugar;
+    if (sodium != null) body.sodium_mg = sodium;
     // Prefer weighable grams; macros apply to this mass. Never invent grams.
     if (Number.isFinite(servingG) && servingG > 0) {
       body.serving_g = servingG;
@@ -7288,6 +7325,9 @@
       $("ing-name").value = "";
       if ($("ing-serving-g")) $("ing-serving-g").value = "";
       if ($("ing-serving")) $("ing-serving").value = "";
+      if ($("ing-fiber")) $("ing-fiber").value = "";
+      if ($("ing-sugar")) $("ing-sugar").value = "";
+      if ($("ing-sodium")) $("ing-sodium").value = "";
       if (data.inventory) {
         applyInventoryUpdate(data.inventory);
       }

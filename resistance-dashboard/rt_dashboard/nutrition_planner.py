@@ -2981,6 +2981,15 @@ def update_ingredient(inventory: dict, raw: dict) -> dict:
         overlay["serving_g"] = raw.get("serving_g")
     elif existing.get("serving_g") is not None:
         overlay["serving_g"] = existing.get("serving_g")
+    for key in ("fiber_g", "sugar_g", "sodium_mg"):
+        if key in raw:
+            overlay[key] = raw.get(key)
+        elif existing.get(key) is not None:
+            overlay[key] = existing.get(key)
+    if "sodium_mg" not in overlay and "sodium_g" in raw:
+        overlay["sodium_g"] = raw.get("sodium_g")
+    elif "sodium_mg" not in overlay and existing.get("sodium_g") is not None:
+        overlay["sodium_g"] = existing.get("sodium_g")
     require_serving_grams_or_raise(overlay)
     ing = normalize_ingredient(overlay)
     # Keep the existing id so a rename does not mint a second row.
