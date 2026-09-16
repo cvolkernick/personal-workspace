@@ -160,6 +160,7 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(expenses.get("target") or "", "_blank")
 
         index_html = (FCC / "index.html").read_text(encoding="utf-8")
+        self.assertIn("nav-robinhood.js", index_html)
         h1 = re.search(r"<h1\b.*?</h1>", index_html, re.S)
         self.assertIsNotNone(h1)
         self.assertNotIn("nav-coinbase", h1.group(0))
@@ -488,6 +489,15 @@ class TestRootNavJsRemap(unittest.TestCase):
         self.assertEqual(prefixed, 200)
         self.assertEqual(prefixed_body, expected)
 
+    def test_root_nav_robinhood_js_is_fcc_sibling(self) -> None:
+        expected = (FCC / "nav-robinhood.js").read_bytes()
+        code, body = self._get("/nav-robinhood.js")
+        self.assertEqual(code, 200)
+        self.assertEqual(body, expected)
+        prefixed, prefixed_body = self._get("/financial-command/nav-robinhood.js")
+        self.assertEqual(prefixed, 200)
+        self.assertEqual(prefixed_body, expected)
+
     def test_root_nav_orchestra_js_is_gone(self) -> None:
         code, _ = self._get("/nav-orchestra.js")
         self.assertEqual(code, 404)
@@ -505,6 +515,8 @@ class TestRootNavJsRemap(unittest.TestCase):
         self.assertIn(b"nav-fleet.js", root_body)
         self.assertIn(b'id="nav-horizon"', root_body)
         self.assertIn(b"nav-horizon.js", root_body)
+        self.assertIn(b'id="nav-robinhood"', root_body)
+        self.assertIn(b"nav-robinhood.js", root_body)
         self.assertNotIn(b"nav-orchestra", root_body)
         self.assertNotIn(b"Orchestrator", root_body)
         html_code, html_body = self._get("/financial-command/index.html")
@@ -529,6 +541,7 @@ class TestRootNavJsRemap(unittest.TestCase):
         remap = self.mod._root_fcc_js_remap
         self.assertEqual(remap("/nav-fleet.js"), "/financial-command/nav-fleet.js")
         self.assertEqual(remap("/nav-horizon.js"), "/financial-command/nav-horizon.js")
+        self.assertEqual(remap("/nav-robinhood.js"), "/financial-command/nav-robinhood.js")
         self.assertIsNone(remap("/nav-orchestra.js"))
         self.assertIsNone(remap("/financial-command/nav-fleet.js"))
         self.assertIsNone(remap("/no-such-nav.js"))
