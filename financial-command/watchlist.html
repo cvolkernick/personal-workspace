@@ -516,6 +516,10 @@
           if (res.ok) data = await res.json();
         } catch (_) {}
         if (!data || !data.ok) throw new Error((data && data.error) || "API unavailable — start financial-command/server.py");
+        if (data.error) {
+          err.classList.remove("hidden");
+          err.textContent = data.error;
+        }
         render(data);
       } catch (e) {
         err.classList.remove("hidden");
@@ -555,7 +559,7 @@
       const root = document.getElementById("entries");
       const entries = data.entries || [];
       if (!entries.length) {
-        root.innerHTML = `<section class="card"><p class="hint">No public watchlist entries yet. Add to investment/watchlist.json or run /fund-manager-research.</p></section>`;
+        root.innerHTML = `<section class="card"><p class="${data.error ? "error" : "hint"}">${esc(data.error || "No public watchlist entries yet. Add to investment/watchlist.json or run /fund-manager-research.")}</p></section>`;
       } else {
         root.innerHTML = entries
           .map((e) => {

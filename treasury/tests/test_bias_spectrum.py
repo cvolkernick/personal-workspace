@@ -555,9 +555,16 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertEqual(payload["btc_count"], 4)
         self.assertEqual(payload["stocks_count"], 4)
 
+    def test_policy_roots_exclude_local_treasury_worktree(self) -> None:
+        from treasury.bias_spectrum import TREASURY_WORKTREE, _policy_roots
+
+        roots = {p.resolve() if p.exists() else p for p in _policy_roots()}
+        self.assertNotIn(TREASURY_WORKTREE, roots)
+        self.assertNotIn(TREASURY_WORKTREE.resolve(), roots)
+
     def test_git_work_treasury_policy_when_file_missing(self) -> None:
         fm = _fm()
-        with patch("treasury.bias_spectrum._first_json", return_value={}):
+        with patch("treasury.bias_spectrum._first_policy_json", return_value={}):
             with patch("treasury.bias_spectrum._git_show_json", return_value=_policy()):
                 payload = build_bias_spectrum(
                     fund_manager=fm, treasury={}, watchlist=_watchlist()
@@ -570,7 +577,7 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
     def test_snapshot_allowlist_when_policy_and_git_missing(self) -> None:
         fm = _fm()
         fm["analysis"]["allowlist_core"] = ["MSTR", "STRC", "SATA", "TSLA"]
-        with patch("treasury.bias_spectrum._first_json", return_value={}):
+        with patch("treasury.bias_spectrum._first_policy_json", return_value={}):
             with patch("treasury.bias_spectrum._git_show_json", return_value={}):
                 payload = build_bias_spectrum(
                     fund_manager=fm, treasury={}, watchlist=_watchlist()

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -63,6 +64,7 @@ class TestDashboardArtifact(unittest.TestCase):
 
         dash = build_watchlist_dashboard()
         self.assertTrue(dash.get("ok"))
+        self.assertIsNone(dash.get("error"))
         self.assertGreaterEqual(dash.get("count", 0), 1)
         syms = [e["symbol"] for e in dash.get("entries") or []]
         self.assertIn("BE", syms)
@@ -78,6 +80,18 @@ class TestDashboardArtifact(unittest.TestCase):
         dive = get_deep_dive_markdown("BE")
         self.assertTrue(dive.get("ok"), dive.get("error"))
         self.assertIn("Bloom", (dive.get("markdown") or "")[:500] or "x")
+
+    def test_watchlist_dashboard_errors_when_file_missing(self):
+        from treasury import watchlist_dashboard as wd
+
+        missing = Path("/tmp/fcc-619-no-watchlist.json")
+        with mock.patch.object(wd, "WATCHLIST_PATH", missing):
+            dash = wd.build_watchlist_dashboard()
+        self.assertTrue(dash.get("ok"))
+        self.assertTrue(dash.get("error"))
+        self.assertIn("watchlist.json", dash["error"])
+        self.assertEqual(dash.get("count"), 0)
+        self.assertEqual(dash.get("entries"), [])
 
     def test_capital_flows_model(self):
         html = (ROOT / "financial-command" / "capital-flows.html").read_text(

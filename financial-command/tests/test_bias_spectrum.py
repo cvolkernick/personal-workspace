@@ -70,6 +70,13 @@ class TestBiasSpectrumPage(unittest.TestCase):
         self.assertIn('chip.lane === "above"', html)
         self.assertIn("toFixed(2)", html)
         self.assertNotIn("Math.abs(p.x - x) < 86", html)
+        self.assertIn("if (data.error)", html)
+        self.assertIn('id="load-error"', html)
+
+    def test_watchlist_page_surfaces_missing_file_error(self) -> None:
+        html = (FCC / "watchlist.html").read_text(encoding="utf-8")
+        self.assertIn("if (data.error)", html)
+        self.assertIn('id="load-error"', html)
 
     def test_fcc_index_has_bias_deep_link(self) -> None:
         html = INDEX.read_text(encoding="utf-8")
