@@ -1,13 +1,99 @@
-"""Recovery status from weight, sleep, and recent training volume."""
+"""Recovery status from weight, sleep, RHR, and recent training volume."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import List, Optional, Sequence
+from statistics import median
+from typing import Any, Dict, List, Optional, Sequence
 
-from .models import RecoveryStatus, Session, SleepSample, WeightSample
+from .models import (
+    RecoveryStatus,
+    RestingHeartRateDay,
+    Session,
+    SleepSample,
+    WeightSample,
+)
 from .analytics import recent_training_volume
 from .sleep_series import calendar_avg_sleep_hours
+
+# Elevated RHR vs personal median is a fatigue/illness flag (Banister / Firstbeat).
+# +5 bpm = under-recovered (easy intensity). +8 bpm = rest day.
+RHR_UNDER_RECOVERED_BPM = 5.0
+RHR_REST_BPM = 8.0
+RHR_SCORE_UNDER = 12.0
+RHR_SCORE_REST = 8.0  # extra on top of UNDER when delta >= REST
+RHR_MIN_SAMPLES_14 = 7
+RHR_MIN_SAMPLES_7 = 4
+
+
+def rhr_readiness(
+    rhr: Sequence[RestingHeartRateDay],
+    as_of: str,
+) -> Dict[str, Any]:
+    """Compare today's RHR to a 14d (else 7d) median of prior days.
+
+    Silent skip when today is missing or the baseline window is too thin.
+    Never invents bpm. HRV / VO2 / SpO2 / respiratory rate are out of scope.
+    """
+    empty: Dict[str, Any] = {
+        "skipped": True,
+        "under_recovered": False,
+        "today_bpm": None,
+        "baseline_bpm": None,
+        "baseline_days": None,
+        "delta_bpm": None,
+        "n": 0,
+    }
+    by: Dict[str, float] = {}
+    for row in rhr or []:
+        date = str(getattr(row, "date", "") or "")[:10]
+        bpm = getattr(row, "bpm", None)
+        if not date or bpm is None:
+            continue
+        try:
+            val = float(bpm)
+        except (TypeError, ValueError):
+            continue
+        if val <= 0:
+            continue
+        by[date] = val
+    today = by.get(as_of)
+    if today is None:
+        return empty
+    try:
+        as_of_d = datetime.strptime(as_of, "%Y-%m-%d")
+    except ValueError:
+        return empty
+
+    def _prior(days: int) -> List[float]:
+        start = (as_of_d - timedelta(days=days)).strftime("%Y-%m-%d")
+        return [bpm for d, bpm in by.items() if start <= d < as_of]
+
+    vals14 = _prior(14)
+    vals7 = _prior(7)
+    if len(vals14) >= RHR_MIN_SAMPLES_14:
+        baseline = float(median(vals14))
+        window = 14
+        n = len(vals14)
+    elif len(vals7) >= RHR_MIN_SAMPLES_7:
+        baseline = float(median(vals7))
+        window = 7
+        n = len(vals7)
+    else:
+        out = dict(empty)
+        out["today_bpm"] = round(today, 1)
+        out["n"] = max(len(vals14), len(vals7))
+        return out
+    delta = today - baseline
+    return {
+        "skipped": False,
+        "under_recovered": delta >= RHR_UNDER_RECOVERED_BPM,
+        "today_bpm": round(today, 1),
+        "baseline_bpm": round(baseline, 1),
+        "baseline_days": window,
+        "delta_bpm": round(delta, 1),
+        "n": n,
+    }
 
 
 def _avg_sleep_hours(
@@ -52,6 +138,7 @@ def compute_recovery_status(
     sessions: Sequence[Session],
     as_of: Optional[str] = None,
     high_volume_threshold: float = 25000.0,
+    rhr: Sequence[RestingHeartRateDay] = (),
 ) -> RecoveryStatus:
     """
     Produce an explicit recovery-status suggestion from health + training context.
@@ -130,6 +217,23 @@ def compute_recovery_status(
     if latest_w is not None:
         reasons.append(f"Latest body weight {latest_w:.1f} lb")
 
+    rhr_sig = rhr_readiness(rhr, as_of)
+    if not rhr_sig.get("skipped"):
+        today_bpm = rhr_sig.get("today_bpm")
+        baseline = rhr_sig.get("baseline_bpm")
+        window = rhr_sig.get("baseline_days")
+        delta = rhr_sig.get("delta_bpm")
+        if rhr_sig.get("under_recovered"):
+            score -= RHR_SCORE_UNDER
+            if delta is not None and float(delta) >= RHR_REST_BPM:
+                score -= RHR_SCORE_REST
+            sign = "+" if float(delta or 0) >= 0 else ""
+            reasons.append(
+                f"RHR {today_bpm:.0f} bpm is {sign}{float(delta):.0f} vs "
+                f"{window}d median {baseline:.0f} — under-recovered"
+            )
+        # On-pace RHR stays off the reason list (Trends owns the series).
+
     score = max(0.0, min(100.0, score))
 
     if score >= 75:
@@ -151,5 +255,11 @@ def compute_recovery_status(
             "latest_weight_lbs": latest_w,
             "weight_delta_7d_lbs": w_delta,
             "training_volume_7d": vol_7d,
+            "rhr_skipped": bool(rhr_sig.get("skipped")),
+            "rhr_today_bpm": rhr_sig.get("today_bpm"),
+            "rhr_baseline_bpm": rhr_sig.get("baseline_bpm"),
+            "rhr_baseline_days": rhr_sig.get("baseline_days"),
+            "rhr_delta_bpm": rhr_sig.get("delta_bpm"),
+            "rhr_under_recovered": bool(rhr_sig.get("under_recovered")),
         },
     )

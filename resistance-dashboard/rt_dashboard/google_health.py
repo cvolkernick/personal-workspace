@@ -28,6 +28,7 @@ from .models import (
     HealthSnapshot,
     HydrationDay,
     NutritionDay,
+    RestingHeartRateDay,
     SleepSample,
     WeightSample,
 )
@@ -199,6 +200,8 @@ class GoogleHealthClient:
             pt.get("hydration_log") or {},
             pt.get("sleep") or {},
             pt.get("weight") or {},
+            pt.get("dailyRestingHeartRate") or {},
+            pt.get("daily_resting_heart_rate") or {},
         ):
             if not isinstance(nest, dict):
                 continue
@@ -211,6 +214,9 @@ class GoogleHealthClient:
                     got = _civil(block.get("date") or block)
                     if got:
                         return got
+            got = _civil(nest.get("date"))
+            if got:
+                return got
             st = nest.get("sampleTime") or {}
             if isinstance(st, dict):
                 got = _civil(((st.get("civilTime") or {}) or {}).get("date"))
@@ -526,6 +532,26 @@ class GoogleHealthClient:
             data = self.daily_rollup("active-zone-minutes", days=min(days, chunk))
             return parse_active_zone_minutes_rollup(data)
 
+    def fetch_resting_heart_rate(self, days: int = 30) -> List[RestingHeartRateDay]:
+        """Daily RHR — ``daily-resting-heart-rate`` list (not dailyRollUp).
+
+        Google Health documents list/reconcile only for this daily type.
+        Missing payload → honest []. Never substitutes heart-rate samples,
+        HRV, VO2, SpO2, or respiratory rate.
+        """
+        days = max(1, min(int(days), 90))
+        cutoff = (datetime.now().astimezone().date() - timedelta(days=days - 1)).isoformat()
+        max_pages = 4 if days >= 60 else 3
+        try:
+            data = self._paginate_data_points(
+                "daily-resting-heart-rate",
+                max_pages=max_pages,
+                until_date=cutoff,
+            )
+            return parse_daily_resting_heart_rate_points(data, days=days)
+        except GoogleHealthError:
+            return []
+
     def fetch_health(self, days: int = 30) -> HealthSnapshot:
         if not self.credentials_present():
             return HealthSnapshot(
@@ -549,6 +575,7 @@ class GoogleHealthClient:
         hydration: List[HydrationDay] = []
         calories_burned: List[CaloriesBurnedDay] = []
         active_zone_minutes: List[ActiveZoneMinutesDay] = []
+        resting_heart_rate: List[RestingHeartRateDay] = []
 
         def _weight() -> List[WeightSample]:
             return self.fetch_weight(days=days)
@@ -571,6 +598,9 @@ class GoogleHealthClient:
             # Same requested window as the snapshot (capped at 90 inside fetch).
             return self.fetch_active_zone_minutes(days=min(max(1, int(days)), 90))
 
+        def _rhr() -> List[RestingHeartRateDay]:
+            return self.fetch_resting_heart_rate(days=min(max(1, int(days)), 90))
+
         jobs = {
             "weight": _weight,
             "sleep": _sleep,
@@ -578,10 +608,11 @@ class GoogleHealthClient:
             "hydration": _hydration,
             "calories_burned": _burned,
             "active_zone_minutes": _azm,
+            "resting_heart_rate": _rhr,
         }
         # Parallel streams — sequential multi-calls was exceeding the dashboard
         # 20s wall timeout even when Google was healthy.
-        with ThreadPoolExecutor(max_workers=6) as pool:
+        with ThreadPoolExecutor(max_workers=7) as pool:
             futs = {pool.submit(fn): name for name, fn in jobs.items()}
             for fut in as_completed(futs):
                 name = futs[fut]
@@ -605,6 +636,8 @@ class GoogleHealthClient:
                     calories_burned = result  # type: ignore[assignment]
                 elif name == "active_zone_minutes":
                     active_zone_minutes = result  # type: ignore[assignment]
+                elif name == "resting_heart_rate":
+                    resting_heart_rate = result  # type: ignore[assignment]
 
         err = "; ".join(errors) if errors else None
         if (
@@ -615,6 +648,7 @@ class GoogleHealthClient:
             and not hydration
             and not calories_burned
             and not active_zone_minutes
+            and not resting_heart_rate
             and err
         ):
             return HealthSnapshot(error=err)
@@ -627,6 +661,7 @@ class GoogleHealthClient:
             hydration=hydration,
             calories_burned=calories_burned,
             active_zone_minutes=active_zone_minutes,
+            resting_heart_rate=resting_heart_rate,
             error=err,
         )
 
@@ -1311,6 +1346,48 @@ def parse_active_zone_minutes_rollup(payload: dict) -> List[ActiveZoneMinutesDay
             peak_minutes=round(peak, 1) if peak is not None else None,
             total_minutes=round(sum(present), 1),
             source="google_health",
+        )
+    return [by_date[k] for k in sorted(by_date.keys())]
+
+
+def parse_daily_resting_heart_rate_points(
+    payload: dict,
+    days: int = 30,
+) -> List[RestingHeartRateDay]:
+    """Parse list() of ``daily-resting-heart-rate`` dataPoints.
+
+    Union field is ``dailyRestingHeartRate`` / ``daily_resting_heart_rate``.
+    ``beatsPerMinute`` may be a JSON string. Missing / empty → []. Never
+    reads heartRate, HRV, VO2, SpO2, or respiratory-rate fields.
+    """
+    if not isinstance(payload, dict):
+        return []
+    cutoff = None
+    if days:
+        cutoff = (datetime.now().astimezone().date() - timedelta(days=max(1, int(days) - 1))).isoformat()
+    by_date: Dict[str, RestingHeartRateDay] = {}
+    for pt in payload.get("dataPoints") or []:
+        if not isinstance(pt, dict):
+            continue
+        block = pt.get("dailyRestingHeartRate") or pt.get("daily_resting_heart_rate") or {}
+        if not isinstance(block, dict):
+            continue
+        date = _civil_date_str(block.get("date") or block)
+        if not date:
+            date = _civil_date_str(pt.get("civilStartTime"))
+        if not date:
+            continue
+        if cutoff and date < cutoff:
+            continue
+        bpm = _num(
+            block.get("beatsPerMinute"),
+            block.get("beats_per_minute"),
+            block.get("bpm"),
+        )
+        if bpm is None or bpm <= 0:
+            continue
+        by_date[date] = RestingHeartRateDay(
+            date=date, bpm=round(bpm, 1), source="google_health"
         )
     return [by_date[k] for k in sorted(by_date.keys())]
 

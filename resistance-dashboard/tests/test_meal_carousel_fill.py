@@ -115,7 +115,7 @@ class MealCarouselFillLayout(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertIn("/styles.css?v=pace-rows-650-1", HTML)
         self.assertIn("/styles.css?v=pace-rows-650-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v107"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v108"', SW)
         self.assertNotIn("fitdash-shell-v100", SW)
         self.assertNotIn("/styles.css?v=meal-carousel-fill-3", HTML)
         self.assertNotIn("/styles.css?v=meal-carousel-fill-3", SW)

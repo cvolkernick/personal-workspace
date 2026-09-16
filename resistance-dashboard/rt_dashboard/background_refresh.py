@@ -245,6 +245,7 @@ def _refresh_health(
         or merged.hydration
         or merged.calories_burned
         or merged.active_zone_minutes
+        or merged.resting_heart_rate
     ):
         save_health_cache(merged, error=merged.error)
     else:

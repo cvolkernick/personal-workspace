@@ -396,9 +396,42 @@ def rest_gate(
         score_f = float(score) if score is not None else None
     except (TypeError, ValueError):
         score_f = None
-    force = score_f is not None and score_f < threshold and not bool(sparse)
+    inputs = rec.get("inputs") if isinstance(rec.get("inputs"), dict) else {}
+    rhr_under = bool(rec.get("rhr_under_recovered") or inputs.get("rhr_under_recovered"))
+    rhr_delta = rec.get("rhr_delta_bpm")
+    if rhr_delta is None:
+        rhr_delta = inputs.get("rhr_delta_bpm")
+    try:
+        rhr_delta_f = float(rhr_delta) if rhr_delta is not None else None
+    except (TypeError, ValueError):
+        rhr_delta_f = None
+    # +8 bpm vs personal median is a rest-day flag even when sleep is sparse.
+    rhr_rest = rhr_under and rhr_delta_f is not None and rhr_delta_f >= 8.0
+    score_rest = score_f is not None and score_f < threshold and not bool(sparse)
+    force = bool(score_rest or rhr_rest)
     reason = None
-    if force:
+    if rhr_rest:
+        today_bpm = rec.get("rhr_today_bpm")
+        if today_bpm is None:
+            today_bpm = inputs.get("rhr_today_bpm")
+        baseline = rec.get("rhr_baseline_bpm")
+        if baseline is None:
+            baseline = inputs.get("rhr_baseline_bpm")
+        window = rec.get("rhr_baseline_days") or inputs.get("rhr_baseline_days") or 14
+        try:
+            today_txt = f"{float(today_bpm):.0f}"
+        except (TypeError, ValueError):
+            today_txt = "—"
+        try:
+            base_txt = f"{float(baseline):.0f}"
+        except (TypeError, ValueError):
+            base_txt = "—"
+        reason = (
+            f"RHR {today_txt} bpm is +{rhr_delta_f:.0f} vs "
+            f"{int(window)}d median {base_txt} — under-recovered. "
+            "Suggested rest or light walk/mobility only."
+        )
+    elif score_rest:
         reason = (
             f"Recovery score {score_f:.0f} is below threshold "
             f"({threshold}). Suggested rest or light walk/mobility only."
@@ -409,6 +442,8 @@ def rest_gate(
         "score": score_f,
         "sparse": bool(sparse),
         "reason": reason,
+        "rhr_under_recovered": rhr_under,
+        "rhr_delta_bpm": rhr_delta_f,
     }
 
 

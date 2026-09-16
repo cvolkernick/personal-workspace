@@ -191,6 +191,22 @@ class CaloriesBurnedDay:
 
 
 @dataclass
+class RestingHeartRateDay:
+    """One civil day's resting heart rate from Google Health.
+
+    Source type is ``daily-resting-heart-rate`` only. Never invent bpm from
+    heart-rate samples, HRV, AZM, or calories.
+    """
+
+    date: str
+    bpm: float
+    source: str = "google_health"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class ActiveZoneMinutesDay:
     """Daily Active Zone Minutes from Google Health dailyRollUp.
 
@@ -226,6 +242,7 @@ class HealthSnapshot:
     hydration: List[HydrationDay] = field(default_factory=list)
     calories_burned: List[CaloriesBurnedDay] = field(default_factory=list)
     active_zone_minutes: List[ActiveZoneMinutesDay] = field(default_factory=list)
+    resting_heart_rate: List[RestingHeartRateDay] = field(default_factory=list)
     error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -238,6 +255,7 @@ class HealthSnapshot:
             "hydration": [h.to_dict() for h in self.hydration],
             "calories_burned": [c.to_dict() for c in self.calories_burned],
             "active_zone_minutes": [a.to_dict() for a in self.active_zone_minutes],
+            "resting_heart_rate": [r.to_dict() for r in self.resting_heart_rate],
             "error": self.error,
         }
 

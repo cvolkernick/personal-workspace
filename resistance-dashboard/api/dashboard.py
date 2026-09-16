@@ -233,6 +233,7 @@ def preview_workout_plan(
     recovery_label=None,
     recovery_score=None,
     recovery_sparse=False,
+    recovery_rhr_under=False,
     as_of=None,
     equipment=None,
     train_parent_completed=False,
@@ -249,6 +250,7 @@ def preview_workout_plan(
         recovery_label=recovery_label,
         recovery_score=recovery_score,
         recovery_sparse=bool(recovery_sparse),
+        recovery_rhr_under=bool(recovery_rhr_under),
         as_of=as_of,
         equipment=equipment,
         train_parent_completed=bool(train_parent_completed),
@@ -334,6 +336,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         sleep=health.sleep or [],
         sessions=sessions,
         as_of=today,
+        rhr=health.resting_heart_rate or [],
     )
     sleep_battery = sleep_battery_from_fitdash_sleep(
         [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
@@ -551,6 +554,9 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             recovery_label=recovery_dict.get("label"),
             recovery_score=recovery_dict.get("score"),
             recovery_sparse=not had_real_sleep,
+            recovery_rhr_under=bool(
+                (recovery_dict.get("inputs") or {}).get("rhr_under_recovered")
+            ),
             as_of=today,
             equipment=equipment,
             train_parent_completed=train_parent_done,

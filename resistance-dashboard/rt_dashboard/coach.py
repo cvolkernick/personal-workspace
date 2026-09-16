@@ -262,6 +262,23 @@ def compute_weekly_review(
     if w_delta is not None:
         sign = "+" if w_delta >= 0 else ""
         bullets.append(f"Weight: {sign}{w_delta} lb over recent weigh-ins")
+    rhr_in = recovery.inputs if isinstance(recovery.inputs, dict) else {}
+    if not rhr_in.get("rhr_skipped") and rhr_in.get("rhr_today_bpm") is not None:
+        today_bpm = rhr_in.get("rhr_today_bpm")
+        baseline = rhr_in.get("rhr_baseline_bpm")
+        window = rhr_in.get("rhr_baseline_days") or 14
+        delta = rhr_in.get("rhr_delta_bpm")
+        if rhr_in.get("rhr_under_recovered") and delta is not None:
+            sign = "+" if float(delta) >= 0 else ""
+            bullets.append(
+                f"RHR: {float(today_bpm):.0f} bpm is {sign}{float(delta):.0f} vs "
+                f"{int(window)}d median {float(baseline):.0f} — under-recovered"
+            )
+        elif baseline is not None:
+            bullets.append(
+                f"RHR: {float(today_bpm):.0f} bpm vs {int(window)}d median "
+                f"{float(baseline):.0f}"
+            )
     bullets.append(
         f"Recovery now: {recovery.label} ({recovery.score:.0f}/100) — "
         + (recovery.reasons[0] if recovery.reasons else "no detail")
@@ -399,9 +416,10 @@ def build_today_board(
     # when the plan said so. Sparse sleep looking like low recovery must not
     # print a Rest headline next to a lift slot.
     rec_label = "rest" if wp.get("is_rest_day") else "train"
+    rhr_under = bool((recovery.inputs or {}).get("rhr_under_recovered"))
     if wp.get("already_trained_today"):
         rec_label = "done"
-    elif not wp.get("is_rest_day") and recovery.score < 55:
+    elif not wp.get("is_rest_day") and (recovery.score < 55 or rhr_under):
         rec_label = "easy"
 
     focus = (wp.get("volume") or {}).get("focus") or (wp.get("context") or {}).get(

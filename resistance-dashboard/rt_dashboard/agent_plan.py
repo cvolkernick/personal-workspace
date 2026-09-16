@@ -182,6 +182,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
             sleep=sleep_for_recovery,
             sessions=sessions,
             as_of=today,
+            rhr=health.resting_heart_rate or [],
         )
         recovery = rec.to_dict() if hasattr(rec, "to_dict") else {}
         recovery["sparse"] = not had_real_sleep

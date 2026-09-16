@@ -9,6 +9,7 @@
   let strengthChart = null;
   let weightChart = null;
   let sleepChart = null;
+  let rhrChart = null;
   let caloriesChart = null;
   let macrosChart = null;
   let hydrationChart = null;
@@ -594,6 +595,7 @@
       strengthChart,
       weightChart,
       sleepChart,
+      rhrChart,
       caloriesChart,
       macrosChart,
       hydrationChart,
@@ -667,6 +669,54 @@
         if (v != null && !Number.isNaN(Number(v))) slice.push(Number(v));
       }
       out.push(slice.length ? slice.reduce((s, x) => s + x, 0) / slice.length : null);
+    }
+    return out;
+  }
+
+  function rollingMedian(values, window) {
+    const out = [];
+    for (let i = 0; i < values.length; i++) {
+      const slice = [];
+      for (let j = Math.max(0, i - window + 1); j <= i; j++) {
+        const v = values[j];
+        if (v != null && !Number.isNaN(Number(v))) slice.push(Number(v));
+      }
+      if (!slice.length) {
+        out.push(null);
+        continue;
+      }
+      slice.sort((a, b) => a - b);
+      const mid = Math.floor(slice.length / 2);
+      out.push(
+        slice.length % 2 ? slice[mid] : (slice[mid - 1] + slice[mid]) / 2
+      );
+    }
+    return out;
+  }
+
+  /** Missing RHR days stay null (never 0 bpm). Silent skip when empty. */
+  function fillRhrCalendarDays(points, windowDays = 90) {
+    const by = {};
+    (points || []).forEach((r) => {
+      if (!r || !r.date) return;
+      const bpm = Number(r.bpm);
+      if (!Number.isFinite(bpm) || bpm <= 0) return;
+      by[String(r.date).slice(0, 10)] = bpm;
+    });
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const z = (n) => String(n).padStart(2, "0");
+    const iso = (dt) =>
+      `${dt.getFullYear()}-${z(dt.getMonth() + 1)}-${z(dt.getDate())}`;
+    const out = [];
+    for (let i = windowDays - 1; i >= 0; i--) {
+      const d = new Date(end);
+      d.setDate(d.getDate() - i);
+      const key = iso(d);
+      out.push({
+        date: key,
+        bpm: by[key] != null ? by[key] : null,
+      });
     }
     return out;
   }
@@ -1041,6 +1091,84 @@
             ? ` · ${zeroNights} night(s) with no log counted as 0h`
             : "";
         $("sleep-trend-note").textContent = `Latest 7d avg: ${lastRoll.toFixed(2)} h (${vsGoal})${slopeTxt}${zeroTxt} · ${sleep.length} calendar days`;
+      }
+    }
+
+    const rhrRaw = [...((data.health && data.health.resting_heart_rate) || [])].sort(
+      (a, b) => String(a.date).localeCompare(String(b.date))
+    );
+    const rhrFilled = fillRhrCalendarDays(rhrRaw, 90);
+    const rhr = downsamplePoints(rhrFilled, 90);
+    const rhrVals = rhr.map((r) =>
+      r && r.bpm != null && Number(r.bpm) > 0 ? Number(r.bpm) : null
+    );
+    const rhrMedian14 = rollingMedian(rhrVals, 14);
+    const rhrPresent = rhrVals.filter((v) => v != null).length;
+    destroyChart(rhrChart);
+    if ($("chart-rhr")) {
+      rhrChart = new Chart($("chart-rhr"), {
+        type: "line",
+        data: {
+          labels: rhr.map((r) => r.date),
+          datasets: [
+            {
+              label: "RHR (bpm)",
+              data: rhrVals,
+              borderColor: "#f07178",
+              backgroundColor: "rgba(240,113,120,0.12)",
+              tension: 0.25,
+              fill: false,
+              pointRadius: 2,
+              spanGaps: true,
+              order: 2,
+            },
+            {
+              label: "14d median",
+              data: rhrMedian14,
+              borderColor: "#3d9cf0",
+              borderDash: [6, 4],
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0,
+              spanGaps: true,
+              fill: false,
+              order: 1,
+            },
+          ],
+        },
+        options: {
+          ...chartDefaults(),
+          scales: {
+            ...chartDefaults().scales,
+            y: {
+              ...chartDefaults().scales.y,
+              suggestedMin: 45,
+              suggestedMax: 80,
+            },
+          },
+        },
+      });
+    }
+    if ($("rhr-trend-note")) {
+      if (!rhrPresent) {
+        $("rhr-trend-note").textContent =
+          "No resting heart rate yet — skipped.";
+      } else {
+        const recIn = (data.recovery && data.recovery.inputs) || {};
+        const todayBpm = recIn.rhr_today_bpm;
+        const baseline = recIn.rhr_baseline_bpm;
+        const delta = recIn.rhr_delta_bpm;
+        const window = recIn.rhr_baseline_days;
+        if (!recIn.rhr_skipped && todayBpm != null && baseline != null) {
+          const sign = Number(delta) >= 0 ? "+" : "";
+          const flag = recIn.rhr_under_recovered ? " · under-recovered" : "";
+          $("rhr-trend-note").textContent =
+            `Today ${Number(todayBpm).toFixed(0)} bpm vs ${window || 14}d median ${Number(baseline).toFixed(0)} (${sign}${Number(delta).toFixed(0)})${flag} · ${rhrPresent} days`;
+        } else {
+          const last = [...rhrVals].reverse().find((v) => v != null);
+          $("rhr-trend-note").textContent =
+            `Latest ${last != null ? last.toFixed(0) : "—"} bpm · ${rhrPresent} days (baseline needs more days)`;
+        }
       }
     }
 
