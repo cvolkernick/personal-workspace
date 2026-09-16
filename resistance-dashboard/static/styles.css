@@ -1900,6 +1900,19 @@ footer {
   .macro-kcal-block {
     text-align: left;
   }
+  /* #650: stack pace-row label above values; slightly smaller than desktop */
+  .macro-progress-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.12rem;
+    font-size: 0.72rem;
+  }
+  .macro-progress-nums {
+    line-height: 1.35;
+  }
+  .macro-progress-list {
+    gap: 0.32rem;
+  }
 }
 
 /* Kitchen row: Ingredient Inventory.
