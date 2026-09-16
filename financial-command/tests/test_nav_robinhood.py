@@ -26,15 +26,19 @@ class TestNavRobinhoodMarkup(unittest.TestCase):
 
     def test_sw_precaches_nav_robinhood(self) -> None:
         self.assertIn('"/nav-robinhood.js"', SW)
-        self.assertIn("fcc-shell-v4", SW)
+        self.assertIn("fcc-shell-v5", SW)
+        self.assertNotIn("fcc-shell-v4", SW)
 
 
 class TestNavRobinhoodJs(unittest.TestCase):
     def test_helpers_and_contracts(self) -> None:
         self.assertIn("function isMobileUa", JS)
+        self.assertIn("function isMobileNav", JS)
         self.assertIn("function launchHref", JS)
+        self.assertIn("function applyMobileAnchor", JS)
         self.assertIn("function openRobinhood", JS)
         self.assertIn("function wireRobinhoodNav", JS)
+        self.assertIn("function onDocumentClick", JS)
         self.assertIn('ANDROID_PACKAGE = "com.robinhood.android"', JS)
         self.assertIn("intent://robinhood.com/#Intent;scheme=https;package=", JS)
         self.assertIn("encodeURIComponent(MOBILE_WEB_HREF)", JS)
@@ -44,12 +48,18 @@ class TestNavRobinhoodJs(unittest.TestCase):
         self.assertIn('MOBILE_WEB_HREF = "https://robinhood.com/"', JS)
         self.assertNotIn("action=android.intent.action.MAIN", JS)
         self.assertNotIn("category=android.intent.category.LAUNCHER", JS)
-        self.assertIn("getElementById(\"nav-robinhood\")", JS)
+        self.assertIn('getElementById("nav-robinhood")', JS)
+        self.assertIn('document.addEventListener("click"', JS)
+        self.assertIn('removeAttribute("target")', JS)
+        self.assertIn("userAgentData", JS)
+        self.assertIn("uad.mobile === true", JS)
+        self.assertNotIn('node.addEventListener("click"', JS)
         self.assertIn("wireRobinhoodNav", JS)
 
-    def test_detection_is_ua_not_viewport(self) -> None:
+    def test_detection_is_ua_or_client_hints_not_viewport(self) -> None:
         self.assertIn("/Android/i", JS)
         self.assertIn("/iPhone|iPad|iPod/i", JS)
+        self.assertIn("userAgentData", JS)
         self.assertNotIn("matchMedia", JS)
         self.assertNotIn("maxTouchPoints", JS)
         self.assertNotIn("innerWidth", JS)
