@@ -150,3 +150,16 @@ See [positions.md](./positions.md) and [FUND_MANAGER_RUNBOOK.md](./FUND_MANAGER_
 - Action items / automation: [treasury-action-items.md](./treasury-action-items.md)
 - Liquidity policy (floors / stress — not trade alpha): `treasury/policy.py`, `treasury/config.json`
 - RH agentic skill: Grok skill `robinhood-agentic`
+
+## Fund developments digest series
+
+> Migrated from issues #716 (process) and #727/#754/#783 (open digests), closed 2026-09-16. **Chairman decision:** digests live in [`investment/digests/`](digests/) as dated files — GitHub issues are actionable tasks, not a data store.
+
+The daily agentic fund-developments digest is **human-only** — it is Naka's capital-allocation loop, not engineering work.
+
+- The morning sweep writes `investment/digests/YYYY-MM-DD.md` — never a GitHub issue, never with `status:ready`.
+- Naka reads the file, adjusts weightings, and appends his report under `## Naka: actions taken` in the same file. That section is the durable record.
+- Never route the digest series through the eng-gate dispatcher.
+- `[Agents] Naka: …` titles remain the convention for actual Naka **eng** work (FCC/product).
+
+Background: #715 (2026-09-13) was mis-stamped `status:ready` at creation and got auto-staffed to Forge; Grok confirmed restaff to Naka for that cycle only. The bug was the Ready stamp, not the owner matcher.
