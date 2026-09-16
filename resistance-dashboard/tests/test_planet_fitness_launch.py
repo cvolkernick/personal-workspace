@@ -63,10 +63,11 @@ class ClubPassJs(unittest.TestCase):
         self.assertIn("function openPlanetFitnessApp", JS)
         self.assertIn("function bindPlanetFitnessLaunch", JS)
         self.assertIn('PF_ANDROID_PACKAGE = "com.planetfitness"', JS)
-        self.assertIn("intent://#Intent;scheme=planetfitness;package=", JS)
+        self.assertIn('PF_ANDROID_SCHEME = "planetfitness.app.link"', JS)
+        self.assertIn("intent://open#Intent;scheme=", JS)
         self.assertIn("encodeURIComponent(PF_PLAY_STORE)", JS)
         self.assertNotIn("scheme=https;package=", JS)
-        self.assertNotIn("intent://open", JS)
+        self.assertNotIn("intent://#Intent;scheme=planetfitness;package=", JS)
         self.assertNotIn("action=android.intent.action.MAIN", JS)
         self.assertNotIn("category=android.intent.category.LAUNCHER", JS)
         self.assertIn(
@@ -91,11 +92,14 @@ class ClubPassJs(unittest.TestCase):
 
 class ClubPassCacheAndHobby(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=log-date-771-1", HTML)
-        self.assertIn("/app.js?v=log-date-771-1", SW)
+        self.assertIn("/app.js?v=pf-applink-582-1", HTML)
+        self.assertIn("/app.js?v=pf-applink-582-1", SW)
         self.assertIn("/styles.css?v=kitchen-collapse-1", HTML)
         self.assertIn("/styles.css?v=kitchen-collapse-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v103"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v104"', SW)
+        self.assertNotIn("/app.js?v=log-date-771-1", HTML)
+        self.assertNotIn("/app.js?v=log-date-771-1", SW)
+        self.assertNotIn("fitdash-shell-v103", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", HTML)
         self.assertNotIn("/app.js?v=recipes-dish-1", SW)
         self.assertNotIn("fitdash-shell-v100", SW)

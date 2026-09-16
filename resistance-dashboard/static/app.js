@@ -6767,6 +6767,7 @@
 
   /* Planet Fitness Club Pass — launch the app, do not deep-link check-in. */
   const PF_ANDROID_PACKAGE = "com.planetfitness";
+  const PF_ANDROID_SCHEME = "planetfitness.app.link";
   const PF_PLAY_STORE =
     "https://play.google.com/store/apps/details?id=com.planetfitness";
   const PF_IOS_STORE = "https://apps.apple.com/app/id399857015";
@@ -6775,8 +6776,12 @@
   function planetFitnessLaunchHref(ua) {
     const agent = ua || "";
     if (/Android/i.test(agent)) {
+      // Chrome only launches BROWSABLE activities. PF's is Branch
+      // planetfitness.app.link://open — not planetfitness://, not MAIN/LAUNCHER.
       return (
-        "intent://#Intent;scheme=planetfitness;package=" +
+        "intent://open#Intent;scheme=" +
+        PF_ANDROID_SCHEME +
+        ";package=" +
         PF_ANDROID_PACKAGE +
         ";S.browser_fallback_url=" +
         encodeURIComponent(PF_PLAY_STORE) +
