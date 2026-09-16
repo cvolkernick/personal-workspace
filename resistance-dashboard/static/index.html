@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=calorie-phase-1" />
+    <link rel="stylesheet" href="/styles.css?v=kitchen-collapse-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=calorie-phase-1" defer></script>
+    <script src="/app.js?v=kitchen-collapse-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -524,7 +524,11 @@
       <!-- Kitchen: dishes (Turso). Method required — groupings stay on meal-plan quick-add. -->
       <section class="card" style="margin-top: 1rem" id="recipes-section" data-m-panel="kitchen">
         <article class="card-fill" id="recipes-card">
-          <h2>Recipes</h2>
+          <button type="button" class="collapsible-head kitchen-collapse-head is-collapsed" data-collapse="recipes" aria-expanded="false">
+            <h2>Recipes</h2>
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="collapsible-body" data-collapse-body="recipes" hidden>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             A recipe is a <strong>dish</strong>: ingredients transformed by a method
             into one thing you portion and log (smoothie, soup, stir-fry). Yield is
@@ -569,13 +573,18 @@
           </form>
           <div id="recipes-list" class="recipes-list" style="margin-top:0.85rem"></div>
           <div id="recipe-detail" class="recipe-detail" hidden></div>
+          </div>
         </article>
       </section>
 
       <!-- Kitchen ops: Ingredient Inventory (Daily Targets under More) -->
       <section class="grid equal-cards inv-meal-row" style="margin-top: 1rem" id="inventory-section" data-m-panel="kitchen">
         <article class="card card-fill" id="inventory-card">
-          <h2>Ingredient Inventory</h2>
+          <button type="button" class="collapsible-head kitchen-collapse-head is-collapsed" data-collapse="inventory" aria-expanded="false">
+            <h2>Ingredient Inventory</h2>
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="collapsible-body" data-collapse-body="inventory" hidden>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Full pantry first (in/out of stock). Suggested staples and removals
             are secondary. Data:
@@ -623,6 +632,7 @@
           <div id="inventory-list" class="inv-list inv-list-scroll" style="margin-top: 0.85rem"></div>
           <div id="inventory-suggestions" class="inv-suggestions" style="margin-top: 0.85rem"></div>
           <div id="inventory-removals" class="inv-removals" style="margin-top: 0.85rem"></div>
+          </div>
         </article>
 
       </section>

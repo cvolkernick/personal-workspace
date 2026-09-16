@@ -3,9 +3,9 @@ const CACHE = "fitdash-shell-v102";
 const PRECACHE = [
   "/",
   "/index.html",
-  "/styles.css?v=calorie-phase-1",
+  "/styles.css?v=kitchen-collapse-1",
   "/history-sets.js?v=history-sets-1",
-  "/app.js?v=calorie-phase-1",
+  "/app.js?v=kitchen-collapse-1",
   "/meal-snapshot.js?v=meal-slot-1",
   "/manifest.webmanifest",
   "/icon-192.png",
