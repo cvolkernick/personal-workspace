@@ -1,0 +1,93 @@
+# Swarm ROI ledger (#773).
+# Install: mkdir -p .github/workflows && cp ops/github-workflows/swarm-roi.yml .github/workflows/
+# (requires git auth with `workflow` scope to push under .github/workflows/)
+#
+# Local:
+#   python3 projects-dashboard/swarm_roi.py record --pr N
+#   python3 projects-dashboard/swarm_roi.py rollup
+name: swarm-roi
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master, "work/**"]
+  schedule:
+    # Monday 12:10 UTC
+    - cron: "10 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  record:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Record merged PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 projects-dashboard/swarm_roi.py record --pr "${{ github.event.pull_request.number }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/swarm-roi/records
+          if git diff --cached --quiet; then
+            echo "no ledger change"
+            exit 0
+          fi
+          git commit -m "chore(swarm-roi): record PR #${{ github.event.pull_request.number }} [skip ci]"
+          git push origin "HEAD:${{ github.event.pull_request.base.ref }}" || {
+            echo "push blocked — commenting JSON on the PR"
+            gh pr comment "${{ github.event.pull_request.number }}" --body "Swarm ROI record (push to ledger blocked):
+
+          \`\`\`json
+          $(cat ops/swarm-roi/records/pr-${{ github.event.pull_request.number }}.json)
+          \`\`\`"
+          }
+
+  weekly:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Backfill rework windows and weekly rollup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 projects-dashboard/swarm_roi.py sync
+          python3 projects-dashboard/swarm_roi.py backfill-rework
+          python3 projects-dashboard/swarm_roi.py rollup
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ops/swarm-roi
+          if git diff --cached --quiet; then
+            echo "no ledger change"
+            exit 0
+          fi
+          git commit -m "chore(swarm-roi): weekly rollup [skip ci]"
+          git push
