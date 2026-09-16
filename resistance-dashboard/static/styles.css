@@ -3357,6 +3357,32 @@ body.m-shell .quest-card {
   background: linear-gradient(90deg, rgba(92, 225, 168, 0.45), rgba(92, 225, 168, 0.95));
 }
 
+/* Phase-aware tone (#763): overrides sign color. Green = near phase target. */
+.delta-fill.delta-left.band-green {
+  background: linear-gradient(270deg, rgba(92, 225, 168, 0.95), rgba(92, 225, 168, 0.45));
+}
+.delta-fill.delta-right.band-green {
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.45), rgba(92, 225, 168, 0.95));
+}
+.delta-fill.delta-left.band-amber,
+.delta-fill.delta-left.band-yellow {
+  background: linear-gradient(270deg, rgba(240, 180, 41, 0.95), rgba(240, 180, 41, 0.45));
+}
+.delta-fill.delta-right.band-amber,
+.delta-fill.delta-right.band-yellow {
+  background: linear-gradient(90deg, rgba(240, 180, 41, 0.45), rgba(240, 180, 41, 0.95));
+}
+.delta-fill.delta-left.band-red {
+  background: linear-gradient(270deg, rgba(240, 113, 120, 0.95), rgba(240, 113, 120, 0.45));
+}
+.delta-fill.delta-right.band-red {
+  background: linear-gradient(90deg, rgba(240, 113, 120, 0.45), rgba(240, 113, 120, 0.95));
+}
+.delta-fill.delta-left.band-neutral,
+.delta-fill.delta-right.band-neutral {
+  background: rgba(255, 255, 255, 0.28);
+}
+
 .delta-labels {
   position: absolute;
   left: 0;

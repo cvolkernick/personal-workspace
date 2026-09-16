@@ -63,6 +63,15 @@ PHASE_LABELS = {
 
 CANONICAL_PHASES = ("cut", "slow_bulk", "maintain", "recomp")
 
+# Signed daily intake−burned landmarks when TDEE/applied is missing.
+# Cut ≈ −300, lean bulk ≈ +200, maintenance/recomp ≈ 0 (issue #763).
+PHASE_TARGET_DELTA_KCAL = {
+    "cut": -300.0,
+    "slow_bulk": 200.0,
+    "maintain": 0.0,
+    "recomp": 0.0,
+}
+
 _WEEKLY_RE = re.compile(
     r"14d scale weekly\s*([+-]?\d+(?:\.\d+)?)\s*lb/week", re.I
 )
@@ -120,6 +129,33 @@ def canonical_phase(raw: Any) -> str:
 
 def phase_label(phase: str) -> str:
     return PHASE_LABELS.get(canonical_phase(phase), (phase or "—").title())
+
+
+def phase_calorie_target_delta(
+    phase: Any, kpis: Optional[dict] = None
+) -> Optional[float]:
+    """Signed daily CICO target (intake − burned) for this phase.
+
+    Prefers applied vs TDEE (``kpis.deficit_kcal`` = TDEE − applied, so the
+    CICO target is ``-deficit_kcal``). Falls back to phase landmarks.
+    Returns None when phase is unset or not a known canonical phase.
+    """
+    raw = str(phase or "").strip()
+    if not raw:
+        return None
+    p = canonical_phase(raw)
+    if p not in PHASE_TARGET_DELTA_KCAL:
+        return None
+    blob = kpis if isinstance(kpis, dict) else {}
+    deficit = _as_float(blob.get("deficit_kcal"))
+    if deficit is not None:
+        return round(-deficit, 1)
+    applied = _as_dict(blob.get("applied"))
+    tdee = _as_float(blob.get("tdee_kcal"))
+    cal = _as_float(applied.get("calories"))
+    if tdee is not None and cal is not None:
+        return round(cal - tdee, 1)
+    return PHASE_TARGET_DELTA_KCAL[p]
 
 
 def store_path(user_id: Optional[str] = None) -> Path:
