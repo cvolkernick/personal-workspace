@@ -405,7 +405,7 @@ class ApplyCoachFrontend(unittest.TestCase):
         sw = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
         self.assertIn("/app.js?v=weekly-review-trends-636-1", html)
         self.assertIn("/app.js?v=weekly-review-trends-636-1", sw)
-        self.assertIn('const CACHE = "fitdash-shell-v106"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v107"', sw)
         self.assertNotIn("/app.js?v=recipes-dish-1", html)
         self.assertNotIn("/app.js?v=recipes-dish-1", sw)
         self.assertNotIn("fitdash-shell-v100", sw)
