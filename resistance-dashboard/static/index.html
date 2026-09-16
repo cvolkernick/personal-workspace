@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=ing-micros-612-1" defer></script>
+    <script src="/app.js?v=weekly-review-trends-636-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -280,17 +280,6 @@
         </div>
       </section>
 
-      <section
-        class="card"
-        style="margin-top: 1rem"
-        id="weekly-review-card"
-        data-m-panel="today"
-        aria-label="Weekly review"
-      >
-        <h2>Weekly review</h2>
-        <ul class="reasons" id="weekly-review-bullets" style="margin-top: 0.6rem"></ul>
-      </section>
-
       <!-- Pacing group: hydration · calorie pace · in vs out (keep together above meal exec). -->
       <section
         class="card calorie-bar-card"
@@ -475,6 +464,18 @@
           </p>
           <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
         </article>
+      </section>
+
+      <!-- Weekly review: 7d recap → Trends (not Today). First on Trends. -->
+      <section
+        class="card"
+        style="margin-top: 1rem"
+        id="weekly-review-card"
+        data-m-panel="trends"
+        aria-label="Weekly review"
+      >
+        <h2>Weekly review</h2>
+        <ul class="reasons" id="weekly-review-bullets" style="margin-top: 0.6rem"></ul>
       </section>
 
       <!-- Trends: multi-day series only (no same-day recovery / macro tiles). -->
