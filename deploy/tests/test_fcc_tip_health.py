@@ -36,6 +36,33 @@ def _load():
 
 M = _load()
 
+OWNER_MENTION = f"@{M.OWNER_GITHUB_LOGIN}"
+
+
+def _capture_github():
+    urls: list[str] = []
+    bodies: list[str] = []
+
+    def fake_urlopen(req, timeout=15):
+        urls.append(req.full_url)
+        raw = req.data or b""
+        if isinstance(raw, bytes):
+            bodies.append(raw.decode("utf-8"))
+        else:
+            bodies.append(str(raw))
+        resp = mock.MagicMock()
+        resp.status = 201
+        resp.getcode.return_value = 201
+        resp.__enter__.return_value = resp
+        resp.__exit__.return_value = None
+        return resp
+
+    return urls, bodies, fake_urlopen
+
+
+def _comment_markdown(posted: str) -> str:
+    return json.loads(posted).get("body") or ""
+
 
 def _git(cwd: Path, *args: str) -> str:
     proc = subprocess.run(
@@ -318,6 +345,8 @@ class TestAlertOnce(unittest.TestCase):
             self.assertIn("SUSTAINED", out.get("title") or "")
             self.assertIn("#workflow", out.get("text") or "")
             self.assertTrue(out.get("page"), out)
+            self.assertFalse(out.get("page_owner"), out)
+            self.assertNotIn(OWNER_MENTION, out.get("body") or "")
 
     def test_routine_mismatch_github_not_ntfy(self) -> None:
         """#704: first mismatch comments #701; does not POST ntfy.sh."""
@@ -330,16 +359,7 @@ class TestAlertOnce(unittest.TestCase):
             "attached": "detached",
             "current_branch_txt": "work/treasury",
         }
-        captured: list[str] = []
-
-        def fake_urlopen(req, timeout=15):
-            captured.append(req.full_url)
-            resp = mock.MagicMock()
-            resp.status = 201
-            resp.getcode.return_value = 201
-            resp.__enter__.return_value = resp
-            resp.__exit__.return_value = None
-            return resp
+        urls, bodies, fake_urlopen = _capture_github()
 
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "state.json"
@@ -359,10 +379,14 @@ class TestAlertOnce(unittest.TestCase):
                     state_path=state,
                 )
         self.assertFalse(out.get("page"), out)
+        self.assertFalse(out.get("page_owner"), out)
         self.assertTrue(out.get("notified"), out)
         self.assertTrue((out.get("github") or {}).get("posted"), out)
-        self.assertTrue(any("issues/701/comments" in u for u in captured), captured)
-        self.assertFalse(any("ntfy.sh" in u for u in captured), captured)
+        self.assertTrue(any("issues/701/comments" in u for u in urls), urls)
+        self.assertFalse(any("ntfy.sh" in u for u in urls), urls)
+        markdown = _comment_markdown(bodies[0])
+        self.assertNotIn(OWNER_MENTION, markdown)
+        self.assertIn("#701", markdown)
 
     def test_sustained_github_not_ntfy(self) -> None:
         now = datetime.now(timezone.utc)
@@ -378,16 +402,7 @@ class TestAlertOnce(unittest.TestCase):
             "attached": "work/treasury",
             "current_branch_txt": "work/treasury",
         }
-        captured: list[str] = []
-
-        def fake_urlopen(req, timeout=15):
-            captured.append(req.full_url)
-            resp = mock.MagicMock()
-            resp.status = 200
-            resp.getcode.return_value = 200
-            resp.__enter__.return_value = resp
-            resp.__exit__.return_value = None
-            return resp
+        urls, bodies, fake_urlopen = _capture_github()
 
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "state.json"
@@ -410,10 +425,13 @@ class TestAlertOnce(unittest.TestCase):
                 )
         self.assertTrue(out.get("ok"), out)
         self.assertTrue(out.get("page"), out)
+        self.assertFalse(out.get("page_owner"), out)
         self.assertTrue(out.get("notified"), out)
         self.assertIn("SUSTAINED", out.get("title") or "")
-        self.assertTrue(any("issues/701/comments" in u for u in captured), captured)
-        self.assertFalse(any("ntfy.sh" in u for u in captured), captured)
+        self.assertTrue(any("issues/701/comments" in u for u in urls), urls)
+        self.assertFalse(any("ntfy.sh" in u for u in urls), urls)
+        markdown = _comment_markdown(bodies[0])
+        self.assertNotIn(OWNER_MENTION, markdown)
 
     def test_kill_switch_github_not_ntfy(self) -> None:
         result = {
@@ -425,16 +443,7 @@ class TestAlertOnce(unittest.TestCase):
             "attached": "detached",
             "current_branch_txt": "work/treasury",
         }
-        captured: list[str] = []
-
-        def fake_urlopen(req, timeout=15):
-            captured.append(req.full_url)
-            resp = mock.MagicMock()
-            resp.status = 200
-            resp.getcode.return_value = 200
-            resp.__enter__.return_value = resp
-            resp.__exit__.return_value = None
-            return resp
+        urls, bodies, fake_urlopen = _capture_github()
 
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "state.json"
@@ -453,10 +462,14 @@ class TestAlertOnce(unittest.TestCase):
                     state_path=state,
                 )
         self.assertTrue(out.get("page"), out)
+        self.assertTrue(out.get("page_owner"), out)
         self.assertIn("KILL-SWITCH", out.get("title") or "")
         self.assertTrue(out.get("notified"), out)
-        self.assertTrue(any("issues/701/comments" in u for u in captured), captured)
-        self.assertFalse(any("ntfy.sh" in u for u in captured), captured)
+        self.assertTrue(any("issues/701/comments" in u for u in urls), urls)
+        self.assertFalse(any("ntfy.sh" in u for u in urls), urls)
+        markdown = _comment_markdown(bodies[0])
+        fence = markdown.index("```")
+        self.assertIn(OWNER_MENTION, markdown[:fence])
 
     def test_not_a_repo_title_is_check_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -518,6 +531,69 @@ class TestAlertOnce(unittest.TestCase):
             self.assertIn("kind=drift", out["text"])
         finally:
             td.cleanup()
+
+
+class TestSkipChris(unittest.TestCase):
+    """#659: routine drift must not GitHub-mention the repo owner."""
+
+    def test_build_ops_comment_omits_owner_mention(self) -> None:
+        body = M.build_ops_comment_body(
+            "FCC · git tip drift · prism-gateway",
+            "page_owner=False kill_switch=False",
+            page_owner=False,
+        )
+        self.assertNotIn(OWNER_MENTION, body)
+        self.assertIn("Silent to owner", body)
+        self.assertIn("#701", body)
+        self.assertIn("#workflow", body)
+
+    def test_build_ops_comment_kill_switch_mentions_owner_outside_fence(self) -> None:
+        body = M.build_ops_comment_body(
+            "FCC · git tip drift KILL-SWITCH · prism-gateway",
+            "page_owner=True kill_switch=True",
+            page_owner=True,
+        )
+        fence = body.index("```")
+        self.assertIn(OWNER_MENTION, body[:fence])
+        self.assertTrue(M._page_owner(kill=True))
+        self.assertFalse(M._page_owner(kill=False))
+
+    def test_routine_posted_comment_skips_owner(self) -> None:
+        """Live POST body for non-kill-switch drift has no owner @mention."""
+        result = {
+            "ok": False,
+            "outcome": "violation",
+            "kind": "drift",
+            "mismatches": ["HEAD abc != origin/work/treasury def"],
+            "expected_branch": "work/treasury",
+            "head": "abc",
+            "origin_sha": "def",
+            "attached": "work/treasury",
+            "current_branch_txt": "work/treasury",
+        }
+        urls, bodies, fake_urlopen = _capture_github()
+        with tempfile.TemporaryDirectory() as td:
+            env = {
+                "GITHUB_TOKEN": "ghs_test",
+                "PI_OPS_ALERT_ISSUE": "701",
+                "FCC_ALERT_KILL_SWITCH": "0",
+            }
+            with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+                "urllib.request.urlopen", side_effect=fake_urlopen
+            ):
+                out = M.alert_mismatch(
+                    result,
+                    workspace=Path(td),
+                    state_path=Path(td) / "state.json",
+                )
+        self.assertTrue(out.get("notified"), out)
+        self.assertFalse(out.get("page_owner"), out)
+        self.assertFalse(out.get("page"), out)
+        markdown = _comment_markdown(bodies[0])
+        self.assertNotIn(OWNER_MENTION, markdown)
+        self.assertIn("Silent to owner", markdown)
+        self.assertTrue(any("issues/701/comments" in u for u in urls), urls)
+        self.assertIn("page_owner=False", out.get("text") or "")
 
 
 class TestCli(unittest.TestCase):
