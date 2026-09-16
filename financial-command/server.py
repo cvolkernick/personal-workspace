@@ -516,6 +516,68 @@ def _root_fcc_js_remap(path: str) -> str | None:
     return _root_fcc_file_remap(path)
 
 
+CANONICAL_HTTPS_HOST = "prism-gateway.tailb1085a.ts.net"
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+_PWA_MANIFEST_PATHS = (
+    "/manifest.webmanifest",
+    "/financial-command/manifest.webmanifest",
+)
+
+
+def parse_host_header(host: str) -> tuple[str, int | None]:
+    raw = (host or "").strip().lower()
+    if not raw:
+        return "", None
+    if raw.startswith("["):
+        end = raw.find("]")
+        if end == -1:
+            return raw, None
+        name = raw[: end + 1]
+        rest = raw[end + 1 :]
+        if rest.startswith(":") and rest[1:].isdigit():
+            return name, int(rest[1:])
+        return name, None
+    if raw.count(":") == 1:
+        name, port_s = raw.split(":", 1)
+        if port_s.isdigit():
+            return name, int(port_s)
+    return raw, None
+
+
+def is_pwa_install_origin(*, host: str = "", forwarded_proto: str = "") -> bool:
+    """True when this request is the canonical HTTPS PWA origin or loopback.
+
+    Tailscale Serve terminates TLS and forwards HTTP to :8000. The browser
+    origin is https://prism-gateway.tailb1085a.ts.net — Host is the cert CN
+    (no :8000) and/or X-Forwarded-Proto: https. Plain-HTTP LAN (IP:8000,
+    MagicDNS:8000) stays browse-only so Chromium does not install an
+    insecure app (#749). Loopback stays installable: it is a secure context
+    and the unit tests bind 127.0.0.1.
+    """
+    proto = (forwarded_proto or "").split(",")[0].strip().lower()
+    if proto == "https":
+        return True
+    name, port = parse_host_header(host)
+    if name in _LOOPBACK_HOSTS:
+        return True
+    if name == CANONICAL_HTTPS_HOST and port in (None, 443):
+        return True
+    return False
+
+
+def build_pwa_manifest(*, install_origin: bool) -> dict:
+    path = ROOT / "financial-command" / "manifest.webmanifest"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        data = {}
+    if install_origin:
+        return data
+    data = dict(data)
+    data["display"] = "browser"
+    data["id"] = "/lan-browse"
+    return data
+
+
 class FCCHandler(SimpleHTTPRequestHandler):
     # PWA manifest MIME (stdlib map often serves .webmanifest as octet-stream)
     extensions_map = {
@@ -917,6 +979,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
+        if self._maybe_serve_pwa_manifest():
+            return
         self._remap_static_path()
         return super().do_GET()
 
@@ -929,8 +993,32 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         if not path.startswith("/api/"):
+            if self._maybe_serve_pwa_manifest():
+                return
             self._remap_static_path()
         return super().do_HEAD()
+
+    def _maybe_serve_pwa_manifest(self) -> bool:
+        path = urlparse(self.path).path
+        if path not in _PWA_MANIFEST_PATHS:
+            return False
+        install = is_pwa_install_origin(
+            host=self.headers.get("Host") or "",
+            forwarded_proto=self.headers.get("X-Forwarded-Proto") or "",
+        )
+        try:
+            payload = build_pwa_manifest(install_origin=install)
+            body = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
+        except (OSError, json.JSONDecodeError, TypeError) as exc:
+            self.send_error(500, str(exc))
+            return True
+        self.send_response(200)
+        self.send_header("Content-Type", "application/manifest+json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+        return True
 
     def _remap_static_path(self) -> None:
         path = urlparse(self.path).path

@@ -140,6 +140,47 @@ class TestFccPwaFiles(unittest.TestCase):
             self.assertIn("pwa.js", html, name)
             self.assertNotIn('navigator.serviceWorker.register("/")', html, name)
 
+    def test_pwa_js_gates_install_to_https_or_loopback(self) -> None:
+        pwa = (FCC / "pwa.js").read_text(encoding="utf-8")
+        self.assertIn("https://prism-gateway.tailb1085a.ts.net", pwa)
+        self.assertIn("beforeinstallprompt", pwa)
+        self.assertIn('location.protocol === "https:"', pwa)
+        self.assertIn("display-mode: standalone", pwa)
+        self.assertIn("isInstallOrigin()", pwa)
+        self.assertIn('navigator.serviceWorker.register("/sw.js")', pwa)
+
+
+class TestFccPwaInstallOrigin(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.mod = _load_fcc_server()
+
+    def test_loopback_and_canonical_are_install(self) -> None:
+        fn = self.mod.is_pwa_install_origin
+        self.assertTrue(fn(host="127.0.0.1:8000"))
+        self.assertTrue(fn(host="localhost:8000"))
+        self.assertTrue(fn(host="[::1]:8000"))
+        self.assertTrue(fn(host="prism-gateway.tailb1085a.ts.net"))
+        self.assertTrue(fn(host="prism-gateway.tailb1085a.ts.net:443"))
+        self.assertTrue(fn(host="192.168.100.98:8000", forwarded_proto="https"))
+
+    def test_lan_http_is_not_install(self) -> None:
+        fn = self.mod.is_pwa_install_origin
+        self.assertFalse(fn(host="192.168.100.98:8000"))
+        self.assertFalse(fn(host="prism-gateway:8000"))
+        self.assertFalse(fn(host="prism-gateway.tailb1085a.ts.net:8000"))
+        self.assertFalse(fn(host="10.0.0.5"))
+        self.assertFalse(fn(host=""))
+
+    def test_lan_manifest_is_browser_display(self) -> None:
+        data = self.mod.build_pwa_manifest(install_origin=False)
+        self.assertEqual(data["display"], "browser")
+        self.assertEqual(data["id"], "/lan-browse")
+        self.assertEqual(data["start_url"], "/")
+        install = self.mod.build_pwa_manifest(install_origin=True)
+        self.assertEqual(install["display"], "standalone")
+        self.assertEqual(install["id"], "/")
+
 
 class TestFccPwaHttp(unittest.TestCase):
     @classmethod
@@ -315,6 +356,58 @@ class TestFccPwaHttp(unittest.TestCase):
         with urllib.request.urlopen(req, timeout=5) as resp:
             self.assertEqual(resp.status, 200)
             self.assertEqual(resp.headers.get("Service-Worker-Allowed"), "/")
+
+    def _get_with_headers(
+        self, path: str, headers: dict[str, str]
+    ) -> tuple[int, str, bytes]:
+        url = f"http://127.0.0.1:{self.port}{path}"
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                ctype = resp.headers.get("Content-Type", "")
+                return resp.status, ctype, resp.read()
+        except urllib.error.HTTPError as exc:
+            ctype = exc.headers.get("Content-Type", "") if exc.headers else ""
+            return exc.code, ctype, exc.read()
+
+    def test_lan_host_manifest_is_browse_only(self) -> None:
+        for host in (
+            "192.168.100.98:8000",
+            "prism-gateway:8000",
+            "prism-gateway.tailb1085a.ts.net:8000",
+        ):
+            code, ctype, body = self._get_with_headers(
+                "/manifest.webmanifest", {"Host": host}
+            )
+            self.assertEqual(code, 200, host)
+            self.assertTrue("json" in ctype.lower() or "manifest" in ctype.lower(), ctype)
+            data = json.loads(body.decode("utf-8"))
+            self.assertEqual(data["display"], "browser", host)
+            self.assertEqual(data["id"], "/lan-browse", host)
+
+    def test_canonical_https_host_manifest_is_standalone(self) -> None:
+        for headers in (
+            {"Host": "prism-gateway.tailb1085a.ts.net"},
+            {"Host": "prism-gateway.tailb1085a.ts.net:443"},
+            {
+                "Host": "192.168.100.98:8000",
+                "X-Forwarded-Proto": "https",
+            },
+        ):
+            code, _, body = self._get_with_headers("/manifest.webmanifest", headers)
+            self.assertEqual(code, 200, headers)
+            data = json.loads(body.decode("utf-8"))
+            self.assertEqual(data["display"], "standalone", headers)
+            self.assertEqual(data["id"], "/", headers)
+
+    def test_lan_host_still_serves_html(self) -> None:
+        code, ctype, body = self._get_with_headers(
+            "/", {"Host": "192.168.100.98:8000"}
+        )
+        self.assertEqual(code, 200)
+        self.assertIn("html", ctype.lower())
+        self.assertIn(b"Financial Command Center", body)
+        self.assertIn(b'href="/manifest.webmanifest"', body)
 
 
 if __name__ == "__main__":
