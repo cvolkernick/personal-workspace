@@ -293,6 +293,10 @@
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "bad payload");
+        if (data.error) {
+          err.classList.remove("hidden");
+          err.textContent = data.error;
+        }
         render(data);
       } catch (e) {
         err.classList.remove("hidden");
@@ -432,7 +436,7 @@
       const list = document.getElementById("chip-list");
       const chips = data.chips || [];
       if (!chips.length) {
-        list.innerHTML = `<li class="hint">${esc(data.error || "No agentic positions or watchlist consider-set yet.")}</li>`;
+        list.innerHTML = `<li class="${data.error ? "error" : "hint"}">${esc(data.error || "No agentic positions or watchlist consider-set yet.")}</li>`;
         return;
       }
       list.innerHTML = chips.map((c) => {

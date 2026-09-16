@@ -157,12 +157,7 @@ def _load_fund_manager(
     return {}
 
 
-def _treasury_roots() -> List[Path]:
-    roots = [ROOT]
-    env = (os.environ.get("FCC_WORKTREE_ROOT") or "").strip()
-    if env:
-        roots.append(Path(env).expanduser())
-    roots.append(TREASURY_WORKTREE)
+def _dedupe_roots(roots: List[Path]) -> List[Path]:
     seen: set[str] = set()
     out: List[Path] = []
     for p in roots:
@@ -174,8 +169,38 @@ def _treasury_roots() -> List[Path]:
     return out
 
 
+def _treasury_roots() -> List[Path]:
+    roots = [ROOT]
+    env = (os.environ.get("FCC_WORKTREE_ROOT") or "").strip()
+    if env:
+        roots.append(Path(env).expanduser())
+    roots.append(TREASURY_WORKTREE)
+    return _dedupe_roots(roots)
+
+
+def _policy_roots() -> List[Path]:
+    """Canonical policy JSON: this checkout, then FCC_WORKTREE_ROOT.
+
+    Do not read ~/personal-workspace-worktrees/treasury — that tree can hold
+    uncommitted local copies (#619). Git fallback is origin/work/treasury.
+    """
+    roots = [ROOT]
+    env = (os.environ.get("FCC_WORKTREE_ROOT") or "").strip()
+    if env:
+        roots.append(Path(env).expanduser())
+    return _dedupe_roots(roots)
+
+
 def _first_json(rel: str) -> Dict[str, Any]:
     for root in _treasury_roots():
+        data = _load_json(root / rel)
+        if data:
+            return data
+    return {}
+
+
+def _first_policy_json(rel: str) -> Dict[str, Any]:
+    for root in _policy_roots():
         data = _load_json(root / rel)
         if data:
             return data
@@ -282,7 +307,7 @@ def _load_policy(
 ) -> Dict[str, Any]:
     if isinstance(policy, dict):
         return policy
-    pol = _first_json("investment/fund_manager.json")
+    pol = _first_policy_json("investment/fund_manager.json")
     if _policy_usable(pol):
         return pol
     pol = _git_show_json("investment/fund_manager.json")
@@ -294,7 +319,7 @@ def _load_policy(
 def _load_watchlist(watchlist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if isinstance(watchlist, dict):
         return watchlist
-    wl = _first_json("investment/watchlist.json")
+    wl = _first_policy_json("investment/watchlist.json")
     if "entries" in wl:
         return wl
     git_wl = _git_show_json("investment/watchlist.json")
@@ -563,7 +588,7 @@ def _load_consider_share_config(
     if watchlist_injected:
         return {}
     for data in (
-        _first_json("investment/consider_share.json"),
+        _first_policy_json("investment/consider_share.json"),
         _git_show_json("investment/consider_share.json"),
     ):
         if _pins_from(data) or _reallocate_from(data):

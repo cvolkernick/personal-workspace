@@ -117,6 +117,19 @@ class TestFundPolicy(unittest.TestCase):
         core = ((p.get("allowlist") or {}).get("core") or [])
         self.assertNotIn("NVDA", [str(s).upper() for s in core])
 
+    def test_canonical_policy_files_are_in_checkout(self):
+        """#619: policy JSON must be committed on this branch, not a local worktree."""
+        for rel in (
+            "investment/fund_manager.json",
+            "investment/watchlist.json",
+            "investment/consider_share.json",
+        ):
+            path = ROOT / rel
+            self.assertTrue(path.is_file(), f"missing {rel}")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIsInstance(data, dict)
+            self.assertTrue(data)
+
     def test_investment_sot_no_contradiction(self):
         """#618: sleeve lists, watchlist, pins, and blocked BE stay aligned."""
         p = load_fund_policy()

@@ -143,6 +143,8 @@ def _held_symbols() -> Dict[str, Any]:
 
 
 def build_watchlist_dashboard() -> Dict[str, Any]:
+    missing_watchlist = not WATCHLIST_PATH.is_file()
+    missing_policy = not FM_POLICY.is_file()
     wl = _load_json(WATCHLIST_PATH)
     policy = _load_json(FM_POLICY)
     fm_snap = _load_json(FM_SNAPSHOT)
@@ -267,8 +269,23 @@ def build_watchlist_dashboard() -> Dict[str, Any]:
         )
     )
 
+    error = None
+    if missing_watchlist:
+        error = (
+            "no watchlist.json — cannot render entries "
+            "(canonical file is investment/watchlist.json on work/treasury)"
+        )
+    elif missing_policy:
+        error = (
+            "no fund_manager.json policy — watchlist loaded without fund policy "
+            "(canonical file is investment/fund_manager.json on work/treasury)"
+        )
+    elif not entries_out:
+        error = "watchlist.json has no entries"
+
     return {
         "ok": True,
+        "error": error,
         "as_of": _now(),
         "watchlist_as_of": wl.get("as_of"),
         "purpose": wl.get("purpose"),
