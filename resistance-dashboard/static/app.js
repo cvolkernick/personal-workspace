@@ -22,6 +22,8 @@
     targets: false,
     "meal-sum": false,
     lift: false,
+    recipes: false,
+    inventory: false,
   };
   function readCollapseOpen() {
     try {
@@ -6117,13 +6119,14 @@
   }
 
   function applyStaticCollapseState(root) {
-    const el = root || $("today-hub") || document;
+    // Document-wide: Kitchen inventory/recipes live outside #today-hub.
+    const el = document;
     el.querySelectorAll("[data-collapse]").forEach((head) => {
       const key = head.getAttribute("data-collapse");
       if (!key || key === "quests") return; // quests re-rendered with state baked in
       if (!(key in collapseOpen)) return;
-      // Strict true only — default-closed keys (lift/meal/targets) stay shut
-      // unless the user explicitly expanded them this session.
+      // Strict true only — default-closed keys stay shut unless the user
+      // explicitly expanded them this session.
       const open = collapseOpen[key] === true;
       head.setAttribute("aria-expanded", open ? "true" : "false");
       head.classList.toggle("is-collapsed", !open);

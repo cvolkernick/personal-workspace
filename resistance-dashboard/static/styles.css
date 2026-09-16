@@ -2996,6 +2996,22 @@ body.m-shell .quest-card {
   display: none !important;
 }
 
+/* Kitchen Recipes / Ingredient Inventory — same disclosure as Today hub. */
+.kitchen-collapse-head {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.kitchen-collapse-head h2 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.kitchen-collapse-head.is-collapsed,
+.kitchen-collapse-head[aria-expanded="false"] {
+  margin-bottom: 0;
+}
+
 /* Re-assert quest header chrome after generic .collapsible-head reset */
 .daily-quests-head.collapsible-head {
   border: 1px solid var(--border);

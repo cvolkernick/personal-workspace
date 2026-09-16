@@ -60,10 +60,10 @@ class HistorySetsModels(unittest.TestCase):
 class HistorySetsMarkup(unittest.TestCase):
     def test_helper_wired_before_app_js(self):
         self.assertIn("/history-sets.js?v=history-sets-1", HTML)
-        self.assertIn("/app.js?v=calorie-phase-1", HTML)
+        self.assertIn("/app.js?v=kitchen-collapse-1", HTML)
         self.assertLess(
             HTML.find("/history-sets.js?v=history-sets-1"),
-            HTML.find("/app.js?v=calorie-phase-1"),
+            HTML.find("/app.js?v=kitchen-collapse-1"),
         )
         self.assertIn("FitDashHistorySets", APP_JS)
         self.assertIn("formatExerciseLine", APP_JS)
@@ -86,8 +86,7 @@ class HistorySetsMarkup(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v88", SW)
         self.assertNotIn("fitdash-shell-v87", SW)
         self.assertIn("/history-sets.js?v=history-sets-1", SW)
-        self.assertIn("/app.js?v=calorie-phase-1", SW)
-        self.assertNotIn("/app.js?v=vol-7d-1", SW)
+        self.assertIn("/app.js?v=kitchen-collapse-1", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", SW)
         self.assertNotIn("fitdash-shell-v81", SW)
         self.assertNotIn("fitdash-shell-v80", SW)
