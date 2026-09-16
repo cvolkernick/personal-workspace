@@ -49,26 +49,30 @@ class TestNoPerTickInsertCeiling(unittest.TestCase):
         self.assertIsNone(M.HOUSE_CAPS["MAX_ADD_PER_DAY"])
 
     def test_empty_after_prune_fills_to_house_target_in_one_tick(self):
-        # Was clamped to 8. Now one tick may insert all the way to ~50.
-        self.assertEqual(M.insert_budget(0), 50)
-        self.assertEqual(M.slots_to_house_target(0), 50)
+        # Was clamped to 8. Now one tick may insert all the way to HOUSE_TARGET.
+        self.assertEqual(M.insert_budget(0), 100)
+        self.assertEqual(M.slots_to_house_target(0), 100)
 
     def test_near_old_live_size_can_catch_up(self):
         # Live list sat ~21–25 because of the 8/tick clamp + 72h cull.
-        self.assertEqual(M.insert_budget(21), 29)
-        self.assertEqual(M.insert_budget(25), 25)
+        self.assertEqual(M.insert_budget(21), 79)
+        self.assertEqual(M.insert_budget(25), 75)
         self.assertGreater(M.insert_budget(21), M.OLD_MAX_INSERTS_PER_TICK)
 
     def test_old_eight_cap_would_have_blocked_catch_up(self):
         self.assertEqual(min(M.insert_budget(21), M.OLD_MAX_INSERTS_PER_TICK), 8)
 
     def test_at_house_target_adds_zero(self):
-        self.assertEqual(M.insert_budget(50), 0)
-        self.assertEqual(M.slots_to_house_target(50), 0)
+        self.assertEqual(M.insert_budget(100), 0)
+        self.assertEqual(M.slots_to_house_target(100), 0)
+
+    def test_old_house_50_now_catches_up(self):
+        self.assertEqual(M.insert_budget(50), 50)
+        self.assertEqual(M.slots_to_house_target(50), 50)
 
     def test_above_house_target_below_cap_adds_zero(self):
         # CAP 200 is a breaker, not a fill target.
-        self.assertEqual(M.insert_budget(60), 0)
+        self.assertEqual(M.insert_budget(120), 0)
         self.assertEqual(M.insert_budget(180), 0)
 
     def test_cap_breaker_stops_inserts(self):
@@ -89,7 +93,8 @@ class TestHearted831Values(unittest.TestCase):
         self.assertEqual(M.STALE_HARD_DAYS, 7)
         self.assertEqual(M.MAX_DELETES_PER_TICK, 80)
         self.assertEqual(M.KEEP_N, 10)
-        self.assertEqual(M.HOUSE_TARGET, 50)
+        self.assertEqual(M.HOUSE_TARGET, 100)
+        self.assertEqual(M.OLD_HOUSE_TARGET, 50)
         self.assertEqual(M.MIN_FIT, 1)
         self.assertEqual(M.OLD_MIN_FIT, 2)
         self.assertEqual(M.SEED_THROTTLE_WEIGHT_FLOOR, 0.25)
@@ -109,6 +114,8 @@ class TestHearted831Values(unittest.TestCase):
         self.assertEqual(card["new"]["MIN_FIT"], 1)
         self.assertEqual(card["old"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.4)
         self.assertEqual(card["new"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.25)
+        self.assertEqual(card["old"]["HOUSE_TARGET"], 50)
+        self.assertEqual(card["new"]["HOUSE_TARGET"], 100)
         self.assertTrue(card["cap_is_breaker"])
         self.assertFalse(card["house_target_is_youtube_5000"])
         self.assertFalse(card["copy_over_pi"])
@@ -141,7 +148,7 @@ class TestPruneFirstThenFill(unittest.TestCase):
         self.assertEqual(plan.remove_stale, ("old",))
         self.assertEqual(plan.remove_dup, ("dup",))
         self.assertEqual(plan.after_prune, 2)
-        self.assertEqual(plan.add_budget, 48)
+        self.assertEqual(plan.add_budget, 98)
         self.assertEqual(len(plan.add), 20)
         self.assertGreater(len(plan.add), M.OLD_MAX_INSERTS_PER_TICK)
         self.assertNotIn("keep-a", plan.add)
@@ -155,13 +162,13 @@ class TestPruneFirstThenFill(unittest.TestCase):
         )
         self.assertEqual(plan.add, ("ok",))
 
-    def test_fresh_25_fills_to_50_not_plus_8(self):
+    def test_fresh_25_fills_to_100_not_plus_8(self):
         fresh = [_item(f"v{i}", days_ago=1) for i in range(25)]
         cands = [_cand(f"n{i}", 50 - i) for i in range(40)]
         plan = M.plan_groom(fresh, cands, now=NOW)
         self.assertEqual(plan.remove_stale, ())
-        self.assertEqual(plan.add_budget, 25)
-        self.assertEqual(len(plan.add), 25)
+        self.assertEqual(plan.add_budget, 75)
+        self.assertEqual(len(plan.add), 40)
 
 
 class TestAddPathFloors731(unittest.TestCase):
@@ -200,6 +207,7 @@ class TestDocsMatchPolicy(unittest.TestCase):
         self.assertIn("FRESH_HOURS          = 168", text)
         self.assertIn("CAP                  = 200", text)
         self.assertIn("STALE_HARD_DAYS      = 7", text)
+        self.assertIn("HOUSE_TARGET         = 100", text)
         self.assertIn("MIN_FIT              = 1", text)
         self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR = 0.25", text)
         self.assertIn("MAX_INSERTS_PER_TICK", text)
@@ -218,6 +226,8 @@ class TestDocsMatchPolicy(unittest.TestCase):
         self.assertIn("MIN_FIT", text)
         self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR", text)
         self.assertIn("0.25", text)
+        self.assertIn("HOUSE_TARGET", text)
+        self.assertIn("**100**", text)
 
 
 class TestMainNoNetwork(unittest.TestCase):
