@@ -148,7 +148,7 @@ class TestFccNavFleet(unittest.TestCase):
 
         rh = _by_id(index, "nav-robinhood")
         self.assertEqual(rh["text"], "Robinhood")
-        self.assertEqual(rh["href"], "https://robinhood.com/")
+        self.assertEqual(rh["href"], "https://robinhood.com/agentic?classic=1")
         self.assertEqual(rh.get("target") or "", "_blank")
 
         expenses = _by_id(index, "nav-expenses")
