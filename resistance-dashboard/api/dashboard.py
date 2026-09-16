@@ -689,6 +689,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         attach_phase_barometer(payload, user_id=str(user.get("id") or "") or None)
     except Exception as exc:  # noqa: BLE001
         errors.append(f"phase_barometer: {type(exc).__name__}")
+    try:
+        from rt_dashboard.calorie_bars import apply_phase_aware_delta_color
+
+        apply_phase_aware_delta_color(payload)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"calorie_delta_phase_color: {type(exc).__name__}")
     payload["meta"] = {
         "role": "vercel-preview",
         "source": source,

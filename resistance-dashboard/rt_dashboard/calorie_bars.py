@@ -689,17 +689,74 @@ def pace_clock_copy(window_source: Optional[str] = None) -> str:
     return ""
 
 
+# Distance from phase target delta → tone. Near = green; drift either way
+# shades amber then red. 200 kcal is daily CICO noise; 600 is a skipped or
+# cheat-meal miss; issue #763 extremes (−1500 cut / +1500 bulk) are red.
+PHASE_DELTA_GREEN_MAX_KCAL = 200.0
+PHASE_DELTA_AMBER_MAX_KCAL = 600.0
+
+
+def _phase_delta_color(actual_delta: float, target_delta: float) -> str:
+    drift = abs(float(actual_delta) - float(target_delta))
+    if drift <= PHASE_DELTA_GREEN_MAX_KCAL:
+        return "green"
+    if drift <= PHASE_DELTA_AMBER_MAX_KCAL:
+        return "amber"
+    return "red"
+
+
+def _resolve_phase_target(
+    *,
+    phase: Optional[str] = None,
+    target_delta: Optional[float] = None,
+    tdee_kcal: Optional[float] = None,
+    applied_calories: Optional[float] = None,
+    deficit_kcal: Optional[float] = None,
+) -> tuple:
+    """Return (canonical_phase, target_delta) or (None, None) if unset."""
+    from .phase_barometer import canonical_phase, phase_calorie_target_delta
+
+    raw = str(phase or "").strip()
+    if not raw:
+        return None, None
+    canon = canonical_phase(raw)
+    if target_delta is not None:
+        try:
+            return canon, float(target_delta)
+        except (TypeError, ValueError):
+            pass
+    kpis: Dict[str, Any] = {}
+    if deficit_kcal is not None:
+        kpis["deficit_kcal"] = deficit_kcal
+    elif tdee_kcal is not None and applied_calories is not None:
+        try:
+            kpis["deficit_kcal"] = float(tdee_kcal) - float(applied_calories)
+        except (TypeError, ValueError):
+            pass
+    tgt = phase_calorie_target_delta(canon, kpis)
+    if tgt is None:
+        return None, None
+    return canon, float(tgt)
+
+
 def calorie_in_out_delta(
     *,
     intake: float,
     burned: float,
     scale_kcal: Optional[float] = None,
+    phase: Optional[str] = None,
+    target_delta: Optional[float] = None,
+    tdee_kcal: Optional[float] = None,
+    applied_calories: Optional[float] = None,
+    deficit_kcal: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Signed intake − burned for bidirectional bar (midpoint 0).
 
-    delta > 0 → surplus (right, green)
-    delta < 0 → deficit (left, red)
-    delta == 0 → equilibrium
+    Bar *direction* is the sign of delta (left = deficit, right = surplus).
+    Bar *color* is phase-aware when ``phase`` is set: green near the phase
+    target delta, amber/red as the day drifts off in either direction.
+    No phase → legacy sign coloring (deficit red / surplus green).
+
     bar_pct is 0–100 of half-track toward that side (capped).
     """
     intake = max(0.0, float(intake or 0))
@@ -720,6 +777,10 @@ def calorie_in_out_delta(
             "scale_kcal": float(scale_kcal or 1000),
             "status": "no_burned",
             "summary": "No same-day burned calories yet — delta unavailable.",
+            "color_source": "sign",
+            "phase": None,
+            "target_delta": None,
+            "drift_kcal": None,
         }
 
     burned_f = max(0.0, burned_f)
@@ -746,6 +807,20 @@ def calorie_in_out_delta(
         color = "green"
         summary = f"Surplus +{delta:.0f} kcal · in {intake:g} · out {burned_f:g}"
 
+    canon, tgt = _resolve_phase_target(
+        phase=phase,
+        target_delta=target_delta,
+        tdee_kcal=tdee_kcal,
+        applied_calories=applied_calories,
+        deficit_kcal=deficit_kcal,
+    )
+    color_source = "sign"
+    drift = None
+    if tgt is not None:
+        color = _phase_delta_color(delta, tgt)
+        color_source = "phase"
+        drift = round(delta - tgt, 1)
+
     return {
         "intake": round(intake, 1),
         "burned": round(burned_f, 1),
@@ -756,6 +831,10 @@ def calorie_in_out_delta(
         "scale_kcal": round(scale, 1),
         "status": "ok",
         "summary": summary,
+        "color_source": color_source,
+        "phase": canon,
+        "target_delta": tgt,
+        "drift_kcal": drift,
     }
 
 
@@ -769,6 +848,9 @@ def build_calorie_bars_payload(
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
     recommended_targets: Optional[dict] = None,
+    phase: Optional[str] = None,
+    tdee_kcal: Optional[float] = None,
+    deficit_kcal: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Compose both bar payloads for the dashboard JSON.
 
@@ -913,8 +995,66 @@ def build_calorie_bars_payload(
         if mv is not None:
             macro_pace["window_macros"][mk] = round(mv, 1)
 
+    phase_raw = phase if phase is not None else targets.get("phase")
+    applied = targets.get("calories")
     delta = calorie_in_out_delta(
         intake=civil_consumed,
         burned=calories_burned_today,
+        phase=phase_raw,
+        tdee_kcal=tdee_kcal,
+        applied_calories=applied,
+        deficit_kcal=deficit_kcal,
     )
     return {"pacing": pacing, "delta": delta, "macro_pace": macro_pace}
+
+
+def apply_phase_aware_delta_color(payload: Optional[dict]) -> dict:
+    """Recolor ``calorie_bars.delta`` from the phase barometer (SoT for phase).
+
+    No-op when the barometer is missing/unavailable or phase is unset — the
+    bar keeps sign coloring (deficit red / surplus green). Mutates payload.
+    """
+    data = payload if isinstance(payload, dict) else {}
+    bars = data.get("calorie_bars")
+    if not isinstance(bars, dict):
+        return data
+    delta = bars.get("delta")
+    if not isinstance(delta, dict) or delta.get("status") != "ok":
+        return data
+    if delta.get("delta") is None:
+        return data
+    baro = data.get("phase_barometer")
+    if not isinstance(baro, dict) or not baro.get("available"):
+        return data
+    phase = baro.get("phase")
+    if not str(phase or "").strip():
+        return data
+    kpis = baro.get("kpis") if isinstance(baro.get("kpis"), dict) else {}
+    painted = calorie_in_out_delta(
+        intake=delta.get("intake") or 0,
+        burned=delta.get("burned"),
+        scale_kcal=delta.get("scale_kcal"),
+        phase=phase,
+        deficit_kcal=kpis.get("deficit_kcal"),
+        tdee_kcal=kpis.get("tdee_kcal"),
+        applied_calories=(_as_applied_calories(kpis)),
+    )
+    if painted.get("status") != "ok":
+        return data
+    # Keep the already-computed bar geometry / summary (data layer). Only
+    # the judgment fields come from the barometer.
+    delta["color"] = painted.get("color")
+    delta["color_source"] = painted.get("color_source")
+    delta["phase"] = painted.get("phase")
+    delta["target_delta"] = painted.get("target_delta")
+    delta["drift_kcal"] = painted.get("drift_kcal")
+    return data
+
+
+def _as_applied_calories(kpis: dict) -> Optional[float]:
+    applied = kpis.get("applied") if isinstance(kpis.get("applied"), dict) else {}
+    cal = applied.get("calories")
+    try:
+        return float(cal) if cal is not None and cal != "" else None
+    except (TypeError, ValueError):
+        return None

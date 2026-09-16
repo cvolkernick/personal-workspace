@@ -3860,8 +3860,28 @@
     const right = $("calorie-delta-fill-right");
     const dSum = $("calorie-delta-summary");
     const dMeta = $("calorie-delta-meta");
+    const dTrack = $("calorie-delta-track");
+    const applyDeltaTone = (el, color) => {
+      if (!el) return;
+      el.classList.remove(
+        "band-green",
+        "band-amber",
+        "band-yellow",
+        "band-red",
+        "band-neutral",
+        "band-muted"
+      );
+      let tone = String(color || "").toLowerCase();
+      if (tone === "yellow") tone = "amber";
+      if (tone && tone !== "muted" && tone !== "none") {
+        el.classList.add(`band-${tone}`);
+      }
+    };
     if (left) left.style.width = "0%";
     if (right) right.style.width = "0%";
+    applyDeltaTone(left, "");
+    applyDeltaTone(right, "");
+    if (dTrack) dTrack.removeAttribute("data-tone");
     if (delta && delta.status === "ok") {
       // bar_pct is 0–100 of the half-track; CSS widths are % of full track
       const barPct = Math.max(0, Math.min(100, Number(delta.bar_pct) || 0));
@@ -3871,13 +3891,24 @@
       } else if (delta.side === "surplus" && right) {
         right.style.width = `${halfW}%`;
       }
+      applyDeltaTone(left, delta.color);
+      applyDeltaTone(right, delta.color);
+      if (dTrack && delta.color) dTrack.setAttribute("data-tone", delta.color);
       if (dSum) dSum.textContent = delta.summary || "—";
       if (dMeta) {
-        dMeta.textContent = `${loggedTodayCalendarLabel()} ${fmtNum(
-          delta.intake
-        )} in · out ${fmtNum(delta.burned)} · scale ±${fmtNum(
-          delta.scale_kcal
-        )} kcal`;
+        const bits = [
+          `${loggedTodayCalendarLabel()} ${fmtNum(delta.intake)} in · out ${fmtNum(
+            delta.burned
+          )} · scale ±${fmtNum(delta.scale_kcal)} kcal`,
+        ];
+        if (delta.phase && delta.target_delta != null && delta.target_delta !== "") {
+          const tgt = Number(delta.target_delta);
+          const tgtLabel = Number.isFinite(tgt)
+            ? `${tgt > 0 ? "+" : ""}${fmtNum(tgt)}`
+            : String(delta.target_delta);
+          bits.push(`phase ${delta.phase} target ${tgtLabel}`);
+        }
+        dMeta.textContent = bits.join(" · ");
       }
     } else if (dSum) {
       dSum.textContent =

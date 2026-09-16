@@ -1025,6 +1025,12 @@ def load_dashboard_data(
         attach_phase_barometer(payload, user_id=uid)
     except Exception as e:  # noqa: BLE001
         errors.append(f"phase_barometer: {e}")
+    try:
+        from rt_dashboard.calorie_bars import apply_phase_aware_delta_color
+
+        apply_phase_aware_delta_color(payload)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"calorie_delta_phase_color: {e}")
 
     # Daily quests: fast local plan on dashboard paint; GT ensure is async via GET /api/daily-tasks
     try:

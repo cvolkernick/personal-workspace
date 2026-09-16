@@ -15,6 +15,7 @@ from rt_dashboard.phase_barometer import (
     evaluate_decision,
     iso_week_key,
     load_store,
+    phase_calorie_target_delta,
     save_store,
     undismiss_banner,
     upsert_week,
@@ -510,6 +511,38 @@ class Wiring(unittest.TestCase):
         self.assertEqual(rec["carbs_g"], 215)
         self.assertEqual(rec["fat_g"], 60)
         self.assertIn("apply_coach: true", APP_JS)
+
+    def test_calorie_delta_recolor_wired_after_baro(self):
+        self.assertIn("apply_phase_aware_delta_color", SERVER_PY)
+        self.assertIn("apply_phase_aware_delta_color", DASH_PY)
+        self.assertGreater(
+            SERVER_PY.find("apply_phase_aware_delta_color"),
+            SERVER_PY.find("attach_phase_barometer(payload"),
+        )
+        self.assertGreater(
+            DASH_PY.find("apply_phase_aware_delta_color"),
+            DASH_PY.find("attach_phase_barometer(payload"),
+        )
+
+
+class PhaseCalorieTargetDelta(unittest.TestCase):
+    def test_landmarks_and_deficit_kcal(self):
+        self.assertEqual(phase_calorie_target_delta("cut"), -300.0)
+        self.assertEqual(phase_calorie_target_delta("slow_bulk"), 200.0)
+        self.assertEqual(phase_calorie_target_delta("bulk"), 200.0)
+        self.assertEqual(phase_calorie_target_delta("maintain"), 0.0)
+        self.assertIsNone(phase_calorie_target_delta(""))
+        self.assertIsNone(phase_calorie_target_delta(None))
+        self.assertEqual(
+            phase_calorie_target_delta("cut", {"deficit_kcal": 400}),
+            -400.0,
+        )
+        self.assertEqual(
+            phase_calorie_target_delta(
+                "slow_bulk", {"applied": {"calories": 2600}, "tdee_kcal": 2400}
+            ),
+            200.0,
+        )
 
 
 if __name__ == "__main__":

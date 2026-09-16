@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from rt_dashboard.calorie_bars import (
+    apply_phase_aware_delta_color,
     build_calorie_bars_payload,
     calorie_in_out_delta,
     calorie_pacing,
@@ -87,6 +88,113 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(d["side"], "none")
         self.assertEqual(d["status"], "no_burned")
 
+    def test_cut_moderate_deficit_is_green(self):
+        """AC #763: cut + moderate deficit (~−300) → green, still labeled deficit."""
+        d = calorie_in_out_delta(intake=1700, burned=2000, phase="cut")
+        self.assertEqual(d["delta"], -300.0)
+        self.assertEqual(d["side"], "deficit")
+        self.assertEqual(d["target_delta"], -300.0)
+        self.assertEqual(d["color"], "green")
+        self.assertEqual(d["color_source"], "phase")
+        self.assertIn("Deficit", d["summary"])
+        self.assertIn("-300", d["summary"])
+
+    def test_cut_extreme_deficit_is_red(self):
+        """AC #763: cut + −1500 is undereating, not success."""
+        d = calorie_in_out_delta(intake=500, burned=2000, phase="cut")
+        self.assertEqual(d["delta"], -1500.0)
+        self.assertEqual(d["side"], "deficit")
+        self.assertEqual(d["color"], "red")
+        self.assertEqual(d["color_source"], "phase")
+        self.assertIn("Deficit", d["summary"])
+
+    def test_bulk_moderate_surplus_is_green(self):
+        """AC #763: bulk + moderate surplus (~+200) → green."""
+        d = calorie_in_out_delta(intake=2200, burned=2000, phase="slow_bulk")
+        self.assertEqual(d["delta"], 200.0)
+        self.assertEqual(d["side"], "surplus")
+        self.assertEqual(d["target_delta"], 200.0)
+        self.assertEqual(d["color"], "green")
+        self.assertEqual(d["color_source"], "phase")
+        self.assertIn("Surplus", d["summary"])
+
+    def test_bulk_extreme_surplus_is_red(self):
+        """AC #763: bulk +1500 is a dirty bulk, not success."""
+        d = calorie_in_out_delta(intake=3500, burned=2000, phase="slow_bulk")
+        self.assertEqual(d["delta"], 1500.0)
+        self.assertEqual(d["side"], "surplus")
+        self.assertEqual(d["color"], "red")
+        self.assertEqual(d["color_source"], "phase")
+
+    def test_no_phase_keeps_sign_coloring(self):
+        """AC #763 fallback: unset phase → deficit red / surplus green."""
+        deficit = calorie_in_out_delta(intake=1500, burned=2000)
+        surplus = calorie_in_out_delta(intake=2200, burned=1800)
+        self.assertEqual(deficit["color"], "red")
+        self.assertEqual(deficit["color_source"], "sign")
+        self.assertIsNone(deficit["phase"])
+        self.assertEqual(surplus["color"], "green")
+        self.assertEqual(surplus["color_source"], "sign")
+
+    def test_cut_surplus_and_bulk_deficit_are_not_green(self):
+        cut_surplus = calorie_in_out_delta(intake=2500, burned=2000, phase="cut")
+        bulk_deficit = calorie_in_out_delta(intake=1500, burned=2000, phase="slow_bulk")
+        self.assertEqual(cut_surplus["side"], "surplus")
+        self.assertNotEqual(cut_surplus["color"], "green")
+        self.assertEqual(bulk_deficit["side"], "deficit")
+        self.assertNotEqual(bulk_deficit["color"], "green")
+
+    def test_maintain_near_zero_green_large_drift_red(self):
+        near = calorie_in_out_delta(intake=2000, burned=2000, phase="maintain")
+        far = calorie_in_out_delta(intake=2800, burned=2000, phase="maintain")
+        self.assertEqual(near["color"], "green")
+        self.assertEqual(far["color"], "red")
+
+    def test_applied_vs_tdee_overrides_landmark(self):
+        # Applied 200 kcal surplus on a bulk → target +200 still, but a −300
+        # day is off that applied target.
+        on = calorie_in_out_delta(
+            intake=2600, burned=2400, phase="slow_bulk", tdee_kcal=2400, applied_calories=2600
+        )
+        self.assertEqual(on["target_delta"], 200.0)
+        self.assertEqual(on["color"], "green")
+        cut_applied = calorie_in_out_delta(
+            intake=2100, burned=2400, phase="cut", deficit_kcal=400
+        )
+        self.assertEqual(cut_applied["target_delta"], -400.0)
+        self.assertEqual(cut_applied["color"], "green")
+
+    def test_baro_recolor_uses_phase_barometer(self):
+        payload = {
+            "calorie_bars": {
+                "delta": calorie_in_out_delta(intake=1700, burned=2000),
+            },
+            "phase_barometer": {
+                "available": True,
+                "phase": "cut",
+                "kpis": {},
+            },
+        }
+        self.assertEqual(payload["calorie_bars"]["delta"]["color"], "red")
+        apply_phase_aware_delta_color(payload)
+        d = payload["calorie_bars"]["delta"]
+        self.assertEqual(d["color"], "green")
+        self.assertEqual(d["color_source"], "phase")
+        self.assertEqual(d["phase"], "cut")
+        self.assertEqual(d["target_delta"], -300.0)
+        self.assertIn("Deficit", d["summary"])
+
+    def test_baro_unavailable_keeps_sign_color(self):
+        payload = {
+            "calorie_bars": {
+                "delta": calorie_in_out_delta(intake=1700, burned=2000),
+            },
+            "phase_barometer": {"available": False, "phase": "cut"},
+        }
+        apply_phase_aware_delta_color(payload)
+        self.assertEqual(payload["calorie_bars"]["delta"]["color"], "red")
+        self.assertEqual(payload["calorie_bars"]["delta"]["color_source"], "sign")
+
     def test_civil_day_fallback_without_wake(self):
         now = datetime(2026, 7, 26, 12, 0, 0, tzinfo=timezone.utc).astimezone()
         win = eating_window_fraction(now=now, last_wake_at=None, empty_at=None)
@@ -124,6 +232,26 @@ class TestCalorieBars(unittest.TestCase):
         self.assertAlmostEqual(payload["pacing"]["window_fraction"], 0.5, places=2)
         self.assertEqual(payload["delta"]["side"], "deficit")
         self.assertEqual(payload["delta"]["color"], "red")
+        self.assertEqual(payload["delta"]["color_source"], "sign")
+
+    def test_payload_builder_honors_targets_phase(self):
+        wake = datetime(2026, 7, 26, 8, 0, 0, tzinfo=timezone.utc)
+        now = wake + timedelta(hours=8)
+        payload = build_calorie_bars_payload(
+            today_consumed={"calories": 1700},
+            targets={"calories": 2100, "phase": "cut"},
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            calories_burned_today=2000,
+            now=now,
+        )
+        self.assertEqual(payload["delta"]["delta"], -300.0)
+        self.assertEqual(payload["delta"]["color"], "green")
+        self.assertEqual(payload["delta"]["color_source"], "phase")
+        self.assertEqual(payload["delta"]["phase"], "cut")
 
     def test_sum_intake_spans_midnight_window(self):
         """Logs on wake day still count after civil midnight if inside wake→bed."""
@@ -717,6 +845,26 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         self.assertIn("fmtNum(intake)", progress)
         self.assertNotIn("fmtNum(consumed)", progress)
         self.assertIn("target hit", progress)
+
+    def test_delta_bar_paints_phase_tone_from_server_color(self):
+        root = Path(__file__).resolve().parents[1]
+        js = (root / "static" / "app.js").read_text(encoding="utf-8")
+        css = (root / "static" / "styles.css").read_text(encoding="utf-8")
+        html = (root / "static" / "index.html").read_text(encoding="utf-8")
+        block = js.split("// —— In/out delta bar", 1)[1].split(
+            "function hydrateTargetsForm", 1
+        )[0]
+        self.assertIn("applyDeltaTone", block)
+        self.assertIn("delta.color", block)
+        self.assertIn("band-${", block)
+        self.assertIn("target_delta", block)
+        self.assertIn("data-tone", block)
+        # Raw delta stays in the summary; color is the judgment layer.
+        self.assertIn("delta.summary", block)
+        self.assertIn(".delta-fill.delta-left.band-green", css)
+        self.assertIn(".delta-fill.delta-right.band-red", css)
+        self.assertIn("band-amber", css)
+        self.assertIn("calorie-phase-1", html)
         legend = js.split("function renderTargetsAndRemaining", 1)[1].split(
             "function renderFoodLogsToday", 1
         )[0]
