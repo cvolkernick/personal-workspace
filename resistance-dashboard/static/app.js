@@ -77,10 +77,10 @@
   function setLogDateFromTrainingDay(data) {
     const el = $("log-date");
     if (!el) return;
-    const next = trainingDayISO(data);
-    if (!el.value || el.value === todayISO() || el.value === next) {
-      el.value = next;
-    }
+    // Civil today is the default (#771). Do not overwrite a filled picker
+    // with training-day (prior wake) — that prefilled 09/15 on 09/16.
+    if (el.value) return;
+    el.value = todayISO();
   }
 
   /** Fill missing civil days with 0h sleep (sleep debt). End = today. */
@@ -1885,7 +1885,9 @@
         throw new Error(data.message || data.error || `HTTP ${res.status}`);
       }
       showAlert(
-        `Moved ${sessionType.toUpperCase()} ${fromDate} → ${toDate}. Sets unchanged.`,
+        data.merged
+          ? `Merged ${sessionType.toUpperCase()} ${fromDate} into ${toDate}.`
+          : `Moved ${sessionType.toUpperCase()} ${fromDate} → ${toDate}. Sets unchanged.`,
         "ok"
       );
       await loadDashboard(false);
@@ -7197,6 +7199,7 @@
       date: $("log-date").value,
       notes: $("log-notes").value,
       exercises: collectExercises(),
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
     };
     const wake =
       (state &&
