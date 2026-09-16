@@ -756,6 +756,7 @@ def load_dashboard_data(
         sleep=health.sleep,
         sessions=sessions,
         as_of=local_today,
+        rhr=health.resting_heart_rate or [],
     )
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
 
@@ -950,6 +951,11 @@ def load_dashboard_data(
             recovery_score=(recovery.score if recovery else None),
             # Sparse Health (no real sleep) → do not auto-rest on debt-filled score
             recovery_sparse=not had_real_sleep,
+            recovery_rhr_under=bool(
+                (recovery.inputs or {}).get("rhr_under_recovered")
+            )
+            if recovery
+            else False,
             as_of=local_today,
             equipment=equipment,
             train_parent_completed=train_parent_done,
@@ -1346,6 +1352,9 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 recovery_label=rec.get("label"),
                 recovery_score=rec.get("score"),
                 recovery_sparse=bool(rec.get("sparse")),
+                recovery_rhr_under=bool(
+                    (rec.get("inputs") or {}).get("rhr_under_recovered")
+                ),
                 session_type=action.get("session_type"),
                 last_wake_at=(bat or {}).get("last_wake_at") if isinstance(bat, dict) else None,
             )
@@ -2650,6 +2659,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     recovery_label=rec.get("label"),
                     recovery_score=rec.get("score"),
                     recovery_sparse=bool(rec.get("sparse")),
+                    recovery_rhr_under=bool(
+                        (rec.get("inputs") or {}).get("rhr_under_recovered")
+                    ),
                     session_type=str(session_type).lower() if session_type else None,
                     equipment=wo.get("equipment"),
                     last_wake_at=(bat or {}).get("last_wake_at") if isinstance(bat, dict) else None,

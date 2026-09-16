@@ -96,6 +96,25 @@ class TestCoach(unittest.TestCase):
         self.assertIn("PUSH", train[0]["text"])
         self.assertNotIn("Easy PUSH", train[0]["text"])
 
+    def test_rhr_under_recovered_is_easy_not_rest(self):
+        rec = RecoveryStatus(
+            label="Moderate",
+            score=58.0,
+            reasons=["RHR 70 bpm is +6 vs 14d median 64 — under-recovered"],
+            inputs={"rhr_under_recovered": True, "rhr_delta_bpm": 6.0},
+        )
+        board = build_today_board(
+            as_of="2026-09-16",
+            recovery=rec,
+            workout_plan={"is_rest_day": False, "session_type": "push", "exercises": []},
+            meal_plan={"remaining_before_plan": {"calories": 500, "protein_g": 40}},
+            consumed={"calories": 1000, "protein_g": 80},
+            targets={"calories": 2100, "protein_g": 200},
+            adherence={"protein": {"pct": 50}, "sleep": {"pct": 40}},
+        )
+        self.assertEqual(board["recommendation"], "easy")
+        self.assertNotEqual(board["recommendation"], "rest")
+
     def test_partial_log_is_not_already_trained(self):
         rec = RecoveryStatus(label="Ready", score=80.0, reasons=["unit"])
         board = build_today_board(

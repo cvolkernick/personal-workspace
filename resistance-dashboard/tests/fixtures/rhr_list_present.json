@@ -1,0 +1,22 @@
+{
+  "dataPoints": [
+    {
+      "dailyRestingHeartRate": {
+        "date": { "year": 2026, "month": 9, "day": 10 },
+        "beatsPerMinute": "62"
+      }
+    },
+    {
+      "daily_resting_heart_rate": {
+        "date": { "year": 2026, "month": 9, "day": 11 },
+        "beats_per_minute": 63
+      }
+    },
+    {
+      "dailyRestingHeartRate": {
+        "date": { "year": 2026, "month": 9, "day": 12 },
+        "bpm": 64.4
+      }
+    }
+  ]
+}

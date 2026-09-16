@@ -79,11 +79,11 @@ class KitchenInventoryCollapse(unittest.TestCase):
         self.assertIn(".kitchen-collapse-head", CSS)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=weekly-review-trends-636-1", HTML)
-        self.assertIn("/app.js?v=weekly-review-trends-636-1", SW)
+        self.assertIn("/app.js?v=rhr-recovery-660-1", HTML)
+        self.assertIn("/app.js?v=rhr-recovery-660-1", SW)
         self.assertIn("/styles.css?v=pace-rows-650-1", HTML)
         self.assertIn("/styles.css?v=pace-rows-650-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v107"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v108"', SW)
         self.assertNotIn("fitdash-shell-v104", SW)
         self.assertNotIn("fitdash-shell-v103", SW)
         self.assertNotIn("fitdash-shell-v102", SW)

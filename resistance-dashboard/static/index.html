@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=weekly-review-trends-636-1" defer></script>
+    <script src="/app.js?v=rhr-recovery-660-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -483,6 +483,12 @@
         <h2>Sleep (hours) · 90d</h2>
         <div class="chart-box"><canvas id="chart-sleep" aria-label="Sleep chart"></canvas></div>
         <p class="muted" id="sleep-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+      </section>
+
+      <section class="card" style="margin-top: 1rem" id="rhr-trend-card" data-m-panel="trends" aria-label="Resting heart rate trend">
+        <h2>Resting HR (bpm) · 90d</h2>
+        <div class="chart-box"><canvas id="chart-rhr" aria-label="Resting heart rate chart last 90 days"></canvas></div>
+        <p class="muted" id="rhr-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
       </section>
 
       <section class="grid two" style="margin-top: 1rem" id="calories-macros-charts" data-m-panel="trends">

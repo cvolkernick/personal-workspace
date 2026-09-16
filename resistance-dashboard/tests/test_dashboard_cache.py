@@ -20,6 +20,7 @@ from rt_dashboard.models import (
     ActiveZoneMinutesDay,
     ExerciseEntry,
     HealthSnapshot,
+    RestingHeartRateDay,
     Session,
     SetEntry,
     WeightSample,
@@ -104,6 +105,26 @@ class TestDashboardCache(unittest.TestCase):
                 self.assertEqual(
                     loaded.to_dict()["active_zone_minutes"][0]["fat_burn_minutes"],
                     12.0,
+                )
+
+    def test_rhr_roundtrip(self):
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch("rt_dashboard.dashboard_cache.CACHE_DIR", Path(td)):
+                snap = HealthSnapshot(
+                    resting_heart_rate=[
+                        RestingHeartRateDay(
+                            date="2026-09-10", bpm=62.0, source="google_health"
+                        )
+                    ]
+                )
+                save_health_cache(snap)
+                loaded, _, meta = load_health_cache()
+                self.assertTrue(meta.get("hit"))
+                self.assertIsNotNone(loaded)
+                self.assertEqual(len(loaded.resting_heart_rate), 1)
+                self.assertEqual(loaded.resting_heart_rate[0].bpm, 62.0)
+                self.assertEqual(
+                    loaded.to_dict()["resting_heart_rate"][0]["date"], "2026-09-10"
                 )
 
 

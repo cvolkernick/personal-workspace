@@ -1254,6 +1254,7 @@ def prescribe(
     recovery_score: Optional[float] = None,
     continuity: Optional[Dict[str, Any]] = None,
     default_hard_sets: Optional[int] = None,
+    rhr_under_recovered: bool = False,
 ) -> dict:
     """Double-progression style prescription from last logged set.
 
@@ -1327,11 +1328,17 @@ def prescribe(
             )
             reps = target_reps
 
-    if recovery_score is not None and recovery_score < 50 and weight is not None:
+    deload = (recovery_score is not None and recovery_score < 50) or bool(
+        rhr_under_recovered
+    )
+    if deload and weight is not None:
         before = weight
         weight = round(weight * 0.9, 1)
         if weight < before:
-            rationale += " Recovery moderate/low → ~10% load deload."
+            if rhr_under_recovered:
+                rationale += " RHR under-recovered → ~10% load deload."
+            else:
+                rationale += " Recovery moderate/low → ~10% load deload."
 
     return {
         "weight_lbs": weight,
@@ -1352,6 +1359,7 @@ def generate_workout_plan(
     recovery_label: Optional[str] = None,
     recovery_score: Optional[float] = None,
     recovery_sparse: bool = False,
+    recovery_rhr_under: bool = False,
     session_type: Optional[str] = None,
     as_of: Optional[str] = None,
     equipment: Optional[dict] = None,
@@ -1672,6 +1680,7 @@ def generate_workout_plan(
             recovery_score=recovery_score,
             continuity=continuity,
             default_hard_sets=default_hard,
+            rhr_under_recovered=bool(recovery_rhr_under),
         )
         capped_w, load_cap, was_capped = cap_weight_to_inventory(
             rx.get("weight_lbs"), ex, equipment if equipment_on else None
