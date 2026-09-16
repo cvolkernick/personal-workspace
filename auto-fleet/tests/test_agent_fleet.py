@@ -24,6 +24,7 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 MIKES = FIXTURES / "turo_mikes_vehicle.json"
 EMPTY = PKG / "data" / "turo_inbox.json"
 SHIPPED_SNAPSHOT = PKG / "data" / "agent_fleet_latest.json"
+NOW = "2026-08-18T03:24:00+00:00"
 
 
 class _Headers:
@@ -71,7 +72,7 @@ class AgentFleetExportTests(unittest.TestCase):
         self.assertEqual(agent_fleet.secret_leaks(packet), [])
 
     def test_dump_derived_bookings_no_invented_trips(self) -> None:
-        packet = agent_fleet.export_agent_fleet(inbox_path=MIKES)
+        packet = agent_fleet.export_agent_fleet(inbox_path=MIKES, now=NOW)
         self.assertTrue(packet["ok"])
         by_id = {u["id"]: u for u in packet["units"]}
         m3 = by_id["m3-2022"]
@@ -429,13 +430,15 @@ class VercelStyleExportTests(unittest.TestCase):
         api = PKG / "api" / "agent" / "fleet.py"
         ns: dict[str, Any] = {"__file__": str(api)}
         exec(api.read_text(encoding="utf-8"), ns)
-        packet = agent_fleet.export_agent_fleet(inbox_path=MIKES)
+        packet = agent_fleet.export_agent_fleet(inbox_path=MIKES, now=NOW)
         with mock.patch.dict(
             os.environ,
             {
                 "AUTO_FLEET_SERVICE_TOKEN": "house-secret",
                 "VERCEL": "1",
                 "AUTO_FLEET_AGENT_SNAPSHOT_JSON": json.dumps(packet),
+                # Shipped empty inbox so ~/.config live dump cannot shadow the snapshot.
+                "AUTO_FLEET_TURO_INBOX": str(EMPTY),
             },
             clear=False,
         ):
