@@ -16,6 +16,15 @@ python3 financial-command/server.py --port 8000
 
 Opens: http://localhost:8000/financial-command/index.html
 
+### PWA install origin
+
+Install the desktop/phone app from **Tailscale HTTPS only**:
+[`https://prism-gateway.tailb1085a.ts.net/`](https://prism-gateway.tailb1085a.ts.net/).
+
+Plain HTTP (`http://<lan-ip>:8000`, `http://prism-gateway:8000`) stays a browser fallback. Those origins serve a `display: browser` manifest and do not register a service worker, so Chromium will not treat them as the installed app (every page would show "Not Secure"). Loopback (`http://127.0.0.1:8000`) is a secure context and stays installable for local tests.
+
+An already-installed HTTP app (standalone display-mode) is redirected to the HTTPS origin.
+
 ### Same-origin Fleet + Horizon (installed PWA)
 
 The PWA manifest is origin-scoped (`scope: "/"`, `start_url: "/"`). Cross-port `http://host:8796/` / `:8795/` links leave the standalone window and are mixed-content on the Tailscale HTTPS origin.
