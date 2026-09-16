@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import re
 import socket
 import sys
@@ -20,10 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dashboard_endpoints import _DEFAULT_SERVICES  # noqa: E402
-
 FLEET = Path(__file__).resolve().parents[1]
-ENDPOINTS = ROOT / "deploy" / "endpoints.json"
+FCC_SERVER = ROOT / "financial-command" / "server.py"
+FCC_PORT = 8000
+FCC_PATH = "/financial-command/index.html"
 HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
@@ -44,24 +43,35 @@ ORCHESTRA_NEEDLES = (
 
 
 def _fcc_bind() -> tuple[int, str]:
-    """Existing FCC bind from deploy/endpoints.json — do not invent."""
-    data = json.loads(ENDPOINTS.read_text(encoding="utf-8"))
-    svc = (data.get("services") or {}).get("financial-command") or {}
-    port = int(svc["port"])
-    path = str(svc["path"])
-    defaults = _DEFAULT_SERVICES["financial-command"]
-    if port != int(defaults["port"]) or path != str(defaults["path"]):
-        raise AssertionError(
-            "deploy/endpoints.json financial-command bind drifted from "
-            f"dashboard_endpoints._DEFAULT_SERVICES: {port} {path!r}"
-        )
-    return port, path
+    """Existing FCC bind — financial-command/server.py --port default. Do not invent."""
+    src = FCC_SERVER.read_text(encoding="utf-8")
+    m = re.search(r'add_argument\("--port".*default=(\d+)', src)
+    if not m:
+        raise AssertionError("financial-command/server.py has no --port default")
+    port = int(m.group(1))
+    if port != FCC_PORT:
+        raise AssertionError(f"FCC --port default drifted: {port} != {FCC_PORT}")
+    return port, FCC_PATH
 
 
-def fcc_href(hostname: str) -> str:
+def fcc_href(
+    hostname: str | None = None,
+    *,
+    pathname: str = "/",
+    protocol: str = "http:",
+    loc_hostname: str = "127.0.0.1",
+) -> str:
     """Same contract as auto-fleet/nav-fcc.js fleetFccHref."""
-    host = hostname or "127.0.0.1"
     port, path = _fcc_bind()
+    if hostname:
+        return f"http://{hostname}:{port}{path}"
+    host = loc_hostname or "127.0.0.1"
+    on_lens = pathname == "/fleet" or pathname.startswith("/fleet/")
+    on_ts = host.lower().endswith(".ts.net")
+    if on_lens or protocol == "https:" or on_ts:
+        if protocol == "https:" or on_ts:
+            return f"https://{host}{path}"
+        return path
     return f"http://{host}:{port}{path}"
 
 
@@ -142,13 +152,17 @@ class TestFleetHeader(unittest.TestCase):
             self.assertNotIn(needle, header)
             self.assertNotIn(needle, html)
 
-    def test_fcc_href_uses_page_host(self) -> None:
+    def test_fcc_href_lan_uses_page_host(self) -> None:
         js = (FLEET / "nav-fcc.js").read_text(encoding="utf-8")
         port, path = _fcc_bind()
-        self.assertIn("location.hostname", js)
+        self.assertIn("loc.hostname", js)
+        self.assertIn("loc.pathname", js)
+        self.assertIn("loc.protocol", js)
+        self.assertIn("global.location", js)
         self.assertIn(f"FCC_PORT = {port}", js)
         self.assertIn(f'FCC_PATH = "{path}"', js)
         self.assertIn("fleetFccHref", js)
+        self.assertIn(".ts.net", js)
         self.assertNotIn("<iframe", js.lower())
         self.assertNotIn("vercel", js.lower())
         self.assertNotIn("orchestra", js.lower())
@@ -164,13 +178,51 @@ class TestFleetHeader(unittest.TestCase):
         self.assertEqual(fcc_href("100.67.114.2"), f"http://100.67.114.2:{port}{path}")
         self.assertEqual(fcc_href("prism-gateway"), f"http://prism-gateway:{port}{path}")
         self.assertEqual(fcc_href("127.0.0.1"), f"http://127.0.0.1:{port}{path}")
-        self.assertEqual(fcc_href(""), f"http://127.0.0.1:{port}{path}")
-        self.assertNotEqual(fcc_href("prism-gateway"), f"http://127.0.0.1:{port}{path}")
-
-        self.assertRegex(
-            js,
-            r"""["']http://["']\s*\+\s*host\s*\+\s*["']:["']\s*\+\s*FCC_PORT\s*\+\s*FCC_PATH""",
+        self.assertEqual(
+            fcc_href(pathname="/", loc_hostname="192.168.100.98"),
+            f"http://192.168.100.98:{port}{path}",
         )
+        self.assertNotEqual(
+            fcc_href("prism-gateway"), f"http://127.0.0.1:{port}{path}"
+        )
+
+    def test_fcc_href_same_origin_lens_and_tailnet_https(self) -> None:
+        port, path = _fcc_bind()
+        del port
+        self.assertEqual(
+            fcc_href(pathname="/fleet/", loc_hostname="127.0.0.1"),
+            path,
+        )
+        self.assertEqual(
+            fcc_href(pathname="/fleet", loc_hostname="192.168.100.98"),
+            path,
+        )
+        self.assertEqual(
+            fcc_href(
+                pathname="/fleet/",
+                protocol="https:",
+                loc_hostname="prism-gateway.tailb1085a.ts.net",
+            ),
+            "https://prism-gateway.tailb1085a.ts.net" + path,
+        )
+        self.assertEqual(
+            fcc_href(
+                pathname="/",
+                protocol="http:",
+                loc_hostname="prism-gateway.tailb1085a.ts.net",
+            ),
+            "https://prism-gateway.tailb1085a.ts.net" + path,
+        )
+        js = (FLEET / "nav-fcc.js").read_text(encoding="utf-8")
+        self.assertIn('path.indexOf("/fleet/")', js)
+        self.assertRegex(js, r"protocol === [\"']https:[\"']")
+
+    def test_nav_fcc_js_avoids_proxy_rewrite_triggers(self) -> None:
+        """FCC's /fleet/ proxy rewrites href="/…" and fetch("/…") (#680)."""
+        js = (FLEET / "nav-fcc.js").read_bytes()
+        self.assertNotRegex(js, rb'(?:src|href|action)\s*=\s*["\']/')
+        self.assertNotRegex(js, rb'fetch\(\s*["\']/')
+        self.assertIn(b'FCC_PATH = "/financial-command/index.html"', js)
 
     def test_header_has_no_orchestra(self) -> None:
         html = (FLEET / "index.html").read_text(encoding="utf-8")

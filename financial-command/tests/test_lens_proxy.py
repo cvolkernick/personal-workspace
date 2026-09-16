@@ -132,6 +132,18 @@ class TestRewriteHelpers(unittest.TestCase):
         self.assertIn(b'FCC_PATH = "/financial-command/index.html"', out)
         self.assertNotIn(b"/horizon/financial-command", out)
 
+    def test_fleet_nav_fcc_js_not_rewritten_under_prefix(self) -> None:
+        """#748: FCC back-link must not be trapped under /fleet/."""
+        js_path = ROOT / "auto-fleet" / "nav-fcc.js"
+        self.assertTrue(js_path.is_file(), "auto-fleet/nav-fcc.js missing")
+        js = js_path.read_bytes()
+        out = self.mod.rewrite_root_absolute(js, "/fleet", "text/javascript")
+        self.assertEqual(out, js)
+        self.assertIn(b'FCC_PATH = "/financial-command/index.html"', out)
+        self.assertNotIn(b"/fleet/financial-command", out)
+        self.assertIn(b"https:", js)
+        self.assertIn(b".ts.net", js)
+
 
 class TestLensProxyHttp(unittest.TestCase):
     @classmethod
