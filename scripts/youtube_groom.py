@@ -10,9 +10,10 @@ reconstructed writer for that reason. Grok/Forge patches the live file
 in place. Merge policy only; do not clobber search, score, OAuth, or
 API code.
 
-This file is the nest SoT for house caps, insert-budget math, and the
-#731 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`) so tests
-and ops stay aligned. No YouTube I/O. No second writer. No OAuth.
+This file is the nest SoT for house caps, insert-budget math, the
+#731 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), and the
+#788 house fill (`HOUSE_TARGET` 50 → 100) so tests and ops stay aligned.
+No YouTube I/O. No second writer. No OAuth.
 """
 
 from __future__ import annotations
@@ -31,10 +32,12 @@ from typing import Iterable, Optional, Sequence
 #   STALE_HARD_DAYS      = 7
 #   MAX_DELETES_PER_TICK = 80
 #   keep_n               = 10  (empty fallback)
-# House target ~50 is a fill target, not a YouTube 5000 cap and not CAP.
+# House target is a fill target, not a YouTube 5000 cap and not CAP.
 # #731 (Pi writer 2026-09-14): looser add-path floors for volume.
 #   MIN_FIT was 2 (skip fit < 2); now 1 (keep fit ≥ 1).
 #   SEED_THROTTLE_WEIGHT_FLOOR was 0.4; now 0.25.
+# #788 (Pi writer 2026-09-16): HOUSE_TARGET 50 → 100. CAP 200 unchanged.
+#   SEED_UPLOADS_PER_CHANNEL 6 → 50 on the live writer only (YouTube page max).
 # ---------------------------------------------------------------------------
 
 PLAYLIST_ID = "PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At"
@@ -44,7 +47,8 @@ NEST_PATH = "scripts/youtube_groom.py"
 HISTORICAL_MD5 = "25b0bed0ca8f214f9437af3b9a8cfa9d"
 
 # Fill-to after prune. Target, not a hard playlist max.
-HOUSE_TARGET = 50
+HOUSE_TARGET = 100
+OLD_HOUSE_TARGET = 50
 
 # Breaker, not a fill target. Live reason was cap_100; now CAP 200.
 CAP = 200
@@ -260,6 +264,7 @@ def scorecard() -> dict[str, object]:
             "STALE_HARD_DAYS": 7,
             "MIN_FIT": OLD_MIN_FIT,
             "SEED_THROTTLE_WEIGHT_FLOOR": OLD_SEED_THROTTLE_WEIGHT_FLOOR,
+            "HOUSE_TARGET": OLD_HOUSE_TARGET,
         },
         "new": {
             "MAX_INSERTS_PER_TICK": None,
@@ -291,7 +296,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print("  insert cap: MAX_INSERTS_PER_TICK 8 → removed")
     print("  otherwise (hearted 8/31):")
     new = card["new"]
-    print(f"    HOUSE_TARGET:         {new['HOUSE_TARGET']} (target, not YouTube 5000)")
+    print(
+        f"    HOUSE_TARGET:         {new['HOUSE_TARGET']} "
+        f"(was {card['old']['HOUSE_TARGET']}; target, not YouTube 5000)"
+    )
     print(f"    CAP:                  {new['CAP']} (breaker)")
     print(f"    FRESH_HOURS:          {new['FRESH_HOURS']}")
     print(f"    STALE_HARD_DAYS:      {new['STALE_HARD_DAYS']}")

@@ -15,14 +15,14 @@ Constants note: [`YOUTUBE_GROOM_CAPS.md`](YOUTUBE_GROOM_CAPS.md).
 ## Why the playlist sat ~25, then grew slowly
 
 Not a `TARGET_SIZE=25` (that name does not exist on Pi).  
-The old 72h fresh cull plus `MAX_INSERTS_PER_TICK` (4, then 8) kept the list small. YouTube’s 5000 ceiling is not the limiter. CAP 200 is a **breaker**, not a fill target. House target ~50 is a **target**.
+The old 72h fresh cull plus `MAX_INSERTS_PER_TICK` (4, then 8) kept the list small. YouTube’s 5000 ceiling is not the limiter. CAP 200 is a **breaker**, not a fill target. House target ~100 is a **target** (was ~50; #788).
 
 ## Before → after (this change)
 
 | Name | Was (live / hearted 8/31) | Now |
 |------|---------------------------|-----|
-| `MAX_INSERTS_PER_TICK` | **8** (4 before 8/31) | **removed** — one tick may insert as many as needed to approach house target ~50 after prune |
-| house target | ~50 (target, not a YouTube cap) | **50** (same; still a target) |
+| `MAX_INSERTS_PER_TICK` | **8** (4 before 8/31) | **removed** — one tick may insert as many as needed to approach house target after prune |
+| house target | ~50 (target, not a YouTube cap) | **100** (#788; still a target, not a cap) |
 | `FRESH_HOURS` | **168** | **168** |
 | `CAP` | **200** (breaker, was `cap_100`) | **200** (breaker) |
 | `STALE_HARD_DAYS` | **7** | **7** |
@@ -39,12 +39,24 @@ Prefer more fresh content over candidate-starved ticks. Live Pi writer only
 | `MIN_FIT` | **2** (skip `fit < 2`) | **1** (keep `fit ≥ 1`) |
 | `SEED_THROTTLE_WEIGHT_FLOOR` | **0.4** | **0.25** |
 
-`SEED_KEEPERS`, house target ~50, `CAP` 200, prune/dup, OAuth unchanged.
+`SEED_KEEPERS`, `CAP` 200, prune/dup, OAuth, `MIN_FIT`, `SEED_THROTTLE` unchanged in #788.
+
+## House size (#788)
+
+Chairman (via GVG on #718) wants the daily feed closer to **~100 videos/day**.
+Live Pi writer only (2026-09-16). Nest documents the constants; **do not copy nest over Pi**.
+Did not re-loosen `MIN_FIT` / `SEED_THROTTLE`. CAP 200 stays a breaker.
+
+| Name | Was | Now |
+|------|-----|-----|
+| `HOUSE_TARGET` | **50** | **100** |
+| `SEED_UPLOADS_PER_CHANNEL` | **6** (call site) | **50** (YouTube page max; 7d window) |
+| `CAP` | **200** | **200** (unchanged) |
 
 ## Policy that stays
 
 - **Prune-first:** dead/private, dups, rated, swipe-off, `STALE_HARD_DAYS=7`
-- After prune, insert toward house target ~50
+- After prune, insert toward house target ~100
 - Stop inserts if `CAP` (200) would be exceeded
 - Stop inserts at remaining playlist slots (YouTube 5000)
 - If a YouTube API quota guard exists on the Pi writer, **keep it**
