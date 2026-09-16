@@ -166,11 +166,13 @@ def resolve_log_date(
     last_wake_at: Any = None,
     tz_name: Optional[str] = None,
 ) -> str:
-    """Default + after-midnight remap onto the training day.
+    """Empty date defaults to the training day; explicit YYYY-MM-DD is kept.
 
-    An explicit date that is not civil today is kept (intentional backdate).
-    Empty date, or civil-today while still on the prior wake, becomes the
-    training day so late-night logs merge with that wake's session.
+    The log date picker is authoritative (#771). Civil-today after midnight
+    is no longer remapped onto the prior wake — that ate explicit 09/16
+    selections and stored 09/15. Agent/quest posts with no date still land
+    on the current training day so a late-night write without a picker
+    stays on this wake.
     """
     from .timeutil import local_today_iso
 
@@ -186,8 +188,6 @@ def resolve_log_date(
         datetime.strptime(raw, "%Y-%m-%d")
     except ValueError:
         return train if covers else civil
-    if raw == civil and train != civil and covers:
-        return train
     return raw
 
 

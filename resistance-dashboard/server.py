@@ -114,6 +114,7 @@ from rt_dashboard.service_auth import (  # noqa: E402
 )
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.workout_log import (  # noqa: E402
+    find_same_day_session,
     merge_log_with_history,
     parse_log_body,
     plan_session_date_move,
@@ -1899,6 +1900,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 from_date = str(body.get("from_date") or body.get("date") or "")
                 to_date = str(body.get("to_date") or body.get("new_date") or "")
                 session_type = str(body.get("session_type") or "")
+                dest_occupied = (
+                    str(from_date)[:10] != str(to_date)[:10]
+                    and find_same_day_session(history, to_date, session_type)
+                    is not None
+                )
                 moved = plan_session_date_move(
                     history,
                     session_type=session_type,
@@ -1927,6 +1933,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         "session": moved.to_dict(),
                         "from_date": old_day,
                         "to_date": moved.date,
+                        "merged": bool(dest_occupied),
                         "old_day_logged": ppl_logged_on_day(sessions, old_day),
                         "new_day_logged": ppl_logged_on_day(sessions, moved.date),
                         "next_session_type": next_session_type(sessions, goals),

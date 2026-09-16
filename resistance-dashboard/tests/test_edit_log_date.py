@@ -71,17 +71,77 @@ class PlanSessionDateMove(unittest.TestCase):
                 to_date="2026-09-08",
             )
 
-    def test_occupied_target_errors(self):
+    def test_occupied_target_merges_exercises(self):
+        dest = Session(
+            date="2026-09-16",
+            session_type="legs",
+            exercises=[
+                ExerciseEntry(
+                    name="Back Extension Machine",
+                    sets=[SetEntry(weight_lbs=155, sets=3, reps=10)],
+                ),
+                ExerciseEntry(
+                    name="RDL",
+                    sets=[SetEntry(weight_lbs=40, sets=2, reps=7)],
+                ),
+                ExerciseEntry(
+                    name="Calf Extensions",
+                    sets=[SetEntry(weight_lbs=120, sets=3, reps=12)],
+                ),
+            ],
+            closed_at="2026-09-16T09:00:00-04:00",
+        )
+        stranded = Session(
+            date="2026-09-15",
+            session_type="legs",
+            exercises=[
+                ExerciseEntry(
+                    name="Lying Leg Curl",
+                    sets=[SetEntry(weight_lbs=80, sets=1, reps=11)],
+                )
+            ],
+            closed_at="2026-09-16T05:10:00-04:00",
+        )
+        moved = plan_session_date_move(
+            [dest, stranded],
+            session_type="legs",
+            from_date="2026-09-15",
+            to_date="2026-09-16",
+        )
+        names = [e.name for e in moved.exercises]
+        self.assertEqual(moved.date, "2026-09-16")
+        self.assertEqual(
+            names,
+            [
+                "Back Extension Machine",
+                "RDL",
+                "Calf Extensions",
+                "Lying Leg Curl",
+            ],
+        )
+        curl = moved.exercises[-1]
+        self.assertEqual(curl.sets[0].weight_lbs, 80)
+        self.assertEqual(curl.sets[0].sets, 1)
+        self.assertEqual(curl.sets[0].reps, 11)
+        dest_vol = dest.volume
+        curl_vol = 80 * 1 * 11
+        self.assertEqual(moved.volume, dest_vol + curl_vol)
+        self.assertEqual(moved.closed_at, "2026-09-16T09:00:00-04:00")
+
+    def test_occupied_target_moved_load_wins_on_name_match(self):
         tue = _legs("2026-09-09")
         mon = _legs("2026-09-08")
         mon.exercises[0].sets[0].weight_lbs = 35
-        with self.assertRaisesRegex(ValueError, "already has that session"):
-            plan_session_date_move(
-                [tue, mon],
-                session_type="legs",
-                from_date="2026-09-09",
-                to_date="2026-09-08",
-            )
+        moved = plan_session_date_move(
+            [tue, mon],
+            session_type="legs",
+            from_date="2026-09-09",
+            to_date="2026-09-08",
+        )
+        self.assertEqual(moved.date, "2026-09-08")
+        self.assertEqual(len(moved.exercises), 1)
+        self.assertEqual(moved.exercises[0].name, "RDL")
+        self.assertEqual(moved.exercises[0].sets[0].weight_lbs, 40)
 
     def test_same_date_is_identity(self):
         src = _legs()
@@ -131,6 +191,47 @@ class RelocateClearsOldDay(unittest.TestCase):
         self.assertEqual(ppl_logged_on_day(sessions, "2026-09-08"), "legs")
         goals, _ = load_workspace_goals()
         self.assertEqual(next_session_type(sessions, goals), "push")
+
+    def test_merge_into_occupied_day_unions_and_clears_source(self):
+        dest = Session(
+            date="2026-09-16",
+            session_type="legs",
+            exercises=[
+                ExerciseEntry(
+                    name="RDL",
+                    sets=[SetEntry(weight_lbs=40, sets=2, reps=7)],
+                )
+            ],
+            closed_at="2026-09-16T09:00:00-04:00",
+        )
+        stranded = Session(
+            date="2026-09-15",
+            session_type="legs",
+            exercises=[
+                ExerciseEntry(
+                    name="Lying Leg Curl",
+                    sets=[SetEntry(weight_lbs=80, sets=1, reps=11)],
+                )
+            ],
+            closed_at="2026-09-16T05:10:00-04:00",
+        )
+        self.repo.upsert_session(dest)
+        self.repo.upsert_session(stranded)
+        moved = plan_session_date_move(
+            self.repo.list_sessions(),
+            session_type="legs",
+            from_date="2026-09-15",
+            to_date="2026-09-16",
+        )
+        self.repo.relocate_session(moved, "2026-09-15")
+        sessions = self.repo.list_sessions()
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].date, "2026-09-16")
+        names = [e.name for e in sessions[0].exercises]
+        self.assertEqual(names, ["RDL", "Lying Leg Curl"])
+        self.assertEqual(sessions[0].volume, dest.volume + 80 * 1 * 11)
+        self.assertIsNone(ppl_logged_on_day(sessions, "2026-09-15"))
+        self.assertEqual(ppl_logged_on_day(sessions, "2026-09-16"), "legs")
 
 
 class WorkoutsDateWrite(unittest.TestCase):
@@ -184,6 +285,7 @@ class WorkoutsDateWrite(unittest.TestCase):
                 )
         self.assertEqual(status, 200, body)
         self.assertTrue(body["ok"])
+        self.assertFalse(body.get("merged"))
         self.assertEqual(body["session"]["date"], "2026-09-08")
         self.assertEqual(body["session"]["exercises"][0]["sets"][0]["weight_lbs"], 40)
         self.assertIsNone(body["old_day_logged"])
@@ -206,6 +308,75 @@ class WorkoutsDateWrite(unittest.TestCase):
                 )
         self.assertEqual(status, 404)
         self.assertEqual(body["error"], "session not found")
+
+    def test_occupied_target_merges_200(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        dest = _legs("2026-09-16", closed_at="2026-09-16T09:00:00-04:00")
+        dest.exercises[0].name = "RDL"
+        stranded = Session(
+            date="2026-09-15",
+            session_type="legs",
+            exercises=[
+                ExerciseEntry(
+                    name="Lying Leg Curl",
+                    sets=[SetEntry(weight_lbs=80, sets=1, reps=11)],
+                )
+            ],
+            closed_at="2026-09-16T05:10:00-04:00",
+        )
+        history = [dest, stranded]
+
+        def fake_load(_uid):
+            return list(history), [], "turso"
+
+        def fake_reloc(_uid, session, from_date):
+            history[:] = [
+                s
+                for s in history
+                if not (
+                    s.date[:10] == str(from_date)[:10]
+                    and s.session_type == session.session_type
+                )
+            ]
+            history[:] = [
+                s
+                for s in history
+                if not (
+                    s.date[:10] == str(session.date)[:10]
+                    and s.session_type == session.session_type
+                )
+            ]
+            history.append(session)
+            return {
+                "ok": True,
+                "backend": "turso",
+                "path": "turso",
+                "verified_on_readback": True,
+            }
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "api.dashboard._load_sessions", side_effect=fake_load
+            ), mock.patch(
+                "rt_dashboard.turso_repo.relocate_session", side_effect=fake_reloc
+            ):
+                status, body = workouts_date_write(
+                    _cookie(),
+                    {
+                        "session_type": "legs",
+                        "from_date": "2026-09-15",
+                        "to_date": "2026-09-16",
+                    },
+                )
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["ok"])
+        self.assertTrue(body["merged"])
+        self.assertEqual(body["session"]["date"], "2026-09-16")
+        names = [e["name"] for e in body["session"]["exercises"]]
+        self.assertEqual(names, ["RDL", "Lying Leg Curl"])
+        self.assertEqual(body["session"]["volume"], dest.volume + 80 * 1 * 11)
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0].date, "2026-09-16")
 
     def test_dispatch_get_is_405_post_is_not_log_upsert(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
@@ -235,11 +406,36 @@ class HistoryDateMarkup(unittest.TestCase):
         self.assertIn("function submitHistoryDate", APP_JS)
         self.assertIn('type="date"', APP_JS)
         self.assertNotIn("delete + re-log", APP_JS)
+        self.assertIn("data.merged", APP_JS)
+        self.assertIn("Merged ${sessionType.toUpperCase()}", APP_JS)
+
+    def test_log_date_defaults_to_civil_today_not_training_day(self):
+        today = APP_JS.split("function todayISO()", 1)[1].split(
+            "function trainingDayISO", 1
+        )[0]
+        self.assertIn("getFullYear()", today)
+        self.assertIn("getMonth()", today)
+        self.assertIn("getDate()", today)
+        self.assertNotIn("toISOString", today)
+        setter = APP_JS.split("function setLogDateFromTrainingDay", 1)[1].split(
+            "function fillSleepCalendarDays", 1
+        )[0]
+        self.assertIn("if (el.value) return", setter)
+        self.assertIn("todayISO()", setter)
+        self.assertNotIn("trainingDayISO", setter)
+        submit = APP_JS.split("async function submitWorkout", 1)[1].split(
+            "async function submitIngredient", 1
+        )[0]
+        self.assertIn('date: $("log-date").value', submit)
+        self.assertIn("resolvedOptions().timeZone", submit)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=kitchen-collapse-1", HTML)
-        self.assertIn("/app.js?v=kitchen-collapse-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v102"', SW)
+        self.assertIn("/app.js?v=log-date-771-1", HTML)
+        self.assertIn("/app.js?v=log-date-771-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v103"', SW)
+        self.assertNotIn("/app.js?v=kitchen-collapse-1", HTML)
+        self.assertNotIn("/app.js?v=kitchen-collapse-1", SW)
+        self.assertNotIn("fitdash-shell-v102", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", HTML)
         self.assertNotIn("/app.js?v=recipes-dish-1", SW)
         self.assertNotIn("fitdash-shell-v100", SW)

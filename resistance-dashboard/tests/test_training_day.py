@@ -73,14 +73,14 @@ class ResolveLogDate(unittest.TestCase):
         )
         self.assertEqual(day, "2026-09-08")
 
-    def test_civil_today_after_midnight_remaps(self):
+    def test_civil_today_after_midnight_is_kept(self):
         day = resolve_log_date(
             "2026-09-09",
             now=datetime(2026, 9, 9, 0, 30, tzinfo=ET),
             last_wake_at="2026-09-08T07:00:00-04:00",
             tz_name="America/New_York",
         )
-        self.assertEqual(day, "2026-09-08")
+        self.assertEqual(day, "2026-09-09")
 
     def test_explicit_backdate_kept(self):
         day = resolve_log_date(
@@ -212,7 +212,7 @@ class StampUsesWake(unittest.TestCase):
 
 
 class ParseLogRemap(unittest.TestCase):
-    def test_after_midnight_body_lands_on_training_day(self):
+    def test_explicit_picker_date_is_authoritative_after_midnight(self):
         session = parse_log_body(
             {
                 "session_type": "legs",
@@ -225,10 +225,25 @@ class ParseLogRemap(unittest.TestCase):
             },
             now=datetime(2026, 9, 9, 0, 30, tzinfo=ET),
         )
-        self.assertEqual(session.date, "2026-09-08")
+        self.assertEqual(session.date, "2026-09-09")
         self.assertEqual(session.session_type, "legs")
         self.assertTrue(session.closed_at)
         self.assertEqual(session.exercises[0].name, "RDL")
+
+    def test_empty_date_after_midnight_still_uses_training_day(self):
+        session = parse_log_body(
+            {
+                "session_type": "legs",
+                "date": "",
+                "last_wake_at": "2026-09-08T07:00:00-04:00",
+                "tz": "America/New_York",
+                "exercises": [
+                    {"name": "RDL", "weight_lbs": 40, "sets": 2, "reps": 7}
+                ],
+            },
+            now=datetime(2026, 9, 9, 0, 30, tzinfo=ET),
+        )
+        self.assertEqual(session.date, "2026-09-08")
 
 
 if __name__ == "__main__":

@@ -417,7 +417,10 @@ def workouts_date_write(headers, payload=None):
     try:
         from api.dashboard import _load_sessions
         from rt_dashboard.turso_repo import relocate_session
-        from rt_dashboard.workout_log import plan_session_date_move
+        from rt_dashboard.workout_log import (
+            find_same_day_session,
+            plan_session_date_move,
+        )
         from rt_dashboard.workout_planner import next_session_type, ppl_logged_on_day
         from rt_dashboard.workout_store import load_workspace_goals
 
@@ -425,6 +428,10 @@ def workouts_date_write(headers, payload=None):
         from_date = str(payload.get("from_date") or payload.get("date") or "")
         to_date = str(payload.get("to_date") or payload.get("new_date") or "")
         session_type = str(payload.get("session_type") or "")
+        dest_occupied = (
+            str(from_date)[:10] != str(to_date)[:10]
+            and find_same_day_session(history, to_date, session_type) is not None
+        )
         moved = plan_session_date_move(
             history,
             session_type=session_type,
@@ -472,6 +479,7 @@ def workouts_date_write(headers, payload=None):
         "session": moved.to_dict(),
         "from_date": old_day,
         "to_date": moved.date,
+        "merged": bool(dest_occupied),
         "old_day_logged": ppl_logged_on_day(sessions or [], old_day),
         "new_day_logged": ppl_logged_on_day(sessions or [], moved.date),
         "next_session_type": next_session_type(sessions or [], goals),

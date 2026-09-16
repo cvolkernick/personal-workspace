@@ -102,7 +102,9 @@ def plan_session_date_move(
     """Move a logged session's civil date. Sets/loads are unchanged.
 
     Explicit edit — does not remap through training-day SoT. Same-letter
-    already on the target day is a conflict, not a merge.
+    already on the target day unions into that session (moved loads win
+    on name match; dest-only rows stay) so a stranded log can rejoin
+    the day's workout (#771).
     """
     st = str(session_type or "").lower().strip()
     if st not in ("push", "pull", "legs"):
@@ -115,11 +117,7 @@ def plan_session_date_move(
     src = find_same_day_session(history, src_day, st)
     if src is None:
         raise ValueError("session not found")
-    if src_day != dest_day:
-        dest = find_same_day_session(history, dest_day, st)
-        if dest is not None:
-            raise ValueError("target date already has that session")
-    return Session(
+    incoming = Session(
         date=dest_day,
         session_type=st,
         exercises=list(src.exercises or []),
@@ -127,6 +125,12 @@ def plan_session_date_move(
         source_file=src.source_file or "",
         closed_at=src.closed_at,
     )
+    if src_day == dest_day:
+        return incoming
+    dest = find_same_day_session(history, dest_day, st)
+    if dest is None:
+        return incoming
+    return merge_same_day_session(incoming, dest)
 
 
 def parse_log_body(data: dict, *, now=None) -> Session:

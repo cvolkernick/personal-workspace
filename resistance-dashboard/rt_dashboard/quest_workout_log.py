@@ -508,10 +508,10 @@ def quest_log_context(
 ) -> Tuple[str, List[Session], Dict[str, Any]]:
     """Training-day + sessions + PPL slot for a quest log write.
 
-    Viewer date from payload.date, remapped onto the wake-window training
-    day when last_wake is known (after-midnight finish stays on this wake).
-    Explicit non-today dates are kept. session_type prefers an explicit
-    PPL value, then next_session_type — never ``rest``.
+    Viewer date from payload.date is kept when present (#771 — picker /
+    client civil date is authoritative). Empty date still remaps onto the
+    wake-window training day. session_type prefers an explicit PPL value,
+    then next_session_type — never ``rest``.
     """
     payload = payload if isinstance(payload, dict) else {}
     day = str(payload.get("date") or "")[:10]
