@@ -65,7 +65,7 @@ class FormatTests(unittest.TestCase):
 
     def test_turo_line_does_not_invent_bookings(self) -> None:
         self.assertEqual(
-            glance.turo_line({"bookings": []}, 900),
+            glance.turo_line({"bookings": []}, 900, now=NOW),
             "0 trips · watching 15m",
         )
         self.assertEqual(
@@ -81,6 +81,7 @@ class FormatTests(unittest.TestCase):
                     ]
                 },
                 900,
+                now=NOW,
             ),
             "booked · Alex Rivera · 2026-09-01 → 2026-09-04",
         )
