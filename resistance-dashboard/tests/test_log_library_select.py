@@ -76,7 +76,7 @@ class LogLibrarySelect(unittest.TestCase):
         self.assertNotIn("e.g. DB Flat Press", log)
 
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v104"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v105"', SW)
         self.assertNotIn("fitdash-shell-v100", SW)
         self.assertNotIn("fitdash-shell-v98", SW)
         self.assertNotIn("fitdash-shell-v96", SW)
@@ -84,8 +84,8 @@ class LogLibrarySelect(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v89", SW)
         self.assertNotIn("fitdash-shell-v88", SW)
         self.assertNotIn("fitdash-shell-v87", SW)
-        self.assertIn("/app.js?v=pf-applink-582-1", HTML)
-        self.assertIn("/app.js?v=pf-applink-582-1", SW)
+        self.assertIn("/app.js?v=ing-micros-612-1", HTML)
+        self.assertIn("/app.js?v=ing-micros-612-1", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", HTML)
         self.assertNotIn("/app.js?v=recipes-dish-1", SW)
         self.assertNotIn("/app.js?v=quest-gt-local-1", HTML)

@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=pf-applink-582-1" defer></script>
+    <script src="/app.js?v=ing-micros-612-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -622,6 +622,20 @@
               <label>Protein (g)<input type="number" id="ing-p" min="0" step="0.1" value="20" required /></label>
               <label>Carbs (g)<input type="number" id="ing-c" min="0" step="0.1" value="0" required /></label>
               <label>Fat (g)<input type="number" id="ing-f" min="0" step="0.1" value="0" required /></label>
+            </div>
+            <div class="row cols-4" style="margin-top: 0.35rem">
+              <label title="Fiber per serving (g). Blank = unset."
+                >Fiber (g)
+                <input type="number" id="ing-fiber" min="0" max="100" step="0.1" placeholder="e.g. 3" />
+              </label>
+              <label title="Total sugars per serving (g). Blank = unset."
+                >Sugar (g)
+                <input type="number" id="ing-sugar" min="0" max="300" step="0.1" placeholder="e.g. 5" />
+              </label>
+              <label title="Sodium per serving (mg). Blank = unset."
+                >Salt (sodium mg)
+                <input type="number" id="ing-sodium" min="0" max="10000" step="1" placeholder="e.g. 120" />
+              </label>
             </div>
             <div class="actions">
               <button type="submit" class="primary">Add / update ingredient</button>
