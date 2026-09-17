@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="{{name}} — {{category}} in {{neighborhood}}." />
+  <meta name="theme-color" content="#102016" />
+  <title>{{name}} | {{category}}</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-template="{{template_version}}">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">{{initials}}</span>
+        <span class="brand-text">
+          <strong>{{name}}</strong>
+          <span class="brand-tag">{{category}} · {{neighborhood}}</span>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="#services">Services</a>
+        <a href="#hours">Hours</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#contact" class="nav-cta">Call {{phone_display}}</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">{{neighborhood}}{{rating}}</p>
+          <h1>{{name}}</h1>
+          <p class="lead">{{differentiator}}</p>
+          <div class="hero-actions">
+            <a class="btn primary" href="tel:{{phone_href}}">Call {{phone_display}}</a>
+            <a class="btn ghost" href="#contact">Hours &amp; map</a>
+          </div>
+        </div>
+        <aside class="hero-card" aria-label="Quick facts">
+          <h2>Get in touch</h2>
+          <p>{{contact}}</p>
+          <p class="card-note">{{address}}</p>
+        </aside>
+      </div>
+    </section>
+    <section class="section alt" id="services">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">What we do</p>
+          <h2>Services</h2>
+          <p class="section-lead">{{services}}</p>
+        </header>
+        <div class="service-grid">
+          {{services_html}}
+        </div>
+      </div>
+    </section>
+    <section class="section" id="hours">
+      <div class="wrap hours-grid">
+        <div>
+          <p class="eyebrow">When</p>
+          <h2>Hours</h2>
+          <p>{{hours}}</p>
+        </div>
+        <div>
+          <p class="eyebrow">Photos</p>
+          <h2>Gallery</h2>
+          <p>{{photos_note}}</p>
+        </div>
+      </div>
+    </section>
+    <section class="section alt" id="reviews">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">Neighbors</p>
+          <h2>Reviews</h2>
+        </header>
+        {{reviews_html}}
+      </div>
+    </section>
+    <section class="section" id="contact">
+      <div class="wrap contact-grid">
+        <div>
+          <p class="eyebrow">Visit or call</p>
+          <h2>Contact</h2>
+          <p><a class="btn primary" href="tel:{{phone_href}}">{{phone_display}}</a></p>
+          <p>{{email}}</p>
+          <p>{{address}}</p>
+        </div>
+        <div class="map">
+          <iframe
+            title="Map"
+            src="https://maps.google.com/maps?q={{map_query}}&amp;z=14&amp;output=embed"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+          ></iframe>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="wrap">
+      <p>{{name}} · preview site · template {{template_version}}</p>
+    </div>
+  </footer>
+</body>
+</html>
