@@ -12,8 +12,10 @@ Three outcomes — a check that cannot determine state never reports drift:
    missing. GitHub title says git check path. Never "git tip drift".
 
 On mismatch: log + GitHub comment on the standing ops issue (#701).
-SUSTAINED (>1h red) and FCC_ALERT_KILL_SWITCH use the same sink with a
-distinctive title. ntfy is retired.
+Routine and SUSTAINED comments are silent to the repo owner — no GitHub
+``@`` mention, no Buzz owner mention, no ``#Orchestration`` page (#659).
+``FCC_ALERT_KILL_SWITCH`` adds an owner ``@`` mention so the #562
+user-alert still reaches them. ntfy is retired.
 Never mutates git — no checkout, reset, merge, or SYNC_BRANCH change.
 
 ``not a git repository`` is kind=not_a_repo (check-path / broken gitdir),
@@ -42,6 +44,7 @@ DEFAULT_OPS_ISSUE = "701"
 DEFAULT_WORKSPACE = Path.home() / "personal-workspace"
 _NTFY_RETIRED_WARNED = False
 OPS_REPO = "cvolkernick/personal-workspace"
+OWNER_GITHUB_LOGIN = "cvolkernick"
 SCHEDULER_ENV = Path.home() / ".config" / "workflow-scheduler.env"
 STATE_NAME = "fcc_tip_health_state.json"
 _GIT_ENV_BLOCK = (
@@ -484,13 +487,44 @@ def _kill_switch() -> bool:
     return v in {"1", "true", "yes", "on"}
 
 
+def _page_owner(*, kill: bool) -> bool:
+    """#562 / #659: GitHub-mention the repo owner only on kill-switch."""
+    return bool(kill)
+
+
+def build_ops_comment_body(title: str, text: str, *, page_owner: bool) -> str:
+    """Compose the #701 comment. Owner @mention sits outside the fence.
+
+    Routine / sustained: no owner login @mention (skip-Chris). Team still
+    sees the standing issue comment. Kill-switch: @mention the owner.
+    """
+    if page_owner:
+        routing = (
+            f"@{OWNER_GITHUB_LOGIN} kill-switch / dangerous-path user-alert "
+            "(#562). Team: this #701 comment."
+        )
+    else:
+        routing = (
+            "Silent to owner (#659): no GitHub owner @mention, no Buzz owner "
+            "mention, no #Orchestration page. Team path: this #701 comment "
+            "(and/or #workflow)."
+        )
+    return f"**{title}**\n\n{routing}\n\n```\n{text}\n```\n"
+
+
 def _http_post(url: str, data: bytes, headers: dict[str, str], timeout: float = 15.0) -> dict[str, Any]:
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return {"ok": True, "status": getattr(resp, "status", None) or resp.getcode()}
 
 
-def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str, Any]:
+def post_ops_github(
+    title: str,
+    text: str,
+    *,
+    dry_run: bool = False,
+    page_owner: bool = False,
+) -> dict[str, Any]:
     """Comment on the standing ops issue (#701). Never logs tokens."""
     _load_scheduler_env()
     _warn_retired_ntfy()
@@ -502,7 +536,7 @@ def post_ops_github(title: str, text: str, *, dry_run: bool = False) -> dict[str
     token = _github_token()
     if not token:
         return {"ok": True, "posted": False, "skipped": "no-github-token", "issue": issue}
-    body = f"**{title}**\n\n```\n{text}\n```\n"
+    body = build_ops_comment_body(title, text, page_owner=page_owner)
     url = f"https://api.github.com/repos/{OPS_REPO}/issues/{issue}/comments"
     payload = json.dumps({"body": body}).encode("utf-8")
     headers = {
@@ -585,13 +619,24 @@ def alert_mismatch(
         }
 
     kill = _kill_switch()
+    owner_page = _page_owner(kill=kill)
     page = bool(sustained or kill)
     title = _alert_title(kind, sustained=sustained, age_h=age_h, kill=kill)
-    action = (
-        "Sustained >1h — page #workflow (Forge). Do not auto-reset to master/holistic."
-        if sustained
-        else "Do not auto-reset to master/holistic. Silent to Chris unless kill-switch."
-    )
+    if sustained:
+        action = (
+            "Sustained >1h — page #workflow (Forge). Silent to owner. "
+            "Do not auto-reset to master/holistic."
+        )
+    elif kill:
+        action = (
+            "Kill-switch — owner user-alert (#562). "
+            "Do not auto-reset to master/holistic."
+        )
+    else:
+        action = (
+            "Do not auto-reset to master/holistic. "
+            "Silent to owner unless kill-switch."
+        )
     lines = [
         f"outcome={outcome}",
         f"kind={kind}",
@@ -602,7 +647,7 @@ def alert_mismatch(
         f"origin={(result.get('origin_sha') or '')[:12]}",
         f"current-branch.txt={result.get('current_branch_txt')!r}",
         f"sustained_hours={age_h:.2f}",
-        f"page={page} kill_switch={kill}",
+        f"page={page} page_owner={owner_page} kill_switch={kill}",
         "mismatches:",
         *[f"- {m}" for m in (result.get("mismatches") or [])],
         action,
@@ -622,8 +667,10 @@ def alert_mismatch(
             "skipped": "dry-run",
             "title": title,
             "text": text,
+            "body": build_ops_comment_body(title, text, page_owner=owner_page),
             "sustained": sustained,
             "page": page,
+            "page_owner": owner_page,
             "github": {
                 "ok": True,
                 "posted": False,
@@ -631,7 +678,9 @@ def alert_mismatch(
                 "issue": _ops_issue(),
             },
         }
-    github = post_ops_github(title, text, dry_run=False)
+    github = post_ops_github(
+        title, text, dry_run=False, page_owner=owner_page
+    )
     gh_ok = bool(
         github.get("posted")
         or github.get("skipped") in {"no-github-token", "no-issue"}
@@ -647,8 +696,10 @@ def alert_mismatch(
         "skipped": skipped,
         "title": title,
         "text": text,
+        "body": build_ops_comment_body(title, text, page_owner=owner_page),
         "sustained": sustained,
         "page": page,
+        "page_owner": owner_page,
         "github": github,
         "error": github.get("error"),
     }

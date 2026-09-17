@@ -73,6 +73,10 @@ Backups/
 # Auto Fleet local inbox dumps / runtime (never commit)
 auto-fleet/data/runtime/
 
+# Demo-site outreach runtime store / local env (never commit)
+workflows/demo-site-outreach/data/
+workflows/demo-site-outreach/.env
+
 # Android remote-loop harness (#617) — build + emulator artifacts
 android-loop/out/
 android-loop/fixture/.gradle/
