@@ -36,6 +36,8 @@ DESC_TAG_RE = re.compile(r"\[fitdash-gym:(\d{4}-\d{2}-\d{2})\]")
 DURATION = timedelta(hours=1, minutes=30)
 POPUP_REMINDER_MINUTES = 30
 GYM_TZ_NAME = "America/New_York"
+# 12:00–4:00 AM local: hour 0–3. 04:00 start is legal; 02:30–04:00 is not.
+ILLEGAL_GYM_START_HOURS = frozenset({0, 1, 2, 3})
 BUSYNESS_REL = "fitness/gym/busyness.json"
 EVENT_TITLE = "Gym"
 
@@ -252,6 +254,23 @@ def window_bounds(day: str, window: QuietWindow, *, tz: Optional[ZoneInfo] = Non
     return start, end
 
 
+def is_illegal_gym_start(dt: datetime) -> bool:
+    """True when the gym start is 12:00–4:00 AM America/New_York (hours 0–3)."""
+    if dt.tzinfo is None:
+        local = dt.replace(tzinfo=gym_tz())
+    else:
+        local = dt.astimezone(gym_tz())
+    return local.hour in ILLEGAL_GYM_START_HOURS
+
+
+def _clock(now: Optional[datetime]) -> datetime:
+    if now is None:
+        return datetime.now(gym_tz())
+    if now.tzinfo is None:
+        return now.replace(tzinfo=gym_tz())
+    return now
+
+
 def extra_windows_for(day: str) -> List[QuietWindow]:
     """Occupancy-ranked 30-min starts when the published shortlist is all busy."""
     occ = occupancy_map(day)
@@ -281,7 +300,12 @@ def extra_windows_for(day: str) -> List[QuietWindow]:
 
 
 def candidate_windows(day: str) -> List[QuietWindow]:
-    return ranked_windows_for(day) + extra_windows_for(day)
+    out: List[QuietWindow] = []
+    for window in ranked_windows_for(day) + extra_windows_for(day):
+        start, _end = window_bounds(day, window)
+        if not is_illegal_gym_start(start):
+            out.append(window)
+    return out
 
 
 def intervals_overlap(a0: datetime, a1: datetime, b0: datetime, b1: datetime) -> bool:
@@ -448,12 +472,14 @@ def pick_slot(
     busy: Sequence[Tuple[datetime, datetime]],
     *,
     prefer: Optional[Tuple[datetime, datetime]] = None,
-) -> ChosenSlot:
-    """First ranked quiet stretch with no overlap. Keep prefer if still free."""
+) -> Optional[ChosenSlot]:
+    """First legal free quiet stretch. Discard overnight prefer. None if none free."""
     if prefer is not None:
         p0, p1 = prefer
-        if p1 - p0 >= timedelta(minutes=80) and not any(
-            intervals_overlap(p0, p1, b0, b1) for b0, b1 in busy
+        if (
+            not is_illegal_gym_start(p0)
+            and p1 - p0 >= timedelta(minutes=80)
+            and not any(intervals_overlap(p0, p1, b0, b1) for b0, b1 in busy)
         ):
             occ = 0
             for window in ranked_windows_for(day):
@@ -467,19 +493,14 @@ def pick_slot(
                 occ,
                 QuietWindow(p0.strftime("%H:%M"), p1.strftime("%H:%M"), occ),
             )
-    first: Optional[ChosenSlot] = None
     for window in candidate_windows(day):
         start, end = window_bounds(day, window)
+        if is_illegal_gym_start(start):
+            continue
         slot = ChosenSlot(start, end, window.occupancy_pct, window)
-        if first is None:
-            first = slot
         if not slot_overlaps_busy(slot, busy):
             return slot
-    if first is None:
-        window = ranked_windows_for(day)[0]
-        start, end = window_bounds(day, window)
-        first = ChosenSlot(start, end, window.occupancy_pct, window)
-    return first
+    return None
 
 
 def gym_day_from_workout(workout: Optional[dict], day: str) -> Optional[GymDay]:
@@ -603,14 +624,16 @@ def _scope_skip(status: dict) -> dict[str, Any]:
 def sync_gym_sessions(
     days: Sequence[GymDay],
     *,
-    now: Optional[datetime] = None,  # noqa: ARG001 — monitor/coach share signature
+    now: Optional[datetime] = None,
     role: str = "coach",
 ) -> Dict[str, Any]:
     """Upsert tagged gym events for training days; delete rest leftovers.
 
     ``role="coach"`` is plan generation. ``role="monitor"`` is the assistant
     daily reconcile: same tag, may create a missing event, may move on overlap,
-    must not move a user-locked event, reports ``moves``.
+    must not move a user-locked event, reports ``moves``. Never books a start
+    in 12:00–4:00 AM America/New_York. Monitor may relocate an unlocked
+    overnight leftover whose end is still in the future.
     """
     status = gcal.credentials_status()
     if not status.get("ok"):
@@ -644,14 +667,24 @@ def sync_gym_sessions(
             ignore = [str(keep["id"])] if keep and keep.get("id") else []
             busy = busy_intervals(cal_id, day, ignore_ids=ignore)
             prefer = None
-            if keep and not is_user_locked(keep):
-                interval = event_interval(keep)
-                if interval is not None:
-                    prefer = interval
+            overnight_existing = False
+            clock = _clock(now)
             if keep and is_user_locked(keep):
                 locked += 1
                 continue
+            if keep:
+                interval = event_interval(keep)
+                if interval is not None and is_illegal_gym_start(interval[0]):
+                    overnight_existing = True
+                    # Past leftovers stay put. Coach does not relocate overnight;
+                    # monitor moves only while end is still in the future.
+                    if interval[1] <= clock or role != "monitor":
+                        continue
+                elif interval is not None:
+                    prefer = interval
             slot = pick_slot(day, busy, prefer=prefer)
+            if slot is None:
+                continue
             body = event_body(day, slot, session_type=gym_day.session_type)
             if keep and keep.get("id"):
                 prev = event_start_iso(keep)
@@ -665,7 +698,7 @@ def sync_gym_sessions(
                             "event_id": str(keep["id"]),
                             "from": prev,
                             "to": new_start,
-                            "reason": "overlap",
+                            "reason": "overnight" if overnight_existing else "overlap",
                             "role": role,
                         }
                     )
