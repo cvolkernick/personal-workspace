@@ -77,6 +77,10 @@ auto-fleet/data/runtime/
 workflows/demo-site-outreach/data/
 workflows/demo-site-outreach/.env
 
+# Panamerica roadside CRM runtime store / local env (never commit)
+workflows/panamerica-roadside-crm/data/
+workflows/panamerica-roadside-crm/.env
+
 # Android remote-loop harness (#617) — build + emulator artifacts
 android-loop/out/
 android-loop/fixture/.gradle/
