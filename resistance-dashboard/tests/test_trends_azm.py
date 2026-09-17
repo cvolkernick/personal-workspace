@@ -44,13 +44,15 @@ class TrendsAzmMarkup(unittest.TestCase):
         cal_idx = HTML.find('id="calories-macros-charts"')
         vol_idx = HTML.find('id="charts-volume-strength"')
         azm_idx = HTML.find('id="azm-trend-card"')
+        rhr_idx = HTML.find('id="rhr-trend-card"')
         conn_idx = HTML.find('id="connections-card"')
         self.assertLess(weekly_idx, sleep_idx, "Weekly review sits at top of Trends")
         self.assertLess(sleep_idx, cal_idx)
         self.assertLess(cal_idx, vol_idx)
         self.assertLess(vol_idx, azm_idx, "AZM sits under daily volume + strength")
-        self.assertLess(azm_idx, conn_idx)
-        azm_card = HTML[azm_idx:conn_idx]
+        self.assertLess(azm_idx, rhr_idx, "RHR sits directly under AZM")
+        self.assertLess(rhr_idx, conn_idx)
+        azm_card = HTML[azm_idx:rhr_idx]
         self.assertIn("chart-box", azm_card)
         self.assertNotIn("<canvas", azm_card)
         self.assertIn('id="azm-sparkline"', azm_card)
@@ -251,7 +253,7 @@ class HobbyAndIgnoreLock(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertIn("/trends-azm.js?v=azm-90d-3", HTML)
         self.assertIn("styles.css?v=pace-rows-650-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v108"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v109"', SW)
         self.assertNotIn("fitdash-shell-v100", SW)
         self.assertNotIn("fitdash-shell-v98", SW)
         self.assertNotIn("fitdash-shell-v96", SW)
