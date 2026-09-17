@@ -20,11 +20,13 @@ from rt_dashboard.gym_calendar import (
     PROP_DATE,
     PROP_GYM,
     PROP_PLANNED_START,
+    candidate_windows,
     clock_label,
     event_body,
     gym_day_from_workout,
     gym_desc_tag,
     gym_quest_label_for_day,
+    is_illegal_gym_start,
     is_user_locked,
     load_busyness,
     location_for,
@@ -33,7 +35,9 @@ from rt_dashboard.gym_calendar import (
     reconcile_gym_sessions,
     reset_busyness_cache,
     sync_gym_from_workout,
+    sync_gym_sessions,
     weekday_key,
+    window_bounds,
 )
 from rt_dashboard.agent_plan import ensure_today_grok_plan
 from rt_dashboard.workout_plan_store import clear_memory_workout_plans
@@ -150,6 +154,245 @@ class QuietPick(unittest.TestCase):
         )
         slot = pick_slot("2026-09-14", [], prefer=prefer)
         self.assertEqual(slot.start.strftime("%H:%M"), "06:30")
+
+
+class OvernightBan(unittest.TestCase):
+    """#800: never book Gym starting 12:00–4:00 AM America/New_York."""
+
+    def setUp(self):
+        reset_busyness_cache()
+
+    def test_illegal_hours_are_0_through_3(self):
+        self.assertTrue(is_illegal_gym_start(datetime(2026, 9, 17, 0, 0, tzinfo=ET)))
+        self.assertTrue(is_illegal_gym_start(datetime(2026, 9, 17, 2, 30, tzinfo=ET)))
+        self.assertTrue(is_illegal_gym_start(datetime(2026, 9, 17, 3, 59, tzinfo=ET)))
+        self.assertFalse(is_illegal_gym_start(datetime(2026, 9, 17, 4, 0, tzinfo=ET)))
+        self.assertFalse(is_illegal_gym_start(datetime(2026, 9, 17, 5, 0, tzinfo=ET)))
+        self.assertFalse(is_illegal_gym_start(datetime(2026, 9, 17, 22, 0, tzinfo=ET)))
+
+    def test_candidates_never_start_overnight(self):
+        for day in (
+            "2026-09-14",
+            "2026-09-15",
+            "2026-09-16",
+            "2026-09-17",
+            "2026-09-18",
+            "2026-09-19",
+            "2026-09-20",
+        ):
+            for window in candidate_windows(day):
+                start, _end = window_bounds(day, window)
+                self.assertNotIn(start.hour, {0, 1, 2, 3}, (day, window.start_hhmm))
+
+    def test_prefer_0230_is_discarded_for_legal_ranked(self):
+        prefer = (
+            datetime(2026, 9, 17, 2, 30, tzinfo=ET),
+            datetime(2026, 9, 17, 4, 0, tzinfo=ET),
+        )
+        slot = pick_slot("2026-09-17", [], prefer=prefer)
+        self.assertIsNotNone(slot)
+        self.assertNotEqual(slot.start.strftime("%H:%M"), "02:30")
+        self.assertNotIn(slot.start.hour, {0, 1, 2, 3})
+        # Thursday ranked first is 22:00.
+        self.assertEqual(slot.start.strftime("%H:%M"), "22:00")
+
+    def test_prefer_0400_is_legal_and_kept(self):
+        prefer = (
+            datetime(2026, 9, 17, 4, 0, tzinfo=ET),
+            datetime(2026, 9, 17, 5, 30, tzinfo=ET),
+        )
+        slot = pick_slot("2026-09-17", [], prefer=prefer)
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.start.strftime("%H:%M"), "04:00")
+
+    def test_busy_0500_to_midnight_skips_instead_of_overnight(self):
+        busy = [
+            (
+                datetime(2026, 9, 17, 5, 0, tzinfo=ET),
+                datetime(2026, 9, 18, 0, 0, tzinfo=ET),
+            )
+        ]
+        slot = pick_slot("2026-09-17", busy)
+        self.assertIsNone(slot)
+
+    def test_sync_busy_day_does_not_write_overnight(self):
+        created, updated = [], []
+        busy_ev = _busy(
+            "packed",
+            "2026-09-17T05:00:00-04:00",
+            "2026-09-18T00:00:00-04:00",
+        )
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=lambda cid, **kw: []
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
+            else [busy_ev],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.create_event",
+            side_effect=lambda cid, body: created.append(body) or {"id": "n"},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=lambda *a, **k: updated.append(1),
+        ):
+            result = sync_gym_from_workout(
+                {"is_rest_day": False, "session_type": "push"},
+                day="2026-09-17",
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(created, [])
+        self.assertEqual(updated, [])
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["updated"], 0)
+
+    def test_monitor_moves_future_unlocked_overnight(self):
+        existing = [
+            _ev(
+                eid="ev-night",
+                day="2026-09-17",
+                start="2026-09-17T02:30:00-04:00",
+                end="2026-09-17T04:00:00-04:00",
+            )
+        ]
+        updated = []
+        now = datetime(2026, 9, 17, 1, 0, tzinfo=ET)
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=lambda cid, **kw: list(existing)
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
+            else [],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=lambda cid, eid, body: updated.append(body),
+        ):
+            result = reconcile_gym_sessions(
+                [GymDay(day="2026-09-17", is_rest=False, session_type="push")],
+                now=now,
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(len(result["moves"]), 1)
+        self.assertEqual(result["moves"][0]["from"], "2026-09-17T02:30:00-04:00")
+        self.assertEqual(result["moves"][0]["reason"], "overnight")
+        to_dt = datetime.fromisoformat(result["moves"][0]["to"])
+        self.assertNotIn(to_dt.hour, {0, 1, 2, 3})
+        self.assertEqual(updated[0]["start"]["dateTime"], result["moves"][0]["to"])
+
+    def test_monitor_leaves_past_unlocked_overnight(self):
+        existing = [
+            _ev(
+                eid="ev-past",
+                day="2026-09-17",
+                start="2026-09-17T02:30:00-04:00",
+                end="2026-09-17T04:00:00-04:00",
+            )
+        ]
+        updated = []
+        now = datetime(2026, 9, 17, 8, 0, tzinfo=ET)
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=lambda cid, **kw: list(existing)
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
+            else [],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=lambda *a, **k: updated.append(1),
+        ):
+            result = reconcile_gym_sessions(
+                [GymDay(day="2026-09-17", is_rest=False, session_type="push")],
+                now=now,
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["moves"], [])
+        self.assertEqual(updated, [])
+        self.assertEqual(result["updated"], 0)
+
+    def test_monitor_leaves_user_locked_overnight(self):
+        existing = [
+            _ev(
+                eid="ev-locked-night",
+                day="2026-09-17",
+                start="2026-09-17T02:30:00-04:00",
+                end="2026-09-17T04:00:00-04:00",
+                planned="2026-09-17T05:00:00-04:00",
+            )
+        ]
+        updated = []
+        now = datetime(2026, 9, 17, 1, 0, tzinfo=ET)
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=lambda cid, **kw: list(existing)
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
+            else [],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=lambda *a, **k: updated.append(1),
+        ):
+            result = reconcile_gym_sessions(
+                [GymDay(day="2026-09-17", is_rest=False, session_type="push")],
+                now=now,
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["locked"], 1)
+        self.assertEqual(result["moves"], [])
+        self.assertEqual(updated, [])
+
+    def test_coach_does_not_relocate_future_overnight(self):
+        existing = [
+            _ev(
+                eid="ev-coach-night",
+                day="2026-09-17",
+                start="2026-09-17T02:30:00-04:00",
+                end="2026-09-17T04:00:00-04:00",
+            )
+        ]
+        updated = []
+        now = datetime(2026, 9, 17, 1, 0, tzinfo=ET)
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=lambda cid, **kw: list(existing)
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
+            else [],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=lambda *a, **k: updated.append(1),
+        ):
+            result = sync_gym_sessions(
+                [GymDay(day="2026-09-17", is_rest=False, session_type="push")],
+                now=now,
+                role="coach",
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(updated, [])
+        self.assertEqual(result["moves"], [])
 
 
 class LocationClosure(unittest.TestCase):
