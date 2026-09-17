@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-09-07",
+  "as_of": "2026-09-17",
   "purpose": "Private (pre-IPO / pre-listing) companies to monitor for a possible public-market allocation when/if they become tradable. Not investable on the agentic book today. Not part of the public equities deploy consider set.",
   "policy": {
     "auto_buy": false,
@@ -265,6 +265,62 @@
       "last_deep_dive": null,
       "last_deep_dive_path": null,
       "last_verdict": "owner_add_monitor_research_only"
+    },
+    {
+      "id": "FIGURE",
+      "name": "Figure AI",
+      "legal_name": "Figure AI, Inc.",
+      "status": "private",
+      "liquidity": "private",
+      "rank": 6,
+      "priority": "medium",
+      "theme": "robotics",
+      "themes": [
+        "robotics",
+        "humanoids",
+        "physical_ai",
+        "ai_stack",
+        "automation"
+      ],
+      "sleeve_if_public": "stocks_growth",
+      "public_symbol": null,
+      "listing_status": "private_no_filed_ipo",
+      "last_reported_valuation": "~$39B Series C (Sep 2025; $1B+ raise, Parkway Venture Capital led; Nvidia, Intel Capital, Qualcomm Ventures, Salesforce, LG Technology Ventures, T-Mobile Ventures participated)",
+      "thesis_fit": "General-purpose humanoid robots (Figure 03) for factory/logistics/household labor; in-house Helix VLA AI (OpenAI collab ended); BotQ manufacturing scaling (350+ units by Apr 2026, ~1 robot/hour cycle). Fits Robotics + physical-AI theme under stocks/growth when/if public. Not deployable while private.",
+      "why_watch": "Owner 2026-09-17: add Figure AI (robotics) to the agentic fund watch list. Private now; private-watch purpose is monitor until investible (IPO / public listing / clear retail or accessible secondary \u2014 NOT private deploy). Material move = investibility path opens.",
+      "monitor_for": [
+        "ipo_s1_or_confidential_filing",
+        "direct_listing_or_spac_announcement",
+        "clear_retail_or_accessible_secondary",
+        "material_funding_or_valuation_step",
+        "material product or contract news (e.g. BMW-scale deployments, BotQ scale-up)",
+        "nscale compute build-out progress (up to 100k Vera Rubin GPUs, first deployments H2 2027)"
+      ],
+      "next_catalyst": "IPO/confidential filing signal; BotQ production milestones; next funding mark; no public ticker as of 2026-09-17",
+      "added": "2026-09-17",
+      "added_by": "owner",
+      "last_review": "2026-09-17",
+      "docs_url": "https://www.figure.ai",
+      "notes": "Owner 2026-09-17 via Muse: Agentic Fund private watch only \u2014 NOT Horizon. Private company now; watch until investible (IPO / listing / clear retail or accessible secondary). NOT private deploy. Ping Muse\u2192Chris ONLY when investibility path opens. Product/funding/compute are supporting context for that gate \u2014 not standalone ping triggers. Deep-dive required per private-watchlist policy (write investment/research/private/FIGURE_deep_dive.md); no auto-buy; no private-market authority.",
+      "deep_dive_required": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": null,
+      "last_verdict": "monitor_until_investible_path",
+      "comms": {
+        "ping_when": "investibility_path_opens",
+        "ping_means": [
+          "ipo",
+          "public_listing",
+          "clear_retail_or_accessible_secondary"
+        ],
+        "supporting_context_only": [
+          "product",
+          "funding",
+          "compute_buildout"
+        ],
+        "route": "Muse then Chris",
+        "silent_otherwise": true
+      }
     }
   ]
 }
