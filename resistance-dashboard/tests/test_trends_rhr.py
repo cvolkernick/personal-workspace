@@ -14,18 +14,33 @@ REC = (ROOT / "rt_dashboard" / "recovery.py").read_text(encoding="utf-8")
 
 
 class TrendsRhrMarkup(unittest.TestCase):
-    def test_card_on_trends_after_sleep(self):
+    def test_card_on_trends_under_azm(self):
         self.assertIn('id="rhr-trend-card"', HTML)
         self.assertIn('id="chart-rhr"', HTML)
         self.assertIn('id="rhr-trend-note"', HTML)
         self.assertIn("Resting HR (bpm) · 90d", HTML)
         weekly = HTML.find('id="weekly-review-card"')
         sleep = HTML.find('id="sleep-trend-card"')
-        rhr = HTML.find('id="rhr-trend-card"')
         cals = HTML.find('id="calories-macros-charts"')
+        vol = HTML.find('id="charts-volume-strength"')
+        azm = HTML.find('id="azm-trend-card"')
+        rhr = HTML.find('id="rhr-trend-card"')
+        conn = HTML.find('id="connections-card"')
         self.assertLess(weekly, sleep)
-        self.assertLess(sleep, rhr, "RHR sits under Sleep on Trends")
-        self.assertLess(rhr, cals)
+        self.assertLess(sleep, cals)
+        self.assertLess(cals, vol)
+        self.assertLess(vol, azm)
+        self.assertLess(azm, rhr, "RHR sits directly under AZM on Trends")
+        self.assertLess(rhr, conn)
+        between = HTML[azm:rhr]
+        for other in (
+            "weekly-review-card",
+            "sleep-trend-card",
+            "calories-macros-charts",
+            "weight-hydration-row",
+            "charts-volume-strength",
+        ):
+            self.assertNotIn(f'id="{other}"', between, other)
         card = HTML[rhr : HTML.find("</section>", rhr)]
         self.assertIn('data-m-panel="trends"', card)
         self.assertNotIn('data-m-panel="today"', card)
@@ -49,8 +64,9 @@ class TrendsRhrMarkup(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertIn("/app.js?v=rhr-recovery-660-1", HTML)
         self.assertIn("/app.js?v=rhr-recovery-660-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v108"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v109"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
+        self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)
 
 

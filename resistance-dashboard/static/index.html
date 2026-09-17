@@ -485,12 +485,6 @@
         <p class="muted" id="sleep-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
       </section>
 
-      <section class="card" style="margin-top: 1rem" id="rhr-trend-card" data-m-panel="trends" aria-label="Resting heart rate trend">
-        <h2>Resting HR (bpm) · 90d</h2>
-        <div class="chart-box"><canvas id="chart-rhr" aria-label="Resting heart rate chart last 90 days"></canvas></div>
-        <p class="muted" id="rhr-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
-      </section>
-
       <section class="grid two" style="margin-top: 1rem" id="calories-macros-charts" data-m-panel="trends">
         <article class="card">
           <h2>Calories intake vs burned · 90d</h2>
@@ -981,7 +975,7 @@
         </article>
       </section>
 
-      <!-- AZM last on Trends — under daily volume + strength, plot fills the card. -->
+      <!-- AZM under daily volume + strength; RHR directly under AZM (#796). -->
       <section class="card" style="margin-top: 1rem" id="azm-trend-card" data-m-panel="trends" aria-label="Active Zone Minutes last 90 days">
         <h2>Active Zone Minutes · 90d</h2>
         <div class="azm-week-row">
@@ -1004,6 +998,12 @@
         </div>
         <div class="chart-box azm-spark" id="azm-sparkline"></div>
         <p class="muted" id="azm-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+      </section>
+
+      <section class="card" style="margin-top: 1rem" id="rhr-trend-card" data-m-panel="trends" aria-label="Resting heart rate trend">
+        <h2>Resting HR (bpm) · 90d</h2>
+        <div class="chart-box"><canvas id="chart-rhr" aria-label="Resting heart rate chart last 90 days"></canvas></div>
+        <p class="muted" id="rhr-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
       </section>
 
       <!-- Connections / recovery (More). Google re-auth is rare; not a daily header control. -->
