@@ -14,4 +14,4 @@ Bot runtime pull + write-back for #792 AC4. Grok.btc pulled PROFILE/INSTRUCTIONS
 
 ### 2026-09-17T14:12:00-04:00 · harness=`bot`
 
-Material lock: Nicole rent restored to $25 USDC daily 1:00 PM ET → nvolkern@gmail.com (standing-allow). Biweekly $350 cancelled. First resume send 2026-09-18 1pm ET — no same-day catch-up 9/17. After each completed $25: Naka books Rent actual; Grok updates Dania E2−25 + B12 date. Thaís monthly $900 on the 10th and JR $35 reminder/manual unchanged. Covered-call overlay remains closed. JR-strcUSX now-deploy / no-mint lock remains.
+Material lock: Nicole rent restored to $25 USDC daily **2:30 PM ET** → nvolkern@gmail.com (standing-allow). Biweekly $350 cancelled. First resume send **2026-09-17 ~2:39 PM ET completed** (standing daily continues; no 9/18 catch-up owed). After each completed $25: Naka books Rent actual; Grok updates Dania Outstanding waterfall E2→E8 (−25) + B12 date (never Total E9). Thaís monthly $900 on the 10th and JR $35 reminder/manual unchanged. Covered-call overlay remains closed. JR-strcUSX now-deploy / no-mint lock remains.
