@@ -858,6 +858,10 @@ def build_calorie_bars_payload(
     window (can span midnight). Falls back to civil-day ``today_consumed``
     when no window logs are found. In/out delta still uses civil-day intake
     vs same-day burned. Wake and eating share ``eating_window_fraction``.
+
+    Meal-plan remaining macros do **not** follow this civil-day-after-empty
+    fallback — after ``empty_at`` overnight the kitchen is closed
+    (``nutrition_planner``, issue #809).
     """
     if now is None or tz_name:
         from .timeutil import local_now

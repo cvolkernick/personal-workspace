@@ -31,8 +31,13 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     egg_role,
     ensure_egg_pair,
     MIN_MEAL_GAP,
+    MSG_KITCHEN_CLOSED,
+    MAX_MEAL_TARGET_FRAC,
     _apply_pace_delay,
     _catch_up_delay,
+    _kitchen_is_closed,
+    _max_kcal_one_meal,
+    _remaining_meal_capacity,
     _resolve_eat_times,
     inventory_gap_role,
     is_shake_or_powder,
@@ -3051,6 +3056,204 @@ class TestStaplesPurpose707(unittest.TestCase):
         self.assertEqual(out["count"], 0)
         kinds = {h["kind"] for h in out.get("honesty") or []}
         self.assertIn("empty_suggestions", kinds)
+
+
+class TestMealDayBoundary809(unittest.TestCase):
+    """Post-midnight / post-empty_at meal planner seam (#809)."""
+
+    def _bat(self, wake: datetime, empty: datetime) -> dict:
+        return {
+            "last_wake_at": wake.isoformat(),
+            "empty_at": empty.isoformat(),
+            "awake_budget_hours": max(1.0, (empty - wake).total_seconds() / 3600.0),
+        }
+
+    def _meal_kcal(self, plan: dict) -> list:
+        return [float((m.get("totals") or {}).get("calories") or 0) for m in plan.get("meals") or []]
+
+    def test_0006_open_window_does_not_emit_mega_meal(self):
+        """Deployed path A: 00:06, empty_at 00:30, civil remaining = full day.
+
+        Pre-fix: cap=1 packed ~2300 kcal into one meal. Kitchen closes.
+        """
+        now = datetime(2026, 9, 18, 0, 6, tzinfo=ET)
+        wake = datetime(2026, 9, 17, 9, 0, tzinfo=ET)
+        empty = datetime(2026, 9, 18, 0, 30, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=self._bat(wake, empty),
+        )
+        self.assertEqual(plan["meals"], [])
+        self.assertEqual(plan["items"], [])
+        self.assertLess(
+            float(plan["planned_totals"]["calories"]),
+            0.5 * FULL_TARGETS["calories"],
+        )
+        self.assertEqual(plan["notes"]["empty_plan_reason"], "kitchen_closed")
+        self.assertEqual(plan["message"], MSG_KITCHEN_CLOSED)
+        self.assertTrue(plan["nutrition_day"]["kitchen_closed"])
+        self.assertEqual(plan["nutrition_day"]["clock"], "kitchen_closed")
+        kinds = {h["kind"] for h in plan.get("honesty") or []}
+        self.assertIn("empty_plan", kinds)
+
+    def test_0006_after_empty_does_not_open_civil_day_plan(self):
+        """Deployed path B: 00:06, empty_at 22:00 yesterday.
+
+        Pre-fix: civil_day_after_empty opened 4 slots of a full new day.
+        """
+        now = datetime(2026, 9, 18, 0, 6, tzinfo=ET)
+        wake = datetime(2026, 9, 17, 9, 0, tzinfo=ET)
+        empty = datetime(2026, 9, 17, 22, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=self._bat(wake, empty),
+        )
+        self.assertEqual(plan["meals"], [])
+        self.assertEqual(plan["items"], [])
+        self.assertEqual(plan["notes"]["empty_plan_reason"], "kitchen_closed")
+        self.assertEqual(plan["message"], MSG_KITCHEN_CLOSED)
+
+    def test_0006_empty_logs_regression_no_mega_meal(self):
+        """AC: simulated 00:06 regen with empty logs produces no mega-meal."""
+        now = datetime(2026, 9, 18, 0, 6, tzinfo=ET)
+        for empty_hm in ((0, 30), (22, 0), (23, 50)):
+            empty = datetime(2026, 9, 17 if empty_hm[0] >= 22 else 18, empty_hm[0], empty_hm[1], tzinfo=ET)
+            if empty_hm == (23, 50):
+                empty = datetime(2026, 9, 17, 23, 50, tzinfo=ET)
+            plan = generate_meal_plan(
+                STOCKED_CUTTING,
+                FULL_TARGETS,
+                EMPTY_CONSUMED,
+                now=now,
+                tz_name="America/New_York",
+                sleep_battery=self._bat(
+                    datetime(2026, 9, 17, 9, 0, tzinfo=ET), empty
+                ),
+            )
+            self.assertEqual(
+                plan["meals"],
+                [],
+                f"empty_at={empty.isoformat()} still emitted meals",
+            )
+            for kcal in self._meal_kcal(plan):
+                self.assertLess(kcal, FULL_TARGETS["calories"] * 0.5)
+
+    def test_per_meal_cap_when_capacity_one(self):
+        """cap=1 with a still-open evening window cannot pack a full day."""
+        now = datetime(2026, 8, 22, 20, 0, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        cap = _remaining_meal_capacity(now, start, end)
+        self.assertGreaterEqual(cap, 1)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            window_start=start,
+            window_end=end,
+        )
+        meal_cap = _max_kcal_one_meal(FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertAlmostEqual(meal_cap, FULL_TARGETS["calories"] * MAX_MEAL_TARGET_FRAC)
+        for kcal in self._meal_kcal(plan):
+            self.assertLessEqual(kcal, meal_cap + 80)
+        if plan["meals"]:
+            self.assertLess(
+                max(self._meal_kcal(plan)),
+                FULL_TARGETS["calories"] * 0.5,
+            )
+
+    def test_stale_empty_at_does_not_close_kitchen_at_10am(self):
+        """Yesterday's empty_at must not suppress the whole next morning."""
+        now = datetime(2026, 9, 18, 10, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=self._bat(
+                datetime(2026, 9, 17, 9, 0, tzinfo=ET),
+                datetime(2026, 9, 18, 0, 30, tzinfo=ET),
+            ),
+        )
+        self.assertGreaterEqual(len(plan["meals"]), 2)
+        self.assertFalse(plan["nutrition_day"]["kitchen_closed"])
+
+    def test_remaining_uses_eating_window_logs_after_midnight(self):
+        """Night-owl window still open: remaining is wake-window intake, not civil 0."""
+        now = datetime(2026, 9, 18, 0, 6, tzinfo=ET)
+        wake = datetime(2026, 9, 17, 9, 0, tzinfo=ET)
+        empty = datetime(2026, 9, 18, 3, 0, tzinfo=ET)
+        logs = [
+            FoodLogEntry(
+                date="2026-09-17",
+                name="Dinner",
+                calories=1800,
+                protein_g=160,
+                carbs_g=150,
+                fat_g=40,
+                time="19:00",
+            )
+        ]
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=self._bat(wake, empty),
+            food_logs=logs,
+        )
+        self.assertFalse(plan["nutrition_day"]["kitchen_closed"])
+        self.assertEqual(plan["nutrition_day"]["consumed_clock"], "eating_window")
+        self.assertLess(float(plan["remaining_before_plan"]["calories"]), 500)
+        for kcal in self._meal_kcal(plan):
+            self.assertLess(kcal, FULL_TARGETS["calories"] * 0.5)
+
+    def test_remaining_capacity_zero_after_window_end(self):
+        now = datetime(2026, 8, 22, 22, 30, tzinfo=ET)
+        start = now.replace(hour=8, minute=0)
+        end = now.replace(hour=22, minute=0)
+        self.assertEqual(_remaining_meal_capacity(now, start, end), 0)
+        self.assertTrue(
+            _kitchen_is_closed(
+                datetime(2026, 9, 18, 0, 6, tzinfo=ET),
+                datetime(2026, 9, 17, 9, 0, tzinfo=ET),
+                datetime(2026, 9, 17, 22, 0, tzinfo=ET),
+                {"calories": 2100, "protein_g": 210},
+                FULL_TARGETS,
+                sleep_battery=self._bat(
+                    datetime(2026, 9, 17, 9, 0, tzinfo=ET),
+                    datetime(2026, 9, 17, 22, 0, tzinfo=ET),
+                ),
+            )
+        )
+
+    def test_nutrition_day_clocks_documented(self):
+        import rt_dashboard.nutrition_planner as np
+        import rt_dashboard.calorie_bars as cb
+        import rt_dashboard.meal_plan_store as store
+
+        doc = np.__doc__ or ""
+        self.assertIn("Meal plan remaining macros", doc)
+        self.assertIn("In/out delta", doc)
+        self.assertIn("Plan storage", doc)
+        self.assertIn("kitchen is closed", doc.lower())
+        bars_doc = cb.build_calorie_bars_payload.__doc__ or ""
+        self.assertIn("kitchen is closed", bars_doc)
+        self.assertIn("civil-day", (store.__doc__ or "").lower())
+        plan_doc = generate_meal_plan.__doc__ or ""
+        self.assertIn("kitchen is closed", plan_doc.lower())
 
 
 if __name__ == "__main__":
