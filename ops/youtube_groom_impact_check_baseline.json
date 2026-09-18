@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "check_id": "youtube-groom-impact-check",
+  "compare_at": "2026-09-19T13:00:00Z",
+  "compare_at_note": "2026-09-19 09:00 America/New_York",
+  "superseded": {
+    "label": "sep14-#731",
+    "as_of": "2026-09-14T14:50:50Z",
+    "issue": 731,
+    "MIN_FIT": 1,
+    "SEED_THROTTLE_WEIGHT_FLOOR": 0.25,
+    "HOUSE_TARGET": 50,
+    "tick": "listed=38 del=1 remain=45 add=8 skip={} quota=2390",
+    "add": 8,
+    "skip": {}
+  },
+  "baseline": {
+    "label": "sep18-#815",
+    "as_of": "2026-09-18T14:47:06.664343Z",
+    "issue": 815,
+    "MIN_FIT": 0,
+    "SEED_THROTTLE_WEIGHT_FLOOR": 0.1,
+    "HOUSE_TARGET": 100,
+    "CAP": 200,
+    "SEED_UPLOADS_PER_CHANNEL": 50,
+    "tick": "listed=58 del=1 {'dup': 1} remain=58 add=1 skip={} quota=2416 house=100",
+    "add": 1,
+    "skip": {},
+    "listed": 58,
+    "remain": 58
+  },
+  "copy_over_pi": false,
+  "pi_writer_path": "~/.local/lib/youtube-groom/youtube_groom.py",
+  "pi_baseline_path": "~/.local/share/youtube-groom/impact-check-baseline.json"
+}

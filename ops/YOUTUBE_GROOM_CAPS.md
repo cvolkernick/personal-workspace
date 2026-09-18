@@ -15,8 +15,8 @@ CAP                  = 200       # was 100 (breaker reason cap_100); not a targe
 STALE_HARD_DAYS      = 7         # unchanged
 MAX_DELETES_PER_TICK = 80        # unchanged
 keep_n               = 10        # empty fallback; unchanged
-MIN_FIT              = 1         # was 2; skip only fit < 1 (#731)
-SEED_THROTTLE_WEIGHT_FLOOR = 0.25  # was 0.4; skip SEED_THROTTLE only below this (#731)
+MIN_FIT              = 0         # was 1 (#731); was 2. thesis-fit skip disabled (#815)
+SEED_THROTTLE_WEIGHT_FLOOR = 0.10  # was 0.25 (#731); was 0.4. skip SEED_THROTTLE only below this (#815)
 SEED_UPLOADS_PER_CHANNEL = 50    # was 6; live writer only — YouTube page max, 7d window (#788)
 ```
 
@@ -29,3 +29,9 @@ Auth/tick failure alerts (#480) are a **separate** log reader:
 `scripts/youtube_groom_health.py` → Pi `health.json` + #workflow (Grok).
 Do not copy this policy module over the writer. Landing path:
 [`YOUTUBE_GROOM_HEALTH.md`](YOUTUBE_GROOM_HEALTH.md).
+
+Impact comparison (`youtube-groom-impact-check`, ~2026-09-19 09:00 ET):
+[`YOUTUBE_GROOM_IMPACT_CHECK.md`](YOUTUBE_GROOM_IMPACT_CHECK.md) +
+`ops/youtube_groom_impact_check_baseline.json`. Pi copy
+`~/.local/share/youtube-groom/impact-check-baseline.json`. Do not use the
+Sep 14 `add=8` / `skip={}` tick as t0.
