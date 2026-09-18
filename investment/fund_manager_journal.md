@@ -2376,3 +2376,17 @@
 - **critic:** ok — Hold preferred when bands ok — avoid churn
 - **executor:** hold — No MCP orders on pure rules HOLD
 
+
+## 2026-09-18T13:46:13 — hold
+**Summary:** Rules HOLD: deployed mix in ±5% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.04/$0.03 < min_trade $1.00 (not deployable)
+**Book:** NAV $323.401 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.4035 · Stocks 0.5965
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** In-band + low cash → skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.
+**Team:**
+- **scout:** observe — NAV $323.40 BP $0.03 cash $0.04
+- **thesis:** ok — deployed BTC 0.4035 stocks 0.5965
+- **risk:** ok — Agentic capital only; no trade if hold
+- **critic:** ok — Hold preferred when bands ok — avoid churn
+- **executor:** hold — No MCP orders on pure rules HOLD
+
