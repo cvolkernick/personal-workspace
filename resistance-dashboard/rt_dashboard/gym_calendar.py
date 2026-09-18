@@ -21,6 +21,9 @@ Reconciliation contract (coach + assistant-side monitor):
   N. Fort Myers on occupancy + drive-time penalty. Alt clubs without
   captured occupancy are skipped. If no pair is feasible, keep the home
   pick rather than placing nothing.
+- Overnight starts are allowed (#818). Ranked quiet lists still prefer
+  daytime/evening as a soft heuristic; ``prefer=`` and the monitor must
+  not hard-reject a 00:00–03:59 local start.
 - Session-bound Calendar API only (main login, not Health OAuth). Stored
   refresh tokens / headless daily run are out of scope (#609).
 """
@@ -46,8 +49,6 @@ DESC_TAG_RE = re.compile(r"\[fitdash-gym:(\d{4}-\d{2}-\d{2})\]")
 DURATION = timedelta(hours=1, minutes=30)
 POPUP_REMINDER_MINUTES = 30
 GYM_TZ_NAME = "America/New_York"
-# 12:00–4:00 AM local: hour 0–3. 04:00 start is legal; 02:30–04:00 is not.
-ILLEGAL_GYM_START_HOURS = frozenset({0, 1, 2, 3})
 BUSYNESS_REL = "fitness/gym/busyness.json"
 EVENT_TITLE = "Gym"
 
@@ -356,15 +357,6 @@ def window_bounds(day: str, window: QuietWindow, *, tz: Optional[ZoneInfo] = Non
     return start, end
 
 
-def is_illegal_gym_start(dt: datetime) -> bool:
-    """True when the gym start is 12:00–4:00 AM America/New_York (hours 0–3)."""
-    if dt.tzinfo is None:
-        local = dt.replace(tzinfo=gym_tz())
-    else:
-        local = dt.astimezone(gym_tz())
-    return local.hour in ILLEGAL_GYM_START_HOURS
-
-
 def _clock(now: Optional[datetime]) -> datetime:
     if now is None:
         return datetime.now(gym_tz())
@@ -402,12 +394,7 @@ def extra_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
 
 
 def candidate_windows(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
-    out: List[QuietWindow] = []
-    for window in ranked_windows_for(day, club_id) + extra_windows_for(day, club_id):
-        start, _end = window_bounds(day, window)
-        if not is_illegal_gym_start(start):
-            out.append(window)
-    return out
+    return ranked_windows_for(day, club_id) + extra_windows_for(day, club_id)
 
 
 def intervals_overlap(a0: datetime, a1: datetime, b0: datetime, b1: datetime) -> bool:
@@ -587,11 +574,11 @@ def pick_slot(
     prefer: Optional[Tuple[datetime, datetime]] = None,
     not_before: Optional[datetime] = None,
 ) -> Optional[ChosenSlot]:
-    """First legal free quiet stretch. Discard overnight prefer. None if none free.
+    """First free quiet stretch. Keep prefer if still free. None if none free.
 
     ``not_before`` (dashboard elapsed-reschedule) restricts the search to
     windows whose start is >= that instant — remaining civil day, not the
-    already-elapsed morning.
+    already-elapsed morning. Overnight prefer is kept (#818).
     """
     cutoff = None
     if not_before is not None:
@@ -602,7 +589,6 @@ def pick_slot(
         prefer_ok = cutoff is None or p0 >= cutoff
         if (
             prefer_ok
-            and not is_illegal_gym_start(p0)
             and p1 - p0 >= timedelta(minutes=80)
             and not any(intervals_overlap(p0, p1, b0, b1) for b0, b1 in busy)
         ):
@@ -620,8 +606,6 @@ def pick_slot(
             )
     for window in candidate_windows(day):
         start, end = window_bounds(day, window)
-        if is_illegal_gym_start(start):
-            continue
         if cutoff is not None and start < cutoff:
             continue
         slot = ChosenSlot(start, end, window.occupancy_pct, window)
@@ -688,8 +672,6 @@ def ranked_window_fits(
     cutoff = _cutoff(not_before)
     for window in ranked_windows_for(day, club_id):
         start, end = window_bounds(day, window)
-        if is_illegal_gym_start(start):
-            continue
         if cutoff is not None and start < cutoff:
             continue
         if not club_open(club_id, start, end):
@@ -726,8 +708,6 @@ def feasible_slots(
     out: List[ChosenSlot] = []
     for window in candidate_windows(day, club_id):
         start, end = window_bounds(day, window)
-        if is_illegal_gym_start(start):
-            continue
         if cutoff is not None and start < cutoff:
             continue
         if not club_open(club_id, start, end):
@@ -964,10 +944,9 @@ def sync_gym_sessions(
     ``role="coach"`` is plan generation / dashboard load. ``role="monitor"``
     is the assistant daily reconcile: same tag, may create a missing event,
     may move on overlap, must not move a user-locked event, reports
-    ``moves``. Never books a start in 12:00–4:00 AM America/New_York.
-    Monitor may relocate an unlocked overnight leftover whose end is still
-    in the future. On dashboard load, an elapsed unlocked window with no
-    logged workout is moved to a remaining quiet slot (never tomorrow).
+    ``moves``. Overnight starts are kept when they are the selected slot
+    (#818). On dashboard load, an elapsed unlocked window with no logged
+    workout is moved to a remaining quiet slot (never tomorrow).
     """
     status = gcal.credentials_status()
     if not status.get("ok"):
@@ -1001,7 +980,6 @@ def sync_gym_sessions(
             ignore = [str(keep["id"])] if keep and keep.get("id") else []
             busy = busy_intervals(cal_id, day, ignore_ids=ignore)
             prefer = None
-            overnight_existing = False
             elapsed_unlogged = False
             clock = _clock(now)
             if keep and is_user_locked(keep):
@@ -1009,13 +987,7 @@ def sync_gym_sessions(
                 continue
             if keep:
                 interval = event_interval(keep)
-                if interval is not None and is_illegal_gym_start(interval[0]):
-                    overnight_existing = True
-                    # Past leftovers stay put. Coach does not relocate overnight;
-                    # monitor moves only while end is still in the future.
-                    if interval[1] <= clock or role != "monitor":
-                        continue
-                elif interval is not None:
+                if interval is not None:
                     clock_day = clock.astimezone(gym_tz()).strftime("%Y-%m-%d")
                     if (
                         interval[1] <= clock
@@ -1041,9 +1013,7 @@ def sync_gym_sessions(
                 updated += 1
                 new_start = body["start"]["dateTime"]
                 if prev and not same_instant(prev, new_start):
-                    if overnight_existing:
-                        reason = "overnight"
-                    elif elapsed_unlogged:
+                    if elapsed_unlogged:
                         reason = "elapsed"
                     else:
                         reason = "overlap"
