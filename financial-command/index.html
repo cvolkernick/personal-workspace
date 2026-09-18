@@ -140,6 +140,20 @@
     }
     .card.compact-metrics .metric { margin: 0.15rem 0; }
     .card.compact-metrics .hint { margin: 0.1rem 0 0.3rem; }
+    .cash-credit-more { margin-top: 0.45rem; }
+    .cash-credit-more > summary {
+      cursor: pointer;
+      list-style: none;
+      font-weight: 650;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 0.35rem 0;
+      user-select: none;
+    }
+    .cash-credit-more > summary::-webkit-details-marker { display: none; }
+    .cash-credit-more > summary::before { content: "▸ "; color: var(--accent); }
+    .cash-credit-more[open] > summary::before { content: "▾ "; }
+    .cash-credit-more .cash-credit-stats { margin-top: 0.15rem; }
     .status-why {
       font-size: 0.88rem;
       color: var(--text);
@@ -2210,10 +2224,13 @@
       <div class="sleeves" id="buffer-sleeves"></div>
       <div class="cc-pies" id="cc-pies"></div>
       <p class="hint" id="cc-pies-hint" style="margin-top:0.45rem"></p>
-      <div class="grid-2 cash-credit-stats" style="margin-top:0.45rem">
-        <div id="cb-metrics"></div>
-        <div id="cash-credit-side"></div>
-      </div>
+      <details class="cash-credit-more" id="cash-credit-more">
+        <summary>Account details</summary>
+        <div class="grid-2 cash-credit-stats">
+          <div id="cb-metrics"></div>
+          <div id="cash-credit-side"></div>
+        </div>
+      </details>
     </section>
 
     <details class="panel" id="panel-solana" data-m-panel="cash">
@@ -4087,39 +4104,16 @@
         }
       }
 
-      // Cash & credit stats — split evenly across two columns (no empty column)
+      // Cash & credit unique stats (#824). Redundant rows dropped — pies,
+      // sleeve bars, Glance chips, Solana panel, and Settings morpho-live
+      // already show those figures. Remaining rows live in #cash-credit-more
+      // (collapsed by default). man is reused below for Settings prefills.
       const man = snap.coinbase_manual || {};
       const cashCreditRows = [
-        metric(
-          "LTV sleeve (spot+HY)",
-          money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)
-        ),
-        metric(
-          "One Card owed",
-          money(inp.card_balance ?? oc.balance_owed) + " · Morpho refinance"
-        ),
-        metric(
-          "HY LTV Buffer",
-          inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"
-        ),
-        metric(
-          "Available credit",
-          money(inp.card_available_credit) +
-            (inp.card_available_credit_source === "deposit_minus_balance"
-              ? " · deposit − bal"
-              : "")
-        ),
-        metric(
-          "Idle spot USDC",
-          money(inp.liquid_usdc) + (f(inp.liquid_usdc) < 1 ? " · often $0 by design" : "")
-        ),
-        metric("USDC security deposit", money(inp.card_security_deposit_usdc)),
         metric(
           "Liquid BTC",
           inp.liquid_btc != null ? Number(inp.liquid_btc).toFixed(6) : "—"
         ),
-        metric("RH Checking", money(inp.rh_checking_cash ?? rhc.cash)),
-        metric("BTC ≈ USD", money(inp.liquid_btc_usd)),
         ...(() => {
           const xmSpaces = Array.isArray(xm.spaces) ? xm.spaces : [];
           const apyBit =
@@ -4155,15 +4149,21 @@
                 ` · ${xmSpaces.length + 1} sleeves` +
                 apyBit
             ),
-            metric(
-              "X Money · " + shortXm(xm.account_name || "Main"),
-              money(xm.main_cash ?? xm.cash) +
-                (accountLast4(xm.account_name)
-                  ? ` · ${accountLast4(xm.account_name)}`
-                  : "")
-            ),
           ];
+          // Pies already slice positive sleeves; keep overdraft/zero here.
+          if (!(f(xm.main_cash) > 0)) {
+            rows.push(
+              metric(
+                "X Money · " + shortXm(xm.account_name || "Main"),
+                money(xm.main_cash ?? xm.cash) +
+                  (accountLast4(xm.account_name)
+                    ? ` · ${accountLast4(xm.account_name)}`
+                    : "")
+              )
+            );
+          }
           for (const sp of xmSpaces) {
+            if (f(sp.cash) > 0) continue;
             rows.push(
               metric(
                 "X Money · " + shortXm(sp.account_name),
@@ -4173,62 +4173,10 @@
           }
           return rows;
         })(),
-        metric("LTV", pct(inp.ltv)),
-        metric(
-          "Morpho var APR",
-          (() => {
-            const apr =
-              inp.variable_apr != null
-                ? f(inp.variable_apr)
-                : man.variable_apr != null
-                  ? f(man.variable_apr)
-                  : null;
-            if (apr == null || !Number.isFinite(apr)) return "— · set in Settings";
-            const principal =
-              f(inp.loan_principal_usdc) || f(man.loan_principal_usdc) || 0;
-            const yr =
-              principal > 0 && apr > 0
-                ? ` · ~${money(principal * apr)}/yr`
-                : "";
-            return (apr * 100).toFixed(2) + "%" + yr;
-          })()
-        ),
-        metric(
-          "Liq. price (BTC)",
-          (() => {
-            const liq =
-              inp.liquidation_price_btc_usd != null
-                ? f(inp.liquidation_price_btc_usd)
-                : man.liquidation_price_btc_usd != null
-                  ? f(man.liquidation_price_btc_usd)
-                  : null;
-            if (liq == null || !Number.isFinite(liq)) return "— · set in Settings";
-            const btcPx = f(inp.btc_usd_price);
-            if (btcPx > 0 && btcPx > liq) {
-              const cushion = ((btcPx - liq) / btcPx) * 100;
-              return money(liq) + ` · ${cushion.toFixed(0)}% below spot`;
-            }
-            return money(liq);
-          })()
-        ),
-        metric("Bank cash (RH+X)", money(inp.bank_cash)),
         metric("Card source", inp.card_source || oc.source || "—"),
         metric("Bill-pay cash", money(inp.bill_pay_cash)),
         metric("Checking 30d out", money(rhc.spend_30d)),
         metric("X Money 30d out", money(xm.spend_30d ?? inp.x_money_spend_30d)),
-        metric(
-          "Solana book",
-          money(inp.solana_book_usd ?? (snap.solana || {}).book_usd) +
-            " · not HY"
-        ),
-        metric(
-          "JR-strcUSX",
-          (inp.solana_jr_strcusx != null
-            ? Number(inp.solana_jr_strcusx).toFixed(4)
-            : "—") +
-            " · " +
-            money(inp.solana_jr_strcusx_usd ?? (snap.solana || {}).jr_strcusx_usd)
-        ),
       ];
       const cashMid = Math.ceil(cashCreditRows.length / 2);
       document.getElementById("cb-metrics").innerHTML = cashCreditRows

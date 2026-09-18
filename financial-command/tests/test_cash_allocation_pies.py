@@ -10,25 +10,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / "financial-command" / "index.html"
 
-METRIC_LABELS = (
+# #824: unique figures stay in the collapsed Account details fold.
+COLLAPSED_METRIC_LABELS = (
+    "Liquid BTC",
+    "X Money",
+    "Card source",
+    "Bill-pay cash",
+    "Checking 30d out",
+    "X Money 30d out",
+)
+
+# #824: already on pies / sleeves / Glance / Solana / Settings morpho-live.
+REMOVED_METRIC_LABELS = (
     "LTV sleeve (spot+HY)",
     "One Card owed",
     "HY LTV Buffer",
     "Available credit",
     "Idle spot USDC",
     "USDC security deposit",
-    "Liquid BTC",
     "RH Checking",
     "BTC ≈ USD",
-    "X Money",
-    "LTV",
     "Morpho var APR",
     "Liq. price (BTC)",
     "Bank cash (RH+X)",
-    "Card source",
-    "Bill-pay cash",
-    "Checking 30d out",
-    "X Money 30d out",
     "Solana book",
     "JR-strcUSX",
 )
@@ -160,12 +164,32 @@ class TestCashAllocationPiesMarkup(unittest.TestCase):
     def test_sleeves_then_pies_then_metrics(self):
         sleeves = self.html.find('id="buffer-sleeves"')
         pies = self.html.find('id="cc-pies"')
+        fold = self.html.find('id="cash-credit-more"')
         metrics = self.html.find('id="cb-metrics"')
         self.assertGreater(sleeves, 0)
         self.assertGreater(pies, sleeves)
-        self.assertGreater(metrics, pies)
+        self.assertGreater(fold, pies)
+        self.assertGreater(metrics, fold)
         self.assertIn('class="cc-pies"', self.html)
         self.assertIn('id="cc-pies-hint"', self.html)
+
+    def test_account_details_collapsed_by_default(self):
+        m = re.search(
+            r'<details class="cash-credit-more"[^>]*id="cash-credit-more"[^>]*>',
+            self.html,
+        )
+        if not m:
+            m = re.search(
+                r'<details class="cash-credit-more" id="cash-credit-more">',
+                self.html,
+            )
+        self.assertIsNotNone(m, "cash-credit-more details missing")
+        self.assertNotIn("open", m.group(0))
+        self.assertIn("<summary>Account details</summary>", self.html)
+        # Pies stay outside the fold.
+        fold_start = self.html.find('id="cash-credit-more"')
+        pies = self.html.find('id="cc-pies"')
+        self.assertLess(pies, fold_start)
 
     def test_three_named_pies_and_shared_helpers(self):
         self.assertEqual(self.html.count('pieCard("Capital allocation"'), 1)
@@ -217,8 +241,16 @@ class TestCashAllocationPiesMarkup(unittest.TestCase):
         rows = self.html.split("const cashCreditRows = [", 1)[1].split(
             "const cashMid =", 1
         )[0]
-        for label in METRIC_LABELS:
-            self.assertIn(label, rows)
+        for label in COLLAPSED_METRIC_LABELS:
+            self.assertIn(f'"{label}"', rows)
+        for label in REMOVED_METRIC_LABELS:
+            self.assertNotIn(f'"{label}"', rows)
+        # Glance LTV chip remains; the list row metric("LTV") must be gone.
+        self.assertNotIn('metric("LTV"', rows)
+        self.assertNotIn('metric(\n          "LTV"', rows)
+        # Overdraft / zero X Money sleeves stay; positive slices are pie-only.
+        self.assertIn("!(f(xm.main_cash) > 0)", rows)
+        self.assertIn("if (f(sp.cash) > 0) continue", rows)
 
 
 class TestCashAllocationMeceOracle(unittest.TestCase):
