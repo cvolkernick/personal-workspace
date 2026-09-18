@@ -116,10 +116,11 @@ assert(
 );
 
 const androidHref = g.fccRobinhoodLaunchHref(android);
-assert(androidHref.indexOf("intent://robinhood.com/#Intent;") === 0, "android intent host");
-assert(androidHref.indexOf("scheme=https") >= 0, "android https scheme (App Link)");
+assert(androidHref.indexOf("intent://open#Intent;") === 0, "android intent open");
+assert(androidHref.indexOf("scheme=robinhood") >= 0, "android custom scheme");
+assert(androidHref.indexOf("scheme=https") < 0, "android is not https App Link");
 assert(androidHref.indexOf("package=com.robinhood.android") >= 0, "android package");
-assert(androidHref.indexOf("scheme=robinhood") < 0, "android does not use custom scheme");
+assert(androidHref.indexOf("intent://robinhood.com/") < 0, "android is not robinhood.com host");
 assert(androidHref.indexOf("action=android.intent.action.MAIN") < 0, "android is not MAIN");
 assert(
   androidHref.indexOf("category=android.intent.category.LAUNCHER") < 0,
