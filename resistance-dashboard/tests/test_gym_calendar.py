@@ -31,7 +31,6 @@ from rt_dashboard.gym_calendar import (
     gym_day_from_workout,
     gym_desc_tag,
     gym_quest_label_for_day,
-    is_illegal_gym_start,
     is_user_locked,
     load_busyness,
     location_for,
@@ -172,21 +171,14 @@ class QuietPick(unittest.TestCase):
         self.assertGreaterEqual(slot.start, cutoff)
 
 
-class OvernightBan(unittest.TestCase):
-    """#800: never book Gym starting 12:00–4:00 AM America/New_York."""
+class OvernightAllowed(unittest.TestCase):
+    """#818: overnight Gym starts are legal; #800 hard-block is gone."""
 
     def setUp(self):
         reset_busyness_cache()
 
-    def test_illegal_hours_are_0_through_3(self):
-        self.assertTrue(is_illegal_gym_start(datetime(2026, 9, 17, 0, 0, tzinfo=ET)))
-        self.assertTrue(is_illegal_gym_start(datetime(2026, 9, 17, 2, 30, tzinfo=ET)))
-        self.assertTrue(is_illegal_gym_start(datetime(2026, 9, 17, 3, 59, tzinfo=ET)))
-        self.assertFalse(is_illegal_gym_start(datetime(2026, 9, 17, 4, 0, tzinfo=ET)))
-        self.assertFalse(is_illegal_gym_start(datetime(2026, 9, 17, 5, 0, tzinfo=ET)))
-        self.assertFalse(is_illegal_gym_start(datetime(2026, 9, 17, 22, 0, tzinfo=ET)))
-
-    def test_candidates_never_start_overnight(self):
+    def test_ranked_and_extra_candidates_still_prefer_daytime(self):
+        """Soft heuristic from #610: extras start at 05:00, ranked never overnight."""
         for day in (
             "2026-09-14",
             "2026-09-15",
@@ -200,19 +192,20 @@ class OvernightBan(unittest.TestCase):
                 start, _end = window_bounds(day, window)
                 self.assertNotIn(start.hour, {0, 1, 2, 3}, (day, window.start_hhmm))
 
-    def test_prefer_0230_is_discarded_for_legal_ranked(self):
+    def test_prefer_0230_is_kept(self):
         prefer = (
             datetime(2026, 9, 17, 2, 30, tzinfo=ET),
             datetime(2026, 9, 17, 4, 0, tzinfo=ET),
         )
         slot = pick_slot("2026-09-17", [], prefer=prefer)
         self.assertIsNotNone(slot)
-        self.assertNotEqual(slot.start.strftime("%H:%M"), "02:30")
-        self.assertNotIn(slot.start.hour, {0, 1, 2, 3})
-        # Thursday ranked first is 22:00.
-        self.assertEqual(slot.start.strftime("%H:%M"), "22:00")
+        self.assertEqual(slot.start.strftime("%H:%M"), "02:30")
+        self.assertEqual(slot.start.hour, 2)
+        placed = pick_placement("2026-09-17", [], prefer=prefer)
+        self.assertIsNotNone(placed)
+        self.assertEqual(placed.start.strftime("%H:%M"), "02:30")
 
-    def test_prefer_0400_is_legal_and_kept(self):
+    def test_prefer_0400_is_kept(self):
         prefer = (
             datetime(2026, 9, 17, 4, 0, tzinfo=ET),
             datetime(2026, 9, 17, 5, 30, tzinfo=ET),
@@ -221,7 +214,8 @@ class OvernightBan(unittest.TestCase):
         self.assertIsNotNone(slot)
         self.assertEqual(slot.start.strftime("%H:%M"), "04:00")
 
-    def test_busy_0500_to_midnight_skips_instead_of_overnight(self):
+    def test_busy_0500_to_midnight_still_skips_when_no_overnight_candidate(self):
+        """Ranked/extra generation does not invent 00–04; skip is not a hard reject."""
         busy = [
             (
                 datetime(2026, 9, 17, 5, 0, tzinfo=ET),
@@ -231,7 +225,7 @@ class OvernightBan(unittest.TestCase):
         slot = pick_slot("2026-09-17", busy)
         self.assertIsNone(slot)
 
-    def test_sync_busy_day_does_not_write_overnight(self):
+    def test_sync_busy_day_does_not_invent_overnight(self):
         created, updated = [], []
         busy_ev = _busy(
             "packed",
@@ -266,7 +260,7 @@ class OvernightBan(unittest.TestCase):
         self.assertEqual(result["created"], 0)
         self.assertEqual(result["updated"], 0)
 
-    def test_monitor_moves_future_unlocked_overnight(self):
+    def test_monitor_keeps_future_unlocked_overnight(self):
         existing = [
             _ev(
                 eid="ev-night",
@@ -297,47 +291,10 @@ class OvernightBan(unittest.TestCase):
                 now=now,
             )
         self.assertTrue(result["ok"], result)
-        self.assertEqual(len(result["moves"]), 1)
-        self.assertEqual(result["moves"][0]["from"], "2026-09-17T02:30:00-04:00")
-        self.assertEqual(result["moves"][0]["reason"], "overnight")
-        to_dt = datetime.fromisoformat(result["moves"][0]["to"])
-        self.assertNotIn(to_dt.hour, {0, 1, 2, 3})
-        self.assertEqual(updated[0]["start"]["dateTime"], result["moves"][0]["to"])
-
-    def test_monitor_leaves_past_unlocked_overnight(self):
-        existing = [
-            _ev(
-                eid="ev-past",
-                day="2026-09-17",
-                start="2026-09-17T02:30:00-04:00",
-                end="2026-09-17T04:00:00-04:00",
-            )
-        ]
-        updated = []
-        now = datetime(2026, 9, 17, 8, 0, tzinfo=ET)
-        with mock.patch(
-            "rt_dashboard.gym_calendar.gcal.credentials_status",
-            return_value={"ok": True},
-        ), mock.patch(
-            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
-            return_value="primary",
-        ), mock.patch(
-            "rt_dashboard.gym_calendar.gcal.list_events",
-            side_effect=lambda cid, **kw: list(existing)
-            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
-            else [],
-        ), mock.patch(
-            "rt_dashboard.gym_calendar.gcal.update_event",
-            side_effect=lambda *a, **k: updated.append(1),
-        ):
-            result = reconcile_gym_sessions(
-                [GymDay(day="2026-09-17", is_rest=False, session_type="push")],
-                now=now,
-            )
-        self.assertTrue(result["ok"], result)
         self.assertEqual(result["moves"], [])
-        self.assertEqual(updated, [])
-        self.assertEqual(result["updated"], 0)
+        for body in updated:
+            start = datetime.fromisoformat(body["start"]["dateTime"])
+            self.assertEqual(start.strftime("%H:%M"), "02:30")
 
     def test_monitor_leaves_user_locked_overnight(self):
         existing = [
@@ -375,7 +332,7 @@ class OvernightBan(unittest.TestCase):
         self.assertEqual(result["moves"], [])
         self.assertEqual(updated, [])
 
-    def test_coach_does_not_relocate_future_overnight(self):
+    def test_coach_keeps_future_overnight(self):
         existing = [
             _ev(
                 eid="ev-coach-night",
@@ -399,7 +356,7 @@ class OvernightBan(unittest.TestCase):
             else [],
         ), mock.patch(
             "rt_dashboard.gym_calendar.gcal.update_event",
-            side_effect=lambda *a, **k: updated.append(1),
+            side_effect=lambda cid, eid, body: updated.append(body),
         ):
             result = sync_gym_sessions(
                 [GymDay(day="2026-09-17", is_rest=False, session_type="push")],
@@ -407,8 +364,10 @@ class OvernightBan(unittest.TestCase):
                 role="coach",
             )
         self.assertTrue(result["ok"], result)
-        self.assertEqual(updated, [])
         self.assertEqual(result["moves"], [])
+        for body in updated:
+            start = datetime.fromisoformat(body["start"]["dateTime"])
+            self.assertEqual(start.strftime("%H:%M"), "02:30")
 
 
 class LocationClosure(unittest.TestCase):
