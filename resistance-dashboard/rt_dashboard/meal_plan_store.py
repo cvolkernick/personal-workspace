@@ -2,6 +2,10 @@
 
 Turso row is keyed by signed-in user_id + viewer civil day (local_today).
 Never invent pantry items or meals. Fail honest if the write cannot land.
+
+Clock split (#809): storage is civil-day. Meal *generation* remaining macros
+and slot timing use the sleep-battery eating window; after empty_at overnight
+the kitchen is closed and the empty plan is not last-good (no items).
 """
 
 from __future__ import annotations

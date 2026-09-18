@@ -1,4 +1,28 @@
-"""Ingredient inventory + remaining-day meal plan generation."""
+"""Ingredient inventory + remaining-day meal plan generation.
+
+Nutrition-day clocks (issue #809)
+=================================
+Surfaces use different clocks on purpose. Do not silently mix them.
+
+* **Meal plan remaining macros + slot timing** — sleep-battery eating
+  window (``last_wake_at`` → ``empty_at``). The window may span civil
+  midnight. After ``empty_at`` during overnight hours 00:00–03:59
+  (``KITCHEN_CLOSED_HOURS``), the kitchen is closed: no new civil-day
+  plan, no single meal carrying a full day's macros. A leftover window
+  shorter than ``MIN_MEAL_GAP`` that still has ≥50% of the day target
+  is the same seam (capacity-1 cram).
+* **Calorie-bar pacing intake** — food logs inside the eating window
+  while it is open; civil-day fallback after ``empty_at`` / before wake
+  (see ``calorie_bars.eating_window_fraction`` / ``pace_clock_copy``).
+* **In/out delta** — civil-day intake vs same-day burned (CICO). Not
+  the meal-plan clock.
+* **Plan storage** — ``user_id`` + viewer civil day
+  (``meal_plan_store``). A kitchen-closed generate is empty and is not
+  persisted as last-good.
+
+A per-meal cap (``MAX_MEAL_TARGET_FRAC`` of the day target) is a second
+guard so ``cap=1`` can never pack a full day into one bucket.
+"""
 
 from __future__ import annotations
 
@@ -42,6 +66,14 @@ PAST_MEAL_LABEL = "Earlier meal"
 SLOT_GRACE = timedelta(minutes=20)
 # Late-day regen must not stack leftover hinges on top of each other.
 MIN_MEAL_GAP = timedelta(minutes=75)
+# After empty_at, overnight hours do not open a civil-day meal plan (#809).
+# Same {0,1,2,3} band as gym overnight (#800); 04:00 may plan.
+KITCHEN_CLOSED_HOURS = frozenset({0, 1, 2, 3})
+# One meal may not carry more than this fraction of the day calorie target.
+MAX_MEAL_TARGET_FRAC = 0.40
+MSG_KITCHEN_CLOSED = (
+    "Kitchen's closed until wake — not packing a full day's macros overnight."
+)
 
 
 def _slug(name: str) -> str:
@@ -1327,6 +1359,7 @@ def generate_meal_plan(
     eat_slots: Optional[Sequence[Any]] = None,
     sleep_battery: Optional[dict] = None,
     recommended_targets: Optional[dict] = None,
+    food_logs: Optional[Sequence[Any]] = None,
 ) -> dict:
     """
     Greedy remaining-day plan from stocked ingredients.
@@ -1349,6 +1382,9 @@ def generate_meal_plan(
     clamped to the window with ``MIN_MEAL_GAP``; behind / on-pace is unchanged.
     Slot count is 1–4 from remaining macros + in-stock items, capped by
     remaining-window capacity — never empty timed hinges, never invented food.
+    After empty_at overnight (hours 0–3) or a leftover window too short to
+    hold half a day's remaining macros, the kitchen is closed (#809).
+    One meal is capped at ``MAX_MEAL_TARGET_FRAC`` of the day target.
 
     Food quality (#501): ≥1 veg/fruit slot before shake fill when pantry
     allows; soft fiber ~25g biases fill order; shake/powder cap ≤2 servings
@@ -1371,8 +1407,44 @@ def generate_meal_plan(
     invented. Neither stocked → eggs are not forced onto the plan.
     """
     targets = normalize_targets(targets)
+    tz, resolved_tz = _meal_tz(tz_name)
+    if now is None:
+        from .timeutil import local_now
+
+        now = local_now(resolved_tz)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=tz)
+    else:
+        now = now.astimezone(tz)
+    start, end = _eating_window_bounds(
+        now,
+        tz,
+        resolved_tz,
+        window_start=window_start,
+        window_end=window_end,
+        sleep_battery=sleep_battery,
+    )
+    consumed, consumed_clock = _consumed_for_planner(
+        consumed, food_logs, now, start, end
+    )
     remaining_before = remaining_macros(targets, consumed)
     rem = remaining_macros(targets, consumed)
+    kitchen_closed = _kitchen_is_closed(
+        now,
+        start,
+        end,
+        remaining_before,
+        targets,
+        sleep_battery=sleep_battery,
+    )
+    nutrition_day = _nutrition_day_payload(
+        now=now,
+        start=start,
+        end=end,
+        kitchen_closed=kitchen_closed,
+        consumed_clock=consumed_clock,
+        sleep_battery=sleep_battery,
+    )
     fiber_target = resolve_micro_target(
         targets, recommended_targets, "fiber_g", fallback=SOFT_FIBER_TARGET_G
     )
@@ -1469,6 +1541,7 @@ def generate_meal_plan(
             "honesty": [
                 {"level": "warn", "kind": "empty_plan", "text": honesty_text}
             ],
+            "nutrition_day": nutrition_day,
             "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
 
@@ -1504,9 +1577,20 @@ def generate_meal_plan(
             return None
         return float(sodium_target) - sodium_logged - float(totals.get("sodium_mg") or 0)
 
+    want_slots = _slots_wanted_from_remaining(remaining_before)
+    cap_slots = 0 if kitchen_closed else _remaining_meal_capacity(now, start, end)
+    slot_hint = max(0, min(want_slots, cap_slots)) if cap_slots else 0
+    meal_kcal_cap = _max_kcal_one_meal(targets, remaining_before)
+    fill_kcal_cap = (
+        slot_hint * meal_kcal_cap if slot_hint > 0 and meal_kcal_cap > 0 else None
+    )
+
     def _cal_ceiling(relax: bool) -> float:
         base = remaining_before["calories"] + max(80.0, remaining_before["calories"] * 0.1)
-        return base + (250.0 if relax else 0.0)
+        base = base + (250.0 if relax else 0.0)
+        if fill_kcal_cap is not None:
+            return min(base, float(fill_kcal_cap))
+        return base
 
     def _non_shake_protein_available() -> bool:
         for ing in stocked:
@@ -1681,7 +1765,7 @@ def generate_meal_plan(
         MAX_DISTINCT_VEG_SLOTS if len(veg_stocked) >= 2 else (1 if veg_stocked else 0)
     )
     veg_added = 0
-    if veg_stocked:
+    if not kitchen_closed and veg_stocked:
         unused_veg = list(veg_stocked)
         unused_veg.sort(
             key=lambda ing: (
@@ -1701,50 +1785,82 @@ def generate_meal_plan(
         if veg_added == 0:
             veg_slot_missed = True
 
-    _fill(relax=False, allow_shake_escape=False)
+    if not kitchen_closed:
+        _fill(relax=False, allow_shake_escape=False)
 
-    # AC1: empty plan is not OK when remaining macros exist and pantry has food.
-    needs_plan = remaining_before["protein_g"] >= 15 or remaining_before["calories"] >= 80
-    if not plan_items and needs_plan:
-        regen_attempted = True
-        _fill(relax=True, allow_shake_escape=False)
+        # AC1: empty plan is not OK when remaining macros exist and pantry has food.
+        needs_plan = remaining_before["protein_g"] >= 15 or remaining_before["calories"] >= 80
+        if not plan_items and needs_plan:
+            regen_attempted = True
+            _fill(relax=True, allow_shake_escape=False)
 
-    # AC4: escape hatch — powder past the cap only if 210P cannot be met otherwise.
-    if rem["protein_g"] >= 40 and shake_stocked and not _non_shake_protein_available():
-        before_n = len(plan_items)
-        _fill(relax=False, allow_shake_escape=True)
-        if len(plan_items) > before_n:
-            shake_cap_escaped = True
+        # AC4: escape hatch — powder past the cap only if 210P cannot be met otherwise.
+        if rem["protein_g"] >= 40 and shake_stocked and not _non_shake_protein_available():
+            before_n = len(plan_items)
+            _fill(relax=False, allow_shake_escape=True)
+            if len(plan_items) > before_n:
+                shake_cap_escaped = True
 
-    # Safety net: never surface an item that is not currently stocked
-    plan_items = [
-        it
-        for it in plan_items
-        if str(it.get("id") or "") in stocked_ids
-        or str(it.get("name") or "").strip().lower() in stocked_names
-    ]
-    # Collapse repeated picks into one line with servings (e.g. 3× chicken)
-    plan_items = _collapse_plan_items(plan_items)
-    # #532: whole eggs + egg whites are one grouped component (same meal).
-    egg_honesty, egg_pair_note = ensure_egg_pair(plan_items, stocked, rem, totals)
-    plan_items = _collapse_plan_items(plan_items)
-    # Group into timed meal buckets (1–4). No empty hinges; no invented food.
-    meals = _bucket_meals(
-        plan_items,
-        remaining=remaining_macros(targets, consumed),
-        now=now,
-        tz_name=tz_name,
-        window_start=window_start,
-        window_end=window_end,
-        eat_slots=eat_slots,
-        sleep_battery=sleep_battery,
-        consumed=consumed,
-        targets=targets,
-    )
-    meals = colocate_egg_pair(meals)
-    for k in _MACRO_KEYS:
-        totals[k] = round(totals[k], 1)
-    totals["fiber_g"] = round(float(totals.get("fiber_g") or 0), 1)
+    if kitchen_closed:
+        plan_items = []
+        meals = []
+        egg_honesty, egg_pair_note = [], None
+        for k in _MACRO_KEYS:
+            totals[k] = 0.0
+        totals["fiber_g"] = 0.0
+        totals["sugar_g"] = 0.0
+        totals["sodium_mg"] = 0.0
+    else:
+        # Safety net: never surface an item that is not currently stocked
+        plan_items = [
+            it
+            for it in plan_items
+            if str(it.get("id") or "") in stocked_ids
+            or str(it.get("name") or "").strip().lower() in stocked_names
+        ]
+        # Collapse repeated picks into one line with servings (e.g. 3× chicken)
+        plan_items = _collapse_plan_items(plan_items)
+        # #532: whole eggs + egg whites are one grouped component (same meal).
+        egg_honesty, egg_pair_note = ensure_egg_pair(plan_items, stocked, rem, totals)
+        plan_items = _collapse_plan_items(plan_items)
+        # Group into timed meal buckets (1–4). No empty hinges; no invented food.
+        meals = _bucket_meals(
+            plan_items,
+            remaining=remaining_macros(targets, consumed),
+            now=now,
+            tz_name=tz_name,
+            window_start=window_start,
+            window_end=window_end,
+            eat_slots=eat_slots,
+            sleep_battery=sleep_battery,
+            consumed=consumed,
+            targets=targets,
+        )
+        meals = colocate_egg_pair(meals)
+        meal_kcal = sum(
+            float((m.get("totals") or {}).get("calories") or 0) for m in meals
+        )
+        items_kcal = sum(float(it.get("calories") or 0) for it in plan_items)
+        if meals and meal_kcal + 1.0 < items_kcal:
+            # Per-meal cap dropped overflow — keep items in sync with buckets.
+            flat: List[dict] = []
+            for m in meals:
+                flat.extend(list(m.get("items") or []))
+            plan_items = _collapse_plan_items(flat)
+            for k in _MACRO_KEYS:
+                totals[k] = round(sum(float(it.get(k) or 0) for it in plan_items), 1)
+            totals["fiber_g"] = round(
+                sum(float(it.get("fiber_g") or 0) for it in plan_items), 1
+            )
+            totals["sugar_g"] = round(
+                sum(float(it.get("sugar_g") or 0) for it in plan_items), 1
+            )
+            totals["sodium_mg"] = round(
+                sum(float(it.get("sodium_mg") or 0) for it in plan_items), 0
+            )
+        for k in _MACRO_KEYS:
+            totals[k] = round(totals[k], 1)
+        totals["fiber_g"] = round(float(totals.get("fiber_g") or 0), 1)
 
     remaining_after = remaining_macros(
         targets,
@@ -1798,7 +1914,9 @@ def generate_meal_plan(
         fiber_miss_reason = "pantry_blocked"
 
     empty = not plan_items
-    if empty:
+    if kitchen_closed:
+        empty_reason = "kitchen_closed"
+    elif empty:
         if remaining_before["protein_g"] < 15 and remaining_before["calories"] < 80:
             empty_reason = "targets_met"
         else:
@@ -1856,6 +1974,8 @@ def generate_meal_plan(
         "sodium_miss": sodium_miss,
         **_diversity_notes_fields(distinct=distinct_n, limited=diversity_limited),
         "egg_pair": egg_pair_note,
+        "nutrition_day": nutrition_day,
+        "kitchen_closed": kitchen_closed,
     }
 
     honesty: List[dict] = []
@@ -1868,7 +1988,10 @@ def generate_meal_plan(
             f" Uses {len(logged)} Google Health food log"
             f"{'s' if len(logged) != 1 else ''} so far today for remaining macros."
         )
-    if empty and empty_reason == "targets_met":
+    if kitchen_closed:
+        msg = MSG_KITCHEN_CLOSED
+        honesty.append({"level": "muted", "kind": "empty_plan", "text": msg})
+    elif empty and empty_reason == "targets_met":
         msg = (
             f"Day essentially complete — only ~{remaining_before['calories']:.0f} kcal and "
             f"{remaining_before['protein_g']:.0f}g protein left under target; no extra servings planned."
@@ -1887,7 +2010,12 @@ def generate_meal_plan(
         honesty.append({"level": "warn", "kind": "empty_plan", "text": msg})
     elif remaining_after["protein_g"] > 40:
         msg += " Protein still short — restock high-protein items if needed."
-    if remaining_after["calories"] > 300 and not plan_items and remaining_before["protein_g"] >= 20:
+    if (
+        not kitchen_closed
+        and remaining_after["calories"] > 300
+        and not plan_items
+        and remaining_before["protein_g"] >= 20
+    ):
         msg = "Could not fit more servings without exceeding soft calorie ceiling (in-stock only)."
 
     if shake_cap_escaped:
@@ -1914,7 +2042,9 @@ def generate_meal_plan(
                 ),
             }
         )
-    if veg_slot_missed and not veg_slot_filled:
+    if kitchen_closed:
+        pass
+    elif veg_slot_missed and not veg_slot_filled:
         honesty.append(
             {
                 "level": "warn",
@@ -2013,6 +2143,7 @@ def generate_meal_plan(
         "serving_grams_nudge": serving_grams_nudge_text(plan_items),
         "notes": notes,
         "honesty": honesty,
+        "nutrition_day": nutrition_day,
         "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
     }
 
@@ -2353,6 +2484,148 @@ def _parse_eat_slot(raw: Any, tz, day: datetime) -> Optional[datetime]:
     return None
 
 
+def _max_kcal_one_meal(targets: Optional[dict], remaining: Optional[dict]) -> float:
+    """Hard cap so one bucket cannot carry a full day's remaining macros."""
+    rem = float((remaining or {}).get("calories") or 0)
+    day = float((targets or {}).get("calories") or 0) or rem
+    if day <= 0:
+        return max(0.0, rem)
+    return min(rem if rem > 0 else day, max(250.0, day * MAX_MEAL_TARGET_FRAC))
+
+
+def _slots_wanted_from_remaining(remaining: Optional[dict]) -> int:
+    rem = remaining or {}
+    cal = float(rem.get("calories") or 0)
+    prot = float(rem.get("protein_g") or 0)
+    if cal >= 1400 or prot >= 120:
+        return 4
+    if cal >= 800 or prot >= 70:
+        return 3
+    if cal >= 350 or prot >= 30:
+        return 2
+    if cal > 0 or prot > 0:
+        return 1
+    return 0
+
+
+def _consumed_for_planner(
+    consumed: Optional[dict],
+    food_logs: Optional[Sequence[Any]],
+    now: datetime,
+    start: datetime,
+    end: datetime,
+) -> tuple:
+    """Prefer eating-window intake when the wake window spans midnight.
+
+    Civil-day ``consumed`` is 0 at 00:06 even if last night's meals were
+    logged on yesterday's date. Pacing already uses this window; remaining
+    macros for the plan must match.
+    """
+    caller = consumed if isinstance(consumed, dict) else {}
+    if not food_logs or start is None or end is None:
+        return caller, "caller"
+    try:
+        if start.date() == now.date():
+            return caller, "caller"
+    except Exception:
+        return caller, "caller"
+    from .calorie_bars import sum_intake_in_window
+
+    win = sum_intake_in_window(
+        food_logs, window_start=start, window_end=end, now=now
+    )
+    if int(win.get("log_count") or 0) <= 0:
+        return caller, "caller"
+    merged = dict(caller)
+    for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+        merged[k] = win.get(k, 0)
+    merged["source"] = "eating_window_logs"
+    merged["window_start"] = win.get("window_start")
+    merged["window_end"] = win.get("window_end")
+    return merged, "eating_window"
+
+
+def _kitchen_is_closed(
+    now: datetime,
+    start: datetime,
+    end: datetime,
+    remaining: Optional[dict] = None,
+    targets: Optional[dict] = None,
+    *,
+    sleep_battery: Optional[dict] = None,
+) -> bool:
+    """Post-empty / post-midnight pre-wake: do not emit a new day's plan."""
+    overnight = now.hour in KITCHEN_CLOSED_HOURS
+    bat = sleep_battery if isinstance(sleep_battery, dict) else {}
+    bat_end = _parse_meal_dt(bat.get("empty_at"))
+    if bat_end is not None:
+        bat_end = bat_end.astimezone(now.tzinfo)
+        if overnight and now > bat_end:
+            return True
+    lo = now if now > start else start
+    if end > lo:
+        span = end - lo
+        rem_cal = float((remaining or {}).get("calories") or 0)
+        day_cal = float((targets or {}).get("calories") or 0) or rem_cal
+        if span < MIN_MEAL_GAP and day_cal > 0 and rem_cal >= 0.5 * day_cal:
+            return True
+    elif overnight:
+        return True
+    return False
+
+
+def _nutrition_day_payload(
+    *,
+    now: datetime,
+    start: datetime,
+    end: datetime,
+    kitchen_closed: bool,
+    consumed_clock: str,
+    sleep_battery: Optional[dict] = None,
+) -> dict:
+    if kitchen_closed:
+        clock = "kitchen_closed"
+    elif sleep_battery and (sleep_battery.get("last_wake_at") or sleep_battery.get("empty_at")):
+        clock = "eating_window"
+    else:
+        clock = "civil_day"
+    return {
+        "clock": clock,
+        "consumed_clock": consumed_clock,
+        "window_start": start.isoformat(timespec="seconds") if start else None,
+        "window_end": end.isoformat(timespec="seconds") if end else None,
+        "kitchen_closed": kitchen_closed,
+        "note": (
+            "Meal plan remaining + slots use the sleep-battery eating window. "
+            "After empty_at overnight (hours 0–3) the kitchen is closed. "
+            "Calorie-bar pacing may fall back to civil day after empty; "
+            "in/out delta is civil-day CICO. Plan storage is user+civil day "
+            "and does not persist a kitchen-closed empty as last-good."
+        ),
+    }
+
+
+def _trim_items_to_meal_cap(items: Sequence[dict], cap_kcal: float) -> List[dict]:
+    """Drop overflow items so one meal cannot hold a full day's macros."""
+    if cap_kcal <= 0 or not items:
+        return list(items)
+    kept: List[dict] = []
+    kcal = 0.0
+    for it in items:
+        add = float(it.get("calories") or 0)
+        if add > cap_kcal + 40:
+            if kept:
+                break
+            continue
+        if kept and kcal + add > cap_kcal + 40:
+            break
+        kept.append(it)
+        kcal += add
+        if kcal >= cap_kcal:
+            break
+    return kept
+
+
 def _eating_window_bounds(
     now: datetime,
     tz,
@@ -2364,6 +2637,19 @@ def _eating_window_bounds(
     start = _parse_meal_dt(window_start)
     end = _parse_meal_dt(window_end)
     bat = sleep_battery if isinstance(sleep_battery, dict) else {}
+    bat_end = _parse_meal_dt(bat.get("empty_at"))
+    bat_wake = _parse_meal_dt(bat.get("last_wake_at"))
+    # Overnight after empty_at: keep the finished wake→empty bounds so the
+    # planner does not silently switch to a midnight→midnight civil day (#809).
+    if bat_end is not None and now.hour in KITCHEN_CLOSED_HOURS:
+        bat_end_local = bat_end.astimezone(tz)
+        if now > bat_end_local:
+            wake_local = (
+                bat_wake.astimezone(tz)
+                if bat_wake is not None
+                else (start.astimezone(tz) if start is not None else now.replace(hour=0, minute=0, second=0, microsecond=0))
+            )
+            return wake_local, bat_end_local
     if (start is None or end is None) and bat:
         try:
             from .calorie_bars import eating_window_fraction
@@ -2421,9 +2707,10 @@ def _remaining_meal_capacity(
     """
     if end <= start:
         return 0
-    horizon = _slot_horizon(now)
     if now >= end:
-        return 1 if horizon < end else 0
+        # After empty_at: do not invent a catch-up meal. Slot grace only
+        # keeps an in-progress hinge, it does not open a new bucket (#809).
+        return 0
     lo = now if now > start else start
     if lo >= end:
         return 0
@@ -2686,16 +2973,8 @@ def _desired_slot_count(items: Sequence[dict], remaining: Optional[dict]) -> int
     units = _serving_unit_count(items)
     if units <= 0:
         return 0
-    rem = remaining or {}
-    cal = float(rem.get("calories") or 0)
-    prot = float(rem.get("protein_g") or 0)
-    if cal >= 1400 or prot >= 120:
-        want = 4
-    elif cal >= 800 or prot >= 70:
-        want = 3
-    elif cal >= 350 or prot >= 30:
-        want = 2
-    else:
+    want = _slots_wanted_from_remaining(remaining)
+    if want <= 0:
         want = 1
     return max(1, min(4, units, want))
 
@@ -2820,6 +3099,15 @@ def _bucket_meals(
     cap = _remaining_meal_capacity(now, start, end)
     if cap <= 0:
         return []
+    if _kitchen_is_closed(
+        now,
+        start,
+        end,
+        remaining,
+        targets if isinstance(targets, dict) else None,
+        sleep_battery=sleep_battery,
+    ):
+        return []
     n_slots = _desired_slot_count(items, remaining)
     units = _expand_serving_units(items)
     n_slots = max(1, min(n_slots, cap, len(units)))
@@ -2840,11 +3128,18 @@ def _bucket_meals(
     n_slots = min(n_slots, len(times), len(units))
     chunks = _chunk_units(units, n_slots)
     times = times[: len(chunks)]
+    meal_cap = _max_kcal_one_meal(
+        targets if isinstance(targets, dict) else None, remaining
+    )
 
     meals: List[dict] = []
     upcoming_i = 0
     for i, part in enumerate(chunks):
-        collapsed = _collapse_plan_items(list(part))
+        collapsed = _trim_items_to_meal_cap(
+            _collapse_plan_items(list(part)), meal_cap
+        )
+        if not collapsed:
+            continue
         sub = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
         for it in collapsed:
             for k in sub:

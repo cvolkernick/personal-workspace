@@ -798,6 +798,7 @@ def load_dashboard_data(
         tz_name=tz_name,
         sleep_battery=sleep_battery,
         recommended_targets=(rec_nt or {}).get("recommended"),
+        food_logs=health.food_logs or [],
     )
     from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
@@ -1306,6 +1307,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
             rec = ((data.get("coach") or {}).get("nutrition_targets") or {}).get(
                 "recommended"
             )
+            health_dict = data.get("health") or {}
             plan = generate_meal_plan(
                 store.get("inventory") or {"ingredients": []},
                 store.get("targets") or {},
@@ -1317,6 +1319,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 window_end=win.get("window_end"),
                 sleep_battery=bat if isinstance(bat, dict) else None,
                 recommended_targets=rec,
+                food_logs=health_dict.get("food_logs") or [],
             )
             from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
@@ -2612,6 +2615,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     eat_slots=body.get("eat_slots") or body.get("slots"),
                     sleep_battery=bat if isinstance(bat, dict) else None,
                     recommended_targets=rec,
+                    food_logs=food_entries,
                 )
                 from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
                 from rt_dashboard.timeutil import local_today_iso as _local_today_iso
