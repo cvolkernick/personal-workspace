@@ -11,3 +11,7 @@ Seed write-back for #792. Portable sync protocol stands: nest git is not the age
 ### 2026-09-17T08:11:46-04:00 · harness=`bot`
 
 Bot runtime pull + write-back for #792 AC4. Grok.btc pulled PROFILE/INSTRUCTIONS/MEMORY from `feat/identity-sync-792` (`pulled_sha` `2a7dc2ae6f8ede1e860524930f951be60b5415a1`). Loaded into Bot context. No material treasury lock change this pass — proof entry only. Covered-call overlay remains closed. JR-strcUSX now-deploy / no-mint lock remains.
+
+### 2026-09-17T14:12:00-04:00 · harness=`bot`
+
+Material lock: Nicole rent restored to $25 USDC daily **2:30 PM ET** → nvolkern@gmail.com (standing-allow). Biweekly $350 cancelled. First resume send **2026-09-17 ~2:39 PM ET completed** (standing daily continues; no 9/18 catch-up owed). After each completed $25: Naka books Rent actual; Grok updates Dania Outstanding waterfall E2→E8 (−25) + B12 date (never Total E9). Thaís monthly $900 on the 10th and JR $35 reminder/manual unchanged. Covered-call overlay remains closed. JR-strcUSX now-deploy / no-mint lock remains.
