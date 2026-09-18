@@ -26,7 +26,8 @@ class TestNavRobinhoodMarkup(unittest.TestCase):
 
     def test_sw_precaches_nav_robinhood(self) -> None:
         self.assertIn('"/nav-robinhood.js"', SW)
-        self.assertIn("fcc-shell-v5", SW)
+        self.assertIn("fcc-shell-v6", SW)
+        self.assertNotIn("fcc-shell-v5", SW)
         self.assertNotIn("fcc-shell-v4", SW)
 
 
@@ -40,7 +41,10 @@ class TestNavRobinhoodJs(unittest.TestCase):
         self.assertIn("function wireRobinhoodNav", JS)
         self.assertIn("function onDocumentClick", JS)
         self.assertIn('ANDROID_PACKAGE = "com.robinhood.android"', JS)
-        self.assertIn("intent://robinhood.com/#Intent;scheme=https;package=", JS)
+        self.assertIn('ANDROID_SCHEME = "robinhood"', JS)
+        self.assertIn("intent://open#Intent;scheme=", JS)
+        self.assertNotIn("intent://robinhood.com/", JS)
+        self.assertNotIn("scheme=https;package=", JS)
         self.assertIn("encodeURIComponent(MOBILE_WEB_HREF)", JS)
         self.assertIn('IOS_SCHEME = "robinhood://"', JS)
         self.assertIn("IOS_FALLBACK_MS = 900", JS)

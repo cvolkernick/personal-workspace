@@ -1,5 +1,5 @@
 /* FCC offline shell — caches static UI only, never API or treasury JSON. */
-const CACHE = "fcc-shell-v5";
+const CACHE = "fcc-shell-v6";
 const PRECACHE = [
   "/",
   "/financial-command/",

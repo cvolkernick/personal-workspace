@@ -16,9 +16,16 @@
  * dropped by Brave PWA (PR #784); the fallback then looks like a plain
  * robinhood.com web page.
  *
- *   Android: intent:// + https://robinhood.com/ + package com.robinhood.android
- *            (assetlinks.json handle_all_urls). S.browser_fallback_url is the
- *            mobile website, not Play Store.
+ *   Android: intent://open + scheme=robinhood + package com.robinhood.android.
+ *            com.robinhood.android's BROWSABLE App Links on robinhood.com
+ *            only match /applink/, /stocks/, /crypto/, etc. — not `/`.
+ *            PR #791's https App Link to the site root therefore did not
+ *            resolve to the app; Chrome/Brave used S.browser_fallback_url
+ *            and the tap landed on the marketing page. The app does
+ *            register scheme=robinhood on DeeplinkResolverActivity
+ *            (BROWSABLE). Same pattern as the FitDash Planet Fitness
+ *            launcher (custom scheme, not https host).
+ *            S.browser_fallback_url is the mobile website, not Play Store.
  *   iOS:     robinhood:// then 900ms fallback to https://robinhood.com/.
  *
  * Click is delegated on document so a later nav paint cannot drop the
@@ -32,6 +39,7 @@
   var DESKTOP_HREF = "https://robinhood.com/agentic?classic=1";
   var MOBILE_WEB_HREF = "https://robinhood.com/";
   var ANDROID_PACKAGE = "com.robinhood.android";
+  var ANDROID_SCHEME = "robinhood";
   var IOS_SCHEME = "robinhood://";
   var IOS_FALLBACK_MS = 900;
 
@@ -64,7 +72,9 @@
 
   function androidIntentHref() {
     return (
-      "intent://robinhood.com/#Intent;scheme=https;package=" +
+      "intent://open#Intent;scheme=" +
+      ANDROID_SCHEME +
+      ";package=" +
       ANDROID_PACKAGE +
       ";S.browser_fallback_url=" +
       encodeURIComponent(MOBILE_WEB_HREF) +
