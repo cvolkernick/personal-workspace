@@ -4,7 +4,7 @@ Lightweight CRM + owner-outreach pipeline for cars Chris photographs
 on the roadside. Intake is a Google Drive photo dump; the CRM file
 store is the system of record.
 
-Issue: [#807](https://github.com/cvolkernick/personal-workspace/issues/807)
+Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820)
 
 ## Canonical choices
 
@@ -19,13 +19,23 @@ Issue: [#807](https://github.com/cvolkernick/personal-workspace/issues/807)
 
 Secrets (`BLAND_AGENT_ID`, API keys, Drive tokens) live in env — never in this repo, issues, or logs.
 
-Drive is **intake only**. Photos with no CRM lead, or CRM leads with no photos, are drift the weekly pass reconciles.
+Drive is **intake only**. Photos with no CRM lead, or CRM leads with no photos, are drift the daily pass reconciles.
 
 ## Phone dump
 
-From Chris's phone, open the Drive folder, make a subfolder
-`YYYY-MM-DD-<road>` (example `2026-09-17-del-prado`), drop the car
-photo plus the for-sale sign, stop. No form.
+From Chris's phone, open the Drive folder and drop the car photo plus
+the for-sale sign in the **folder root**. No subfolders, no naming.
+Ingestion reads EXIF `DateTimeOriginal` + GPS, files each car into
+`YYYY-MM-DD[-road]`, reverse-geocodes the location, and runs the same
+day (daily pass, not weekly).
+
+Missing EXIF is visible on the lead (`date_source: exif|upload|folder|manual`,
+`location_source: exif|folder|manual|missing`). Upload date is the date
+fallback; missing GPS leaves location blank and flags ops. JPEG and HEIC
+are both accepted.
+
+Existing `YYYY-MM-DD-<road>` subfolders still ingest (folder name is a
+visible fallback, not EXIF).
 
 How-to doc in the folder: https://docs.google.com/document/d/1veS6NBRTyg0mCjAkJYz0CpsxL5ydsvx1CmYq0oRF9sY/edit
 
@@ -48,7 +58,8 @@ python3 workflows/panamerica-roadside-crm/run.py run \
 |------------|---------|
 | `--dry-run` | Default. Full pipeline, **no** Bland HTTP |
 | `--live` | Real SMS/voice. Refused until copy approval |
-| `weekly-pass` | Pull new photo sets, extract phone, skip duplicates |
+| `daily-pass` | Organize root photos from EXIF, pull new sets, extract phone, skip duplicates |
+| `weekly-pass` | Alias for `daily-pass` |
 | `sms-batch` | Phase 1 SMS for `new` leads (STOP always present) |
 | `call-batch` | Phase 2 Bland voice for `sms_sent` non-responders aged 5–7 days |
 | `ingest-reply` / `webhook` | STOP, decline, interest → CRM |

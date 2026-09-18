@@ -1,4 +1,4 @@
-"""Weekly Drive intake: one photo set → one CRM lead, phone-deduped."""
+"""Daily Drive intake: one photo set → one CRM lead, phone-deduped."""
 
 from __future__ import annotations
 
@@ -79,7 +79,39 @@ def lead_from_set(photo_set: PhotoSet, text: str) -> Lead:
         }
         for p in photo_set.photos
     ]
-    note = "unreadable/missing contact info" if not phone else ""
+    notes: list[str] = []
+    if not phone:
+        notes.append("unreadable/missing contact info")
+
+    date_source = (photo_set.date_source or "").strip()
+    location_source = (photo_set.location_source or "").strip()
+    location = (photo_set.location or "").strip()
+    spotted_at = (photo_set.spotted_at or "").strip() or spotted
+    gps = (photo_set.gps or "").strip()
+
+    if not date_source:
+        date_source = "folder" if spotted else "upload"
+    if not spotted_at:
+        spotted_at = spotted
+    if date_source == "upload":
+        notes.append("date from upload (no DateTimeOriginal EXIF)")
+
+    if location_source == "exif":
+        location = location or road
+    elif location:
+        location_source = location_source or "folder"
+    elif road:
+        location = road
+        location_source = location_source or "folder"
+    else:
+        location = ""
+        location_source = location_source or "missing"
+
+    if location_source == "missing":
+        notes.append("missing GPS — fill location from context")
+    elif photo_set.location_flagged:
+        notes.append("reverse-geocode empty — fill road from context")
+
     return Lead(
         id=f"lead-{photo_set.id}",
         folder_id=photo_set.id,
@@ -88,10 +120,13 @@ def lead_from_set(photo_set: PhotoSet, text: str) -> Lead:
         make=vehicle["make"],
         model=vehicle["model"],
         year=vehicle["year"],
-        location=road,
-        spotted_at=spotted,
+        location=location,
+        spotted_at=spotted_at,
+        date_source=date_source,
+        location_source=location_source,
+        gps=gps,
         asking_price=vehicle["asking_price"],
         phone=normalize_phone(phone),
         state=state,
-        notes=[note] if note else [],
+        notes=[n for n in notes if n],
     )

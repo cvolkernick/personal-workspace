@@ -74,3 +74,17 @@ class IntakeTests(unittest.TestCase):
             self.assertEqual(second["created"], [])
             self.assertEqual(pipe.store.counts().get("new"), 2)
             self.assertEqual(pipe.store.counts().get("needs-info"), 1)
+
+    def test_daily_pass_is_weekly_alias_and_keeps_folder_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pipe = _pipe(tmp)
+            result = pipe.daily_pass()
+            self.assertEqual(len(result["created"]), 2)
+            corolla = pipe.store.get("lead-set-corolla")
+            assert corolla is not None
+            self.assertEqual(corolla.date_source, "folder")
+            self.assertEqual(corolla.location_source, "folder")
+            self.assertEqual(corolla.location, "del prado")
+            self.assertEqual(corolla.spotted_at, "2026-09-10")
+            alias = pipe.weekly_pass()
+            self.assertEqual(alias["created"], [])

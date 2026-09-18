@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Grok Bot harness entry for the Panamerica roadside CRM.
 
-    python3 workflows/panamerica-roadside-crm/run.py weekly-pass \\
+    python3 workflows/panamerica-roadside-crm/run.py daily-pass \\
         --dry-run --fixture workflows/panamerica-roadside-crm/tests/fixtures/photo_sets.json
 
 Live SMS/voice is blocked until PANAMERICA_ROADSIDE_COPY_APPROVED=1.
@@ -51,8 +51,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     return _json(_pipe(args).run())
 
 
-def cmd_weekly(args: argparse.Namespace) -> int:
-    return _json(_pipe(args).weekly_pass())
+def cmd_daily(args: argparse.Namespace) -> int:
+    return _json(_pipe(args).daily_pass())
 
 
 def cmd_sms(args: argparse.Namespace) -> int:
@@ -140,8 +140,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--simulate-interest", action="store_true", help="Dry-run: invent interest")
 
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("run", help="Weekly pass + Phase 1 SMS (+ optional simulate)").set_defaults(func=cmd_run)
-    sub.add_parser("weekly-pass", help="Pull new Drive photo sets into the CRM").set_defaults(func=cmd_weekly)
+    sub.add_parser("run", help="Daily pass + Phase 1 SMS (+ optional simulate)").set_defaults(func=cmd_run)
+    sub.add_parser("daily-pass", help="Organize root photos from EXIF and pull new sets into the CRM").set_defaults(
+        func=cmd_daily
+    )
+    sub.add_parser("weekly-pass", help="Alias for daily-pass").set_defaults(func=cmd_daily)
     sub.add_parser("sms-batch", help="Phase 1: SMS new leads with approved copy").set_defaults(func=cmd_sms)
     sub.add_parser("call-batch", help="Phase 2: Bland voice to SMS non-responders after 5–7 days").set_defaults(
         func=cmd_calls

@@ -26,6 +26,40 @@ class CliTests(unittest.TestCase):
         for token in ("--dry-run", "--live", "--fixture", "--store"):
             self.assertIn(token, help_text)
 
+    def test_help_documents_daily_pass(self) -> None:
+        proc = subprocess.run(
+            [sys.executable, str(RUN), "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("daily-pass", proc.stdout)
+
+    def test_dry_run_daily_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Path(tmp) / "store.json"
+            daily = subprocess.run(
+                [
+                    sys.executable,
+                    str(RUN),
+                    "--dry-run",
+                    "--store",
+                    str(store),
+                    "--fixture",
+                    str(FIXTURE),
+                    "daily-pass",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(daily.returncode, 0, daily.stderr + daily.stdout)
+            payload = json.loads(daily.stdout)
+            created_phones = {row["phone"] for row in payload["created"]}
+            self.assertIn("2395550101", created_phones)
+            self.assertIn("organized", payload)
+
     def test_dry_run_weekly_pass_and_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = Path(tmp) / "store.json"
