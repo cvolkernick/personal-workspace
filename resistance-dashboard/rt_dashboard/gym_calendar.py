@@ -15,6 +15,12 @@ Reconciliation contract (coach + assistant-side monitor):
   ``ppl_logged_for_planning`` is empty, reschedule in place via ``pick_slot``
   from now through end of civil day. In-progress, logged, user-locked, and
   no-remaining-slot cases stay put. Never roll to tomorrow.
+- Cross-club fallback (#813): home club first. If a ranked window fits at
+  or under ``HOME_OCCUPANCY_THRESHOLD_PCT`` (default 50) and home is open,
+  keep that pick. Otherwise score (slot × club) across home + Tamiami +
+  N. Fort Myers on occupancy + drive-time penalty. Alt clubs without
+  captured occupancy are skipped. If no pair is feasible, keep the home
+  pick rather than placing nothing.
 - Session-bound Calendar API only (main login, not Health OAuth). Stored
   refresh tokens / headless daily run are out of scope (#609).
 """
@@ -51,6 +57,15 @@ SECOND_ALT_LOCATION = "15201 N Cleveland Ave, North Fort Myers"
 HOME_CLOSED_START = "2026-09-17T12:00:00"
 HOME_CLOSED_END = "2026-09-19T12:00:00"
 
+CLUB_HOME = "home"
+CLUB_ALT = "alternate"
+CLUB_SECOND = "second_alternate"
+CLUB_IDS = (CLUB_HOME, CLUB_ALT, CLUB_SECOND)
+# Phase 2 occupancy trigger (#813). Overridable via busyness.json.
+HOME_OCCUPANCY_THRESHOLD_PCT = 50
+DRIVE_PENALTY_PER_MINUTE = 0.5
+DEFAULT_DRIVE_MINUTES = {CLUB_HOME: 0, CLUB_ALT: 20, CLUB_SECOND: 15}
+
 _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 _FALLBACK_RANKED = {
@@ -85,6 +100,9 @@ class ChosenSlot:
     end: datetime
     occupancy_pct: int
     window: QuietWindow
+    club_id: str = CLUB_HOME
+    location: str = ""
+    drive_minutes: int = 0
 
 
 def gym_tz() -> ZoneInfo:
@@ -186,10 +204,88 @@ def reset_busyness_cache() -> None:
     _BUSYNESS_CACHE = None
 
 
-def ranked_windows_for(day: str) -> List[QuietWindow]:
+def _club_blob(club_id: str) -> dict:
     data = load_busyness()
+    if club_id in (None, "", CLUB_HOME):
+        return data if isinstance(data, dict) else {}
+    clubs = data.get("clubs") if isinstance(data.get("clubs"), dict) else {}
+    blob = clubs.get(club_id)
+    return blob if isinstance(blob, dict) else {}
+
+
+def occupancy_threshold() -> int:
+    data = load_busyness()
+    try:
+        return int(round(float(data.get("home_occupancy_threshold_pct", HOME_OCCUPANCY_THRESHOLD_PCT))))
+    except (TypeError, ValueError):
+        return HOME_OCCUPANCY_THRESHOLD_PCT
+
+
+def drive_penalty_per_minute() -> float:
+    data = load_busyness()
+    try:
+        return float(data.get("drive_penalty_per_minute", DRIVE_PENALTY_PER_MINUTE))
+    except (TypeError, ValueError):
+        return DRIVE_PENALTY_PER_MINUTE
+
+
+def drive_minutes_for(club_id: str) -> int:
+    data = load_busyness()
+    raw = data.get("drive_minutes") if isinstance(data.get("drive_minutes"), dict) else {}
+    if club_id in raw:
+        try:
+            return int(round(float(raw[club_id])))
+        except (TypeError, ValueError):
+            pass
+    blob = _club_blob(club_id)
+    if blob.get("drive_minutes") is not None:
+        try:
+            return int(round(float(blob["drive_minutes"])))
+        except (TypeError, ValueError):
+            pass
+    return int(DEFAULT_DRIVE_MINUTES.get(club_id, 0))
+
+
+def club_address(club_id: str) -> str:
+    data = load_busyness()
+    club = data.get("club") if isinstance(data.get("club"), dict) else {}
+    blob = _club_blob(club_id)
+    if blob.get("address"):
+        return str(blob["address"])
+    if club_id == CLUB_ALT:
+        return str(club.get("alternate") or ALT_LOCATION)
+    if club_id == CLUB_SECOND:
+        return str(club.get("second_alternate") or SECOND_ALT_LOCATION)
+    return str(club.get("home") or HOME_LOCATION)
+
+
+def _occupancy_table(club_id: str) -> dict:
+    if club_id in (None, "", CLUB_HOME):
+        data = load_busyness()
+        raw = data.get("occupancy")
+        return raw if isinstance(raw, dict) else {}
+    blob = _club_blob(club_id)
+    raw = blob.get("occupancy")
+    return raw if isinstance(raw, dict) else {}
+
+
+def club_has_occupancy(club_id: str) -> bool:
+    return bool(_occupancy_table(club_id))
+
+
+def _ranked_table(club_id: str) -> dict:
+    if club_id in (None, "", CLUB_HOME):
+        data = load_busyness()
+        raw = data.get("ranked_windows")
+        return raw if isinstance(raw, dict) else {}
+    blob = _club_blob(club_id)
+    raw = blob.get("ranked_windows")
+    return raw if isinstance(raw, dict) else {}
+
+
+def ranked_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
     key = weekday_key(day)
-    raw = (data.get("ranked_windows") or {}).get(key) or []
+    raw = _ranked_table(club_id).get(key) or []
     windows: List[QuietWindow] = []
     if isinstance(raw, list):
         for row in raw:
@@ -206,15 +302,16 @@ def ranked_windows_for(day: str) -> List[QuietWindow]:
             windows.append(QuietWindow(start, end, occ))
     if windows:
         return windows
+    if club_id not in (None, "", CLUB_HOME):
+        return []
     return [
         QuietWindow(s, e, occ) for s, e, occ in _FALLBACK_RANKED.get(key, _FALLBACK_RANKED["mon"])
     ]
 
 
-def occupancy_map(day: str) -> Dict[int, float]:
-    data = load_busyness()
+def occupancy_map(day: str, club_id: str = CLUB_HOME) -> Dict[int, float]:
     key = weekday_key(day)
-    raw = (data.get("occupancy") or {}).get(key) or {}
+    raw = _occupancy_table(club_id).get(key) or {}
     out: Dict[int, float] = {}
     if isinstance(raw, dict):
         for hk, val in raw.items():
@@ -276,12 +373,12 @@ def _clock(now: Optional[datetime]) -> datetime:
     return now
 
 
-def extra_windows_for(day: str) -> List[QuietWindow]:
+def extra_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
     """Occupancy-ranked 30-min starts when the published shortlist is all busy."""
-    occ = occupancy_map(day)
+    occ = occupancy_map(day, club_id)
     if not occ:
         return []
-    seen = {(w.start_hhmm, w.end_hhmm) for w in ranked_windows_for(day)}
+    seen = {(w.start_hhmm, w.end_hhmm) for w in ranked_windows_for(day, club_id)}
     extras: List[Tuple[float, QuietWindow]] = []
     start_hour = 5.0
     while start_hour <= 22.5 + 1e-9:
@@ -304,9 +401,9 @@ def extra_windows_for(day: str) -> List[QuietWindow]:
     return [w for _, w in extras]
 
 
-def candidate_windows(day: str) -> List[QuietWindow]:
+def candidate_windows(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
     out: List[QuietWindow] = []
-    for window in ranked_windows_for(day) + extra_windows_for(day):
+    for window in ranked_windows_for(day, club_id) + extra_windows_for(day, club_id):
         start, _end = window_bounds(day, window)
         if not is_illegal_gym_start(start):
             out.append(window)
@@ -422,7 +519,13 @@ def session_blurb(session_type: str) -> str:
 
 
 def event_body(day: str, slot: ChosenSlot, *, session_type: str = "") -> dict[str, Any]:
-    loc, alt = location_for(slot.start, slot.end)
+    if slot.location:
+        loc = slot.location
+        alt = slot.club_id != CLUB_HOME
+        packed = alt and not home_closed_for(slot.start, slot.end)
+    else:
+        loc, alt = location_for(slot.start, slot.end)
+        packed = False
     tag = gym_desc_tag(day)
     lines = [
         session_blurb(session_type),
@@ -431,7 +534,12 @@ def event_body(day: str, slot: ChosenSlot, *, session_type: str = "") -> dict[st
             f"(~{slot.occupancy_pct}% typical occupancy)."
         ),
     ]
-    if alt:
+    if packed:
+        lines.append(
+            f"Home club packed; using {loc} "
+            f"(~{drive_minutes_for(slot.club_id)} min drive)."
+        )
+    elif alt:
         data = load_busyness()
         club = data.get("club") if isinstance(data.get("club"), dict) else {}
         second = str(club.get("second_alternate") or SECOND_ALT_LOCATION)
@@ -520,6 +628,161 @@ def pick_slot(
         if not slot_overlaps_busy(slot, busy):
             return slot
     return None
+
+
+def home_closed_for(start: datetime, end: datetime) -> bool:
+    closed0, closed1 = home_closed_bounds()
+    return intervals_overlap(start, end, closed0, closed1)
+
+
+def club_open(club_id: str, start: datetime, end: datetime) -> bool:
+    """True when the slot sits inside captured club hours. Missing hours = 24h."""
+    blob = _club_blob(club_id)
+    hours = blob.get("hours") if isinstance(blob.get("hours"), dict) else None
+    if not hours:
+        return True
+    key = _WEEKDAYS[start.astimezone(gym_tz()).weekday()]
+    raw = hours.get(key) or []
+    if not isinstance(raw, list) or not raw:
+        return True
+    zone = gym_tz()
+    local_start = start.astimezone(zone)
+    local_end = end.astimezone(zone)
+    y, m, d = local_start.year, local_start.month, local_start.day
+    for row in raw:
+        if not isinstance(row, (list, tuple)) or len(row) < 2:
+            continue
+        sh, sm = _parse_hhmm(str(row[0]))
+        end_text = str(row[1]).strip()
+        open0 = datetime(y, m, d, sh, sm, tzinfo=zone)
+        if end_text in ("24:00", "24:00:00"):
+            open1 = datetime(y, m, d, tzinfo=zone) + timedelta(days=1)
+        else:
+            eh, em = _parse_hhmm(end_text)
+            open1 = datetime(y, m, d, eh, em, tzinfo=zone)
+            if open1 <= open0:
+                open1 = open1 + timedelta(days=1)
+        if open0 <= local_start and local_end <= open1:
+            return True
+    return False
+
+
+def slot_score(slot: ChosenSlot) -> float:
+    return float(slot.occupancy_pct) + drive_penalty_per_minute() * float(slot.drive_minutes)
+
+
+def _cutoff(not_before: Optional[datetime]) -> Optional[datetime]:
+    if not_before is None:
+        return None
+    raw = not_before if not_before.tzinfo else not_before.replace(tzinfo=gym_tz())
+    return raw.astimezone(gym_tz())
+
+
+def ranked_window_fits(
+    day: str,
+    busy: Sequence[Tuple[datetime, datetime]],
+    *,
+    not_before: Optional[datetime] = None,
+    club_id: str = CLUB_HOME,
+) -> bool:
+    cutoff = _cutoff(not_before)
+    for window in ranked_windows_for(day, club_id):
+        start, end = window_bounds(day, window)
+        if is_illegal_gym_start(start):
+            continue
+        if cutoff is not None and start < cutoff:
+            continue
+        if not club_open(club_id, start, end):
+            continue
+        if club_id == CLUB_HOME and home_closed_for(start, end):
+            continue
+        slot = ChosenSlot(start, end, window.occupancy_pct, window)
+        if not slot_overlaps_busy(slot, busy):
+            return True
+    return False
+
+
+def _with_club(slot: ChosenSlot, club_id: str) -> ChosenSlot:
+    loc = club_address(club_id)
+    return ChosenSlot(
+        start=slot.start,
+        end=slot.end,
+        occupancy_pct=slot.occupancy_pct,
+        window=slot.window,
+        club_id=club_id,
+        location="" if club_id == CLUB_HOME else loc,
+        drive_minutes=drive_minutes_for(club_id),
+    )
+
+
+def feasible_slots(
+    day: str,
+    busy: Sequence[Tuple[datetime, datetime]],
+    *,
+    club_id: str = CLUB_HOME,
+    not_before: Optional[datetime] = None,
+) -> List[ChosenSlot]:
+    cutoff = _cutoff(not_before)
+    out: List[ChosenSlot] = []
+    for window in candidate_windows(day, club_id):
+        start, end = window_bounds(day, window)
+        if is_illegal_gym_start(start):
+            continue
+        if cutoff is not None and start < cutoff:
+            continue
+        if not club_open(club_id, start, end):
+            continue
+        if club_id == CLUB_HOME and home_closed_for(start, end):
+            continue
+        slot = ChosenSlot(start, end, window.occupancy_pct, window)
+        if slot_overlaps_busy(slot, busy):
+            continue
+        out.append(_with_club(slot, club_id))
+    return out
+
+
+def pick_placement(
+    day: str,
+    busy: Sequence[Tuple[datetime, datetime]],
+    *,
+    prefer: Optional[Tuple[datetime, datetime]] = None,
+    not_before: Optional[datetime] = None,
+) -> Optional[ChosenSlot]:
+    """Two-phase hybrid (#813): home club first, then cross-club fallback.
+
+    Phase 1 is today's ``pick_slot`` at the home club. Fallback runs only when
+    no ranked window fits, home occupancy is above the threshold, home is
+    closed, or no home slot exists. Alt clubs without captured occupancy are
+    skipped. If no (slot, club) pair is feasible, keep the Phase 1 pick.
+    """
+    home_slot = pick_slot(day, busy, prefer=prefer, not_before=not_before)
+    ranked_ok = ranked_window_fits(day, busy, not_before=not_before)
+    closed = bool(home_slot and home_closed_for(home_slot.start, home_slot.end))
+    packed = bool(
+        home_slot is not None and home_slot.occupancy_pct > occupancy_threshold()
+    )
+    need_fallback = home_slot is None or packed or closed or not ranked_ok
+    if not need_fallback:
+        return home_slot
+    pairs: List[ChosenSlot] = []
+    for club_id in CLUB_IDS:
+        if club_id != CLUB_HOME and not club_has_occupancy(club_id):
+            continue
+        pairs.extend(
+            feasible_slots(day, busy, club_id=club_id, not_before=not_before)
+        )
+    alt_pairs = [slot for slot in pairs if slot.club_id != CLUB_HOME]
+    if not alt_pairs:
+        return home_slot
+    pairs.sort(
+        key=lambda slot: (
+            slot_score(slot),
+            slot.occupancy_pct,
+            slot.drive_minutes,
+            slot.start,
+        )
+    )
+    return pairs[0]
 
 
 def workout_logged_today(
@@ -763,7 +1026,7 @@ def sync_gym_sessions(
                         elapsed_unlogged = True
                     else:
                         prefer = interval
-            slot = pick_slot(
+            slot = pick_placement(
                 day,
                 busy,
                 prefer=prefer,

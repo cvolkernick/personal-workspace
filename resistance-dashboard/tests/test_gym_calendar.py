@@ -12,10 +12,15 @@ from zoneinfo import ZoneInfo
 
 from rt_dashboard.daily_plan_tasks import ensure_daily_tasks
 from rt_dashboard.gcal_session import MISSING_CALENDAR_SCOPE
+from rt_dashboard import gym_calendar as gym_cal
 from rt_dashboard.gym_calendar import (
+    ALT_LOCATION,
     BUSYNESS_REL,
+    CLUB_ALT,
     DURATION,
     EVENT_TITLE,
+    HOME_LOCATION,
+    HOME_OCCUPANCY_THRESHOLD_PCT,
     GymDay,
     PROP_DATE,
     PROP_GYM,
@@ -30,6 +35,8 @@ from rt_dashboard.gym_calendar import (
     is_user_locked,
     load_busyness,
     location_for,
+    occupancy_threshold,
+    pick_placement,
     pick_slot,
     ranked_windows_for,
     reconcile_gym_sessions,
@@ -984,6 +991,189 @@ class ElapsedReschedule(unittest.TestCase):
         self.assertEqual(deleted, ["ev-rest"])
         self.assertEqual(created, [])
         self.assertEqual(updated, [])
+
+
+class CrossClubFallback(unittest.TestCase):
+    """#813: home club first; cross-club only when packed / no window / closed."""
+
+    def setUp(self):
+        reset_busyness_cache()
+
+    def tearDown(self):
+        reset_busyness_cache()
+
+    def _inject(self, mutate):
+        data = json.loads(json.dumps(load_busyness()))
+        mutate(data)
+        gym_cal._BUSYNESS_CACHE = data
+        return data
+
+    def _quiet_tamiami_at_10(self, data):
+        data["ranked_windows"]["mon"] = [
+            {"start": "10:00", "end": "11:30", "occupancy_pct": 65}
+        ]
+        data["occupancy"]["mon"] = {str(h): 65 for h in range(24)}
+        alt = dict(data.get("clubs", {}).get("alternate") or {})
+        occ = {str(h): 90 for h in range(24)}
+        occ["10"] = 20
+        occ["11"] = 30
+        alt["occupancy"] = {"mon": occ}
+        alt["ranked_windows"] = {
+            "mon": [{"start": "10:00", "end": "11:30", "occupancy_pct": 25}]
+        }
+        data.setdefault("clubs", {})["alternate"] = alt
+
+    def test_threshold_default_is_50(self):
+        self.assertEqual(HOME_OCCUPANCY_THRESHOLD_PCT, 50)
+        self.assertEqual(occupancy_threshold(), 50)
+
+    def test_threshold_is_tunable_from_busyness_json(self):
+        self._inject(lambda d: d.__setitem__("home_occupancy_threshold_pct", 40))
+        self.assertEqual(occupancy_threshold(), 40)
+
+    def test_normal_day_stays_home_club(self):
+        slot = pick_placement("2026-09-14", [])
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.start.strftime("%H:%M"), "05:00")
+        self.assertLessEqual(slot.occupancy_pct, occupancy_threshold())
+        self.assertEqual(slot.club_id, "home")
+        self.assertFalse(slot.location)
+        body = event_body("2026-09-14", slot, session_type="push")
+        self.assertIn("3853 Cleveland", body["location"])
+        self.assertEqual(body["location"], HOME_LOCATION)
+        self.assertNotIn("Tamiami", body["location"])
+        self.assertNotIn("Home club packed", body["description"])
+
+    def test_packed_home_picks_quiet_tamiami(self):
+        self._inject(self._quiet_tamiami_at_10)
+        slot = pick_placement("2026-09-14", [])
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.club_id, CLUB_ALT)
+        self.assertEqual(slot.start.strftime("%H:%M"), "10:00")
+        self.assertEqual(slot.occupancy_pct, 25)
+        self.assertIn("Tamiami", slot.location)
+        body = event_body("2026-09-14", slot, session_type="push")
+        self.assertIn("Tamiami", body["location"])
+        self.assertIn(ALT_LOCATION.split(",")[0], body["location"])
+        self.assertNotIn("3853 Cleveland", body["location"])
+        self.assertIn("Home club packed", body["description"])
+
+    def test_packed_without_alt_occupancy_keeps_home_pick(self):
+        """Production path until Tamiami/NFM popular-times are captured."""
+
+        def mutate(data):
+            data["ranked_windows"]["mon"] = [
+                {"start": "10:00", "end": "11:30", "occupancy_pct": 65}
+            ]
+            data["occupancy"]["mon"] = {str(h): 65 for h in range(24)}
+
+        self._inject(mutate)
+        slot = pick_placement("2026-09-14", [])
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.club_id, "home")
+        self.assertEqual(slot.start.strftime("%H:%M"), "10:00")
+        self.assertEqual(slot.occupancy_pct, 65)
+        body = event_body("2026-09-14", slot, session_type="push")
+        self.assertEqual(body["location"], HOME_LOCATION)
+
+    def test_no_home_ranked_window_evaluates_alternates(self):
+        def mutate(data):
+            alt = dict(data.get("clubs", {}).get("alternate") or {})
+            occ = {str(h): 90 for h in range(24)}
+            occ["10"] = 20
+            occ["11"] = 30
+            alt["occupancy"] = {"mon": occ}
+            alt["ranked_windows"] = {
+                "mon": [{"start": "10:00", "end": "11:30", "occupancy_pct": 25}]
+            }
+            data.setdefault("clubs", {})["alternate"] = alt
+
+        self._inject(mutate)
+        busy = [
+            (
+                datetime(2026, 9, 14, 4, 30, tzinfo=ET),
+                datetime(2026, 9, 14, 8, 0, tzinfo=ET),
+            ),
+            (
+                datetime(2026, 9, 14, 21, 0, tzinfo=ET),
+                datetime(2026, 9, 15, 0, 0, tzinfo=ET),
+            ),
+        ]
+        slot = pick_placement("2026-09-14", busy)
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.club_id, CLUB_ALT)
+        self.assertEqual(slot.start.strftime("%H:%M"), "10:00")
+        self.assertIn("Tamiami", slot.location)
+
+    def test_no_feasible_pair_keeps_home_pick(self):
+        home = pick_slot("2026-09-14", [])
+        placed = pick_placement("2026-09-14", [])
+        self.assertEqual(placed.start, home.start)
+        self.assertEqual(placed.occupancy_pct, home.occupancy_pct)
+        self.assertEqual(placed.club_id, "home")
+
+    def test_user_moved_not_touched_when_home_packed(self):
+        self._inject(self._quiet_tamiami_at_10)
+        existing = [
+            _ev(
+                eid="ev-locked",
+                day="2026-09-14",
+                start="2026-09-14T19:00:00-04:00",
+                planned="2026-09-14T05:00:00-04:00",
+            )
+        ]
+        updated, created = [], []
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=lambda cid, **kw: list(existing)
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
+            else [],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.create_event",
+            side_effect=lambda *a, **k: created.append(1),
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=lambda *a, **k: updated.append(1),
+        ):
+            result = sync_gym_from_workout(
+                {"is_rest_day": False, "session_type": "push"},
+                day="2026-09-14",
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["locked"], 1)
+        self.assertEqual(updated, [])
+        self.assertEqual(created, [])
+
+    def test_sync_stamps_tamiami_address_when_fallback_wins(self):
+        self._inject(self._quiet_tamiami_at_10)
+        created = []
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            return_value=[],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.create_event",
+            side_effect=lambda cid, body: created.append(body) or {"id": "n"},
+        ):
+            result = sync_gym_from_workout(
+                {"is_rest_day": False, "session_type": "push"},
+                day="2026-09-14",
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(len(created), 1)
+        self.assertIn("Tamiami", created[0]["location"])
+        self.assertIn("[fitdash-gym:2026-09-14]", created[0]["description"])
 
 
 class EnsureWiresGym(unittest.TestCase):
