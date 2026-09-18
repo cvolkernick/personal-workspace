@@ -1,4 +1,4 @@
-"""Weekly intake + two-phase outreach state machine."""
+"""Daily intake + two-phase outreach state machine."""
 
 from __future__ import annotations
 
@@ -32,9 +32,13 @@ class Pipeline:
     def _iso(self, when: Optional[datetime] = None) -> str:
         return (when or self._now()).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # --- weekly intake ------------------------------------------------------
+    # --- daily intake -------------------------------------------------------
 
-    def weekly_pass(self) -> dict[str, Any]:
+    def daily_pass(self) -> dict[str, Any]:
+        organized: list[dict[str, Any]] = []
+        organize = getattr(self.adapters.drive, "organize_root", None)
+        if callable(organize):
+            organized = list(organize(geocoder=getattr(self.adapters, "geocoder", None)) or [])
         created: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []
         needs_info: list[dict[str, Any]] = []
@@ -89,8 +93,13 @@ class Pipeline:
             "created": created,
             "skipped": skipped,
             "needs_info": needs_info,
+            "organized": organized,
             "counts": self.store.counts(),
         }
+
+    def weekly_pass(self) -> dict[str, Any]:
+        """Alias kept so existing harness calls and tests keep working."""
+        return self.daily_pass()
 
     # --- phase 1 SMS --------------------------------------------------------
 
@@ -241,7 +250,7 @@ class Pipeline:
     # --- e2e ----------------------------------------------------------------
 
     def run(self) -> dict[str, Any]:
-        intake = self.weekly_pass()
+        intake = self.daily_pass()
         sms = self.sms_batch()
         calls: list[dict[str, Any]] = []
         interested: list[dict[str, Any]] = []
@@ -273,9 +282,10 @@ def make_pipeline(
     drive: Any = None,
     ocr: Any = None,
     bland: Any = None,
+    geocoder: Any = None,
 ) -> Pipeline:
     store = FileStore(cfg.store_path)
-    adapters = build_adapters(cfg, drive=drive, ocr=ocr, bland=bland)
+    adapters = build_adapters(cfg, drive=drive, ocr=ocr, bland=bland, geocoder=geocoder)
     return Pipeline(cfg, store, adapters)
 
 

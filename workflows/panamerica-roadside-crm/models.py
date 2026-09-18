@@ -46,6 +46,9 @@ class Lead:
     year: str = ""
     location: str = ""
     spotted_at: str = ""
+    date_source: str = ""  # exif | upload | folder | manual
+    location_source: str = ""  # exif | folder | manual | missing
+    gps: str = ""  # "lat,lon" when EXIF GPS was present
     asking_price: str = ""
     phone: str = ""
     contact_name: str = ""
