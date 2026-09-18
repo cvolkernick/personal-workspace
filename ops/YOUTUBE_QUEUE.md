@@ -29,29 +29,48 @@ The old 72h fresh cull plus `MAX_INSERTS_PER_TICK` (4, then 8) kept the list sma
 | `MAX_DELETES_PER_TICK` | 80 | 80 |
 | `keep_n` empty fallback | 10 | 10 |
 
-## Volume knobs (#731)
+## Volume knobs (#731 then #815)
 
-Prefer more fresh content over candidate-starved ticks. Live Pi writer only
-(2026-09-14). Nest documents the constants; **do not copy nest over Pi**.
+Prefer more fresh content over candidate-starved ticks. Live Pi writer only.
+Nest documents the constants; **do not copy nest over Pi**.
 
-| Name | Was | Now |
-|------|-----|-----|
-| `MIN_FIT` | **2** (skip `fit < 2`) | **1** (keep `fit ≥ 1`) |
-| `SEED_THROTTLE_WEIGHT_FLOOR` | **0.4** | **0.25** |
+| Name | Was (#731) | After #731 | Now (#815) |
+|------|------------|------------|------------|
+| `MIN_FIT` | **2** (skip `fit < 2`) | **1** (keep `fit ≥ 1`) | **0** (thesis-fit skip disabled; accept `fit ≥ 0`) |
+| `SEED_THROTTLE_WEIGHT_FLOOR` | **0.4** | **0.25** | **0.10** |
 
-`SEED_KEEPERS`, `CAP` 200, prune/dup, OAuth, `MIN_FIT`, `SEED_THROTTLE` unchanged in #788.
+`SEED_KEEPERS`, `CAP` 200, prune/dup, OAuth unchanged. `HOUSE_TARGET` / `CAP` unchanged in #815.
 
 ## House size (#788)
 
 Chairman (via GVG on #718) wants the daily feed closer to **~100 videos/day**.
 Live Pi writer only (2026-09-16). Nest documents the constants; **do not copy nest over Pi**.
-Did not re-loosen `MIN_FIT` / `SEED_THROTTLE`. CAP 200 stays a breaker.
+Did not re-loosen `MIN_FIT` / `SEED_THROTTLE` in #788. CAP 200 stays a breaker.
+#815 loosened those floors one more notch; `HOUSE_TARGET` stayed 100.
 
 | Name | Was | Now |
 |------|-----|-----|
 | `HOUSE_TARGET` | **50** | **100** |
 | `SEED_UPLOADS_PER_CHANNEL` | **6** (call site) | **50** (YouTube page max; 7d window) |
 | `CAP` | **200** | **200** (unchanged) |
+
+## Volume notch (#815)
+
+Chairman (via GVG on #718, 2026-09-18) wanted one more volume notch.
+Playlist still sat ~58 despite `HOUSE_TARGET=100`. Live Pi writer only
+(2026-09-18). Nest documents the constants; **do not copy nest over Pi**.
+Did not change `HOUSE_TARGET` / `CAP` / `SEED_KEEPERS`.
+
+| Name | Was | Now |
+|------|-----|-----|
+| `MIN_FIT` | **1** | **0** (no thesis-fit skip) |
+| `SEED_THROTTLE_WEIGHT_FLOOR` | **0.25** | **0.10** |
+| `HOUSE_TARGET` | **100** | **100** (unchanged) |
+| `CAP` | **200** | **200** (unchanged) |
+
+`youtube-groom-impact-check` re-baselined off the Sep 14 `add=8` / `skip={}`
+tick so the ~2026-09-19 09:00 ET comparison measures these knobs. See
+[`YOUTUBE_GROOM_IMPACT_CHECK.md`](YOUTUBE_GROOM_IMPACT_CHECK.md).
 
 ## Policy that stays
 

@@ -11,7 +11,7 @@ in place. Merge policy only; do not clobber search, score, OAuth, or
 API code.
 
 This file is the nest SoT for house caps, insert-budget math, the
-#731 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), and the
+#731/#815 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), and the
 #788 house fill (`HOUSE_TARGET` 50 → 100) so tests and ops stay aligned.
 No YouTube I/O. No second writer. No OAuth.
 """
@@ -34,10 +34,13 @@ from typing import Iterable, Optional, Sequence
 #   keep_n               = 10  (empty fallback)
 # House target is a fill target, not a YouTube 5000 cap and not CAP.
 # #731 (Pi writer 2026-09-14): looser add-path floors for volume.
-#   MIN_FIT was 2 (skip fit < 2); now 1 (keep fit ≥ 1).
-#   SEED_THROTTLE_WEIGHT_FLOOR was 0.4; now 0.25.
+#   MIN_FIT was 2 (skip fit < 2); then 1 (keep fit ≥ 1).
+#   SEED_THROTTLE_WEIGHT_FLOOR was 0.4; then 0.25.
 # #788 (Pi writer 2026-09-16): HOUSE_TARGET 50 → 100. CAP 200 unchanged.
 #   SEED_UPLOADS_PER_CHANNEL 6 → 50 on the live writer only (YouTube page max).
+# #815 (Pi writer 2026-09-18): one more volume notch.
+#   MIN_FIT 1 → 0 (disable thesis-fit skip; accept fit≥0).
+#   SEED_THROTTLE_WEIGHT_FLOOR 0.25 → 0.10. HOUSE_TARGET/CAP unchanged.
 # ---------------------------------------------------------------------------
 
 PLAYLIST_ID = "PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At"
@@ -58,11 +61,13 @@ STALE_HARD_DAYS = 7
 MAX_DELETES_PER_TICK = 80
 KEEP_N = 10  # empty-playlist prune fallback on Pi (`keep_n`)
 
-# Add-path floors on the Pi writer (#731). Channel lists stay on Pi.
-MIN_FIT = 1  # skip only fit < 1 (was 2)
-OLD_MIN_FIT = 2
-SEED_THROTTLE_WEIGHT_FLOOR = 0.25  # skip SEED_THROTTLE only below this (was 0.4)
-OLD_SEED_THROTTLE_WEIGHT_FLOOR = 0.4
+# Add-path floors on the Pi writer (#731 then #815). Channel lists stay on Pi.
+MIN_FIT = 0  # thesis-fit skip disabled; accept fit≥0 (was 1)
+OLD_MIN_FIT = 1
+ORIG_MIN_FIT = 2  # pre-#731 skip fit < 2
+SEED_THROTTLE_WEIGHT_FLOOR = 0.10  # skip SEED_THROTTLE only below this (was 0.25)
+OLD_SEED_THROTTLE_WEIGHT_FLOOR = 0.25
+ORIG_SEED_THROTTLE_WEIGHT_FLOOR = 0.4  # pre-#731
 
 # YouTube platform ceiling — not our limiter.
 YOUTUBE_PLAYLIST_CEILING = 5000

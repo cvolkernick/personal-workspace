@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MOD = ROOT / "youtube_groom.py"
 CAPS_MD = ROOT.parent / "ops" / "YOUTUBE_GROOM_CAPS.md"
 QUEUE_MD = ROOT.parent / "ops" / "YOUTUBE_QUEUE.md"
+IMPACT_MD = ROOT.parent / "ops" / "YOUTUBE_GROOM_IMPACT_CHECK.md"
+IMPACT_JSON = ROOT.parent / "ops" / "youtube_groom_impact_check_baseline.json"
 
 
 def _load():
@@ -95,10 +97,12 @@ class TestHearted831Values(unittest.TestCase):
         self.assertEqual(M.KEEP_N, 10)
         self.assertEqual(M.HOUSE_TARGET, 100)
         self.assertEqual(M.OLD_HOUSE_TARGET, 50)
-        self.assertEqual(M.MIN_FIT, 1)
-        self.assertEqual(M.OLD_MIN_FIT, 2)
-        self.assertEqual(M.SEED_THROTTLE_WEIGHT_FLOOR, 0.25)
-        self.assertEqual(M.OLD_SEED_THROTTLE_WEIGHT_FLOOR, 0.4)
+        self.assertEqual(M.MIN_FIT, 0)
+        self.assertEqual(M.OLD_MIN_FIT, 1)
+        self.assertEqual(M.ORIG_MIN_FIT, 2)
+        self.assertEqual(M.SEED_THROTTLE_WEIGHT_FLOOR, 0.10)
+        self.assertEqual(M.OLD_SEED_THROTTLE_WEIGHT_FLOOR, 0.25)
+        self.assertEqual(M.ORIG_SEED_THROTTLE_WEIGHT_FLOOR, 0.4)
 
     def test_playlist_id(self):
         self.assertEqual(M.PLAYLIST_ID, "PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At")
@@ -110,10 +114,10 @@ class TestHearted831Values(unittest.TestCase):
         self.assertEqual(card["new"]["FRESH_HOURS"], 168)
         self.assertEqual(card["new"]["CAP"], 200)
         self.assertEqual(card["new"]["STALE_HARD_DAYS"], 7)
-        self.assertEqual(card["old"]["MIN_FIT"], 2)
-        self.assertEqual(card["new"]["MIN_FIT"], 1)
-        self.assertEqual(card["old"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.4)
-        self.assertEqual(card["new"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.25)
+        self.assertEqual(card["old"]["MIN_FIT"], 1)
+        self.assertEqual(card["new"]["MIN_FIT"], 0)
+        self.assertEqual(card["old"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.25)
+        self.assertEqual(card["new"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.10)
         self.assertEqual(card["old"]["HOUSE_TARGET"], 50)
         self.assertEqual(card["new"]["HOUSE_TARGET"], 100)
         self.assertTrue(card["cap_is_breaker"])
@@ -171,33 +175,39 @@ class TestPruneFirstThenFill(unittest.TestCase):
         self.assertEqual(len(plan.add), 40)
 
 
-class TestAddPathFloors731(unittest.TestCase):
-    def test_fit_one_is_kept_fit_zero_skipped(self):
+class TestAddPathFloors815(unittest.TestCase):
+    def test_fit_zero_is_kept(self):
+        self.assertIsNone(
+            M.skip_add_reason(fit=0, channel_weight=1.0, is_seed_throttle=False)
+        )
         self.assertIsNone(
             M.skip_add_reason(fit=1, channel_weight=1.0, is_seed_throttle=False)
-        )
-        self.assertEqual(
-            M.skip_add_reason(fit=0, channel_weight=1.0, is_seed_throttle=False),
-            "fit=0",
         )
         self.assertIsNone(
             M.skip_add_reason(fit=2, channel_weight=1.0, is_seed_throttle=False)
         )
 
-    def test_throttle_floor_keeps_david_lin_weight(self):
-        # Live 2026-09-14: David Lin channel_weight=0.343 was skipped at 0.4.
+    def test_throttle_floor_one_more_notch(self):
+        # #731: David Lin 0.343 skipped at 0.4, kept at 0.25.
+        # #815: skip only below 0.10.
         self.assertIsNone(
             M.skip_add_reason(fit=3, channel_weight=0.343, is_seed_throttle=True)
         )
         self.assertIsNone(
             M.skip_add_reason(fit=3, channel_weight=0.25, is_seed_throttle=True)
         )
+        self.assertIsNone(
+            M.skip_add_reason(fit=3, channel_weight=0.24, is_seed_throttle=True)
+        )
+        self.assertIsNone(
+            M.skip_add_reason(fit=3, channel_weight=0.10, is_seed_throttle=True)
+        )
         self.assertEqual(
-            M.skip_add_reason(fit=3, channel_weight=0.24, is_seed_throttle=True),
+            M.skip_add_reason(fit=3, channel_weight=0.09, is_seed_throttle=True),
             "throttled-decay",
         )
         self.assertIsNone(
-            M.skip_add_reason(fit=3, channel_weight=0.1, is_seed_throttle=False)
+            M.skip_add_reason(fit=3, channel_weight=0.09, is_seed_throttle=False)
         )
 
 
@@ -208,8 +218,8 @@ class TestDocsMatchPolicy(unittest.TestCase):
         self.assertIn("CAP                  = 200", text)
         self.assertIn("STALE_HARD_DAYS      = 7", text)
         self.assertIn("HOUSE_TARGET         = 100", text)
-        self.assertIn("MIN_FIT              = 1", text)
-        self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR = 0.25", text)
+        self.assertIn("MIN_FIT              = 0", text)
+        self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR = 0.10", text)
         self.assertIn("MAX_INSERTS_PER_TICK", text)
         self.assertIn("removed", text.lower())
         self.assertNotRegex(text, r"MAX_INSERTS_PER_TICK\s*=\s*\d+")
@@ -226,8 +236,39 @@ class TestDocsMatchPolicy(unittest.TestCase):
         self.assertIn("MIN_FIT", text)
         self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR", text)
         self.assertIn("0.25", text)
+        self.assertIn("0.10", text)
+        self.assertIn("thesis-fit skip disabled", text)
         self.assertIn("HOUSE_TARGET", text)
         self.assertIn("**100**", text)
+        self.assertIn("youtube-groom-impact-check", text)
+
+
+class TestImpactCheckBaseline815(unittest.TestCase):
+    def test_baseline_json_matches_live_knobs(self):
+        import json
+
+        data = json.loads(IMPACT_JSON.read_text(encoding="utf-8"))
+        self.assertEqual(data["check_id"], "youtube-groom-impact-check")
+        self.assertEqual(data["superseded"]["add"], 8)
+        self.assertEqual(data["superseded"]["skip"], {})
+        self.assertEqual(data["superseded"]["MIN_FIT"], 1)
+        self.assertEqual(data["superseded"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.25)
+        base = data["baseline"]
+        self.assertEqual(base["MIN_FIT"], M.MIN_FIT)
+        self.assertEqual(base["SEED_THROTTLE_WEIGHT_FLOOR"], M.SEED_THROTTLE_WEIGHT_FLOOR)
+        self.assertEqual(base["HOUSE_TARGET"], M.HOUSE_TARGET)
+        self.assertEqual(base["CAP"], M.CAP)
+        self.assertEqual(base["add"], 1)
+        self.assertEqual(base["skip"], {})
+        self.assertFalse(data["copy_over_pi"])
+
+    def test_impact_doc_names_old_and_new(self):
+        text = IMPACT_MD.read_text(encoding="utf-8")
+        self.assertIn("add=8", text)
+        self.assertIn("MIN_FIT` | `0`", text)
+        self.assertIn("0.10", text)
+        self.assertIn("2026-09-19", text)
+        self.assertIn("do not use", text.lower())
 
 
 class TestMainNoNetwork(unittest.TestCase):
