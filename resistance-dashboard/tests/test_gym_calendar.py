@@ -38,6 +38,7 @@ from rt_dashboard.gym_calendar import (
     sync_gym_sessions,
     weekday_key,
     window_bounds,
+    workout_logged_today,
 )
 from rt_dashboard.agent_plan import ensure_today_grok_plan
 from rt_dashboard.workout_plan_store import clear_memory_workout_plans
@@ -154,6 +155,14 @@ class QuietPick(unittest.TestCase):
         )
         slot = pick_slot("2026-09-14", [], prefer=prefer)
         self.assertEqual(slot.start.strftime("%H:%M"), "06:30")
+
+    def test_not_before_skips_elapsed_ranked_windows(self):
+        """#811: remaining-day search starts at now, not the 5 AM default."""
+        cutoff = datetime(2026, 9, 14, 13, 0, tzinfo=ET)
+        slot = pick_slot("2026-09-14", [], not_before=cutoff)
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.start.strftime("%H:%M"), "22:30")
+        self.assertGreaterEqual(slot.start, cutoff)
 
 
 class OvernightBan(unittest.TestCase):
@@ -798,6 +807,182 @@ class MonitorReconcile(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["locked"], 1)
         self.assertEqual(result["moves"], [])
+        self.assertEqual(updated, [])
+
+
+class ElapsedReschedule(unittest.TestCase):
+    """#811: dashboard load moves today's elapsed Gym event when nothing is logged."""
+
+    DAY = "2026-09-14"
+    AM = "2026-09-14T10:00:00-04:00"
+    AM_END = "2026-09-14T11:30:00-04:00"
+    ONE_PM = datetime(2026, 9, 14, 13, 0, tzinfo=ET)
+    MID_SLOT = datetime(2026, 9, 14, 10, 30, tzinfo=ET)
+    LATE = datetime(2026, 9, 14, 23, 0, tzinfo=ET)
+
+    def setUp(self):
+        reset_busyness_cache()
+
+    def tearDown(self):
+        reset_busyness_cache()
+
+    def _sync(self, existing, workout, now, busy=None):
+        updated, created, deleted = [], [], []
+        busy = list(busy or [])
+
+        def list_events(cid, **kw):
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1":
+                return list(existing)
+            return list(busy)
+
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=list_events,
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.create_event",
+            side_effect=lambda cid, body: created.append(body) or {"id": "new"},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=lambda cid, eid, body: updated.append((eid, body)),
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.delete_event",
+            side_effect=lambda cid, eid: deleted.append(eid) or {"ok": True},
+        ):
+            result = sync_gym_from_workout(
+                workout, day=self.DAY, now=now, role="coach"
+            )
+        return result, updated, created, deleted
+
+    def _push(self, **extra):
+        out = {
+            "is_rest_day": False,
+            "session_type": "push",
+            "exercises": [{"name": "Bench"}],
+        }
+        out.update(extra)
+        return out
+
+    def test_one_pm_moves_10am_when_nothing_logged(self):
+        existing = [
+            _ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)
+        ]
+        result, updated, created, deleted = self._sync(
+            existing, self._push(), self.ONE_PM
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(created, [])
+        self.assertEqual(deleted, [])
+        self.assertEqual(len(updated), 1)
+        self.assertEqual(updated[0][0], "ev-am")
+        body = updated[0][1]
+        start = datetime.fromisoformat(body["start"]["dateTime"])
+        self.assertEqual(start.strftime("%H:%M"), "22:30")
+        self.assertGreaterEqual(start, self.ONE_PM)
+        self.assertEqual(
+            body["extendedProperties"]["private"][PROP_PLANNED_START],
+            body["start"]["dateTime"],
+        )
+        self.assertEqual(len(result["moves"]), 1)
+        self.assertEqual(result["moves"][0]["reason"], "elapsed")
+        self.assertEqual(result["moves"][0]["event_id"], "ev-am")
+        self.assertIn("22:30", result["moves"][0]["to"])
+
+    def test_logged_workout_leaves_elapsed_event(self):
+        existing = [
+            _ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)
+        ]
+        logged = self._push(
+            ppl_logged_today="push",
+            already_trained_today=True,
+            sessions=[
+                {
+                    "session_type": "push",
+                    "date": self.DAY,
+                    "closed_at": "2026-09-14T11:00:00-04:00",
+                }
+            ],
+        )
+        self.assertTrue(workout_logged_today(logged, day=self.DAY, now=self.ONE_PM))
+        result, updated, created, deleted = self._sync(
+            existing, logged, self.ONE_PM
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(created, [])
+        self.assertEqual(deleted, [])
+        self.assertEqual(result["moves"], [])
+        if updated:
+            self.assertEqual(
+                updated[0][1]["start"]["dateTime"],
+                self.AM,
+            )
+
+    def test_in_progress_window_is_not_moved(self):
+        existing = [
+            _ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)
+        ]
+        result, updated, created, deleted = self._sync(
+            existing, self._push(), self.MID_SLOT
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(created, [])
+        self.assertEqual(deleted, [])
+        self.assertEqual(result["moves"], [])
+        if updated:
+            self.assertEqual(updated[0][1]["start"]["dateTime"], self.AM)
+
+    def test_user_moved_elapsed_event_stays_locked(self):
+        existing = [
+            _ev(
+                eid="ev-locked",
+                day=self.DAY,
+                start=self.AM,
+                end=self.AM_END,
+                planned="2026-09-14T05:00:00-04:00",
+            )
+        ]
+        result, updated, created, deleted = self._sync(
+            existing, self._push(), self.ONE_PM
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["locked"], 1)
+        self.assertEqual(updated, [])
+        self.assertEqual(created, [])
+        self.assertEqual(deleted, [])
+        self.assertEqual(result["moves"], [])
+
+    def test_no_remaining_slot_leaves_event_and_does_not_roll_tomorrow(self):
+        existing = [
+            _ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)
+        ]
+        result, updated, created, deleted = self._sync(
+            existing, self._push(), self.LATE
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(updated, [])
+        self.assertEqual(created, [])
+        self.assertEqual(deleted, [])
+        self.assertEqual(result["moves"], [])
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["updated"], 0)
+
+    def test_rest_day_still_deletes_stale_tagged_event(self):
+        existing = [
+            _ev(eid="ev-rest", day=self.DAY, start=self.AM, end=self.AM_END)
+        ]
+        result, updated, created, deleted = self._sync(
+            existing,
+            {"is_rest_day": True, "session_type": "rest"},
+            self.ONE_PM,
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(deleted, ["ev-rest"])
+        self.assertEqual(created, [])
         self.assertEqual(updated, [])
 
 

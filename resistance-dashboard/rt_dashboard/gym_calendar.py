@@ -11,6 +11,10 @@ Reconciliation contract (coach + assistant-side monitor):
 - Neither side moves an event whose start ≠ ``fitdashGymPlannedStart``
   (user moved it = locked). Monitor reports any move it makes.
 - Rest day: delete the tagged event (even if the coach didn't).
+- Dashboard load (#811): if today's tagged event *end* has passed and
+  ``ppl_logged_for_planning`` is empty, reschedule in place via ``pick_slot``
+  from now through end of civil day. In-progress, logged, user-locked, and
+  no-remaining-slot cases stay put. Never roll to tomorrow.
 - Session-bound Calendar API only (main login, not Health OAuth). Stored
   refresh tokens / headless daily run are out of scope (#609).
 """
@@ -72,6 +76,7 @@ class GymDay:
     day: str
     is_rest: bool = False
     session_type: str = ""
+    workout_logged: bool = False
 
 
 @dataclass
@@ -472,12 +477,24 @@ def pick_slot(
     busy: Sequence[Tuple[datetime, datetime]],
     *,
     prefer: Optional[Tuple[datetime, datetime]] = None,
+    not_before: Optional[datetime] = None,
 ) -> Optional[ChosenSlot]:
-    """First legal free quiet stretch. Discard overnight prefer. None if none free."""
+    """First legal free quiet stretch. Discard overnight prefer. None if none free.
+
+    ``not_before`` (dashboard elapsed-reschedule) restricts the search to
+    windows whose start is >= that instant — remaining civil day, not the
+    already-elapsed morning.
+    """
+    cutoff = None
+    if not_before is not None:
+        cutoff = not_before if not_before.tzinfo else not_before.replace(tzinfo=gym_tz())
+        cutoff = cutoff.astimezone(gym_tz())
     if prefer is not None:
         p0, p1 = prefer
+        prefer_ok = cutoff is None or p0 >= cutoff
         if (
-            not is_illegal_gym_start(p0)
+            prefer_ok
+            and not is_illegal_gym_start(p0)
             and p1 - p0 >= timedelta(minutes=80)
             and not any(intervals_overlap(p0, p1, b0, b1) for b0, b1 in busy)
         ):
@@ -497,23 +514,75 @@ def pick_slot(
         start, end = window_bounds(day, window)
         if is_illegal_gym_start(start):
             continue
+        if cutoff is not None and start < cutoff:
+            continue
         slot = ChosenSlot(start, end, window.occupancy_pct, window)
         if not slot_overlaps_busy(slot, busy):
             return slot
     return None
 
 
-def gym_day_from_workout(workout: Optional[dict], day: str) -> Optional[GymDay]:
+def workout_logged_today(
+    workout: Optional[dict],
+    *,
+    day: str,
+    now: Optional[datetime] = None,
+) -> bool:
+    """True when a PPL session is already logged for planning today (#811).
+
+    Prefers ``training_day.ppl_logged_for_planning`` when a session list is
+    on the workout dict. Dashboard boards stamp that result as
+    ``ppl_logged_today`` (and ``already_trained_today`` once the day is
+    complete) — those stamps count when sessions are not attached.
+    """
+    plan = workout if isinstance(workout, dict) else {}
+    sessions = plan.get("sessions")
+    ctx = plan.get("context") if isinstance(plan.get("context"), dict) else {}
+    wake = plan.get("last_wake_at") or ctx.get("last_wake_at")
+    if isinstance(sessions, list):
+        from .training_day import ppl_logged_for_planning
+
+        return bool(
+            ppl_logged_for_planning(
+                sessions,
+                as_of=str(day)[:10],
+                last_wake_at=wake,
+                now=now,
+            )
+        )
+    pin = plan.get("ppl_logged_today") or ctx.get("ppl_logged_today")
+    if str(pin or "").strip().lower() in ("push", "pull", "legs"):
+        return True
+    return bool(plan.get("already_trained_today") or ctx.get("already_trained_today"))
+
+
+def gym_day_from_workout(
+    workout: Optional[dict],
+    day: str,
+    *,
+    now: Optional[datetime] = None,
+) -> Optional[GymDay]:
     """Training or rest from a real plan. Empty/unknown boards do not create or delete."""
     plan = workout if isinstance(workout, dict) else {}
     letter = str(plan.get("session_type") or "").strip().lower()
     rest = bool(plan.get("is_rest_day")) or letter == "rest"
+    logged = workout_logged_today(plan, day=day, now=now)
     if rest:
-        return GymDay(day=str(day)[:10], is_rest=True, session_type="")
+        return GymDay(
+            day=str(day)[:10],
+            is_rest=True,
+            session_type="",
+            workout_logged=logged,
+        )
     has_lifts = bool(plan.get("exercises"))
     trained = bool(plan.get("already_trained_today"))
     if letter in ("push", "pull", "legs") or has_lifts or trained:
-        return GymDay(day=str(day)[:10], is_rest=False, session_type=letter)
+        return GymDay(
+            day=str(day)[:10],
+            is_rest=False,
+            session_type=letter,
+            workout_logged=logged,
+        )
     return None
 
 
@@ -629,11 +698,13 @@ def sync_gym_sessions(
 ) -> Dict[str, Any]:
     """Upsert tagged gym events for training days; delete rest leftovers.
 
-    ``role="coach"`` is plan generation. ``role="monitor"`` is the assistant
-    daily reconcile: same tag, may create a missing event, may move on overlap,
-    must not move a user-locked event, reports ``moves``. Never books a start
-    in 12:00–4:00 AM America/New_York. Monitor may relocate an unlocked
-    overnight leftover whose end is still in the future.
+    ``role="coach"`` is plan generation / dashboard load. ``role="monitor"``
+    is the assistant daily reconcile: same tag, may create a missing event,
+    may move on overlap, must not move a user-locked event, reports
+    ``moves``. Never books a start in 12:00–4:00 AM America/New_York.
+    Monitor may relocate an unlocked overnight leftover whose end is still
+    in the future. On dashboard load, an elapsed unlocked window with no
+    logged workout is moved to a remaining quiet slot (never tomorrow).
     """
     status = gcal.credentials_status()
     if not status.get("ok"):
@@ -668,6 +739,7 @@ def sync_gym_sessions(
             busy = busy_intervals(cal_id, day, ignore_ids=ignore)
             prefer = None
             overnight_existing = False
+            elapsed_unlogged = False
             clock = _clock(now)
             if keep and is_user_locked(keep):
                 locked += 1
@@ -681,8 +753,22 @@ def sync_gym_sessions(
                     if interval[1] <= clock or role != "monitor":
                         continue
                 elif interval is not None:
-                    prefer = interval
-            slot = pick_slot(day, busy, prefer=prefer)
+                    clock_day = clock.astimezone(gym_tz()).strftime("%Y-%m-%d")
+                    if (
+                        interval[1] <= clock
+                        and clock_day == day
+                        and not gym_day.workout_logged
+                    ):
+                        # Full window elapsed, no log: remaining civil day only.
+                        elapsed_unlogged = True
+                    else:
+                        prefer = interval
+            slot = pick_slot(
+                day,
+                busy,
+                prefer=prefer,
+                not_before=clock if elapsed_unlogged else None,
+            )
             if slot is None:
                 continue
             body = event_body(day, slot, session_type=gym_day.session_type)
@@ -692,13 +778,19 @@ def sync_gym_sessions(
                 updated += 1
                 new_start = body["start"]["dateTime"]
                 if prev and not same_instant(prev, new_start):
+                    if overnight_existing:
+                        reason = "overnight"
+                    elif elapsed_unlogged:
+                        reason = "elapsed"
+                    else:
+                        reason = "overlap"
                     moves.append(
                         {
                             "day": day,
                             "event_id": str(keep["id"]),
                             "from": prev,
                             "to": new_start,
-                            "reason": "overnight" if overnight_existing else "overlap",
+                            "reason": reason,
                             "role": role,
                         }
                     )
@@ -748,8 +840,9 @@ def sync_gym_from_workout(
     *,
     day: str,
     role: str = "coach",
+    now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    gym = gym_day_from_workout(workout, day)
+    gym = gym_day_from_workout(workout, day, now=now)
     if gym is None:
         return {
             "ok": True,
@@ -763,7 +856,7 @@ def sync_gym_from_workout(
             "locked": 0,
             "moves": [],
         }
-    return sync_gym_sessions([gym], role=role)
+    return sync_gym_sessions([gym], role=role, now=now)
 
 
 def cancel_gym_for_day(day: str) -> Dict[str, Any]:
