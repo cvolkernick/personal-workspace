@@ -293,13 +293,51 @@ def collect_calendar(
         if not events and (proc.stdout or "").strip():
             events = _parse_agenda_text(proc.stdout or "")
 
+    trips, training = _trips_from_events(
+        events, today=today, prepped_event_ids=prepped_event_ids
+    )
+    return (
+        {"wired": True, "as_of": as_of, "event_count": len(events)},
+        trips,
+        training,
+    )
+
+
+_RETURN_MARKERS = ("return", "drop-off", "dropoff", "drop off", "turnover")
+
+
+def _classify_turo_kind(title: str, extra: str = "") -> Optional[str]:
+    """Map live calendar titles to pickup or return.
+
+    Helm Turo SoT uses "Pickup ready" and "Drop-off" / "Drop-off/turnover",
+    not the word "return". Explicit "pickup" / "return" still classify.
+    """
+    title_low = (title or "").lower()
+    extra_low = (extra or "").lower()
+    for hay in (title_low, extra_low):
+        if not hay:
+            continue
+        if "pickup" in hay:
+            return "pickup"
+        if any(marker in hay for marker in _RETURN_MARKERS):
+            return "return"
+    return None
+
+
+def _trips_from_events(
+    events: list[dict[str, Any]],
+    *,
+    today: str,
+    prepped_event_ids: set[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     trips: list[dict[str, Any]] = []
     training: list[dict[str, Any]] = []
     for ev in events:
         title = str(ev.get("title") or ev.get("summary") or "")
         eid = str(ev.get("id") or title)
+        desc = str(ev.get("description") or "")
         low = title.lower()
-        blob = f"{title} {ev.get('description') or ''}".lower()
+        blob = f"{title} {desc}".lower()
         if "[fitdash-gym:" in blob or "[fitdash-gym:" in low:
             training.append(
                 {
@@ -309,13 +347,8 @@ def collect_calendar(
                     "today": True,
                 }
             )
-        is_turo = "turo" in blob or "pickup" in low or "return" in low
-        kind = None
-        if "pickup" in low:
-            kind = "pickup"
-        elif "return" in low:
-            kind = "return"
-        if is_turo and kind:
+        kind = _classify_turo_kind(title, desc)
+        if kind:
             trips.append(
                 {
                     "id": eid,
@@ -327,11 +360,7 @@ def collect_calendar(
                     "date": today,
                 }
             )
-    return (
-        {"wired": True, "as_of": as_of, "event_count": len(events)},
-        trips,
-        training,
-    )
+    return trips, training
 
 
 def _parse_agenda_json(text: str) -> list[dict[str, Any]]:
