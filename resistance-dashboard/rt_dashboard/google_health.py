@@ -30,6 +30,7 @@ from .models import (
     NutritionDay,
     RestingHeartRateDay,
     SleepSample,
+    StepSample,
     WeightSample,
 )
 
@@ -552,6 +553,29 @@ class GoogleHealthClient:
         except GoogleHealthError:
             return []
 
+    def fetch_steps(self, days: int = 90) -> List[StepSample]:
+        """Daily steps — ``dailyRollUp('steps')`` countSum.
+
+        Honest empty list when the rollup is missing. Never invents from
+        AZM, heart_minutes, active_minutes, or burned kcal. GoogleHealthError
+        on the stream is swallowed to [] so a steps outage does not fail the
+        rest of the snapshot (same as RHR).
+        """
+        days = max(1, min(int(days), 90))
+        chunk = 14
+        try:
+            if days <= chunk:
+                data = self.daily_rollup("steps", days=days)
+                return parse_steps_rollup(data)
+            data = self._chunked_daily_rollup("steps", days, chunk_days=chunk)
+            return parse_steps_rollup(data)
+        except GoogleHealthError:
+            try:
+                data = self.daily_rollup("steps", days=min(days, chunk))
+                return parse_steps_rollup(data)
+            except GoogleHealthError:
+                return []
+
     def fetch_health(self, days: int = 30) -> HealthSnapshot:
         if not self.credentials_present():
             return HealthSnapshot(
@@ -576,6 +600,7 @@ class GoogleHealthClient:
         calories_burned: List[CaloriesBurnedDay] = []
         active_zone_minutes: List[ActiveZoneMinutesDay] = []
         resting_heart_rate: List[RestingHeartRateDay] = []
+        steps: List[StepSample] = []
 
         def _weight() -> List[WeightSample]:
             return self.fetch_weight(days=days)
@@ -601,6 +626,9 @@ class GoogleHealthClient:
         def _rhr() -> List[RestingHeartRateDay]:
             return self.fetch_resting_heart_rate(days=min(max(1, int(days)), 90))
 
+        def _steps() -> List[StepSample]:
+            return self.fetch_steps(days=min(max(1, int(days)), 90))
+
         jobs = {
             "weight": _weight,
             "sleep": _sleep,
@@ -609,10 +637,11 @@ class GoogleHealthClient:
             "calories_burned": _burned,
             "active_zone_minutes": _azm,
             "resting_heart_rate": _rhr,
+            "steps": _steps,
         }
         # Parallel streams — sequential multi-calls was exceeding the dashboard
         # 20s wall timeout even when Google was healthy.
-        with ThreadPoolExecutor(max_workers=7) as pool:
+        with ThreadPoolExecutor(max_workers=8) as pool:
             futs = {pool.submit(fn): name for name, fn in jobs.items()}
             for fut in as_completed(futs):
                 name = futs[fut]
@@ -638,6 +667,8 @@ class GoogleHealthClient:
                     active_zone_minutes = result  # type: ignore[assignment]
                 elif name == "resting_heart_rate":
                     resting_heart_rate = result  # type: ignore[assignment]
+                elif name == "steps":
+                    steps = result  # type: ignore[assignment]
 
         err = "; ".join(errors) if errors else None
         if (
@@ -649,6 +680,7 @@ class GoogleHealthClient:
             and not calories_burned
             and not active_zone_minutes
             and not resting_heart_rate
+            and not steps
             and err
         ):
             return HealthSnapshot(error=err)
@@ -662,6 +694,7 @@ class GoogleHealthClient:
             calories_burned=calories_burned,
             active_zone_minutes=active_zone_minutes,
             resting_heart_rate=resting_heart_rate,
+            steps=steps,
             error=err,
         )
 
@@ -1346,6 +1379,33 @@ def parse_active_zone_minutes_rollup(payload: dict) -> List[ActiveZoneMinutesDay
             peak_minutes=round(peak, 1) if peak is not None else None,
             total_minutes=round(sum(present), 1),
             source="google_health",
+        )
+    return [by_date[k] for k in sorted(by_date.keys())]
+
+
+def parse_steps_rollup(payload: dict) -> List[StepSample]:
+    """Parse dailyRollUp('steps') rollupDataPoints.
+
+    Union field is ``steps``. Value is countSum (JSON number or string).
+    Missing payload → []. Never reads AZM / heart_minutes / kcal as steps.
+    """
+    if not isinstance(payload, dict):
+        return []
+    by_date: Dict[str, StepSample] = {}
+    for pt in payload.get("rollupDataPoints") or []:
+        if not isinstance(pt, dict):
+            continue
+        date = _civil_date_str(pt.get("civilStartTime"))
+        if not date:
+            continue
+        blob = pt.get("steps") or pt.get("stepCount") or {}
+        if not isinstance(blob, dict):
+            continue
+        n = _num(blob.get("countSum"), blob.get("count_sum"), blob.get("count"))
+        if n is None or n < 0:
+            continue
+        by_date[date] = StepSample(
+            date=date, steps=int(round(n)), source="google_health"
         )
     return [by_date[k] for k in sorted(by_date.keys())]
 

@@ -40,6 +40,7 @@ _ROUTES = (
     "labs",
     "labs_upload",
     "labs_delete",
+    "hsa",
     "phase_barometer",
     "targets",
     "restock_retry",
@@ -134,6 +135,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "labs_delete"
     if "/api/labs" in blob:
         return "labs"
+    if "/api/hsa" in blob:
+        return "hsa"
     if "/api/phase-barometer" in blob or "/phase-barometer" in blob:
         return "phase_barometer"
     if "/api/targets" in blob:
@@ -912,6 +915,103 @@ def labs_write(headers, route: str, payload=None):
         }
 
 
+def _hsa_view_for(uid: str, store=None):
+    from rt_dashboard.hsa import build_hsa_view
+    from rt_dashboard.hsa_store import load_hsa
+    from rt_dashboard.dashboard_cache import load_health_cache
+
+    snap, _at, _meta = load_health_cache()
+    steps = list(getattr(snap, "steps", None) or []) if snap is not None else []
+    return build_hsa_view(
+        store if store is not None else load_hsa(uid),
+        steps=steps,
+        user_id=uid,
+    )
+
+
+def hsa_body(headers):
+    """GET /api/hsa — SOUND HSA view. Cookie-less 401."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    uid = str(user.get("id") or "")
+    try:
+        return 200, {"ok": True, "hsa": _hsa_view_for(uid)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+
+
+def hsa_write(headers, payload=None):
+    """POST /api/hsa — save settings, add/delete ledger rows, CSV import."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "")
+    action = str(payload.get("action") or "save").strip().lower()
+    from rt_dashboard.hsa_store import (
+        apply_csv,
+        apply_settings,
+        delete_entry,
+        load_hsa,
+        save_hsa,
+        upsert_entry,
+    )
+
+    try:
+        store = load_hsa(uid)
+        if action in ("save", "settings"):
+            store = apply_settings(store, payload)
+        elif action in ("add_entry", "add"):
+            kind = str(payload.get("kind") or "")
+            entry = payload.get("entry") if isinstance(payload.get("entry"), dict) else payload
+            store = upsert_entry(store, kind, entry)
+        elif action in ("delete_entry", "delete"):
+            store = delete_entry(
+                store,
+                str(payload.get("kind") or ""),
+                str(payload.get("id") or payload.get("entry_id") or ""),
+            )
+        elif action in ("import_csv", "import"):
+            text = str(payload.get("csv") or payload.get("csv_text") or "")
+            store, counts = apply_csv(store, text)
+            saved = save_hsa(store, uid)
+            view = _hsa_view_for(uid, saved)
+            return 200, {
+                "ok": True,
+                "action": "import_csv",
+                "imported": counts,
+                "hsa": view,
+                "write": {
+                    "ok": True,
+                    "source": saved.get("storage") or "",
+                    "verified_on_readback": True,
+                },
+            }
+        else:
+            return 400, {"ok": False, "error": "unknown_action", "action": action}
+        saved = save_hsa(store, uid)
+        view = _hsa_view_for(uid, saved)
+        return 200, {
+            "ok": True,
+            "action": action,
+            "hsa": view,
+            "write": {
+                "ok": True,
+                "source": saved.get("storage") or "",
+                "verified_on_readback": True,
+            },
+        }
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {
+            "ok": False,
+            "error": str(exc) or type(exc).__name__,
+            "write": {"ok": False, "source": "turso"},
+        }
+
+
 def phase_barometer_write(headers, payload=None):
     """POST /api/phase-barometer — dismiss banner (disk) or switch phase."""
     user, err = require_user(headers)
@@ -1500,6 +1600,12 @@ def dispatch_client_route(
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return labs_write(headers, route, payload or {})
+    if route == "hsa":
+        if method == "GET":
+            return hsa_body(headers)
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return hsa_write(headers, payload or {})
     if route == "phase_barometer":
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
@@ -1554,6 +1660,8 @@ __all__ = [
     "inventory_write",
     "labs_body",
     "labs_write",
+    "hsa_body",
+    "hsa_write",
     "phase_barometer_write",
     "targets_write",
     "daily_tasks_body",

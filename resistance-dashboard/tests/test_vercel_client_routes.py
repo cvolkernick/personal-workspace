@@ -83,6 +83,10 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("/api/labs", raw)
         self.assertIn("/api/dashboard?_r=labs", raw)
         self.assertNotIn("api/labs.py", raw)
+        self.assertIn("/api/hsa", raw)
+        self.assertIn("/api/dashboard?_r=hsa", raw)
+        self.assertNotIn("api/hsa.py", raw)
+        self.assertFalse((ROOT / "api" / "hsa.py").exists())
         self.assertFalse((ROOT / "api" / "labs.py").exists())
         self.assertFalse((ROOT / "api" / "labs").is_dir())
         self.assertIn("/api/restock", raw)
@@ -165,6 +169,7 @@ class CookieLessClientRoutes(unittest.TestCase):
                 "daily_tasks_complete",
                 "agent_today",
                 "labs",
+                "hsa",
                 "restock",
             ):
                 status, body = dispatch_client_route({}, f"_r={route}", "GET")
@@ -186,6 +191,7 @@ class CookieLessClientRoutes(unittest.TestCase):
                 ("/api/daily-tasks/complete", "daily_tasks_complete"),
                 ("/api/agent/today", "agent_today"),
                 ("/api/labs", "labs"),
+                ("/api/hsa", "hsa"),
                 ("/api/restock", "restock"),
             )
             for path, route in pairs:

@@ -23,7 +23,7 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
-    <script src="/app.js?v=nutrition-day-828-1" defer></script>
+    <script src="/app.js?v=hsa-834-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -705,6 +705,132 @@
             <button type="button" id="btn-apply-coach-targets">Apply coach targets</button>
           </div>
           <p class="muted" id="targets-status" style="margin: 0"></p>
+        </form>
+      </section>
+
+      <section class="card" style="margin-top: 1rem" id="hsa-section" data-m-panel="more">
+        <h2>HSA</h2>
+        <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
+          SOUND HSA — bitcoin in cold storage, triple-tax-free. No public API yet;
+          v1 is manual entry + CSV. Contributions require a qualifying HDHP.
+          IRS limits are year-keyed (2026 defaults: $4,400 self / $8,750 family,
+          +$1,000 catch-up at 55+).
+        </p>
+        <p class="muted mobile-help" hidden>
+          SOUND HSA. HDHP required. Manual / CSV until they ship an API.
+        </p>
+        <div id="hsa-panel" class="hsa-panel"></div>
+        <form class="log-form" id="hsa-settings-form" style="margin-top: 0.85rem">
+          <div class="row cols-4">
+            <label>Eligibility
+              <select id="hsa-eligibility">
+                <option value="unknown">unknown — confirm HDHP</option>
+                <option value="eligible">eligible (HDHP)</option>
+                <option value="ineligible">ineligible</option>
+              </select>
+            </label>
+            <label>Coverage
+              <select id="hsa-coverage">
+                <option value="self_only">self-only</option>
+                <option value="family">family</option>
+              </select>
+            </label>
+            <label class="hsa-check">
+              <input type="checkbox" id="hsa-catchup" />
+              Catch-up (55+)
+            </label>
+            <label>HDHP deductible ($)
+              <input type="number" id="hsa-deductible" min="0" step="1" placeholder="e.g. 1700" />
+            </label>
+          </div>
+          <div class="row cols-4" style="margin-top: 0.5rem">
+            <label>BTC (sats)
+              <input type="number" id="hsa-btc-sats" min="0" step="1" placeholder="0" />
+            </label>
+            <label>Cash buffer ($)
+              <input type="number" id="hsa-cash" min="0" step="0.01" placeholder="0" />
+            </label>
+            <label>BTC mark (USD)
+              <input type="number" id="hsa-btc-mark" min="0" step="1" placeholder="manual" />
+            </label>
+            <label>Position as of
+              <input type="date" id="hsa-pos-asof" />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" class="primary" id="btn-hsa-save">Save HSA</button>
+          </div>
+          <p class="muted" id="hsa-status" style="margin: 0"></p>
+        </form>
+        <form class="log-form" id="hsa-entry-form" style="margin-top: 0.75rem">
+          <div class="row cols-4">
+            <label>Kind
+              <select id="hsa-entry-kind">
+                <option value="contribution">contribution</option>
+                <option value="shoebox">shoebox (QME)</option>
+                <option value="spend">medical spend</option>
+                <option value="reward">sats reward</option>
+                <option value="challenge">step challenge</option>
+              </select>
+            </label>
+            <label>Date
+              <input type="date" id="hsa-entry-date" required />
+            </label>
+            <label>Amount ($)
+              <input type="number" id="hsa-entry-usd" min="0" step="0.01" placeholder="USD" />
+            </label>
+            <label>Sats
+              <input type="number" id="hsa-entry-sats" min="0" step="1" placeholder="rewards" />
+            </label>
+          </div>
+          <div class="row cols-4" style="margin-top: 0.5rem">
+            <label>Category
+              <select id="hsa-entry-category">
+                <option value="other">other</option>
+                <option value="doctor">doctor</option>
+                <option value="prescription">prescription</option>
+                <option value="dental">dental</option>
+                <option value="vision">vision</option>
+                <option value="therapy">therapy</option>
+                <option value="lab">lab</option>
+              </select>
+            </label>
+            <label>Merchant
+              <input type="text" id="hsa-entry-merchant" placeholder="optional" />
+            </label>
+            <label>Receipt
+              <select id="hsa-entry-receipt">
+                <option value="missing">missing</option>
+                <option value="pending">pending</option>
+                <option value="on_file">on file</option>
+              </select>
+            </label>
+            <label>Steps / goal
+              <input type="number" id="hsa-entry-steps" min="0" step="1" placeholder="challenge" />
+            </label>
+          </div>
+          <div class="row cols-2" style="margin-top: 0.5rem">
+            <label>Notes / challenge
+              <input type="text" id="hsa-entry-notes" placeholder="payroll, Spring Move to Earn…" />
+            </label>
+            <label class="hsa-check">
+              <input type="checkbox" id="hsa-entry-deductible" checked />
+              Counts toward HDHP deductible
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" class="primary" id="btn-hsa-entry">Add to ledger</button>
+          </div>
+        </form>
+        <form class="log-form" id="hsa-csv-form" style="margin-top: 0.75rem">
+          <label>
+            CSV import
+            <textarea id="hsa-csv-text" rows="4" placeholder="kind,date,amount_usd,sats,category,merchant,receipt,counts_toward_deductible,steps,challenge,notes"></textarea>
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary" id="btn-hsa-csv">Import CSV</button>
+            <button type="button" id="btn-hsa-csv-template">Paste template</button>
+          </div>
         </form>
       </section>
 

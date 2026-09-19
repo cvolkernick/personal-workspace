@@ -430,9 +430,9 @@ class HistoryDateMarkup(unittest.TestCase):
         self.assertIn("resolvedOptions().timeZone", submit)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=nutrition-day-828-1", HTML)
-        self.assertIn("/app.js?v=nutrition-day-828-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v110"', SW)
+        self.assertIn("/app.js?v=hsa-834-1", HTML)
+        self.assertIn("/app.js?v=hsa-834-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v111"', SW)
         self.assertNotIn("/app.js?v=pf-applink-582-1", HTML)
         self.assertNotIn("/app.js?v=pf-applink-582-1", SW)
         self.assertNotIn("/app.js?v=log-date-771-1", HTML)

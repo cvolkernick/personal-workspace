@@ -98,6 +98,15 @@ from rt_dashboard.phase_barometer import (  # noqa: E402
     attach_phase_barometer,
     dismiss_banner,
 )
+from rt_dashboard.hsa import attach_hsa  # noqa: E402
+from rt_dashboard.hsa_store import (  # noqa: E402
+    apply_csv,
+    apply_settings,
+    delete_entry,
+    load_hsa,
+    save_hsa,
+    upsert_entry,
+)
 from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_action  # noqa: E402
 from rt_dashboard.agent_today import export_agent_today  # noqa: E402
 from rt_dashboard.day_constraints import (  # noqa: E402
@@ -1052,6 +1061,10 @@ def load_dashboard_data(
     except Exception as e:  # noqa: BLE001
         errors.append(f"phase_barometer: {e}")
     try:
+        attach_hsa(payload, user_id=uid, health=health, as_of=local_today)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"hsa: {e}")
+    try:
         from rt_dashboard.calorie_bars import apply_phase_aware_delta_color
 
         apply_phase_aware_delta_color(payload)
@@ -1699,6 +1712,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/hsa":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            try:
+                uid = (user or {}).get("user_id") or ""
+                from rt_dashboard.hsa import build_hsa_view
+                from rt_dashboard.dashboard_cache import load_health_cache
+
+                snap, _at, _meta = load_health_cache()
+                steps = list(getattr(snap, "steps", None) or []) if snap else []
+                self._send_json(
+                    {
+                        "ok": True,
+                        "hsa": build_hsa_view(
+                            load_hsa(str(uid)),
+                            steps=steps,
+                            user_id=str(uid),
+                        ),
+                    }
+                )
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/dashboard":
             user = self._require_user()
             if user is None and _auth_required():
@@ -2317,6 +2354,56 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
                 self._send_json({"ok": True, "log": entry})
             except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/hsa":
+            try:
+                body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                action = str(body.get("action") or "save").strip().lower()
+                store = load_hsa(str(uid))
+                imported = None
+                if action in ("save", "settings"):
+                    store = apply_settings(store, body)
+                elif action in ("add_entry", "add"):
+                    kind = str(body.get("kind") or "")
+                    entry = body.get("entry") if isinstance(body.get("entry"), dict) else body
+                    store = upsert_entry(store, kind, entry)
+                elif action in ("delete_entry", "delete"):
+                    store = delete_entry(
+                        store,
+                        str(body.get("kind") or ""),
+                        str(body.get("id") or body.get("entry_id") or ""),
+                    )
+                elif action in ("import_csv", "import"):
+                    store, imported = apply_csv(
+                        store, str(body.get("csv") or body.get("csv_text") or "")
+                    )
+                else:
+                    self._send_json(
+                        {"ok": False, "error": "unknown_action", "action": action},
+                        status=400,
+                    )
+                    return
+                saved = save_hsa(store, str(uid))
+                from rt_dashboard.hsa import build_hsa_view
+                from rt_dashboard.dashboard_cache import load_health_cache
+
+                snap, _at, _meta = load_health_cache()
+                steps = list(getattr(snap, "steps", None) or []) if snap else []
+                result = {
+                    "ok": True,
+                    "action": action,
+                    "hsa": build_hsa_view(saved, steps=steps, user_id=str(uid)),
+                }
+                if imported is not None:
+                    result["imported"] = imported
+                self._send_json(result)
+            except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except (json.JSONDecodeError,) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
