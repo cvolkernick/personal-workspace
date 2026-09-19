@@ -6,6 +6,8 @@
 #   existing load_dashboard exporter writes fitness/data/day_constraints.json.
 # youtube-groom health (#480): scripts/youtube_groom_health.py → health.json
 #   copied to ops/board/youtube_groom_health.json (Grok 15m sweep ledger).
+# youtube-groom tick report (#838): youtube_groom_tick_report.py → tick_report.json
+#   copied to ops/board/youtube_groom_tick_report.json (listed/add/skip/quota + 24h).
 # Orchestra only *reads* these files — never dual-writes domain SoT.
 #
 # Usage (from monorepo root or any cwd):
@@ -64,10 +66,13 @@ log() { echo "[$LOG_TAG] $*"; }
 BOARD_RC=0
 FIT_RC=0
 YG_HEALTH_RC=0
+YG_TICK_RC=0
 BOARD_PATH="$DIR/ops/board/day_constraints.json"
 FIT_PATH="$DIR/fitness/data/day_constraints.json"
 YG_LEDGER="$DIR/ops/board/youtube_groom_health.json"
 YG_HEALTH_PATH="${HOME}/.local/share/youtube-groom/health.json"
+YG_TICK_LEDGER="$DIR/ops/board/youtube_groom_tick_report.json"
+YG_TICK_PATH="${HOME}/.local/share/youtube-groom/tick_report.json"
 
 if [[ "$FIT_ONLY" -eq 0 ]]; then
   log "board day-export → $BOARD_PATH"
@@ -146,6 +151,31 @@ else
   log "youtube-groom health-check skipped (script not installed)"
 fi
 
+# youtube-groom per-tick listed/add/skip/quota (#838). Log/read only — never a second writer.
+YG_TICK_PY=""
+if [[ -f "${HOME}/.local/lib/youtube-groom/youtube_groom_tick_report.py" ]]; then
+  YG_TICK_PY="${HOME}/.local/lib/youtube-groom/youtube_groom_tick_report.py"
+elif [[ -f "$DIR/scripts/youtube_groom_tick_report.py" ]]; then
+  YG_TICK_PY="$DIR/scripts/youtube_groom_tick_report.py"
+fi
+if [[ -n "$YG_TICK_PY" ]]; then
+  log "youtube-groom tick-report → $YG_TICK_PY"
+  set +e
+  python3 "$YG_TICK_PY" --json >/tmp/yg-tick-$$.json 2>/tmp/yg-tick-$$.err
+  YG_TICK_RC=$?
+  set -e
+  if [[ -f "$YG_TICK_PATH" ]]; then
+    mkdir -p "$DIR/ops/board"
+    cp "$YG_TICK_PATH" "$YG_TICK_LEDGER"
+    log "youtube-groom tick ledger → $YG_TICK_LEDGER"
+  else
+    log "youtube-groom tick-report: no Pi ledger yet (rc=${YG_TICK_RC})"
+  fi
+  rm -f /tmp/yg-tick-$$.json /tmp/yg-tick-$$.err
+else
+  log "youtube-groom tick-report skipped (script not installed)"
+fi
+
 if [[ "$JSON" -eq 1 ]]; then
   python3 - <<PY
 import json
@@ -155,12 +185,15 @@ print(json.dumps({
   "board_rc": $BOARD_RC,
   "fit_rc": $FIT_RC,
   "yg_health_rc": $YG_HEALTH_RC,
+  "yg_tick_rc": $YG_TICK_RC,
   "board_path": "$BOARD_PATH",
   "fit_path": "$FIT_PATH",
   "yg_ledger": "$YG_LEDGER",
+  "yg_tick_ledger": "$YG_TICK_LEDGER",
   "board_exists": Path("$BOARD_PATH").is_file(),
   "fit_exists": Path("$FIT_PATH").is_file(),
   "yg_ledger_exists": Path("$YG_LEDGER").is_file(),
+  "yg_tick_ledger_exists": Path("$YG_TICK_LEDGER").is_file(),
 }, indent=2))
 PY
 fi

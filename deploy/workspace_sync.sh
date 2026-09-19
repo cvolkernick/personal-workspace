@@ -94,6 +94,7 @@ preserve_durable() {
     ops/sprint
     ops/board/day_constraints.json
     ops/board/youtube_groom_health.json
+    ops/board/youtube_groom_tick_report.json
     fitness/data/day_constraints.json
     financial-command/treasury_latest.json
     financial-command/current-branch.txt
@@ -167,6 +168,7 @@ clean_blocking_untracked() {
     -e 'ops/sprint/' \
     -e 'ops/board/day_constraints.json' \
     -e 'ops/board/youtube_groom_health.json' \
+    -e 'ops/board/youtube_groom_tick_report.json' \
     -e 'fitness/data/' \
     -e '**/data/schedule_state.json' \
     -e '.env' \
