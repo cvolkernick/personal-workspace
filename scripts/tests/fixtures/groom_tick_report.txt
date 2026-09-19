@@ -1,0 +1,10 @@
+2026-09-18 10:47:06,668 INFO 2026-09-18T14:47:06.664343+00:00 hour0=False dry=False listed=58 del=1 {'dup': 1} remain=58 add=1 skip={} quota=2416 house=100
+2026-09-18T14:47:06.664343+00:00 hour0=False dry=False listed=58 del=1 {'dup': 1} remain=58 add=1 skip={} quota=2416 house=100
+2026-09-18 14:00:52,364 INFO 2026-09-18T18:00:52.363303+00:00 hour0=False dry=False listed=59 del=3 {'dup': 1, 'stale_7d': 2} remain=59 add=3 skip={} quota=3170 house=100
+2026-09-18T18:00:52.363303+00:00 hour0=False dry=False listed=59 del=3 {'dup': 1, 'stale_7d': 2} remain=59 add=3 skip={} quota=3170 house=100
+2026-09-18 20:00:25,637 INFO 2026-09-19T00:00:25.632238+00:00 hour0=False dry=False listed=62 del=2 {'dup': 1, 'dislike': 1} remain=63 add=3 skip={} quota=276 house=100
+2026-09-19T00:00:25.632238+00:00 hour0=False dry=False listed=62 del=2 {'dup': 1, 'dislike': 1} remain=63 add=3 skip={} quota=276 house=100
+2026-09-19 09:00:27,142 INFO 2026-09-19T13:00:27.140899+00:00 hour0=False dry=False listed=61 del=3 {'dup': 1, 'dislike': 1, 'stale_7d': 1} remain=60 add=2 skip={} quota=3364 house=100
+2026-09-19T13:00:27.140899+00:00 hour0=False dry=False listed=61 del=3 {'dup': 1, 'dislike': 1, 'stale_7d': 1} remain=60 add=2 skip={} quota=3364 house=100
+2026-09-19 10:00:25,474 INFO 2026-09-19T14:00:25.419191+00:00 hour0=False dry=False listed=60 del=3 {'dup': 1, 'dislike': 1, 'stale_7d': 1} remain=60 add=3 skip={} quota=3690 house=100
+2026-09-19T14:00:25.419191+00:00 hour0=False dry=False listed=60 del=3 {'dup': 1, 'dislike': 1, 'stale_7d': 1} remain=60 add=3 skip={} quota=3690 house=100

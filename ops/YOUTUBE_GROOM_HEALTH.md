@@ -54,3 +54,6 @@ Channel: `#workflow` `db0e8f97-0c81-4976-b299-1c460b87134e`.
 6. Interim YouTube groom health watch stays until this ships — do not double-alert Chris
 
 Caps / prune / OAuth: unchanged. See `YOUTUBE_GROOM_CAPS.md`.
+
+Per-tick listed/add/skip/quota rollup (#838, not #759) is a **separate**
+log reader: [`YOUTUBE_GROOM_TICK_REPORT.md`](YOUTUBE_GROOM_TICK_REPORT.md).

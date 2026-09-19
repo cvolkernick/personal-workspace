@@ -35,3 +35,9 @@ Impact comparison (`youtube-groom-impact-check`, ~2026-09-19 09:00 ET):
 `ops/youtube_groom_impact_check_baseline.json`. Pi copy
 `~/.local/share/youtube-groom/impact-check-baseline.json`. Do not use the
 Sep 14 `add=8` / `skip={}` tick as t0.
+
+Per-tick listed/add/skip/quota + 24h rollup (#838, **not #759**):
+[`YOUTUBE_GROOM_TICK_REPORT.md`](YOUTUBE_GROOM_TICK_REPORT.md).
+`scripts/youtube_groom_tick_report.py` → Pi `tick_report.json` + `ticks.jsonl`
++ 15m `ops/board/youtube_groom_tick_report.json`. Copy **alongside** the
+writer, never over it. Do not remint OAuth for this path.

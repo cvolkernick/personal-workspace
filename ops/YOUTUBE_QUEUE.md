@@ -97,9 +97,22 @@ Silent `invalid_grant` must not freeze the playlist unnoticed. Log reader:
 Landing path: [`YOUTUBE_GROOM_HEALTH.md`](YOUTUBE_GROOM_HEALTH.md).
 Grok on #workflow + `ops/board/youtube_groom_health.json` (15m export). Not a Chris DM.
 
+## Tick listed/add/skip/quota (#838, not #759)
+
+#759 was a junk malformed create — it never received daily summaries.
+Live writer already appends `listed=` / `add=` / `skip=` / `quota=` to
+`groom.log`. Durable Grok/GVG path is the log reader
+`scripts/youtube_groom_tick_report.py` (copy **alongside** the Pi writer,
+never over it): Pi `tick_report.json` + append-only `ticks.jsonl` + 15m
+`ops/board/youtube_groom_tick_report.json`. Landing:
+[`YOUTUBE_GROOM_TICK_REPORT.md`](YOUTUBE_GROOM_TICK_REPORT.md).
+Do not remint OAuth. Do not crank ticks/seeds without the quota block
+in that JSON.
+
 ## Tests
 
 ```bash
 python3 -m unittest scripts.tests.test_youtube_groom -v
 python3 -m unittest scripts.tests.test_youtube_groom_health -v
+python3 -m unittest scripts.tests.test_youtube_groom_tick_report -v
 ```
