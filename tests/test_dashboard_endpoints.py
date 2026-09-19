@@ -82,6 +82,18 @@ class EndpointResolveTests(unittest.TestCase):
             self.assertNotIn("vercel", url.lower())
             self.assertNotIn("127.0.0.1", url)
 
+    def test_life_compass_is_registered_private_port(self) -> None:
+        cfg = de.load_endpoints()
+        services = cfg.get("services") or {}
+        self.assertIn("life-compass", services)
+        self.assertEqual(int(services["life-compass"]["port"]), 8793)
+        self.assertIn("life-compass", de._DEFAULT_SERVICES)
+        self.assertEqual(int(de._DEFAULT_SERVICES["life-compass"]["port"]), 8793)
+        with mock.patch.dict(os.environ, {"PI_HOST": "192.168.100.98"}, clear=False):
+            url = de.service_url("life-compass")
+            self.assertEqual(url, "http://192.168.100.98:8793/")
+            self.assertNotIn("127.0.0.1", url)
+
     def test_cli_prints_orchestra_url(self) -> None:
         env = {**os.environ, "PYTHONPATH": str(ROOT), "PI_HOST": "192.168.100.98"}
         out = subprocess.check_output(

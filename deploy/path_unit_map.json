@@ -61,6 +61,12 @@
       "unit": "oomwoo-dashboard.service",
       "service_key": "oomwoo",
       "only": "oomwoo"
+    },
+    {
+      "prefixes": ["life-compass/"],
+      "unit": "life-compass-dashboard.service",
+      "service_key": "life-compass",
+      "only": "life-compass"
     }
   ],
   "shared_auto": {
