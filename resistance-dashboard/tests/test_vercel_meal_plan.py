@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
+
+_TESTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(_TESTS))
+from planner_clock import FrozenPlannerClockMixin  # noqa: E402
 
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.dashboard import dashboard_body, preview_inventory_carousels, preview_meal_plan
@@ -98,7 +103,7 @@ class CookieLessMealRoutes(unittest.TestCase):
                 self.assertEqual(status, 401, route)
 
 
-class GenerateOnGet(unittest.TestCase):
+class GenerateOnGet(FrozenPlannerClockMixin, unittest.TestCase):
     def test_signed_in_dashboard_generates_plan_from_in_stock(self):
         inv, src = load_workspace_inventory()
         self.assertEqual(src, INVENTORY_PATH)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import unittest
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -26,7 +27,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     food_logs_fingerprint,
     format_plan_portion,
     format_portion_label,
-    generate_meal_plan,
+    generate_meal_plan as _generate_meal_plan_impl,
     colocate_egg_pair,
     egg_role,
     ensure_egg_pair,
@@ -69,6 +70,16 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
 )
 
 ET = ZoneInfo("America/New_York")
+# #830: quality/diversity tests omit now=; default to kitchen-open 11:00 ET.
+# Overnight assertions pass now= explicitly and keep that instant.
+_KITCHEN_OPEN = datetime(2026, 8, 22, 11, 0, tzinfo=ET)
+
+
+@wraps(_generate_meal_plan_impl)
+def generate_meal_plan(*args, **kwargs):
+    kwargs.setdefault("now", _KITCHEN_OPEN)
+    kwargs.setdefault("tz_name", "America/New_York")
+    return _generate_meal_plan_impl(*args, **kwargs)
 
 STOCKED_CUTTING = {
     "ingredients": [
@@ -3259,6 +3270,36 @@ class TestMealDayBoundary809(unittest.TestCase):
         self.assertIn("nutrition day", (store.__doc__ or "").lower())
         plan_doc = generate_meal_plan.__doc__ or ""
         self.assertIn("kitchen is closed", plan_doc.lower())
+
+
+class TestPlannerClockPin830(unittest.TestCase):
+    """#830: quality-plan tests must not follow wall-clock kitchen hours."""
+
+    def test_unpinned_generate_is_kitchen_open(self):
+        plan = generate_meal_plan(STOCKED_CUTTING, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertFalse(plan.get("nutrition_day", {}).get("kitchen_closed"))
+        self.assertTrue(plan["items"])
+        self.assertTrue(plan["meals"])
+        eat = (plan["meals"][0].get("eat_at") or "")[:10]
+        self.assertEqual(eat, "2026-08-22")
+
+    def test_explicit_overnight_now_still_closes_with_battery(self):
+        now = datetime(2026, 9, 18, 0, 6, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery={
+                "last_wake_at": datetime(2026, 9, 17, 9, 0, tzinfo=ET).isoformat(),
+                "empty_at": datetime(2026, 9, 17, 22, 0, tzinfo=ET).isoformat(),
+                "awake_budget_hours": 13.0,
+            },
+        )
+        self.assertEqual(plan["meals"], [])
+        self.assertEqual(plan["notes"]["empty_plan_reason"], "kitchen_closed")
+        self.assertEqual(plan["message"], MSG_KITCHEN_CLOSED)
 
 
 if __name__ == "__main__":
