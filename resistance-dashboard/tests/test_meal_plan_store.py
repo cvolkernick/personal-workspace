@@ -277,7 +277,13 @@ class DashboardPersistKey(unittest.TestCase):
         key = meal.get("persist_key") or (meal.get("persist") or {}).get("key") or {}
         self.assertEqual(key.get("user_id"), "sub-1")
         self.assertEqual(key.get("local_today"), body["meta"]["local_today"])
-        self.assertTrue(is_good_meal_plan(meal) or meal.get("pantry_dark") or meal.get("stocked_count") == 0)
+        self.assertTrue(
+            is_good_meal_plan(meal)
+            or meal.get("pantry_dark")
+            or meal.get("stocked_count") == 0
+            or meal.get("nutrition_day", {}).get("kitchen_closed")
+            or (meal.get("notes") or {}).get("empty_plan_reason") == "kitchen_closed"
+        )
         persist = meal.get("persist") or {}
         if is_good_meal_plan(meal):
             self.assertFalse(persist.get("ok"))

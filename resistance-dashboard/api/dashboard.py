@@ -83,11 +83,31 @@ def _civil_day(value) -> str:
     return str(value or "")[:10]
 
 
-def _today_consumed(health, today: str) -> dict:
-    """Logged kcal/P/C/F for local today. Day micros from rollup + meal logs."""
+def _today_consumed(health, today: str, *, now=None, tz_name=None, sleep_battery=None) -> dict:
+    """Logged kcal/P/C/F for the waking nutrition day when sleep is known."""
     today = _civil_day(today)
     if not today:
         return {}
+    if sleep_battery is not None or getattr(health, "sleep_intervals", None):
+        from rt_dashboard.nutrition_day import compose_nutrition_today
+
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name=tz_name,
+            sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
+            sleep_battery=sleep_battery,
+            daily_sleep=[
+                s
+                for s in (health.sleep or [])
+                if float(getattr(s, "sleep_hours", 0) or 0) > 0
+            ],
+            food_logs=health.food_logs or [],
+            nutrition_rollups=health.nutrition,
+            calories_burned=getattr(health, "calories_burned", None),
+        )
+        out = dict(composed.get("today_consumed") or {})
+        if out:
+            return out
     from rt_dashboard.nutrition_micros import merge_day_micros
     from rt_dashboard.nutrition_planner import today_consumed_from_nutrition
 
@@ -161,6 +181,7 @@ def preview_meal_plan(
     sleep_battery=None,
     recommended_targets=None,
     food_logs=None,
+    sleep_intervals=None,
 ) -> dict:
     """Same remaining-day planner as Pi ``generate_meal_plan``. In-stock pantry only."""
     from rt_dashboard.nutrition_planner import generate_meal_plan
@@ -178,6 +199,7 @@ def preview_meal_plan(
         sleep_battery=sleep_battery,
         recommended_targets=recommended_targets,
         food_logs=food_logs if food_logs is not None else food_logs_today or [],
+        sleep_intervals=sleep_intervals,
     )
 
 
@@ -351,18 +373,29 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     recovery_dict["sleep_battery"] = sleep_battery
     recovery_dict["sparse"] = not had_real_sleep
 
-    consumed = _today_consumed(health, today)
+    from rt_dashboard.nutrition_day import compose_nutrition_today
     from rt_dashboard.nutrition_planner import food_logs_for_day
 
-    today_logs = food_logs_for_day(health.food_logs or [], as_of=today)
-    burned_today = None
-    for b in health.calories_burned or []:
-        if str(getattr(b, "date", "") or "")[:10] == today:
-            try:
-                burned_today = float(getattr(b, "calories", None) or 0)
-            except (TypeError, ValueError):
-                burned_today = None
-            break
+    _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
+    composed = compose_nutrition_today(
+        now=now,
+        tz_name=tz_name,
+        sleep_intervals=_sleep_iv,
+        sleep_battery=sleep_battery,
+        daily_sleep=[s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        food_logs=health.food_logs or [],
+        nutrition_rollups=health.nutrition,
+        calories_burned=health.calories_burned,
+    )
+    nd = composed["nutrition_day"]
+    day_key = str(nd.get("day_id") or today)
+    consumed = composed["today_consumed"] or _today_consumed(
+        health, today, now=now, tz_name=tz_name, sleep_battery=sleep_battery
+    )
+    today_logs = composed["food_logs_today"] or food_logs_for_day(
+        health.food_logs or [], as_of=today
+    )
+    burned_today = composed.get("calories_burned_today")
 
     errors = list(sess_err + health_err)
     health_msg = str(getattr(health, "error", None) or "").strip()
@@ -395,10 +428,11 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         sleep_battery=sleep_battery,
         recommended_targets=(rec_nt or {}).get("recommended"),
         food_logs=health.food_logs or [],
+        sleep_intervals=_sleep_iv,
     )
     meal_plan = resolve_dashboard_meal_plan(
         str(user.get("id") or ""),
-        today,
+        day_key,
         generated_plan,
         inventory,
     )
@@ -406,7 +440,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     recipe_overlay = overlay_recipes_on_nutrition(
         user_id=str(user.get("id") or ""),
-        day=str(today or ""),
+        day=str(day_key or ""),
         inventory=inventory,
         meal_plan=meal_plan,
         consumed=consumed,
@@ -423,8 +457,13 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
+    if composed.get("trends_nutrition"):
+        payload["health"]["nutrition"] = composed["trends_nutrition"]
+    if composed.get("trends_calories_burned"):
+        payload["health"]["calories_burned"] = composed["trends_calories_burned"]
     payload["recovery"] = recovery_dict
     payload["sleep_battery"] = sleep_battery
+    payload["nutrition_day"] = nd
     payload["nutrition_store"] = {
         "targets": targets,
         "inventory": inventory,
@@ -480,6 +519,9 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             now=now,
             tz_name=tz_name,
             recommended_targets=(rec_nt or {}).get("recommended"),
+            sleep_intervals=_sleep_iv,
+            calories_burned=health.calories_burned,
+            nutrition_day=nd,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"calorie_bars: {type(exc).__name__}")

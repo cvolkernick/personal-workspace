@@ -62,9 +62,9 @@ class TrendsRhrMarkup(unittest.TestCase):
         self.assertNotIn("daily-vo2-max", GH.split("fetch_resting_heart_rate", 1)[1].split("def fetch_health", 1)[0])
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=rhr-recovery-660-1", HTML)
-        self.assertIn("/app.js?v=rhr-recovery-660-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v109"', SW)
+        self.assertIn("/app.js?v=nutrition-day-828-1", HTML)
+        self.assertIn("/app.js?v=nutrition-day-828-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v110"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)

@@ -48,7 +48,7 @@ const formatLoggedTodayCalendarLine = loadFn(
   extractFn("fmtNum")
 );
 
-assert(loggedTodayCalendarLabel() === "logged today (calendar day)", "calendar label");
+assert(loggedTodayCalendarLabel() === "logged this waking day", "waking-day label");
 
 assert(paceRowIntake({ consumed: 1400 }, 200) === 1400, "prefers window consumed");
 assert(paceRowIntake({ consumed: 0 }, 500) === 0, "zero window intake is real");
@@ -63,22 +63,22 @@ const line = formatLoggedTodayCalendarLine({
   fat_g: 5,
 });
 assert(
-  line === "Logged today (calendar day): 200 kcal · 10g P · 20g C · 5g F",
-  "full civil line: " + line
+  line === "Logged this waking day: 200 kcal · 10g P · 20g C · 5g F",
+  "full waking line: " + line
 );
 
 assert(formatLoggedTodayCalendarLine(null) === "", "null civil is empty");
 assert(formatLoggedTodayCalendarLine({}) === "", "empty civil invents nothing");
 assert(
   formatLoggedTodayCalendarLine({ calories: 800 }) ===
-    "Logged today (calendar day): 800 kcal",
+    "Logged this waking day: 800 kcal",
   "calories-only does not invent macros"
 );
 
 assert(SRC.includes("pctSuffix: \" target hit\""), "calorie tile labels target hit");
 assert(SRC.includes("%</strong> target hit"), "pace rows label % as target hit");
-assert(SRC.includes("Logged today (calendar day)"), "today hub civil totals labeled");
-assert(SRC.includes("wake-window intake"), "legend says wake-window");
-assert(SRC.includes("After bedtime, pace uses the calendar day"), "after-empty copy");
+assert(SRC.includes("Logged this waking day"), "today hub waking totals labeled");
+assert(SRC.includes("waking-day intake"), "legend says waking-day");
+assert(SRC.includes("the day is wake → sleep"), "wake-to-sleep copy");
 
 console.log("ok pace-civil-day-labels");
