@@ -54,6 +54,9 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `turo_inbox.py` | Local JSON / maildir / Gmail-dump parser |
 | `gtasks.py` / `turo_tasks.py` | Prism Google Tasks client + Turo list read/complete |
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |
+| `turo_changes.py` | Detect trip-change / guest-thread window+place; plan + apply |
+| `turo_calendar.py` | Helm two-event calendar apply (pickup-ready + drop-off/turnover) |
+| `turo_sheet.py` | Rivian sheet `Turo Bookings` upsert (never invent Totals) |
 | `turo_media.py` | Persist image MIME parts next to the dump (`turo_inbox_media/`) |
 | `data/roster.json` | Five-unit seed |
 | `data/notes.json` | Durable per-car finance record (Helm SoT 2026-09-03). Helm later replaces this file from signed portals — no local writer |
@@ -167,6 +170,24 @@ trip counts, listing inventory, or response time. Helm
 
 Parser cutoff: `AUTO_FLEET_TURO_SINCE` (default `2026-08-18T02:00:00+00:00`;
 `off` disables, tests only).
+
+## Turo ingest sources + trip-change close-loop (#837)
+
+| Source | Who writes the dump | What it watches |
+|--------|---------------------|-----------------|
+| **Pi dump** | `auto-fleet-turo-writer.timer` → `python3 -m auto-fleet.turo_gmail --fetch` every 15m on prism. Writes `~/.config/auto-fleet/turo_inbox.json`. Dashboard never calls Gmail. | Gmail query `after:2026/08/18 from:(turo.com OR mail.turo.com OR transactional.turo.com)`. **Subjects:** booked / `changed their trip` (formal) / modified / canceled / payout. **Guest-message threads** (`sent you a message`) are **not** bookings; they are change candidates when the body has reservation id plus a new Trip start/end, extend-until, pickup/drop-off, delivery, or FBO/airport place. |
+| **Bot overnight** | Grok Bot / Helm ops filling the same dump path (or `--from-json`) when the Pi writer is dark (`gmail_unconfigured` / `invalid_grant`). | Same parser. Calendar + Rivian sheet writes are Helm's ops layer once ingest produced a plan. |
+| **Gmail MCP** | Mac Grok/Forge `gmail_search` → `turo_gmail.py --from-json`. Not the prod 15m loop. | Same query. Do not scrape Turo UI. Do not double-ingest `cvolkern@gmail.com` forwards of panamerica. |
+
+After each dump the writer writes `turo_changes.json` next to the inbox (mode 600) and publishes `changes[]` on the Helm snapshot. Live Google Calendar / Sheets apply is **off** unless `AUTO_FLEET_TURO_APPLY=1` and tokens exist (`~/.config/auto-fleet/gcal-token.json`, `gsheets-token.json`). Helm/ops:
+
+```bash
+python3 -m auto-fleet.turo_changes --from-dump ~/.config/auto-fleet/turo_inbox.json --apply
+```
+
+On apply, **both** timed Turo calendar events update the same calendar day (Pickup ready + Drop-off/turnover — not a multi-day block) on calendar `8573511898287d1b8f660c06facffcc37498aede9616dd75d2a5c28e51cc25e9@group.calendar.google.com`. Rivian trips upsert sheet `1H4hjK7hNOyUHAIekWwxuqf3NgZOpSdyezHA7rQ3Zafc` tab `Turo Bookings` by reservation window; Totals rows/columns are never written; host/payout copy is used only when present on the change. Google Tasks on the **Turo** list that describe the old window (e.g. `Update Giovanni Corolla Turo END…`) close or rewrite **only after** calendar apply succeeds.
+
+Pi Gmail OAuth remint is still Chris (`#826`). Missing calendar/sheets tokens → plan only, honest skip.
 
 ## Helm read-only brief (#295)
 

@@ -1,0 +1,20 @@
+{
+  "as_of": "2026-09-16T20:00:00+00:00",
+  "source": "test_fixture",
+  "messages": [
+    {
+      "id": "matt-booked",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Mike's vehicle) - Matthew's trip with your Rivian R1S is booked!",
+      "date": "Fri, 11 Sep 2026 16:00:00 +0000",
+      "body": "Rivian R1S 2023\nbooked by Matthew\nReservation ID #61106426\nTrip start: 9/13/26 10:00 AM\nTrip end: 9/15/26 10:00 AM\nPickup: Host location"
+    },
+    {
+      "id": "matt-fbo",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Mike's vehicle) - Matthew has changed their trip",
+      "date": "Sat, 12 Sep 2026 13:00:00 +0000",
+      "body": "Rivian R1S 2023\nbooked by Matthew\nReservation ID #61106426\nTrip start: 9/13/26 10:00 AM\nTrip end: 9/15/26 10:00 AM\nDelivery location: Punta Gorda Airport FBO"
+    }
+  ]
+}

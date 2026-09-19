@@ -592,6 +592,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         n = len(data.get("messages") or [])
         print(f"wrote {n} message(s) to {dest} source={data.get('source')}")
         _publish_agent_snapshot(dest)
+        _sync_trip_changes(dest)
         return 0
     if args.from_json == "-":
         raw = json.load(sys.stdin)
@@ -607,6 +608,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     n_photos = sum(len(m.get("attachments") or []) for m in messages)
     print(f"wrote {len(messages)} message(s) ({n_photos} photo(s)) to {dest}")
     _publish_agent_snapshot(dest)
+    _sync_trip_changes(dest)
     return 0
 
 
@@ -616,6 +618,14 @@ def _publish_agent_snapshot(inbox_path: Path) -> None:
     except ImportError:  # script path
         import agent_fleet  # type: ignore
     agent_fleet.maybe_publish_from_inbox(inbox_path)
+
+
+def _sync_trip_changes(inbox_path: Path) -> None:
+    try:
+        from . import turo_changes
+    except ImportError:  # script path
+        import turo_changes  # type: ignore
+    turo_changes.maybe_sync_from_dump(inbox_path)
 
 
 if __name__ == "__main__":

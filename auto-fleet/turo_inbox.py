@@ -118,6 +118,30 @@ _DROP_OFF = re.compile(
     r"(?:drop[-\s]?off(?: location)?|return location)\s*[:\-]\s*(.+)",
     re.I,
 )
+_DELIVERY = re.compile(
+    r"(?:delivery(?: location)?|meet(?:ing)?(?: at)?)\s*[:\-]\s*(.+)",
+    re.I,
+)
+_LOCATION_CHANGED = re.compile(
+    r"(?:pickup|pick-up|drop[\s-]?off|return|delivery|handoff|location)\s+"
+    r"(?:has been |was )?(?:changed|updated|moved)\s+to\s+(.+)",
+    re.I,
+)
+_FBO_PLACE = re.compile(
+    r"\b((?:[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3})\s+(?:Airport(?:\s+FBO)?|FBO))\b"
+)
+_WEEKDAY_WHEN = re.compile(
+    rf"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\.?\s+"
+    rf"([A-Za-z]{{3,9}})\.?\s+(\d{{1,2}})(?:,?\s+(\d{{4}}))?(?:,?\s+({_CLOCK}))?",
+    re.I,
+)
+_EXTEND_UNTIL = re.compile(
+    rf"(?:extend(?:ed|ing)?|until|through)\s+"
+    rf"(?:to |until |through |by )?"
+    rf"((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\.?\s+[A-Za-z]{{3,9}}\.?\s+\d{{1,2}}"
+    rf"(?:,?\s+\d{{4}})?(?:,?\s+{_CLOCK})?)",
+    re.I,
+)
 _PHONE = re.compile(
     r"(?:phone|mobile|cell|tel)\s*[:\-]\s*([+\d().\-\s]{7,22})",
     re.I,
@@ -271,10 +295,40 @@ def _body_text(msg: Message) -> str:
         return payload.decode("utf-8", errors="replace")
 
 
+def is_guest_message_subject(subject: str) -> bool:
+    return "sent you a message" in (subject or "").lower()
+
+
+def classify_change_source(subject: str) -> Optional[str]:
+    """Ops change class. Guest-chat is not a booking; it can still move a window."""
+    s = (subject or "").lower()
+    if is_guest_message_subject(subject):
+        return "guest_message"
+    if any(w in s for w in ("cancel", "cancelled", "canceled")):
+        return None
+    if "changed their trip" in s or "has changed their trip" in s:
+        return "formal_change"
+    if any(
+        w in s
+        for w in (
+            "modified",
+            "changed",
+            "updated trip",
+            "trip updated",
+            "was updated",
+            "dates changed",
+            "booking was modified",
+            "trip was modified",
+        )
+    ):
+        return "booking_modified"
+    return None
+
+
 def classify_subject(subject: str) -> Optional[str]:
     s = (subject or "").lower()
     # Guest-chat mail often repeats "Booked trip" in the body. Subject wins.
-    if "sent you a message" in s:
+    if is_guest_message_subject(subject):
         return None
     if any(w in s for w in ("cancel", "cancelled", "canceled")):
         return "canceled"
@@ -389,34 +443,117 @@ def _iso_piece_to_stored(raw: str) -> str:
     return _iso_out(dt, has_time=True)
 
 
-def _vehicle_from_blob(blob: str) -> Optional[str]:
-    """Year + make/model, either order. Yearless make/model is not enough."""
-    ym = _YEAR_MAKE_MODEL.search(blob)
-    if ym:
-        return f"{ym.group(1)} {ym.group(2)}".strip()
-    my = _MAKE_MODEL_YEAR.search(blob)
-    if my:
-        return f"{my.group(2)} {my.group(1)}".strip()
-    return None
+_MONTH_NUM = {
+    "jan": 1,
+    "january": 1,
+    "feb": 2,
+    "february": 2,
+    "mar": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "may": 5,
+    "jun": 6,
+    "june": 6,
+    "jul": 7,
+    "july": 7,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "sept": 9,
+    "september": 9,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "dec": 12,
+    "december": 12,
+}
 
 
-def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
-    """Turn one JSON/maildir message into a booking record, or None if not Turo-ops."""
+def parse_when_fragment(
+    raw: str, *, year: Optional[int] = None
+) -> Optional[str]:
+    """Parse a date/time fragment from Turo mail or guest-thread copy.
+
+    Returns stored ISO (date-only or ET timed). None if unparseable.
+    Does not invent a clock when the fragment has none.
+    """
+    text = _norm_clock_text(raw or "")
+    if not text:
+        return None
+    iso_m = re.search(
+        r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:\d{2}|Z)?)?",
+        text,
+    )
+    if iso_m:
+        return _iso_piece_to_stored(iso_m.group(0))
+    us_m = re.search(
+        rf"\d{{1,2}}/\d{{1,2}}/\d{{2,4}}(?:\s+{_CLOCK})?",
+        text,
+    )
+    if us_m:
+        stored = _us_to_iso(us_m.group(0))
+        if stored and stored != us_m.group(0):
+            return stored
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:T.*)?", stored or ""):
+            return stored
+    long_m = re.search(
+        rf"[A-Za-z]+ \d{{1,2}}, \d{{4}}(?:,?\s+{_CLOCK})?",
+        text,
+    )
+    if long_m:
+        stored = _long_to_iso(long_m.group(0))
+        if stored and stored != long_m.group(0):
+            return stored
+    wd = _WEEKDAY_WHEN.search(text)
+    if not wd:
+        return None
+    month_s = (wd.group(1) or "").strip().lower().rstrip(".")
+    month = _MONTH_NUM.get(month_s)
+    if not month:
+        return None
+    try:
+        day = int(wd.group(2))
+    except (TypeError, ValueError):
+        return None
+    year_s = wd.group(3)
+    try:
+        y = int(year_s) if year_s else int(year or datetime.now(FLEET_TZ).year)
+    except (TypeError, ValueError):
+        return None
+    clock = _norm_clock_text(wd.group(4) or "")
+    if clock:
+        parsed = _try_strptime(
+            f"{month:02d}/{day:02d}/{y} {clock}",
+            ("%m/%d/%Y %I:%M %p", "%m/%d/%Y %I:%M%p"),
+        )
+        if parsed:
+            dt, has_time = parsed
+            return _iso_out(dt, has_time=has_time)
+        return None
+    try:
+        dt = datetime(y, month, day)
+    except ValueError:
+        return None
+    return _iso_out(dt, has_time=False)
+
+
+def _clip_place(raw: str) -> str:
+    return (raw or "").strip().splitlines()[0][:160].strip()
+
+
+def extract_ops_fields(
+    raw: Mapping[str, Any], *, year: Optional[int] = None
+) -> dict[str, Any]:
+    """Reservation id + window + place from any Turo mail, including guest chat."""
     subject = str(raw.get("subject") or "")
     body = flatten_mail_text(str(raw.get("body") or raw.get("snippet") or ""))
-    sender = str(raw.get("from") or "")
     blob = _message_blob(raw) or f"{subject}\n{body}"
-    status = classify_subject(subject)
-    sender_l = sender.lower()
-    is_turo = (
-        "turo.com" in sender_l
-        or "turo" in subject.lower()
-        or "turo" in body.lower()
-    )
-    if status is None and not is_turo:
-        return None
-    if status is None:
-        return None
+    dt = message_datetime(raw)
+    y = year
+    if y is None and dt is not None:
+        y = dt.astimezone(FLEET_TZ).year
 
     trip = None
     m = _TRIP_ID.search(blob)
@@ -449,6 +586,10 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         em = _TRIP_END.search(blob)
         if em:
             end = _us_to_iso(em.group(1))
+    if end is None:
+        ext = _EXTEND_UNTIL.search(blob)
+        if ext:
+            end = parse_when_fragment(ext.group(1), year=y)
 
     guest = None
     gm = _GUEST.search(blob)
@@ -458,6 +599,14 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         sg = _SUBJECT_GUEST.search(subject)
         if sg:
             guest = sg.group(1).strip()
+    if not guest and is_guest_message_subject(subject):
+        rest = subject
+        if " - " in rest:
+            rest = rest.split(" - ", 1)[-1]
+        first = rest.split(" has sent you a message", 1)[0].strip()
+        first = first.split(")")[-1].strip() or first
+        if first and len(first.split()) <= 4:
+            guest = first
 
     vin = None
     vm = _VIN.search(blob)
@@ -467,58 +616,33 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     pickup = None
     pm = _PICKUP.search(blob)
     if pm:
-        pickup = pm.group(1).strip().splitlines()[0][:160]
-
+        pickup = _clip_place(pm.group(1))
     drop_off = None
     dm = _DROP_OFF.search(blob)
     if dm:
-        drop_off = dm.group(1).strip().splitlines()[0][:160]
-
-    phone = None
-    ph = _PHONE.search(blob)
-    if ph:
-        phone = re.sub(r"\s+", " ", ph.group(1)).strip()
-
-    extra_drivers: list[dict[str, Any]] = []
-    for em in _EXTRA_DRIVER.finditer(blob):
-        name = (em.group(1) or "").strip()
-        if not name:
-            continue
-        verified_bit = (em.group(2) or "").strip().lower()
-        extra_drivers.append(
-            {
-                "name": name,
-                "turo_verified": bool(verified_bit and "verified" in verified_bit),
-            }
-        )
-
-    guest_asks: list[str] = []
-    for am in _GUEST_ASK.finditer(blob):
-        ask = (am.group(1) or "").strip().splitlines()[0][:200]
-        if ask:
-            guest_asks.append(ask)
-
-    host_label = None
-    hm_host = _HOST_LABEL.search(subject)
-    if hm_host:
-        host_label = hm_host.group(1).replace("\u2019", "'").strip()
-
-    payout = None
-    if status == "payout":
-        money = _MONEY.search(blob)
-        if money:
-            try:
-                payout = float(money.group(1).replace(",", ""))
-            except ValueError:
-                payout = None
+        drop_off = _clip_place(dm.group(1))
+    if not pickup:
+        dv = _DELIVERY.search(blob)
+        if dv:
+            pickup = _clip_place(dv.group(1))
+    loc_ch = _LOCATION_CHANGED.search(blob)
+    if loc_ch:
+        place = _clip_place(loc_ch.group(1))
+        kind = loc_ch.group(0).lower()
+        if any(w in kind for w in ("drop", "return")):
+            drop_off = drop_off or place
+        else:
+            pickup = pickup or place
+    if not pickup:
+        fbo = _FBO_PLACE.search(blob)
+        if fbo:
+            pickup = _clip_place(fbo.group(1))
 
     vehicle = raw.get("vehicle")
     if not vehicle:
         vm2 = _VEHICLE.search(blob)
         if vm2:
             vehicle = vm2.group(1).strip().splitlines()[0]
-    # Prefer a year+name pair from the body ("Toyota Corolla 2024" or
-    # "2024 Toyota Corolla"). Yearless "Toyota Corolla" is not a unit match.
     year_vehicle = _vehicle_from_blob(blob)
     if year_vehicle:
         vehicle = year_vehicle
@@ -537,9 +661,108 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     if not vehicle:
         ym = _YOUR_VEHICLE.search(blob)
         if ym:
-            year = (ym.group(1) or "").strip()
+            year_bit = (ym.group(1) or "").strip()
             name = (ym.group(2) or "").strip()
-            vehicle = f"{year} {name}".strip() if year else name
+            vehicle = f"{year_bit} {name}".strip() if year_bit else name
+
+    extra_drivers: list[dict[str, Any]] = []
+    for em in _EXTRA_DRIVER.finditer(blob):
+        name = (em.group(1) or "").strip()
+        if not name:
+            continue
+        verified_bit = (em.group(2) or "").strip().lower()
+        extra_drivers.append(
+            {
+                "name": name,
+                "turo_verified": bool(verified_bit and "verified" in verified_bit),
+            }
+        )
+    guest_asks: list[str] = []
+    for am in _GUEST_ASK.finditer(blob):
+        ask = (am.group(1) or "").strip().splitlines()[0][:200]
+        if ask:
+            guest_asks.append(ask)
+
+    host_label = None
+    hm_host = _HOST_LABEL.search(subject)
+    if hm_host:
+        host_label = hm_host.group(1).replace("\u2019", "'").strip()
+
+    phone = None
+    ph = _PHONE.search(blob)
+    if ph:
+        phone = re.sub(r"\s+", " ", ph.group(1)).strip()
+
+    return {
+        "trip_id": trip,
+        "start": start,
+        "end": end,
+        "guest": guest,
+        "vin": vin,
+        "pickup": pickup,
+        "drop_off": drop_off,
+        "vehicle": vehicle,
+        "extra_drivers": extra_drivers,
+        "guest_asks": guest_asks,
+        "host_label": host_label,
+        "phone": phone,
+        "body": body,
+        "subject": subject,
+        "blob": blob,
+    }
+
+
+def _vehicle_from_blob(blob: str) -> Optional[str]:
+    """Year + make/model, either order. Yearless make/model is not enough."""
+    ym = _YEAR_MAKE_MODEL.search(blob)
+    if ym:
+        return f"{ym.group(1)} {ym.group(2)}".strip()
+    my = _MAKE_MODEL_YEAR.search(blob)
+    if my:
+        return f"{my.group(2)} {my.group(1)}".strip()
+    return None
+
+
+def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
+    """Turn one JSON/maildir message into a booking record, or None if not Turo-ops."""
+    subject = str(raw.get("subject") or "")
+    body = flatten_mail_text(str(raw.get("body") or raw.get("snippet") or ""))
+    sender = str(raw.get("from") or "")
+    blob = _message_blob(raw) or f"{subject}\n{body}"
+    status = classify_subject(subject)
+    sender_l = sender.lower()
+    is_turo = (
+        "turo.com" in sender_l
+        or "turo" in subject.lower()
+        or "turo" in body.lower()
+    )
+    if status is None and not is_turo:
+        return None
+    if status is None:
+        return None
+
+    fields = extract_ops_fields(raw)
+    trip = fields.get("trip_id")
+    start = fields.get("start")
+    end = fields.get("end")
+    guest = fields.get("guest")
+    vin = fields.get("vin")
+    pickup = fields.get("pickup")
+    drop_off = fields.get("drop_off")
+    phone = fields.get("phone")
+    extra_drivers = list(fields.get("extra_drivers") or [])
+    guest_asks = list(fields.get("guest_asks") or [])
+    host_label = fields.get("host_label")
+    vehicle = fields.get("vehicle")
+
+    payout = None
+    if status == "payout":
+        money = _MONEY.search(blob)
+        if money:
+            try:
+                payout = float(money.group(1).replace(",", ""))
+            except ValueError:
+                payout = None
 
     rec = {
         "message_id": raw.get("id") or raw.get("message_id") or raw.get("message-id"),
@@ -980,6 +1203,19 @@ def bookings_for_unit(
     return out
 
 
+def _detect_trip_changes(
+    raw_messages: Sequence[Mapping[str, Any]],
+    bookings: Sequence[Mapping[str, Any]],
+    units: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Late import — turo_changes depends on this module."""
+    try:
+        from . import turo_changes
+    except ImportError:  # script / unittest path
+        import turo_changes  # type: ignore
+    return turo_changes.detect_changes(raw_messages, bookings, units)
+
+
 def turo_payload(
     *,
     inbox_path: Path | None,
@@ -1051,6 +1287,11 @@ def turo_payload(
         "unmatched_photos": unmatched_photos,
         "photo_messages": photo_messages,
         "bookings": bookings + unmatched,
+        "changes": _detect_trip_changes(
+            loaded.get("raw_messages") or [],
+            bookings + unmatched,
+            units,
+        ),
         "message_count": loaded.get("message_count", 0),
         "payout_destination": PAYOUT_DESTINATION,
         "forward_since": FORWARD_SINCE_ISO if resolve_since(since, env) else None,
