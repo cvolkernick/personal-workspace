@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import os
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
+
+_TESTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(_TESTS))
+from planner_clock import FrozenPlannerClockMixin  # noqa: E402
 
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.dashboard import dashboard_body
@@ -258,7 +263,7 @@ class ResolveLastGood(unittest.TestCase):
         self.assertEqual(out["source"], "generate")
 
 
-class DashboardPersistKey(unittest.TestCase):
+class DashboardPersistKey(FrozenPlannerClockMixin, unittest.TestCase):
     def test_signed_in_get_exposes_user_day_key(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True):

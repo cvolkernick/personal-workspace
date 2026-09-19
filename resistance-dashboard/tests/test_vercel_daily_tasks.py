@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
+
+_TESTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(_TESTS))
+from planner_clock import FrozenPlannerClockMixin  # noqa: E402
 
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.dashboard import dashboard_body
@@ -132,7 +137,7 @@ class CookieLessDailyTasks(unittest.TestCase):
                 self.assertEqual(status, 401, method)
 
 
-class QuestsFromGeneratedPlans(unittest.TestCase):
+class QuestsFromGeneratedPlans(FrozenPlannerClockMixin, unittest.TestCase):
     def _signed_dashboard(self):
         session = Session(
             date="2026-08-17",

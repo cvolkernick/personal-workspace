@@ -5,8 +5,11 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -21,7 +24,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     STOCK_IN,
     STOCK_LOW,
     STOCK_OUT,
-    generate_meal_plan,
+    generate_meal_plan as _generate_meal_plan_impl,
     is_in_stock,
     needs_restock,
     normalize_ingredient,
@@ -33,6 +36,16 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     suggest_inventory_staples,
 )
 from rt_dashboard.quest_inventory_stock import apply_shopping_quest_stock  # noqa: E402
+
+# #830: meal-plan quality tests omit now=; pin kitchen-open 11:00 ET.
+_KITCHEN_OPEN = datetime(2026, 8, 22, 11, 0, tzinfo=ZoneInfo("America/New_York"))
+
+
+@wraps(_generate_meal_plan_impl)
+def generate_meal_plan(*args, **kwargs):
+    kwargs.setdefault("now", _KITCHEN_OPEN)
+    kwargs.setdefault("tz_name", "America/New_York")
+    return _generate_meal_plan_impl(*args, **kwargs)
 
 JS = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 CSS = (ROOT / "static" / "styles.css").read_text(encoding="utf-8")
