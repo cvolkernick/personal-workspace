@@ -1190,7 +1190,8 @@
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
     const hydration = downsamplePoints(hydrationFilled, 90);
-    // Intake vs burned: 90d rolling window (same civil span as other Trends charts).
+    // Intake vs burned: 90d rolling window. Server rebuckets both series
+    // onto wake-to-sleep nutrition days (same day_id axis).
     // Macro split reuses its own 90d axis below.
     const calSpanDays = CAL_IN_OUT_SPAN_DAYS;
     const calEnd = new Date();
@@ -3625,10 +3626,10 @@
   }
 
   function loggedTodayCalendarLabel() {
-    return "logged today (calendar day)";
+    return "logged this waking day";
   }
 
-  /** Compact calendar-day totals. Only keys present on ``civil`` — never invented. */
+  /** Compact waking-day totals. Only keys present on ``civil`` — never invented. */
   function formatLoggedTodayCalendarLine(civil) {
     if (!civil || typeof civil !== "object") return "";
     const bits = [];
@@ -3641,14 +3642,14 @@
     if (civil.fat_g != null && civil.fat_g !== "")
       bits.push(`${fmtNum(civil.fat_g)}g F`);
     if (!bits.length) return "";
-    return `Logged today (calendar day): ${bits.join(" · ")}`;
+    return `Logged this waking day: ${bits.join(" · ")}`;
   }
 
   /**
-   * Today "Today so far" row: wake-window intake + pace-relative center bar.
+   * Today "Today so far" row: waking-day intake + pace-relative center bar.
    * pace = server pace_vs_expected payload (band green|yellow|red, side, bar_pct).
-   * Center = on pace for this point in the eating window (not day-empty→full).
-   * Civil-day totals belong on the labeled calendar-day line, not these nums.
+   * Center = on pace for this point in the eating window (overlay only).
+   * Totals are wake→sleep, not civil midnight.
    */
   function progressRow(label, consumed, target, kind, pace) {
     const micro = kind === "fiber" || kind === "sugar" || kind === "sodium";
@@ -3988,10 +3989,18 @@
       if (marker) marker.style.left = `${exp}%`;
       if (paceSum) {
         let sum = pacing.summary || "—";
-        if (pacing.intake_source === "eating_window_logs") {
-          const n =
-            (pacing.window_intake && pacing.window_intake.log_count) || 0;
-          sum += ` · from ${n} log${n === 1 ? "" : "s"} in wake window`;
+        if (
+          pacing.intake_source === "waking_day_logs" ||
+          pacing.intake_source === "eating_window_logs"
+        ) {
+          const count =
+            (data.nutrition_store &&
+              data.nutrition_store.today_consumed &&
+              data.nutrition_store.today_consumed.food_log_count) ||
+            (pacing.window_intake && pacing.window_intake.log_count) ||
+            0;
+          if (count)
+            sum += ` · from ${count} log${count === 1 ? "" : "s"} this waking day`;
         }
         paceSum.textContent = sum;
       }
@@ -4010,8 +4019,11 @@
           bits.push(
             `${loggedTodayCalendarLabel()} ${fmtNum(pacing.civil_day_consumed)} kcal`
           );
-        if (pacing.intake_source === "eating_window_logs")
-          bits.push("intake = logs in window (spans midnight)");
+        if (
+          pacing.intake_source === "waking_day_logs" ||
+          pacing.intake_source === "eating_window_logs"
+        )
+          bits.push("intake = waking day (wake → sleep)");
         paceMeta.textContent = bits.join(" · ");
       }
     } else if (paceSum) {
@@ -4142,8 +4154,8 @@
       $("macro-pace-bars").innerHTML = `
         <div class="macro-progress-list">
           <p class="muted macro-pace-legend" style="margin:0 0 0.35rem;font-size:0.78rem">
-            Bars = <strong>wake-window intake</strong> vs <strong>pace now</strong>
-            (center = on pace for this time). After bedtime, pace uses the calendar day.
+            Bars = <strong>waking-day intake</strong> vs <strong>pace now</strong>
+            (center = on pace for this time). Eating window only times meals — the day is wake → sleep.
             Green ≤5% · yellow ≤20% · red &gt;20% · protein over stays green longer.
           </p>
           ${

@@ -309,10 +309,10 @@ class TestCalorieBars(unittest.TestCase):
             food_logs=logs,
             now=now,
         )
-        self.assertEqual(payload["pacing"]["intake_source"], "eating_window_logs")
+        self.assertEqual(payload["pacing"]["intake_source"], "waking_day_logs")
         self.assertEqual(payload["pacing"]["consumed"], 1400.0)
-        # Civil-day in/out still uses today_consumed
-        self.assertEqual(payload["delta"]["intake"], 0.0)
+        # In/out uses the same waking day as pacing (#828)
+        self.assertEqual(payload["delta"]["intake"], 1400.0)
 
     def test_expired_wake_window_falls_back_to_civil_day(self):
         """After empty_at, pacing must not stay pinned to the finished cycle."""
@@ -354,17 +354,11 @@ class TestCalorieBars(unittest.TestCase):
             food_logs=logs,
             now=now,
         )
-        # Yesterday's meals must not count as today's pacing intake
-        self.assertEqual(payload["pacing"]["window"]["source"], "civil_day_after_empty")
+        # 20h backstop rolled a new waking day; yesterday's meals stay off it.
         self.assertEqual(payload["pacing"]["consumed"], 0.0)
-        self.assertEqual(
-            payload["pacing"]["pace_clock"],
-            "pace clock = calendar day (after bedtime)",
-        )
-        self.assertEqual(
-            payload["macro_pace"]["pace_clock"],
-            "pace clock = calendar day (after bedtime)",
-        )
+        self.assertNotEqual(payload["pacing"]["intake_source"], "eating_window_logs")
+        nd = payload.get("nutrition_day") or {}
+        self.assertEqual(nd.get("backstop"), "wake_plus_20h")
 
         hydro_win = eating_window_fraction(
             now=now,
@@ -724,7 +718,7 @@ class TestCivilDayVsPaceClocks(unittest.TestCase):
         self.assertEqual(pace_clock_copy(""), "")
 
     def test_window_macros_differ_from_civil_day_and_delta_stays_civil(self):
-        """Pace comparison uses wake-window logs; in/out delta stays calendar day."""
+        """Waking-day intake is SoT for pace and in/out; civil is labeled only."""
         local = datetime.now().astimezone().tzinfo or timezone.utc
         wake = datetime(2026, 7, 29, 12, 7, 0, tzinfo=local)
         bed = wake + timedelta(hours=16)
@@ -763,15 +757,15 @@ class TestCivilDayVsPaceClocks(unittest.TestCase):
             now=now,
         )
         mp = payload["macro_pace"]
-        self.assertEqual(mp["intake_source"], "eating_window_logs")
+        self.assertEqual(mp["intake_source"], "waking_day_logs")
         self.assertEqual(mp["window_macros"]["calories"], 900.0)
         self.assertEqual(mp["window_macros"]["protein_g"], 60.0)
         self.assertEqual(mp["civil_day"]["calories"], 200.0)
         self.assertEqual(mp["civil_day"]["protein_g"], 10.0)
         self.assertEqual(mp["calories"]["consumed"], 900.0)
         self.assertNotEqual(mp["window_macros"]["calories"], mp["civil_day"]["calories"])
-        # In/out SoT is civil day, not wake-window pace
-        self.assertEqual(payload["delta"]["intake"], 200.0)
+        # In/out SoT is the same waking day as remaining / Today so far
+        self.assertEqual(payload["delta"]["intake"], 900.0)
         self.assertEqual(payload["delta"]["burned"], 1600.0)
         self.assertEqual(payload["pacing"]["pace_clock"], "pace clock = wake window")
 
@@ -825,17 +819,16 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         delta = html[
             html.find('id="calorie-delta-section"') : html.find('id="nutrition-stats"')
         ]
-        self.assertIn("Logged today (calendar day)", so_far)
-        self.assertIn("After bedtime, pace falls back to the calendar day", so_far)
+        self.assertIn("Logged this waking day", so_far)
+        self.assertIn("wake → sleep", so_far)
         self.assertIn("target hit %", so_far)
-        self.assertIn("not the pace score", so_far)
         self.assertIn("Logged today", tiles)
-        self.assertIn("calendar day", tiles)
+        self.assertIn("waking day", tiles)
         self.assertNotIn('macro-split-k">Today<', tiles)
-        self.assertIn("calendar day", delta)
+        self.assertIn("waking day", delta)
         self.assertIn("paceRowIntake", js)
         self.assertIn("formatLoggedTodayCalendarLine", js)
-        self.assertIn("logged today (calendar day)", js)
+        self.assertIn("logged this waking day", js)
         self.assertIn("target hit", js)
         # Pace rows must paint wake-window consumed, not civil today_consumed
         progress = js.split("function progressRow", 1)[1].split(
@@ -868,8 +861,8 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         legend = js.split("function renderTargetsAndRemaining", 1)[1].split(
             "function renderFoodLogsToday", 1
         )[0]
-        self.assertIn("wake-window intake", legend)
-        self.assertIn("After bedtime, pace uses the calendar day", legend)
+        self.assertIn("waking-day intake", legend)
+        self.assertIn("wake → sleep", legend)
         self.assertIn("formatLoggedTodayCalendarLine", legend)
         self.assertIn("civil_day", legend)
         # In/out delta stays civil day and is labeled as such

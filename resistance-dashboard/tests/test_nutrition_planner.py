@@ -1871,7 +1871,13 @@ class TestMealPlanDiversity(unittest.TestCase):
 
     def test_protein_not_worsened_beyond_eps(self):
         """AC4: 210P closeness not worse than ε on the happy-path fixture."""
-        plan = generate_meal_plan(self._stocked_two_veg(), FULL_TARGETS, EMPTY_CONSUMED)
+        plan = generate_meal_plan(
+            self._stocked_two_veg(),
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=datetime(2026, 8, 22, 15, 0, tzinfo=ET),
+            tz_name="America/New_York",
+        )
         self.assertEqual(plan["targets"]["protein_g"], 210)
         rem_p = float(plan["remaining_after_plan"]["protein_g"])
         planned_p = float(plan["planned_totals"]["protein_g"])
@@ -3215,7 +3221,7 @@ class TestMealDayBoundary809(unittest.TestCase):
             food_logs=logs,
         )
         self.assertFalse(plan["nutrition_day"]["kitchen_closed"])
-        self.assertEqual(plan["nutrition_day"]["consumed_clock"], "eating_window")
+        self.assertEqual(plan["nutrition_day"]["consumed_clock"], "waking_day")
         self.assertLess(float(plan["remaining_before_plan"]["calories"]), 500)
         for kcal in self._meal_kcal(plan):
             self.assertLess(kcal, FULL_TARGETS["calories"] * 0.5)
@@ -3245,13 +3251,12 @@ class TestMealDayBoundary809(unittest.TestCase):
         import rt_dashboard.meal_plan_store as store
 
         doc = np.__doc__ or ""
-        self.assertIn("Meal plan remaining macros", doc)
-        self.assertIn("In/out delta", doc)
-        self.assertIn("Plan storage", doc)
-        self.assertIn("kitchen is closed", doc.lower())
+        self.assertIn("wake-to-sleep", doc.lower())
+        self.assertIn("resolve_nutrition_day", doc)
+        self.assertIn("kitchen closed", doc.lower())
         bars_doc = cb.build_calorie_bars_payload.__doc__ or ""
-        self.assertIn("kitchen is closed", bars_doc)
-        self.assertIn("civil-day", (store.__doc__ or "").lower())
+        self.assertIn("wake-to-sleep", bars_doc.lower())
+        self.assertIn("nutrition day", (store.__doc__ or "").lower())
         plan_doc = generate_meal_plan.__doc__ or ""
         self.assertIn("kitchen is closed", plan_doc.lower())
 

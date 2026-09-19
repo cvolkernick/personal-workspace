@@ -196,22 +196,40 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
     equipment, _es = load_preview_equipment(user_id)
     inventory, _isrc = load_preview_inventory(user_id)
     targets, _ts = load_preview_targets(user_id)
-    consumed = _today_consumed(health, today) or {}
-    food_logs = [
-        f.to_dict() if hasattr(f, "to_dict") else f
-        for f in (health.food_logs or [])
-        if str(getattr(f, "date", "") or "")[:10] == today
-    ]
+    bat = None
     try:
         from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
 
         bat = sleep_battery_from_fitdash_sleep(
-            health.sleep or [], now=now, tz_name=tz_name
+            health.sleep or [],
+            now=now,
+            tz_name=tz_name,
+            sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
         )
         if isinstance(bat, dict):
             recovery["sleep_battery"] = bat
     except Exception:  # noqa: BLE001
-        pass
+        bat = None
+    consumed = _today_consumed(
+        health, today, now=now, tz_name=tz_name, sleep_battery=bat
+    ) or {}
+    from rt_dashboard.nutrition_day import compose_nutrition_today
+
+    composed = compose_nutrition_today(
+        now=now,
+        tz_name=tz_name,
+        sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
+        sleep_battery=bat if isinstance(bat, dict) else None,
+        daily_sleep=health.sleep or [],
+        food_logs=health.food_logs or [],
+    )
+    food_logs = list(composed.get("food_logs_today") or [])
+    if not food_logs:
+        food_logs = [
+            f.to_dict() if hasattr(f, "to_dict") else f
+            for f in (health.food_logs or [])
+            if str(getattr(f, "date", "") or "")[:10] == today
+        ]
     from rt_dashboard.training_day import last_wake_from, training_day_iso
 
     wake = last_wake_from(recovery=recovery)

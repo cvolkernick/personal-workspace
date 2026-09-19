@@ -777,12 +777,34 @@ def load_dashboard_data(
     payload["recovery"] = recovery_dict
     payload["sleep_battery"] = sleep_battery
 
-    today_logs = food_logs_for_day(health.food_logs or [], as_of=local_today)
-    consumed = today_consumed_from_nutrition(
+    from rt_dashboard.nutrition_day import compose_nutrition_today
+
+    _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
+    composed = compose_nutrition_today(
+        now=now,
+        tz_name=tz_name,
+        sleep_intervals=_sleep_iv,
+        sleep_battery=sleep_battery,
+        daily_sleep=[s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        food_logs=health.food_logs or [],
+        nutrition_rollups=health.nutrition,
+        calories_burned=health.calories_burned,
+    )
+    nd = composed["nutrition_day"]
+    payload["nutrition_day"] = nd
+    day_key = str(nd.get("day_id") or local_today)
+    today_logs = composed["food_logs_today"] or food_logs_for_day(
+        health.food_logs or [], as_of=local_today
+    )
+    consumed = composed["today_consumed"] or today_consumed_from_nutrition(
         health.nutrition,
         as_of=local_today,
         food_logs=health.food_logs or [],
     )
+    if composed.get("trends_nutrition"):
+        payload["health"]["nutrition"] = composed["trends_nutrition"]
+    if composed.get("trends_calories_burned"):
+        payload["health"]["calories_burned"] = composed["trends_calories_burned"]
     inv_base = nut["inventory"] or {"ingredients": []}
     from rt_dashboard.nutrition_targets import recommend_nutrition_targets
 
@@ -799,12 +821,13 @@ def load_dashboard_data(
         sleep_battery=sleep_battery,
         recommended_targets=(rec_nt or {}).get("recommended"),
         food_logs=health.food_logs or [],
+        sleep_intervals=_sleep_iv,
     )
     from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
     auto_plan = resolve_dashboard_meal_plan(
         str(uid or ""),
-        local_today,
+        day_key,
         auto_plan,
         inv_base,
     )
@@ -812,7 +835,7 @@ def load_dashboard_data(
 
     recipe_overlay = overlay_recipes_on_nutrition(
         user_id=str(uid or ""),
-        day=str(local_today or ""),
+        day=str(day_key or ""),
         inventory=inv_base,
         meal_plan=auto_plan,
         consumed=consumed,
@@ -860,14 +883,7 @@ def load_dashboard_data(
     try:
         from rt_dashboard.calorie_bars import build_calorie_bars_payload
 
-        burned_today = None
-        for b in health.calories_burned or []:
-            if str(getattr(b, "date", "") or "")[:10] == str(local_today)[:10]:
-                try:
-                    burned_today = float(getattr(b, "calories", None) or 0)
-                except (TypeError, ValueError):
-                    burned_today = None
-                break
+        burned_today = composed.get("calories_burned_today")
         from rt_dashboard.nutrition_targets import recommend_nutrition_targets
 
         rec_nt = recommend_nutrition_targets(
@@ -880,11 +896,13 @@ def load_dashboard_data(
             targets=nut.get("targets") or {},
             sleep_battery=sleep_battery,
             calories_burned_today=burned_today,
-            # Timed logs so pacing can span midnight inside the wake window
             food_logs=health.food_logs or [],
             now=now,
             tz_name=tz_name,
             recommended_targets=(rec_nt or {}).get("recommended"),
+            sleep_intervals=_sleep_iv,
+            calories_burned=health.calories_burned,
+            nutrition_day=nd,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"calorie_bars: {e}")
@@ -2616,13 +2634,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     sleep_battery=bat if isinstance(bat, dict) else None,
                     recommended_targets=rec,
                     food_logs=food_entries,
+                    sleep_intervals=health.get("sleep_intervals") or [],
                 )
                 from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
                 from rt_dashboard.timeutil import local_today_iso as _local_today_iso
 
+                day_key = str(
+                    (data.get("nutrition_day") or {}).get("day_id")
+                    or (data.get("meta") or {}).get("local_today")
+                    or _local_today_iso()
+                )
                 plan = resolve_dashboard_meal_plan(
                     str(uid or ""),
-                    (data.get("meta") or {}).get("local_today") or _local_today_iso(),
+                    day_key,
                     plan,
                     store.get("inventory") or {"ingredients": []},
                 )
@@ -2630,9 +2654,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
                 overlay = overlay_recipes_on_nutrition(
                     user_id=str(uid or ""),
-                    day=str(
-                        (data.get("meta") or {}).get("local_today") or _local_today_iso()
-                    ),
+                    day=day_key,
                     inventory=store.get("inventory") or {"ingredients": []},
                     meal_plan=plan,
                     consumed=consumed,

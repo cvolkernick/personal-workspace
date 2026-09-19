@@ -1,24 +1,23 @@
 """Ingredient inventory + remaining-day meal plan generation.
 
-Nutrition-day clocks (issue #809)
+Nutrition-day clocks (issue #828)
 =================================
-Surfaces use different clocks on purpose. Do not silently mix them.
+Every surface uses the same wake-to-sleep day
+(``rt_dashboard.nutrition_day.resolve_nutrition_day``). Civil midnight
+is not a boundary. The eating window is a pacing overlay only.
 
-* **Meal plan remaining macros + slot timing** — sleep-battery eating
-  window (``last_wake_at`` → ``empty_at``). The window may span civil
-  midnight. After ``empty_at`` during overnight hours 00:00–03:59
-  (``KITCHEN_CLOSED_HOURS``), the kitchen is closed: no new civil-day
-  plan, no single meal carrying a full day's macros. A leftover window
+* **Today / remaining / in/out / trends / plan storage key** — wake →
+  overnight sleep onset. Food at 1:30 AM before sleep stays on the day
+  that began that morning. Food after onset is the new day.
+* **Meal slot timing** — sleep-battery eating window (wake → empty_at)
+  still places *when* to eat inside the waking day.
+* **Kitchen closed (#809)** — after ``empty_at`` during hours 00:00–03:59
+  the planner emits no meals (no mega-meal). Remaining macros are still
+  the waking-day remainder, not a new civil day. A leftover window
   shorter than ``MIN_MEAL_GAP`` that still has ≥50% of the day target
   is the same seam (capacity-1 cram).
-* **Calorie-bar pacing intake** — food logs inside the eating window
-  while it is open; civil-day fallback after ``empty_at`` / before wake
-  (see ``calorie_bars.eating_window_fraction`` / ``pace_clock_copy``).
-* **In/out delta** — civil-day intake vs same-day burned (CICO). Not
-  the meal-plan clock.
-* **Plan storage** — ``user_id`` + viewer civil day
-  (``meal_plan_store``). A kitchen-closed generate is empty and is not
-  persisted as last-good.
+* **Backstop** — awake with no sleep recorded rolls at wake+20h or the
+  next logged wake; no sleep data uses civil midnight.
 
 A per-meal cap (``MAX_MEAL_TARGET_FRAC`` of the day target) is a second
 guard so ``cap=1`` can never pack a full day into one bucket.
@@ -633,6 +632,44 @@ def today_consumed_from_nutrition(
     nutrition: Sequence[NutritionDay],
     as_of: Optional[str] = None,
     food_logs: Optional[Sequence[FoodLogEntry]] = None,
+    *,
+    nutrition_day: Optional[dict] = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
+    sleep_battery: Optional[dict] = None,
+) -> dict:
+    """Macros for the canonical waking day when sleep evidence is passed.
+
+    Without sleep/window args this stays the civil-day helper (rollup,
+    else meal logs on ``as_of``) so existing callers keep working.
+    """
+    if nutrition_day or sleep_intervals is not None or sleep_battery is not None:
+        from .nutrition_day import compose_nutrition_today
+
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name=tz_name,
+            sleep_intervals=sleep_intervals,
+            sleep_battery=sleep_battery,
+            food_logs=food_logs,
+            nutrition_rollups=nutrition,
+        )
+        if isinstance(nutrition_day, dict) and nutrition_day.get("day_id"):
+            # Caller already resolved the span; still prefer composed totals
+            # for the current now, which uses that same resolver.
+            pass
+        out = dict(composed["today_consumed"])
+        if not out.get("date") and as_of:
+            out["date"] = str(as_of)[:10]
+        return out
+    return _today_consumed_civil(nutrition, as_of=as_of, food_logs=food_logs)
+
+
+def _today_consumed_civil(
+    nutrition: Sequence[NutritionDay],
+    as_of: Optional[str] = None,
+    food_logs: Optional[Sequence[FoodLogEntry]] = None,
 ) -> dict:
     """Macros for as_of from daily rollups, falling back to summed meal logs."""
     if as_of is None:
@@ -709,6 +746,31 @@ def today_consumed_from_nutrition(
 
 
 def food_logs_for_day(
+    food_logs: Sequence[FoodLogEntry],
+    as_of: Optional[str] = None,
+    *,
+    nutrition_day: Optional[dict] = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
+    sleep_battery: Optional[dict] = None,
+) -> List[dict]:
+    """Serialize meal-level entries for the waking day when sleep is passed."""
+    if nutrition_day or sleep_intervals is not None or sleep_battery is not None:
+        from .nutrition_day import compose_nutrition_today
+
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name=tz_name,
+            sleep_intervals=sleep_intervals,
+            sleep_battery=sleep_battery,
+            food_logs=food_logs,
+        )
+        return list(composed.get("food_logs_today") or [])
+    return _food_logs_for_civil_day(food_logs, as_of=as_of)
+
+
+def _food_logs_for_civil_day(
     food_logs: Sequence[FoodLogEntry], as_of: Optional[str] = None
 ) -> List[dict]:
     """Serialize meal-level entries for a single civil day (UI / plan)."""
@@ -1360,6 +1422,7 @@ def generate_meal_plan(
     sleep_battery: Optional[dict] = None,
     recommended_targets: Optional[dict] = None,
     food_logs: Optional[Sequence[Any]] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
 ) -> dict:
     """
     Greedy remaining-day plan from stocked ingredients.
@@ -1382,9 +1445,11 @@ def generate_meal_plan(
     clamped to the window with ``MIN_MEAL_GAP``; behind / on-pace is unchanged.
     Slot count is 1–4 from remaining macros + in-stock items, capped by
     remaining-window capacity — never empty timed hinges, never invented food.
-    After empty_at overnight (hours 0–3) or a leftover window too short to
-    hold half a day's remaining macros, the kitchen is closed (#809).
-    One meal is capped at ``MAX_MEAL_TARGET_FRAC`` of the day target.
+    Remaining macros use the wake-to-sleep nutrition day (#828); slot
+    times still follow the eating window. After empty_at overnight
+    (hours 0–3) or a leftover window too short to hold half a day's
+    remaining macros, the kitchen is closed (#809). One meal is capped
+    at ``MAX_MEAL_TARGET_FRAC`` of the day target.
 
     Food quality (#501): ≥1 veg/fruit slot before shake fill when pantry
     allows; soft fiber ~25g biases fill order; shake/powder cap ≤2 servings
@@ -1424,8 +1489,15 @@ def generate_meal_plan(
         window_end=window_end,
         sleep_battery=sleep_battery,
     )
-    consumed, consumed_clock = _consumed_for_planner(
-        consumed, food_logs, now, start, end
+    consumed, consumed_clock, nd_span = _consumed_for_planner(
+        consumed,
+        food_logs,
+        now,
+        start,
+        end,
+        sleep_battery=sleep_battery,
+        sleep_intervals=sleep_intervals,
+        tz_name=resolved_tz,
     )
     remaining_before = remaining_macros(targets, consumed)
     rem = remaining_macros(targets, consumed)
@@ -1444,6 +1516,7 @@ def generate_meal_plan(
         kitchen_closed=kitchen_closed,
         consumed_clock=consumed_clock,
         sleep_battery=sleep_battery,
+        nutrition_day=nd_span,
     )
     fiber_target = resolve_micro_target(
         targets, recommended_targets, "fiber_g", fallback=SOFT_FIBER_TARGET_G
@@ -2514,35 +2587,40 @@ def _consumed_for_planner(
     now: datetime,
     start: datetime,
     end: datetime,
+    *,
+    sleep_battery: Optional[dict] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
+    tz_name: Optional[str] = None,
 ) -> tuple:
-    """Prefer eating-window intake when the wake window spans midnight.
+    """Waking-day intake. Eating-window bounds are pacing, not a filter.
 
     Civil-day ``consumed`` is 0 at 00:06 even if last night's meals were
-    logged on yesterday's date. Pacing already uses this window; remaining
-    macros for the plan must match.
+    logged on yesterday's date. Remaining must match Today so far.
     """
     caller = consumed if isinstance(consumed, dict) else {}
-    if not food_logs or start is None or end is None:
-        return caller, "caller"
-    try:
-        if start.date() == now.date():
-            return caller, "caller"
-    except Exception:
-        return caller, "caller"
-    from .calorie_bars import sum_intake_in_window
+    from .nutrition_day import compose_nutrition_today
 
-    win = sum_intake_in_window(
-        food_logs, window_start=start, window_end=end, now=now
+    composed = compose_nutrition_today(
+        now=now,
+        tz_name=tz_name,
+        sleep_intervals=sleep_intervals,
+        sleep_battery=sleep_battery,
+        food_logs=food_logs,
     )
-    if int(win.get("log_count") or 0) <= 0:
-        return caller, "caller"
-    merged = dict(caller)
-    for k in ("calories", "protein_g", "carbs_g", "fat_g"):
-        merged[k] = win.get(k, 0)
-    merged["source"] = "eating_window_logs"
-    merged["window_start"] = win.get("window_start")
-    merged["window_end"] = win.get("window_end")
-    return merged, "eating_window"
+    nd = composed["nutrition_day"]
+    waking = composed["today_consumed"]
+    if int(waking.get("food_log_count") or 0) > 0:
+        merged = dict(caller)
+        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            merged[k] = waking.get(k, 0)
+        merged["source"] = "waking_day_logs"
+        merged["window_start"] = nd.get("start")
+        merged["window_end"] = nd.get("end")
+        merged["food_log_count"] = waking.get("food_log_count")
+        if waking.get("micros"):
+            merged["micros"] = waking["micros"]
+        return merged, "waking_day", nd
+    return caller, "caller", nd
 
 
 def _kitchen_is_closed(
@@ -2563,11 +2641,19 @@ def _kitchen_is_closed(
         if overnight and now > bat_end:
             return True
     lo = now if now > start else start
+    has_wake_window = bool(bat.get("last_wake_at") or bat.get("empty_at"))
     if end > lo:
         span = end - lo
         rem_cal = float((remaining or {}).get("calories") or 0)
         day_cal = float((targets or {}).get("calories") or 0) or rem_cal
-        if span < MIN_MEAL_GAP and day_cal > 0 and rem_cal >= 0.5 * day_cal:
+        # Leftover-window cram is an eating-window seam (#809). Civil
+        # midnight fallback must not close the kitchen at 22:50.
+        if (
+            has_wake_window
+            and span < MIN_MEAL_GAP
+            and day_cal > 0
+            and rem_cal >= 0.5 * day_cal
+        ):
             return True
     elif overnight:
         return True
@@ -2582,27 +2668,35 @@ def _nutrition_day_payload(
     kitchen_closed: bool,
     consumed_clock: str,
     sleep_battery: Optional[dict] = None,
+    nutrition_day: Optional[dict] = None,
 ) -> dict:
+    nd = dict(nutrition_day) if isinstance(nutrition_day, dict) else {}
     if kitchen_closed:
         clock = "kitchen_closed"
+    elif nd.get("day_id"):
+        clock = "waking_day"
     elif sleep_battery and (sleep_battery.get("last_wake_at") or sleep_battery.get("empty_at")):
-        clock = "eating_window"
+        clock = "waking_day"
     else:
         clock = "civil_day"
-    return {
+    out = {
         "clock": clock,
         "consumed_clock": consumed_clock,
-        "window_start": start.isoformat(timespec="seconds") if start else None,
-        "window_end": end.isoformat(timespec="seconds") if end else None,
+        "window_start": nd.get("start") or (start.isoformat(timespec="seconds") if start else None),
+        "window_end": nd.get("end") or (end.isoformat(timespec="seconds") if end else None),
         "kitchen_closed": kitchen_closed,
+        "day_id": nd.get("day_id"),
+        "source": nd.get("source"),
+        "backstop": nd.get("backstop"),
         "note": (
-            "Meal plan remaining + slots use the sleep-battery eating window. "
-            "After empty_at overnight (hours 0–3) the kitchen is closed. "
-            "Calorie-bar pacing may fall back to civil day after empty; "
-            "in/out delta is civil-day CICO. Plan storage is user+civil day "
-            "and does not persist a kitchen-closed empty as last-good."
+            "Remaining macros, Today so far, in/out, trends, and plan "
+            "storage share the wake-to-sleep nutrition day. Slot times "
+            "use the eating window as a pacing overlay. After empty_at "
+            "overnight (hours 0–3) the kitchen is closed (#809). "
+            "Awake with no sleep recorded rolls at wake+20h."
         ),
     }
+    return out
 
 
 def _trim_items_to_meal_cap(items: Sequence[dict], cap_kcal: float) -> List[dict]:

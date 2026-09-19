@@ -1,7 +1,8 @@
-"""Calorie pacing (eating window) and same-day in/out delta math for FitDash bars.
+"""Calorie pacing (eating window overlay) and waking-day in/out delta.
 
-Eating window aligns with sleep-battery wake → empty (awake budget), so feeding
-is paced over waking hours rather than midnight–midnight.
+Nutrition *totals* (consumed, remaining, in/out) use the canonical
+wake-to-sleep day (``nutrition_day``, issue #828). The eating window
+only sets the pace fraction — food outside the window still counts.
 """
 
 from __future__ import annotations
@@ -684,6 +685,8 @@ def pace_clock_copy(window_source: Optional[str] = None) -> str:
         return "pace clock = calendar day (after bedtime)"
     if src in ("civil_day_fallback", "civil_day_before_wake"):
         return "pace clock = calendar day (no wake yet)"
+    if src == "sleep_battery_after_empty":
+        return "pace clock = wake window (ended)"
     if src:
         return "pace clock = wake window"
     return ""
@@ -851,17 +854,17 @@ def build_calorie_bars_payload(
     phase: Optional[str] = None,
     tdee_kcal: Optional[float] = None,
     deficit_kcal: Optional[float] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
+    calories_burned: Optional[Sequence[Any]] = None,
+    nutrition_day: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Compose both bar payloads for the dashboard JSON.
 
-    Pacing intake prefers food logs timed inside the sleep-battery eating
-    window (can span midnight). Falls back to civil-day ``today_consumed``
-    when no window logs are found. In/out delta still uses civil-day intake
-    vs same-day burned. Wake and eating share ``eating_window_fraction``.
-
-    Meal-plan remaining macros do **not** follow this civil-day-after-empty
-    fallback — after ``empty_at`` overnight the kitchen is closed
-    (``nutrition_planner``, issue #809).
+    Intake, remaining, and in/out use the wake-to-sleep nutrition day
+    (issue #828). ``eating_window_fraction`` is the pace overlay only —
+    food outside the window still counts. After ``empty_at`` the fraction
+    is 1.0 while still on this waking day (kitchen-closed overnight is a
+    planner guard, not a second consumed clock).
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -872,18 +875,49 @@ def build_calorie_bars_payload(
 
         now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
 
-    civil = today_consumed or {}
-    civil_macros = civil_day_macros(civil)
-    civil_consumed = civil_macros["calories"]
+    from .nutrition_day import compose_nutrition_today, parse_dt
+
+    bat = sleep_battery or {}
+    composed = compose_nutrition_today(
+        now=now,
+        tz_name=tz_name,
+        sleep_intervals=sleep_intervals,
+        sleep_battery=bat,
+        food_logs=food_logs,
+        calories_burned=calories_burned,
+    )
+    nd = nutrition_day if isinstance(nutrition_day, dict) else composed["nutrition_day"]
+    waking = composed["today_consumed"]
+    caller = today_consumed or {}
+    if int(waking.get("food_log_count") or 0) > 0:
+        used = waking
+        pacing_source = "waking_day_logs"
+    elif any(float(caller.get(k) or 0) for k in ("calories", "protein_g", "carbs_g", "fat_g")):
+        used = {
+            "calories": float(caller.get("calories") or 0),
+            "protein_g": float(caller.get("protein_g") or 0),
+            "carbs_g": float(caller.get("carbs_g") or 0),
+            "fat_g": float(caller.get("fat_g") or 0),
+        }
+        pacing_source = str(caller.get("source") or "caller")
+    else:
+        used = waking
+        pacing_source = str(waking.get("source") or "none")
+
+    civil_macros = civil_day_macros(caller)
     targets = targets or {}
     target = float(targets.get("calories") or 0)
-    bat = sleep_battery or {}
 
+    nd_start = parse_dt(nd.get("start")) or parse_dt(bat.get("last_wake_at"))
+    bat_empty = parse_dt(bat.get("empty_at"))
+    empty_for_pace = None
+    if bat_empty is not None and nd_start is not None and bat_empty > nd_start:
+        empty_for_pace = bat_empty
     window = eating_window_fraction(
         now=now,
         tz_name=tz_name,
-        last_wake_at=bat.get("last_wake_at"),
-        empty_at=bat.get("empty_at"),
+        last_wake_at=nd_start,
+        empty_at=empty_for_pace,
         awake_budget_hours=float(bat.get("awake_budget_hours") or 15.0),
     )
     win_intake = sum_intake_in_window(
@@ -892,33 +926,21 @@ def build_calorie_bars_payload(
         window_end=window.get("window_end"),
         now=now,
     )
-    if win_intake.get("log_count"):
-        pacing_consumed = float(win_intake.get("calories") or 0)
-        pacing_source = "eating_window_logs"
-        macro_intake = {
-            "calories": float(win_intake.get("calories") or 0),
-            "protein_g": float(win_intake.get("protein_g") or 0),
-            "carbs_g": float(win_intake.get("carbs_g") or 0),
-            "fat_g": float(win_intake.get("fat_g") or 0),
-        }
-        micro_src = win_intake
-    else:
-        pacing_consumed = civil_consumed
-        pacing_source = "civil_day_fallback"
-        macro_intake = {
-            "calories": civil_consumed,
-            "protein_g": float(civil.get("protein_g") or 0),
-            "carbs_g": float(civil.get("carbs_g") or 0),
-            "fat_g": float(civil.get("fat_g") or 0),
-        }
-        micro_src = civil
+    pacing_consumed = float(used.get("calories") or 0)
+    macro_intake = {
+        "calories": float(used.get("calories") or 0),
+        "protein_g": float(used.get("protein_g") or 0),
+        "carbs_g": float(used.get("carbs_g") or 0),
+        "fat_g": float(used.get("fat_g") or 0),
+    }
+    micro_src = used if used.get("micros") else (win_intake if win_intake.get("log_count") else caller)
 
     def _micro_consumed(key: str) -> Optional[float]:
         v = present_micro(micro_src, key)
         if v is not None:
             return v
-        if micro_src is not civil:
-            return present_micro(civil, key)
+        if micro_src is not caller:
+            return present_micro(caller, key)
         return None
 
     frac = float(window["fraction"])
@@ -932,6 +954,8 @@ def build_calorie_bars_payload(
     pacing["window_intake"] = win_intake
     pacing["civil_day_consumed"] = civil_macros["calories"]
     pacing["civil_day"] = civil_macros
+    pacing["waking_day_consumed"] = round(pacing_consumed, 1)
+    pacing["nutrition_day"] = nd
     pacing["pace_clock"] = pace_clock_copy(window.get("source"))
 
     # Severity band for the main calorie pacing fill (same ladder as macros)
@@ -1001,15 +1025,23 @@ def build_calorie_bars_payload(
 
     phase_raw = phase if phase is not None else targets.get("phase")
     applied = targets.get("calories")
+    burned_val = composed.get("calories_burned_today")
+    if burned_val is None:
+        burned_val = calories_burned_today
     delta = calorie_in_out_delta(
-        intake=civil_consumed,
-        burned=calories_burned_today,
+        intake=pacing_consumed,
+        burned=burned_val,
         phase=phase_raw,
         tdee_kcal=tdee_kcal,
         applied_calories=applied,
         deficit_kcal=deficit_kcal,
     )
-    return {"pacing": pacing, "delta": delta, "macro_pace": macro_pace}
+    return {
+        "pacing": pacing,
+        "delta": delta,
+        "macro_pace": macro_pace,
+        "nutrition_day": nd,
+    }
 
 
 def apply_phase_aware_delta_color(payload: Optional[dict]) -> dict:
