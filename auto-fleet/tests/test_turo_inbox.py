@@ -296,6 +296,24 @@ class TuroInboxTests(unittest.TestCase):
         self.assertTrue(turo_inbox.is_current_host_subject(rec["subject"]))
         self.assertEqual(payload["unmatched"], [])
 
+    def test_mikes_vehicle_live_turo_shape_maps_m3_with_times(self) -> None:
+        """#826: co-host prefix + comma-after-year + U+202F before AM/PM."""
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_mikes_vehicle_live_shape.json",
+            units=ROSTER_UNITS,
+        )
+        self.assertEqual(len(payload["bookings"]), 1)
+        rec = payload["bookings"][0]
+        self.assertEqual(rec["status"], "booked")
+        self.assertEqual(rec["unit_id"], "m3-2022")
+        self.assertEqual(rec["trip_id"], "61498520")
+        self.assertEqual(rec["guest"], "Giovanni")
+        self.assertTrue(turo_inbox.is_current_host_subject(rec["subject"]))
+        self.assertTrue(rec["start"].startswith("2026-09-19T10:00:00"))
+        self.assertTrue(rec["end"].startswith("2026-09-21T10:00:00"))
+        self.assertEqual(payload["unmatched"], [])
+        self.assertNotIn("m3-2020", {b.get("unit_id") for b in payload["bookings"]})
+
     def test_gmail_writer_records_forward_window(self) -> None:
         import turo_gmail
 
@@ -436,6 +454,60 @@ class TuroInboxTests(unittest.TestCase):
             self.assertIn("401", data["error"])
             payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
             self.assertEqual(payload["bookings"], [])
+            self.assertEqual(payload["inbox_state"], "error")
+            self.assertIn("gmail_error", payload["inbox_status"])
+
+    def test_fetch_http_error_keeps_last_good_messages(self) -> None:
+        import turo_gmail
+
+        def boom(url: str, data, headers):
+            raise RuntimeError("HTTP 400 invalid_grant")
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            turo_gmail.write_dump(
+                [
+                    {
+                        "id": "kept-1",
+                        "from": "Turo <noreply@mail.turo.com>",
+                        "subject": (
+                            "(Mike's vehicle) - Alex's trip with your "
+                            "2022 Tesla Model 3 is booked!"
+                        ),
+                        "date": "Sat, 19 Sep 2026 01:25:25 +0000",
+                        "body": (
+                            "2022 Tesla Model 3\nbooked by Alex Rivera\n"
+                            "Trip start: 9/19/26 10:00 am\n"
+                            "Trip end: 9/21/26 10:00 am\n"
+                            "Reservation ID #61498520\n"
+                        ),
+                    }
+                ],
+                dest,
+                source="gmail_api",
+            )
+            path = turo_gmail.fetch_and_write(
+                dest,
+                env={
+                    "GMAIL_REFRESH_TOKEN": "r",
+                    "GMAIL_CLIENT_ID": "cid",
+                    "GMAIL_CLIENT_SECRET": "sec",
+                },
+                token_path=Path(td) / "missing.json",
+                env_file=Path(td) / "missing.env",
+                http=boom,
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["source"], "gmail_error")
+            self.assertEqual(len(data["messages"]), 1)
+            self.assertEqual(data["messages"][0]["id"], "kept-1")
+            self.assertIn("invalid_grant", data["error"])
+            self.assertIn("Kept last-good messages (1)", data["note"])
+            payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
+            self.assertEqual(len(payload["bookings"]), 1)
+            self.assertEqual(payload["bookings"][0]["trip_id"], "61498520")
+            self.assertEqual(payload["bookings"][0]["unit_id"], "m3-2022")
+            self.assertIn("gmail_error", payload["inbox_status"])
 
     def test_body_year_maps_2024_and_2022_corollas(self) -> None:
         payload = turo_inbox.turo_payload(

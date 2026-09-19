@@ -86,9 +86,9 @@ _US_RANGE = re.compile(
     re.I,
 )
 _LONG_RANGE = re.compile(
-    rf"from\s+[A-Za-z]+,\s+([A-Za-z]+ \d{{1,2}}, \d{{4}}(?:\s+{_CLOCK})?)\s+"
+    rf"from\s+[A-Za-z]+,\s+([A-Za-z]+ \d{{1,2}}, \d{{4}}(?:,?\s+{_CLOCK})?)\s+"
     rf"to\s+[A-Za-z]+,\s+"
-    rf"([A-Za-z]+ \d{{1,2}}, \d{{4}}(?:\s+{_CLOCK})?)",
+    rf"([A-Za-z]+ \d{{1,2}}, \d{{4}}(?:,?\s+{_CLOCK})?)",
     re.I,
 )
 _TRIP_START = re.compile(
@@ -153,7 +153,9 @@ def flatten_mail_text(value: str) -> str:
     text = value or ""
     if "<" in text and ">" in text:
         text = html_lib.unescape(_HTML_TAG.sub(" ", text))
-    return re.sub(r"[ \t]+", " ", text.replace("\xa0", " ")).strip()
+    # Turo mail uses U+202F (narrow no-break space) before AM/PM.
+    text = re.sub(r"[\u00a0\u202f\u2007\u2009\u200a]", " ", text)
+    return re.sub(r"[ \t]+", " ", text).strip()
 
 
 def _message_blob(raw: Mapping[str, Any]) -> str:
@@ -361,6 +363,8 @@ def _long_to_iso(raw: str) -> str:
         (
             "%B %d, %Y %I:%M %p",
             "%B %d, %Y %I:%M%p",
+            "%B %d, %Y, %I:%M %p",
+            "%B %d, %Y, %I:%M%p",
             "%B %d, %Y",
         ),
     )
@@ -715,6 +719,7 @@ def load_json_messages(
             "forward_since": data.get("forward_since"),
             "poll_interval_s": data.get("poll_interval_s"),
             "media_dir": data.get("media_dir"),
+            "error": data.get("error"),
         }
         msgs = data.get("messages")
         if msgs is None:
@@ -823,16 +828,28 @@ def load_inbox(
     inbox_name = ""
     query = ""
     source = ""
+    dump_error = ""
     if isinstance(meta, dict):
         inbox_name = str(meta.get("inbox") or "")
         query = str(meta.get("query") or "")
         source = str(meta.get("source") or "")
+        dump_error = str(meta.get("error") or "")
     watching = inbox_name or (
         GMAIL_INBOX_ADDR if source.startswith("gmail") else ""
     )
     since_bit = (
         f" every 15m since {cutoff.date().isoformat()}" if cutoff is not None else ""
     )
+    source_bit = ""
+    if source in ("gmail_error", "gmail_unconfigured"):
+        # Do not copy dump `note` here — it names GMAIL_* env keys and
+        # would trip agent snapshot secret_leaks.
+        err_head = dump_error.splitlines()[0].strip()[:120] if dump_error else ""
+        if "invalid_grant" in err_head.lower():
+            err_head = "invalid_grant"
+        elif err_head:
+            err_head = err_head[:80]
+        source_bit = f" [{source}" + (f": {err_head}" if err_head else "") + "]"
     if not kept:
         if watching:
             detail = (
@@ -848,12 +865,15 @@ def load_inbox(
             ) + " — empty bookings, not invented trips"
         if dropped:
             detail += f" ({dropped} historical dropped)"
+        detail += source_bit
+        empty_status = "error" if source in ("gmail_error", "gmail_unconfigured") else "empty"
         empty = _result(
             bookings=[],
-            status="empty",
+            status=empty_status,
             detail=detail,
             message_count=0,
             kind=kind,
+            error=dump_error or None if empty_status == "error" else None,
         )
         empty["raw_messages"] = kept
         return empty
@@ -865,6 +885,7 @@ def load_inbox(
             detail=(
                 f"{prefix}{kind} parsed ({len(kept)} message(s)); "
                 "none were trip booked/modified/canceled/payout"
+                f"{source_bit}"
             ),
             message_count=len(kept),
             kind=kind,
@@ -874,7 +895,7 @@ def load_inbox(
     parsed = _result(
         bookings=bookings,
         status="parsed",
-        detail=f"{kind} parsed; {len(bookings)} trip event(s){since_bit}",
+        detail=f"{kind} parsed; {len(bookings)} trip event(s){since_bit}{source_bit}",
         message_count=len(kept),
         kind=kind,
     )
