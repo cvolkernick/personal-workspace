@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <title>Life Compass</title>
+  <style>
+    :root {
+      --bg: #080c12;
+      --panel: #111820;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --orange: #f0a060;
+      --cyan: #4fd1c5;
+      --purple: #c084fc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 90% -10%, #142033 0%, transparent 50%),
+        radial-gradient(800px 400px at 0% 0%, #101828 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 0.95rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
+      align-items: center; justify-content: space-between;
+      background: rgba(8,12,18,0.92);
+      position: sticky; top: 0; z-index: 8;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.85rem; }
+    .lock { color: var(--cyan); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+    main { max-width: 1100px; margin: 0 auto; padding: 1.15rem 1.5rem 3rem; display: grid; gap: 1rem; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .asof { color: var(--muted); font-size: 0.75rem; }
+    .stale { color: var(--yellow); }
+    .one-thing { font-size: 1.35rem; font-weight: 650; }
+    .one-thing.quiet { color: var(--green); }
+    .detail { color: var(--muted); margin-top: 0.35rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .chip {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.28rem 0.7rem;
+      font-size: 0.78rem;
+      background: #0b1118;
+    }
+    .chip.attended { border-color: #1f4d38; color: var(--green); }
+    .chip.under-attended { border-color: #5a4a12; color: var(--yellow); }
+    .chip.unattended { border-color: #5a1f1f; color: var(--red); }
+    .chip.wiring-planned { border-color: #3a2a55; color: var(--purple); }
+    .chip.unavailable { border-color: #3a4555; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.75rem; padding: 0.35rem 0.4rem; }
+    td { padding: 0.4rem; border-top: 1px solid var(--border); vertical-align: top; }
+    button {
+      background: #152033; color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.28rem 0.65rem; cursor: pointer; font-size: 0.78rem;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    .row { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: baseline; }
+    .err { color: var(--red); }
+    .muted { color: var(--muted); }
+    .ops-item { padding: 0.35rem 0; border-top: 1px solid var(--border); }
+    .ops-item:first-child { border-top: 0; }
+    details.dismissed { margin-top: 0.6rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Life Compass</h1>
+      <div class="sub">Where attention goes right now · linked to goal <code>life-compass</code></div>
+    </div>
+    <div>
+      <div class="lock">Private · no share</div>
+      <div class="asof" id="header-asof"></div>
+    </div>
+    <button type="button" id="btn-sweep">Refresh sweep</button>
+  </header>
+  <main>
+    <section class="card" id="sec-one">
+      <h2>Your one thing</h2>
+      <div class="one-thing" id="one-thing">Loading…</div>
+      <div class="detail" id="one-detail"></div>
+      <div class="asof" id="one-asof"></div>
+    </section>
+    <section class="card" id="sec-goals">
+      <h2>Goals</h2>
+      <div class="row">
+        <div>
+          <strong>Fitness</strong>
+          <div class="chips" id="chips-fitness"></div>
+          <div class="asof" id="asof-fitness"></div>
+        </div>
+        <div>
+          <strong>Financial</strong>
+          <div class="chips" id="chips-financial"></div>
+          <div class="asof" id="asof-financial"></div>
+        </div>
+      </div>
+    </section>
+    <section class="card" id="sec-ops">
+      <h2>Operations · today</h2>
+      <div id="ops-body"></div>
+      <div class="asof" id="asof-ops"></div>
+    </section>
+    <section class="card" id="sec-radar">
+      <h2>Radar</h2>
+      <div id="radar-body"></div>
+      <div class="asof" id="asof-radar"></div>
+    </section>
+    <section class="card" id="sec-watch">
+      <h2>Watchlist</h2>
+      <div id="watch-body"></div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function chipClass(state) {
+      return "chip " + (state || "attended");
+    }
+
+    function asof(v, stale) {
+      if (!v) return "as-of unknown";
+      return (stale ? "STALE · " : "") + "as of " + v;
+    }
+
+    function renderChips(el, chips) {
+      el.innerHTML = "";
+      (chips || []).forEach((c) => {
+        const s = document.createElement("span");
+        s.className = chipClass(c.state);
+        s.title = (c.detail || "") + (c.wiring_dependency ? " · " + c.wiring_dependency : "");
+        s.textContent = (c.label || c.id) + " · " + (c.state || "");
+        el.appendChild(s);
+      });
+      if (!(chips || []).length) el.textContent = "—";
+    }
+
+    function render(data) {
+      $("header-asof").textContent = asof(data.as_of);
+      const ot = data.one_thing || {};
+      const one = $("one-thing");
+      one.textContent = ot.text || "All quiet";
+      one.className = "one-thing" + (ot.kind === "all-quiet" ? " quiet" : "");
+      $("one-detail").textContent = ot.detail || (ot.kind === "all-quiet" ? "Nothing needs a tap on the shoulder." : "");
+      $("one-asof").textContent = asof(ot.as_of);
+
+      const g = data.goals || {};
+      renderChips($("chips-fitness"), (g.fitness || {}).chips);
+      $("asof-fitness").textContent = asof((g.fitness || {}).as_of);
+      renderChips($("chips-financial"), (g.financial || {}).chips);
+      $("asof-financial").textContent = asof((g.financial || {}).as_of);
+
+      const ops = data.operations || {};
+      const opsEl = $("ops-body");
+      opsEl.innerHTML = "";
+      const trips = ops.turo_trips || [];
+      const bills = ops.bills_due || [];
+      const train = ops.training || [];
+      if (!trips.length && !bills.length && !train.length) {
+        opsEl.innerHTML = "<div class='muted'>No Turo trips, bills, or training on the snapshot.</div>";
+      }
+      trips.forEach((t) => {
+        const d = document.createElement("div");
+        d.className = "ops-item";
+        const prepped = t.prepped ? "prepped" : "not prepped";
+        d.innerHTML = `<strong>Turo ${t.kind || "trip"}</strong> — ${t.title || t.id} · ${prepped}`;
+        if (!t.prepped && t.id) {
+          const b = document.createElement("button");
+          b.textContent = "Mark prepped";
+          b.onclick = () => post("/api/ops/prep", { event_id: t.id });
+          d.appendChild(b);
+        }
+        opsEl.appendChild(d);
+      });
+      bills.forEach((b) => {
+        const d = document.createElement("div");
+        d.className = "ops-item";
+        d.textContent = `Bill: ${b.payee || b.name} · ${b.date || ""}`;
+        opsEl.appendChild(d);
+      });
+      train.forEach((t) => {
+        const d = document.createElement("div");
+        d.className = "ops-item";
+        d.textContent = `Training: ${t.title || t.id}`;
+        opsEl.appendChild(d);
+      });
+      $("asof-ops").textContent = asof(ops.as_of);
+
+      const radar = data.radar || {};
+      const rb = $("radar-body");
+      rb.innerHTML = "";
+      const cands = radar.candidates || [];
+      if (!cands.length) {
+        rb.innerHTML = "<div class='muted'>No radar candidates today.</div>";
+      }
+      cands.forEach((c) => {
+        const d = document.createElement("div");
+        d.className = "ops-item";
+        d.innerHTML = `<strong>${c.title || c.id}</strong><div class="detail">${c.why || ""} · ${c.source || ""}</div>`;
+        const row = document.createElement("div");
+        const pd = document.createElement("button");
+        pd.textContent = "Promote";
+        pd.onclick = () => post("/api/radar/promote", { id: c.id });
+        const dd = document.createElement("button");
+        dd.textContent = "Dismiss";
+        dd.onclick = () => post("/api/radar/dismiss", { id: c.id });
+        row.appendChild(pd);
+        row.appendChild(dd);
+        d.appendChild(row);
+        rb.appendChild(d);
+      });
+      const promoted = radar.promoted || [];
+      if (promoted.length) {
+        const p = document.createElement("div");
+        p.className = "muted";
+        p.textContent = "Promoted: " + promoted.map((x) => x.title).join(", ");
+        rb.appendChild(p);
+      }
+      const dismissed = radar.dismissed || [];
+      if (dismissed.length) {
+        const det = document.createElement("details");
+        det.className = "dismissed";
+        det.innerHTML = `<summary>Dismissed (${dismissed.length})</summary>` +
+          dismissed.map((x) => `<div>${x.title || x.id}</div>`).join("");
+        rb.appendChild(det);
+      }
+      $("asof-radar").textContent = asof(radar.as_of);
+
+      const wl = data.watchlist || [];
+      const tb = document.createElement("table");
+      tb.innerHTML = "<thead><tr><th>Item</th><th>State</th><th>Last checked</th><th>As of</th><th>Source</th></tr></thead>";
+      const body = document.createElement("tbody");
+      wl.forEach((i) => {
+        const tr = document.createElement("tr");
+        const stale = i.stale ? " stale" : "";
+        tr.innerHTML =
+          `<td>${i.label || i.id}${i.wiring_dependency ? "<div class='detail'>" + i.wiring_dependency + "</div>" : ""}</td>` +
+          `<td><span class="${chipClass(i.state)}">${i.state}</span></td>` +
+          `<td class="asof${stale}">${i.last_checked || "—"}</td>` +
+          `<td class="asof${stale}">${i.as_of || "—"}</td>` +
+          `<td class="muted">${i.source || ""}</td>`;
+        body.appendChild(tr);
+      });
+      tb.appendChild(body);
+      $("watch-body").innerHTML = "";
+      $("watch-body").appendChild(tb);
+    }
+
+    async function load() {
+      const r = await fetch("/api/state", { cache: "no-store" });
+      const data = await r.json();
+      render(data);
+    }
+
+    async function post(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify(body || {}),
+      });
+      const data = await r.json();
+      render(data);
+    }
+
+    $("btn-sweep").onclick = () => post("/api/sweep", {});
+    load().catch((e) => { $("one-thing").textContent = "Failed to load"; $("one-detail").textContent = String(e); });
+  </script>
+</body>
+</html>

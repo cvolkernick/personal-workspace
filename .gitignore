@@ -28,6 +28,11 @@ temp/
 *.tmp
 test-results/
 
+# Life Compass attention/radar state (financial + health; never commit)
+life-compass/data/state.json
+life-compass/data/snapshot.json
+life-compass/data/.state.*.tmp
+
 # Orchestra heartbeat runtime (collector artifact; keep .gitkeep)
 orchestra/data/heartbeat/latest.json
 orchestra/data/heartbeat/.*.tmp.*

@@ -115,10 +115,18 @@ class TestClassifyPaths(unittest.TestCase):
         self.assertEqual(r["only"], "oomwoo")
         self.assertFalse(r["thrash_all"])
 
+    def test_life_compass_prefix(self):
+        r = M.classify_paths(["life-compass/server.py", "life-compass/domain.py"])
+        self.assertEqual(r["action"], "restart")
+        self.assertEqual(r["units"], ["life-compass-dashboard.service"])
+        self.assertEqual(r["only"], "life-compass")
+        self.assertFalse(r["thrash_all"])
+
     def test_shared_glue_includes_auto_fleet(self):
         r = M.classify_paths(["remote_backend.py"])
         self.assertIn("auto-fleet.service", r["units"])
         self.assertIn("oomwoo-dashboard.service", r["units"])
+        self.assertIn("life-compass-dashboard.service", r["units"])
         self.assertFalse(any("treasury" in u for u in r["units"]))
 
     def test_never_thrash_all_flag(self):

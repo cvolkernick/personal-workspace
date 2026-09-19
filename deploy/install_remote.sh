@@ -11,6 +11,7 @@
 #   holistic:8770   iot:8780                 resistance:8787
 #   auto-fleet:8796 (+ 15m Turo writer timer)
 #   oomwoo:8798
+#   life-compass:8793 (private attention dashboard; --only life-compass)
 #   plaid-bank-mcp:18801 (read-only X Money; --only plaid-bank)
 #
 # Each unit binds 0.0.0.0, --no-browser, --local (API on the Pi, not proxy).
@@ -73,6 +74,7 @@ ALL_UNITS=(
   auto-fleet-turo-writer.service
   auto-fleet-turo-writer.timer
   oomwoo-dashboard.service
+  life-compass-dashboard.service
   plaid-bank-mcp.service
 )
 # Always install git auto-sync timer (pull work/treasury + restart on change)

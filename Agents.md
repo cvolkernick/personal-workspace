@@ -62,6 +62,7 @@ python3 deploy/product_branch_map.py check-sync --branch master  # exit 1
 | **Time** | `holistic/` | `work/holistic` |
 | **IoT** | `iot/` | `work/iot` |
 | **OOMWOO** | `oomwoo/` | `feature/oomwoo-status` (MVP) |
+| **Life Compass** | `life-compass/` | `master` (private; not FCC `work/treasury` live) |
 | **Planning** (meta) | `strategy/`, `initiatives/` | (no project card; use workflow branch if needed) |
 
 - Do **not** pile unfinished work only on `master`. Start or continue the area branch:

@@ -1,0 +1,18 @@
+[Unit]
+Description=Life Compass private attention dashboard (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace:%h/personal-workspace/life-compass
+# Private by product rule (#761). Bind 0.0.0.0 only on the Pi mesh/LAN — never
+# public internet, no share link, no CORS. Default CLI bind remains 127.0.0.1.
+ExecStart=/usr/bin/python3 %h/personal-workspace/life-compass/server.py --host 0.0.0.0 --port 8793 --no-browser --local
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

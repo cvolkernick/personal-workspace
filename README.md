@@ -32,6 +32,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 | resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
 | auto-fleet (internal ops) | 8796 | `python3 auto-fleet/server.py` |
 | oomwoo (project status) | 8798 | `python3 oomwoo/server.py` |
+| life-compass (private) | 8793 | `python3 life-compass/server.py` |
 
 ### Pi backends 24/7 (open in browser — no local server)
 
@@ -62,6 +63,7 @@ PI_HOST=100.x.y.z bash deploy/open_dashboard.sh orchestra
 | iot | http://192.168.100.98:8780/ |
 | resistance-dashboard | http://192.168.100.98:8787/ |
 | oomwoo | http://192.168.100.98:8798/ |
+| life-compass (private, LAN/mesh only) | http://192.168.100.98:8793/ |
 
 Full guide: [`deploy/README.md`](deploy/README.md). Helpers: `dashboard_endpoints.py`, `remote_backend.py`.
 
@@ -78,6 +80,7 @@ Grouped by domain. Git work branches follow the same groups (see `Agents.md`).
 | **Time** | `holistic/` | `work/holistic` |
 | **IoT** | `iot/` | `work/iot` |
 | **OOMWOO** | `oomwoo/` | `feature/oomwoo-status` (MVP; no `work/` area yet) |
+| **Life Compass** | `life-compass/` | `master` (private attention dashboard; not FCC live) |
 | **Planning** | `strategy/`, `initiatives/` | meta (not a work area card) |
 
 ### What each folder is
@@ -93,6 +96,7 @@ Grouped by domain. Git work branches follow the same groups (see `Agents.md`).
 - **resistance-dashboard/** — Fitness/health coaching UI over fitness data.
 - **iot/** — Wiz smart bulbs, groups, schedules, Pi deploy.
 - **oomwoo/** — Project-status tracker for makerspet/oomwoo (open-source robot vacuum).
+- **life-compass/** — Event-driven attention pings + private dashboard (#761). Default bind 127.0.0.1.
 - **strategy/** / **initiatives/** — Planning content (bets, daily focus, initiative briefs).
 
 ### Tests / CI
