@@ -14,6 +14,8 @@ Default output: ~/.config/auto-fleet/turo_inbox.json (mode 600, not git).
 Image MIME parts → ~/.config/auto-fleet/turo_inbox_media/ (not git).
 Missing Gmail creds → source=gmail_unconfigured (keeps last-good messages).
 Fetch errors → source=gmail_error (keeps last-good messages; never wipe a good dump).
+Auth death (invalid_grant / refresh fail / missing token) → AUTH_DEAD + ntfy
++ non-zero exit. Never report success/empty. Remint is ops, not this writer.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
@@ -44,8 +46,25 @@ GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 MAX_RESULTS = 50
+AUTH_DEAD_NAME = "AUTH_DEAD"
+AUTH_DEAD_ALERT = "panamerica Gmail feeder blind — remint needed."
+AUTH_DEAD_TITLE = "auto-fleet AUTH_DEAD"
+NTFY_HOST = "https://ntfy.sh"
+EXIT_AUTH_DEAD = 2
+EXIT_FETCH_ERROR = 1
+REMINDER_AFTER = timedelta(hours=24)
+AUTH_DEAD_MARKERS = (
+    "invalid_grant",
+    "invalid_token",
+    "unauthorized",
+    "refresherror",
+    "token has been expired or revoked",
+    "account has been deleted",
+    "token endpoint returned no access_token",
+)
 
 HttpFn = Callable[[str, Optional[bytes], Mapping[str, str]], Any]
+NtfyFn = Callable[..., dict[str, Any]]
 
 
 def _now() -> str:
@@ -74,6 +93,8 @@ def write_dump(
     note: str | None = None,
     error: str | None = None,
     media_dir: Path | None = None,
+    auth_dead: bool = False,
+    auth_dead_reason: str | None = None,
 ) -> Path:
     dest = Path(path) if path is not None else DEFAULT_OUT
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -86,6 +107,7 @@ def write_dump(
         "forward_since": turo_inbox.FORWARD_SINCE_ISO,
         "poll_interval_s": turo_inbox.POLL_INTERVAL_S,
         "messages": [dict(m) for m in messages],
+        "auth_dead": bool(auth_dead),
     }
     if media is not None:
         payload["media_dir"] = str(media)
@@ -93,6 +115,8 @@ def write_dump(
         payload["note"] = note
     if error:
         payload["error"] = error
+    if auth_dead_reason:
+        payload["auth_dead_reason"] = auth_dead_reason
     dest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     try:
         os.chmod(dest, 0o600)
@@ -116,6 +140,211 @@ def _prior_dump_messages(path: Path) -> list[dict[str, Any]]:
         if isinstance(msgs, list):
             return [m for m in msgs if isinstance(m, dict)]
     return []
+
+
+def auth_dead_path_for(dump: Path) -> Path:
+    return Path(dump).resolve().parent / AUTH_DEAD_NAME
+
+
+def sanitize_auth_error(exc: BaseException | str | None) -> str:
+    """First-line public error. Never copy tokens, env keys, or home paths."""
+    text = str(exc or "")
+    lowered = text.lower()
+    if "invalid_grant" in lowered:
+        return "invalid_grant"
+    if "invalid_token" in lowered:
+        return "invalid_token"
+    if "unauthorized" in lowered or "http 401" in lowered:
+        return "unauthorized"
+    line = text.splitlines()[0].strip() if text else "gmail_auth_failed"
+    for needle in (
+        "refresh_token",
+        "client_secret",
+        "client_id",
+        "bearer ",
+        "gmail_refresh_token",
+        "gmail_client_secret",
+    ):
+        if needle in line.lower():
+            return "gmail_auth_failed"
+    return line[:80]
+
+
+def is_auth_dead_error(exc: BaseException | str | None) -> bool:
+    text = str(exc or "").lower()
+    if not text:
+        return False
+    if any(marker in text for marker in AUTH_DEAD_MARKERS):
+        return True
+    if "http 401" in text:
+        return True
+    if "http 400" in text and (
+        "oauth2.googleapis.com/token" in text or "token endpoint" in text
+    ):
+        return True
+    return False
+
+
+def auth_dead_reason(source: str | None, error: str | None) -> str | None:
+    src = (source or "").strip()
+    if src == "gmail_unconfigured":
+        return "missing_token"
+    if src == "gmail_error" and is_auth_dead_error(error):
+        cleaned = sanitize_auth_error(error)
+        if cleaned == "invalid_grant":
+            return "invalid_grant"
+        return "refresh_fail"
+    return None
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def clear_auth_dead(dump: Path) -> None:
+    flag = auth_dead_path_for(dump)
+    try:
+        flag.unlink()
+    except OSError:
+        pass
+
+
+def ntfy_topic(env: Mapping[str, str] | None = None) -> str:
+    merged = env if env is not None else os.environ
+    for key in ("AUTO_FLEET_NTFY_TOPIC", "NTFY_TOPIC", "FCC_NTFY_TOPIC"):
+        topic = str(merged.get(key) or "").strip()
+        if topic:
+            return topic
+    return ""
+
+
+def alerts_enabled(env: Mapping[str, str] | None = None) -> bool:
+    merged = env if env is not None else os.environ
+    raw = str(merged.get("AUTO_FLEET_GMAIL_ALERT") or "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def _http_post_bytes(
+    url: str,
+    data: bytes | None,
+    headers: Mapping[str, str] | None,
+) -> Any:
+    req = urllib.request.Request(url, data=data, headers=dict(headers or {}))
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        resp.read()
+        return {"ok": True, "status": getattr(resp, "status", None) or resp.getcode()}
+
+
+def post_ntfy_auth_dead(
+    *,
+    topic: str,
+    dry_run: bool = False,
+    http: HttpFn | None = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Page ntfy. Topic is a shared secret — never write it into dumps/logs."""
+    if not topic:
+        return {"ok": True, "notified": False, "skipped": "no-topic"}
+    if dry_run or not alerts_enabled(env):
+        return {"ok": True, "notified": False, "skipped": "dry-run"}
+    headers = {
+        "Title": AUTH_DEAD_TITLE,
+        "Priority": "5",
+        "Tags": "warning,rotating_light",
+    }
+    merged = env if env is not None else os.environ
+    token = (
+        str(merged.get("NTFY_TOKEN") or "").strip()
+        or str(merged.get("FCC_NTFY_TOKEN") or "").strip()
+        or str(merged.get("AUTO_FLEET_NTFY_TOKEN") or "").strip()
+    )
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    url = f"{NTFY_HOST}/{topic}"
+    fn = http or _http_post_bytes
+    try:
+        fn(url, AUTH_DEAD_ALERT.encode("utf-8"), headers)
+        return {"ok": True, "notified": True, "title": AUTH_DEAD_TITLE}
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "notified": False,
+            "error": sanitize_auth_error(exc),
+        }
+
+
+def record_auth_dead(
+    dump: Path,
+    reason: str,
+    *,
+    env: Mapping[str, str] | None = None,
+    ntfy: NtfyFn | None = None,
+    http: HttpFn | None = None,
+    now: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Write AUTH_DEAD (mode 600) and ntfy on transition / 24h reminder."""
+    flag = auth_dead_path_for(dump)
+    stamp = now or _now()
+    prev = _load_json(flag)
+    last_alert = str(prev.get("last_alert_at") or "")
+    should_alert = True
+    if last_alert:
+        try:
+            prev_dt = datetime.fromisoformat(last_alert.replace("Z", "+00:00"))
+            now_dt = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+            if now_dt - prev_dt < REMINDER_AFTER:
+                should_alert = False
+        except ValueError:
+            should_alert = True
+    topic = ntfy_topic(env)
+    ntfy_out: dict[str, Any]
+    if not should_alert:
+        ntfy_out = {"ok": True, "notified": False, "skipped": "cooldown"}
+    elif ntfy is not None:
+        ntfy_out = ntfy(
+            topic=topic,
+            title=AUTH_DEAD_TITLE,
+            text=AUTH_DEAD_ALERT,
+            dry_run=dry_run,
+        )
+    else:
+        ntfy_out = post_ntfy_auth_dead(
+            topic=topic, dry_run=dry_run, http=http, env=env
+        )
+    documented = ntfy_out.get("skipped") in {"dry-run", "no-topic", "cooldown"}
+    posted = bool(ntfy_out.get("notified"))
+    # Advance cooldown only when a page went out or the documented skip
+    # (no-topic / dry-run) already counted as the cycle's alert. Failed
+    # POSTs retry next 15m.
+    if posted or (should_alert and documented):
+        last_alert_stamp = stamp
+    else:
+        last_alert_stamp = last_alert
+    payload = {
+        "state": "AUTH_DEAD",
+        "at": stamp,
+        "reason": reason,
+        "alert": AUTH_DEAD_ALERT,
+        "last_alert_at": last_alert_stamp,
+        "last_alert_kind": (
+            "ntfy" if posted else ntfy_out.get("skipped") or "stderr"
+        ),
+    }
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    try:
+        os.chmod(flag, 0o600)
+    except OSError:
+        pass
+    sys.stderr.write(f"AUTH_DEAD {reason} — {AUTH_DEAD_ALERT}\n")
+    return {"flag": str(flag), "reason": reason, "ntfy": ntfy_out, "alerted": should_alert}
 
 
 def _file_env(path: Path | None) -> dict[str, str]:
@@ -489,6 +718,9 @@ def fetch_and_write(
     token_path: Path | None = None,
     env_file: Path | None = None,
     http: HttpFn | None = None,
+    ntfy: NtfyFn | None = None,
+    alert: bool = True,
+    dry_run_alert: bool = False,
 ) -> Path:
     dest = Path(path) if path is not None else DEFAULT_OUT
     creds = resolve_gmail_creds(env=env, token_path=token_path, env_file=env_file)
@@ -499,27 +731,58 @@ def fetch_and_write(
         if prior
         else ""
     )
-    if creds is None:
-        return write_dump(
-            prior,
-            dest,
-            inbox=inbox,
-            query=query,
-            source="gmail_unconfigured",
-            note=(
+    alert_env = dict(_file_env(env_file if env_file is not None else Path.home() / ".config" / "auto-fleet" / "env"))
+    if env:
+        alert_env.update({k: v for k, v in env.items() if v})
+
+    def _dead(source: str, reason: str, error: str | None = None) -> Path:
+        if source == "gmail_error":
+            note = (
+                "Pi writer: Gmail AUTH_DEAD. "
+                f"{kept_bit}"
+                "Last-good dump held, not invented trips."
+            )
+        else:
+            note = (
                 "Pi writer: no Gmail refresh token. Put gmail.readonly OAuth at "
                 f"{token_hint} or GMAIL_REFRESH_TOKEN + GMAIL_CLIENT_ID + "
                 "GMAIL_CLIENT_SECRET in ~/.config/auto-fleet/env. "
                 f"{kept_bit}"
                 "Empty bookings, not invented trips."
-            ),
+            )
+        path_out = write_dump(
+            prior,
+            dest,
+            inbox=inbox,
+            query=query,
+            source=source,
+            note=note,
+            error=error,
+            media_dir=turo_media.media_dir_for(dest) if source == "gmail_error" else None,
+            auth_dead=True,
+            auth_dead_reason=reason,
         )
+        if alert:
+            record_auth_dead(
+                dest,
+                reason,
+                env=alert_env,
+                ntfy=ntfy,
+                dry_run=dry_run_alert,
+            )
+        return path_out
+
+    if creds is None:
+        return _dead("gmail_unconfigured", "missing_token")
     media = turo_media.media_dir_for(dest)
     try:
         messages = fetch_gmail_messages(
             query, creds, http=http, media_dir=media
         )
     except Exception as exc:  # noqa: BLE001
+        public = sanitize_auth_error(exc)
+        if is_auth_dead_error(exc):
+            return _dead("gmail_error", auth_dead_reason("gmail_error", str(exc)) or "refresh_fail", public)
         return write_dump(
             prior,
             dest,
@@ -531,9 +794,11 @@ def fetch_and_write(
                 f"{kept_bit}"
                 "Empty bookings, not invented trips."
             ),
-            error=str(exc),
+            error=public,
             media_dir=media,
+            auth_dead=False,
         )
+    clear_auth_dead(dest)
     return write_dump(
         messages,
         dest,
@@ -541,7 +806,79 @@ def fetch_and_write(
         query=query,
         source="gmail_api",
         media_dir=media,
+        auth_dead=False,
     )
+
+
+def _writer_env() -> dict[str, str]:
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k.startswith(
+            (
+                "GMAIL_",
+                "GOOGLE_CLIENT_",
+                "AUTO_FLEET_GMAIL_",
+                "AUTO_FLEET_NTFY_",
+                "NTFY_",
+                "FCC_NTFY_",
+                "AUTO_FLEET_GMAIL_ALERT",
+            )
+        )
+    }
+
+
+def check_auth(
+    *,
+    token_path: Path | None = None,
+    env_file: Path | None = None,
+    env: Mapping[str, str] | None = None,
+    http: HttpFn | None = None,
+    ntfy: NtfyFn | None = None,
+    dump: Path | None = None,
+    dry_run_alert: bool = False,
+) -> int:
+    """Cheap Bot probe. 0 healthy, 2 AUTH_DEAD, 1 other fetch/auth transport error."""
+    dest = Path(dump) if dump is not None else DEFAULT_OUT
+    creds = resolve_gmail_creds(env=env, token_path=token_path, env_file=env_file)
+    alert_env = dict(_file_env(env_file if env_file is not None else Path.home() / ".config" / "auto-fleet" / "env"))
+    if env:
+        alert_env.update({k: v for k, v in env.items() if v})
+    if creds is None:
+        record_auth_dead(
+            dest,
+            "missing_token",
+            env=alert_env,
+            ntfy=ntfy,
+            dry_run=dry_run_alert,
+        )
+        return EXIT_AUTH_DEAD
+    try:
+        token = refresh_access_token(creds, http=http)
+    except Exception as exc:  # noqa: BLE001
+        if is_auth_dead_error(exc):
+            record_auth_dead(
+                dest,
+                auth_dead_reason("gmail_error", str(exc)) or "refresh_fail",
+                env=alert_env,
+                ntfy=ntfy,
+                dry_run=dry_run_alert,
+            )
+            return EXIT_AUTH_DEAD
+        sys.stderr.write(f"gmail check-auth failed: {sanitize_auth_error(exc)}\n")
+        return EXIT_FETCH_ERROR
+    if not token:
+        record_auth_dead(
+            dest,
+            "refresh_fail",
+            env=alert_env,
+            ntfy=ntfy,
+            dry_run=dry_run_alert,
+        )
+        return EXIT_AUTH_DEAD
+    clear_auth_dead(dest)
+    print("gmail auth ok")
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -554,7 +891,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     src.add_argument(
         "--fetch",
         action="store_true",
-        help="Pull Gmail (or write an honest empty dump if creds are missing)",
+        help="Pull Gmail (AUTH_DEAD + ntfy + exit 2 if OAuth is dead)",
+    )
+    src.add_argument(
+        "--check-auth",
+        action="store_true",
+        help="Cheap token refresh probe for Bot cron (0 ok, 2 AUTH_DEAD, 1 other)",
     )
     parser.add_argument(
         "--out",
@@ -573,25 +915,52 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--env-file",
         type=Path,
         default=None,
-        help="Env file for GMAIL_* keys (default ~/.config/auto-fleet/env)",
+        help="Env file for GMAIL_* / AUTO_FLEET_NTFY_TOPIC (default ~/.config/auto-fleet/env)",
+    )
+    parser.add_argument(
+        "--dry-run-alert",
+        action="store_true",
+        help="Write AUTH_DEAD but do not POST ntfy",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
+    env = _writer_env()
+    if args.check_auth:
+        return check_auth(
+            token_path=args.token,
+            env_file=args.env_file,
+            env=env,
+            dump=args.out,
+            dry_run_alert=args.dry_run_alert,
+        )
     if args.fetch:
         dest = fetch_and_write(
             args.out,
             inbox=args.inbox,
             token_path=args.token,
             env_file=args.env_file,
-            env={
-                k: v
-                for k, v in os.environ.items()
-                if k.startswith(("GMAIL_", "GOOGLE_CLIENT_", "AUTO_FLEET_GMAIL_"))
-            },
+            env=env,
+            dry_run_alert=args.dry_run_alert,
         )
         data = json.loads(dest.read_text(encoding="utf-8"))
         n = len(data.get("messages") or [])
-        print(f"wrote {n} message(s) to {dest} source={data.get('source')}")
         _publish_agent_snapshot(dest)
+        reason = auth_dead_reason(data.get("source"), data.get("error"))
+        if data.get("auth_dead") or reason:
+            # Snapshot published so the dashboard shows AUTH_DEAD. Do not
+            # treat last-good as a fresh ingest (no trip-change apply).
+            print(
+                f"AUTH_DEAD source={data.get('source')} kept={n} "
+                f"reason={data.get('auth_dead_reason') or reason}",
+                file=sys.stderr,
+            )
+            return EXIT_AUTH_DEAD
+        if data.get("source") == "gmail_error":
+            print(
+                f"gmail fetch error kept={n} source=gmail_error",
+                file=sys.stderr,
+            )
+            return EXIT_FETCH_ERROR
+        print(f"wrote {n} message(s) to {dest} source={data.get('source')}")
         _sync_trip_changes(dest)
         return 0
     if args.from_json == "-":

@@ -152,6 +152,22 @@ or `GMAIL_REFRESH_TOKEN` + `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` in
 Neither path wipes a last-good dump — the dashboard must not look like
 “0 trip events” when Gmail OAuth is dead. Inbox status names the source.
 
+**Fail-loud (#839):** `invalid_grant` / refresh fail / missing token writes
+`~/.config/auto-fleet/AUTH_DEAD` (mode 600, next to the dump), ntfy pri-5
+`panamerica Gmail feeder blind — remint needed` (topic from
+`AUTO_FLEET_NTFY_TOPIC` / `NTFY_TOPIC` in `~/.config/auto-fleet/env` — not
+git), and `--fetch` exits **2**. Last-good messages stay. Trip-change apply
+is skipped. Healthy fetch deletes `AUTH_DEAD` and does not ntfy. No tokens
+in logs/alerts. Remint stays Chris/ops (`#826`).
+
+Bot health probe (Grok owns the cron; this is the exit-code contract):
+
+```bash
+python3 -m auto-fleet.turo_gmail --check-auth
+# 0 healthy · 2 AUTH_DEAD (invalid_grant / missing token / refresh fail) · 1 other
+# --dry-run-alert writes AUTH_DEAD but does not POST ntfy
+```
+
 Current-host subject hint: `Mike's vehicle` (same shape as the old
 `(Jessica's vehicle) — …` mail). Jessica / Kia / Spark stay out.
 Unit match uses the mail **body** year (`Toyota Corolla 2024` →

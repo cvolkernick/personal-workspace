@@ -279,10 +279,13 @@ def _stale_for(
     age_s: Optional[float],
     poll_s: int,
     source: str,
+    inbox_status: str = "",
 ) -> tuple[bool, Optional[str]]:
     if source == "empty_fixture" or _using_shipped_inbox(inbox_path):
         return True, "prism/writer dark — shipped empty fixture, no invented trips"
     if inbox_state in ("unconfigured", "error"):
+        if "AUTH_DEAD" in (inbox_status or ""):
+            return True, "panamerica Gmail AUTH_DEAD — last-good dump held, remint needed"
         return True, (
             "prism/writer dark — no live turo_inbox dump"
             if inbox_state == "unconfigured"
@@ -421,6 +424,7 @@ def export_agent_fleet(
         age_s=age_s,
         poll_s=poll_s,
         source=source,
+        inbox_status=str(turo.get("inbox_status") or ""),
     )
     assembled = []
     for unit in units:
