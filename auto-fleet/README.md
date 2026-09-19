@@ -145,7 +145,9 @@ invented bytes. Override dump path with `AUTO_FLEET_TURO_INBOX` or `--out`.
 or `GMAIL_REFRESH_TOKEN` + `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` in
 `~/.config/auto-fleet/env`. That token must be the panamerica mailbox
 (`users/me`); prism re-auth is ops after merge. Missing creds write
-`source=gmail_unconfigured` and zero messages — honest empty, not a crash.
+`source=gmail_unconfigured`. Fetch errors write `source=gmail_error`.
+Neither path wipes a last-good dump — the dashboard must not look like
+“0 trip events” when Gmail OAuth is dead. Inbox status names the source.
 
 Current-host subject hint: `Mike's vehicle` (same shape as the old
 `(Jessica's vehicle) — …` mail). Jessica / Kia / Spark stay out.

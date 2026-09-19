@@ -12,7 +12,8 @@ Forward-only — do not dump historical / label:Turo 2024 mail.
 
 Default output: ~/.config/auto-fleet/turo_inbox.json (mode 600, not git).
 Image MIME parts → ~/.config/auto-fleet/turo_inbox_media/ (not git).
-Missing Gmail creds → honest empty dump (source=gmail_unconfigured), exit 0.
+Missing Gmail creds → source=gmail_unconfigured (keeps last-good messages).
+Fetch errors → source=gmail_error (keeps last-good messages; never wipe a good dump).
 """
 
 from __future__ import annotations
@@ -98,6 +99,23 @@ def write_dump(
     except OSError:
         pass
     return dest
+
+
+def _prior_dump_messages(path: Path) -> list[dict[str, Any]]:
+    """Keep last-good messages when Gmail fetch/auth fails. Never invent trips."""
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if isinstance(data, list):
+        return [m for m in data if isinstance(m, dict)]
+    if isinstance(data, dict):
+        msgs = data.get("messages")
+        if isinstance(msgs, list):
+            return [m for m in msgs if isinstance(m, dict)]
+    return []
 
 
 def _file_env(path: Path | None) -> dict[str, str]:
@@ -475,9 +493,15 @@ def fetch_and_write(
     dest = Path(path) if path is not None else DEFAULT_OUT
     creds = resolve_gmail_creds(env=env, token_path=token_path, env_file=env_file)
     token_hint = str(token_path or DEFAULT_TOKEN_PATH)
+    prior = _prior_dump_messages(dest)
+    kept_bit = (
+        f"Kept last-good messages ({len(prior)}). "
+        if prior
+        else ""
+    )
     if creds is None:
         return write_dump(
-            [],
+            prior,
             dest,
             inbox=inbox,
             query=query,
@@ -486,6 +510,7 @@ def fetch_and_write(
                 "Pi writer: no Gmail refresh token. Put gmail.readonly OAuth at "
                 f"{token_hint} or GMAIL_REFRESH_TOKEN + GMAIL_CLIENT_ID + "
                 "GMAIL_CLIENT_SECRET in ~/.config/auto-fleet/env. "
+                f"{kept_bit}"
                 "Empty bookings, not invented trips."
             ),
         )
@@ -496,12 +521,16 @@ def fetch_and_write(
         )
     except Exception as exc:  # noqa: BLE001
         return write_dump(
-            [],
+            prior,
             dest,
             inbox=inbox,
             query=query,
             source="gmail_error",
-            note="Pi writer: Gmail fetch failed. Empty bookings, not invented trips.",
+            note=(
+                "Pi writer: Gmail fetch failed. "
+                f"{kept_bit}"
+                "Empty bookings, not invented trips."
+            ),
             error=str(exc),
             media_dir=media,
         )
