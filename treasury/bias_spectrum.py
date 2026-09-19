@@ -519,6 +519,12 @@ def _pins_from(value: Any) -> Dict[str, float]:
             "not_for_monday_residual",
             "not_a_forced_rebalance",
             "authoritative_for_bias_pins",
+            "verified_as_of",
+            "guardrails",
+            "loop_adjustments",
+            "locked_by",
+            "locked_as_of",
+            "source",
         }:
             continue
         sym = _sym(key)
@@ -687,6 +693,51 @@ def _apply_consider_share_stamps(
     return applied
 
 
+def _apply_loop_adjustments(
+    chips: List[Dict[str, Any]], config: Dict[str, Any]
+) -> None:
+    """Tilt unpinned chips after stamps. Pins and sleeve budgets stay put.
+
+    `loop_adjustments` are residual-mix points written by the #768 loop.
+    They never create pins and never rewrite 60/40 sleeve targets.
+    """
+    raw = config.get("loop_adjustments") if isinstance(config, dict) else None
+    if not isinstance(raw, dict) or not raw or not chips:
+        return
+    pins = set(_pins_from(config))
+    by_sym = {str(c.get("symbol") or ""): c for c in chips}
+    for key, val in raw.items():
+        sym = _sym(key)
+        if not sym or sym in pins or sym not in by_sym:
+            continue
+        try:
+            delta = float(val)
+        except (TypeError, ValueError):
+            continue
+        if delta == 0:
+            continue
+        chip = by_sym[sym]
+        chip["weight_pct"] = round(float(chip.get("weight_pct") or 0) + delta, 2)
+        chip["loop_adjustment"] = delta
+    pin_total = sum(
+        float(c.get("weight_pct") or 0) for c in chips if c.get("symbol") in pins
+    )
+    others = [c for c in chips if c.get("symbol") not in pins]
+    other_sum = sum(float(c.get("weight_pct") or 0) for c in others)
+    remainder = 100.0 - pin_total
+    if others and other_sum > 0 and remainder >= 0:
+        for chip in others:
+            raw_pct = float(chip.get("weight_pct") or 0) * remainder / other_sum
+            chip["weight_pct"] = round(raw_pct, 2)
+        drift = round(remainder - sum(float(c["weight_pct"]) for c in others), 2)
+        if drift and others:
+            anchor = min(
+                others, key=lambda c: (float(c["weight_pct"]), str(c.get("symbol") or ""))
+            )
+            anchor["weight_pct"] = round(float(anchor["weight_pct"]) + drift, 2)
+    chips.sort(key=lambda c: (-float(c.get("weight_pct") or 0), str(c.get("symbol") or "")))
+
+
 def _candidate_symbols(
     *,
     core: set[str],
@@ -807,6 +858,7 @@ def build_bias_spectrum(
 
     chips.sort(key=lambda c: (-float(c["weight_pct"]), c["symbol"]))
     stamped = _apply_consider_share_stamps(chips, stamps)
+    _apply_loop_adjustments(chips, stamps)
     placed = [c for c in chips if c.get("weight_pct") is not None]
     max_pct = _axis_max(placed)
     targets = _as_dict(analysis.get("targets")) or _as_dict(pol.get("targets"))
