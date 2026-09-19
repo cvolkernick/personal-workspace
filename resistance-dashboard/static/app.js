@@ -4283,6 +4283,316 @@
     }
   }
 
+  const HSA_CSV_TEMPLATE =
+    "kind,date,amount_usd,sats,category,merchant,receipt,counts_toward_deductible,steps,challenge,notes\n" +
+    "contribution,2026-01-15,400,,,,,,,,payroll\n" +
+    "shoebox,2026-03-01,85,,dental,Smile Co,on_file,,,,cleaning paid OOP\n" +
+    "spend,2026-03-01,85,,dental,Smile Co,,true,,,counts toward deductible\n" +
+    "reward,2026-04-09,,7000,,,,,,50000,Spring Move to Earn,\n";
+
+  function hsaMoney(n) {
+    if (n == null || n === "") return "—";
+    const v = Number(n);
+    if (!Number.isFinite(v)) return "—";
+    return v.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  function hsaInt(n) {
+    if (n == null || n === "") return "—";
+    const v = Number(n);
+    if (!Number.isFinite(v)) return "—";
+    return Math.round(v).toLocaleString();
+  }
+
+  function fillHsaSettings(hsa) {
+    const store = (hsa && hsa.store) || {};
+    const pos = (hsa && hsa.position) || store.position || {};
+    if ($("hsa-eligibility")) $("hsa-eligibility").value = hsa.eligibility || "unknown";
+    if ($("hsa-coverage")) $("hsa-coverage").value = hsa.coverage || store.coverage || "self_only";
+    if ($("hsa-catchup")) $("hsa-catchup").checked = !!(hsa.catch_up_55 || store.catch_up_55);
+    const ded = store.hdhp_deductible_usd;
+    if ($("hsa-deductible")) $("hsa-deductible").value = ded != null ? ded : "";
+    if ($("hsa-btc-sats")) $("hsa-btc-sats").value = pos.btc_sats || "";
+    if ($("hsa-cash")) $("hsa-cash").value = pos.cash_usd || "";
+    if ($("hsa-btc-mark")) $("hsa-btc-mark").value = pos.btc_usd_mark || "";
+    if ($("hsa-pos-asof")) $("hsa-pos-asof").value = pos.as_of || "";
+    if ($("hsa-entry-date") && !$("hsa-entry-date").value) {
+      $("hsa-entry-date").value = (hsa && hsa.as_of) || todayISO();
+    }
+  }
+
+  function renderHsaTable(rows, cols, kind) {
+    if (!rows || !rows.length) {
+      return `<p class="muted" style="margin:0;font-size:0.82rem">None logged yet.</p>`;
+    }
+    const head = cols.map((c) => `<th>${labEsc(c.label)}</th>`).join("");
+    const body = rows
+      .slice()
+      .reverse()
+      .map((r) => {
+        const cells = cols
+          .map((c) => `<td class="${c.cls || ""}">${c.fmt(r)}</td>`)
+          .join("");
+        const id = labEsc(r.id || "");
+        return `<tr>${cells}<td><button type="button" class="hsa-del" data-hsa-del="${labEsc(
+          kind
+        )}" data-hsa-id="${id}">Remove</button></td></tr>`;
+      })
+      .join("");
+    return `<div style="overflow:auto"><table class="hsa-table"><thead><tr>${head}<th></th></tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  function renderHsa(hsa) {
+    const box = $("hsa-panel");
+    if (!box) return;
+    const data = hsa || {};
+    fillHsaSettings(data);
+    const sfs = data.sats_for_steps || {};
+    const stepsPending = sfs.pending_steps
+      ? `<span class="muted">Steps pending (Health lag — not 0).</span>`
+      : "";
+    const stepKpis = `<div class="hsa-kpis">
+      <div class="hsa-kpi"><span class="k">Today steps</span><span class="v">${hsaInt(sfs.today_steps)}</span></div>
+      <div class="hsa-kpi"><span class="k">7d steps</span><span class="v">${hsaInt(sfs.steps_7d)}</span></div>
+      <div class="hsa-kpi"><span class="k">30d steps</span><span class="v">${hsaInt(sfs.steps_30d)}</span></div>
+      <div class="hsa-kpi"><span class="k">Sats earned (YTD)</span><span class="v">${hsaInt(sfs.sats_earned_ytd)}</span></div>
+    </div>
+    <p class="muted" style="margin:0;font-size:0.8rem">${labEsc(sfs.note || "")} ${stepsPending}</p>`;
+
+    if (!data.eligible) {
+      box.innerHTML = `<p class="hsa-gate">${labEsc(data.hdhp_copy || data.message || "")}</p>
+        <p class="muted" style="margin:0;font-size:0.82rem">
+          Mark eligibility above. This section will not invent a $0 position.
+        </p>
+        ${stepKpis}`;
+      return;
+    }
+
+    const pos = data.position || {};
+    const pace = data.contribution_pace || {};
+    const boxLedger = data.shoebox || {};
+    const spend = data.medical_spend || {};
+    const posLine = pos.unmarked_btc
+      ? `${hsaInt(pos.btc_sats)} sats + ${hsaMoney(pos.cash_usd)} cash · BTC unmarked`
+      : pos.entered
+        ? `${hsaInt(pos.btc_sats)} sats (${hsaMoney(pos.btc_usd)}) + ${hsaMoney(pos.cash_usd)} cash = ${hsaMoney(pos.total_usd)}`
+        : "No position entered yet.";
+    const pct = Math.max(0, Math.min(100, Number(pace.pct_of_limit) || 0));
+    const paceMsg =
+      pace.status === "limits_missing"
+        ? labEsc(pace.message || "IRS limits missing for this year.")
+        : `${hsaMoney(pace.ytd_usd)} of ${hsaMoney(pace.limit_usd)} (${pace.pct_of_limit ?? "—"}%). Expected by today ${hsaMoney(pace.expected_usd)}. Remaining ${hsaMoney(pace.remaining_usd)}.`;
+    const shoeboxRows = renderHsaTable(
+      boxLedger.entries || [],
+      [
+        { label: "Date", fmt: (r) => labEsc(r.date || "") },
+        { label: "Amount", fmt: (r) => hsaMoney(r.amount_usd) },
+        { label: "Category", fmt: (r) => labEsc(r.category || "") },
+        { label: "Merchant", fmt: (r) => labEsc(r.merchant || "") },
+        {
+          label: "Receipt",
+          cls: "",
+          fmt: (r) =>
+            `<span class="hsa-receipt-${labEsc(r.receipt || "missing")}">${labEsc(
+              r.receipt || "missing"
+            )}</span>`,
+        },
+      ],
+      "shoebox"
+    );
+    const spendRows = renderHsaTable(
+      spend.entries || [],
+      [
+        { label: "Date", fmt: (r) => labEsc(r.date || "") },
+        { label: "Amount", fmt: (r) => hsaMoney(r.amount_usd) },
+        { label: "Category", fmt: (r) => labEsc(r.category || "") },
+        { label: "Deductible", fmt: (r) => (r.counts_toward_deductible ? "yes" : "no") },
+      ],
+      "spend"
+    );
+    const contribRows = renderHsaTable(
+      (data.store && data.store.contributions) || [],
+      [
+        { label: "Date", fmt: (r) => labEsc(r.date || "") },
+        { label: "Amount", fmt: (r) => hsaMoney(r.amount_usd) },
+        { label: "Notes", fmt: (r) => labEsc(r.notes || r.source || "") },
+      ],
+      "contribution"
+    );
+    const rewardRows = renderHsaTable(
+      sfs.rewards || [],
+      [
+        { label: "Date", fmt: (r) => labEsc(r.date || "") },
+        { label: "Sats", fmt: (r) => hsaInt(r.sats) },
+        { label: "Steps", fmt: (r) => hsaInt(r.steps) },
+        { label: "Challenge", fmt: (r) => labEsc(r.challenge || "") },
+      ],
+      "reward"
+    );
+    const chals = (sfs.challenges || [])
+      .map((c) => {
+        const pctC = c.pct == null ? "—" : `${c.pct}%`;
+        return `<li>${labEsc(c.label || "Challenge")}: ${hsaInt(c.steps_in_window)} / ${hsaInt(
+          c.goal_steps
+        )} steps (${pctC})${c.complete ? " · complete" : ""}</li>`;
+      })
+      .join("");
+    const fees = data.fees || {};
+    box.innerHTML = `
+      <div class="hsa-kpis">
+        <div class="hsa-kpi"><span class="k">Position</span><span class="v">${labEsc(posLine)}</span></div>
+        <div class="hsa-kpi"><span class="k">Shoebox vault</span><span class="v">${hsaMoney(boxLedger.total_usd)}</span></div>
+        <div class="hsa-kpi"><span class="k">HDHP YTD</span><span class="v">${hsaMoney(spend.toward_deductible_usd)}</span></div>
+      </div>
+      <div>
+        <div class="macro-summary-title" style="font-size:0.95rem">Contribution pace (${labEsc(pace.year || "")})</div>
+        <div class="hsa-pace" aria-hidden="true"><span style="width:${pct}%"></span></div>
+        <p class="muted" style="margin:0.35rem 0 0;font-size:0.82rem">${paceMsg}</p>
+      </div>
+      ${stepKpis}
+      ${chals ? `<ul class="reasons">${chals}</ul>` : ""}
+      <div>
+        <div class="macro-summary-title" style="font-size:0.95rem">Contributions</div>
+        ${contribRows}
+      </div>
+      <div>
+        <div class="macro-summary-title" style="font-size:0.95rem">Shoebox ledger</div>
+        <p class="muted" style="margin:0 0 0.35rem;font-size:0.8rem">${labEsc(boxLedger.note || "")} On file ${hsaMoney(boxLedger.on_file_usd)} · pending ${hsaMoney(boxLedger.pending_usd)} · missing ${hsaMoney(boxLedger.missing_usd)}.</p>
+        ${shoeboxRows}
+      </div>
+      <div>
+        <div class="macro-summary-title" style="font-size:0.95rem">Medical spend vs deductible</div>
+        <p class="muted" style="margin:0 0 0.35rem;font-size:0.8rem">
+          ${hsaMoney(spend.toward_deductible_usd)} toward ${hsaMoney(spend.hdhp_deductible_usd)} deductible
+          (${spend.pct_of_deductible ?? "—"}%). Remaining ${hsaMoney(spend.deductible_remaining_usd)}.
+        </p>
+        ${spendRows}
+      </div>
+      <div>
+        <div class="macro-summary-title" style="font-size:0.95rem">Sats rewards</div>
+        ${rewardRows}
+      </div>
+      <p class="muted" style="margin:0;font-size:0.78rem">
+        ${labEsc(fees.provider || "SOUND HSA")} fees: $${fees.annual_admin_usd || 300}/yr admin,
+        $${fees.activation_usd || 50} activation, ${fees.trade_pct || 1}% trades
+        (${fees.btc_pay_discount_pct || 10}% off if paid in BTC). ${labEsc(fees.note || "")}
+      </p>`;
+    box.querySelectorAll("[data-hsa-del]").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        submitHsaDelete(btn.getAttribute("data-hsa-del"), btn.getAttribute("data-hsa-id"))
+      );
+    });
+  }
+
+  async function postHsa(body) {
+    const res = await fetch("/api/hsa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+    return data;
+  }
+
+  function applyHsaResponse(data) {
+    if (data && data.hsa) {
+      if (state) state.hsa = data.hsa;
+      renderHsa(data.hsa);
+    }
+  }
+
+  async function submitHsaSettings(ev) {
+    ev.preventDefault();
+    const status = $("hsa-status");
+    if (status) status.textContent = "Saving…";
+    try {
+      const data = await postHsa({
+        action: "save",
+        eligibility: ($("hsa-eligibility") && $("hsa-eligibility").value) || "unknown",
+        coverage: ($("hsa-coverage") && $("hsa-coverage").value) || "self_only",
+        catch_up_55: !!( $("hsa-catchup") && $("hsa-catchup").checked ),
+        hdhp_deductible_usd: ($("hsa-deductible") && $("hsa-deductible").value) || "",
+        position: {
+          btc_sats: ($("hsa-btc-sats") && $("hsa-btc-sats").value) || 0,
+          cash_usd: ($("hsa-cash") && $("hsa-cash").value) || 0,
+          btc_usd_mark: ($("hsa-btc-mark") && $("hsa-btc-mark").value) || null,
+          as_of: ($("hsa-pos-asof") && $("hsa-pos-asof").value) || "",
+        },
+      });
+      if (status) status.textContent = "Saved.";
+      applyHsaResponse(data);
+      showAlert("HSA settings saved", "ok");
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`HSA save failed: ${e.message}`, "err");
+    }
+  }
+
+  async function submitHsaEntry(ev) {
+    ev.preventDefault();
+    const status = $("hsa-status");
+    const kind = ($("hsa-entry-kind") && $("hsa-entry-kind").value) || "contribution";
+    if (status) status.textContent = "Adding…";
+    try {
+      const data = await postHsa({
+        action: "add_entry",
+        kind,
+        date: ($("hsa-entry-date") && $("hsa-entry-date").value) || "",
+        amount_usd: ($("hsa-entry-usd") && $("hsa-entry-usd").value) || 0,
+        sats: ($("hsa-entry-sats") && $("hsa-entry-sats").value) || 0,
+        category: ($("hsa-entry-category") && $("hsa-entry-category").value) || "other",
+        merchant: ($("hsa-entry-merchant") && $("hsa-entry-merchant").value) || "",
+        receipt: ($("hsa-entry-receipt") && $("hsa-entry-receipt").value) || "missing",
+        counts_toward_deductible: !!(
+          $("hsa-entry-deductible") && $("hsa-entry-deductible").checked
+        ),
+        steps: ($("hsa-entry-steps") && $("hsa-entry-steps").value) || 0,
+        goal_steps: ($("hsa-entry-steps") && $("hsa-entry-steps").value) || 0,
+        reward_sats: ($("hsa-entry-sats") && $("hsa-entry-sats").value) || 0,
+        challenge: ($("hsa-entry-notes") && $("hsa-entry-notes").value) || "",
+        label: ($("hsa-entry-notes") && $("hsa-entry-notes").value) || "",
+        notes: ($("hsa-entry-notes") && $("hsa-entry-notes").value) || "",
+      });
+      if (status) status.textContent = "Ledger updated.";
+      applyHsaResponse(data);
+      showAlert("HSA ledger updated", "ok");
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`HSA entry failed: ${e.message}`, "err");
+    }
+  }
+
+  async function submitHsaCsv(ev) {
+    ev.preventDefault();
+    const status = $("hsa-status");
+    const text = ($("hsa-csv-text") && $("hsa-csv-text").value) || "";
+    if (status) status.textContent = "Importing…";
+    try {
+      const data = await postHsa({ action: "import_csv", csv: text });
+      if (status) status.textContent = "CSV imported.";
+      applyHsaResponse(data);
+      showAlert("HSA CSV imported", "ok");
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`HSA CSV failed: ${e.message}`, "err");
+    }
+  }
+
+  async function submitHsaDelete(kind, id) {
+    const status = $("hsa-status");
+    if (status) status.textContent = "Removing…";
+    try {
+      const data = await postHsa({ action: "delete_entry", kind, id });
+      if (status) status.textContent = "Removed.";
+      applyHsaResponse(data);
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`HSA delete failed: ${e.message}`, "err");
+    }
+  }
+
   function labEsc(s) {
     return String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -5497,6 +5807,7 @@
       renderMealPlan(data.nutrition_store.meal_plan);
     }
     renderFoodCoach(data.coach, data.nutrition_store);
+    renderHsa(data.hsa);
     renderLabsPanel(data.nutrition_store);
     renderExerciseCatalog(data.workout_store);
     renderEquipmentInventory(data.workout_store);
@@ -8067,6 +8378,20 @@
     resetRecipeForm();
     if ($("targets-form")) {
       $("targets-form").addEventListener("submit", submitTargets);
+    }
+    if ($("hsa-settings-form")) {
+      $("hsa-settings-form").addEventListener("submit", submitHsaSettings);
+    }
+    if ($("hsa-entry-form")) {
+      $("hsa-entry-form").addEventListener("submit", submitHsaEntry);
+    }
+    if ($("hsa-csv-form")) {
+      $("hsa-csv-form").addEventListener("submit", submitHsaCsv);
+    }
+    if ($("btn-hsa-csv-template") && $("hsa-csv-text")) {
+      $("btn-hsa-csv-template").addEventListener("click", () => {
+        $("hsa-csv-text").value = HSA_CSV_TEMPLATE;
+      });
     }
     if ($("labs-upload-form")) {
       $("labs-upload-form").addEventListener("submit", submitLabsUpload);

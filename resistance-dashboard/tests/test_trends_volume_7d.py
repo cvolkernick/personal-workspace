@@ -83,9 +83,9 @@ class TrendsVolume7dMarkup(unittest.TestCase):
         self.assertNotIn("volume_7d", ANALYTICS)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=nutrition-day-828-1", HTML)
-        self.assertIn("/app.js?v=nutrition-day-828-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v110"', SW)
+        self.assertIn("/app.js?v=hsa-834-1", HTML)
+        self.assertIn("/app.js?v=hsa-834-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v111"', SW)
         self.assertNotIn("/app.js?v=vol-7d-1", HTML)
         self.assertNotIn("/app.js?v=vol-7d-1", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", HTML)

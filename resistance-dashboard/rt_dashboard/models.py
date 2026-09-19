@@ -232,6 +232,21 @@ class ActiveZoneMinutesDay:
 
 
 @dataclass
+class StepSample:
+    """Daily step count from Google Health dailyRollUp('steps').
+
+    Honest ``countSum`` only — never invent from AZM, heart_minutes, or kcal.
+    """
+
+    date: str
+    steps: int
+    source: str = "google_health"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class HealthSnapshot:
     weight: List[WeightSample] = field(default_factory=list)
     sleep: List[SleepSample] = field(default_factory=list)
@@ -243,6 +258,7 @@ class HealthSnapshot:
     calories_burned: List[CaloriesBurnedDay] = field(default_factory=list)
     active_zone_minutes: List[ActiveZoneMinutesDay] = field(default_factory=list)
     resting_heart_rate: List[RestingHeartRateDay] = field(default_factory=list)
+    steps: List[StepSample] = field(default_factory=list)
     error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -256,6 +272,7 @@ class HealthSnapshot:
             "calories_burned": [c.to_dict() for c in self.calories_burned],
             "active_zone_minutes": [a.to_dict() for a in self.active_zone_minutes],
             "resting_heart_rate": [r.to_dict() for r in self.resting_heart_rate],
+            "steps": [s.to_dict() for s in self.steps],
             "error": self.error,
         }
 

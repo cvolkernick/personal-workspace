@@ -741,6 +741,17 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"phase_barometer: {type(exc).__name__}")
     try:
+        from rt_dashboard.hsa import attach_hsa
+
+        attach_hsa(
+            payload,
+            user_id=str(user.get("id") or "") or None,
+            health=health,
+            as_of=today,
+        )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"hsa: {type(exc).__name__}")
+    try:
         from rt_dashboard.calorie_bars import apply_phase_aware_delta_color
 
         apply_phase_aware_delta_color(payload)

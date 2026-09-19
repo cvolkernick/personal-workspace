@@ -21,6 +21,7 @@ from .models import (
     RestingHeartRateDay,
     Session,
     SleepSample,
+    StepSample,
     WeightSample,
 )
 
@@ -109,6 +110,7 @@ def health_cache_is_fresh(
             or health.calories_burned
             or health.active_zone_minutes
             or health.resting_heart_rate
+            or health.steps
         )
     )
     if has_data and not last_error:
@@ -256,6 +258,20 @@ def health_from_dict(data: dict) -> HealthSnapshot:
                 source=str(row.get("source") or "cache"),
             )
         )
+    steps = []
+    for row in data.get("steps") or []:
+        if not isinstance(row, dict) or not row.get("date"):
+            continue
+        n = _opt_float(row.get("steps"))
+        if n is None or n < 0:
+            continue
+        steps.append(
+            StepSample(
+                date=str(row.get("date") or ""),
+                steps=int(round(n)),
+                source=str(row.get("source") or "cache"),
+            )
+        )
     return HealthSnapshot(
         weight=weights,
         sleep=sleep,
@@ -266,6 +282,7 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         calories_burned=burned,
         active_zone_minutes=azm,
         resting_heart_rate=rhr,
+        steps=steps,
         error=data.get("error"),
     )
 
@@ -339,6 +356,7 @@ def merge_health_snapshots(
     b = _merge_dated(base.calories_burned, update.calories_burned)
     azm = _merge_dated(base.active_zone_minutes, update.active_zone_minutes)
     rhr = _merge_dated(base.resting_heart_rate, update.resting_heart_rate)
+    st = _merge_dated(base.steps, update.steps)
     # Food logs: keep all unique entries (date+name+time+cals), prefer update window
     fl_by: Dict[str, Any] = {}
     for item in list(base.food_logs or []) + list(update.food_logs or []):
@@ -369,6 +387,7 @@ def merge_health_snapshots(
         or update.calories_burned
         or update.active_zone_minutes
         or update.resting_heart_rate
+        or update.steps
         or update.sleep_intervals
     )
     if update.error:
@@ -389,6 +408,7 @@ def merge_health_snapshots(
             "calories_burned": b,
             "active_zone_minutes": azm,
             "resting_heart_rate": rhr,
+            "steps": st,
             "error": err,
         }
     )
@@ -421,6 +441,7 @@ def save_health_cache(
             or hdict.get("calories_burned")
             or hdict.get("active_zone_minutes")
             or hdict.get("resting_heart_rate")
+            or hdict.get("steps")
         )
         if not has_data and keep_previous_if_empty and prev_health:
             # Keep last good points; attach latest error if any
@@ -444,6 +465,7 @@ def save_health_cache(
             "calories_burned": [],
             "active_zone_minutes": [],
             "resting_heart_rate": [],
+            "steps": [],
             "error": error,
         }
 
@@ -468,6 +490,7 @@ def save_health_cache(
             or hdict.get("calories_burned")
             or hdict.get("active_zone_minutes")
             or hdict.get("resting_heart_rate")
+            or hdict.get("steps")
         ),
     }
 
