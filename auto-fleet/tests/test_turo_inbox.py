@@ -351,21 +351,29 @@ class TuroInboxTests(unittest.TestCase):
                     str(missing),
                     "--env-file",
                     str(env_file),
+                    "--dry-run-alert",
                 ]
             )
-            self.assertEqual(rc, 0)
+            self.assertEqual(rc, turo_gmail.EXIT_AUTH_DEAD)
             data = json.loads(dest.read_text(encoding="utf-8"))
             self.assertEqual(data["messages"], [])
             self.assertEqual(data["source"], "gmail_unconfigured")
+            self.assertTrue(data["auth_dead"])
+            self.assertEqual(data["auth_dead_reason"], "missing_token")
             self.assertIn("after:2026/08/18", data["query"])
             self.assertNotIn("label:Turo", data["query"])
             self.assertIn("no Gmail refresh token", data["note"])
+            flag = json.loads((Path(td) / "AUTH_DEAD").read_text(encoding="utf-8"))
+            self.assertEqual(flag["state"], "AUTH_DEAD")
+            self.assertEqual(flag["reason"], "missing_token")
             payload = turo_inbox.turo_payload(inbox_path=dest, units=ROSTER_UNITS)
             self.assertEqual(payload["bookings"], [])
+            self.assertEqual(payload["inbox_state"], "error")
             self.assertEqual(data["inbox"], "panamerica.cars@gmail.com")
             self.assertIn("panamerica.cars@gmail.com", payload["inbox_status"])
             self.assertNotIn("cvolkern@gmail.com", payload["inbox_status"])
             self.assertIn("0 trip events", payload["inbox_status"])
+            self.assertIn("AUTH_DEAD", payload["inbox_status"])
 
     def test_fetch_with_mocked_gmail_writes_api_source(self) -> None:
         import turo_gmail
@@ -451,11 +459,14 @@ class TuroInboxTests(unittest.TestCase):
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(data["source"], "gmail_error")
             self.assertEqual(data["messages"], [])
-            self.assertIn("401", data["error"])
+            self.assertTrue(data["auth_dead"])
+            self.assertNotIn("refresh_token", json.dumps(data))
+            self.assertIn(data["error"], ("unauthorized", "invalid_grant"))
             payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
             self.assertEqual(payload["bookings"], [])
             self.assertEqual(payload["inbox_state"], "error")
             self.assertIn("gmail_error", payload["inbox_status"])
+            self.assertIn("AUTH_DEAD", payload["inbox_status"])
 
     def test_fetch_http_error_keeps_last_good_messages(self) -> None:
         import turo_gmail
@@ -501,13 +512,18 @@ class TuroInboxTests(unittest.TestCase):
             self.assertEqual(data["source"], "gmail_error")
             self.assertEqual(len(data["messages"]), 1)
             self.assertEqual(data["messages"][0]["id"], "kept-1")
-            self.assertIn("invalid_grant", data["error"])
+            self.assertTrue(data["auth_dead"])
+            self.assertEqual(data["auth_dead_reason"], "invalid_grant")
+            self.assertEqual(data["error"], "invalid_grant")
             self.assertIn("Kept last-good messages (1)", data["note"])
             payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
             self.assertEqual(len(payload["bookings"]), 1)
             self.assertEqual(payload["bookings"][0]["trip_id"], "61498520")
             self.assertEqual(payload["bookings"][0]["unit_id"], "m3-2022")
+            self.assertEqual(payload["inbox_state"], "error")
             self.assertIn("gmail_error", payload["inbox_status"])
+            self.assertIn("AUTH_DEAD", payload["inbox_status"])
+            self.assertNotIn("success", payload["inbox_status"].lower())
 
     def test_body_year_maps_2024_and_2022_corollas(self) -> None:
         payload = turo_inbox.turo_payload(
@@ -1097,6 +1113,222 @@ class TuroInboxPhotoTests(unittest.TestCase):
             att = data["messages"][0]["attachments"][0]
             self.assertEqual(Path(att["path"]).read_bytes(), jpeg)
             self.assertEqual(att["filename"], "fuel.jpg")
+
+
+class GmailAuthDeadTests(unittest.TestCase):
+    def test_invalid_grant_ntfy_and_exit_2(self) -> None:
+        import turo_gmail
+
+        posted: list[dict] = []
+
+        def boom(url: str, data, headers):
+            raise RuntimeError('HTTP 400 https://oauth2.googleapis.com/token: {"error":"invalid_grant"}')
+
+        def ntfy(**kwargs):
+            posted.append(kwargs)
+            return {"ok": True, "notified": True}
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            path = turo_gmail.fetch_and_write(
+                dest,
+                env={
+                    "GMAIL_REFRESH_TOKEN": "secret-refresh",
+                    "GMAIL_CLIENT_ID": "cid",
+                    "GMAIL_CLIENT_SECRET": "sec",
+                    "AUTO_FLEET_NTFY_TOPIC": "unit-test-topic",
+                },
+                token_path=Path(td) / "missing.json",
+                env_file=Path(td) / "missing.env",
+                http=boom,
+                ntfy=ntfy,
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertTrue(data["auth_dead"])
+            self.assertEqual(data["auth_dead_reason"], "invalid_grant")
+            self.assertEqual(data["error"], "invalid_grant")
+            blob = json.dumps(data)
+            self.assertNotIn("secret-refresh", blob)
+            self.assertNotIn("unit-test-topic", blob)
+            flag = json.loads((Path(td) / "AUTH_DEAD").read_text(encoding="utf-8"))
+            self.assertEqual(flag["state"], "AUTH_DEAD")
+            self.assertEqual(flag["alert"], turo_gmail.AUTH_DEAD_ALERT)
+            self.assertEqual(len(posted), 1)
+            self.assertEqual(posted[0]["text"], turo_gmail.AUTH_DEAD_ALERT)
+            self.assertEqual(posted[0]["title"], turo_gmail.AUTH_DEAD_TITLE)
+            self.assertNotIn("secret-refresh", json.dumps(posted))
+            rc = turo_gmail.main(
+                [
+                    "--fetch",
+                    "--out",
+                    str(dest),
+                    "--token",
+                    str(Path(td) / "missing.json"),
+                    "--env-file",
+                    str(Path(td) / "missing.env"),
+                    "--dry-run-alert",
+                ]
+            )
+            # second fetch without creds still AUTH_DEAD, not success
+            self.assertEqual(rc, turo_gmail.EXIT_AUTH_DEAD)
+
+    def test_healthy_fetch_clears_auth_dead_no_ntfy(self) -> None:
+        import turo_gmail
+
+        posted: list[dict] = []
+
+        def fake_http(url: str, data, headers):
+            if "oauth2.googleapis.com/token" in url:
+                return {"access_token": "tok-test"}
+            if url.startswith(turo_gmail.GMAIL_API + "/messages?") and "q=" in url:
+                return {"messages": []}
+            raise AssertionError(f"unexpected url {url}")
+
+        def ntfy(**kwargs):
+            posted.append(kwargs)
+            return {"ok": True, "notified": True}
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            flag = Path(td) / "AUTH_DEAD"
+            flag.write_text(json.dumps({"state": "AUTH_DEAD", "reason": "invalid_grant"}), encoding="utf-8")
+            path = turo_gmail.fetch_and_write(
+                dest,
+                env={
+                    "GMAIL_REFRESH_TOKEN": "r",
+                    "GMAIL_CLIENT_ID": "cid",
+                    "GMAIL_CLIENT_SECRET": "sec",
+                    "AUTO_FLEET_NTFY_TOPIC": "unit-test-topic",
+                },
+                token_path=Path(td) / "missing.json",
+                env_file=Path(td) / "missing.env",
+                http=fake_http,
+                ntfy=ntfy,
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["source"], "gmail_api")
+            self.assertFalse(data.get("auth_dead"))
+            self.assertFalse(flag.exists())
+            self.assertEqual(posted, [])
+
+    def test_ntfy_cooldown_second_cycle(self) -> None:
+        import turo_gmail
+
+        posted: list[dict] = []
+
+        def boom(url: str, data, headers):
+            raise RuntimeError("HTTP 400 invalid_grant")
+
+        def ntfy(**kwargs):
+            posted.append(kwargs)
+            return {"ok": True, "notified": True}
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            kwargs = dict(
+                env={
+                    "GMAIL_REFRESH_TOKEN": "r",
+                    "GMAIL_CLIENT_ID": "cid",
+                    "GMAIL_CLIENT_SECRET": "sec",
+                    "AUTO_FLEET_NTFY_TOPIC": "unit-test-topic",
+                },
+                token_path=Path(td) / "missing.json",
+                env_file=Path(td) / "missing.env",
+                http=boom,
+                ntfy=ntfy,
+            )
+            turo_gmail.fetch_and_write(dest, **kwargs)
+            turo_gmail.fetch_and_write(dest, **kwargs)
+            self.assertEqual(len(posted), 1)
+
+    def test_http_500_is_fetch_error_not_auth_dead(self) -> None:
+        import turo_gmail
+
+        posted: list[dict] = []
+
+        def boom(url: str, data, headers):
+            raise RuntimeError("HTTP 500 https://gmail.googleapis.com/gmail/v1/users/me/messages")
+
+        def ntfy(**kwargs):
+            posted.append(kwargs)
+            return {"ok": True, "notified": True}
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            path = turo_gmail.fetch_and_write(
+                dest,
+                env={
+                    "GMAIL_REFRESH_TOKEN": "r",
+                    "GMAIL_CLIENT_ID": "cid",
+                    "GMAIL_CLIENT_SECRET": "sec",
+                    "AUTO_FLEET_NTFY_TOPIC": "unit-test-topic",
+                },
+                token_path=Path(td) / "missing.json",
+                env_file=Path(td) / "missing.env",
+                http=boom,
+                ntfy=ntfy,
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["source"], "gmail_error")
+            self.assertFalse(data.get("auth_dead"))
+            self.assertFalse((Path(td) / "AUTH_DEAD").exists())
+            self.assertEqual(posted, [])
+            payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
+            self.assertEqual(payload["inbox_state"], "error")
+            self.assertNotIn("AUTH_DEAD", payload["inbox_status"])
+
+    def test_check_auth_exit_codes(self) -> None:
+        import turo_gmail
+
+        def grant_fail(url: str, data, headers):
+            raise RuntimeError("invalid_grant")
+
+        def ok(url: str, data, headers):
+            return {"access_token": "tok"}
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            missing = Path(td) / "no-token.json"
+            env_file = Path(td) / "empty.env"
+            env_file.write_text("# none\n", encoding="utf-8")
+            rc_missing = turo_gmail.check_auth(
+                token_path=missing,
+                env_file=env_file,
+                env={},
+                dump=dest,
+                dry_run_alert=True,
+            )
+            self.assertEqual(rc_missing, turo_gmail.EXIT_AUTH_DEAD)
+            token = Path(td) / "gmail-token.json"
+            token.write_text(
+                json.dumps(
+                    {
+                        "refresh_token": "r",
+                        "client_id": "cid",
+                        "client_secret": "sec",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            rc_dead = turo_gmail.check_auth(
+                token_path=token,
+                env_file=env_file,
+                env={},
+                http=grant_fail,
+                dump=dest,
+                dry_run_alert=True,
+            )
+            self.assertEqual(rc_dead, turo_gmail.EXIT_AUTH_DEAD)
+            rc_ok = turo_gmail.check_auth(
+                token_path=token,
+                env_file=env_file,
+                env={},
+                http=ok,
+                dump=dest,
+                dry_run_alert=True,
+            )
+            self.assertEqual(rc_ok, 0)
+            self.assertFalse((Path(td) / "AUTH_DEAD").exists())
 
 
 if __name__ == "__main__":

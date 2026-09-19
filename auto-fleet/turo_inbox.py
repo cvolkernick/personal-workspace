@@ -943,6 +943,8 @@ def load_json_messages(
             "poll_interval_s": data.get("poll_interval_s"),
             "media_dir": data.get("media_dir"),
             "error": data.get("error"),
+            "auth_dead": data.get("auth_dead"),
+            "auth_dead_reason": data.get("auth_dead_reason"),
         }
         msgs = data.get("messages")
         if msgs is None:
@@ -1052,11 +1054,21 @@ def load_inbox(
     query = ""
     source = ""
     dump_error = ""
+    auth_dead = False
+    auth_dead_reason = ""
     if isinstance(meta, dict):
         inbox_name = str(meta.get("inbox") or "")
         query = str(meta.get("query") or "")
         source = str(meta.get("source") or "")
         dump_error = str(meta.get("error") or "")
+        auth_dead = bool(meta.get("auth_dead"))
+        auth_dead_reason = str(meta.get("auth_dead_reason") or "")
+        if not auth_dead and source == "gmail_unconfigured":
+            auth_dead = True
+            auth_dead_reason = auth_dead_reason or "missing_token"
+        if not auth_dead and "invalid_grant" in dump_error.lower():
+            auth_dead = True
+            auth_dead_reason = "invalid_grant"
     watching = inbox_name or (
         GMAIL_INBOX_ADDR if source.startswith("gmail") else ""
     )
@@ -1064,15 +1076,23 @@ def load_inbox(
         f" every 15m since {cutoff.date().isoformat()}" if cutoff is not None else ""
     )
     source_bit = ""
-    if source in ("gmail_error", "gmail_unconfigured"):
+    if source in ("gmail_error", "gmail_unconfigured") or auth_dead:
         # Do not copy dump `note` here — it names GMAIL_* env keys and
         # would trip agent snapshot secret_leaks.
         err_head = dump_error.splitlines()[0].strip()[:120] if dump_error else ""
-        if "invalid_grant" in err_head.lower():
+        if "invalid_grant" in err_head.lower() or auth_dead_reason == "invalid_grant":
             err_head = "invalid_grant"
+        elif auth_dead_reason:
+            err_head = auth_dead_reason
         elif err_head:
             err_head = err_head[:80]
-        source_bit = f" [{source}" + (f": {err_head}" if err_head else "") + "]"
+        dead_bit = " AUTH_DEAD" if auth_dead else ""
+        source_bit = (
+            f" [{source or 'gmail'}"
+            + (f": {err_head}" if err_head else "")
+            + f"{dead_bit}]"
+        )
+    auth_status = "error" if (source in ("gmail_error", "gmail_unconfigured") or auth_dead) else None
     if not kept:
         if watching:
             detail = (
@@ -1089,7 +1109,7 @@ def load_inbox(
         if dropped:
             detail += f" ({dropped} historical dropped)"
         detail += source_bit
-        empty_status = "error" if source in ("gmail_error", "gmail_unconfigured") else "empty"
+        empty_status = auth_status or "empty"
         empty = _result(
             bookings=[],
             status=empty_status,
@@ -1104,7 +1124,7 @@ def load_inbox(
         prefix = f"watching {watching}{since_bit}; " if watching else ""
         empty = _result(
             bookings=[],
-            status="empty",
+            status=auth_status or "empty",
             detail=(
                 f"{prefix}{kind} parsed ({len(kept)} message(s)); "
                 "none were trip booked/modified/canceled/payout"
@@ -1112,15 +1132,17 @@ def load_inbox(
             ),
             message_count=len(kept),
             kind=kind,
+            error=dump_error or None if auth_status == "error" else None,
         )
         empty["raw_messages"] = kept
         return empty
     parsed = _result(
         bookings=bookings,
-        status="parsed",
+        status=auth_status or "parsed",
         detail=f"{kind} parsed; {len(bookings)} trip event(s){since_bit}{source_bit}",
         message_count=len(kept),
         kind=kind,
+        error=dump_error or None if auth_status == "error" else None,
     )
     parsed["raw_messages"] = kept
     return parsed

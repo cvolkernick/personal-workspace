@@ -398,9 +398,10 @@ class WriterPublishTests(unittest.TestCase):
                     str(missing),
                     "--env-file",
                     str(env_file),
+                    "--dry-run-alert",
                 ]
             )
-            self.assertEqual(rc, 0)
+            self.assertEqual(rc, turo_gmail.EXIT_AUTH_DEAD)
             snap = Path(td) / "agent_fleet.json"
             self.assertTrue(snap.is_file(), snap)
             packet = json.loads(snap.read_text(encoding="utf-8"))
