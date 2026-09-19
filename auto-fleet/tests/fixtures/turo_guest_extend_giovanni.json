@@ -1,0 +1,20 @@
+{
+  "as_of": "2026-09-17T22:00:00+00:00",
+  "source": "test_fixture",
+  "messages": [
+    {
+      "id": "gio-booked",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Mike's vehicle) - Giovanni's trip with your Toyota Corolla is booked!",
+      "date": "Mon, 14 Sep 2026 15:00:00 +0000",
+      "body": "Toyota Corolla 2024\nbooked by Giovanni\nReservation ID #61378854\nTrip start: 9/17/26 10:00 AM\nTrip end: 9/18/26 10:00 AM\nPickup: Host location"
+    },
+    {
+      "id": "gio-guest-extend",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "Giovanni has sent you a message about your Toyota Corolla 2024",
+      "date": "Thu, 17 Sep 2026 18:00:00 +0000",
+      "body": "Giovanni sent you a message.\nCan we extend until Sat Sep 19 10:00 AM?\nReservation ID #61378854\nToyota Corolla 2024\nTrip start: 9/17/26 10:00 AM\nTrip end: 9/19/26 10:00 AM"
+    }
+  ]
+}

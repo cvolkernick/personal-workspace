@@ -1,0 +1,20 @@
+{
+  "as_of": "2026-09-17T16:00:00+00:00",
+  "source": "test_fixture",
+  "messages": [
+    {
+      "id": "formal-booked",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Mike's vehicle) - Alex's trip with your Toyota Corolla is booked!",
+      "date": "Mon, 14 Sep 2026 15:00:00 +0000",
+      "body": "Toyota Corolla 2024\nbooked by Alex Rivera\nReservation ID #60615645\nTrip start: 9/17/26 10:00 AM\nTrip end: 9/18/26 10:00 AM\nPickup: Host location"
+    },
+    {
+      "id": "formal-changed",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Mike's vehicle) - Alex has changed their trip",
+      "date": "Wed, 16 Sep 2026 14:30:00 +0000",
+      "body": "Toyota Corolla 2024\nbooked by Alex Rivera\nReservation ID #60615645\nTrip start: 9/17/26 11:00 AM\nTrip end: 9/19/26 4:00 PM\nPickup: Host location"
+    }
+  ]
+}

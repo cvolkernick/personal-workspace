@@ -56,6 +56,27 @@ BOOKING_KEEP = (
     "photos_missing",
     "phase",
 )
+CHANGE_KEEP = (
+    "source",
+    "trip_id",
+    "guest",
+    "vehicle",
+    "unit_id",
+    "start",
+    "end",
+    "pickup",
+    "drop_off",
+    "prior_start",
+    "prior_end",
+    "prior_pickup",
+    "prior_drop_off",
+    "time_changed",
+    "place_changed",
+    "message_id",
+    "subject",
+    "date",
+    "detected_on",
+)
 ATTACHMENT_KEEP = (
     "filename",
     "mime",
@@ -204,6 +225,14 @@ def sanitize_photo(raw: Mapping[str, Any]) -> dict[str, Any]:
     atts = sanitize_attachments(raw.get("attachments"))
     if atts:
         out["attachments"] = atts
+    return out
+
+
+def sanitize_change(raw: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key in CHANGE_KEEP:
+        if raw.get(key) is not None:
+            out[key] = raw[key]
     return out
 
 
@@ -421,6 +450,7 @@ def export_agent_fleet(
         "unmatched_photos": [
             sanitize_photo(p) for p in (turo.get("unmatched_photos") or [])
         ],
+        "changes": [sanitize_change(c) for c in (turo.get("changes") or [])],
         "inbox": {
             "state": inbox_state,
             "status": _public_text(turo.get("inbox_status")),

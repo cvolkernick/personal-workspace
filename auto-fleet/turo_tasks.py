@@ -157,6 +157,128 @@ def list_open_tasks(
         }
 
 
+def _task_blob(item: Mapping[str, Any]) -> str:
+    return f"{item.get('title') or ''} {item.get('notes') or ''}".lower()
+
+
+def _iso_day(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return text.replace(" ", "T")[:10]
+
+
+def task_matches_change(item: Mapping[str, Any], change: Mapping[str, Any]) -> bool:
+    blob = _task_blob(item)
+    if not blob.strip():
+        return False
+    trip = str(change.get("trip_id") or "").strip()
+    if trip and trip.lower() in blob:
+        return True
+    guest = str(change.get("guest") or "").strip().lower()
+    if not guest or guest not in blob:
+        return False
+    vehicle = str(change.get("vehicle") or "").lower()
+    unit_bits = ("corolla", "tesla", "model 3", "rivian", "r1s", "turo")
+    if "turo" in blob or any(bit in blob for bit in unit_bits) or any(
+        bit in vehicle for bit in unit_bits if bit in blob
+    ):
+        return True
+    return False
+
+
+def _describes_old_window(item: Mapping[str, Any], change: Mapping[str, Any]) -> bool:
+    blob = _task_blob(item)
+    title = str(item.get("title") or "")
+    if title.lower().startswith("update") and "turo" in title.lower():
+        return True
+    for key in ("prior_end", "prior_start"):
+        day = _iso_day(change.get(key))
+        if day and day in blob:
+            return True
+    return " end" in blob or blob.rstrip().endswith("end") or "turo end" in blob
+
+
+def _rewrite_title(change: Mapping[str, Any]) -> str:
+    guest = str(change.get("guest") or "Guest").strip()
+    vehicle = str(change.get("vehicle") or "Turo").strip()
+    end = str(change.get("end") or "").strip()
+    return f"{guest} {vehicle} Turo END {end}".strip()
+
+
+def close_or_rewrite_stale(
+    change: Mapping[str, Any],
+    *,
+    gt: Any | None = None,
+) -> dict[str, Any]:
+    """Complete Update-window tasks; rewrite standing old-window reminders.
+
+    Call only after calendar apply succeeded so ops tasks do not close stale
+    while the calendar is still wrong.
+    """
+    listed = list_open_tasks(gt=gt)
+    if not listed.get("ok"):
+        return {
+            "ok": False,
+            "error": listed.get("error") or "Could not list Turo tasks",
+            "items": [],
+        }
+    items = [i for i in (listed.get("items") or []) if task_matches_change(i, change)]
+    if not items:
+        return {
+            "ok": True,
+            "matched": 0,
+            "completed": [],
+            "rewritten": [],
+            "list_id": listed.get("list_id"),
+        }
+    client = gt
+    if client is None:
+        cred = gtb.credentials_status()
+        if not cred.get("ok"):
+            return {"ok": False, "error": cred.get("error") or "Google Tasks not configured"}
+        client = gtb.load_google_tasks()
+    list_id = str(listed.get("list_id") or "")
+    completed: list[str] = []
+    rewritten: list[str] = []
+    errors: list[str] = []
+    for item in items:
+        tid = str(item.get("id") or "").strip()
+        if not tid:
+            continue
+        title = str(item.get("title") or "")
+        if title.lower().startswith("update") or _describes_old_window(item, change):
+            result = complete_task(tid, list_id, gt=client)
+            if result.get("ok"):
+                completed.append(tid)
+            else:
+                errors.append(str(result.get("error") or tid))
+            continue
+        new_title = _rewrite_title(change)
+        if hasattr(client, "update_task"):
+            result = client.update_task(list_id, tid, title=new_title)
+            if isinstance(result, dict) and result.get("ok"):
+                rewritten.append(tid)
+            elif isinstance(result, dict):
+                errors.append(str(result.get("error") or tid))
+            else:
+                rewritten.append(tid)
+        else:
+            result = complete_task(tid, list_id, gt=client)
+            if result.get("ok"):
+                completed.append(tid)
+            else:
+                errors.append(str(result.get("error") or tid))
+    return {
+        "ok": not errors,
+        "matched": len(items),
+        "completed": completed,
+        "rewritten": rewritten,
+        "errors": errors,
+        "list_id": list_id,
+    }
+
+
 def complete_task(
     task_id: str,
     list_id: Optional[str] = None,
