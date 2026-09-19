@@ -11,12 +11,22 @@
   "not_for_monday_residual": true,
   "not_a_forced_rebalance": true,
   "authoritative_for_bias_pins": true,
-  "notes": "Unified Bias TARGET SoT as of 2026-09-08. Pins are Bias / new-money consider-share only — residual mix / relative preference on the 100% consider list. First-pass pins TSLA 15 and SPCX 15, then proportionally rescale every unpinned chip so the list still sums to 100%. No Other bucket. The 2026-09-08 BITA 2 / STRC 5 / MARA 3 / NVDA 5 stamp is superseded — those four float on role-score / watchlist residual only and must not be pinned. Flatten-only outside Monday $25: do not trim and do not top up. Monday $25 stays theme-gap (prefer underweights; not forced onto these pins). BE is pass / dropped off this axis; historical reallocate BE→[TSLA, SPCX] stays for audit and is a no-op when BE is absent. NOT a live NAV target, NOT a sleeve target, NOT an order, NOT a forced rebalance. fund_manager.py / autopilot must not read this file as a fill ticket.",
+  "notes": "Unified Bias TARGET SoT as of 2026-09-08. Pins are Bias / new-money consider-share only — residual mix / relative preference on the 100% consider list. First-pass pins TSLA 15 and SPCX 15, then proportionally rescale every unpinned chip so the list still sums to 100%. No Other bucket. The 2026-09-08 BITA 2 / STRC 5 / MARA 3 / NVDA 5 stamp is superseded — those four float on role-score / watchlist residual only and must not be pinned. Flatten-only outside Monday $25: do not trim and do not top up. Monday $25 stays theme-gap (prefer underweights; not forced onto these pins). BE is pass / dropped off this axis; historical reallocate BE→[TSLA, SPCX] stays for audit and is a no-op when BE is absent. NOT a live NAV target, NOT a sleeve target, NOT an order, NOT a forced rebalance. fund_manager.py / autopilot must not read this file as a fill ticket. #768 loop_adjustments tilt unpinned residual chips only; the loop may not invent pins or move 60/40.",
   "pins": {
     "TSLA": 15.0,
     "SPCX": 15.0
   },
   "reallocate": {
     "BE": ["TSLA", "SPCX"]
-  }
+  },
+  "guardrails": {
+    "locked_by": "Chairman",
+    "locked_as_of": "2026-09-15",
+    "source": "https://github.com/cvolkernick/personal-workspace/issues/768",
+    "single_symbol_max_auto": 2.0,
+    "total_abs_max_auto": 5.0,
+    "never_auto_sleeve_targets": true,
+    "never_invent_pins": true
+  },
+  "loop_adjustments": {}
 }

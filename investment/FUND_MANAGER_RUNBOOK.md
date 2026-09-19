@@ -72,6 +72,25 @@ Also:
 
 Quorum: Risk + Thesis OK; Critic can force hold or size-down.
 
+## Bias-weighting loop (#768)
+
+New-money consider-share (not orders, not 60/40 sleeves). Same committee roles debate the ~8:49 ET digest's proposed deltas.
+
+| Guardrail (Chairman 2026-09-15) | Auto-apply | Else |
+|---------------------------------|------------|------|
+| Single-symbol \|Δ\| | ≤ 2 pts | stage |
+| Total \|Δ\| | ≤ 5 pts | stage |
+| Pins (`consider_share.json`) | never | stage |
+| 60/40 sleeve targets / band | never | stage |
+| Thin / uncited signal | skip | — |
+
+```bash
+python3 -m treasury.bias_weight_loop --digest investment/digests/YYYY-MM-DD.md --apply
+python3 -m treasury.bias_weight_loop --override SATA --delta 1 --why "Chairman SATA-above-STRC" --apply
+```
+
+SoT: `investment/consider_share.json` (pins + `loop_adjustments`). Staged queue: `investment/bias_weight_staged.json`. Minutes: `investment/fund_manager_journal.md`. Naka audits; Chairman signs staged moves and may override anytime.
+
 ## Unattended automation
 
 ```text
