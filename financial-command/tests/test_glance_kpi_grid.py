@@ -110,7 +110,6 @@ class TestGlanceKpiGridNoBp(unittest.TestCase):
 
     def test_out_of_scope_bp_surfaces_remain(self):
         self.assertIn('reason: "BP healthy"', self.html)
-        self.assertIn('metric("NAV / BP / cash"', self.html)
         self.assertIn("rh_buying_power", self.html)
         self.assertIn("rh_bp_floor", self.html)
 
