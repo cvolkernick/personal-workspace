@@ -3636,8 +3636,243 @@ STAPLE_CATALOG: List[dict] = [
 ]
 
 
+# Curated never-in-rotation staples (#858). Disjoint from STAPLE_CATALOG.
+# Seeded, reviewable — not a model call. Suggested only when a real gap exists
+# and the item is absent from pantry (any stock) and from full log history.
+NOVEL_STAPLE_CATALOG: List[dict] = [
+    {
+        "id": "extra-firm-tofu",
+        "name": "Extra-firm tofu",
+        "category": "protein",
+        "serving_g": 126,
+        "serving_label": "126g",
+        "calories": 170,
+        "protein_g": 18,
+        "carbs_g": 4,
+        "fat_g": 10,
+        "fiber_g": 2,
+    },
+    {
+        "id": "tempeh",
+        "name": "Tempeh",
+        "category": "protein",
+        "serving_g": 84,
+        "serving_label": "84g",
+        "calories": 160,
+        "protein_g": 16,
+        "carbs_g": 9,
+        "fat_g": 9,
+        "fiber_g": 6,
+    },
+    {
+        "id": "atlantic-cod",
+        "name": "Atlantic cod",
+        "category": "protein",
+        "serving_g": 170,
+        "serving_label": "170g cooked",
+        "calories": 150,
+        "protein_g": 33,
+        "carbs_g": 0,
+        "fat_g": 1,
+    },
+    {
+        "id": "sardines",
+        "name": "Sardines",
+        "category": "protein",
+        "serving_g": 85,
+        "serving_label": "85g drained",
+        "calories": 175,
+        "protein_g": 21,
+        "carbs_g": 0,
+        "fat_g": 10,
+    },
+    {
+        "id": "shrimp",
+        "name": "Shrimp",
+        "category": "protein",
+        "serving_g": 170,
+        "serving_label": "170g cooked",
+        "calories": 170,
+        "protein_g": 36,
+        "carbs_g": 2,
+        "fat_g": 2,
+    },
+    {
+        "id": "canned-salmon",
+        "name": "Canned salmon",
+        "category": "protein",
+        "serving_g": 85,
+        "serving_label": "85g drained",
+        "calories": 130,
+        "protein_g": 20,
+        "carbs_g": 0,
+        "fat_g": 5,
+    },
+    {
+        "id": "edamame",
+        "name": "Edamame",
+        "category": "protein",
+        "serving_g": 155,
+        "serving_label": "155g",
+        "calories": 180,
+        "protein_g": 17,
+        "carbs_g": 14,
+        "fat_g": 8,
+        "fiber_g": 8,
+    },
+    {
+        "id": "hemp-hearts",
+        "name": "Hemp hearts",
+        "category": "fat",
+        "serving_g": 30,
+        "serving_label": "30g (3 tbsp)",
+        "calories": 170,
+        "protein_g": 10,
+        "carbs_g": 3,
+        "fat_g": 13,
+        "fiber_g": 3,
+    },
+    {
+        "id": "pumpkin-seeds",
+        "name": "Pumpkin seeds",
+        "category": "fat",
+        "serving_g": 28,
+        "serving_label": "28g",
+        "calories": 150,
+        "protein_g": 7,
+        "carbs_g": 5,
+        "fat_g": 13,
+        "fiber_g": 2,
+    },
+    {
+        "id": "walnuts",
+        "name": "Walnuts",
+        "category": "fat",
+        "serving_g": 28,
+        "serving_label": "28g",
+        "calories": 185,
+        "protein_g": 4,
+        "carbs_g": 4,
+        "fat_g": 18,
+        "fiber_g": 2,
+    },
+    {
+        "id": "quinoa",
+        "name": "Quinoa",
+        "category": "carb",
+        "serving_g": 185,
+        "serving_label": "185g cooked",
+        "calories": 220,
+        "protein_g": 8,
+        "carbs_g": 39,
+        "fat_g": 4,
+        "fiber_g": 5,
+    },
+    {
+        "id": "chickpeas",
+        "name": "Chickpeas",
+        "category": "carb",
+        "serving_g": 164,
+        "serving_label": "164g cooked",
+        "calories": 270,
+        "protein_g": 15,
+        "carbs_g": 45,
+        "fat_g": 4,
+        "fiber_g": 12,
+    },
+    {
+        "id": "navy-beans",
+        "name": "Navy beans",
+        "category": "carb",
+        "serving_g": 182,
+        "serving_label": "182g cooked",
+        "calories": 255,
+        "protein_g": 15,
+        "carbs_g": 47,
+        "fat_g": 1,
+        "fiber_g": 19,
+    },
+    {
+        "id": "kale",
+        "name": "Kale",
+        "category": "veg",
+        "serving_g": 67,
+        "serving_label": "67g",
+        "calories": 35,
+        "protein_g": 3,
+        "carbs_g": 7,
+        "fat_g": 0.5,
+        "fiber_g": 3,
+    },
+    {
+        "id": "brussels-sprouts",
+        "name": "Brussels sprouts",
+        "category": "veg",
+        "serving_g": 150,
+        "serving_label": "150g",
+        "calories": 55,
+        "protein_g": 4,
+        "carbs_g": 11,
+        "fat_g": 0.5,
+        "fiber_g": 4,
+    },
+    {
+        "id": "cauliflower",
+        "name": "Cauliflower",
+        "category": "veg",
+        "serving_g": 150,
+        "serving_label": "150g",
+        "calories": 40,
+        "protein_g": 3,
+        "carbs_g": 8,
+        "fat_g": 0.4,
+        "fiber_g": 3,
+    },
+    {
+        "id": "raspberries",
+        "name": "Raspberries",
+        "category": "carb",
+        "serving_g": 140,
+        "serving_label": "140g",
+        "calories": 70,
+        "protein_g": 1.5,
+        "carbs_g": 16,
+        "fat_g": 0.8,
+        "fiber_g": 8,
+    },
+    {
+        "id": "barley",
+        "name": "Barley",
+        "category": "carb",
+        "serving_g": 157,
+        "serving_label": "157g cooked",
+        "calories": 190,
+        "protein_g": 4,
+        "carbs_g": 44,
+        "fat_g": 1,
+        "fiber_g": 6,
+    },
+]
+
+
 def _norm_name(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
+def _same_staple(name: str, iid: str, other_name: str, other_id: str = "") -> bool:
+    """Identity for novel exclusion: id or contained name, not weak token overlap.
+
+    ``_names_overlap`` treats "canned sardines in water" as tuna because both
+    share {canned, water}. Novel skip must not hide a different food.
+    """
+    want_id = (iid or "").strip().lower()
+    other_id_n = (other_id or "").strip().lower()
+    if want_id and other_id_n and want_id == other_id_n:
+        return True
+    na, nb = _norm_name(name), _norm_name(other_name)
+    if not na or not nb:
+        return False
+    return na == nb or na in nb or nb in na
 
 
 def _names_overlap(a: str, b: str) -> bool:
@@ -3940,6 +4175,88 @@ def _find_inventory_match(inventory: dict, name: str, iid: str = "") -> Optional
     return None
 
 
+def _novel_gap_score(
+    staple: dict,
+    diet: dict,
+    targets: dict,
+    fiber_tgt: Optional[float],
+    missing_roles: Sequence[str],
+) -> tuple[List[str], List[str], float]:
+    """Score a never-logged / never-stocked staple against real gaps (#858).
+
+    Diet-window shortfalls fire even when the matching pantry role is already
+    filled — the rotation is not closing intake. Remaining macros today are
+    not a shopping hole (#709). No purpose → no card.
+    """
+    dens = _protein_density(staple)
+    shake = is_shake_or_powder(staple)
+    veg = is_veg_or_fruit(staple)
+    fiber = estimated_fiber_g(staple)
+    roles = staple_purpose_roles(staple)
+    score = 12.0 + dens * 18.0
+    reasons: List[str] = []
+    purposes: List[str] = []
+    tgt_p = float(targets.get("protein_g") or 0)
+
+    if diet.get("protein_short") and dens >= 0.08 and not shake:
+        short = diet.get("protein_short_g")
+        avg = diet.get("protein_avg")
+        days = diet.get("days") or 0
+        reasons.append(
+            f"Protein ~{int(avg)}g/day vs {int(tgt_p)}g target over {int(days)}d"
+            f" (short ~{int(short)}g); this closes that gap."
+        )
+        purposes.append("diet_protein")
+        score += 38
+    if diet.get("fiber_short") and (veg or fiber >= 3) and not shake:
+        short = diet.get("fiber_short_g")
+        avg = diet.get("fiber_avg")
+        days = diet.get("fiber_known_days") or diet.get("days") or 0
+        tgt_f = diet.get("fiber_target") or fiber_tgt or SOFT_FIBER_TARGET_G
+        reasons.append(
+            f"Fiber ~{int(avg)}g/day vs {int(tgt_f)}g target over {int(days)}d"
+            f" (short ~{int(short)}g); this closes that gap."
+        )
+        purposes.append("diet_fiber")
+        score += 42
+    if diet.get("fat_short") and "quality_fat" in roles:
+        short = diet.get("fat_short_g")
+        avg = diet.get("fat_avg")
+        days = diet.get("days") or 0
+        tgt_fat = diet.get("fat_target") or float(targets.get("fat_g") or 0)
+        reasons.append(
+            f"Fat ~{int(avg)}g/day vs {int(tgt_fat)}g target over {int(days)}d"
+            f" (short ~{int(short)}g); this improves the split."
+        )
+        purposes.append("diet_fat")
+        score += 24
+    if diet.get("sugar_high") and (veg or "fiber_booster" in roles) and not shake:
+        reasons.append(
+            "Sugar running over target most days; this improves the healthfulness of the split."
+        )
+        purposes.append("diet_sugar")
+        score += 16
+    if diet.get("shake_heavy") and dens >= 0.08 and not shake:
+        if diet.get("shake_share") is not None:
+            pct = int(round(float(diet["shake_share"]) * 100))
+            reasons.append(
+                f"~{pct}% of protein intake is powder; whole-food staple improves the split."
+            )
+        else:
+            reasons.append("Whole-food protein so the plan is not shake-filled.")
+        purposes.append("shake_split")
+        score += 22
+    for role in PURPOSE_ROLES:
+        if role in roles and role in missing_roles:
+            why = _PURPOSE_ROLE_WHY.get(role)
+            if why and why not in reasons:
+                reasons.append(why)
+            purposes.append(role)
+            score += 18
+            break
+    return reasons, purposes, score
+
+
 def suggest_inventory_staples(
     inventory: dict,
     targets: Optional[dict] = None,
@@ -3947,15 +4264,18 @@ def suggest_inventory_staples(
     consumed: Optional[dict] = None,
     max_suggestions: int = 8,
     catalog: Optional[Sequence[dict]] = None,
+    novel_catalog: Optional[Sequence[dict]] = None,
 ) -> dict:
-    """Purpose-based restock / add proposals (#502 + #707).
+    """Purpose-based restock / add proposals (#502 + #707 + #858).
 
     Ranking: restocks first, then catalog adds that close a stated purpose —
     remaining macros, diet-window shortfalls, shake-as-filler risk, or a
     missing pantry role (fiber booster / produce / whole protein / quality
-    fat / slow carb). Log-frequency is **not** a positive signal. Missing
-    catalog SKUs with no purpose are novelty and are skipped. Candidates
-    come from ``catalog`` / ``STAPLE_CATALOG``, not “foods Chris logged.”
+    fat / slow carb). Then a disjoint novel-ingredient source (#858): items
+    never logged and never stocked, ranked only by gap-closing power.
+    Log-frequency is **not** a positive signal. Missing catalog SKUs with no
+    purpose are novelty and are skipped. Candidates come from ``catalog`` /
+    ``STAPLE_CATALOG`` plus ``NOVEL_STAPLE_CATALOG``, not “foods Chris logged.”
     Suggestions are proposals — never written as stock-on-hand until accept.
     Recomputed on every dashboard load (inventory / consumed / plan change).
     """
@@ -3963,6 +4283,9 @@ def suggest_inventory_staples(
     logs = list(food_logs or [])
     consumed = consumed or {}
     catalog_rows = list(catalog) if catalog is not None else list(STAPLE_CATALOG)
+    novel_rows = (
+        list(novel_catalog) if novel_catalog is not None else list(NOVEL_STAPLE_CATALOG)
+    )
     suggestions: List[dict] = []
     seen_keys: set = set()
 
@@ -4035,12 +4358,29 @@ def suggest_inventory_staples(
             continue
         log_counts[name] = log_counts.get(name, 0) + 1
 
-    def _log_hits(name: str) -> int:
+    def _log_hits(name: str, iid: str = "") -> int:
         n = 0
         for ln, c in log_counts.items():
             if _names_overlap(name, ln):
                 n += c
         return n
+
+    def _logged_as(name: str, iid: str = "") -> bool:
+        for ln in log_counts:
+            if _same_staple(name, iid, ln, ""):
+                return True
+        return False
+
+    def _in_pantry_any_stock(name: str, iid: str = "") -> bool:
+        for raw in inventory.get("ingredients") or []:
+            if _same_staple(
+                name,
+                iid,
+                str(raw.get("name") or ""),
+                str(raw.get("id") or ""),
+            ):
+                return True
+        return False
 
     # --- 2) Catalog staples ranked by nutrition/ops need (not log frequency) ---
     tgt_p = float(targets.get("protein_g") or 0)
@@ -4064,7 +4404,7 @@ def suggest_inventory_staples(
     missing_roles = [r for r in PURPOSE_ROLES if r not in stocked_roles]
 
     honesty: List[dict] = []
-    if not catalog_rows:
+    if not catalog_rows and not novel_rows:
         if not suggestions:
             summary = "No staple catalog — cannot propose adds (not inventing food)."
             honesty.append(
@@ -4230,6 +4570,50 @@ def suggest_inventory_staples(
         row["venue"] = venue_for_item(row)
         _push(row)
 
+    # --- 3) Novel ingredients: never logged, never in pantry, purpose-only (#858) ---
+    for staple in novel_rows:
+        name = str(staple.get("name") or "").strip()
+        iid = str(staple.get("id") or "")
+        if not name:
+            continue
+        if _in_pantry_any_stock(name, iid):
+            continue
+        if _logged_as(name, iid):
+            continue
+        skip_catalog_dup = False
+        for cat in catalog_rows:
+            if _same_staple(
+                name, iid, str(cat.get("name") or ""), str(cat.get("id") or "")
+            ):
+                skip_catalog_dup = True
+                break
+        if skip_catalog_dup:
+            continue
+        reasons, purposes, score = _novel_gap_score(
+            staple, diet, targets, fiber_tgt, missing_roles
+        )
+        if not reasons:
+            continue
+        payload = {**staple}
+        payload.pop("in_stock", None)
+        payload.pop("stock", None)
+        qty = suggested_qty_for_item(payload)
+        row = {
+            **payload,
+            "action": "add",
+            "reason": " ".join(reasons),
+            "need": reasons[0],
+            "score": round(score, 1),
+            "source": "novel",
+            "proposal": True,
+            "suggested_qty": qty,
+            "purpose": purposes,
+        }
+        if qty.get("portion_g") is not None:
+            row["portion_g"] = qty["portion_g"]
+        row["venue"] = venue_for_item(row)
+        _push(row)
+
     suggestions.sort(key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
     limit = max(1, int(max_suggestions))
     restocks = [s for s in suggestions if s.get("action") == "restock"]
@@ -4241,11 +4625,14 @@ def suggest_inventory_staples(
 
     restock_n = sum(1 for s in top if s.get("action") == "restock")
     add_n = sum(1 for s in top if s.get("action") == "add")
+    novel_n = sum(1 for s in top if s.get("source") == "novel")
     bits = []
     if restock_n:
         bits.append(f"{restock_n} restock")
     if add_n:
         bits.append(f"{add_n} add")
+    if novel_n:
+        bits.append(f"{novel_n} novel")
     if not top:
         summary = (
             "No purpose-based add/restock — restocks clear, diet hitting targets, "
@@ -4262,7 +4649,7 @@ def suggest_inventory_staples(
     else:
         summary = (
             f"{len(top)} purpose-based suggestions ({', '.join(bits)}) from restocks, "
-            f"diet gaps, and pantry-role holes. Every add answers why. "
+            f"diet gaps, pantry-role holes, and novel gap-closers. Every add answers why. "
             f"Log frequency is not a positive rank signal. Proposals only until you accept."
         )
     return {

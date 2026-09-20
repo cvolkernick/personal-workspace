@@ -2940,13 +2940,18 @@
           stock: "in",
           in_stock: true,
           notes: s.notes || "",
+          fiber_g: s.fiber_g,
         })
       );
-      const reason = String(s.need || s.reason || "").slice(0, 90);
+      const reason = String(s.need || s.reason || "").slice(0, 140);
       const qty = (s.suggested_qty && s.suggested_qty.label) || formatInventoryPortion(s);
+      const novelBadge =
+        s.source === "novel"
+          ? `<span class="inv-action-badge inv-action-add">new</span>`
+          : "";
       slides += `<div class="inv-slide inv-card compact suggest">
         <div class="inv-card-name">${s.name || "Staple"}
-          <span class="inv-action-badge inv-action-${action}">${action}</span>
+          <span class="inv-action-badge inv-action-${action}">${action}</span>${novelBadge}
         </div>
         <div class="inv-card-meta muted">${s.category || "other"} · ${qty}</div>
         ${
@@ -2956,7 +2961,7 @@
             ? `<p class="inv-grams-prompt compact muted">Grams optional — planner will use servings.</p>`
             : ""
         }
-        ${reason ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${String(s.reason || "").length > 90 ? "…" : ""}</div>` : ""}
+        ${reason ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${String(s.reason || "").length > 140 ? "…" : ""}</div>` : ""}
         ${invMacroStrip(s, true)}
         <div class="actions inv-card-actions compact">
           <button type="button" class="primary btn-suggest-apply" data-action="suggest-apply"
