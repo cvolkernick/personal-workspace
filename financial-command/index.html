@@ -4512,7 +4512,7 @@
       const wlSyms = wl.symbols || (wl.entries || []).map((e) => e.symbol).filter(Boolean);
       document.getElementById("fund-manager-metrics").innerHTML = fma.ok
         ? [
-            metric("NAV / BP / cash", `${money(fma.nav_usd)} · ${money(fma.buying_power_usd)} · ${money(fma.cash_usd)}`),
+            metric("NAV", money(fma.nav_usd)),
             metric(
               "Of NAV",
               `Complex ${pctLabel(wNav.btc_digital_credit)} · Stocks ${pctLabel(
