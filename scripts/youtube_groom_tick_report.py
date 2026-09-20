@@ -536,6 +536,23 @@ def run_report(
     payload["jsonl_path"] = str(jsonl_path)
     payload["report_path"] = str(report_path)
     payload["dry_run"] = dry_run
+    # #852 control loop: idempotent per last_tick.at. Lives alongside this
+    # reader (same dir on Pi). Never import youtube_groom — that's the writer.
+    try:
+        here = Path(__file__).resolve().parent
+        if str(here) not in sys.path:
+            sys.path.insert(0, str(here))
+        from youtube_groom_control import attach_to_report as _attach_control
+
+        payload = _attach_control(
+            payload,
+            dry_run=dry_run,
+            state_dir=report_path.parent,
+            apply_timer_changes=False,
+        )
+    except Exception as exc:
+        payload["control_error"] = f"{type(exc).__name__}: {exc}"
+        payload.setdefault("copy_over_pi", False)
     if not dry_run:
         atomic_write(report_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return payload

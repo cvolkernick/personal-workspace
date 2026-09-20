@@ -10,6 +10,7 @@ caps file; these match PR #429’s verified Pi names.
 ```
 MAX_INSERTS_PER_TICK = removed   # was 8 (and 4 before 8/31)
 HOUSE_TARGET         = 100       # was 50; fill target after prune; not YouTube 5000 (#788)
+HOUSE_TARGET_TOLERANCE = 10      # #852 band 90–110; sidecar youtube_groom_control.py
 FRESH_HOURS          = 168       # was 72; matches STALE_HARD_DAYS (7d)
 CAP                  = 200       # was 100 (breaker reason cap_100); not a target
 STALE_HARD_DAYS      = 7         # unchanged
@@ -29,6 +30,10 @@ Auth/tick failure alerts (#480) are a **separate** log reader:
 `scripts/youtube_groom_health.py` → Pi `health.json` + #workflow (Grok).
 Do not copy this policy module over the writer. Landing path:
 [`YOUTUBE_GROOM_HEALTH.md`](YOUTUBE_GROOM_HEALTH.md).
+
+Control loop (#852): hold playlist at `HOUSE_TARGET ± 10`. Sidecar
+[`YOUTUBE_GROOM_CONTROL.md`](YOUTUBE_GROOM_CONTROL.md) +
+`scripts/youtube_groom_control.py`. Copy alongside the writer, never over it.
 
 Impact comparison (`youtube-groom-impact-check`, ~2026-09-19 09:00 ET):
 [`YOUTUBE_GROOM_IMPACT_CHECK.md`](YOUTUBE_GROOM_IMPACT_CHECK.md) +

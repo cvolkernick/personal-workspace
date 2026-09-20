@@ -109,10 +109,21 @@ never over it): Pi `tick_report.json` + append-only `ticks.jsonl` + 15m
 Do not remint OAuth. Do not crank ticks/seeds without the quota block
 in that JSON.
 
+## Control loop (#852)
+
+Hold the playlist at **100 ± 10** (band 90–110). Sidecar
+`scripts/youtube_groom_control.py` (copy **alongside** the Pi writer,
+never over it) notches one knob per tick when outside the band.
+Landing: [`YOUTUBE_GROOM_CONTROL.md`](YOUTUBE_GROOM_CONTROL.md).
+`HOUSE_TARGET_TOLERANCE = 10` lives next to `HOUSE_TARGET` in this
+scorecard. Quota headroom still required before seeds/ticks/caps.
+Anti-oscillation cooldown prevents loosen→tighten flip-flops.
+
 ## Tests
 
 ```bash
 python3 -m unittest scripts.tests.test_youtube_groom -v
 python3 -m unittest scripts.tests.test_youtube_groom_health -v
 python3 -m unittest scripts.tests.test_youtube_groom_tick_report -v
+python3 -m unittest scripts.tests.test_youtube_groom_control -v
 ```

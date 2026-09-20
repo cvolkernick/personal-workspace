@@ -20,6 +20,7 @@ lines (prefers the ISO append line over the INFO duplicate).
 | **Append-only** | `~/.local/share/youtube-groom/ticks.jsonl` (deduped by `at`) |
 | **15m sweep copy** | `scripts/export-day-packets.sh` copies the ledger to `ops/board/youtube_groom_tick_report.json` (gitignored + `workspace_sync.sh` preserve/clean exclude) |
 | **After each fire** | `youtube-groom.service` second `ExecStopPost` |
+| **Control loop (#852)** | `youtube_groom_control.py` merges playlist_count / net_new / distance_from_band / adjustment into this JSON |
 
 ```bash
 python3 ~/.local/lib/youtube-groom/youtube_groom_tick_report.py --dry-run --json

@@ -6,10 +6,12 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom.py
-# Health + tick report run after success *or* fail. Leading '-' = missing script is non-fatal.
+# Health + tick report + #852 control loop run after success *or* fail.
+# Leading '-' = missing script is non-fatal.
 # Do not point ExecStart at nest youtube_groom.py (policy scorecard).
 ExecStopPost=-/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom_health.py
 ExecStopPost=-/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom_tick_report.py
+ExecStopPost=-/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom_control.py --apply-timer
 Nice=10
 
 [Install]

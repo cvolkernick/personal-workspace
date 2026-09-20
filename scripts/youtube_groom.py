@@ -11,9 +11,12 @@ in place. Merge policy only; do not clobber search, score, OAuth, or
 API code.
 
 This file is the nest SoT for house caps, insert-budget math, the
-#731/#815 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), and the
-#788 house fill (`HOUSE_TARGET` 50 → 100) so tests and ops stay aligned.
+#731/#815 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), the
+#788 house fill (`HOUSE_TARGET` 50 → 100), and the #852 control-loop
+band (`HOUSE_TARGET ± HOUSE_TARGET_TOLERANCE` = 100 ± 10).
 No YouTube I/O. No second writer. No OAuth.
+The loop itself lives in `scripts/youtube_groom_control.py` (sidecar;
+copy alongside the Pi writer, never over it).
 """
 
 from __future__ import annotations
@@ -41,6 +44,8 @@ from typing import Iterable, Optional, Sequence
 # #815 (Pi writer 2026-09-18): one more volume notch.
 #   MIN_FIT 1 → 0 (disable thesis-fit skip; accept fit≥0).
 #   SEED_THROTTLE_WEIGHT_FLOOR 0.25 → 0.10. HOUSE_TARGET/CAP unchanged.
+# #852 (control loop): HOUSE_TARGET_TOLERANCE = 10 → band 90–110.
+#   Sidecar youtube_groom_control.py notches knobs when outside the band.
 # ---------------------------------------------------------------------------
 
 PLAYLIST_ID = "PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At"
@@ -52,6 +57,10 @@ HISTORICAL_MD5 = "25b0bed0ca8f214f9437af3b9a8cfa9d"
 # Fill-to after prune. Target, not a hard playlist max.
 HOUSE_TARGET = 100
 OLD_HOUSE_TARGET = 50
+# #852 band: playlist count should sit in HOUSE_TARGET ± TOLERANCE.
+HOUSE_TARGET_TOLERANCE = 10
+BAND_LOW = HOUSE_TARGET - HOUSE_TARGET_TOLERANCE  # 90
+BAND_HIGH = HOUSE_TARGET + HOUSE_TARGET_TOLERANCE  # 110
 
 # Breaker, not a fill target. Live reason was cap_100; now CAP 200.
 CAP = 200
@@ -83,8 +92,23 @@ OLD_MAX_INSERTS_PER_TICK_PRE_831 = 4
 MAX_ADD_PER_DAY = None
 QUOTA_GUARD_IN_NEST = None
 
+# Extra seed ladder for the #852 control loop (inspect 2026-08-14 channels
+# that were already on AI Curated and are not in the live 6+4 seed set).
+# Channel lists still stay on the Pi writer; the sidecar writes knobs.json.
+EXTRA_SEED_LADDER = (
+    ("UCtvg5cXLY_tHDJeBoRySBtg", "What Bitcoin Did"),
+    ("UCCpNQKYvrnWQNjZprabMJlw", "Peter H. Diamandis"),
+    ("UCYXLs8tkNQrENrT1s60rxCw", "Anthony Pompliano"),
+    ("UCk6EGp5yqsB-YtBE3AF8dWw", "Bitcoin Magazine"),
+    ("UCfs-Vb0DOIZNN0xKyfz-svg", "Natalie Brunell"),
+    ("UCPcO_WZXKQa1lFwCGltWc8A", "Brent Johnson Milkshakes Pod"),
+)
+
 HOUSE_CAPS = {
     "HOUSE_TARGET": HOUSE_TARGET,
+    "HOUSE_TARGET_TOLERANCE": HOUSE_TARGET_TOLERANCE,
+    "BAND_LOW": BAND_LOW,
+    "BAND_HIGH": BAND_HIGH,
     "CAP": CAP,
     "FRESH_HOURS": FRESH_HOURS,
     "STALE_HARD_DAYS": STALE_HARD_DAYS,
@@ -135,13 +159,44 @@ def skip_add_reason(
     fit: int,
     channel_weight: float,
     is_seed_throttle: bool,
+    min_fit: int = MIN_FIT,
+    throttle_floor: float = SEED_THROTTLE_WEIGHT_FLOOR,
 ) -> Optional[str]:
     """Pi add-path skip reason. Policy only — seed channel ids stay on the writer."""
-    if fit < MIN_FIT:
+    if fit < min_fit:
         return f"fit={fit}"
-    if is_seed_throttle and channel_weight < SEED_THROTTLE_WEIGHT_FLOOR:
+    if is_seed_throttle and channel_weight < throttle_floor:
         return "throttled-decay"
     return None
+
+
+def band_side(count: int, *, house: int = HOUSE_TARGET, tolerance: int = HOUSE_TARGET_TOLERANCE) -> str:
+    """below / inside / above the HOUSE_TARGET ± TOLERANCE band."""
+    low = house - tolerance
+    high = house + tolerance
+    if count < low:
+        return "below"
+    if count > high:
+        return "above"
+    return "inside"
+
+
+def distance_from_band(
+    count: int, *, house: int = HOUSE_TARGET, tolerance: int = HOUSE_TARGET_TOLERANCE
+) -> int:
+    """How far the playlist count sits outside 90–110. 0 if inside."""
+    low = house - tolerance
+    high = house + tolerance
+    if count < low:
+        return low - count
+    if count > high:
+        return count - high
+    return 0
+
+
+def net_new(added: int, removed: int) -> int:
+    """added − removed/expired for one tick."""
+    return int(added) - int(removed)
 
 
 def slots_to_house_target(after_prune: int, *, target: int = HOUSE_TARGET) -> int:
@@ -282,11 +337,21 @@ def scorecard() -> dict[str, object]:
             "MAX_ADD_PER_DAY": MAX_ADD_PER_DAY,
             "MIN_FIT": MIN_FIT,
             "SEED_THROTTLE_WEIGHT_FLOOR": SEED_THROTTLE_WEIGHT_FLOOR,
+            "HOUSE_TARGET_TOLERANCE": HOUSE_TARGET_TOLERANCE,
+            "BAND_LOW": BAND_LOW,
+            "BAND_HIGH": BAND_HIGH,
         },
         "youtube_ceiling": YOUTUBE_PLAYLIST_CEILING,
         "cap_is_breaker": True,
         "house_target_is_youtube_5000": False,
         "quota_guard_in_nest": QUOTA_GUARD_IN_NEST,
+        "control_loop": {
+            "issue": 852,
+            "sidecar": "scripts/youtube_groom_control.py",
+            "band": f"{BAND_LOW}–{BAND_HIGH}",
+            "extra_seed_count": len(EXTRA_SEED_LADDER),
+            "copy_over_pi": False,
+        },
     }
 
 
@@ -315,6 +380,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print(
         f"    SEED_THROTTLE_WEIGHT_FLOOR: {new['SEED_THROTTLE_WEIGHT_FLOOR']} "
         f"(was {card['old']['SEED_THROTTLE_WEIGHT_FLOOR']})"
+    )
+    print(
+        f"    HOUSE_TARGET_TOLERANCE: {new['HOUSE_TARGET_TOLERANCE']} "
+        f"(band {new['BAND_LOW']}–{new['BAND_HIGH']}; #852)"
     )
     return 0
 

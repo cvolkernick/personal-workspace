@@ -8,6 +8,8 @@
 #   copied to ops/board/youtube_groom_health.json (Grok 15m sweep ledger).
 # youtube-groom tick report (#838): youtube_groom_tick_report.py → tick_report.json
 #   copied to ops/board/youtube_groom_tick_report.json (listed/add/skip/quota + 24h).
+# youtube-groom control loop (#852): youtube_groom_control.py merges band +
+#   adjustment into tick_report.json (same 15m copy). Never a second writer.
 # Orchestra only *reads* these files — never dual-writes domain SoT.
 #
 # Usage (from monorepo root or any cwd):
