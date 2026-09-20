@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Optional
 
 from adapters import PhotoSet
 from models import Lead
@@ -52,10 +52,9 @@ def extract_vehicle(text: str) -> dict[str, str]:
     return {"year": year, "make": make, "model": model, "asking_price": price}
 
 
-def harvest_text(photo_set: PhotoSet, ocr: Any) -> str:
-    bits = [photo_set.name, photo_set.sidecar_text]
+def _ocr_bits(photo_set: PhotoSet, ocr: Any) -> list[str]:
+    bits: list[str] = []
     for photo in photo_set.photos:
-        bits.append(photo.get("name") or "")
         mapped = (photo_set.ocr or {}).get(photo.get("id") or "") or (photo_set.ocr or {}).get(
             photo.get("name") or ""
         )
@@ -63,12 +62,35 @@ def harvest_text(photo_set: PhotoSet, ocr: Any) -> str:
             bits.append(mapped)
         elif ocr is not None:
             bits.append(ocr.read_text(photo) or "")
-    return "\n".join(b for b in bits if b)
+    return bits
 
 
-def lead_from_set(photo_set: PhotoSet, text: str) -> Lead:
+def harvest_set_text(photo_set: PhotoSet, ocr: Any) -> tuple[str, str]:
+    """Return (contact_blob, vehicle_blob). Vehicle SoT is OCR + sidecar only."""
+    ocr_bits = _ocr_bits(photo_set, ocr)
+    vehicle_text = "\n".join(b for b in [photo_set.sidecar_text, *ocr_bits] if b)
+    text = "\n".join(
+        b
+        for b in [photo_set.sidecar_text, *(p.get("name") or "" for p in photo_set.photos), *ocr_bits]
+        if b
+    )
+    return text, vehicle_text
+
+
+def harvest_vehicle_text(photo_set: PhotoSet, ocr: Any) -> str:
+    """Vehicle SoT is OCR + sidecar. Folder name is sighting date, not year/make."""
+    return harvest_set_text(photo_set, ocr)[1]
+
+
+def harvest_text(photo_set: PhotoSet, ocr: Any) -> str:
+    return harvest_set_text(photo_set, ocr)[0]
+
+
+def lead_from_set(photo_set: PhotoSet, text: str, *, vehicle_text: Optional[str] = None) -> Lead:
     spotted, road = parse_set_name(photo_set.name)
-    vehicle = extract_vehicle(text)
+    vehicle = extract_vehicle(
+        vehicle_text if vehicle_text is not None else harvest_vehicle_text(photo_set, None)
+    )
     phone = first_phone(text)
     state = "new" if phone else "needs-info"
     photos = [
