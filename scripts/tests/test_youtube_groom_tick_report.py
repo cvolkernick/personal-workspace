@@ -235,8 +235,9 @@ class TestNoWriterAndLanding(unittest.TestCase):
         service = SERVICE.read_text(encoding="utf-8")
         self.assertIn("youtube_groom_tick_report.py", service)
         self.assertIn("youtube_groom_health.py", service)
+        self.assertIn("youtube_groom_control.py", service)
         self.assertIn("youtube_groom.py", service)
-        # ExecStart still the live writer; report is StopPost only.
+        # ExecStart still the live writer; report/control are StopPost only.
         self.assertRegex(service, r"ExecStart=.*/youtube_groom\.py")
 
         export = EXPORT.read_text(encoding="utf-8")

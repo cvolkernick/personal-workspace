@@ -120,6 +120,10 @@ class TestHearted831Values(unittest.TestCase):
         self.assertEqual(card["new"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.10)
         self.assertEqual(card["old"]["HOUSE_TARGET"], 50)
         self.assertEqual(card["new"]["HOUSE_TARGET"], 100)
+        self.assertEqual(card["new"]["HOUSE_TARGET_TOLERANCE"], 10)
+        self.assertEqual(card["new"]["BAND_LOW"], 90)
+        self.assertEqual(card["new"]["BAND_HIGH"], 110)
+        self.assertEqual(card["control_loop"]["issue"], 852)
         self.assertTrue(card["cap_is_breaker"])
         self.assertFalse(card["house_target_is_youtube_5000"])
         self.assertFalse(card["copy_over_pi"])
@@ -218,6 +222,7 @@ class TestDocsMatchPolicy(unittest.TestCase):
         self.assertIn("CAP                  = 200", text)
         self.assertIn("STALE_HARD_DAYS      = 7", text)
         self.assertIn("HOUSE_TARGET         = 100", text)
+        self.assertIn("HOUSE_TARGET_TOLERANCE", text)
         self.assertIn("MIN_FIT              = 0", text)
         self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR = 0.10", text)
         self.assertIn("MAX_INSERTS_PER_TICK", text)
@@ -240,6 +245,7 @@ class TestDocsMatchPolicy(unittest.TestCase):
         self.assertIn("thesis-fit skip disabled", text)
         self.assertIn("HOUSE_TARGET", text)
         self.assertIn("**100**", text)
+        self.assertIn("#852", text)
         self.assertIn("youtube-groom-impact-check", text)
 
 
