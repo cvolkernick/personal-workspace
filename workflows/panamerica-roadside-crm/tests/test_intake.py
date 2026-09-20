@@ -9,9 +9,9 @@ from pathlib import Path
 PKG = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PKG))
 
-from adapters import FakeDrive, FakeOcr  # noqa: E402
+from adapters import FakeDrive, FakeOcr, PhotoSet  # noqa: E402
 from config import Config  # noqa: E402
-from intake import extract_vehicle, parse_set_name  # noqa: E402
+from intake import extract_vehicle, harvest_text, harvest_vehicle_text, lead_from_set, parse_set_name  # noqa: E402
 from pipeline import make_pipeline  # noqa: E402
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "photo_sets.json").read_text())
@@ -59,6 +59,10 @@ class IntakeTests(unittest.TestCase):
             self.assertEqual(corolla.phone, "2395550101")
             self.assertEqual(corolla.location, "del prado")
             self.assertEqual(corolla.make, "Toyota")
+            self.assertEqual(corolla.year, "2018")
+            honda = pipe.store.get("lead-set-honda")
+            assert honda is not None
+            self.assertEqual(honda.year, "2016")
             self.assertGreaterEqual(len(corolla.photos), 2)
             unread = pipe.store.get("lead-set-unreadable")
             assert unread is not None
@@ -88,3 +92,68 @@ class IntakeTests(unittest.TestCase):
             self.assertEqual(corolla.spotted_at, "2026-09-10")
             alias = pipe.weekly_pass()
             self.assertEqual(alias["created"], [])
+
+    def test_jeep_sign_year_not_folder_date(self) -> None:
+        photo_set = PhotoSet(
+            id="set-jeep",
+            name="2026-09-20",
+            photos=[{"id": "p-jeep", "name": "jeep.jpg"}],
+            sidecar_text="",
+            ocr={"p-jeep": "FOR SALE 2015 Jeep Wrangler $16,500 Call 239-464-8445"},
+        )
+        text = harvest_text(photo_set, None)
+        vehicle_text = harvest_vehicle_text(photo_set, None)
+        self.assertNotIn("2026-09-20", vehicle_text)
+        lead = lead_from_set(photo_set, text, vehicle_text=vehicle_text)
+        self.assertEqual(lead.year, "2015")
+        self.assertEqual(lead.make, "Jeep")
+        self.assertEqual(lead.model, "Wrangler")
+        self.assertEqual(lead.asking_price, "16500")
+        self.assertEqual(lead.phone, "2394648445")
+        self.assertEqual(lead.spotted_at, "2026-09-20")
+
+    def test_folder_route_digits_do_not_leak_into_vehicle(self) -> None:
+        photo_set = PhotoSet(
+            id="set-jeep-route",
+            name="2026-09-20-route-66",
+            photos=[{"id": "p-jeep2", "name": "jeep.jpg"}],
+            sidecar_text="",
+            ocr={"p-jeep2": "FOR SALE 2015 Jeep Wrangler $16,500 Call 239-464-8445"},
+        )
+        text = harvest_text(photo_set, None)
+        vehicle_text = harvest_vehicle_text(photo_set, None)
+        lead = lead_from_set(photo_set, text, vehicle_text=vehicle_text)
+        self.assertEqual(lead.year, "2015")
+        self.assertNotEqual(lead.year, "2026")
+        self.assertEqual(lead.make, "Jeep")
+        self.assertEqual(lead.model, "Wrangler")
+        self.assertEqual(lead.asking_price, "16500")
+        self.assertNotIn("66", (lead.year, lead.model, lead.asking_price))
+        self.assertEqual(lead.location, "route 66")
+        self.assertEqual(lead.spotted_at, "2026-09-20")
+
+    def test_pipeline_jeep_folder_date_yields_sign_year(self) -> None:
+        jeep = {
+            "id": "set-jeep",
+            "name": "2026-09-20-route-66",
+            "photos": [{"id": "p-jeep", "name": "jeep.jpg"}],
+            "sidecar_text": "",
+            "ocr": {"p-jeep": "FOR SALE 2015 Jeep Wrangler $16,500 Call 239-464-8445"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Config(dry_run=True, store_path=Path(tmp) / "store.json")
+            pipe = make_pipeline(
+                cfg,
+                drive=FakeDrive([jeep]),
+                ocr=FakeOcr(jeep["ocr"]),
+            )
+            result = pipe.daily_pass()
+            self.assertEqual(len(result["created"]), 1)
+            lead = pipe.store.get("lead-set-jeep")
+            assert lead is not None
+            self.assertEqual(lead.year, "2015")
+            self.assertEqual(lead.make, "Jeep")
+            self.assertEqual(lead.model, "Wrangler")
+            self.assertEqual(lead.asking_price, "16500")
+            self.assertEqual(lead.location, "route 66")
+            self.assertEqual(lead.spotted_at, "2026-09-20")

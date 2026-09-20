@@ -8,7 +8,7 @@ from typing import Any, Optional
 from adapters import Adapters, ExternalSendError, build_adapters
 from config import Config, LiveBlocked
 from outreach_copy import parse_inbound, render_sms, render_voice_task
-from intake import harvest_text, lead_from_set
+from intake import harvest_set_text, lead_from_set
 from models import CALL_ELIGIBLE_STATES, NEVER_RECONTACT_STATES, SMS_ELIGIBLE_STATES, Lead
 from store import FileStore, utc_now
 
@@ -48,8 +48,8 @@ class Pipeline:
             if self.store.folder_processed(photo_set.id) or self.store.find_by_folder(photo_set.id):
                 skipped.append({"folder_id": photo_set.id, "reason": "already processed"})
                 continue
-            text = harvest_text(photo_set, self.adapters.ocr)
-            lead = lead_from_set(photo_set, text)
+            text, vehicle_text = harvest_set_text(photo_set, self.adapters.ocr)
+            lead = lead_from_set(photo_set, text, vehicle_text=vehicle_text)
             lead.created_at = self._iso()
             if lead.phone:
                 existing = self.store.find_by_phone(lead.phone)
