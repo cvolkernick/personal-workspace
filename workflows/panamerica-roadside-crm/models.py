@@ -24,9 +24,10 @@ NEVER_RECONTACT_STATES = frozenset({"converted", "declined", "dead"})
 SMS_ELIGIBLE_STATES = frozenset({"new"})
 CALL_ELIGIBLE_STATES = frozenset({"sms_sent"})
 
-COPY_VERSION = "v1"
+COPY_VERSION = "v2"
 CANONICAL_STORE = "file"  # JSON file store (not Turso). Path is configurable.
-SMS_MAX_CHARS = 300
+# Approved #855 copy is ~450 chars (concatenated SMS). Cap fits {car}/{road} clips of 40.
+SMS_MAX_CHARS = 520
 VOICE_DELAY_MIN_DAYS = 5
 VOICE_DELAY_MAX_DAYS = 7
 

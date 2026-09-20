@@ -1,18 +1,24 @@
-"""Approved-draft SMS + voice script. Live send stays gated until Chris signs off."""
+"""Chris-approved SMS + voice script (#855, 2026-09-20).
+
+Copy is approved in-repo. Live send stays gated on
+PANAMERICA_ROADSIDE_COPY_APPROVED=1 (first-send human gate).
+"""
 
 from __future__ import annotations
 
 from models import SMS_MAX_CHARS, Lead
 
-# Draft on #807 (2026-09-17): Alexandra, no Turo mention. Not live-approved.
+# Canonical copy from issue #855. Do not drift without a new Chris approval.
 SMS_DRAFT = (
     "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
     "I saw your {car} for sale on {road} — have you considered renting it out "
     "instead of selling? We manage cars for owners and handle everything: "
-    "listing, guests, cleaning, maintenance. Worth a 10-min chat? "
-    "Reply STOP to opt out."
+    "listing, guests, cleaning, maintenance. We also have an owner-exit option "
+    "where we take over the payments if you'd rather move on. You can find details "
+    "on our available options at https://www.panamericafleet.com/plans. Worth a 10-min chat?"
 )
 
+# Inbound parse_inbound still honors STOP. Do not append this line to sends.
 OPT_OUT_LINE = "Reply STOP to opt out."
 
 
@@ -22,7 +28,6 @@ def render_sms(lead: Lead) -> str:
     body = SMS_DRAFT.format(car=car, road=road)
     if len(body) <= SMS_MAX_CHARS:
         return body
-    # Keep opt-out; shrink the car/road slots.
     for size in (24, 16, 12, 8):
         body = SMS_DRAFT.format(car=_clip(car, size), road=_clip(road, size))
         if len(body) <= SMS_MAX_CHARS:
@@ -31,7 +36,7 @@ def render_sms(lead: Lead) -> str:
         "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
         "Saw your car for sale — rent it out instead of selling? "
         "We handle listing, guests, cleaning, maintenance. "
-        + OPT_OUT_LINE
+        "Owner-exit and plans: https://www.panamericafleet.com/plans"
     )
     return fallback[:SMS_MAX_CHARS]
 
@@ -45,6 +50,8 @@ def render_voice_task(lead: Lead) -> str:
         "Pitch: instead of selling, owners host the car in our fleet — "
         "we handle listing, bookings, guests, cleaning, and maintenance; "
         "they earn monthly income off a car they would otherwise sell. "
+        "We also have an owner-exit option where we take over the payments, "
+        "and details on all our options are at www.panamericafleet.com/plans. "
         "Qualify: are you the owner? Open to a 10-minute chat with Chris? "
         "If interested, book a callback time and log it. "
         "If they decline or ask you to stop, apologize, end the call, and do not push. "

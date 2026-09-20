@@ -83,13 +83,13 @@ class Config:
         return replace(cfg, **overrides) if overrides else cfg
 
     def require_live_sends(self) -> None:
-        """Live SMS/voice is blocked until Chris approves the copy (#807 human gate)."""
+        """Live SMS/voice stays blocked until the first-send human gate (#855)."""
         if self.dry_run:
             return
         if not self.copy_approved:
             raise LiveBlocked(
-                "live outreach blocked: SMS/call copy is not Chris-approved "
-                "(set PANAMERICA_ROADSIDE_COPY_APPROVED=1 after sign-off)"
+                "live outreach blocked: first-send human gate "
+                "(set PANAMERICA_ROADSIDE_COPY_APPROVED=1)"
             )
 
     def redacted(self) -> dict[str, object]:

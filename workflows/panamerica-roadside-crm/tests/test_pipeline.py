@@ -14,7 +14,7 @@ sys.path.insert(0, str(PKG))
 from adapters import FakeDrive, FakeOcr, RecordingBland  # noqa: E402
 from config import Config, LiveBlocked  # noqa: E402
 from models import SMS_MAX_CHARS  # noqa: E402
-from outreach_copy import render_sms  # noqa: E402
+from outreach_copy import render_sms, render_voice_task  # noqa: E402
 from pipeline import Pipeline, make_pipeline, shift_clock  # noqa: E402
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "photo_sets.json").read_text())
@@ -49,14 +49,38 @@ class PipelineTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_sms_copy_has_stop_and_stays_under_cap(self) -> None:
+    def test_sms_copy_matches_approved_no_stop_footer(self) -> None:
         lead = self.pipe.store.get("lead-set-corolla")
         assert lead is not None
         body = render_sms(lead)
-        self.assertIn("STOP", body)
-        self.assertIn("Alexandra", body)
+        approved = (
+            "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
+            f"I saw your {lead.car_label()} for sale on {lead.location} — have you considered renting it out "
+            "instead of selling? We manage cars for owners and handle everything: "
+            "listing, guests, cleaning, maintenance. We also have an owner-exit option "
+            "where we take over the payments if you'd rather move on. You can find details "
+            "on our available options at https://www.panamericafleet.com/plans. Worth a 10-min chat?"
+        )
+        self.assertEqual(body, approved)
+        self.assertNotIn("STOP", body)
         self.assertNotIn("Turo", body)
+        self.assertIn("owner-exit", body)
+        self.assertIn("https://www.panamericafleet.com/plans", body)
         self.assertLessEqual(len(body), SMS_MAX_CHARS)
+
+    def test_voice_task_and_prompt_include_owner_exit_no_turo_pitch(self) -> None:
+        lead = self.pipe.store.get("lead-set-corolla")
+        assert lead is not None
+        task = render_voice_task(lead)
+        self.assertIn("owner-exit", task)
+        self.assertIn("www.panamericafleet.com/plans", task)
+        self.assertIn("Do not mention Turo", task)
+        self.assertEqual(task.lower().count("turo"), 1)
+        prompt = (PKG / "prompts" / "alexandra.roadside.v1.md").read_text()
+        self.assertIn("owner-exit", prompt)
+        self.assertIn("www.panamericafleet.com/plans", prompt)
+        self.assertIn("Do not mention Turo", prompt)
+        self.assertEqual(prompt.lower().count("turo"), 1)
 
     def test_phase1_sms_dry_run_no_http(self) -> None:
         with mock.patch("adapters._http_json", side_effect=AssertionError("HTTP during dry-run")):
@@ -64,7 +88,8 @@ class PipelineTests(unittest.TestCase):
                 result = self.pipe.send_sms(self.pipe.store.get("lead-set-corolla"))  # type: ignore[arg-type]
         self.assertEqual(result["state"], "sms_sent")
         self.assertTrue(result["sms"]["dry_run"])
-        self.assertIn("STOP", result["sms"]["body"])
+        self.assertNotIn("STOP", result["sms"]["body"])
+        self.assertIn("https://www.panamericafleet.com/plans", result["sms"]["body"])
         lead = self.pipe.store.get("lead-set-corolla")
         assert lead is not None
         self.assertEqual(lead.state, "sms_sent")
