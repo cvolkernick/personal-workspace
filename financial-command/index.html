@@ -843,14 +843,16 @@
       flex-direction: column;
       gap: 0.4rem;
     }
-    /* Coach split: left pay-plan scrolls to match right pay-from height */
+    /* Coach split: left pay-plan has its own bounded scroll (#844).
+       Do not use height:0 / min-height:100% — the right column does not
+       size the row, so desktop collapsed the bills list to 0px. */
     .coach-split {
       align-items: stretch;
     }
     .coach-pay-plan {
-      /* Don't let long bill list size the row — right column sets height */
-      height: 0;
-      min-height: 100%;
+      height: auto;
+      min-height: 0;
+      max-height: 28rem;
       display: flex;
       flex-direction: column;
       min-width: 0;
@@ -863,6 +865,7 @@
     .coach-pay-plan .bill-list-scroll {
       flex: 1 1 auto;
       min-height: 0;
+      max-height: 26rem;
       overflow-y: auto;
       overflow-x: hidden;
       padding-right: 0.25rem;
@@ -881,7 +884,6 @@
       min-width: 0;
     }
     @media (max-width: 700px) {
-      /* Stacked layout: give pay plan a bounded scroll instead of zero-height trick */
       .coach-pay-plan {
         height: auto;
         min-height: 0;
