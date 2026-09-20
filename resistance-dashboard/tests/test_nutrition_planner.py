@@ -23,6 +23,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     SHAKE_MAX_SERVINGS,
     SOFT_FIBER_TARGET_G,
     STAPLE_CATALOG,
+    NOVEL_STAPLE_CATALOG,
     add_ingredient,
     food_logs_fingerprint,
     format_plan_portion,
@@ -2209,7 +2210,7 @@ class TestInventoryNeedSuggestions(unittest.TestCase):
             self.assertTrue(s.get("proposal"))
 
     def test_catalog_blocked_is_honest_empty(self):
-        """AC6: empty catalog → no fake staples."""
+        """AC6: empty catalog AND empty novel universe → no fake staples."""
         inv = {"ingredients": [_ing("eggs", "Eggs", category="protein", protein_g=18, calories=210)]}
         out = suggest_inventory_staples(
             inv,
@@ -2217,12 +2218,28 @@ class TestInventoryNeedSuggestions(unittest.TestCase):
             food_logs=[],
             consumed=EMPTY_CONSUMED,
             catalog=[],
+            novel_catalog=[],
         )
         self.assertEqual(out["suggestions"], [])
         self.assertEqual(out["count"], 0)
         kinds = {h["kind"] for h in out.get("honesty") or []}
         self.assertIn("catalog_blocked", kinds)
         self.assertIn("invent", (out.get("summary") or "").lower())
+
+    def test_empty_staple_catalog_still_yields_novel_gap_closers(self):
+        """#858: novel source is independent of STAPLE_CATALOG."""
+        inv = {"ingredients": [_ing("eggs", "Eggs", category="protein", protein_g=18, calories=210, serving_g=150)]}
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=EMPTY_CONSUMED,
+            catalog=[],
+        )
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        self.assertTrue(novels, msg=out.get("summary"))
+        for s in novels:
+            self.assertTrue((s.get("need") or s.get("reason") or "").strip())
 
     def test_serving_only_add_without_portion_g(self):
         """#503 AC1/AC4: serving-based item saves with null grams."""
@@ -3073,6 +3090,210 @@ class TestStaplesPurpose707(unittest.TestCase):
         self.assertEqual(out["count"], 0)
         kinds = {h["kind"] for h in out.get("honesty") or []}
         self.assertIn("empty_suggestions", kinds)
+
+
+def _all_catalog_in_stock_pantry():
+    """Every STAPLE_CATALOG row in stock — catalog adds exhausted."""
+    rows = []
+    for staple in STAPLE_CATALOG:
+        row = dict(staple)
+        row["in_stock"] = True
+        row["stock"] = "in"
+        if not row.get("serving_g"):
+            row["serving_g"] = 100
+        rows.append(row)
+    return {"ingredients": rows}
+
+
+def _fiber_short_logs(*, protein_g=200, fiber_g=10, days=7):
+    return [
+        FoodLogEntry(
+            date=f"2026-09-{d:02d}",
+            name="Chicken bowl",
+            calories=1800,
+            protein_g=protein_g,
+            carbs_g=160,
+            fat_g=50,
+            nutrients={"DIETARY_FIBER": fiber_g},
+        )
+        for d in range(1, days + 1)
+    ]
+
+
+class TestStaplesNovel858(unittest.TestCase):
+    """#858: never-logged, never-stocked staples when a real gap exists."""
+
+    def test_catalog_and_novel_universes_are_disjoint(self):
+        catalog_ids = {str(s.get("id") or "").lower() for s in STAPLE_CATALOG}
+        novel_ids = {str(s.get("id") or "").lower() for s in NOVEL_STAPLE_CATALOG}
+        self.assertTrue(NOVEL_STAPLE_CATALOG)
+        self.assertFalse(catalog_ids & novel_ids)
+        for a in STAPLE_CATALOG:
+            for b in NOVEL_STAPLE_CATALOG:
+                self.assertFalse(
+                    a["name"].lower() == b["name"].lower(),
+                    msg=(a["name"], b["name"]),
+                )
+
+    def test_full_pantry_fiber_gap_surfaces_novel_with_why(self):
+        """AC1/AC2: in-stock catalog kitchen still gets never-logged gap-closers."""
+        out = suggest_inventory_staples(
+            _all_catalog_in_stock_pantry(),
+            targets={**FULL_TARGETS, "fiber_g": 30},
+            food_logs=_fiber_short_logs(),
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        self.assertTrue(out["suggestions"], msg=out.get("summary"))
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        self.assertTrue(novels, msg=[(s.get("name"), s.get("source")) for s in out["suggestions"]])
+        catalog_names = {str(s.get("name") or "").lower() for s in STAPLE_CATALOG}
+        pantry_names = {
+            str(i.get("name") or "").lower()
+            for i in _all_catalog_in_stock_pantry()["ingredients"]
+        }
+        for s in novels:
+            name = (s.get("name") or "").lower()
+            self.assertNotIn(name, catalog_names)
+            self.assertNotIn(name, pantry_names)
+            blob = f"{s.get('need') or ''} {s.get('reason') or ''}".lower()
+            self.assertTrue(blob.strip())
+            self.assertIn("fiber", blob)
+            self.assertIn("10", blob)
+            self.assertIn("30", blob)
+            self.assertEqual(s.get("action"), "add")
+            self.assertTrue(s.get("proposal"))
+            self.assertTrue((s.get("suggested_qty") or {}).get("label"))
+
+    def test_logged_novel_candidate_is_excluded(self):
+        logs = _fiber_short_logs() + [
+            FoodLogEntry(
+                date="2026-09-08",
+                name="Chickpeas",
+                calories=270,
+                protein_g=15,
+                carbs_g=45,
+                fat_g=4,
+                nutrients={"DIETARY_FIBER": 12},
+            )
+        ]
+        out = suggest_inventory_staples(
+            _all_catalog_in_stock_pantry(),
+            targets={**FULL_TARGETS, "fiber_g": 30},
+            food_logs=logs,
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        names = [s["name"].lower() for s in out["suggestions"]]
+        self.assertFalse(any("chickpea" in n for n in names), msg=names)
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        self.assertTrue(novels, msg=names)
+
+    def test_pantry_item_any_stock_is_not_novel(self):
+        inv = _all_catalog_in_stock_pantry()
+        inv["ingredients"].append(
+            _ing(
+                "chickpeas",
+                "Chickpeas",
+                category="carb",
+                calories=270,
+                protein_g=15,
+                carbs_g=45,
+                fat_g=4,
+                fiber_g=12,
+                serving_g=164,
+                in_stock=False,
+                stock="out",
+            )
+        )
+        out = suggest_inventory_staples(
+            inv,
+            targets={**FULL_TARGETS, "fiber_g": 30},
+            food_logs=_fiber_short_logs(),
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        names = [s["name"].lower() for s in novels]
+        self.assertFalse(any("chickpea" in n for n in names), msg=names)
+        # Novel source must not restock an already-listed pantry row.
+        self.assertFalse(
+            any(
+                s.get("action") == "restock" and s.get("source") == "novel"
+                for s in out["suggestions"]
+            )
+        )
+
+    def test_no_gap_does_not_invent_novel_variety(self):
+        """AC4: full pantry + diet hitting → empty, including novel source."""
+        inv = _all_catalog_in_stock_pantry()
+        out = suggest_inventory_staples(
+            inv,
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        self.assertEqual(out["suggestions"], [])
+        self.assertEqual(out["count"], 0)
+
+    def test_protein_intake_gap_suggests_novel_even_when_role_filled(self):
+        """Rotation is stocked but 7d protein still misses → try a new protein."""
+        logs = [
+            FoodLogEntry(
+                date=f"2026-09-{d:02d}",
+                name="Whey shake",
+                calories=1600,
+                protein_g=120,
+                carbs_g=180,
+                fat_g=45,
+                nutrients={"DIETARY_FIBER": 28},
+            )
+            for d in range(1, 8)
+        ]
+        out = suggest_inventory_staples(
+            _all_catalog_in_stock_pantry(),
+            targets=FULL_TARGETS,
+            food_logs=logs,
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        novels = [
+            s
+            for s in out["suggestions"]
+            if s.get("source") == "novel" and s.get("action") == "add"
+        ]
+        self.assertTrue(novels, msg=[s.get("name") for s in out["suggestions"]])
+        proteins = [
+            s
+            for s in novels
+            if (s.get("category") or "") == "protein"
+            or "diet_protein" in (s.get("purpose") or [])
+        ]
+        self.assertTrue(proteins, msg=[(s.get("name"), s.get("purpose")) for s in novels])
+        blob = f"{proteins[0].get('need') or ''} {proteins[0].get('reason') or ''}".lower()
+        self.assertIn("protein", blob)
+        self.assertNotIn("logged", blob)
+
+    def test_catalog_chia_regression_still_fires_when_role_open(self):
+        """#707: chia still surfaces on a pantry missing a fiber booster."""
+        out = suggest_inventory_staples(
+            _covered_pantry_no_fiber_booster(),
+            targets=FULL_TARGETS,
+            food_logs=[],
+            consumed=_HIT_CONSUMED,
+            max_suggestions=10,
+        )
+        names = [s["name"].lower() for s in out["suggestions"]]
+        self.assertTrue(
+            any(tok in n for n in names for tok in ("chia", "flax", "lentil")),
+            msg=names,
+        )
+
+    def test_ui_marks_novel_source(self):
+        js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('s.source === "novel"', js)
+        self.assertIn(">new</span>", js)
 
 
 class TestMealDayBoundary809(unittest.TestCase):
