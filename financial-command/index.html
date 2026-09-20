@@ -184,7 +184,7 @@
     .toast.show { display: block; }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 0.35rem;
       overflow: visible;
       width: 100%;
@@ -405,7 +405,7 @@
     }
     .advisor-error.show { display: block; }
     @media (max-width: 820px) {
-      .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
     @media (max-width: 560px) {
       .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3523,7 +3523,7 @@
       renderGlanceHero(overall, sorted, stress, snap, inp, ev);
       renderActionsCarousel(sorted, stress);
 
-      // KPIs — 10 chips in a 5-col grid (2 even rows); tone = attention shading
+      // KPIs — 4 chips in a 4-col grid; tone = attention shading
       const oc = snap.one_card || {};
       const rhc = snap.rh_checking || {};
       const xm = snap.x_money || {};
@@ -3541,7 +3541,6 @@
       const rhCheck = f(inp.rh_checking_cash ?? rhc.cash);
       const xMoney = f(inp.x_money_cash ?? xm.cash);
       const agentNav = f(fmaK.nav_usd);
-      const rhBp = f(inp.rh_buying_power);
       const billsMo = f(
         es.upcoming_expense_monthly ?? es.personal_monthly ?? inp.expenses_upcoming_monthly
       );
@@ -3549,7 +3548,6 @@
       const ltvVal = inp.ltv == null || inp.ltv === "" ? null : f(inp.ltv);
       const ltvMax = f(pol.cb_target_ltv_max) || 0.5;
       const ltvAlert = f(pol.cb_ltv_alert) || 0.45;
-      const bpFloor = f(pol.rh_bp_floor); // MO: may be 0
 
       const toneWord = {
         red: "Critical",
@@ -3818,40 +3816,6 @@
           `Next payout ~${days.toFixed(0)}d away (${prog}) — still filling threshold.`
         );
       }
-      function rhBpTone() {
-        if (!Number.isFinite(rhBp))
-          return toneResult("muted", "Buying power not loaded.");
-        // MO: floor 0 — any BP deployable; dust is min-trade HOLD, not a red floor miss
-        if (bpFloor <= 0) {
-          if (rhBp < 1)
-            return toneResult(
-              "yellow",
-              `RH BP ${money(rhBp)} is dust — below typical min trade.`
-            );
-          if (rhBp < 25)
-            return toneResult("yellow", `RH BP ${money(rhBp)} is small.`);
-          return toneResult("green", `RH BP ${money(rhBp)} deployable (no floor).`);
-        }
-        if (rhBp < bpFloor)
-          return toneResult(
-            "red",
-            `RH BP ${money(rhBp)} under floor ${money(bpFloor)}.`
-          );
-        if (rhBp < bpFloor * 3)
-          return toneResult(
-            "orange",
-            `RH BP ${money(rhBp)} low vs floor ${money(bpFloor)}.`
-          );
-        if (rhBp < bpFloor * 8)
-          return toneResult(
-            "yellow",
-            `RH BP ${money(rhBp)} moderate vs floor ${money(bpFloor)}.`
-          );
-        return toneResult(
-          "green",
-          `RH BP ${money(rhBp)} healthy vs floor ${money(bpFloor)}.`
-        );
-      }
 
       const tWorking = workingUsdcTone();
       const tCard =
@@ -3864,13 +3828,12 @@
       const tRhCheck = cashLowTone(rhCheck, 5, 25, 75, "RH Checking");
       const tXMoney = cashLowTone(xMoney, 40, 150, 400, "X Money");
       const tAgent = agenticTone();
-      const tBp = rhBpTone();
       const tBills = billsPressureTone();
       const tLtv = ltvTone();
       const tAsic = asicHashTone();
       const tPay = nextPayTone();
 
-      // Glance: primary 5 only (SNR). Secondary cash/mining live on other tabs.
+      // Glance: primary 4 only (SNR). Secondary cash/mining live on other tabs.
       const cardUtilPct =
         cardDeposit > 0 && Number.isFinite(cardOwed)
           ? Math.round((cardOwed / cardDeposit) * 100) + "%"
@@ -3915,14 +3878,6 @@
           target: "fund-manager-card",
           tone: tAgent.tone,
           why: tAgent.why,
-        },
-        {
-          k: "BP",
-          v: money(rhBp),
-          s: bpFloor > 0 ? "floor " + money(bpFloor) : "no floor",
-          target: "panel-brokerage",
-          tone: tBp.tone,
-          why: tBp.why,
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
