@@ -4,7 +4,7 @@ Lightweight CRM + owner-outreach pipeline for cars Chris photographs
 on the roadside. Intake is a Google Drive photo dump; the CRM file
 store is the system of record.
 
-Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820)
+Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820), [#854](https://github.com/cvolkernick/personal-workspace/issues/854), [#855](https://github.com/cvolkernick/personal-workspace/issues/855)
 
 ## Canonical choices
 
@@ -14,7 +14,7 @@ Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#
 | Store | JSON file (`FileStore`). Default `~/.local/share/panamerica-roadside-crm/store.json` |
 | States | `needs-info \| new → sms_sent → call_attempted → responded → interested → converted \| declined \| dead` |
 | Dedupe | Phone number. A number already in the CRM never gets a second first-touch |
-| Copy | `outreach_copy.py` + `prompts/alexandra.roadside.v1.md`. **Not Chris-approved yet** — `--live` is blocked until `PANAMERICA_ROADSIDE_COPY_APPROVED=1` |
+| Copy | `outreach_copy.py` + `prompts/alexandra.roadside.v1.md`. Chris-approved 2026-09-20 (#855). `--live` still blocked until `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send human gate) |
 | Channel | Alexandra / Bland. Phase 1 SMS, Phase 2 voice 5–7 days later for non-responders only |
 
 Secrets (`BLAND_AGENT_ID`, API keys, Drive tokens) live in env — never in this repo, issues, or logs.
@@ -60,7 +60,7 @@ python3 workflows/panamerica-roadside-crm/run.py run \
 | `--live` | Real SMS/voice. Refused until copy approval |
 | `daily-pass` | Organize root photos from EXIF, pull new sets, extract phone, skip duplicates |
 | `weekly-pass` | Alias for `daily-pass` |
-| `sms-batch` | Phase 1 SMS for `new` leads (STOP always present) |
+| `sms-batch` | Phase 1 SMS for `new` leads (no STOP footer on send; inbound STOP still honored) |
 | `call-batch` | Phase 2 Bland voice for `sms_sent` non-responders aged 5–7 days |
 | `ingest-reply` / `webhook` | STOP, decline, interest → CRM |
 | `status` | Counts + `needs-info` queue |
@@ -71,10 +71,10 @@ Dry-run still executes intake, phone extract, dedupe, SMS/call rendering,
 state transitions, callbacks, and records an outbox/alert log. It does
 not call Bland or the interest webhook.
 
-`--live` requires `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (Chris sign-off
-on SMS + call script). Compliance: only numbers posted on for-sale
-signs, STOP honored immediately, one sequence per car, no re-contact
-after decline.
+`--live` requires `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send
+human gate; copy itself is already Chris-approved in #855). Compliance:
+only numbers posted on for-sale signs, inbound STOP honored immediately,
+one sequence per car, no re-contact after decline.
 
 ## Tests
 

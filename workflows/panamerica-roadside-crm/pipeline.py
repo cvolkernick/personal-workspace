@@ -116,8 +116,6 @@ class Pipeline:
         if self.store.sms_sent_today() >= self.cfg.daily_sms_cap:
             raise PipelineError("SMS refused: daily cap")
         body = render_sms(lead)
-        if "STOP" not in body.upper():
-            raise PipelineError("SMS refused: missing STOP opt-out")
         sent = self.adapters.bland.send_sms(to=lead.phone, body=body, lead_id=lead.id)
         self.store.record_outbox(sent)
         if not self.cfg.dry_run:
