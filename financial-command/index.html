@@ -1054,6 +1054,36 @@
     .src-metric .dot.cb { background: #5b9fd4; }
     .src-metric .dot.rh { background: #3dd68c; }
     .src-metric .dot.other { background: #6a7a8a; }
+    /* Coach Pay-from · buffers (#846): single-line rows. Do not change
+       .coach-pay-plan height (zero-height trick is #844). */
+    #expenses-by-source .metric,
+    #expense-kpis .metric {
+      flex-wrap: nowrap;
+      align-items: baseline;
+      gap: 0.4rem;
+      padding: 0.08rem 0;
+      margin: 0;
+      min-width: 0;
+      white-space: nowrap;
+    }
+    #expenses-by-source .metric .label,
+    #expense-kpis .metric .label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #expenses-by-source .metric .val,
+    #expense-kpis .metric .val {
+      width: auto;
+      flex: 0 0 auto;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    #expense-kpis.grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.05rem 0.7rem;
+      margin-top: 0.25rem;
+    }
 
     /* Fund manager — first-class glass box */
     .fm-hero {
@@ -1828,6 +1858,20 @@
         text-align: left;
         width: 100%;
       }
+      /* #846: Coach pay-from rows stay one line when other .metric wrap */
+      #expenses-by-source .metric,
+      #expense-kpis .metric {
+        flex-wrap: nowrap;
+        font-size: 0.8rem;
+      }
+      #expenses-by-source .metric .val,
+      #expense-kpis .metric .val {
+        width: auto;
+        text-align: right;
+      }
+      #expense-kpis.grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
       .manual-form.grid-2 {
         grid-template-columns: 1fr;
       }
@@ -1880,6 +1924,9 @@
 
     @media (max-width: 400px) {
       .kpi-grid { grid-template-columns: 1fr 1fr; }
+      #expense-kpis.grid-2 {
+        grid-template-columns: 1fr;
+      }
       /* Keep Watchlist | Refresh equal pair even on tiny phones */
       .sticky-top .controls {
         grid-template-columns: 1fr 1fr;
@@ -2206,7 +2253,7 @@
           <div class="hint">Pay-from · buffers</div>
           <div id="expenses-pay-from-bar" class="pay-from-bar" hidden></div>
           <div id="expenses-by-source"></div>
-          <div class="grid-2" style="margin-top:0.4rem" id="expense-kpis"></div>
+          <div class="grid-2" style="margin-top:0.25rem" id="expense-kpis"></div>
           <div id="coach-habits" style="margin-top:0.4rem"></div>
           <div id="coach-requests" style="margin-top:0.25rem"></div>
         </div>
