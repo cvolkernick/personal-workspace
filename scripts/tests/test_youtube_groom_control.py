@@ -328,6 +328,130 @@ class TestApplyKnobsAndPersist(unittest.TestCase):
         self.assertIn("OnCalendar=*:0/30", half)
         self.assertNotIn("ExecStart", half)
 
+    def test_tick_report_then_apply_timer_writes_dropin(self):
+        """ExecStopPost 2 (tick-report) then ExecStopPost 3 (--apply-timer).
+
+        Tick-report runs the loop first (apply_timer_changes=False) and
+        persists last_tick.at. The follow-up --apply-timer must still write
+        youtube-groom.timer.d/control.conf even though the loop is idempotent.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            td = Path(tmp)
+            knobs = dict(C.DEFAULT_KNOBS)
+            knobs["SEED_THROTTLE_WEIGHT_FLOOR"] = 0.00
+            knobs["SEED_EXTRA"] = {cid: name for cid, name in C.EXTRA_SEED_LADDER}
+            knobs["ticks_per_day"] = 24
+            state = {
+                "schema_version": 1,
+                "knobs": knobs,
+                "last_action": "loosen",
+                "last_tick_at": "previous",
+                "last_adjustment": {"action": "loosen", "knob": "SEED_EXTRA"},
+                "cooldown_remaining": 0,
+                "limits_hit": [],
+            }
+            (td / "control_state.json").write_text(
+                json.dumps(state), encoding="utf-8"
+            )
+            dropin = td / "youtube-groom.timer.d" / "control.conf"
+            sysctl = []
+
+            def fake_run(cmd, **_kwargs):
+                sysctl.append(list(cmd))
+
+                class _R:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+
+                return _R()
+
+            tick = _tick(remain=59, at="2026-09-20T12:00:40Z")
+            quota = _quota(remaining=5000, median=126)
+            payload = {"last_tick": tick, "quota": quota}
+
+            first = C.attach_to_report(
+                payload,
+                dry_run=False,
+                state_dir=td,
+                apply_timer_changes=False,
+                timer_dropin=dropin,
+                timer_run=fake_run,
+            )
+            self.assertEqual(first["control"]["adjustment"]["knob"], "ticks_per_day")
+            self.assertEqual(first["control"]["knobs"]["ticks_per_day"], 48)
+            self.assertEqual(first["control"]["adjustment"]["from"], 24)
+            self.assertEqual(first["control"]["adjustment"]["to"], 48)
+            self.assertFalse(first["control"]["idempotent"])
+            self.assertIsNone(first["control"]["timer"])
+            self.assertFalse(dropin.exists())
+            self.assertEqual(sysctl, [])
+
+            second = C.run_loop(
+                tick,
+                quota,
+                state_path=td / "control_state.json",
+                knobs_path=td / "knobs.json",
+                dry_run=False,
+                apply_timer_changes=True,
+                timer_dropin=dropin,
+                timer_run=fake_run,
+            )
+            self.assertTrue(second["idempotent"])
+            self.assertTrue(dropin.is_file())
+            text = dropin.read_text(encoding="utf-8")
+            self.assertIn("OnCalendar=*:0/30", text)
+            self.assertNotIn("ExecStart", text)
+            self.assertTrue(second["timer"]["changed"])
+            self.assertEqual(second["timer"]["ticks_per_day"], 48)
+            self.assertEqual(second["timer"]["path"], str(dropin))
+            self.assertTrue(any("daemon-reload" in c for c in sysctl))
+            self.assertTrue(
+                any("restart" in c and "youtube-groom.timer" in c for c in sysctl)
+            )
+
+            third = C.run_loop(
+                tick,
+                quota,
+                state_path=td / "control_state.json",
+                knobs_path=td / "knobs.json",
+                dry_run=False,
+                apply_timer_changes=True,
+                timer_dropin=dropin,
+                timer_run=fake_run,
+            )
+            self.assertTrue(third["idempotent"])
+            self.assertFalse(third["timer"]["changed"])
+            self.assertEqual(dropin.read_text(encoding="utf-8"), text)
+
+    def test_apply_timer_if_needed_skips_default_hourly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dropin = Path(tmp) / "control.conf"
+            out = C.apply_timer_if_needed(24, dropin=dropin, run=lambda *a, **k: None)
+            self.assertFalse(out["changed"])
+            self.assertEqual(out.get("skipped"), "default-hourly")
+            self.assertFalse(dropin.exists())
+
+    def test_apply_timer_if_needed_reverts_half_hour_dropin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dropin = Path(tmp) / "youtube-groom.timer.d" / "control.conf"
+            dropin.parent.mkdir(parents=True)
+            dropin.write_text(C.timer_dropin_text(48), encoding="utf-8")
+            sysctl = []
+
+            def fake_run(cmd, **_kwargs):
+                sysctl.append(list(cmd))
+
+                class _R:
+                    returncode = 0
+
+                return _R()
+
+            out = C.apply_timer_if_needed(24, dropin=dropin, run=fake_run)
+            self.assertTrue(out["changed"])
+            self.assertIn("OnCalendar=hourly", dropin.read_text(encoding="utf-8"))
+            self.assertTrue(sysctl)
+
     def test_crank_without_quota_always_false(self):
         public = C.public_control(
             C.band_metrics(_tick(remain=59)),

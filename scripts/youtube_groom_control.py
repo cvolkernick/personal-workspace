@@ -769,6 +769,34 @@ def apply_timer(
     return {"changed": True, "path": str(dropin), "ticks_per_day": ticks_per_day, "systemctl": True}
 
 
+def apply_timer_if_needed(
+    ticks_per_day: int,
+    *,
+    dropin: Path = TIMER_DROPIN,
+    run: Optional[Callable[..., Any]] = None,
+) -> dict[str, Any]:
+    """Write the drop-in when desired calendar != file.
+
+    Compares against the drop-in, not ``last_tick.at``. Tick-report
+    StopPost already ran the loop (``apply_timer_changes=False``) and
+    persisted that stamp; ExecStopPost ``--apply-timer`` is then an
+    idempotent replay of the same tick and must still write
+    ``youtube-groom.timer.d/control.conf``.
+    """
+    text = timer_dropin_text(ticks_per_day)
+    if dropin.is_file() and dropin.read_text(encoding="utf-8") == text:
+        return {"changed": False, "path": str(dropin), "ticks_per_day": ticks_per_day}
+    # Unit file is already hourly. Do not mint a restatement drop-in.
+    if int(ticks_per_day) < 48 and not dropin.is_file():
+        return {
+            "changed": False,
+            "path": str(dropin),
+            "ticks_per_day": ticks_per_day,
+            "skipped": "default-hourly",
+        }
+    return apply_timer(ticks_per_day, dropin=dropin, run=run)
+
+
 def apply_live_knobs(g: dict[str, Any], *, knobs_path: Optional[Path] = None) -> dict[str, Any]:
     """Mutate the live writer module globals from knobs.json. No YouTube I/O."""
     path = knobs_path or (Path(g["STATE_DIR"]) / "knobs.json" if "STATE_DIR" in g else KNOBS_PATH)
@@ -806,6 +834,8 @@ def run_loop(
     knobs_path: Path = KNOBS_PATH,
     dry_run: bool = False,
     apply_timer_changes: bool = False,
+    timer_dropin: Optional[Path] = None,
+    timer_run: Optional[Callable[..., Any]] = None,
 ) -> dict[str, Any]:
     state = load_state(state_path)
     metrics = band_metrics(last_tick)
@@ -821,16 +851,16 @@ def run_loop(
         jsonl_path=state_path.parent / "control.jsonl",
     )
     timer_info = None
-    prev_ticks = int((state.get("knobs") or DEFAULT_KNOBS).get("ticks_per_day") or 24)
-    new_ticks = int(decision["knobs"].get("ticks_per_day") or 24)
-    if (
-        apply_timer_changes
-        and not dry_run
-        and not decision.get("idempotent")
-        and new_ticks != prev_ticks
-        and decision["adjustment"]["knob"] == "ticks_per_day"
-    ):
-        timer_info = apply_timer(new_ticks)
+    desired_ticks = int(decision["knobs"].get("ticks_per_day") or 24)
+    if apply_timer_changes and not dry_run:
+        # Do not gate on idempotent / prev_ticks. Tick-report StopPost
+        # already persisted last_tick.at; this --apply-timer StopPost must
+        # still write the drop-in for that same tick.
+        timer_info = apply_timer_if_needed(
+            desired_ticks,
+            dropin=timer_dropin or TIMER_DROPIN,
+            run=timer_run,
+        )
     public["timer"] = timer_info
     public["dry_run"] = dry_run
     return public
@@ -851,6 +881,8 @@ def attach_to_report(
     dry_run: bool,
     state_dir: Optional[Path] = None,
     apply_timer_changes: bool = False,
+    timer_dropin: Optional[Path] = None,
+    timer_run: Optional[Callable[..., Any]] = None,
 ) -> dict[str, Any]:
     """Called from tick_report.run_report so 15m export stays consistent."""
     base = Path(state_dir) if state_dir is not None else STATE_DIR
@@ -861,6 +893,8 @@ def attach_to_report(
         knobs_path=base / "knobs.json",
         dry_run=dry_run,
         apply_timer_changes=apply_timer_changes,
+        timer_dropin=timer_dropin,
+        timer_run=timer_run,
     )
     return merge_into_report(payload, control)
 

@@ -11,6 +11,8 @@ ExecStart=/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom.py
 # Do not point ExecStart at nest youtube_groom.py (policy scorecard).
 ExecStopPost=-/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom_health.py
 ExecStopPost=-/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom_tick_report.py
+# Tick-report already ran the loop. --apply-timer still writes the drop-in
+# even when last_tick.at makes the loop an idempotent replay.
 ExecStopPost=-/usr/bin/python3 %h/.local/lib/youtube-groom/youtube_groom_control.py --apply-timer
 Nice=10
 

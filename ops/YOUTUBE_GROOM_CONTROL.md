@@ -64,8 +64,11 @@ into `SEED_KEEPERS`. It does not call YouTube.
 
 `--apply-timer` writes
 `~/.config/systemd/user/youtube-groom.timer.d/control.conf`
-(`OnCalendar=hourly` or `*:0/30`) only when `ticks_per_day` actually changes.
-Never points `ExecStart` at the nest scorecard.
+(`OnCalendar=hourly` or `*:0/30`) when the desired `ticks_per_day`
+does not match the drop-in. Tick-report StopPost runs the loop first
+(`apply_timer_changes=False`) and is idempotent on `last_tick.at`; the
+third StopPost `--apply-timer` still writes the drop-in for that same
+tick. Never points `ExecStart` at the nest scorecard.
 
 ## Deploy (Pi, after merge)
 
