@@ -4,7 +4,7 @@ Lightweight CRM + owner-outreach pipeline for cars Chris photographs
 on the roadside. Intake is a Google Drive photo dump; the CRM file
 store is the system of record.
 
-Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820), [#854](https://github.com/cvolkernick/personal-workspace/issues/854), [#855](https://github.com/cvolkernick/personal-workspace/issues/855), [#860](https://github.com/cvolkernick/personal-workspace/issues/860), [#861](https://github.com/cvolkernick/personal-workspace/issues/861)
+Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820), [#854](https://github.com/cvolkernick/personal-workspace/issues/854), [#855](https://github.com/cvolkernick/personal-workspace/issues/855), [#860](https://github.com/cvolkernick/personal-workspace/issues/860), [#861](https://github.com/cvolkernick/personal-workspace/issues/861), [#862](https://github.com/cvolkernick/personal-workspace/issues/862)
 
 ## Canonical choices
 
@@ -17,6 +17,7 @@ Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#
 | Copy | `outreach_copy.py` + `prompts/alexandra.roadside.v1.md`. Chris-approved 2026-09-20 (#855). Location slot (#860): proximity → `near {place} in {city}`; road → `on {road}`. CRM keeps the full location string. `--live` still blocked until `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send human gate) |
 | Channel | Alexandra / Bland. Phase 1 SMS, Phase 2 voice 5–7 days later for non-responders only |
 | OCR | Live `build_adapters` uses Google Cloud Vision (`VisionOcr`). `NullOcr` is tests-only. Failed/low-confidence reads return `UNKNOWN`, not empty text. Key: `GOOGLE_VISION_API_KEY` (env-only) |
+| Phone extract | Prefer dashed/parenthesized NANP. GPS/decimal degree runs (`26.639011, -82.039046`) are rejected; coordinate-only text is `UNKNOWN` (#862) |
 
 Secrets (`BLAND_AGENT_ID`, API keys, Drive tokens) live in env — never in this repo, issues, or logs.
 
