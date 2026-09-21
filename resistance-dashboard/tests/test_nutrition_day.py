@@ -14,9 +14,14 @@ sys.path.insert(0, str(ROOT))
 from rt_dashboard.calorie_bars import build_calorie_bars_payload
 from rt_dashboard.models import CaloriesBurnedDay, FoodLogEntry
 from rt_dashboard.nutrition_day import (
+    SOURCE_BACKSTOP_20H,
+    SOURCE_SLEEP,
     WAKE_BACKSTOP_HOURS,
+    NutritionDaySpan,
+    _overlap_hours,
     bucket_burn_by_nutrition_day,
     bucket_intake_by_nutrition_day,
+    burn_domains,
     compose_nutrition_today,
     list_nutrition_days,
     resolve_nutrition_day,
@@ -297,6 +302,271 @@ class TestNutritionDayBoundary(unittest.TestCase):
         self.assertEqual(payload["pacing"]["consumed"], 1400.0)
         self.assertEqual(payload["delta"]["intake"], 1400.0)
         self.assertEqual(payload["nutrition_day"]["clock"], "waking_day")
+
+
+_UNSET = object()
+
+
+def _span(
+    start,
+    end,
+    next_wake,
+    *,
+    open_=False,
+    source=SOURCE_SLEEP,
+    backstop=None,
+    sleep_onset=_UNSET,
+):
+    if sleep_onset is _UNSET:
+        sleep_onset = end
+    return NutritionDaySpan(
+        day_id=start.strftime("%Y-%m-%d"),
+        start=start,
+        end=end,
+        sleep_onset=sleep_onset,
+        next_wake=next_wake,
+        open=open_,
+        source=source,
+        backstop=backstop,
+    )
+
+
+def _domain_hours(domains, c0, c1):
+    return sum(_overlap_hours(c0, c1, a, b) for a, b in domains)
+
+
+def _assert_disjoint(testcase, domains):
+    for i, left in enumerate(domains):
+        for right in domains[i + 1 :]:
+            testcase.assertEqual(_overlap_hours(*left, *right), 0.0)
+
+
+class TestBurnRebucketConservation(unittest.TestCase):
+    """#878: sleep-gap and in-sleep spans must not share a burn domain."""
+
+    def test_gap_synthetics_do_not_double_count(self):
+        """Missing overnight: synthetic backstops nest inside next_wake.
+
+        Civil Jun 2 and Jun 3 are fully inside the partition. Their burn
+        must come back out equal to the civil totals, not k+1 times.
+        """
+        tz = ET
+        real = _span(
+            datetime(2026, 6, 1, 7, tzinfo=tz),
+            datetime(2026, 6, 2, 3, tzinfo=tz),
+            datetime(2026, 6, 4, 7, tzinfo=tz),
+            backstop=SOURCE_BACKSTOP_20H,
+        )
+        syn1 = _span(
+            datetime(2026, 6, 2, 3, tzinfo=tz),
+            datetime(2026, 6, 2, 23, tzinfo=tz),
+            datetime(2026, 6, 4, 7, tzinfo=tz),
+            source=SOURCE_BACKSTOP_20H,
+            backstop=SOURCE_BACKSTOP_20H,
+        )
+        syn2 = _span(
+            datetime(2026, 6, 2, 23, tzinfo=tz),
+            datetime(2026, 6, 3, 19, tzinfo=tz),
+            datetime(2026, 6, 4, 7, tzinfo=tz),
+            source=SOURCE_BACKSTOP_20H,
+            backstop=SOURCE_BACKSTOP_20H,
+        )
+        syn3 = _span(
+            datetime(2026, 6, 3, 19, tzinfo=tz),
+            datetime(2026, 6, 4, 1, tzinfo=tz),
+            datetime(2026, 6, 4, 7, tzinfo=tz),
+            source=SOURCE_BACKSTOP_20H,
+            backstop=SOURCE_BACKSTOP_20H,
+        )
+        awake = _span(
+            datetime(2026, 6, 4, 7, tzinfo=tz),
+            datetime(2026, 6, 4, 12, tzinfo=tz),
+            None,
+            open_=True,
+        )
+        days = [real, syn1, syn2, syn3, awake]
+        nominal = [(s.start, s.burn_end) for s in days]
+        domains = burn_domains(days)
+        _assert_disjoint(self, domains)
+
+        jun3_0 = datetime(2026, 6, 3, tzinfo=tz)
+        jun3_1 = jun3_0 + timedelta(hours=24)
+        nominal_hours = _domain_hours(nominal, jun3_0, jun3_1)
+        fixed_hours = _domain_hours(domains, jun3_0, jun3_1)
+        self.assertGreater(nominal_hours, 24.0)
+        self.assertAlmostEqual(fixed_hours, 24.0, places=5)
+
+        burned = [
+            {"date": "2026-06-02", "calories": 2400},
+            {"date": "2026-06-03", "calories": 2400},
+        ]
+        rows = bucket_burn_by_nutrition_day(burned, days)
+        self.assertAlmostEqual(sum(r["calories"] for r in rows), 4800.0, places=1)
+        # syn1 and syn2 share 2026-06-02. One row, not the summed total twice.
+        self.assertEqual(len([r for r in rows if r["date"] == "2026-06-02"]), 1)
+
+    def test_in_sleep_bmr_lands_once_on_the_closed_day(self):
+        """While asleep, tonight's BMR stays on the day that just closed."""
+        tz = ET
+        onset = datetime(2026, 6, 12, 1, tzinfo=tz)
+        wake = datetime(2026, 6, 12, 8, tzinfo=tz)
+        closed = _span(
+            datetime(2026, 6, 11, 7, tzinfo=tz),
+            onset,
+            wake,
+        )
+        asleep = _span(
+            onset,
+            datetime(2026, 6, 12, 3, tzinfo=tz),
+            wake,
+            open_=True,
+            sleep_onset=None,
+        )
+        days = [closed, asleep]
+        domains = burn_domains(days)
+        _assert_disjoint(self, domains)
+        self.assertEqual(domains[1][0], domains[1][1])
+        self.assertLessEqual(domains[0][0], onset)
+        self.assertGreaterEqual(domains[0][1], wake)
+
+        owners = [
+            h
+            for h in (_overlap_hours(onset, wake, a, b) for a, b in domains)
+            if h > 0
+        ]
+        self.assertEqual(len(owners), 1)
+        self.assertAlmostEqual(owners[0], 7.0, places=5)
+
+        burned = [
+            {"date": "2026-06-11", "calories": 2400},
+            {"date": "2026-06-12", "calories": 2400},
+        ]
+        rows = {
+            r["date"]: r["calories"] for r in bucket_burn_by_nutrition_day(burned, days)
+        }
+        # Jun 11 07:00–24:00 (17h) + Jun 12 00:00–08:00 (8h), once.
+        self.assertAlmostEqual(rows["2026-06-11"], 2500.0, places=1)
+        self.assertNotIn("2026-06-12", rows)
+
+        now = datetime(2026, 6, 12, 3, tzinfo=tz)
+        iv = _intervals(
+            (datetime(2026, 6, 10, 23, tzinfo=tz), datetime(2026, 6, 11, 7, tzinfo=tz)),
+            (onset, wake),
+        )
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            calories_burned=[
+                CaloriesBurnedDay(date="2026-06-11", calories=2400),
+                CaloriesBurnedDay(date="2026-06-12", calories=2400),
+            ],
+            food_logs=[_log("2026-06-11", "12:00", 500, "Lunch")],
+        )
+        chart = {
+            r["date"]: r["calories"] for r in composed["trends_calories_burned"]
+        }
+        self.assertAlmostEqual(chart["2026-06-11"], 2500.0, places=1)
+        self.assertNotIn("2026-06-12", chart)
+        intake_ids = {r["date"] for r in composed["trends_nutrition"]}
+        self.assertIn("2026-06-11", intake_ids)
+        self.assertIn("2026-06-11", chart)
+        # New day is open at onset; its burn row does not carry the sleep.
+        self.assertEqual(composed["nutrition_day"]["day_id"], "2026-06-12")
+        self.assertIsNone(composed["calories_burned_today"])
+
+    def test_shared_day_id_in_sleep_is_not_emitted_twice(self):
+        """Onset before midnight shares a day id with the closed span."""
+        tz = ET
+        onset = datetime(2026, 6, 11, 23, tzinfo=tz)
+        wake = datetime(2026, 6, 12, 7, tzinfo=tz)
+        closed = _span(datetime(2026, 6, 11, 7, tzinfo=tz), onset, wake)
+        asleep = _span(
+            onset,
+            datetime(2026, 6, 11, 23, 30, tzinfo=tz),
+            wake,
+            open_=True,
+            sleep_onset=None,
+        )
+        self.assertEqual(closed.day_id, asleep.day_id)
+        domains = burn_domains([closed, asleep])
+        _assert_disjoint(self, domains)
+        burned = [
+            {"date": "2026-06-11", "calories": 2400},
+            {"date": "2026-06-12", "calories": 2400},
+        ]
+        rows = bucket_burn_by_nutrition_day(burned, [closed, asleep])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["date"], "2026-06-11")
+        # 17h of Jun 11 + 7h of Jun 12, once. A second emit would be 4800.
+        self.assertAlmostEqual(rows[0]["calories"], 2400.0, places=1)
+
+    def test_lone_in_sleep_span_keeps_its_hours(self):
+        """No previous day: do not drop the sleep by zeroing the only span."""
+        tz = ET
+        onset = datetime(2026, 6, 12, 1, tzinfo=tz)
+        wake = datetime(2026, 6, 12, 8, tzinfo=tz)
+        asleep = _span(
+            onset,
+            datetime(2026, 6, 12, 3, tzinfo=tz),
+            wake,
+            open_=True,
+            sleep_onset=None,
+        )
+        domains = burn_domains([asleep])
+        self.assertAlmostEqual(_overlap_hours(onset, wake, *domains[0]), 7.0, places=5)
+
+    def test_conservation_90d_window_including_sleep_gaps(self):
+        """Sum of bucketed burn equals the civil totals on fully covered days."""
+        tz = ET
+        base = datetime(2026, 6, 1, tzinfo=tz)
+        skip = {30, 31, 32, 60, 61}
+        pairs = []
+        for i in range(92):
+            if i in skip:
+                continue
+            onset = base + timedelta(days=i, hours=23)
+            wake = base + timedelta(days=i + 1, hours=7)
+            pairs.append((onset, wake))
+        now = base + timedelta(days=92, hours=12)
+        days = list_nutrition_days(
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=_intervals(*pairs),
+        )
+        self.assertTrue(any(s.backstop == SOURCE_BACKSTOP_20H for s in days))
+        domains = burn_domains(days)
+        nominal = [(s.start, s.burn_end) for s in days]
+        _assert_disjoint(self, domains)
+
+        full_dates = []
+        inflated = []
+        cursor = base
+        last = base + timedelta(days=93)
+        while cursor < last:
+            c1 = cursor + timedelta(hours=24)
+            got = _domain_hours(domains, cursor, c1)
+            nom = _domain_hours(nominal, cursor, c1)
+            if nom > 24.0 + 1e-6:
+                inflated.append(cursor.date().isoformat())
+            if abs(got - 24.0) < 1e-6:
+                full_dates.append(cursor.date().isoformat())
+            cursor = c1
+        self.assertGreaterEqual(len(full_dates), 80)
+        # A day the nominal windows over-claim is covered exactly once.
+        self.assertTrue(set(inflated) & set(full_dates))
+
+        burned = [{"date": day, "calories": 2400} for day in full_dates]
+        rows = bucket_burn_by_nutrition_day(burned, days)
+        self.assertAlmostEqual(
+            sum(r["calories"] for r in rows),
+            2400.0 * len(full_dates),
+            places=1,
+        )
+        intake = bucket_intake_by_nutrition_day([], days)
+        span_ids = {s.day_id for s in days}
+        self.assertTrue({r["date"] for r in rows} <= span_ids)
+        self.assertTrue({r["date"] for r in intake} <= span_ids)
 
 
 if __name__ == "__main__":

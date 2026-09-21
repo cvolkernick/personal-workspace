@@ -27,8 +27,13 @@ When the athlete is still awake and no overnight sleep onset is recorded:
    of the viewer-local day.
 
 Burn for CICO uses the same day ids. Civil-day burned totals are split
-across days by hour overlap with ``[wake, next_wake)`` (~24h of TDEE
-including the following sleep). Intake uses ``[wake, sleep_onset)``.
+across days by hour overlap. The nominal window is ``[wake, next_wake)``
+(~24h of TDEE, including the following sleep) so sleep BMR stays on the
+day that just closed. ``burn_domains`` clips each window to the next
+span's start. An open in-sleep span leaves that sleep on the previous
+day when the previous window already runs through the coming wake.
+The windows are a partition: one civil day's burn is counted once.
+Intake uses ``[wake, sleep_onset)``.
 """
 
 from __future__ import annotations
@@ -167,7 +172,11 @@ class NutritionDaySpan:
 
     @property
     def burn_end(self) -> datetime:
-        """CICO span end: next wake when known, else this day's end."""
+        """Nominal CICO end: next wake when known, else this day's end.
+
+        Not disjoint by itself. ``burn_domains`` clips these windows so
+        spans do not share hours.
+        """
         if self.next_wake is not None and self.next_wake > self.start:
             return self.next_wake
         return self.end
@@ -650,14 +659,79 @@ def bucket_intake_by_nutrition_day(
     return [by_id[k] for k in sorted(by_id.keys())]
 
 
+def _is_open_in_sleep(span: NutritionDaySpan) -> bool:
+    """New day opened at overnight onset; that sleep has not ended yet."""
+    return bool(
+        span.open
+        and span.source == SOURCE_SLEEP
+        and span.sleep_onset is None
+        and span.next_wake is not None
+        and span.next_wake > span.start
+    )
+
+
+def burn_domains(
+    days: Sequence[NutritionDaySpan],
+) -> List[Tuple[datetime, datetime]]:
+    """Disjoint half-open burn intervals, one per span, in input order.
+
+    Nominal window is ``[start, burn_end)`` (through the next wake) so
+    sleep BMR stays on the day that just closed. Windows are then cut:
+
+    * A later span that is not an open in-sleep span clips this window
+      at its start. Sleep-gap synthetics no longer nest inside the real
+      span's ``next_wake``.
+    * An open in-sleep span yields when the previous window already runs
+      through the coming wake, and its interval is empty. With no previous
+      window covering that wake, it keeps ``[start, burn_end)`` so the
+      hours are not dropped.
+
+    Computed at request time. Stored civil-day burn rows are not rewritten.
+    """
+    spans = list(days)
+    n = len(spans)
+    if n == 0:
+        return []
+    order = sorted(range(n), key=lambda i: (spans[i].start, i))
+    placed: List[Optional[Tuple[datetime, datetime]]] = [None] * n
+    prev_end: Optional[datetime] = None
+    for pos, idx in enumerate(order):
+        span = spans[idx]
+        nxt = spans[order[pos + 1]] if pos + 1 < n else None
+        if (
+            _is_open_in_sleep(span)
+            and prev_end is not None
+            and span.next_wake is not None
+            and prev_end >= span.next_wake
+        ):
+            wake = span.next_wake
+            placed[idx] = (wake, wake)
+            continue
+        end = span.burn_end
+        if end < span.start:
+            end = span.start
+        if nxt is not None and not _is_open_in_sleep(nxt) and nxt.start < end:
+            end = nxt.start
+        if end < span.start:
+            end = span.start
+        placed[idx] = (span.start, end)
+        prev_end = end
+    return [
+        placed[i] if placed[i] is not None else (spans[i].start, spans[i].start)
+        for i in range(n)
+    ]
+
+
 def bucket_burn_by_nutrition_day(
     burned: Optional[Sequence[Any]],
     days: Sequence[NutritionDaySpan],
 ) -> List[Dict[str, Any]]:
     """Split civil-day burned kcal onto nutrition days by hour overlap.
 
-    Each civil day's total is 24h. Overlap uses ``[wake, next_wake)`` so
-    sleep BMR stays on the day that just closed, matching intake day ids.
+    Domains come from ``burn_domains`` and do not overlap, so the fractions
+    of one civil day sum to the share of that day the spans cover. Sleep
+    BMR stays on the day that closed at that night's onset. One row per
+    nutrition day id: shared ids are already summed in the accumulator.
     """
     if not days:
         return []
@@ -689,33 +763,26 @@ def bucket_burn_by_nutrition_day(
         civil.append(
             (start, start + timedelta(hours=24), kcal, str(d.get("source") or "google_health"))
         )
+    domains = burn_domains(days)
     acc: Dict[str, float] = {span.day_id: 0.0 for span in days}
     hit: Dict[str, bool] = {span.day_id: False for span in days}
     for c0, c1, kcal, _src in civil:
-        for span in days:
-            hours = _overlap_hours(c0, c1, span.start, span.burn_end)
+        for span, (d0, d1) in zip(days, domains):
+            hours = _overlap_hours(c0, c1, d0, d1)
             if hours <= 0:
                 continue
             acc[span.day_id] += kcal * (hours / 24.0)
             hit[span.day_id] = True
-    out: List[Dict[str, Any]] = []
-    for span in days:
-        if not hit.get(span.day_id):
-            continue
-        out.append(
-            {
-                "date": span.day_id,
-                "calories": round(acc[span.day_id], 1),
-                "source": "waking_day_split",
-            }
-        )
-    # Dedup day_id (synthetic + real can share a civil date) by summing.
-    merged: Dict[str, float] = {}
-    for row in out:
-        merged[row["date"]] = merged.get(row["date"], 0.0) + float(row["calories"])
+    # One row per day id. The accumulator already summed disjoint spans.
+    # Emitting once per span and adding again double-counts a shared id.
     return [
-        {"date": k, "calories": round(v, 1), "source": "waking_day_split"}
-        for k, v in sorted(merged.items())
+        {
+            "date": day_id,
+            "calories": round(acc[day_id], 1),
+            "source": "waking_day_split",
+        }
+        for day_id in sorted(acc)
+        if hit.get(day_id)
     ]
 
 
@@ -723,6 +790,11 @@ def burned_for_span(
     burned: Optional[Sequence[Any]],
     span: NutritionDaySpan,
 ) -> Optional[float]:
+    """Burn for one span with no neighbor context.
+
+    Prefer ``bucket_burn_by_nutrition_day`` on the full day list. A lone
+    in-sleep span cannot see that the previous day already owns the sleep.
+    """
     rows = bucket_burn_by_nutrition_day(burned, [span])
     if not rows:
         return None
@@ -780,11 +852,21 @@ def compose_nutrition_today(
                 intake["fat_g"] = float(_g(row, "fat_g") or 0)
                 intake["source"] = "daily_rollup"
                 break
-    burned_today = burned_for_span(calories_burned, span)
     trends_in = bucket_intake_by_nutrition_day(
         food_logs, days, nutrition_rollups=nutrition_rollups
     )
     trends_out = bucket_burn_by_nutrition_day(calories_burned, days)
+    # Same partition as the chart. Isolated burned_for_span would recount
+    # sleep onto an open in-sleep span.
+    burned_today = None
+    for row in trends_out:
+        if row.get("date") != span.day_id:
+            continue
+        try:
+            burned_today = float(row["calories"])
+        except (TypeError, ValueError):
+            burned_today = None
+        break
     consumed = {
         "calories": round(float(intake.get("calories") or 0), 1),
         "protein_g": round(float(intake.get("protein_g") or 0), 1),
