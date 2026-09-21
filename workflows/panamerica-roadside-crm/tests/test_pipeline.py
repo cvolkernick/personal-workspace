@@ -67,11 +67,35 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("owner-exit", body)
         self.assertIn("https://www.panamericafleet.com/plans", body)
         self.assertLessEqual(len(body), SMS_MAX_CHARS)
+        self.assertIn(f"for sale on {lead.location}", body)
+
+    def test_sms_and_voice_shorten_proximity_location_crm_keeps_full(self) -> None:
+        full = "Near Burnt Store, Cape Coral, FL 33991"
+        lead = self.pipe.store.get("lead-set-corolla")
+        assert lead is not None
+        lead.location = full
+        self.pipe.store.put(lead)
+        body = render_sms(lead)
+        task = render_voice_task(lead)
+        sent = self.pipe.send_sms(lead)
+        stored = self.pipe.store.get("lead-set-corolla")
+        assert stored is not None
+        self.assertIn("for sale near Burnt Store in Cape Coral", body)
+        self.assertIn("listed for sale near Burnt Store in Cape Coral", task)
+        self.assertNotIn("on near", body.lower())
+        self.assertNotIn("on near", task.lower())
+        self.assertNotIn("33991", body)
+        self.assertNotIn("33991", task)
+        self.assertEqual(stored.location, full)
+        self.assertEqual(sent["sms"]["body"], body)
+        self.assertNotIn("STOP", body)
+        self.assertNotIn("Turo", body)
 
     def test_voice_task_and_prompt_include_owner_exit_no_turo_pitch(self) -> None:
         lead = self.pipe.store.get("lead-set-corolla")
         assert lead is not None
         task = render_voice_task(lead)
+        self.assertIn(f"listed for sale on {lead.location}", task)
         self.assertIn("owner-exit", task)
         self.assertIn("www.panamericafleet.com/plans", task)
         self.assertIn("Do not mention Turo", task)

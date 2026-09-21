@@ -4,7 +4,7 @@ Lightweight CRM + owner-outreach pipeline for cars Chris photographs
 on the roadside. Intake is a Google Drive photo dump; the CRM file
 store is the system of record.
 
-Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820), [#854](https://github.com/cvolkernick/personal-workspace/issues/854), [#855](https://github.com/cvolkernick/personal-workspace/issues/855)
+Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820), [#854](https://github.com/cvolkernick/personal-workspace/issues/854), [#855](https://github.com/cvolkernick/personal-workspace/issues/855), [#860](https://github.com/cvolkernick/personal-workspace/issues/860)
 
 ## Canonical choices
 
@@ -14,7 +14,7 @@ Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#
 | Store | JSON file (`FileStore`). Default `~/.local/share/panamerica-roadside-crm/store.json` |
 | States | `needs-info \| new → sms_sent → call_attempted → responded → interested → converted \| declined \| dead` |
 | Dedupe | Phone number. A number already in the CRM never gets a second first-touch |
-| Copy | `outreach_copy.py` + `prompts/alexandra.roadside.v1.md`. Chris-approved 2026-09-20 (#855). `--live` still blocked until `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send human gate) |
+| Copy | `outreach_copy.py` + `prompts/alexandra.roadside.v1.md`. Chris-approved 2026-09-20 (#855). Location slot (#860): proximity → `near {place} in {city}`; road → `on {road}`. CRM keeps the full location string. `--live` still blocked until `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send human gate) |
 | Channel | Alexandra / Bland. Phase 1 SMS, Phase 2 voice 5–7 days later for non-responders only |
 
 Secrets (`BLAND_AGENT_ID`, API keys, Drive tokens) live in env — never in this repo, issues, or logs.
