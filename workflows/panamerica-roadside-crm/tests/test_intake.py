@@ -157,3 +157,28 @@ class IntakeTests(unittest.TestCase):
             self.assertEqual(lead.asking_price, "16500")
             self.assertEqual(lead.location, "route 66")
             self.assertEqual(lead.spotted_at, "2026-09-20")
+
+    def test_kevin_photo_set_ignores_gps_screenshot_phone(self) -> None:
+        photo_set = PhotoSet(
+            id="set-kevin",
+            name="2026-09-20-burnt-store",
+            photos=[
+                {"id": "p-car", "name": "car.jpg"},
+                {"id": "p-sign", "name": "sign.jpg"},
+                {"id": "p-map", "name": "maps.jpg"},
+            ],
+            sidecar_text="",
+            ocr={
+                "p-car": "2015 Jeep Wrangler",
+                "p-sign": "FOR SALE 2015 Jeep Wrangler $16,500 Call 239-464-8445",
+                "p-map": "26.639011, -82.039046",
+            },
+        )
+        text = harvest_text(photo_set, None)
+        vehicle_text = harvest_vehicle_text(photo_set, None)
+        lead = lead_from_set(photo_set, text, vehicle_text=vehicle_text)
+        self.assertEqual(lead.phone, "2394648445")
+        self.assertEqual(lead.year, "2015")
+        self.assertEqual(lead.make, "Jeep")
+        self.assertNotIn("2663901182", lead.phone)
+        self.assertEqual(lead.state, "new")
