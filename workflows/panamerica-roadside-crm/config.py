@@ -35,6 +35,7 @@ class Config:
     bland_agent_id: str = ""
     bland_from_number: str = ""
     google_drive_token: str = ""
+    vision_api_key: str = ""
     alert_webhook: str = ""
     webhook_secret: str = ""
     webhook_public_url: str = ""
@@ -75,6 +76,7 @@ class Config:
             bland_agent_id=_env("BLAND_AGENT_ID"),
             bland_from_number=_env("BLAND_FROM_NUMBER"),
             google_drive_token=_env("GOOGLE_DRIVE_ACCESS_TOKEN") or _env("GOOGLE_OAUTH_TOKEN"),
+            vision_api_key=_env("GOOGLE_VISION_API_KEY") or _env("PANAMERICA_ROADSIDE_VISION_API_KEY"),
             alert_webhook=_env("PANAMERICA_ROADSIDE_ALERT_WEBHOOK"),
             webhook_secret=_env("PANAMERICA_ROADSIDE_WEBHOOK_SECRET"),
             webhook_public_url=_env("PANAMERICA_ROADSIDE_WEBHOOK_URL"),
@@ -107,6 +109,7 @@ class Config:
             "bland_key_set": bool(self.bland_api_key),
             "bland_agent_set": bool(self.bland_agent_id),
             "drive_token_set": bool(self.google_drive_token),
+            "vision_key_set": bool(self.vision_api_key),
             "alert_webhook_set": bool(self.alert_webhook),
             "webhook_secret_set": bool(self.webhook_secret),
             "canonical_store": "file",

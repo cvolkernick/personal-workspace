@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import urllib.error
 import urllib.parse
@@ -18,6 +19,9 @@ from phones import e164
 BLAND_SMS_URL = "https://api.bland.ai/v1/sms/send"
 BLAND_CALL_URL = "https://api.bland.ai/v1/calls"
 DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
+VISION_ANNOTATE_URL = "https://vision.googleapis.com/v1/images:annotate"
+OCR_UNKNOWN = "UNKNOWN"
+OCR_MIN_CONFIDENCE = 0.4
 
 
 class ExternalSendError(RuntimeError):
@@ -108,16 +112,28 @@ class FakeDrive:
         sets: list[dict[str, Any]] | None = None,
         root_photos: list[dict[str, Any]] | None = None,
     ) -> None:
-        self.sets = [_photoset_from_row(row) for row in (sets or [])]
         self.root_photos = [dict(p) for p in (root_photos or [])]
         self.calls: list[dict[str, Any]] = []
         self.moves: list[dict[str, Any]] = []
         self.created_folders: list[dict[str, str]] = []
-        self._blobs = {
-            str(p.get("id") or ""): p.get("jpeg_bytes") or p.get("bytes")
-            for p in self.root_photos
-            if p.get("jpeg_bytes") or p.get("bytes")
-        }
+        self._blobs: dict[str, bytes] = {}
+        for p in self.root_photos:
+            blob = p.get("jpeg_bytes") or p.get("bytes")
+            if isinstance(blob, (bytes, bytearray)):
+                self._blobs[str(p.get("id") or "")] = bytes(blob)
+        clean_sets: list[dict[str, Any]] = []
+        for row in sets or []:
+            row = dict(row)
+            photos = []
+            for photo in row.get("photos") or []:
+                photo = dict(photo)
+                blob = photo.pop("jpeg_bytes", None) or photo.pop("bytes", None)
+                if isinstance(blob, (bytes, bytearray)):
+                    self._blobs[str(photo.get("id") or "")] = bytes(blob)
+                photos.append(photo)
+            row["photos"] = photos
+            clean_sets.append(row)
+        self.sets = [_photoset_from_row(row) for row in clean_sets]
 
     def list_photo_sets(self) -> list[PhotoSet]:
         self.calls.append({"op": "list_photo_sets"})
@@ -460,8 +476,95 @@ class FakeOcr:
 
 
 class NullOcr:
+    """Tests-only empty reader. Live path uses VisionOcr."""
+
     def read_text(self, photo: dict[str, str]) -> str:
         return ""
+
+
+class VisionOcr:
+    """Google Cloud Vision OCR. API key from env — never logged or committed."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str = "",
+        downloader: Any = None,
+        min_confidence: float = OCR_MIN_CONFIDENCE,
+        post: Any = None,
+    ) -> None:
+        self.api_key = api_key or ""
+        self.downloader = downloader
+        self.min_confidence = float(min_confidence)
+        self._post = post or _http_json
+        self.calls: list[str] = []
+
+    def read_text(self, photo: dict[str, str]) -> str:
+        key = photo.get("id") or photo.get("name") or ""
+        self.calls.append(key)
+        blob = self._download(photo)
+        if not blob:
+            return OCR_UNKNOWN
+        try:
+            text, conf = self._annotate(blob)
+        except Exception:
+            return OCR_UNKNOWN
+        if not text or conf < self.min_confidence:
+            return OCR_UNKNOWN
+        return text
+
+    def _download(self, photo: dict[str, str]) -> bytes:
+        file_id = str(photo.get("id") or "")
+        if self.downloader is None or not file_id:
+            return b""
+        try:
+            blob = self.downloader.download_bytes(file_id)
+        except Exception:
+            return b""
+        return bytes(blob) if isinstance(blob, (bytes, bytearray)) else b""
+
+    def _annotate(self, blob: bytes) -> tuple[str, float]:
+        if not self.api_key:
+            return "", 0.0
+        payload = {
+            "requests": [
+                {
+                    "image": {"content": base64.b64encode(blob).decode("ascii")},
+                    "features": [{"type": "DOCUMENT_TEXT_DETECTION", "maxResults": 1}],
+                }
+            ]
+        }
+        data = self._post(
+            VISION_ANNOTATE_URL,
+            payload,
+            headers={"x-goog-api-key": self.api_key},
+        )
+        return _vision_text_and_confidence(data if isinstance(data, dict) else {})
+
+
+def _vision_text_and_confidence(data: dict[str, Any]) -> tuple[str, float]:
+    responses = data.get("responses") or []
+    if not responses or not isinstance(responses[0], dict):
+        return "", 0.0
+    resp = responses[0]
+    if resp.get("error"):
+        return "", 0.0
+    full = resp.get("fullTextAnnotation") if isinstance(resp.get("fullTextAnnotation"), dict) else {}
+    text = str((full or {}).get("text") or "").strip()
+    conf: Optional[float] = None
+    pages = (full or {}).get("pages") or []
+    if pages and isinstance(pages[0], dict) and pages[0].get("confidence") is not None:
+        try:
+            conf = float(pages[0]["confidence"])
+        except (TypeError, ValueError):
+            conf = None
+    if not text:
+        anns = resp.get("textAnnotations") or []
+        if anns and isinstance(anns[0], dict):
+            text = str(anns[0].get("description") or "").strip()
+    if conf is None:
+        conf = 1.0 if text else 0.0
+    return text, conf
 
 
 # --- Bland ------------------------------------------------------------------
@@ -636,9 +739,11 @@ def build_adapters(
             alerter=RecordingAlerter(dry_run=True),
             geocoder=geocoder or FakeGeocoder(),
         )
+    live_drive = drive or LiveDrive(cfg.google_drive_token, cfg.drive_folder_id)
+    live_ocr = ocr or VisionOcr(api_key=cfg.vision_api_key, downloader=live_drive)
     return Adapters(
-        drive=drive or LiveDrive(cfg.google_drive_token, cfg.drive_folder_id),
-        ocr=ocr or NullOcr(),
+        drive=live_drive,
+        ocr=live_ocr,
         bland=bland or LiveBland(cfg),
         alerter=LiveAlerter(cfg.alert_webhook),
         geocoder=geocoder or NominatimGeocoder(),
