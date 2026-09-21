@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="favicon.ico?v=btc2" sizes="any" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <title>Leads · Financial Command Center</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --accent: #5b9fd4;
+      --red: #ff6b6b;
+      --green: #3dd68c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header, main { padding: 1rem 1.1rem; max-width: 880px; margin: 0 auto; }
+    a { color: var(--accent); }
+    .row { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    h1 { font-size: 1.25rem; margin: 0; }
+    .sub { color: var(--muted); font-size: 0.85rem; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.9rem;
+      margin: 0.75rem 0;
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 0.8rem;
+    }
+    .photo {
+      width: 120px;
+      height: 90px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #0e141b;
+      border: 1px solid var(--border);
+    }
+    .photo-missing {
+      width: 120px;
+      height: 90px;
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0.3rem;
+    }
+    dl { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.15rem 0.5rem; margin: 0.4rem 0; font-size: 0.92rem; }
+    dt { color: var(--muted); }
+    dd { margin: 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+    button, .btn {
+      background: #182430;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.7rem;
+      min-height: 2.4rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.primary { border-color: var(--accent); }
+    button.danger { border-color: var(--red); color: #ffc9c9; }
+    .err { color: #ffc9c9; }
+    .empty { color: var(--muted); }
+    @media (max-width: 640px) {
+      .card { grid-template-columns: 1fr; }
+      .photo, .photo-missing { width: 100%; height: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <div>
+        <h1>Marketplace leads</h1>
+        <div class="sub">Open <code>surface_to_chairman</code> rows. Messaging is manual.</div>
+      </div>
+      <a class="btn" href="index.html" id="nav-fcc">FCC</a>
+    </div>
+    <p id="status" class="sub">Loading…</p>
+  </header>
+  <main id="list"></main>
+  <script src="pwa.js"></script>
+  <script>
+    function esc(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+        return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch];
+      });
+    }
+
+    function field(label, value) {
+      var text = String(value || "").trim();
+      return "<dt>" + esc(label) + "</dt><dd>" + esc(text || "unavailable") + "</dd>";
+    }
+
+    function sellerText(lead) {
+      if (lead.seller_unavailable) return "";
+      if (lead.seller_name && lead.seller_rating) return lead.seller_name + " (" + lead.seller_rating + ")";
+      return lead.seller_name || ("rating " + lead.seller_rating);
+    }
+
+    function photoHtml(lead) {
+      if (!lead.photo_url || lead.photo_unavailable) {
+        return '<div class="photo-missing">Photo unavailable</div>';
+      }
+      return '<img class="photo" alt="" src="' + esc(lead.photo_url) + '" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'photo-missing\',textContent:\'Photo unavailable\'}))">';
+    }
+
+    function card(lead) {
+      return (
+        '<article class="card" data-id="' + esc(lead.id) + '">' +
+        photoHtml(lead) +
+        "<div><strong>" + esc(lead.label || "Vehicle") + "</strong>" +
+        "<dl>" +
+        field("Price", lead.price) +
+        field("Mileage", lead.mileage) +
+        field("Location", lead.location) +
+        field("Listing date", lead.listing_date) +
+        field("Flagged", lead.reason_flagged) +
+        field("Seller", sellerText(lead)) +
+        field("Phone on listing", lead.phone_present ? "yes" : "no") +
+        "</dl>" +
+        '<p><a href="' + esc(lead.listing_url) + '" target="_blank" rel="noopener noreferrer">Open Marketplace listing</a></p>' +
+        '<div class="actions">' +
+        '<button type="button" data-action="contacted">Mark contacted</button>' +
+        '<button type="button" data-action="disqualified" class="danger">Mark disqualified</button>' +
+        '<button type="button" data-action="converted" class="primary">Convert to owner</button>' +
+        "</div></div></article>"
+      );
+    }
+
+    async function load() {
+      var status = document.getElementById("status");
+      var list = document.getElementById("list");
+      try {
+        var res = await fetch("/api/marketplace-leads", { cache: "no-store" });
+        var data = await res.json();
+        if (!data.ok) throw new Error(data.error || "load failed");
+        var leads = data.leads || [];
+        status.textContent = leads.length + " open";
+        list.innerHTML = leads.length ? leads.map(card).join("") : '<p class="empty">No open Chairman leads.</p>';
+      } catch (err) {
+        status.textContent = "";
+        list.innerHTML = '<p class="err">' + esc(err.message || err) + "</p>";
+      }
+    }
+
+    document.getElementById("list").addEventListener("click", async function (event) {
+      var button = event.target.closest("button[data-action]");
+      if (!button) return;
+      var cardEl = button.closest("[data-id]");
+      button.disabled = true;
+      try {
+        var res = await fetch("/api/marketplace-leads/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: cardEl.getAttribute("data-id"), action: button.getAttribute("data-action") })
+        });
+        var data = await res.json();
+        if (!data.ok) throw new Error(data.error || "action failed");
+        await load();
+      } catch (err) {
+        button.disabled = false;
+        document.getElementById("status").textContent = err.message || String(err);
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>
