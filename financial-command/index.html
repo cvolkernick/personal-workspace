@@ -2037,7 +2037,8 @@
       #nav-capital-flows,
       #nav-interest-spectrum,
       #nav-bias-spectrum,
-      #nav-fleet {
+      #nav-fleet,
+      #nav-lead-queue {
         display: none;
       }
     }
@@ -2225,6 +2226,7 @@
       <a class="broker-link" href="https://robinhood.com/" id="nav-robinhood" target="_blank" rel="noopener noreferrer" title="Open Robinhood">Robinhood</a>
       <a class="broker-link" href="https://docs.google.com/spreadsheets/d/15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ/edit" id="nav-expenses" target="_blank" rel="noopener noreferrer" title="Open personal expense spreadsheet">Expenses</a>
       <a class="broker-link" href="http://127.0.0.1:8796/" id="link-fleet-chip" data-nav-fleet title="Auto Fleet ops (same host :8796)">Fleet</a>
+      <a class="broker-link" href="lead-queue.html" id="link-lead-queue" title="Marketplace leads for Chairman follow-up">Leads</a>
     </div>
     <div class="row">
       <div>
@@ -2238,6 +2240,7 @@
         <a class="btn" href="bias-spectrum.html" id="nav-bias-spectrum" title="New-money consider-share across core + watchlist">Bias Spectrum</a>
         <a class="btn" href="watchlist.html" id="nav-watchlist" title="Watchlist research">Watchlist</a>
         <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet ops (same host :8796)">Fleet</a>
+        <a class="btn" href="lead-queue.html" id="nav-lead-queue" title="Marketplace leads for Chairman follow-up">Leads</a>
         <span class="poll-note" id="poll-note" title="Local treasury JSON poll">auto 5m</span>
         <button type="button" id="btn-refresh" class="primary">Refresh</button>
         <div id="overall-pill" class="pill yellow">loading</div>
@@ -2512,6 +2515,13 @@
       <summary>Fleet dashboard <a class="btn" href="http://127.0.0.1:8796/" id="link-fleet-full" data-nav-fleet style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
       <div class="body">
         <p class="hint">Auto Fleet ops on this host :8796. Separate service — not a tab inside FCC.</p>
+      </div>
+    </details>
+
+    <details class="panel" id="lead-queue-card" data-m-panel="more">
+      <summary>Marketplace leads <a class="btn" href="lead-queue.html" id="link-lead-queue-full" style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
+      <div class="body">
+        <p class="hint">No-phone Marketplace listings for Chairman follow-up. Open the listing and message the seller manually.</p>
       </div>
     </details>
 

@@ -841,6 +841,15 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e), "phase": "fail"})
             return
+        if path == "/api/marketplace-leads":
+            try:
+                from workflows.marketplace_leads.api import queue_payload
+                from workflows.marketplace_leads.store import open_store
+
+                self._json(200, queue_payload(open_store()))
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
         self._remap_static_path()
         return super().do_GET()
 
@@ -1242,6 +1251,22 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     }
                 data = _enrich_treasury(data)
             self._json(200, {"ok": True, "treasury": data, "refreshed": report})
+            return
+
+        if path == "/api/marketplace-leads/action":
+            body = self._read_json()
+            try:
+                from workflows.marketplace_leads.api import action_payload
+                from workflows.marketplace_leads.store import open_store
+
+                payload = action_payload(
+                    open_store(),
+                    str(body.get("id") or ""),
+                    str(body.get("action") or ""),
+                )
+                self._json(200 if payload.get("ok") else 400, payload)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
             return
 
         self._json(404, {"ok": False, "error": "unknown endpoint"})
