@@ -741,7 +741,9 @@ def load_dashboard_data(
         except Exception as e:  # noqa: BLE001
             cache_notes.setdefault("hidrate", {})["error"] = str(e)
 
-    # Unlogged nights = 0h sleep debt for charts, recovery, and coach.
+    # Charts still zero-fill unlogged nights. Recovery omits the open
+    # GH-lag night while the sleep quest is pending (#870).
+    from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
     from rt_dashboard.sleep_series import expand_sleep_calendar
 
     # Real sleep logs (before implied-zero fill). Missing Health must not
@@ -750,6 +752,16 @@ def load_dashboard_data(
         float(getattr(s, "sleep_hours", 0) or 0) > 0
         and str(getattr(s, "source", "") or "") != "implied_zero"
         for s in (health.sleep or [])
+    )
+    _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
+    # Prefer timed Google sleep intervals (same as Time Allocator); daily
+    # totals alone assume a fixed 7am wake and skew the battery badly.
+    sleep_battery = sleep_battery_from_fitdash_sleep(
+        [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        now=now,
+        tz_name=tz_name,
+        sleep_target_hours=8.0,
+        sleep_intervals=_sleep_iv,
     )
 
     health.sleep = expand_sleep_calendar(
@@ -766,17 +778,9 @@ def load_dashboard_data(
         sessions=sessions,
         as_of=local_today,
         rhr=health.resting_heart_rate or [],
-    )
-    from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
-
-    # Prefer timed Google sleep intervals (same as Time Allocator); daily
-    # totals alone assume a fixed 7am wake and skew the battery badly.
-    sleep_battery = sleep_battery_from_fitdash_sleep(
-        [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        sleep_battery=sleep_battery,
+        sleep_intervals=_sleep_iv,
         now=now,
-        tz_name=tz_name,
-        sleep_target_hours=8.0,
-        sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
     )
     recovery_dict = recovery.to_dict()
     recovery_dict["sleep_battery"] = sleep_battery

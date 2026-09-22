@@ -168,6 +168,19 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
         and str(getattr(s, "source", "") or "") != "implied_zero"
         for s in (health.sleep or [])
     )
+    bat = None
+    sleep_intervals = list(getattr(health, "sleep_intervals", None) or [])
+    try:
+        from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
+
+        bat = sleep_battery_from_fitdash_sleep(
+            health.sleep or [],
+            now=now,
+            tz_name=tz_name,
+            sleep_intervals=sleep_intervals,
+        )
+    except Exception:  # noqa: BLE001
+        bat = None
     recovery: Dict[str, Any] = {}
     try:
         sleep_for_recovery = expand_sleep_calendar(
@@ -183,11 +196,16 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
             sessions=sessions,
             as_of=today,
             rhr=health.resting_heart_rate or [],
+            sleep_battery=bat if isinstance(bat, dict) else None,
+            sleep_intervals=sleep_intervals,
+            now=now,
         )
         recovery = rec.to_dict() if hasattr(rec, "to_dict") else {}
         recovery["sparse"] = not had_real_sleep
     except Exception:  # noqa: BLE001
         recovery = {"sparse": not had_real_sleep}
+    if isinstance(bat, dict):
+        recovery["sleep_battery"] = bat
     goals, _gs = load_workspace_goals()
     catalog, _cs = load_universe_catalog(user_id)
     overlay, _ls = load_library_overlay(user_id)
@@ -196,20 +214,6 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
     equipment, _es = load_preview_equipment(user_id)
     inventory, _isrc = load_preview_inventory(user_id)
     targets, _ts = load_preview_targets(user_id)
-    bat = None
-    try:
-        from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
-
-        bat = sleep_battery_from_fitdash_sleep(
-            health.sleep or [],
-            now=now,
-            tz_name=tz_name,
-            sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
-        )
-        if isinstance(bat, dict):
-            recovery["sleep_battery"] = bat
-    except Exception:  # noqa: BLE001
-        bat = None
     consumed = _today_consumed(
         health, today, now=now, tz_name=tz_name, sleep_battery=bat
     ) or {}

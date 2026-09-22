@@ -14,7 +14,6 @@ from .models import (
     WeightSample,
 )
 from .analytics import recent_training_volume
-from .sleep_series import calendar_avg_sleep_hours
 
 # Elevated RHR vs personal median is a fatigue/illness flag (Banister / Firstbeat).
 # +5 bpm = under-recovered (easy intensity). +8 bpm = rest day.
@@ -96,17 +95,47 @@ def rhr_readiness(
     }
 
 
-def _avg_sleep_hours(
-    sleep: Sequence[SleepSample],
-    days: int = 7,
-    as_of: Optional[str] = None,
-) -> Optional[float]:
-    """Mean sleep over the last ``days`` *calendar* days (unlogged = 0h)."""
-    if as_of is None:
-        from .timeutil import local_today_iso
+def _positive_logged_hours(sleep: Sequence[SleepSample], day: str) -> float:
+    """Hours on ``day`` from a real log. Implied calendar zeros are not a sample."""
+    want = (day or "")[:10]
+    if not want:
+        return 0.0
+    total = 0.0
+    for sample in sleep or []:
+        if (getattr(sample, "date", "") or "")[:10] != want:
+            continue
+        if str(getattr(sample, "source", "") or "") == "implied_zero":
+            continue
+        try:
+            hours = float(sample.sleep_hours or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if hours > 0:
+            total += hours
+    return total
 
-        as_of = local_today_iso()
-    return calendar_avg_sleep_hours(sleep, as_of=as_of, days=days)
+
+def _quest_overnight_pending(
+    *,
+    as_of: str,
+    sleep_battery: Optional[dict],
+    sleep_intervals: Optional[Sequence[Any]],
+    now: Optional[datetime],
+) -> bool:
+    """Same pending signal as the sleep quest (#514). Does not invent 0h."""
+    from .sleep_quest import sleep_spec
+
+    board: Dict[str, Any] = {"date": as_of}
+    if isinstance(now, datetime):
+        board["now"] = now.isoformat(timespec="seconds")
+    spec = sleep_spec(
+        board,
+        sleep_battery=sleep_battery if isinstance(sleep_battery, dict) else None,
+        intervals=list(sleep_intervals or []),
+        as_of=as_of,
+        now=now,
+    )
+    return str(spec.get("status") or "") == "pending"
 
 
 def _latest_weight(weight: Sequence[WeightSample]) -> Optional[float]:
@@ -139,6 +168,10 @@ def compute_recovery_status(
     as_of: Optional[str] = None,
     high_volume_threshold: float = 25000.0,
     rhr: Sequence[RestingHeartRateDay] = (),
+    pending_overnight: Optional[bool] = None,
+    sleep_battery: Optional[dict] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
+    now: Optional[datetime] = None,
 ) -> RecoveryStatus:
     """
     Produce an explicit recovery-status suggestion from health + training context.
@@ -156,7 +189,34 @@ def compute_recovery_status(
 
         as_of = local_today_iso()
 
-    avg_sleep = _avg_sleep_hours(sleep, days=7, as_of=as_of)
+    # Unlogged nights count as 0h. The open GH-lag night (quest pending, no
+    # sample) is left out of the mean and the zero-night note. A night that
+    # is no longer pending and still has no sample stays 0h debt.
+    if pending_overnight is None and (
+        sleep_battery is not None or sleep_intervals is not None
+    ):
+        pending_overnight = _quest_overnight_pending(
+            as_of=as_of,
+            sleep_battery=sleep_battery,
+            sleep_intervals=sleep_intervals,
+            now=now,
+        )
+    omit_date: Optional[str] = None
+    if pending_overnight and _positive_logged_hours(sleep, as_of) <= 0:
+        omit_date = as_of
+
+    from .sleep_series import expand_sleep_calendar
+
+    filled7 = expand_sleep_calendar(sleep, as_of=as_of, window_days=7)
+    if omit_date:
+        filled7 = [s for s in filled7 if (s.date or "")[:10] != omit_date]
+    if not filled7:
+        avg_sleep: Optional[float] = None
+    else:
+        avg_sleep = round(
+            sum(float(s.sleep_hours or 0) for s in filled7) / len(filled7),
+            2,
+        )
     latest_w = _latest_weight(weight)
     w_delta = _weight_delta_7d(weight)
     vol_7d = recent_training_volume(sessions, as_of=as_of, window_days=7)
@@ -164,27 +224,24 @@ def compute_recovery_status(
     score = 70.0  # neutral baseline when sparse data
     reasons: List[str] = []
 
-    # Unlogged nights count as 0h (sleep debt) — always have a 7d calendar mean.
     if avg_sleep is None:
         reasons.append("No sleep window available — score starts from neutral baseline")
     else:
-        from .sleep_series import expand_sleep_calendar
-
-        filled7 = expand_sleep_calendar(sleep, as_of=as_of, window_days=7)
         zero_nights = sum(1 for s in filled7 if float(s.sleep_hours or 0) <= 0)
+        day_note = f"{len(filled7)} calendar days; unlogged=0"
 
         if avg_sleep >= 8.0:
             score += 15
-            reasons.append(f"Strong sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
+            reasons.append(f"Strong sleep avg {avg_sleep:.1f}h ({day_note})")
         elif avg_sleep >= 7.0:
             score += 8
-            reasons.append(f"Adequate sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
+            reasons.append(f"Adequate sleep avg {avg_sleep:.1f}h ({day_note})")
         elif avg_sleep >= 6.0:
             score -= 10
-            reasons.append(f"Borderline sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
+            reasons.append(f"Borderline sleep avg {avg_sleep:.1f}h ({day_note})")
         else:
             score -= 25
-            reasons.append(f"Low sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
+            reasons.append(f"Low sleep avg {avg_sleep:.1f}h ({day_note})")
         if zero_nights:
             score -= min(15, zero_nights * 5)
             reasons.append(
@@ -252,6 +309,7 @@ def compute_recovery_status(
         inputs={
             "as_of": as_of,
             "avg_sleep_hours_7d": avg_sleep,
+            "pending_overnight_date": omit_date,
             "latest_weight_lbs": latest_w,
             "weight_delta_7d_lbs": w_delta,
             "training_volume_7d": vol_7d,
