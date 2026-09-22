@@ -126,6 +126,51 @@ class TestQuotaLevers(unittest.TestCase):
         by_lever = {p["lever"]: p for p in report["quota"]["proposals"]}
         self.assertFalse(by_lever["broaden_seed_channel_set"]["apply"])
 
+    def _more_ticks(self, verdict: str, delta: int | None) -> dict:
+        t0 = datetime(2026, 9, 19, 12, 0, tzinfo=timezone.utc)
+        t1 = datetime(2026, 9, 19, 13, 0, tzinfo=timezone.utc)
+        ticks = []
+        if delta is not None:
+            ticks = [
+                {"at_dt": t0, "quota": 1000},
+                {"at_dt": t1, "quota": 1000 + delta},
+            ]
+        plan = R.lever_plan({"quota": 1000}, ticks, {"verdict": verdict})
+        return next(p for p in plan["proposals"] if p["lever"] == "more_ticks_per_day")
+
+    def test_more_ticks_why_matches_apply_when_30min_fits(self) -> None:
+        # 48×100 = 4800 ≤ soft cap 8000, verdict supply → more_ticks_ok.
+        prop = self._more_ticks("supply", 100)
+        self.assertTrue(prop["apply"])
+        self.assertIn("30-min fits", prop["why"])
+        self.assertIn("the lever applies", prop["why"])
+        self.assertNotIn("do not 2×", prop["why"])
+        mixed = self._more_ticks("mixed", 100)
+        self.assertTrue(mixed["apply"])
+        self.assertIn("30-min fits", mixed["why"])
+        self.assertNotIn("do not 2×", mixed["why"])
+
+    def test_more_ticks_why_states_blocker_when_not_ok(self) -> None:
+        # 48×200 = 9600 > 8000. Supply is true; the blocker is the soft cap.
+        exceeds = self._more_ticks("supply", 200)
+        self.assertFalse(exceeds["apply"])
+        self.assertIn("blocker:", exceeds["why"])
+        self.assertIn("exceeds soft cap", exceeds["why"])
+        self.assertNotIn("do not 2×", exceeds["why"])
+        self.assertNotIn("the lever applies", exceeds["why"])
+
+        # 30-min would fit, but the verdict is not supply/mixed.
+        scoring = self._more_ticks("scoring", 100)
+        self.assertFalse(scoring["apply"])
+        self.assertIn("blocker: verdict is not supply.", scoring["why"])
+        self.assertNotIn("the lever applies", scoring["why"])
+
+        # No same-day quota step → no median, so half-hour fit is unknown.
+        unknown = self._more_ticks("supply", None)
+        self.assertFalse(unknown["apply"])
+        self.assertIn("blocker: no median units/tick", unknown["why"])
+        self.assertNotIn("the lever applies", unknown["why"])
+
 
 class TestPersist(unittest.TestCase):
     def test_dry_run_does_not_write(self):

@@ -306,6 +306,30 @@ def lever_plan(
     more_ticks_ok = supply and half_ok
     # MAX_INSERTS_PER_TICK already removed; add budget is house-after-prune.
     add_cap_ok = False
+    if more_ticks_ok:
+        more_ticks_why = (
+            f"median {median_tick} units/tick. Hourly 24× ≈ {hourly_day} "
+            f"(soft {soft_cap} {'ok' if hourly_ok else 'tight'}). "
+            f"30-min 48× ≈ {half_hour_day} fits soft cap — "
+            "30-min fits and the lever applies."
+        )
+    elif not supply:
+        more_ticks_why = (
+            f"median {median_tick} units/tick. "
+            f"30-min 48× ≈ {half_hour_day}. "
+            "blocker: verdict is not supply."
+        )
+    elif not median_tick:
+        more_ticks_why = (
+            "blocker: no median units/tick, so 30-min fit is unknown."
+        )
+    else:
+        more_ticks_why = (
+            f"median {median_tick} units/tick. Hourly 24× ≈ {hourly_day} "
+            f"(soft {soft_cap} {'ok' if hourly_ok else 'tight'}). "
+            f"30-min 48× ≈ {half_hour_day} exceeds soft cap {soft_cap}. "
+            "blocker: 30-min cadence does not fit the soft cap."
+        )
     proposals = [
         proposal(
             "broaden_seed_channel_set",
@@ -328,12 +352,7 @@ def lever_plan(
         proposal(
             "more_ticks_per_day",
             more_ticks_ok,
-            (
-                f"median {median_tick} units/tick. Hourly 24× ≈ {hourly_day} "
-                f"(soft {soft_cap} {'ok' if hourly_ok else 'tight'}). "
-                f"30-min 48× ≈ {half_hour_day} "
-                f"{'fits' if half_ok else 'exceeds'} soft cap — do not 2× ticks."
-            ),
+            more_ticks_why,
         ),
         proposal(
             "raise_per_tick_add_cap",
