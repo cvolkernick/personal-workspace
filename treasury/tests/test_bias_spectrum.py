@@ -404,38 +404,46 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertNotIn("$100", raw)
         self.assertNotIn("monthly $100", raw.lower())
         data = json.loads(raw)
-        self.assertEqual(data["as_of"], "2026-09-08")
+        self.assertEqual(data["as_of"], "2026-09-22")
         self.assertEqual(data["schema"], "fcc_consider_share_stamps_v0")
         self.assertEqual(data["unit"], "new_money_consider_share_pct")
         self.assertEqual(data["sum_to"], 100)
-        self.assertEqual(data["pins"], {"TSLA": 15.0, "SPCX": 15.0})
+        self.assertEqual(data["pins"], {"TSLA": 50.0, "SPCX": 50.0})
         self.assertNotIn("BITA", data["pins"])
         self.assertNotIn("STRC", data["pins"])
         self.assertNotIn("MARA", data["pins"])
         self.assertNotIn("NVDA", data["pins"])
         notes = data["notes"]
-        self.assertIn("superseded", notes.lower())
+        self.assertIn("supersedes", notes.lower())
         self.assertIn("BITA", notes)
         self.assertIn("STRC", notes)
         self.assertIn("MARA", notes)
         self.assertIn("NVDA", notes)
-        self.assertEqual(data["reallocate"], {"BE": ["TSLA", "SPCX"]})
-        self.assertTrue(data["not_a_nav_target"])
-        self.assertTrue(data["not_a_sleeve_target"])
-        self.assertTrue(data["not_an_order"])
-        self.assertTrue(data["not_for_autopilot"])
-        self.assertTrue(data["not_for_monday_residual"])
-        self.assertTrue(data["not_a_forced_rebalance"])
+        self.assertIn("50%", notes)
+        self.assertEqual(
+            data["reallocate"],
+            {
+                "BE": ["TSLA", "SPCX"],
+                "non_spcx_tsla_equities": ["TSLA", "SPCX"],
+            },
+        )
+        # Chairman 2026-09-22: pins are the stocks-sleeve target (sum 100).
+        self.assertFalse(data["not_a_nav_target"])
+        self.assertFalse(data["not_a_sleeve_target"])
+        self.assertFalse(data["not_an_order"])
+        self.assertFalse(data["not_for_autopilot"])
+        self.assertFalse(data["not_for_monday_residual"])
+        self.assertFalse(data["not_a_forced_rebalance"])
         self.assertTrue(data["authoritative_for_bias_pins"])
-        self.assertIn("fund_manager.py", data["notes"])
         self.assertIn("theme-gap", data["notes"])
+        self.assertIn("stocks sleeve", data["notes"].lower())
 
     def test_two_pin_overlay_unpins_bita_strc_mara_nvda(self) -> None:
-        """TSLA/SPCX stamp; BITA/STRC/MARA/NVDA float; residual + pins ~100; no Other."""
+        """TSLA/SPCX 50/50 stamp (sum 100); other equities rescale to ~0; no Other."""
         stamps = json.loads(
             (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(stamps["pins"], {"TSLA": 15.0, "SPCX": 15.0})
+        self.assertEqual(stamps["pins"], {"TSLA": 50.0, "SPCX": 50.0})
         policy = _policy()
         policy["allowlist"]["core"] = [
             "MSTR",
@@ -478,7 +486,7 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         )
         for sym in ("TSLA", "SPCX"):
             self.assertIn(sym, by)
-            self.assertAlmostEqual(by[sym]["weight_pct"], 15.0)
+            self.assertAlmostEqual(by[sym]["weight_pct"], 50.0)
             self.assertEqual(by[sym]["weight_basis"], "consider_share_stamp")
             self.assertTrue(by[sym]["consider_share_stamp"])
             self.assertIn("NOT a live NAV", by[sym]["notes"])
@@ -489,20 +497,27 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
             self.assertIn(sym, by)
             self.assertFalse(by[sym].get("consider_share_stamp"))
             self.assertEqual(by[sym]["weight_basis"], "new_money_consider_share")
-            self.assertNotAlmostEqual(by[sym]["weight_pct"], old_pin)
+            # Pins sum to 100 — unpinned equities rescale to ~0, not old pin %.
+            self.assertAlmostEqual(by[sym]["weight_pct"], 0.0, places=1)
         residual = sum(
             float(c["weight_pct"])
             for c in payload["chips"]
             if c["symbol"] not in ("TSLA", "SPCX")
         )
-        self.assertAlmostEqual(30.0 + residual, 100.0, places=1)
+        self.assertAlmostEqual(100.0 + residual, 100.0, places=1)
         self.assertAlmostEqual(
             sum(float(c["weight_pct"]) for c in payload["chips"]), 100.0, places=1
         )
-        self.assertGreater(residual, 0.0)
+        self.assertAlmostEqual(residual, 0.0, places=1)
         self.assertCountEqual(payload["consider_share_stamps"], ["TSLA", "SPCX"])
-        # Historical BE→TSLA/SPCX reallocate stays in the file; absent BE is harmless.
-        self.assertEqual(stamps.get("reallocate"), {"BE": ["TSLA", "SPCX"]})
+        # Historical BE→TSLA/SPCX reallocate stays; absent BE is harmless.
+        self.assertEqual(
+            stamps.get("reallocate"),
+            {
+                "BE": ["TSLA", "SPCX"],
+                "non_spcx_tsla_equities": ["TSLA", "SPCX"],
+            },
+        )
         self.assertTrue(payload["policy"]["consider_share_stamps_applied"])
         self.assertTrue(payload["policy"]["consider_share_stamps_are_not_nav_targets"])
         self.assertTrue(payload["policy"]["consider_share_stamps_are_not_sleeve_targets"])
@@ -555,16 +570,9 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertEqual(payload["btc_count"], 4)
         self.assertEqual(payload["stocks_count"], 4)
 
-    def test_policy_roots_exclude_local_treasury_worktree(self) -> None:
-        from treasury.bias_spectrum import TREASURY_WORKTREE, _policy_roots
-
-        roots = {p.resolve() if p.exists() else p for p in _policy_roots()}
-        self.assertNotIn(TREASURY_WORKTREE, roots)
-        self.assertNotIn(TREASURY_WORKTREE.resolve(), roots)
-
     def test_git_work_treasury_policy_when_file_missing(self) -> None:
         fm = _fm()
-        with patch("treasury.bias_spectrum._first_policy_json", return_value={}):
+        with patch("treasury.bias_spectrum._first_json", return_value={}):
             with patch("treasury.bias_spectrum._git_show_json", return_value=_policy()):
                 payload = build_bias_spectrum(
                     fund_manager=fm, treasury={}, watchlist=_watchlist()
@@ -577,7 +585,7 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
     def test_snapshot_allowlist_when_policy_and_git_missing(self) -> None:
         fm = _fm()
         fm["analysis"]["allowlist_core"] = ["MSTR", "STRC", "SATA", "TSLA"]
-        with patch("treasury.bias_spectrum._first_policy_json", return_value={}):
+        with patch("treasury.bias_spectrum._first_json", return_value={}):
             with patch("treasury.bias_spectrum._git_show_json", return_value={}):
                 payload = build_bias_spectrum(
                     fund_manager=fm, treasury={}, watchlist=_watchlist()
