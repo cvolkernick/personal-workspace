@@ -1285,6 +1285,9 @@ def _agent_today_from_stores(headers, query: str = ""):
             sessions=sessions,
             as_of=today,
             rhr=health.resting_heart_rate or [],
+            sleep_battery=sleep_battery if isinstance(sleep_battery, dict) else None,
+            sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
+            now=now,
         )
         recovery_dict = recovery.to_dict() if hasattr(recovery, "to_dict") else {}
         recovery_dict["sparse"] = not had_real_sleep

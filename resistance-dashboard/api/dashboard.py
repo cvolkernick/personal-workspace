@@ -348,6 +348,14 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         and str(getattr(s, "source", "") or "") != "implied_zero"
         for s in (health.sleep or [])
     )
+    _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
+    sleep_battery = sleep_battery_from_fitdash_sleep(
+        [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        now=now,
+        tz_name=tz_name,
+        sleep_target_hours=8.0,
+        sleep_intervals=_sleep_iv,
+    )
     health.sleep = expand_sleep_calendar(
         health.sleep or [],
         as_of=today,
@@ -361,13 +369,9 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         sessions=sessions,
         as_of=today,
         rhr=health.resting_heart_rate or [],
-    )
-    sleep_battery = sleep_battery_from_fitdash_sleep(
-        [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        sleep_battery=sleep_battery,
+        sleep_intervals=_sleep_iv,
         now=now,
-        tz_name=tz_name,
-        sleep_target_hours=8.0,
-        sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
     )
     recovery_dict = recovery.to_dict()
     recovery_dict["sleep_battery"] = sleep_battery

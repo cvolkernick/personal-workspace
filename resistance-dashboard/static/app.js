@@ -111,6 +111,29 @@
     return out;
   }
 
+  /**
+   * Open GH-lag night: quest pending and no sample is a gap, not 0h debt.
+   * A logged short night (hours > 0) stays. A real miss (pendingNight empty) stays 0.
+   */
+  function sleepTrendValue(hours, date, pendingNight) {
+    const logged = Number(hours);
+    const h = Number.isFinite(logged) ? logged : 0;
+    const day = String(date || "").slice(0, 10);
+    const openNight = String(pendingNight || "").slice(0, 10);
+    if (openNight && day === openNight && h <= 0) return null;
+    return h;
+  }
+
+  function pendingOvernightDate(data) {
+    const rec = (data && data.recovery) || {};
+    const inputs = rec.inputs || {};
+    return String(inputs.pending_overnight_date || rec.pending_overnight_date || "").slice(0, 10);
+  }
+
+  function countZeroSleepNights(values) {
+    return (values || []).filter((v) => v != null && v <= 0).length;
+  }
+
   /** Fill missing civil days with 0 ml water so unlogged days appear on the chart. */
   function fillHydrationCalendarDays(points, windowDays = 90) {
     const by = {};
@@ -998,14 +1021,17 @@
     );
     const sleepFilled = fillSleepCalendarDays(sleepRaw, 90);
     const sleep = downsamplePoints(sleepFilled, 90);
-    const sleepVals = sleep.map((s) => Number(s.sleep_hours) || 0);
+    const pendingNight = pendingOvernightDate(data);
+    const sleepVals = sleep.map((s) =>
+      sleepTrendValue(s.sleep_hours, s.date, pendingNight)
+    );
     const sleepTrend = linearTrend(sleepVals);
     const sleepRoll7 = rollingAverage(sleepVals, 7);
     const sleepTarget = sleepVals.map(() => 8);
     const sSlope = trendSlopePerDay(sleepVals);
     const lastRoll =
       [...sleepRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
-    const zeroNights = sleepVals.filter((v) => v <= 0).length;
+    const zeroNights = countZeroSleepNights(sleepVals);
     destroyChart(sleepChart);
     sleepChart = new Chart($("chart-sleep"), {
       type: "bar",
@@ -1017,7 +1043,11 @@
             label: "Sleep (h)",
             data: sleepVals,
             backgroundColor: sleepVals.map((v) =>
-              v <= 0 ? "rgba(240,113,120,0.55)" : "rgba(240,180,41,0.45)"
+              v == null
+                ? "rgba(0,0,0,0)"
+                : v <= 0
+                  ? "rgba(240,113,120,0.55)"
+                  : "rgba(240,180,41,0.45)"
             ),
             borderRadius: 4,
             order: 3,
