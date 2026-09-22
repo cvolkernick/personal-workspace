@@ -2418,3 +2418,31 @@
 - **critic:** ok — Hold preferred when bands ok — avoid churn
 - **executor:** hold — No MCP orders on pure rules HOLD
 
+
+## 2026-09-22T18:43:58 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $339.5956 · BP $0.01
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $339.60 BP $0.01 cash $0.01
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-22T18:50:05 — hold
+**Summary:** HOLD. Agentic ••••1752 is already the Chairman 2026-09-22 stocks book: TSLA $169.97 (50.1%) / SPCX $169.61 (49.9%) of $339.58 quote equity. Broker NAV $339.69, cash/BP $0.01. No orders. Do not reverse today's 17:47Z exit of every other equity (including the BTC complex) while buying power is dust.
+**Book:** NAV $339.6858 · BP $0.01
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 18:43Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus the numeric 40/60 ±5% band. Live scout confirms that state is the filled Chairman rebalance, not stale data: 13 market sells at 17:47Z (MSTR, MARA, BITA, IREN, CLSK, STRC, SATA, RIOT, GOOGL, WULF, NVDA, CCJ, BWXT) and two market buys at 17:48Z (TSLA $88.10, SPCX $100.12). Regular hours, ~14:50 ET, outside the open and the last 30 minutes. Cash and buying power are $0.01, under the $1 minimum. Unsettled $188.20 is the sale proceeds already spent, not dry powder. Research/rotate was run inline against the live book, quotes, allowlist, ready watchlist, and the 2026-09-22 digest. The multi-agent fund-manager-research workflow was not launched: it cannot create buying power or override a same-day filled standing order, and the digest plus live quotes already cover the theme scan.
+**Why not alternatives:** Rebuilding ~40% ($136) into STRC/SATA plus miners would undo 'exit every other equity' and 'live rebalance executed 2026-09-22' in consider_share.json (commit b086053, source 'use 50/50 not keep-ratio'). fund_manager.json symbol_targets still say stocks capital is 50/50 SPCX+TSLA only and crypto/cash is unchanged unless the Chairman says otherwise. Agentic crypto is $0 and stays $0. STRC/SATA elevation is not waived by illiquidity or by 'MSTR already covers credit' — it is not applied because this pass deploys no BTC-complex capital. Multi-miner names were not rejected for overlap. GOOGL, NVDA, CCJ, BWXT were sold an hour ago; other ready watchlist names (AAPL, PLTR, AMZN, RKLB, EVGO, STRK) are outside the stocks-sleeve lock and are not auto-buys. BE is blocked. Gold has no buy call. A TSLA/SPCX trim to perfect 50/50 would move about $0.18, below the $1 minimum and inside quote noise (TSLA 50.05% / SPCX 49.95% of quote equity).
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $339.69, equity $339.68, cash/BP $0.01, unsettled $188.20 already reinvested. Held TSLA 0.448384 sh ($169.97) and SPCX 1.104498 sh ($169.61). No crypto. No open residual. Primary margin was read for the snapshot and not traded. Snapshot refreshed from this scout.
+- **thesis:** ok — Hold TSLA and SPCX at the 50/50 stocks pin. Do not rotate back to 40/60 this pass. The numeric sleeve gap is real and is a Chairman override, not a missed STRC ticket. Next free capital under the current order goes 50/50 TSLA+SPCX. If the owner reopens the BTC complex after this pass, first dollars there are STRC and/or SATA, then miners as diversification, not MSTR-only and not 'already own a miner'.
+- **risk:** ok — No order. BP $0.01 < $1 minimum. Two-name concentration is the authorized stocks book, not an accidental pile-up. Same-day round trip of ~$136 through unsettled proceeds into preferreds and miners would fight a locked order and add churn. No single-name cap breach inside the pin. Limited-margin unsettled funds are not spendable buying power after the 17:48Z buys.
+- **critic:** hold — Challenged held-only inertia: rejected. TSLA/SPCX were not chosen because they were already the largest names; every other allowlist and ready watchlist name was on the table and loses to the 17:47Z exit plus zero buying power. Challenged 0% STRC/SATA: the underweight is total — the whole BTC complex is gone. That would block a BTC-complex deploy that skipped digital credit. It does not block a hold, and it does not authorize rebuying STRC/SATA an hour after they were sold. Miner-overlap was not used as a veto. Flag for the owner, not a trade: if 'crypto/cash unchanged' was meant to keep MSTR/STRC/SATA/miners and only strip GOOGL/NVDA/CCJ/BWXT, say so after this pass. The next cycle will rebuild ~40% with STRC/SATA first. This cycle will not guess that reversal.
+- **executor:** hold — Quorum is hold. No Robinhood orders placed or cancelled. Agentic account only. live:true did not require a trade once Risk and Thesis agreed there is nothing to do.
+
