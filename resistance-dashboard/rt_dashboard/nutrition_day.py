@@ -869,7 +869,14 @@ def compose_nutrition_today(
     calories_burned: Optional[Sequence[Any]] = None,
 ) -> Dict[str, Any]:
     """Single composition used by dashboard, planner, bars, and trends."""
-    now = local_now(tz_name, now=now)
+    # Match build_calorie_bars_payload: only fold into viewer/DASHBOARD_TZ
+    # when the caller omitted now or named a zone. Aware clocks from tests
+    # (process-local wake windows) must stay put — otherwise midnight-span
+    # food logs fall after the remapped cutoff and intake goes to "caller".
+    if now is None or tz_name:
+        now = local_now(tz_name, now=now)
+    elif now.tzinfo is None:
+        now = local_now(tz_name, now=now)
     span = resolve_nutrition_day(
         now=now,
         tz_name=tz_name,
