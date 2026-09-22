@@ -377,12 +377,13 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.nutrition_planner import food_logs_for_day
 
     _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
+    _daily_sleep = [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0]
     composed = compose_nutrition_today(
         now=now,
         tz_name=tz_name,
         sleep_intervals=_sleep_iv,
         sleep_battery=sleep_battery,
-        daily_sleep=[s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        daily_sleep=_daily_sleep,
         food_logs=health.food_logs or [],
         nutrition_rollups=health.nutrition,
         calories_burned=health.calories_burned,
@@ -522,6 +523,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             sleep_intervals=_sleep_iv,
             calories_burned=health.calories_burned,
             nutrition_day=nd,
+            daily_sleep=_daily_sleep,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"calorie_bars: {type(exc).__name__}")

@@ -18,7 +18,7 @@ Unlogged / zero nights do not create wake cycles.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .models import SleepSample
 
@@ -179,6 +179,49 @@ def intervals_from_daily_sleep(
             }
         )
     return normalize_intervals(out)
+
+
+def merge_sleep_interval_sources(
+    measured: Optional[Sequence[dict]],
+    daily_sleep: Optional[Sequence[Any]],
+    *,
+    now: datetime,
+) -> Tuple[List[dict], str]:
+    """Measured intervals win. Daily 7am approximations fill gaps only.
+
+    Same contract as the sleep battery. A fixed 7am wake is not a second
+    calendar beside timed intervals. A daily night is appended only when
+    its assumed wake already happened and is strictly after the last timed
+    wake (the interval feed is lagging). Future 7am fills are omitted.
+    """
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    intervals = normalize_intervals(list(measured or []))
+    if not intervals:
+        daily = intervals_from_daily_sleep(daily_sleep or [], tz=now.tzinfo, now=now)
+        if daily:
+            return daily, "daily_sleep_approx"
+        return [], "none"
+    last_end: Optional[datetime] = None
+    for row in intervals:
+        en = _parse_dt(row.get("end"))
+        if en and (last_end is None or en > last_end):
+            last_end = en
+    daily = intervals_from_daily_sleep(daily_sleep or [], tz=now.tzinfo, now=now)
+    filled = 0
+    for row in daily:
+        en = _parse_dt(row.get("end"))
+        if not en or last_end is None:
+            continue
+        # Only nights whose assumed wake already happened and is
+        # strictly after last timed wake. Future 7am fills must not
+        # become "woke Fri 7am" at 2am.
+        if last_end < en <= now:
+            intervals.append(row)
+            filled += 1
+    if filled:
+        return normalize_intervals(intervals), "sleep_intervals+daily_fill"
+    return intervals, "sleep_intervals"
 
 
 def _latest_completed_sleep(
@@ -488,32 +531,9 @@ def sleep_battery_from_fitdash_sleep(
 
         now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
 
-    intervals = normalize_intervals(list(sleep_intervals or []))
-    source = "sleep_intervals"
-    if not intervals:
-        intervals = intervals_from_daily_sleep(sleep, tz=now.tzinfo, now=now)
-        source = "daily_sleep_approx" if intervals else "none"
-    else:
-        last_end: Optional[datetime] = None
-        for row in intervals:
-            en = _parse_dt(row.get("end"))
-            if en and (last_end is None or en > last_end):
-                last_end = en
-        daily = intervals_from_daily_sleep(sleep, tz=now.tzinfo, now=now)
-        filled = 0
-        for row in daily:
-            en = _parse_dt(row.get("end"))
-            if not en or last_end is None:
-                continue
-            # Only nights whose assumed wake already happened and is
-            # strictly after last timed wake. Future 7am fills must not
-            # become "woke Fri 7am" at 2am.
-            if last_end < en <= now:
-                intervals.append(row)
-                filled += 1
-        if filled:
-            intervals = normalize_intervals(intervals)
-            source = "sleep_intervals+daily_fill"
+    intervals, source = merge_sleep_interval_sources(
+        sleep_intervals, sleep, now=now
+    )
     bat = compute_sleep_battery(
         intervals,
         now=now,

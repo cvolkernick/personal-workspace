@@ -857,6 +857,7 @@ def build_calorie_bars_payload(
     sleep_intervals: Optional[Sequence[Any]] = None,
     calories_burned: Optional[Sequence[Any]] = None,
     nutrition_day: Optional[dict] = None,
+    daily_sleep: Optional[Sequence[Any]] = None,
 ) -> Dict[str, Any]:
     """Compose both bar payloads for the dashboard JSON.
 
@@ -865,6 +866,10 @@ def build_calorie_bars_payload(
     food outside the window still counts. After ``empty_at`` the fraction
     is 1.0 while still on this waking day (kitchen-closed overnight is a
     planner guard, not a second consumed clock).
+
+    Calories out is the burn row for that day (#881). Pass the same
+    ``daily_sleep`` the dashboard compose used so the card cannot
+    recompute a poorer window and drop sleep basal already on today.
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -883,6 +888,7 @@ def build_calorie_bars_payload(
         tz_name=tz_name,
         sleep_intervals=sleep_intervals,
         sleep_battery=bat,
+        daily_sleep=daily_sleep,
         food_logs=food_logs,
         calories_burned=calories_burned,
     )

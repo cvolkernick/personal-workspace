@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from rt_dashboard.calorie_bars import build_calorie_bars_payload
-from rt_dashboard.models import CaloriesBurnedDay, FoodLogEntry
+from rt_dashboard.models import CaloriesBurnedDay, FoodLogEntry, SleepSample
 from rt_dashboard.nutrition_day import (
     SOURCE_BACKSTOP_20H,
     SOURCE_SLEEP,
@@ -567,6 +567,231 @@ class TestBurnRebucketConservation(unittest.TestCase):
         span_ids = {s.day_id for s in days}
         self.assertTrue({r["date"] for r in rows} <= span_ids)
         self.assertTrue({r["date"] for r in intake} <= span_ids)
+
+
+def _burn_row(date, calories=2400):
+    return CaloriesBurnedDay(date=date, calories=calories)
+
+
+class TestTodaySleepBasal881(unittest.TestCase):
+    """#881: Today out includes sleep already inside the day. It does not invent one.
+
+    Rule (#878, unchanged): sleep BMR stays on the nutrition day that closed
+    at that night's onset. An open waking Today is the open window only.
+    Last night is on yesterday. Tonight is not a window until logged.
+    """
+
+    def test_logged_sleep_inside_today_raises_out_by_the_sleep_hours(self):
+        """Pre-midnight night shares today's id, so its basal is on the card."""
+        tz = ET
+        iv = _intervals(
+            (datetime(2026, 6, 19, 23, tzinfo=tz), datetime(2026, 6, 20, 7, tzinfo=tz)),
+            (datetime(2026, 6, 20, 23, tzinfo=tz), datetime(2026, 6, 21, 7, tzinfo=tz)),
+        )
+        now = datetime(2026, 6, 20, 23, 30, tzinfo=tz)
+        burned = [
+            _burn_row("2026-06-19"),
+            _burn_row("2026-06-20"),
+            _burn_row("2026-06-21"),
+        ]
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            calories_burned=burned,
+        )
+        self.assertEqual(composed["nutrition_day"]["day_id"], "2026-06-20")
+        # [Jun 20 07:00, Jun 21 07:00) = 24h at 100 kcal/h.
+        # Wake-only [07:00, onset 23:00) = 16h = 1600. The 8h night is the gap.
+        self.assertAlmostEqual(composed["calories_burned_today"], 2400.0, places=1)
+        self.assertAlmostEqual(
+            composed["calories_burned_today"] - 1600.0, 800.0, places=1
+        )
+        payload = build_calorie_bars_payload(
+            targets={"calories": 2100},
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            calories_burned=burned,
+            calories_burned_today=composed["calories_burned_today"],
+            nutrition_day=composed["nutrition_day"],
+        )
+        self.assertEqual(payload["delta"]["status"], "ok")
+        self.assertAlmostEqual(payload["delta"]["burned"], 2400.0, places=1)
+
+    def test_open_waking_today_keeps_last_night_on_yesterday(self):
+        """Do not add a second sleep term onto the open window."""
+        tz = ET
+        iv = _intervals(
+            (datetime(2026, 6, 19, 23, tzinfo=tz), datetime(2026, 6, 20, 7, tzinfo=tz)),
+            (datetime(2026, 6, 20, 23, tzinfo=tz), datetime(2026, 6, 21, 7, tzinfo=tz)),
+        )
+        now = datetime(2026, 6, 21, 15, tzinfo=tz)
+        burned = [_burn_row(f"2026-06-{d:02d}") for d in range(19, 22)]
+        # A 7am approximation for this morning must not pull wake earlier.
+        daily = [SleepSample(date="2026-06-21", sleep_hours=8.0, source="google_health")]
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            daily_sleep=daily,
+            calories_burned=burned,
+        )
+        self.assertEqual(composed["nutrition_day"]["start"][:19], "2026-06-21T07:00:00")
+        self.assertIsNone(composed["nutrition_day"]["next_wake"])
+        # 07:00–15:00 = 8h. Not 8h + last night, and not a synthetic tonight.
+        self.assertAlmostEqual(composed["calories_burned_today"], 800.0, places=1)
+        chart = {
+            r["date"]: r["calories"] for r in composed["trends_calories_burned"]
+        }
+        self.assertAlmostEqual(chart["2026-06-20"], 2400.0, places=1)
+        payload = build_calorie_bars_payload(
+            targets={"calories": 2100},
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            daily_sleep=daily,
+            calories_burned=burned,
+            calories_burned_today=composed["calories_burned_today"],
+            nutrition_day=composed["nutrition_day"],
+        )
+        self.assertAlmostEqual(payload["delta"]["burned"], 800.0, places=1)
+
+    def test_after_midnight_sleep_is_not_synthesized_onto_the_new_day(self):
+        tz = ET
+        iv = _intervals(
+            (datetime(2026, 6, 20, 1, tzinfo=tz), datetime(2026, 6, 20, 8, tzinfo=tz)),
+            (datetime(2026, 6, 21, 1, tzinfo=tz), datetime(2026, 6, 21, 8, tzinfo=tz)),
+        )
+        now = datetime(2026, 6, 21, 3, tzinfo=tz)
+        burned = [_burn_row(f"2026-06-{d:02d}") for d in range(20, 22)]
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            calories_burned=burned,
+        )
+        self.assertEqual(composed["nutrition_day"]["day_id"], "2026-06-21")
+        self.assertEqual(composed["nutrition_day"]["start"][:19], "2026-06-21T01:00:00")
+        self.assertIsNone(composed["calories_burned_today"])
+        chart = {
+            r["date"]: r["calories"] for r in composed["trends_calories_burned"]
+        }
+        # Closed day [Jun 20 08:00, Jun 21 08:00) holds the in-progress night.
+        self.assertAlmostEqual(chart["2026-06-20"], 2400.0, places=1)
+        self.assertNotIn("2026-06-21", chart)
+        payload = build_calorie_bars_payload(
+            targets={"calories": 2100},
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            calories_burned=burned,
+            calories_burned_today=composed["calories_burned_today"],
+            nutrition_day=composed["nutrition_day"],
+        )
+        self.assertEqual(payload["delta"]["status"], "no_burned")
+        self.assertIsNone(payload["delta"]["burned"])
+
+    def test_no_sleep_does_not_invent_basal(self):
+        tz = ET
+        now = datetime(2026, 6, 21, 15, tzinfo=tz)
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name="America/New_York",
+            calories_burned=[_burn_row("2026-06-21")],
+        )
+        self.assertEqual(composed["nutrition_day"]["source"], "missing_sleep_civil")
+        # Civil midnight → 15:00 only. No +8h sleep term.
+        self.assertAlmostEqual(composed["calories_burned_today"], 1500.0, places=1)
+
+    def test_measured_intervals_ignore_overlapping_daily_7am(self):
+        """A 7am approximation must not move the measured onset or the basal."""
+        tz = ET
+        onset = datetime(2026, 9, 18, 4, 23, tzinfo=tz)
+        wake = datetime(2026, 9, 18, 12, 32, tzinfo=tz)
+        prev_wake = datetime(2026, 9, 17, 11, 22, tzinfo=tz)
+        iv = _intervals(
+            (datetime(2026, 9, 17, 1, 43, tzinfo=tz), prev_wake),
+            (onset, wake),
+        )
+        now = datetime(2026, 9, 18, 8, 0, tzinfo=tz)
+        daily = [
+            SleepSample(date="2026-09-17", sleep_hours=9.65, source="google_health"),
+            SleepSample(date="2026-09-18", sleep_hours=8.15, source="google_health"),
+        ]
+        burned = [
+            _burn_row("2026-09-16"),
+            _burn_row("2026-09-17"),
+            _burn_row("2026-09-18"),
+        ]
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            daily_sleep=daily,
+            calories_burned=burned,
+        )
+        # Invented onset would be 22:51 the night before (8.15h before 07:00).
+        self.assertEqual(composed["nutrition_day"]["start"][:19], "2026-09-18T04:23:00")
+        self.assertEqual(composed["nutrition_day"]["day_id"], "2026-09-18")
+        self.assertIsNone(composed["calories_burned_today"])
+        chart = {
+            r["date"]: r["calories"] for r in composed["trends_calories_burned"]
+        }
+        # Previous domain runs through the measured wake and includes the night.
+        self.assertIn("2026-09-17", chart)
+        self.assertGreater(chart["2026-09-17"], 2400.0)
+        self.assertNotIn("2026-09-18", chart)
+        payload = build_calorie_bars_payload(
+            targets={"calories": 2100},
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            daily_sleep=daily,
+            calories_burned=burned,
+            calories_burned_today=composed["calories_burned_today"],
+            nutrition_day=composed["nutrition_day"],
+        )
+        self.assertEqual(payload["delta"]["status"], "no_burned")
+
+    def test_lagging_daily_fill_keeps_that_night_on_the_closed_day(self):
+        """Intervals stopped yesterday. Today's completed daily night fills once."""
+        tz = ET
+        old_wake = datetime(2026, 7, 28, 12, 0, tzinfo=tz)
+        iv = _intervals((old_wake - timedelta(hours=8), old_wake))
+        daily = [
+            SleepSample(date="2026-07-28", sleep_hours=8.0, source="google_health"),
+            SleepSample(date="2026-07-29", sleep_hours=8.0, source="google_health"),
+        ]
+        now = datetime(2026, 7, 29, 12, 0, tzinfo=tz)
+        burned = [_burn_row("2026-07-28"), _burn_row("2026-07-29")]
+        composed = compose_nutrition_today(
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            daily_sleep=daily,
+            calories_burned=burned,
+        )
+        self.assertEqual(composed["nutrition_day"]["start"][:19], "2026-07-29T07:00:00")
+        # Open window 07:00–12:00. The filled night is not added again.
+        self.assertAlmostEqual(composed["calories_burned_today"], 500.0, places=1)
+        chart = {
+            r["date"]: r["calories"] for r in composed["trends_calories_burned"]
+        }
+        # [Jul 28 12:00, Jul 29 07:00) = 19h, including the 8h filled night.
+        self.assertAlmostEqual(chart["2026-07-28"], 1900.0, places=1)
+        payload = build_calorie_bars_payload(
+            targets={"calories": 2100},
+            now=now,
+            tz_name="America/New_York",
+            sleep_intervals=iv,
+            daily_sleep=daily,
+            calories_burned=burned,
+            calories_burned_today=9999,
+            nutrition_day=composed["nutrition_day"],
+        )
+        # Card follows the partition, not the stale caller override.
+        self.assertAlmostEqual(payload["delta"]["burned"], 500.0, places=1)
 
 
 if __name__ == "__main__":
