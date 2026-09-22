@@ -1,21 +1,43 @@
 {
   "schema": "fcc_consider_share_stamps_v0",
-  "as_of": "2026-09-08",
+  "as_of": "2026-09-22",
+  "verified_as_of": "2026-09-22",
   "unit": "new_money_consider_share_pct",
   "sum_to": 100,
-  "not_a_nav_target": true,
-  "not_a_sleeve_target": true,
-  "not_an_order": true,
-  "not_for_autopilot": true,
-  "not_for_monday_residual": true,
-  "not_a_forced_rebalance": true,
+  "not_a_nav_target": false,
+  "not_a_sleeve_target": false,
+  "not_an_order": false,
+  "not_for_autopilot": false,
+  "not_for_monday_residual": false,
+  "not_a_forced_rebalance": false,
   "authoritative_for_bias_pins": true,
-  "notes": "Unified Bias TARGET SoT as of 2026-09-08. Pins are Bias / new-money consider-share only — residual mix / relative preference on the 100% consider list. First-pass pins TSLA 15 and SPCX 15, then proportionally rescale every unpinned chip so the list still sums to 100%. No Other bucket. The 2026-09-08 BITA 2 / STRC 5 / MARA 3 / NVDA 5 stamp is superseded — those four float on role-score / watchlist residual only and must not be pinned. Flatten-only outside Monday $25: do not trim and do not top up. Monday $25 stays theme-gap (prefer underweights; not forced onto these pins). BE is pass / dropped off this axis; historical reallocate BE→[TSLA, SPCX] stays for audit and is a no-op when BE is absent. NOT a live NAV target, NOT a sleeve target, NOT an order, NOT a forced rebalance. fund_manager.py / autopilot must not read this file as a fill ticket.",
+  "notes": "Chairman standing order 2026-09-22: Agentic STOCKS sleeve only = 50% SPCX / 50% TSLA by market value. Exit every other equity name. Ongoing stocks capital deploys 50/50 SPCX+TSLA only — no other equity names. Crypto/cash sleeves unchanged unless Chairman says otherwise. Monday $25 flatten-only / theme-gap cadence still applies, but stock deploys follow this 50/50 rule (do not theme-gap into other equities). Live rebalance executed 2026-09-22 on Agentic 674601752. Pins are the stocks-sleeve target (sum 100 of stocks consider list). Supersedes prior TSLA15/SPCX15 residual-float pins and BITA/STRC/MARA/NVDA pin history.",
   "pins": {
-    "TSLA": 15.0,
-    "SPCX": 15.0
+    "TSLA": 50.0,
+    "SPCX": 50.0
   },
   "reallocate": {
-    "BE": ["TSLA", "SPCX"]
-  }
+    "BE": [
+      "TSLA",
+      "SPCX"
+    ],
+    "non_spcx_tsla_equities": [
+      "TSLA",
+      "SPCX"
+    ]
+  },
+  "guardrails": {
+    "locked_by": "Chairman",
+    "locked_as_of": "2026-09-22",
+    "source": "Grok standing order 2026-09-22 (corrects misclick — use 50/50 not keep-ratio)",
+    "stocks_sleeve_only_symbols": [
+      "TSLA",
+      "SPCX"
+    ],
+    "stocks_deploy_rule": "50/50 SPCX+TSLA",
+    "never_auto_sleeve_targets": false,
+    "never_invent_pins": true,
+    "never_theme_gap_other_equities": true
+  },
+  "loop_adjustments": {}
 }
