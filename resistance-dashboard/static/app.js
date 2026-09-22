@@ -1220,8 +1220,8 @@
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
     const hydration = downsamplePoints(hydrationFilled, 90);
-    // Intake vs burned: 90d rolling window. Server rebuckets both series
-    // onto wake-to-sleep nutrition days (same day_id axis).
+    // Intake vs burned: 90d rolling window. Server sends civil calendar
+    // days (midnight–midnight), including sleep in that date's burn.
     // Macro split reuses its own 90d axis below.
     const calSpanDays = CAL_IN_OUT_SPAN_DAYS;
     const calEnd = new Date();
@@ -4050,10 +4050,12 @@
         if (pacing.paced_budget != null)
           bits.push(`paced ~${fmtNum(pacing.paced_budget)} kcal`);
         if (pacing.pace_clock) bits.push(pacing.pace_clock);
-        if (pacing.civil_day_consumed != null)
+        if (pacing.waking_day_consumed != null)
           bits.push(
-            `${loggedTodayCalendarLabel()} ${fmtNum(pacing.civil_day_consumed)} kcal`
+            `${loggedTodayCalendarLabel()} ${fmtNum(pacing.waking_day_consumed)} kcal`
           );
+        if (pacing.civil_day_consumed != null)
+          bits.push(`calendar day ${fmtNum(pacing.civil_day_consumed)} kcal`);
         if (
           pacing.intake_source === "waking_day_logs" ||
           pacing.intake_source === "eating_window_logs"
@@ -4107,7 +4109,7 @@
       if (dSum) dSum.textContent = delta.summary || "—";
       if (dMeta) {
         const bits = [
-          `${loggedTodayCalendarLabel()} ${fmtNum(delta.intake)} in · out ${fmtNum(
+          `calendar day ${fmtNum(delta.intake)} in · out ${fmtNum(
             delta.burned
           )} · scale ±${fmtNum(delta.scale_kcal)} kcal`,
         ];
@@ -5815,7 +5817,7 @@
           </div>
           ${alignHtml}
           <p class="chart-summary-meta">
-            Rolling ${spanDays}d · ${n} nutrition days · ${b} burned days · green band = surplus · red band = deficit
+            Rolling ${spanDays}d · ${n} civil days · ${b} burned days · calendar day in vs out · green band = surplus · red band = deficit
           </p>
         `;
       }

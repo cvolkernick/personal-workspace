@@ -377,7 +377,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     recovery_dict["sleep_battery"] = sleep_battery
     recovery_dict["sparse"] = not had_real_sleep
 
-    from rt_dashboard.nutrition_day import compose_nutrition_today
+    from rt_dashboard.nutrition_day import compose_nutrition_today, publish_civil_inout_chart
     from rt_dashboard.nutrition_planner import food_logs_for_day
 
     _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
@@ -462,10 +462,14 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
-    if composed.get("trends_nutrition"):
-        payload["health"]["nutrition"] = composed["trends_nutrition"]
-    if composed.get("trends_calories_burned"):
-        payload["health"]["calories_burned"] = composed["trends_calories_burned"]
+    publish_civil_inout_chart(
+        payload["health"],
+        food_logs=health.food_logs or [],
+        calories_burned=health.calories_burned,
+        nutrition_rollups=health.nutrition,
+        now=now,
+        tz_name=tz_name,
+    )
     payload["recovery"] = recovery_dict
     payload["sleep_battery"] = sleep_battery
     payload["nutrition_day"] = nd

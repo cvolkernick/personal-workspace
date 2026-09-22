@@ -1,4 +1,4 @@
-"""Calorie pacing (eating window overlay) and waking-day in/out delta.
+"""Calorie pacing (eating window overlay) and civil-day in/out delta.
 
 Nutrition *totals* (consumed, remaining, in/out) use the canonical
 wake-to-sleep day (``nutrition_day``, issue #828). The eating window
@@ -873,15 +873,17 @@ def build_calorie_bars_payload(
 ) -> Dict[str, Any]:
     """Compose both bar payloads for the dashboard JSON.
 
-    Intake, remaining, and in/out use the wake-to-sleep nutrition day
-    (issue #828). ``eating_window_fraction`` is the pace overlay only —
-    food outside the window still counts. After ``empty_at`` the fraction
-    is 1.0 while still on this waking day (kitchen-closed overnight is a
+    Pacing stays on the wake-to-sleep nutrition day (#828).
+    ``eating_window_fraction`` is the pace overlay only — food outside
+    the window still counts. After ``empty_at`` the fraction is 1.0
+    while still on this waking day (kitchen-closed overnight is a
     planner guard, not a second consumed clock).
 
-    Calories out is the burn row for that day (#881). Pass the same
-    ``daily_sleep`` the dashboard compose used so the card cannot
-    recompute a poorer window and drop sleep basal already on today.
+    The in-vs-out card is the local civil calendar day (#892). Out is
+    the wearable row for that date, including sleep hours already in
+    it, not the wake→now share. In is food logged on that same date.
+    When ``calories_burned`` is omitted, ``calories_burned_today`` is
+    the fallback for callers that only have a single number.
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -892,7 +894,12 @@ def build_calorie_bars_payload(
 
         now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
 
-    from .nutrition_day import compose_nutrition_today, parse_dt
+    from .nutrition_day import (
+        civil_burn_on,
+        compose_nutrition_today,
+        parse_dt,
+        sum_intake_for_civil_day,
+    )
 
     bat = sleep_battery or {}
     composed = compose_nutrition_today(
@@ -922,7 +929,17 @@ def build_calorie_bars_payload(
         used = waking
         pacing_source = str(waking.get("source") or "none")
 
-    civil_macros = civil_day_macros(caller)
+    if food_logs is not None:
+        civil_logged = sum_intake_for_civil_day(food_logs, now=now)
+        civil_macros = {
+            "calories": civil_logged["calories"],
+            "protein_g": civil_logged["protein_g"],
+            "carbs_g": civil_logged["carbs_g"],
+            "fat_g": civil_logged["fat_g"],
+        }
+    else:
+        civil_logged = None
+        civil_macros = civil_day_macros(caller)
     targets = targets or {}
     target = float(targets.get("calories") or 0)
 
@@ -1043,21 +1060,30 @@ def build_calorie_bars_payload(
 
     phase_raw = phase if phase is not None else targets.get("phase")
     applied = targets.get("calories")
-    burned_val = composed.get("calories_burned_today")
-    if burned_val is None:
-        burned_val = calories_burned_today
+    if calories_burned is not None:
+        # Series present: missing today is "no row", not the wake share.
+        burned_val = civil_burn_on(calories_burned, now=now)
+    else:
+        burned_val = composed.get("calories_burned_today")
+        if burned_val is None:
+            burned_val = calories_burned_today
+    if civil_logged is not None:
+        delta_intake = float(civil_logged["calories"])
+    else:
+        delta_intake = pacing_consumed
     delta = calorie_in_out_delta(
-        intake=pacing_consumed,
+        intake=delta_intake,
         burned=burned_val,
         phase=phase_raw,
         tdee_kcal=tdee_kcal,
         applied_calories=applied,
         deficit_kcal=deficit_kcal,
     )
-    # Out is the wearable waking share, not the intake pace target (#886).
+    # Out is the wearable civil-day total, not the intake pace target (#892).
     if delta.get("status") == "ok" and burned_val is not None:
+        delta["clock"] = "civil_day"
         delta["summary"] = (
-            f"{delta['summary']} · wearable civil burn (waking share)"
+            f"{delta['summary']} · calendar day (midnight–now, includes sleep)"
         )
     return {
         "pacing": pacing,

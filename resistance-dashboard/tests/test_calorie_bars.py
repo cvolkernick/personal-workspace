@@ -342,8 +342,9 @@ class TestCalorieBars(unittest.TestCase):
         )
         self.assertEqual(payload["pacing"]["intake_source"], "waking_day_logs")
         self.assertEqual(payload["pacing"]["consumed"], 1400.0)
-        # In/out uses the same waking day as pacing (#828)
-        self.assertEqual(payload["delta"]["intake"], 1400.0)
+        # now is the next civil date. In/out does not keep yesterday's meals (#892).
+        self.assertEqual(payload["delta"]["intake"], 0.0)
+        self.assertEqual(payload["pacing"]["pace_clock"], "pace clock = wake window")
 
     def test_aware_utc_now_without_tz_name_keeps_dinner(self):
         """#886: aware now and no tz_name is not rewritten to Eastern.
@@ -386,7 +387,9 @@ class TestCalorieBars(unittest.TestCase):
         )
         self.assertEqual(payload["pacing"]["intake_source"], "waking_day_logs")
         self.assertEqual(payload["pacing"]["consumed"], 1400.0)
-        self.assertEqual(payload["delta"]["intake"], 1400.0)
+        # 00:14 UTC is a new civil date. The 21:13 dinner stays on pace only.
+        self.assertEqual(payload["delta"]["intake"], 0.0)
+        self.assertEqual(payload["pacing"]["pace_clock"], "pace clock = wake window")
 
     def test_expired_wake_window_falls_back_to_civil_day(self):
         """After empty_at, pacing must not stay pinned to the finished cycle."""
@@ -792,7 +795,7 @@ class TestCivilDayVsPaceClocks(unittest.TestCase):
         self.assertEqual(pace_clock_copy(""), "")
 
     def test_window_macros_differ_from_civil_day_and_delta_stays_civil(self):
-        """Waking-day intake is SoT for pace and in/out; civil is labeled only."""
+        """Pace stays on the waking day. In/out uses the civil date of now (#892)."""
         local = datetime.now().astimezone().tzinfo or timezone.utc
         wake = datetime(2026, 7, 29, 12, 7, 0, tzinfo=local)
         bed = wake + timedelta(hours=16)
@@ -834,13 +837,14 @@ class TestCivilDayVsPaceClocks(unittest.TestCase):
         self.assertEqual(mp["intake_source"], "waking_day_logs")
         self.assertEqual(mp["window_macros"]["calories"], 900.0)
         self.assertEqual(mp["window_macros"]["protein_g"], 60.0)
-        self.assertEqual(mp["civil_day"]["calories"], 200.0)
-        self.assertEqual(mp["civil_day"]["protein_g"], 10.0)
+        # July 30 00:14 has no logs. The caller 200 is not today's civil intake.
+        self.assertEqual(mp["civil_day"]["calories"], 0.0)
+        self.assertEqual(mp["civil_day"]["protein_g"], 0.0)
         self.assertEqual(mp["calories"]["consumed"], 900.0)
         self.assertNotEqual(mp["window_macros"]["calories"], mp["civil_day"]["calories"])
-        # In/out SoT is the same waking day as remaining / Today so far
-        self.assertEqual(payload["delta"]["intake"], 900.0)
+        self.assertEqual(payload["delta"]["intake"], 0.0)
         self.assertEqual(payload["delta"]["burned"], 1600.0)
+        self.assertEqual(payload["pacing"]["consumed"], 900.0)
         self.assertEqual(payload["pacing"]["pace_clock"], "pace clock = wake window")
 
 
@@ -899,7 +903,8 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         self.assertIn("Logged today", tiles)
         self.assertIn("waking day", tiles)
         self.assertNotIn('macro-split-k">Today<', tiles)
-        self.assertIn("waking day", delta)
+        self.assertIn("calendar day", delta)
+        self.assertNotIn("waking day", delta)
         self.assertIn("paceRowIntake", js)
         self.assertIn("formatLoggedTodayCalendarLine", js)
         self.assertIn("logged this waking day", js)

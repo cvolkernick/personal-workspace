@@ -39,10 +39,18 @@ Today calories-out (#881) is that same row for the current day id. Sleep
 hours already inside the domain are in the total. An open waking day is
 only the hours since wake: the sleep that ended at that wake stays on
 the day that closed, and tonight is not a window until an interval is
-logged. The card does not add a second basal term and does not invent
-a night. Measured intervals win over daily 7am approximations
-(``merge_sleep_interval_sources``); a second calendar must not move
-the basal.
+logged. ``calories_burned_today`` does not add a second basal term and
+does not invent a night. Measured intervals win over daily 7am
+approximations (``merge_sleep_interval_sources``); a second calendar
+must not move the basal.
+
+In-vs-out (#892) is a different clock. The Today card and the
+intake-vs-burned chart use the local civil calendar day: the wearable
+row for that date, including sleep hours already inside it. An open day
+keeps the cumulative midnight→now total (#886) and is not clipped to
+wake→now. ``calories_burned_today`` and ``trends_calories_burned`` stay
+the wake-window partition for pacing and other nutrition-day callers.
+The card does not add that partition on top of the civil total.
 """
 
 from __future__ import annotations
@@ -837,6 +845,268 @@ def bucket_burn_by_nutrition_day(
         for day_id in sorted(acc)
         if hit.get(day_id)
     ]
+
+
+def _clock(now: Optional[datetime], tz_name: Optional[str]) -> datetime:
+    """Same localization rule as ``compose_nutrition_today``.
+
+    A named zone or a missing clock folds into viewer / dashboard TZ.
+    An aware clock with no zone name stays on that clock.
+    """
+    if now is None or tz_name:
+        return local_now(tz_name, now=now)
+    if now.tzinfo is None:
+        return local_now(tz_name, now=now)
+    return now
+
+
+def _series_row_dict(row: Any) -> Optional[dict]:
+    if hasattr(row, "to_dict"):
+        d = row.to_dict()
+        return d if isinstance(d, dict) else None
+    if isinstance(row, dict):
+        return row
+    date = getattr(row, "date", None)
+    if not date:
+        return None
+    return {
+        "date": date,
+        "calories": getattr(row, "calories", None),
+        "protein_g": getattr(row, "protein_g", None),
+        "carbs_g": getattr(row, "carbs_g", None),
+        "fat_g": getattr(row, "fat_g", None),
+        "source": getattr(row, "source", None),
+    }
+
+
+def _civil_midnight(day: str, tz) -> Optional[datetime]:
+    text = str(day or "")[:10]
+    if len(text) < 10:
+        return None
+    try:
+        y, m, dd = int(text[0:4]), int(text[5:7]), int(text[8:10])
+        return datetime(y, m, dd, 0, 0, 0, tzinfo=tz)
+    except ValueError:
+        return None
+
+
+def civil_burn_series(
+    burned: Optional[Sequence[Any]],
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Wearable civil burn rows. Not wake-rebucketed (#892).
+
+    A finished date keeps its row total. The civil date that contains
+    ``now`` keeps the cumulative midnight→now total already on that row
+    (#886). Future dates are omitted. Rows for one date are summed once.
+    """
+    clock = _clock(now, tz_name)
+    tz = clock.tzinfo
+    acc: Dict[str, Dict[str, Any]] = {}
+    for row in burned or []:
+        d = _series_row_dict(row)
+        if not d:
+            continue
+        start = _civil_midnight(d.get("date"), tz)
+        if start is None or start > clock:
+            continue
+        raw = d.get("calories")
+        if raw is None or raw == "":
+            continue
+        try:
+            kcal = float(raw)
+        except (TypeError, ValueError):
+            continue
+        day = start.strftime("%Y-%m-%d")
+        slot = acc.get(day)
+        if slot is None:
+            acc[day] = {
+                "date": day,
+                "calories": kcal,
+                "source": str(d.get("source") or "google_health"),
+            }
+        else:
+            slot["calories"] += kcal
+    return [
+        {
+            "date": day,
+            "calories": round(float(acc[day]["calories"]), 1),
+            "source": acc[day]["source"],
+        }
+        for day in sorted(acc)
+    ]
+
+
+def civil_burn_on(
+    burned: Optional[Sequence[Any]],
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> Optional[float]:
+    """Kcal on the civil date of ``now``, or None when that row is absent.
+
+    Does not clip to wake→now and does not borrow another date's row.
+    """
+    clock = _clock(now, tz_name)
+    day = clock.strftime("%Y-%m-%d")
+    for row in civil_burn_series(burned, now=clock):
+        if row.get("date") == day:
+            try:
+                return float(row["calories"])
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def sum_intake_for_civil_day(
+    food_logs: Optional[Sequence[Any]],
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Macros for logs whose event time is in ``[local midnight, now)``.
+
+    A meal after midnight belongs to that civil date, including when the
+    nutrition day that opened yesterday is still open.
+    """
+    clock = _clock(now, tz_name)
+    tz = clock.tzinfo
+    start = clock.replace(hour=0, minute=0, second=0, microsecond=0)
+    totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+    count = 0
+    for log in food_logs or []:
+        dt = food_log_event_time(log, default_tz=tz)
+        if dt is None:
+            continue
+        dt = dt.astimezone(tz)
+        if dt < start or dt >= clock:
+            continue
+        d = food_log_as_dict(log) or {}
+        try:
+            totals["calories"] += float(d.get("calories") or 0)
+            totals["protein_g"] += float(d.get("protein_g") or 0)
+            totals["carbs_g"] += float(d.get("carbs_g") or 0)
+            totals["fat_g"] += float(d.get("fat_g") or 0)
+            count += 1
+        except (TypeError, ValueError):
+            continue
+    return {
+        "calories": round(totals["calories"], 1),
+        "protein_g": round(totals["protein_g"], 1),
+        "carbs_g": round(totals["carbs_g"], 1),
+        "fat_g": round(totals["fat_g"], 1),
+        "log_count": count,
+        "food_log_count": count,
+        "source": "civil_day_logs" if count else "none",
+        "date": start.strftime("%Y-%m-%d"),
+    }
+
+
+def bucket_intake_by_civil_day(
+    food_logs: Optional[Sequence[Any]],
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+    nutrition_rollups: Optional[Sequence[Any]] = None,
+) -> List[Dict[str, Any]]:
+    """Intake series keyed by the civil date of each log.
+
+    Timed logs win. A civil rollup fills a date only when that date has
+    no timed logs. The open date stops at ``now``. Future dates are omitted.
+    """
+    clock = _clock(now, tz_name)
+    tz = clock.tzinfo
+    today = clock.strftime("%Y-%m-%d")
+    by_id: Dict[str, Dict[str, Any]] = {}
+    for log in food_logs or []:
+        dt = food_log_event_time(log, default_tz=tz)
+        if dt is None:
+            continue
+        dt = dt.astimezone(tz)
+        if dt >= clock:
+            continue
+        day = dt.strftime("%Y-%m-%d")
+        if day > today:
+            continue
+        d = food_log_as_dict(log) or {}
+        slot = by_id.get(day)
+        if slot is None:
+            slot = {
+                "date": day,
+                "calories": 0.0,
+                "protein_g": 0.0,
+                "carbs_g": 0.0,
+                "fat_g": 0.0,
+                "source": "civil_day_logs",
+                "food_log_count": 0,
+            }
+            by_id[day] = slot
+        try:
+            slot["calories"] += float(d.get("calories") or 0)
+            slot["protein_g"] += float(d.get("protein_g") or 0)
+            slot["carbs_g"] += float(d.get("carbs_g") or 0)
+            slot["fat_g"] += float(d.get("fat_g") or 0)
+            slot["food_log_count"] += 1
+        except (TypeError, ValueError):
+            continue
+    for day, slot in by_id.items():
+        if int(slot.get("food_log_count") or 0) <= 0:
+            continue
+        for key in ("calories", "protein_g", "carbs_g", "fat_g"):
+            slot[key] = round(float(slot[key]), 1)
+    if nutrition_rollups:
+        for row in nutrition_rollups:
+            d = _series_row_dict(row)
+            if not d:
+                continue
+            day = str(d.get("date") or "")[:10]
+            if len(day) < 10 or day > today:
+                continue
+            slot = by_id.get(day)
+            if slot is not None and int(slot.get("food_log_count") or 0) > 0:
+                continue
+            if slot is None:
+                by_id[day] = {
+                    "date": day,
+                    "calories": d.get("calories"),
+                    "protein_g": d.get("protein_g"),
+                    "carbs_g": d.get("carbs_g"),
+                    "fat_g": d.get("fat_g"),
+                    "source": d.get("source") or "daily_rollup",
+                    "food_log_count": 0,
+                }
+    return [by_id[k] for k in sorted(by_id.keys())]
+
+
+def publish_civil_inout_chart(
+    health: Dict[str, Any],
+    *,
+    food_logs: Optional[Sequence[Any]] = None,
+    calories_burned: Optional[Sequence[Any]] = None,
+    nutrition_rollups: Optional[Sequence[Any]] = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Point the in/out chart at civil dates (#892).
+
+    Replaces whatever is on ``nutrition`` and ``calories_burned``.
+    Nutrition-day trends stay on ``compose_nutrition_today`` for pacing
+    and planner callers. They are not added to these rows.
+    """
+    if not isinstance(health, dict):
+        return health
+    health["nutrition"] = bucket_intake_by_civil_day(
+        food_logs,
+        now=now,
+        tz_name=tz_name,
+        nutrition_rollups=nutrition_rollups,
+    )
+    health["calories_burned"] = civil_burn_series(
+        calories_burned, now=now, tz_name=tz_name
+    )
+    return health
 
 
 def burned_for_span(
