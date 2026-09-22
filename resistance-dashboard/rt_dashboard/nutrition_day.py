@@ -734,9 +734,37 @@ def burn_domains(
     ]
 
 
+def _civil_burn_window(
+    start: datetime,
+    now: Optional[datetime],
+) -> Tuple[datetime, float]:
+    """Return ``(window_end, hour_divisor)`` for one civil burn row.
+
+    A finished day is ``[midnight, midnight+24h)`` split by 24. The civil
+    date that contains ``now`` is still cumulative midnight→now, so the
+    same divisor would park kcal on hours that have not happened (#886).
+    That row uses ``[midnight, now)`` and the elapsed hour count. Dates
+    before or after ``now`` stay on /24.
+    """
+    full_end = start + timedelta(hours=24)
+    if now is None or start.tzinfo is None:
+        return full_end, 24.0
+    if now.tzinfo is None:
+        now_local = now.replace(tzinfo=start.tzinfo)
+    else:
+        now_local = now.astimezone(start.tzinfo)
+    if start < now_local < full_end:
+        elapsed = (now_local - start).total_seconds() / 3600.0
+        if elapsed > 0:
+            return now_local, elapsed
+    return full_end, 24.0
+
+
 def bucket_burn_by_nutrition_day(
     burned: Optional[Sequence[Any]],
     days: Sequence[NutritionDaySpan],
+    *,
+    now: Optional[datetime] = None,
 ) -> List[Dict[str, Any]]:
     """Split civil-day burned kcal onto nutrition days by hour overlap.
 
@@ -744,11 +772,15 @@ def bucket_burn_by_nutrition_day(
     of one civil day sum to the share of that day the spans cover. Sleep
     BMR stays on the day that closed at that night's onset. One row per
     nutrition day id: shared ids are already summed in the accumulator.
+
+    Completed civil days divide by 24. The in-progress civil day divides
+    by hours since local midnight so today's wearable total is not left
+    on future hours (#886). Callers that omit ``now`` keep the /24 split.
     """
     if not days:
         return []
     tz = days[0].start.tzinfo
-    civil: List[Tuple[datetime, datetime, float, str]] = []
+    civil: List[Tuple[datetime, datetime, float, str, float]] = []
     for row in burned or []:
         if hasattr(row, "to_dict"):
             d = row.to_dict()
@@ -772,18 +804,27 @@ def bucket_burn_by_nutrition_day(
             kcal = float(d.get("calories") or 0)
         except (TypeError, ValueError):
             continue
+        window_end, divisor = _civil_burn_window(start, now if tz is not None else None)
         civil.append(
-            (start, start + timedelta(hours=24), kcal, str(d.get("source") or "google_health"))
+            (
+                start,
+                window_end,
+                kcal,
+                str(d.get("source") or "google_health"),
+                divisor,
+            )
         )
     domains = burn_domains(days)
     acc: Dict[str, float] = {span.day_id: 0.0 for span in days}
     hit: Dict[str, bool] = {span.day_id: False for span in days}
-    for c0, c1, kcal, _src in civil:
+    for c0, c1, kcal, _src, divisor in civil:
+        if divisor <= 0:
+            continue
         for span, (d0, d1) in zip(days, domains):
             hours = _overlap_hours(c0, c1, d0, d1)
             if hours <= 0:
                 continue
-            acc[span.day_id] += kcal * (hours / 24.0)
+            acc[span.day_id] += kcal * (hours / divisor)
             hit[span.day_id] = True
     # One row per day id. The accumulator already summed disjoint spans.
     # Emitting once per span and adding again double-counts a shared id.
@@ -828,6 +869,14 @@ def compose_nutrition_today(
     calories_burned: Optional[Sequence[Any]] = None,
 ) -> Dict[str, Any]:
     """Single composition used by dashboard, planner, bars, and trends."""
+    # Match build_calorie_bars_payload: only fold into viewer/DASHBOARD_TZ
+    # when the caller omitted now or named a zone. Aware clocks from tests
+    # (process-local wake windows) must stay put — otherwise midnight-span
+    # food logs fall after the remapped cutoff and intake goes to "caller".
+    if now is None or tz_name:
+        now = local_now(tz_name, now=now)
+    elif now.tzinfo is None:
+        now = local_now(tz_name, now=now)
     span = resolve_nutrition_day(
         now=now,
         tz_name=tz_name,
@@ -867,7 +916,7 @@ def compose_nutrition_today(
     trends_in = bucket_intake_by_nutrition_day(
         food_logs, days, nutrition_rollups=nutrition_rollups
     )
-    trends_out = bucket_burn_by_nutrition_day(calories_burned, days)
+    trends_out = bucket_burn_by_nutrition_day(calories_burned, days, now=now)
     # Same partition as the chart. Isolated burned_for_span would recount
     # sleep onto an open in-sleep span.
     burned_today = None

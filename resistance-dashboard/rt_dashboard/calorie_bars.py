@@ -1054,6 +1054,11 @@ def build_calorie_bars_payload(
         applied_calories=applied,
         deficit_kcal=deficit_kcal,
     )
+    # Out is the wearable waking share, not the intake pace target (#886).
+    if delta.get("status") == "ok" and burned_val is not None:
+        delta["summary"] = (
+            f"{delta['summary']} · wearable civil burn (waking share)"
+        )
     return {
         "pacing": pacing,
         "delta": delta,
