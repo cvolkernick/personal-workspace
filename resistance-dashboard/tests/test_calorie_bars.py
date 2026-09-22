@@ -53,8 +53,10 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(d["side"], "deficit")
         self.assertEqual(d["color"], "red")
         self.assertGreater(d["bar_pct"], 0)
-        # Fixed scale ≥1000 → 500/1000 = 50% (not forced to 100%)
+        # 0.5×burned = 1000 → 500/1000 = 50% (not forced to 100%)
         self.assertAlmostEqual(d["bar_pct"], 50.0, places=0)
+        self.assertIn("Deficit 500", d["summary"])
+        self.assertNotIn("Deficit -", d["summary"])
 
     def test_surplus_right_green(self):
         d = calorie_in_out_delta(intake=2200, burned=1800)
@@ -63,6 +65,7 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(d["color"], "green")
         self.assertGreater(d["bar_pct"], 0)
         self.assertLess(d["bar_pct"], 100.0)
+        self.assertIn("Surplus +400", d["summary"])
 
     def test_larger_delta_larger_bar_until_cap(self):
         """bar_pct must grow with |delta|; scale must not absorb |delta|."""
@@ -82,6 +85,33 @@ class TestCalorieBars(unittest.TestCase):
         self.assertLess(mid_s["bar_pct"], huge_s["bar_pct"])
         self.assertLess(huge_s["bar_pct"], 100.0)
 
+    def test_partial_morning_deficit_sits_left_of_center(self):
+        """#885: in 215 / out 302 is a deficit cue, not the center tick.
+
+        CSS maps bar_pct (0–100 of the half-track) onto half of that percent
+        of the full track. Under ~8% of the full track the fill sits on the
+        midpoint mark. Signed delta stays on the number; the label does not
+        repeat the minus.
+        """
+        d = calorie_in_out_delta(intake=215, burned=302)
+        self.assertEqual(d["delta"], -87.0)
+        self.assertEqual(d["burned"], 302.0)
+        self.assertEqual(d["intake"], 215.0)
+        self.assertEqual(d["side"], "deficit")
+        self.assertIn("Deficit 87", d["summary"])
+        self.assertNotIn("-87", d["summary"])
+        self.assertNotIn("Deficit -", d["summary"])
+        full_track_pct = d["bar_pct"] * 0.5
+        self.assertGreaterEqual(full_track_pct, 18.0)
+        self.assertLess(full_track_pct, 50.0)
+        bigger = calorie_in_out_delta(intake=100, burned=302)
+        self.assertGreater(bigger["bar_pct"], d["bar_pct"])
+        self.assertLessEqual(bigger["bar_pct"], 100.0)
+        # Full-size day still uses ≥1000 via 0.5×energy, so −87 stays a small mark.
+        full_day = calorie_in_out_delta(intake=2413, burned=2500)
+        self.assertAlmostEqual(full_day["bar_pct"], 7.0, delta=0.5)
+        self.assertLess(full_day["bar_pct"], d["bar_pct"])
+
     def test_missing_burned(self):
         d = calorie_in_out_delta(intake=1500, burned=None)
         self.assertIsNone(d["delta"])
@@ -96,8 +126,9 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(d["target_delta"], -300.0)
         self.assertEqual(d["color"], "green")
         self.assertEqual(d["color_source"], "phase")
-        self.assertIn("Deficit", d["summary"])
-        self.assertIn("-300", d["summary"])
+        self.assertIn("Deficit 300", d["summary"])
+        self.assertNotIn("-300", d["summary"])
+        self.assertNotIn("Deficit -", d["summary"])
 
     def test_cut_extreme_deficit_is_red(self):
         """AC #763: cut + −1500 is undereating, not success."""

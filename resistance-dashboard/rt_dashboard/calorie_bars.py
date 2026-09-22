@@ -742,6 +742,13 @@ def _resolve_phase_target(
     return canon, float(tgt)
 
 
+# Smallest half-track when the day is still small. 1000 pinned every
+# |delta| under ~100 kcal on the center tick. 200 lets in 215 / out 302
+# (|delta|=87) fill ~22% of the full track. A day with 0.5×energy ≥ 1000
+# still uses that larger scale.
+_DELTA_SCALE_FLOOR_KCAL = 200.0
+
+
 def calorie_in_out_delta(
     *,
     intake: float,
@@ -777,7 +784,7 @@ def calorie_in_out_delta(
             "side": "none",
             "color": "muted",
             "bar_pct": 0.0,
-            "scale_kcal": float(scale_kcal or 1000),
+            "scale_kcal": float(scale_kcal or _DELTA_SCALE_FLOOR_KCAL),
             "status": "no_burned",
             "summary": "No same-day burned calories yet — delta unavailable.",
             "color_source": "sign",
@@ -789,11 +796,15 @@ def calorie_in_out_delta(
     burned_f = max(0.0, burned_f)
     delta = intake - burned_f
     # Half-track scale must NOT include |delta| — otherwise large deficits/surpluses
-    # all cap at 100% and are not proportionate. Fixed baseline + size of day.
+    # all cap at 100% and are not proportionate. Floor + size of day.
+    # Floor is 200, not 1000: a 1000 floor painted |delta|≈87 on a partial
+    # morning (in 215 / out 302) as ~4% of the full track, flush with the
+    # center tick (#885). Days whose 0.5×energy is already ≥1000
+    # (−500 → 50%, −1000 → 100%) do not move.
     if scale_kcal is not None and float(scale_kcal) > 0:
         scale = float(scale_kcal)
     else:
-        scale = max(1000.0, 0.5 * max(intake, burned_f, 1.0))
+        scale = max(_DELTA_SCALE_FLOOR_KCAL, 0.5 * max(intake, burned_f, 1.0))
     scale = max(100.0, scale)
     bar_pct = min(100.0, (abs(delta) / scale) * 100.0)
 
@@ -804,7 +815,8 @@ def calorie_in_out_delta(
     elif delta < 0:
         side = "deficit"
         color = "red"
-        summary = f"Deficit {delta:.0f} kcal · in {intake:g} · out {burned_f:g}"
+        # Magnitude only. delta is already negative; "Deficit -87" is a double negative.
+        summary = f"Deficit {abs(delta):.0f} kcal · in {intake:g} · out {burned_f:g}"
     else:
         side = "surplus"
         color = "green"
