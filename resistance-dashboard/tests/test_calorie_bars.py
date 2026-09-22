@@ -345,6 +345,49 @@ class TestCalorieBars(unittest.TestCase):
         # In/out uses the same waking day as pacing (#828)
         self.assertEqual(payload["delta"]["intake"], 1400.0)
 
+    def test_aware_utc_now_without_tz_name_keeps_dinner(self):
+        """#886: aware now and no tz_name is not rewritten to Eastern.
+
+        CI sets TZ=UTC. 00:14 UTC must stay 00:14, so the 21:13 dinner
+        is still inside the waking day. Rewriting to 20:14 ET drops it.
+        """
+        wake = datetime(2026, 7, 29, 12, 7, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 7, 30, 0, 14, 0, tzinfo=timezone.utc)
+        logs = [
+            FoodLogEntry(
+                date="2026-07-29",
+                name="Lunch",
+                calories=800,
+                protein_g=50,
+                carbs_g=60,
+                fat_g=20,
+                time="14:00",
+            ),
+            FoodLogEntry(
+                date="2026-07-29",
+                name="Dinner",
+                calories=600,
+                protein_g=40,
+                carbs_g=40,
+                fat_g=25,
+                time="21:13",
+            ),
+        ]
+        payload = build_calorie_bars_payload(
+            today_consumed={"calories": 0},
+            targets={"calories": 2000},
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            food_logs=logs,
+            now=now,
+        )
+        self.assertEqual(payload["pacing"]["intake_source"], "waking_day_logs")
+        self.assertEqual(payload["pacing"]["consumed"], 1400.0)
+        self.assertEqual(payload["delta"]["intake"], 1400.0)
+
     def test_expired_wake_window_falls_back_to_civil_day(self):
         """After empty_at, pacing must not stay pinned to the finished cycle."""
         local = datetime.now().astimezone().tzinfo or timezone.utc
