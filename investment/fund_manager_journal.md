@@ -2476,3 +2476,33 @@
 **Actions:**
 - HOLD None $0 [no_order] 
 
+
+## 2026-09-22T19:13:34 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $339.4799 · BP $0.01
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $339.48 BP $0.01 cash $0.01
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-22T19:19:31 — hold
+**Summary:** HOLD. Agentic ••••1752 is the Chairman 2026-09-22 stocks book after the 19:13Z rules re-fire. Broker NAV $339.96, cash/BP $0.01. Quote equity $339.86: TSLA $170.21 (50.08%) / SPCX $169.65 (49.92%). Gap $0.28 is under the $1 minimum. No orders. Do not reverse the 17:47Z exit of every other equity, including STRC/SATA and the miners.
+**Book:** NAV $339.96 · BP $0.01
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 19:13Z re-fired need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~19:17Z confirms that state is the filled Chairman rebalance, not stale weights: 13 market sells at 17:47Z and TSLA $88.10 + SPCX $100.12 buys at 17:48Z. Regular hours, ~15:17 ET, outside the open and the last 30 minutes. Cash and buying power are $0.01, under the $1 minimum. Unsettled $188.20 is already inside those two buys. Research/rotate ran inline across held and unheld allowlist plus every ready watchlist name, using 19:16Z quotes and the 2026-09-22 digest. Prior team HOLDs at 18:50Z and 19:03Z match this pass on fresh marks. The fund-manager-research workflow was not launched: it cannot create buying power or override a same-day standing order. Report: investment/research/fund_manager_research_latest.md.
+**Why not alternatives:** Rebuilding ~40% into STRC/SATA plus a miner sleeve would undo 'exit every other equity' and 'live rebalance executed 2026-09-22' in consider_share.json. STRC/SATA were not skipped for liquidity (spreads $0.01) or because MSTR covers credit. Miners were not skipped for overlap. Watchlist AI, nuclear, RKLB, and EVGO are outside the TSLA/SPCX stocks pin. BE is blocked. Gold is research-only. A $0.28 TSLA-over-SPCX trim is below the $1 minimum. Private names are not deployable. Primary margin was not used.
+**Team:**
+- **scout:** observe — Agentic ••••1752 NAV $339.96, equity $339.95, cash/BP $0.01, unsettled $188.20 already recycled. Held only TSLA 0.448384 sh ($170.21 at $379.60) and SPCX 1.104498 sh ($169.65 at $153.60). BTC complex 0%. Crypto $0. No open orders. Primary ••••9737 read-only ~$0.09.
+- **thesis:** ok — HOLD both pins. The 0/100 mix is the Chairman book, not an unpaid 40/60 gap. If the sleeve reopens, first BTC-complex dollars are STRC and/or SATA, then a diversified miner set (MARA/IREN/CLSK/RIOT/WULF) — not a held-only top-up and not MSTR-only. Stocks capital stays 50/50 SPCX+TSLA.
+- **risk:** ok — No trade. BP $0.01 < min $1. A BTC rebuild requires selling names bought at 17:48Z and breaks the 50/50 pin. TSLA/SPCX and STRC/SATA liquidity are fine; liquidity is not the constraint. Two-name concentration is the standing order. Do not spend unsettled proceeds twice. Do not touch primary.
+- **critic:** block_reversal — Challenged held-only inertia: rejected. TSLA/SPCX are the authorized pins, not a habit of topping the largest names. Challenged empty STRC/SATA: that is a real gap versus the yield bias. Accepted rebuttal is the Chairman exit plus zero buying power, not illiquidity (spreads $0.01) and not 'MSTR covers credit'. Challenged miner skips: not an overlap veto. Blocks same-session reversal and the $0.28 pin trim.
+- **executor:** no_order — Quorum is HOLD. Risk OK, thesis OK, critic blocks reversal. No place or cancel on ••••1752. Primary margin not touched. live:true did not require a trade.
+**Actions:**
+- HOLD None $0 [no_order] 
+
