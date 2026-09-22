@@ -790,7 +790,7 @@ def load_dashboard_data(
     payload["recovery"] = recovery_dict
     payload["sleep_battery"] = sleep_battery
 
-    from rt_dashboard.nutrition_day import compose_nutrition_today
+    from rt_dashboard.nutrition_day import compose_nutrition_today, publish_civil_inout_chart
 
     _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
     _daily_sleep = [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0]
@@ -815,10 +815,14 @@ def load_dashboard_data(
         as_of=local_today,
         food_logs=health.food_logs or [],
     )
-    if composed.get("trends_nutrition"):
-        payload["health"]["nutrition"] = composed["trends_nutrition"]
-    if composed.get("trends_calories_burned"):
-        payload["health"]["calories_burned"] = composed["trends_calories_burned"]
+    publish_civil_inout_chart(
+        payload["health"],
+        food_logs=health.food_logs or [],
+        calories_burned=health.calories_burned,
+        nutrition_rollups=health.nutrition,
+        now=now,
+        tz_name=tz_name,
+    )
     inv_base = nut["inventory"] or {"ingredients": []}
     from rt_dashboard.nutrition_targets import recommend_nutrition_targets
 
