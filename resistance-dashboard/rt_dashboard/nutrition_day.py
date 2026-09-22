@@ -34,6 +34,15 @@ span's start. An open in-sleep span leaves that sleep on the previous
 day when the previous window already runs through the coming wake.
 The windows are a partition: one civil day's burn is counted once.
 Intake uses ``[wake, sleep_onset)``.
+
+Today calories-out (#881) is that same row for the current day id. Sleep
+hours already inside the domain are in the total. An open waking day is
+only the hours since wake: the sleep that ended at that wake stays on
+the day that closed, and tonight is not a window until an interval is
+logged. The card does not add a second basal term and does not invent
+a night. Measured intervals win over daily 7am approximations
+(``merge_sleep_interval_sources``); a second calendar must not move
+the basal.
 """
 
 from __future__ import annotations
@@ -42,7 +51,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .sleep_battery import intervals_from_daily_sleep, normalize_intervals
+from .sleep_battery import merge_sleep_interval_sources, normalize_intervals
 from .sleep_quest import _is_overnight
 from .timeutil import local_now, local_tz
 
@@ -334,16 +343,19 @@ def _merged_sleep_intervals(
     daily_sleep: Optional[Sequence[Any]],
     now: datetime,
 ) -> List[dict]:
-    intervals = normalize_intervals(list(sleep_intervals or []))
-    if not daily_sleep:
-        return intervals
+    """Timed intervals, plus a daily fill only when that feed is lagging.
+
+    Blindly concatenating every 7am approximation invents a second night
+    on top of a measured interval and moves sleep basal onto the wrong
+    day. The battery already refuses that; Today uses the same merge.
+    """
     try:
-        daily = intervals_from_daily_sleep(daily_sleep, tz=now.tzinfo, now=now)
+        merged, _source = merge_sleep_interval_sources(
+            sleep_intervals, daily_sleep, now=now
+        )
     except Exception:
-        daily = []
-    if not daily:
-        return intervals
-    return normalize_intervals(list(intervals) + list(daily))
+        return normalize_intervals(list(sleep_intervals or []))
+    return merged
 
 
 def list_nutrition_days(
