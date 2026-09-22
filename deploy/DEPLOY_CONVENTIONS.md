@@ -18,7 +18,7 @@ FCC is a personal-finance dashboard. It is **not** a Vercel project and must sta
 
 | Product | Origin | How |
 |---|---|---|
-| **FCC** (`financial-command/`, live on `work/treasury`) | `https://prism-gateway.tailb1085a.ts.net/` | Tailscale Serve on **prism-gateway** → `http://127.0.0.1:8000`. Trusted cert, tailnet only. **Never Vercel. Never Funnel.** Re-apply: `bash deploy/fcc_tailscale_serve.sh` (does not rsync master onto the FCC clone). |
+| **FCC** (`financial-command/`, live on `work/treasury`) | `https://prism-gateway.tailb1085a.ts.net/` | Tailscale Serve on **prism-gateway** → `http://127.0.0.1:8000`. Trusted cert, tailnet only. **Never Vercel. Never Funnel.** Re-apply: `bash deploy/fcc_tailscale_serve.sh` (does not rsync master onto the FCC clone). `install_remote.sh` exits 2 when remote HEAD is `work/treasury` or `work/holistic` unless `ALLOW_PINNED_CLONE_RSYNC=1`. |
 
 PWA `start_url` / `scope` / `id` are `/`, so Serve must proxy FCC at the origin root. FitDash production stays Vercel (`fitdash` row above); do not steal this origin back without a new CIC.
 
