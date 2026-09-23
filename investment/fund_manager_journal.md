@@ -2639,3 +2639,31 @@
 **Actions:**
 - HOLD None $0 [no_order] 
 
+
+## 2026-09-23T14:15:28 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $341.0528 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $341.05 BP $0.02 cash $0.02
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-23T14:22:42 — hold
+**Summary:** HOLD. Agentic ••••1752 answered the 14:15Z rules re-fire. It is still the Chairman 2026-09-22 stocks book. Broker NAV $339.75, cash/BP $0.02, unsettled $0. Quote equity $339.54 at 14:18Z: TSLA $170.88 (50.33%) / SPCX $168.66 (49.67%). The $1.11 gap to 50/50 is above the $1 minimum and was not traded: closing it would sell TSLA into tomorrow's Semi event and buy SPCX into tomorrow's lockup. No orders. Do not reopen the BTC complex. STRC/SATA remain first dollars if that sleeve is reopened.
+**Book:** NAV $339.75 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 14:15Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus the numeric 40/60 target. That drift is the Chairman 2026-09-22 standing order (consider_share.json pins TSLA 50 / SPCX 50; crypto and cash unchanged; no other equity names), not idle cash and not an unpaid rebalance. Mid-session, 10:18 ET, outside the open and close windows. Broker NAV $339.75, cash/BP $0.02, unsettled $0. Quote equity $339.54 at 14:18Z: TSLA $170.88 (50.33%) / SPCX $168.66 (49.67%). The $1.11 gap to 50/50 is above the $1 minimum and was not traded.
+**Why not alternatives:** No deployable cash, so every unheld name requires selling the locked stocks pin. Rebuilding ~40% BTC-complex would sell about $136 of TSLA+SPCX and reverse the filled Chairman exit. STRC and SATA were not skipped for liquidity (spreads $0.07 and $0.01) and not because MSTR covers credit. They are first in line if the sleeve reopens. Miners (MARA, RIOT, CLSK, WULF, IREN) were not rejected for overlap. Ready watchlist names (GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB, CCJ, BWXT, EVGO, STRK) stay consider-only: dives are inside 90 days, none is an auto-buy, and the stocks pin forbids other equities. STRK's $1.98 spread fails a small-ticket relative-value test versus STRC/SATA. BE is blocked. Gold is research-only. Spot BTC crypto buying power is $0.02. The $1.11 TSLA-into-SPCX pin repair was blocked because tomorrow is both the Tesla Semi inauguration and the SPCX 328M-share lockup. The $1 minimum is a dust floor, not a mandate to chase 33 bps of drift. Held-only top-up was rejected as a rationale. TSLA and SPCX are held because they are the pins.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $339.75, equity $339.73, cash/BP $0.02, crypto $0, unsettled $0, no open orders, no orders created today. Held TSLA 0.448384 and SPCX 1.104498. Quote 14:18Z TSLA $170.88 / SPCX $168.66. 50/50 gap $1.11. BTC-complex 0%. Primary margin read at $0.09 and not used. Core unheld and every ready watchlist name inventoried.
+- **thesis:** ok — Hold both pins. The 0/100 mix is the Chairman order, not a missed 40/60 deploy. No idle cash to place. Do not repair $1.11 of drift into the Sep 24 Semi event and SPCX lockup. If the 40% sleeve reopens, first dollars are STRC and/or SATA, then a diversified miner set, not MSTR-only. Stocks deposits stay 50/50 SPCX+TSLA. Watchlist ready names named and not sized.
+- **risk:** ok — No order. $0.02 fails the $1 minimum. The $1.11 pin ticket is above the minimum and still fails: event window tomorrow, churn versus a same-direction hold 13 minutes ago, and spread cost for 33 bps. Two-name concentration is the standing order, not a license to reopen other names. STRC/SATA liquidity is fine. STRK spread $1.98 is a real small-ticket block. Do not touch primary. BE blocked.
+- **critic:** ok — Held-only inertia is not the reason for this hold. The reasons are the Chairman lock, zero buying power, and an event-window block on a $1.11 pin chase. STRC/SATA underweight versus the long-run 40% is real; this pass is not deploying BTC-complex capital, so the critic does not force a buy. Liquidity and 'MSTR already covers credit' are rejected as rebuttals. Miner-overlap is rejected as a veto. Micro-rebalance size-down to zero. Quorum is a hold.
+- **executor:** hold — No place and no cancel. Quorum is hold. Agentic account only. Nothing queued.
+
