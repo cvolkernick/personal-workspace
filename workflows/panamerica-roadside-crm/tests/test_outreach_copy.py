@@ -2,8 +2,15 @@ from __future__ import annotations
 
 import unittest
 
+from unittest import mock
+
 from models import SMS_MAX_CHARS, Lead
-from outreach_copy import render_sms, render_voice_task, sale_location_phrase
+from outreach_copy import (
+    assign_sms_variant,
+    render_sms,
+    render_voice_task,
+    sale_location_phrase,
+)
 
 KEVIN_LOCATION = "Near Burnt Store, Cape Coral, FL 33991"
 
@@ -90,3 +97,33 @@ class OutboundCopyTests(unittest.TestCase):
         task = render_voice_task(lead)
         self.assertIn("listed for sale on Burnt Store Rd", task)
         self.assertEqual(lead.location, "Burnt Store Rd")
+
+    def test_render_sms_switches_variant_and_defaults_to_champion(self) -> None:
+        champion = render_sms(_lead(sms_variant_id="A"))
+        unset = render_sms(_lead())
+        challenger = render_sms(_lead(sms_variant_id="B"))
+        self.assertEqual(unset, champion)
+        self.assertTrue(champion.startswith("Hi, this is Alexandra with Panamerica Auto in Cape Coral."))
+        self.assertNotIn("CHALLENGER_UNAPPROVED", champion)
+        self.assertIn("CHALLENGER_UNAPPROVED", challenger)
+        self.assertIn("2015 Jeep", challenger)
+        self.assertIn("near Burnt Store in Cape Coral", challenger)
+        self.assertNotEqual(champion, challenger)
+
+
+class AssignSmsVariantTests(unittest.TestCase):
+    def test_unapproved_b_is_always_champion(self) -> None:
+        arm, mode = assign_sms_variant("lead-set-corolla")
+        self.assertEqual((arm, mode), ("A", "champion_only"))
+        self.assertEqual(assign_sms_variant("lead-set-corolla"), ("A", "champion_only"))
+
+    def test_split_is_deterministic_and_covers_both_arms(self) -> None:
+        with mock.patch("outreach_copy.SMS_VARIANT_B_APPROVED", True):
+            seen: set[str] = set()
+            first, mode = assign_sms_variant("lead-7")
+            self.assertEqual(mode, "split")
+            self.assertEqual(assign_sms_variant("lead-7"), (first, "split"))
+            for n in range(64):
+                arm, _ = assign_sms_variant(f"lead-{n}")
+                seen.add(arm)
+            self.assertEqual(seen, {"A", "B"})
