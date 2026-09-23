@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -179,6 +180,11 @@ class GoogleHealthClient:
             raise GoogleHealthError(
                 f"Google Health/Fit API error HTTP {e.code}", status=e.code, body=err
             ) from e
+        except (TimeoutError, socket.timeout, urllib.error.URLError, OSError) as e:
+            # HTTPError subclasses URLError and is handled above. socket.timeout
+            # is not TimeoutError before 3.10. Wrap only here: fetch_* degrades
+            # to [] on GoogleHealthError. ensure_access_token stays loud.
+            raise GoogleHealthError(f"Google Health/Fit transport error: {e}") from e
 
     def _data_point_date(self, pt: dict) -> Optional[str]:
         """Best-effort YYYY-MM-DD from a Google Health dataPoint."""
