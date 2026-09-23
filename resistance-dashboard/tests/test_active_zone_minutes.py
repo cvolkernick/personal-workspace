@@ -6,9 +6,16 @@ Never invent AZM or substitute heart_minutes / active_minutes / steps / kcal.
 
 from __future__ import annotations
 
+import inspect
+import io
 import json
+import re
+import socket
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
+from unittest import mock
 
 from rt_dashboard.dashboard_cache import health_from_dict
 from rt_dashboard.google_health import (
@@ -29,7 +36,21 @@ def _load_fixture(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-class TestParseActiveZoneMinutesRollup(unittest.TestCase):
+class _NoLiveNetwork(unittest.TestCase):
+    """urlopen fails immediately. A blackholed socket must not decide the test."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        patcher = mock.patch.object(
+            urllib.request,
+            "urlopen",
+            side_effect=AssertionError("network I/O in test_active_zone_minutes"),
+        )
+        self._opened = patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class TestParseActiveZoneMinutesRollup(_NoLiveNetwork):
     def test_present_rollup_parses_days(self):
         payload = _load_fixture("azm_rollup_present.json")
         days = parse_active_zone_minutes_rollup(payload)
@@ -95,7 +116,7 @@ class TestParseActiveZoneMinutesRollup(unittest.TestCase):
         self.assertEqual(parse_active_zone_minutes_rollup(payload), [])
 
 
-class TestFetchActiveZoneMinutes(unittest.TestCase):
+class TestFetchActiveZoneMinutes(_NoLiveNetwork):
     def test_daily_rollup_uses_active_zone_minutes_type(self):
         client = GoogleHealthClient(access_token="x")
         captured: dict = {}
@@ -146,16 +167,43 @@ class TestFetchActiveZoneMinutes(unittest.TestCase):
         self.assertEqual(client.fetch_active_zone_minutes(days=7), [])
 
 
-class TestFetchHealthIncludesAzm(unittest.TestCase):
+def _fetch_health_stream_names() -> set[str]:
+    """Names of self.fetch_*() calls inside fetch_health.
+
+    Derived from source so a new snapshot stream is stubbed here until a test
+    overrides it. A hand-maintained list is how steps and RHR reached the network.
+    """
+    src = inspect.getsource(GoogleHealthClient.fetch_health)
+    return set(re.findall(r"\bself\.(fetch_\w+)\s*\(", src))
+
+
+def _stub_fetch_health_streams(client: GoogleHealthClient) -> None:
+    """Empty stand-in for every stream fetch_health calls. No network."""
+    for name in _fetch_health_stream_names():
+        if name.endswith("_bundle"):
+            setattr(client, name, lambda days=30, **_kwargs: ([], []))
+        else:
+            setattr(client, name, lambda days=30, **_kwargs: [])
+
+
+class TestFetchHealthIncludesAzm(_NoLiveNetwork):
     def _client(self) -> GoogleHealthClient:
         client = GoogleHealthClient(access_token="x")
         client.ensure_access_token = lambda: "x"  # type: ignore[method-assign]
-        client.fetch_weight = lambda days=30: []  # type: ignore[method-assign]
-        client.fetch_sleep_bundle = lambda days=30: ([], [])  # type: ignore[method-assign]
-        client.fetch_nutrition_bundle = lambda days=30: ([], [])  # type: ignore[method-assign]
-        client.fetch_hydration = lambda days=30: []  # type: ignore[method-assign]
-        client.fetch_calories_burned = lambda days=30: []  # type: ignore[method-assign]
+        _stub_fetch_health_streams(client)
         return client
+
+    def test_stub_covers_steps_and_resting_heart_rate(self) -> None:
+        names = _fetch_health_stream_names()
+        self.assertIn("fetch_steps", names)
+        self.assertIn("fetch_resting_heart_rate", names)
+        self.assertGreaterEqual(len(names), 8)
+        client = self._client()
+        snap = client.fetch_health(days=30)
+        self.assertEqual(self._opened.call_count, 0)
+        self.assertEqual(snap.steps, [])
+        self.assertEqual(snap.resting_heart_rate, [])
+        self.assertIsNone(snap.error)
 
     def test_snapshot_includes_azm_list(self):
         client = self._client()
@@ -217,7 +265,68 @@ class TestFetchHealthIncludesAzm(unittest.TestCase):
         self.assertEqual(snap.to_dict()["active_zone_minutes"], [])
 
 
-class TestHealthSnapshotAzmSerialization(unittest.TestCase):
+class TestRequestWrapsTransportErrors(_NoLiveNetwork):
+    def _client(self) -> GoogleHealthClient:
+        # Warm token so urlopen is the data call. A refresh-token in the
+        # environment would otherwise hit ensure_access_token first, and that
+        # path must stay loud on transport failure.
+        client = GoogleHealthClient(access_token="tok")
+        client._token_expiry = 9_000_000_000.0
+        return client
+
+    def test_socket_timeout_inside_request_is_google_health_error(self) -> None:
+        client = self._client()
+        timeout = socket.timeout("The read operation timed out")
+        with mock.patch.object(urllib.request, "urlopen", side_effect=timeout):
+            with self.assertRaises(GoogleHealthError) as ctx:
+                client._request("GET", "https://health.googleapis.com/v4/example")
+        self.assertIsNone(ctx.exception.status)
+        self.assertIn("The read operation timed out", str(ctx.exception))
+        self.assertIs(ctx.exception.__cause__, timeout)
+
+    def test_urlerror_and_oserror_wrap(self) -> None:
+        client = self._client()
+        cases = [
+            TimeoutError("timed out"),
+            urllib.error.URLError("nodename nor servname"),
+            OSError("network down"),
+        ]
+        for exc in cases:
+            with self.subTest(exc=type(exc).__name__):
+                with mock.patch.object(urllib.request, "urlopen", side_effect=exc):
+                    with self.assertRaises(GoogleHealthError) as ctx:
+                        client._request("GET", "https://health.googleapis.com/v4/example")
+                self.assertIn("transport error", str(ctx.exception))
+                self.assertIs(ctx.exception.__cause__, exc)
+
+    def test_http_error_keeps_status(self) -> None:
+        client = self._client()
+        http_err = urllib.error.HTTPError(
+            "https://health.googleapis.com/v4/example",
+            403,
+            "Forbidden",
+            None,
+            io.BytesIO(b'{"error":"no"}'),
+        )
+        with mock.patch.object(urllib.request, "urlopen", side_effect=http_err):
+            with self.assertRaises(GoogleHealthError) as ctx:
+                client._request("GET", "https://health.googleapis.com/v4/example")
+        self.assertEqual(ctx.exception.status, 403)
+        self.assertIn("Google Health/Fit API error HTTP 403", str(ctx.exception))
+        self.assertIn("no", ctx.exception.body)
+
+    def test_steps_and_rhr_return_empty_on_socket_timeout(self) -> None:
+        client = self._client()
+        with mock.patch.object(
+            urllib.request,
+            "urlopen",
+            side_effect=socket.timeout("The read operation timed out"),
+        ):
+            self.assertEqual(client.fetch_steps(days=7), [])
+            self.assertEqual(client.fetch_resting_heart_rate(days=7), [])
+
+
+class TestHealthSnapshotAzmSerialization(_NoLiveNetwork):
     def test_to_dict_always_exposes_field(self):
         empty = HealthSnapshot()
         self.assertEqual(empty.to_dict()["active_zone_minutes"], [])
@@ -258,7 +367,7 @@ class TestHealthSnapshotAzmSerialization(unittest.TestCase):
         self.assertEqual(snap.to_dict()["active_zone_minutes"][0]["date"], "2026-08-16")
 
 
-class TestNoNewHobbyFunction(unittest.TestCase):
+class TestNoNewHobbyFunction(_NoLiveNetwork):
     def test_no_new_serverless_function(self):
         root = Path(__file__).resolve().parents[1]
         api = root / "api"
