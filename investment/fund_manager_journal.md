@@ -2807,3 +2807,31 @@
 - **critic:** block — Block the $1.24 TSLA→SPCX rotate and block any BTC-complex rebuild. Held-only inertia is not the reason; the standing exit is. Empty STRC/SATA is a real gap versus the yield bias, and liquidity is not the rebuttal. Miner overlap is not a veto. STRK spread $1.50 loses to STRC. PLTR +3.4% and GOOGL -3.0% do not reopen the stocks pin. Do not scalp a 0.37 percentage-point drift the session before two known catalysts. The +$0.07 since 15:21Z is the same SPCX underperformance, not a new thesis.
 - **executor:** hold — No orders placed or cancelled. Quorum is thesis HOLD plus risk OK; critic blocks both the micro-rotate and a sleeve rebuild.
 
+
+## 2026-09-23T15:45:00 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $338.9275 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $338.93 BP $0.02 cash $0.02
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-23T15:49:48 — hold
+**Summary:** HOLD. Agentic NAV $339.07, BP $0.02. Book is TSLA $170.79 (50.37%) / SPCX $168.26 (49.63%). $1.27 pin gap blocked. 40% BTC-complex sleeve stays closed under the 2026-09-22 Chairman order. No orders.
+**Book:** NAV $339.07 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Mid-session review in regular hours (not the open or the close). Live book remeasured at ~15:46Z: NAV $339.07, cash and buying power $0.02, unsettled $0, no orders today. Quote equity $339.05 is TSLA $170.79 / SPCX $168.26. One-way gap to the 50/50 pin is $1.27, only $0.03 wider than the 15:31Z HOLD. Numeric 40/60 is still 0/100 because the Chairman closed that sleeve yesterday.
+**Why not alternatives:** No deployable cash, so STRC/SATA cannot be bought without selling TSLA or SPCX. That sale would undo the 2026-09-22 exit (every non-TSLA/SPCX equity sold into a 50/50 pin; crypto unchanged). STRC and SATA spreads are $0.01 and $0.01 — this is not an illiquidity skip, and MSTR (−1.92%) does not cover credit. Miners (MARA, IREN, CLSK, RIOT, WULF) were not rejected for overlap; the sleeve is closed and there is no buying power. STRK fails relative value (spread $0.77 vs STRC $0.01). Ready watchlist names (GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB, CCJ, BWXT, EVGO) stay unseated because ongoing stocks capital is 50/50 SPCX+TSLA only; PLTR +3.9% is not an override. BE stays blocked. Gold stays research-only. The $1.27 TSLA→SPCX rotate clears the $1 floor but sells the Semi-event name (Sep 24) to buy the lockup name (Sep 24) for 37 bp. It does not restore the 40% sleeve.
+**Team:**
+- **scout:** observe — Agentic NAV $339.07, BP $0.02, crypto $0, unsettled $0, no orders today. Held TSLA 0.448384 and SPCX 1.104498 only. Quote equity $339.05 = TSLA $170.79 (50.37%) / SPCX $168.26 (49.63%). One-way pin gap $1.27. Primary margin read at ~$0.09 and not used. Full allowlist and every ready watchlist name quoted.
+- **thesis:** ok — Hold both pins. The 0/100 mix is the Chairman book, not an unpaid 40/60 gap. Do not chase 37 bp. If the 40% sleeve is later reopened, first dollars are STRC and/or SATA (spreads $0.01), then a diversified miner set — not MSTR-only, and not a miner-overlap veto. New stocks dollars stay 50/50 SPCX+TSLA.
+- **risk:** ok — OK to hold. Deployable cash $0.02 is under the $1 minimum. The $1.27 gap could clear a ticket but a two-leg round trip is not required. Concentration is the intended two-name book. STRC/SATA liquidity is not the constraint. No single-name add that would break the pin.
+- **critic:** block_rotate — Block the $1.27 TSLA→SPCX rotate and block any rebuild of the BTC complex by selling yesterday's fills. Empty STRC/SATA is a real gap versus the yield bias; the accepted rebuttal is the standing exit plus $0.02 buying power, not liquidity, not miner overlap, and not 'we already own MSTR' (MSTR is not held). Do not buy PLTR because it is +3.9% today. Do not reseat BE.
+- **executor:** hold — Quorum is hold. No Robinhood orders placed or cancelled. Agentic account only; primary margin not touched.
+
