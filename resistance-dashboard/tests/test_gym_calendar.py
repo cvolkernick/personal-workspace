@@ -680,7 +680,7 @@ class MonitorReconcile(unittest.TestCase):
     def setUp(self):
         reset_busyness_cache()
 
-    def test_monitor_creates_when_training_day_has_none(self):
+    def test_monitor_does_not_create_when_training_day_has_none(self):
         created = []
         with mock.patch(
             "rt_dashboard.gym_calendar.gcal.credentials_status",
@@ -700,7 +700,8 @@ class MonitorReconcile(unittest.TestCase):
             )
         self.assertTrue(result["ok"])
         self.assertEqual(result["role"], "monitor")
-        self.assertEqual(len(created), 1)
+        self.assertEqual(created, [])
+        self.assertEqual(result["created"], 0)
 
     def test_monitor_moves_on_overlap_and_reports(self):
         existing = [_ev(eid="ev-1", day="2026-09-14", start="2026-09-14T05:00:00-04:00")]
@@ -1440,6 +1441,206 @@ class QuestGymTime(unittest.TestCase):
         # Header is not gated on nutrition — training reuses the same bucket.
         after = render.split("if (it.meal_label)", 1)[1][:400]
         self.assertNotIn("nutrition", after.lower())
+
+
+def _marker_only(*, eid, day, start, summary="Gym · Legs"):
+    """Morning write that stamped the description and skipped extended properties."""
+    start_dt = datetime.fromisoformat(start)
+    end_dt = (start_dt + DURATION).isoformat(timespec="seconds")
+    return {
+        "id": eid,
+        "summary": summary,
+        "description": (
+            "Legs day per FitDash/Frankenfit "
+            "(Leg Press, RDL). " + gym_desc_tag(day)
+        ),
+        "location": HOME_LOCATION,
+        "start": {"dateTime": start, "timeZone": "America/New_York"},
+        "end": {"dateTime": end_dt, "timeZone": "America/New_York"},
+    }
+
+
+class _FakeCalendar:
+    """In-memory calendar. No live Google calls."""
+
+    def __init__(self):
+        self.events = {}
+        self.creates = []
+        self.updates = []
+        self.deletes = []
+
+    def list_events(self, _cid, **kw):
+        items = list(self.events.values())
+        props = kw.get("private_props") or {}
+        if not props:
+            return list(items)
+        kept = []
+        for ev in items:
+            private = ((ev.get("extendedProperties") or {}).get("private") or {})
+            if all(str(private.get(k) or "") == str(v) for k, v in props.items()):
+                kept.append(ev)
+        return kept
+
+    def create_event(self, _cid, body):
+        eid = f"created-{len(self.creates) + 1}"
+        ev = {"id": eid, **body}
+        self.events[eid] = ev
+        self.creates.append(eid)
+        return ev
+
+    def update_event(self, _cid, eid, body):
+        ev = {"id": eid, **body}
+        self.events[eid] = ev
+        self.updates.append(eid)
+        return ev
+
+    def delete_event(self, _cid, eid):
+        self.events.pop(eid, None)
+        self.deletes.append(eid)
+        return {"ok": True, "deleted": True, "event_id": eid}
+
+
+class DedupeKey901(unittest.TestCase):
+    """#901: one writer, description-marker key, fake calendar only."""
+
+    DAY = "2026-09-23"  # Wednesday
+    START = "2026-09-23T22:30:00-04:00"
+    MORNING = datetime(2026, 9, 23, 8, 0, tzinfo=ET)
+
+    def setUp(self):
+        reset_busyness_cache()
+
+    def tearDown(self):
+        reset_busyness_cache()
+
+    def _run(self, cal, fn):
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=cal.list_events,
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.create_event",
+            side_effect=cal.create_event,
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.update_event",
+            side_effect=cal.update_event,
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.delete_event",
+            side_effect=cal.delete_event,
+        ):
+            return fn()
+
+    def _legs(self):
+        return {
+            "is_rest_day": False,
+            "session_type": "legs",
+            "exercises": [{"name": "Leg Press"}],
+        }
+
+    def _assert_both_keys(self, ev, day):
+        self.assertIn(gym_desc_tag(day), ev.get("description") or "")
+        private = (ev.get("extendedProperties") or {}).get("private") or {}
+        self.assertEqual(private.get(PROP_GYM), "1")
+        self.assertEqual(private.get(PROP_DATE), day)
+        self.assertTrue(private.get(PROP_PLANNED_START))
+
+    def test_morning_create_stamps_both_keys_and_rerun_keeps_id(self):
+        cal = _FakeCalendar()
+        first = self._run(
+            cal,
+            lambda: sync_gym_from_workout(
+                self._legs(), day=self.DAY, now=self.MORNING, role="coach"
+            ),
+        )
+        self.assertTrue(first["ok"], first)
+        self.assertEqual(first["created"], 1)
+        self.assertEqual(len(cal.events), 1)
+        eid = next(iter(cal.events))
+        self._assert_both_keys(cal.events[eid], self.DAY)
+
+        second = self._run(
+            cal,
+            lambda: sync_gym_from_workout(
+                self._legs(), day=self.DAY, now=self.MORNING, role="coach"
+            ),
+        )
+        third = self._run(
+            cal,
+            lambda: reconcile_gym_sessions(
+                [GymDay(day=self.DAY, is_rest=False, session_type="legs")],
+                now=self.MORNING,
+            ),
+        )
+        self.assertEqual(second["created"], 0)
+        self.assertEqual(third["created"], 0)
+        self.assertEqual(list(cal.events), [eid])
+        self.assertEqual(cal.creates, [eid])
+        self._assert_both_keys(cal.events[eid], self.DAY)
+
+    def test_marker_only_morning_event_is_updated_not_duplicated(self):
+        cal = _FakeCalendar()
+        morning = _marker_only(eid="morning-1", day=self.DAY, start=self.START)
+        cal.events[morning["id"]] = morning
+        result = self._run(
+            cal,
+            lambda: sync_gym_from_workout(
+                self._legs(), day=self.DAY, now=self.MORNING, role="coach"
+            ),
+        )
+        again = self._run(
+            cal,
+            lambda: reconcile_gym_sessions(
+                [GymDay(day=self.DAY, is_rest=False, session_type="legs")],
+                now=self.MORNING,
+            ),
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(again["created"], 0)
+        self.assertEqual(cal.creates, [])
+        self.assertEqual(list(cal.events), ["morning-1"])
+        self._assert_both_keys(cal.events["morning-1"], self.DAY)
+        self.assertEqual(
+            cal.events["morning-1"]["start"]["dateTime"], self.START
+        )
+
+    def test_two_writers_racing_leave_one_event(self):
+        cal = _FakeCalendar()
+        morning = _marker_only(eid="morning-1", day=self.DAY, start=self.START)
+        late = _ev(
+            eid="fitdash-late",
+            day=self.DAY,
+            start="2026-09-23T21:00:00-04:00",
+        )
+        cal.events[morning["id"]] = morning
+        cal.events[late["id"]] = late
+        first = self._run(
+            cal,
+            lambda: reconcile_gym_sessions(
+                [GymDay(day=self.DAY, is_rest=False, session_type="legs")],
+                now=self.MORNING,
+            ),
+        )
+        second = self._run(
+            cal,
+            lambda: reconcile_gym_sessions(
+                [GymDay(day=self.DAY, is_rest=False, session_type="legs")],
+                now=self.MORNING,
+            ),
+        )
+        self.assertTrue(first["ok"], first)
+        self.assertEqual(first["created"], 0)
+        self.assertEqual(second["created"], 0)
+        self.assertEqual(cal.creates, [])
+        self.assertEqual(list(cal.events), ["morning-1"])
+        self.assertIn("fitdash-late", cal.deletes)
+        self._assert_both_keys(cal.events["morning-1"], self.DAY)
+        self.assertEqual(second["updated"], 1)
 
 
 if __name__ == "__main__":
