@@ -9,9 +9,12 @@ from rt_dashboard.workout_planner import (
     CALF_FAMILY,
     HAMSTRING_CURL_FAMILY,
     HORIZONTAL_PRESS_FAMILY,
+    HORIZONTAL_ROW_FAMILY,
     INCLINE_PRESS_FAMILY,
+    KNEE_DOMINANT_FAMILY,
     NAME_ALIASES,
     VERTICAL_PRESS_FAMILY,
+    VERTICAL_PULL_FAMILY,
     credit_sets_for_exercise,
     generate_workout_plan,
     last_pattern_family_ids,
@@ -955,6 +958,134 @@ class TestWorkoutPlanner(unittest.TestCase):
         after_flat_ids = [e["id"] for e in after_flat["exercises"]]
         self.assertIn("smith-bench", after_flat_ids)
         self.assertNotIn("db-flat-press", after_flat_ids)
+
+    def test_pull_and_legs_cap_one_compound_per_family(self):
+        """Every pull and legs compound is available. One slot per family (#869)."""
+        self.assertEqual(
+            pattern_family({"id": "pulldowns", "name": "Pulldowns", "movement": "compound", "primary_muscles": ["lats"]}),
+            VERTICAL_PULL_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family({"id": "assisted-pullups", "name": "Assisted Pullups", "movement": "compound", "primary_muscles": ["lats"]}),
+            VERTICAL_PULL_FAMILY,
+        )
+        for eid, name in (
+            ("seated-cable-row", "Seated Cable Row"),
+            ("machine-row", "Machine Row"),
+            ("db-row", "DB Row"),
+        ):
+            self.assertEqual(
+                pattern_family({"id": eid, "name": name, "movement": "compound", "primary_muscles": ["back"]}),
+                HORIZONTAL_ROW_FAMILY,
+                eid,
+            )
+        self.assertEqual(
+            pattern_family({"id": "leg-press", "name": "Leg Press", "movement": "compound", "primary_muscles": ["quads"]}),
+            KNEE_DOMINANT_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family({"id": "goblet-squat", "name": "Goblet Squat", "movement": "compound", "primary_muscles": ["quads"]}),
+            KNEE_DOMINANT_FAMILY,
+        )
+        for ex in (
+            {"id": "face-pulls", "name": "Face Pulls", "movement": "isolation", "primary_muscles": ["rear_delts"]},
+            {"id": "db-curls", "name": "DB Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
+            {"id": "hammer-curls", "name": "Hammer Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
+            {"id": "rdl", "name": "RDL", "movement": "compound", "primary_muscles": ["hamstrings", "glutes"]},
+            {"id": "back-extension", "name": "Back Extension Machine", "movement": "isolation", "primary_muscles": ["lower_back"]},
+        ):
+            self.assertIsNone(pattern_family(ex), ex["id"])
+        self.assertEqual(
+            pattern_family({"id": "seated-leg-curls", "name": "Seated Leg Curls", "movement": "isolation", "primary_muscles": ["hamstrings"]}),
+            HAMSTRING_CURL_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family({"id": "calf-raises", "name": "Calf Extensions", "movement": "isolation", "primary_muscles": ["calves"]}),
+            CALF_FAMILY,
+        )
+
+        goals = {**self.goals, "exercises_per_session": 8, "default_hard_sets": 2}
+        recent = [_session("2026-09-07", "push", "DB Flat Press", 50, 2, 10)]
+
+        pull = generate_workout_plan(
+            _pull_family_catalog(),
+            goals,
+            recent,
+            recovery_score=80,
+            session_type="pull",
+            as_of="2026-09-08",
+        )
+        pull_ids = [e["id"] for e in pull["exercises"]]
+        verticals = [i for i in pull_ids if i in ("pulldowns", "assisted-pullups")]
+        rows = [i for i in pull_ids if i in ("seated-cable-row", "machine-row", "db-row")]
+        self.assertEqual(len(verticals), 1, pull_ids)
+        self.assertEqual(len(rows), 1, pull_ids)
+        for eid in ("face-pulls", "db-curls", "hammer-curls", "back-extension"):
+            self.assertIn(eid, pull_ids, pull_ids)
+
+        legs = generate_workout_plan(
+            _legs_family_catalog(),
+            goals,
+            recent,
+            recovery_score=80,
+            session_type="legs",
+            as_of="2026-09-08",
+        )
+        legs_ids = [e["id"] for e in legs["exercises"]]
+        knees = [i for i in legs_ids if i in ("leg-press", "goblet-squat")]
+        curls = [i for i in legs_ids if i in ("seated-leg-curls", "lying-leg-curls")]
+        calves = [i for i in legs_ids if i in ("calf-raises", "db-calf-raises")]
+        self.assertEqual(len(knees), 1, legs_ids)
+        self.assertEqual(len(curls), 1, legs_ids)
+        self.assertEqual(len(calves), 1, legs_ids)
+        self.assertIn("rdl", legs_ids, legs_ids)
+        self.assertIn("back-extension", legs_ids, legs_ids)
+
+
+def _pull_family_catalog():
+    """Every pull compound, plus face pulls, curls, and back extension."""
+    rows = [
+        ("pulldowns", "Pulldowns", "compound", ["lats", "back"], 10),
+        ("assisted-pullups", "Assisted Pullups", "compound", ["lats", "back"], 10),
+        ("seated-cable-row", "Seated Cable Row", "compound", ["back"], 10),
+        ("machine-row", "Machine Row", "compound", ["back"], 10),
+        ("db-row", "DB Row", "compound", ["back"], 10),
+        ("face-pulls", "Face Pulls", "isolation", ["rear_delts"], 8),
+        ("db-curls", "DB Curls", "isolation", ["biceps"], 8),
+        ("hammer-curls", "Hammer Curls", "isolation", ["biceps"], 8),
+        ("back-extension", "Back Extension Machine", "isolation", ["lower_back", "glutes"], 7),
+    ]
+    return {"exercises": [_family_ex(*row, ["pull"]) for row in rows]}
+
+
+def _legs_family_catalog():
+    """Every legs compound, plus curls, calves, and back extension."""
+    rows = [
+        ("leg-press", "Leg Press", "compound", ["quads"], 10),
+        ("goblet-squat", "Goblet Squat", "compound", ["quads"], 10),
+        ("rdl", "RDL", "compound", ["hamstrings", "glutes"], 10),
+        ("seated-leg-curls", "Seated Leg Curls", "isolation", ["hamstrings"], 8),
+        ("lying-leg-curls", "Lying Leg Curl", "isolation", ["hamstrings"], 8),
+        ("calf-raises", "Calf Extensions", "isolation", ["calves"], 6),
+        ("db-calf-raises", "DB Calf Raises", "isolation", ["calves"], 6),
+        ("back-extension", "Back Extension Machine", "isolation", ["lower_back", "glutes"], 7),
+    ]
+    return {"exercises": [_family_ex(*row, ["legs"]) for row in rows]}
+
+
+def _family_ex(eid, name, movement, primary, priority, sessions):
+    return {
+        "id": eid,
+        "name": name,
+        "session_types": sessions,
+        "primary_muscles": primary,
+        "movement": movement,
+        "default_sets": 3,
+        "default_reps": 10,
+        "rep_range": [8, 12],
+        "priority": priority,
+        "available": True,
+    }
 
 
 def _legs_calf_catalog():

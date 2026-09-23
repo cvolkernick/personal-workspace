@@ -211,6 +211,9 @@ NAME_ALIASES = {
 HORIZONTAL_PRESS_FAMILY = "horizontal_press"
 INCLINE_PRESS_FAMILY = "incline_press"
 VERTICAL_PRESS_FAMILY = "vertical_press"
+VERTICAL_PULL_FAMILY = "vertical_pull"
+HORIZONTAL_ROW_FAMILY = "horizontal_row"
+KNEE_DOMINANT_FAMILY = "knee_dominant"
 HAMSTRING_CURL_FAMILY = "hamstring_curl"
 CALF_FAMILY = "calf"
 
@@ -220,6 +223,13 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-floor-press": HORIZONTAL_PRESS_FAMILY,
     "db-incline-press": INCLINE_PRESS_FAMILY,
     "db-shoulder-press": VERTICAL_PRESS_FAMILY,
+    "pulldowns": VERTICAL_PULL_FAMILY,
+    "assisted-pullups": VERTICAL_PULL_FAMILY,
+    "seated-cable-row": HORIZONTAL_ROW_FAMILY,
+    "machine-row": HORIZONTAL_ROW_FAMILY,
+    "db-row": HORIZONTAL_ROW_FAMILY,
+    "leg-press": KNEE_DOMINANT_FAMILY,
+    "goblet-squat": KNEE_DOMINANT_FAMILY,
     "seated-leg-curls": HAMSTRING_CURL_FAMILY,
     "lying-leg-curls": HAMSTRING_CURL_FAMILY,
     "calf-raises": CALF_FAMILY,
@@ -742,6 +752,14 @@ def pattern_family(ex: Optional[dict]) -> Optional[str]:
             return HORIZONTAL_PRESS_FAMILY
     if prim & {"delts"} and any(tok in name for tok in ("press", "ohp", "overhead")):
         return VERTICAL_PRESS_FAMILY
+    # Pull: one vertical pull, one horizontal row. Face pulls are isolation.
+    if "row" in name and "face" not in name:
+        return HORIZONTAL_ROW_FAMILY
+    if any(tok in name for tok in ("pulldown", "pullup", "pull-up", "chin-up", "chinup")):
+        return VERTICAL_PULL_FAMILY
+    # Legs: one knee-dominant compound. RDL and back extension stay uncapped.
+    if "quads" in prim and any(tok in name for tok in ("squat", "leg press", "lunge")):
+        return KNEE_DOMINANT_FAMILY
     return None
 
 
