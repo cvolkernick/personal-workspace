@@ -11,7 +11,16 @@ sys.path.insert(0, str(PKG))
 
 from adapters import FakeDrive, FakeOcr, PhotoSet  # noqa: E402
 from config import Config  # noqa: E402
-from intake import extract_vehicle, harvest_text, harvest_vehicle_text, lead_from_set, parse_set_name  # noqa: E402
+from intake import (  # noqa: E402
+    distinct_year_make_pairs,
+    extract_vehicle,
+    harvest_intake,
+    harvest_text,
+    harvest_vehicle_text,
+    lead_from_set,
+    pairs_in_text,
+    parse_set_name,
+)
 from pipeline import make_pipeline  # noqa: E402
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "photo_sets.json").read_text())
@@ -182,3 +191,43 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(lead.make, "Jeep")
         self.assertNotIn("2663901182", lead.phone)
         self.assertEqual(lead.state, "new")
+        self.assertNotIn("same-corner", " ".join(lead.notes))
+
+    def test_year_make_identity_ignores_model_and_make_alias(self) -> None:
+        pairs = distinct_year_make_pairs(
+            [
+                "2018 Toyota Corolla",
+                "2018 Toyota Camry $9000 Call 239-555-0101",
+                "2018 Chevy Malibu",
+                "2018 Chevrolet Malibu",
+            ]
+        )
+        self.assertEqual(pairs, [("2018", "Toyota"), ("2018", "Chevrolet")])
+
+    def test_one_blob_can_hold_two_year_make_pairs(self) -> None:
+        pairs = pairs_in_text(
+            "2018 Toyota Corolla $8500 and 2015 Jeep Wrangler $16500 Call 239-555-0101"
+        )
+        self.assertEqual(pairs, [("2018", "Toyota"), ("2015", "Jeep")])
+
+    def test_two_vehicles_on_one_set_are_needs_info(self) -> None:
+        photo_set = PhotoSet(
+            id="set-corner",
+            name="2026-09-18-del-prado",
+            photos=[{"id": "p-a", "name": "a.jpg"}, {"id": "p-b", "name": "b.jpg"}],
+            ocr={
+                "p-a": "FOR SALE 2018 Toyota Corolla $8500 Call 239-555-0101",
+                "p-b": "FOR SALE 2015 Jeep Wrangler $16500 Call 239-555-0199",
+            },
+            spotted_at="2026-09-18",
+            location="Del Prado Blvd",
+            date_source="exif",
+            location_source="exif",
+        )
+        text, vehicle_text, bits = harvest_intake(photo_set, None)
+        lead = lead_from_set(photo_set, text, vehicle_text=vehicle_text, vehicle_bits=bits)
+        self.assertEqual(lead.state, "needs-info")
+        self.assertEqual(lead.phone, "2395550101")
+        self.assertIn("same-corner", " ".join(lead.notes))
+        self.assertIn("2018 Toyota", " ".join(lead.notes))
+        self.assertIn("2015 Jeep", " ".join(lead.notes))

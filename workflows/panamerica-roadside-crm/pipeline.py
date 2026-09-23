@@ -17,7 +17,7 @@ from outreach_copy import (
     variant_of,
     variant_sendable,
 )
-from intake import harvest_set_text, lead_from_set
+from intake import harvest_intake, lead_from_set
 from models import (
     CALL_ELIGIBLE_STATES,
     COPY_VERSION,
@@ -65,8 +65,10 @@ class Pipeline:
             if self.store.folder_processed(photo_set.id) or self.store.find_by_folder(photo_set.id):
                 skipped.append({"folder_id": photo_set.id, "reason": "already processed"})
                 continue
-            text, vehicle_text = harvest_set_text(photo_set, self.adapters.ocr)
-            lead = lead_from_set(photo_set, text, vehicle_text=vehicle_text)
+            text, vehicle_text, vehicle_bits = harvest_intake(photo_set, self.adapters.ocr)
+            lead = lead_from_set(
+                photo_set, text, vehicle_text=vehicle_text, vehicle_bits=vehicle_bits
+            )
             lead.created_at = self._iso()
             if lead.phone:
                 existing = self.store.find_by_phone(lead.phone)
