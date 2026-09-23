@@ -1038,6 +1038,7 @@
             <label>
               Session type
               <select name="session_type" id="session_type" required>
+                <option value="">Pick session</option>
                 <option value="push">Push</option>
                 <option value="pull">Pull</option>
                 <option value="legs">Legs</option>
@@ -1058,7 +1059,9 @@
             sets: one set row with Sets = 3. PR is auto-tagged from history on save.
             Completing a lift quest auto-logs that exercise. Date defaults to the
             current training day (last wake), so a session that finishes after
-            midnight still lands on this wake. Manual entries pick
+            midnight still lands on this wake. Session type starts as today's
+            training quest. A rest day stays on Pick session until you choose.
+            Changing the dropdown is what gets saved. Manual entries pick
             from the exercise library only (More → Exercise library). Add a new
             movement on that screen if it is missing — Log cannot take a typed name.
           </p>
