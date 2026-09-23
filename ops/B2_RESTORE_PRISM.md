@@ -55,6 +55,8 @@ Books are **as of last snapshot**, not live.
 4. **Reinstall app-books units** (FCC, FitDash, Orchestra, Auto Fleet):
 
    ```bash
+   # Exits 2 while ~/personal-workspace HEAD is work/treasury or work/holistic.
+   # ALLOW_PINNED_CLONE_RSYNC=1 is a deliberate overlay, not the default.
    bash deploy/install_remote.sh prism-agent@prism-gateway
    # or on-box: copy deploy/units/* to ~/.config/systemd/user and enable
    systemctl --user daemon-reload

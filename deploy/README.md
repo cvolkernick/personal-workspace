@@ -43,6 +43,8 @@ bash deploy/install_remote.sh prism-agent@HOST --only orchestra,iot
 bash deploy/install_remote.sh user@HOST --dir /home/user/personal-workspace
 ```
 
+`install_remote.sh` exits 2 before mkdir, rsync, scp, or systemctl when the remote HEAD is `work/treasury` or `work/holistic`, unless `ALLOW_PINNED_CLONE_RSYNC=1`. `--dry-run` prints the plan and does not copy files or enable units. A `--only` value that matches nothing still exits 1 (`No units matched`).
+
 ### After install
 
 ```bash
@@ -104,15 +106,13 @@ Unit pin: `deploy/units/workspace-sync.service` sets `Environment=SYNC_BRANCH=wo
 Permanent install path (scripts live **outside** the live clone so a hard-reset cannot delete them):
 
 ```bash
-# From a master checkout — copies only the durable scripts, not the FCC tree
+# From a master checkout — copies only the durable scripts, not the FCC tree.
+# install_remote.sh exits 2 while that clone's HEAD is work/treasury.
 scp deploy/workspace_sync.sh deploy/fcc_tip_health.py \
   prism-agent@prism-gateway:~/.config/personal-workspace/
-# or:
-bash deploy/install_remote.sh prism-agent@prism-gateway
-# Do **not** rsync/install the rest of master onto the FCC live clone.
 ```
 
-Do **not** “fix” a stale `~/.config/personal-workspace/` copy by adding `deploy/` to `work/treasury` or by expecting the next sync to pick it up. After changing `workspace_sync.sh` / `fcc_tip_health.py` on `master`, scp (or `install_remote.sh`) again.
+Do **not** “fix” a stale `~/.config/personal-workspace/` copy by adding `deploy/` to `work/treasury` or by expecting the next sync to pick it up. After changing `workspace_sync.sh` / `fcc_tip_health.py` on `master`, scp them again. `install_remote.sh` will not rsync this clone while HEAD is `work/treasury` (exit 2, override `ALLOW_PINNED_CLONE_RSYNC=1`).
 
 ## Off-network access (Tailscale or equivalent)
 
@@ -136,7 +136,7 @@ bash deploy/fcc_tailscale_serve.sh
 bash deploy/fcc_tailscale_serve.sh --install-unit   # persist oneshot after reboot
 ```
 
-Do **not** run `install_remote.sh` from `master` onto the FCC live clone to “fix HTTPS” — that tree is `work/treasury` only.
+Do **not** run `install_remote.sh` from `master` onto the FCC live clone to “fix HTTPS” — that tree is `work/treasury` only, and the script exits 2 on that HEAD.
 
 Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access private (access policies), not a bare open port. FCC is not a Cloudflare/Vercel app.
 

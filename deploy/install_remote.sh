@@ -5,6 +5,11 @@
 #   bash deploy/install_remote.sh prism-agent@192.168.100.98
 #   bash deploy/install_remote.sh user@host --dir /home/user/personal-workspace
 #   bash deploy/install_remote.sh user@host --only orchestra,iot
+#   bash deploy/install_remote.sh user@host --dry-run
+#
+# Refuses when remote HEAD is work/treasury or work/holistic (exit 2)
+# unless ALLOW_PINNED_CLONE_RSYNC=1. --dry-run does not mkdir, rsync,
+# scp, or systemctl.
 #
 # Installs systemd --user units for:
 #   orchestra:8790  financial-command:8000  workflow:8765
@@ -31,7 +36,7 @@ while [[ $# -gt 0 ]]; do
     --only) ONLY="$2"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,25p' "$0"
       exit 0
       ;;
     *)
@@ -60,9 +65,10 @@ REMOTE_DIR="${REMOTE_DIR:-/home/${RUSER}/personal-workspace}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 UNITS_SRC="$(cd "$(dirname "$0")/units" && pwd)"
 
-# FCC HTTPS (Tailscale Serve) is NOT in this list. install_remote rsyncs the
-# local tree onto the Pi FCC clone — that clone is work/treasury only. Use
-# deploy/fcc_tailscale_serve.sh (optionally --install-unit) instead.
+# FCC HTTPS (Tailscale Serve) is NOT in this list. The default remote dir is
+# the Pi FCC live clone. This script exits 2 before rsync when that checkout's
+# HEAD is work/treasury or work/holistic unless ALLOW_PINNED_CLONE_RSYNC=1.
+# Re-apply Serve with deploy/fcc_tailscale_serve.sh (optionally --install-unit).
 ALL_UNITS=(
   orchestra-dashboard.service
   financial-command.service
@@ -121,6 +127,52 @@ echo "Remote:         $REMOTE"
 echo "Remote dir:     $REMOTE_DIR"
 echo "Units:          ${UNITS[*]}"
 
+# Read-only. Exit 2 before mkdir / rsync / scp / systemctl when the remote
+# checkout is a pinned branch. SSH failure also refuses: an unreadable HEAD
+# must not fall through into rsync onto the default FCC dir.
+trim_ws() {
+  local s="$1"
+  s="${s//$'\r'/}"
+  s="${s%%$'\n'*}"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+refuse_pinned_clone() {
+  local remote_head ssh_rc
+  if [[ "${ALLOW_PINNED_CLONE_RSYNC:-}" == "1" ]]; then
+    echo "ALLOW_PINNED_CLONE_RSYNC=1 set; pin check skipped"
+    return 0
+  fi
+  echo "→ Checking remote HEAD…"
+  set +e
+  remote_head="$(
+    ssh -n -o BatchMode=yes -o ConnectTimeout=10 "$REMOTE" \
+      "git -C '$REMOTE_DIR' rev-parse --abbrev-ref HEAD 2>/dev/null || true"
+  )"
+  ssh_rc=$?
+  set -e
+  if [[ "$ssh_rc" -ne 0 ]]; then
+    echo "Refusing to rsync: could not read remote HEAD at $REMOTE:$REMOTE_DIR (ssh exit $ssh_rc)." >&2
+    exit 2
+  fi
+  remote_head="$(trim_ws "$remote_head")"
+  case "$remote_head" in
+    work/treasury|work/holistic)
+      echo "Refusing to rsync onto pinned clone $REMOTE_DIR (HEAD ${remote_head}). Set ALLOW_PINNED_CLONE_RSYNC=1 to override." >&2
+      exit 2
+      ;;
+  esac
+}
+
+refuse_pinned_clone
+
+if [[ "$DRY" -eq 1 ]]; then
+  echo "Dry run: no mkdir, rsync, scp, or systemctl."
+  exit 0
+fi
+
 echo "→ Testing SSH…"
 ssh -o BatchMode=yes -o ConnectTimeout=10 "$REMOTE" "echo ok && uname -a && python3 --version"
 
@@ -138,9 +190,6 @@ RSYNC_ARGS=(-az
   --exclude 'fitness/charts'
   --exclude 'resistance-dashboard/tests/fixtures'
 )
-if [[ "$DRY" -eq 1 ]]; then
-  RSYNC_ARGS+=(--dry-run -v)
-fi
 
 rsync "${RSYNC_ARGS[@]}" \
   "$ROOT/" "$REMOTE:$REMOTE_DIR/"
