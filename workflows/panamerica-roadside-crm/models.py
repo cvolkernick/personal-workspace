@@ -28,6 +28,10 @@ COPY_VERSION = "v2"
 CANONICAL_STORE = "file"  # JSON file store (not Turso). Path is configurable.
 # Approved #855 copy is ~450 chars (concatenated SMS). Cap fits {car}/{road} clips of 40.
 SMS_MAX_CHARS = 520
+# Champion/challenger arms share one copy pack (#896). Empty means unassigned.
+SMS_VARIANT_IDS = ("A", "B")
+# Reply-rate window after sms_sent_at. no_reply is derived for reporting only.
+REPLY_WINDOW_HOURS = 72
 VOICE_DELAY_MIN_DAYS = 5
 VOICE_DELAY_MAX_DAYS = 7
 
@@ -63,6 +67,12 @@ class Lead:
     callback: Optional[dict[str, Any]] = None
     suppression_reason: str = ""
     copy_version: str = COPY_VERSION
+    # Set once on the first successful SMS attempt. Never rewritten.
+    sms_variant_id: str = ""
+    sms_variant_assigned_at: Optional[str] = None
+    # Last inbound class: interested | not_now | stop_angry | other.
+    # no_reply is not stored — the daily report derives it past the reply window.
+    reply_quality: str = ""
     created_at: str = ""
     updated_at: str = ""
 
@@ -72,7 +82,11 @@ class Lead:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Lead":
         known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
-        return cls(**{k: v for k, v in data.items() if k in known})
+        raw = {k: v for k, v in data.items() if k in known}
+        for key in ("sms_variant_id", "reply_quality"):
+            if raw.get(key) is None:
+                raw[key] = ""
+        return cls(**raw)
 
     def car_label(self) -> str:
         bits = [p for p in (self.year, self.make, self.model) if p]

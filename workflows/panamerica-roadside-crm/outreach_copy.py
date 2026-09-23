@@ -5,10 +5,17 @@ PANAMERICA_ROADSIDE_COPY_APPROVED=1 (first-send human gate).
 
 Location slot (#860): outbound SMS/voice use sale_location_phrase;
 the CRM keeps the full location string.
+
+SMS A/B (#896): variant A is the champion (SMS_DRAFT). Variant B is an
+unapproved placeholder. Assignment is a stable hash of the lead id.
+B is not assigned or sent while SMS_VARIANT_B_APPROVED is False.
+Replacing B and flipping that flag is a Chris copy approval, same
+pattern as #855. Do not flip it in this change.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from models import SMS_MAX_CHARS, Lead
@@ -26,6 +33,19 @@ SMS_DRAFT = (
 
 # Inbound parse_inbound still honors STOP. Do not append this line to sends.
 OPT_OUT_LINE = "Reply STOP to opt out."
+
+# Same object as SMS_DRAFT. Both arms share copy_version (the pack id).
+SMS_VARIANT_A = SMS_DRAFT
+
+# Placeholder until Chris approves a challenger. Not a sendable script.
+SMS_VARIANT_B = (
+    "CHALLENGER_UNAPPROVED placeholder for {car} for sale {location_slot}. "
+    "Not a Chris-approved script."
+)
+# Chris approves B by replacing SMS_VARIANT_B and setting this True together.
+SMS_VARIANT_B_APPROVED = False
+
+SMS_VARIANTS = {"A": SMS_VARIANT_A, "B": SMS_VARIANT_B}
 
 
 _ZIP_RE = re.compile(r"^\d{5}(?:-\d{4})?$")
@@ -89,19 +109,68 @@ def sale_location_phrase(location: str) -> str:
     return f"on {parts[0]}"
 
 
+def variant_of(lead: Lead) -> str:
+    """Normalized arm. Empty stays empty so callers can tell 'unassigned'."""
+    return str(getattr(lead, "sms_variant_id", "") or "").strip().upper()
+
+
+def variant_b_approved() -> bool:
+    """True only after a Chris copy PR replaces the placeholder and flips the flag."""
+    return bool(SMS_VARIANT_B_APPROVED)
+
+
+def ab_mode() -> str:
+    """champion_only until B is approved; split once both arms may be assigned."""
+    return "split" if variant_b_approved() else "champion_only"
+
+
+def assign_sms_variant(lead_id: str) -> tuple[str, str]:
+    """Return (variant_id, ab_mode) for a lead that has no arm yet.
+
+    Champion-only: always ``A``. Split: SHA-256 of the lead id (UTF-8);
+    the first 8 hex digits as an int; even → A, odd → B. The same id
+    always maps to the same arm, so dry-runs and retries do not flip.
+    Phone is not an input — one phone is one lead, and send_sms refuses
+    a second lead that already has an arm on that phone.
+    """
+    mode = ab_mode()
+    if mode != "split":
+        return "A", mode
+    digest = hashlib.sha256((lead_id or "").encode("utf-8")).hexdigest()
+    arm = "A" if int(digest[:8], 16) % 2 == 0 else "B"
+    return arm, mode
+
+
+def variant_sendable(variant_id: str) -> bool:
+    variant = str(variant_id or "").strip().upper()
+    if variant == "A":
+        return True
+    if variant == "B":
+        return variant_b_approved()
+    return False
+
+
 def render_sms(lead: Lead) -> str:
+    variant = variant_of(lead) or "A"
+    template = SMS_VARIANTS.get(variant, SMS_VARIANT_A)
     car = _clip(lead.car_label() or "car", 40)
     location_slot = sale_location_phrase(lead.location)
-    body = SMS_DRAFT.format(car=car, location_slot=location_slot)
+    return _fit_sms(template, car, location_slot)
+
+
+def _fit_sms(template: str, car: str, location_slot: str) -> str:
+    body = template.format(car=car, location_slot=location_slot)
     if len(body) <= SMS_MAX_CHARS:
         return body
     for size in (24, 16, 12, 8):
-        body = SMS_DRAFT.format(
+        body = template.format(
             car=_clip(car, size),
             location_slot=_clip(location_slot, size),
         )
         if len(body) <= SMS_MAX_CHARS:
             return body
+    if template is not SMS_VARIANT_A:
+        return body[:SMS_MAX_CHARS]
     fallback = (
         "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
         "Saw your car for sale — rent it out instead of selling? "

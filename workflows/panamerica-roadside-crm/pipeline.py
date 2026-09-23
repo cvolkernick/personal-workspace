@@ -7,9 +7,26 @@ from typing import Any, Optional
 
 from adapters import Adapters, ExternalSendError, build_adapters
 from config import Config, LiveBlocked
-from outreach_copy import parse_inbound, render_sms, render_voice_task
+from outreach_copy import (
+    ab_mode,
+    assign_sms_variant,
+    parse_inbound,
+    render_sms,
+    render_voice_task,
+    variant_b_approved,
+    variant_of,
+    variant_sendable,
+)
 from intake import harvest_set_text, lead_from_set
-from models import CALL_ELIGIBLE_STATES, NEVER_RECONTACT_STATES, SMS_ELIGIBLE_STATES, Lead
+from models import (
+    CALL_ELIGIBLE_STATES,
+    COPY_VERSION,
+    NEVER_RECONTACT_STATES,
+    REPLY_WINDOW_HOURS,
+    SMS_ELIGIBLE_STATES,
+    SMS_VARIANT_IDS,
+    Lead,
+)
 from store import FileStore, utc_now
 
 
@@ -89,12 +106,14 @@ class Pipeline:
                 needs_info.append(row)
             else:
                 created.append(row)
+        report = self.variant_report()
         return {
             "created": created,
             "skipped": skipped,
             "needs_info": needs_info,
             "organized": organized,
             "counts": self.store.counts(),
+            "variant_report": report,
         }
 
     def weekly_pass(self) -> dict[str, Any]:
@@ -105,6 +124,9 @@ class Pipeline:
 
     def send_sms(self, lead: Lead) -> dict[str, Any]:
         self.cfg.require_live_sends()
+        stored = self.store.get(lead.id)
+        if stored is not None:
+            lead = stored
         if lead.state in NEVER_RECONTACT_STATES:
             return {"lead_id": lead.id, "skipped": True, "state": lead.state, "reason": f"state={lead.state}"}
         if lead.state not in SMS_ELIGIBLE_STATES:
@@ -115,17 +137,72 @@ class Pipeline:
             return self._kill(lead, "declined", "suppression list")
         if self.store.sms_sent_today() >= self.cfg.daily_sms_cap:
             raise PipelineError("SMS refused: daily cap")
+        if self.store.phone_already_assigned(lead):
+            return {
+                "lead_id": lead.id,
+                "skipped": True,
+                "state": lead.state,
+                "reason": "duplicate-phone",
+                "sms_variant_id": variant_of(lead),
+                "ab_mode": ab_mode(),
+            }
+        mode = self._ensure_sms_variant(lead)
+        variant = variant_of(lead)
+        if not variant_sendable(variant):
+            return {
+                "lead_id": lead.id,
+                "skipped": True,
+                "state": lead.state,
+                "reason": "variant_not_approved",
+                "sms_variant_id": variant,
+                "ab_mode": mode,
+            }
         body = render_sms(lead)
-        sent = self.adapters.bland.send_sms(to=lead.phone, body=body, lead_id=lead.id)
+        sent = dict(self.adapters.bland.send_sms(to=lead.phone, body=body, lead_id=lead.id))
+        sent["sms_variant_id"] = variant
+        sent["ab_mode"] = mode
         self.store.record_outbox(sent)
         if not self.cfg.dry_run:
             self.store.increment_sms()
         lead.state = "sms_sent"
         lead.sms_sent_at = self._iso()
         lead.last_contact_at = lead.sms_sent_at
-        lead.events.append({"at": lead.sms_sent_at, "op": "sms_sent", "dry_run": self.cfg.dry_run})
+        lead.events.append(
+            {
+                "at": lead.sms_sent_at,
+                "op": "sms_sent",
+                "dry_run": self.cfg.dry_run,
+                "variant": variant,
+                "ab_mode": mode,
+            }
+        )
         self.store.put(lead)
-        return {"lead_id": lead.id, "state": lead.state, "sms": sent}
+        return {
+            "lead_id": lead.id,
+            "state": lead.state,
+            "sms": sent,
+            "sms_variant_id": variant,
+            "ab_mode": mode,
+        }
+
+    def _ensure_sms_variant(self, lead: Lead) -> str:
+        """Assign an arm once. An existing id is left untouched."""
+        if variant_of(lead):
+            return ab_mode()
+        variant, mode = assign_sms_variant(lead.id)
+        lead.sms_variant_id = variant
+        lead.sms_variant_assigned_at = self._iso()
+        lead.events.append(
+            {
+                "at": lead.sms_variant_assigned_at,
+                "op": "sms_variant_assigned",
+                "variant": variant,
+                "ab_mode": mode,
+                "copy_version": lead.copy_version,
+            }
+        )
+        self.store.put(lead)
+        return mode
 
     def sms_batch(self) -> list[dict[str, Any]]:
         return [self.send_sms(lead) for lead in self.store.by_state("new")]
@@ -186,12 +263,26 @@ class Pipeline:
             lead = self.store.find_by_phone(phone)
         if lead is None:
             return {"ignored": True, "reason": "unknown lead"}
+        stored = self.store.get(lead.id)
+        if stored is not None:
+            lead = stored
         parsed = parse_inbound(text)
-        if parsed["opt_out"] or parsed["declined"]:
-            reason = "opt-out" if parsed["opt_out"] else "declined"
-            return self._kill(lead, "declined", reason)
+        if parsed["opt_out"]:
+            return self._kill(lead, "declined", "opt-out", reply_quality="stop_angry")
+        if parsed["declined"]:
+            return self._kill(lead, "declined", "declined", reply_quality="not_now")
+        quality = "interested" if parsed["interested"] else "other"
         lead.responded_at = self._iso()
-        lead.events.append({"at": lead.responded_at, "op": "responded", "text": str(parsed["text"])[:400]})
+        lead.reply_quality = quality
+        lead.events.append(
+            {
+                "at": lead.responded_at,
+                "op": "responded",
+                "text": str(parsed["text"])[:400],
+                "reply_quality": quality,
+                "sms_variant_id": variant_of(lead),
+            }
+        )
         if parsed["interested"]:
             return self.mark_interested(lead, note=str(parsed["text"]))
         if lead.state in NEVER_RECONTACT_STATES:
@@ -205,6 +296,7 @@ class Pipeline:
         if lead.state in NEVER_RECONTACT_STATES:
             return {"lead_id": lead.id, "skipped": True, "state": lead.state, "reason": "terminal"}
         lead.state = "interested"
+        lead.reply_quality = "interested"
         lead.callback = {
             "status": "scheduled" if callback_at else "requested",
             "with": "Chris",
@@ -212,7 +304,15 @@ class Pipeline:
             "note": note[:400],
             "requested_at": self._iso(),
         }
-        lead.events.append({"at": self._iso(), "op": "interested", "callback": dict(lead.callback)})
+        lead.events.append(
+            {
+                "at": self._iso(),
+                "op": "interested",
+                "reply_quality": "interested",
+                "sms_variant_id": variant_of(lead),
+                "callback": dict(lead.callback),
+            }
+        )
         self.store.put(lead)
         alert = self.adapters.alerter.send(
             title=f"ROADSIDE INTEREST: {lead.car_label()} {lead.phone}",
@@ -237,10 +337,15 @@ class Pipeline:
             "alert": {"title": alert["title"], "dry_run": alert.get("dry_run"), "sent": alert.get("sent")},
         }
 
-    def _kill(self, lead: Lead, state: str, reason: str) -> dict[str, Any]:
+    def _kill(self, lead: Lead, state: str, reason: str, *, reply_quality: str = "") -> dict[str, Any]:
         lead.state = state
         lead.suppression_reason = reason
-        lead.events.append({"at": self._iso(), "op": state, "reason": reason})
+        event: dict[str, Any] = {"at": self._iso(), "op": state, "reason": reason}
+        if reply_quality:
+            lead.reply_quality = reply_quality
+            event["reply_quality"] = reply_quality
+            event["sms_variant_id"] = variant_of(lead)
+        lead.events.append(event)
         self.store.suppress(self.store.suppression_keys_for(lead), reason)
         self.store.put(lead)
         return {"lead_id": lead.id, "state": state, "reason": reason}
@@ -262,6 +367,8 @@ class Pipeline:
             # Advance due calls without inventing replies.
             # Tests freeze clock past the 5–7 day window when they want Phase 2.
             calls = self.call_batch()
+        report = self.variant_report()
+        intake["variant_report"] = report
         return {
             "dry_run": self.cfg.dry_run,
             "intake": intake,
@@ -271,7 +378,135 @@ class Pipeline:
             "counts": self.store.counts(),
             "outbox": len(self.store.outbox()),
             "alerts": len(self.store.alerts()),
+            "variant_report": report,
         }
+
+    def variant_report(self) -> dict[str, Any]:
+        """Per-arm counters for the #718 daily / sms-batch report.
+
+        Sends are leads with sms_sent_at. Replies are inbound outcomes
+        (interested, not_now, stop_angry, other). no_reply is derived
+        for sends whose 72h window has closed with no reply — state is
+        not changed. reply_rate_72h is replies inside the window divided
+        by matured sends, or null when no send has matured. Both arms
+        are always present.
+        """
+        now = self._now()
+        today = now.strftime("%Y-%m-%d")
+        window = timedelta(hours=REPLY_WINDOW_HOURS)
+        sends_today = {arm: 0 for arm in SMS_VARIANT_IDS}
+        cumulative: dict[str, dict[str, Any]] = {}
+        for arm in SMS_VARIANT_IDS:
+            cumulative[arm] = {
+                "sends": 0,
+                "replies": 0,
+                "interested": 0,
+                "not_now": 0,
+                "stop_angry": 0,
+                "no_reply": 0,
+                "matured": 0,
+                "replies_within_72h": 0,
+                "reply_rate_72h": None,
+            }
+        for lead in self.store.all_leads():
+            variant = variant_of(lead)
+            if variant not in cumulative or not lead.sms_sent_at:
+                continue
+            bucket = cumulative[variant]
+            bucket["sends"] += 1
+            if str(lead.sms_sent_at)[:10] == today:
+                sends_today[variant] += 1
+            sent_at = _parse_stamp(lead.sms_sent_at)
+            reply_at = _reply_at(lead)
+            quality = _reply_quality(lead)
+            if quality in {"interested", "not_now", "stop_angry", "other"}:
+                bucket["replies"] += 1
+                if quality in {"interested", "not_now", "stop_angry"}:
+                    bucket[quality] += 1
+            in_window = False
+            if (
+                quality
+                and reply_at is not None
+                and sent_at is not None
+                and reply_at <= sent_at + window
+            ):
+                in_window = True
+                bucket["replies_within_72h"] += 1
+            matured = sent_at is not None and sent_at + window <= now
+            if matured:
+                bucket["matured"] += 1
+                if not in_window and not quality:
+                    bucket["no_reply"] += 1
+        for bucket in cumulative.values():
+            matured = int(bucket["matured"])
+            if matured:
+                bucket["reply_rate_72h"] = round(bucket["replies_within_72h"] / matured, 4)
+        return {
+            "ab_mode": ab_mode(),
+            "variant_b_approved": variant_b_approved(),
+            "reply_window_hours": REPLY_WINDOW_HOURS,
+            "copy_version": COPY_VERSION,
+            "sends_today": sends_today,
+            "cumulative": cumulative,
+        }
+
+
+_REPLY_QUALITIES = frozenset({"interested", "not_now", "stop_angry", "other"})
+
+
+def _parse_stamp(value: object) -> Optional[datetime]:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _is_reply_event(event: object) -> bool:
+    if not isinstance(event, dict):
+        return False
+    if str(event.get("reply_quality") or "") in _REPLY_QUALITIES:
+        return True
+    op = event.get("op")
+    if op in {"responded", "interested"}:
+        return True
+    return op == "declined" and event.get("reason") in {"opt-out", "declined"}
+
+
+def _reply_at(lead: Lead) -> Optional[datetime]:
+    earliest: Optional[datetime] = None
+    for event in lead.events:
+        if not _is_reply_event(event):
+            continue
+        stamp = _parse_stamp(event.get("at"))
+        if stamp is not None and (earliest is None or stamp < earliest):
+            earliest = stamp
+    return earliest
+
+
+def _reply_quality(lead: Lead) -> str:
+    stored = str(lead.reply_quality or "")
+    if stored in _REPLY_QUALITIES:
+        return stored
+    found = ""
+    for event in lead.events:
+        if not isinstance(event, dict):
+            continue
+        quality = str(event.get("reply_quality") or "")
+        if quality in _REPLY_QUALITIES:
+            found = quality
+            continue
+        op = event.get("op")
+        if op == "interested":
+            found = "interested"
+        elif op == "declined" and event.get("reason") == "opt-out":
+            found = "stop_angry"
+        elif op == "declined" and event.get("reason") == "declined":
+            found = "not_now"
+        elif op == "responded" and not found:
+            found = "other"
+    return found
 
 
 def make_pipeline(

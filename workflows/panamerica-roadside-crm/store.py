@@ -156,6 +156,20 @@ class FileStore:
             keys.append("phone:" + normalize_phone(lead.phone))
         return keys
 
+    def phone_already_assigned(self, lead: Lead) -> bool:
+        """Another lead with this phone already has an SMS variant or a send."""
+        needle = normalize_phone(lead.phone)
+        if not needle:
+            return False
+        for other in self.all_leads():
+            if other.id == lead.id:
+                continue
+            if normalize_phone(other.phone) != needle:
+                continue
+            if str(other.sms_variant_id or "").strip() or other.sms_sent_at:
+                return True
+        return False
+
     def record_outbox(self, item: dict[str, Any]) -> dict[str, Any]:
         row = dict(item)
         row.setdefault("at", utc_now())

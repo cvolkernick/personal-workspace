@@ -59,6 +59,11 @@ class CliTests(unittest.TestCase):
             created_phones = {row["phone"] for row in payload["created"]}
             self.assertIn("2395550101", created_phones)
             self.assertIn("organized", payload)
+            report = payload["variant_report"]
+            self.assertEqual(report["ab_mode"], "champion_only")
+            self.assertEqual(report["sends_today"], {"A": 0, "B": 0})
+            self.assertEqual(report["cumulative"]["A"]["sends"], 0)
+            self.assertEqual(report["cumulative"]["B"]["sends"], 0)
 
     def test_dry_run_weekly_pass_and_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,3 +112,7 @@ class CliTests(unittest.TestCase):
             body = json.loads(ran.stdout)
             self.assertTrue(body["dry_run"])
             self.assertGreaterEqual(body["counts"].get("interested", 0), 1)
+            self.assertEqual(body["variant_report"]["ab_mode"], "champion_only")
+            self.assertGreater(body["variant_report"]["cumulative"]["A"]["sends"], 0)
+            self.assertEqual(body["variant_report"]["cumulative"]["B"]["sends"], 0)
+            self.assertGreater(body["variant_report"]["cumulative"]["A"]["interested"], 0)

@@ -56,7 +56,8 @@ def cmd_daily(args: argparse.Namespace) -> int:
 
 
 def cmd_sms(args: argparse.Namespace) -> int:
-    return _json({"results": _pipe(args).sms_batch()})
+    pipe = _pipe(args)
+    return _json({"results": pipe.sms_batch(), "variant_report": pipe.variant_report()})
 
 
 def cmd_calls(args: argparse.Namespace) -> int:
@@ -107,6 +108,7 @@ def cmd_status(args: argparse.Namespace) -> int:
             "suppression": len(pipe.store._doc["suppression"]),
             "outbox": len(pipe.store.outbox()),
             "alerts": len(pipe.store.alerts()),
+            "variant_report": pipe.variant_report(),
             "needs_info": [
                 {"id": lead.id, "folder_name": lead.folder_name, "location": lead.location}
                 for lead in pipe.store.by_state("needs-info")
