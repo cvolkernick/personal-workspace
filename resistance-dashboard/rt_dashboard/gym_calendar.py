@@ -3,14 +3,25 @@
 Coach places one tagged 1.5h ``Gym`` event per training day at plan-generation
 time. Rest days get no event; a leftover tagged event is deleted.
 
-Reconciliation contract (coach + assistant-side monitor):
-- Idempotency key is ``[fitdash-gym:YYYY-MM-DD]`` — exactly one event per date.
-- Coach owns the default: creates tagged events when the workout plan is built.
-- Monitor may create if a training day has none (coach never ran / no session).
+Reconciliation contract (one writer, one key) (#901):
+- Idempotency key is the description marker ``[fitdash-gym:YYYY-MM-DD]``.
+  Exactly one event per date. The private extended property is a stamp
+  the morning writer sets at creation; it is not a second lookup key.
+- Single writer: ``role="coach"`` (morning / plan generation) creates.
+  Create always writes the description marker and private
+  ``fitdashGym``, ``fitdashGymDate``, ``fitdashGymPlannedStart``.
+- Reconcile (``role="monitor"``) only updates that event or deletes
+  extras. It does not create. A second create is a bug.
+- Lookup scans the civil-day agenda for the description marker, then
+  unions extended-property hits, so a marker-only morning event is the
+  same id. That agenda is ordered by start time. When more than one
+  event matches, the survivor is the earliest Google ``created``, not
+  the first row. A user-locked extra is not deleted. If an extra is
+  locked and the earliest event is not, the locked event is the survivor.
 - Monitor may move a tagged event when its window now overlaps another event.
 - Neither side moves an event whose start ≠ ``fitdashGymPlannedStart``
   (user moved it = locked). Monitor reports any move it makes.
-- Rest day: delete the tagged event (even if the coach didn't).
+- Rest day: delete an unlocked tagged event. A user-locked event stays.
 - Dashboard load (#811): if today's tagged event *end* has passed and
   ``ppl_logged_for_planning`` is empty, reschedule in place via ``pick_slot``
   from now through end of civil day. In-progress, logged, user-locked, and
@@ -460,6 +471,50 @@ def is_user_locked(ev: dict) -> bool:
     return not same_instant(planned, current)
 
 
+def _created_rank(ev: dict) -> Tuple[int, float]:
+    """Earliest Google ``created`` first. Unstamped events sort last."""
+    stamp = parse_dt(str((ev or {}).get("created") or ""))
+    if stamp is None:
+        return (1, 0.0)
+    return (0, stamp.timestamp())
+
+
+def partition_gym_events(
+    events: Sequence[dict],
+) -> Tuple[Optional[dict], List[dict], List[dict]]:
+    """Return ``(keep, deletable, locked_extras)``.
+
+    ``events.list`` with a time window is ordered by start time, so a
+    later writer's earlier clock sorts first. The survivor is the earliest
+    Google ``created``. Events with no ``created`` keep their incoming
+    order and lose to any stamped event. A user-locked extra is not
+    deleted. If an extra is locked and the current keep is not, that
+    locked event becomes the keep.
+    """
+    ranked = sorted(
+        [ev for ev in events if isinstance(ev, dict) and ev.get("id")],
+        key=_created_rank,
+    )
+    if not ranked:
+        return None, [], []
+    keep = ranked[0]
+    rest = list(ranked[1:])
+    if not is_user_locked(keep):
+        for ev in rest:
+            if is_user_locked(ev):
+                rest = [other for other in ranked if other is not ev]
+                keep = ev
+                break
+    deletable: List[dict] = []
+    locked_extras: List[dict] = []
+    for ev in rest:
+        if is_user_locked(ev):
+            locked_extras.append(ev)
+        else:
+            deletable.append(ev)
+    return keep, deletable, locked_extras
+
+
 def is_gym_event(ev: dict, day: Optional[str] = None) -> bool:
     private = _private(ev)
     if str(private.get(PROP_GYM) or "") != "1" and not DESC_TAG_RE.search(
@@ -830,12 +885,43 @@ def gym_day_from_workout(
 
 
 def list_day_gym_events(calendar_id: str, day: str) -> List[dict]:
-    if not day:
+    """Events for ``day``, keyed by the description marker.
+
+    A morning event that only carries ``[fitdash-gym:YYYY-MM-DD]`` is the
+    same event as one that also has ``fitdashGymDate``. The civil-day
+    agenda is the primary scan. Google returns that window ordered by
+    start time. Extended-property hits are unioned so a tagged event
+    whose start sits outside that window is still found. Which id
+    survives a pair is ``partition_gym_events``, not this order.
+    """
+    civil = str(day or "")[:10]
+    if not civil or not calendar_id:
         return []
-    return gcal.list_events(
+    start, end = civil_day_bounds(civil)
+    ordered: List[dict] = []
+    seen = set()
+
+    def _take(ev: dict) -> None:
+        if not isinstance(ev, dict) or not is_gym_event(ev, civil):
+            return
+        eid = str(ev.get("id") or "")
+        if not eid or eid in seen:
+            return
+        seen.add(eid)
+        ordered.append(ev)
+
+    for ev in gcal.list_events(
         calendar_id,
-        private_props={PROP_GYM: "1", PROP_DATE: str(day)[:10]},
-    )
+        time_min=start.isoformat(timespec="seconds"),
+        time_max=end.isoformat(timespec="seconds"),
+    ):
+        _take(ev)
+    for ev in gcal.list_events(
+        calendar_id,
+        private_props={PROP_GYM: "1", PROP_DATE: civil},
+    ):
+        _take(ev)
+    return ordered
 
 
 def lookup_gym_clock_label(day: str) -> str:
@@ -941,10 +1027,13 @@ def sync_gym_sessions(
 ) -> Dict[str, Any]:
     """Upsert tagged gym events for training days; delete rest leftovers.
 
-    ``role="coach"`` is plan generation / dashboard load. ``role="monitor"``
-    is the assistant daily reconcile: same tag, may create a missing event,
-    may move on overlap, must not move a user-locked event, reports
-    ``moves``. Overnight starts are kept when they are the selected slot
+    ``role="coach"`` is the single writer (morning / plan generation). It
+    creates when the day has no tagged event, and that create stamps the
+    description marker plus private extended properties. ``role="monitor"``
+    only updates the existing event or deletes extras — a missing event
+    stays missing. Either role may move on overlap, must not move a
+    user-locked event, and reports ``moves``. Overnight starts are kept
+    when they are the selected slot
     (#818). On dashboard load, an elapsed unlocked window with no logged
     workout is moved to a remaining quiet slot (never tomorrow).
     """
@@ -963,19 +1052,20 @@ def sync_gym_sessions(
             if not day:
                 continue
             existing = list_day_gym_events(cal_id, day)
-            keep: Optional[dict] = None
-            extras: List[dict] = []
-            for ev in existing:
-                if keep is None and ev.get("id"):
-                    keep = ev
-                else:
-                    extras.append(ev)
+            keep, extras, locked_extras = partition_gym_events(existing)
             for ev in extras:
                 if ev.get("id") and _delete_quiet(cal_id, str(ev["id"])):
                     deleted += 1
+            locked += len(locked_extras)
             if gym_day.is_rest:
-                if keep and keep.get("id") and _delete_quiet(cal_id, str(keep["id"])):
+                if keep and is_user_locked(keep):
+                    locked += 1
+                elif keep and keep.get("id") and _delete_quiet(cal_id, str(keep["id"])):
                     deleted += 1
+                continue
+            # Reconcile never creates. The morning/coach path is the only
+            # writer (#901). A day the morning writer skipped stays empty.
+            if keep is None and role == "monitor":
                 continue
             ignore = [str(keep["id"])] if keep and keep.get("id") else []
             busy = busy_intervals(cal_id, day, ignore_ids=ignore)
@@ -1064,7 +1154,7 @@ def reconcile_gym_sessions(
     *,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """Assistant-side daily reconcile. See module docstring for ownership."""
+    """Update or delete the day's gym event. Never creates (#901)."""
     return sync_gym_sessions(days, now=now, role="monitor")
 
 
