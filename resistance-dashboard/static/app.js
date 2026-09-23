@@ -6164,6 +6164,7 @@
       }
     }
     renderDailyPlanTasks(daily, questFallbackActions());
+    applyManualLogSessionPrefill(state);
   }
 
   function markQuestSyncFailed(message, daily) {
@@ -6334,6 +6335,91 @@
       return "";
     };
     return pick("session_type") || pick("next_session_type");
+  }
+
+  /**
+   * Manual-log letter for today (#895). Quest title, then today's plan
+   * letter. A rest day or a missing quest returns "".
+   */
+  function questSessionLetter(data) {
+    function isRestQuestTitle(title) {
+      return /^rest\s*\/\s*recover today\b/i.test(String(title || "").trim());
+    }
+    function isTrainSessionTitle(title) {
+      return /^(complete today's|easy |rest \/ recover today|already trained today)\b/i.test(
+        String(title || "").trim()
+      );
+    }
+    function pplLetterFromQuestTitle(title) {
+      const text = String(title || "");
+      if (isRestQuestTitle(text)) return "";
+      const already = text.match(/already trained today\s*\(\s*(push|pull|legs)\s*\)/i);
+      if (already) return String(already[1] || "").toLowerCase();
+      const easy = text.match(/^easy\s+(push|pull|legs)\b/i);
+      if (easy) return String(easy[1] || "").toLowerCase();
+      const complete = text.match(/complete today's\s+(push|pull|legs)\b/i);
+      if (complete) return String(complete[1] || "").toLowerCase();
+      return "";
+    }
+    function trainingQuestTitleFrom(src) {
+      const daily =
+        src.daily_tasks ||
+        (src.coach && src.coach.today && src.coach.today.daily_tasks) ||
+        null;
+      const groups = (daily && daily.groups) || [];
+      for (let gi = 0; gi < groups.length; gi++) {
+        const g = groups[gi];
+        if (!g || String(g.group || "").toLowerCase() !== "training") continue;
+        const items = g.items || [];
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i] || {};
+          const slug = String(it.slug || "").toLowerCase();
+          const title = String(it.title || it.text || "");
+          if (slug === "train-session" || isTrainSessionTitle(title)) return title;
+        }
+      }
+      const actions =
+        (src.coach && src.coach.today && src.coach.today.actions) || [];
+      for (let i = 0; i < actions.length; i++) {
+        const act = actions[i] || {};
+        const id = String(act.id || "").toLowerCase();
+        const title = String(act.text || act.title || "");
+        if (id === "train-session" || isTrainSessionTitle(title)) return title;
+      }
+      return null;
+    }
+    function planSessionLetterFrom(src) {
+      const slots = [
+        src.coach && src.coach.today && src.coach.today.workout,
+        src.workout,
+        src.workout_store && src.workout_store.plan,
+      ];
+      for (let i = 0; i < slots.length; i++) {
+        const w = slots[i];
+        if (!w) continue;
+        if (w.is_rest_day) return "";
+        const st = String(w.session_type || "").trim().toLowerCase();
+        if (st === "rest") return "";
+        if (st === "push" || st === "pull" || st === "legs") return st;
+      }
+      return "";
+    }
+    const src = data || {};
+    const title = trainingQuestTitleFrom(src);
+    if (title != null) {
+      if (isRestQuestTitle(title)) return "";
+      const fromTitle = pplLetterFromQuestTitle(title);
+      if (fromTitle) return fromTitle;
+    }
+    return planSessionLetterFrom(src);
+  }
+
+  /** Set the log dropdown from today's quest unless the athlete already changed it. */
+  function applyManualLogSessionPrefill(data) {
+    const el = typeof $ === "function" ? $("session_type") : null;
+    if (!el || (el.dataset && el.dataset.userPick === "1")) return;
+    const letter = questSessionLetter(data);
+    el.value = letter || "";
   }
 
   function loggedExercisesForDay(sessions, day) {
@@ -7677,6 +7763,7 @@
       lastLiveFingerprint = fp;
       render(data, { quiet });
       setLogDateFromTrainingDay(data);
+      applyManualLogSessionPrefill(data);
       if (!quiet && data.meta && data.meta.error) {
         showAlert(`Partial load: ${data.meta.error}`, "warn");
       }
@@ -7719,6 +7806,7 @@
     status.textContent = "Saving…";
     $("btn-save").disabled = true;
     const body = {
+      // Current dropdown, including an explicit change after prefill (#895).
       session_type: $("session_type").value,
       date: $("log-date").value,
       notes: $("log-notes").value,
@@ -8375,6 +8463,12 @@
     registerServiceWorker();
     if ($("btn-add-ex")) $("btn-add-ex").addEventListener("click", () => addExerciseRow());
     if ($("log-form")) $("log-form").addEventListener("submit", submitWorkout);
+    if ($("session_type")) {
+      $("session_type").addEventListener("change", () => {
+        const el = $("session_type");
+        if (el && el.dataset) el.dataset.userPick = "1";
+      });
+    }
     if ($("session-list")) $("session-list").addEventListener("click", submitHistoryDate);
     if ($("btn-refresh")) $("btn-refresh").addEventListener("click", () => loadDashboard(true));
     if ($("btn-google-auth")) {
