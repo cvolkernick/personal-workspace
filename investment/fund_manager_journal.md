@@ -3202,3 +3202,31 @@
 - **critic:** block_rotate_and_rebuild — Block the $2.93 TSLA sell / SPCX buy. Block any sale of TSLA/SPCX to reseat STRC, SATA, miners, or watchlist names. Held-only inertia does not apply: unheld core and every ready name were in the consider set. STRC/SATA under-allocation versus the numeric 40% is real and is rebutted only by the Chairman exit plus $0.02 BP — not liquidity, not 'MSTR covers credit,' not miner overlap. Do not buy PLTR (+3.02%) or RIOT (+0.01%) because they are the strong tape. A wider gap is not a reason to chase: it is SPCX −3.68% into the Sep 24 unlock and TSLA +0.33% into the Sep 24 Semi event.
 - **executor:** no_order — Quorum is hold. Risk and Thesis OK the hold. Critic sizes the pin chase and the sleeve rebuild to zero. No Robinhood order placed or cancelled. Account remains agentic ••••1752.
 
+
+## 2026-09-23T19:01:52 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $334.9543 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $334.95 BP $0.02 cash $0.02
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-23T19:07:56 — hold
+**Summary:** Mid-session HOLD ~15:03 ET. Agentic NAV $334.79, BP $0.02. Book remains TSLA $170.14 (50.84%) / SPCX $164.51 (49.16%). 50/50 gap $2.81 is not chased into the Sep 24 Semi event and SPCX unlock. 40% BTC sleeve stays closed under the Chairman 2026-09-22 order. No orders.
+**Book:** NAV $334.79 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled mid-session review in regular hours (~15:03 ET, before the 15:30 close window). Broker NAV $334.79, cash and buying power $0.02, crypto $0, unsettled $0, no orders today. Quote equity $334.65 is TSLA $170.14 (50.84%) and SPCX $164.51 (49.16%). One-way gap to the 50/50 pin is $2.81, $1.81 over the $1 minimum and $0.08 wider than the 14:17 ET hold, because SPCX is -3.73% (was -3.52%) while TSLA is +0.15%. Deployed mix is 0% BTC-complex / 100% stocks versus the numeric 40/60. The binding target is the Chairman 2026-09-22 stocks pin, which also left crypto unchanged.
+**Why not alternatives:** No deployable capital: $0.02 is under the $1 minimum, so STRC, SATA, miners, and every ready watchlist name cannot be bought with new money. Rebuilding ~40% (~$134) would sell the 2026-09-22 TSLA and SPCX fills and undo 'exit every other equity.' If that sleeve were reopened, the first dollars would still be STRC and SATA (1 bp spreads; STRC -0.09% and SATA +0.05% vs MSTR -2.81%), not MSTR by habit. The thin STRC top bid (24 shares at 98.98, next bid 540 at 98.97, ask 400 at 98.99) is not an illiquidity rebuttal; SATA is 100.00 x 3647 / 100.01 x 134612. Miners (MARA, RIOT, CLSK, WULF, IREN) were not rejected for overlap. RIOT -0.14% is the least-weak miner and still not a ticket. The only ticket above $1 is a $2.81 TSLA to SPCX pin chase (sell ~0.0074 TSLA, buy ~0.0189 SPCX). That sells the Sep 24 Semi-event name and buys the Sep 24 unlock name. The extra $0.08 of gap is the same unlock-day decline, not a new fact. PLTR +3.33% and GOOGL -3.39% do not break the stocks pin. STRK's ~40 bp book still loses to STRC. BE stays blocked. GLDM stays research-only. Spot BTC -2.77% is not a crypto-policy override.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $334.79, BP $0.02, cash $0.02, crypto $0, unsettled $0, no orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $334.65 = TSLA $170.14 (50.84%) / SPCX $164.51 (49.16%). One-way pin gap $2.81. Primary margin read at $0.09 and not traded. Full core and ready watchlist quoted.
+- **thesis:** ok — Hold. Stocks stay the Chairman 50/50. Do not sell TSLA into the Sep 24 Semi event to buy SPCX into the Sep 24 unlock. Do not rebuild the 40% sleeve by reversing the Sep 22 exit. If that sleeve reopens later, first dollars are STRC and SATA, then a diversified miner set, not MSTR-only and not a single miner.
+- **risk:** ok — No new-money ticket: BP $0.02 is under the $1 minimum. The $2.81 pin gap is above $1, so the round trip is a real choice and is declined on catalyst risk, not dust. Two-name concentration is the intended book. STRC/SATA at 1 bp are not a liquidity fail. STRK at ~40 bp would be, and it is not being sized. No miner concentration exists to block.
+- **critic:** block_resize — Block the $2.81 TSLA→SPCX chase and block any sale of TSLA/SPCX to rebuild STRC, SATA, miners, or watchlist names. Held-only inertia does not apply: unheld core and every ready name were considered. STRC/SATA under-allocation versus the numeric 40% is real and is rebutted only by the Chairman exit plus $0.02 BP — not by liquidity, not by MSTR-covers-credit, and not by miner overlap. The gap widened $0.08 because SPCX fell further; that is not a reason to chase. Do not buy PLTR or RIOT for being the strong tape.
+- **executor:** hold — Quorum is hold. Places nothing. No cancel. Agentic account only.
+
