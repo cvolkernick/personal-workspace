@@ -14,11 +14,14 @@ Reconciliation contract (one writer, one key) (#901):
   extras. It does not create. A second create is a bug.
 - Lookup scans the civil-day agenda for the description marker, then
   unions extended-property hits, so a marker-only morning event is the
-  same id.
+  same id. That agenda is ordered by start time. When more than one
+  event matches, the survivor is the earliest Google ``created``, not
+  the first row. A user-locked extra is not deleted. If an extra is
+  locked and the earliest event is not, the locked event is the survivor.
 - Monitor may move a tagged event when its window now overlaps another event.
 - Neither side moves an event whose start ≠ ``fitdashGymPlannedStart``
   (user moved it = locked). Monitor reports any move it makes.
-- Rest day: delete the tagged event (even if the coach didn't).
+- Rest day: delete an unlocked tagged event. A user-locked event stays.
 - Dashboard load (#811): if today's tagged event *end* has passed and
   ``ppl_logged_for_planning`` is empty, reschedule in place via ``pick_slot``
   from now through end of civil day. In-progress, logged, user-locked, and
@@ -468,6 +471,50 @@ def is_user_locked(ev: dict) -> bool:
     return not same_instant(planned, current)
 
 
+def _created_rank(ev: dict) -> Tuple[int, float]:
+    """Earliest Google ``created`` first. Unstamped events sort last."""
+    stamp = parse_dt(str((ev or {}).get("created") or ""))
+    if stamp is None:
+        return (1, 0.0)
+    return (0, stamp.timestamp())
+
+
+def partition_gym_events(
+    events: Sequence[dict],
+) -> Tuple[Optional[dict], List[dict], List[dict]]:
+    """Return ``(keep, deletable, locked_extras)``.
+
+    ``events.list`` with a time window is ordered by start time, so a
+    later writer's earlier clock sorts first. The survivor is the earliest
+    Google ``created``. Events with no ``created`` keep their incoming
+    order and lose to any stamped event. A user-locked extra is not
+    deleted. If an extra is locked and the current keep is not, that
+    locked event becomes the keep.
+    """
+    ranked = sorted(
+        [ev for ev in events if isinstance(ev, dict) and ev.get("id")],
+        key=_created_rank,
+    )
+    if not ranked:
+        return None, [], []
+    keep = ranked[0]
+    rest = list(ranked[1:])
+    if not is_user_locked(keep):
+        for ev in rest:
+            if is_user_locked(ev):
+                rest = [other for other in ranked if other is not ev]
+                keep = ev
+                break
+    deletable: List[dict] = []
+    locked_extras: List[dict] = []
+    for ev in rest:
+        if is_user_locked(ev):
+            locked_extras.append(ev)
+        else:
+            deletable.append(ev)
+    return keep, deletable, locked_extras
+
+
 def is_gym_event(ev: dict, day: Optional[str] = None) -> bool:
     private = _private(ev)
     if str(private.get(PROP_GYM) or "") != "1" and not DESC_TAG_RE.search(
@@ -842,10 +889,10 @@ def list_day_gym_events(calendar_id: str, day: str) -> List[dict]:
 
     A morning event that only carries ``[fitdash-gym:YYYY-MM-DD]`` is the
     same event as one that also has ``fitdashGymDate``. The civil-day
-    agenda is the primary scan. Extended-property hits are unioned so a
-    tagged event whose start sits outside that window is still found.
-    Description-marker hits come first so the morning id is the one kept
-    when a later writer raced in a second copy.
+    agenda is the primary scan. Google returns that window ordered by
+    start time. Extended-property hits are unioned so a tagged event
+    whose start sits outside that window is still found. Which id
+    survives a pair is ``partition_gym_events``, not this order.
     """
     civil = str(day or "")[:10]
     if not civil or not calendar_id:
@@ -1005,18 +1052,15 @@ def sync_gym_sessions(
             if not day:
                 continue
             existing = list_day_gym_events(cal_id, day)
-            keep: Optional[dict] = None
-            extras: List[dict] = []
-            for ev in existing:
-                if keep is None and ev.get("id"):
-                    keep = ev
-                else:
-                    extras.append(ev)
+            keep, extras, locked_extras = partition_gym_events(existing)
             for ev in extras:
                 if ev.get("id") and _delete_quiet(cal_id, str(ev["id"])):
                     deleted += 1
+            locked += len(locked_extras)
             if gym_day.is_rest:
-                if keep and keep.get("id") and _delete_quiet(cal_id, str(keep["id"])):
+                if keep and is_user_locked(keep):
+                    locked += 1
+                elif keep and keep.get("id") and _delete_quiet(cal_id, str(keep["id"])):
                     deleted += 1
                 continue
             # Reconcile never creates. The morning/coach path is the only

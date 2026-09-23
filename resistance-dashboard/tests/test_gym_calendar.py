@@ -54,7 +54,7 @@ ROOT = Path(__file__).resolve().parents[2]
 RD_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _ev(*, eid, day, start, end=None, planned=None, title="Gym"):
+def _ev(*, eid, day, start, end=None, planned=None, title="Gym", created=None):
     start_dt = start if "T" in start else f"{day}T{start}"
     if end is None:
         from datetime import timedelta
@@ -64,7 +64,7 @@ def _ev(*, eid, day, start, end=None, planned=None, title="Gym"):
     else:
         end_dt = end if "T" in str(end) else f"{day}T{end}"
     planned_iso = planned if planned is not None else start_dt
-    return {
+    ev = {
         "id": eid,
         "summary": title,
         "description": gym_desc_tag(day),
@@ -78,6 +78,9 @@ def _ev(*, eid, day, start, end=None, planned=None, title="Gym"):
             }
         },
     }
+    if created:
+        ev["created"] = created
+    return ev
 
 
 def _busy(eid, start, end):
@@ -1443,11 +1446,11 @@ class QuestGymTime(unittest.TestCase):
         self.assertNotIn("nutrition", after.lower())
 
 
-def _marker_only(*, eid, day, start, summary="Gym · Legs"):
+def _marker_only(*, eid, day, start, summary="Gym · Legs", created=None):
     """Morning write that stamped the description and skipped extended properties."""
     start_dt = datetime.fromisoformat(start)
     end_dt = (start_dt + DURATION).isoformat(timespec="seconds")
-    return {
+    ev = {
         "id": eid,
         "summary": summary,
         "description": (
@@ -1458,6 +1461,9 @@ def _marker_only(*, eid, day, start, summary="Gym · Legs"):
         "start": {"dateTime": start, "timeZone": "America/New_York"},
         "end": {"dateTime": end_dt, "timeZone": "America/New_York"},
     }
+    if created:
+        ev["created"] = created
+    return ev
 
 
 class _FakeCalendar:
@@ -1472,14 +1478,23 @@ class _FakeCalendar:
     def list_events(self, _cid, **kw):
         items = list(self.events.values())
         props = kw.get("private_props") or {}
-        if not props:
-            return list(items)
-        kept = []
-        for ev in items:
-            private = ((ev.get("extendedProperties") or {}).get("private") or {})
-            if all(str(private.get(k) or "") == str(v) for k, v in props.items()):
-                kept.append(ev)
-        return kept
+        if props:
+            kept = []
+            for ev in items:
+                private = ((ev.get("extendedProperties") or {}).get("private") or {})
+                if all(str(private.get(k) or "") == str(v) for k, v in props.items()):
+                    kept.append(ev)
+            items = kept
+        # Live events.list sets orderBy=startTime whenever timeMin/timeMax is set.
+        if kw.get("time_min") or kw.get("time_max"):
+            items = sorted(
+                items,
+                key=lambda ev: (
+                    str(((ev.get("start") or {}).get("dateTime") or (ev.get("start") or {}).get("date") or "")),
+                    str(ev.get("id") or ""),
+                ),
+            )
+        return items
 
     def create_event(self, _cid, body):
         eid = f"created-{len(self.creates) + 1}"
@@ -1609,16 +1624,33 @@ class DedupeKey901(unittest.TestCase):
             cal.events["morning-1"]["start"]["dateTime"], self.START
         )
 
+    def _window_ids(self, cal):
+        listed = cal.list_events(
+            "primary",
+            time_min=f"{self.DAY}T00:00:00-04:00",
+            time_max="2026-09-24T00:00:00-04:00",
+        )
+        return [ev["id"] for ev in listed]
+
     def test_two_writers_racing_leave_one_event(self):
         cal = _FakeCalendar()
-        morning = _marker_only(eid="morning-1", day=self.DAY, start=self.START)
+        # 07:51 morning event starts later. 11:12 duplicate starts at 21:00.
+        # A startTime-ordered scan returns the duplicate first.
+        morning = _marker_only(
+            eid="morning-1",
+            day=self.DAY,
+            start=self.START,
+            created="2026-09-23T07:51:00-04:00",
+        )
         late = _ev(
             eid="fitdash-late",
             day=self.DAY,
             start="2026-09-23T21:00:00-04:00",
+            created="2026-09-23T11:12:00-04:00",
         )
         cal.events[morning["id"]] = morning
         cal.events[late["id"]] = late
+        self.assertEqual(self._window_ids(cal), ["fitdash-late", "morning-1"])
         first = self._run(
             cal,
             lambda: reconcile_gym_sessions(
@@ -1639,8 +1671,111 @@ class DedupeKey901(unittest.TestCase):
         self.assertEqual(cal.creates, [])
         self.assertEqual(list(cal.events), ["morning-1"])
         self.assertIn("fitdash-late", cal.deletes)
+        self.assertNotIn("morning-1", cal.deletes)
         self._assert_both_keys(cal.events["morning-1"], self.DAY)
         self.assertEqual(second["updated"], 1)
+
+    def test_locked_extra_replaces_unlocked_earlier_event(self):
+        cal = _FakeCalendar()
+        # Earliest created and earliest start are both unlocked. The locked
+        # event is later on both clocks, so neither list order nor created
+        # order keeps it unless the lock wins.
+        morning = _marker_only(
+            eid="morning-1",
+            day=self.DAY,
+            start="2026-09-23T21:00:00-04:00",
+            created="2026-09-23T07:51:00-04:00",
+        )
+        locked = _ev(
+            eid="fitdash-late",
+            day=self.DAY,
+            start=self.START,
+            planned="2026-09-23T18:00:00-04:00",
+            created="2026-09-23T11:12:00-04:00",
+        )
+        cal.events[morning["id"]] = morning
+        cal.events[locked["id"]] = locked
+        self.assertEqual(self._window_ids(cal), ["morning-1", "fitdash-late"])
+        self.assertTrue(is_user_locked(locked))
+        self.assertFalse(is_user_locked(morning))
+        result = self._run(
+            cal,
+            lambda: reconcile_gym_sessions(
+                [GymDay(day=self.DAY, is_rest=False, session_type="legs")],
+                now=self.MORNING,
+            ),
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["updated"], 0)
+        self.assertEqual(result["locked"], 1)
+        self.assertEqual(cal.creates, [])
+        self.assertEqual(cal.updates, [])
+        self.assertEqual(list(cal.events), ["fitdash-late"])
+        self.assertIn("morning-1", cal.deletes)
+        self.assertNotIn("fitdash-late", cal.deletes)
+        self.assertEqual(
+            cal.events["fitdash-late"]["start"]["dateTime"], self.START
+        )
+
+    def test_two_user_locked_events_both_stay(self):
+        cal = _FakeCalendar()
+        morning = _ev(
+            eid="morning-1",
+            day=self.DAY,
+            start=self.START,
+            planned="2026-09-23T18:00:00-04:00",
+            created="2026-09-23T07:51:00-04:00",
+        )
+        late = _ev(
+            eid="fitdash-late",
+            day=self.DAY,
+            start="2026-09-23T21:00:00-04:00",
+            planned="2026-09-23T18:00:00-04:00",
+            created="2026-09-23T11:12:00-04:00",
+        )
+        cal.events[morning["id"]] = morning
+        cal.events[late["id"]] = late
+        self.assertEqual(self._window_ids(cal), ["fitdash-late", "morning-1"])
+        result = self._run(
+            cal,
+            lambda: reconcile_gym_sessions(
+                [GymDay(day=self.DAY, is_rest=False, session_type="legs")],
+                now=self.MORNING,
+            ),
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["updated"], 0)
+        self.assertEqual(result["locked"], 2)
+        self.assertEqual(cal.creates, [])
+        self.assertEqual(cal.updates, [])
+        self.assertEqual(cal.deletes, [])
+        self.assertEqual(set(cal.events), {"morning-1", "fitdash-late"})
+
+    def test_rest_day_leaves_user_locked_event(self):
+        cal = _FakeCalendar()
+        locked = _ev(
+            eid="ev-locked",
+            day=self.DAY,
+            start="2026-09-23T21:00:00-04:00",
+            planned="2026-09-23T18:00:00-04:00",
+            created="2026-09-23T07:51:00-04:00",
+        )
+        cal.events[locked["id"]] = locked
+        result = self._run(
+            cal,
+            lambda: reconcile_gym_sessions(
+                [GymDay(day=self.DAY, is_rest=True)],
+                now=self.MORNING,
+            ),
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["deleted"], 0)
+        self.assertEqual(result["locked"], 1)
+        self.assertEqual(cal.deletes, [])
+        self.assertEqual(list(cal.events), ["ev-locked"])
 
 
 if __name__ == "__main__":
