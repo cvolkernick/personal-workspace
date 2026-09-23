@@ -4,7 +4,7 @@ Lightweight CRM + owner-outreach pipeline for cars Chris photographs
 on the roadside. Intake is a Google Drive photo dump; the CRM file
 store is the system of record.
 
-Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820), [#854](https://github.com/cvolkernick/personal-workspace/issues/854), [#855](https://github.com/cvolkernick/personal-workspace/issues/855), [#860](https://github.com/cvolkernick/personal-workspace/issues/860), [#861](https://github.com/cvolkernick/personal-workspace/issues/861), [#862](https://github.com/cvolkernick/personal-workspace/issues/862), [#896](https://github.com/cvolkernick/personal-workspace/issues/896)
+Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#820](https://github.com/cvolkernick/personal-workspace/issues/820), [#854](https://github.com/cvolkernick/personal-workspace/issues/854), [#855](https://github.com/cvolkernick/personal-workspace/issues/855), [#860](https://github.com/cvolkernick/personal-workspace/issues/860), [#861](https://github.com/cvolkernick/personal-workspace/issues/861), [#862](https://github.com/cvolkernick/personal-workspace/issues/862), [#868](https://github.com/cvolkernick/personal-workspace/issues/868), [#896](https://github.com/cvolkernick/personal-workspace/issues/896)
 
 ## Canonical choices
 
@@ -44,6 +44,8 @@ How-to doc in the folder: https://docs.google.com/document/d/1veS6NBRTyg0mCjAkJY
 Folder: https://drive.google.com/drive/folders/1QS6rqyApNDCrsJ90mp83rnbEthlzznxy
 
 Unreadable signs become `needs-info` and stay off outreach until a phone is added.
+
+A same-corner cluster (shots within 20 minutes and 150 m) whose photo texts extract to two distinct year+make pairs is also `needs-info`, with a note containing `same-corner`. That state is not SMS-eligible. Shots outside either window stay two leads and are not flagged (#868).
 
 ## Grok Bot harness
 

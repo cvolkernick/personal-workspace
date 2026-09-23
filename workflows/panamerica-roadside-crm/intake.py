@@ -29,6 +29,15 @@ def parse_set_name(name: str) -> tuple[str, str]:
     return match.group("date") or "", road
 
 
+def _canon_make(raw: str) -> str:
+    make = (raw or "").title()
+    if make.lower() == "chevy":
+        return "Chevrolet"
+    if make.lower() == "vw":
+        return "Volkswagen"
+    return make
+
+
 def extract_vehicle(text: str) -> dict[str, str]:
     blob = text or ""
     year = ""
@@ -43,13 +52,47 @@ def extract_vehicle(text: str) -> dict[str, str]:
     model = ""
     mm = MAKE_MODEL.search(blob)
     if mm:
-        make = mm.group(1).title()
-        if make.lower() == "chevy":
-            make = "Chevrolet"
-        if make.lower() == "vw":
-            make = "Volkswagen"
+        make = _canon_make(mm.group(1))
         model = (mm.group(2) or "").title()
     return {"year": year, "make": make, "model": model, "asking_price": price}
+
+
+def pairs_in_text(text: str) -> list[tuple[str, str]]:
+    """(year, make) pairs in one blob. Each make takes the nearest unused year."""
+    blob = text or ""
+    years = list(YEAR.finditer(blob))
+    used: set[int] = set()
+    pairs: list[tuple[str, str]] = []
+    for mm in MAKE_MODEL.finditer(blob):
+        make = _canon_make(mm.group(1))
+        if not make:
+            continue
+        best_i: Optional[int] = None
+        best_dist: Optional[int] = None
+        for i, ym in enumerate(years):
+            if i in used:
+                continue
+            dist = abs(ym.start() - mm.start())
+            if best_dist is None or dist < best_dist:
+                best_dist = dist
+                best_i = i
+        if best_i is None:
+            continue
+        used.add(best_i)
+        pairs.append((years[best_i].group(1), make))
+    return pairs
+
+
+def distinct_year_make_pairs(bits: list[str]) -> list[tuple[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    ordered: list[tuple[str, str]] = []
+    for bit in bits:
+        for pair in pairs_in_text(bit):
+            if pair in seen:
+                continue
+            seen.add(pair)
+            ordered.append(pair)
+    return ordered
 
 
 def _ocr_bits(photo_set: PhotoSet, ocr: Any) -> list[str]:
@@ -65,15 +108,26 @@ def _ocr_bits(photo_set: PhotoSet, ocr: Any) -> list[str]:
     return bits
 
 
-def harvest_set_text(photo_set: PhotoSet, ocr: Any) -> tuple[str, str]:
-    """Return (contact_blob, vehicle_blob). Vehicle SoT is OCR + sidecar only."""
+def harvest_intake(photo_set: PhotoSet, ocr: Any) -> tuple[str, str, list[str]]:
+    """Return (contact_blob, vehicle_blob, per-source vehicle blobs).
+
+    Vehicle SoT is OCR + sidecar only. Each non-empty sidecar or photo text
+    is its own blob so two vehicles in one cluster stay distinguishable.
+    """
     ocr_bits = _ocr_bits(photo_set, ocr)
-    vehicle_text = "\n".join(b for b in [photo_set.sidecar_text, *ocr_bits] if b)
+    vehicle_bits = [b for b in [photo_set.sidecar_text, *ocr_bits] if b]
+    vehicle_text = "\n".join(vehicle_bits)
     text = "\n".join(
         b
         for b in [photo_set.sidecar_text, *(p.get("name") or "" for p in photo_set.photos), *ocr_bits]
         if b
     )
+    return text, vehicle_text, vehicle_bits
+
+
+def harvest_set_text(photo_set: PhotoSet, ocr: Any) -> tuple[str, str]:
+    """Return (contact_blob, vehicle_blob). Vehicle SoT is OCR + sidecar only."""
+    text, vehicle_text, _bits = harvest_intake(photo_set, ocr)
     return text, vehicle_text
 
 
@@ -86,13 +140,24 @@ def harvest_text(photo_set: PhotoSet, ocr: Any) -> str:
     return harvest_set_text(photo_set, ocr)[0]
 
 
-def lead_from_set(photo_set: PhotoSet, text: str, *, vehicle_text: Optional[str] = None) -> Lead:
+def lead_from_set(
+    photo_set: PhotoSet,
+    text: str,
+    *,
+    vehicle_text: Optional[str] = None,
+    vehicle_bits: Optional[list[str]] = None,
+) -> Lead:
     spotted, road = parse_set_name(photo_set.name)
-    vehicle = extract_vehicle(
-        vehicle_text if vehicle_text is not None else harvest_vehicle_text(photo_set, None)
-    )
+    if vehicle_text is None or vehicle_bits is None:
+        _text, harvested, harvested_bits = harvest_intake(photo_set, None)
+        if vehicle_text is None:
+            vehicle_text = harvested
+        if vehicle_bits is None:
+            vehicle_bits = harvested_bits
+    vehicle = extract_vehicle(vehicle_text)
     phone = first_phone(text)
     state = "new" if phone else "needs-info"
+    pairs = distinct_year_make_pairs(vehicle_bits)
     photos = [
         {
             "id": str(p.get("id") or ""),
@@ -102,6 +167,10 @@ def lead_from_set(photo_set: PhotoSet, text: str, *, vehicle_text: Optional[str]
         for p in photo_set.photos
     ]
     notes: list[str] = []
+    if len(pairs) >= 2:
+        state = "needs-info"
+        shown = " / ".join(f"{year} {make}" for year, make in pairs)
+        notes.append(f"same-corner: {shown}")
     if not phone:
         notes.append("unreadable/missing contact info")
 
