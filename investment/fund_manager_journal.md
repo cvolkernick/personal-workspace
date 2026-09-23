@@ -3174,3 +3174,31 @@
 - **critic:** block_rotate_and_rebuild — Block the $2.64 TSLA sell / SPCX buy. Block any sale of TSLA/SPCX to reseat STRC, SATA, miners, or watchlist names. Held-only inertia does not apply: unheld core and every ready name were in the consider set. STRC/SATA under-allocation versus the numeric 40% is real and is rebutted only by the Chairman exit plus $0.02 BP — not liquidity, not 'MSTR covers credit,' not miner overlap. Do not buy PLTR (+2.87%) or RIOT (+0.25%) because they are the strong tape. A narrower gap is not a reason to chase.
 - **executor:** no_order — Quorum is hold. Risk and Thesis OK the hold. Critic sizes the pin chase and the sleeve rebuild to zero. No Robinhood order placed or cancelled. Account remains agentic ••••1752.
 
+
+## 2026-09-23T18:46:10 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $334.9553 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $334.96 BP $0.02 cash $0.02
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-23T18:51:20 — hold
+**Summary:** HOLD. Agentic NAV $334.95, BP $0.02. Quote book TSLA $170.46 (50.87%) / SPCX $164.60 (49.13%). 50/50 gap $2.93 is $1.93 over the $1 floor and wider than the 14:35 ET HOLD ($2.64) because SPCX fell further. Critic blocks the TSLA→SPCX chase into the Sep 24 Semi event and SPCX unlock. No rebuild of the closed 40% sleeve. STRC/SATA remain first dollars if that sleeve reopens (3 bp quote / 1 bp; not an illiquidity skip). Answers the 18:46Z rules need_llm.
+**Book:** NAV $334.95 · BP $0.02
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Mid-session review in regular hours, not an open or close scalp. Cash and buying power are $0.02, so nothing new can be deployed. The 18:46Z rules path flagged 0% BTC-complex / 100% stocks versus numeric 40/60 and asked for this team pass. The only ticket above $1 is a $2.93 TSLA→SPCX rebalance (87 bp of drift, +$0.29 versus the 14:35 ET gap of $2.64). That gap is SPCX −3.68% into the Sep 24 lockup tranche, while TSLA is +0.33% into the Sep 24 Semi inauguration. Selling the Semi name to buy the unlock name is not how this book should use a round trip. The numeric 40/60 gap stays unpaid because filling it would undo the Chairman exit.
+**Why not alternatives:** STRC and SATA were not skipped for liquidity (quote 3 bp and 1 bp; SATA book 100.00×2,734 / 100.01×37,210; STRC L2 98.87×100 / 98.99×2,000 with 101,960 offered at 99.00) or because MSTR already covers credit. MSTR −2.87% is worse than both preferreds and is not the first dollar even on a reopen. Miners (MARA, RIOT, CLSK, WULF, IREN) were not rejected for overlap; the block is the equity exit and $0.02 BP. BITA (~43 bp) and ASST are secondary to STRC/SATA. Spot BTC −2.90% does not change the crypto sleeve. STRK's book is about $0.62 (~85 bp) and loses the relative-value test versus STRC. Ready watchlist names (GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB, CCJ, BWXT, EVGO) stay unseated under the 50/50 stocks pin. BE is blocked. GLDM −1.85% stays research-only. No new watchlist add.
+**Team:**
+- **scout:** report — Agentic ••••1752 only. Broker NAV $334.95, equity $334.93, cash $0.02, BP $0.02, crypto $0, unsettled $0, no orders today. Held TSLA 0.448384 sh and SPCX 1.104498 sh. Quote equity $335.06 at ~18:47Z: TSLA $170.46 (50.87%, +0.33%) / SPCX $164.60 (49.13%, −3.68%). One-way pin gap $2.93, +$0.29 vs the 14:35 ET JSONL HOLD. Primary margin read ($0.09, no equities) and not traded. Deployed mix 0% BTC-complex / 100% stocks vs numeric 40/60, with the 40% sleeve closed by the 2026-09-22 Chairman exit. BTC mark $84,191 (−2.90%).
+- **thesis:** hold — No idle cash to map. Stocks capital, when it exists, stays 50/50 SPCX+TSLA. Do not sell the Sep 22 fills to rebuild ~$134 of BTC complex. If that sleeve is reopened, first dollars are STRC and SATA (quote spreads 3 bp and 1 bp; STRC −0.08% and SATA +0.05% vs MSTR −2.87%), then a diversified miner set — not MSTR by habit and not a miner-overlap veto. The $2.93 pin chase is the wrong side of tomorrow's Semi event and SPCX unlock; the gap widened because SPCX fell and TSLA rose. Ready watchlist names were priced and not sized. The 18:46Z rules flag does not authorize selling the pin to recreate 40/60.
+- **risk:** ok_hold — BP $0.02 is under the $1 minimum, so no new-money ticket. The pin gap clears $1 by $1.93, so the two-leg rotate is a real choice, not dust. Two-name concentration is the intended book. STRC quote 98.96/98.99 (3 bp) with L2 98.87×100 / 98.99×2,000 and 101,960 at 99.00, and SATA 100.00×2,734 / 100.01×37,210 (1 bp), are not a liquidity block. STRK ~85 bp fails versus STRC and is not sized. BITA ~43 bp is secondary. No capital-bounds breach. Multi-miner is diversification; there is no miner position to concentrate. RIOT +0.01% is the least-weak miner and still not a ticket.
+- **critic:** block_rotate_and_rebuild — Block the $2.93 TSLA sell / SPCX buy. Block any sale of TSLA/SPCX to reseat STRC, SATA, miners, or watchlist names. Held-only inertia does not apply: unheld core and every ready name were in the consider set. STRC/SATA under-allocation versus the numeric 40% is real and is rebutted only by the Chairman exit plus $0.02 BP — not liquidity, not 'MSTR covers credit,' not miner overlap. Do not buy PLTR (+3.02%) or RIOT (+0.01%) because they are the strong tape. A wider gap is not a reason to chase: it is SPCX −3.68% into the Sep 24 unlock and TSLA +0.33% into the Sep 24 Semi event.
+- **executor:** no_order — Quorum is hold. Risk and Thesis OK the hold. Critic sizes the pin chase and the sleeve rebuild to zero. No Robinhood order placed or cancelled. Account remains agentic ••••1752.
+
