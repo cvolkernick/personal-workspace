@@ -63,12 +63,65 @@ class TrendsRhrMarkup(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=novel-staples-858-1", HTML)
-        self.assertIn("/app.js?v=novel-staples-858-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v112"', SW)
+        self.assertIn("/app.js?v=rhr-trend-906-1", HTML)
+        self.assertIn("/app.js?v=rhr-trend-906-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v113"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)
+
+    def test_trend_and_baseline_sit_behind_daily_points(self):
+        start = JS.find("const rhrDatasets = [")
+        end = JS.find('if ($("rhr-trend-note"))', start)
+        self.assertGreater(start, 0)
+        self.assertGreater(end, start)
+        block = JS[start:end]
+        daily = block.split('label: "14d median"', 1)[0]
+        self.assertIn('label: "RHR (bpm)"', daily)
+        self.assertIn('borderColor: "#f07178"', daily)
+        self.assertNotIn("borderDash", daily)
+        self.assertIn("order: 2", daily)
+        median = block.split('label: "14d median"', 1)[1].split("if (rhrTrend)", 1)[0]
+        self.assertIn('borderColor: "#3d9cf0"', median)
+        self.assertIn("borderDash: [6, 4]", median)
+        self.assertIn("order: 1", median)
+        self.assertIn('label: "Trend"', block)
+        self.assertIn('borderColor: "#c084fc"', block)
+        self.assertIn("borderDash: [10, 4]", block)
+        self.assertIn("order: 3", block)
+        self.assertIn('label: "Baseline"', block)
+        self.assertIn('borderColor: "#5ce1a8"', block)
+        self.assertIn("borderDash: [2, 4]", block)
+        self.assertIn("order: 4", block)
+        # Chart.js 4 draws a higher order first, so 3 and 4 sit behind daily order 2.
+        self.assertLess(block.find("order: 2"), block.find('label: "Trend"'))
+        self.assertLess(block.find('label: "Trend"'), block.find('label: "Baseline"'))
+        self.assertIn("const rSlope = trendSlopePerDay(rhrVals);", JS)
+        self.assertIn(
+            "const rhrTrend = rSlope == null ? null : linearTrend(rhrVals);",
+            JS,
+        )
+        self.assertIn("if (rhrTrend)", block)
+        self.assertIn("!recIn.rhr_skipped", JS)
+        self.assertIn("Number.isFinite(Number(baselineRaw))", JS)
+        self.assertIn("rhrVals.map(() => Number(baselineRaw))", JS)
+        self.assertIn("suggestedMin: 45", block)
+        self.assertIn("suggestedMax: 80", block)
+
+    def test_note_appends_bpm_per_week_without_rewriting_baseline_copy(self):
+        self.assertIn(
+            'rSlope == null\n'
+            '            ? ""\n'
+            '            : ` · trend ${rSlope >= 0 ? "+" : ""}${(rSlope * 7).toFixed(2)} bpm/week`;',
+            JS,
+        )
+        self.assertIn(
+            "Today ${Number(todayBpm).toFixed(0)} bpm vs ${window || 14}d median ${Number(baseline).toFixed(0)} (${sign}${Number(delta).toFixed(0)})${flag}${slopeTxt} · ${rhrPresent} days",
+            JS,
+        )
+        self.assertIn(" · under-recovered", JS)
+        self.assertIn("(baseline needs more days)", JS)
+        self.assertIn("No resting heart rate yet — skipped.", JS)
 
 
 if __name__ == "__main__":
