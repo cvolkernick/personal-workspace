@@ -53,6 +53,14 @@ _UNCRUSTABLE_SKIP_KEYS = frozenset(
 _UNCRUSTABLE_DOUBLE_KEYS = frozenset({"calories", "serving_g"})
 _UNCRUSTABLE_DOUBLE_SUFFIXES = ("_g", "_mg", "_mcg", "_iu")
 
+# #912: the 93g Kirkland stir-fry cup is 35 kcal and 2g protein (label).
+# The live row kept 35 kcal / 93g and stored protein_g as 20.
+KIRKLAND_STIRFRY_ID = "kirkland-stir-fry-vegetable-blend"
+KIRKLAND_LABEL_CALORIES = 35.0
+KIRKLAND_LABEL_SERVING_G = 93.0
+KIRKLAND_LABEL_PROTEIN_G = 2.0
+KIRKLAND_MISKEYED_PROTEIN_G = 20.0
+
 
 def canonicalize_inventory_source(source: str) -> str:
     """Named SoT only: turso vs fitness/nutrition/inventory.json. Never unset."""
@@ -158,6 +166,59 @@ def apply_honey_uncrustable_2pack(inventory: dict) -> Tuple[dict, bool]:
 def _heal_honey_uncrustable_2pack(user_id: str, inventory: dict) -> dict:
     """Persist #581 2-pack once on a live Turso row. Fail open to the stored row."""
     patched, changed = apply_honey_uncrustable_2pack(inventory)
+    if not changed:
+        return inventory
+    try:
+        _turso_put_inventory(user_id, patched)
+        readback = _turso_get_inventory(user_id)
+    except Exception:
+        return inventory
+    if _turso_row_empty(readback):
+        return inventory
+    return _as_inventory(readback)
+
+
+def _is_kirkland_stirfry(ing: dict) -> bool:
+    iid = str(ing.get("id") or "").strip().lower()
+    if iid == KIRKLAND_STIRFRY_ID:
+        return True
+    name = " ".join(str(ing.get("name") or "").lower().split())
+    return "kirkland" in name and "stir" in name and "vegetable" in name
+
+
+def _near(value: Any, target: float, tol: float = 0.51) -> bool:
+    try:
+        return abs(float(value) - target) <= tol
+    except (TypeError, ValueError):
+        return False
+
+
+def apply_kirkland_stirfry_label(inventory: dict) -> Tuple[dict, bool]:
+    """Correct protein_g 20 → 2 on the 93g / 35 kcal Kirkland stir-fry cup.
+
+    Idempotent. Does not invent the item, rewrite calories (already the 93g
+    label, not the older 30 kcal / 85g line), or touch any other row. A
+    different serving or an already-correct 2g protein is left alone.
+    """
+    inv = _as_inventory(deepcopy(inventory) if inventory else {"ingredients": []})
+    changed = False
+    for ing in inv.get("ingredients") or []:
+        if not _is_kirkland_stirfry(ing):
+            continue
+        if not (
+            _near(ing.get("calories"), KIRKLAND_LABEL_CALORIES)
+            and _near(ing.get("serving_g"), KIRKLAND_LABEL_SERVING_G)
+            and _near(ing.get("protein_g"), KIRKLAND_MISKEYED_PROTEIN_G)
+        ):
+            continue
+        ing["protein_g"] = KIRKLAND_LABEL_PROTEIN_G
+        changed = True
+    return inv, changed
+
+
+def _heal_kirkland_stirfry_label(user_id: str, inventory: dict) -> dict:
+    """Persist the #912 label correction once on a live Turso row."""
+    patched, changed = apply_kirkland_stirfry_label(inventory)
     if not changed:
         return inventory
     try:
@@ -297,7 +358,9 @@ def load_preview_inventory(user_id: str = "") -> Tuple[dict, str]:
         return file_inv, file_src
     if not _turso_row_empty(existing):
         inv = _as_inventory(existing)
-        return _heal_honey_uncrustable_2pack(user_id, inv), SOT_TURSO
+        inv = _heal_honey_uncrustable_2pack(user_id, inv)
+        inv = _heal_kirkland_stirfry_label(user_id, inv)
+        return inv, SOT_TURSO
     if not file_inv.get("ingredients"):
         return file_inv, file_src
     try:
