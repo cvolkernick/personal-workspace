@@ -10,6 +10,11 @@ Starting-balance payees and "FCC reconcile" bookkeeping (payee, memo, or
 category) are excluded so setup entries and balance adjustments are not
 income or spend. Coinbase→Main withdrawals (payee contains "coinbase") are
 inflows excluded so mining is not double-counted when USD later hits Main.
+
+The 90-day rolling chart (`build_rolling_cash_series`) reuses this filter,
+then drops any payee containing "reconcile". That wider drop is chart-only.
+It does not change Sankey totals or the Glance daily-flow chip. Mining stays
+on the Sankey; the rolling lines are YNAB daily sums only.
 Uncategorized outflows stay an explicit node. Missing/stale Braiins or
 Coinbase price feeds are a loud mining-unknown state, never a silent omit.
 
@@ -28,7 +33,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -37,6 +42,13 @@ DEFAULT_DAYS = 90
 ALLOWED_DAYS = (30, 60, 90, 180)
 STARTING_BALANCE_PAYEES = {"starting balance", "starting balances"}
 FCC_RECONCILE_MARK = "fcc reconcile"
+# Chart series only. Wider than FCC_RECONCILE_MARK and payee-only.
+CHART_RECONCILE_MARK = "reconcile"
+ROLLING_DISPLAY_DAYS = 90
+ROLLING_MEAN_DAYS = 30
+# Matches window_bounds: start = end - days, both inclusive. Not an ALLOWED_DAYS
+# Sankey window — 120 stays rejected by clamp_days.
+ROLLING_SEED_DAYS = 120
 CC_PAYMENT_NAMES = {"credit card payment", "credit card payments"}
 INTERNAL_GROUP_NAMES = {"internal master category"}
 UNCATEGORIZED_NAMES = {"", "uncategorized", "unassigned"}
@@ -214,6 +226,16 @@ def _resolve_category(
     return (gname or "Uncategorized", cname)
 
 
+def _is_chart_reconcile_payee(tx: Dict[str, Any], row: Dict[str, Any], payee: str) -> bool:
+    """Chart-only. Any payee containing 'reconcile', including the parent of a split."""
+    names = (
+        payee,
+        str(row.get("payee_name") or row.get("payee") or ""),
+        str(tx.get("payee_name") or tx.get("payee") or ""),
+    )
+    return any(CHART_RECONCILE_MARK in name.lower() for name in names)
+
+
 def _iter_countable(
     transactions: Iterable[Dict[str, Any]],
     *,
@@ -221,6 +243,7 @@ def _iter_countable(
     end: date,
     on_budget_ids: Optional[set],
     lookup: Dict[str, Tuple[str, str]],
+    extra_skip: Optional[Callable[[Dict[str, Any], Dict[str, Any], str], bool]] = None,
 ) -> Iterable[Dict[str, Any]]:
     for tx in transactions or []:
         if not isinstance(tx, dict) or tx.get("deleted"):
@@ -254,6 +277,8 @@ def _iter_countable(
                 continue
             payee = str(row.get("payee_name") or row.get("payee") or parent_payee).strip()
             if amount > 0 and _is_coinbase_inflow_payee(payee):
+                continue
+            if extra_skip is not None and extra_skip(tx, row, payee):
                 continue
             yield {
                 "date": day.isoformat(),
@@ -641,6 +666,139 @@ def build_cash_streams(
         "ynab": ynab,
         "mining": mining_out,
     }
+
+
+def _rolling_dates(start: date, end: date) -> List[date]:
+    days: List[date] = []
+    cursor = start
+    while cursor <= end:
+        days.append(cursor)
+        cursor += timedelta(days=1)
+    return days
+
+
+def _rolling_mean(values: Sequence[float]) -> float:
+    return _money(sum(values) / float(len(values)))
+
+
+def build_rolling_cash_series(
+    *,
+    today: Optional[date] = None,
+    transactions: Optional[Sequence[Dict[str, Any]]] = None,
+    category_groups: Optional[Sequence[Dict[str, Any]]] = None,
+    on_budget_ids: Optional[Iterable[str]] = None,
+    ynab_stale: bool = False,
+    ynab_as_of: Optional[str] = None,
+    error: Optional[str] = None,
+) -> Dict[str, Any]:
+    """90 displayed days of trailing-30-day mean inflow and outflow.
+
+    Seed is ``end - 120 days`` through ``end`` (inclusive), the same bounds
+    ``window_bounds(120)`` would use. Each displayed day is the mean of that
+    day and the 29 before it, so quiet days count as zero. Outflows are
+    positive magnitudes. Mining is not included.
+
+    Shared exclusions stay in ``_iter_countable``. The only extra drop is a
+    payee containing ``reconcile``.
+    """
+    end = today or date.today()
+    seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
+    display_start = end - timedelta(days=ROLLING_DISPLAY_DAYS - 1)
+    seed = {
+        "start": seed_start.isoformat(),
+        "end": end.isoformat(),
+        "days": ROLLING_SEED_DAYS,
+    }
+    window = {
+        "start": display_start.isoformat(),
+        "end": end.isoformat(),
+        "days": ROLLING_DISPLAY_DAYS,
+    }
+    ynab = {"stale": bool(ynab_stale), "as_of": ynab_as_of}
+    base = {
+        "seed": seed,
+        "window": window,
+        "rolling_days": ROLLING_MEAN_DAYS,
+        "unit": "usd_per_day",
+        "includes_mining": False,
+        "chart_exclusions": [
+            "shared cash-streams filter",
+            "payee contains reconcile",
+        ],
+        "ynab": ynab,
+        "points": [],
+    }
+    if error:
+        return {"ok": False, "error": error, **base}
+
+    seed_days = _rolling_dates(seed_start, end)
+    display_index = next(i for i, day in enumerate(seed_days) if day == display_start)
+    if display_index < ROLLING_MEAN_DAYS - 1:
+        raise ValueError("rolling seed does not cover the first displayed window")
+
+    inflow_by = {day.isoformat(): 0.0 for day in seed_days}
+    outflow_by = {day.isoformat(): 0.0 for day in seed_days}
+    lookup = category_lookup(category_groups or [])
+    budget_ids = set(on_budget_ids) if on_budget_ids is not None else None
+    for row in _iter_countable(
+        transactions or [],
+        start=seed_start,
+        end=end,
+        on_budget_ids=budget_ids,
+        lookup=lookup,
+        extra_skip=_is_chart_reconcile_payee,
+    ):
+        if row["amount"] > 0:
+            inflow_by[row["date"]] = _money(inflow_by[row["date"]] + row["amount"])
+        elif row["amount"] < 0:
+            outflow_by[row["date"]] = _money(outflow_by[row["date"]] + abs(row["amount"]))
+
+    points: List[Dict[str, Any]] = []
+    for i, day in enumerate(seed_days):
+        if day < display_start:
+            continue
+        window_days = seed_days[i - (ROLLING_MEAN_DAYS - 1) : i + 1]
+        points.append(
+            {
+                "date": day.isoformat(),
+                "inflow": _rolling_mean([inflow_by[d.isoformat()] for d in window_days]),
+                "outflow": _rolling_mean([outflow_by[d.isoformat()] for d in window_days]),
+            }
+        )
+    if len(points) != ROLLING_DISPLAY_DAYS:
+        raise ValueError(f"expected {ROLLING_DISPLAY_DAYS} rolling points, got {len(points)}")
+    return {"ok": True, "error": None, **base, "points": points}
+
+
+def load_rolling_cash_series(
+    *,
+    today: Optional[date] = None,
+    stale: Optional[bool] = None,
+    fetch=None,
+) -> Dict[str, Any]:
+    """Live YNAB pull for the rolling chart. ``fetch`` is injectable for tests.
+
+    Does not widen ``ALLOWED_DAYS`` and does not call ``load_cash_streams``.
+    """
+    end = today or date.today()
+    seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
+    fetcher = fetch or fetch_ynab_window
+    pulled = fetcher(seed_start.isoformat())
+    if not pulled.get("ok"):
+        return build_rolling_cash_series(
+            today=end,
+            error=str(pulled.get("error") or "YNAB fetch failed"),
+            ynab_stale=True if stale is None else bool(stale),
+            ynab_as_of=pulled.get("as_of"),
+        )
+    return build_rolling_cash_series(
+        today=end,
+        transactions=pulled.get("transactions") or [],
+        category_groups=pulled.get("category_groups") or [],
+        on_budget_ids=pulled.get("on_budget_ids"),
+        ynab_stale=False if stale is None else bool(stale),
+        ynab_as_of=pulled.get("as_of"),
+    )
 
 
 def _load_snapshot(path: Path) -> Dict[str, Any]:

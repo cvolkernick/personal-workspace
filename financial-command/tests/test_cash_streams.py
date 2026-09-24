@@ -11,7 +11,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
@@ -24,12 +24,16 @@ from treasury.cash_streams import (  # noqa: E402
     ALLOWED_DAYS,
     DEFAULT_DAYS,
     MINING_NODE_NAME,
+    ROLLING_DISPLAY_DAYS,
+    ROLLING_SEED_DAYS,
     TOP_N_INCOME,
     build_cash_streams,
+    build_rolling_cash_series,
     clamp_days,
     display_payee,
     load_cash_streams,
     load_payee_display_names,
+    load_rolling_cash_series,
     mining_from_snapshots,
 )
 
@@ -135,6 +139,7 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertEqual(clamp_days(90), 90)
         self.assertEqual(clamp_days("30"), 30)
         self.assertEqual(clamp_days(7), DEFAULT_DAYS)
+        self.assertEqual(clamp_days(120), DEFAULT_DAYS)
         self.assertEqual(clamp_days("nope"), DEFAULT_DAYS)
         self.assertEqual(ALLOWED_DAYS, (30, 60, 90, 180))
 
@@ -660,6 +665,219 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertIn(MINING_NODE_NAME, _ids(payload, "inflow"))
 
 
+class TestRollingCashSeries(unittest.TestCase):
+    """90 displayed days, trailing 30-day mean, chart-only reconcile payees.
+
+    TODAY is 2026-09-11.
+    Seed start = today - 120d = 2026-05-14 (inclusive).
+    First displayed day = today - 89d = 2026-06-14.
+    That day's window is the 30 days ending 2026-06-14, so 2026-05-16 through
+    2026-06-14. 2026-05-15 is inside the seed and outside every displayed window.
+    """
+
+    def test_calendar_anchors(self) -> None:
+        self.assertEqual(ROLLING_DISPLAY_DAYS, 90)
+        self.assertEqual(ROLLING_SEED_DAYS, 120)
+        self.assertEqual((TODAY - timedelta(days=89)).isoformat(), "2026-06-14")
+        self.assertEqual((TODAY - timedelta(days=120)).isoformat(), "2026-05-14")
+        self.assertEqual((date(2026, 6, 14) - timedelta(days=29)).isoformat(), "2026-05-16")
+
+    def test_empty_window_is_ninety_zero_days(self) -> None:
+        payload = build_rolling_cash_series(
+            today=TODAY,
+            transactions=[],
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["window"]["start"], "2026-06-14")
+        self.assertEqual(payload["window"]["end"], "2026-09-11")
+        self.assertEqual(payload["window"]["days"], 90)
+        self.assertEqual(payload["seed"]["start"], "2026-05-14")
+        self.assertEqual(payload["seed"]["days"], 120)
+        self.assertEqual(payload["rolling_days"], 30)
+        self.assertEqual(payload["unit"], "usd_per_day")
+        self.assertFalse(payload["includes_mining"])
+        self.assertEqual(len(payload["points"]), 90)
+        dates = [date.fromisoformat(p["date"]) for p in payload["points"]]
+        self.assertEqual(dates[0].isoformat(), "2026-06-14")
+        self.assertEqual(dates[-1].isoformat(), "2026-09-11")
+        self.assertEqual(dates, [dates[0] + timedelta(days=i) for i in range(90)])
+        self.assertTrue(all(p["inflow"] == 0.0 and p["outflow"] == 0.0 for p in payload["points"]))
+
+    def test_hand_bucket_trailing_mean(self) -> None:
+        # $3000 on the first included seed day → only 2026-06-14 moves, by 3000/30.
+        # $30 on 2026-09-10 and $300 on 2026-09-11:
+        #   09-10 mean = 30/30 = 1.00
+        #   09-11 mean = (30+300)/30 = 11.00
+        # $90 outflow on 2026-09-11 → 90/30 = 3.00
+        txs = [
+            _tx(amount=3_000_000, payee="Lyft", date_s="2026-05-16"),
+            _tx(amount=9_000_000, payee="Lyft", date_s="2026-05-15"),
+            _tx(amount=30_000, payee="Turo", date_s="2026-09-10"),
+            _tx(amount=300_000, payee="Lyft", date_s="2026-09-11"),
+            _tx(amount=-90_000, payee="Kroger", category_id="c-groc", date_s="2026-09-11"),
+        ]
+        payload = build_rolling_cash_series(
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        first = payload["points"][0]
+        sep10 = next(p for p in payload["points"] if p["date"] == "2026-09-10")
+        last = payload["points"][-1]
+        self.assertEqual(first["date"], "2026-06-14")
+        self.assertEqual(first["inflow"], 100.0)
+        self.assertEqual(first["outflow"], 0.0)
+        self.assertEqual(sep10["inflow"], 1.0)
+        self.assertEqual(sep10["outflow"], 0.0)
+        self.assertEqual(last["inflow"], 11.0)
+        self.assertEqual(last["outflow"], 3.0)
+        # The 2026-05-15 inflow is outside every displayed 30-day window.
+        without = build_rolling_cash_series(
+            today=TODAY,
+            transactions=[tx for tx in txs if tx["date"] != "2026-05-15"],
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(without["points"], payload["points"])
+
+    def test_chart_reconcile_payee_does_not_widen_shared_filter(self) -> None:
+        txs = [
+            _tx(amount=-30_000, payee="Bank reconcile", date_s="2026-09-11", category_id="c-groc"),
+            _tx(amount=-15_000, payee="RECONCILE adjustment", date_s="2026-09-11", category_id="c-rent"),
+            _tx(
+                amount=-20_000,
+                payee="Bank reconcile",
+                date_s="2026-09-11",
+                subtransactions=[
+                    {"amount": -20_000, "category_id": "c-groc", "payee_name": "Kroger"},
+                ],
+            ),
+        ]
+        series = build_rolling_cash_series(
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        sankey = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(series["points"][-1]["outflow"], 0.0)
+        self.assertEqual(series["points"][-1]["inflow"], 0.0)
+        self.assertEqual(sankey["totals"]["outflow"], 65.0)
+        self.assertIn("Groceries", _ids(sankey, "category"))
+        self.assertIn("Rent", _ids(sankey, "category"))
+
+    def test_memo_reconcile_without_fcc_stays_in_chart(self) -> None:
+        txs = [
+            _tx(
+                amount=-30_000,
+                payee="Kroger",
+                memo="please reconcile the receipt",
+                category_id="c-groc",
+                date_s="2026-09-11",
+            )
+        ]
+        series = build_rolling_cash_series(
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        sankey = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(series["points"][-1]["outflow"], 1.0)
+        self.assertEqual(sankey["totals"]["outflow"], 30.0)
+
+    def test_shared_exclusions_still_apply_to_chart(self) -> None:
+        txs = [
+            _tx(amount=300_000, payee="Lyft", date_s="2026-09-11"),
+            _tx(amount=900_000, payee="Starting Balance", date_s="2026-09-11"),
+            _tx(amount=50_000, payee="Move", transfer_account_id="other", date_s="2026-09-11"),
+            _tx(amount=40_000, payee="Coinbase withdrawal", date_s="2026-09-11"),
+            _tx(
+                amount=-500_000,
+                payee="FCC reconcile (working USDC)",
+                date_s="2026-09-11",
+            ),
+            _tx(amount=-90_000, payee="Kroger", category_id="c-groc", date_s="2026-09-11"),
+        ]
+        series = build_rolling_cash_series(
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        last = series["points"][-1]
+        self.assertEqual(last["inflow"], 10.0)
+        self.assertEqual(last["outflow"], 3.0)
+
+    def test_load_fetches_seed_not_sankey_window(self) -> None:
+        seen: dict[str, str] = {}
+
+        def fake_fetch(since: str) -> dict:
+            seen["since"] = since
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-09-11")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": AS_OF,
+            }
+
+        payload = load_rolling_cash_series(today=TODAY, fetch=fake_fetch, stale=False)
+        self.assertEqual(seen["since"], "2026-05-14")
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["ynab"]["stale"])
+        self.assertEqual(payload["points"][-1]["inflow"], 1.0)
+
+        def fail_fetch(since: str) -> dict:
+            return {"ok": False, "error": "no YNAB token"}
+
+        err = load_rolling_cash_series(today=TODAY, fetch=fail_fetch)
+        self.assertFalse(err["ok"])
+        self.assertEqual(err["error"], "no YNAB token")
+        self.assertEqual(err["points"], [])
+        self.assertTrue(err["ynab"]["stale"])
+
+    def test_sankey_days_120_still_clamps(self) -> None:
+        seen: dict[str, str] = {}
+
+        def fake_fetch(since: str) -> dict:
+            seen["since"] = since
+            return {
+                "ok": True,
+                "transactions": [],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": AS_OF,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = load_cash_streams(
+                days=120,
+                today=TODAY,
+                fetch=fake_fetch,
+                root=Path(tmp),
+                now=NOW,
+            )
+        self.assertEqual(payload["window"]["days"], 90)
+        self.assertEqual(payload["window"]["start"], "2026-06-13")
+        self.assertEqual(seen["since"], "2026-06-13")
+
+
 class TestCashStreamsPage(unittest.TestCase):
     def test_page_contract(self) -> None:
         html = PAGE.read_text(encoding="utf-8")
@@ -686,6 +904,16 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn("Does not sync", html)
         self.assertIn("Re-fetch live YNAB transactions", html)
         self.assertNotIn("YNAB cash feeds older than 6h", html)
+        self.assertIn('id="rolling"', html)
+        self.assertIn("/api/cash-streams-rolling", html)
+        self.assertIn(".line-in", html)
+        self.assertIn(".line-out", html)
+        self.assertIn('"line-in"', html)
+        self.assertIn('"line-out"', html)
+        self.assertIn('$/day', html)
+        self.assertIn("Payees containing \"reconcile\"", html)
+        self.assertIn("No CDN", html)
+        self.assertLess(html.index("id=\"sankey\""), html.index("id=\"rolling\""))
 
     def test_index_links_cash_streams(self) -> None:
         html = INDEX.read_text(encoding="utf-8")
@@ -766,6 +994,19 @@ class TestCashStreamsApi(unittest.TestCase):
         data = json.loads(body.decode("utf-8"))
         self.assertFalse(data.get("ok"))
         self.assertTrue(data.get("error"))
+
+    def test_rolling_api(self) -> None:
+        fixture = build_rolling_cash_series(today=TODAY, transactions=[])
+        with mock.patch.object(self.mod, "load_rolling_cash_series", return_value=fixture):
+            code, body = self._get("/api/cash-streams-rolling")
+        self.assertEqual(code, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertTrue(data.get("ok"))
+        self.assertEqual(len(data["points"]), 90)
+        self.assertEqual(data["unit"], "usd_per_day")
+        self.assertFalse(data["includes_mining"])
+        self.assertNotIn("nodes", data)
+        self.assertNotIn("totals", data)
 
 
 if __name__ == "__main__":

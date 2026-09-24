@@ -59,10 +59,13 @@
       max-width: 1100px; margin: 0 auto;
       padding: 1rem 1.25rem 2.5rem;
       display: grid; gap: 0.85rem;
+      min-width: 0;
     }
     .card {
       background: var(--panel); border: 1px solid var(--border);
       border-radius: 12px; padding: 0.9rem 1rem;
+      min-width: 0;
+      max-width: 100%;
     }
     .card h2 { margin: 0 0 0.45rem; font-size: 0.95rem; font-weight: 650; }
     .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
@@ -94,6 +97,16 @@
       min-height: 420px;
     }
     svg.sankey { display: block; width: 100%; height: auto; min-width: 640px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 0.7rem; font-size: 0.78rem; color: var(--muted); margin: 0 0 0.5rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+    .rolling-wrap { min-height: 260px; overflow-x: hidden; }
+    svg.rolling { display: block; width: 100%; height: auto; min-width: 0; max-width: 100%; }
+    .axis text { fill: var(--muted); font-size: 11px; }
+    .axis path, .axis line { stroke: #2a3a4a; }
+    .axis-title { fill: var(--muted); font-size: 11px; font-weight: 650; }
+    .line-in { fill: none; stroke: var(--green); stroke-width: 2.2; }
+    .line-out { fill: none; stroke: var(--red); stroke-width: 2.2; }
     .node rect { stroke: #0b0f14; stroke-width: 1; }
     .node text { font-size: 11px; font-weight: 650; pointer-events: none; }
     .link { fill: none; stroke-opacity: 0.35; }
@@ -133,6 +146,7 @@
         display: none;
       }
       .kpis { grid-template-columns: 1fr; }
+      .rolling-wrap { min-height: 220px; }
       .sticky-top .controls button,
       .sticky-top .controls .btn,
       .sticky-top .controls a.btn {
@@ -200,6 +214,19 @@
         <svg class="sankey" id="sankey" viewBox="0 0 1000 520" role="img" aria-label="Cash streams Sankey"></svg>
       </div>
     </section>
+
+    <section class="card" id="rolling-card">
+      <h2>30-day rolling average</h2>
+      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Seeded from 120 days so every point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. Mining stays on the Sankey. No CDN.</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:#3dd68c"></i> Inflow</span>
+        <span><i class="swatch" style="background:#ff6b6b"></i> Outflow</span>
+      </div>
+      <div id="rolling-error" class="error hidden"></div>
+      <div class="chart-wrap rolling-wrap" id="rolling-wrap">
+        <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow and outflow, dollars per day"></svg>
+      </div>
+    </section>
   </main>
 
   <footer>
@@ -217,6 +244,7 @@
   <script src="/financial-command/vendor/d3-sankey.min.js"></script>
   <script>
     let currentDays = 90;
+    let lastRolling = null;
 
     function esc(s) {
       return String(s ?? "")
@@ -231,6 +259,17 @@
       if (!Number.isFinite(v)) return "—";
       const sign = v < 0 ? "-" : "";
       return sign + "$" + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+
+    function moneyCents(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return "—";
+      return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function parseDay(iso) {
+      const parts = String(iso).slice(0, 10).split("-").map(Number);
+      return new Date(parts[0], parts[1] - 1, parts[2]);
     }
 
     function showError(msg) {
@@ -403,13 +442,164 @@
       }
     }
 
+    function renderRolling(data) {
+      const svg = d3.select("#rolling");
+      svg.selectAll("*").remove();
+      const points = (data.points || []).map((d) => ({
+        ...d,
+        dateObj: parseDay(d.date),
+        inflow: Number(d.inflow) || 0,
+        outflow: Number(d.outflow) || 0,
+      }));
+      const wrap = document.getElementById("rolling-wrap");
+      const width = Math.max(280, Math.floor(wrap.clientWidth || 320) - 2);
+      const height = width < 640 ? 240 : 320;
+      const margin = { top: 16, right: 12, bottom: 46, left: 56 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+      svg.attr("viewBox", "0 0 " + width + " " + height)
+        .attr("width", width)
+        .attr("height", height);
+
+      const g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+      const x = d3.scaleTime()
+        .domain(d3.extent(points, (d) => d.dateObj))
+        .range([0, innerW]);
+      const maxY = Math.max(
+        1,
+        d3.max(points, (d) => d.inflow) || 0,
+        d3.max(points, (d) => d.outflow) || 0
+      );
+      const y = d3.scaleLinear().domain([0, maxY * 1.2]).range([innerH, 0]);
+      const tickCount = width < 640 ? 4 : 8;
+
+      g.append("g").attr("class", "axis")
+        .attr("transform", "translate(0," + innerH + ")")
+        .call(d3.axisBottom(x).ticks(tickCount).tickFormat(d3.timeFormat("%b %d")));
+      g.append("g").attr("class", "axis")
+        .call(d3.axisLeft(y).ticks(width < 640 ? 4 : 5).tickFormat((v) => money(v)));
+      g.append("text").attr("class", "axis-title")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -innerH / 2)
+        .attr("y", -42)
+        .attr("text-anchor", "middle")
+        .text("$/day");
+      g.append("text").attr("class", "axis-title")
+        .attr("x", innerW / 2)
+        .attr("y", innerH + 36)
+        .attr("text-anchor", "middle")
+        .text("Date");
+
+      const lineIn = d3.line()
+        .x((d) => x(d.dateObj))
+        .y((d) => y(d.inflow))
+        .curve(d3.curveMonotoneX);
+      const lineOut = d3.line()
+        .x((d) => x(d.dateObj))
+        .y((d) => y(d.outflow))
+        .curve(d3.curveMonotoneX);
+      g.append("path").attr("class", "line-in").attr("d", lineIn(points));
+      g.append("path").attr("class", "line-out").attr("d", lineOut(points));
+
+      const tip = document.getElementById("tooltip");
+      const hover = g.append("rect")
+        .attr("width", innerW)
+        .attr("height", innerH)
+        .attr("fill", "transparent");
+      const vline = g.append("line")
+        .attr("stroke", "#8aa0b5")
+        .attr("stroke-dasharray", "3 3")
+        .attr("y1", 0)
+        .attr("y2", innerH)
+        .style("display", "none");
+
+      function nearest(px) {
+        const t = x.invert(px);
+        let best = points[0];
+        let bestAbs = Infinity;
+        for (const row of points) {
+          const dist = Math.abs(row.dateObj - t);
+          if (dist < bestAbs) { bestAbs = dist; best = row; }
+        }
+        return best;
+      }
+
+      function showTip(event, row) {
+        tip.classList.remove("hidden");
+        tip.innerHTML =
+          "<strong>" + esc(row.date) + "</strong><br>" +
+          "Inflow " + moneyCents(row.inflow) + "/day<br>" +
+          "Outflow " + moneyCents(row.outflow) + "/day";
+        const src = event.touches && event.touches[0] ? event.touches[0] : event;
+        const left = Math.max(8, Math.min(src.clientX + 12, window.innerWidth - 180));
+        const top = Math.max(8, Math.min(src.clientY + 12, window.innerHeight - 72));
+        tip.style.left = left + "px";
+        tip.style.top = top + "px";
+        vline.style("display", null).attr("x1", x(row.dateObj)).attr("x2", x(row.dateObj));
+      }
+
+      hover.on("mousemove", (event) => {
+        const [px] = d3.pointer(event);
+        showTip(event, nearest(px));
+      }).on("mouseleave", () => {
+        tip.classList.add("hidden");
+        vline.style("display", "none");
+      }).on("touchstart", (event) => {
+        const [px] = d3.pointer(event);
+        showTip(event, nearest(px));
+      });
+    }
+
+    async function loadRolling() {
+      const err = document.getElementById("rolling-error");
+      err.classList.add("hidden");
+      try {
+        const res = await fetch("/api/cash-streams-rolling?ts=" + Date.now());
+        const data = await res.json();
+        if (!data || typeof data !== "object" || data.ok === false) {
+          err.classList.remove("hidden");
+          err.textContent = (data && data.error) || "Rolling chart failed. Live YNAB required.";
+          return;
+        }
+        if (!Array.isArray(data.points) || data.points.length !== 90) {
+          err.classList.remove("hidden");
+          err.textContent = "Rolling chart contract diverged (expected 90 daily points).";
+          return;
+        }
+        if (typeof d3 === "undefined" || typeof d3.scaleTime !== "function") {
+          err.classList.remove("hidden");
+          err.textContent = "Vendored D3 failed to load (financial-command/vendor). No CDN fallback.";
+          return;
+        }
+        const estimated = !!(data.ynab && data.ynab.stale);
+        const win = data.window || {};
+        const hint = document.getElementById("rolling-hint");
+        if (!hint.dataset.base) hint.dataset.base = hint.textContent;
+        hint.textContent = hint.dataset.base +
+          (win.start ? " Window " + win.start + " → " + win.end + "." : "") +
+          (estimated ? " Estimated — live YNAB pull is stale." : "");
+        lastRolling = data;
+        renderRolling(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent = "Could not load rolling chart (" + e.message + ").";
+      }
+    }
+
     document.getElementById("period-toggle").addEventListener("click", (ev) => {
       const btn = ev.target.closest("button[data-days]");
       if (!btn) return;
       load(Number(btn.getAttribute("data-days")));
     });
-    document.getElementById("btn-refresh").addEventListener("click", () => load(currentDays));
+    document.getElementById("btn-refresh").addEventListener("click", () => {
+      load(currentDays);
+      loadRolling();
+    });
+    window.addEventListener("resize", () => {
+      if (lastRolling) renderRolling(lastRolling);
+    });
     load(90);
+    loadRolling();
   </script>
 </body>
 </html>
