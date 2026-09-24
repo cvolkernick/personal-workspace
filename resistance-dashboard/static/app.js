@@ -1134,37 +1134,76 @@
     );
     const rhrMedian14 = rollingMedian(rhrVals, 14);
     const rhrPresent = rhrVals.filter((v) => v != null).length;
+    // Same OLS as the sleep chart: slope from trendSlopePerDay, line from linearTrend.
+    // Hide the dataset when the helper returns null (< 2 finite days, or zero variance in x).
+    const rSlope = trendSlopePerDay(rhrVals);
+    const rhrTrend = rSlope == null ? null : linearTrend(rhrVals);
+    const recIn = (data.recovery && data.recovery.inputs) || {};
+    const baselineRaw = recIn.rhr_baseline_bpm;
+    const baselineLine =
+      !recIn.rhr_skipped &&
+      baselineRaw != null &&
+      Number.isFinite(Number(baselineRaw))
+        ? rhrVals.map(() => Number(baselineRaw))
+        : null;
+    const rhrDatasets = [
+      {
+        label: "RHR (bpm)",
+        data: rhrVals,
+        borderColor: "#f07178",
+        backgroundColor: "rgba(240,113,120,0.12)",
+        tension: 0.25,
+        fill: false,
+        pointRadius: 2,
+        spanGaps: true,
+        order: 2,
+      },
+      {
+        label: "14d median",
+        data: rhrMedian14,
+        borderColor: "#3d9cf0",
+        borderDash: [6, 4],
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0,
+        spanGaps: true,
+        fill: false,
+        order: 1,
+      },
+    ];
+    if (rhrTrend) {
+      rhrDatasets.push({
+        label: "Trend",
+        data: rhrTrend,
+        borderColor: "#c084fc",
+        borderDash: [10, 4],
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0,
+        fill: false,
+        order: 3,
+      });
+    }
+    if (baselineLine) {
+      rhrDatasets.push({
+        label: "Baseline",
+        data: baselineLine,
+        borderColor: "#5ce1a8",
+        borderDash: [2, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0,
+        fill: false,
+        order: 4,
+      });
+    }
     destroyChart(rhrChart);
     if ($("chart-rhr")) {
       rhrChart = new Chart($("chart-rhr"), {
         type: "line",
         data: {
           labels: rhr.map((r) => r.date),
-          datasets: [
-            {
-              label: "RHR (bpm)",
-              data: rhrVals,
-              borderColor: "#f07178",
-              backgroundColor: "rgba(240,113,120,0.12)",
-              tension: 0.25,
-              fill: false,
-              pointRadius: 2,
-              spanGaps: true,
-              order: 2,
-            },
-            {
-              label: "14d median",
-              data: rhrMedian14,
-              borderColor: "#3d9cf0",
-              borderDash: [6, 4],
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0,
-              spanGaps: true,
-              fill: false,
-              order: 1,
-            },
-          ],
+          datasets: rhrDatasets,
         },
         options: {
           ...chartDefaults(),
@@ -1184,20 +1223,23 @@
         $("rhr-trend-note").textContent =
           "No resting heart rate yet — skipped.";
       } else {
-        const recIn = (data.recovery && data.recovery.inputs) || {};
         const todayBpm = recIn.rhr_today_bpm;
         const baseline = recIn.rhr_baseline_bpm;
         const delta = recIn.rhr_delta_bpm;
         const window = recIn.rhr_baseline_days;
+        const slopeTxt =
+          rSlope == null
+            ? ""
+            : ` · trend ${rSlope >= 0 ? "+" : ""}${(rSlope * 7).toFixed(2)} bpm/week`;
         if (!recIn.rhr_skipped && todayBpm != null && baseline != null) {
           const sign = Number(delta) >= 0 ? "+" : "";
           const flag = recIn.rhr_under_recovered ? " · under-recovered" : "";
           $("rhr-trend-note").textContent =
-            `Today ${Number(todayBpm).toFixed(0)} bpm vs ${window || 14}d median ${Number(baseline).toFixed(0)} (${sign}${Number(delta).toFixed(0)})${flag} · ${rhrPresent} days`;
+            `Today ${Number(todayBpm).toFixed(0)} bpm vs ${window || 14}d median ${Number(baseline).toFixed(0)} (${sign}${Number(delta).toFixed(0)})${flag}${slopeTxt} · ${rhrPresent} days`;
         } else {
           const last = [...rhrVals].reverse().find((v) => v != null);
           $("rhr-trend-note").textContent =
-            `Latest ${last != null ? last.toFixed(0) : "—"} bpm · ${rhrPresent} days (baseline needs more days)`;
+            `Latest ${last != null ? last.toFixed(0) : "—"} bpm${slopeTxt} · ${rhrPresent} days (baseline needs more days)`;
         }
       }
     }
