@@ -560,6 +560,14 @@ def session_blurb(session_type: str) -> str:
     return "Training day per FitDash"
 
 
+def event_summary(session_type: str = "") -> str:
+    """Calendar chip title. Letter when known so the chip matches session_type (#914)."""
+    letter = str(session_type or "").strip().lower()
+    if letter in ("push", "pull", "legs"):
+        return f"{EVENT_TITLE} · {letter.capitalize()}"
+    return EVENT_TITLE
+
+
 def event_body(day: str, slot: ChosenSlot, *, session_type: str = "") -> dict[str, Any]:
     if slot.location:
         loc = slot.location
@@ -595,7 +603,7 @@ def event_body(day: str, slot: ChosenSlot, *, session_type: str = "") -> dict[st
     lines.append(tag)
     start_iso = slot.start.isoformat(timespec="seconds")
     return {
-        "summary": EVENT_TITLE,
+        "summary": event_summary(session_type),
         "location": loc,
         "description": "\n".join(lines),
         "start": {"dateTime": start_iso, "timeZone": GYM_TZ_NAME},
