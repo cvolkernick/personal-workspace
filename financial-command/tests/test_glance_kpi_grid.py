@@ -1,4 +1,4 @@
-"""Glance #kpi-grid drops the BP chip (#847)."""
+"""Glance #kpi-grid: four cash chips plus trailing-30d daily flow (#847, #908)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / "financial-command" / "index.html"
 
-GLANCE_LABELS = ("USDC", "Card", "LTV", "NAV")
+GLANCE_LABELS = ("USDC", "Card", "LTV", "NAV", "Daily flow")
 DEAD = ("rhBpTone", "tBp", "rhBp", "bpFloor")
 
 
@@ -99,7 +99,27 @@ class TestGlanceKpiGridNoBp(unittest.TestCase):
         )
         self.assertIsNotNone(m)
         self.assertNotIn('k: "BP"', m.group(1))
-        self.assertEqual(len(re.findall(r"\bk:\s*\"", m.group(1))), 4)
+        self.assertEqual(len(re.findall(r"\bk:\s*\"", m.group(1))), 5)
+
+    def test_daily_flow_chip_contract(self):
+        m = re.search(
+            r'const kpis = \[(.*?)\];\s*document\.getElementById\("kpi-grid"\)',
+            self.html,
+            re.S,
+        )
+        self.assertIsNotNone(m)
+        block = m.group(1)
+        self.assertIn('k: "Daily flow"', block)
+        self.assertIn('s: "30d avg"', block)
+        self.assertIn('href: "cash-streams.html"', block)
+        self.assertIn("dailyFlowValue()", block)
+        self.assertIn("dailyFlowTone()", block)
+        self.assertIn("/api/cash-streams?days=30", self.html)
+        self.assertIn("inflow / days", self.html)
+        self.assertIn("outflow / days", self.html)
+        self.assertIn('flowCovers ? "green" : "red"', self.html)
+        self.assertIn("FCC reconcile excluded", self.html)
+        self.assertIn("v-wrap", self.html)
 
     def test_dead_bp_chip_helpers_removed(self):
         for name in DEAD:
@@ -113,13 +133,13 @@ class TestGlanceKpiGridNoBp(unittest.TestCase):
         self.assertIn("rh_buying_power", self.html)
         self.assertIn("rh_bp_floor", self.html)
 
-    def test_desktop_grid_is_four_col(self):
+    def test_desktop_grid_is_five_col(self):
         grid = _decls(_rule(self.css, ".kpi-grid"))
-        self.assertEqual(grid.get("grid-template-columns"), "repeat(4, minmax(0, 1fr))")
+        self.assertEqual(grid.get("grid-template-columns"), "repeat(5, minmax(0, 1fr))")
 
-    def test_820_stays_four_col(self):
+    def test_820_stays_five_col(self):
         grid = _decls(_rule(self.media_820, ".kpi-grid"))
-        self.assertEqual(grid.get("grid-template-columns"), "repeat(4, minmax(0, 1fr))")
+        self.assertEqual(grid.get("grid-template-columns"), "repeat(5, minmax(0, 1fr))")
 
     def test_560_and_phone_are_two_by_two(self):
         grid_560 = _decls(_rule(self.media_560, ".kpi-grid"))

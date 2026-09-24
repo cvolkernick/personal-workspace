@@ -6,10 +6,12 @@ Canonical sources:
   income, valued at Coinbase ``btc_usd_price`` stamped at first observation
 
 No committed model file. Transfers between on-budget accounts are excluded.
-Coinbase→Main withdrawals (payee contains "coinbase") are inflows excluded so
-mining is not double-counted when USD later hits Main. Uncategorized outflows
-stay an explicit node. Missing/stale Braiins or Coinbase price feeds are a
-loud mining-unknown state, never a silent omit.
+Starting-balance payees and "FCC reconcile" bookkeeping (payee, memo, or
+category) are excluded so setup entries and balance adjustments are not
+income or spend. Coinbase→Main withdrawals (payee contains "coinbase") are
+inflows excluded so mining is not double-counted when USD later hits Main.
+Uncategorized outflows stay an explicit node. Missing/stale Braiins or
+Coinbase price feeds are a loud mining-unknown state, never a silent omit.
 
 Cash Streams freshness is the live YNAB *transaction* pull ``as_of``, not the
 age of balance snapshots (``x_money`` / ``one_card`` / ``rh_checking``). Those
@@ -34,6 +36,7 @@ TOP_N_INCOME = 8
 DEFAULT_DAYS = 90
 ALLOWED_DAYS = (30, 60, 90, 180)
 STARTING_BALANCE_PAYEES = {"starting balance", "starting balances"}
+FCC_RECONCILE_MARK = "fcc reconcile"
 CC_PAYMENT_NAMES = {"credit card payment", "credit card payments"}
 INTERNAL_GROUP_NAMES = {"internal master category"}
 UNCATEGORIZED_NAMES = {"", "uncategorized", "unassigned"}
@@ -114,6 +117,21 @@ def _is_transfer(tx: Dict[str, Any]) -> bool:
 def _is_starting_balance(tx: Dict[str, Any]) -> bool:
     payee = str(tx.get("payee_name") or tx.get("payee") or "").strip().lower()
     return payee in STARTING_BALANCE_PAYEES
+
+
+def _is_fcc_reconcile(tx: Dict[str, Any]) -> bool:
+    """Bookkeeping adjustments, not income or spend (#908)."""
+    blob = " ".join(
+        str(tx.get(key) or "")
+        for key in (
+            "payee_name",
+            "payee",
+            "memo",
+            "category_name",
+            "category_group_name",
+        )
+    ).lower()
+    return FCC_RECONCILE_MARK in blob
 
 
 def _is_cc_payment(tx: Dict[str, Any], group_name: str) -> bool:
@@ -224,7 +242,11 @@ def _iter_countable(
                 continue
             if _is_starting_balance(row) or _is_starting_balance(tx):
                 continue
+            if _is_fcc_reconcile(row) or _is_fcc_reconcile(tx):
+                continue
             group_name, cat_name = _resolve_category(row if row.get("category_id") or row.get("category_name") else tx, lookup)
+            if FCC_RECONCILE_MARK in group_name.lower() or FCC_RECONCILE_MARK in cat_name.lower():
+                continue
             if _is_cc_payment(row, group_name) or _is_cc_payment(tx, group_name):
                 continue
             amount = _milli_units(row.get("amount"))
