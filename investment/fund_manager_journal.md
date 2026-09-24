@@ -3873,3 +3873,34 @@
 - **critic:** block_rotate_and_rebuild — Held-only inertia is not the rationale: there is nothing to top up, and the alternatives (rotate, sleeve rebuild, RKLB chase, miner seat, STRK) were priced and rejected for cause. The 1.10pp gap is $0.03 wider than the 13:34 ET hold and is still noise versus two live event risks. Do not treat STRC's 6 bp as an illiquidity veto or as 'MSTR already covers credit.' Do not reject RIOT/CLSK/WULF/MARA/IREN for miner overlap. Do not seat RKLB because it is +6.22%. Block the rules-engine 40/60 rebuild. Size the rotate to zero.
 - **executor:** hold — Quorum is hold. Risk ok to do nothing; Thesis hold; Critic blocks the rotate and the sleeve rebuild. No place_equity_order and no cancel. Agentic account only. Glass-box row appended to the decision log and GitHub #701.
 
+
+## 2026-09-24T18:02:16 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $333.6363 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $333.64 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-24T18:06:56 — hold
+**Summary:** Mid-session HOLD 14:03 ET. Agentic NAV $332.58, BP $0.03. TSLA $169.70 (51.02%) / SPCX $162.89 (48.98%). One-way pin gap $3.40, $0.26 narrower than the 13:47 ET hold. No orders. 40% sleeve stays closed. Critic blocks the TSLA→SPCX rotate and the rules-engine 40/60 rebuild.
+**Book:** NAV $332.58 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 0.9999
+**Why now:** Scheduled-style mid-session review at 14:03 ET, inside regular hours and outside the open and close windows, answering the 18:02Z rules fire (drift BTC-complex 0% / stocks 100% versus 40/60 ±5%). Agentic ••••1752 only. Broker NAV $332.58, cash $0.03, buying power $0.03, crypto $0, unsettled $0, pending deposits $0, no open equity orders (queued, confirmed, and partially filled empty). Quote book ~18:03Z: TSLA 0.448384 sh × $378.47 = $169.70 (51.02% of quote equity, −0.43% on the day) and SPCX 1.104498 sh × $147.48 = $162.89 (48.98%, −0.59%). One-way gap to the 50/50 pin is $3.40 (1.04 pp), $0.26 narrower than the 13:47 ET hold ($3.66) and still inside today's $2.43–$3.87 range. No deposit. Primary margin was read (equity $0, cash $0.09) and not traded.
+**Why not alternatives:** Research/rotate was run inline against the full consider set (held, unheld core, every ready watchlist name, gold research vehicles, blocked BE, and BTC). The fund-manager-research workflow was not launched: it reads policy and snapshots, cannot see this pass's live quotes, and cannot create buying power or override the Chairman 2026-09-22 standing order. Same-day digest plus live ~18:03Z quotes. Deep dives from 2026-08-04 through 2026-08-31 are inside the 90-day window (oldest about 51 days), and this pass proposes no first buy, so no new position-deep-dive was required. New capital cannot serve a theme: $0.03 is below the $1 minimum. The only funded alternative is a ~$3.40 TSLA→SPCX rotate. That ticket is liquid and above the minimum, and it is still the wrong ticket: it sells TSLA on Semi Rollout day (livestream tonight 9 PM ET) and buys SPCX into today's ~328M-share unlock. The gap narrowed, it did not break out. Rebuilding the 40% complex would sell the Chairman pin. The 2026-09-22 order exited every other equity and left crypto/cash unchanged; the rules-engine 40/60 target is acknowledged and not executed. Disagreement is a Chairman override, not a loop adjustment. STRC (9.1 bp, $98.46, −0.45%) and SATA (1.0 bp, at par) are the first dollars if that sleeve reopens. The STRC spread is not an illiquidity skip, and they are not skipped because MSTR or a miner already covers credit — the book holds neither. Miners were not rejected for overlap. RIOT is the deepest tape (−3.87%, 4.2 bp) and IREN remains the structural relative value (−2.60%, 4.4 bp); neither is a ticket. Ready watchlist names were priced and not seated: stocks capital is 50/50 SPCX+TSLA only. RKLB +5.48% is a chase, and Neutron is still unflown. STRK's ~98 bp book fails a residual RV case versus STRC/SATA. BE stays blocked (−4.44%). Gold stays research-only. Private names (Anduril, Saronic, Boom) are not in the deploy set.
+**Team:**
+- **scout:** ok — Agentic ••••1752. NAV $332.58, BP $0.03, cash $0.03, crypto $0, unsettled $0, pending deposits $0. Held TSLA 0.448384 and SPCX 1.104498 only. No open equity orders. Primary margin read (equity $0, cash $0.09) and not traded. Quote gap to 50/50 is $3.40 at ~18:03Z.
+- **thesis:** hold — Best use of the book now is to stay on the Chairman 50/50 pin. No idle dollars to allocate. Do not sell the pin to reopen BTC credit or to seat a watchlist name. If the 40% sleeve is reopened later, STRC and SATA are the first dollars, then a diversified miner sleeve — not MSTR-only and not a single miner. Theme map: stocks = TSLA/SPCX hold; BTC complex = closed by standing order; AI/energy/space/nuclear watchlist = considered, not sized.
+- **risk:** ok_hold — BP $0.03 fails the $1 minimum. A $3.40 rotate is large enough to print and both names are liquid (TSLA 2.4 bp, SPCX 1.4 bp), but it is the wrong ticket: selling TSLA into an unfinished Semi Rollout (livestream 9 PM ET) and buying SPCX on unlock day. Concentration in two names is the mandated pin, not a defect to finance away. STRC 9.1 bp and SATA 1.0 bp would both clear a future small ticket. STRK at ~98 bp would not. No primary-margin use. No levered rebuild.
+- **critic:** block_rotate_and_rebuild — Held-only inertia is not the rationale: there is nothing to top up, and the alternatives (rotate, sleeve rebuild, RKLB chase, miner seat, STRK) were priced and rejected for cause. The 1.04 pp gap is $0.26 narrower than the 13:47 ET hold and is still noise versus two live event risks. Do not treat STRC's 9.1 bp as an illiquidity veto or as 'MSTR already covers credit' — MSTR is not held. Do not reject RIOT, CLSK, WULF, MARA, or IREN for miner overlap. Do not seat RKLB because it is +5.48%. Block the rules-engine 40/60 rebuild. Size the rotate to zero.
+- **executor:** hold — Quorum is hold. Risk ok to do nothing; Thesis hold; Critic blocks the rotate and the sleeve rebuild. No place_equity_order and no cancel. Agentic account only. Glass-box row appended to the decision log and GitHub #701.
+**Actions:**
+- HOLD TSLA $0 [no_order] 
+- HOLD SPCX $0 [no_order] 
+
