@@ -184,7 +184,7 @@
     .toast.show { display: block; }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 0.35rem;
       overflow: visible;
       width: 100%;
@@ -405,7 +405,7 @@
     }
     .advisor-error.show { display: block; }
     @media (max-width: 820px) {
-      .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     }
     @media (max-width: 560px) {
       .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -438,6 +438,11 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .kpi .v.v-wrap {
+      white-space: normal;
+      font-size: 0.74rem;
+      line-height: 1.2;
     }
     .kpi .s {
       font-size: 0.62rem;
@@ -3832,7 +3837,7 @@
       const tAsic = asicHashTone();
       const tPay = nextPayTone();
 
-      // Glance: primary 4 only (SNR). Secondary cash/mining live on other tabs.
+      // Glance: USDC, Card, LTV, NAV, plus trailing-30d daily flow (#908).
       const cardUtilPct =
         cardDeposit > 0 && Number.isFinite(cardOwed)
           ? Math.round((cardOwed / cardDeposit) * 100) + "%"
@@ -3878,26 +3883,45 @@
           tone: tAgent.tone,
           why: tAgent.why,
         },
+        {
+          k: "Daily flow",
+          v: dailyFlowValue(),
+          s: "30d avg",
+          target: "",
+          href: "cash-streams.html",
+          tone: dailyFlowTone(),
+          why: dailyFlowWhy(),
+          wrap: true,
+          flow: true,
+        },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
         .map((k) => {
           const tone = k.tone || "muted";
           const word = toneWord[tone] || tone;
           const why = (k.why || "").trim() || `${k.k}: ${word}`;
+          const hrefAttr = k.href ? ` data-href="${escapeHtml(k.href)}"` : "";
+          const flowAttr = k.flow ? ` data-flow="daily"` : "";
+          const vClass = k.wrap ? "v v-wrap" : "v";
           return (
-            `<div class="kpi tone-${tone}" data-target="${k.target}" tabindex="0" ` +
+            `<div class="kpi tone-${tone}" data-target="${k.target || ""}"${hrefAttr}${flowAttr} tabindex="0" ` +
             `aria-label="${escapeHtml(k.k + ": " + why)}">` +
             `<div class="kpi-tip" role="tooltip">` +
             `<span class="tip-tone">${escapeHtml(word)}</span>` +
             `${escapeHtml(why)}</div>` +
-            `<div class="k">${k.k}</div>` +
-            `<div class="v">${k.v}</div>` +
-            `<div class="s">${k.s}</div></div>`
+            `<div class="k">${escapeHtml(k.k)}</div>` +
+            `<div class="${vClass}">${k.v}</div>` +
+            `<div class="s">${escapeHtml(k.s)}</div></div>`
           );
         })
         .join("");
       document.querySelectorAll(".kpi").forEach((el) => {
         el.addEventListener("click", () => {
+          const href = el.getAttribute("data-href");
+          if (href) {
+            window.location.href = href;
+            return;
+          }
           const id = el.getAttribute("data-target");
           const node = document.getElementById(id);
           if (!node) return;
@@ -5448,6 +5472,89 @@
       }
     }
 
+    let dailyFlow = null;
+    let dailyFlowAt = 0;
+    let dailyFlowFlight = null;
+    const DAILY_FLOW_TTL_MS = 4 * 60 * 1000;
+
+    function dailyFlowValue() {
+      if (!dailyFlow || !dailyFlow.ok) return dailyFlow && dailyFlow.error ? "—" : "…";
+      return `${money(dailyFlow.inAvg)} in · ${money(dailyFlow.outAvg)} out`;
+    }
+
+    function dailyFlowTone() {
+      if (!dailyFlow || !dailyFlow.ok) return "muted";
+      const flowCovers = dailyFlow.inAvg >= dailyFlow.outAvg;
+      return flowCovers ? "green" : "red";
+    }
+
+    function dailyFlowWhy() {
+      if (!dailyFlow || !dailyFlow.ok) {
+        if (dailyFlow && dailyFlow.error) {
+          return `Trailing 30d cash-streams unavailable (${dailyFlow.error}).`;
+        }
+        return "Loading trailing 30-day average inflow and outflow.";
+      }
+      const netDay = (dailyFlow.inflow - dailyFlow.outflow) / dailyFlow.days;
+      return (
+        `Trailing ${dailyFlow.days}d (${dailyFlow.start}–${dailyFlow.end}). ` +
+        `Average = totals/${dailyFlow.days}: in ${money(dailyFlow.inAvg)}/day, ` +
+        `out ${money(dailyFlow.outAvg)}/day, net ${money(netDay)}/day. ` +
+        `Transfers, starting balance, and FCC reconcile excluded.`
+      );
+    }
+
+    async function loadDailyFlow(opts) {
+      const force = !!(opts && opts.force);
+      if (
+        !force &&
+        dailyFlow &&
+        dailyFlow.ok &&
+        Date.now() - dailyFlowAt < DAILY_FLOW_TTL_MS
+      ) {
+        return;
+      }
+      if (dailyFlowFlight) return dailyFlowFlight;
+      dailyFlowFlight = (async () => {
+        try {
+          const res = await fetch("/api/cash-streams?days=30&ts=" + Date.now());
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const payload = await res.json();
+          const totals = (payload && payload.totals) || {};
+          const flowWindow = (payload && payload.window) || {};
+          const days = Number(flowWindow.days);
+          const inflow = Number(totals.inflow);
+          const outflow = Number(totals.outflow);
+          if (
+            !payload.ok ||
+            days !== 30 ||
+            !Number.isFinite(inflow) ||
+            !Number.isFinite(outflow)
+          ) {
+            throw new Error((payload && payload.error) || "bad cash-streams totals");
+          }
+          dailyFlow = {
+            ok: true,
+            days: days,
+            start: flowWindow.start || "",
+            end: flowWindow.end || "",
+            inflow: inflow,
+            outflow: outflow,
+            inAvg: inflow / days,
+            outAvg: outflow / days,
+          };
+          dailyFlowAt = Date.now();
+        } catch (e) {
+          dailyFlow = { ok: false, error: (e && e.message) || "fetch failed" };
+          dailyFlowAt = 0;
+        } finally {
+          dailyFlowFlight = null;
+        }
+        if (window.__treasury && typeof render === "function") render(window.__treasury);
+      })();
+      return dailyFlowFlight;
+    }
+
     async function loadTreasury() {
       const errEl = document.getElementById("load-error");
       errEl.classList.add("hidden");
@@ -5471,6 +5578,7 @@
         }
         window.__treasury = data;
         render(data);
+        loadDailyFlow();
         loadWatchlistPreview();
         loadCoach();
         loadBtcNetwork();
@@ -5503,6 +5611,7 @@
           }
           window.__treasury = t;
           render(t);
+          loadDailyFlow({ force: true });
           if (typeof loadCoach === "function") loadCoach();
           if (typeof loadBtcNetwork === "function") loadBtcNetwork();
         } else await loadTreasury();

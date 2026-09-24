@@ -65,6 +65,7 @@ def _tx(
     account_id: str = "onb",
     deleted: bool = False,
     subtransactions=None,
+    memo: str | None = None,
 ) -> dict:
     row = {
         "amount": amount,
@@ -76,6 +77,8 @@ def _tx(
         "account_id": account_id,
         "deleted": deleted,
     }
+    if memo is not None:
+        row["memo"] = memo
     if subtransactions is not None:
         row["subtransactions"] = subtransactions
     return row
@@ -174,6 +177,70 @@ class TestCashStreamsBuilder(unittest.TestCase):
         revenue = next(n["amount"] for n in payload["nodes"] if n["id"] == "revenue")
         self.assertEqual(sources, revenue)
         self.assertEqual(revenue, groups + retained)
+
+    def test_fcc_reconcile_bookkeeping_excluded(self) -> None:
+        groups = GROUPS + [
+            {
+                "id": "g-recon",
+                "name": "Internal",
+                "categories": [{"id": "c-recon", "name": "FCC reconcile"}],
+            }
+        ]
+        txs = [
+            _tx(amount=300_000, payee="Lyft"),
+            _tx(amount=-40_000, payee="Kroger", category_id="c-groc"),
+            _tx(
+                amount=-791_180,
+                payee="FCC reconcile (working USDC)",
+                memo="spot=106.06+vault=100",
+            ),
+            _tx(amount=125_000, payee="Adjustment", memo="FCC reconcile leftover"),
+            _tx(amount=-15_000, payee="Bookstore", category_id="c-recon"),
+            _tx(
+                amount=-20_000,
+                payee="FCC reconcile (working USDC)",
+                subtransactions=[
+                    {"amount": -20_000, "category_id": "c-groc", "payee_name": ""},
+                ],
+            ),
+        ]
+        payload = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=txs,
+            category_groups=groups,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(payload["totals"]["inflow"], 300.0)
+        self.assertEqual(payload["totals"]["outflow"], 40.0)
+        names = _ids(payload, "inflow") + _ids(payload, "category")
+        self.assertNotIn("FCC reconcile (working USDC)", names)
+        self.assertNotIn("Adjustment", names)
+        self.assertNotIn("FCC reconcile", names)
+
+    def test_trailing_30d_average_is_totals_over_30(self) -> None:
+        txs = [
+            _tx(amount=300_000, payee="Lyft", date_s="2026-09-01"),
+            _tx(amount=-150_000, payee="Kroger", category_id="c-groc", date_s="2026-09-02"),
+            _tx(amount=900_000, payee="Starting Balance", date_s="2026-09-03"),
+            _tx(
+                amount=-500_000,
+                payee="FCC reconcile (working USDC)",
+                date_s="2026-09-04",
+            ),
+        ]
+        payload = build_cash_streams(
+            days=30,
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(payload["window"]["days"], 30)
+        self.assertEqual(payload["totals"]["inflow"], 300.0)
+        self.assertEqual(payload["totals"]["outflow"], 150.0)
+        self.assertEqual(payload["totals"]["inflow"] / payload["window"]["days"], 10.0)
+        self.assertEqual(payload["totals"]["outflow"] / payload["window"]["days"], 5.0)
 
     def test_deficit_link_back(self) -> None:
         txs = [
