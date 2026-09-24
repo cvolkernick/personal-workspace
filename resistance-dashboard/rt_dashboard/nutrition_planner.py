@@ -3891,8 +3891,22 @@ def _names_overlap(a: str, b: str) -> bool:
 
 
 def _protein_density(ing: dict) -> float:
-    cal = float(ing.get("calories") or 0) or 1.0
-    return float(ing.get("protein_g") or 0) / cal
+    """Protein grams per calorie. Missing or non-positive calories are 0.
+
+    Dividing by ``calories or 1.0`` turned a 0 kcal row into a fake
+    high-density protein whenever protein_g was at least 0.08 (#912).
+    """
+    try:
+        cal = float(ing.get("calories") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if cal <= 0:
+        return 0.0
+    try:
+        protein = float(ing.get("protein_g") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return protein / cal
 
 
 def inventory_gap_role(ing: dict) -> Optional[str]:
@@ -4311,24 +4325,30 @@ def suggest_inventory_staples(
     for ing in restock_needed:
         dens = _protein_density(ing)
         low = normalize_stock(ing) == STOCK_LOW
+        # Veg wins over protein density. A vegetable whose stored ratio trips
+        # 0.08 (or whose calories were missing) is still volume/fiber (#912).
+        # is_veg_or_fruit covers category veg/vegetable/fruit/produce and name
+        # hints, matching inventory_gap_role. Category == "veg" alone missed
+        # this blend: it is stored as carb and the name carries "vegetable".
+        veg = is_veg_or_fruit(ing)
         # Base high so restocks beat net-new catalog noise
         score = 75.0 + dens * 80.0
         if low:
-            if dens >= 0.08:
-                reason = "Running low and high protein density — restock before empty."
-                score += 18
-            elif (ing.get("category") or "") == "veg":
+            if veg:
                 reason = "Running low on veg — restock for volume/fiber."
                 score += 10
+            elif dens >= 0.08:
+                reason = "Running low and high protein density — restock before empty."
+                score += 18
             else:
                 reason = "Running low — restock before empty."
                 score += 8
+        elif veg:
+            reason = "Out of stock veg — restock for volume/fiber."
+            score += 12
         elif dens >= 0.08:
             reason = "Out of stock and high protein density — restock for meal plans."
             score += 20
-        elif (ing.get("category") or "") == "veg":
-            reason = "Out of stock veg — restock for volume/fiber."
-            score += 12
         else:
             reason = "Marked out of stock — restock if you still use it."
             score += 10
