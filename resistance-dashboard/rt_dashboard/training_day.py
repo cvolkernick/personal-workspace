@@ -70,6 +70,13 @@ def _days_apart(a: str, b: str) -> Optional[int]:
     return abs((da - db).days)
 
 
+# Civil morning with yesterday's wake still advertised (sleep battery lag)
+# must not keep last night's close in the planning window (#914). After
+# midnight before dawn, delta 1 still counts so a 00:30 finish stays on
+# the prior training day.
+_AFTER_MIDNIGHT_END_HOUR = 5
+
+
 def wake_covers_as_of(
     last_wake_at: Any,
     as_of: Optional[str],
@@ -77,10 +84,13 @@ def wake_covers_as_of(
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
 ) -> bool:
-    """True when last_wake is this wake or yesterday (after-midnight).
+    """True when last_wake is this wake, or yesterday only before dawn.
 
     A last_wake weeks ago (stale sleep battery) must not pin today's letter
-    to that old session. After-midnight finish is still delta 1.
+    to that old session. After-midnight finish (delta 1, hour < 5) still
+    counts. A civil morning (~07:51 gym book) with yesterday's wake no
+    longer covers — fall back to civil day so last night's log does not
+    mirror into today (#914).
     """
     train = training_day_iso(now=now, last_wake_at=last_wake_at, tz_name=tz_name)
     civil = str(as_of or "")[:10]
@@ -89,7 +99,14 @@ def wake_covers_as_of(
 
         civil = local_today_iso(tz_name, now=now)
     delta = _days_apart(train, civil)
-    return delta is not None and delta <= 1
+    if delta is None or delta > 1:
+        return False
+    if delta == 0:
+        return True
+    from .timeutil import local_now
+
+    clock = local_now(tz_name, now=now)
+    return clock.hour < _AFTER_MIDNIGHT_END_HOUR
 
 
 def wake_is_current(

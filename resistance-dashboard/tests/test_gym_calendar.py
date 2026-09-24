@@ -421,7 +421,7 @@ class EventShape(unittest.TestCase):
     def test_tag_duration_props_and_session_blurb(self):
         slot = pick_slot("2026-09-15", [])  # Tuesday
         body = event_body("2026-09-15", slot, session_type="pull")
-        self.assertEqual(body["summary"], EVENT_TITLE)
+        self.assertEqual(body["summary"], "Gym · Pull")
         self.assertEqual(body["start"]["dateTime"], slot.start.isoformat(timespec="seconds"))
         self.assertIn("[fitdash-gym:2026-09-15]", body["description"])
         self.assertIn("Pull day per FitDash", body["description"])
@@ -538,7 +538,7 @@ class SyncCoach(unittest.TestCase):
             )
         self.assertTrue(result["ok"], result)
         self.assertEqual(len(created), 1)
-        self.assertEqual(created[0]["summary"], "Gym")
+        self.assertEqual(created[0]["summary"], "Gym · Push")
         self.assertIn("[fitdash-gym:2026-09-14]", created[0]["description"])
         self.assertEqual(updated, [])
         self.assertEqual(deleted, [])
