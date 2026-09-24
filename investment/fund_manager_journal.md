@@ -3789,3 +3789,31 @@
 - **critic:** block — Blocked the two trades this tape tempts. (1) TSLA→SPCX: the gap went from $4.01 at 12:51 ET to $3.97 because TSLA faded from +0.75% to +0.61% while SPCX slipped from −0.10% to −0.20%. That is not a heal and not a reason to sell the Semi Rollout bid into today's unlock. Spreads are not an excuse to skip, and they are not a reason to chase. Day-trading the pin is outside cadence. (2) The 17:02Z rules fire wants a 40/60 rebuild. That sells the Chairman-locked book into STRC/SATA/miners. The under-allocation challenge to STRC/SATA does not fire, because no BTC-complex dollar is being deployed. If one were, skipping STRC/SATA for MSTR or a miner would be blocked. Miner-overlap was not used as a rejection and would have been blocked if it had been. Held-only inertia was tested against the full unheld allowlist and the ready watchlist; the hold is the pin plus zero cash, not habit.
 - **executor:** hold — No Robinhood order. Quorum is hold: Risk ok for doing nothing, Thesis hold, Critic blocks both the rotate and the 40/60 rebuild. Agentic ••••1752 only. Primary margin was not traded.
 
+
+## 2026-09-24T17:17:20 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $335.3024 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $335.30 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-24T17:24:08 — hold
+**Summary:** Mid-session HOLD on agentic ••••1752, answering the 17:17Z rules fire. Broker NAV $334.87, buying power $0.03. Quote book at 17:18Z is TSLA $171.39 (51.15%) / SPCX $163.66 (48.85%). One-way gap to the 50/50 pin is $3.86, $0.11 narrower than the 13:08 ET hold. No orders. BTC sleeve stays closed. STRC/SATA not skipped for illiquidity.
+**Book:** NAV $334.87 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Mid-session team pass at 13:18 ET answering the 17:17:20Z rules fire (deployed mix 0% BTC-complex / 100% stocks versus the numeric 40/60 ±5% band). Regular hours, outside the open and close windows. Broker NAV $334.87 (equity $334.84, cash $0.03), buying power $0.03, crypto $0, unsettled $0, pending deposits $0, no open equity orders. Live book at 17:18Z: TSLA 0.448384 sh @ $382.24 = $171.39 (51.15%, +0.56% vs $380.12), SPCX 1.104498 sh @ $148.18 = $163.66 (48.85%, −0.12% vs $148.36). Quote equity $335.06. One-way gap $3.86, $0.11 narrower than the 13:08 ET team hold ($3.97). No deposit. Chairman 2026-09-22 is unchanged: stocks are 50/50 TSLA+SPCX only, and the BTC equity sleeve stays closed. Today's digest proposed no pin change.
+**Why not alternatives:** Held-only inertia was challenged and is not the rationale. Unheld core (STRC, SATA, MSTR, BITA, ASST, MARA, RIOT, CLSK, WULF, IREN, spot BTC) and every ready watchlist name were priced at 17:18Z. None is a better use of capital that does not exist ($0.03 is below the $1 minimum). Rebuilding 40/60 would sell the locked TSLA/SPCX book; Critic blocked that. A $3.86 TSLA→SPCX rotate is liquid (~1.3 bp each side) and above the $1 minimum, and it was still rejected: it sells TSLA on Semi Rollout day after the name turned green and buys SPCX into today's unlock, for a 1.15 percentage-point gap that narrowed $0.11 in the last ten minutes. STRC and SATA were not skipped for illiquidity (STRC 3.0 bp at $98.61, SATA 1.0 bp at par) and not skipped because MSTR or a miner already covers credit — they are the first dollars if the sleeve reopens. Miners were not rejected for overlap. RIOT is the deepest tape (−2.69%) and IREN is the structural relative value (−1.45%); both stay behind credit. STRK is junior and much wider (106 bp) and is not a substitute. GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB (+7.11%), CCJ, BWXT, and EVGO stay unseated under the 50/50 pin. BE stays blocked. GLDM stays research-only. Private names are not deployable. No deep-dive refresh: required dives are 24–51 days old, inside 90, and this pass proposes no first buy.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $334.87, BP $0.03, cash $0.03, crypto $0, unsettled $0. Held TSLA $171.39 (51.15%) and SPCX $163.66 (48.85%). Deployed mix 0/100 versus numeric 40/60. 50/50 gap $3.86, narrower than 13:08 ET. Primary margin read at $0.09 and not traded. Full consider set priced at 17:18Z; BTC mark $84,372 at 13:21 ET.
+- **thesis:** hold — No deployable capital. If the 40% sleeve reopened, first dollars are STRC and SATA, then a diversified miner sleeve (RIOT on today's tape, IREN on structure), not MSTR-only and not a single miner. A stock dollar would go to SPCX while TSLA is overweight, but not by selling TSLA into Semi Rollout day. Watchlist ready names were considered and rejected under the 50/50 pin, not ignored.
+- **risk:** ok — Cash $0.03 is below the $1 minimum, so no new ticket. The $3.86 rotate is above the minimum and liquid, and it is still the wrong risk: event-day churn on a 1.15 percentage-point gap inside noise. Two-name concentration is the Chairman pin, not an accidental held-only pile. Do not sell the book to create a 40% sleeve. Multi-miner overlap is not a risk block. STRK's 106 bp book is a liquidity block; STRC at 3.0 bp and SATA at 1.0 bp are not.
+- **critic:** block — Block the TSLA→SPCX rotate and block the rules-engine 40/60 rebuild. 'We already own TSLA and SPCX' is not the reason. The reason is no deployable cash, the 2026-09-22 lock, and a gap that narrowed rather than broke. STRC/SATA under-allocation inside a closed sleeve is real and is not cured by selling the locked stocks today. No miner was rejected for overlap.
+- **executor:** hold — No Robinhood orders. Quorum is hold. Buying power $0.03 cannot fill a ticket. Critic blocked the only sized rotate.
+
