@@ -425,6 +425,203 @@
     box.innerHTML = "";
   }
 
+  // Same keys as workout_planner.NAME_ALIASES. Exact name or alias, never substring.
+  const LOG_NAME_ALIASES = {
+    "db flat press": "db-flat-press",
+    "db incline press": "db-incline-press",
+    "db shoulder press": "db-shoulder-press",
+    "lateral raises": "lateral-raises",
+    "lateral raise": "lateral-raises",
+    "tricep pushdowns": "tricep-pushdowns",
+    "tricep pushdown": "tricep-pushdowns",
+    "seated cable row": "seated-cable-row",
+    "pulldowns": "pulldowns",
+    "pull downs": "pulldowns",
+    "assisted pullups": "assisted-pullups",
+    "assisted pull-ups": "assisted-pullups",
+    "machine row": "machine-row",
+    "face pulls": "face-pulls",
+    "db curls": "db-curls",
+    "hammer curls": "hammer-curls",
+    "leg press": "leg-press",
+    "rdl": "rdl",
+    "rdls": "rdl",
+    "seated leg curls": "seated-leg-curls",
+    "seated leg curl": "seated-leg-curls",
+    "lying leg curl": "lying-leg-curls",
+    "lying leg curls": "lying-leg-curls",
+    "laying leg curl": "lying-leg-curls",
+    "laying leg curls": "lying-leg-curls",
+    "prone leg curl": "lying-leg-curls",
+    "prone leg curls": "lying-leg-curls",
+    "calf raises": "calf-raises",
+    "calf raise": "calf-raises",
+    "calf extensions": "calf-raises",
+    "calf extension": "calf-raises",
+    "machine calf raise": "calf-raises",
+    "machine calf raises": "calf-raises",
+    "seated calf raise": "calf-raises",
+    "seated calf raises": "calf-raises",
+    "db calf raises": "db-calf-raises",
+    "db calf raise": "db-calf-raises",
+    "dumbbell calf raises": "db-calf-raises",
+    "dumbbell calf raise": "db-calf-raises",
+    "standing calf raises": "db-calf-raises",
+    "standing calf raise": "db-calf-raises",
+    "back extension machine": "back-extension",
+    "smith bench": "smith-flat-bench",
+    "smith flat bench": "smith-flat-bench",
+    "smith incline bench": "smith-incline-bench",
+    "smith shrugs": "smith-shrugs",
+    "db floor press": "db-floor-press",
+    "dumbbell floor press": "db-floor-press",
+    "floor press": "db-floor-press",
+    "db row": "db-row",
+    "dumbbell row": "db-row",
+    "one arm row": "db-row",
+    "goblet squat": "goblet-squat",
+    "db goblet squat": "goblet-squat",
+  };
+
+  function normExerciseName(name) {
+    return String(name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  function slugExerciseName(name) {
+    const s = String(name || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return s || "exercise";
+  }
+
+  function catalogById(catalog) {
+    const by = {};
+    for (const ex of (catalog && catalog.exercises) || []) {
+      if (ex && ex.id) by[String(ex.id)] = ex;
+    }
+    return by;
+  }
+
+  /**
+   * Catalog id from exact name or alias. Never substring
+   * (Calf Raises is not inside DB Calf Raises).
+   */
+  function canonicalExerciseId(exerciseName, catalog) {
+    const key = normExerciseName(exerciseName);
+    if (!key) return null;
+    const byId = catalog ? catalogById(catalog) : null;
+    const alias = LOG_NAME_ALIASES[key];
+    if (alias && (!byId || byId[alias])) return alias;
+    if (byId) {
+      const slug = slugExerciseName(exerciseName);
+      if (byId[slug]) return slug;
+      for (const eid of Object.keys(byId)) {
+        if (normExerciseName(byId[eid].name) === key) return eid;
+      }
+    }
+    return null;
+  }
+
+  /** Most recent logged sets. Same rule as planner last_performance. */
+  function lastPerformanceForLog(sessions, exerciseName, catalog) {
+    const target = normExerciseName(exerciseName);
+    if (!target) return null;
+    const targetId = canonicalExerciseId(exerciseName, catalog);
+    const ordered = (sessions || []).slice().sort((a, b) => {
+      const da = String((a && a.date) || "");
+      const db = String((b && b.date) || "");
+      if (da === db) return 0;
+      return da < db ? 1 : -1;
+    });
+    for (const s of ordered) {
+      for (const ex of (s && s.exercises) || []) {
+        const logged = normExerciseName(ex && ex.name);
+        if (!logged) continue;
+        if (logged !== target) {
+          const loggedId = canonicalExerciseId(ex.name, catalog);
+          if (!targetId || !loggedId || loggedId !== targetId) continue;
+        }
+        const sets = Array.isArray(ex.sets) ? ex.sets.filter((st) => st && st.weight_lbs != null && st.weight_lbs !== "") : [];
+        if (!sets.length) continue;
+        let top = sets[0];
+        for (const st of sets) {
+          const tw = Number(st.weight_lbs);
+          const tr = Number(st.reps) || 0;
+          const ts = Number(st.sets) || 0;
+          const bw = Number(top.weight_lbs);
+          const br = Number(top.reps) || 0;
+          const bs = Number(top.sets) || 0;
+          if (tw > bw || (tw === bw && tr > br) || (tw === bw && tr === br && ts > bs)) top = st;
+        }
+        const totalSets = sets.reduce((sum, st) => sum + (Number(st.sets) || 0), 0);
+        return {
+          date: String(s.date || "").slice(0, 10),
+          weight_lbs: Number(top.weight_lbs),
+          sets: totalSets || Number(top.sets) || 1,
+          reps: Number(top.reps) || 0,
+        };
+      }
+    }
+    return null;
+  }
+
+  function catalogForLogMatch() {
+    const catalog = state && state.workout_store && state.workout_store.catalog;
+    if (!catalog || !Array.isArray(catalog.exercises)) return null;
+    return catalog;
+  }
+
+  /** Blank row when this lift has no log, so the previous load does not stick. */
+  function performanceSetPrefill(sessions, exerciseName, catalog) {
+    const last = lastPerformanceForLog(sessions, exerciseName, catalog);
+    if (!last) return { weight_lbs: "", sets: 1, reps: 10 };
+    return {
+      weight_lbs: last.weight_lbs,
+      sets: last.sets,
+      reps: last.reps,
+    };
+  }
+
+  function fillCardFromLastPerformance(card) {
+    const sel = card && card.querySelector ? card.querySelector(".ex-name") : null;
+    const name = sel ? String(sel.value || "").trim() : "";
+    const pref = performanceSetPrefill(
+      (state && state.sessions) || [],
+      name,
+      catalogForLogMatch()
+    );
+    const wrap = card && card.querySelector ? card.querySelector(".set-rows") : null;
+    if (!wrap) return pref;
+    wrap.innerHTML = "";
+    addSetRow(wrap, pref);
+    return pref;
+  }
+
+  function markManualLogUserTouched() {
+    const rows = $("exercise-rows");
+    if (rows && rows.dataset) rows.dataset.userTouched = "1";
+  }
+
+  function onManualLogExerciseChange(card) {
+    if (card && card.dataset) card.dataset.userSelect = "1";
+    markManualLogUserTouched();
+    fillCardFromLastPerformance(card);
+  }
+
+  function eventTargetIsSetWeight(el) {
+    if (!el) return false;
+    if (el.classList && typeof el.classList.contains === "function") {
+      return el.classList.contains("set-weight");
+    }
+    return String(el.className || "")
+      .split(/\s+/)
+      .includes("set-weight");
+  }
+
   function addSetRow(setsWrap, prefill = {}) {
     const row = document.createElement("div");
     row.className = "set-row";
@@ -579,11 +776,20 @@
       </div>
     `;
     fillExerciseNameSelect(card.querySelector(".ex-name"), prefill.name || "");
+    const nameSel = card.querySelector(".ex-name");
+    // Plan prescription stays until the athlete changes the exercise.
+    nameSel.addEventListener("change", () => onManualLogExerciseChange(card));
+    card.addEventListener("input", (ev) => {
+      markManualLogUserTouched();
+      if (!eventTargetIsSetWeight(ev && ev.target)) return;
+      if (card.dataset) card.dataset.userWeight = "1";
+    });
 
     const setsWrap = card.querySelector(".set-rows");
     setPrefills.forEach((s) => addSetRow(setsWrap, s));
 
     card.querySelector(".btn-add-set").addEventListener("click", () => {
+      markManualLogUserTouched();
       const last = setsWrap.querySelector(".set-row:last-child");
       const pref = last
         ? {
@@ -597,10 +803,79 @@
     });
 
     card.querySelector(".ex-remove").addEventListener("click", () => {
+      markManualLogUserTouched();
       if ($("exercise-rows").children.length > 1) card.remove();
     });
 
     wrap.appendChild(card);
+  }
+
+  function manualLogFormTouched(wrap) {
+    if (!wrap) return false;
+    if (wrap.dataset && wrap.dataset.userTouched === "1") return true;
+    const cards = wrap.querySelectorAll ? wrap.querySelectorAll(".exercise-card") : [];
+    for (const card of cards) {
+      if (
+        card.dataset &&
+        (card.dataset.userSelect === "1" || card.dataset.userWeight === "1")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Prescription rows for an untouched log. Does not read last performance. */
+  function manualLogPlanPrefills(data) {
+    const src = data || state || {};
+    const full = src.workout_store && src.workout_store.plan;
+    if (full && !full.is_rest_day && (full.exercises || []).length) {
+      return prefillsFromWorkoutPlan(full);
+    }
+    const today =
+      (src.coach && src.coach.today && src.coach.today.workout) ||
+      src.workout ||
+      null;
+    if (!today || today.is_rest_day || !(today.exercises || []).length) return [];
+    return today.exercises.map((ex) => {
+      const rx = ex.prescription || ex;
+      return {
+        name: ex.name,
+        sets: [
+          {
+            weight_lbs: rx.weight_lbs != null ? rx.weight_lbs : "",
+            sets: rx.sets != null ? rx.sets : 3,
+            reps: rx.reps != null ? rx.reps : 10,
+          },
+        ],
+      };
+    });
+  }
+
+  /**
+   * Seed a still-blank log from today's plan once.
+   * A later refresh leaves an edited weight or a changed exercise alone.
+   */
+  function applyManualLogPlanPrefill(data) {
+    const wrap = $("exercise-rows");
+    if (!wrap || manualLogFormTouched(wrap)) return;
+    if (wrap.dataset && wrap.dataset.planSeeded === "1") return;
+    const cards = [...wrap.querySelectorAll(".exercise-card")];
+    if (cards.length > 1) return;
+    if (cards.length === 1) {
+      const name = String(
+        (cards[0].querySelector(".ex-name") || {}).value || ""
+      ).trim();
+      const weight = String(
+        (cards[0].querySelector(".set-weight") || {}).value || ""
+      ).trim();
+      if (name || weight) return;
+    }
+    const prefills = manualLogPlanPrefills(data);
+    if (!prefills.length) return;
+    wrap.innerHTML = "";
+    prefills.forEach((p) => addExerciseRow(p));
+    if (wrap.dataset) wrap.dataset.planSeeded = "1";
   }
 
   function collectExercises() {
@@ -7814,6 +8089,7 @@
       render(data, { quiet });
       setLogDateFromTrainingDay(data);
       applyManualLogSessionPrefill(data);
+      applyManualLogPlanPrefill(data);
       if (!quiet && data.meta && data.meta.error) {
         showAlert(`Partial load: ${data.meta.error}`, "warn");
       }
@@ -8511,7 +8787,12 @@
     initMobileShell();
     bindPlanetFitnessLaunch();
     registerServiceWorker();
-    if ($("btn-add-ex")) $("btn-add-ex").addEventListener("click", () => addExerciseRow());
+    if ($("btn-add-ex")) {
+      $("btn-add-ex").addEventListener("click", () => {
+        markManualLogUserTouched();
+        addExerciseRow();
+      });
+    }
     if ($("log-form")) $("log-form").addEventListener("submit", submitWorkout);
     if ($("session_type")) {
       $("session_type").addEventListener("change", () => {
