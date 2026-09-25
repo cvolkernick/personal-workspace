@@ -4684,3 +4684,31 @@
 - HOLD TSLA $0 [no_order] 
 - HOLD SPCX $0 [no_order] 
 
+
+## 2026-09-25T17:50:26 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $331.0119 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $331.01 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-25T17:55:14 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~13:52 ET), closing the 17:50:26Z rules re-fire (BTC-complex 0% vs 40% target). Chairman 2026-09-22 stocks pin unchanged; BTC sleeve stays closed. Broker NAV $331.20, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $331.19: TSLA $167.30 (50.52%, −1.27%) / SPCX $163.89 (49.48%, +0.24%). One-way pin gap $1.71, inside the ~$3.31 one-percent band. No deploy and no rotate.
+**Book:** NAV $331.2 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules engine re-fired at 17:50Z because the deployed mix is 0% BTC-complex / 100% stocks versus the 40/60 target ±5%. Live scout confirms that drift: only TSLA and SPCX are held, crypto is $0, cash and buying power are $0.03, unsettled funds are $0, and there are no open orders. The drift is not a trade. Chairman standing order 2026-09-22 (investment/consider_share.json pins TSLA 50 / SPCX 50; crypto/cash unchanged unless the Chairman says otherwise; no other equity names) already closed the BTC sleeve and locked the stocks book. Cash is below the $1 minimum. The 50/50 gap is $1.71 versus a ~$3.31 one-percent-of-NAV band. Mid-session review, not an open or close scalp.
+**Why not alternatives:** Research/rotate covered held and unheld core, every ready watchlist name, and the blocked name. New capital cannot be deployed — there is none. A rotate back toward 40/60 would sell the Chairman pin to reopen a sleeve the same order closed. That is rejected, not skipped for size. STRC (3.0 bp) and SATA (1.0 bp) are liquid and would be the first BTC-complex dollars if the sleeve reopens; they are not rejected as illiquid or as 'covered by MSTR' (MSTR is also unheld). BITA (39.6 bp) and STRK (87 bp) lose the relative-value comparison to STRC/SATA even on a reopen. Miners were not rejected for overlap: IREN is the best relative value today (−4.84%, 2.3 bp) and MARA/CLSK/WULF/RIOT remain eligible diversifiers, all blocked only by the closed sleeve and dust cash. GOOGL, NVDA, AAPL, PLTR, AMZN, RKLB, CCJ, BWXT, and EVGO stay unseated because the stocks sleeve admits only TSLA and SPCX. BE stays blocked despite an +8.67% day. Gold stays research-only. Inside the stocks pin, selling TSLA after the Semi rollout to buy SPCX into further unlock supply does not clear the $3.31 band and is the wrong ticket. Today's digest (investment/digests/2026-09-25.md) is the theme scan; deep-dives are inside the 90-day window and no first buy is proposed, so no new position-deep-dive was run. The fund-manager-research workflow was emulated inline from that digest plus live quotes rather than a second multi-agent report.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $331.20, equity $331.17, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0, no open equity orders. Held: TSLA 0.448384 @ avg $347.25, quote $373.125, MV $167.30 (50.52%, day −1.27%); SPCX 1.104498 @ avg $138.45, quote $148.38, MV $163.89 (49.48%, day +0.24%). Primary margin was read and not traded (about $0.09). Quotes ~17:51Z on the full consider set. Core unheld and every ready watchlist name inventoried.
+- **thesis:** hold — Do not rebuild 40/60 by selling the pin. Chairman 2026-09-22 is the allocation: stocks book stays TSLA/SPCX, crypto sleeve stays closed. Gap $1.71 is inside the 1% band, so no intra-pin rotate. Conditional map if the sleeve reopens: STRC and SATA first (spreads 1–3 bp, not an illiquidity rebuttal), miners diversified with IREN the best relative value today, MSTR/BITA/ASST/STRK behind that credit pair. Watchlist ready names considered and not sized. BE not reseated.
+- **risk:** ok — No order. Buying power $0.03 is under the $1 minimum. Unsettled funds $0, so this is not a settlement block. Two-name 50/50 is the mandated concentration, not a breach. A $1.71 TSLA→SPCX ticket would be inside the no-trade band and would not change risk in a useful way. Reopening ~40% (~$132) into the BTC complex is a Chairman-level risk decision, not a mid-session drift trade. No margin use; unlevered BP equals cash. Primary account untouched.
+- **critic:** hold — Challenged held-only inertia: the consider set included unheld core and every ready watchlist name. The hold is the Chairman pin, not 'we already own it.' Challenged the empty STRC/SATA seat: the 40% sleeve is actually 0%, and liquidity is not the excuse (STRC 3 bp, SATA 1 bp). Accepted only because the 2026-09-22 order closed crypto changes and there is no cash. A future BTC-complex deploy that skips STRC/SATA without a new rebuttal should be blocked. Challenged miner-overlap thinking: no miner was rejected for overlap; IREN is logged as best relative value and still not a ticket. Challenged the TSLA→SPCX chase and sized it to zero (Semi tape vs unlock supply, gap inside the band). Challenged any BE re-entry on today's +8.7% move — blocked. Does not treat the rules-engine 40/60 flag as quorum to sell the pin.
+- **executor:** hold — Quorum is hold. Risk ok, thesis hold, critic hold. No place and no cancel. Agentic account only; primary not used.
+
