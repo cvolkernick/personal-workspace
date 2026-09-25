@@ -38,6 +38,10 @@ class DiscoverTests(unittest.TestCase):
         extras = RUNNER.extra_python_files(ROOT)
         self.assertTrue(any(p.name == "test_coinbase_feasibility_doc.py" for p in extras))
 
+    def test_gethelpfrom_node_suite_is_wired(self) -> None:
+        found = RUNNER.discover_gethelpfrom_node_tests(ROOT)
+        self.assertTrue(any(p.name == "web.test.js" for p in found))
+
     def test_js_tests_are_standalone_scripts(self) -> None:
         js = RUNNER.discover_js_tests(ROOT)
         self.assertTrue(js)

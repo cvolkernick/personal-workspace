@@ -49,6 +49,7 @@ ops/board/youtube_groom_tick_report.json
 
 # Local Playwright install (scratch / accidental)
 **/node_modules/
+**/.next/
 playwright-report/
 
 # The command center server is local only

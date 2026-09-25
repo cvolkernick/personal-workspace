@@ -96,6 +96,26 @@ def run_js(path: Path) -> int:
     return _run(cmd, cwd=ROOT, env=os.environ.copy())
 
 
+def discover_gethelpfrom_node_tests(root: Path = ROOT) -> list[Path]:
+    d = root / "products" / "gethelpfrom.ai" / "tests"
+    if not d.is_dir():
+        return []
+    return sorted(p for p in d.glob("web.test.js") if p.is_file())
+
+
+def run_gethelpfrom_node() -> int:
+    root = ROOT / "products" / "gethelpfrom.ai"
+    if not discover_gethelpfrom_node_tests():
+        return 0
+    if not (root / "package-lock.json").is_file():
+        print("products/gethelpfrom.ai/package-lock.json missing")
+        return 1
+    code = _run(["npm", "ci", "--ignore-scripts"], cwd=root, env=os.environ.copy())
+    if code != 0:
+        return code
+    return _run(["node", "--test", "tests/web.test.js"], cwd=root, env=os.environ.copy())
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--python-only", action="store_true")
@@ -117,6 +137,9 @@ def main(argv: list[str] | None = None) -> int:
         print("js:")
         for s in js:
             print(" ", s.relative_to(ROOT))
+        print("gethelpfrom:")
+        for s in discover_gethelpfrom_node_tests():
+            print(" ", s.relative_to(ROOT))
         return 0
 
     results: list[tuple[str, int]] = []
@@ -131,6 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         for path in js:
             label = str(path.relative_to(ROOT))
             results.append((label, run_js(path)))
+        results.append(("products/gethelpfrom.ai/tests/web.test.js", run_gethelpfrom_node()))
 
     print()
     print("| Suite | Result |")
