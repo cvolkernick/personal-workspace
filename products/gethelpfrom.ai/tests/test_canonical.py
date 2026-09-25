@@ -61,6 +61,19 @@ class TestCanonical(unittest.TestCase):
         ):
             self.assertIn(key, schema["required"])
 
+    def test_no_second_question_copy(self) -> None:
+        skip = {"node_modules", ".next", "__pycache__"}
+        found = []
+        for name in ("questions.json", "scenarios.json", "scoring.json"):
+            for path in ROOT.rglob(name):
+                if any(part in skip for part in path.parts):
+                    continue
+                found.append(path.relative_to(ROOT).as_posix())
+        self.assertEqual(
+            sorted(found),
+            ["questions.json", "scenarios.json", "scoring.json"],
+        )
+
     def test_scenario_text_is_concrete(self) -> None:
         banned = ("optimization", "inefficiency", "leverage", "synergy")
         hits = [
