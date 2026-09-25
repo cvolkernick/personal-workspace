@@ -455,6 +455,16 @@
     logged: "Not in library",
   };
 
+  /**
+   * Optgroup key only: first push, pull, or legs tag in catalog order.
+   * The Session type dropdown is the save key.
+   */
+  function catalogHomeSession(types) {
+    const tags = (types || []).map((t) => String(t).toLowerCase());
+    const home = tags.find((t) => LIBRARY_SESSION_ORDER.includes(t));
+    return home || tags[0] || "other";
+  }
+
   /** Programmed library names for the log dropdown (`available=true` catalog rows). */
   function libraryLogExercises(includeName) {
     const catalog =
@@ -468,9 +478,7 @@
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      const types = (ex.session_types || []).map((t) => String(t).toLowerCase());
-      const session =
-        LIBRARY_SESSION_ORDER.find((t) => types.includes(t)) || types[0] || "other";
+      const session = catalogHomeSession(ex.session_types);
       items.push({ name, session });
     }
     items.sort((a, b) => {
