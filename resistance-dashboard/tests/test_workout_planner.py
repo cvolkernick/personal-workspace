@@ -872,8 +872,12 @@ class TestWorkoutPlanner(unittest.TestCase):
             HORIZONTAL_PRESS_FAMILY,
         )
         self.assertEqual(
-            pattern_family({"id": "smith-bench", "name": "Smith Bench", "movement": "compound", "primary_muscles": ["chest"]}),
+            pattern_family({"id": "smith-flat-bench", "name": "Smith Flat Bench", "movement": "compound", "primary_muscles": ["chest"]}),
             HORIZONTAL_PRESS_FAMILY,
+        )
+        self.assertEqual(
+            pattern_family({"id": "smith-incline-bench", "name": "Smith Incline Bench", "movement": "compound", "primary_muscles": ["chest"]}),
+            INCLINE_PRESS_FAMILY,
         )
         self.assertEqual(
             pattern_family({"id": "db-incline-press", "name": "DB Incline Press", "movement": "compound", "primary_muscles": ["chest"]}),
@@ -921,7 +925,7 @@ class TestWorkoutPlanner(unittest.TestCase):
             as_of="2026-09-05",
         )
         ids = [e["id"] for e in plan["exercises"]]
-        horizontals = [i for i in ids if i in ("db-flat-press", "smith-bench")]
+        horizontals = [i for i in ids if i in ("db-flat-press", "smith-flat-bench")]
         self.assertEqual(len(horizontals), 1, ids)
         self.assertIn("db-incline-press", ids)
 
@@ -941,7 +945,7 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         after_smith_ids = [e["id"] for e in after_smith["exercises"]]
         self.assertIn("db-flat-press", after_smith_ids)
-        self.assertNotIn("smith-bench", after_smith_ids)
+        self.assertNotIn("smith-flat-bench", after_smith_ids)
 
         after_flat = generate_workout_plan(
             catalog,
@@ -956,7 +960,7 @@ class TestWorkoutPlanner(unittest.TestCase):
             as_of="2026-09-05",
         )
         after_flat_ids = [e["id"] for e in after_flat["exercises"]]
-        self.assertIn("smith-bench", after_flat_ids)
+        self.assertIn("smith-flat-bench", after_flat_ids)
         self.assertNotIn("db-flat-press", after_flat_ids)
 
     def test_pull_and_legs_cap_one_compound_per_family(self):
@@ -1160,8 +1164,8 @@ def _push_press_catalog():
                 "available": True,
             },
             {
-                "id": "smith-bench",
-                "name": "Smith Bench",
+                "id": "smith-flat-bench",
+                "name": "Smith Flat Bench",
                 "session_types": ["push"],
                 "primary_muscles": ["chest"],
                 "secondary_muscles": ["triceps"],

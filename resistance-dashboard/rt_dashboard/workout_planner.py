@@ -194,7 +194,9 @@ NAME_ALIASES = {
     "standing calf raises": "db-calf-raises",
     "standing calf raise": "db-calf-raises",
     "back extension machine": "back-extension",
-    "smith bench": "smith-bench",
+    "smith bench": "smith-flat-bench",
+    "smith flat bench": "smith-flat-bench",
+    "smith incline bench": "smith-incline-bench",
     "smith shrugs": "smith-shrugs",
     "db floor press": "db-floor-press",
     "dumbbell floor press": "db-floor-press",
@@ -219,9 +221,10 @@ CALF_FAMILY = "calf"
 
 PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-flat-press": HORIZONTAL_PRESS_FAMILY,
-    "smith-bench": HORIZONTAL_PRESS_FAMILY,
+    "smith-flat-bench": HORIZONTAL_PRESS_FAMILY,
     "db-floor-press": HORIZONTAL_PRESS_FAMILY,
     "db-incline-press": INCLINE_PRESS_FAMILY,
+    "smith-incline-bench": INCLINE_PRESS_FAMILY,
     "db-shoulder-press": VERTICAL_PRESS_FAMILY,
     "pulldowns": VERTICAL_PULL_FAMILY,
     "assisted-pullups": VERTICAL_PULL_FAMILY,

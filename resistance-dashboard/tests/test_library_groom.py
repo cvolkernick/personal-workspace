@@ -79,7 +79,7 @@ class LibraryVsDump(unittest.TestCase):
         self.assertTrue(names)
         self.assertNotIn("DB Floor Press", names)
         self.assertTrue(
-            any(n in names for n in ("DB Flat Press", "Smith Bench", "DB Shoulder Press")),
+            any(n in names for n in ("DB Flat Press", "Smith Flat Bench", "Smith Incline Bench", "DB Shoulder Press")),
             names,
         )
 
@@ -239,7 +239,7 @@ class OverlayApply(unittest.TestCase):
                 return_value=(_eq("dumbbells"), "turso"),
             ):
                 status, body = available_write(
-                    headers, {"id": "smith-bench", "available": True}
+                    headers, {"id": "smith-flat-bench", "available": True}
                 )
         self.assertEqual(status, 400, body)
         self.assertIn("equipment", str(body.get("error") or "").lower())

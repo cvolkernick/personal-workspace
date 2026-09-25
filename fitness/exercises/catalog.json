@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-08",
+  "updated_at": "2026-09-25",
   "notes": "Movement universe. available=true is the programmed library Today reads. available=false stays off the plan until coach suggests and you apply. Equipment inventory is access, not an auto-unlock.",
   "exercises": [
     {
@@ -31,11 +31,25 @@
       "available": true
     },
     {
-      "id": "smith-bench",
-      "name": "Smith Bench",
+      "id": "smith-flat-bench",
+      "name": "Smith Flat Bench",
       "session_types": ["push"],
       "primary_muscles": ["chest"],
       "secondary_muscles": ["triceps", "shoulders"],
+      "movement": "compound",
+      "equipment": ["smith_machine"],
+      "default_sets": 3,
+      "default_reps": 8,
+      "rep_range": [6, 10],
+      "priority": 8,
+      "available": true
+    },
+    {
+      "id": "smith-incline-bench",
+      "name": "Smith Incline Bench",
+      "session_types": ["push"],
+      "primary_muscles": ["chest"],
+      "secondary_muscles": ["shoulders"],
       "movement": "compound",
       "equipment": ["smith_machine"],
       "default_sets": 3,

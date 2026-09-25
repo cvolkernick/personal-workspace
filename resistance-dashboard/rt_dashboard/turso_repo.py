@@ -108,6 +108,9 @@ def list_workout_user_ids() -> List[str]:
 def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
     if not turso_enabled():
         raise RuntimeError("turso env missing")
+    from .smith_bench_migrate import ensure_turso_smith_bench_split
+
+    mig_note = ensure_turso_smith_bench_split()
     uid = _uid(user_id)
     with connect() as conn:
         rows = conn.execute(LIST_SQL, (uid,)).fetchall()
@@ -132,6 +135,8 @@ def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
         except Exception as exc:  # noqa: BLE001
             decrypt_err = type(exc).__name__
     notes: List[str] = []
+    if mig_note:
+        notes.append(mig_note)
     if decrypt_fails:
         detail = decrypt_err or "empty after open"
         notes.append(f"exercises_decrypt_failed:{decrypt_fails}:{detail}")
