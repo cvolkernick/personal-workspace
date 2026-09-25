@@ -58,6 +58,9 @@ class LogLibrarySelect(unittest.TestCase):
             if isinstance(e, dict) and not e.get("available") and e.get("name")
         ]
         self.assertIn("DB Flat Press", names)
+        self.assertIn("Smith Flat Bench", names)
+        self.assertIn("Smith Incline Bench", names)
+        self.assertNotIn("Smith Bench", names)
         self.assertIn("Seated Leg Curls", names)
         self.assertIn("Lying Leg Curl", names)
         self.assertIn("Calf Extensions", names)

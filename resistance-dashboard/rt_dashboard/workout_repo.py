@@ -187,6 +187,9 @@ class WorkoutRepository:
             return int(row["c"] if row else 0)
 
     def list_sessions(self) -> List[Session]:
+        from .smith_bench_migrate import ensure_sqlite_smith_bench_split
+
+        ensure_sqlite_smith_bench_split(self.db_path)
         with self._connect() as conn:
             rows = conn.execute(
                 """

@@ -101,7 +101,7 @@ Note: Next push - deload
 ## March 27, 2026 - Session Complete
 - Tricep Pushdowns: 22.5 lbs x 3 x 15 (PR!)
 - DB Flat Press: 40 → 35 → 30 lbs x 10
-- Smith Bench: 50 lbs x 3 x 10
+- Smith Flat Bench: 50 lbs x 3 x 10
 
 ## March 21, 2026 - Session Complete
 - DB Incline Press: 25 lbs x 3 x 10
@@ -110,7 +110,7 @@ Note: Next push - deload
 - DB Flat Press: 35 lbs x 3 x 10
 
 ## March 14, 2026 - Session Complete
-- Smith Bench: 45 lbs x 3 x 10
+- Smith Flat Bench: 45 lbs x 3 x 10
 - DB Flat Press: 35 lbs x 3 x 10
 - Lateral Raises: 10 lbs x 3 x 12
 
@@ -123,7 +123,7 @@ Note: Next push - deload
 - DB Flat Press
 - Pec Flies  
 - DB Incline Press
-- Smith Bench
+- Smith Flat Bench
 - Cable Flyes (to add)
 - Pushups (to add)
 - Machine Chest Press (to add)
