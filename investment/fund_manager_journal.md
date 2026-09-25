@@ -4320,3 +4320,31 @@
 - HOLD TSLA $0 [no_order] 
 - HOLD SPCX $0 [no_order] 
 
+
+## 2026-09-25T15:02:48 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $328.7005 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $328.70 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-25T15:09:12 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~11:06 ET), closing the 15:02:48Z rules re-fire. Chairman 2026-09-22 stocks pin unchanged. Broker NAV $328.40, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $328.38: TSLA $166.73 (50.78%, -1.61%) / SPCX $161.64 (49.22%, -1.14%). One-way gap to the 50/50 pin is $2.55, wider than the 10:52 ET hold ($1.91) because TSLA bounced while SPCX softened. Rules-engine 40/60 rebuild is overridden. Critic sizes the pin chase to zero. No orders.
+**Book:** NAV $328.4 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules engine re-fired at 15:02:48Z because deployed mix is 0% BTC-complex / 100% stocks versus the numeric 40/60 band. That fire needs a team close. Live book is unchanged in structure from the 14:54Z hold: dust cash, two-name pin, gap now $2.55 instead of $1.91. Mid-session, regular hours, not an open or close scalp.
+**Why not alternatives:** Rebuilding 40% would sell about $131 of TSLA+SPCX into a sleeve the Chairman closed on 2026-09-22. That is an override, not a team rotate. STRC/SATA are not skipped for liquidity or because MSTR already covers credit — they are the first dollars if the sleeve reopens (spreads 4 bp and 1 bp; Strategy's STRC buyback is supportive context only). Miners are not skipped for overlap. IREN is the relative-value leader and still not a ticket while the sleeve is closed. Every ready watchlist name was in the consider set and rejected because the stocks sleeve is TSLA/SPCX only, or (STRK) because it is junior to unheld STRC with no residual. BE stays blocked. Gold stays research-only. The $2.55 TSLA-overweight chase would sell the post-Semi name into SPCX's remaining Oct 9 / Oct 24 unlock supply for 78 bp of equity. That is intraday noise, not a pin repair. New capital, of which there is none, would serve the stocks pin 50/50. It would not top up by habit inside a closed BTC sleeve.
+**Team:**
+- **scout:** observe — Agentic ••••1752 NAV $328.40, BP $0.03, cash $0.03, crypto $0, unsettled $0, no open orders. Held TSLA 0.448384 sh and SPCX 1.104498 sh only. Quote equity $328.38. Primary ••••9737 is $0.09 and was not traded.
+- **thesis:** ok — HOLD the pin. No idle cash to deploy. Do not rebuild 40/60 against the 2026-09-22 order. If the BTC sleeve reopens, first dollars are STRC and/or SATA, then a miner basket led by IREN — not MSTR-only and not an overlap veto. Stocks cash, if any, stays 50/50 TSLA+SPCX. $2.55 gap is not a rotate.
+- **risk:** ok — Hold is inside capital bounds (agentic only, dust below the $1 minimum). Two-name concentration is the Chairman pin, not an accidental stack. A $2.55 round trip is executable but fails the no-scalp test: 78 bp of equity, second team pass in about 15 minutes, and the trade sells the stronger event name into remaining SPCX supply. No liquidity block on STRC/SATA (4 bp / 1 bp) — the block is the closed sleeve, not the spread.
+- **critic:** hold — Blocks the rules-engine 40/60 rebuild and sizes the TSLA→SPCX chase to zero. Held-only inertia is not the rationale: every unheld allowlist and ready watchlist name was considered. STRC/SATA under-allocation challenge does not fire as a trade because no BTC-complex capital is being deployed; a BTC deploy that skipped them would be blocked. Miner-overlap is not a rejection. IREN's -5% day does not reopen a closed sleeve.
+- **executor:** hold — Quorum is hold. No Robinhood orders placed or cancelled. Primary margin not touched.
+
