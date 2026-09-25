@@ -4168,3 +4168,31 @@
 - HOLD TSLA $0 [no_order] 
 - HOLD SPCX $0 [no_order] 
 
+
+## 2026-09-25T13:49:09 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $331.9277 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $331.93 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-25T13:54:45 — hold
+**Summary:** HOLD. Agentic ••••1752 open-window review (~09:50 ET), closing the 13:49Z rules re-fire. Chairman 2026-09-22 stocks pin unchanged. Broker NAV $330.39, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $330.44: TSLA $167.40 (50.66%) / SPCX $163.03 (49.34%). One-way gap $2.18 is wider than the 09:36 ET hold ($1.62) because SPCX gave back its open bounce. Critic blocks the pin chase inside the first 30 minutes and blocks selling the post-Semi tape to buy SPCX ahead of the Oct 9/24 unlocks and Monday's Flight 14. No rebuild of the 40% sleeve. STRC/SATA remain first dollars if it reopens (9 bp / 1 bp). No orders.
+**Book:** NAV $330.39 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled mid-session-style review that fired inside the open because the 13:49Z rules engine saw 0/100 vs numeric 40/60. Live book is the Chairman stocks pin, not an unpaid 40/60 gap. Cash and buying power are $0.03. The only mechanical trade is a ~$2.18 TSLA sale to buy SPCX, and the cadence forbids treating the first 30 minutes as a signal.
+**Why not alternatives:** New capital cannot serve a theme: there is no deployable dollar. Rebuilding the 40% complex would sell yesterday's pin fills and reverse the 2026-09-22 Chairman order; that is the rules-engine drift, and it is rejected. STRC and SATA are not rejected for liquidity (9 bp and 1 bp) or because MSTR/BITA already cover credit (they are not held). They are the first dollars if the sleeve reopens. Miners are not rejected for overlap. IREN is the best miner tape (−3.63%, 4.5 bp) and still waits behind STRC/SATA. Every ready watchlist name (STRK, GOOGL, AAPL, NVDA, PLTR, AMZN, EVGO, RKLB, CCJ, BWXT) was in the consider set and is not sized: the stocks pin admits only TSLA and SPCX, and there is no residual. STRK is junior, 78 bp, and has no RV case against STRC/SATA. BE is blocked. GLDM stays research-only. Private names are not deployable. The pin rotate itself is rejected this pass because the $2.18 gap widened inside the open on SPCX's giveback, and buying SPCX here leans into the remaining unlock calendar and Monday's Flight 14 while selling TSLA the morning after the Semi milestone.
+**Team:**
+- **scout:** report — Agentic ••••1752 only. Broker NAV $330.39, equity $330.36, cash $0.03, BP $0.03, crypto $0, unsettled $0, no open orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $330.44 at 13:50Z: TSLA $167.40 (50.66%, −1.22% day) / SPCX $163.03 (49.34%, −0.28% day). One-way gap $2.18 vs $1.62 at 09:36 ET. Primary margin read and not traded ($0.09). Core unheld, ready watchlist, BE, and GLDM all quoted.
+- **thesis:** hold — Keep the Chairman book. Do not fund a 40% rebuild out of TSLA/SPCX. Do not chase the pin inside the open. If the sleeve is ever reopened, the next BTC-complex dollars are STRC and SATA, then a diversified miner sleeve led by IREN on today's tape — not MSTR-only and not a single miner. Stocks capital, when it exists, stays 50/50 SPCX and TSLA.
+- **risk:** ok_hold — No capital-bounds breach and no concentration outside the pin the Chairman already chose. $0.03 cannot fund a $1 ticket. The $2.18 rotate is affordable and liquid, so size is not the block. The block is the open window plus the event calendar. Do not treat 'we already own only two names' as a reason to skip the consider set; the consider set was run and rejected with reasons.
+- **critic:** block_rotate_and_block_rebuild — Held-only inertia is not the rationale: the alternatives were priced. Under-allocation to STRC/SATA is real versus the old 40% policy and is not cured by this pass, but selling the locked stocks book to cure it would defy the later Chairman order. That is a logged standing-order rebuttal, not a liquidity or 'MSTR covers credit' rebuttal. False miner-overlap rejections are not used; IREN/MARA/CLSK/RIOT/WULF stay eligible behind credit. The $2.18 TSLA→SPCX chase is blocked. It is open noise that widened in 14 minutes, and it sells the post-Semi name to buy the name that still has supply coming.
+- **executor:** no_orders — Quorum is hold. Risk ok to do nothing. Thesis hold. Critic blocks both the pin rotate and the 40/60 rebuild. No Robinhood order placed or cancelled. Agentic account only.
+
