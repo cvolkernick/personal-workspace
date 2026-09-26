@@ -30,7 +30,9 @@ from treasury.cash_streams import (  # noqa: E402
     build_cash_streams,
     build_rolling_cash_series,
     clamp_days,
+    coinbase_usd_tracking_ids,
     display_payee,
+    fetch_ynab_window,
     load_cash_streams,
     load_payee_display_names,
     load_rolling_cash_series,
@@ -663,6 +665,241 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertEqual(payload["mining"]["status"], "ok")
         self.assertEqual(payload["totals"]["inflow"], 410.0)
         self.assertIn(MINING_NODE_NAME, _ids(payload, "inflow"))
+
+
+class TestCoinbaseUsdTrackingOutflows(unittest.TestCase):
+    """#932: Coinbase USD tracking sends count. Main → Coinbase transfers do not."""
+
+    def _txs(self) -> list:
+        return [
+            _tx(amount=100_000, payee="Lyft", account_id="onb", date_s="2026-09-01"),
+            _tx(
+                amount=-30_000,
+                payee="Kroger",
+                account_id="onb",
+                category_id="c-groc",
+                date_s="2026-09-11",
+            ),
+            _tx(amount=-25_000, payee="Nicole", account_id="cb-usd", date_s="2026-09-01"),
+            _tx(amount=-900_000, payee="Thaís", account_id="cb-usd", date_s="2026-09-10"),
+            _tx(
+                amount=-200_000,
+                payee="Transfer : Coinbase USD (tracking)",
+                account_id="onb",
+                transfer_account_id="cb-usd",
+                date_s="2026-09-11",
+            ),
+            _tx(
+                amount=200_000,
+                payee="Transfer : Main – 2201",
+                account_id="cb-usd",
+                transfer_account_id="onb",
+                date_s="2026-09-11",
+            ),
+            _tx(
+                amount=-100_000,
+                payee="Transfer : Coinbase One Card – 5361",
+                account_id="cb-usd",
+                transfer_account_id="card",
+                date_s="2026-08-30",
+            ),
+            _tx(amount=80_000, payee="Reward", account_id="cb-usd", date_s="2026-09-05"),
+            _tx(amount=1_000, payee="Starting Balance", account_id="cb-usd", date_s="2026-09-09"),
+            _tx(
+                amount=-50_000,
+                payee="FCC reconcile (working USDC)",
+                account_id="cb-usd",
+                date_s="2026-09-09",
+            ),
+            _tx(amount=-40_000, payee="Other track", account_id="other-track", date_s="2026-09-11"),
+        ]
+
+    def test_sankey_includes_sends_and_drops_transfers(self) -> None:
+        kwargs = dict(
+            days=30,
+            today=TODAY,
+            transactions=self._txs(),
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+            tracking_outflow_ids={"cb-usd"},
+        )
+        payload = build_cash_streams(**kwargs)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["totals"]["inflow"], 100.0)
+        self.assertEqual(payload["totals"]["outflow"], 955.0)
+        self.assertEqual(payload["window"]["start"], "2026-08-12")
+        uncategorized = next(n for n in payload["nodes"] if n["name"] == "Uncategorized")
+        self.assertEqual(uncategorized["amount"], 925.0)
+        self.assertIn("Groceries", _ids(payload, "category"))
+        names = {n["name"] for n in payload["nodes"]}
+        self.assertNotIn("Transfer : Coinbase USD (tracking)", names)
+        self.assertNotIn("Transfer : Main – 2201", names)
+        self.assertNotIn("Reward", names)
+
+        dropped = build_cash_streams(
+            days=30,
+            today=TODAY,
+            transactions=self._txs(),
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(dropped["totals"]["outflow"], 30.0)
+        self.assertEqual(dropped["totals"]["inflow"], 100.0)
+
+    def test_rolling_chart_uses_the_same_sends(self) -> None:
+        payload = build_rolling_cash_series(
+            today=TODAY,
+            transactions=self._txs(),
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+            tracking_outflow_ids={"cb-usd"},
+        )
+        sep10 = next(p for p in payload["points"] if p["date"] == "2026-09-10")
+        last = payload["points"][-1]
+        self.assertEqual(sep10["outflow"], 30.83)
+        self.assertEqual(last["outflow"], 31.83)
+        self.assertEqual(last["inflow"], 3.33)
+        without = build_rolling_cash_series(
+            today=TODAY,
+            transactions=self._txs(),
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(without["points"][-1]["outflow"], 1.0)
+
+    def test_loader_threads_tracking_ids(self) -> None:
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": self._txs(),
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "tracking_outflow_ids": ["cb-usd"],
+                "as_of": AS_OF,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={"ok": True, "as_of": AS_OF, "payouts": []},
+                coinbase={"as_of": AS_OF, "btc_usd_price": 100000.0},
+            )
+            sankey = load_cash_streams(
+                days=30,
+                today=TODAY,
+                stale=False,
+                fetch=fake_fetch,
+                root=root,
+                now=NOW,
+            )
+        self.assertEqual(sankey["totals"]["outflow"], 955.0)
+        series = load_rolling_cash_series(today=TODAY, fetch=fake_fetch, stale=False)
+        self.assertEqual(series["points"][-1]["outflow"], 31.83)
+
+    def test_account_selector_is_tracking_coinbase_usd_only(self) -> None:
+        accounts = [
+            {
+                "id": "901c6c2e-1111",
+                "name": "Coinbase USD (tracking)",
+                "on_budget": False,
+                "closed": False,
+                "deleted": False,
+            },
+            {
+                "id": "renamed-prefix",
+                "name": "Renamed wallet",
+                "on_budget": False,
+            },
+            {
+                "id": "901c6c2e-closed",
+                "name": "Coinbase USD (tracking)",
+                "on_budget": False,
+                "closed": True,
+            },
+            {
+                "id": "name-only",
+                "name": "Coinbase USD",
+                "on_budget": False,
+            },
+            {
+                "id": "card",
+                "name": "Coinbase One Card – 5361",
+                "on_budget": True,
+            },
+            {
+                "id": "901c6c2e-onb",
+                "name": "Coinbase USD (tracking)",
+                "on_budget": True,
+            },
+            {
+                "id": "gone",
+                "name": "Coinbase USD (tracking)",
+                "on_budget": False,
+                "deleted": True,
+            },
+            {
+                "id": "usdc",
+                "name": "Coinbase USDC",
+                "on_budget": False,
+            },
+        ]
+        # The renamed row does not carry the id prefix, so it stays out.
+        self.assertEqual(
+            coinbase_usd_tracking_ids(accounts),
+            ["901c6c2e-1111", "901c6c2e-closed", "name-only"],
+        )
+        # Prefix match still wins when the display name no longer says Coinbase USD.
+        prefixed = dict(accounts[1])
+        prefixed["id"] = "901c6c2e-renamed"
+        self.assertEqual(coinbase_usd_tracking_ids([prefixed]), ["901c6c2e-renamed"])
+
+    def test_fetch_marks_tracking_ids_separate_from_on_budget(self) -> None:
+        accounts = [
+            {
+                "id": "901c6c2e-1111",
+                "name": "Coinbase USD (tracking)",
+                "on_budget": False,
+                "deleted": False,
+                "closed": False,
+            },
+            {
+                "id": "onb",
+                "name": "Main – 2201",
+                "on_budget": True,
+                "deleted": False,
+                "closed": False,
+            },
+            {
+                "id": "card",
+                "name": "Coinbase One Card – 5361",
+                "on_budget": True,
+                "deleted": False,
+                "closed": False,
+            },
+        ]
+
+        def fake_get(path, token, params=None):
+            if path == "/budgets":
+                return {"data": {"budgets": [{"id": "b1", "name": "Chris's Plan"}]}}
+            if path.endswith("/accounts"):
+                return {"data": {"accounts": accounts}}
+            if path.endswith("/categories"):
+                return {"data": {"category_groups": []}}
+            if path.endswith("/transactions"):
+                return {"data": {"transactions": []}}
+            raise AssertionError(path)
+
+        with mock.patch(
+            "treasury.ynab_sync.load_ynab_token", return_value=("tok", "file")
+        ), mock.patch(
+            "treasury.ynab_sync.pick_budget",
+            return_value={"id": "b1", "name": "Chris's Plan"},
+        ), mock.patch("treasury.ynab_sync.ynab_get", side_effect=fake_get):
+            got = fetch_ynab_window("2026-08-12")
+        self.assertTrue(got["ok"])
+        self.assertEqual(got["on_budget_ids"], ["onb", "card"])
+        self.assertEqual(got["tracking_outflow_ids"], ["901c6c2e-1111"])
 
 
 class TestRollingCashSeries(unittest.TestCase):

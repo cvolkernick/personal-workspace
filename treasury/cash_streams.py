@@ -10,6 +10,10 @@ Starting-balance payees and "FCC reconcile" bookkeeping (payee, memo, or
 category) are excluded so setup entries and balance adjustments are not
 income or spend. Coinbase→Main withdrawals (payee contains "coinbase") are
 inflows excluded so mining is not double-counted when USD later hits Main.
+Non-transfer outflows on the off-budget Coinbase USD tracking account are
+included. The live YNAB name is "Coinbase USD (tracking)" and the account id
+starts with 901c6c2e. Transfers into that account, including Main → Coinbase,
+stay excluded. Positive amounts on that account are not income.
 
 The 90-day rolling chart (`build_rolling_cash_series`) reuses this filter,
 then drops any payee containing "reconcile". That wider drop is chart-only.
@@ -42,6 +46,10 @@ DEFAULT_DAYS = 90
 ALLOWED_DAYS = (30, 60, 90, 180)
 STARTING_BALANCE_PAYEES = {"starting balance", "starting balances"}
 FCC_RECONCILE_MARK = "fcc reconcile"
+# Off-budget YNAB tracking account whose sends are real outflows (#932).
+# Live name is "Coinbase USD (tracking)". The id prefix is the budget pin.
+COINBASE_USD_TRACKING_NAME = "coinbase usd"
+COINBASE_USD_ACCOUNT_PREFIX = "901c6c2e"
 # Chart series only. Wider than FCC_RECONCILE_MARK and payee-only.
 CHART_RECONCILE_MARK = "reconcile"
 ROLLING_DISPLAY_DAYS = 90
@@ -161,6 +169,31 @@ def _is_coinbase_inflow_payee(payee: str) -> bool:
     return "coinbase" in (payee or "").strip().lower()
 
 
+def _normalized_account_name(name: Any) -> str:
+    return " ".join(str(name or "").split()).casefold()
+
+
+def is_coinbase_usd_tracking_account(account: Dict[str, Any]) -> bool:
+    """Off-budget Coinbase USD tracking account. On-budget Coinbase One Card is not."""
+    if not isinstance(account, dict) or account.get("deleted") or account.get("on_budget"):
+        return False
+    aid = str(account.get("id") or "")
+    if not aid:
+        return False
+    if aid.startswith(COINBASE_USD_ACCOUNT_PREFIX):
+        return True
+    name = _normalized_account_name(account.get("name"))
+    return (
+        name == COINBASE_USD_TRACKING_NAME
+        or name.startswith(COINBASE_USD_TRACKING_NAME + " ")
+        or name.startswith(COINBASE_USD_TRACKING_NAME + "(")
+    )
+
+
+def coinbase_usd_tracking_ids(accounts: Iterable[Dict[str, Any]]) -> List[str]:
+    return [str(a["id"]) for a in accounts or [] if is_coinbase_usd_tracking_account(a)]
+
+
 def load_payee_display_names(root: Optional[Path] = None) -> Dict[str, str]:
     """Raw YNAB payee → display label. Empty dict on missing/bad file (#669)."""
     path = (root or ROOT) / "treasury" / PAYEE_DISPLAY_NAMES_FILE
@@ -243,18 +276,21 @@ def _iter_countable(
     end: date,
     on_budget_ids: Optional[set],
     lookup: Dict[str, Tuple[str, str]],
+    tracking_outflow_ids: Optional[set] = None,
     extra_skip: Optional[Callable[[Dict[str, Any], Dict[str, Any], str], bool]] = None,
 ) -> Iterable[Dict[str, Any]]:
+    track_ids = {str(x) for x in (tracking_outflow_ids or ())}
+    budget_ids = {str(x) for x in on_budget_ids} if on_budget_ids is not None else None
     for tx in transactions or []:
         if not isinstance(tx, dict) or tx.get("deleted"):
             continue
         day = _parse_day(tx.get("date"))
         if day is None or day < start or day > end:
             continue
-        if on_budget_ids is not None:
-            aid = tx.get("account_id")
-            if aid and aid not in on_budget_ids:
-                continue
+        aid = str(tx.get("account_id") or "")
+        from_tracking = bool(aid) and aid in track_ids
+        if budget_ids is not None and aid and aid not in budget_ids and not from_tracking:
+            continue
         subs = tx.get("subtransactions") or []
         rows = list(subs) if subs else [tx]
         parent_payee = str(tx.get("payee_name") or tx.get("payee") or "").strip()
@@ -274,6 +310,8 @@ def _iter_countable(
                 continue
             amount = _milli_units(row.get("amount"))
             if amount == 0:
+                continue
+            if from_tracking and amount > 0:
                 continue
             payee = str(row.get("payee_name") or row.get("payee") or parent_payee).strip()
             if amount > 0 and _is_coinbase_inflow_payee(payee):
@@ -499,6 +537,7 @@ def build_cash_streams(
     transactions: Optional[Sequence[Dict[str, Any]]] = None,
     category_groups: Optional[Sequence[Dict[str, Any]]] = None,
     on_budget_ids: Optional[Iterable[str]] = None,
+    tracking_outflow_ids: Optional[Iterable[str]] = None,
     ynab_stale: bool = False,
     ynab_soft_preserved: bool = False,
     ynab_as_of: Optional[str] = None,
@@ -533,6 +572,7 @@ def build_cash_streams(
 
     lookup = category_lookup(category_groups or [])
     budget_ids = set(on_budget_ids) if on_budget_ids is not None else None
+    tracking_ids = set(tracking_outflow_ids) if tracking_outflow_ids else set()
     inflows: Dict[str, float] = {}
     group_totals: Dict[str, float] = {}
     cat_totals: Dict[Tuple[str, str], float] = {}
@@ -543,6 +583,7 @@ def build_cash_streams(
         end=end,
         on_budget_ids=budget_ids,
         lookup=lookup,
+        tracking_outflow_ids=tracking_ids,
     ):
         amt = row["amount"]
         if amt > 0:
@@ -687,6 +728,7 @@ def build_rolling_cash_series(
     transactions: Optional[Sequence[Dict[str, Any]]] = None,
     category_groups: Optional[Sequence[Dict[str, Any]]] = None,
     on_budget_ids: Optional[Iterable[str]] = None,
+    tracking_outflow_ids: Optional[Iterable[str]] = None,
     ynab_stale: bool = False,
     ynab_as_of: Optional[str] = None,
     error: Optional[str] = None,
@@ -740,12 +782,14 @@ def build_rolling_cash_series(
     outflow_by = {day.isoformat(): 0.0 for day in seed_days}
     lookup = category_lookup(category_groups or [])
     budget_ids = set(on_budget_ids) if on_budget_ids is not None else None
+    tracking_ids = set(tracking_outflow_ids) if tracking_outflow_ids else set()
     for row in _iter_countable(
         transactions or [],
         start=seed_start,
         end=end,
         on_budget_ids=budget_ids,
         lookup=lookup,
+        tracking_outflow_ids=tracking_ids,
         extra_skip=_is_chart_reconcile_payee,
     ):
         if row["amount"] > 0:
@@ -796,6 +840,7 @@ def load_rolling_cash_series(
         transactions=pulled.get("transactions") or [],
         category_groups=pulled.get("category_groups") or [],
         on_budget_ids=pulled.get("on_budget_ids"),
+        tracking_outflow_ids=pulled.get("tracking_outflow_ids"),
         ynab_stale=False if stale is None else bool(stale),
         ynab_as_of=pulled.get("as_of"),
     )
@@ -864,6 +909,7 @@ def fetch_ynab_window(since: str) -> Dict[str, Any]:
             and not a.get("deleted")
             and not a.get("closed")
         ]
+        tracking_outflow_ids = coinbase_usd_tracking_ids(accounts)
         groups = (
             ynab_get(f"/budgets/{bid}/categories", token)
             .get("data", {})
@@ -887,6 +933,7 @@ def fetch_ynab_window(since: str) -> Dict[str, Any]:
         "transactions": txs,
         "category_groups": groups,
         "on_budget_ids": on_budget_ids,
+        "tracking_outflow_ids": tracking_outflow_ids,
         "as_of": datetime.now(timezone.utc).isoformat(),
         "budget_name": budget.get("name"),
     }
@@ -934,6 +981,7 @@ def load_cash_streams(
         transactions=pulled.get("transactions") or [],
         category_groups=pulled.get("category_groups") or [],
         on_budget_ids=pulled.get("on_budget_ids"),
+        tracking_outflow_ids=pulled.get("tracking_outflow_ids"),
         ynab_stale=ok_stale,
         ynab_soft_preserved=False,
         ynab_as_of=as_of,
