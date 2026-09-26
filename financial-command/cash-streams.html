@@ -105,8 +105,16 @@
     .axis text { fill: var(--muted); font-size: 11px; }
     .axis path, .axis line { stroke: #2a3a4a; }
     .axis-title { fill: var(--muted); font-size: 11px; font-weight: 650; }
-    .line-in { fill: none; stroke: var(--green); stroke-width: 2.2; }
-    .line-out { fill: none; stroke: var(--red); stroke-width: 2.2; }
+    .line-in { fill: none; stroke: var(--green); stroke-width: 2.6; }
+    .line-out { fill: none; stroke: var(--red); stroke-width: 2.6; }
+    .line-lyft { fill: none; stroke: #ff69b4; stroke-width: 1.8; }
+    .line-grubhub { fill: none; stroke: #ff8c1a; stroke-width: 1.8; }
+    .line-turo { fill: none; stroke: #b7c0c8; stroke-width: 1.8; }
+    .source-warn {
+      background: #2a2410; border: 1px solid #6b5a1e; color: var(--yellow);
+      border-radius: 10px; padding: 0.55rem 0.75rem; font-size: 0.8rem;
+      margin: 0 0 0.6rem;
+    }
     .node rect { stroke: #0b0f14; stroke-width: 1; }
     .node text { font-size: 11px; font-weight: 650; pointer-events: none; }
     .link { fill: none; stroke-opacity: 0.35; }
@@ -147,6 +155,7 @@
       }
       .kpis { grid-template-columns: 1fr; }
       .rolling-wrap { min-height: 220px; }
+      #rolling-legend { gap: 0.4rem 0.65rem; }
       .sticky-top .controls button,
       .sticky-top .controls .btn,
       .sticky-top .controls a.btn {
@@ -217,14 +226,18 @@
 
     <section class="card" id="rolling-card">
       <h2>30-day rolling average</h2>
-      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Seeded from 120 days so every point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. Mining stays on the Sankey. No CDN.</p>
-      <div class="legend">
+      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Lyft, Grubhub, and Turo use that same mean on their external inflows only. Seeded from 120 days so every point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. Mining stays on the Sankey. No CDN.</p>
+      <div class="legend" id="rolling-legend">
         <span><i class="swatch" style="background:#3dd68c"></i> Inflow</span>
         <span><i class="swatch" style="background:#ff6b6b"></i> Outflow</span>
+        <span><i class="swatch" style="background:#ff69b4"></i> Lyft</span>
+        <span><i class="swatch" style="background:#ff8c1a"></i> Grubhub</span>
+        <span><i class="swatch" style="background:#b7c0c8"></i> Turo</span>
       </div>
+      <div id="rolling-source-warn" class="source-warn hidden" role="status"></div>
       <div id="rolling-error" class="error hidden"></div>
       <div class="chart-wrap rolling-wrap" id="rolling-wrap">
-        <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow and outflow, dollars per day"></svg>
+        <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow, outflow, Lyft, Grubhub, and Turo income, dollars per day"></svg>
       </div>
     </section>
   </main>
@@ -450,6 +463,9 @@
         dateObj: parseDay(d.date),
         inflow: Number(d.inflow) || 0,
         outflow: Number(d.outflow) || 0,
+        lyft: Number(d.lyft) || 0,
+        grubhub: Number(d.grubhub) || 0,
+        turo: Number(d.turo) || 0,
       }));
       const wrap = document.getElementById("rolling-wrap");
       const width = Math.max(280, Math.floor(wrap.clientWidth || 320) - 2);
@@ -468,7 +484,10 @@
       const maxY = Math.max(
         1,
         d3.max(points, (d) => d.inflow) || 0,
-        d3.max(points, (d) => d.outflow) || 0
+        d3.max(points, (d) => d.outflow) || 0,
+        d3.max(points, (d) => d.lyft) || 0,
+        d3.max(points, (d) => d.grubhub) || 0,
+        d3.max(points, (d) => d.turo) || 0
       );
       const y = d3.scaleLinear().domain([0, maxY * 1.2]).range([innerH, 0]);
       const tickCount = width < 640 ? 4 : 8;
@@ -490,16 +509,20 @@
         .attr("text-anchor", "middle")
         .text("Date");
 
-      const lineIn = d3.line()
-        .x((d) => x(d.dateObj))
-        .y((d) => y(d.inflow))
-        .curve(d3.curveMonotoneX);
-      const lineOut = d3.line()
-        .x((d) => x(d.dateObj))
-        .y((d) => y(d.outflow))
-        .curve(d3.curveMonotoneX);
-      g.append("path").attr("class", "line-in").attr("d", lineIn(points));
-      g.append("path").attr("class", "line-out").attr("d", lineOut(points));
+      const series = [
+        { key: "inflow", cls: "line-in" },
+        { key: "outflow", cls: "line-out" },
+        { key: "lyft", cls: "line-lyft" },
+        { key: "grubhub", cls: "line-grubhub" },
+        { key: "turo", cls: "line-turo" },
+      ];
+      for (const spec of series) {
+        const path = d3.line()
+          .x((d) => x(d.dateObj))
+          .y((d) => y(d[spec.key]))
+          .curve(d3.curveMonotoneX);
+        g.append("path").attr("class", spec.cls).attr("d", path(points));
+      }
 
       const tip = document.getElementById("tooltip");
       const hover = g.append("rect")
@@ -529,10 +552,13 @@
         tip.innerHTML =
           "<strong>" + esc(row.date) + "</strong><br>" +
           "Inflow " + moneyCents(row.inflow) + "/day<br>" +
-          "Outflow " + moneyCents(row.outflow) + "/day";
+          "Outflow " + moneyCents(row.outflow) + "/day<br>" +
+          "Lyft " + moneyCents(row.lyft) + "/day<br>" +
+          "Grubhub " + moneyCents(row.grubhub) + "/day<br>" +
+          "Turo " + moneyCents(row.turo) + "/day";
         const src = event.touches && event.touches[0] ? event.touches[0] : event;
-        const left = Math.max(8, Math.min(src.clientX + 12, window.innerWidth - 180));
-        const top = Math.max(8, Math.min(src.clientY + 12, window.innerHeight - 72));
+        const left = Math.max(8, Math.min(src.clientX + 12, window.innerWidth - 200));
+        const top = Math.max(8, Math.min(src.clientY + 12, window.innerHeight - 148));
         tip.style.left = left + "px";
         tip.style.top = top + "px";
         vline.style("display", null).attr("x1", x(row.dateObj)).attr("x2", x(row.dateObj));
@@ -572,6 +598,23 @@
           return;
         }
         const estimated = !!(data.ynab && data.ynab.stale);
+        const warn = document.getElementById("rolling-source-warn");
+        const warned = Array.isArray(data.source_warnings) ? data.source_warnings : [];
+        const labels = {};
+        for (const src of data.sources || []) labels[src.id] = src.label;
+        const names = warned.map((id) => labels[id] || id);
+        if (names.length) {
+          warn.classList.remove("hidden");
+          const listed = names.length === 1
+            ? names[0]
+            : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+          warn.textContent = listed +
+            (names.length === 1 ? " is" : " are") +
+            " $0 on every point in this window while total inflow is not. A renamed payee or category would drop that line to zero.";
+        } else {
+          warn.classList.add("hidden");
+          warn.textContent = "";
+        }
         const win = data.window || {};
         const hint = document.getElementById("rolling-hint");
         if (!hint.dataset.base) hint.dataset.base = hint.textContent;

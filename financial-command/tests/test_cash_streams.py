@@ -941,6 +941,9 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(dates[-1].isoformat(), "2026-09-11")
         self.assertEqual(dates, [dates[0] + timedelta(days=i) for i in range(90)])
         self.assertTrue(all(p["inflow"] == 0.0 and p["outflow"] == 0.0 for p in payload["points"]))
+        self.assertTrue(all(p["lyft"] == 0.0 and p["grubhub"] == 0.0 and p["turo"] == 0.0 for p in payload["points"]))
+        self.assertEqual(payload["source_warnings"], [])
+        self.assertEqual([s["id"] for s in payload["sources"]], ["lyft", "grubhub", "turo"])
 
     def test_hand_bucket_trailing_mean(self) -> None:
         # $3000 on the first included seed day → only 2026-06-14 moves, by 3000/30.
@@ -971,6 +974,15 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(sep10["outflow"], 0.0)
         self.assertEqual(last["inflow"], 11.0)
         self.assertEqual(last["outflow"], 3.0)
+        self.assertEqual(first["lyft"], 100.0)
+        self.assertEqual(first["grubhub"], 0.0)
+        self.assertEqual(first["turo"], 0.0)
+        self.assertEqual(sep10["turo"], 1.0)
+        self.assertEqual(sep10["lyft"], 0.0)
+        self.assertEqual(last["lyft"], 10.0)
+        self.assertEqual(last["turo"], 1.0)
+        self.assertEqual(last["grubhub"], 0.0)
+        self.assertEqual(payload["source_warnings"], ["grubhub"])
         # The 2026-05-15 inflow is outside every displayed 30-day window.
         without = build_rolling_cash_series(
             today=TODAY,
@@ -979,6 +991,37 @@ class TestRollingCashSeries(unittest.TestCase):
             on_budget_ids={"onb"},
         )
         self.assertEqual(without["points"], payload["points"])
+
+    def test_source_lines_use_payee_or_category_after_shared_exclusions(self) -> None:
+        txs = [
+            _tx(amount=300_000, payee="Lyft Inc", date_s="2026-09-11"),
+            _tx(amount=60_000, payee="HW*GrubHub Holdings Inc.", date_s="2026-09-11"),
+            _tx(amount=30_000, payee="Stripe", category_name="Turo", date_s="2026-09-10"),
+            _tx(amount=90_000, payee="Employer", date_s="2026-09-11"),
+            _tx(amount=-30_000, payee="Lyft", date_s="2026-09-11"),
+            _tx(amount=300_000, payee="Lyft", transfer_account_id="other", date_s="2026-09-11"),
+            _tx(amount=300_000, payee="Starting Balance", date_s="2026-09-11"),
+            _tx(amount=40_000, payee="Coinbase Lyft", date_s="2026-09-11"),
+            _tx(amount=20_000, payee="Lyft reconcile", date_s="2026-09-11"),
+            _tx(amount=15_000, payee="Grubby", date_s="2026-09-11"),
+        ]
+        payload = build_rolling_cash_series(
+            today=TODAY,
+            transactions=txs,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        sep10 = next(p for p in payload["points"] if p["date"] == "2026-09-10")
+        last = payload["points"][-1]
+        # 300 + 60 + 90 + 15 = 465 countable inflow on 09-11; 30 Turo on 09-10.
+        self.assertEqual(last["inflow"], 16.5)
+        self.assertEqual(last["lyft"], 10.0)
+        self.assertEqual(last["grubhub"], 2.0)
+        self.assertEqual(last["turo"], 1.0)
+        self.assertEqual(sep10["turo"], 1.0)
+        self.assertEqual(sep10["inflow"], 1.0)
+        self.assertEqual(payload["source_warnings"], [])
+        self.assertEqual(last["lyft"] + last["grubhub"] + last["turo"], 13.0)
 
     def test_chart_reconcile_payee_does_not_widen_shared_filter(self) -> None:
         txs = [
@@ -1147,6 +1190,21 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn(".line-out", html)
         self.assertIn('"line-in"', html)
         self.assertIn('"line-out"', html)
+        self.assertIn(".line-lyft", html)
+        self.assertIn(".line-grubhub", html)
+        self.assertIn(".line-turo", html)
+        self.assertIn('"line-lyft"', html)
+        self.assertIn('"line-grubhub"', html)
+        self.assertIn('"line-turo"', html)
+        self.assertIn("#ff69b4", html)
+        self.assertIn("#ff8c1a", html)
+        self.assertIn("#b7c0c8", html)
+        self.assertIn('id="rolling-legend"', html)
+        self.assertIn('id="rolling-source-warn"', html)
+        self.assertIn("> Lyft</span>", html)
+        self.assertIn("> Grubhub</span>", html)
+        self.assertIn("> Turo</span>", html)
+        self.assertIn("external inflows only", html)
         self.assertIn('$/day', html)
         self.assertIn("Payees containing \"reconcile\"", html)
         self.assertIn("No CDN", html)
