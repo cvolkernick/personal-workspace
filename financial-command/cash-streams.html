@@ -107,9 +107,10 @@
     .axis-title { fill: var(--muted); font-size: 11px; font-weight: 650; }
     .line-in { fill: none; stroke: var(--green); stroke-width: 2.6; }
     .line-out { fill: none; stroke: var(--red); stroke-width: 2.6; }
-    .line-lyft { fill: none; stroke: #ff69b4; stroke-width: 1.8; }
-    .line-grubhub { fill: none; stroke: #ff8c1a; stroke-width: 1.8; }
-    .line-turo { fill: none; stroke: #b7c0c8; stroke-width: 1.8; }
+    .band-lyft { fill: #ff69b4; fill-opacity: 0.6; stroke: none; }
+    .band-grubhub { fill: #ff8c1a; fill-opacity: 0.6; stroke: none; }
+    .band-turo { fill: #b7c0c8; fill-opacity: 0.6; stroke: none; }
+    .band-other { fill: #6b7c8d; fill-opacity: 0.6; stroke: none; }
     .source-warn {
       background: #2a2410; border: 1px solid #6b5a1e; color: var(--yellow);
       border-radius: 10px; padding: 0.55rem 0.75rem; font-size: 0.8rem;
@@ -155,7 +156,8 @@
       }
       .kpis { grid-template-columns: 1fr; }
       .rolling-wrap { min-height: 220px; }
-      #rolling-legend { gap: 0.4rem 0.65rem; }
+      #rolling-legend { gap: 0.35rem 0.55rem; font-size: 0.72rem; }
+      .tooltip { max-width: 13rem; font-size: 0.75rem; }
       .sticky-top .controls button,
       .sticky-top .controls .btn,
       .sticky-top .controls a.btn {
@@ -226,18 +228,19 @@
 
     <section class="card" id="rolling-card">
       <h2>30-day rolling average</h2>
-      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Lyft, Grubhub, and Turo use that same mean on their external inflows only. Seeded from 120 days so every point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. Mining stays on the Sankey. No CDN.</p>
+      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Lyft, Grubhub, Turo, and other are shaded bands stacked under the inflow line. Named sources use that same mean on their external inflows only. Other is total inflow minus those three, floored at 0. Seeded from 120 days so every point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. Mining stays on the Sankey. No CDN.</p>
       <div class="legend" id="rolling-legend">
         <span><i class="swatch" style="background:#3dd68c"></i> Inflow</span>
         <span><i class="swatch" style="background:#ff6b6b"></i> Outflow</span>
         <span><i class="swatch" style="background:#ff69b4"></i> Lyft</span>
         <span><i class="swatch" style="background:#ff8c1a"></i> Grubhub</span>
         <span><i class="swatch" style="background:#b7c0c8"></i> Turo</span>
+        <span><i class="swatch" style="background:#6b7c8d"></i> Other</span>
       </div>
       <div id="rolling-source-warn" class="source-warn hidden" role="status"></div>
       <div id="rolling-error" class="error hidden"></div>
       <div class="chart-wrap rolling-wrap" id="rolling-wrap">
-        <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow, outflow, Lyft, Grubhub, and Turo income, dollars per day"></svg>
+        <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow and outflow, with Lyft, Grubhub, Turo, and other income stacked under inflow, dollars per day"></svg>
       </div>
     </section>
   </main>
@@ -455,18 +458,44 @@
       }
     }
 
+    // Bottom to top. Other is the remainder, not a classified source.
+    const ROLLING_BANDS = [
+      { key: "lyft", cls: "band-lyft" },
+      { key: "grubhub", cls: "band-grubhub" },
+      { key: "turo", cls: "band-turo" },
+      { key: "other", cls: "band-other" },
+    ];
+
+    function bandOther(point) {
+      const fromServer = Number(point.other);
+      if (Number.isFinite(fromServer)) return fromServer > 0 ? fromServer : 0;
+      const remainder = point.inflow - point.lyft - point.grubhub - point.turo;
+      return remainder > 0 ? remainder : 0;
+    }
+
+    function pctOfInflow(amount, inflow) {
+      const total = Number(inflow) || 0;
+      if (!(total > 0)) return "0.0%";
+      return ((Number(amount) || 0) / total * 100).toFixed(1) + "%";
+    }
+
     function renderRolling(data) {
       const svg = d3.select("#rolling");
       svg.selectAll("*").remove();
-      const points = (data.points || []).map((d) => ({
-        ...d,
-        dateObj: parseDay(d.date),
-        inflow: Number(d.inflow) || 0,
-        outflow: Number(d.outflow) || 0,
-        lyft: Number(d.lyft) || 0,
-        grubhub: Number(d.grubhub) || 0,
-        turo: Number(d.turo) || 0,
-      }));
+      const points = (data.points || []).map((d) => {
+        const row = {
+          ...d,
+          dateObj: parseDay(d.date),
+          inflow: Number(d.inflow) || 0,
+          outflow: Number(d.outflow) || 0,
+          lyft: Number(d.lyft) || 0,
+          grubhub: Number(d.grubhub) || 0,
+          turo: Number(d.turo) || 0,
+          other: d.other,
+        };
+        row.other = bandOther(row);
+        return row;
+      });
       const wrap = document.getElementById("rolling-wrap");
       const width = Math.max(280, Math.floor(wrap.clientWidth || 320) - 2);
       const height = width < 640 ? 240 : 320;
@@ -485,9 +514,7 @@
         1,
         d3.max(points, (d) => d.inflow) || 0,
         d3.max(points, (d) => d.outflow) || 0,
-        d3.max(points, (d) => d.lyft) || 0,
-        d3.max(points, (d) => d.grubhub) || 0,
-        d3.max(points, (d) => d.turo) || 0
+        d3.max(points, (d) => d.lyft + d.grubhub + d.turo + d.other) || 0
       );
       const y = d3.scaleLinear().domain([0, maxY * 1.2]).range([innerH, 0]);
       const tickCount = width < 640 ? 4 : 8;
@@ -509,18 +536,29 @@
         .attr("text-anchor", "middle")
         .text("Date");
 
-      const series = [
-        { key: "inflow", cls: "line-in" },
-        { key: "outflow", cls: "line-out" },
-        { key: "lyft", cls: "line-lyft" },
-        { key: "grubhub", cls: "line-grubhub" },
-        { key: "turo", cls: "line-turo" },
+      let floor = points.map(() => 0);
+      for (const band of ROLLING_BANDS) {
+        const base = floor.slice();
+        // Linear: a monotone stack can cross between samples.
+        const area = d3.area()
+          .x((d) => x(d.dateObj))
+          .y0((d, i) => y(base[i]))
+          .y1((d, i) => y(base[i] + (Number(d[band.key]) || 0)))
+          .curve(d3.curveLinear);
+        g.append("path").attr("class", band.cls).attr("d", area(points));
+        floor = points.map((d, i) => base[i] + (Number(d[band.key]) || 0));
+      }
+
+      const lines = [
+        // Linear so the stroke sits on the stack edge between samples.
+        { key: "inflow", cls: "line-in", curve: d3.curveLinear },
+        { key: "outflow", cls: "line-out", curve: d3.curveMonotoneX },
       ];
-      for (const spec of series) {
+      for (const spec of lines) {
         const path = d3.line()
           .x((d) => x(d.dateObj))
           .y((d) => y(d[spec.key]))
-          .curve(d3.curveMonotoneX);
+          .curve(spec.curve);
         g.append("path").attr("class", spec.cls).attr("d", path(points));
       }
 
@@ -547,18 +585,23 @@
         return best;
       }
 
+      function bandTip(label, amount, inflow) {
+        return esc(label) + " " + moneyCents(amount) + "/day (" + pctOfInflow(amount, inflow) + " of inflow)";
+      }
+
       function showTip(event, row) {
         tip.classList.remove("hidden");
         tip.innerHTML =
           "<strong>" + esc(row.date) + "</strong><br>" +
           "Inflow " + moneyCents(row.inflow) + "/day<br>" +
           "Outflow " + moneyCents(row.outflow) + "/day<br>" +
-          "Lyft " + moneyCents(row.lyft) + "/day<br>" +
-          "Grubhub " + moneyCents(row.grubhub) + "/day<br>" +
-          "Turo " + moneyCents(row.turo) + "/day";
+          bandTip("Lyft", row.lyft, row.inflow) + "<br>" +
+          bandTip("Grubhub", row.grubhub, row.inflow) + "<br>" +
+          bandTip("Turo", row.turo, row.inflow) + "<br>" +
+          bandTip("Other", row.other, row.inflow);
         const src = event.touches && event.touches[0] ? event.touches[0] : event;
-        const left = Math.max(8, Math.min(src.clientX + 12, window.innerWidth - 200));
-        const top = Math.max(8, Math.min(src.clientY + 12, window.innerHeight - 148));
+        const left = Math.max(8, Math.min(src.clientX + 12, window.innerWidth - 220));
+        const top = Math.max(8, Math.min(src.clientY + 12, window.innerHeight - 196));
         tip.style.left = left + "px";
         tip.style.top = top + "px";
         vline.style("display", null).attr("x1", x(row.dateObj)).attr("x2", x(row.dateObj));
@@ -610,7 +653,7 @@
             : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
           warn.textContent = listed +
             (names.length === 1 ? " is" : " are") +
-            " $0 on every point in this window while total inflow is not. A renamed payee or category would drop that line to zero.";
+            " $0 on every point in this window while total inflow is not. A renamed payee or category would drop that band to zero.";
         } else {
           warn.classList.add("hidden");
           warn.textContent = "";

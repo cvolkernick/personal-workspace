@@ -18,9 +18,11 @@ stay excluded. Positive amounts on that account are not income.
 The 90-day rolling chart (`build_rolling_cash_series`) reuses this filter,
 then drops any payee containing "reconcile". That wider drop is chart-only.
 It does not change Sankey totals or the Glance daily-flow chip. Mining stays
-on the Sankey; the rolling lines are YNAB daily sums only. Lyft, Grubhub,
-and Turo lines are the same trailing mean restricted to external inflows
-``classify_income_source`` accepts.
+on the Sankey; the rolling series is YNAB daily sums only. Lyft, Grubhub,
+and Turo are that same trailing mean on external inflows
+``classify_income_source`` accepts. They stack under the inflow line with
+an other remainder (inflow minus those three, floored at 0). Outflow stays
+a line.
 Uncategorized outflows stay an explicit node. Missing/stale Braiins or
 Coinbase price feeds are a loud mining-unknown state, never a silent omit.
 
@@ -730,6 +732,27 @@ def _rolling_mean(values: Sequence[float]) -> float:
     return _money(sum(values) / float(len(values)))
 
 
+# Muted slate: darker than Turo gray #b7c0c8, lighter than the chart panel,
+# so the remainder reads as a fill and not as a fifth line.
+OTHER_INCOME_BAND: Dict[str, str] = {
+    "id": "other",
+    "label": "Other",
+    "color": "#6b7c8d",
+}
+
+
+def income_band_other(inflow: float, lyft: float, grubhub: float, turo: float) -> float:
+    """Remainder of inflow after Lyft, Grubhub, and Turo, floored at 0.
+
+    Inputs are the already-rounded trailing means. Independent cent rounding
+    can push the named means a cent past inflow; that case stays at 0.
+    """
+    remainder = round(float(inflow) - float(lyft) - float(grubhub) - float(turo), 2)
+    if remainder <= 0:
+        return 0.0
+    return remainder
+
+
 def build_rolling_cash_series(
     *,
     today: Optional[date] = None,
@@ -750,9 +773,11 @@ def build_rolling_cash_series(
 
     Shared exclusions stay in ``_iter_countable``. The only extra drop is a
     payee containing ``reconcile``. Lyft, Grubhub, and Turo are that same
-    mean over positive amounts ``classify_income_source`` accepts. A source
+    mean over positive amounts ``classify_income_source`` accepts. ``other``
+    is inflow minus those three means, floored at 0, so the stack top matches
+    inflow except when rounding pushes the named means past it. A named source
     that is $0 on every displayed point while some inflow point is not is
-    listed in ``source_warnings``.
+    listed in ``source_warnings``. The remainder band is not a warning.
     """
     end = today or date.today()
     seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
@@ -780,6 +805,7 @@ def build_rolling_cash_series(
         ],
         "ynab": ynab,
         "sources": income_source_public(),
+        "other_band": dict(OTHER_INCOME_BAND),
         "source_warnings": [],
         "points": [],
     }
@@ -832,6 +858,12 @@ def build_rolling_cash_series(
             point[sid] = _rolling_mean(
                 [source_by[sid][d.isoformat()] for d in window_days]
             )
+        point["other"] = income_band_other(
+            point["inflow"],
+            float(point.get("lyft") or 0),
+            float(point.get("grubhub") or 0),
+            float(point.get("turo") or 0),
+        )
         points.append(point)
     if len(points) != ROLLING_DISPLAY_DAYS:
         raise ValueError(f"expected {ROLLING_DISPLAY_DAYS} rolling points, got {len(points)}")
