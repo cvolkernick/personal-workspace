@@ -241,6 +241,28 @@ class TestIsolation(unittest.TestCase):
         self.assertTrue(cfg.get("cleanUrls"))
         self.assertNotIn("ignoreCommand", cfg)
         self.assertNotIn("functions", cfg)
+        # #938: same skip as FitDash. Do not add ignoreCommand here — a
+        # cancel still counts as a Hobby deployment. master stays enabled.
+        enabled = cfg.get("git", {}).get("deploymentEnabled")
+        self.assertIsInstance(enabled, dict)
+        self.assertIs(enabled.get("work/treasury"), False)
+        self.assertIs(enabled.get("fix/vercel-skip-work-treasury-938"), False)
+        self.assertNotIn("master", enabled)
+        self.assertNotIn("main", enabled)
+
+    def test_repo_root_skip_matches_mikrafts(self) -> None:
+        # The Git check for this project still fired when only
+        # mikrafts/vercel.json had the skip (#938). The repo-root file is
+        # the same skip, plus the static settings this project already had.
+        cfg = json.loads((REPO / "vercel.json").read_text(encoding="utf-8"))
+        enabled = cfg.get("git", {}).get("deploymentEnabled")
+        self.assertIsInstance(enabled, dict)
+        self.assertIs(enabled.get("work/treasury"), False)
+        self.assertIs(enabled.get("fix/vercel-skip-work-treasury-938"), False)
+        self.assertNotIn("master", enabled)
+        self.assertNotIn("ignoreCommand", cfg)
+        self.assertNotIn("functions", cfg)
+        self.assertIsNone(cfg.get("framework"))
 
     def test_fitdash_ignore_build_file_unchanged(self) -> None:
         text = FITDASH_IGNORE.read_text(encoding="utf-8")
