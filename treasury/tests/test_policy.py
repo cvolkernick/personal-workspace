@@ -208,6 +208,71 @@ class TestOneCardAvailableCredit(unittest.TestCase):
         self.assertAlmostEqual(ev["inputs"]["card_balance"], 100.0, places=2)
         self.assertEqual(ev["inputs"]["card_source"], "manual")
 
+    def test_explicit_manual_card_beats_stale_ynab_read(self):
+        """#944: owner-verified manual owed beats a disagreeing YNAB/Plaid read."""
+        from datetime import datetime, timezone
+
+        as_of = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        snap = {
+            "coinbase": {"liquid_usdc": 0, "source": "live"},
+            "coinbase_manual": {
+                "vault_usdc": 100,
+                "one_card_security_deposit_usdc": 500,
+                "card_balance": "498.82",
+                "card_balance_source": "manual",
+                "card_balance_as_of": as_of,
+            },
+            "one_card": {
+                "source": "ynab",
+                "card_balance": 19.04,
+                "balance_owed": 19.04,
+                "as_of": as_of,
+                "balance_as_of": "2026-09-01",
+            },
+            "rh_checking": {"source": "ynab", "cash": 10},
+            "robinhood": {
+                "buying_power": 1000,
+                "cash": 10,
+                "equity_value": 5000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertAlmostEqual(ev["inputs"]["card_balance"], 498.82, places=2)
+        self.assertEqual(ev["inputs"]["card_source"], "manual")
+        self.assertFalse(ev["inputs"]["card_stale"])
+        self.assertTrue(ev["inputs"]["ynab_disagrees"])
+        self.assertAlmostEqual(ev["inputs"]["ynab_card_balance"], 19.04, places=2)
+        self.assertAlmostEqual(ev["inputs"]["card_available_credit"], 1.18, places=2)
+
+    def test_old_ynab_balance_is_marked_stale(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 100, "source": "live"},
+            "coinbase_manual": {
+                "vault_usdc": 200,
+                "one_card_security_deposit_usdc": 500,
+            },
+            "one_card": {
+                "source": "ynab",
+                "card_balance": 19.04,
+                "as_of": "2026-09-26T19:00:00+00:00",
+                "balance_as_of": "2020-01-01",
+            },
+            "rh_checking": {"source": "ynab", "cash": 10},
+            "robinhood": {
+                "buying_power": 1000,
+                "cash": 10,
+                "equity_value": 5000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertAlmostEqual(ev["inputs"]["card_balance"], 19.04, places=2)
+        self.assertEqual(ev["inputs"]["card_source"], "ynab")
+        self.assertTrue(ev["inputs"]["card_stale"])
+        self.assertIn("old", ev["inputs"]["card_stale_reason"])
+        self.assertIn(ev["inputs"]["card_stale_reason"], ev["data_quality"]["warnings"])
+
 
 class TestVaultWorkingUsdc(unittest.TestCase):
     def test_zero_spot_vault_covers_buffers(self):

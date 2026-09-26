@@ -2493,7 +2493,8 @@
             <label>RH equity collateral (USD)</label>
             <input id="m-rh-eq-coll" type="number" step="any" placeholder="optional · book backing margin" />
             <label>One Card balance override</label>
-            <input id="m-card-bal" type="number" step="any" placeholder="usually from YNAB" />
+            <input id="m-card-bal" type="number" step="any" placeholder="manual beats a disagreeing YNAB read" />
+            <p class="hint">Changing this and saving stores card_balance_source=manual with an as-of. It wins until YNAB is within $1. A stale as-of is labeled on the Card chip.</p>
             <label>One Card USDC security deposit</label>
             <input id="m-card-deposit" type="number" step="any" placeholder="e.g. 500" />
             <label>Card available credit override</label>
@@ -2637,10 +2638,22 @@
       }
       return last;
     }
-    function oneCardChipSub(owed, oc) {
-      const bits = [money(owed) + " owed", "YNAB"];
-      const last = newestTxDate(oc);
-      if (last) bits.push("tx " + last);
+    function oneCardChipSub(owed, oc, inp) {
+      inp = inp || {};
+      const bits = [];
+      if (inp.card_stale) bits.push("stale");
+      bits.push(money(owed) + " owed");
+      bits.push(inp.card_source === "manual" ? "manual" : "YNAB");
+      const asOf = inp.card_as_of || (oc && (oc.balance_as_of || oc.as_of));
+      const age = ageLabel(asOf);
+      if (age) bits.push(age);
+      else if (inp.card_stale) bits.push("no as-of");
+      if (inp.ynab_disagrees && inp.ynab_card_balance != null)
+        bits.push("YNAB " + money(inp.ynab_card_balance));
+      else {
+        const last = newestTxDate(oc);
+        if (last) bits.push("tx " + last);
+      }
       return bits.join(" · ");
     }
     function ageLabel(iso) {
@@ -2926,6 +2939,14 @@
           loan_principal_usdc: principalKnown ? principal : null,
           loan_closed: loanClosed,
           card_balance: f(man.card_balance),
+          ...(man.card_balance_source
+            ? {
+                card_source: man.card_balance_source,
+                card_as_of: man.card_balance_as_of || null,
+                card_stale:
+                  man.card_balance_source === "manual" && !man.card_balance_as_of,
+              }
+            : {}),
           rh_buying_power: bp,
           rh_cash: f(rh.cash),
           rh_equity: f(rh.equity_value ?? rh.total_value),
@@ -3822,13 +3843,27 @@
       }
 
       const tWorking = workingUsdcTone();
-      const tCard =
+      let tCard =
         stress.coinbase_card === "red"
           ? toneResult(
               "red",
               `One Card ${money(cardOwed)} owed is flagged critical by stress rules.`
             )
           : cardOwedTone(cardOwed, cardDeposit);
+      if (inp.card_stale) {
+        const extra = inp.card_stale_reason
+          ? " " + inp.card_stale_reason + "."
+          : " Card balance is stale.";
+        const tone =
+          tCard.tone === "green" || tCard.tone === "muted" ? "yellow" : tCard.tone;
+        tCard = toneResult(tone, ((tCard.why || "") + extra).trim());
+      } else if (inp.ynab_disagrees && inp.ynab_card_balance != null) {
+        tCard = toneResult(
+          tCard.tone,
+          ((tCard.why || "") +
+            ` YNAB reads ${money(inp.ynab_card_balance)} and is not the chip balance.`).trim()
+        );
+      }
       const tRhCheck = cashLowTone(rhCheck, 5, 25, 75, "RH Checking");
       const tXMoney = cashLowTone(xMoney, 40, 150, 400, "X Money");
       const tAgent = agenticTone();
@@ -3857,7 +3892,7 @@
         {
           k: "Card",
           v: cardUtilPct,
-          s: oneCardChipSub(cardOwed, oc),
+          s: oneCardChipSub(cardOwed, oc, inp),
           target: "cash-credit",
           tone: tCard.tone,
           why: tCard.why,
@@ -4707,6 +4742,11 @@
       set("m-btc-cagr", man.bitcoin_cagr_est ?? man.btc_cagr_est ?? man.bitcoin_cagr_apy_est ?? man.btc_cagr_apy_est);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
       set("m-card-bal", man.card_balance);
+      window.__cardBalancePrefill = {
+        value: man.card_balance == null ? "" : String(man.card_balance),
+        source: man.card_balance_source || inp.card_source || "",
+        as_of: man.card_balance_as_of || inp.card_as_of || "",
+      };
       set(
         "m-card-deposit",
         man.one_card_security_deposit_usdc ??
@@ -5236,7 +5276,9 @@
         const v = el.value;
         return v === "" ? null : v;
       };
-      return {
+      const card = num("m-card-bal");
+      const pre = window.__cardBalancePrefill || {};
+      const out = {
         loan_principal_usdc: num("m-principal"),
         collateral_btc_usd: num("m-collateral"),
         ltv: num("m-ltv"),
@@ -5244,10 +5286,20 @@
         variable_apr: num("m-var-apr"),
         liquidation_price_btc_usd: num("m-liq-price"),
         bitcoin_cagr_est: num("m-btc-cagr"),
-        card_balance: num("m-card-bal"),
+        card_balance: card,
         one_card_security_deposit_usdc: num("m-card-deposit"),
         card_available_credit: num("m-card-avail"),
       };
+      const cardStr = card == null ? "" : String(card);
+      const preStr = pre.value == null ? "" : String(pre.value);
+      if (cardStr !== "" && cardStr !== preStr) {
+        out.card_balance_source = "manual";
+        out.card_balance_as_of = new Date().toISOString();
+      } else if (pre.source === "manual") {
+        out.card_balance_source = "manual";
+        if (pre.as_of) out.card_balance_as_of = pre.as_of;
+      }
+      return out;
     }
 
     function readRobinhoodForm() {

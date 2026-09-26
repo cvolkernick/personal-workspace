@@ -9,6 +9,8 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from treasury.card_balance import resolve_card_balance
+
 
 DEFAULT_POLICY: Dict[str, Any] = {
     # Morpho LTV bands (liq ~86%): target home → alert defense → hard max
@@ -1032,31 +1034,16 @@ def evaluate_treasury(
     card_float_for_vault = (
         _f(p["cb_card_float_usdc"]) if count_vault_card else 0.0
     )
-    # Prefer YNAB/snapshot one_card over manual card_balance so a stale UI/config
-    # override cannot pin owed balance (2026-08-05: $499.23 manual beat live $440.18).
-    ynab_card_raw = one_card.get("card_balance")
-    if _is_missing(ynab_card_raw):
-        ynab_card_raw = one_card.get("balance_owed")
-    ynab_card_ok = (
-        one_card.get("source") in ("ynab", "snapshot")
-        and not one_card.get("live_error")
-        and not _is_missing(ynab_card_raw)
-    )
-    if ynab_card_ok:
-        card_balance_raw = ynab_card_raw
-        card_source = "ynab"
-    else:
-        card_balance_raw = man.get("card_balance")
-        if _is_missing(card_balance_raw):
-            card_balance_raw = ynab_card_raw
-        if man.get("card_balance_source"):
-            card_source = man.get("card_balance_source")
-        elif not _is_missing(man.get("card_balance")):
-            card_source = "manual"
-        elif one_card.get("source") in ("ynab", "snapshot") and not _is_missing(card_balance_raw):
-            card_source = "ynab"
-        else:
-            card_source = None
+    # Unsourced manual loses to healthy YNAB (2026-08-05). Explicit
+    # card_balance_source=manual wins unless YNAB is within $1 (#944).
+    resolved_card = resolve_card_balance(man, one_card)
+    card_balance_raw = resolved_card["card_balance_raw"]
+    card_source = resolved_card["card_source"]
+    card_as_of = resolved_card["card_as_of"]
+    card_stale = bool(resolved_card["card_stale"])
+    card_stale_reason = resolved_card["card_stale_reason"]
+    ynab_disagrees = bool(resolved_card["ynab_disagrees"])
+    ynab_card_balance = resolved_card["ynab_card_balance"] if ynab_disagrees else None
     card_avail_raw = man.get("card_available_credit")
     if _is_missing(card_avail_raw):
         card_avail_raw = one_card.get("card_available_credit")
@@ -1144,6 +1131,11 @@ def evaluate_treasury(
         ltv=ltv,
         stale_after_hours=_f(p.get("stale_after_hours"), 6.0),
     )
+    if card_stale and card_stale_reason:
+        data_quality.setdefault("warnings", []).append(card_stale_reason)
+        data_quality.setdefault("stale", []).append(card_stale_reason)
+        if data_quality.get("status") == "green":
+            data_quality["status"] = "yellow"
 
     morpho_band = leverage_band(
         ltv,
@@ -1666,13 +1658,18 @@ def evaluate_treasury(
         for i, a in enumerate(actions[:8])
     ]
 
+    card_bits = f"source={card_source or 'none'}"
+    if card_as_of:
+        card_bits += f", as_of={card_as_of}"
+    if card_stale:
+        card_bits += ", STALE"
     agent_brief_lines = [
         f"Overall stress: {overall}",
         f"LTV: {ltv if ltv is not None else 'UNKNOWN'}",
         f"HY LTV sleeve: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + HY vault "
         f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'} — leverage defense, not card float)"
         f" | BTC liquid: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
-        f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
+        f"One Card owed: ${card_balance:.2f} ({card_bits})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else "")
         + " | path=Morpho refinance (not HY pull)",
         f"Engines: Morpho LTV={ltv if ltv is not None else 'UNKNOWN'}"
@@ -1738,6 +1735,11 @@ def evaluate_treasury(
             "card_security_deposit_usdc": card_deposit,
             "card_available_credit_source": card_avail_source,
             "card_source": card_source,
+            "card_as_of": card_as_of,
+            "card_stale": card_stale,
+            "card_stale_reason": card_stale_reason,
+            "ynab_card_balance": ynab_card_balance,
+            "ynab_disagrees": ynab_disagrees,
             "one_card_spend_30d": one_card.get("spend_30d"),
             "one_card_account": one_card.get("account_name"),
             "expenses_upcoming_monthly": (snapshot.get("expenses") or {}).get("summary", {}).get(

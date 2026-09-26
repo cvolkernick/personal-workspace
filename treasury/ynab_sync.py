@@ -426,6 +426,8 @@ def normalize_one_card(
     if account.get("type") == "creditCard":
         balance_owed = abs(raw)
     txs_out, spend_30d, payments_30d = _summarize_txs(transactions, account_type="creditCard")
+    tx_dates = [str(t.get("date")) for t in txs_out if t.get("date")]
+    balance_as_of = max(tx_dates) if tx_dates else None
     return {
         "source": source,
         "as_of": _now(),
@@ -440,6 +442,7 @@ def normalize_one_card(
         "balance_raw": raw,
         "balance_owed": round(balance_owed, 2),
         "card_balance": round(balance_owed, 2),
+        "balance_as_of": balance_as_of,
         "available_credit": None,
         "card_available_credit": None,
         "cleared_balance": milli_to_units(account.get("cleared_balance")),

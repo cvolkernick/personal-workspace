@@ -243,6 +243,23 @@ class TestNormalize(unittest.TestCase):
         self.assertAlmostEqual(snap["spend_30d"], 12.5)
         self.assertEqual(snap["account_name"], "Coinbase One Card – 5361")
 
+    def test_balance_as_of_is_latest_transaction_date(self):
+        account = {
+            "id": "a1",
+            "name": "Coinbase One Card – 5361",
+            "type": "creditCard",
+            "balance": -19040,
+            "direct_import_in_error": True,
+        }
+        txs = [
+            {"id": "t1", "date": "2026-08-02", "payee_name": "Shop", "amount": -1000, "deleted": False},
+            {"id": "t2", "date": "2026-09-01", "payee_name": "Shop", "amount": -2000, "deleted": False},
+            {"id": "t3", "date": "2026-07-01", "payee_name": "Old", "amount": -500, "deleted": True},
+        ]
+        snap = normalize_one_card(account, txs, budget_id="b1", budget_name="Plan")
+        self.assertEqual(snap["balance_as_of"], "2026-09-01")
+        self.assertTrue(snap["direct_import_in_error"])
+
 
 class TestNormalizeChecking(unittest.TestCase):
     def test_rh_checking_cash(self):
