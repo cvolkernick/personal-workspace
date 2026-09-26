@@ -246,6 +246,7 @@ class TestIsolation(unittest.TestCase):
         enabled = cfg.get("git", {}).get("deploymentEnabled")
         self.assertIsInstance(enabled, dict)
         self.assertIs(enabled.get("work/treasury"), False)
+        self.assertIs(enabled.get("fix/vercel-skip-work-treasury-938"), False)
         self.assertNotIn("master", enabled)
         self.assertNotIn("main", enabled)
 

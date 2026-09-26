@@ -93,6 +93,10 @@ class TestFitDashPrefixes(unittest.TestCase):
         enabled = cfg.get("git", {}).get("deploymentEnabled")
         self.assertIsInstance(enabled, dict)
         self.assertIs(enabled.get("work/treasury"), False)
+        # This PR branch is disabled so opening it does not spend a Hobby
+        # deployment while the daily cap is already exhausted. It matches
+        # no other ref. master stays unspecified (Vercel default true).
+        self.assertIs(enabled.get("fix/vercel-skip-work-treasury-938"), False)
         self.assertNotIn("master", enabled)
         self.assertNotIn("main", enabled)
         # #194 adapter fields may coexist. Dropping ignoreCommand burns a
