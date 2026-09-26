@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple  # noqa: F401
 
+from treasury.card_balance import resolve_card_balance
+
 TREASURY_DIR = Path(__file__).resolve().parent
 SNAPSHOTS_DIR = TREASURY_DIR / "snapshots"
 CONFIG_PATH = TREASURY_DIR / "config.json"
@@ -518,18 +520,16 @@ def _merge_manual_with_one_card(
 ) -> Dict[str, Any]:
     """Overlay YNAB One Card fields onto manual.
 
-    Live/snapshot YNAB **wins** over a non-empty manual ``card_balance`` so a
-    saved FCC UI override (or stale config) cannot pin a frozen owed amount.
-    Available credit still only fills when manual is empty (YNAB rarely has it).
+    Healthy YNAB wins over an unsourced manual balance. An explicit
+    ``card_balance_source=manual`` is kept unless YNAB is within $1.
+    Available credit still only fills when manual is empty.
     """
     out = dict(manual)
-    if one_card.get("source") in (None, "empty") or one_card.get("live_error"):
-        # Still allow partial overlay if balance present
-        if one_card.get("card_balance") is None and one_card.get("balance_owed") is None:
-            return out
-    bal = one_card.get("card_balance")
-    if bal is None:
-        bal = one_card.get("balance_owed")
+    resolved = resolve_card_balance(out, one_card)
+    if resolved["card_source"] == "ynab" and resolved["card_balance"] is not None:
+        out["card_balance"] = resolved["card_balance"]
+        out["card_balance_source"] = "ynab"
+        out.pop("card_balance_as_of", None)
     avail = one_card.get("card_available_credit")
     if avail is None:
         avail = one_card.get("available_credit")
@@ -537,15 +537,6 @@ def _merge_manual_with_one_card(
     def _empty(v: Any) -> bool:
         return v is None or v == ""
 
-    ynab_healthy = (
-        one_card.get("source") in ("ynab", "snapshot")
-        and not one_card.get("live_error")
-        and bal is not None
-    )
-    # Prefer YNAB when healthy; otherwise only fill empty manual (legacy path)
-    if ynab_healthy or (_empty(out.get("card_balance")) and bal is not None):
-        out["card_balance"] = bal
-        out["card_balance_source"] = "ynab"
     if _empty(out.get("card_available_credit")) and avail is not None:
         out["card_available_credit"] = avail
         out["card_available_credit_source"] = "ynab"

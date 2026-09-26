@@ -204,6 +204,34 @@ class TestMergeManualWithOneCard(unittest.TestCase):
         self.assertEqual(merged["card_balance"], 100.0)
         self.assertIsNone(merged.get("card_balance_source"))
 
+    def test_explicit_manual_beats_disagreeing_ynab(self):
+        merged = _merge_manual_with_one_card(
+            {
+                "card_balance": "498.82",
+                "card_balance_source": "manual",
+                "card_balance_as_of": "2026-09-26T19:46:55Z",
+                "vault_usdc": 100,
+            },
+            {"source": "ynab", "card_balance": 19.04, "balance_owed": 19.04},
+        )
+        self.assertEqual(merged["card_balance"], "498.82")
+        self.assertEqual(merged["card_balance_source"], "manual")
+        self.assertEqual(merged["card_balance_as_of"], "2026-09-26T19:46:55Z")
+        self.assertEqual(merged["vault_usdc"], 100)
+
+    def test_ynab_within_dollar_replaces_manual_pin(self):
+        merged = _merge_manual_with_one_card(
+            {
+                "card_balance": 498.82,
+                "card_balance_source": "manual",
+                "card_balance_as_of": "2026-09-26T19:46:55Z",
+            },
+            {"source": "ynab", "card_balance": 499.10},
+        )
+        self.assertAlmostEqual(merged["card_balance"], 499.10)
+        self.assertEqual(merged["card_balance_source"], "ynab")
+        self.assertNotIn("card_balance_as_of", merged)
+
 
 class TestOfflineConsumerPolicy(unittest.TestCase):
     def test_explicit_or_env(self):
