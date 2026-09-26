@@ -819,6 +819,78 @@ def _strip_training_ex_leaves(planned: List[PlannedGroup]) -> List[PlannedGroup]
     return out
 
 
+def _planned_training_lifts_all_complete(
+    planned: Sequence[PlannedGroup],
+    listed_tasks: Sequence[dict],
+    day: str,
+) -> bool:
+    """True when every planned ex-* leaf is completed in Google Tasks.
+
+    No planned lifts is vacuously true (strip is a no-op). A missing or
+    incomplete match stays on the quest set (#934).
+    """
+    lifts = [
+        it
+        for g in planned or []
+        if g.group == "training"
+        for it in g.items
+        if str(it.slug or "").startswith("ex-")
+    ]
+    if not lifts:
+        return True
+    tasks = [t for t in (listed_tasks or []) if isinstance(t, dict)]
+    for it in lifts:
+        matched = [t for t in tasks if task_matches_item(t, it, day)]
+        if not matched or any(not _task_is_completed(t) for t in matched):
+            return False
+    return True
+
+
+def _parent_children_all_complete(
+    list_id: str,
+    parent_id: str,
+    *,
+    just_completed_id: str = "",
+) -> bool:
+    """True when every non-deleted child of ``parent_id`` is completed.
+
+    Fail closed: a lookup error, a non-ok list, or an empty child set does
+    not authorize completing the parent. The leaf just completed counts as
+    done only when that child is present in the snapshot.
+    """
+    try:
+        listed = gtb.list_tasks(
+            list_id, show_completed=True, show_hidden=True
+        )
+    except Exception:
+        return False
+    if not isinstance(listed, dict) or not listed.get("ok"):
+        return False
+    want = str(parent_id or "")
+    done_id = str(just_completed_id or "")
+    children: List[dict] = []
+    saw_done = False
+    for task in listed.get("tasks") or []:
+        if not isinstance(task, dict) or task.get("deleted"):
+            continue
+        if str(task.get("parent") or "") != want:
+            continue
+        children.append(task)
+        if done_id and str(task.get("id") or "") == done_id:
+            saw_done = True
+    if not children:
+        return False
+    if done_id and not saw_done:
+        return False
+    for task in children:
+        tid = str(task.get("id") or "")
+        if done_id and tid == done_id:
+            continue
+        if not _task_is_completed(task):
+            return False
+    return True
+
+
 def _attach_existing_training_leaves(
     planned: List[PlannedGroup],
     listed_tasks: Sequence[dict],
@@ -2373,10 +2445,12 @@ def ensure_daily_tasks(
         ) or training_day_complete_from_tasks(
             listed_tasks, day=day, cache_ids=ids
         )
-        if train_day_complete:
-            # Parent is SoT: do not quest-seed remaining prescription.
-            # Leftover same-letter leaves are reattached after wrong-rotation
-            # purge so skipped lifts stay visible and incomplete.
+        if train_day_complete and _planned_training_lifts_all_complete(
+            planned, listed_tasks, day
+        ):
+            # Every planned lift is already complete in GT, so do not
+            # re-seed it. A complete parent with a lift still open keeps
+            # that lift visible (#934) and does not uncomplete the parent.
             planned = _strip_training_ex_leaves(planned)
         owned_meal = collect_meal_plan_task_ids(
             listed_tasks, day=day, cache_ids=ids
@@ -3152,7 +3226,19 @@ def complete_leaf(
         if not result.get("ok"):
             return result
         if parent_id and sibling_all_done is not None:
-            gtb.complete_task(list_id, parent_id, completed=bool(sibling_all_done))
+            # Client sibling_all_done is a hint. Complete the parent only
+            # when every GT child is actually done (#934). Uncheck still
+            # clears the parent without that lookup.
+            if sibling_all_done:
+                verified = _parent_children_all_complete(
+                    list_id,
+                    parent_id,
+                    just_completed_id=task_id if completed else "",
+                )
+                if verified:
+                    gtb.complete_task(list_id, parent_id, completed=True)
+            else:
+                gtb.complete_task(list_id, parent_id, completed=False)
         calendar = None
         if completed:
             task = result.get("task") or {}

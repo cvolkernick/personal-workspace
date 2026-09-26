@@ -2683,6 +2683,264 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(store["g-train"]["status"], "completed")
         self.assertIn(("g-train", True), complete_calls)
 
+    def _two_lift_board(self, day, *, already=False):
+        return {
+            "date": day,
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Complete today's LEGS session (2 lifts as prescribed).",
+                    "id": TRAIN_SESSION_SLUG,
+                }
+            ],
+            "workout": {
+                "is_rest_day": False,
+                "already_trained_today": already,
+                "session_type": "legs",
+                "exercises": [
+                    {"name": "RDL", "sets": 2, "reps": 7, "weight_lbs": 40},
+                    {
+                        "name": "Seated Leg Curls",
+                        "sets": 2,
+                        "reps": 10,
+                        "weight_lbs": 40,
+                    },
+                ],
+            },
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+
+    def _two_lift_store(
+        self,
+        day,
+        *,
+        parent="needsAction",
+        session="needsAction",
+        rdl="needsAction",
+        curl="needsAction",
+        link_parent=True,
+    ):
+        def task(tid, title, kind, status, parent_id=None):
+            row = {
+                "id": tid,
+                "title": title,
+                "notes": quest_notes("", day, kind),
+                "status": status,
+                "due": f"{day}T00:00:00.000Z",
+            }
+            if parent_id:
+                row["parent"] = parent_id
+            return row
+
+        parent_id = "g-train" if link_parent else None
+        return {
+            "g-train": task("g-train", "Training", "training|group", parent),
+            "sess": task(
+                "sess",
+                "Complete today's LEGS session (2 lifts as prescribed).",
+                "training|train-session",
+                session,
+                parent_id,
+            ),
+            "rdl": task(
+                "rdl", "RDL (40 lb 2×7)", "training|ex-rdl", rdl, parent_id
+            ),
+            "curl": task(
+                "curl",
+                "Seated Leg Curls (40 lb 2×10)",
+                "training|ex-seated-leg-curls",
+                curl,
+                parent_id,
+            ),
+        }
+
+    def _training_ids(self, day):
+        return {
+            day: {
+                "list_id": "L1",
+                "ids": {
+                    "training|group": "g-train",
+                    "training|train-session": "sess",
+                    "training|ex-rdl": "rdl",
+                    "training|ex-seated-leg-curls": "curl",
+                },
+                "local_completed": {},
+            }
+        }
+
+    def test_adversarial_sibling_flag_leaves_parent_and_lifts(self):
+        """#934: sibling_all_done=true with an open sibling does not complete the parent."""
+        day = "2026-08-29"
+        store = self._two_lift_store(day)
+        created: list[dict] = []
+        calls: list[tuple[str, bool]] = []
+        cache = self._training_ids(day)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp, cache=cache):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, calls),
+                ):
+                    marked = complete_leaf(
+                        "L1",
+                        "curl",
+                        completed=True,
+                        parent_id="g-train",
+                        sibling_all_done=True,
+                        group="training",
+                        slug="ex-seated-leg-curls",
+                        date=day,
+                        title="Seated Leg Curls (40 lb 2×10)",
+                    )
+                    self.assertTrue(marked.get("ok"), marked)
+                    self.assertEqual(store["curl"]["status"], "completed")
+                    self.assertEqual(store["rdl"]["status"], "needsAction")
+                    self.assertEqual(store["g-train"]["status"], "needsAction")
+                    self.assertNotIn(("g-train", True), calls)
+                    reloaded = ensure_daily_tasks(
+                        self._two_lift_board(day), day=day
+                    )
+                    self.assertFalse(training_day_complete(day))
+        self.assertTrue(reloaded.get("ok"), reloaded)
+        train = next(
+            g for g in reloaded["groups"] if g["group"] == "training"
+        )
+        self.assertFalse(train.get("completed"), train)
+        by_slug = {i["slug"]: i for i in train["items"]}
+        self.assertIn("ex-rdl", by_slug)
+        self.assertIn("ex-seated-leg-curls", by_slug)
+        self.assertFalse(by_slug["ex-rdl"]["completed"])
+        self.assertTrue(by_slug["ex-seated-leg-curls"]["completed"])
+        local = (cache.get(day) or {}).get("local_completed") or {}
+        self.assertFalse(local.get("training|group"))
+        self.assertFalse(local.get("training|train-session"))
+
+    def test_sibling_flag_fails_closed_without_child_proof(self):
+        day = "2026-08-29"
+        store = self._two_lift_store(day, link_parent=False)
+        created: list[dict] = []
+        calls: list[tuple[str, bool]] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, calls),
+                ):
+                    marked = complete_leaf(
+                        "L1",
+                        "curl",
+                        completed=True,
+                        parent_id="g-train",
+                        sibling_all_done=True,
+                    )
+                    self.assertTrue(marked.get("ok"), marked)
+                    self.assertEqual(store["g-train"]["status"], "needsAction")
+                    with mock.patch(
+                        "rt_dashboard.daily_plan_tasks.gtb.list_tasks",
+                        side_effect=RuntimeError("tasks down"),
+                    ):
+                        store["curl"]["status"] = "needsAction"
+                        blown = complete_leaf(
+                            "L1",
+                            "curl",
+                            completed=True,
+                            parent_id="g-train",
+                            sibling_all_done=True,
+                        )
+                    self.assertTrue(blown.get("ok"), blown)
+                    self.assertEqual(store["g-train"]["status"], "needsAction")
+                    self.assertNotIn(("g-train", True), calls)
+
+    def test_verified_children_still_complete_parent(self):
+        day = "2026-08-29"
+        store = self._two_lift_store(
+            day, session="completed", rdl="completed"
+        )
+        created: list[dict] = []
+        calls: list[tuple[str, bool]] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, calls),
+                ):
+                    marked = complete_leaf(
+                        "L1",
+                        "curl",
+                        completed=True,
+                        parent_id="g-train",
+                        sibling_all_done=True,
+                    )
+        self.assertTrue(marked.get("ok"), marked)
+        self.assertEqual(store["g-train"]["status"], "completed")
+        self.assertIn(("g-train", True), calls)
+
+    def test_sibling_flag_false_still_uncompletes_parent(self):
+        day = "2026-08-29"
+        store = self._two_lift_store(
+            day,
+            parent="completed",
+            session="completed",
+            rdl="completed",
+            curl="completed",
+        )
+        created: list[dict] = []
+        calls: list[tuple[str, bool]] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, calls),
+                ):
+                    marked = complete_leaf(
+                        "L1",
+                        "curl",
+                        completed=False,
+                        parent_id="g-train",
+                        sibling_all_done=False,
+                    )
+        self.assertTrue(marked.get("ok"), marked)
+        self.assertEqual(store["curl"]["status"], "needsAction")
+        self.assertEqual(store["g-train"]["status"], "needsAction")
+        self.assertIn(("g-train", False), calls)
+
+    def test_complete_parent_keeps_incomplete_planned_lifts_visible(self):
+        """#934: a checked parent does not hide or uncomplete leftover lifts."""
+        day = "2026-08-29"
+        store = self._two_lift_store(
+            day,
+            parent="completed",
+            session="completed",
+            rdl="completed",
+            curl="needsAction",
+        )
+        created: list[dict] = []
+        calls: list[tuple[str, bool]] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                with mock.patch(
+                    "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                    side_effect=self._complete_updating_store(store, calls),
+                ):
+                    result = ensure_daily_tasks(
+                        self._two_lift_board(day), day=day
+                    )
+        self.assertTrue(result.get("ok"), result)
+        self.assertEqual(store["g-train"]["status"], "completed")
+        self.assertEqual(store["curl"]["status"], "needsAction")
+        self.assertFalse(
+            any(tid == "g-train" and done is False for tid, done in calls)
+        )
+        self.assertFalse(
+            any(tid == "curl" and done is True for tid, done in calls)
+        )
+        train = next(g for g in result["groups"] if g["group"] == "training")
+        by_slug = {i["slug"]: i for i in train["items"]}
+        self.assertIn("ex-seated-leg-curls", by_slug)
+        self.assertFalse(by_slug["ex-seated-leg-curls"]["completed"])
+        self.assertTrue(train.get("completed"))
+
     def test_nutrition_parent_still_uncompletes_when_children_remain(self):
         """AC5: Nutrition parent AND-sync is unchanged."""
         day = "2026-08-24"
@@ -3464,6 +3722,66 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
                 self.assertTrue(leaf.get("completed"), leaf)
                 self.assertTrue(group.get("completed"), group)
                 self.assertTrue(training_day_complete(day))
+
+    def test_partial_local_lifts_do_not_complete_training_parent(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        board = self._lift_board(day)
+        board["actions"][0]["text"] = (
+            "Complete today's PUSH session (2 lifts as prescribed)."
+        )
+        board["workout"]["exercises"].append(
+            {
+                "name": "Seated Leg Curls",
+                "sets": 2,
+                "reps": 10,
+                "weight_lbs": 40,
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ):
+                first = ensure_daily_tasks(board, day=day)
+                train = [
+                    g
+                    for g in first.get("groups") or []
+                    if g.get("group") == "training"
+                ][0]
+                lifts = [
+                    it
+                    for it in train.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                ]
+                self.assertGreaterEqual(len(lifts), 2, train)
+                marked = complete_leaf(
+                    "",
+                    "",
+                    completed=True,
+                    sibling_all_done=True,
+                    group="training",
+                    slug=lifts[0]["slug"],
+                    date=day,
+                    title=lifts[0]["title"],
+                )
+                self.assertTrue(marked.get("ok"), marked)
+                second = ensure_daily_tasks(board, day=day)
+                group, leaf = self._train_session_leaf(second)
+                self.assertFalse(leaf.get("completed"), leaf)
+                self.assertFalse(group.get("completed"), group)
+                open_lifts = [
+                    it
+                    for it in group.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                    and it.get("slug") != lifts[0]["slug"]
+                ]
+                self.assertTrue(open_lifts, group)
+                self.assertTrue(
+                    all(not it.get("completed") for it in open_lifts),
+                    open_lifts,
+                )
+                self.assertFalse(training_day_complete(day))
 
     def test_train_parent_planning_ors_log_hit(self):
         from datetime import datetime
