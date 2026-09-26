@@ -14,9 +14,11 @@ grams_batch / yield. Logging multiplies by N servings (fractional OK).
 
 Drift:
 - Ingredient **edit** (macros/name): recipes recompute on read. No stored macros.
-- Ingredient **delete**: block (409) while any recipe references it.
-  ``force=True`` marks those recipes stale and drops the id from inventory;
-  recipe lines stay (stale) so nothing silently vanishes.
+- Ingredient **delete**: block (409) only while a dish (preparation steps
+  present) references it. Instruction-less groupings are not dishes — a
+  read deletes them and they never block removal.
+  ``force=True`` marks those dishes stale and drops the id from inventory;
+  dish lines stay (stale) so nothing silently vanishes.
 """
 
 from __future__ import annotations
@@ -534,8 +536,37 @@ def _parse_payload(raw: Any) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
+def _row_recipe_id(row: Any, data: Optional[dict]) -> str:
+    rid = ""
+    if isinstance(row, dict):
+        rid = str(row.get("id") or "").strip()
+    elif row is not None:
+        try:
+            rid = str(row[0] or "").strip()
+        except (IndexError, KeyError, TypeError):
+            rid = ""
+    if not rid and isinstance(data, dict):
+        rid = str(data.get("id") or "").strip()
+    return rid
+
+
+def _delete_grouping(conn: Any, user_id: str, recipe_id: str) -> None:
+    """Drop one instruction-less row. A failed delete leaves the row for the next read."""
+    uid = str(user_id or "").strip()
+    rid = str(recipe_id or "").strip()
+    if not uid or not rid:
+        return
+    try:
+        conn.execute(
+            "DELETE FROM nutrition_recipes WHERE user_id = ? AND id = ?",
+            (uid, rid),
+        )
+    except Exception:
+        return None
+
+
 def list_recipes(user_id: str, inventory: Optional[dict] = None) -> Tuple[List[dict], str]:
-    """Turso recipes for the user. Empty list + turso_dark when Turso is down."""
+    """Turso dishes for the user. Groupings are deleted. Empty + turso_dark when Turso is down."""
     connect, turso_enabled = _turso()
     uid = str(user_id or "").strip()
     if not uid or not turso_enabled():
@@ -551,18 +582,24 @@ def list_recipes(user_id: str, inventory: Optional[dict] = None) -> Tuple[List[d
                 """,
                 (uid,),
             ).fetchall()
+            kept: List[dict] = []
+            for row in rows or []:
+                payload = row["payload"] if isinstance(row, dict) else row[1]
+                data = _parse_payload(payload)
+                if not data:
+                    continue
+                if not data.get("id"):
+                    data["id"] = _row_recipe_id(row, data)
+                if not is_dish(data):
+                    _delete_grouping(conn, uid, _row_recipe_id(row, data))
+                    continue
+                kept.append(data)
     except Exception:
         return [], FALLBACK_TURSO_DARK
-    out: List[dict] = []
-    for row in rows or []:
-        payload = row["payload"] if isinstance(row, dict) else row[1]
-        data = _parse_payload(payload)
-        if not data:
-            continue
-        if not data.get("id") and isinstance(row, dict):
-            data["id"] = row.get("id")
-        out.append(compute_recipe_macros(normalize_recipe(data), inventory))
-    return out, SOT_TURSO
+    return (
+        [compute_recipe_macros(normalize_recipe(data), inventory) for data in kept],
+        SOT_TURSO,
+    )
 
 
 def get_recipe(user_id: str, recipe_id: str, inventory: Optional[dict] = None) -> Optional[dict]:
@@ -581,15 +618,18 @@ def get_recipe(user_id: str, recipe_id: str, inventory: Optional[dict] = None) -
                 """,
                 (uid, rid),
             ).fetchone()
+            if not row:
+                return None
+            payload = row["payload"] if isinstance(row, dict) else row[0]
+            data = _parse_payload(payload)
+            if not data:
+                return None
+            data.setdefault("id", rid)
+            if not is_dish(data):
+                _delete_grouping(conn, uid, rid)
+                return None
     except Exception:
         return None
-    if not row:
-        return None
-    payload = row["payload"] if isinstance(row, dict) else row[0]
-    data = _parse_payload(payload)
-    if not data:
-        return None
-    data.setdefault("id", rid)
     return compute_recipe_macros(normalize_recipe(data), inventory)
 
 
@@ -611,7 +651,9 @@ def upsert_recipe(
     if rid:
         existing = get_recipe(uid, rid, inventory=None)
     rec = normalize_recipe(raw or {}, existing=existing)
-    if require_method:
+    # require_method=False still cannot store a grouping. It only skips the
+    # check when the row is already a dish (stale-mark rewrite).
+    if require_method or not is_dish(rec):
         require_dish(rec)
     blob = json.dumps(
         {
@@ -670,8 +712,13 @@ def delete_recipe(user_id: str, recipe_id: str) -> bool:
 
 
 def recipes_blocking_ingredient(user_id: str, ingredient_id: str) -> List[dict]:
+    """Dishes that reference this ingredient. Groupings never block removal."""
     recipes, _src = list_recipes(user_id, inventory=None)
-    return recipes_using_ingredient(recipes, ingredient_id)
+    return [
+        rec
+        for rec in recipes_using_ingredient(recipes, ingredient_id)
+        if is_dish(rec)
+    ]
 
 
 def assert_ingredient_not_in_use(user_id: str, ingredient_id: str) -> None:

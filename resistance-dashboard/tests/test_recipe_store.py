@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from unittest import mock
 
@@ -9,12 +10,16 @@ from rt_dashboard.recipe_store import (
     IngredientInUseError,
     RecipeNotADishError,
     add_recipe_logs_to_consumed,
+    assert_ingredient_not_in_use,
     attach_recipes_to_plan,
     compose_from_meal_items,
     compute_recipe_macros,
     dish_yield_label,
     fingerprint_ingredients,
+    get_recipe,
     is_dish,
+    list_recipes,
+    mark_recipes_stale_for_ingredient,
     name_from_items,
     normalize_recipe,
     recipe_logs_as_food_entries,
@@ -23,6 +28,7 @@ from rt_dashboard.recipe_store import (
     scale_servings,
     servings_of_dish_label,
     shopping_from_plans,
+    upsert_recipe,
 )
 
 
@@ -377,6 +383,215 @@ class DishNotGrouping(unittest.TestCase):
         upsert.assert_not_called()
         self.assertIsNone(out["meals"][0].get("recipe_id"))
         self.assertFalse(out["meals"][0].get("is_dish"))
+
+
+def _recipe_row(user_id, payload):
+    return {
+        "user_id": user_id,
+        "id": payload["id"],
+        "payload": json.dumps(payload, separators=(",", ":")),
+        "updated_at": payload.get("updated_at") or "2026-09-01T00:00:00Z",
+    }
+
+
+class _Cursor:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def fetchall(self):
+        return list(self._rows)
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+
+class _RecipeStore:
+    def __init__(self, rows, *, fail_delete=False):
+        self.rows = list(rows)
+        self.fail_delete = fail_delete
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, sql, params=()):
+        text = " ".join(str(sql).split()).upper()
+        if text.startswith("CREATE"):
+            return _Cursor([])
+        if text.startswith("SELECT") and "AND ID = ?" in text:
+            uid, rid = params
+            hit = [r for r in self.rows if r["user_id"] == uid and r["id"] == rid]
+            return _Cursor([{"payload": r["payload"]} for r in hit])
+        if text.startswith("SELECT"):
+            uid = params[0]
+            hit = [r for r in self.rows if r["user_id"] == uid]
+            return _Cursor([{"id": r["id"], "payload": r["payload"]} for r in hit])
+        if text.startswith("DELETE"):
+            if self.fail_delete:
+                raise RuntimeError("delete failed")
+            uid, rid = params
+            self.rows = [
+                r for r in self.rows if not (r["user_id"] == uid and r["id"] == rid)
+            ]
+            return _Cursor([])
+        if "INSERT" in text:
+            uid, rid, payload, updated = params
+            self.rows = [
+                r for r in self.rows if not (r["user_id"] == uid and r["id"] == rid)
+            ]
+            self.rows.append(
+                {
+                    "user_id": uid,
+                    "id": rid,
+                    "payload": payload,
+                    "updated_at": updated,
+                }
+            )
+            return _Cursor([])
+        raise AssertionError(text)
+
+
+def _stored(store, recipe_id):
+    raw = next(r["payload"] for r in store.rows if r["id"] == recipe_id)
+    return json.loads(raw)
+
+
+class PhantomGroupingRemoval(unittest.TestCase):
+    """#929: logged-plate groupings must not block ingredient removal."""
+
+    def setUp(self):
+        self.dish = {
+            "id": "dish1",
+            "name": "Overnight oats",
+            "yield_servings": 1,
+            "ingredients": [
+                {"ingredient_id": "oats", "grams_batch": 40},
+                {"ingredient_id": "milk", "grams_batch": 200},
+            ],
+            "instructions": ["Mix and chill overnight."],
+            "source": "user",
+            "created_at": "2026-09-01T00:00:00Z",
+            "updated_at": "2026-09-01T00:00:00Z",
+            "stale": False,
+            "stale_ingredient_ids": [],
+        }
+        self.grouping = {
+            "id": "grp1",
+            "name": "Men's Vitamins, Natural Berry Flavor + Oats",
+            "yield_servings": 1,
+            "ingredients": [
+                {"ingredient_id": "vit", "grams_batch": 1},
+                {"ingredient_id": "oats", "grams_batch": 40},
+            ],
+            "instructions": [],
+            "source": "user",
+            "created_at": "2026-09-02T00:00:00Z",
+            "updated_at": "2026-09-02T00:00:00Z",
+            "stale": False,
+            "stale_ingredient_ids": [],
+        }
+        self.store = _RecipeStore(
+            [_recipe_row("sub-1", self.dish), _recipe_row("sub-1", self.grouping)]
+        )
+        self.patches = [
+            mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True),
+            mock.patch("rt_dashboard.turso_http.connect", return_value=self.store),
+        ]
+        for p in self.patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_grouping_does_not_block_removal_and_is_deleted(self):
+        assert_ingredient_not_in_use("sub-1", "vit")
+        self.assertEqual([r["id"] for r in self.store.rows], ["dish1"])
+        kept = _stored(self.store, "dish1")
+        self.assertEqual(kept["ingredients"], self.dish["ingredients"])
+        self.assertEqual(kept["instructions"], self.dish["instructions"])
+        self.assertEqual(kept["name"], "Overnight oats")
+
+    def test_dish_still_blocks_and_lists_only_the_dish(self):
+        with self.assertRaises(IngredientInUseError) as ctx:
+            assert_ingredient_not_in_use("sub-1", "oats")
+        names = [r.get("name") for r in ctx.exception.recipes]
+        self.assertEqual(names, ["Overnight oats"])
+        self.assertNotIn("Men's Vitamins, Natural Berry Flavor + Oats", names)
+        listed, src = list_recipes("sub-1")
+        self.assertEqual(src, "turso")
+        self.assertEqual([r["name"] for r in listed], ["Overnight oats"])
+        self.assertTrue(all(r.get("is_dish") for r in listed))
+        self.assertEqual([r["id"] for r in self.store.rows], ["dish1"])
+
+    def test_blank_steps_are_a_grouping(self):
+        self.grouping["instructions"] = ["", "  "]
+        self.store.rows = [
+            _recipe_row("sub-1", self.dish),
+            _recipe_row("sub-1", self.grouping),
+        ]
+        listed, _src = list_recipes("sub-1")
+        self.assertEqual([r["id"] for r in listed], ["dish1"])
+        self.assertEqual([r["id"] for r in self.store.rows], ["dish1"])
+
+    def test_delete_failure_still_hides_grouping_from_block_and_list(self):
+        self.store.fail_delete = True
+        assert_ingredient_not_in_use("sub-1", "vit")
+        listed, _src = list_recipes("sub-1")
+        self.assertEqual([r["name"] for r in listed], ["Overnight oats"])
+        self.assertEqual(sorted(r["id"] for r in self.store.rows), ["dish1", "grp1"])
+
+    def test_get_drops_grouping(self):
+        self.assertIsNone(get_recipe("sub-1", "grp1"))
+        self.assertEqual([r["id"] for r in self.store.rows], ["dish1"])
+        loaded = get_recipe("sub-1", "dish1")
+        self.assertEqual(loaded["name"], "Overnight oats")
+        self.assertEqual(loaded["instructions"], ["Mix and chill overnight."])
+
+    def test_upsert_refuses_instructionless_without_writing(self):
+        before = list(self.store.rows)
+        with self.assertRaises(RecipeNotADishError) as ctx:
+            upsert_recipe(
+                "sub-1",
+                {
+                    "name": "Men's Vitamins, Natural Berry Flavor, Oats + 1 more",
+                    "ingredients": [
+                        {"ingredient_id": "vit", "grams_batch": 1},
+                        {"ingredient_id": "oats", "grams_batch": 40},
+                    ],
+                },
+            )
+        self.assertEqual(ctx.exception.error_code, "recipe_not_a_dish")
+        with self.assertRaises(RecipeNotADishError):
+            upsert_recipe(
+                "sub-1",
+                {
+                    "name": "Vitamins + Oats",
+                    "ingredients": [{"ingredient_id": "vit", "grams_batch": 1}],
+                    "instructions": [],
+                },
+                require_method=False,
+            )
+        self.assertEqual(len(self.store.rows), len(before))
+
+    def test_upsert_saves_a_dish_and_stale_mark_keeps_it(self):
+        saved = upsert_recipe(
+            "sub-1",
+            {
+                "name": "Berry smoothie",
+                "yield_servings": 2,
+                "ingredients": [{"ingredient_id": "vit", "grams_batch": 1}],
+                "instructions": ["Blend until smooth."],
+            },
+        )
+        self.assertTrue(saved["is_dish"])
+        self.assertEqual(saved["instructions"], ["Blend until smooth."])
+        n = mark_recipes_stale_for_ingredient("sub-1", "vit")
+        self.assertEqual(n, 1)
+        stale = _stored(self.store, saved["id"])
+        self.assertTrue(stale["stale"])
+        self.assertIn("vit", stale["stale_ingredient_ids"])
+        self.assertEqual(stale["instructions"], ["Blend until smooth."])
+        self.assertNotIn("grp1", [r["id"] for r in self.store.rows])
 
 
 if __name__ == "__main__":
