@@ -27,9 +27,11 @@ from treasury.cash_streams import (  # noqa: E402
     ROLLING_DISPLAY_DAYS,
     ROLLING_SEED_DAYS,
     TOP_N_INCOME,
+    OTHER_INCOME_BAND,
     build_cash_streams,
     build_rolling_cash_series,
     clamp_days,
+    income_band_other,
     coinbase_usd_tracking_ids,
     display_payee,
     fetch_ynab_window,
@@ -912,6 +914,20 @@ class TestRollingCashSeries(unittest.TestCase):
     2026-06-14. 2026-05-15 is inside the seed and outside every displayed window.
     """
 
+    def _assert_band_stack(self, point: dict) -> None:
+        """Named bands plus other meet the inflow line, and other never goes negative."""
+        lyft = point["lyft"]
+        grubhub = point["grubhub"]
+        turo = point["turo"]
+        other = point["other"]
+        named = round(lyft + grubhub + turo, 2)
+        self.assertGreaterEqual(other, 0.0)
+        self.assertEqual(other, income_band_other(point["inflow"], lyft, grubhub, turo))
+        if named <= point["inflow"]:
+            self.assertEqual(round(named + other, 2), point["inflow"])
+        else:
+            self.assertEqual(other, 0.0)
+
     def test_calendar_anchors(self) -> None:
         self.assertEqual(ROLLING_DISPLAY_DAYS, 90)
         self.assertEqual(ROLLING_SEED_DAYS, 120)
@@ -942,8 +958,12 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(dates, [dates[0] + timedelta(days=i) for i in range(90)])
         self.assertTrue(all(p["inflow"] == 0.0 and p["outflow"] == 0.0 for p in payload["points"]))
         self.assertTrue(all(p["lyft"] == 0.0 and p["grubhub"] == 0.0 and p["turo"] == 0.0 for p in payload["points"]))
+        self.assertTrue(all(p["other"] == 0.0 for p in payload["points"]))
+        for point in payload["points"]:
+            self._assert_band_stack(point)
         self.assertEqual(payload["source_warnings"], [])
         self.assertEqual([s["id"] for s in payload["sources"]], ["lyft", "grubhub", "turo"])
+        self.assertEqual(payload["other_band"], {"id": "other", "label": "Other", "color": "#6b7c8d"})
 
     def test_hand_bucket_trailing_mean(self) -> None:
         # $3000 on the first included seed day → only 2026-06-14 moves, by 3000/30.
@@ -982,6 +1002,11 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(last["lyft"], 10.0)
         self.assertEqual(last["turo"], 1.0)
         self.assertEqual(last["grubhub"], 0.0)
+        self.assertEqual(last["other"], 0.0)
+        self.assertEqual(first["other"], 0.0)
+        self.assertEqual(sep10["other"], 0.0)
+        for point in payload["points"]:
+            self._assert_band_stack(point)
         self.assertEqual(payload["source_warnings"], ["grubhub"])
         # The 2026-05-15 inflow is outside every displayed 30-day window.
         without = build_rolling_cash_series(
@@ -991,6 +1016,15 @@ class TestRollingCashSeries(unittest.TestCase):
             on_budget_ids={"onb"},
         )
         self.assertEqual(without["points"], payload["points"])
+
+    def test_other_band_floors_at_zero(self) -> None:
+        self.assertEqual(income_band_other(16.5, 10.0, 2.0, 1.0), 3.5)
+        self.assertEqual(income_band_other(10.0, 6.0, 3.0, 2.0), 0.0)
+        self.assertEqual(income_band_other(0.0, 0.0, 0.0, 0.0), 0.0)
+        self.assertEqual(income_band_other(1.0, 0.34, 0.33, 0.34), 0.0)
+        self.assertEqual(income_band_other(1.0, 0.33, 0.33, 0.33), 0.01)
+        self.assertEqual(OTHER_INCOME_BAND["id"], "other")
+        self.assertEqual(OTHER_INCOME_BAND["color"], "#6b7c8d")
 
     def test_source_lines_use_payee_or_category_after_shared_exclusions(self) -> None:
         txs = [
@@ -1020,8 +1054,14 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(last["turo"], 1.0)
         self.assertEqual(sep10["turo"], 1.0)
         self.assertEqual(sep10["inflow"], 1.0)
+        self.assertEqual(sep10["other"], 0.0)
+        # Employer $90 + Grubby $15 = $105 on 09-11 → 3.50/day in other.
+        self.assertEqual(last["other"], 3.5)
         self.assertEqual(payload["source_warnings"], [])
-        self.assertEqual(last["lyft"] + last["grubhub"] + last["turo"], 13.0)
+        self.assertNotIn("other", payload["source_warnings"])
+        self.assertEqual(last["lyft"] + last["grubhub"] + last["turo"] + last["other"], 16.5)
+        for point in payload["points"]:
+            self._assert_band_stack(point)
 
     def test_chart_reconcile_payee_does_not_widen_shared_filter(self) -> None:
         txs = [
@@ -1190,21 +1230,47 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn(".line-out", html)
         self.assertIn('"line-in"', html)
         self.assertIn('"line-out"', html)
-        self.assertIn(".line-lyft", html)
-        self.assertIn(".line-grubhub", html)
-        self.assertIn(".line-turo", html)
-        self.assertIn('"line-lyft"', html)
-        self.assertIn('"line-grubhub"', html)
-        self.assertIn('"line-turo"', html)
+        self.assertNotIn(".line-lyft", html)
+        self.assertNotIn(".line-grubhub", html)
+        self.assertNotIn(".line-turo", html)
+        self.assertNotIn('"line-lyft"', html)
+        self.assertNotIn('"line-grubhub"', html)
+        self.assertNotIn('"line-turo"', html)
+        self.assertIn(".band-lyft", html)
+        self.assertIn(".band-grubhub", html)
+        self.assertIn(".band-turo", html)
+        self.assertIn(".band-other", html)
+        self.assertIn("fill-opacity: 0.6", html)
         self.assertIn("#ff69b4", html)
         self.assertIn("#ff8c1a", html)
         self.assertIn("#b7c0c8", html)
+        self.assertIn(OTHER_INCOME_BAND["color"], html)
         self.assertIn('id="rolling-legend"', html)
         self.assertIn('id="rolling-source-warn"', html)
         self.assertIn("> Lyft</span>", html)
         self.assertIn("> Grubhub</span>", html)
         self.assertIn("> Turo</span>", html)
+        self.assertIn("> Other</span>", html)
+        self.assertIn('key: "lyft"', html)
+        band_lyft = html.index('key: "lyft"')
+        band_grubhub = html.index('key: "grubhub"')
+        band_turo = html.index('key: "turo"')
+        band_other = html.index('key: "other"')
+        self.assertLess(band_lyft, band_grubhub)
+        self.assertLess(band_grubhub, band_turo)
+        self.assertLess(band_turo, band_other)
+        self.assertIn("of inflow", html)
+        self.assertIn("floored at 0", html)
+        self.assertIn("bandOther", html)
+        self.assertIn("pctOfInflow", html)
+        self.assertIn(".curve(d3.curveLinear)", html)
+        self.assertLess(
+            html.index("curve: d3.curveLinear"),
+            html.index("curve: d3.curveMonotoneX"),
+        )
+        self.assertIn("drop that band to zero", html)
         self.assertIn("external inflows only", html)
+        self.assertIn("@media (max-width: 720px)", html)
         self.assertIn('$/day', html)
         self.assertIn("Payees containing \"reconcile\"", html)
         self.assertIn("No CDN", html)
@@ -1300,6 +1366,9 @@ class TestCashStreamsApi(unittest.TestCase):
         self.assertEqual(len(data["points"]), 90)
         self.assertEqual(data["unit"], "usd_per_day")
         self.assertFalse(data["includes_mining"])
+        self.assertEqual(data["points"][0]["other"], 0.0)
+        self.assertEqual(data["other_band"]["id"], "other")
+        self.assertEqual([row["id"] for row in data["sources"]], ["lyft", "grubhub", "turo"])
         self.assertNotIn("nodes", data)
         self.assertNotIn("totals", data)
 
