@@ -18,7 +18,9 @@ stay excluded. Positive amounts on that account are not income.
 The 90-day rolling chart (`build_rolling_cash_series`) reuses this filter,
 then drops any payee containing "reconcile". That wider drop is chart-only.
 It does not change Sankey totals or the Glance daily-flow chip. Mining stays
-on the Sankey; the rolling lines are YNAB daily sums only.
+on the Sankey; the rolling lines are YNAB daily sums only. Lyft, Grubhub,
+and Turo lines are the same trailing mean restricted to external inflows
+``classify_income_source`` accepts.
 Uncategorized outflows stay an explicit node. Missing/stale Braiins or
 Coinbase price feeds are a loud mining-unknown state, never a silent omit.
 
@@ -38,6 +40,12 @@ import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+
+from treasury.income_sources import (
+    classify_income_source,
+    income_source_ids,
+    income_source_public,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -741,7 +749,10 @@ def build_rolling_cash_series(
     positive magnitudes. Mining is not included.
 
     Shared exclusions stay in ``_iter_countable``. The only extra drop is a
-    payee containing ``reconcile``.
+    payee containing ``reconcile``. Lyft, Grubhub, and Turo are that same
+    mean over positive amounts ``classify_income_source`` accepts. A source
+    that is $0 on every displayed point while some inflow point is not is
+    listed in ``source_warnings``.
     """
     end = today or date.today()
     seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
@@ -768,6 +779,8 @@ def build_rolling_cash_series(
             "payee contains reconcile",
         ],
         "ynab": ynab,
+        "sources": income_source_public(),
+        "source_warnings": [],
         "points": [],
     }
     if error:
@@ -778,8 +791,12 @@ def build_rolling_cash_series(
     if display_index < ROLLING_MEAN_DAYS - 1:
         raise ValueError("rolling seed does not cover the first displayed window")
 
+    source_ids = income_source_ids()
     inflow_by = {day.isoformat(): 0.0 for day in seed_days}
     outflow_by = {day.isoformat(): 0.0 for day in seed_days}
+    source_by = {
+        sid: {day.isoformat(): 0.0 for day in seed_days} for sid in source_ids
+    }
     lookup = category_lookup(category_groups or [])
     budget_ids = set(on_budget_ids) if on_budget_ids is not None else None
     tracking_ids = set(tracking_outflow_ids) if tracking_outflow_ids else set()
@@ -794,6 +811,10 @@ def build_rolling_cash_series(
     ):
         if row["amount"] > 0:
             inflow_by[row["date"]] = _money(inflow_by[row["date"]] + row["amount"])
+            source_id = classify_income_source(row.get("payee"), row.get("category"))
+            if source_id in source_by:
+                bucket = source_by[source_id]
+                bucket[row["date"]] = _money(bucket[row["date"]] + row["amount"])
         elif row["amount"] < 0:
             outflow_by[row["date"]] = _money(outflow_by[row["date"]] + abs(row["amount"]))
 
@@ -802,16 +823,37 @@ def build_rolling_cash_series(
         if day < display_start:
             continue
         window_days = seed_days[i - (ROLLING_MEAN_DAYS - 1) : i + 1]
-        points.append(
-            {
-                "date": day.isoformat(),
-                "inflow": _rolling_mean([inflow_by[d.isoformat()] for d in window_days]),
-                "outflow": _rolling_mean([outflow_by[d.isoformat()] for d in window_days]),
-            }
-        )
+        point = {
+            "date": day.isoformat(),
+            "inflow": _rolling_mean([inflow_by[d.isoformat()] for d in window_days]),
+            "outflow": _rolling_mean([outflow_by[d.isoformat()] for d in window_days]),
+        }
+        for sid in source_ids:
+            point[sid] = _rolling_mean(
+                [source_by[sid][d.isoformat()] for d in window_days]
+            )
+        points.append(point)
     if len(points) != ROLLING_DISPLAY_DAYS:
         raise ValueError(f"expected {ROLLING_DISPLAY_DAYS} rolling points, got {len(points)}")
-    return {"ok": True, "error": None, **base, "points": points}
+    warnings = _source_warnings(points, source_ids)
+    return {
+        "ok": True,
+        "error": None,
+        **base,
+        "source_warnings": warnings,
+        "points": points,
+    }
+
+
+def _source_warnings(points: Sequence[Dict[str, Any]], source_ids: Sequence[str]) -> List[str]:
+    """Sources that read $0 on every displayed point while inflow does not."""
+    if not any(float(point.get("inflow") or 0) != 0.0 for point in points):
+        return []
+    warnings: List[str] = []
+    for sid in source_ids:
+        if all(float(point.get(sid) or 0) == 0.0 for point in points):
+            warnings.append(sid)
+    return warnings
 
 
 def load_rolling_cash_series(
