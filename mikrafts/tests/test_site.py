@@ -241,6 +241,13 @@ class TestIsolation(unittest.TestCase):
         self.assertTrue(cfg.get("cleanUrls"))
         self.assertNotIn("ignoreCommand", cfg)
         self.assertNotIn("functions", cfg)
+        # #938: same skip as FitDash. Do not add ignoreCommand here — a
+        # cancel still counts as a Hobby deployment. master stays enabled.
+        enabled = cfg.get("git", {}).get("deploymentEnabled")
+        self.assertIsInstance(enabled, dict)
+        self.assertIs(enabled.get("work/treasury"), False)
+        self.assertNotIn("master", enabled)
+        self.assertNotIn("main", enabled)
 
     def test_fitdash_ignore_build_file_unchanged(self) -> None:
         text = FITDASH_IGNORE.read_text(encoding="utf-8")

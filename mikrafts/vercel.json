@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "work/treasury": false
+    }
+  },
   "framework": null,
   "cleanUrls": true,
   "trailingSlash": false

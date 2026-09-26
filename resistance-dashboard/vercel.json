@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "work/treasury": false
+    }
+  },
   "ignoreCommand": "python3 scripts/vercel_ignore.py || exit 1",
   "framework": null,
   "outputDirectory": "static",

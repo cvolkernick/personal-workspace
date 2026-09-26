@@ -84,6 +84,17 @@ class TestFitDashPrefixes(unittest.TestCase):
             cfg.get("ignoreCommand"),
             "python3 scripts/vercel_ignore.py || exit 1",
         )
+        # #938: Ignored Build Step still opens a deployment and the cancel
+        # counts toward the Hobby daily cap. deploymentEnabled stops the
+        # deployment from being created. Vercel reads this from the pushed
+        # commit, so the same key also has to exist on work/treasury.
+        # master stays unspecified (Vercel default true). A boolean false
+        # would disable production.
+        enabled = cfg.get("git", {}).get("deploymentEnabled")
+        self.assertIsInstance(enabled, dict)
+        self.assertIs(enabled.get("work/treasury"), False)
+        self.assertNotIn("master", enabled)
+        self.assertNotIn("main", enabled)
         # #194 adapter fields may coexist. Dropping ignoreCommand burns a
         # Hobby deploy on every Orchestra/Fleet/FCC SHA.
         self.assertIn("$schema", cfg)
