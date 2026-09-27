@@ -1567,30 +1567,29 @@
     const burnedAll = [
       ...((data.health && data.health.calories_burned) || []),
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const intakeByDate = Object.fromEntries(
-      nutritionAll.map((n) => [n.date, n.calories])
-    );
-    const burnedByDate = Object.fromEntries(
-      burnedAll.map((b) => [b.date, b.calories])
-    );
-    const intakeSeries = calLabels.map((d) => {
-      const v = intakeByDate[d];
-      return v == null || Number.isNaN(Number(v)) ? null : Number(v);
-    });
-    const burnedSeries = calLabels.map((d) => {
-      const v = burnedByDate[d];
-      return v == null || Number.isNaN(Number(v)) ? null : Number(v);
-    });
+    // Primary lines are trailing 7-day means. Maps keep days before the
+    // visible axis so the first six points can use them. A missing log
+    // is absent from the map, not stored as 0.
+    const calRoll = globalThis.FitDashCalorieRollingAvg;
+    const intakeByDate = calRoll.kcalByDate(nutritionAll);
+    const burnedByDate = calRoll.kcalByDate(burnedAll);
+    const intakeSeries = calRoll.valuesOnLabels(intakeByDate, calLabels);
+    const burnedSeries = calRoll.valuesOnLabels(burnedByDate, calLabels);
+    const avgInSeries = calRoll.trailingMeans(intakeByDate, calLabels);
+    const avgOutSeries = calRoll.trailingMeans(burnedByDate, calLabels);
     destroyChart(caloriesChart);
     if ($("chart-calories")) {
-      // Shade band between intake & burned: green surplus, red deficit.
+      // Shade band between the 7-day means: green surplus, red deficit.
       const surplusDeficitFill = {
         id: "surplusDeficitFill",
         beforeDatasetsDraw(chart) {
           const { ctx, chartArea, scales } = chart;
           if (!chartArea) return;
-          const metaIn = chart.getDatasetMeta(0);
-          const metaBurn = chart.getDatasetMeta(1);
+          const idxIn = chart.data.datasets.findIndex((d) => d.label === "7-day avg in");
+          const idxOut = chart.data.datasets.findIndex((d) => d.label === "7-day avg out");
+          if (idxIn < 0 || idxOut < 0) return;
+          const metaIn = chart.getDatasetMeta(idxIn);
+          const metaBurn = chart.getDatasetMeta(idxOut);
           if (!metaIn?.data?.length || !metaBurn?.data?.length) return;
 
           const yScale = scales.y;
@@ -1598,8 +1597,8 @@
           for (let i = 0; i < metaIn.data.length; i++) {
             const pin = metaIn.data[i];
             const pburn = metaBurn.data[i];
-            const vin = intakeSeries[i];
-            const vburn = burnedSeries[i];
+            const vin = avgInSeries[i];
+            const vburn = avgOutSeries[i];
             if (
               vin == null ||
               vburn == null ||
@@ -1669,37 +1668,90 @@
         },
       };
 
+      const dailyPointRadius = window.matchMedia("(max-width: 720px)").matches
+        ? 3
+        : 2;
       caloriesChart = new Chart($("chart-calories"), {
         type: "line",
         data: {
           labels: calLabels,
           datasets: [
             {
-              label: "Intake (kcal)",
-              data: intakeSeries,
+              label: "7-day avg in",
+              data: avgInSeries,
               borderColor: "#5ce1a8",
-              backgroundColor: "rgba(92, 225, 168, 0.15)",
+              backgroundColor: "#5ce1a8",
+              borderWidth: 2.5,
               tension: 0.25,
-              spanGaps: true,
-              pointRadius: 3,
+              spanGaps: false,
+              pointRadius: 0,
+              pointHitRadius: 8,
               order: 1,
             },
             {
-              label: "Burned (kcal)",
-              data: burnedSeries,
+              label: "7-day avg out",
+              data: avgOutSeries,
               borderColor: "#f07178",
-              backgroundColor: "rgba(240, 113, 120, 0.15)",
+              backgroundColor: "#f07178",
+              borderWidth: 2.5,
               tension: 0.25,
-              spanGaps: true,
-              pointRadius: 3,
+              spanGaps: false,
+              pointRadius: 0,
+              pointHitRadius: 8,
               order: 1,
+            },
+            {
+              label: "daily in",
+              data: intakeSeries,
+              borderColor: "rgba(92, 225, 168, 0.4)",
+              backgroundColor: "rgba(92, 225, 168, 0.4)",
+              borderWidth: 1,
+              tension: 0.15,
+              spanGaps: false,
+              pointRadius: dailyPointRadius,
+              pointHoverRadius: dailyPointRadius + 2,
+              pointStyle: "circle",
+              order: 3,
+            },
+            {
+              label: "daily out",
+              data: burnedSeries,
+              borderColor: "rgba(240, 113, 120, 0.4)",
+              backgroundColor: "rgba(240, 113, 120, 0.4)",
+              borderWidth: 1,
+              tension: 0.15,
+              spanGaps: false,
+              pointRadius: dailyPointRadius,
+              pointHoverRadius: dailyPointRadius + 2,
+              pointStyle: "triangle",
+              order: 3,
             },
           ],
         },
         options: {
           ...chartDefaults(),
+          interaction: { mode: "index", intersect: false },
           plugins: {
             ...chartDefaults().plugins,
+            tooltip: {
+              mode: "index",
+              intersect: false,
+              callbacks: {
+                label() {
+                  return null;
+                },
+                footer(items) {
+                  const i = items && items.length ? items[0].dataIndex : -1;
+                  if (i < 0) return [];
+                  return calRoll.tooltipLines({
+                    avgIn: avgInSeries[i],
+                    avgOut: avgOutSeries[i],
+                    rawIn: intakeSeries[i],
+                    rawOut: burnedSeries[i],
+                  });
+                },
+              },
+            },
             legend: {
               labels: {
                 color: "#8b9bb4",
@@ -1707,7 +1759,7 @@
                   const defaults = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                   return defaults.concat([
                     {
-                      text: "Surplus (intake > burned)",
+                      text: "Surplus (7-day avg in > out)",
                       fillStyle: "rgba(92, 225, 168, 0.45)",
                       strokeStyle: "rgba(92, 225, 168, 0.8)",
                       lineWidth: 0,
@@ -1715,7 +1767,7 @@
                       datasetIndex: -1,
                     },
                     {
-                      text: "Deficit (intake < burned)",
+                      text: "Deficit (7-day avg in < out)",
                       fillStyle: "rgba(240, 113, 120, 0.45)",
                       strokeStyle: "rgba(240, 113, 120, 0.8)",
                       lineWidth: 0,
@@ -6142,7 +6194,7 @@
           </div>
           ${alignHtml}
           <p class="chart-summary-meta">
-            Rolling ${spanDays}d · ${n} civil days · ${b} burned days · calendar day in vs out · green band = surplus · red band = deficit
+            Rolling ${spanDays}d · ${n} civil days · ${b} burned days · lines = 7-day avg · points = daily · green band = surplus · red band = deficit
           </p>
         `;
       }

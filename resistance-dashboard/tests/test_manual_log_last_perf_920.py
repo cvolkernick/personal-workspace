@@ -30,7 +30,7 @@ class ManualLogLastPerfContract(unittest.TestCase):
         log = HTML[HTML.find('id="log-card"') : HTML.find('id="history-card"')]
         self.assertIn("loads that lift's last weight, sets, and reps", log)
         self.assertIn("clears the weight", log)
-        self.assertIn("/app.js?v=last-perf-920-1", HTML)
+        self.assertIn("/app.js?v=calorie-7d-946-1", HTML)
         self.assertNotIn("function logPlanToForm", JS)
         self.assertIn("function applyManualLogPlanPrefill", JS)
         self.assertIn("function onManualLogExerciseChange", JS)
