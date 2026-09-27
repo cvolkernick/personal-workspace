@@ -302,17 +302,17 @@
         "crypto_treasury_equity"
       ],
       "sleeve_if_owned": "stocks_growth",
-      "status": "monitor",
-      "priority": "medium",
-      "thesis_fit": "Nasdaq Capital Market: HYPD (SEC CIK 1682639). Listed HYPE (Hyperliquid L1 native token) treasury company: staking, validator commissions, DeFi/HIP-3 monetization. Formerly Eyenovia (ophthalmic); legacy life-sciences IP sold 2026-07. Non-BTC digital-asset equity; not part of the BTC & digital credit complex. Thesis fit TBD by deep-dive.",
+      "status": "ready",
+      "priority": "low",
+      "thesis_fit": "Nasdaq Capital Market: HYPD (SEC CIK 1682639, formerly Eyenovia). Listed HYPE (Hyperliquid L1 native token) treasury: 2.04M gross HYPE at 6/30/26 plus staking/validator/HAUS/yield ops (Q3'26 guided to core break-even). Economics ~all HYPE beta. Non-BTC digital-asset equity \u2014 no seat in BTC & digital credit (40%) and outside the AI/energy/space lenses of the 60%. Weak thesis fit; not core.",
       "added": "2026-09-27",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": null,
-      "last_deep_dive_path": null,
-      "last_verdict": "dive_queued",
-      "next_catalyst": "position-deep-dive queued 2026-09-27 (owner-add); Q3 2026 earnings est. ~2026-11-02",
-      "notes": "Owner-add 2026-09-27 (Chris: Hyperion). Identity verified before write: Robinhood search HYPD -> single instrument Hyperion DeFi, Inc. Common Stock; SEC 10-Q (Q2 2026) cover: Nasdaq Capital Market, HYPD. Status=monitor = mid-dive per research/README vocabulary; flip to ready on dive completion unless explicit pass. No size, no target, not auto-buy. Chairman 2026-09-22 stocks-sleeve pin TSLA50/SPCX50 (consider_share.json) unchanged."
+      "last_deep_dive": "2026-09-27",
+      "last_deep_dive_path": "investment/research/HYPD_deep_dive.md",
+      "last_verdict": "ready_consider_low_no_size_chairman_stocks_pin_non_btc_theme",
+      "next_catalyst": "Q3'26 print (est. ~2026-11-02, unconfirmed) testing core break-even guide; buyback execution or preferred/warrant restructuring; HYPE \u00b125% from $92.39 (2026-09-27); HYPD \u00b125% from $4.04 (2026-09-25 close); Chairman stocks-pin change; or 90d age",
+      "notes": "Owner-add 2026-09-27 (Chris: Hyperion). Identity verified before write (Robinhood single instrument; SEC 10-Q cover Nasdaq Capital Market). Dive same day (commits fb02614/ef9f768). Close $4.04 / basic cap ~$62.8M / 15.54M common + 15.71M as-converted Series A pref + 32.6M $3.25 warrants. Company NAV $134.2M at 6/30 (HYPE $64.95); derived diluted price/NAV ~0.66-0.87x at HYPE $92.39. Shares +79% since 12/31/25 (ATM + offering). $20M buyback authorized 2026-09-08 (not yet executed per disclosures). Ready = consider-set only. No size: Chairman 2026-09-22 stocks sleeve TSLA50/SPCX50 only + BP $0.03 + non-BTC theme. Not core. Not auto-buy."
     }
   ]
 }
