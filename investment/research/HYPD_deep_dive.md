@@ -12,7 +12,7 @@
 **Owner policy 2026-08-04:** watchlist entry ⇒ auto deep-dive ⇒ status `ready` for allocation *consideration* each deploy (unless explicit `pass`).
 **Owner ask:** Chris 2026-09-27 — add HYPD ("Hyperion") to the Agentic Fund public watchlist.
 
-**Identity check:** Robinhood `search HYPD` → exactly one instrument, *Hyperion DeFi, Inc. Common Stock* (instrument 43844a2d-6090-47f9-b6f0-ca51cbd067d2). SEC EDGAR CIK **1682639**: registrant **HYPERION DEFI, INC.**, ticker HYPD, exchange Nasdaq; former name **EYENOVIA, INC.** (2016-08-24 → 2025-06-27). 10-Q Q2'26 cover: common stock, $0.0001 par, **Nasdaq Capital Market**. Delaware; HQ 3090 Nowitzki Way, Dallas TX. *Not* Hyperion (the 2023 Hyperion DAO / other private "Hyperion" names) — this is the listed HYPE-treasury company.
+**Identity check:** Robinhood `search HYPD` → exactly one instrument, *Hyperion DeFi, Inc. Common Stock* (instrument 43844a2d-6090-47f9-b6f0-ca51cbd067d2). SEC EDGAR CIK **1682639**: registrant **HYPERION DEFI, INC.**, ticker HYPD, exchange Nasdaq; former name **EYENOVIA, INC.** (2016-08-24 → 2025-06-27). 10-Q Q2'26 cover: common stock, $0.0001 par, **Nasdaq Capital Market**. Delaware; HQ 3090 Nowitzki Way, Dallas TX. HYPD maps to exactly one security; this is the listed HYPE-treasury company.
 
 ---
 
@@ -137,7 +137,7 @@ Ignores: post-6/30 token changes, opex, ATM, buyback, RSUs (~1.3M unvested), OTM
 2. **Capital-structure overhang.** $3.25 warrants are ITM at $4.04; preferred is participating and convertible 3:1 with a $50.74M liquidation preference; PIK dividends are paid in common.
 3. **Ongoing dilution.** ATM remains the stated funding plan (10-Q). Buyback may never be executed at size ($11.8M cash + stablecoins at 6/30).
 4. **Self-custody / on-chain risk.** Anchorage does not support HyperCore staking, so staked HYPE sits in self-custodied wallets; HAUS counterparties (e.g., USDH sunset ended the Native Markets/Felix deals in June 2026) and LST/DeFi protocol risk.
-5. **Micro-cap liquidity.** ~$2–2.5M/day; wide quoted spreads outside RTH (weekend quote $3.50/$5.00).
+5. **Micro-cap liquidity.** ~$2–2.5M/day; wide quoted spreads outside RTH (quote at 2026-09-25 8:00 PM ET: bid $3.50 / ask $5.00).
 6. **GAAP noise.** LSTs carried at low-water mark; net income swings with HYPE, not operations. Non-GAAP NAV / Adj. GP are company-defined and unaudited.
 
 ---
