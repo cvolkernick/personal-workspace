@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-09-11",
+  "as_of": "2026-09-27",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -289,6 +289,30 @@
       "last_verdict": "ready_consider_no_size_until_residual_hardware_behind_ccj",
       "next_catalyst": "Navy FY shipbuilding cut to Columbia/Virginia cadence; no commercial new-build component order by YE 2026; Janus primary award or loss; >25% from $152.85 (2026-08-28 close); or 90d age",
       "notes": "Owner-add via Chris #Orchestration 2b8d1eb2 (Chronometer/Smith option A). Dive same day. Close $152.85 / cap $14.0B / ttm PE ~39.6 / ~37% off Apr high, near 52w low. Q2'26 rev $901.6M +18%; backlog $8.4B; FY26 guide ~$3.80B. Not core. Not auto-buy. No size while red-mode + dust BP. High = owner-named second nuclear seat, not first dollar."
+    },
+    {
+      "symbol": "HYPD",
+      "name": "Hyperion DeFi, Inc.",
+      "theme": "digital_assets",
+      "themes": [
+        "digital_assets",
+        "hyperliquid",
+        "hype_treasury",
+        "defi",
+        "crypto_treasury_equity"
+      ],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "monitor",
+      "priority": "medium",
+      "thesis_fit": "Nasdaq Capital Market: HYPD (SEC CIK 1682639). Listed HYPE (Hyperliquid L1 native token) treasury company: staking, validator commissions, DeFi/HIP-3 monetization. Formerly Eyenovia (ophthalmic); legacy life-sciences IP sold 2026-07. Non-BTC digital-asset equity; not part of the BTC & digital credit complex. Thesis fit TBD by deep-dive.",
+      "added": "2026-09-27",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": null,
+      "last_verdict": "dive_queued",
+      "next_catalyst": "position-deep-dive queued 2026-09-27 (owner-add); Q3 2026 earnings est. ~2026-11-02",
+      "notes": "Owner-add 2026-09-27 (Chris: Hyperion). Identity verified before write: Robinhood search HYPD -> single instrument Hyperion DeFi, Inc. Common Stock; SEC 10-Q (Q2 2026) cover: Nasdaq Capital Market, HYPD. Status=monitor = mid-dive per research/README vocabulary; flip to ready on dive completion unless explicit pass. No size, no target, not auto-buy. Chairman 2026-09-22 stocks-sleeve pin TSLA50/SPCX50 (consider_share.json) unchanged."
     }
   ]
 }
