@@ -6,7 +6,9 @@ must not fail the fund-manager run — log it to GitHub #701 and retry next
 cycle.
 
 The markdown journal is the must-commit human/assistant record. JSONL is
-included in the same commit when dirty.
+included in the same commit when its git blob differs. The Contents API
+omits the body of a file over 1 MB (`encoding: none`); that response still
+carries the blob sha. An unchanged tree does not create a commit.
 
 The FCC serving checkout (``~/personal-workspace`` on prism) is a deployment
 target, not a workspace (#661). Live-clone sync writes to origin via the
@@ -22,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
@@ -195,8 +198,16 @@ def _github_json(
         return None, {"status": None, "error": _redact(str(exc))}
 
 
-def _origin_file_text(rel: str, branch: str) -> Tuple[Optional[str], Optional[str]]:
-    """Return (text, error). Missing file → (None, None)."""
+def _git_blob_sha1(data: bytes) -> str:
+    """Git blob object id. Used to compare a working file to Contents `sha`."""
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def _origin_contents(
+    rel: str, branch: str
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Return (payload, error). Missing file → (None, None)."""
     quoted = urllib.parse.quote(rel, safe="/")
     ref = urllib.parse.quote(branch, safe="")
     data, err = _github_json(
@@ -208,37 +219,69 @@ def _origin_file_text(rel: str, branch: str) -> Tuple[Optional[str], Optional[st
         return None, str(err.get("error") or "contents GET failed")
     if not isinstance(data, dict):
         return None, "contents GET unexpected payload"
+    return data, None
+
+
+def _contents_text(data: Dict[str, Any], rel: str) -> Tuple[Optional[str], Optional[str]]:
+    """Decode a Contents body. Error when GitHub withheld a non-empty file."""
     content = str(data.get("content") or "").replace("\n", "")
     if not content:
+        try:
+            size = int(data.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+        encoding = str(data.get("encoding") or "")
+        if size > 0 or encoding == "none":
+            return None, f"origin content omitted for {rel}"
         return "", None
     try:
         return base64.b64decode(content).decode("utf-8"), None
     except (ValueError, UnicodeDecodeError) as exc:
-        return None, str(exc)
+        return None, f"{rel}: {exc}"
 
 
-def _local_file_text(repo: Path, rel: str) -> Optional[str]:
+def _local_file_bytes(repo: Path, rel: str) -> Optional[bytes]:
     p = repo / rel
     if not p.is_file():
         return None
     try:
-        return p.read_text(encoding="utf-8")
+        return p.read_bytes()
     except OSError:
         return None
 
 
 def _files_dirty_vs_origin(repo: Path, branch: str) -> Tuple[Dict[str, str], Optional[str]]:
-    """Local path → text for files that differ from origin. error if origin unreadable."""
+    """Local path → text for files whose blob differs from origin.
+
+    Contents `sha` is the git blob id and is present even when the body is
+    omitted (files over 1 MB). Text compare is the fallback when `sha` is
+    absent. error if origin is unreadable.
+    """
     dirty: Dict[str, str] = {}
     for rel in COMMIT_PATHS:
-        local = _local_file_text(repo, rel)
+        local = _local_file_bytes(repo, rel)
         if local is None:
             continue
-        remote, err = _origin_file_text(rel, branch)
+        try:
+            text = local.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            return {}, f"{rel}: {exc}"
+        remote, err = _origin_contents(rel, branch)
         if err:
             return {}, err
-        if local != remote:
-            dirty[rel] = local
+        if remote is None:
+            dirty[rel] = text
+            continue
+        remote_sha = str(remote.get("sha") or "")
+        if remote_sha:
+            if _git_blob_sha1(local) != remote_sha:
+                dirty[rel] = text
+            continue
+        remote_text, rerr = _contents_text(remote, rel)
+        if rerr:
+            return {}, rerr
+        if text != remote_text:
+            dirty[rel] = text
     return dirty, None
 
 
@@ -293,12 +336,15 @@ def _commit_files_via_github(
         if terr or not isinstance(tree, dict) or not tree.get("sha"):
             last_err = (terr or {}).get("error") or "tree POST failed"
             continue
+        new_tree = str(tree["sha"])
+        if new_tree == tree_sha:
+            return True, {"skipped": "empty-diff", "paths": list(files)}
         commit, cerr = _github_json(
             "POST",
             f"/repos/{OPS_REPO}/git/commits",
             {
                 "message": message,
-                "tree": tree["sha"],
+                "tree": new_tree,
                 "parents": [parent],
             },
         )
@@ -385,6 +431,17 @@ def _sync_via_github_api(
             "pushed": False,
             "via": "github-api",
             "error": detail,
+        }
+    if meta.get("skipped"):
+        return {
+            "ok": True,
+            "committed": False,
+            "pushed": False,
+            "skipped": str(meta.get("skipped")),
+            "branch": branch,
+            "via": "github-api",
+            "live": reason,
+            "paths": list(meta.get("paths") or dirty),
         }
     return {
         "ok": True,

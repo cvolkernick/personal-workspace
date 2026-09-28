@@ -23,6 +23,7 @@ from treasury.fund_manager_journal_sync import (  # noqa: E402
     JSONL_REL,
     _abort_rebase_if_needed,
     _git,
+    _git_blob_sha1,
     _insteadOf_config,
     _redact,
     _report_failure,
@@ -546,6 +547,10 @@ class _FakeGitHub:
         self.blobs = 0
         self.force_seen = False
         self.patch_fail_once = False
+        self.blob_shas: dict[str, str] = {}
+        self.omit_content: set[str] = set()
+        self.sizes: dict[str, int] = {}
+        self.same_tree = False
 
     def __call__(self, method, path, body=None, timeout=30.0):
         self.calls.append((method, path, body))
@@ -555,7 +560,17 @@ class _FakeGitHub:
             if rel not in self.files:
                 return None, {"status": 404, "error": "not found"}
             raw = base64.b64encode(self.files[rel].encode()).decode()
-            return {"content": raw, "encoding": "base64"}, None
+            payload: dict = {
+                "content": raw,
+                "encoding": "base64",
+                "size": self.sizes.get(rel, len(self.files[rel].encode())),
+            }
+            if rel in self.blob_shas:
+                payload["sha"] = self.blob_shas[rel]
+            if rel in self.omit_content:
+                payload["content"] = ""
+                payload["encoding"] = "none"
+            return payload, None
         if method == "GET" and "/commits/" in path:
             return {"sha": self.head, "commit": {"tree": {"sha": self.tree}}}, None
         if method == "POST" and path.endswith("/git/blobs"):
@@ -568,8 +583,11 @@ class _FakeGitHub:
                 self._pending = getattr(self, "_pending", {})
             return {"sha": sha}, None
         if method == "POST" and path.endswith("/git/trees"):
-            self.tree = "tree222"
-            return {"sha": self.tree}, None
+            # Creating a tree object does not move the branch. HEAD stays
+            # `self.tree` until the ref PATCH succeeds.
+            if self.same_tree:
+                return {"sha": self.tree}, None
+            return {"sha": "tree222"}, None
         if method == "POST" and path.endswith("/git/commits"):
             self.head = "ccc333"
             return {"sha": self.head}, None
@@ -701,6 +719,95 @@ class TestLiveClone(unittest.TestCase):
         self.assertEqual(out.get("via"), "github-api")
         self.assertFalse(out.get("committed"))
         git.assert_not_called()
+
+    def test_unchanged_large_snapshot_does_not_commit(self) -> None:
+        """Contents omits a >1 MB body. Matching blob sha must not move HEAD."""
+        snapshot = '{"kind":"hold"}\n' * 40
+        _write(self.repo / JSONL_REL, snapshot)
+        gh = _FakeGitHub()
+        gh.files[JSONL_REL] = snapshot
+        gh.omit_content.add(JSONL_REL)
+        gh.sizes[JSONL_REL] = 1_841_402
+        gh.blob_shas[JOURNAL_REL] = _git_blob_sha1(
+            (self.repo / JOURNAL_REL).read_bytes()
+        )
+        gh.blob_shas[JSONL_REL] = _git_blob_sha1(snapshot.encode("utf-8"))
+        head = gh.head
+        with mock.patch.dict(os.environ, self.env, clear=False), mock.patch(
+            "treasury.fund_manager_journal_sync._github_json", side_effect=gh
+        ):
+            out = sync_journal(repo=self.repo, kind="hold", notify=False)
+        self.assertTrue(out.get("ok"), out)
+        self.assertEqual(out.get("skipped"), "clean")
+        self.assertFalse(out.get("committed"))
+        self.assertFalse(out.get("pushed"))
+        self.assertEqual(gh.head, head)
+        self.assertFalse(any(c[0] in {"POST", "PATCH"} for c in gh.calls))
+
+    def test_journal_line_commits_journal_only(self) -> None:
+        """A real journal append commits that file, not an unchanged snapshot."""
+        snapshot = '{"kind":"hold"}\n' * 40
+        _write(self.repo / JSONL_REL, snapshot)
+        journal = "# Fund manager journal\n\n## 2026-09-14T18:00:00 — hold\n"
+        _write(self.repo / JOURNAL_REL, journal)
+        gh = _FakeGitHub()
+        gh.files[JSONL_REL] = snapshot
+        gh.omit_content.add(JSONL_REL)
+        gh.sizes[JSONL_REL] = 1_841_402
+        gh.blob_shas[JSONL_REL] = _git_blob_sha1(snapshot.encode("utf-8"))
+        with mock.patch.dict(os.environ, self.env, clear=False), mock.patch(
+            "treasury.fund_manager_journal_sync._github_json", side_effect=gh
+        ), mock.patch(
+            "treasury.fund_manager_journal_sync.post_ops_github",
+            return_value={"ok": True, "posted": False},
+        ):
+            out = sync_journal(
+                repo=self.repo,
+                kind="hold",
+                as_of="2026-09-14T18:00:00+00:00",
+                notify=True,
+            )
+        self.assertTrue(out.get("ok"), out)
+        self.assertTrue(out.get("committed"), out)
+        self.assertEqual(out.get("paths"), [JOURNAL_REL])
+        blob_posts = [
+            c[2] for c in gh.calls if c[0] == "POST" and str(c[1]).endswith("/git/blobs")
+        ]
+        self.assertEqual(len(blob_posts), 1)
+        self.assertEqual(blob_posts[0].get("content"), journal)
+        tree_posts = [
+            c[2] for c in gh.calls if c[0] == "POST" and str(c[1]).endswith("/git/trees")
+        ]
+        self.assertEqual(len(tree_posts), 1)
+        paths = [entry["path"] for entry in tree_posts[0]["tree"]]
+        self.assertEqual(paths, [JOURNAL_REL])
+
+    def test_identical_tree_does_not_move_branch(self) -> None:
+        gh = _FakeGitHub()
+        gh.same_tree = True
+        _write(
+            self.repo / JOURNAL_REL,
+            "# Fund manager journal\n\n## 2026-09-14T18:00:00 — hold\n",
+        )
+        head = gh.head
+        with mock.patch.dict(os.environ, self.env, clear=False), mock.patch(
+            "treasury.fund_manager_journal_sync._github_json", side_effect=gh
+        ):
+            out = sync_journal(
+                repo=self.repo,
+                kind="hold",
+                as_of="2026-09-14T18:00:00+00:00",
+                notify=False,
+            )
+        self.assertTrue(out.get("ok"), out)
+        self.assertEqual(out.get("skipped"), "empty-diff")
+        self.assertFalse(out.get("committed"))
+        self.assertFalse(out.get("pushed"))
+        self.assertEqual(gh.head, head)
+        self.assertFalse(
+            any(c[0] == "POST" and str(c[1]).endswith("/git/commits") for c in gh.calls)
+        )
+        self.assertFalse(any(c[0] == "PATCH" for c in gh.calls))
 
     def test_api_conflict_retries_without_force(self) -> None:
         gh = _FakeGitHub()
