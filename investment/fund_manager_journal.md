@@ -5908,3 +5908,606 @@
 - **critic:** block_rotate — Force HOLD. Held-only inertia is accepted only as the Chairman exit, not as a habit — the next dollar is not 'add to SPCX because it is the larger line' (50.67%). STRC/SATA at 0% of book is a real under-allocation versus the 40% complex. It is not rebutted by liquidity, by 'MSTR used to cover credit,' or by miner overlap (there is no miner sleeve left to overlap). It is rebutted because this pass deploys no BTC-complex capital and must not sell the pins to create some. The rules-engine 0/100 flag is not a sale ticket. The earlier $3.26 pin trade was an intraday SPCX rip; it has already faded to $2.15. Do not reopen it. Block BWXT despite +3.4% and block BE despite +12.9%.
 - **executor:** hold — Quorum is hold. Thesis ok_hold, Risk ok_hold, Critic blocks any rotate or sale. No Robinhood order placed or cancelled. Agentic ••••1752 only; primary not used.
 
+
+## 2026-09-29T15:15:12 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $321.4579 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $321.46 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T15:21:11 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~11:16 ET) closes the 15:15Z rules re-fire (BTC-complex 0% vs the numeric 40% target). Chairman 2026-09-22 stocks pin unchanged; 2026-09-23 no-sale order stands. Broker NAV $322.11, cash/BP $0.03, crypto $0, unsettled $0. Quote equity $322.16: TSLA $158.84 (49.30%, day −0.90%) / SPCX $163.32 (50.70%, day +1.65%). One-way pin gap $2.24 is 70 bp, inside the ~$3.22 1% band. No orders. STRC/SATA stay the first BTC-complex dollars if capital arrives; miners are not rejected for overlap.
+**Book:** NAV $322.11 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled-style mid-session review (11:16 ET, regular hours, past the open and well before the close) closing the 15:15Z rules re-fire. Deployed mix is 0% BTC-complex / 100% stocks, outside the ±5% band around 40/60. That flag is a research trigger, not a sale ticket. Live process: full consider set priced (core allowlist, every ready watchlist name, blocked BE, GLDM as the gold proxy). Research was emulated inline from live quotes and the 2026-09-29 digest — not the rhai workflow — because cash is $0.03 and the no-sale order makes the order set determinate. The workflow remains the path when new capital actually arrives.
+**Why not alternatives:** Held-only was not the default. Unheld STRC and SATA are the best BTC-complex expression on this tape (near par, 3 bp and 1 bp) and were not skipped for liquidity or because MSTR 'covers credit' — MSTR is −1.97% and is behind them. Miners were not rejected for overlap; CLSK +2.29% is the strongest miner and still sits behind preferred credit. No name can be bought without a sale, and Chairman 2026-09-23 forbids selling the pins to rebuild 40/60 or to chase a 70 bp pin gap. Watchlist ready names (GOOGL, AAPL, NVDA, PLTR, AMZN, EVGO, RKLB, STRK, CCJ, BWXT, HYPD) stay in the consider set and are rejected by the stocks pin, by STRK's 44 bp book versus STRC, or by explicit no-size gates. BE is blocked despite +13.36%. Gold has no buy call. Spot BTC is not this account's ticket and $0.03 cannot buy it. Private names stay out of the deploy set.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only (limited margin, tradable here). Broker NAV $322.11, equity $322.08, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0. Confirmed and queued equity orders empty. Held TSLA 0.448384 @ $347.25 and SPCX 1.104498 @ $138.45. Quote marks ~15:16Z: TSLA $354.25 → $158.84 (49.30% of equity), SPCX $147.87 → $163.32 (50.70%). One-way gap $2.24 (70 bp) versus a ~$3.22 1% band. Primary ••••9737 is not tradable: equity $0, cash $0.09, value $0.09. BTC-USD mark $83,454.77. Core unheld and every ready watchlist name were quoted, plus blocked BE and GLDM.
+- **thesis:** ok_hold — Hold both pins. The stocks sleeve is the whole book by the 2026-09-22 standing order, and 49.30/50.70 is inside the pin, not a broken 50/50. Themes scored, not just held names: BTC complex, digital credit, miners, AI, energy/nuclear, space. Best use of a future BTC-complex dollar is STRC and SATA (tight, at par, yield seat versus cash; MSTR is the weak credit tape at −1.97% and does not replace them), then CLSK/WULF/MARA/RIOT/IREN as diversifiers — CLSK's +2.29% day does not jump the credit line. Best use of a future stock dollar is still 50/50 TSLA+SPCX, not BWXT (+3.11%) or NVDA. Do not sell the locked book to manufacture the 40% sleeve. The $2.24 pin gap is not the theme.
+- **risk:** ok_hold — No deployable capital. $0.03 is under the $1 minimum, so any rotate starts with a sale. Risk does not approve that sale: Chairman 2026-09-23, two-name concentration is the standing order rather than a new breach, and the pin gap is inside 1% of NAV. STRC/SATA liquidity is fine (3 bp / 1 bp) and is not a reason to sell the pins or to skip them when capital shows up. STRK ~44 bp fails a small-ticket add versus STRC. HYPD ~104 bp and EVGO ~74 bp are wide for a dust ticket. BITA's live book is usable (~14 bp) but there is nothing to spend. Do not touch primary. BE blocked. No order clears capital bounds together with the standing order and the no-momentum cadence.
+- **critic:** block_rotate — Force HOLD. Held-only inertia is accepted only as the Chairman exit, not as a habit — the next dollar is not 'add to SPCX because it is the larger line' (50.70%). STRC/SATA at 0% of book is a real under-allocation versus the 40% complex. It is not rebutted by liquidity, by 'MSTR used to cover credit,' or by miner overlap (there is no miner sleeve left to overlap, and CLSK's strong day was not waved off as redundant). It is rebutted because this pass deploys no BTC-complex capital and must not sell the pins to create some. The rules-engine 0/100 mix is the same standing-order gap, not a new break. Block the $2.24 SPCX→TSLA rotate (intraday, inside the band, stronger tape is the one we would sell). Block seating BWXT, NVDA, RKLB, STRK, HYPD, or BE on today's moves. BE +13.36% is specifically not a reseat.
+- **executor:** no_order — Quorum is hold. No place_equity_order and no cancel. Confirmed and queued books were already empty. Primary ••••9737 was not sent an order. Cash $0.03 cannot clear the $1 minimum even as a dollar buy of STRC or SATA.
+
+
+## 2026-09-29T15:31:21 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.494 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.49 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T15:37:46 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~11:34 ET) closes the 15:31Z rules re-fire (BTC-complex 0% vs the numeric 40% target). Chairman 2026-09-22 stocks pin unchanged; 2026-09-23 no-sale order stands. Broker NAV $323.18, cash/BP $0.03, crypto $0, unsettled $0. Quote equity $323.24: TSLA $158.67 (49.09%, day −1.00%) / SPCX $164.57 (50.91%, day +2.43%). One-way pin gap $2.95 is 91 bp, inside the ~$3.23 1% band. No orders. STRC (6 bp, 99.30×28 / 99.36×146) and SATA (1 bp, 99.99×1,608 / 100.00×777) stay the first BTC-complex dollars if capital arrives; the thin STRC top bid is not an illiquidity skip. CLSK +0.86% is the strong miner and was not rejected for overlap. No sale of the pins.
+**Book:** NAV $323.18 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 15:31Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~15:33Z shows that state is the filled Chairman book: held TSLA 0.448384 and SPCX 1.104498 only, no open orders, unsettled $0, pending deposits $0, crypto $0. Broker NAV $323.18, cash and buying power $0.03, under the $1 minimum. Session is regular hours, ~11:34 ET, outside the open and close avoid windows. Research/rotate ran inline across held and unheld allowlist names plus every ready watchlist name, using ~15:32Z quotes, the 2026-09-29 digest, and fresh-enough deep dives (oldest ready dive 2026-08-04 is 56 days, under the 90-day refresh; HYPD 2026-09-27). The fund-manager-research workflow was not launched: it cannot create buying power or override the standing orders. Report: investment/research/fund_manager_research_latest.md.
+**Why not alternatives:** Selling SPCX to buy TSLA would close a $2.95 one-way gap that is still inside the ~$3.23 1% pin band. The whole gap is SPCX +2.43% against TSLA −1.00%. That is an intraday mean-reversion, and it would sell the stronger pin the day before the Sep 30 NHTSA Cybercab response. Not a scalp. Selling either pin to buy STRC/SATA would rebuild the 40% sleeve by violating the Chairman 2026-09-23 no-sale order. The 0% BTC weight is a real hole, not 'already on target,' and it waits for new capital. STRC and SATA are not skipped for liquidity: STRC is 6 bp with size behind a thin 28-share top bid, SATA is 1 bp with 1,608 x 777 at the touch. MSTR −2.69% is not the first dollar. BITA's book is wider and its last is stale. Miners were not rejected for overlap; CLSK +0.86% is the strong miner and still sits behind credit. Ready watchlist names (BWXT +2.72% is the strongest tape) stay outside the TSLA/SPCX stocks pin and are not auto-buys. STRK is wider (~27 bp) and junior to STRC, with no residual. Equity ticker BTC is not spot (spot is BTC-USD $83,110). GLDM is research-only. BE is blocked. Private names are not in the deploy set. Primary margin ($0.09 cash, $0 equity) was not traded.
+**Team:**
+- **scout:** report — Agentic ••••1752 only. NAV $323.18, BP $0.03, cash $0.03, crypto $0, unsettled $0, no open orders. Held TSLA $158.67 (49.09%, −1.00%) and SPCX $164.57 (50.91%, +2.43%). Deployed mix 0% BTC-complex / 100% stocks, outside the ±5% band. Pin gap $2.95 is inside the 1% band. Primary margin read and not used.
+- **thesis:** hold — No idle capital to map. Best use of the next dollar, when it exists: STRC and SATA inside the 40% complex, then a diversified miner, not MSTR-only and not a single miner. Stock dollars stay 50/50 TSLA/SPCX. Do not sell the locked book to manufacture that mix today. BWXT and CLSK tapes are not a reason to rotate.
+- **risk:** ok_hold — Buying power $0.03 is below the $1 minimum, so no ticket clears. Two-name stocks concentration is the Chairman pin, not a reason to sell into a 91 bp gap. STRC/SATA liquidity is fine for any ticket this book could fund. Multi-miner is diversification, not a concentration block. No sale, no size-up.
+- **critic:** hold_block_sells — The 0/100 mix is a real underweight to the 40% complex. Do not paper over it as 'in band.' Also do not 'fix' it by selling the pins: that breaks the 2026-09-23 no-sale order and would be held-book inertia in reverse. No liquidity rebuttal against STRC/SATA. No miner-overlap rejection. The pin rotate is a scalp of SPCX strength and is blocked. Watchlist strength (BWXT +2.72%) does not break the stocks pin.
+- **executor:** hold — Quorum is hold. Risk ok, thesis ok, critic blocks any sale or new symbol. No order placed or cancelled on ••••1752. Primary margin not touched.
+
+
+## 2026-09-29T15:46:03 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $321.9964 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.00 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T15:50:50 — hold
+**Summary:** Mid-session HOLD (~11:47 ET). Agentic NAV $322.34, cash/BP $0.03 (under $1). Book is TSLA $158.86 (49.29%) / SPCX $163.45 (50.71%). One-way 50/50 gap $2.29 is 71 bp, inside the ~$3.22 1% band. No sale to rebuild the empty 40% sleeve. No orders.
+**Book:** NAV $322.34 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled mid-session review at 11:47 ET, regular hours, closing the 15:46Z rules re-fire that flagged 0% BTC-complex / 100% stocks versus 40/60. Live scout: no new deposit, BP still $0.03, no open orders, pin gap still inside the 1% band.
+**Why not alternatives:** Held-only top-up is rejected as a rationale: the next dollar would not go to TSLA/SPCX just because they are held. It would open STRC/SATA inside the empty 40% sleeve. That dollar does not exist. Selling SPCX or TSLA to manufacture it violates the 2026-09-23 hold-the-book order. The $2.29 pin rotate would sell SPCX +1.73% to buy TSLA −0.88% inside a 71 bp gap (band ~$3.22) — an intraday chase, not a deposit. STRC/SATA are not skipped for liquidity (1–4 bp, near par) or because MSTR/miners 'already cover' credit — those seats are empty. Miners are not skipped for overlap. Every ready watchlist name was priced and rejected under the TSLA/SPCX stocks pin, STRK's wider junior book, Neutron/show-me gates, or the gold research-only rule. BE stays blocked.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $322.34, equity $322.31, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending $0, no open equity orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.31: TSLA $158.86 (49.29%, −0.88%) / SPCX $163.45 (50.71%, +1.73%). Pin gap $2.29 = 71 bp; 1% band ~$3.22. Primary margin read-only: equity $0, cash $0.09. Not traded.
+- **thesis:** hold — No deployable capital, so no new theme seat. The empty 40% sleeve is the allocation gap that matters, and it is closed with new money starting at STRC/SATA, not by topping TSLA/SPCX and not by selling them. Hold both pins. Map: TSLA growth, SPCX space. Chosen names are the two holds. Rejected set is the full allowlist, every ready watch name, gold, and blocked BE.
+- **risk:** ok — OK to do nothing. $0.03 is under the $1 minimum. A $2.29 rotate is above the minimum and liquid (TSLA 2.5 bp, SPCX 0.7 bp) but it is a sale of the locked book to chase a 71 bp in-band gap. Concentration is two names by Chairman order, not by inertia. Multi-miner is not a concentration block because no miner is held. No order exceeds capital. Do not touch primary margin.
+- **critic:** block_rotate — Block the SPCX→TSLA pin chase: it sells strength into weakness and the gap is inside the 1% band. Block any sale that rebuilds the 40% sleeve. Challenge accepted on STRC/SATA under-allocation: the complex is 0%, credit is not 'covered' by an empty MSTR seat, and liquidity does not rebut a buy — absence of a BTC-complex dollar does. Do not treat miner overlap as a rejection; there is no miner to overlap. BWXT +2.72%, NVDA +0.79%, and BE +11.8% are not tickets. BE stays blocked.
+- **executor:** hold — Quorum is hold. No Robinhood order placed or cancelled. Agentic account only.
+
+
+## 2026-09-29T16:00:19 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.7205 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.72 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T16:05:44 — hold
+**Summary:** Mid-session HOLD (~12:01 ET), closing the 16:00Z rules re-fire. Agentic NAV $323.02, cash/BP $0.03 (under $1). Book is TSLA $158.87 (49.19%) / SPCX $164.08 (50.81%). One-way 50/50 gap $2.61 is 81 bp, inside the ~$3.23 1% band. No sale to rebuild the empty 40% sleeve. No orders.
+**Book:** NAV $323.02 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 16:00:19Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~16:01Z (~12:01 ET, regular hours, mid-session) shows that state is the filled Chairman book, not stale weights: held TSLA 0.448384 and SPCX 1.104498 only, no confirmed or queued equity orders, nothing held for sells, no pending deposits, unsettled $0. Broker NAV $323.02, equity $322.99, cash/BP $0.03. Quote equity $322.95 is TSLA $158.87 (49.19%, −0.88%) / SPCX $164.08 (50.81%, +2.12%), a $2.61 one-way gap (81 bp). The 11:47 ET HOLD was $2.29 / 71 bp; the extra $0.32 is SPCX continuing higher, still inside the ~$3.23 1% band. Research/rotate ran inline across held and unheld allowlist plus every ready watchlist name, using ~16:01Z quotes, BTC-USD, and the 2026-09-29 digest. The fund-manager-research workflow was not launched: it cannot see these live quotes, create buying power, or override the standing order. Report: investment/research/fund_manager_research_latest.md.
+**Why not alternatives:** No deployable capital. $0.03 is under the $1 minimum, so STRC/SATA cannot be opened even though both are liquid (3.0 bp and 1.0 bp) and are the preferred first BTC-complex dollars — MSTR's −2.67% is explicitly not a skip of that bias. Miners (RIOT +0.53%, CLSK +0.49%, WULF +0.30%, MARA flat, IREN −0.82%) are not rejected for overlap; they are rejected because there is no capital and the locked book is not for sale. Selling ~$2.61 of SPCX to buy TSLA would be an in-band pin chase that sells the stronger tape (+2.12%, Starship) into the weaker one (−0.88%) the day before the NHTSA Cybercab response. Watchlist ready names, including BWXT +2.10% and NVDA +0.65%, stay outside the TSLA/SPCX stocks pin. BE +12.48% is blocked. STRK at 36 bp is still junior and wide versus STRC. Gold remains research-only. Spot BTC is not an agentic equity ticket and crypto BP is the same $0.03. Ready deep-dives are inside 90 days (oldest 2026-08-04, HYPD 2026-09-27); no first buy, so no new dive.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $323.02, equity $322.99, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending $0, no confirmed or queued equity orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.95: TSLA $158.87 (49.19%, −0.88%) / SPCX $164.08 (50.81%, +2.12%). Pin gap $2.61 = 81 bp; 1% band ~$3.23. Primary margin not re-quoted this pass; 15:59Z snapshot still shows equity $0 and cash $0.09 and was not traded. Theme gap is the empty 40% sleeve, not a missing stock name. STRC/SATA books are 3.0 bp and 1.0 bp.
+- **thesis:** hold — Hold both pins. New capital, not a sale, is how the book returns toward 40/60. BTC-complex dollars start at STRC and SATA; MSTR −2.67% does not take that seat. Miners are the next diversification, not an overlap veto. Stock dollars stay inside TSLA/SPCX, leaning TSLA only when there is cash to deploy. No watchlist first buy.
+- **risk:** ok_hold — Buying power $0.03 fails the $1 minimum. The $2.61 pin rotate is above $1 and is liquid (TSLA 1.4 bp, SPCX 3.4 bp) but it is inside the 1% band and would sell strength the day before a known TSLA event. Concentration is the Chairman two-name book, not an accidental top-up. Do not sell it to manufacture a 40% sleeve. No single-name miner block applies because no miner is held. STRK 36 bp and EVGO 74 bp and HYPD 26 bp are the weak books; STRC/SATA are not.
+- **critic:** block_rotate_and_rebuild — Block the held-only story: there is nothing to top up, and topping TSLA/SPCX is not the right use of a future BTC-complex dollar. Block the rules-engine sale that would rebuild 40/60 by cutting the pins. STRC/SATA under-allocation versus the 40% target is real and is not cured this pass, because no BTC-complex dollar is being deployed — and it is not excused by liquidity or by MSTR's red day. Do not treat 'no miner held' as a reason to skip the miner sleeve later, and do not treat 'a miner would overlap' as a reason either. Block the BE +12.48% chase and the BWXT/NVDA tape-chase. The $0.32 gap widening since 11:47 ET is still intraday SPCX, not a pin break.
+- **executor:** no_orders — Quorum is hold. Risk ok_hold, thesis hold, critic blocks the rotate and the 40% rebuild. No Robinhood order placed or cancelled. Agentic account only.
+
+
+## 2026-09-29T16:14:54 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.7034 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.70 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T16:19:25 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~12:16 ET) closes the 16:14Z rules re-fire (BTC-complex 0% vs the numeric 40% target). Chairman 2026-09-22 stocks pin unchanged; 2026-09-23 no-sale order stands. Broker NAV $322.06, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.09: TSLA $158.44 (49.19%, day -1.14%) / SPCX $163.65 (50.81%, day +1.85%). One-way pin gap $2.60 is 81 bp of NAV, inside the ~$3.22 1% band, and was not traded. No rebuild of the 40% BTC complex. STRC (4.0 bp) and SATA (1.0 bp) stay the first BTC-complex dollars if capital arrives. No orders.
+**Book:** NAV $322.06 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 16:14:54Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% against the numeric 40/60 ±5% band. This is the mid-session pass (~12:16 ET), inside regular hours and outside the open and close avoid windows. Live book is unchanged: broker NAV $322.06, cash and buying power $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.09 is TSLA $158.44 (49.19%, day -1.14%) and SPCX $163.65 (50.81%, day +1.85%). The one-way pin gap is $2.60 (81 bp), inside the ~$3.22 1% band.
+**Why not alternatives:** No deployable capital, so the alternatives review is a reject-with-reasons pass, not a top-up of the names already held. New stock capital would go to TSLA until the 50/50 pin, then split; it would not go to GOOGL, NVDA, CCJ, BWXT, or any other equity. New BTC-complex capital, which this book does not have, would open with STRC and SATA (4.0 bp and 1.0 bp, near par), not MSTR-only, even though MSTR is -2.60% today. Miners were priced (CLSK +0.26% strongest, IREN -0.90% weakest) and were not rejected for overlap; there is nothing to deploy into them. STRK's 35 bp book is a real liquidity rebuttal and it is junior to STRC. BITA's book is now 1.6 bp, so liquidity is not the skip — rank is. Selling SPCX to buy TSLA would chase an 81 bp intraday gap. Selling either pin name to rebuild the empty 40% sleeve violates the 2026-09-22/23 order. BE +12.80% stays blocked. Gold stays research-only. Ready deep-dives are inside 90 days; no first buy, so no new dive.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $322.06, equity $322.03, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0, no open orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.09 at 16:15Z: TSLA $158.44 (49.19%) / SPCX $163.65 (50.81%). Pin gap $2.60. Core unheld and every ready watchlist name were quoted. Primary margin read-only ($0.09 cash, no equity) and not traded.
+- **thesis:** ok — Hold both pin names. Map: TSLA = growth equity, SPCX = space, both the entire legal stocks sleeve. Empty BTC-complex is a logged gap, not a sale. If capital arrives, stock dollars follow 50/50 with the next dollar to TSLA; BTC-complex dollars open STRC and SATA, then a diversified miner set (MARA/RIOT/CLSK/WULF/IREN), not one miner and not MSTR-only. Watchlist ready names were in the consider set and are not the best use of a new dollar under the pin.
+- **risk:** ok — No order. Cash $0.03 is under the $1 minimum. Held books are 0.6 bp and 2.0 bp, so liquidity does not block a future pin trade, but $2.60 is inside the 1% band and is the wrong ticket today. Two-name concentration is the Chairman book, not an accidental omit. Do not manufacture BTC-complex exposure by selling a $322 book into a dust cash balance. STRC 4 bp and SATA 1 bp would clear a small ticket if capital existed. STRK 35 bp, EVGO 74 bp, and HYPD 53 bp would not.
+- **critic:** block_rotate — Challenge held-only inertia: holding TSLA and SPCX is the pin, not a failure to look. The consider set included unheld core and every ready watchlist name. Challenge the empty STRC/SATA seat: the numeric 40% is unmet and is not a buy, because no BTC-complex dollar is being deployed and selling the pin to fund credit is the thing this seat exists to stop. Challenge miner-overlap logic: none was used. CLSK's up day is not a reason to skip the others later, and IREN's down day is not a thesis failure. Block the $2.60 pin chase. Block BE despite +12.8%.
+- **executor:** hold — Quorum is hold. No Robinhood order placed or cancelled. Agentic ••••1752 only.
+
+
+## 2026-09-29T16:29:59 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.6506 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.65 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T16:32:23 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $323.0826 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $323.08 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T16:34:28 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~12:31 ET) closes the 16:29Z rules re-fire (BTC-complex 0% vs the numeric 40% target). Chairman 2026-09-22 stocks pin unchanged; 2026-09-23 no-sale order stands. Broker NAV $322.98, cash/BP $0.03 (under the $1 minimum), crypto $0, unsettled $0, no open orders. Quote equity $322.89: TSLA $158.38 (49.05%, day -1.18%) / SPCX $164.51 (50.95%, day +2.39%). One-way pin gap $3.06 is 95 bp, inside the ~$3.23 1% band. No sale to rebuild the empty 40% sleeve. No orders.
+**Book:** NAV $322.98 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled mid-session review at the 12:30 ET window, closing the 16:29Z rules re-fire that flagged BTC-complex 0% / stocks 100% versus 40/60 ±5%. Live scout on agentic ••••1752 only. Cash and buying power are $0.03, below the $1 minimum. The 50/50 pin gap is $3.06 versus a $3.23 one-percent band (95 bp) after SPCX +2.39% and TSLA -1.18% on the day. That is inside the band and is an intraday mark, not a pin break.
+**Why not alternatives:** Held-only top-up is rejected as a strategy: the next BTC-complex dollars are STRC and SATA, not more TSLA/SPCX, and not MSTR-only. STRC ($99.40, 4 bp) and SATA ($100.00, 1 bp) have no liquidity or structure rebuttal — they are unfunded, not unfit. Selling TSLA or SPCX to buy them, or to open MARA/RIOT/CLSK/WULF/IREN, violates the Chairman 2026-09-23 HOLD (no sales to rebalance) and the 2026-09-22 filled exit. Miners are not rejected for overlap; they are sequenced after digital credit once new capital exists. Watchlist ready names (GOOGL, AAPL, NVDA, PLTR, AMZN, CCJ, BWXT, RKLB, EVGO, STRK, HYPD) were in the consider set and are not sized: stocks-sleeve capital is TSLA/SPCX only, STRK is junior with a 119 bp spread, RKLB waits on Neutron, HYPD is non-BTC, EVGO is show-me, and BE is blocked. Gold stays research-only. No name clears a $1 ticket on $0.03.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only (primary margin not used). NAV $322.98, equity $322.95, cash $0.03, BP $0.03 unleveraged, crypto $0, unsettled $0, pending deposits $0, no queued or confirmed orders. Held: TSLA 0.448384 @ 353.225 ($158.38, day -1.18%, cost 347.25) and SPCX 1.104498 @ 148.945 ($164.51, day +2.39%, cost 138.45). Deployed mix 0% BTC-complex / 100% stocks. Quote equity pin 49.05/50.95. Snapshot 16:31Z confirms the same two positions and $0.03 cash (NAV $323.08).
+- **thesis:** ok — HOLD. The 40/60 gap is real and is not fixed by topping the two held names. Best use of the next deposit: STRC and SATA for the empty digital-credit seat, then a diversified miner set (MARA, RIOT, CLSK, WULF, IREN — overlap is not a veto), with stock dollars staying 50/50 TSLA/SPCX. Today there is no deposit. Do not sell the pins. Pin gap $3.06 is inside the $3.23 band, so there is no 50/50 break to trade even if sales were allowed.
+- **risk:** ok — No order. Deployable capital $0.03 is under the $1 minimum, so a ticket is dust, not a reason to skip the consider set. Concentration is two stocks by a standing order, not by inertia; selling into a 95 bp intraday gap would be a scalp and would break the no-sale rule. STRC/SATA spreads (4 bp / 1 bp) do not support a liquidity block. STRK at 119 bp does. Agentic limited-margin BP equals cash — no leverage used. Primary margin untouched. BE remains blocked.
+- **critic:** ok — Challenged held-only inertia: a HOLD that only says 'we already own TSLA and SPCX' would be wrong. The empty STRC/SATA seat is the actual gap. It is not closed by selling the book, and it is not excused by 'MSTR would cover credit' or by miner overlap. Liquidity does not rebut STRC or SATA. Critic blocks any pin sale and any future BTC-complex deploy that skips STRC/SATA without a new logged rebuttal. Critic does not block this HOLD. Size-down is moot at $0.03.
+- **executor:** hold — Quorum is HOLD. No Robinhood order placed or cancelled. Agentic account only.
+**Actions:**
+- HOLD TSLA $0 [no_order] 
+- HOLD SPCX $0 [no_order] 
+
+
+## 2026-09-29T16:37:45 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~12:35 ET) closes the 16:32Z rules re-fire (BTC-complex 0% vs the numeric 40% target). Chairman 2026-09-22 stocks pin unchanged; 2026-09-23 no-sale order stands. Broker NAV $323.19, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $323.19: TSLA $158.32 (48.99%, day -1.22%) / SPCX $164.86 (51.01%, day +2.61%). One-way pin gap $3.27 is 101 bp, $0.04 over the ~$3.23 1% reference, and was not traded. No rebuild of the 40% BTC complex. STRC (book ~2 bp; quote 5.0 bp) and SATA (1.0 bp) stay the first BTC-complex dollars if capital arrives. No orders.
+**Book:** NAV $323.19 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review re-fired because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. That flag is a research trigger, not a sale ticket. This pass is mid-session (~12:35 ET, regular hours, outside the open and the last 30 minutes). Live book: TSLA 0.448384 and SPCX 1.104498 only, broker NAV $323.19, cash and buying power $0.03, crypto $0, unsettled $0, pending deposits $0, no confirmed or queued equity orders. Quote equity $323.19 is TSLA $158.32 (48.99%, -1.22%) and SPCX $164.86 (51.01%, +2.61%). The one-way 50/50 gap is $3.27 (101 bp), $0.04 past the ~$3.23 1% reference.
+**Why not alternatives:** No deployable capital. $0.03 is under the $1 minimum, so nothing can be bought without a sale. The next dollar would not top up TSLA or SPCX because they are already held. It would open STRC and SATA (quote spreads 5.0 bp and 1.0 bp; STRC book about 2 bp, near par). That dollar is not here. Selling either pin to manufacture it violates the Chairman 2026-09-22 exit of every other equity and the 2026-09-23 hold-the-book order. The $3.27 SPCX-to-TSLA rotate was the only ticket above $1 and it was blocked: it is today's relative tape, it already mean-reverted once this morning ($3.26 at 10:49 ET back to $2.15 at 11:01), and it would buy TSLA into tomorrow's NHTSA Cybercab response. Miners were not rejected for overlap. Watchlist ready names are outside the stocks pin. BE is blocked. Gold is research-only. BTC spot stays off this account. Primary margin was not used.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $323.19, equity $323.16, cash/BP $0.03, crypto $0, unsettled $0, no queued or confirmed orders. Held TSLA 0.448384 @ avg $347.25 and SPCX 1.104498 @ avg $138.45. Quote marks 16:34Z: TSLA $353.0957, SPCX $149.265. Theme hole: BTC complex, digital credit, miners, AI, and nuclear are all unheld. On-disk RH snapshot as_of 16:31Z matches this book.
+- **thesis:** ok_hold — Best use of the next dollar is STRC and SATA inside the empty 40%, then a diversified miner set (CLSK is the strong tape, IREN the weak one; neither is an overlap veto). Do not top up TSLA/SPCX by habit. Do not sell them to rebuild 40/60. The 50/50 gap is a within-pin drift, not the allocation that serves themes now. HOLD.
+- **risk:** ok_hold — Buying power $0.03 is under the $1 minimum, so a buy without a sale is impossible. A sale to rebuild ~40% (~$129) would reverse a locked Chairman exit and concentrate the trade into names the book was just ordered out of. The $3.27 pin ticket is above $1 but inside noise versus the 5% sleeve band, and it adds event risk into Sep 30. No concentration breach inside the two-name pin. Primary margin untouched. Risk does not demand a trade.
+- **critic:** block_rotate — Held-only inertia is rejected: the next dollar is STRC/SATA, not another TSLA or SPCX share. Under-allocation to digital credit is real (0% of the book) and is not excused by liquidity (STRC book ~2 bp, SATA 1 bp) or by 'MSTR already covers credit' (MSTR is unheld and -2.37%). Miners are not blocked for overlap. What is blocked is manufacturing that sleeve by selling the pins, and the $3.27 SPCX-to-TSLA scalp. Four cents over a 1% reference, after a fade from the same level this morning, is not a pin break. Do not buy TSLA into tomorrow's NHTSA response or sell SPCX into today's strength.
+- **executor:** no_order — Quorum is HOLD. Thesis and risk accept no trade. Critic blocks both the pin rotate and any sale that reopens the 40%. No order placed or cancelled on ••••1752. Primary margin not used.
+**Actions:**
+- HOLD TSLA $0 [no_order] 
+- HOLD SPCX $0 [no_order] 
+
+
+## 2026-09-29T16:45:28 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.614 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.61 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T16:50:29 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~12:47 ET). Chairman 2026-09-22 stocks pin unchanged; BTC sleeve stays closed; 2026-09-23 no-sale order stands. Broker NAV $322.12, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.31: TSLA $157.99 (49.02%, day -1.43%) / SPCX $164.33 (50.98%, day +2.28%). One-way pin gap $3.17 is 98 bp of NAV, inside the ~$3.22 1% band by ~$0.05, and was not traded. No orders.
+**Book:** NAV $322.12 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled mid-session review at 12:47 ET, inside the preferred window (not the open or the close). Live book re-checked after the 10:05 and 11:01 ET HOLDs. Deployed mix is still 0% BTC-complex / 100% stocks versus the numeric 40/60, which is why a rules pass would flag need_llm. Cash and buying power are $0.03, under the $1 minimum, so the flag cannot become an order. The TSLA/SPCX one-way gap widened to $3.17 (98 bp) as SPCX rose 2.28% and TSLA fell 1.43%, and it is still inside the ~$3.22 1% band.
+**Why not alternatives:** New capital, which this pass does not have, would not top up TSLA/SPCX by habit. The underweight theme is the BTC complex. First dollars there are STRC and SATA (3.0 bp and 1.0 bp, near par) — not MSTR-only, and not skipped as illiquid. Miners (best relative today: CLSK +0.26%) are diversification, not an overlap block, and they come after a credit seat. Ready watchlist equities (strongest tape AMZN +0.41%, NVDA +0.33%) stay off the book under the 2026-09-22 stocks pin (TSLA 50 / SPCX 50 only). STRK is junior and its 51 bp book loses to STRC/SATA. GLDM is research-only. BE +12.88% stays blocked. Selling SPCX to buy TSLA would be an intraday pin scalp into the Sep 30 NHTSA Cybercab response, and the Chairman 2026-09-23 order forbids sales to rebalance. Selling either pin to rebuild the 40% sleeve is the same prohibition.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $322.12, equity $322.09, cash $0.03, BP $0.03, crypto $0, unsettled $0, no orders today. Positions: TSLA 0.448384 and SPCX 1.104498. Quote equity $322.31 = TSLA $157.99 (49.02%) / SPCX $164.33 (50.98%). Pin gap $3.17 vs 1% band $3.22. Sleeve mix 0/100 vs 40/60. Primary margin read-only at ~$0.09 and was not used. Unheld core and every ready watchlist name were quoted.
+- **thesis:** hold — No deployable cash, so no new seat. Held names stay: TSLA growth equity, SPCX space core. If capital arrives, it serves the empty 40% complex first via STRC and SATA together, then a diversified miner set (CLSK, RIOT, WULF, MARA, IREN — not one miner). Stock dollars stay 50/50 TSLA/SPCX. Do not sell the locked book to manufacture the 40%. The $3.17 pin gap is inside the band and is SPCX strength, not a reason to rotate.
+- **risk:** ok — OK to hold. Min notional $1 blocks every buy. A pin rotate of about $3.17 is above the minimum and is liquid (TSLA ~2 bp, SPCX ~3 bp) but it sells the stronger name into a known Sep 30 binary and violates the no-sale order. Two-name concentration is the Chairman book, not a new risk this pass. STRC/SATA liquidity does not fail (3 bp and 1 bp; STRC top size covers a small ticket). No margin. Agentic capital only.
+- **critic:** block — Block three bad trades. (1) Held-only inertia: do not treat 'we already own TSLA and SPCX' as the allocation. Alternatives were priced; the binding constraint is $0.03, not habit. (2) STRC/SATA under-allocation: the 40% complex is empty, and that is not a reason to deploy nothing by pretending MSTR or miners cover credit — but this pass deploys no BTC-complex capital, so the critic does not force a sale of the pins to buy credit. Skip-for-illiquidity is rejected; spreads are 3.0 bp and 1.0 bp. (3) False miner-overlap: not used. CLSK being the green miner is not a reason to exclude the others or to buy CLSK alone. Also block the $3.17 SPCX→TSLA chase: inside the 1% band by ~$0.05, and it would be a midday scalp. BE's +12.88% does not reopen a blocked name. Size is zero.
+- **executor:** hold — No Robinhood orders. Quorum is hold. Nothing to cancel.
+
+
+## 2026-09-29T17:01:01 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $321.7964 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $321.80 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T17:06:23 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~13:02 ET) closes the 17:01Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $322.29, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.33: TSLA $157.89 (48.98%, day −1.49%) / SPCX $164.44 (51.02%, day +2.35%). One-way pin gap $3.28 is 102 bp, $0.05 through the ~$3.22 1% band, and was not traded. No orders.
+**Book:** NAV $322.29 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 17:01Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~17:02Z (~13:02 ET, regular hours, mid-session) shows that state is the filled Chairman book, not stale weights: held TSLA 0.448384 and SPCX 1.104498 only, no open orders (confirmed and queued empty), no pending deposits, unsettled $0, crypto $0. Broker NAV $322.29, cash/BP $0.03, below the $1 minimum. Quote equity $322.33 is TSLA $157.89 (48.98%, day −1.49%) / SPCX $164.44 (51.02%, day +2.35%), a $3.28 one-way gap (102 bp), $0.05 through the informal 1% band of ~$3.22. The same gap printed about $3.26 at 10:49 ET and faded to $2.15 by 11:01 ET, so this cross is the intraday SPCX rip returning, not a new pin break. Research/rotate ran inline across held and unheld allowlist plus every ready watchlist name, using ~17:02Z quotes, BTC-USD, and the 2026-09-29 digest (whose 'held' labels for exited names were corrected against the live book). The fund-manager-research workflow was not launched: it cannot create buying power or override the standing orders. Report: investment/research/fund_manager_research_latest.md.
+**Why not alternatives:** New capital is what would serve the themes, and there is none. A hypothetical dollar is not 'top up TSLA and SPCX because we hold them.' Stock dollars stay on the 50/50 pin and would lean to TSLA until the $3.28 gap closes. BTC-complex dollars would open with STRC and SATA (spreads 4.0 bp and 1.0 bp, near par, yield seat versus cash) and then a diversified miner set. MSTR is not the first dollar. Miners were not rejected for overlap; IREN's −1.44% day is not a drop. Selling SPCX to buy TSLA would tighten the pin and the books are liquid, but it is a sale to rebalance, which the Chairman 2026-09-23 order forbids, and it would chase an intraday rip that already mean-reverted once today. Selling either pin to rebuild the empty 40% sleeve is the same forbidden sale. Ready watchlist names (GOOGL, AAPL, NVDA, PLTR, AMZN, EVGO, RKLB, STRK, CCJ, BWXT, HYPD) were priced and lose to the stocks pin, not to a held-only habit. STRK is junior and wider (26.9 bp) than STRC/SATA. GLDM is research-only. BE is blocked. Spot BTC is not an equity ticket and has the same $0.03 of crypto buying power. Private names stay out of the consider set. No deep-dive refresh: ready dives are inside 90 days and this pass proposes no first buy.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $322.29, equity $322.26, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0, no confirmed or queued equity orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.33 is TSLA $157.89 (48.98%, −1.49%) and SPCX $164.44 (51.02%, +2.35%). One-way 50/50 gap $3.28 (102 bp). Deployed mix 0/100 vs 40/60. Core unheld, every ready watchlist name, GLDM, and BTC-USD were quoted ~17:02Z. Primary margin read at $0.09 cash and was not traded. Digest 'held' labels for exited names are stale.
+- **thesis:** hold — Do not deploy and do not rotate. The empty 40% sleeve is closed by the 2026-09-22 exit and the 2026-09-23 no-sale order, not by a fresh view that TSLA and SPCX are the best use of capital. If new money arrives: 40% starts with STRC and SATA (near par, 4 bp and 1 bp, preferred credit core, yield versus cash; MSTR −2.20% is the equity proxy and not first), then diversify miners across MARA, RIOT, CLSK, WULF, and IREN. Overlap is not a reject. 60% is TSLA/SPCX only, and the next stock dollar goes to underweight TSLA. Ready watchlist names were in the consider set and are not sized. No new watchlist add. No first buy, so no new deep dive.
+- **risk:** ok — OK to hold. Cash and BP $0.03 are under the $1 minimum, so no buy is possible without a sale. A $3.28 SPCX sale to buy TSLA is liquid (SPCX 0.7 bp, TSLA 2.8 bp) and still the wrong ticket: it is a sale to rebalance, and the gap already crossed ~1% once today and faded. Two-name concentration is the Chairman book, not a risk fail that authorizes selling it. STRC/SATA liquidity does not fail (4 bp and 1 bp). STRK at 27 bp and HYPD/EVGO wide books are extra rejects, not the reason credit is skipped. No order on primary margin. Size-invariant: the same hold would stand at a larger NAV if the no-sale order and zero free capital still held; ticket size is not why research ran.
+- **critic:** block_sale — Challenge held-only inertia: TSLA and SPCX did not beat STRC, SATA, the miners, or the watchlist on relative value this pass. They remain because the book is locked. Challenge STRC/SATA under-allocation: the numeric 40% sleeve is empty, which is a real gap versus policy, and this pass is not deploying any BTC-complex dollar, so the gap is not a buy and is not a liquidity rebuttal. Challenge false miner-overlap: no miner was rejected for already owning a miner; none are owned. Block the $3.28 pin chase. Block any sale of the pins to satisfy the rules engine's 40/60 drift flag. Next stock dollar to TSLA. Next BTC-complex dollar to STRC and SATA.
+- **executor:** hold — Quorum is hold. Risk ok, thesis hold, critic blocks the only trades that were mechanically available (sell SPCX to buy TSLA, or sell either pin to reopen the 40%). No orders placed or cancelled. Agentic ••••1752 only. Primary margin untouched.
+
+
+## 2026-09-29T17:15:52 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.6811 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.68 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T17:21:25 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~13:17 ET) closes the 17:15Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $322.59, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.38: TSLA $157.86 (48.97%, day −1.51%) / SPCX $164.51 (51.03%, day +2.39%). One-way pin gap $3.33 is 103 bp, $0.10 through the ~$3.23 1% band, and was not traded. No orders.
+**Book:** NAV $322.59 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 17:15Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~17:17Z (~13:17 ET, regular hours, mid-session) shows that state is the filled Chairman book, not stale weights: held TSLA 0.448384 and SPCX 1.104498 only, no open orders (confirmed and queued empty), no pending deposits, unsettled $0, crypto $0. Broker NAV $322.59, cash/BP $0.03, below the $1 minimum. Quote equity $322.38 is TSLA $157.86 (48.97%, day −1.51%) / SPCX $164.51 (51.03%, day +2.39%), a $3.33 one-way gap (103 bp), $0.10 through the informal 1% band of ~$3.23. The same gap printed about $3.26 at 10:49 ET, faded to $2.15 by 11:01 ET, and was $3.28 at 13:02 ET. This cross is the intraday SPCX rip returning, not a new pin break. Research/rotate ran inline across held and unheld allowlist plus every ready watchlist name, using ~17:16Z quotes, BTC-USD, and the 2026-09-29 digest (whose 'held' labels for exited names were corrected against the live book). The fund-manager-research workflow was not launched: it cannot create buying power or override the standing orders. Report: investment/research/fund_manager_research_latest.md.
+**Why not alternatives:** New capital is what would serve the themes, and there is none. A hypothetical dollar is not 'top up TSLA and SPCX because we hold them.' Stock dollars stay on the 50/50 pin and would lean to TSLA until the $3.33 gap closes. BTC-complex dollars would open with STRC and SATA (spreads 2.0 bp and 1.0 bp, near par, yield seat versus cash) and then a diversified miner set. MSTR is not the first dollar. Miners were not rejected for overlap; IREN's −1.39% day is not a drop and CLSK's +0.49% is not a ticket. Selling SPCX to buy TSLA would tighten the pin and the books are liquid (0.9 bp and 1.3 bp), but it is a sale to rebalance, which the Chairman 2026-09-23 order forbids, and it would chase an intraday rip that already mean-reverted once today, into tomorrow's NHTSA Cybercab response. Selling either pin to rebuild the empty 40% sleeve is the same forbidden sale. Ready watchlist names (GOOGL, AAPL, NVDA, PLTR, AMZN, EVGO, RKLB, STRK, CCJ, BWXT, HYPD) were priced and lose to the stocks pin, not to a held-only habit. STRK is junior and wider (28 bp) than STRC/SATA. GLDM is research-only. BE is blocked. Spot BTC is not an equity ticket and has the same $0.03 of crypto buying power. Private names stay out of the consider set. No deep-dive refresh: ready dives are inside 90 days and this pass proposes no first buy.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $322.59, equity $322.56, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0, no confirmed or queued equity orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.38 is TSLA $157.86 (48.97%, −1.51%) and SPCX $164.51 (51.03%, +2.39%). One-way 50/50 gap $3.33 (103 bp). Deployed mix 0/100 vs 40/60. Core unheld, every ready watchlist name, GLDM, and BTC-USD were quoted ~17:16Z. Primary margin read at $0.09 cash / $0 equity and was not traded. Digest 'held' labels for exited names are stale.
+- **thesis:** hold — Do not deploy and do not rotate. The empty 40% sleeve is closed by the 2026-09-22 exit and the 2026-09-23 no-sale order; $0.03 cannot open it. If capital arrives, BTC-complex dollars start at STRC and SATA (2 bp and 1 bp, near par), then a diversified miner set — not MSTR-only and not 'we already hold TSLA/SPCX.' Stock dollars stay 50/50 and the next one is TSLA until the $3.33 gap closes. Ready names were considered and lose to the pin. No first buy, so no new deep dive.
+- **risk:** ok_hold — Buying power $0.03 is under the $1 minimum. The $3.33 SPCX→TSLA rotate would clear the minimum and both books are liquid, but it is a forbidden sale and an intraday chase, not a capital-bounds pass. Two-name concentration is the standing order, not an accidental breach. Do not sell the pins to fund STRC/SATA or miners. Primary margin is out of scope. STRK 28 bp and HYPD/EVGO wide books are liquidity notes, not the hold reason.
+- **critic:** block_sale — Challenged held-only inertia: rejected. The holds are the Chairman pins, and the next dollar is not 'add to what we own' — unheld STRC/SATA would lead a BTC-complex deploy, and TSLA (the underweight pin) would lead the next stock dollar. Challenged the empty STRC/SATA seat: the underweight versus 40% is real, and the only valid rebuttal is the no-sale order plus zero buying power, not spread or 'MSTR covers credit' (spreads 2.0 bp and 1.0 bp; MSTR was sold too and is −2.20% today). Challenged a miner-overlap veto: there is none; CLSK +0.49% and IREN −1.39% were both left off for lack of capital, not because a miner is already held. Block the $3.33 pin sale: it is $0.10 through a 1% band that already mean-reverted once today, and it would buy TSLA into the Sep 30 NHTSA response. Block any sale of TSLA/SPCX to rebuild the 40% sleeve.
+- **executor:** hold — Quorum is hold. Risk ok, thesis hold, critic blocks the only trades that were on the table. No Robinhood orders placed or cancelled. Agentic account only; primary margin not touched.
+
+
+## 2026-09-29T17:30:40 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $323.2311 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $323.23 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T17:35:30 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~13:33 ET) closes the 17:30Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $322.33, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.47: TSLA $158.19 (49.06%, day -1.30%) / SPCX $164.28 (50.94%, day +2.25%). One-way pin gap $3.05 is 94 bp, $0.18 inside the ~$3.23 1% band, and was not traded. No orders.
+**Book:** NAV $322.33 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 17:30Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~17:33Z (~13:33 ET, regular hours, mid-session) shows that state is the filled Chairman book, not stale weights: held TSLA 0.448384 and SPCX 1.104498 only, confirmed and queued orders empty, no pending deposits, unsettled $0, crypto $0. Broker NAV $322.33 (equity $322.30), cash/BP $0.03, below the $1 minimum. Quote equity $322.47 at 17:32:45Z is TSLA $158.19 (49.06%, day -1.30%) / SPCX $164.28 (50.94%, day +2.25%), a $3.05 one-way gap (94 bp), $0.18 inside the ~$3.23 1% band. The same gap was $3.33 / 103 bp at 13:17 ET and has mean-reverted back inside the band; it is the intraday SPCX rip, not a pin break. Research/rotate ran inline across held and unheld allowlist plus every ready watchlist name, using ~17:32Z equity quotes, BTC-USD, GLDM, and the 2026-09-29 digest. The digest's 'held' labels for MSTR, STRC, SATA, BITA, miners, NVDA, GOOGL, and CCJ are reopen context only — those names were sold on 2026-09-22. A full fund-manager-research workflow was not re-launched: deployable capital is $0.03 and today's digest already covers the news window. The consider set was still priced.
+**Why not alternatives:** New capital is what would serve the themes, and there is none. A hypothetical dollar is not 'top up TSLA and SPCX because we hold them.' Stock dollars stay on the 50/50 pin and the next one goes to underweight TSLA until the $3.05 gap closes. BTC-complex dollars would open with STRC and SATA (spreads 3.0 bp and 1.0 bp, near par, yield seat versus cash) and then a diversified miner set (CLSK was the strongest tape at +1.12%, not a reason to buy it alone). MSTR at -2.09% is not the first dollar. Miners were not rejected for overlap. Selling SPCX to buy TSLA would tighten the pin and both books are liquid (TSLA 1.4 bp, SPCX 2.7 bp), but it is a sale to rebalance, which the Chairman 2026-09-23 order forbids, the gap is back inside the 1% band, and it would chase an intraday rip into tomorrow's NHTSA Cybercab response. Selling either pin to rebuild the empty 40% sleeve is the same forbidden sale. Ready watchlist names were priced and lose to the stocks pin, not to a held-only habit. STRK is junior and wider (~34 bp). GLDM stays research-only. BE stays blocked despite +12.10%. Private names stay out of the deploy set.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $322.33, equity $322.30, cash $0.03, BP $0.03, crypto $0, unsettled $0, no orders. Positions: TSLA 0.448384 and SPCX 1.104498. Quote equity $322.47 = TSLA $158.19 (49.06%) / SPCX $164.28 (50.94%). Pin gap $3.05 vs 1% band $3.23. Sleeve mix 0/100 vs 40/60. Primary margin was read for the snapshot only (~$0.09, no equity) and was not used. Unheld core and every ready watchlist name were quoted.
+- **thesis:** hold — Do not deploy and do not rotate. The empty 40% sleeve is closed by the 2026-09-22 exit and the 2026-09-23 no-sale order; $0.03 cannot open it. If capital arrives, BTC-complex dollars start at STRC and SATA (3.0 bp and 1.0 bp, near par), then a diversified miner set — not MSTR-only and not 'we already hold TSLA/SPCX.' Stock dollars stay 50/50 and the next one is TSLA until the $3.05 gap closes. Ready names were considered and lose to the pin. No first buy, so no new deep dive.
+- **risk:** ok — OK to hold. Cash and BP $0.03 are under the $1 minimum, so no buy is possible without a sale. A $3.05 SPCX sale to buy TSLA is liquid (TSLA 1.4 bp, SPCX 2.7 bp) and still the wrong ticket: it is a sale to rebalance, and the gap is back inside the 1% band after printing 103 bp at 13:17 ET. Two-name concentration is the Chairman book, not a risk fail that authorizes selling it. STRC/SATA liquidity does not fail (3.0 bp and 1.0 bp). STRK ~34 bp and EVGO ~74 bp are extra rejects, not the reason credit is skipped. No order on primary margin. Size-invariant: the same hold would stand at a larger NAV if the no-sale order and zero free capital still held.
+- **critic:** hold — Challenged held-only inertia: rejected. The holds are the Chairman pins, and the next dollar is not 'add to what we own' — unheld STRC/SATA would lead a BTC-complex deploy, and TSLA (the underweight pin) would lead the next stock dollar. Challenged the empty STRC/SATA seat: the underweight versus 40% is real, and the only valid rebuttal is the no-sale order plus zero buying power, not spread or 'MSTR covers credit' (spreads 3.0 bp and 1.0 bp; MSTR was sold too and is -2.09% today). Challenged a miner-overlap veto: there is none; CLSK +1.12% and IREN -0.89% were both left off for lack of capital, not because a miner is already held. Block the pin sale: the $3.05 gap is inside the 1% band, and it would buy TSLA into the Sep 30 NHTSA response. Block any sale of TSLA/SPCX to rebuild the 40% sleeve. BE +12.10% does not reopen a blocked name.
+- **executor:** hold — Quorum is hold. No Robinhood order placed or cancelled. Agentic ••••1752 only. Primary margin untouched.
+
+
+## 2026-09-29T17:45:30 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.0571 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.06 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T17:51:15 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~13:46 ET) closes the 17:45:30Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $322.42, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.39: TSLA $158.28 (49.10%, day -1.24%) / SPCX $164.11 (50.90%, day +2.14%). One-way pin gap $2.92 is 90 bp, inside the ~$3.22 1% band and narrower than the 13:33 ET hold ($3.05 / 94 bp). Rules-engine 40/60 rebuild by sale is overridden. No orders.
+**Book:** NAV $322.42 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules engine re-fired at 17:45:30Z because deployed mix is 0% BTC-complex / 100% stocks versus the numeric 40/60 ±5% band. That fire needs a team close. Live book structure is unchanged from the 17:35Z hold: dust cash, two-name pin. The pin gap narrowed from $3.05 (94 bp) to $2.92 (90 bp) as SPCX cooled from +2.25% to +2.14%. Mid-session, regular hours (~13:46 ET), not an open or close scalp.
+**Why not alternatives:** Rebuilding 40% would sell roughly $129 of TSLA+SPCX into a sleeve the Chairman closed on 2026-09-22 and froze against sales on 2026-09-23. That is an override, not a team rotate. STRC/SATA are not skipped for liquidity or because MSTR already covers credit — they are the first dollars if the sleeve reopens (spreads 5.0 bp and 1.0 bp; MSTR -2.60% confirms they should lead). Miners are not skipped for overlap; CLSK is the relative-value leader today and still not a ticket while the sleeve is closed and BP is $0.03. Every ready watchlist name was in the consider set and rejected because the stocks sleeve is TSLA/SPCX only, or (STRK) because it is junior to unheld STRC with no residual — its spread is now 10.8 bp, so liquidity is not the reason. BE stays blocked. Gold stays research-only. The $2.92 SPCX-overweight chase would sell the stronger name to buy TSLA inside the 1% band on an intraday move; critic sizes that to zero. The equity ticker BTC is not spot Bitcoin.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $322.42, equity $322.39, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0, no open orders. Positions unchanged: TSLA 0.448384 and SPCX 1.104498. Quote equity $322.39 = TSLA $158.28 (49.10%, day -1.24%) / SPCX $164.11 (50.90%, day +2.14%). Pin gap $2.92 vs 1% band $3.22 (90 bp), inside, and tighter than the 13:33 ET hold ($3.05). Sleeve mix 0/100 vs 40/60. Primary margin read for the snapshot only (equity $0, cash $0.09) and not used. Core allowlist unheld plus every ready watchlist name was quoted this pass.
+- **thesis:** hold — Do not deploy and do not rotate. The empty 40% sleeve is the 2026-09-22 exit plus the 2026-09-23 no-sale order; $0.03 cannot open it. If capital arrives, BTC-complex dollars start at STRC and SATA (5.0 bp and 1.0 bp, near par; MSTR -2.60% does not lead), then a diversified miner set led by today's tape (CLSK +1.39%) and not by 'we already own a miner' — we own none. Stock dollars stay on the pin and the next one is TSLA until the $2.92 gap closes, not a top-up of the stronger SPCX print. Every ready watchlist name was in the consider set and loses to the pin or, for STRK, to being junior to unheld STRC. No first buy, so no new deep dive (oldest ready dive 2026-08-04 is 56 days, inside 90).
+- **risk:** ok — OK to hold. Cash and BP $0.03 are under the $1 minimum, so no buy is possible without a sale. A ~$2.92 SPCX sale to buy TSLA is liquid (TSLA 2.0 bp, SPCX 0.7 bp) and still the wrong ticket: it is a sale to rebalance, the gap is inside the 1% band, and SPCX +2.14% is an intraday print, not a pin break. Two-name concentration is the Chairman book, not a risk fail that authorizes selling it. STRC/SATA liquidity does not fail (5.0 bp and 1.0 bp). STRK at 10.8 bp is tradable and is still not the risk block — junior structure and zero residual are. EVGO 74 bp and HYPD 26 bp are extra rejects. No order on primary margin. Size-invariant: the same hold would stand at a larger NAV if the no-sale order and zero free capital still held.
+- **critic:** hold — Challenged held-only inertia: rejected. The holds are the Chairman pins, and the next dollar is not 'add to what we own.' Unheld STRC/SATA would lead a BTC-complex deploy; TSLA, the underweight pin, would lead the next stock dollar. Challenged the empty STRC/SATA seat: the underweight versus 40% is real, and the only valid rebuttal is the no-sale order plus zero buying power, not spread or 'MSTR covers credit' (spreads 5.0 bp and 1.0 bp; MSTR is -2.60% and was sold with the sleeve). Challenged a miner-overlap veto: there is none. CLSK, WULF, MARA, RIOT, and IREN were left off for lack of capital, not because a miner is already held. Block the pin sale: $2.92 is inside the 1% band. Block selling the book to satisfy the rules engine's 40/60 flag. STRK's tighter 10.8 bp book does not earn a seat ahead of STRC.
+- **executor:** hold — Quorum is hold. Risk ok, thesis hold, critic blocks both the pin sale and a 40/60 rebuild by sale. No Robinhood orders placed or cancelled. Agentic account only; primary margin not used.
+
+
+## 2026-09-29T18:01:27 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $321.4591 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $321.46 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T18:06:20 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~14:04 ET) closes the 18:01:27Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $321.88, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $321.89 at 18:04Z: TSLA $158.56 (49.26%, day -1.07%) / SPCX $163.33 (50.74%, day +1.65%). One-way pin gap $2.38 is 74 bp, $0.84 inside the ~$3.22 1% band and narrower than the 13:46 ET hold ($2.92 / 90 bp). Rules-engine 40/60 rebuild by sale is overridden. No orders.
+**Book:** NAV $321.88 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules engine re-fired at 18:01:27Z because deployed mix is 0% BTC-complex / 100% stocks versus the numeric 40/60 ±5% band. That fire needs a team close. Live book is unchanged: TSLA 0.448384 and SPCX 1.104498, dust cash, no open orders. Mid-session, regular hours (~14:04 ET), past the open and more than 90 minutes before the close. The pin gap narrowed from $2.92 (90 bp at 13:46 ET) to $2.38 (74 bp) as SPCX cooled from +2.14% to +1.65%.
+**Why not alternatives:** Rebuilding 40% would sell roughly $129 of TSLA+SPCX into a sleeve the Chairman closed on 2026-09-22 and froze against sales on 2026-09-23. That is an override, not a team rotate. STRC/SATA are not skipped for liquidity or because MSTR already covers credit — they are the first dollars if the sleeve reopens (books 3.0 bp and 1.0 bp; MSTR -2.24% confirms they should lead). Miners are not skipped for overlap; CLSK is the relative-value leader today (+1.50%) and still not a ticket while the sleeve is closed and BP is $0.03. Every ready watchlist name was in the consider set and rejected because the stocks sleeve is TSLA/SPCX only, or (STRK) because it is junior to unheld STRC with no residual. BE stays blocked despite +11.34%. Gold stays research-only. The $2.38 SPCX-overweight chase would sell the stronger name to buy TSLA inside the 1% band, on an intraday print, the day before the Sep 30 NHTSA Cybercab response. The equity ticker BTC is not spot Bitcoin. Private names stay out of the deploy set.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $321.88, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0, no orders today. Positions unchanged: TSLA 0.448384 and SPCX 1.104498. Quote equity $321.89 at 18:04Z = TSLA $158.56 (49.26%, day -1.07%) / SPCX $163.33 (50.74%, day +1.65%). Pin gap $2.38 vs 1% band $3.22 (74 bp), inside, and tighter than the 13:46 ET hold ($2.92). Sleeve mix 0/100 vs 40/60. Primary margin read for the snapshot only (equity $0, cash $0.09, crypto dust) and not used. Core allowlist unheld plus every ready watchlist name was quoted this pass (~18:02Z).
+- **thesis:** hold — Do not deploy and do not rotate. The empty 40% sleeve is the 2026-09-22 exit plus the 2026-09-23 no-sale order; $0.03 cannot open it. If capital arrives, BTC-complex dollars start at STRC and SATA (3.0 bp and 1.0 bp, near par; MSTR -2.24% does not lead), then a diversified miner set led by today's tape (CLSK +1.50%) and not by 'we already own a miner' — we own none. Stock dollars stay on the pin and the next one is TSLA until the $2.38 gap closes, not a top-up of the stronger SPCX print. Every ready watchlist name was in the consider set and loses to the pin or, for STRK, to being junior to unheld STRC. No first buy, so no new deep dive (oldest ready dive 2026-08-04 is 56 days, inside 90).
+- **risk:** ok — OK to hold. Cash and BP $0.03 are under the $1 minimum, so no buy is possible without a sale. A ~$2.38 SPCX sale to buy TSLA is liquid (TSLA quote ~2.8 bp, SPCX ~0.7 bp; books ~2.5 bp and ~2.7 bp) and still the wrong ticket: it is a sale to rebalance, the gap is inside the 1% band, and SPCX +1.65% is an intraday print, not a pin break. Two-name concentration is the Chairman book, not a risk fail that authorizes selling it. STRC/SATA liquidity does not fail (3.0 bp with 3,000 shares one cent behind the ask; SATA 1.0 bp with thousands at the touch). STRK ~35 bp is tradable and is still not the risk block — junior structure and zero residual are. EVGO ~74 bp and HYPD ~79 bp are extra rejects. No order on primary margin. Size-invariant: the same hold would stand at a larger NAV if the no-sale order and zero free capital still held.
+- **critic:** hold — Challenged held-only inertia: rejected. The holds are the Chairman pins, and the next dollar is not 'add to what we own.' Unheld STRC/SATA would lead a BTC-complex deploy; TSLA, the underweight pin, would lead the next stock dollar. Challenged the empty STRC/SATA seat: the underweight versus 40% is real, and the only valid rebuttal is the no-sale order plus zero buying power, not spread or 'MSTR covers credit' (books 3.0 bp and 1.0 bp; MSTR is -2.24% and was sold with the sleeve). Challenged a miner-overlap veto: there is none. CLSK, WULF, MARA, RIOT, and IREN were left off for lack of capital, not because a miner is already held. Block the pin sale: $2.38 is inside the 1% band. Block selling the book to satisfy the rules engine's 40/60 flag. STRK's ~35 bp book does not earn a seat ahead of STRC. BE +11.34% does not reopen a blocked name.
+- **executor:** hold — No order. Quorum is hold. Agentic ••••1752 only. Nothing placed or cancelled.
+
+
+## 2026-09-29T18:15:31 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.1351 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.14 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T18:21:09 — hold
+**Summary:** Afternoon mid-session review (~14:20 ET): HOLD. No orders. Agentic NAV $322.13, cash/BP $0.03 (below $1). Book is TSLA $158.79 (49.31%) / SPCX $163.27 (50.69%). Pin gap $2.24 is 69 bp, inside the ~$3.22 1% band. BTC-complex remains 0% under the Chairman lock; not rebuilt by selling the pins.
+**Book:** NAV $322.13 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled mid-session review (18:20Z / ~14:20 ET), regular hours, outside the open and close avoid windows. Rules engine re-fires because deployed mix is 0% BTC-complex / 100% stocks versus 40/60 ±5%. That drift is the filled 2026-09-22 exit plus the 2026-09-23 hold-the-book order, not a new signal. Live cash and buying power are $0.03. Third pass today; still no deposit.
+**Why not alternatives:** No deployable capital, so the next dollar was planned and not bought. That dollar would not top up TSLA/SPCX just because they are the only names held. The sleeve gap is the closed 40% complex, so new capital opens with STRC and SATA (3.0 bp at $99.42 and 1.0 bp at $100.00, near par; morning digest still has the company STRC repurchase). MSTR −2.12% at a 2.0 bp book is not a reason to skip the preferred credit seat, and it is not a reason to sell the pins to buy the dip. After a real STRC/SATA seat, miners would be diversified across MARA/RIOT/CLSK/WULF/IREN — CLSK +1.72% is the strong tape and IREN −0.71% the soft one — and overlap is not a rejection. The $2.24 TSLA/SPCX pin rotate is liquid (3.1 bp / 0.7 bp) and still the wrong ticket: 69 bp, inside the 1% band, and it would sell the +1.62% name to buy the −0.92% name the day before the NHTSA Cybercab response. Selling ~40% of the book to force the numeric 40/60 target violates the Chairman order that the complex is rebuilt with new capital only. Ready watchlist names were in the consider set and were not seated: stocks deploys are TSLA/SPCX only, and there is no residual. STRK's 133 bp book is a real liquidity rebuttal and it is junior to STRC. BE +11.7% stays blocked. GLDM is research-only until the owner calls a buy. Spot BTC ($83,472, +0.52%) is not an equity ticket and crypto buying power is the same $0.03.
+**Team:**
+- **scout:** observe — Agentic ••••1752 NAV $322.13, equity $322.10, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Held TSLA 0.448384 and SPCX 1.104498 only. Quote equity $322.06: TSLA $158.79 (49.31%, day −0.92%) / SPCX $163.27 (50.69%, day +1.62%). One-way pin gap $2.24 vs ~$3.22 1% band. Deployed mix 0/100. Primary margin read and not traded (equity $0, cash $0.09). Consider set: core unheld BTC/STRC/SATA/MSTR/BITA/ASST plus five miners, and every ready watchlist name.
+- **thesis:** hold — Hold both pins. Do not sell the locked book to rebuild 40/60. If capital arrives, the best use now is STRC and SATA (digital credit), then a multi-miner set — not another TSLA/SPCX top-up and not MSTR-only. No watchlist first buy: dives are inside 90 days and the stocks pin forbids other equities. No new watchlist add this pass.
+- **risk:** ok — OK to do nothing. $0.03 is under the $1 minimum, so no sleeve can be opened. The $2.24 rotate is liquid and inside the band; it is not a risk-reducing trade. 100% stocks is the standing order, not a concentration breach to trade against today. STRC 3 bp and SATA 1 bp are not an illiquidity block. STRK 133 bp is. BITA 25 bp, BWXT 32 bp, HYPD 52 bp, EVGO 74 bp are wider and irrelevant at zero buying power. Multi-miner overlap is not a risk block.
+- **critic:** block — Block the pin chase: selling SPCX (+1.62%) to buy TSLA (−0.92%) for 69 bp, the day before the NHTSA Cybercab response, is an intraday scalp the cadence forbids. Block a rules-engine sale of the book to force 40%. Challenge held-only inertia: the next dollar is not 'add what we already own.' Challenge the empty STRC/SATA seat versus the 40% target — the under-allocation is real, and it does not force a buy because no BTC-complex dollar is being deployed. Do not accept a miner-overlap rejection. Do not reseat BE on a +11.7% day. Size stays zero.
+- **executor:** hold — Quorum is hold. No place and no cancel. Agentic account only. Nothing queued.
+
+
+## 2026-09-29T18:30:21 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.2251 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.23 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T18:34:44 — hold
+**Summary:** HOLD. Agentic ••••1752 mid-session review (~14:32 ET) closes the 18:30Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $321.51, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $321.48: TSLA $158.63 (49.34%, day -1.03%) / SPCX $162.85 (50.66%, day +1.35%). One-way pin gap $2.11 is 66 bp, $1.11 inside the ~$3.22 1% band, and narrower than the 14:20 ET hold ($2.24 / 69 bp). No orders.
+**Book:** NAV $321.51 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules engine re-fired at 18:30Z because deployed mix is 0% BTC-complex / 100% stocks versus numeric 40/60 ±5%. That fire needs a team close. Live scout at ~18:32Z (~14:32 ET, regular hours, past the open and more than 85 minutes before the close) shows the same Chairman book: TSLA 0.448384 and SPCX 1.104498 only, cash and buying power $0.03, crypto $0, unsettled $0, pending deposits $0, no equity orders today. Quote equity $321.48 is TSLA $158.63 (49.34%, day -1.03% at $353.78) and SPCX $162.85 (50.66%, day +1.35% at $147.44). One-way pin gap $2.11 is 66 bp, inside the ~$3.22 1% band, and tighter than the 14:20 ET hold. Research/rotate was emulated inline across the core allowlist, every ready watchlist name, blocked BE, and GLDM/IAU as the gold proxy, using 18:32Z quotes and the 2026-09-29 digest. The fund-manager-research workflow was not launched: $0.03 and the no-sale order make the order set determinate. That workflow remains the path when new capital actually arrives.
+**Why not alternatives:** New capital is what would serve the empty 40% sleeve, and there is none. Held-only top-up is rejected: the next BTC-complex dollars are STRC ($99.52, 3.0 bp, day +0.42%) and SATA ($100.01 at par, 1.0 bp), not more TSLA/SPCX and not MSTR-only. There is no liquidity or structure rebuttal against those preferreds. Selling either pin to buy them, or to open MARA/RIOT/CLSK/WULF/IREN, would undo the filled 2026-09-22 exit and the 2026-09-23 no-sale HOLD (40/60 is funded by new capital only). Miners were not rejected for overlap; CLSK +0.60% leads that tape and still sits behind credit. The $2.11 SPCX→TSLA rotate is liquid (TSLA 1.4 bp, SPCX 2.0 bp) and above the $1 minimum, and it is still the wrong ticket: 66 bp inside the band, it sells the stronger pin (+1.35%) to buy the weaker (-1.03%) the day before the Sep 30 NHTSA Cybercab response, and the cadence is not an intraday scalp. Ready watchlist names were in the consider set and not sized: stocks pin forbids other equities; STRK is junior and ~111 bp wide; RKLB is -3.16% with Neutron unflown; AAPL -2.03% is not a pin exception; EVGO ~74 bp and HYPD ~53 bp fail a clean $1 ticket and the theme test; BE stays blocked; GLDM/IAU stay research-only. Spot BTC $83,485 is not this account's ticket.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $321.51, equity $321.48, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0, no orders today. Positions unchanged: TSLA 0.448384 and SPCX 1.104498. Quote equity $321.48: TSLA $158.63 (49.34%, day -1.03%) / SPCX $162.85 (50.66%, day +1.35%). One-way pin gap $2.11 (66 bp) vs ~$3.22 1% band. Primary margin was read for the snapshot and not traded.
+- **thesis:** hold — Do not deploy and do not rotate. The empty 40% sleeve is the 2026-09-22 exit plus the 2026-09-23 no-sale order; $0.03 cannot open it. If capital arrives, BTC-complex dollars start with STRC and SATA, then a diversified miner set (CLSK leads today's tape; IREN is the soft name; overlap is not a reject). Stock dollars stay 50/50. Do not sell SPCX to top TSLA for a 66 bp inside-band gap.
+- **risk:** ok — OK to hold. Cash and BP $0.03 are under the $1 minimum, so no buy is possible without a sale. A ~$2.11 SPCX sale to buy TSLA is liquid (1.4 bp / 2.0 bp) and still the wrong trade: inside the 1% band, no-sale order, and an intraday chase into Sep 30. Two-name concentration is the standing Chairman book, not a new pile-up. STRC/SATA spreads (3.0 bp / 1.0 bp) do not support a liquidity block. STRK at ~111 bp does. No margin used. Agentic capital only. Primary margin untouched. BE remains blocked.
+- **critic:** hold — Challenged held-only inertia: rejected. The holds are the Chairman pins, and the next dollar is not 'add to what we own.' Unheld STRC/SATA would lead a BTC-complex deploy; MSTR at -2.34% does not cover that seat. Challenged the empty 40%: the underweight is real and is not 'in band' on the numeric target. It is not fixed by selling the pins. Challenged miner-overlap thinking: no miner was rejected for already owning another miner. Block the $2.11 pin chase. It sells SPCX strength to buy TSLA weakness the day before the NHTSA Cybercab response. Watchlist strength (BWXT +0.92%) and weakness (AAPL -2.03%, RKLB -3.16%, HYPD -3.19%) do not break the stocks pin.
+- **executor:** hold — Quorum is hold. Risk ok, thesis hold, critic blocks both the pin sale and a 40/60 rebuild by sale. No Robinhood order placed or cancelled. Agentic ••••1752 only. Primary margin not touched.
+**Actions:**
+- HOLD TSLA $0 [no_order] 
+- HOLD SPCX $0 [no_order] 
+
+
+## 2026-09-29T18:46:06 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.3861 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.39 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T18:52:12 — hold
+**Summary:** HOLD. Agentic ••••1752 afternoon review (~14:47 ET) closes the 18:46Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $322.53, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.45: TSLA $158.84 (49.26%, day −0.90%) / SPCX $163.61 (50.74%, day +1.83%). One-way pin gap $2.39 is 74 bp, inside the ~$3.23 1% band. No orders.
+**Book:** NAV $322.53 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 18:46Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~18:47Z (~14:47 ET, regular hours, outside the open and the last 30 minutes) shows that state is the filled Chairman book, not stale weights: held TSLA 0.448384 and SPCX 1.104498 only, no open orders (confirmed, queued, and partially filled empty), no pending deposits, unsettled $0, crypto $0. Broker NAV $322.53, cash/BP $0.03, below the $1 minimum. Quote equity $322.45 is TSLA $158.84 (49.26%) / SPCX $163.61 (50.74%), a $2.39 one-way gap (74 bp), inside the ~$3.23 1% band. Research/rotate ran inline across held and unheld allowlist plus every ready watchlist name, using ~18:47Z quotes, BTC-USD, and the 2026-09-29 digest (whose 'held' labels for the exited complex are reopen context only). The fund-manager-research workflow was not launched: it cannot see these quotes, create buying power, or override the standing order. Report: investment/research/fund_manager_research_latest.md.
+**Why not alternatives:** No deployable capital, so this is not a top-up of the names already held. The next new dollar serves the missing 40% sleeve: STRC and SATA first (5.0 bp and 1.0 bp, near par, no liquidity rebuttal), then diversified miners. It does not add TSLA/SPCX by habit, and it does not open with MSTR (−1.75%). The $2.39 pin gap is inside band and would sell SPCX strength (+1.83%) into TSLA weakness (−0.90%). Selling the locked book to force 40/60 is liquid and still blocked by the Chairman no-sale order. Watchlist ready names were priced and rejected under the stocks pin (TSLA/SPCX only), not because the book is small. STRK's 109.5 bp book is a real liquidity rebuttal and it is junior to STRC. BE +11.60% stays blocked. Gold stays research-only. Multi-miner overlap was not used as a rejection.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. NAV $322.53, equity $322.50, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.45 is 49.26/50.74, gap $2.39 (74 bp) inside the ~$3.23 1% band. Deployed mix 0% BTC-complex / 100% stocks. Primary margin read and not traded (equity $0, cash $0.09).
+- **thesis:** ok — Hold both pins. The 0/100 mix is the Chairman book. Next new capital restores the 40% with STRC and SATA first, then a diversified miner set — not a habit top-up of TSLA/SPCX and not MSTR-only. No watchlist seat through the stocks pin. No first buy, so no new deep dive (ready dives are inside 90 days).
+- **risk:** ok — Do nothing. $0.03 is under the $1 minimum. The pin gap is liquid and inside band, and it would sell strength. A sale to rebuild 40% is also liquid; the block is the standing order, not market depth. Two-name concentration is the locked book. STRC/SATA spreads (5.0 bp / 1.0 bp) are not a liquidity rebuttal. Multi-miner is diversification, not a concentration block. STRK at 109.5 bp is the one real liquidity reject.
+- **critic:** hold — Block the pin chase and block a rules-engine sale to rebuild 40/60. Block BE despite +11.60%. STRC/SATA under-allocation versus the numeric 40% is real and is not a buy, because this pass deploys no BTC-complex dollar. A later deploy into the complex without STRC or SATA would need a strong logged rebuttal; this pass does not have that case. No miner was rejected for overlap. The hold is dust buying power plus the standing order, not 'we already own TSLA and SPCX.'
+- **executor:** hold — Quorum is risk ok + thesis ok, and critic forces hold. No Robinhood order placed or cancelled. Agentic account only; primary margin untouched.
+
+
+## 2026-09-29T19:00:50 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.5341 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.53 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T19:05:27 — hold
+**Summary:** HOLD. Agentic ••••1752 late mid-session review (~15:02 ET) closes the 19:00:50Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $322.56, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.55: TSLA $158.83 (49.24%, day −0.90%) / SPCX $163.71 (50.76%, day +1.89%). One-way pin gap $2.44 is 76 bp, inside the ~$3.23 1% band. No orders.
+**Book:** NAV $322.56 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 19:00:50Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~19:02Z (~15:02 ET, regular hours, before the last 30 minutes) shows that state is the filled Chairman book, not stale weights: held TSLA 0.448384 and SPCX 1.104498 only, no open orders (confirmed, queued, and partially filled empty), no pending deposits, unsettled $0, crypto $0. Broker NAV $322.56, cash/BP $0.03, below the $1 minimum. Quote equity $322.55 is TSLA $158.83 (49.24%, day −0.90% at $354.23) and SPCX $163.71 (50.76%, day +1.89% at $148.225). One-way pin gap $2.44 is 76 bp, inside the ~$3.23 1% band, and $0.05 wider than the 14:47 ET hold ($2.39 / 74 bp) — still not a ticket. Research/rotate ran inline across the core allowlist, every ready watchlist name, blocked BE, and GLDM/IAU, using 19:02Z quotes, BTC-USD $83,614 (+0.68%), and the 2026-09-29 digest (exited names are not held). The fund-manager-research workflow was not launched: $0.03 and the no-sale order make the order set determinate, and that workflow cannot see these quotes or override the standing order.
+**Why not alternatives:** New capital is not here, so the best use of a dollar is a plan, not an order. Stock dollars, if they arrive, go 50/50 TSLA and SPCX because that is the Chairman pin, not because those are the names already held. BTC-complex dollars would open with STRC and SATA (tight books, near par, yield versus cash; STRC repurchase still in the digest), then a diversified miner set. Multi-miner is not an overlap reject. MSTR is liquid but is not a substitute for the preferreds. BITA's 28.5 bp book loses a small ticket to STRC/SATA. Selling SPCX to buy TSLA would chase 76 bp inside the 1% band and would violate the 2026-09-23 no-sale order. Selling either pin to rebuild the 40% sleeve is the same violation. Ready watchlist names (GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB, CCJ, BWXT, EVGO, STRK, HYPD) stay in the consider set and are not sized: stocks pin forbids other equities, STRK is wide and junior, EVGO/HYPD are wide and low priority, RKLB still waits on Neutron. BE +11.75% stays blocked. Gold (GLDM/IAU +1.15%) stays research-only until an owner buy call. Spot BTC is not an agentic equity ticket and this account's crypto buying power is $0.03. Private names are not in the deploy set. No deep-dive is stale past 90 days and no first buy is proposed.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $322.56, equity $322.53, cash/BP $0.03, crypto $0, unsettled $0, pending deposits $0, no open orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.55 is 49.24/50.76, gap $2.44 (76 bp) inside the ~$3.23 1% band. Deployed mix 0% BTC-complex / 100% stocks. Primary margin read and not traded (equity $0, cash $0.09).
+- **thesis:** ok — Hold both pins. The 0/100 mix is the Chairman book, not an unpaid 40/60 ticket. If BTC-complex capital appears, STRC and SATA are the first names, then a multi-miner set. Do not top up TSLA/SPCX by habit and do not skip the unheld allowlist — they were considered and are unfunded.
+- **risk:** ok — Nothing to deploy: $0.03 is under the $1 minimum. The $2.44 pin gap is liquid (2.0–2.5 bp) and still the wrong sale under the no-sale order and inside the 1% churn band. Two-name concentration is the locked stocks sleeve, not an accident. Agentic capital only. No primary-margin order.
+- **critic:** block_alternatives — Block a rules-engine rebuild of the 40% sleeve by selling TSLA or SPCX. Block the 76 bp pin chase. STRC/SATA under-allocation versus the numeric 40% is real and is not a buy, because no BTC-complex dollar is being deployed — do not treat 'we hold no credit' as a reason to break the no-sale order, and do not treat 'we already hold the pins' as the reason the unheld names lost. Miner-overlap is not a valid reject; lack of capital is. BE's +11.75% does not reopen a blocked symbol. Hold stands.
+- **executor:** hold — Quorum is hold. No place and no cancel. Robinhood MCP was up; it was not used to trade.
+**Actions:**
+- HOLD TSLA $0 [no_order] 
+- HOLD SPCX $0 [no_order] 
+
+
+## 2026-09-29T19:15:51 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.8874 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.89 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T19:21:47 — hold
+**Summary:** HOLD. Agentic ••••1752 late-session review (~15:19 ET) closes the 19:15:51Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed. Broker NAV $322.85, cash/BP $0.03, crypto $0, unsettled $0, no open orders. Quote equity $322.85: TSLA $158.60 (49.13%, day −1.04%) / SPCX $164.25 (50.88%, day +2.23%). One-way pin gap $2.82 is 87 bp, inside the ~$3.23 1% band. No orders.
+**Book:** NAV $322.85 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 19:15:51Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~19:16–19:19Z (~15:16–15:19 ET, regular hours, twelve minutes before the 15:30 close-avoid window) shows that state is the filled Chairman book, not stale weights: held TSLA 0.448384 and SPCX 1.104498 only, no open orders (confirmed, queued, and partially filled empty), no pending deposits, unsettled $0, crypto $0. Broker NAV $322.85, cash/BP $0.03, below the $1 minimum. Quote equity $322.85 is TSLA $158.60 (49.13%, day −1.04% at $353.72) and SPCX $164.25 (50.88%, day +2.23% at $148.71). One-way pin gap $2.82 is 87 bp of NAV, inside the ~$3.23 1% band, and $0.38 wider than the 15:02 ET hold ($2.44 / 76 bp) because SPCX kept the bid. Still not a ticket. Research/rotate ran inline across the core allowlist, every ready watchlist name, blocked BE, and GLDM/IAU, using ~19:16Z quotes (BE/gold ~19:19Z), BTC-USD $83,551.67 (+0.61%), and the 2026-09-29 digest (exited names are not held). The fund-manager-research workflow was not launched: $0.03 and the no-sale order make the order set determinate, and that workflow cannot see these quotes or override the standing orders.
+**Why not alternatives:** New capital is not here, so the best use of a dollar is a plan, not an order. Stock dollars, if they arrive, go 50/50 TSLA and SPCX because that is the Chairman pin, not because those are the names already held. BTC-complex dollars would open with STRC ($99.49, +0.39%, 2.0 bp) and SATA ($100.01, +0.05%, 1.0 bp): near par, tight books, yield versus cash, STRC repurchase still in the digest. No liquidity rebuttal. Not skipped because MSTR is liquid. After the preferreds, diversify miners. MARA 8.2 bp, RIOT 4.6 bp, CLSK 7.4 bp, WULF 6.6 bp, IREN 2.4 bp are all small-ticket liquid. Multi-miner is not an overlap reject. IREN's tighter book and AI/HPC mix do not crowd out the others. MSTR is liquid (3.2 bp) and −1.84% today; it is not a substitute for STRC/SATA. BITA's 31.7 bp book and ASST's 13.5 bp book lose a small ticket to the preferreds. Selling SPCX to buy TSLA would chase 87 bp inside the 1% band, into a tape that is still running twelve minutes before the close-avoid window, and would violate the 2026-09-23 no-sale order. Selling either pin to rebuild the 40% sleeve is the same violation. Ready watchlist names stay in the consider set and are not sized. GOOGL −0.69%, AAPL −2.30%, NVDA −0.43%, PLTR −0.94%, AMZN +0.66% are liquid AI names blocked by the stocks pin. RKLB −3.06% (1.4 bp) is a price move, not a buy: Neutron is still unflown and SPCX is the space core. CCJ −0.11% and BWXT +1.64% stay nuclear consider-set, not a basket and not a pin exception. STRK's live book is 74.70/74.75 (~6.7 bp); the morning 133 bp liquidity rebuttal is stale. Reject STRK because it is junior to STRC, not preferred core, and there is no residual — not because the book is wide. Last STRK trade ~18:45Z is stale; the book is the liquidity read. EVGO 74 bp and HYPD 51 bp are wide and low priority on top of the pin. BE +11.3% at $292.65 stays blocked (owner exit 2026-09-03); the rally is not a reseat. Gold GLDM +1.15% and IAU +1.15% stay research-only until an owner buy call. Spot BTC-USD is not an agentic equity ticket and crypto buying power is $0.03. The equity ticker BTC at $36.95 is not spot. Private names are not in the deploy set. No deep-dive is stale past 90 days (oldest ready dive 2026-08-04, day 56) and no first buy is proposed.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Broker NAV $322.85, equity $322.82, cash/BP $0.03, crypto $0, unsettled $0, pending deposits $0, no open orders. Held TSLA 0.448384 and SPCX 1.104498. Quote equity $322.85 is 49.13/50.88, gap $2.82 (87 bp) inside the ~$3.23 1% band, wider than the 15:02 hold because SPCX is +2.23% on the day. Deployed mix 0% BTC-complex / 100% stocks. Primary margin read and not traded (equity $0, cash $0.09).
+- **thesis:** hold — Hold both pins. The 0/100 mix is the Chairman book, not an unpaid 40/60 ticket. If BTC-complex capital appears, STRC and SATA are the first names — tight, near par, no liquidity rebuttal — then a multi-miner set (MARA, RIOT, CLSK, WULF, IREN), not MSTR-only and not a single miner. Stock capital stays 50/50 TSLA/SPCX. Unheld allowlist and every ready watchlist name were priced and rejected for lack of capital plus the pin, not because the book already owns two stocks.
+- **risk:** ok — Nothing to deploy: $0.03 is under the $1 minimum. The $2.82 pin gap is liquid (2.0–2.8 bp) and still the wrong sale under the no-sale order, inside the 1% churn band, and twelve minutes before the close-avoid window. Two-name concentration is the locked stocks sleeve, not an accident. STRC/SATA would not blow a concentration limit at a first-dollar size; they are unfunded, not too risky to name. Agentic capital only. No primary-margin order.
+- **critic:** block_alternatives — Block a rules-engine rebuild of the 40% sleeve by selling TSLA or SPCX. Block the 87 bp pin chase: the gap widened with the SPCX tape and is still inside 1%, and selling the stronger name into the last hour is a scalp. STRC/SATA under-allocation versus the numeric 40% is real and is not a buy, because no BTC-complex dollar is being deployed — do not treat 'we hold no credit' as a reason to break the no-sale order, and do not treat 'we already hold the pins' as the reason the unheld names lost. Miner-overlap is not a reject; all five miners were considered and left unfunded together. STRK's tighter book removes the stale liquidity excuse and still does not earn a seat ahead of STRC. BE's +11% day does not reopen a blocked name.
+- **executor:** hold — Quorum is hold. Risk ok, thesis hold, critic blocks the sale alternatives and does not demand a different buy. No place and no cancel. Robinhood MCP was used for reads only.
+
+
+## 2026-09-29T19:31:49 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.4773 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.48 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T19:38:41 — hold
+**Summary:** HOLD. Agentic ••••1752 close-window review. Broker NAV $322.57, cash/BP $0.03 (under $1 min). Book is still only TSLA 0.448384 and SPCX 1.104498. Quote equity $322.58: TSLA $158.20 (49.04%, day -1.29%) / SPCX $164.38 (50.96%, day +2.31%). One-way pin gap $3.09 is 96 bp, inside the $3.23 1% band. No orders. 40% BTC complex stays closed until new capital; first dollars STRC and SATA.
+**Book:** NAV $322.5726 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled mid-session review fired inside the last 30 minutes (quotes 15:32 ET, regular close 16:00 ET). Live scout on agentic ••••1752 only: broker NAV $322.57, equity $322.54, cash $0.03, buying power $0.03, crypto $0, unsettled $0, no queued or confirmed orders. Positions unchanged: TSLA 0.448384 and SPCX 1.104498. Rules path would call need_llm because deployed mix is BTC-complex 0% / stocks 100% versus 40/60 ±5%. That gap is the filled Chairman 2026-09-22 stocks book plus the 2026-09-23 hold (no sales to rebuild the 40%), not stale weights and not idle capital. Research/rotate was emulated inline (fund-manager-research workflow not launched): same-day digest already scanned themes, buying power cannot fill a $1 ticket, and the close window forbids a new order even if it could.
+**Why not alternatives:** No held-only top-up. There is no deployable cash, so nothing was added to TSLA or SPCX. Every core allowlist name and every ready watchlist name was priced and rejected with a reason. STRC and SATA were not skipped for liquidity or because MSTR/BITA 'cover credit' — they are unheld, spreads are 2 bp and 1 bp, and they are the first BTC-complex dollars when capital arrives. Miners MARA/RIOT/CLSK/WULF/IREN were not rejected for overlap; they wait on capital, then diversify the sleeve. Other stocks (GOOGL, AAPL, NVDA, PLTR, AMZN, CCJ, BWXT, RKLB, EVGO, HYPD) lose to the TSLA 50 / SPCX 50 pin. BE is blocked. Gold is research-only. Private names are not in the consider set. Selling SPCX (day +2.31%) to buy TSLA would be a 96 bp pin trade inside the 1% band and inside the close window. Selling either pin to reopen the 40% sleeve violates the standing hold.
+**Team:**
+- **scout:** observe — Agentic ••••1752 only. Primary margin not used. NAV $322.57, BP $0.03, cash $0.03, crypto $0, unsettled $0, no open orders. Held TSLA 0.448384 @ $352.83 and SPCX 1.104498 @ $148.825. BTC-complex weight 0%. Stocks pin 49.04/50.96, one-way gap $3.09 vs $3.23 1% band. Session is the last 30 minutes. Core unheld and every ready watchlist name were quoted.
+- **thesis:** ok — Hold. New capital is the only path back toward 40/60. Next BTC-complex dollars are STRC and SATA (yield seat, not cash, not MSTR-only), then a diversified miner set. Stock dollars stay 50/50 TSLA/SPCX. Watchlist stays consider-only. No name is chosen this pass because there is nothing to deploy.
+- **risk:** ok — Deployable $0.03 is under the $1 minimum, so no order can be sized. Do not sell ~40% of the book to force the sleeve target: that is a rebalance sale the standing hold blocks, and it would print inside the close window. Pin gap is inside 1% of NAV. STRC/SATA spreads (2 bp, 1 bp) are not a liquidity block; absence of dollars is. Multi-miner is not a concentration block. BE remains blocked.
+- **critic:** hold — Challenged held-only inertia: this is not 'top up TSLA/SPCX because we own them.' Alternatives were priced and the 0% BTC weight is a capital lock, not a research skip. Challenged STRC/SATA under-allocation: the gap is real and accepted. No liquidity or structure rebuttal — if this pass had BTC-complex dollars and skipped STRC/SATA, that would be a block. It does not. Challenged miner-overlap thinking: no miner was rejected for overlap. Do not sell SPCX into the close to shave a 96 bp pin gap. Vote is hold, not a size-down of a trade that does not exist.
+- **executor:** hold — No Robinhood orders placed or cancelled. Quorum is hold. Agentic account only.
+
+
+## 2026-09-29T19:46:36 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $322.7354 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $322.74 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T19:53:04 — hold
+**Summary:** HOLD. Agentic ••••1752 close-window review (~15:48 ET) closes the 19:46:36Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed until new capital. Broker NAV $322.88, cash/BP $0.03 (under the $1 minimum), crypto $0, unsettled $0, no open orders. Quote equity $323.04: TSLA $158.25 (48.99%, day -1.26%) / SPCX $164.79 (51.01%, day +2.56%). One-way pin gap $3.27 is 1 bp of equity, about $0.04 past the $3.23 1% tolerance. That breach is not traded: the fix is a sale inside the close window. No orders. First BTC-complex dollars, if capital arrives, are STRC and SATA (both ~1 bp, near par), then a diversified miner set.
+**Book:** NAV $322.88 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules engine at 19:46:36Z flagged need_llm because deployed equity is 0% BTC-complex / 100% stocks versus 40/60 ±5%. That drift is the Chairman's locked book, not fresh cash. Buying power is $0.03. The 50/50 pin gap widened to $3.27 (101 bp of quote equity, 101 bp of NAV) as SPCX traded +2.56% into the close while TSLA was -1.26%. The excess over a 1% equity tolerance ($3.23) is about $0.04. Policy avoids the last 30 minutes and forbids open/close scalps. Chairman 2026-09-23 says hold the book and do not sell to rebalance; 40/60 is rebuilt with new capital only. An 11:01 ET pass today already treated a similar 101 bp SPCX rip as intraday after it faded. This is the same tape, later, inside the close window.
+**Why not alternatives:** New capital is not on the table, so nothing is sized. The plan if a dollar arrives is not 'top up what we hold.' Stock dollars stay on the TSLA/SPCX pin, with the next stock dollar to TSLA first until the gap is back inside tolerance, then 50/50. BTC-complex dollars open with STRC and SATA. Both are ~1 bp and near par (STRC 99.535, SATA 100.01). There is no liquidity rebuttal and no 'already covered by MSTR' rebuttal — MSTR is unheld and would come after the preferred credit seat. Miners (MARA, RIOT, CLSK, WULF, IREN) are not rejected for overlap; they are the diversification set after credit, and they are blocked only by zero capital plus the no-sale order. STRK is named and rejected on a ~63 bp book, junior rank, and no residual. Ready watchlist equities (GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB, CCJ, BWXT, EVGO, HYPD) lose to the 2026-09-22 stocks pin; AAPL about -2.7% and RKLB about -3.7% are not dip-buys. GLDM stays research-only. BE stays blocked. Spot BTC stays off this account. Private names stay out of the deploy set. Deep-dives are inside 90 days (oldest 2026-08-04, HYPD 2026-09-27); no first buy, so no refresh this pass. Selling SPCX to buy TSLA, or selling either pin to rebuild the 40%, is the alternative that was considered and blocked.
+**Team:**
+- **scout:** report — Close window ~15:48 ET. Agentic book is TSLA 0.448384 and SPCX 1.104498 only. NAV $322.88, cash/BP $0.03, crypto $0, unsettled $0, confirmed and queued equity orders empty. Quote equity $323.04: TSLA $158.25 (48.99%) / SPCX $164.79 (51.01%). One-way gap $3.27 vs 1% tolerance $3.23. STRC spread 1.0 bp, SATA 1.0 bp. Primary margin was read ($0.09 cash, no equity) and not traded. Ready watchlist and unheld core were quoted. Research workflow was emulated inline because it cannot see these live marks or create buying power.
+- **thesis:** hold — Hold both pins. Do not treat the two-name book as the opportunity set. Chosen themes: growth equity (TSLA) and space (SPCX), both hold. If capital arrives, BTC-complex capital maps to digital credit first (STRC and SATA), then miner diversification, not to 'we already sold the miners.' Stock capital maps to the 50/50 pin, TSLA-first while this gap persists. No watchlist promotion. No deep-dive refresh: ready dives are inside 90 days and this pass proposes no first buy.
+- **risk:** ok_hold — OK to do nothing. Not OK to trade. $0.03 is under the $1 minimum. A ~$3.27 pin rotate is liquid (TSLA spread 2.0 bp, SPCX 1.3 bp) and still the wrong ticket: it is a sale, it is inside the last 30 minutes, and it corrects about $0.04 of excess. 100% stocks is the locked book, not a concentration limit to sell into. STRK ~63 bp and EVGO ~74 bp fail a dust-ticket liquidity test. STRC and SATA do not. No margin. Primary account untouched.
+- **critic:** block_orders — Block any SPCX sale and block a rules-engine rebuild of the 40% by selling the pins. Held-only inertia is not accepted: TSLA and SPCX are held because the Chairman book is locked, not because STRC, SATA, and the miners were skipped as duplicates. STRC/SATA under-allocation versus the 40% target is real. It is not excused by illiquidity or by MSTR coverage. No BTC-complex dollar is being deployed, so the credit seat is the next-dollar plan, not a buy in this pass. Do not reject MARA/RIOT/CLSK/WULF/IREN for miner overlap. Do not seat the ready watchlist under the stocks pin. The 101 bp gap is not a close scalp.
+- **executor:** no_order — Quorum is hold. Thesis OK, risk OK, critic blocks every order. No place and no cancel on the agentic account. Primary margin was not used.
+**Actions:**
+- HOLD TSLA $0 [no_order] 
+- HOLD SPCX $0 [no_order] 
+
+
+## 2026-09-29T20:01:02 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=0% stocks=100% (targets 60/40 ±5%)
+**Book:** NAV $323.4368 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $323.44 BP $0.03 cash $0.03
+- **thesis:** rebalance — deployed BTC 0.0 stocks 1.0
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-09-29T20:07:39 — hold
+**Summary:** HOLD. Agentic ••••1752 post-close review (~16:02 ET) closes the 20:01:02Z rules re-fire. Chairman 2026-09-22 stocks pin and 2026-09-23 no-sale order unchanged; BTC sleeve stays closed until new capital. Broker NAV $323.26, cash/BP $0.03 (under the $1 minimum). Book is still only TSLA 0.448384 and SPCX 1.104498. Close marks: TSLA $158.23 (48.98%, day −1.27%) / SPCX $164.84 (51.02%, day +2.59%). One-way pin gap $3.30 is 7 cents through the ~$3.23 1% band and smaller than the $0.16 quote-vs-broker gap; not traded. No orders.
+**Book:** NAV $323.26 · BP $0.03
+**Weights before (deployed):** BTC-complex 0.0 · Stocks 1.0
+**Why now:** Rules review at 20:01:02Z flagged need_llm because deployed mix is BTC-complex 0% / stocks 100% versus numeric 40/60 ±5%. Live scout at ~20:02Z (~16:02 ET) shows that state is the filled Chairman 2026-09-22 book (TSLA + SPCX only), not stale weights. Cash and buying power are $0.03, unsettled $0, no pending deposit, no open orders. The regular session closed at 16:00 ET, inside the window this cadence does not trade. Research/rotate ran inline across held and unheld allowlist plus every ready watchlist name. The fund-manager-research workflow was not launched: it cannot see these live quotes, cannot create buying power, and cannot override the standing orders. Report: investment/research/fund_manager_research_latest.md.
+**Why not alternatives:** No name was bought because there is no spendable cash and the 2026-09-23 order forbids selling the pins to rebalance. STRC and SATA are the first BTC-complex dollars when capital arrives (near par, 3 bp and 5 bp) — not skipped for liquidity, not skipped because MSTR or a miner 'already covers' credit, and not skipped as too small a ticket. MSTR (−1.5%, 10 bp) stays behind those preferreds. BITA's after-hours book (62.50/70.55) is not tradable. ASST's book is 127 bp and it is not preferred core. MARA, RIOT, CLSK, WULF, and IREN were not rejected for miner overlap; they wait behind a STRC/SATA seat and behind cash that does not exist. BTC spot ($83,493, +0.5%) is not an RH equity seat. GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB, CCJ, BWXT, EVGO, and HYPD are ready where noted and are blocked by the TSLA 50 / SPCX 50 stocks pin (RKLB also waits on Neutron; HYPD is a non-BTC theme; EVGO is low priority). BE +10.8% is blocked and is not a reseat. GLDM is research-only until an owner buy call. Private names are not in the deploy set. A ~$3.30 SPCX→TSLA clip is not an alternative: it is a sale, the session is closed, and the gap is noise versus the $0.16 mark difference.
+**Team:**
+- **scout:** observe — Agentic ••••1752 at 20:02Z: NAV $323.26, equity $323.23, cash $0.03, BP $0.03, crypto $0, unsettled $0, pending deposits $0. Held TSLA 0.448384 and SPCX 1.104498 only. Confirmed and queued equity orders empty. Primary margin read (equity $0, cash $0.09) and not traded. Regular session already closed.
+- **thesis:** hold — Numeric 0/100 vs 40/60 is the filled Chairman book, not a signal to sell. No spendable cash. If capital arrives, first BTC-complex dollars are STRC and SATA (close $99.58 / $100.00, spreads 3 bp and 5 bp — no liquidity rebuttal), then a diversified miner set. Stock dollars stay 50/50 TSLA/SPCX. Do not sell the pins to rebuild the 40% or to clip a ~$3 gap after the close.
+- **risk:** ok — Deployable $0.03 is under the $1 minimum. A pin clip of ~$3.30 would be a sale of SPCX into a closed session; fractional dollar orders do not fill after hours, and queueing one would hit tomorrow's open. Two-name concentration is the standing order, not a breach to trade tonight. No order.
+- **critic:** hold — Challenges held-only inertia: STRC, SATA, MSTR, ASST, BITA, MARA, RIOT, CLSK, WULF, IREN, BTC, and every ready watchlist name were priced and rejected with reasons, not skipped because the book already owns TSLA and SPCX. Challenges the empty STRC/SATA seat: 0% digital credit is real, and it is not cured by calling the preferreds illiquid — their books are 3 bp and 5 bp. The cure is new capital. Selling the locked book to buy them is blocked. Does not reject miners for overlap. Blocks a queued SPCX→TSLA clip: 7 cents through a 1% band, inside the quote-vs-broker discrepancy, and it would sell the +2.6% name into the next open. BE stays blocked. GLDM stays research-only.
+- **executor:** hold — Quorum is hold. No Robinhood order placed or cancelled. Agentic account only.
+
