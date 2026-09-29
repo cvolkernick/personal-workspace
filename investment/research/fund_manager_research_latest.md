@@ -1,9 +1,9 @@
-# Fund manager research — 2026-09-28 (~10:29 ET, mid-session HOLD)
+# Fund manager research — 2026-09-29 (~10:05 ET, mid-session HOLD)
 
-**As of:** 2026-09-28 ~14:29Z (~10:29 ET). Regular hours. Past the first 30 minutes (open window ended 10:00 ET). Not the close. This pass closes the 14:26Z rules re-fire (`need_llm`: deployed mix 0% BTC-complex / 100% stocks vs numeric 40/60 ±5%).
-**Account:** agentic ••••1752 only. Primary margin was read ($0.09, no equity) and was not traded.
-**Process:** Uniform research/rotate, emulated inline (Scout → Thesis → Risk → Critic → Executor). The `fund-manager-research` workflow was not launched: it reads policy and snapshots, cannot see this pass's live quotes, and cannot create buying power or override the Chairman 2026-09-22 standing order. This pass uses live MCP marks plus the 2026-09-28 digest.
-**Live NAV:** broker **$324.59** (equity **$324.56**, cash **$0.03**, buying power **$0.03**). Quote equity at 14:29Z **$324.56**. Unsettled **$0**. Pending deposits **$0**. Crypto **$0**. Open equity orders: none (confirmed and queued empty).
+**As of:** 2026-09-29 ~14:05Z (~10:05 ET). Regular hours. Thirty-five minutes after the open (avoid window ended 10:00 ET). Not the close. This pass closes the 14:01Z rules re-fire (`need_llm`: deployed mix 0% BTC-complex / 100% stocks vs numeric 40/60 ±5%).
+**Account:** agentic ••••1752 only. Primary margin was read (equity $0, cash $0.09) and was not traded.
+**Process:** Uniform research/rotate, emulated inline (Scout → Thesis → Risk → Critic → Executor). The `fund-manager-research` workflow was not launched: it reads policy and snapshots, cannot see this pass's live quotes, and cannot create buying power or override the Chairman 2026-09-22 standing order. This pass uses live MCP marks plus the 2026-09-29 digest, corrected against the live book (that digest still labels exited names as held).
+**Live NAV:** broker **$319.04** (equity **$319.01**, cash **$0.03**, buying power **$0.03**). Quote equity at ~14:03Z **$319.00**. Unsettled **$0**. Pending deposits **$0**. Crypto **$0**. Open equity orders: none (confirmed and queued empty).
 **Decision:** **HOLD.** No orders.
 
 ## Scout
@@ -11,62 +11,59 @@
 | Field | Value |
 |--------|--------|
 | Held | **TSLA** 0.448384 sh @ 347.25 avg, **SPCX** 1.104498 sh @ 138.45 avg |
-| Quote equity 14:29Z | TSLA **$161.97** (49.90%) / SPCX **$162.59** (50.10%) |
-| 50/50 gap | **$0.31** one-way (was $0.15 at 14:13Z, $1.19 at 13:59Z) |
-| Day | TSLA **−2.93%** (361.22 vs 372.11). SPCX **−0.99%** (147.21 vs 148.68) |
-| Books | TSLA 1.1 bp (361.17 / 361.21). SPCX 1.4 bp (147.20 / 147.22) |
+| Quote equity ~14:03Z | TSLA **$158.22** (49.60%) / SPCX **$160.78** (50.40%) |
+| 50/50 gap | **$1.28** one-way (40 bp of NAV; 1% band is ~$3.19) |
+| Day | TSLA **−1.28%** (352.87 vs 357.45). SPCX **+0.07%** (145.57 vs 145.47) |
+| Books | TSLA 2.0 bp (352.86 / 352.93). SPCX 1.4 bp (145.54 / 145.56) |
 | Deployed mix | BTC-complex **0%** / stocks **100%** |
 | Cash | **$0.03** unallocated dust, below the $1 minimum |
 
-Chairman standing order in `investment/consider_share.json` (2026-09-22), restated in `fund_manager.json` `targets.symbol_targets`: stocks sleeve is **50% SPCX / 50% TSLA** by market value. No other equity. Crypto and cash unchanged unless the Chairman says otherwise. Today's digest proposed no pin change and kept the 40% sleeve closed. `bias_weight_staged.json` pending queue was empty at sweep time.
+Chairman standing order in `investment/consider_share.json` (2026-09-22), restated in `fund_manager.json` `targets.symbol_targets`: stocks sleeve is **50% SPCX / 50% TSLA** by market value. No other equity. The filled 17:47Z exit that day sold the BTC-complex equities as well (STRC, SATA, MSTR, BITA, miners). Crypto stays $0. `bias_weight_staged.json` pending queue is empty. New capital, if it arrives, is the only path back toward 40/60; this pass does not sell the locked book to rebuild it.
 
-Held names are 14:29Z. The rest of the consider set is 14:27Z. Daily change uses adjusted previous close.
+Held marks are ~14:03Z. Daily change uses adjusted previous close. BITA's last trade is the prior close; its live book is the bid/ask below.
 
-| Symbol | Last | Prior | Day | Bid / ask | Spread |
-|--------|------|-------|-----|-----------|--------|
-| TSLA | 361.22 | 372.11 | −2.93% | 361.17 / 361.21 | 1.1 bp |
-| SPCX | 147.21 | 148.68 | −0.99% | 147.20 / 147.22 | 1.4 bp |
-| STRC | 98.9699 | 98.54 | +0.44% | 98.95 / 98.97 | 2.0 bp |
-| SATA | 100.00 | 99.9584 | +0.04% | 99.99 / 100.00 | 1.0 bp |
-| MSTR | 157.12 | 158.61 | −0.94% | 157.05 / 157.11 | 3.8 bp |
-| BITA | 63.00 | 63.26 | −0.41% | 62.79 / 63.02 | 36.6 bp |
-| ASST | 29.72 | 29.44 | +0.95% | 29.70 / 29.72 | 6.7 bp |
-| MARA | 12.45 | 12.55 | −0.80% | 12.45 / 12.46 | 8.0 bp |
-| RIOT | 22.36 | 23.00 | −2.78% | 22.35 / 22.36 | 4.5 bp |
-| CLSK | 13.77 | 13.95 | −1.29% | 13.76 / 13.77 | 7.3 bp |
-| WULF | 15.505 | 15.74 | −1.49% | 15.50 / 15.51 | 6.4 bp |
-| IREN | 43.51 | 44.125 | −1.39% | 43.50 / 43.52 | 4.6 bp |
-| GOOGL | 341.375 | 343.92 | −0.74% | 341.35 / 341.40 | 1.5 bp |
-| AAPL | 341.63 | 341.07 | +0.16% | 341.60 / 341.66 | 1.8 bp |
-| NVDA | 231.46 | 225.07 | +2.84% | 231.46 / 231.47 | 0.4 bp |
-| PLTR | 187.85 | 189.67 | −0.96% | 187.81 / 187.91 | 5.3 bp |
-| AMZN | 246.935 | 249.67 | −1.10% | 246.92 / 246.96 | 1.6 bp |
-| EVGO | 1.365 | 1.38 | −1.09% | 1.36 / 1.37 | 73.3 bp |
-| RKLB | 73.195 | 73.95 | −1.02% | 73.17 / 73.20 | 4.1 bp |
-| STRK | 75.25 | 74.89 | +0.48% | 75.25 / 75.40 | 19.9 bp |
-| CCJ | 87.29 | 88.07 | −0.89% | 87.24 / 87.34 | 11.5 bp |
-| BWXT | 136.70 | 138.47 | −1.28% | 136.62 / 136.77 | 11.0 bp |
-| HYPD | 3.95 | 4.04 | −2.23% | 3.93 / 3.95 | 50.8 bp |
-| BE | 266.31 | 288.70 | −7.76% | 266.22 / 266.41 | 7.1 bp |
-| GLDM | 81.905 | 84.89 | −3.52% | 81.90 / 81.91 | 1.2 bp |
+| Symbol | Last | Prior | Day | Bid / ask | Spread | Role |
+|--------|------|-------|-----|-----------|--------|------|
+| TSLA | 352.87 | 357.45 | −1.28% | 352.86 / 352.93 | 2.0 bp | held, pin 50 |
+| SPCX | 145.57 | 145.47 | +0.07% | 145.54 / 145.56 | 1.4 bp | held, pin 50 |
+| STRC | 99.21 | 99.10 | +0.11% | 99.18 / 99.23 | 5.0 bp | unheld preferred core |
+| SATA | 99.99 | 99.96 | +0.03% | 99.99 / 100.00 | 1.0 bp | unheld preferred core |
+| MSTR | 156.22 | 157.14 | −0.59% | 156.25 / 156.30 | 3.2 bp | unheld credit equity |
+| BITA | 62.89 (stale last) | 62.89 | — | 63.19 / 63.36 | 26.9 bp | unheld |
+| ASST | 29.08 | 29.00 | +0.28% | 29.05 / 29.11 | 20.6 bp | unheld |
+| MARA | 12.10 | 12.11 | −0.09% | 12.08 / 12.09 | 8.3 bp | unheld miner |
+| RIOT | 21.67 | 21.62 | +0.21% | 21.66 / 21.67 | 4.6 bp | unheld miner |
+| CLSK | 13.32 | 13.34 | −0.15% | 13.32 / 13.33 | 7.5 bp | unheld miner |
+| WULF | 14.98 | 15.12 | −0.96% | 14.97 / 14.98 | 6.7 bp | unheld miner |
+| IREN | 41.35 | 41.72 | −0.89% | 41.35 / 41.36 | 2.4 bp | unheld miner |
+| GOOGL | 339.79 | 342.75 | −0.86% | 339.76 / 339.82 | 1.8 bp | watch, exited |
+| AAPL | 333.06 | 338.40 | −1.58% | 333.03 / 333.10 | 2.1 bp | watch |
+| NVDA | 229.98 | 228.86 | +0.49% | 229.93 / 229.95 | 0.9 bp | watch, exited |
+| PLTR | 186.65 | 187.48 | −0.44% | 186.57 / 186.67 | 5.4 bp | watch |
+| AMZN | 245.24 | 246.15 | −0.37% | 245.21 / 245.24 | 1.2 bp | watch |
+| EVGO | 1.355 | 1.34 | +1.12% | 1.35 / 1.36 | 73.8 bp | watch, low |
+| RKLB | 71.37 | 72.19 | −1.14% | 71.34 / 71.39 | 7.0 bp | watch |
+| STRK | 75.02 | 75.15 | −0.17% | 75.00 / 76.00 | 133 bp | watch preferred |
+| CCJ | 87.61 | 87.04 | +0.65% | 87.53 / 87.68 | 17.1 bp | watch, exited |
+| BWXT | 138.94 | 134.35 | +3.41% | 138.84 / 139.11 | 19.4 bp | watch |
+| HYPD | 3.93 | 3.915 | +0.38% | 3.93 / 3.96 | 76.3 bp | watch, low |
+| GLDM | 82.36 | 81.56 | +0.98% | 82.35 / 82.36 | 1.2 bp | research-only gold |
 
-Spot **BTC-USD** mark **$83,378.90** vs prior close **$83,336.50** (+0.05%) at 14:27Z. No position.
-
-**Starship Flight 14 (SPCX context):** liftoff succeeded this morning. Super Heavy splashdown succeeded. Ship 41 reached orbit and deployed 26 Starlink V3 satellites. Deorbit and Pacific splashdown were still ahead at decision time. SPCX-positive. It does not authorize selling the pin or seating another equity.
+Spot **BTC-USD** mark **$83,986.72** vs prior close **$83,047.23** (+1.13%) at 10:03 ET. No position. Not an agentic equity ticket; the coin path in the thesis is Coinbase / self-custody, and crypto buying power is the same $0.03.
 
 ## Research / rotate
 
-**How new capital best serves the themes now:** it does not, because there is no deployable capital. A hypothetical stock dollar follows the pin (marginal dollar to TSLA while SPCX is $0.31 overweight) and is not raised by selling SPCX today. A hypothetical reopen of the 40% sleeve — not authorized — is STRC and SATA first (2.0 bp and 1.0 bp, near par, daily-accrual proposal in today's digest), then a diversified miner set. RIOT is the deepest liquid miner tape (−2.78%, 4.5 bp). That is not path-dependence toward names already held. The book is two names because the Chairman exited everything else on 2026-09-22.
+**How new capital best serves the themes now:** it does not, because there is no deployable capital. A hypothetical new dollar is not "add to TSLA and SPCX because those are the names we hold." Stock dollars stay on the 50/50 pin. BTC-complex dollars, which this book does not have, would open with **STRC and SATA** (5.0 bp and 1.0 bp, near par, company STRC repurchase still in the digest), then a diversified miner set. That order is relative value, not path-dependence. The book is two names because the Chairman exited everything else on 2026-09-22.
 
 **Chosen:** TSLA (growth equity) and SPCX (space), both hold.
 
-**Rejected with reasons:** see the decision record. Short form: pin rotate blocked ($0.31, under $1, inside the ~$3.25 1% band). STRC/SATA not illiquid and not covered by MSTR. Miners not blocked for overlap. Watchlist ready names, including NVDA +2.84% and new HYPD, not seated under the pin. Gold research-only. BE blocked. Private names not deployable.
+**Rejected with reasons:** see the decision record. Short form: pin rotate blocked ($1.28, 40 bp of NAV, day before the NHTSA Cybercab response). STRC/SATA not illiquid and not covered by MSTR. Miners not blocked for overlap. Watchlist ready names, including BWXT +3.41% and NVDA +0.49%, not seated under the pin. STRK's 133 bp book is a real liquidity rebuttal and it is junior to STRC. Gold research-only. BE blocked. Private names not deployable.
 
-No deep-dive refresh. Ready dives are inside 90 days (newest HYPD 2026-09-27). This pass proposes no first buy.
+No deep-dive refresh. Ready dives are inside 90 days (oldest 2026-08-04, newest HYPD 2026-09-27). This pass proposes no first buy.
 
 ## Thesis / risk / critic
 
-Thesis: hold. Risk: ok to do nothing; the $0.31 rotate is liquid and still the wrong ticket. Critic: block the rotate and block the rules-engine 40/60 rebuild. STRC/SATA under-allocation is real versus the numeric 40% target and is not a buy this pass, because no BTC-complex dollar is being deployed. Executor: no orders.
+Thesis: hold. Risk: ok to do nothing; the $1.28 rotate is liquid and still the wrong ticket, and $0.03 cannot fund a sleeve. Critic: block the pin chase and block a rules-engine 40/60 rebuild by sale. STRC/SATA under-allocation is real versus the numeric 40% target and is not a buy this pass, because no BTC-complex dollar is being deployed. Executor: no orders.
 
 ## Do not trade
 
@@ -75,3 +72,4 @@ Thesis: hold. Risk: ok to do nothing; the $0.31 rotate is liquid and still the w
 - Do not seat GOOGL, AAPL, NVDA, PLTR, AMZN, RKLB, CCJ, BWXT, EVGO, STRK, or HYPD.
 - Do not buy BE.
 - Do not buy gold until the owner calls it.
+- Do not buy spot BTC on this account with dust buying power.
