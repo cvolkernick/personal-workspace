@@ -1,33 +1,22 @@
 # Investment Portfolio — Positions & Allowlist
 
-**As of:** 2026-09-11  
+**As of:** 2026-09-30  
 **Live sizes / prices:** Financial Command Center only (not this file).  
 **Purpose:** Thesis allowlist and sleeve tags for humans + agentic Robinhood trading.
 
 ## Current agentic book (held)
 
-Verified 2026-09-11T02:15Z from `treasury/snapshots/fund_manager_latest.json` (account `••1752`). **Quantities live in FCC only.**
+Verified 2026-09-30T16:34Z from Robinhood (account `••1752`). **Quantities live in FCC only.**
 
 | Symbol | Sleeve | Notes |
 |--------|--------|-------|
-| **MSTR** | ~40% complex | Core |
-| **STRC** | ~40% complex | Preferred digital-credit core (small bias) |
-| **SATA** | ~40% complex | Preferred digital-credit core (small bias) |
-| **BITA** | ~40% complex | Digital credit / BTC yield |
-| **MARA** | ~40% complex | Miner |
-| **IREN** | ~40% complex | Miner |
-| **CLSK** | ~40% complex | Miner |
-| **RIOT** | ~40% complex | Miner |
-| **WULF** | ~40% complex | Miner |
-| **TSLA** | ~60% stocks | Core. Bias pin 15 |
-| **SPCX** | ~60% stocks | Core. Bias pin 15 |
-| **GOOGL** | ~60% stocks | Watchlist-ready, **held** (first seat 2026-08-24). Not core |
-| **NVDA** | ~60% stocks | Watchlist-ready, **held** (first seat 2026-09-08). Not core |
-| **CCJ** | ~60% stocks | Watchlist-ready, **held** (first seat 2026-09-08). Energy/nuclear opportunistic; not core |
+| **TSLA** | ~60% stocks | Core. Stocks-sleeve pin **50%** with SPCX (Chairman 2026-09-22) |
+| **SPCX** | ~60% stocks | Core. Stocks-sleeve pin **50%** with TSLA |
 
-**Core allowlist unheld on agentic:** BTC (prefer Coinbase / self-custody), **ASST**.  
+**Not held (sold 2026-09-22):** MSTR, STRC, SATA, BITA, ASST, MARA, IREN, CLSK, RIOT, WULF, GOOGL, NVDA, CCJ.  
+**Core allowlist unheld:** BTC (prefer Coinbase / self-custody), and the BTC-complex names above.  
 **Owner-exited:** BE (sold 2026-09-03; blocked; do not reseat).  
-**Live mix:** ~40.4% BTC-complex / ~59.6% stocks of deployed (in ±5% band). NAV / cash / BP → FCC.
+**Live mix:** 0% BTC-complex / 100% stocks of deployed. That gap is the filled exit, not idle cash. Chairman 2026-09-23: do not sell TSLA/SPCX to rebuild the 40%. New capital only. NAV / cash / BP → FCC.
 
 ## Target structure (modernized 60/40)
 
@@ -41,18 +30,18 @@ Verified 2026-09-11T02:15Z from `treasury/snapshots/fund_manager_latest.json` (a
 | Symbol | Sleeve | Theme | Notes |
 |--------|--------|-------|-------|
 | **BTC** | ~40% complex | Bitcoin / hard money | Prefer Coinbase / self-custody stack where applicable; RH if available |
-| **MSTR** | ~40% complex | Digital credit | BTC-linked corporate proxy |
-| **STRC** | ~40% complex | Digital credit | **Small bias** within 40% — BTC-fundamental high-yield / frequent dividends (prefer real seat; yield edge vs USDC/USDG cash) |
-| **SATA** | ~40% complex | Digital credit | **Small bias** within 40% — pair with STRC (same yield thesis; not cash) |
-| **ASST** | ~40% complex | Digital credit | Digital credit sleeve (held / thesis-aligned) |
+| **MSTR** | ~40% complex | Digital credit | BTC-linked corporate proxy. Behind STRC/SATA on a reopen |
+| **STRC** | ~40% complex | Digital credit | **Small bias** within 40% — Strategy preferred. BTC-fundamental high-yield / frequent dividends (prefer real seat; yield edge vs USDC/USDG cash) |
+| **SATA** | ~40% complex | Digital credit | **Small bias** within 40% — Strive, Inc. variable-rate Series A perpetual preferred (parent common is ASST), not a Strategy series. Pair with STRC on the yield thesis; not cash |
+| **ASST** | ~40% complex | Digital credit | Strive, Inc. common (Bitcoin treasury). SATA is its preferred. Not preferred core |
 | **BITA** | ~40% complex | Digital credit / BTC yield | BTC-based yield / fixed income — **not** stocks sleeve |
 | **MARA** | ~40% complex | BTC infrastructure | Miner |
 | **RIOT** | ~40% complex | BTC infrastructure | Miner |
 | **CLSK** | ~40% complex | BTC infrastructure | Miner |
 | **WULF** | ~40% complex | BTC infrastructure | Miner / power-adjacent |
 | **IREN** | ~40% complex | BTC infrastructure | Miner / energy-intensive infra |
-| **TSLA** | ~60% stocks | Growth / energy-adjacent equity | Stocks sleeve |
-| **SPCX** | ~60% stocks | Growth equity | Stocks sleeve |
+| **TSLA** | ~60% stocks | Growth / energy-adjacent equity | Stocks sleeve. Pin 50% of that sleeve |
+| **SPCX** | ~60% stocks | Growth equity | Stocks sleeve. Pin 50% of that sleeve |
 
 ## Optional / open sleeves (no fixed tickers)
 
@@ -64,21 +53,22 @@ Verified 2026-09-11T02:15Z from `treasury/snapshots/fund_manager_latest.json` (a
 
 ## Thematic watchlist (consider-set — not auto-buy)
 
-Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlist = **active allocation interest** → auto deep-dive → **`ready`** for each systemic deploy consider set. Still **not** auto-buys. **`ready` is not “unheld”** — GOOGL / NVDA / CCJ are ready **and** held. Held vs watched is FCC-derived; this table is policy status.
+Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlist = **active allocation interest** → auto deep-dive → **`ready`** for each systemic deploy consider set. Still **not** auto-buys. **`ready` is not “unheld”** — held vs watched is FCC-derived. As of 2026-09-30 none of the ready names are held.
 
-| Symbol | Theme | Status | Held 2026-09-11? | Notes |
+| Symbol | Theme | Status | Held 2026-09-30? | Notes |
 |--------|-------|--------|------------------|-------|
 | **BE** | Energy (Bloom Energy) | **pass / dropped** | no | OWNER EXIT 2026-09-03 (sold; 50/50 TSLA+SPCX). Blocked. Do NOT reseat. 2026-09-08 incident: $5 buy still filled because status was still ready — nest SoT corrected same day. |
-| **GOOGL** | AI stack (Alphabet / Google) | ready | **yes** | Dive 2026-08-04. First seat 2026-08-24. Still not core. |
+| **GOOGL** | AI stack (Alphabet / Google) | ready | no | Dive 2026-08-04. First seat 2026-08-24. Sold 2026-09-22. Still not core. |
 | **AAPL** | AI stack (Apple) | ready | no | Dive 2026-08-04. Quality/ecosystem AI; behind GOOGL/NVDA on pure AI. |
-| **NVDA** | AI stack (NVIDIA) | ready | **yes** | Dive 2026-08-04. First seat 2026-09-08. Still not core. |
+| **NVDA** | AI stack (NVIDIA) | ready | no | Dive 2026-08-04. First seat 2026-09-08. Sold 2026-09-22. Still not core. |
 | **PLTR** | AI harness/apps (Palantir) | ready | no | Dive 2026-08-04. High multiple / gov gates. Peer set with NVDA/GOOGL. |
 | **EVGO** | Energy (EVgo) | ready | no | Dive 2026-08-06. Low-priority show-me Superchargers. |
 | **AMZN** | AI stack (Amazon) | ready | no | Dive 2026-08-24. AWS/AI real; GAAP EPS Anthropic-mark; behind GOOGL/NVDA. |
 | **RKLB** | Space (Rocket Lab) | ready | no | Dive 2026-08-26. Neutron optionality vs held SPCX. No size until Flight 1 + residual. |
-| **STRK** | Digital credit (Strategy Strike pfd) | ready | no | Dive 2026-08-30. 8% convertible preferred; junior to held STRC; not core. |
-| **CCJ** | Nuclear (Cameco) | ready | **yes** | Dive 2026-08-31. First seat 2026-09-08. Fuel + 49% Westinghouse. Not a BE substitute. Not core. |
+| **STRK** | Digital credit (Strategy Strike pfd) | ready | no | Dive 2026-08-30. 8% convertible preferred; junior to STRC; not core. |
+| **CCJ** | Nuclear (Cameco) | ready | no | Dive 2026-08-31. First seat 2026-09-08. Sold 2026-09-22. Fuel + 49% Westinghouse. Not a BE substitute. Not core. |
 | **BWXT** | Nuclear (BWX Technologies) | ready | no | Dive 2026-08-31. Navy propulsion floor + commercial components. Second nuclear seat behind CCJ. |
+| **HYPD** | Digital assets (Hyperion) | ready | no | Dive 2026-09-27. Low priority. Non-BTC. Not a stocks-pin name. |
 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60 when relative value favors it; **strong theme bias**.
