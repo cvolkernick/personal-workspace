@@ -37,6 +37,14 @@ life-compass/data/.state.*.tmp
 orchestra/data/heartbeat/latest.json
 orchestra/data/heartbeat/.*.tmp.*
 
+# Workflow scheduler runtime. Ticks write these locally so a later
+# --ff-only update does not conflict with jobs.json / scheduler.json.
+ops/backlog/items.json
+ops/backlog/jobs.json
+ops/backlog/jobs.archive.json
+ops/backlog/scheduler.json
+ops/backlog/reports/*.json
+
 # Domain day-constraint snapshots (refresh writers; Orchestra reads only)
 ops/board/day_constraints.json
 ops/board/.day_constraints.*.tmp
