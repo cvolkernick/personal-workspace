@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=empty-log-949-1" />
+    <link rel="stylesheet" href="/styles.css?v=more-collapse-955-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -24,7 +24,7 @@
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=history-sets-1" defer></script>
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
-    <script src="/app.js?v=empty-log-949-1" defer></script>
+    <script src="/app.js?v=more-collapse-955-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -131,7 +131,13 @@
       </div>
 
       <section class="card" style="margin-top: 0" id="ask-card" data-m-panel="more">
-        <h2>Ask Grok about your data</h2>
+        <h2 class="more-section-title">
+          <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-ask" aria-expanded="true" aria-controls="more-ask-body">
+            Ask Grok about your data
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+        </h2>
+        <div class="collapsible-body" id="more-ask-body" data-collapse-body="more-ask">
         <p class="muted desktop-help" id="ask-grok-help" style="margin-top: 0; font-size: 0.85rem">
           Unofficial Grok-CLI client. Connect SuperGrok in More (tokens stay sealed in Turso).
           Needs SuperGrok or X Premium+. 403 after a good login is xAI entitlement gating,
@@ -159,6 +165,7 @@
           </div>
           <p class="muted" id="ask-status" style="margin: 0"></p>
         </form>
+      </div>
       </section>
 
       <section class="card today-hub-compact" style="margin-top: 1rem" id="today-hub" data-m-panel="today">
@@ -655,7 +662,13 @@
 
       <!-- Settings / config (More): daily targets + training plan + exercise catalog -->
       <section class="card" style="margin-top: 1rem" id="targets-config-section" data-m-panel="more">
-        <h2>Daily Targets</h2>
+        <h2 class="more-section-title">
+          <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-targets" aria-expanded="true" aria-controls="more-targets-body">
+            Daily Targets
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+        </h2>
+        <div class="collapsible-body" id="more-targets-body" data-collapse-body="more-targets">
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Day targets in <code>fitness/nutrition/targets.json</code>. Live intake,
           pace bars, and today’s meal plan are on the <strong>Today</strong> tab.
@@ -707,10 +720,17 @@
           </div>
           <p class="muted" id="targets-status" style="margin: 0"></p>
         </form>
+      </div>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="hsa-section" data-m-panel="more">
-        <h2>HSA</h2>
+        <h2 class="more-section-title">
+          <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-hsa" aria-expanded="true" aria-controls="more-hsa-body">
+            HSA
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+        </h2>
+        <div class="collapsible-body" id="more-hsa-body" data-collapse-body="more-hsa">
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           SOUND HSA — bitcoin in cold storage, triple-tax-free. No public API yet;
           v1 is manual entry + CSV. Contributions require a qualifying HDHP.
@@ -833,10 +853,17 @@
             <button type="button" id="btn-hsa-csv-template">Paste template</button>
           </div>
         </form>
+      </div>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="labs-section" data-m-panel="more">
-        <h2>Labs</h2>
+        <h2 class="more-section-title">
+          <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-labs" aria-expanded="true" aria-controls="more-labs-body">
+            Labs
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+        </h2>
+        <div class="collapsible-body" id="more-labs-body" data-collapse-body="more-labs">
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Upload a lab PDF (Rythm Health text reports first). Parsed markers persist
           (Turso on Vercel / config dir on Pi) — PDFs stay off git. Coach flags the
@@ -862,10 +889,17 @@
           <p class="muted" id="labs-status" style="margin: 0"></p>
         </form>
         <div id="labs-panel" class="labs-panel" style="margin-top: 0.85rem"></div>
+      </div>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="training-settings-section" data-m-panel="more">
-        <h2>Training settings</h2>
+        <h2 class="more-section-title">
+          <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-training" aria-expanded="true" aria-controls="more-training-body">
+            Training settings
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+        </h2>
+        <div class="collapsible-body" id="more-training-body" data-collapse-body="more-training">
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Planner goals for the Today prescription. Day-to-day training view stays on
           <strong>Today</strong>; use Push/Pull/Legs there to force session type.
@@ -895,11 +929,18 @@
           </div>
           <p class="muted" id="workout-goals-status" style="margin: 0"></p>
         </form>
+      </div>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="equipment-inventory-section" data-m-panel="more">
         <article class="card-fill" id="equipment-inventory-card">
-          <h2>Equipment inventory</h2>
+          <h2 class="more-section-title">
+            <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-equipment" aria-expanded="true" aria-controls="more-equipment-body">
+              Equipment inventory
+              <span class="collapse-chevron" aria-hidden="true">▾</span>
+            </button>
+          </h2>
+          <div class="collapsible-body" id="more-equipment-body" data-collapse-body="more-equipment">
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Access: home owned + gym. Max load is a cap (DB max/hand). Adding a
             machine does not dump those lifts onto Today — it feeds coach
@@ -949,12 +990,19 @@
             <p class="muted" id="eq-status" style="margin: 0"></p>
           </form>
           <div id="equipment-list" class="inv-list" style="margin-top: 0.75rem"></div>
+        </div>
         </article>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="exercise-catalog-section" data-m-panel="more">
         <article class="card-fill" id="exercise-catalog-card">
-          <h2>Exercise library</h2>
+          <h2 class="more-section-title">
+            <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-catalog" aria-expanded="true" aria-controls="more-catalog-body">
+              Exercise library
+              <span class="collapse-chevron" aria-hidden="true">▾</span>
+            </button>
+          </h2>
+          <div class="collapsible-body" id="more-catalog-body" data-collapse-body="more-catalog">
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Programmed movements Today reads. Catalog file is the shipped
             universe; Add writes a live custom row (Turso) and enables it.
@@ -1029,6 +1077,7 @@
           <div id="library-suggestions" class="inv-suggestions" style="margin-top: 0.75rem"></div>
           <div id="library-removals" class="inv-suggestions" style="margin-top: 0.75rem"></div>
           <ul class="session-list exercise-catalog-scroll" id="exercise-catalog-list" style="margin-top: 0.75rem"></ul>
+        </div>
         </article>
       </section>
 
@@ -1142,7 +1191,13 @@
 
       <!-- Connections / recovery (More). Google re-auth is rare; not a daily header control. -->
       <section class="card" id="connections-card" data-m-panel="more">
-        <h2>Connections</h2>
+        <h2 class="more-section-title">
+          <button type="button" class="collapsible-head more-collapse-head" data-collapse="more-connections" aria-expanded="true" aria-controls="more-connections-body">
+            Connections
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+        </h2>
+        <div class="collapsible-body" id="more-connections-body" data-collapse-body="more-connections">
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Lifts are local SQLite (not GitHub pull). While this tab is visible, Health
           + Hidrate refresh about every 3 minutes (no spinner). The Pi also warms the
@@ -1187,6 +1242,7 @@
           <p id="supergrok-code" style="margin: 0.2rem 0 0; font-size: 1.25rem; letter-spacing: 0.08em; font-weight: 600"></p>
         </div>
         <p class="muted" style="margin: 0.5rem 0 0; font-size: 0.8rem" id="mobile-meta-line"></p>
+      </div>
       </section>
 
       <footer class="app-footer">

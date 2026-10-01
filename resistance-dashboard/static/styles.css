@@ -3033,6 +3033,26 @@ body.m-shell .quest-card {
   margin-bottom: 0;
 }
 
+/* More tab (#955): every top-level section. Open by default; hide the body, keep the form. */
+.card h2.more-section-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.more-collapse-head {
+  min-height: 44px;
+  padding: 0.2rem 0;
+  margin: 0 0 0.75rem;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.3;
+  box-sizing: border-box;
+}
+.more-collapse-head.is-collapsed,
+.more-collapse-head[aria-expanded="false"] {
+  margin-bottom: 0;
+}
+
 /* Re-assert quest header chrome after generic .collapsible-head reset */
 .daily-quests-head.collapsible-head {
   border: 1px solid var(--border);

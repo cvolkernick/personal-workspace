@@ -45,6 +45,110 @@
       /* private mode / quota — in-memory still works this session */
     }
   }
+  /**
+   * More tab (#955). Device localStorage, not the Today/Kitchen session map.
+   * Missing or bad storage means every section stays open.
+   */
+  const MORE_COLLAPSE_STORAGE_KEY = "fitdash-more-collapse-v1";
+  function moreCollapseKeys() {
+    return [
+      "more-ask",
+      "more-targets",
+      "more-hsa",
+      "more-labs",
+      "more-training",
+      "more-equipment",
+      "more-catalog",
+      "more-connections",
+    ];
+  }
+  function readMoreCollapse(raw) {
+    const open = {};
+    moreCollapseKeys().forEach((key) => {
+      open[key] = true;
+    });
+    if (raw == null || raw === "") return open;
+    let parsed = raw;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (_) {
+        return open;
+      }
+    }
+    if (!parsed || typeof parsed !== "object") return open;
+    moreCollapseKeys().forEach((key) => {
+      if (typeof parsed[key] === "boolean") open[key] = parsed[key];
+    });
+    return open;
+  }
+  function applyMoreSection(head, body, open) {
+    const next = open !== false;
+    head.setAttribute("aria-expanded", next ? "true" : "false");
+    if (head.classList && head.classList.toggle) {
+      head.classList.toggle("is-collapsed", !next);
+    }
+    body.hidden = !next;
+    return next;
+  }
+  function toggleMoreSection(head, body) {
+    const open = head.getAttribute("aria-expanded") !== "false";
+    return applyMoreSection(head, body, !open);
+  }
+  function commitMoreToggle(head, body, state) {
+    const nextOpen = toggleMoreSection(head, body);
+    const key = head.getAttribute("data-collapse");
+    const next = readMoreCollapse(JSON.stringify(state || {}));
+    if (key && Object.prototype.hasOwnProperty.call(next, key)) next[key] = nextOpen;
+    return { open: nextOpen, state: next };
+  }
+  function loadMoreCollapseFromStorage() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem(MORE_COLLAPSE_STORAGE_KEY);
+    } catch (_) {
+      raw = null;
+    }
+    return readMoreCollapse(raw);
+  }
+  let moreCollapseOpen = loadMoreCollapseFromStorage();
+  function persistMoreCollapse() {
+    try {
+      localStorage.setItem(MORE_COLLAPSE_STORAGE_KEY, JSON.stringify(moreCollapseOpen));
+    } catch (_) {
+      /* private mode — in-memory still works this view */
+    }
+  }
+  function applyMoreCollapseState() {
+    moreCollapseKeys().forEach((key) => {
+      const head = document.querySelector(`[data-collapse="${key}"]`);
+      const body = document.getElementById(`${key}-body`);
+      if (!head || !body) return;
+      applyMoreSection(head, body, moreCollapseOpen[key] !== false);
+    });
+  }
+  function openMoreTarget(el) {
+    if (!el) return;
+    const scope = (el.closest && el.closest("[data-m-panel='more']")) || el;
+    const head = scope.querySelector && scope.querySelector("[data-collapse]");
+    const key = head && head.getAttribute("data-collapse");
+    if (
+      head &&
+      key &&
+      key.indexOf("more-") === 0 &&
+      head.getAttribute("aria-expanded") === "false"
+    ) {
+      const body =
+        document.getElementById(head.getAttribute("aria-controls") || "") ||
+        document.querySelector(`[data-collapse-body="${key}"]`);
+      if (body) {
+        const committed = commitMoreToggle(head, body, moreCollapseOpen);
+        moreCollapseOpen = committed.state;
+        persistMoreCollapse();
+      }
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   /** Intake vs burned chart + cumulative summary window (days). */
   const CAL_IN_OUT_SPAN_DAYS = 90;
 
@@ -4784,8 +4888,7 @@
       if (jump) {
         jump.addEventListener("click", () => {
           goMobileTab("more");
-          const el = $("labs-section");
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          openMoreTarget($("labs-section"));
         });
       }
     }
@@ -7187,6 +7290,12 @@
     if (!body) return;
     ev.preventDefault();
     ev.stopPropagation();
+    if (key.indexOf("more-") === 0) {
+      const committed = commitMoreToggle(head, body, moreCollapseOpen);
+      moreCollapseOpen = committed.state;
+      persistMoreCollapse();
+      return;
+    }
     const open = head.getAttribute("aria-expanded") !== "false";
     const nextOpen = !open;
     head.setAttribute("aria-expanded", nextOpen ? "true" : "false");
@@ -7202,6 +7311,7 @@
     el.querySelectorAll("[data-collapse]").forEach((head) => {
       const key = head.getAttribute("data-collapse");
       if (!key || key === "quests") return; // quests re-rendered with state baked in
+      if (key.indexOf("more-") === 0) return; // More uses localStorage, default open
       if (!(key in collapseOpen)) return;
       // Strict true only — default-closed keys stay shut unless the user
       // explicitly expanded them this session.
@@ -7219,11 +7329,13 @@
     // Document-level so re-parenting / partial hub rewrites never drop the handler
     if (document.documentElement.dataset.collapseDelegated === "1") {
       applyStaticCollapseState(root);
+      applyMoreCollapseState();
       return;
     }
     document.documentElement.dataset.collapseDelegated = "1";
     document.addEventListener("click", onCollapsibleHeadClick);
     applyStaticCollapseState(root);
+    applyMoreCollapseState();
   }
 
   function civilDay(value) {
@@ -7452,14 +7564,12 @@
       }
       if (action === "open_home") {
         goMobileTab("more");
-        const el = $("phase-barometer-targets");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        openMoreTarget($("phase-barometer-targets"));
         return;
       }
       if (action === "log_labs") {
         goMobileTab("more");
-        const el = $("labs-section");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        openMoreTarget($("labs-section"));
         return;
       }
       if (action === "undismiss") {
@@ -8941,6 +9051,7 @@
   }
 
   function init() {
+    bindCollapsibles(document);
     if ($("log-date")) $("log-date").value = todayISO();
     if ($("exercise-rows") && !$("exercise-rows").children.length) addExerciseRow();
     bindInventoryListOnce();
@@ -8975,11 +9086,11 @@
       $("btn-scroll-workout-plan").addEventListener("click", () => {
         // Training settings live under More; prescription is on Today Lift
         goMobileTab("more");
-        const el =
+        openMoreTarget(
           $("training-settings-section") ||
-          $("workout-goals-form") ||
-          $("exercise-catalog-section");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            $("workout-goals-form") ||
+            $("exercise-catalog-section")
+        );
       });
     }
     if ($("btn-scroll-meal-plan")) {
