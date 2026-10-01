@@ -273,9 +273,15 @@ class TestCoach(unittest.TestCase):
         protein_acts = [
             a for a in low.get("actions") or [] if a.get("id") == "protein-remaining"
         ]
-        self.assertEqual(len(protein_acts), 1)
-        self.assertIn("Cover remaining protein", protein_acts[0]["text"])
-        self.assertIn("~150 g", protein_acts[0]["text"])
+        self.assertEqual(protein_acts, [])
+        pace_acts = [
+            a for a in low.get("actions") or [] if a.get("id") == "calorie-pace"
+        ]
+        self.assertEqual(pace_acts, [])
+        self.assertFalse(
+            any("cover remaining protein" in str(a.get("text") or "").lower()
+                for a in low.get("actions") or [])
+        )
         # Target rows also reflect progress
         low_p = next(t for t in low["targets"] if t["id"] == "protein_g")
         high_p = next(t for t in high["targets"] if t["id"] == "protein_g")
