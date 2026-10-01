@@ -1,4 +1,4 @@
-"""More tab sections collapse per device and start open (#955)."""
+"""More tab sections collapse per device and start closed (#986)."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ class _Balance(HTMLParser):
 
 
 class MoreTabCollapse(unittest.TestCase):
-    def test_each_more_section_starts_open(self):
+    def test_each_more_section_starts_collapsed(self):
         for start, end, key, control, title in SECTIONS:
             block = _section(HTML, start, end)
             head = block.find(f'data-collapse="{key}"')
@@ -91,15 +91,17 @@ class MoreTabCollapse(unittest.TestCase):
             self.assertGreater(head, -1, key)
             self.assertLess(head, body, key)
             self.assertLess(body, control_at, key)
-            self.assertIn('type="button"', block[head - 80 : head])
-            self.assertIn('aria-expanded="true"', block[head - 40 : head + 80])
+            self.assertIn('type="button"', block[head - 120 : head])
+            self.assertIn("is-collapsed", block[head - 80 : head])
+            self.assertIn('aria-expanded="false"', block[head : head + 80])
+            self.assertNotIn('aria-expanded="true"', block[head - 40 : head + 80])
             self.assertIn(f'aria-controls="{key}-body"', block)
             self.assertIn(f'id="{key}-body"', block)
             self.assertIn("collapse-chevron", block[:body])
             self.assertIn(title, block[:body])
             open_at = block.find(f'<div class="collapsible-body" id="{key}-body"')
             open_tag = block[open_at : block.find(">", open_at) + 1]
-            self.assertNotIn("hidden", open_tag, key)
+            self.assertIn(" hidden", open_tag, key)
             self.assertNotIn('tabindex="-1"', block[:body])
 
     def test_markup_stays_balanced(self):
@@ -110,11 +112,18 @@ class MoreTabCollapse(unittest.TestCase):
         for _, _, key, _, _ in SECTIONS:
             self.assertEqual(parser.ids.count(f"{key}-body"), 1, key)
 
-    def test_state_is_local_and_defaults_open(self):
+    def test_state_is_local_and_defaults_closed(self):
         defaults = JS.split("const COLLAPSE_DEFAULTS = {", 1)[1].split("};", 1)[0]
         self.assertNotIn("more-ask", defaults)
         self.assertIn('const MORE_COLLAPSE_STORAGE_KEY = "fitdash-more-collapse-v1"', JS)
         self.assertIn("localStorage.getItem(MORE_COLLAPSE_STORAGE_KEY)", JS)
+        reader = JS.split("function readMoreCollapse", 1)[1].split("function applyMoreSection", 1)[0]
+        self.assertIn("open[key] = false", reader)
+        self.assertNotIn("open[key] = true", reader)
+        apply_more = JS.split("function applyMoreCollapseState", 1)[1].split(
+            "function openMoreTarget", 1
+        )[0]
+        self.assertIn("moreCollapseOpen[key] === true", apply_more)
         self.assertIn("function readMoreCollapse", JS)
         self.assertIn("function commitMoreToggle", JS)
         handler = JS.split("function onCollapsibleHeadClick", 1)[1].split(
@@ -149,11 +158,14 @@ class MoreTabCollapse(unittest.TestCase):
         self.assertNotIn("mobile-tabbar", more_css)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=second-set-963-1", HTML)
-        self.assertIn("/styles.css?v=second-set-963-1", HTML)
-        self.assertIn("/app.js?v=second-set-963-1", SW)
-        self.assertIn("/styles.css?v=second-set-963-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v121"', SW)
+        self.assertIn("/app.js?v=more-collapse-986-1", HTML)
+        self.assertIn("/styles.css?v=more-collapse-986-1", HTML)
+        self.assertIn("/app.js?v=more-collapse-986-1", SW)
+        self.assertIn("/styles.css?v=more-collapse-986-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v122"', SW)
+        self.assertNotIn("/app.js?v=second-set-963-1", HTML)
+        self.assertNotIn("/app.js?v=second-set-963-1", SW)
+        self.assertNotIn("fitdash-shell-v121", SW)
         self.assertNotIn("/app.js?v=more-collapse-955-1", HTML)
         self.assertNotIn("fitdash-shell-v118", SW)
         self.assertNotIn("/app.js?v=empty-log-949-1", HTML)

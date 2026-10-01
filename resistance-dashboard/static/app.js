@@ -47,7 +47,8 @@
   }
   /**
    * More tab (#955). Device localStorage, not the Today/Kitchen session map.
-   * Missing or bad storage means every section stays open.
+   * Missing or bad storage means every section starts collapsed (#986).
+   * A saved boolean still wins for that section.
    */
   const MORE_COLLAPSE_STORAGE_KEY = "fitdash-more-collapse-v1";
   function moreCollapseKeys() {
@@ -66,7 +67,7 @@
   function readMoreCollapse(raw) {
     const open = {};
     moreCollapseKeys().forEach((key) => {
-      open[key] = true;
+      open[key] = false;
     });
     if (raw == null || raw === "") return open;
     let parsed = raw;
@@ -125,7 +126,7 @@
       const head = document.querySelector(`[data-collapse="${key}"]`);
       const body = document.getElementById(`${key}-body`);
       if (!head || !body) return;
-      applyMoreSection(head, body, moreCollapseOpen[key] !== false);
+      applyMoreSection(head, body, moreCollapseOpen[key] === true);
     });
   }
   function openMoreTarget(el) {
@@ -7473,7 +7474,7 @@
     el.querySelectorAll("[data-collapse]").forEach((head) => {
       const key = head.getAttribute("data-collapse");
       if (!key || key === "quests") return; // quests re-rendered with state baked in
-      if (key.indexOf("more-") === 0) return; // More uses localStorage, default open
+      if (key.indexOf("more-") === 0) return; // More uses localStorage, default closed
       if (!(key in collapseOpen)) return;
       // Strict true only — default-closed keys stay shut unless the user
       // explicitly expanded them this session.
