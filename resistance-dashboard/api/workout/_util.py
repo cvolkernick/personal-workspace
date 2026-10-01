@@ -1256,7 +1256,7 @@ def _agent_today_from_stores(headers, query: str = ""):
     health = HealthSnapshot()
     try:
         if GoogleHealthClient().credentials_present():
-            health, health_err = _load_health()
+            health, health_err = _load_health(tz_name=tz_name)
             errors.extend(health_err)
     except Exception as exc:  # noqa: BLE001
         errors.append(f"health_pull: {type(exc).__name__}")
@@ -1307,6 +1307,13 @@ def _agent_today_from_stores(headers, query: str = ""):
     )
     recovery_dict: dict = {}
     try:
+        from rt_dashboard.training_day import last_wake_from, training_day_iso
+
+        _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
+        last_wake = last_wake_from(sleep_battery=sleep_battery)
+        train_day = training_day_iso(
+            now=now, last_wake_at=last_wake, tz_name=tz_name
+        )
         sleep_for_recovery = expand_sleep_calendar(
             health.sleep or [],
             as_of=today,
@@ -1318,11 +1325,13 @@ def _agent_today_from_stores(headers, query: str = ""):
             weight=health.weight or [],
             sleep=sleep_for_recovery,
             sessions=sessions,
-            as_of=today,
+            as_of=train_day,
             rhr=health.resting_heart_rate or [],
             sleep_battery=sleep_battery if isinstance(sleep_battery, dict) else None,
-            sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
+            sleep_intervals=_sleep_iv,
             now=now,
+            last_wake_at=last_wake,
+            tz_name=tz_name,
         )
         recovery_dict = recovery.to_dict() if hasattr(recovery, "to_dict") else {}
         recovery_dict["sparse"] = not had_real_sleep

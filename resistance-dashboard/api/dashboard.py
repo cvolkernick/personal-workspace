@@ -57,7 +57,7 @@ def _load_sessions(user_id: str, *, fallback_house: bool = False) -> tuple[list,
     return sessions, errors, source
 
 
-def _load_health():
+def _load_health(tz_name: str | None = None):
     from rt_dashboard.google_health import GoogleHealthClient
     from rt_dashboard.hidrate_client import overlay_hidrate_hydration
     from rt_dashboard.models import HealthSnapshot
@@ -65,7 +65,7 @@ def _load_health():
     errors: list[str] = []
     days = HEALTH_COLD_DAYS
     try:
-        health = GoogleHealthClient().fetch_health(days=days)
+        health = GoogleHealthClient().fetch_health(days=days, tz_name=tz_name)
     except Exception as exc:  # noqa: BLE001
         health = HealthSnapshot(error=f"health_pull: {type(exc).__name__}")
         return health, errors
@@ -338,9 +338,9 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     user = session_from_headers(headers) or {}
     t0 = time.perf_counter()
-    sessions, sess_err, source = _load_sessions(str(user.get("id") or "default"))
-    health, health_err = _load_health()
     tz_name = request_tz_name(headers, query)
+    sessions, sess_err, source = _load_sessions(str(user.get("id") or "default"))
+    health, health_err = _load_health(tz_name=tz_name)
     now = local_now(tz_name)
     today = local_today_iso(tz_name, now=now)
     had_real_sleep = any(
@@ -363,15 +363,23 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         fill_hours=0.0,
         fill_source="implied_zero",
     )
+    from rt_dashboard.training_day import last_wake_from, training_day_iso
+
+    last_wake = last_wake_from(sleep_battery=sleep_battery)
+    train_day = training_day_iso(
+        now=now, last_wake_at=last_wake, tz_name=tz_name
+    )
     recovery = compute_recovery_status(
         weight=health.weight or [],
         sleep=health.sleep or [],
         sessions=sessions,
-        as_of=today,
+        as_of=train_day,
         rhr=health.resting_heart_rate or [],
         sleep_battery=sleep_battery,
         sleep_intervals=_sleep_iv,
         now=now,
+        last_wake_at=last_wake,
+        tz_name=tz_name,
     )
     recovery_dict = recovery.to_dict()
     recovery_dict["sleep_battery"] = sleep_battery

@@ -244,7 +244,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
         from rt_dashboard.google_health import GoogleHealthClient
 
         if GoogleHealthClient().credentials_present():
-            health, _herr = _load_health()
+            health, _herr = _load_health(tz_name=tz_name)
     except Exception:  # noqa: BLE001
         health = HealthSnapshot()
     had_real_sleep = any(
@@ -267,6 +267,12 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
         bat = None
     recovery: Dict[str, Any] = {}
     try:
+        from rt_dashboard.training_day import last_wake_from, training_day_iso
+
+        last_wake = last_wake_from(sleep_battery=bat)
+        train_day = training_day_iso(
+            now=now, last_wake_at=last_wake, tz_name=tz_name
+        )
         sleep_for_recovery = expand_sleep_calendar(
             health.sleep or [],
             as_of=today,
@@ -278,11 +284,13 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
             weight=health.weight or [],
             sleep=sleep_for_recovery,
             sessions=sessions,
-            as_of=today,
+            as_of=train_day,
             rhr=health.resting_heart_rate or [],
             sleep_battery=bat if isinstance(bat, dict) else None,
             sleep_intervals=sleep_intervals,
             now=now,
+            last_wake_at=last_wake,
+            tz_name=tz_name,
         )
         recovery = rec.to_dict() if hasattr(rec, "to_dict") else {}
         recovery["sparse"] = not had_real_sleep

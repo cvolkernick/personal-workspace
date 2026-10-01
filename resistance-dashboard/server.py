@@ -615,7 +615,7 @@ def load_dashboard_data(
         # Full 90d on force / cold cache; otherwise recent window + merge.
         use_full = force_refresh or cached_health is None
         days = 90 if use_full else incremental_days
-        google_health = health_client.fetch_health(days=days)
+        google_health = health_client.fetch_health(days=days, tz_name=tz_name)
         resolved = resolve_health_snapshot(
             google_health,
             workspace_dir=local_dir,
@@ -743,10 +743,13 @@ def load_dashboard_data(
         except Exception as e:  # noqa: BLE001
             cache_notes.setdefault("hidrate", {})["error"] = str(e)
 
-    # Charts still zero-fill unlogged nights. Recovery omits the open
-    # GH-lag night while the sleep quest is pending (#870).
+    # Charts still zero-fill unlogged nights. Recovery is keyed on the
+    # wake-to-wake training day. The next night stays out of the average
+    # until 24h plus the sync lag (#964). Quest-pending GH lag still omits
+    # that open night (#870).
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
     from rt_dashboard.sleep_series import expand_sleep_calendar
+    from rt_dashboard.training_day import last_wake_from, training_day_iso
 
     # Real sleep logs (before implied-zero fill). Missing Health must not
     # auto-force a rest day via a ~30 "Caution" score from zero-filled nights.
@@ -773,16 +776,22 @@ def load_dashboard_data(
         fill_hours=0.0,
         fill_source="implied_zero",
     )
+    last_wake = last_wake_from(sleep_battery=sleep_battery)
+    train_day = training_day_iso(
+        now=now, last_wake_at=last_wake, tz_name=tz_name
+    )
 
     recovery = compute_recovery_status(
         weight=health.weight,
         sleep=health.sleep,
         sessions=sessions,
-        as_of=local_today,
+        as_of=train_day,
         rhr=health.resting_heart_rate or [],
         sleep_battery=sleep_battery,
         sleep_intervals=_sleep_iv,
         now=now,
+        last_wake_at=last_wake,
+        tz_name=tz_name,
     )
     recovery_dict = recovery.to_dict()
     recovery_dict["sleep_battery"] = sleep_battery
