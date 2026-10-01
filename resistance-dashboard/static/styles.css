@@ -3033,7 +3033,7 @@ body.m-shell .quest-card {
   margin-bottom: 0;
 }
 
-/* More tab (#955): every top-level section. Open by default; hide the body, keep the form. */
+/* More tab (#955): every top-level section. Collapsed by default (#986); hide the body, keep the form. */
 .card h2.more-section-title {
   margin: 0;
   font-size: 1.05rem;

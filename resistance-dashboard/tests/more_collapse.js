@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * #955: More-tab toggle + localStorage persistence.
+ * #955/#986: More-tab toggle + localStorage persistence.
+ * Fresh storage starts every section collapsed. A saved boolean still wins.
  * Extracts the pure helpers from static/app.js (no browser harness).
- * On macOS, Quick Look screenshots the More tab with Ask collapsed.
+ * On macOS, Quick Look screenshots the More tab with every section collapsed.
  */
 "use strict";
 
@@ -88,10 +89,10 @@ assert(keys.indexOf("more-ask") === 0, "ask is a More key");
 assert(keys.indexOf("more-connections") === keys.length - 1, "connections is a More key");
 
 const fresh = api.readMoreCollapse(null);
-keys.forEach((key) => assert(fresh[key] === true, "default open " + key));
-assert(api.readMoreCollapse("")["more-hsa"] === true, "empty storage stays open");
-assert(api.readMoreCollapse("{")["more-labs"] === true, "bad JSON stays open");
-assert(api.readMoreCollapse("null")["more-ask"] === true, "null JSON stays open");
+keys.forEach((key) => assert(fresh[key] === false, "default closed " + key));
+assert(api.readMoreCollapse("")["more-hsa"] === false, "empty storage stays closed");
+assert(api.readMoreCollapse("{")["more-labs"] === false, "bad JSON stays closed");
+assert(api.readMoreCollapse("null")["more-ask"] === false, "null JSON stays closed");
 
 const saved = api.readMoreCollapse(
   JSON.stringify({
@@ -102,34 +103,42 @@ const saved = api.readMoreCollapse(
   })
 );
 assert(saved["more-hsa"] === false, "saved closed sticks");
-assert(saved["more-ask"] === true, "non-boolean does not close");
+assert(saved["more-ask"] === false, "non-boolean does not open");
 assert(saved["more-targets"] === true, "explicit open sticks");
-assert(saved["more-labs"] === true, "missing key stays open");
+assert(saved["more-labs"] === false, "missing key stays closed");
 assert(!Object.prototype.hasOwnProperty.call(saved, "not-a-section"), "unknown key dropped");
 
-const head = fakeHead(true);
+const head = fakeHead(false);
 const body = fakeBody("220");
+const opened = api.toggleMoreSection(head, body);
+assert(opened === true, "toggle opens a closed section");
+assert(head.getAttribute("aria-expanded") === "true", "aria-expanded true");
+assert(head.classList.contains("is-collapsed") === false, "chevron class off");
+assert(body.hidden === false, "body shown");
+assert(body.field.value === "220", "open does not clear the field");
+
 const closed = api.toggleMoreSection(head, body);
-assert(closed === false, "toggle closes an open section");
+assert(closed === false, "second toggle closes");
 assert(head.getAttribute("aria-expanded") === "false", "aria-expanded false");
 assert(head.classList.contains("is-collapsed") === true, "chevron class on");
 assert(body.hidden === true, "body hidden");
-assert(body.field.value === "220", "hide does not clear the field");
-
-const reopened = api.toggleMoreSection(head, body);
-assert(reopened === true, "second toggle opens");
-assert(head.getAttribute("aria-expanded") === "true", "aria-expanded true");
-assert(head.classList.contains("is-collapsed") === false, "chevron class off");
-assert(body.hidden === false, "body shown again");
-assert(body.field.value === "220", "reopen keeps the typed value");
+assert(body.field.value === "220", "hide keeps the typed value");
 
 const committed = api.commitMoreToggle(head, body, fresh);
-assert(committed.open === false, "commit closes");
-assert(committed.state["more-targets"] === false, "only the toggled key closes");
-assert(committed.state["more-ask"] === true, "other sections stay open");
+assert(committed.open === true, "commit opens the closed section");
+assert(committed.state["more-targets"] === true, "only the toggled key opens");
+assert(committed.state["more-ask"] === false, "other sections stay closed");
 const roundTrip = api.readMoreCollapse(JSON.stringify(committed.state));
-assert(roundTrip["more-targets"] === false, "persisted JSON reloads closed");
-assert(roundTrip["more-hsa"] === true, "persisted JSON keeps the rest open");
+assert(roundTrip["more-targets"] === true, "persisted JSON reloads open");
+assert(roundTrip["more-hsa"] === false, "persisted JSON keeps the rest closed");
+
+const twoOpen = api.readMoreCollapse(
+  JSON.stringify({ "more-targets": true, "more-ask": true })
+);
+const sibling = api.commitMoreToggle(fakeHead(true), fakeBody("1"), twoOpen);
+assert(sibling.open === false, "closing one section leaves the toggle independent");
+assert(sibling.state["more-targets"] === false, "toggled section closes");
+assert(sibling.state["more-ask"] === true, "sibling section stays open");
 
 const store = {};
 const storage = {
@@ -142,7 +151,8 @@ const storage = {
 };
 storage.setItem("fitdash-more-collapse-v1", JSON.stringify(committed.state));
 const fromDevice = api.readMoreCollapse(storage.getItem("fitdash-more-collapse-v1"));
-assert(fromDevice["more-targets"] === false, "device store reloads the closed section");
+assert(fromDevice["more-targets"] === true, "device store reloads the opened section");
+assert(fromDevice["more-ask"] === false, "device store keeps untouched sections closed");
 assert(storage.getItem("missing") === null, "missing key is empty storage");
 
 function sectionSpan(doc, secId) {
@@ -179,6 +189,7 @@ function screenshotMoreTab() {
     "hsa-section",
     "labs-section",
     "training-settings-section",
+    "suggestions-section",
     "equipment-inventory-section",
     "exercise-catalog-section",
     "connections-card",
@@ -194,24 +205,15 @@ function screenshotMoreTab() {
     'class="tab-btn" data-m-tab="more"',
     'class="tab-btn active" data-m-tab="more" aria-current="page"'
   );
-  let ask = sectionSpan(HTML, "ask-card");
-  ask = ask.replace(
-    'class="collapsible-head more-collapse-head" data-collapse="more-ask" aria-expanded="true"',
-    'class="collapsible-head more-collapse-head is-collapsed" data-collapse="more-ask" aria-expanded="false"'
-  );
-  ask = ask.replace(
-    'id="more-ask-body" data-collapse-body="more-ask">',
-    'id="more-ask-body" data-collapse-body="more-ask" hidden>'
-  );
-  assert(ask.indexOf('aria-expanded="false"') !== -1, "screenshot source closes Ask");
-  assert(ask.indexOf("hidden>") !== -1, "screenshot source hides the Ask body");
-  assert(ask.indexOf('id="ask-question"') !== -1, "Ask field stays in the hidden body");
-  const rest = ids
-    .slice(1)
-    .map((id) => sectionSpan(HTML, id))
-    .join("\n");
-  assert(rest.indexOf('id="tgt-p"') !== -1, "targets field stays mounted");
-  assert(rest.indexOf('id="more-targets-body" hidden') === -1, "targets stay open");
+  const sections = ids.map((id) => sectionSpan(HTML, id)).join("\n");
+  ids.forEach((id) => {
+    assert(sections.indexOf(`id="${id}"`) !== -1, "screenshot keeps " + id);
+  });
+  assert(sections.indexOf('aria-expanded="true"') === -1, "screenshot source has no open More section");
+  assert(sections.split('aria-expanded="false"').length - 1 === 9, "nine collapsed headers");
+  assert(sections.split(" hidden>").length - 1 >= 9, "nine hidden bodies");
+  assert(sections.indexOf('id="ask-question"') !== -1, "Ask field stays in the hidden body");
+  assert(sections.indexOf('id="tgt-p"') !== -1, "targets field stays mounted");
   const page = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -222,8 +224,7 @@ function screenshotMoreTab() {
 <body class="m-shell" data-m-active="more">
   <div class="wrap">
     ${nav}
-    ${ask}
-    ${rest}
+    ${sections}
   </div>
 </body>
 </html>
