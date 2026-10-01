@@ -73,7 +73,12 @@ class BundledInventoryFile(unittest.TestCase):
 
     def test_include_files_lists_inventory(self):
         raw = VERCEL_JSON.read_text(encoding="utf-8")
-        self.assertIn("fitness/nutrition/inventory.json", raw)
+        cfg = json.loads(raw)
+        for key in ("api/ask.py", "api/ask/plan.py", "api/dashboard.py"):
+            files = cfg["functions"][key]["includeFiles"]
+            self.assertIn("fitness/**/*.json", files, key)
+            self.assertLessEqual(len(files), 256, key)
+        self.assertTrue((ROOT / "fitness/nutrition/inventory.json").is_file())
         self.assertIn("/api/inventory/add", raw)
         self.assertIn("/api/inventory/update", raw)
         self.assertIn("/api/inventory/remove", raw)

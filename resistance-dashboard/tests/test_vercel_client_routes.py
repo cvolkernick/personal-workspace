@@ -71,15 +71,31 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertNotIn("api/workout-plan/generate.py", raw)
         self.assertNotIn("api/workouts.py", raw)
         self.assertNotIn("api/workout_plan_generate.py", raw)
-        self.assertIn("fitness/exercises/goals.json", raw)
-        self.assertIn("fitness/exercises/catalog.json", raw)
-        self.assertIn("fitness/exercises/equipment.json", raw)
         self.assertIn("/api/equipment/add", raw)
         self.assertIn("/api/dashboard?_r=eq_add", raw)
         self.assertIn("/api/muscle-suggestions", raw)
         self.assertIn("/api/dashboard?_r=suggestions", raw)
-        self.assertIn("fitness/exercises/suggestion_bands.json", raw)
-        self.assertIn("fitness/exercises/equipment_gaps.json", raw)
+        cfg = json.loads(raw)
+        ask_glob = "{fitness/**/*.json}"
+        dash_glob = "{fitness/**/*.json,projects-dashboard/google_tasks.py}"
+        for key in ("api/ask.py", "api/ask/plan.py"):
+            files = cfg["functions"][key]["includeFiles"]
+            self.assertEqual(files, ask_glob, key)
+            self.assertLessEqual(len(files), 256, key)
+        dash_files = cfg["functions"]["api/dashboard.py"]["includeFiles"]
+        self.assertEqual(dash_files, dash_glob)
+        self.assertLessEqual(len(dash_files), 256)
+        for rel in (
+            "fitness/exercises/goals.json",
+            "fitness/exercises/catalog.json",
+            "fitness/exercises/equipment.json",
+            "fitness/exercises/suggestion_bands.json",
+            "fitness/exercises/equipment_gaps.json",
+            "fitness/gym/busyness.json",
+            "fitness/nutrition/targets.json",
+            "fitness/nutrition/inventory.json",
+        ):
+            self.assertTrue((ROOT / rel).is_file(), rel)
         self.assertFalse((ROOT / "api" / "muscle-suggestions.py").exists())
         self.assertIn("/api/labs/upload", raw)
         self.assertIn("/api/dashboard?_r=labs_upload", raw)

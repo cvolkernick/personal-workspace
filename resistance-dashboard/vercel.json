@@ -168,11 +168,11 @@
   "functions": {
     "api/ask.py": {
       "maxDuration": 60,
-      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json,fitness/exercises/equipment.json,fitness/exercises/suggestion_bands.json,fitness/exercises/equipment_gaps.json,fitness/gym/busyness.json}"
+      "includeFiles": "{fitness/**/*.json}"
     },
     "api/ask/plan.py": {
       "maxDuration": 60,
-      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json,fitness/exercises/equipment.json,fitness/exercises/suggestion_bands.json,fitness/exercises/equipment_gaps.json,fitness/gym/busyness.json}"
+      "includeFiles": "{fitness/**/*.json}"
     },
     "api/ask/grok/start.py": {
       "maxDuration": 15
@@ -182,7 +182,7 @@
     },
     "api/dashboard.py": {
       "maxDuration": 60,
-      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json,fitness/exercises/equipment.json,fitness/exercises/suggestion_bands.json,fitness/exercises/equipment_gaps.json,fitness/gym/busyness.json,projects-dashboard/google_tasks.py}"
+      "includeFiles": "{fitness/**/*.json,projects-dashboard/google_tasks.py}"
     }
   }
 }

@@ -1281,7 +1281,9 @@ class VercelBundlesBusyness(unittest.TestCase):
         cfg = json.loads((RD_ROOT / "vercel.json").read_text(encoding="utf-8"))
         for key in ("api/dashboard.py", "api/ask.py", "api/ask/plan.py"):
             files = cfg["functions"][key]["includeFiles"]
-            self.assertIn("fitness/gym/busyness.json", files, key)
+            self.assertIn("fitness/**/*.json", files, key)
+            self.assertLessEqual(len(files), 256, key)
+        self.assertTrue((RD_ROOT / "fitness/gym/busyness.json").is_file())
 
 
 class QuestGymTime(unittest.TestCase):

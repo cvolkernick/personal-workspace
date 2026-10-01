@@ -102,11 +102,18 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertIn("Workout plan failed", text)
 
     def test_include_files_lists_goals_and_catalog(self):
-        raw = VERCEL_JSON.read_text(encoding="utf-8")
-        self.assertIn("fitness/exercises/goals.json", raw)
-        self.assertIn("fitness/exercises/catalog.json", raw)
-        self.assertIn("fitness/exercises/equipment.json", raw)
-        self.assertIn("fitness/nutrition/targets.json", raw)
+        cfg = json.loads(VERCEL_JSON.read_text(encoding="utf-8"))
+        for key in ("api/ask.py", "api/ask/plan.py", "api/dashboard.py"):
+            files = cfg["functions"][key]["includeFiles"]
+            self.assertIn("fitness/**/*.json", files, key)
+            self.assertLessEqual(len(files), 256, key)
+        for rel in (
+            "fitness/exercises/goals.json",
+            "fitness/exercises/catalog.json",
+            "fitness/exercises/equipment.json",
+            "fitness/nutrition/targets.json",
+        ):
+            self.assertTrue((VERCEL_JSON.parent / rel).is_file(), rel)
 
 
 class VercelDashboardWorkoutStore(unittest.TestCase):
