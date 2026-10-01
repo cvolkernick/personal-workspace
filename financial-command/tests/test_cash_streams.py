@@ -915,16 +915,20 @@ class TestRollingCashSeries(unittest.TestCase):
     """
 
     def _assert_band_stack(self, point: dict) -> None:
-        """Named bands plus other meet the inflow line, and other never goes negative."""
+        """Named YNAB bands plus other plus bitcoin meet the envelope."""
         lyft = point["lyft"]
         grubhub = point["grubhub"]
         turo = point["turo"]
+        bitcoin = point["bitcoin"]
         other = point["other"]
         named = round(lyft + grubhub + turo, 2)
         self.assertGreaterEqual(other, 0.0)
+        self.assertGreaterEqual(bitcoin, 0.0)
         self.assertEqual(other, income_band_other(point["inflow"], lyft, grubhub, turo))
+        envelope = round(point["inflow"] + bitcoin, 2)
+        self.assertEqual(point["envelope"], envelope)
         if named <= point["inflow"]:
-            self.assertEqual(round(named + other, 2), point["inflow"])
+            self.assertEqual(round(named + other + bitcoin, 2), envelope)
         else:
             self.assertEqual(other, 0.0)
 
@@ -958,12 +962,17 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(dates, [dates[0] + timedelta(days=i) for i in range(90)])
         self.assertTrue(all(p["inflow"] == 0.0 and p["outflow"] == 0.0 for p in payload["points"]))
         self.assertTrue(all(p["lyft"] == 0.0 and p["grubhub"] == 0.0 and p["turo"] == 0.0 for p in payload["points"]))
-        self.assertTrue(all(p["other"] == 0.0 for p in payload["points"]))
+        self.assertTrue(all(p["bitcoin"] == 0.0 and p["other"] == 0.0 for p in payload["points"]))
+        self.assertTrue(all(p["envelope"] == p["inflow"] for p in payload["points"]))
         for point in payload["points"]:
             self._assert_band_stack(point)
         self.assertEqual(payload["source_warnings"], [])
         self.assertEqual([s["id"] for s in payload["sources"]], ["lyft", "grubhub", "turo"])
         self.assertEqual(payload["other_band"], {"id": "other", "label": "Other", "color": "#6b7c8d"})
+        self.assertEqual(payload["bitcoin_mean_days"], 90)
+        self.assertEqual(payload["bitcoin_band"], {"id": "bitcoin", "label": "Bitcoin", "color": "#f5c542"})
+        self.assertEqual(payload["bitcoin_feed"], {"address_set": False, "from_cache": False})
+        self.assertNotIn("bitcoin", payload["source_warnings"])
 
     def test_hand_bucket_trailing_mean(self) -> None:
         # $3000 on the first included seed day → only 2026-06-14 moves, by 3000/30.
@@ -1060,6 +1069,48 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(payload["source_warnings"], [])
         self.assertNotIn("other", payload["source_warnings"])
         self.assertEqual(last["lyft"] + last["grubhub"] + last["turo"] + last["other"], 16.5)
+        self.assertEqual(last["bitcoin"], 0.0)
+        self.assertEqual(last["envelope"], 16.5)
+        for point in payload["points"]:
+            self._assert_band_stack(point)
+
+    def test_bitcoin_band_is_90_day_mean_and_adds_to_envelope(self) -> None:
+        # $9000 on 2026-06-14 sits in every displayed 90-day window → $100/day.
+        # $1800 on 2026-03-17 is the first day of the 2026-06-14 window only.
+        # $9000 on 2026-03-16 is one day before that window and never counts.
+        # YNAB Lyft $300 on 2026-09-11 is a 30-day mean of $10, and other
+        # does not subtract Bitcoin.
+        payload = build_rolling_cash_series(
+            today=TODAY,
+            transactions=[_tx(amount=300_000, payee="Lyft", date_s="2026-09-11")],
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+            bitcoin_usd_by_day={
+                "2026-03-16": 9000.0,
+                "2026-03-17": 1800.0,
+                "2026-06-14": 9000.0,
+            },
+        )
+        first = payload["points"][0]
+        second = payload["points"][1]
+        last = payload["points"][-1]
+        self.assertEqual(first["date"], "2026-06-14")
+        self.assertEqual(first["bitcoin"], 120.0)
+        self.assertEqual(first["inflow"], 0.0)
+        self.assertEqual(first["envelope"], 120.0)
+        self.assertEqual(second["date"], "2026-06-15")
+        self.assertEqual(second["bitcoin"], 100.0)
+        self.assertEqual(last["bitcoin"], 100.0)
+        self.assertEqual(last["inflow"], 10.0)
+        self.assertEqual(last["lyft"], 10.0)
+        self.assertEqual(last["other"], 0.0)
+        self.assertEqual(last["envelope"], 110.0)
+        self.assertEqual(
+            round(last["lyft"] + last["grubhub"] + last["turo"] + last["bitcoin"] + last["other"], 2),
+            last["envelope"],
+        )
+        self.assertEqual(payload["source_warnings"], ["grubhub", "turo"])
+        self.assertNotIn("bitcoin", payload["source_warnings"])
         for point in payload["points"]:
             self._assert_band_stack(point)
 
@@ -1239,6 +1290,7 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn(".band-lyft", html)
         self.assertIn(".band-grubhub", html)
         self.assertIn(".band-turo", html)
+        self.assertIn(".band-bitcoin", html)
         self.assertIn(".band-other", html)
         self.assertIn("fill-opacity: 0.6", html)
         self.assertIn("#ff69b4", html)
@@ -1250,19 +1302,27 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn("> Lyft</span>", html)
         self.assertIn("> Grubhub</span>", html)
         self.assertIn("> Turo</span>", html)
+        self.assertIn("> Bitcoin</span>", html)
         self.assertIn("> Other</span>", html)
+        self.assertIn("> Inflow + BTC</span>", html)
         self.assertIn('key: "lyft"', html)
         band_lyft = html.index('key: "lyft"')
         band_grubhub = html.index('key: "grubhub"')
         band_turo = html.index('key: "turo"')
+        band_bitcoin = html.index('key: "bitcoin"')
         band_other = html.index('key: "other"')
         self.assertLess(band_lyft, band_grubhub)
         self.assertLess(band_grubhub, band_turo)
-        self.assertLess(band_turo, band_other)
-        self.assertIn("of inflow", html)
+        self.assertLess(band_turo, band_bitcoin)
+        self.assertLess(band_bitcoin, band_other)
+        self.assertIn('key: "envelope"', html)
+        self.assertIn("of envelope", html)
+        self.assertNotIn("of inflow", html)
+        self.assertNotIn("payout address unknown", html.lower())
         self.assertIn("floored at 0", html)
         self.assertIn("bandOther", html)
-        self.assertIn("pctOfInflow", html)
+        self.assertIn("pctOfEnvelope", html)
+        self.assertIn("trailing 90-day mean", html)
         self.assertIn(".curve(d3.curveLinear)", html)
         self.assertLess(
             html.index("curve: d3.curveLinear"),
@@ -1367,7 +1427,11 @@ class TestCashStreamsApi(unittest.TestCase):
         self.assertEqual(data["unit"], "usd_per_day")
         self.assertFalse(data["includes_mining"])
         self.assertEqual(data["points"][0]["other"], 0.0)
+        self.assertEqual(data["points"][0]["bitcoin"], 0.0)
+        self.assertEqual(data["points"][0]["envelope"], 0.0)
         self.assertEqual(data["other_band"]["id"], "other")
+        self.assertEqual(data["bitcoin_band"]["id"], "bitcoin")
+        self.assertEqual(data["bitcoin_mean_days"], 90)
         self.assertEqual([row["id"] for row in data["sources"]], ["lyft", "grubhub", "turo"])
         self.assertNotIn("nodes", data)
         self.assertNotIn("totals", data)
