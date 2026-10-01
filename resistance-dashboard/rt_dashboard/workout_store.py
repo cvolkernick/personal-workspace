@@ -249,14 +249,16 @@ def stamp_today_session(
 
     If a PPL session already closed in the current wake (or on civil
     ``as_of`` when last_wake is unknown), pin today's letter to that
-    session and skip the rest gate. That pin is not day-complete —
-    ``already_trained_today`` needs ``train_parent_completed``, and when
-    last_wake is current a PPL session in that wake. Parent complete
-    alone must not pin the next wake. Same-wake parent complete advances
-    next_session_type to tomorrow; a partial log keeps it on today's letter.
+    session and skip the rest gate. A partial log (no close stamp) keeps
+    ``next_session_type`` on today's letter. A persisted close rolls
+    ``next_session_type`` with ``next_letter_after`` (#951) while
+    ``session_type`` stays the letter that closed. Parent complete alone
+    must not pin the next wake. Same-wake parent complete also advances
+    next_session_type.
     """
     from .timeutil import local_today_iso
     from .training_day import (
+        closed_ppl_for_planning,
         day_complete_for_planning,
         last_wake_from,
         ppl_logged_for_planning,
@@ -281,6 +283,12 @@ def stamp_today_session(
         last_wake_at=wake,
         now=now,
     )
+    closed = closed_ppl_for_planning(
+        sessions or [],
+        as_of=day,
+        last_wake_at=wake,
+        now=now,
+    )
     day_complete = day_complete_for_planning(
         train_parent_completed,
         ppl_logged_today=logged,
@@ -289,14 +297,15 @@ def stamp_today_session(
         now=now,
     )
     norms = normalize_goals(goals) if _rotation_set(goals) else {}
+    rollover = bool(closed) or day_complete
 
     next_st = None
     override = str(next_st_override or "").strip().lower()
     today_pin = None
-    if logged and not day_complete:
+    if logged and not rollover:
         next_st = logged
-    elif day_complete:
-        pin = logged or str(plan.get("session_type") or "").lower()
+    elif rollover:
+        pin = closed or logged or str(plan.get("session_type") or "").lower()
         if pin not in ("push", "pull", "legs") and _rotation_set(goals):
             pin = next_session_type(sessions or [], norms)
         if pin in ("push", "pull", "legs"):
@@ -312,6 +321,19 @@ def stamp_today_session(
         next_st = next_session_type(sessions or [], norms)
     plan["next_session_type"] = next_st
     ctx["next_session_type"] = next_st
+    if closed:
+        plan["session_closed_today"] = True
+        ctx["session_closed_today"] = True
+        plan["ppl_logged_today"] = closed
+        ctx["ppl_logged_today"] = closed
+        plan["session_type"] = closed
+        plan["is_rest_day"] = False
+        plan["already_trained_today"] = True
+        ctx["already_trained_today"] = True
+        plan["context"] = ctx
+        if "exercises" not in plan:
+            plan["exercises"] = []
+        return plan
     if logged:
         plan["ppl_logged_today"] = logged
         ctx["ppl_logged_today"] = logged

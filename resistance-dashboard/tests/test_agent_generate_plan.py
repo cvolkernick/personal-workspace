@@ -260,10 +260,9 @@ class EnsureToday(unittest.TestCase):
             out = ensure_today_grok_plan("sub-1", day="2026-09-06", context=ctx)
         self.assertFalse(out["ok"])
         self.assertTrue(out["error"])
-        self.assertIn(
-            out["error"],
-            ("not a good workout_plan", "SuperGrok returned no exercises"),
-        )
+        self.assertNotEqual(out["error"], "")
+        self.assertEqual(out["workout"].get("exercises") or [], [])
+        self.assertEqual(out["workout"].get("message"), out["error"])
 
 
 class AgentGenerateHttp(unittest.TestCase):

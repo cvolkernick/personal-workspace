@@ -206,11 +206,13 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         self.assertEqual(plan["session_type"], "legs")
         self.assertEqual(plan["ppl_logged_today"], "legs")
-        self.assertEqual(plan["next_session_type"], "legs")
-        self.assertFalse(plan["already_trained_today"])
+        self.assertEqual(plan["next_session_type"], "push")
+        self.assertTrue(plan["already_trained_today"])
+        self.assertTrue(plan["session_closed_today"])
         names = [e.get("name") for e in plan["exercises"]]
-        self.assertNotIn("DB Flat Press", names)
-        self.assertIn("Seated Leg Curls", names)
+        self.assertIn("DB Flat Press", names)
+        self.assertNotIn("Seated Leg Curls", names)
+        self.assertIsNone(plan.get("generate_error"))
 
     def test_new_wake_generates_next_letter_despite_civil_date(self):
         from datetime import datetime
@@ -273,9 +275,12 @@ class TestWorkoutPlanner(unittest.TestCase):
             train_parent_completed=True,
         )
         self.assertTrue(plan["already_trained_today"])
+        self.assertTrue(plan["session_closed_today"])
         self.assertEqual(plan["session_type"], "legs")
         self.assertEqual(plan["next_session_type"], "push")
-        self.assertEqual(plan["exercises"], [])
+        self.assertTrue(plan["exercises"])
+        self.assertTrue(any(e.get("name") == "DB Flat Press" for e in plan["exercises"]))
+        self.assertIsNone(plan.get("generate_error"))
 
     def test_session_types_for_lift_name(self):
         types = session_types_for_lift_name("DB Flat Press", self.catalog)

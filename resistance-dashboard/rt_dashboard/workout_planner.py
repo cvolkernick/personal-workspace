@@ -1469,9 +1469,19 @@ def generate_workout_plan(
     }
 
     explicit = str(session_type or "").strip().lower()
-    from .training_day import day_complete_for_planning, ppl_logged_for_planning
+    from .training_day import (
+        closed_ppl_for_planning,
+        day_complete_for_planning,
+        ppl_logged_for_planning,
+    )
 
     logged_today = ppl_logged_for_planning(
+        sessions,
+        as_of=day,
+        last_wake_at=last_wake_at,
+        now=now,
+    )
+    closed_letter = closed_ppl_for_planning(
         sessions,
         as_of=day,
         last_wake_at=last_wake_at,
@@ -1485,8 +1495,13 @@ def generate_workout_plan(
         as_of=day,
         now=now,
     )
+    # A persisted close rolls the plan onto the next letter (#951).
+    # Parent-complete without a close stamp still returns the empty
+    # "already trained" shell. An explicit session_type still generates
+    # that letter.
+    plan_next = bool(closed_letter) and not force_letter
     # Parent complete pins only when this wake actually trained (or civil fallback).
-    if day_complete and not force_letter:
+    if day_complete and not force_letter and not plan_next:
         pin = logged_today or next_session_type(sessions, goals)
         nxt = next_letter_after(pin, goals) if pin in ("push", "pull", "legs") else pin
         balance = volume_balance_report(tally, goals)
@@ -1528,9 +1543,10 @@ def generate_workout_plan(
             },
         }
 
-    pin_open_session = bool(logged_today) and not force_letter
+    pin_open_session = bool(logged_today) and not force_letter and not plan_next
     if (
         not pin_open_session
+        and not plan_next
         and recovery_score is not None
         and recovery_score < rest_threshold
         and not recovery_sparse
@@ -1567,11 +1583,14 @@ def generate_workout_plan(
             },
         }
 
-    st = (
-        session_type
-        or (logged_today if pin_open_session else None)
-        or next_session_type(sessions, goals)
-    ).lower()
+    if plan_next:
+        st = next_letter_after(closed_letter, goals)
+    else:
+        st = (
+            session_type
+            or (logged_today if pin_open_session else None)
+            or next_session_type(sessions, goals)
+        ).lower()
     pool = [ex for ex in available if st in ex["session_types"]]
     # Do not steal lifts from another PPL slot or invent unequipped gear.
     if not pool and not equipment_on:
@@ -1582,7 +1601,10 @@ def generate_workout_plan(
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
     last_family_ids = last_pattern_family_ids(sessions, by_id)
     logged_ids = _logged_catalog_ids(sessions, by_id)
-    if last_wake_at:
+    if plan_next:
+        # Next letter is a full session. Do not shrink it by today's close.
+        today_sessions = []
+    elif last_wake_at:
         from .training_day import session_in_wake as _in_wake
         from .training_day import wake_covers_as_of as _wake_ok
 
@@ -1794,11 +1816,18 @@ def generate_workout_plan(
     }
 
     last_st = last_session_type(sessions)
-    if not plan_ex and equipment_on:
-        msg_parts = [
-            f"No accessible equipment can load a {st.upper()} lift from the library. "
-            "Fix the equipment inventory — the planner will not invent lifts."
-        ]
+    empty_plan_error = None
+    if not plan_ex:
+        if equipment_on:
+            empty_plan_error = (
+                f"No accessible equipment can load a {st.upper()} lift from the library. "
+                "Fix the equipment inventory — the planner will not invent lifts."
+            )
+        else:
+            empty_plan_error = (
+                f"No {st.upper()} plan could be built from the library."
+            )
+        msg_parts = [empty_plan_error]
     else:
         msg_parts = [
             f"Suggested {st.upper()} session ({len(plan_ex)} exercises, {session_sets} hard sets)."
@@ -1836,16 +1865,35 @@ def generate_workout_plan(
             f"Framework: ≈4–8 long-term · this week planning band ~{scale_pct}% ramp"
         )
 
-    nxt_open = logged_today if pin_open_session else next_session_type(sessions, goals)
-    return {
+    if plan_next:
+        display_session = closed_letter
+        nxt_open = st
+        trained = True
+        session_closed = True
+        logged_out = closed_letter
+    else:
+        display_session = st
+        nxt_open = logged_today if pin_open_session else next_session_type(sessions, goals)
+        trained = False
+        session_closed = False
+        logged_out = logged_today
+    if plan_next and plan_ex:
+        message = (
+            f"Already trained today ({str(display_session).upper()}). "
+            f"Next session: {str(nxt_open).upper()}."
+        )
+    else:
+        message = " · ".join(msg_parts)
+    out = {
         "date": day,
-        "session_type": st,
+        "session_type": display_session,
         "is_rest_day": False,
-        "already_trained_today": False,
-        "ppl_logged_today": logged_today,
+        "already_trained_today": trained,
+        "session_closed_today": session_closed,
+        "ppl_logged_today": logged_out,
         "next_session_type": nxt_open,
         "exercises": plan_ex,
-        "message": " · ".join(msg_parts),
+        "message": message,
         "goals": goals,
         "volume": balance,
         "context": {
@@ -1853,8 +1901,9 @@ def generate_workout_plan(
             "recovery_score": recovery_score,
             "last_session_type": last_st,
             "next_session_type": nxt_open,
-            "already_trained_today": False,
-            "ppl_logged_today": logged_today,
+            "already_trained_today": trained,
+            "session_closed_today": session_closed,
+            "ppl_logged_today": logged_out,
             "days_since_last": days,
             "training_continuity": continuity,
             "catalog_available": len(available),
@@ -1878,6 +1927,11 @@ def generate_workout_plan(
             "weekly_sets": tally,
         },
     }
+    if empty_plan_error:
+        out["generate_error"] = empty_plan_error
+        out["message"] = empty_plan_error
+        out["context"]["generate_error"] = empty_plan_error
+    return out
 
 
 def update_goals(raw: dict) -> dict:
