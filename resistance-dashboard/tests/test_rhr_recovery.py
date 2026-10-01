@@ -292,8 +292,13 @@ class TestPrescribeRhrIntensity(unittest.TestCase):
         last = {"weight_lbs": 100, "sets": 3, "reps": 10, "date": "2026-09-14"}
         hold = prescribe(ex, last, recovery_score=80)
         cut = prescribe(ex, last, recovery_score=80, rhr_under_recovered=True)
-        self.assertEqual(hold["weight_lbs"], 100)
+        # 10 reps is at the top of the compound 5–9 band, so the load steps up.
+        self.assertEqual(hold["weight_lbs"], 105)
+        self.assertEqual(hold["progression_reason"], "add_load")
+        # RHR deload blocks that step, then takes ~10% off the last load.
         self.assertEqual(cut["weight_lbs"], 90.0)
+        self.assertEqual(cut["progression_reason"], "deload_override")
+        self.assertNotEqual(cut["progression_reason"], "add_load")
         self.assertIn("RHR under-recovered", cut["rationale"])
 
 

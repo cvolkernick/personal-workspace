@@ -305,7 +305,10 @@ class TestWorkoutPlanner(unittest.TestCase):
         }
         rx = prescribe(ex, {"weight_lbs": 50, "sets": 3, "reps": 12, "date": "2026-07-10"})
         self.assertEqual(rx["weight_lbs"], 55.0)
-        self.assertEqual(rx["reps"], 8)
+        self.assertEqual(rx["reps"], 5)
+        self.assertEqual(rx["target_reps"], 5)
+        self.assertEqual(rx["progression_reason"], "add_load")
+        self.assertEqual(rx["rep_range_label"], "5-9")
 
     def test_generate_plan_uses_history(self):
         sessions = [
@@ -480,7 +483,8 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         self.assertAlmostEqual(rx["weight_lbs"], round(50 * cont["load_multiplier"], 1))
         self.assertLess(rx["weight_lbs"], 50)
-        self.assertEqual(rx["reps"], 8)  # bottom of range for technique
+        self.assertEqual(rx["reps"], 5)  # bottom of the compound band
+        self.assertEqual(rx["progression_reason"], "deload_override")
         self.assertLessEqual(rx["sets"], 2)
         self.assertIn("Re-entry", rx["rationale"])
 
