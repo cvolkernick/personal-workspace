@@ -5,6 +5,7 @@
 | `run_ci_tests.py` | Unified Python + JS CI runner (#584). Canonical: `ops/github-workflows/test.yml` |
 | `buzz-board` | Buzz Board (GitHub Project #1) CLI — `list`, `get`, `set-status N Done`, … |
 | `eng_gate_post_merge.py` | After eng-gate merge: mark board Done / residual / sweep (#58) |
+| `forge_daily_brief.py` | Daily outcomes brief from live GitHub labels and merged PRs (#983). Pi lines stay `last known <date>`. |
 | `youtube_groom.py` | AI Curated house-cap policy (not the Pi writer; do not copy over `~/.local/lib/youtube-groom/youtube_groom.py`) |
 | `youtube_groom_health.py` | Tick health from `groom.log` — #workflow alert to Grok + `health.json`. Copy **this** file to Pi alongside the writer, never over it. |
 | `youtube_groom_tick_report.py` | Per-tick listed/add/skip/quota + 24h rollup (#838, not #759). Copy **alongside** the writer, never over it. |
