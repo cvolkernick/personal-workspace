@@ -208,18 +208,44 @@ class TestBitcoinMiningIncome(unittest.TestCase):
             self.assertEqual(again["usd_by_day"], {"2026-08-01": 50.0})
             self.assertIn("cached", path.read_text(encoding="utf-8"))
 
-    def test_unset_env_yields_zero_without_error_or_fetch(self) -> None:
+    def test_unset_env_and_config_yields_zero_without_error_or_fetch(self) -> None:
         def fetch_json(url: str):
             raise AssertionError(url)
 
-        with mock.patch.dict(os.environ, {}, clear=True):
-            out = bitcoin_mining_income(today=TODAY, fetch_json=fetch_json)
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Path(tmp) / "config.json"
+            cfg.write_text("{}", encoding="utf-8")
+            with mock.patch.dict(os.environ, {}, clear=True):
+                out = bitcoin_mining_income(
+                    today=TODAY, fetch_json=fetch_json, config_path=cfg
+                )
         self.assertTrue(out["ok"])
         self.assertIsNone(out["error"])
         self.assertFalse(out["address_set"])
+        self.assertFalse(out["fetched"])
         self.assertFalse(out["from_cache"])
         self.assertEqual(out["deposits"], [])
         self.assertEqual(out["usd_by_day"], {})
+
+    def test_config_address_used_when_env_blank(self) -> None:
+        deposit = _tx("dep", day="2026-09-01", confirmed=True, spends=False, sats=100_000)
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Path(tmp) / "config.json"
+            cfg.write_text(
+                json.dumps({"braiins": {"payout_address": ADDR}}),
+                encoding="utf-8",
+            )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                out = bitcoin_mining_income(
+                    today=TODAY,
+                    transactions=[deposit],
+                    prices={"2026-09-01": 100_000.0},
+                    config_path=cfg,
+                )
+        self.assertTrue(out["address_set"])
+        self.assertTrue(out["fetched"])
+        self.assertEqual(out["usd_by_day"], {"2026-09-01": 100.0})
+        self.assertNotIn(ADDR, json.dumps(out))
 
     def test_cache_filename_is_gitignored(self) -> None:
         text = (ROOT / "treasury" / ".gitignore").read_text(encoding="utf-8")

@@ -60,3 +60,26 @@ That file is a retired stub.
 
 Mac `pi_sync.push_files` and `DEFAULT_PUSH_FILES` omit `braiins_latest.json`.
 Emergency override only: `TREASURY_BRAIINS_PUSH=1`.
+
+## Freshness clock (#960)
+
+The live clock is the Pi file `treasury/snapshots/braiins_latest.json` `as_of`,
+not the copy committed in git. `pi_sync.push_files` omits that file, so the
+git blob can sit still while the timer keeps writing.
+
+Checked 2026-10-01 on `prism-agent@192.168.100.98`:
+
+- Unit: `/etc/systemd/system/braiins-refresh.timer` → `braiins-refresh.service`
+  (enabled, 4h). Token: `~/.config/braiins/token` mode 600.
+- No `braiins_refresh_*.log` from the committed `as_of` 2026-09-09T10:47:44Z
+  until 2026-09-12T20:58:05Z. From that log onward the producer succeeded
+  about 6 times a day through 2026-10-01.
+- Live file at the check: `as_of` 2026-10-01T19:56:40Z, `ok` true, payouts
+  list of 6 confirmed rows. `GET /api/cash-streams?days=90` mining
+  `status=ok`, `usd=1413.84`, `payout_count=4`, `stale=false`.
+
+The Sankey uses that Braiins list when it is non-empty. An empty or unknown
+list falls back to confirmed mempool.space receipts to
+`treasury/config.json` `braiins.payout_address` (`BRAIINS_PAYOUT_ADDRESS`
+overrides). Snapshots must not store that address. The rolling Bitcoin band
+reads the same address.

@@ -25,8 +25,12 @@ and Turo are the trailing 30-day mean on external inflows
 ``bitcoin_mining_income`` (not a second YNAB matcher). Other is YNAB inflow
 minus Lyft, Grubhub, and Turo, floored at 0. The envelope line is YNAB
 inflow plus Bitcoin. Outflow stays a line.
-Uncategorized outflows stay an explicit node. Missing/stale Braiins or
-Coinbase price feeds are a loud mining-unknown state, never a silent omit.
+Uncategorized outflows stay an explicit node. A present Braiins payout
+list stays canonical, including loud-unknown when that list or the Coinbase
+spot used to value it is missing or stale. An empty or unknown payout list
+falls back to confirmed mempool.space receipts to ``braiins.payout_address``
+(env ``BRAIINS_PAYOUT_ADDRESS`` wins). If that read also fails, the mining
+node stays loud-unknown. Never a silent omit.
 
 Cash Streams freshness is the live YNAB *transaction* pull ``as_of``, not the
 age of balance snapshots (``x_money`` / ``one_card`` / ``rh_checking``). Those
@@ -387,6 +391,7 @@ def _mining_contract(mining: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         "stale": bool(
             mining["stale"] if mining.get("stale") is not None else not ok
         ),
+        "source": mining.get("source"),
     }
 
 
@@ -439,22 +444,145 @@ def braiins_unknown_error(kind: str, brai: Optional[Dict[str, Any]] = None) -> s
     return head + ". " + BRAIINS_PRODUCER_HINT
 
 
+def _braiins_payout_list_present(brai: Optional[Dict[str, Any]]) -> bool:
+    """True when Braiins returned a non-empty payout list. Empty is unknown."""
+    if not isinstance(brai, dict) or not brai.get("ok"):
+        return False
+    payouts = brai.get("payouts")
+    return isinstance(payouts, list) and len(payouts) > 0
+
+
+def _mining_from_chain(
+    *,
+    start: date,
+    end: date,
+    root: Path,
+    now: datetime,
+    address: Optional[str] = None,
+    transactions: Optional[Sequence[Dict[str, Any]]] = None,
+    prices: Optional[Mapping[str, float]] = None,
+    fetch_json: Optional[Callable[[str], Any]] = None,
+    cache_path: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    """Confirmed on-chain receipts in the window. None when the read cannot run.
+
+    Does not write the payout address. A reachable read with nothing in the
+    window is a real zero, not loud-unknown.
+    """
+    config_path = root / "treasury" / "config.json"
+    cache = (
+        cache_path
+        if cache_path is not None
+        else root / "treasury" / "snapshots" / "braiins_address_income.json"
+    )
+    try:
+        income = bitcoin_mining_income(
+            today=end,
+            address=address,
+            transactions=transactions,
+            prices=prices,
+            fetch_json=fetch_json,
+            cache_path=cache,
+            config_path=config_path,
+        )
+    except Exception:
+        return None
+    if not isinstance(income, dict):
+        return None
+    if not income.get("address_set") or not income.get("fetched"):
+        return None
+
+    usd_total = 0.0
+    btc_total = 0.0
+    count = 0
+    priced: List[Dict[str, Any]] = []
+    last_close: Optional[float] = None
+    for row in income.get("deposits") or []:
+        if not isinstance(row, dict):
+            continue
+        day = _parse_day(row.get("day"))
+        if day is None or day < start or day > end:
+            continue
+        try:
+            close = float(row.get("close"))
+            btc_f = float(row.get("btc"))
+            usd = float(row.get("usd"))
+        except (TypeError, ValueError):
+            return None
+        if close <= 0 or btc_f <= 0:
+            return None
+        usd_total += usd
+        btc_total += btc_f
+        count += 1
+        last_close = close
+        priced.append(
+            {
+                "at": day.isoformat(),
+                "amount_btc": btc_f,
+                "usd_price_at_payout": close,
+                "usd": round(usd, 2),
+                "tx_id": row.get("txid"),
+            }
+        )
+
+    return {
+        "status": "ok",
+        "error": None,
+        "usd": _money(usd_total),
+        "payout_btc": round(btc_total, 8),
+        "payout_count": count,
+        "price_usd": last_close,
+        "as_of": now.isoformat(),
+        "stale": False,
+        "source": "mempool.space",
+        "payouts": priced,
+    }
+
+
 def mining_from_snapshots(
     *,
     start: date,
     end: date,
     root: Optional[Path] = None,
     now: Optional[datetime] = None,
+    chain_address: Optional[str] = None,
+    chain_transactions: Optional[Sequence[Dict[str, Any]]] = None,
+    chain_prices: Optional[Mapping[str, float]] = None,
+    chain_fetch_json: Optional[Callable[[str], Any]] = None,
+    chain_cache_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Σ(payout_btc × usd_price_at_payout) for confirmed payouts in the window.
 
-    Loud unknown when the Braiins payout list or Coinbase price feed is
-    missing/stale. Never returns a silent zero for a missing feed.
+    A non-empty Braiins payout list is canonical (#960). An empty or unknown
+    list uses confirmed mempool.space receipts to the payout address, valued
+    at the Coinbase daily close. Loud unknown when that chain read cannot
+    run and the Braiins list or Coinbase spot is missing or stale. Never a
+    silent zero for a missing feed.
+
+    The 2026-09-09 git copies of the snapshot files are not the live clock.
+    Pi ``braiins-refresh.timer`` and ``coinbase-price-refresh.timer`` own
+    ``as_of``. See ``treasury/deploy/BRAIINS_PRODUCER.md``.
     """
-    base = (root or ROOT) / "treasury" / "snapshots"
+    repo = root or ROOT
+    base = repo / "treasury" / "snapshots"
     brai = _load_snapshot(base / "braiins_latest.json")
     cb = _load_snapshot(base / "coinbase_latest.json")
     current = now or datetime.now(timezone.utc)
+
+    if not _braiins_payout_list_present(brai):
+        chained = _mining_from_chain(
+            start=start,
+            end=end,
+            root=repo,
+            now=current,
+            address=chain_address,
+            transactions=chain_transactions,
+            prices=chain_prices,
+            fetch_json=chain_fetch_json,
+            cache_path=chain_cache_path,
+        )
+        if chained is not None:
+            return chained
 
     def unknown(error: str) -> Dict[str, Any]:
         return {
@@ -542,6 +670,7 @@ def mining_from_snapshots(
         "price_usd": price,
         "as_of": brai.get("as_of"),
         "stale": False,
+        "source": "braiins",
         "payouts": priced,
     }
 
