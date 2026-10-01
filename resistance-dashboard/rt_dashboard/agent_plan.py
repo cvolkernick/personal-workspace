@@ -1,7 +1,9 @@
 """Cookie-less SuperGrok generate + persist for agent Today (#493).
 
 Reuses ``generate_grok_plans`` (same path as UI POST /api/ask/plan).
-Never invents exercise lists. Idempotent once per user+civil day.
+Never invents exercise lists. A good plan is reused for that user and
+civil day until the day closes. A persisted close rebuilds the next
+letter, replaces the store, and drops the unlocked gym chip (#951).
 """
 
 from __future__ import annotations
@@ -113,9 +115,91 @@ def persist_grok_result(user_id: str, local_today: str, result: dict) -> dict:
     return save_last_good_workout_plan(user_id, local_today, workout or {})
 
 
+def _recovery_score(recovery: Optional[dict]) -> Optional[float]:
+    if not isinstance(recovery, dict) or recovery.get("score") is None:
+        return None
+    try:
+        return float(recovery.get("score"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _wake_from_context(ctx: dict) -> Optional[str]:
+    from .training_day import last_wake_from
+
+    rec = ctx.get("recovery") if isinstance(ctx.get("recovery"), dict) else {}
+    return last_wake_from(
+        recovery=rec,
+        last_wake_at=ctx.get("last_wake_at"),
+        payload=ctx,
+    )
+
+
+def _library_for_plan(ctx: dict) -> tuple:
+    """Workspace catalog and equipment when the Today fill omits them.
+
+    ``GET /api/agent/today`` stamps the letter, then fills without putting
+    the library on the context. After a close that path still has to build
+    the next letter (#951). An explicit catalog or equipment dict wins.
+    """
+    catalog = ctx.get("catalog") if isinstance(ctx.get("catalog"), dict) else None
+    if not catalog or not (catalog.get("exercises") or []):
+        from .workout_store import load_workspace_catalog
+
+        catalog, _src = load_workspace_catalog()
+    equipment = ctx.get("equipment") if isinstance(ctx.get("equipment"), dict) else None
+    if equipment is None:
+        from .equipment_store import load_workspace_equipment
+
+        equipment, _src = load_workspace_equipment()
+    return catalog or {"exercises": []}, equipment
+
+
+def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> dict:
+    """Library plan for the stamped letter. No invented lifts."""
+    from .workout_planner import generate_workout_plan
+
+    rec = ctx.get("recovery") if isinstance(ctx.get("recovery"), dict) else {}
+    day = str(ctx.get("day") or ctx.get("training_day") or "")[:10] or None
+    catalog, equipment = _library_for_plan(ctx)
+    return generate_workout_plan(
+        catalog,
+        ctx.get("goals") or {},
+        ctx.get("sessions") or [],
+        recovery_label=rec.get("label"),
+        recovery_score=_recovery_score(rec),
+        recovery_sparse=bool(rec.get("sparse")),
+        session_type=session_type,
+        as_of=day,
+        equipment=equipment,
+        last_wake_at=_wake_from_context(ctx),
+        now=ctx.get("now"),
+    )
+
+
+def _loud_empty(workout: Optional[dict], error: str) -> dict:
+    """Empty plan must not keep a normal suggestion message (#951)."""
+    out = dict(workout) if isinstance(workout, dict) else {}
+    out["exercises"] = []
+    out["empty"] = True
+    out["generate_error"] = error
+    out["message"] = error
+    return out
+
+
 def _letter(value) -> Optional[str]:
     text = str(value or "").strip().lower()
     return text or None
+
+
+def _session_closed(slot: Optional[dict]) -> bool:
+    """True when today's letter already has a persisted close (#951)."""
+    if not isinstance(slot, dict):
+        return False
+    if slot.get("session_closed_today"):
+        return True
+    ctx = slot.get("context")
+    return bool(isinstance(ctx, dict) and ctx.get("session_closed_today"))
 
 
 def _covers_today(saved: Optional[dict], letter: Optional[str]) -> bool:
@@ -282,8 +366,10 @@ def ensure_today_grok_plan(
     """Generate+persist today's SuperGrok workout, or skip.
 
     Skip rest days. Skip when a good plan for this letter already exists
-    on the current training day (wake window). Fail loudly (ok=False +
-    error) instead of inventing lifts.
+    on the current training day (wake window). A persisted close rolls the
+    plan onto the next letter from the equipment library and cancels
+    today's gym chip. Fail loudly (ok=False + error) instead of inventing
+    lifts or leaving an empty list under a normal message.
     """
     uid = (user_id or "").strip() or house_plan_user_id()
     from rt_dashboard.timeutil import local_today_iso
@@ -311,6 +397,36 @@ def ensure_today_grok_plan(
         )
     is_rest = bool(stamped.get("is_rest_day"))
     letter = _letter(stamped.get("session_type"))
+    if stamped.get("session_closed_today"):
+        workout = _deterministic_workout(ctx)
+        good = is_good_workout_plan(workout)
+        err = None
+        persist = {"ok": False, "error": None}
+        if good:
+            persist = save_last_good_workout_plan(uid, local_today, workout)
+            if not persist.get("ok"):
+                good = False
+                err = persist.get("error") or "not a good workout_plan"
+                workout = _loud_empty(workout, err)
+        else:
+            err = (
+                workout.get("generate_error")
+                or workout.get("message")
+                or "No plan could be built from the library."
+            )
+            workout = _loud_empty(workout, err)
+        return _with_gym_calendar(
+            {
+                "ok": good,
+                "skipped": "session_closed",
+                "generated": good,
+                "workout": workout,
+                "persist": persist,
+                "error": err,
+            },
+            workout,
+            local_today,
+        )
     if stamped.get("already_trained_today"):
         return _with_gym_calendar(
             {
@@ -397,12 +513,39 @@ def ensure_today_grok_plan(
             }
         persist = persist_grok_result(uid, local_today, result)
         if not persist.get("ok") or not is_good_workout_plan(workout):
-            err = persist.get("error") or "SuperGrok returned no exercises"
+            # Library fallback only when equipment is in context. A name-only
+            # catalog with no gear filter is not a plan (#951).
+            fallback = (
+                _deterministic_workout(ctx, session_type=letter)
+                if isinstance(ctx.get("equipment"), dict)
+                else {}
+            )
+            if is_good_workout_plan(fallback):
+                persist = save_last_good_workout_plan(uid, local_today, fallback)
+                if persist.get("ok"):
+                    return _with_gym_calendar(
+                        {
+                            "ok": True,
+                            "skipped": None,
+                            "generated": True,
+                            "workout": fallback,
+                            "persist": persist,
+                            "error": None,
+                        },
+                        fallback,
+                        local_today,
+                    )
+            err = (
+                (fallback or {}).get("generate_error")
+                or "SuperGrok returned no exercises"
+            )
+            if err == "not a good workout_plan":
+                err = "SuperGrok returned no exercises"
             return {
                 "ok": False,
                 "skipped": None,
                 "generated": True,
-                "workout": workout,
+                "workout": _loud_empty(workout, err),
                 "persist": persist,
                 "error": err,
             }
@@ -474,6 +617,11 @@ def fill_stamped_workout(
 
     Shared by Pi GET ``/api/agent/today`` and the Vercel cookie-less Today path.
     Never invents lifts. Surfaces ``generate_error`` on the slot when SuperGrok fails.
+
+    A good plan saved earlier the same civil day can still be the pre-close
+    letter. Returning it skips the roll and the gym sync. When the stamp
+    says the day is already closed, fall through so the next letter
+    replaces that store and the unlocked chip is deleted (#951).
     """
     from .workout_store import brief_sessions
 
@@ -481,7 +629,7 @@ def fill_stamped_workout(
     local_day = str(day or "")[:10]
     slot = dict(workout) if isinstance(workout, dict) else {}
     saved = load_last_good_workout_plan(plan_uid, local_day)
-    if is_good_workout_plan(saved):
+    if is_good_workout_plan(saved) and not _session_closed(slot):
         return saved
     letter = _letter(slot.get("session_type"))
     if not letter or slot.get("is_rest_day") or letter == "rest":
@@ -506,7 +654,7 @@ def fill_stamped_workout(
         return filled["workout"]
     if filled.get("error"):
         slot["generate_error"] = filled["error"]
-        msg = str(slot.get("message") or "")
-        if "Generate today's" in msg or not msg.strip():
+        if not slot.get("is_rest_day"):
             slot["message"] = filled["error"]
+            slot["exercises"] = []
     return slot

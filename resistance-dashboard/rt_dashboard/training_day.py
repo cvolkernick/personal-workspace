@@ -316,3 +316,62 @@ def ppl_logged_for_planning(
     from .workout_planner import ppl_logged_on_day
 
     return ppl_logged_on_day(sessions or [], as_of)
+
+
+def session_has_close_stamp(session: Any) -> bool:
+    """True when the row was persisted (``closed_at`` or ``created_at``).
+
+    A date-only row is a partial log. First persist is the session close.
+    """
+    if isinstance(session, dict):
+        raw = session.get("closed_at") or session.get("created_at")
+    else:
+        raw = getattr(session, "closed_at", None) or getattr(session, "created_at", None)
+    return bool(str(raw or "").strip())
+
+
+def closed_ppl_for_planning(
+    sessions: Sequence[Any],
+    *,
+    as_of: Optional[str] = None,
+    last_wake_at: Any = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> Optional[str]:
+    """Latest PPL letter with a persisted close in the planning window (#951).
+
+    Same 5 AM wake window as ``ppl_logged_for_planning``. A partial row
+    (no close stamp) does not roll the next letter. When more than one
+    letter closed in the window, the latest close wins. An overnight
+    close before 05:00 still belongs to that training day.
+    """
+    from .timeutil import local_now
+
+    clock = local_now(tz_name, now=now)
+    use_wake = wake_is_current(last_wake_at, as_of, now=clock, tz_name=tz_name)
+    civil = str(as_of or "")[:10]
+    hits = []
+    for session in sessions or []:
+        letter = _session_type(session)
+        if letter not in ("push", "pull", "legs"):
+            continue
+        if not session_has_close_stamp(session):
+            continue
+        if use_wake:
+            if not session_in_wake(
+                session, last_wake_at=last_wake_at, now=clock, tz_name=tz_name
+            ):
+                continue
+        else:
+            if isinstance(session, dict):
+                day = str(session.get("date") or "")[:10]
+            else:
+                day = str(getattr(session, "date", "") or "")[:10]
+            if day != civil:
+                continue
+        closed = session_close_dt(session, tz_name=tz_name)
+        hits.append((closed or datetime.min.replace(tzinfo=timezone.utc), letter))
+    if not hits:
+        return None
+    hits.sort(key=lambda item: item[0])
+    return hits[-1][1]

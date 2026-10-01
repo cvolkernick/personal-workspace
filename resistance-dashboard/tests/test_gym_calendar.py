@@ -863,13 +863,15 @@ class ElapsedReschedule(unittest.TestCase):
         self.assertEqual(result["moves"][0]["event_id"], "ev-am")
         self.assertIn("22:30", result["moves"][0]["to"])
 
-    def test_logged_workout_leaves_elapsed_event(self):
+    def test_closed_session_deletes_elapsed_event(self):
+        """#951: a persisted close cancels today's chip. #811 partial logs still keep it."""
         existing = [
             _ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)
         ]
         logged = self._push(
             ppl_logged_today="push",
             already_trained_today=True,
+            session_closed_today=True,
             sessions=[
                 {
                     "session_type": "push",
@@ -884,13 +886,9 @@ class ElapsedReschedule(unittest.TestCase):
         )
         self.assertTrue(result["ok"], result)
         self.assertEqual(created, [])
-        self.assertEqual(deleted, [])
+        self.assertEqual(deleted, ["ev-am"])
+        self.assertEqual(updated, [])
         self.assertEqual(result["moves"], [])
-        if updated:
-            self.assertEqual(
-                updated[0][1]["start"]["dateTime"],
-                self.AM,
-            )
 
     def test_in_progress_window_is_not_moved(self):
         existing = [

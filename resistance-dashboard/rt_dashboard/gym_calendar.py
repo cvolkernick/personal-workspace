@@ -32,9 +32,11 @@ Reconciliation contract (one writer, one key) (#901):
   N. Fort Myers on occupancy + drive-time penalty. Alt clubs without
   captured occupancy are skipped. If no pair is feasible, keep the home
   pick rather than placing nothing.
-- Overnight starts are allowed (#818). Ranked quiet lists still prefer
-  daytime/evening as a soft heuristic; ``prefer=`` and the monitor must
-  not hard-reject a 00:00–03:59 local start.
+- Overnight starts already on the calendar stay (#818). A new chip is
+  never created with a start in 00:00–03:59 ET (#951). 04:00 may book.
+- A persisted close for the day deletes the unlocked ``[fitdash-gym:D]``
+  chip and does not create another (#951). A partial log (no close stamp)
+  still keeps the chip. A user-locked chip stays.
 - Session-bound Calendar API only (main login, not Health OAuth). Stored
   refresh tokens / headless daily run are out of scope (#609).
 """
@@ -104,6 +106,7 @@ class GymDay:
     is_rest: bool = False
     session_type: str = ""
     workout_logged: bool = False
+    session_closed: bool = False
 
 
 @dataclass
@@ -143,6 +146,12 @@ def parse_dt(raw: str) -> Optional[datetime]:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=gym_tz())
     return dt
+
+
+def slot_starts_quiet_hours(start: datetime) -> bool:
+    """True when a local start sits in 00:00–03:59 ET. 04:00 may book (#951)."""
+    local = start.astimezone(gym_tz()) if start.tzinfo else start.replace(tzinfo=gym_tz())
+    return local.hour < 4
 
 
 def clock_label(dt: datetime) -> str:
@@ -873,21 +882,42 @@ def gym_day_from_workout(
     letter = str(plan.get("session_type") or "").strip().lower()
     rest = bool(plan.get("is_rest_day")) or letter == "rest"
     logged = workout_logged_today(plan, day=day, now=now)
+    ctx = plan.get("context") if isinstance(plan.get("context"), dict) else {}
+    closed = bool(
+        plan.get("session_closed_today")
+        or ctx.get("session_closed_today")
+        or plan.get("already_trained_today")
+        or ctx.get("already_trained_today")
+    )
+    if not closed and isinstance(plan.get("sessions"), list):
+        from .training_day import closed_ppl_for_planning
+
+        wake = plan.get("last_wake_at") or ctx.get("last_wake_at")
+        closed = bool(
+            closed_ppl_for_planning(
+                plan.get("sessions") or [],
+                as_of=str(day)[:10],
+                last_wake_at=wake,
+                now=now,
+            )
+        )
     if rest:
         return GymDay(
             day=str(day)[:10],
             is_rest=True,
             session_type="",
             workout_logged=logged,
+            session_closed=closed,
         )
     has_lifts = bool(plan.get("exercises"))
-    trained = bool(plan.get("already_trained_today"))
-    if letter in ("push", "pull", "legs") or has_lifts or trained:
+    trained = bool(plan.get("already_trained_today") or ctx.get("already_trained_today"))
+    if letter in ("push", "pull", "legs") or has_lifts or trained or closed:
         return GymDay(
             day=str(day)[:10],
             is_rest=False,
             session_type=letter,
             workout_logged=logged,
+            session_closed=closed,
         )
     return None
 
@@ -1065,7 +1095,9 @@ def sync_gym_sessions(
                 if ev.get("id") and _delete_quiet(cal_id, str(ev["id"])):
                     deleted += 1
             locked += len(locked_extras)
-            if gym_day.is_rest:
+            if gym_day.is_rest or gym_day.session_closed:
+                # Rest, or the day's session already closed (#951): drop the
+                # unlocked chip. Do not create a replacement.
                 if keep and is_user_locked(keep):
                     locked += 1
                 elif keep and keep.get("id") and _delete_quiet(cal_id, str(keep["id"])):
@@ -1126,6 +1158,8 @@ def sync_gym_sessions(
                         }
                     )
             else:
+                if slot_starts_quiet_hours(slot.start):
+                    continue
                 gcal.create_event(cal_id, body)
                 created += 1
         return {
