@@ -24,6 +24,13 @@ RHR_SCORE_REST = 8.0  # extra on top of UNDER when delta >= REST
 RHR_MIN_SAMPLES_14 = 7
 RHR_MIN_SAMPLES_7 = 4
 
+# Next overnight is expected about 24h after the last wake. Google Health
+# often lands after that wake. Until the allowance passes, the open night
+# is unknown — not a 0h civil day (#964). 11:30 the next morning is 24.5h
+# after an 11:00 wake and stays inside this window.
+RECOVERY_SYNC_LAG_HOURS = 6.0
+RECOVERY_NIGHT_DUE_HOURS = 24.0 + RECOVERY_SYNC_LAG_HOURS
+
 
 def rhr_readiness(
     rhr: Sequence[RestingHeartRateDay],
@@ -138,6 +145,82 @@ def _quest_overnight_pending(
     return str(spec.get("status") or "") == "pending"
 
 
+def _hours_since_wake(
+    now: datetime,
+    wake: datetime,
+    tz_name: Optional[str],
+) -> Optional[float]:
+    """Hours from wake to now. None when the wake is still in the future."""
+    from .timeutil import local_now
+
+    clock = local_now(tz_name, now=now)
+    wake_local = wake.astimezone(clock.tzinfo) if wake.tzinfo else wake.replace(
+        tzinfo=clock.tzinfo
+    )
+    if wake_local > clock:
+        return None
+    return (clock - wake_local).total_seconds() / 3600.0
+
+
+def _recovery_wake(
+    last_wake_at: Any,
+    sleep_intervals: Optional[Sequence[Any]],
+    now: Optional[datetime],
+) -> Optional[datetime]:
+    """Last completed overnight end. A later nap does not move the wake."""
+    from .training_day import parse_dt
+
+    if now is not None and sleep_intervals:
+        from .sleep_quest import score_sleep
+
+        scored = score_sleep(
+            last_sleep_hours=None,
+            intervals=list(sleep_intervals),
+            now=now,
+        )
+        overnight = parse_dt(scored.get("overnight_end"))
+        if overnight is not None:
+            return overnight
+    return parse_dt(last_wake_at)
+
+
+def recovery_window_end(
+    *,
+    as_of: str,
+    now: Optional[datetime] = None,
+    last_wake_at: Any = None,
+    tz_name: Optional[str] = None,
+    sleep_intervals: Optional[Sequence[Any]] = None,
+) -> str:
+    """End the 7-day sleep window on the wake day while the next night is open.
+
+    A civil day after that wake stays out of the average until more than
+    24h plus the sync lag has passed. After that, civil today is the end
+    and a still-missing night counts as 0h.
+    """
+    base = (as_of or "")[:10]
+    if now is None:
+        return base
+    wake = _recovery_wake(last_wake_at, sleep_intervals, now)
+    if wake is None:
+        return base
+    from .timeutil import local_today_iso
+    from .training_day import training_day_iso
+
+    train = training_day_iso(now=now, last_wake_at=wake, tz_name=tz_name)
+    elapsed = _hours_since_wake(now, wake, tz_name)
+    if elapsed is None:
+        return base
+    if elapsed <= RECOVERY_NIGHT_DUE_HOURS:
+        if base > train:
+            return train
+        return base
+    civil = local_today_iso(tz_name, now=now)
+    if base >= train and civil > base:
+        return civil
+    return base
+
+
 def _latest_weight(weight: Sequence[WeightSample]) -> Optional[float]:
     if not weight:
         return None
@@ -172,6 +255,8 @@ def compute_recovery_status(
     sleep_battery: Optional[dict] = None,
     sleep_intervals: Optional[Sequence[Any]] = None,
     now: Optional[datetime] = None,
+    last_wake_at: Any = None,
+    tz_name: Optional[str] = None,
 ) -> RecoveryStatus:
     """
     Produce an explicit recovery-status suggestion from health + training context.
@@ -188,6 +273,19 @@ def compute_recovery_status(
         from .timeutil import local_today_iso
 
         as_of = local_today_iso()
+
+    # Key the window on the wake day. The civil day after that wake is not
+    # a 0h night until the next overnight is due (#964).
+    anchor = last_wake_at
+    if anchor in (None, "") and isinstance(sleep_battery, dict):
+        anchor = sleep_battery.get("last_wake_at")
+    as_of = recovery_window_end(
+        as_of=as_of,
+        now=now,
+        last_wake_at=anchor,
+        tz_name=tz_name,
+        sleep_intervals=sleep_intervals,
+    )
 
     # Unlogged nights count as 0h. The open GH-lag night (quest pending, no
     # sample) is left out of the mean and the zero-night note. A night that

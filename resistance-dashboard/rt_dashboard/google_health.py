@@ -286,13 +286,15 @@ class GoogleHealthClient:
         data = self._paginate_data_points("weight", max_pages=max_pages)
         return parse_health_api_weight(data, start=start)
 
-    def fetch_sleep_health_api(self, days: int = 14) -> List[SleepSample]:
+    def fetch_sleep_health_api(
+        self, days: int = 14, tz_name: Optional[str] = None
+    ) -> List[SleepSample]:
         """Google Health API: GET .../dataTypes/sleep/dataPoints"""
-        samples, _intervals = self.fetch_sleep_health_bundle(days=days)
+        samples, _intervals = self.fetch_sleep_health_bundle(days=days, tz_name=tz_name)
         return samples
 
     def fetch_sleep_health_bundle(
-        self, days: int = 14
+        self, days: int = 14, tz_name: Optional[str] = None
     ) -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
         """Daily sleep totals + timed intervals (for sleep battery).
 
@@ -304,9 +306,9 @@ class GoogleHealthClient:
         data = self._paginate_data_points("sleep", max_pages=40, until_date=until)
         intervals = parse_sleep_intervals(data, start=start)
         # Prefer daily totals derived from timed intervals (local wake date)
-        samples = sleep_samples_from_intervals(intervals)
+        samples = sleep_samples_from_intervals(intervals, tz_name=tz_name)
         if not samples:
-            samples = parse_health_api_sleep(data, start=start)
+            samples = parse_health_api_sleep(data, start=start, tz_name=tz_name)
         return samples, intervals
 
     def fetch_weight_fit(self, days: int = 30) -> List[WeightSample]:
@@ -321,7 +323,9 @@ class GoogleHealthClient:
         data = self._request("POST", f"{FIT_BASE}/dataset:aggregate", body)
         return parse_weight_aggregate(data)
 
-    def fetch_sleep_fit(self, days: int = 14) -> List[SleepSample]:
+    def fetch_sleep_fit(
+        self, days: int = 14, tz_name: Optional[str] = None
+    ) -> List[SleepSample]:
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
         params = urllib.parse.urlencode(
@@ -333,7 +337,7 @@ class GoogleHealthClient:
         )
         try:
             data = self._request("GET", f"{FIT_BASE}/sessions?{params}")
-            samples = parse_sleep_sessions(data)
+            samples = parse_sleep_sessions(data, tz_name=tz_name)
             if samples:
                 return samples
         except GoogleHealthError:
@@ -345,7 +349,7 @@ class GoogleHealthClient:
             "endTimeMillis": int(end.timestamp() * 1000),
         }
         data = self._request("POST", f"{FIT_BASE}/dataset:aggregate", body)
-        return parse_sleep_from_activity_buckets(data)
+        return parse_sleep_from_activity_buckets(data, tz_name=tz_name)
 
     def fetch_weight(self, days: int = 30) -> List[WeightSample]:
         try:
@@ -356,21 +360,25 @@ class GoogleHealthClient:
             pass
         return self.fetch_weight_fit(days=days)
 
-    def fetch_sleep(self, days: int = 14) -> List[SleepSample]:
-        samples, _ = self.fetch_sleep_bundle(days=days)
+    def fetch_sleep(
+        self, days: int = 14, tz_name: Optional[str] = None
+    ) -> List[SleepSample]:
+        samples, _ = self.fetch_sleep_bundle(days=days, tz_name=tz_name)
         return samples
 
     def fetch_sleep_bundle(
-        self, days: int = 14
+        self, days: int = 14, tz_name: Optional[str] = None
     ) -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
         """Return (daily samples, timed intervals) for charts + battery."""
         try:
-            samples, intervals = self.fetch_sleep_health_bundle(days=days)
+            samples, intervals = self.fetch_sleep_health_bundle(
+                days=days, tz_name=tz_name
+            )
             if samples or intervals:
                 return samples, intervals
         except GoogleHealthError:
             pass
-        return self.fetch_sleep_fit(days=days), []
+        return self.fetch_sleep_fit(days=days, tz_name=tz_name), []
 
     def _civil_range_body(
         self,
@@ -582,7 +590,9 @@ class GoogleHealthClient:
             except GoogleHealthError:
                 return []
 
-    def fetch_health(self, days: int = 30) -> HealthSnapshot:
+    def fetch_health(
+        self, days: int = 30, tz_name: Optional[str] = None
+    ) -> HealthSnapshot:
         if not self.credentials_present():
             return HealthSnapshot(
                 error=(
@@ -612,7 +622,7 @@ class GoogleHealthClient:
             return self.fetch_weight(days=days)
 
         def _sleep() -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
-            return self.fetch_sleep_bundle(days=days)
+            return self.fetch_sleep_bundle(days=days, tz_name=tz_name)
 
         def _nutrition() -> Tuple[List[NutritionDay], List[FoodLogEntry]]:
             # Same pages for daily totals and meal-level food_logs — no parallel
@@ -839,8 +849,23 @@ def parse_sleep_intervals(
     return out
 
 
+def _wake_date_iso(end_dt: datetime, tz_name: Optional[str] = None) -> str:
+    """Civil wake date in the viewer zone, never the process timezone.
+
+    Vercel sets TZ=UTC. ``datetime.astimezone()`` with no arguments then
+    puts a late-evening America/New_York wake on the next day. Pi and
+    Vercel both use ``tz_name`` / DASHBOARD_TZ / America/New_York.
+    """
+    from .timeutil import local_tz
+
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    return end_dt.astimezone(local_tz(tz_name)).strftime("%Y-%m-%d")
+
+
 def sleep_samples_from_intervals(
     intervals: List[Dict[str, Any]],
+    tz_name: Optional[str] = None,
 ) -> List[SleepSample]:
     """Aggregate timed intervals to daily totals by local wake (end) date."""
     by_date: Dict[str, float] = {}
@@ -857,7 +882,7 @@ def sleep_samples_from_intervals(
         hours = max(0.0, (en - st).total_seconds() / 3600.0)
         if hours <= 0:
             continue
-        day = en.astimezone().date().isoformat()  # local civil wake date
+        day = _wake_date_iso(en, tz_name)
         by_date[day] = by_date.get(day, 0.0) + hours
     return [
         SleepSample(date=d, sleep_hours=round(h, 2), source="google_health")
@@ -866,7 +891,9 @@ def sleep_samples_from_intervals(
 
 
 def parse_health_api_sleep(
-    payload: dict, start: Optional[datetime] = None
+    payload: dict,
+    start: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
 ) -> List[SleepSample]:
     """Parse Google Health API sleep dataPoints into daily totals.
 
@@ -893,8 +920,8 @@ def parse_health_api_sleep(
                 hours = float(mins) / 60.0
             else:
                 continue
-        # Local wake date (matches Time Allocator daily attribution)
-        date = end_dt.astimezone().strftime("%Y-%m-%d")
+        # Viewer-local wake date, not the server process zone.
+        date = _wake_date_iso(end_dt, tz_name)
         by_date[date] = by_date.get(date, 0.0) + hours
     start_date = start.strftime("%Y-%m-%d")
     return [
@@ -1490,7 +1517,9 @@ def parse_weight_aggregate(payload: dict) -> List[WeightSample]:
     return [by_date[k] for k in sorted(by_date.keys())]
 
 
-def parse_sleep_sessions(payload: dict) -> List[SleepSample]:
+def parse_sleep_sessions(
+    payload: dict, tz_name: Optional[str] = None
+) -> List[SleepSample]:
     samples: List[SleepSample] = []
     for sess in payload.get("session", []):
         # activityType 72 = sleep
@@ -1501,9 +1530,9 @@ def parse_sleep_sessions(payload: dict) -> List[SleepSample]:
         if end_ms <= start_ms:
             continue
         hours = (end_ms - start_ms) / 3_600_000
-        date = datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc).strftime(
-            "%Y-%m-%d"
-        )
+        # Same local wake date as Google Health (end), not the UTC start date.
+        end_dt = datetime.fromtimestamp(end_ms / 1000, tz=timezone.utc)
+        date = _wake_date_iso(end_dt, tz_name)
         samples.append(
             SleepSample(date=date, sleep_hours=round(hours, 2), source="google_fit")
         )
@@ -1517,35 +1546,34 @@ def parse_sleep_sessions(payload: dict) -> List[SleepSample]:
     ]
 
 
-def parse_sleep_from_activity_buckets(payload: dict) -> List[SleepSample]:
-    """Best-effort: activity type 72 durations in aggregate buckets."""
-    samples: List[SleepSample] = []
+def parse_sleep_from_activity_buckets(
+    payload: dict, tz_name: Optional[str] = None
+) -> List[SleepSample]:
+    """Best-effort: activity type 72 durations, keyed on the local wake date."""
+    by_date: Dict[str, float] = {}
     for bucket in payload.get("bucket", []):
-        ms = int(bucket.get("startTimeMillis", 0))
-        date = datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-        sleep_ms = 0
         for dataset in bucket.get("dataset", []):
             for point in dataset.get("point", []):
-                # activity segment: intVal activity, optional duration
                 vals = point.get("value", [])
                 activity = None
                 for v in vals:
                     if "intVal" in v:
                         activity = v["intVal"]
-                if activity == 72:
-                    sn = int(point.get("startTimeNanos", 0))
-                    en = int(point.get("endTimeNanos", 0))
-                    if en > sn:
-                        sleep_ms += (en - sn) / 1_000_000
-        if sleep_ms > 0:
-            samples.append(
-                SleepSample(
-                    date=date,
-                    sleep_hours=round(sleep_ms / 3_600_000, 2),
-                    source="google_fit",
-                )
-            )
-    return samples
+                if activity != 72:
+                    continue
+                sn = int(point.get("startTimeNanos", 0))
+                en = int(point.get("endTimeNanos", 0))
+                if en <= sn:
+                    continue
+                hours = (en - sn) / 1_000_000 / 3_600_000
+                end_dt = datetime.fromtimestamp(en / 1_000_000_000, tz=timezone.utc)
+                date = _wake_date_iso(end_dt, tz_name)
+                by_date[date] = by_date.get(date, 0.0) + hours
+    return [
+        SleepSample(date=d, sleep_hours=round(h, 2), source="google_fit")
+        for d, h in sorted(by_date.items())
+        if h > 0
+    ]
 
 
 def parse_recorded_weight_payload(payload: dict) -> List[WeightSample]:
