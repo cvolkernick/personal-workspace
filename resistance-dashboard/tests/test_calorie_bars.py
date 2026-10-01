@@ -936,7 +936,7 @@ class TestCalorieBarCardLayout(unittest.TestCase):
         self.assertIn(".delta-fill.delta-left.band-green", css)
         self.assertIn(".delta-fill.delta-right.band-red", css)
         self.assertIn("band-amber", css)
-        self.assertIn("empty-log-949-1", html)
+        self.assertIn("more-collapse-955-1", html)
         legend = js.split("function renderTargetsAndRemaining", 1)[1].split(
             "function renderFoodLogsToday", 1
         )[0]
