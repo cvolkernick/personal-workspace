@@ -4,7 +4,9 @@ The Cash Streams rolling chart classifies external inflows with
 ``classify_income_source``. The Monday forecast income drift check must
 import this function too. A second copy will disagree on what counts.
 ``bitcoin_mining_income`` is not that matcher. It reads confirmed outputs
-to ``BRAIINS_PAYOUT_ADDRESS`` and does not look at YNAB or Plaid.
+to the Braiins payout address (``BRAIINS_PAYOUT_ADDRESS``, else
+``treasury/config.json`` ``braiins.payout_address``) and does not look at
+YNAB or Plaid.
 
 Match is case-insensitive on payee and category. A needle hits only as a
 whole token (bounded by anything that is not a letter or digit), so
@@ -154,6 +156,7 @@ def bitcoin_mining_income(
     prices: Optional[Mapping[str, float]] = None,
     fetch_json: Optional[Callable[[str], Any]] = None,
     cache_path: Optional[Path] = None,
+    config_path: Optional[Path] = None,
     timeout: float = 20.0,
 ) -> Dict[str, Any]:
     """Confirmed Braiins payouts in USD, keyed by the UTC day received.
@@ -162,15 +165,19 @@ def bitcoin_mining_income(
     from that address is a Coinbase sweep (change included) and is excluded.
     Unconfirmed transactions are excluded. Plaid's Coinbase feed is not read.
 
-    An unset or blank ``BRAIINS_PAYOUT_ADDRESS`` yields an empty series and
-    no error. A mempool or price failure falls back to the last good cache
-    for this address. The cache stores tx ids, days, and amounts — not the
-    address. An empty mempool body is retried once.
+    An unset address (blank ``BRAIINS_PAYOUT_ADDRESS`` and no
+    ``braiins.payout_address`` in config) yields an empty series, ``fetched``
+    false, and no error. A mempool or price failure falls back to the last
+    good cache for this address. The cache stores tx ids, days, and amounts
+    — not the address. An empty mempool body is retried once. ``fetched`` is
+    false when the address is unset or the read failed and the cache missed.
     """
     end = today or date.today()
-    resolved = _resolve_payout_address(address)
+    resolved = _resolve_payout_address(address, config_path=config_path)
     if not resolved:
-        return _income_result(address_set=False, from_cache=False, deposits=[])
+        return _income_result(
+            address_set=False, from_cache=False, fetched=False, deposits=[]
+        )
 
     digest = hashlib.sha256(resolved.encode("utf-8")).hexdigest()
     cache_file = cache_path if cache_path is not None else _default_cache_path()
@@ -179,7 +186,9 @@ def bitcoin_mining_income(
     if transactions is not None:
         raw = mining_deposits_from_txs(resolved, transactions)
         priced = _price_deposits(raw, prices or {})
-        return _income_result(address_set=True, from_cache=False, deposits=priced)
+        return _income_result(
+            address_set=True, from_cache=False, fetched=True, deposits=priced
+        )
 
     fetched, failed = _fetch_address_txs(
         resolved,
@@ -209,7 +218,9 @@ def bitcoin_mining_income(
         return _fallback_or_zero(cache_file, digest)
 
     _write_cache(cache_file, digest, priced)
-    return _income_result(address_set=True, from_cache=False, deposits=priced)
+    return _income_result(
+        address_set=True, from_cache=False, fetched=True, deposits=priced
+    )
 
 
 def mining_deposits_from_txs(
@@ -244,6 +255,7 @@ def _income_result(
     *,
     address_set: bool,
     from_cache: bool,
+    fetched: bool,
     deposits: Sequence[Mapping[str, Any]],
 ) -> Dict[str, Any]:
     rows = [dict(row) for row in deposits]
@@ -252,17 +264,38 @@ def _income_result(
         "error": None,
         "address_set": address_set,
         "from_cache": from_cache,
+        "fetched": fetched,
         "deposits": rows,
         "usd_by_day": _usd_by_day(rows),
     }
 
 
-def _resolve_payout_address(address: Optional[str]) -> Optional[str]:
-    raw = address if address is not None else os.environ.get(BRAIINS_PAYOUT_ADDRESS_ENV, "")
+def _resolve_payout_address(
+    address: Optional[str] = None,
+    *,
+    config_path: Optional[Path] = None,
+) -> Optional[str]:
+    """Env wins. A blank env falls through to ``braiins.payout_address``."""
+    if address is not None:
+        raw = address
+    else:
+        raw = os.environ.get(BRAIINS_PAYOUT_ADDRESS_ENV, "")
+        if not str(raw or "").strip():
+            raw = _payout_address_from_config(config_path)
     text = str(raw or "").strip()
     if not text or re.fullmatch(r"[A-Za-z0-9]+", text) is None:
         return None
     return text
+
+
+def _payout_address_from_config(config_path: Optional[Path] = None) -> str:
+    from treasury.adapters import load_config
+
+    cfg = load_config(config_path) if config_path is not None else load_config()
+    brai = cfg.get("braiins") if isinstance(cfg, dict) else None
+    if not isinstance(brai, dict):
+        return ""
+    return str(brai.get("payout_address") or "").strip()
 
 
 def _default_cache_path() -> Path:
@@ -573,8 +606,12 @@ def _write_cache(path: Path, digest: str, deposits: Sequence[Mapping[str, Any]])
 def _fallback_or_zero(path: Path, digest: str) -> Dict[str, Any]:
     cached = _read_cache(path, digest)
     if cached is None:
-        return _income_result(address_set=True, from_cache=False, deposits=[])
-    return _income_result(address_set=True, from_cache=True, deposits=cached)
+        return _income_result(
+            address_set=True, from_cache=False, fetched=False, deposits=[]
+        )
+    return _income_result(
+        address_set=True, from_cache=True, fetched=True, deposits=cached
+    )
 
 
 def _http_json(url: str, *, timeout: float = 20.0) -> Any:

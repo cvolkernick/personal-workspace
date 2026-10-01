@@ -48,6 +48,19 @@ TODAY = date(2026, 9, 11)
 AS_OF = "2026-09-11T12:00:00+00:00"
 NOW = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
 
+
+def _bitcoin_income_unset() -> dict:
+    """Keep rolling-chart tests off the live mempool read."""
+    return {
+        "ok": True,
+        "error": None,
+        "address_set": False,
+        "from_cache": False,
+        "fetched": False,
+        "deposits": [],
+        "usd_by_day": {},
+    }
+
 GROUPS = [
     {
         "id": "g-house",
@@ -796,7 +809,13 @@ class TestCoinbaseUsdTrackingOutflows(unittest.TestCase):
                 now=NOW,
             )
         self.assertEqual(sankey["totals"]["outflow"], 955.0)
-        series = load_rolling_cash_series(today=TODAY, fetch=fake_fetch, stale=False)
+        with mock.patch(
+            "treasury.cash_streams.bitcoin_mining_income",
+            return_value=_bitcoin_income_unset(),
+        ):
+            series = load_rolling_cash_series(
+                today=TODAY, fetch=fake_fetch, stale=False
+            )
         self.assertEqual(series["points"][-1]["outflow"], 31.83)
 
     def test_account_selector_is_tracking_coinbase_usd_only(self) -> None:
@@ -1208,7 +1227,13 @@ class TestRollingCashSeries(unittest.TestCase):
                 "as_of": AS_OF,
             }
 
-        payload = load_rolling_cash_series(today=TODAY, fetch=fake_fetch, stale=False)
+        with mock.patch(
+            "treasury.cash_streams.bitcoin_mining_income",
+            return_value=_bitcoin_income_unset(),
+        ):
+            payload = load_rolling_cash_series(
+                today=TODAY, fetch=fake_fetch, stale=False
+            )
         self.assertEqual(seen["since"], "2026-05-14")
         self.assertTrue(payload["ok"])
         self.assertFalse(payload["ynab"]["stale"])
@@ -1217,7 +1242,11 @@ class TestRollingCashSeries(unittest.TestCase):
         def fail_fetch(since: str) -> dict:
             return {"ok": False, "error": "no YNAB token"}
 
-        err = load_rolling_cash_series(today=TODAY, fetch=fail_fetch)
+        with mock.patch(
+            "treasury.cash_streams.bitcoin_mining_income",
+            return_value=_bitcoin_income_unset(),
+        ):
+            err = load_rolling_cash_series(today=TODAY, fetch=fail_fetch)
         self.assertFalse(err["ok"])
         self.assertEqual(err["error"], "no YNAB token")
         self.assertEqual(err["points"], [])

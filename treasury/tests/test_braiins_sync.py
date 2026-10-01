@@ -64,6 +64,12 @@ class TestPayoutOutlook(unittest.TestCase):
         cfg_push = cfg.get("pi_sync", {}).get("push_files") or []
         self.assertNotIn("braiins_latest.json", cfg_push)
         self.assertNotIn("coinbase_latest.json", cfg_push)
+        addr = str(cfg["braiins"].get("payout_address") or "")
+        self.assertTrue(addr)
+        self.assertNotIn(" ", addr)
+        snap_dir = ROOT / "treasury" / "snapshots"
+        for path in snap_dir.glob("*.json"):
+            self.assertNotIn(addr, path.read_text(encoding="utf-8"), path.name)
 
 
 class TestPayoutHistory(unittest.TestCase):

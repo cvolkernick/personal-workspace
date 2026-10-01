@@ -54,3 +54,22 @@ PY
 
 Mac `pi_sync.push_files` and `DEFAULT_PUSH_FILES` omit `coinbase_latest.json`.
 Emergency override only: `TREASURY_COINBASE_PUSH=1`.
+
+## Freshness clock (#960)
+
+The live clock is the Pi file `treasury/snapshots/coinbase_latest.json`
+`as_of`, not the copy committed in git. That file is omitted from
+`pi_sync.push_files`.
+
+Checked 2026-10-01 on `prism-agent@192.168.100.98`:
+
+- Unit: `/etc/systemd/system/coinbase-price-refresh.timer` →
+  `coinbase-price-refresh.service` (enabled, 2h). Public spot, no token.
+- No `coinbase_price_refresh_*.log` on 2026-09-09 through 2026-09-11. Logs
+  resume 2026-09-12 and then run about 12 times a day through 2026-10-01.
+- Live file at the check: `as_of` 2026-10-01T22:12:48Z, `btc_usd_price`
+  84745.5, `source` live.
+
+The on-chain mining fallback values receipts at the Coinbase BTC-USD daily
+close. It does not require this spot file to be fresh. A present Braiins
+payout list still requires this spot inside the 6h stale window.

@@ -107,7 +107,8 @@
   },
   "braiins": {
     "payout_threshold_btc": 0.005,
-    "notes": "Owner 2026-08-27: pool payout threshold returned 0.01 \u2192 0.005 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer 0.01 from the 2026-08-05 raise, and do not wait for history (last send was a 0.002 manual). Braiins free on-chain floor is 0.005; this is now both the pool minimum and our account rule. #689: Pi is the producer (braiins-refresh.timer); token at ~/.config/braiins/token on prism-agent, never this file."
+    "payout_address": "3K9pyUufLpazzUC1NTD16JkwCouQmF3TLg",
+    "notes": "Owner 2026-08-27: pool payout threshold returned 0.01 \u2192 0.005 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer 0.01 from the 2026-08-05 raise, and do not wait for history (last send was a 0.002 manual). Braiins free on-chain floor is 0.005; this is now both the pool minimum and our account rule. #689: Pi is the producer (braiins-refresh.timer); token at ~/.config/braiins/token on prism-agent, never this file. #960: payout_address is the public on-chain destination used when the Braiins payout list is empty or unknown. Do not copy it into snapshot files."
   },
   "rh_producer": {
     "sot_host": "prism",

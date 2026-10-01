@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
 from datetime import date, datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -208,6 +210,162 @@ class TestMiningFromSnapshotsUnknown(unittest.TestCase):
         self.assertIn("no payouts list", got["error"])
         self.assertNotIn("payouts API:", got["error"])
         _assert_no_terminal(self, got["error"])
+
+
+CHAIN_ADDR = "bc1qexamplepayoutaddrzzzz"
+
+
+def _chain_tx(txid: str, *, day: str, sats: int) -> dict:
+    return {
+        "txid": txid,
+        "status": {
+            "confirmed": True,
+            "block_time": int(
+                datetime.fromisoformat(day + "T12:00:00+00:00").timestamp()
+            ),
+        },
+        "vin": [
+            {
+                "prevout": {
+                    "scriptpubkey_address": "bc1qpoolpaysminerzzzz",
+                    "value": sats + 1000,
+                }
+            }
+        ],
+        "vout": [
+            {"scriptpubkey_address": CHAIN_ADDR, "value": sats},
+            {"scriptpubkey_address": "bc1qsomewhereelsezzzz", "value": 1000},
+        ],
+    }
+
+
+class TestOnchainMiningFallback(unittest.TestCase):
+    def test_present_braiins_list_ignores_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": AS_OF,
+                    "payouts": [
+                        {
+                            "status": "confirmed",
+                            "amount_btc": 0.01,
+                            "at": "2026-09-01T00:00:00+00:00",
+                            "tx_id": "braiins-row",
+                            "usd_price_at_payout": 100000.0,
+                        }
+                    ],
+                },
+                coinbase={"as_of": AS_OF, "btc_usd_price": 100000.0},
+            )
+            got = mining_from_snapshots(
+                start=START,
+                end=END,
+                root=root,
+                now=NOW,
+                chain_address=CHAIN_ADDR,
+                chain_transactions=[
+                    _chain_tx("chain-row", day="2026-09-01", sats=50_000_000)
+                ],
+                chain_prices={"2026-09-01": 100000.0},
+            )
+        self.assertEqual(got["status"], "ok")
+        self.assertEqual(got["source"], "braiins")
+        self.assertEqual(got["usd"], 1000.0)
+        self.assertEqual(got["payouts"][0]["tx_id"], "braiins-row")
+        self.assertNotIn(CHAIN_ADDR, json.dumps(got))
+
+    def test_empty_list_uses_onchain_receipts_from_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            treasury = root / "treasury"
+            treasury.mkdir()
+            (treasury / "config.json").write_text(
+                json.dumps({"braiins": {"payout_address": CHAIN_ADDR}}),
+                encoding="utf-8",
+            )
+            _write_snaps(
+                root,
+                braiins={"ok": True, "as_of": AS_OF, "payouts": []},
+                coinbase={
+                    "as_of": "2026-09-10T00:00:00+00:00",
+                    "btc_usd_price": 1.0,
+                },
+            )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                got = mining_from_snapshots(
+                    start=START,
+                    end=END,
+                    root=root,
+                    now=NOW,
+                    chain_transactions=[
+                        _chain_tx("chain-row", day="2026-09-01", sats=150_000)
+                    ],
+                    chain_prices={"2026-09-01": 100000.0},
+                )
+        self.assertEqual(got["status"], "ok")
+        self.assertEqual(got["source"], "mempool.space")
+        self.assertEqual(got["usd"], 150.0)
+        self.assertEqual(got["payout_count"], 1)
+        self.assertEqual(got["payout_btc"], 0.0015)
+        self.assertFalse(got["stale"])
+        blob = json.dumps(got)
+        self.assertNotIn(CHAIN_ADDR, blob)
+        self.assertNotIn("scriptpubkey", blob)
+
+    def test_missing_list_without_address_stays_loud_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={"ok": True, "as_of": AS_OF, "last_payout_btc": 0.005},
+                coinbase={"as_of": AS_OF, "btc_usd_price": 100000.0},
+            )
+            with mock.patch.dict(os.environ, {}, clear=True):
+                got = mining_from_snapshots(
+                    start=START, end=END, root=root, now=NOW
+                )
+        self.assertEqual(got["status"], "unknown")
+        self.assertIsNone(got["usd"])
+        self.assertIn("no payouts list", got["error"])
+        _assert_no_terminal(self, got["error"])
+
+    def test_stale_present_list_does_not_use_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": "2026-09-10T00:00:00+00:00",
+                    "payouts": [
+                        {
+                            "status": "confirmed",
+                            "amount_btc": 0.01,
+                            "at": "2026-09-01T00:00:00+00:00",
+                            "tx_id": "stale-row",
+                            "usd_price_at_payout": 100000.0,
+                        }
+                    ],
+                },
+                coinbase={"as_of": AS_OF, "btc_usd_price": 100000.0},
+            )
+            got = mining_from_snapshots(
+                start=START,
+                end=END,
+                root=root,
+                now=NOW,
+                chain_address=CHAIN_ADDR,
+                chain_transactions=[
+                    _chain_tx("chain-row", day="2026-09-01", sats=150_000)
+                ],
+                chain_prices={"2026-09-01": 100000.0},
+            )
+        self.assertEqual(got["status"], "unknown")
+        self.assertIn("stale", got["error"])
+        self.assertNotIn(CHAIN_ADDR, json.dumps(got))
 
 
 if __name__ == "__main__":
