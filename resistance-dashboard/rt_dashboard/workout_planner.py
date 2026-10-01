@@ -1398,9 +1398,10 @@ def generate_workout_plan(
     would otherwise score ~30 Caution and blank the plan on cold cache.
 
     If a PPL session already closed in the current wake window (or on
-    civil ``as_of`` when last_wake is unknown), pin to that letter and do
-    not generate the next rotation for the same training day. Pass an
-    explicit ``session_type`` (force Push/Pull/Legs) for a second session.
+    civil ``as_of`` when last_wake is unknown), ``session_type`` stays
+    that letter and the exercise list is the next rotation letter (#951).
+    A partial log (no close stamp) still pins the same letter. Pass an
+    explicit ``session_type`` to force that letter.
 
     Day-complete (``already_trained_today``) is ``train_parent_completed``
     on the civil fallback. When last_wake is current it also requires a

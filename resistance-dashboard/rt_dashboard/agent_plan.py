@@ -123,13 +123,34 @@ def _recovery_score(recovery: Optional[dict]) -> Optional[float]:
 
 
 def _wake_from_context(ctx: dict) -> Optional[str]:
-    if ctx.get("last_wake_at"):
-        return str(ctx.get("last_wake_at"))
+    from .training_day import last_wake_from
+
     rec = ctx.get("recovery") if isinstance(ctx.get("recovery"), dict) else {}
-    bat = rec.get("sleep_battery") if isinstance(rec.get("sleep_battery"), dict) else {}
-    if bat.get("last_wake_at"):
-        return str(bat.get("last_wake_at"))
-    return None
+    return last_wake_from(
+        recovery=rec,
+        last_wake_at=ctx.get("last_wake_at"),
+        payload=ctx,
+    )
+
+
+def _library_for_plan(ctx: dict) -> tuple:
+    """Workspace catalog and equipment when the Today fill omits them.
+
+    ``GET /api/agent/today`` stamps the letter, then fills without putting
+    the library on the context. After a close that path still has to build
+    the next letter (#951). An explicit catalog or equipment dict wins.
+    """
+    catalog = ctx.get("catalog") if isinstance(ctx.get("catalog"), dict) else None
+    if not catalog or not (catalog.get("exercises") or []):
+        from .workout_store import load_workspace_catalog
+
+        catalog, _src = load_workspace_catalog()
+    equipment = ctx.get("equipment") if isinstance(ctx.get("equipment"), dict) else None
+    if equipment is None:
+        from .equipment_store import load_workspace_equipment
+
+        equipment, _src = load_workspace_equipment()
+    return catalog or {"exercises": []}, equipment
 
 
 def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> dict:
@@ -138,9 +159,9 @@ def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> 
 
     rec = ctx.get("recovery") if isinstance(ctx.get("recovery"), dict) else {}
     day = str(ctx.get("day") or ctx.get("training_day") or "")[:10] or None
-    equipment = ctx.get("equipment") if isinstance(ctx.get("equipment"), dict) else None
+    catalog, equipment = _library_for_plan(ctx)
     return generate_workout_plan(
-        ctx.get("catalog") or {"exercises": []},
+        catalog,
         ctx.get("goals") or {},
         ctx.get("sessions") or [],
         recovery_label=rec.get("label"),

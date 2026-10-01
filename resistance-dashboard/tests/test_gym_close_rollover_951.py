@@ -7,7 +7,9 @@ from datetime import datetime
 from unittest import mock
 from zoneinfo import ZoneInfo
 
+from rt_dashboard.agent_plan import fill_stamped_workout
 from rt_dashboard.agent_today import export_agent_today
+from rt_dashboard.workout_plan_store import clear_memory_workout_plans
 from rt_dashboard.equipment_store import load_workspace_equipment
 from rt_dashboard.gym_calendar import (
     PROP_DATE,
@@ -378,6 +380,54 @@ class PlanAfterClose951(unittest.TestCase):
         self.assertTrue(plan["exercises"])
         self.assertIsNone(plan.get("generate_error"))
         self.assertNotIn("Suggested PUSH session (0 exercises", plan["message"])
+
+    def test_today_fill_loads_library_when_context_omits_it(self):
+        """GET /api/agent/today fills after the stamp and does not pass catalog."""
+        now = datetime(2026, 9, 27, 7, 53, tzinfo=ET)
+        wake = "2026-09-27T04:30:00-04:00"
+        sessions = [
+            _closed("2026-09-27", "legs", "2026-09-27T05:10:00-04:00", name="Leg Press")
+        ]
+        recovery = {
+            "score": 80,
+            "sparse": True,
+            "sleep_battery": {"last_wake_at": wake},
+        }
+        stamped = stamp_today_session(
+            {"exercises": [], "empty": True},
+            sessions,
+            self.goals,
+            recovery,
+            as_of="2026-09-27",
+            now=now,
+        )
+        self.assertTrue(stamped.get("session_closed_today"))
+        clear_memory_workout_plans()
+        try:
+            with mock.patch(
+                "rt_dashboard.timeutil.local_now", return_value=now
+            ), mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=False
+            ), mock.patch(
+                "rt_dashboard.gym_calendar.sync_gym_from_workout",
+                return_value={"ok": True, "skipped": True},
+            ):
+                filled = fill_stamped_workout(
+                    "sub-951",
+                    day="2026-09-27",
+                    workout=stamped,
+                    sessions=sessions,
+                    goals=self.goals,
+                    recovery=recovery,
+                )
+        finally:
+            clear_memory_workout_plans()
+        self.assertEqual(filled["session_type"], "legs")
+        self.assertEqual(filled["next_session_type"], "push")
+        self.assertTrue(filled.get("exercises"))
+        self.assertIsNone(filled.get("generate_error"))
+        names = {str(ex.get("name") or "") for ex in filled["exercises"]}
+        self.assertNotIn("Leg Press", names)
 
 
 class PreLogAgreement951(unittest.TestCase):
