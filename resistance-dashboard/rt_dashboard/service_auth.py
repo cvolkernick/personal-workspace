@@ -1,8 +1,12 @@
 """Shared FitDash machine-client auth (Pi + Vercel).
 
 Same gate already used by ``/api/day_constraints``, ``/api/sleep_battery``,
-``/api/warm``, ``/api/agent/today``, and ``POST /api/agent/generate-plan``.
-Do not invent a second scheme.
+``/api/warm``, ``/api/agent/today``, ``GET /api/trends/export``, and
+``POST /api/agent/generate-plan``. Do not invent a second scheme.
+
+``/api/trends/export`` rejects a presented token that does not match,
+including on loopback. Other routes still treat loopback as enough when
+no token is sent. The token does not expire with the browser session.
 
 Env:
   FITDASH_SERVICE_TOKEN — required for non-loopback machine access
@@ -50,6 +54,73 @@ def service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
     if loopback_ok and client_host in ("127.0.0.1", "::1", "localhost"):
         return True
     return False
+
+
+TRENDS_AUTH_ALERT = "fitdash_agent_read_auth"
+AGENT_READ_UNCONFIGURED_ALERT = "fitdash_agent_read_unconfigured"
+
+
+def agent_read_configured() -> bool:
+    """True when the house token is set. Never returns the token."""
+    return bool((os.environ.get("FITDASH_SERVICE_TOKEN") or "").strip())
+
+
+def agent_read_health_fields() -> Dict[str, Any]:
+    """Healthz signal. ``unconfigured`` is alertable. The secret stays out."""
+    if agent_read_configured():
+        return {"agent_read": "ready"}
+    return {
+        "agent_read": "unconfigured",
+        "alert": AGENT_READ_UNCONFIGURED_ALERT,
+    }
+
+
+def _presented_token_ok(provided: str) -> bool:
+    expected = (os.environ.get("FITDASH_SERVICE_TOKEN") or "").strip()
+    return bool(provided) and bool(expected) and _token_match(provided, expected)
+
+
+def trends_auth_denied(reason: str) -> Dict[str, Any]:
+    """Non-empty 401. Monitoring keys off ``alert``, not an empty body."""
+    if reason == "invalid":
+        message = (
+            "FITDASH_SERVICE_TOKEN was rejected for the trends export. "
+            "This credential does not expire with the browser session. "
+            "An invalid token is an auth failure, not an empty 401."
+        )
+    else:
+        message = (
+            "Trends export needs loopback or FITDASH_SERVICE_TOKEN. "
+            "The box browser session is not accepted on this route. "
+            "Set the token in the environment. It is not stored in the repo."
+        )
+    return {
+        "ok": False,
+        "error": "auth_required",
+        "message": message,
+        "alert": TRENDS_AUTH_ALERT,
+        "agent_read": "ready" if agent_read_configured() else "unconfigured",
+    }
+
+
+def trends_export_gate(
+    headers,
+    client_host: Optional[str] = None,
+    *,
+    session_ok: bool = False,
+    auth_required: bool = True,
+) -> Optional[Dict[str, Any]]:
+    """None when the read is allowed. A 401 body when it is not.
+
+    A presented token that does not match fails even on loopback and even
+    when a browser session is also present. No second credential scheme.
+    """
+    provided = service_token_from_headers(headers)
+    if provided and not _presented_token_ok(provided):
+        return trends_auth_denied("invalid")
+    if session_ok or not auth_required or service_auth_ok(headers, client_host):
+        return None
+    return trends_auth_denied("missing")
 
 
 def service_auth_denied(purpose: str = "this route") -> Dict[str, Any]:

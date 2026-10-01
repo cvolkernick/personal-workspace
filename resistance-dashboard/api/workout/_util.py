@@ -37,6 +37,7 @@ _ROUTES = (
     "daily_tasks_complete",
     "agent_today",
     "agent_generate",
+    "trends_export",
     "labs",
     "labs_upload",
     "labs_delete",
@@ -128,6 +129,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "daily_tasks"
     if "/api/agent/generate-plan" in blob or "/agent/generate-plan" in blob:
         return "agent_generate"
+    if "/api/trends/export" in blob or "/trends/export" in blob:
+        return "trends_export"
     if "/api/agent/today" in blob:
         return "agent_today"
     if "/api/labs/upload" in blob:
@@ -1177,6 +1180,35 @@ available_read = available_body
 workouts_read = workouts_body
 
 
+def trends_export_body(headers, query: str = "", client_host=None):
+    """Read-only 90-day chart export. Service token, loopback, or a session."""
+    from api.auth.session_util import session_from_headers
+    from api.dashboard import _load_health
+    from rt_dashboard.service_auth import trends_export_gate
+    from rt_dashboard.trends_export import respond_trends_export
+
+    user = session_from_headers(headers)
+    denied = trends_export_gate(
+        headers,
+        client_host,
+        session_ok=bool(user),
+        auth_required=True,
+    )
+    if denied:
+        return 401, denied
+    try:
+        health, errors = _load_health()
+    except Exception as exc:  # noqa: BLE001
+        return 500, {
+            "ok": False,
+            "error": "trends_export_failed",
+            "message": str(exc) or type(exc).__name__,
+            "alert": "fitdash_trends_health",
+        }
+    extra = "; ".join(str(item) for item in (errors or []) if str(item).strip())
+    return respond_trends_export(headers, query, health, extra_error=extra)
+
+
 def agent_today_body(headers, query: str = "", client_host=None):
     """Read-only Today brief. Service token / loopback or a signed-in session."""
     from api.auth.session_util import session_from_headers
@@ -1644,6 +1676,10 @@ def dispatch_client_route(
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return agent_today_body(headers, query, client_host=client_host)
+    if route == "trends_export":
+        if method != "GET":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return trends_export_body(headers, query, client_host=client_host)
     if route == "labs":
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}

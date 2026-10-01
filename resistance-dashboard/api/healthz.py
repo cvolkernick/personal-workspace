@@ -27,11 +27,14 @@ def _git_sha() -> str | None:
 
 
 def healthz_body() -> dict:
+    from rt_dashboard.service_auth import agent_read_health_fields
+
     return {
         "ok": True,
         "service": "fitdash",
         "role": _vercel_role(),
         "gitSha": _git_sha(),
+        **agent_read_health_fields(),
     }
 
 
