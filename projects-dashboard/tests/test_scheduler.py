@@ -1,0 +1,505 @@
+"""Tests for local auto-start scheduler."""
+
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+DASH = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(DASH))
+
+import backlog as bl  # noqa: E402
+import scheduler as sch  # noqa: E402
+
+
+class TestScheduler(unittest.TestCase):
+    def setUp(self) -> None:
+        self._td = tempfile.TemporaryDirectory(prefix="sched-")
+        self.ws = Path(self._td.name)
+        self.backlog = self.ws / "ops" / "backlog"
+        self.backlog.mkdir(parents=True)
+        self._patches = [
+            mock.patch.object(bl, "WORKSPACE_ROOT", self.ws),
+            mock.patch.object(bl, "BACKLOG_DIR", self.backlog),
+            mock.patch.object(bl, "ITEMS_PATH", self.backlog / "items.json"),
+            mock.patch.object(bl, "SEEDS_DIR", self.backlog / "seeds"),
+            mock.patch.object(sch, "WORKSPACE_ROOT", self.ws),
+            mock.patch.object(sch, "BACKLOG_DIR", self.backlog),
+            mock.patch.object(sch, "CONFIG_PATH", self.backlog / "scheduler.json"),
+            mock.patch.object(sch, "JOBS_PATH", self.backlog / "jobs.json"),
+            mock.patch.object(sch, "REPORTS_DIR", self.backlog / "reports"),
+        ]
+        for p in self._patches:
+            p.start()
+        r = bl.add_item(
+            "Auto job",
+            priority="high",
+            status="ready",
+            mvp_scope="one thing",
+            notes="go",
+            area="tools",
+        )
+        self.bid = r["item"]["id"]
+        data = bl.load_backlog()
+        for it in data["items"]:
+            if it["id"] == self.bid:
+                it["schedule_slot"] = "now"
+                it["press_rank"] = 1
+        bl.save_backlog(data)
+
+    def tearDown(self) -> None:
+        for p in self._patches:
+            p.stop()
+        self._td.cleanup()
+
+    def test_auto_start_and_tick_launches(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        item = bl.get_item(self.bid)
+        self.assertTrue(item.get("auto_start"))
+        # Don't open Terminal in tests
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "spawn"
+        cfg["spawn_grok"] = True
+        sch.save_config(cfg)
+
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": "ops/backlog/seeds/x.launch.sh",
+                "goal_objective": "do it",
+                "spawn": {"attempted": True, "ok": True, "method": "test"},
+            }
+            result = sch.tick(force=True)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["launched_count"], 1)
+        self.assertTrue(result["reports"])
+        jobs = sch.load_jobs()["jobs"]
+        self.assertEqual(jobs[-1]["status"], "launched")
+        # auto_start cleared
+        item2 = bl.get_item(self.bid)
+        self.assertFalse(item2.get("auto_start"))
+
+    def test_tick_queue_mode_pending_terminal(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": "ops/backlog/seeds/x.launch.sh",
+                "goal_objective": "do it",
+                "spawn": {"attempted": False},
+            }
+            result = sch.tick(force=True)
+        self.assertEqual(result.get("pending_terminal_count"), 1)
+        self.assertEqual(result.get("launched_count"), 0)
+        self.assertEqual(sch.load_jobs()["jobs"][-1]["status"], "pending_terminal")
+        init.assert_called()
+        self.assertFalse(init.call_args.kwargs.get("try_spawn_grok"))
+
+    def test_disabled_skips_without_force(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = False
+        sch.save_config(cfg)
+        r = sch.tick(force=False)
+        self.assertTrue(r.get("skipped"))
+
+    def test_complete_job_marks_done(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "spawn"
+        cfg["spawn_grok"] = True
+        sch.save_config(cfg)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "s",
+                "prompt_path": "p",
+                "launch_script": "l",
+                "goal_objective": "g",
+                "spawn": {"attempted": True, "ok": True, "method": "test"},
+            }
+            sch.tick(force=True)
+        job_id = sch.load_jobs()["jobs"][-1]["id"]
+        out = sch.complete_job(job_id, summary="shipped MVP")
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["job"]["status"], "completed")
+        self.assertEqual(bl.get_item(self.bid)["status"], "done")
+
+    def test_resolve_agent_mode_on_linux_like(self) -> None:
+        cfg = sch.load_config()
+        cfg["execution_mode"] = "agent"
+        sch.save_config(cfg)
+        plan = sch.resolve_execution_mode()
+        self.assertTrue(plan.get("use_agent"))
+        self.assertFalse(plan.get("should_spawn"))
+
+    def test_auto_queue_skips_already_kicked_off(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        # Simulate prior kickoff
+        data = bl.load_backlog()
+        for it in data["items"]:
+            if it["id"] == self.bid:
+                it["status"] = "ready"
+                it["last_job_id"] = "job-prior"
+                it["last_auto_started_at"] = "2026-07-20T00:00:00+00:00"
+                it["auto_start"] = False
+                it["schedule_slot"] = "now"
+                it["press_rank"] = 1
+        bl.save_backlog(data)
+        r = sch.auto_queue_scheduled(force=True)
+        self.assertEqual(r.get("count"), 0)
+        self.assertGreaterEqual(r.get("skipped_prior_runs") or 0, 1)
+        self.assertFalse(bl.get_item(self.bid).get("auto_start"))
+
+    def test_auto_queue_skips_completed_jobs(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        sch.save_jobs(
+            {
+                "version": 1,
+                "jobs": [
+                    {
+                        "id": "job-done1",
+                        "backlog_id": self.bid,
+                        "title": "Auto job",
+                        "status": "completed",
+                        "created_at": "2026-07-20T00:00:00+00:00",
+                    }
+                ],
+            }
+        )
+        data = bl.load_backlog()
+        for it in data["items"]:
+            if it["id"] == self.bid:
+                it["status"] = "ready"
+                it["auto_start"] = False
+                it["schedule_slot"] = "now"
+                it["press_rank"] = 1
+        bl.save_backlog(data)
+        r = sch.auto_queue_scheduled(force=True)
+        self.assertEqual(r.get("count"), 0)
+
+    def test_manual_requeue_allows_second_run(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        sch.save_jobs(
+            {
+                "version": 1,
+                "jobs": [
+                    {
+                        "id": "job-done1",
+                        "backlog_id": self.bid,
+                        "title": "Auto job",
+                        "status": "completed",
+                        "created_at": "2026-07-20T00:00:00+00:00",
+                    }
+                ],
+            }
+        )
+        sch.set_auto_start(self.bid, True)  # manual re-queue
+        item = bl.get_item(self.bid)
+        self.assertEqual(item.get("auto_start_source"), "manual")
+        eligible = sch._eligible_items(sch.load_config(), sch.load_jobs()["jobs"])
+        self.assertTrue(any(i.get("id") == self.bid for i in eligible))
+
+    def test_orphan_running_cleared_when_backlog_ready(self) -> None:
+        """Stale Terminal launch must not stay 'running' forever."""
+        sch.set_auto_start(self.bid, True)
+        jobs = {
+            "version": 1,
+            "jobs": [
+                {
+                    "id": "job-stale1",
+                    "backlog_id": self.bid,
+                    "title": "Auto job",
+                    "status": "running",
+                    "created_at": "2026-07-01T00:00:00+00:00",
+                    "launched_at": "2026-07-01T00:00:00+00:00",
+                }
+            ],
+        }
+        sch.save_jobs(jobs)
+        # backlog is ready (not planning) → orphan
+        out = sch.reconcile_jobs(save=True)
+        self.assertGreaterEqual(out.get("orphaned") or 0, 1)
+        self.assertEqual(sch.load_jobs()["jobs"][0]["status"], "cancelled")
+
+    def test_merged_pr_marks_job_and_backlog_done(self) -> None:
+        jobs = {
+            "version": 1,
+            "jobs": [
+                {
+                    "id": "job-pr1",
+                    "backlog_id": self.bid,
+                    "title": "Auto job",
+                    "status": "pr_ready",
+                    "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/99",
+                    "pr_number": 99,
+                    "created_at": "2026-07-20T00:00:00+00:00",
+                }
+            ],
+        }
+        sch.save_jobs(jobs)
+        with mock.patch("agent_jobs.fetch_pull_request") as fp:
+            fp.return_value = {
+                "ok": True,
+                "number": 99,
+                "url": "https://github.com/cvolkernick/personal-workspace/pull/99",
+                "state": "closed",
+                "merged": True,
+                "merged_at": "2026-07-21T12:00:00Z",
+            }
+            out = sch.reconcile_jobs(save=True)
+        self.assertEqual(out.get("merged"), 1)
+        self.assertEqual(sch.load_jobs()["jobs"][0]["status"], "completed")
+        self.assertEqual(bl.get_item(self.bid)["status"], "done")
+
+    def test_claim_pending_opens_launch(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        launch_rel = "ops/backlog/seeds/claim-test.launch.sh"
+        launch_path = self.backlog / "seeds" / "claim-test.launch.sh"
+        launch_path.parent.mkdir(parents=True, exist_ok=True)
+        launch_path.write_text("#!/bin/bash\necho ok\n", encoding="utf-8")
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": launch_rel,
+                "goal_objective": "g",
+                "spawn": {"attempted": False},
+            }
+            sch.tick(force=True)
+        with mock.patch.object(sch, "detect_runtime", return_value={
+            "has_grok": True,
+            "has_macos_terminal": True,
+            "can_spawn_terminal": True,
+        }), mock.patch.object(sch.subprocess, "run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+            out = sch.claim_pending_jobs(max_jobs=1)
+        self.assertEqual(out["claimed_count"], 1)
+        self.assertEqual(sch.load_jobs()["jobs"][-1]["status"], "launched")
+
+    def test_auto_queue_scheduled(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        item = bl.get_item(self.bid)
+        self.assertFalse(bool(item.get("auto_start")))
+        r = sch.auto_queue_scheduled()
+        self.assertTrue(r["ok"])
+        self.assertGreaterEqual(r["count"], 1)
+        self.assertTrue(bl.get_item(self.bid).get("auto_start"))
+
+    def test_tick_auto_queues_without_prior_flag(self) -> None:
+        """Pi ticks must queue ready+scheduled items themselves (no dashboard)."""
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        cfg["require_auto_start"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        data = bl.load_backlog()
+        for it in data["items"]:
+            it.pop("auto_start", None)
+            it["status"] = "ready"
+            it["schedule_slot"] = "now"
+        bl.save_backlog(data)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": "ops/backlog/seeds/x.launch.sh",
+                "goal_objective": "do it",
+                "spawn": {"attempted": False},
+            }
+            result = sch.tick(force=True)
+        self.assertTrue(result["ok"])
+        self.assertGreaterEqual(result.get("auto_queued_count") or 0, 1)
+        self.assertEqual(result.get("pending_terminal_count"), 1)
+        self.assertIn("pre_loop", result)
+        self.assertTrue((result.get("pre_loop") or {}).get("queue", {}).get("ok"))
+        # auto_start cleared after launch
+        self.assertFalse(bool(bl.get_item(self.bid).get("auto_start")))
+
+    def test_kickoff_tick_creates_job_and_report_for_ready_item(self) -> None:
+        """Backlog kickoff: tick must create a job + report for the eligible ready item."""
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        cfg["require_auto_start"] = True
+        sch.save_config(cfg)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/today-focus.md",
+                "prompt_path": "ops/backlog/seeds/today-focus.prompt.txt",
+                "launch_script": "ops/backlog/seeds/today-focus.launch.sh",
+                "goal_objective": "Improve Today's Focus",
+                "spawn": {"attempted": False},
+            }
+            result = sch.tick(force=True)
+        self.assertTrue(result["ok"])
+        jobs = sch.load_jobs()["jobs"]
+        self.assertTrue(jobs)
+        job = jobs[-1]
+        self.assertEqual(job.get("backlog_id"), self.bid)
+        self.assertIn(
+            job.get("status"),
+            ("queued", "pending_terminal", "launched", "running", "agent_running", "pr_ready"),
+        )
+        self.assertTrue(job.get("id"))
+        reports = sch.list_reports(limit=5)
+        self.assertTrue(any(r.get("job_id") == job["id"] or r.get("backlog_id") == self.bid for r in reports))
+        # item no longer idle ready without job link
+        item = bl.get_item(self.bid)
+        self.assertIn(item.get("status"), ("planning", "ready", "active"))
+        if item.get("status") == "ready":
+            self.assertTrue(item.get("last_job_id") or job.get("status") == "pending_terminal")
+
+    def test_autonomous_loop_grooms_and_queues(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        # Clear stored ranks so groom rewrites them
+        data = bl.load_backlog()
+        data["last_groomed_at"] = None
+        for it in data["items"]:
+            it.pop("auto_start", None)
+        bl.save_backlog(data)
+        out = sch.run_autonomous_loop(groom=True, queue=True, min_groom_interval_sec=0)
+        self.assertTrue(out["ok"])
+        self.assertTrue(out.get("groomed"))
+        self.assertGreaterEqual((out.get("queue") or {}).get("count") or 0, 0)
+
+    def _clear_items(self) -> None:
+        data = bl.load_backlog()
+        data["items"] = []
+        bl.save_backlog(data)
+
+    def test_tick_empty_queue(self) -> None:
+        self._clear_items()
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = False
+        sch.save_config(cfg)
+        result = sch.tick(force=True)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result.get("launched_count"), 0)
+        self.assertEqual(result.get("pending_terminal_count"), 0)
+        self.assertEqual(result.get("pr_ready_count"), 0)
+        self.assertEqual(sch.load_jobs()["jobs"], [])
+
+    def test_tick_one_queued_job(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        cfg["auto_queue_scheduled"] = False
+        sch.save_config(cfg)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": "ops/backlog/seeds/x.launch.sh",
+                "goal_objective": "do it",
+                "spawn": {"attempted": False},
+            }
+            result = sch.tick(force=True)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result.get("pending_terminal_count"), 1)
+        self.assertEqual(len(sch.load_jobs()["jobs"]), 1)
+        self.assertEqual(sch.load_jobs()["jobs"][0]["status"], "pending_terminal")
+        self.assertTrue(result.get("reports"))
+
+    def test_tick_omits_old_failed_job(self) -> None:
+        self._clear_items()
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = False
+        cfg["completed_omit_days"] = 7
+        sch.save_config(cfg)
+        old_id = "job-549c7cd1dc"
+        sch.save_jobs(
+            {
+                "version": 1,
+                "jobs": [
+                    {
+                        "id": old_id,
+                        "backlog_id": "old-item",
+                        "title": "Stale auth failure",
+                        "status": "failed",
+                        "error": "HTTP 401: Bad credentials",
+                        "created_at": "2026-07-22T04:22:58+00:00",
+                        "finished_at": "2026-07-22T04:28:03+00:00",
+                        "completed_at": "2026-07-22T04:28:03+00:00",
+                    }
+                ],
+            }
+        )
+        report = {
+            "id": "rpt-job-549c7cd1dc",
+            "job_id": old_id,
+            "title": "Stale auth failure",
+            "status": "failed",
+            "summary": "Agent failed: HTTP 401: Bad credentials",
+            "created_at": "2026-07-22T04:28:03+00:00",
+        }
+        sch.write_report(report)
+        result = sch.tick(force=True)
+        blob = json.dumps(result)
+        self.assertNotIn("401", blob)
+        self.assertNotIn("Bad credentials", blob)
+        self.assertNotIn(old_id, blob)
+        self.assertEqual(sch.load_jobs()["jobs"], [])
+        archived = sch.load_archived_jobs()
+        self.assertTrue(any(j.get("id") == old_id for j in archived))
+        self.assertTrue(any(j.get("id") == old_id for j in sch.job_history()))
+
+    def test_run_scheduler_tick_exits_zero(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        import run_scheduler
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_scheduler.main(["tick"])
+        self.assertEqual(code, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertTrue(payload.get("ok"))
+        self.assertTrue(payload.get("skipped"))
+
+
+if __name__ == "__main__":
+    unittest.main()
