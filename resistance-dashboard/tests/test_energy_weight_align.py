@@ -20,18 +20,41 @@ SW = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
 
 class EnergyWeightAlignMarkup(unittest.TestCase):
     def test_overlay_wired_before_app_js(self):
-        self.assertIn("/energy-weight-align.js?v=ewi-cap-1", HTML)
+        self.assertIn("/energy-weight-align.js?v=ewi-scale-961-1", HTML)
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=suggestions-956-1", HTML)
+        self.assertIn("/app.js?v=energy-scale-961-1", HTML)
         self.assertLess(
-            HTML.find("/energy-weight-align.js?v=ewi-cap-1"),
-            HTML.find("/app.js?v=suggestions-956-1"),
+            HTML.find("/energy-weight-align.js?v=ewi-scale-961-1"),
+            HTML.find("/app.js?v=energy-scale-961-1"),
         )
         self.assertIn("FitDashEnergyWeightAlign", APP_JS)
         self.assertIn("energyWeightAlignment", APP_JS)
         self.assertIn("function isAligned", OVERLAY)
         self.assertIn("var CAP_LB = 5", OVERLAY)
         self.assertIn("var TIGHT_LB = 1.25", OVERLAY)
+        self.assertIn("function energyScaleExtension", OVERLAY)
+        self.assertIn("Estimated from your weight trend.", OVERLAY)
+        self.assertIn("var MIN_LOGGED_DAYS = 14", OVERLAY)
+        self.assertIn("var MIN_COVERAGE = 0.8", OVERLAY)
+        self.assertNotIn("chart.js", OVERLAY.lower())
+
+    def test_line_renders_inside_existing_card(self):
+        start = APP_JS.find('class="energy-weight-insight')
+        advice = APP_JS.find("ewi-advice", start)
+        self.assertGreater(start, -1)
+        self.assertGreater(advice, start)
+        block = APP_JS[start:advice]
+        self.assertIn("From calories", block)
+        self.assertIn("On scale", block)
+        self.assertIn("Gap", block)
+        self.assertIn("scale − expected", block)
+        self.assertIn('class="ewi-extra"', block)
+        self.assertLess(block.find("From calories"), block.find("ewi-extra"))
+        self.assertIn("pairedNet", APP_JS)
+        self.assertIn("burnedRows: (data.health && data.health.calories_burned)", APP_JS)
+        self.assertIn("energyScaleExtension({", APP_JS)
+        self.assertIn(".ewi-chart", CSS)
+        self.assertIn("@media (max-width: 720px)", CSS[CSS.find(".ewi-chart") :])
 
     def test_old_unguarded_55_percent_gone(self):
         self.assertNotIn(
@@ -71,7 +94,14 @@ class EnergyWeightAlignNode(unittest.TestCase):
 
 class EnergyWeightAlignCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v119"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v120"', SW)
+        self.assertNotIn("fitdash-shell-v119", SW)
+        self.assertNotIn("suggestions-956-1", HTML)
+        self.assertNotIn("suggestions-956-1", SW)
+        self.assertIn("/energy-weight-align.js?v=ewi-scale-961-1", HTML)
+        self.assertNotIn("ewi-cap-1", HTML)
+        self.assertIn("/styles.css?v=energy-scale-961-1", HTML)
+        self.assertIn("/styles.css?v=energy-scale-961-1", SW)
         self.assertNotIn("fitdash-shell-v100", SW)
         self.assertNotIn("fitdash-shell-v98", SW)
         self.assertNotIn("fitdash-shell-v96", SW)
@@ -80,7 +110,7 @@ class EnergyWeightAlignCache(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v88", SW)
         self.assertNotIn("fitdash-shell-v87", SW)
         self.assertNotIn("fitdash-shell-v86", SW)
-        self.assertIn("/app.js?v=suggestions-956-1", SW)
+        self.assertIn("/app.js?v=energy-scale-961-1", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", SW)
         self.assertNotIn("fitdash-shell-v81", SW)
         self.assertNotIn("fitdash-shell-v80", SW)

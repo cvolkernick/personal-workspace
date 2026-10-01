@@ -3867,6 +3867,41 @@ body.m-shell .quest-card {
   opacity: 0.92;
 }
 
+.ewi-extra {
+  margin-top: 0.15rem;
+}
+
+.ewi-chart {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0.2rem 0 0.15rem;
+}
+
+.ewi-note,
+.ewi-implied,
+.ewi-weekly {
+  margin: 0.28rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted, #8b9bb4);
+}
+
+.ewi-implied strong,
+.ewi-weekly strong {
+  color: var(--text, #e8eef7);
+  font-weight: 650;
+}
+
+@media (max-width: 720px) {
+  .ewi-note,
+  .ewi-implied,
+  .ewi-weekly {
+    font-size: 0.76rem;
+  }
+}
+
 /* Weekly hard-set volume balance (≈4–8 / muscle) */
 .volume-balance {
   margin: 0.65rem 0 0.35rem;
