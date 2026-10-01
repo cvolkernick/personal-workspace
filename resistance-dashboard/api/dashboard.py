@@ -685,6 +685,22 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "training_pack": pack,
     }
     try:
+        from rt_dashboard.muscle_suggestions import install_suggestions
+
+        install_suggestions(
+            payload["workout_store"],
+            sessions,
+            user_id=str(user.get("id") or ""),
+            as_of=today,
+            recovery_score=recovery_dict.get("score"),
+            recovery_sparse=not had_real_sleep,
+            rhr_under=bool(
+                (recovery_dict.get("inputs") or {}).get("rhr_under_recovered")
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"muscle_suggestions: {type(exc).__name__}")
+    try:
         payload["coach"] = build_coach_payload(
             health=health,
             sessions=sessions,

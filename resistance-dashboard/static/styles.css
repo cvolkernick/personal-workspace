@@ -3052,6 +3052,9 @@ body.m-shell .quest-card {
 .more-collapse-head[aria-expanded="false"] {
   margin-bottom: 0;
 }
+.suggest-action {
+  min-height: 44px;
+}
 
 /* Re-assert quest header chrome after generic .collapsible-head reset */
 .daily-quests-head.collapsible-head {

@@ -1029,6 +1029,19 @@ def load_dashboard_data(
             },
             "plan": workout_plan,
         }
+        from rt_dashboard.muscle_suggestions import install_suggestions
+
+        install_suggestions(
+            payload["workout_store"],
+            sessions,
+            user_id=str(uid or ""),
+            as_of=local_today,
+            recovery_score=(recovery.score if recovery else None),
+            recovery_sparse=not had_real_sleep,
+            rhr_under=bool((recovery.inputs or {}).get("rhr_under_recovered"))
+            if recovery
+            else False,
+        )
     except Exception as e:  # noqa: BLE001
         errors.append(f"workout_plan: {e}")
         workout_plan = {"message": f"Workout plan failed: {e}", "exercises": []}
@@ -2813,6 +2826,39 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
                 result = add_library_movement(str(uid), body)
                 self._send_json({"ok": True, **result})
+            except (ValueError, json.JSONDecodeError) as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/muscle-suggestions":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                data = load_dashboard_data(force_refresh=False, user_id=uid or None)
+                from rt_dashboard.equipment_store import save_preview_equipment
+                from rt_dashboard.muscle_suggestions import commit_from_dashboard
+
+                result = commit_from_dashboard(str(uid or ""), body, data)
+                equipment = result.get("equipment")
+                if equipment is not None:
+                    try:
+                        result["equipment"] = save_preview_equipment(equipment, str(uid or ""))
+                        result["write"] = {"ok": True, "source": "turso"}
+                    except RuntimeError as exc:
+                        if "turso env missing" not in str(exc):
+                            raise
+                        result["write"] = {
+                            "ok": False,
+                            "source": "unpersisted",
+                            "error": "turso env missing",
+                        }
+                        result["message"] = (
+                            str(result.get("message") or "Updated").rstrip(".")
+                            + ". Shown on this page. Not saved — Turso is off."
+                        )
+                result.pop("state", None)
+                self._send_json(result)
             except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:

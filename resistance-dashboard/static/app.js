@@ -57,6 +57,7 @@
       "more-hsa",
       "more-labs",
       "more-training",
+      "more-suggestions",
       "more-equipment",
       "more-catalog",
       "more-connections",
@@ -5503,6 +5504,116 @@
     }
   }
 
+  function escSuggest(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderMuscleSuggestions(store) {
+    const box = $("suggestions-list");
+    const summary = $("suggestions-summary");
+    const block = (store && store.muscle_suggestions) || {};
+    if (summary) {
+      const line = block.summary || "All muscle groups on target.";
+      const note = block.additions_note ? ` ${block.additions_note}` : "";
+      summary.textContent = `${line}${note}`.trim();
+    }
+    if (!box) return;
+    const groups = block.groups || [];
+    if (!groups.length) {
+      box.innerHTML = "";
+      return;
+    }
+    const cards = groups
+      .map((group) => {
+        const gid = escSuggest(group.id);
+        const status = group.status === "neglected" ? "neglected" : "under-emphasized";
+        const band = `${group.min}–${group.max}`;
+        let body = "";
+        (group.suggestions || []).forEach((sug) => {
+          const sid = escSuggest(sug.id);
+          const types = (sug.session_types || []).filter((t) =>
+            ["push", "pull", "legs"].includes(String(t))
+          );
+          const options = (types.length ? types : ["push"])
+            .map((t) => `<option value="${escSuggest(t)}">${escSuggest(String(t).toUpperCase())}</option>`)
+            .join("");
+          body += `<div class="inv-card compact suggest">
+            <div class="inv-card-name">${escSuggest(sug.name)}</div>
+            <div class="inv-card-meta muted">${escSuggest(sug.reason || "")}</div>
+            <div class="actions inv-card-actions compact">
+              <label class="muted">Session
+                <select data-suggest-session="${sid}">${options}</select>
+              </label>
+              <button type="button" class="primary suggest-action" data-suggest-add="${sid}" data-group="${gid}" ${block.additions_allowed === false ? "disabled" : ""}>Add</button>
+              <button type="button" class="suggest-action" data-suggest-dismiss="${sid}" data-group="${gid}">Dismiss</button>
+            </div>
+          </div>`;
+        });
+        const prompts = group.equipment_prompts || [];
+        if (prompts.length) {
+          body += `<div class="inv-card compact">
+            <div class="inv-card-name">Do you have any of these?</div>
+            ${prompts
+              .map((item) => {
+                const iid = escSuggest(item.id);
+                const lifts = (item.unlocks || []).map((lift) => escSuggest(lift.name)).filter(Boolean).join(", ");
+                return `<div class="inv-reason compact"><strong>${escSuggest(item.name)}</strong>${lifts ? ` — ${lifts}` : ""}</div>
+                  <div class="actions inv-card-actions compact">
+                    <button type="button" class="primary suggest-action" data-equip-choice="have" data-equip-id="${iid}">I have it</button>
+                    <button type="button" class="suggest-action" data-equip-choice="dont" data-equip-id="${iid}">Don't have it</button>
+                    <button type="button" class="suggest-action" data-equip-choice="maybe" data-equip-id="${iid}">Maybe, remind me</button>
+                  </div>`;
+              })
+              .join("")}
+          </div>`;
+        }
+        return `<section class="suggest-group">
+          <div class="title">${escSuggest(group.label)} · ${status}</div>
+          <div class="meta muted">${escSuggest(group.direct_sets_per_week)} direct sets/week · ${escSuggest(group.sets_per_week)} with overlap · band ${escSuggest(band)}</div>
+          ${body}
+        </section>`;
+      })
+      .join("");
+    box.innerHTML = cards;
+  }
+
+  async function postMuscleSuggestion(body) {
+    const status = $("suggestions-status");
+    if (status) status.textContent = "Saving…";
+    const res = await fetch("/api/muscle-suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      const message = data.message || data.error || String(res.status);
+      if (status) status.textContent = message;
+      if (data.muscle_suggestions && state && state.workout_store) {
+        state.workout_store.muscle_suggestions = data.muscle_suggestions;
+        renderMuscleSuggestions(state.workout_store);
+      }
+      throw new Error(message);
+    }
+    if (state && state.workout_store) {
+      if (data.muscle_suggestions) state.workout_store.muscle_suggestions = data.muscle_suggestions;
+      if (data.equipment) state.workout_store.equipment = data.equipment;
+      if (data.plan) {
+        state.workout_store.plan = data.plan;
+        renderWorkoutPlan(data.plan);
+      }
+      renderMuscleSuggestions(state.workout_store);
+      if (data.equipment) renderEquipmentInventory(state.workout_store);
+    }
+    if (status) status.textContent = data.message || "Updated.";
+    return data;
+  }
+
   function renderExerciseCatalog(store) {
     const list = $("exercise-catalog-list");
     if (!list) {
@@ -6421,6 +6532,7 @@
     renderHsa(data.hsa);
     renderLabsPanel(data.nutrition_store);
     renderExerciseCatalog(data.workout_store);
+    renderMuscleSuggestions(data.workout_store);
     renderEquipmentInventory(data.workout_store);
     renderWorkoutGoals(data.workout_store);
     if (data.workout_store && data.workout_store.plan) {
@@ -9151,6 +9263,45 @@
     }
     if ($("library-add-form")) {
       $("library-add-form").addEventListener("submit", submitLibraryAdd);
+    }
+    const suggestBox = $("suggestions-list");
+    if (suggestBox && !suggestBox.dataset.suggestBound) {
+      suggestBox.dataset.suggestBound = "1";
+      suggestBox.addEventListener("click", async (ev) => {
+        const btn = ev.target.closest("button");
+        if (!btn || btn.disabled) return;
+        const addId = btn.getAttribute("data-suggest-add");
+        const dismissId = btn.getAttribute("data-suggest-dismiss");
+        const equipId = btn.getAttribute("data-equip-id");
+        const choice = btn.getAttribute("data-equip-choice");
+        let body = null;
+        if (addId) {
+          const pick = suggestBox.querySelector(`select[data-suggest-session="${addId}"]`);
+          body = {
+            action: "add",
+            exercise_id: addId,
+            group_id: btn.getAttribute("data-group") || "",
+            session_type: pick ? pick.value : "",
+          };
+        } else if (dismissId) {
+          body = {
+            action: "dismiss",
+            exercise_id: dismissId,
+            group_id: btn.getAttribute("data-group") || "",
+          };
+        } else if (equipId && choice) {
+          body = { action: "equipment", item_id: equipId, choice: choice };
+        }
+        if (!body) return;
+        btn.disabled = true;
+        try {
+          const data = await postMuscleSuggestion(body);
+          showAlert(data.message || "Updated", data.ok ? "ok" : "warn");
+        } catch (e) {
+          btn.disabled = false;
+          showAlert(e.message || "Suggestion update failed", "err");
+        }
+      });
     }
     if (!document.body.dataset.libraryBound) {
       document.body.dataset.libraryBound = "1";
