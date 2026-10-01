@@ -7,9 +7,13 @@ from datetime import datetime
 from unittest import mock
 from zoneinfo import ZoneInfo
 
-from rt_dashboard.agent_plan import fill_stamped_workout
+from rt_dashboard.agent_plan import fill_stamped_workout, stamp_and_fill_workout
 from rt_dashboard.agent_today import export_agent_today
-from rt_dashboard.workout_plan_store import clear_memory_workout_plans
+from rt_dashboard.workout_plan_store import (
+    clear_memory_workout_plans,
+    load_last_good_workout_plan,
+    save_last_good_workout_plan,
+)
 from rt_dashboard.equipment_store import load_workspace_equipment
 from rt_dashboard.gym_calendar import (
     PROP_DATE,
@@ -428,6 +432,108 @@ class PlanAfterClose951(unittest.TestCase):
         self.assertIsNone(filled.get("generate_error"))
         names = {str(ex.get("name") or "") for ex in filled["exercises"]}
         self.assertNotIn("Leg Press", names)
+
+    def test_saved_preclose_plan_rebuilds_next_letter_and_drops_chip(self):
+        """A good plan saved before the close must not win on Today fill.
+
+        ``GET /api/agent/today`` stamps, then ``fill_stamped_workout``.
+        The store still holds the morning letter. The fill has to replace
+        it, roll ``next_session_type``, and delete the unlocked chip.
+        """
+        day = "2026-09-27"
+        now = datetime(2026, 9, 27, 7, 53, tzinfo=ET)
+        wake = "2026-09-27T04:30:00-04:00"
+        sessions = [
+            _closed(day, "legs", "2026-09-27T05:10:00-04:00", name="Leg Press")
+        ]
+        recovery = {
+            "score": 80,
+            "sparse": True,
+            "sleep_battery": {"last_wake_at": wake},
+        }
+        morning = {
+            "session_type": "legs",
+            "next_session_type": "legs",
+            "is_rest_day": False,
+            "session_closed_today": False,
+            "exercises": [
+                {
+                    "name": "Morning Legs Plan",
+                    "sets": 3,
+                    "reps": 8,
+                    "weight_lbs": 100,
+                }
+            ],
+            "message": "Suggested LEGS session (1 exercises).",
+        }
+        start = f"{day}T22:00:00-04:00"
+        end = f"{day}T23:30:00-04:00"
+        chip = {
+            "id": "chip-1",
+            "summary": "Gym · Legs",
+            "description": gym_desc_tag(day),
+            "created": f"{day}T07:53:00-04:00",
+            "start": {"dateTime": start, "timeZone": "America/New_York"},
+            "end": {"dateTime": end, "timeZone": "America/New_York"},
+            "extendedProperties": {
+                "private": {
+                    PROP_GYM: "1",
+                    PROP_DATE: day,
+                    PROP_PLANNED_START: start,
+                }
+            },
+        }
+        cal = _FakeCalendar()
+        cal.events["chip-1"] = chip
+        uid = "sub-951-preclose"
+        clear_memory_workout_plans()
+        try:
+            with mock.patch(
+                "rt_dashboard.timeutil.local_now", return_value=now
+            ), mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=False
+            ), mock.patch(
+                "rt_dashboard.agent_plan._load_generate_kwargs",
+                return_value={"day": day, "training_day": day},
+            ), _patch_cal(cal):
+                stored = save_last_good_workout_plan(uid, day, morning)
+                self.assertTrue(stored.get("ok"), stored)
+                self.assertEqual(
+                    load_last_good_workout_plan(uid, day)["exercises"][0]["name"],
+                    "Morning Legs Plan",
+                )
+                filled = stamp_and_fill_workout(
+                    uid,
+                    day=day,
+                    sessions=sessions,
+                    goals=self.goals,
+                    recovery=recovery,
+                )
+                replaced = load_last_good_workout_plan(uid, day)
+        finally:
+            clear_memory_workout_plans()
+        self.assertEqual(filled["session_type"], "legs")
+        self.assertEqual(filled["next_session_type"], "push")
+        self.assertTrue(filled.get("exercises"))
+        self.assertIsNone(filled.get("generate_error"))
+        names = [str(ex.get("name") or "") for ex in filled["exercises"]]
+        self.assertNotIn("Morning Legs Plan", names)
+        self.assertNotIn("Leg Press", names)
+        push_names = {
+            str(ex.get("name") or "")
+            for ex in (self.catalog.get("exercises") or [])
+            if "push" in [str(t).lower() for t in (ex.get("session_types") or [])]
+        }
+        self.assertTrue(push_names.intersection(names), names)
+        self.assertEqual(replaced["next_session_type"], "push")
+        self.assertNotEqual(
+            replaced["exercises"][0]["name"],
+            "Morning Legs Plan",
+        )
+        self.assertTrue(replaced.get("session_closed_today"))
+        self.assertEqual(cal.creates, [])
+        self.assertEqual(cal.deletes, ["chip-1"])
+        self.assertNotIn("chip-1", cal.events)
 
 
 class PreLogAgreement951(unittest.TestCase):

@@ -1,7 +1,9 @@
 """Cookie-less SuperGrok generate + persist for agent Today (#493).
 
 Reuses ``generate_grok_plans`` (same path as UI POST /api/ask/plan).
-Never invents exercise lists. Idempotent once per user+civil day.
+Never invents exercise lists. A good plan is reused for that user and
+civil day until the day closes. A persisted close rebuilds the next
+letter, replaces the store, and drops the unlocked gym chip (#951).
 """
 
 from __future__ import annotations
@@ -188,6 +190,16 @@ def _loud_empty(workout: Optional[dict], error: str) -> dict:
 def _letter(value) -> Optional[str]:
     text = str(value or "").strip().lower()
     return text or None
+
+
+def _session_closed(slot: Optional[dict]) -> bool:
+    """True when today's letter already has a persisted close (#951)."""
+    if not isinstance(slot, dict):
+        return False
+    if slot.get("session_closed_today"):
+        return True
+    ctx = slot.get("context")
+    return bool(isinstance(ctx, dict) and ctx.get("session_closed_today"))
 
 
 def _covers_today(saved: Optional[dict], letter: Optional[str]) -> bool:
@@ -605,6 +617,11 @@ def fill_stamped_workout(
 
     Shared by Pi GET ``/api/agent/today`` and the Vercel cookie-less Today path.
     Never invents lifts. Surfaces ``generate_error`` on the slot when SuperGrok fails.
+
+    A good plan saved earlier the same civil day can still be the pre-close
+    letter. Returning it skips the roll and the gym sync. When the stamp
+    says the day is already closed, fall through so the next letter
+    replaces that store and the unlocked chip is deleted (#951).
     """
     from .workout_store import brief_sessions
 
@@ -612,7 +629,7 @@ def fill_stamped_workout(
     local_day = str(day or "")[:10]
     slot = dict(workout) if isinstance(workout, dict) else {}
     saved = load_last_good_workout_plan(plan_uid, local_day)
-    if is_good_workout_plan(saved):
+    if is_good_workout_plan(saved) and not _session_closed(slot):
         return saved
     letter = _letter(slot.get("session_type"))
     if not letter or slot.get("is_rest_day") or letter == "rest":
