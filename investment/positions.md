@@ -1,12 +1,12 @@
 # Investment Portfolio — Positions & Allowlist
 
-**As of:** 2026-10-01 (~11:08 ET review)  
+**As of:** 2026-10-01 (~11:53 ET review)  
 **Live sizes / prices:** Financial Command Center only (not this file).  
 **Purpose:** Thesis allowlist and sleeve tags for humans + agentic Robinhood trading.
 
 ## Current agentic book (held)
 
-Verified 2026-10-01T15:07Z from Robinhood (account `••1752`). **Quantities live in FCC only.**
+Verified 2026-10-01T15:53Z from Robinhood (account `••1752`). **Quantities live in FCC only.**
 
 | Symbol | Sleeve | Notes |
 |--------|--------|-------|
@@ -23,7 +23,7 @@ Verified 2026-10-01T15:07Z from Robinhood (account `••1752`). **Quantities l
 **Not held:** MSTR, BITA, ASST, GOOGL, NVDA, CCJ, and the other ready watchlist names.  
 **Core allowlist unheld:** BTC (prefer Coinbase / self-custody), MSTR, BITA, ASST.  
 **Owner-exited:** BE (sold 2026-09-03; blocked; do not reseat).  
-**Live mix:** The ~$75 that cleared this morning is already in the BTC complex. A displayed pending deposit of **$75** is **not** buying power. The 11:08 ET review did not sell or add. Broker NAV **$403.67**, cash/BP **$0.03**. Quote equity **$403.35** at ~15:07Z: BTC-complex **$73.71 (18.3%)** / stocks **$329.64 (81.7%)**. STRC **$15.99** + SATA **$14.00** = **$29.99**, **40.7%** of that complex (small-bias seat; not a reason to skip them on the next complex dollar, and not a reason to make the next dollar all-credit). Five miners **$43.72**. Stocks pin: TSLA **$160.91 (48.8%)** / SPCX **$168.73 (51.2%)**, one-way gap **$3.91**, not traded. The gap to 40% is still about **$146** of new capital. Chairman 2026-09-23 still bars selling TSLA/SPCX to finish it. NAV / weights → FCC.
+**Live mix:** The ~$75 that cleared this morning is already in the BTC complex. A displayed pending deposit of **$75** is **not** buying power (do not size it). The 11:53 ET review did not sell or add. Broker NAV **$399.78**, cash/BP **$0.03**. Quote equity **$399.70** at ~15:53Z: BTC-complex **$73.71 (18.4%)** / stocks **$325.99 (81.6%)**. STRC **$16.00** + SATA **$14.00** = **$30.00**, **40.7%** of that complex (small-bias seat; not a reason to skip them on the next complex dollar, and not a reason to make the next dollar all-credit). Five miners **$43.71** (RIOT −5.8% and CLSK −5.1% on the day; not a same-day sale). Stocks pin: TSLA **$159.71 (49.0%)** / SPCX **$166.28 (51.0%)**, one-way gap **$3.29**, about 1% of the sleeve, not traded. Reaching 40% without selling the pin still takes about **$144** of new complex capital. Chairman 2026-09-23 still bars selling TSLA/SPCX to finish it. NAV / weights → FCC.
 
 ## Target structure (modernized 60/40)
 
