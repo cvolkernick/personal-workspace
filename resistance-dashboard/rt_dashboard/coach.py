@@ -710,19 +710,8 @@ def build_today_board(
         }
     )
 
-    if rem.get("protein_g", 0) > 20:
-        actions.append(
-            {
-                "id": "protein-remaining",
-                "kind": "nutrition",
-                "priority": 2,
-                "text": (
-                    f"Cover remaining protein (~{rem['protein_g']:.0f} g) from the meal plan "
-                    "or a high-protein stocked staple."
-                ),
-                "motivation": TARGET_MOTIVATIONS["protein_g"],
-            }
-        )
+    # Remaining protein is allocated into meal items by the planner.
+    # A "cover remaining protein" line is not a quest, including ~0 g (#981).
     if rem.get("calories", 0) > 200 and meal_items:
         actions.append(
             {
@@ -771,26 +760,8 @@ def build_today_board(
 
     cb = calorie_bars or {}
     pacing = cb.get("pacing") if isinstance(cb, dict) else None
-    if isinstance(pacing, dict) and pacing.get("status") == "ahead":
-        actions.append(
-            {
-                "id": "calorie-pace",
-                "kind": "nutrition",
-                "priority": 3,
-                "text": "Calorie pace is ahead of the waking window — slow intake until the next meal slot.",
-                "motivation": TARGET_MOTIVATIONS["calories"],
-            }
-        )
-    elif isinstance(pacing, dict) and pacing.get("status") == "behind" and rem.get("calories", 0) > 400:
-        actions.append(
-            {
-                "id": "calorie-pace",
-                "kind": "nutrition",
-                "priority": 3,
-                "text": "Calorie pace is behind — don't skip planned meals if macros still remain.",
-                "motivation": TARGET_MOTIVATIONS["calories"],
-            }
-        )
+    # Ahead pace shifts remaining meal clocks inside the eating window.
+    # Behind does not push meals past the window. Neither is a quest (#981).
 
     actions.sort(key=lambda a: int(a.get("priority") or 9))
 
