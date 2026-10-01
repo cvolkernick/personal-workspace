@@ -955,7 +955,7 @@
       <div class="set-rows"></div>
       <div class="exercise-card-actions">
         <button type="button" class="btn-add-set">+ Set</button>
-        <span class="muted set-hint">Different weights? Add a set per load. Same load ×3 → set Sets=3. PR is auto-tagged from history on save.</span>
+        <span class="muted set-hint">Different weights? Add a set per load. Same load ×3 → set Sets=3. Saving again adds a set and keeps the one already saved. PR is auto-tagged from history on save.</span>
       </div>
     `;
     fillExerciseNameSelect(card.querySelector(".ex-name"), prefill.name || "");
@@ -7203,6 +7203,22 @@
     ].concat(list);
   }
 
+  /** Every stored set group, not only the first (#963). */
+  function loggedLiftDetail(ex) {
+    const sets = ex && Array.isArray(ex.sets) ? ex.sets : [];
+    const parts = [];
+    sets.forEach((st) => {
+      if (!st) return;
+      const w =
+        st.weight_lbs != null && st.weight_lbs !== "" ? `${st.weight_lbs} lb` : "";
+      const sr =
+        st.sets != null && st.reps != null ? `${st.sets}×${st.reps}` : "";
+      const detail = [w, sr].filter(Boolean).join(" · ");
+      if (detail) parts.push(detail);
+    });
+    return parts.join(", ") || "movement logged";
+  }
+
   function renderTodayLoggedLifts(data) {
     const box = typeof $ === "function" ? $("today-logged-lifts") : null;
     if (!box) return;
@@ -7220,13 +7236,7 @@
     }
     const rows = lifts
       .map((ex) => {
-        const sets = Array.isArray(ex.sets) ? ex.sets[0] : null;
-        const w = sets && sets.weight_lbs != null ? `${sets.weight_lbs} lb` : "";
-        const sr =
-          sets && sets.sets != null && sets.reps != null
-            ? `${sets.sets}×${sets.reps}`
-            : "";
-        const detail = [w, sr].filter(Boolean).join(" · ") || "movement logged";
+        const detail = loggedLiftDetail(ex);
         return `<li><div class="title">${ex.name}</div><div class="meta muted">${detail}</div></li>`;
       })
       .join("");
@@ -8525,6 +8535,18 @@
     });
   }
 
+  /** Drop saved rows so the next save is another set, not a second copy. */
+  function resetManualLogExercises() {
+    const wrap = $("exercise-rows");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    if (wrap.dataset) {
+      delete wrap.dataset.userTouched;
+      delete wrap.dataset.planSeeded;
+    }
+    addExerciseRow();
+  }
+
   async function submitWorkout(ev) {
     ev.preventDefault();
     const status = $("log-status");
@@ -8589,6 +8611,7 @@
           : "Workout logged and re-read successfully.",
         "ok"
       );
+      resetManualLogExercises();
       await loadDashboard(false);
     } catch (e) {
       status.textContent = "";

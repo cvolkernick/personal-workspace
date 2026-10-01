@@ -5,8 +5,11 @@ UI ``submitWorkout`` posts ``{session_type, date, notes, exercises}``
 so the README / Pi form stay valid.
 
 Log-tab save unions with an existing same-day same-type session (quest
-checkoffs) instead of replacing the row. Incoming log weights win on name
-match; exercises only on the existing session are kept.
+checkoffs) instead of replacing the row. A second log of an exercise
+already stored appends sets (#963). A quest seed is still replaced by
+the typed log. ``set_index`` updates that stored set and leaves the
+others. Date moves still let the moved load win on name match.
+Exercises only on the existing session are kept.
 """
 
 from __future__ import annotations
@@ -33,14 +36,74 @@ def find_same_day_session(
     return None
 
 
+def _parse_set_index(raw: Any, name: str) -> Optional[int]:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, bool) or isinstance(raw, float):
+        raise ValueError(f"invalid set_index for {name}")
+    if isinstance(raw, int):
+        parsed = raw
+    elif isinstance(raw, str) and raw.strip().isdigit():
+        parsed = int(raw.strip())
+    else:
+        raise ValueError(f"invalid set_index for {name}")
+    if parsed < 0:
+        raise ValueError(f"set_index must be >= 0 for {name}")
+    return parsed
+
+
+def _copy_set(entry: SetEntry) -> SetEntry:
+    return SetEntry(
+        weight_lbs=float(entry.weight_lbs),
+        sets=int(entry.sets),
+        reps=int(entry.reps),
+    )
+
+
+def _combine_logged_exercise(
+    existing: ExerciseEntry, incoming: ExerciseEntry
+) -> ExerciseEntry:
+    """Quest seed is replaced by the typed log. A real log appends.
+
+    ``set_index`` updates that stored set and leaves the others. The index
+    refers to sets already saved, not to sets appended in this same save.
+    """
+    if existing.quest_seeded:
+        return incoming
+    stored = [_copy_set(s) for s in (existing.sets or [])]
+    base_len = len(stored)
+    extra: list[SetEntry] = []
+    for inc in incoming.sets or []:
+        idx = getattr(inc, "set_index", None)
+        fresh = _copy_set(inc)
+        if idx is None:
+            extra.append(fresh)
+            continue
+        if not isinstance(idx, int) or isinstance(idx, bool) or idx >= base_len:
+            raise ValueError(f"set_index {idx} is outside {existing.name}")
+        stored[idx] = fresh
+    return ExerciseEntry(
+        name=existing.name,
+        sets=stored + extra,
+        is_pr=False,
+        raw=existing.raw or "",
+        quest_seeded=False,
+    )
+
+
 def merge_same_day_session(
-    incoming: Session, existing: Optional[Session]
+    incoming: Session,
+    existing: Optional[Session],
+    *,
+    same_name: str = "replace",
 ) -> Session:
     """Union exercises for the same civil day + PPL type.
 
-    Incoming (Log tab) wins on normalized name — those are the loads Chris
-    typed. Quest-only rows stay. Empty incoming notes do not wipe existing
-    notes. Different date or session_type is not merged.
+    ``same_name="replace"`` (date moves) lets the incoming exercise win on
+    normalized name. ``same_name="append"`` (Log tab) adds sets onto a real
+    log and still lets a typed log replace a quest seed. Empty incoming
+    notes do not wipe existing notes. Different date or session_type is
+    not merged.
     """
     if existing is None:
         return incoming
@@ -63,7 +126,12 @@ def merge_same_day_session(
             continue
         if key not in by_key:
             order.append(key)
-        by_key[key] = ex
+            by_key[key] = ex
+            continue
+        if same_name == "append":
+            by_key[key] = _combine_logged_exercise(by_key[key], ex)
+        else:
+            by_key[key] = ex
     notes = (incoming.notes or "").strip() or (existing.notes or "")
     source = (incoming.source_file or "").strip() or (existing.source_file or "")
     closed = (existing.closed_at or "").strip() or (incoming.closed_at or "")
@@ -83,7 +151,7 @@ def merge_log_with_history(
     existing = find_same_day_session(
         history, incoming.date, incoming.session_type
     )
-    return merge_same_day_session(incoming, existing)
+    return merge_same_day_session(incoming, existing, same_name="append")
 
 
 def _civil_day(value: Any) -> str:
@@ -189,6 +257,9 @@ def parse_log_body(data: dict, *, now=None) -> Session:
             if sn < 1 or r < 1:
                 raise ValueError(f"sets and reps must be >= 1 for {name}")
             set_entries.append(SetEntry(weight_lbs=w, sets=sn, reps=r))
+            idx = _parse_set_index(s.get("set_index"), name)
+            if idx is not None:
+                set_entries[-1].set_index = idx
         quest_seeded = bool(ex.get("quest_seeded") or ex.get("movement_only"))
         if not set_entries:
             # Honest empty log: quest seed / movement-only. Manual log still

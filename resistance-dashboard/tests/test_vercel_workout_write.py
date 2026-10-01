@@ -421,6 +421,65 @@ class WorkoutsWriteRoute(unittest.TestCase):
         self.assertEqual(row["sets"][0]["weight_lbs"], 55)
         self.assertFalse(row.get("quest_seeded"))
 
+    def test_second_manual_set_appends_and_keeps_other_exercise(self):
+        env = {
+            "GOOGLE_CLIENT_SECRET": "test-secret",
+            "FITDASH_MASTER_KEY": "test-master-key-for-unit-tests-only!!",
+        }
+        store = MemoryTurso()
+        first = {
+            "session_type": "push",
+            "date": "2026-10-01",
+            "exercises": [
+                {
+                    "name": "Barbell Flat Bench Press",
+                    "sets": [{"weight_lbs": 85, "sets": 1, "reps": 8}],
+                },
+                {
+                    "name": "DB Row",
+                    "sets": [{"weight_lbs": 50, "sets": 3, "reps": 10}],
+                },
+            ],
+        }
+        second = {
+            "session_type": "push",
+            "date": "2026-10-01",
+            "exercises": [
+                {
+                    "name": "Barbell Flat Bench Press",
+                    "sets": [{"weight_lbs": 90, "sets": 1, "reps": 8}],
+                }
+            ],
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            import rt_dashboard.crypto_box as cb
+
+            cb._KEY = None
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.connect", return_value=store
+            ):
+                status, _body = workouts_write(_session_cookie(), first)
+                again, body = workouts_write(_session_cookie(), second)
+        self.assertEqual(status, 200)
+        self.assertEqual(again, 200, body)
+        names = [e["name"] for e in body["session"]["exercises"]]
+        self.assertEqual(names, ["Barbell Flat Bench Press", "DB Row"])
+        bench = body["session"]["exercises"][0]
+        self.assertEqual(len(bench["sets"]), 2)
+        self.assertEqual(bench["sets"][0]["weight_lbs"], 85)
+        self.assertEqual(bench["sets"][0]["sets"], 1)
+        self.assertEqual(bench["sets"][0]["reps"], 8)
+        self.assertEqual(bench["sets"][1]["weight_lbs"], 90)
+        self.assertEqual(bench["sets"][1]["reps"], 8)
+        row = body["session"]["exercises"][1]
+        self.assertEqual(row["sets"][0]["weight_lbs"], 50)
+        self.assertEqual(row["sets"][0]["sets"], 3)
+        self.assertEqual(len(store.rows), 1)
+
 
 class SameDayLogMerge(unittest.TestCase):
     def test_keeps_quest_only_and_appends_log(self):
