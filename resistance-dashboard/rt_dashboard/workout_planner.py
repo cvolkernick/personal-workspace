@@ -36,8 +36,29 @@ LOAD_EQUIPMENT_TAGS = frozenset(
         "leg_press",
         "lat_pulldown",
         "assisted_pullup",
+        "fitbench",
     }
 )
+
+# Double progression (#954). Class band beats the catalog rep_range.
+# Hitting the top of the band adds one step and resets to the bottom.
+COMPOUND_REP_BAND = (5, 9)
+ISOLATION_REP_BAND = (8, 15)
+
+# Used when an inventory row for that tag has no max_weight_lbs.
+LIBRARY_LOAD_CAPS = {
+    "dumbbells": 50.0,
+    "fitbench": 30.0,
+}
+
+LOWER_BODY_MUSCLES = frozenset(
+    {"quads", "hamstrings", "glutes", "calves", "adductors"}
+)
+PIN_LOAD_TAGS = frozenset(
+    {"cable", "machine", "lat_pulldown", "leg_press", "assisted_pullup"}
+)
+BAR_LOAD_TAGS = frozenset({"barbell", "smith_machine"})
+DB_LOAD_TAGS = frozenset({"dumbbells", "fitbench"})
 
 # Canonical major groups (DeanT list; aliases map into these).
 MAJOR_MUSCLES: Tuple[str, ...] = (
@@ -1071,16 +1092,22 @@ def last_performance(
             if not ex.sets:
                 continue
             best_w = max(st.weight_lbs for st in ex.sets)
-            # representative working set: highest weight, then its sets/reps
+            # Judge progression on the first working set. Later sets that
+            # fall off do not change the load (#954).
+            first = ex.sets[0]
             top = max(ex.sets, key=lambda st: (st.weight_lbs, st.reps, st.sets))
             total_sets = sum(st.sets for st in ex.sets)
             return {
                 "date": s.date,
                 "session_type": s.session_type,
-                "weight_lbs": float(top.weight_lbs),
-                "sets": int(total_sets) if total_sets else int(top.sets),
-                "reps": int(top.reps),
+                "weight_lbs": float(first.weight_lbs),
+                "sets": int(total_sets) if total_sets else int(first.sets),
+                "reps": int(first.reps),
+                "first_weight_lbs": float(first.weight_lbs),
+                "first_reps": int(first.reps),
                 "best_working_weight": float(best_w),
+                "top_weight_lbs": float(top.weight_lbs),
+                "top_reps": int(top.reps),
                 "volume": float(ex.volume),
                 "is_pr": bool(ex.is_pr),
             }
@@ -1268,6 +1295,146 @@ def scale_muscle_targets_for_continuity(
     return out
 
 
+def progression_band(catalog_ex: Optional[dict]) -> Tuple[int, int]:
+    """Compound 5–9, isolation 8–15. Missing movement is a compound."""
+    movement = str((catalog_ex or {}).get("movement") or "compound").strip().lower()
+    if movement == "isolation":
+        return ISOLATION_REP_BAND
+    return COMPOUND_REP_BAND
+
+
+def rep_range_label(band: Tuple[int, int]) -> str:
+    return f"{int(band[0])}-{int(band[1])}"
+
+
+def _is_lower_body(catalog_ex: dict) -> bool:
+    prim = {
+        normalize_muscle(m) for m in (catalog_ex.get("primary_muscles") or [])
+    }
+    return bool(prim & LOWER_BODY_MUSCLES)
+
+
+def _db_step_lbs(last_weight: Optional[float]) -> float:
+    """+5 lb, or +2.5 lb when the logged load sits on a 2.5 lb grid."""
+    if last_weight is None:
+        return 5.0
+    rem = round(float(last_weight) % 5.0, 1)
+    if abs(rem - 2.5) < 0.05:
+        return 2.5
+    return 5.0
+
+
+def _implement_kind(catalog_ex: dict, equipment: Optional[dict]) -> str:
+    """db | pin | bar | unknown. Optional machine beats optional smith."""
+    required = set(movement_required_tags(catalog_ex))
+    any_tags = set(movement_any_tags(catalog_ex))
+    if isinstance(equipment, dict):
+        from .equipment_store import owned_equipment_tags
+
+        owned = owned_equipment_tags(equipment)
+        if owned:
+            any_tags = {t for t in any_tags if t in owned}
+    if required & DB_LOAD_TAGS:
+        return "db"
+    if required & PIN_LOAD_TAGS:
+        return "pin"
+    if required & BAR_LOAD_TAGS:
+        return "bar"
+    if any_tags & PIN_LOAD_TAGS:
+        return "pin"
+    if any_tags & BAR_LOAD_TAGS:
+        return "bar"
+    if any_tags & DB_LOAD_TAGS:
+        return "db"
+    return "unknown"
+
+
+def load_step_lbs(
+    catalog_ex: dict,
+    last_weight: Optional[float],
+    equipment: Optional[dict] = None,
+) -> float:
+    """One load step for this implement.
+
+    DB +5 lb (2.5 lb when the rack's last log shows it). Cable or machine
+    next pin is +5 lb. Barbell or Smith is +5 lb upper body, +10 lb lower.
+    """
+    kind = _implement_kind(catalog_ex, equipment)
+    if kind == "db":
+        return _db_step_lbs(last_weight)
+    if kind == "pin":
+        return 5.0
+    if kind == "bar":
+        return 10.0 if _is_lower_body(catalog_ex) else 5.0
+    return 5.0
+
+
+def _shift_load(weight: float, step: float, *, up: bool) -> float:
+    weight = float(weight)
+    step = float(step)
+    if up:
+        return round(weight + step, 1)
+    dropped = round(weight - step, 1)
+    if dropped <= 0:
+        if weight >= step:
+            return round(step, 1)
+        return round(weight, 1)
+    return dropped
+
+
+def _target_held_at_cap(judged_reps: int, hi: int) -> int:
+    """+1 rep until the top of the band, then stay there."""
+    if int(judged_reps) + 1 <= int(hi):
+        return int(judged_reps) + 1
+    return int(hi)
+
+
+def resolve_load_cap(
+    catalog_ex: dict,
+    equipment: Optional[dict],
+    explicit: Optional[float] = None,
+) -> Optional[float]:
+    """Equipment max for this lift. Library fallback: DBs 50, FITBENCH 30."""
+    if explicit is not None:
+        try:
+            return float(explicit)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(equipment, dict):
+        return None
+    cap = available_load_lbs(catalog_ex, equipment)
+    from .equipment_store import owned_equipment_items
+
+    items = owned_equipment_items(equipment)
+    by_tag = {str(i.get("tag") or ""): i for i in items}
+    tags = set(movement_required_tags(catalog_ex)) | set(movement_any_tags(catalog_ex))
+    for item in items:
+        blob = " ".join(
+            str(item.get(k) or "") for k in ("tag", "name", "id")
+        ).lower()
+        if "fitbench" in blob:
+            tags.add("fitbench")
+    for tag, known in LIBRARY_LOAD_CAPS.items():
+        if tag not in tags:
+            continue
+        item = by_tag.get(tag)
+        item_max = None if not isinstance(item, dict) else item.get("max_weight_lbs")
+        if item_max is None:
+            cap = known if cap is None else min(float(cap), float(known))
+    return cap
+
+
+def _judged_set(last: dict) -> Tuple[float, int]:
+    """First working set. Later sets do not pick the load."""
+    weight = last.get("first_weight_lbs")
+    reps = last.get("first_reps")
+    if weight is None:
+        weight = last.get("weight_lbs")
+    if reps is None:
+        reps = last.get("reps")
+    return float(weight), int(reps)
+
+
 def prescribe(
     catalog_ex: dict,
     last: Optional[dict],
@@ -1276,15 +1443,23 @@ def prescribe(
     continuity: Optional[Dict[str, Any]] = None,
     default_hard_sets: Optional[int] = None,
     rhr_under_recovered: bool = False,
+    equipment: Optional[dict] = None,
+    load_cap: Optional[float] = None,
+    deload: bool = False,
 ) -> dict:
-    """Double-progression style prescription from last logged set.
+    """Double progression from the first working set of the last log.
 
-    When ``continuity`` is not normal, hold or cut load vs last log instead of
-    progressing — re-establish pattern/work capacity after silence.
+    Compound band is 5–9. Isolation band is 8–15. One implement step on a
+    miss of either end. A deload flag, RHR under-recovery, or recovery
+    below 50 blocks a load increase and the 10% deload cut wins. Continuity
+    phases that are not normal keep their ramp and do not progress.
 
     Set volume is seeded from goals.default_hard_sets, never catalog default_sets=3.
     """
-    lo, hi = catalog_ex["rep_range"]
+    lo, hi = progression_band(catalog_ex)
+    label = rep_range_label((lo, hi))
+    if load_cap is None:
+        load_cap = resolve_load_cap(catalog_ex, equipment)
     if default_hard_sets is not None:
         sets = max(1, int(default_hard_sets))
     else:
@@ -1296,22 +1471,27 @@ def prescribe(
         sets = 2 if raw_i in (0, 3) else raw_i
     reps = int(catalog_ex.get("default_reps") or 10)
     weight: Optional[float] = None
-    rationale = "Default starter prescription (no history for this lift)."
+    rationale = "No history for this lift — seeded from the generator."
+    reason = "seed"
+    target_reps = reps
     cont = continuity or training_continuity(0)
     allow_prog = bool(cont.get("allow_load_progression", True))
     load_m = float(cont.get("load_multiplier") or 1.0)
+    continuity_cut = False
+    anchor: Optional[float] = None
+    judged_reps: Optional[int] = None
 
     if last:
-        base_w = float(last["weight_lbs"])
-        weight = base_w
+        anchor, judged_reps = _judged_set(last)
+        weight = anchor
         sets = int(last.get("sets") or sets)
-        reps = int(last.get("reps") or reps)
-        # Cap sets to productive hard-set range (DeanT: more is rarely better)
         sets = max(1, min(4, sets))
         if not allow_prog:
-            # Re-entry: technique loads, bottom of rep range, thinner sets
-            weight = round(base_w * load_m, 1)
+            continuity_cut = True
+            weight = round(anchor * load_m, 1)
+            target_reps = lo
             reps = lo
+            reason = "deload_override"
             if cont.get("phase") in ("reentry", "restart"):
                 sets = max(1, min(sets, 2))
             elif cont.get("phase") == "return":
@@ -1321,51 +1501,122 @@ def prescribe(
             days_txt = f"{days}d since last log" if days is not None else "no recent logs"
             rationale = (
                 f"{cont.get('label') or 'Return'} ({days_txt}): "
-                f"{base_w:g} lb last on {last['date']} → {weight:g} lb "
+                f"{anchor:g} lb last on {last['date']} → {weight:g} lb "
                 f"(−{cut}%), {sets}×{reps} to re-establish before progressing."
             )
-        elif reps >= hi:
-            # progress load
-            bump = 5.0 if weight >= 40 else 2.5
-            weight = weight + bump
-            reps = lo
-            rationale = (
-                f"Hit top of range ({hi}+) last time on {last['date']} @ "
-                f"{last['weight_lbs']} lb → +{bump:g} lb, reset to {lo} reps."
-            )
-        elif reps < lo:
-            rationale = (
-                f"Below range last time ({reps} reps @ {last['weight_lbs']} lb on "
-                f"{last['date']}) → hold weight, aim for {lo}–{hi}."
-            )
-            reps = lo
+        elif judged_reps < lo:
+            step = load_step_lbs(catalog_ex, anchor, equipment)
+            weight = _shift_load(anchor, step, up=False)
+            target_reps = lo
+            reason = "drop_load"
+        elif judged_reps >= hi:
+            step = load_step_lbs(catalog_ex, anchor, equipment)
+            nxt = _shift_load(anchor, step, up=True)
+            if load_cap is not None and nxt > float(load_cap) + 1e-9:
+                weight = round(float(load_cap), 1)
+                target_reps = _target_held_at_cap(judged_reps, hi)
+                reason = "hold_plus1"
+            else:
+                weight = nxt
+                target_reps = lo
+                reason = "add_load"
         else:
-            # stay weight, nudge reps up
-            target_reps = min(hi, reps + 1)
-            rationale = (
-                f"Last: {last['weight_lbs']} lb × {last.get('sets')} × {last['reps']} "
-                f"on {last['date']} → same weight, push toward {target_reps} reps "
-                f"(range {lo}–{hi})."
-            )
-            reps = target_reps
+            weight = anchor
+            target_reps = judged_reps + 1
+            reason = "hold_plus1"
+        reps = target_reps
 
-    deload = (recovery_score is not None and recovery_score < 50) or bool(
-        rhr_under_recovered
+    # Recovery under 50, an RHR flag, or an explicit deload blocks add_load.
+    # Below 40 is inside that window. The 10% cut is the deload prescription.
+    wants_cut = bool(deload) or bool(rhr_under_recovered) or (
+        recovery_score is not None and float(recovery_score) < 50
     )
-    if deload and weight is not None:
+    if wants_cut and last and not continuity_cut:
+        if (
+            weight is not None
+            and anchor is not None
+            and weight > anchor + 1e-9
+        ):
+            weight = anchor
+            target_reps = lo
+            reps = lo
+        reason = "deload_override"
+    if wants_cut and weight is not None:
         before = weight
-        weight = round(weight * 0.9, 1)
-        if weight < before:
+        weight = round(float(weight) * 0.9, 1)
+        # Continuity keeps the ramp sentence written above. Other paths
+        # rebuild the rationale after this cut.
+        if continuity_cut and weight < before - 1e-9:
             if rhr_under_recovered:
                 rationale += " RHR under-recovered → ~10% load deload."
+            elif deload and (
+                recovery_score is None or float(recovery_score) >= 50
+            ):
+                rationale += " Deload flag → ~10% load deload."
             else:
                 rationale += " Recovery moderate/low → ~10% load deload."
 
+    capped_to_max = False
+    if load_cap is not None and weight is not None and weight > float(load_cap) + 1e-9:
+        weight = round(float(load_cap), 1)
+        capped_to_max = True
+        if reason == "add_load":
+            reason = "hold_plus1"
+            judged = int(judged_reps if judged_reps is not None else hi)
+            target_reps = _target_held_at_cap(judged, hi)
+            reps = target_reps
+
+    if last and not continuity_cut:
+        when = last.get("date") or "last session"
+        shown = f"{anchor:g}" if anchor is not None else "?"
+        got = f"{weight:g}" if weight is not None else "—"
+        if reason == "add_load":
+            rationale = (
+                f"First working set {judged_reps} at the top of {label} "
+                f"on {when} @ {shown} lb → {got} lb, target {target_reps}."
+            )
+        elif reason == "drop_load":
+            rationale = (
+                f"First working set {judged_reps} under {label} "
+                f"on {when} @ {shown} lb → {got} lb, target {target_reps}."
+            )
+        elif reason == "hold_plus1":
+            if judged_reps is not None and judged_reps >= hi:
+                rationale = (
+                    f"First working set {judged_reps} at the top of {label} "
+                    f"on {when} @ {shown} lb stays {got} lb, target {target_reps}."
+                )
+            else:
+                rationale = (
+                    f"First working set {judged_reps} inside {label} "
+                    f"on {when} @ {shown} lb → {got} lb, target {target_reps}."
+                )
+        elif reason == "deload_override":
+            rationale = (
+                f"Deload override on {when} @ {shown} lb → {got} lb, "
+                f"target {target_reps}. No load increase."
+            )
+            if rhr_under_recovered:
+                rationale += " RHR under-recovered → ~10% load deload."
+            elif deload and (
+                recovery_score is None or float(recovery_score) >= 50
+            ):
+                rationale += " Deload flag → ~10% load deload."
+            elif recovery_score is not None and float(recovery_score) < 50:
+                rationale += " Recovery moderate/low → ~10% load deload."
+
+    if capped_to_max and weight is not None:
+        rationale += f" Load held at {weight:g} lb (equipment max)."
+
     return {
         "weight_lbs": weight,
+        "load": weight,
         "sets": sets,
-        "reps": reps,
+        "reps": int(target_reps),
+        "target_reps": int(target_reps),
         "rep_range": [lo, hi],
+        "rep_range_label": label,
+        "progression_reason": reason,
         "rationale": rationale,
         "last": last,
         "continuity_phase": cont.get("phase"),
@@ -1381,6 +1632,7 @@ def generate_workout_plan(
     recovery_score: Optional[float] = None,
     recovery_sparse: bool = False,
     recovery_rhr_under: bool = False,
+    deload: bool = False,
     session_type: Optional[str] = None,
     as_of: Optional[str] = None,
     equipment: Optional[dict] = None,
@@ -1718,6 +1970,8 @@ def generate_workout_plan(
         # Volume from goals.default_hard_sets — never catalog default_sets=3
         ex_rx = dict(ex)
         ex_rx["default_sets"] = default_hard
+        equip_for_rx = equipment if equipment_on else None
+        load_cap = resolve_load_cap(ex, equip_for_rx)
         rx = prescribe(
             ex_rx,
             last,
@@ -1725,18 +1979,29 @@ def generate_workout_plan(
             continuity=continuity,
             default_hard_sets=default_hard,
             rhr_under_recovered=bool(recovery_rhr_under),
+            equipment=equip_for_rx,
+            load_cap=load_cap,
+            deload=bool(deload),
         )
-        capped_w, load_cap, was_capped = cap_weight_to_inventory(
-            rx.get("weight_lbs"), ex, equipment if equipment_on else None
+        capped_w, _inv_cap, was_capped = cap_weight_to_inventory(
+            rx.get("weight_lbs"), ex, equip_for_rx
         )
         if was_capped:
             rx["weight_lbs"] = capped_w
+            rx["load"] = capped_w
+            if rx.get("progression_reason") == "add_load":
+                _lo, _hi = rx.get("rep_range") or progression_band(ex)
+                judged = int((rx.get("last") or {}).get("reps") or _hi)
+                rx["target_reps"] = _target_held_at_cap(judged, int(_hi))
+                rx["reps"] = rx["target_reps"]
+                rx["progression_reason"] = "hold_plus1"
             rx["rationale"] = (
                 f"{rx['rationale']} Load capped at {capped_w:g} lb "
-                f"(owned max {load_cap:g} lb)."
+                f"(owned max)."
             )
         elif capped_w is not None:
             rx["weight_lbs"] = capped_w
+            rx["load"] = capped_w
         hard = int(rx["sets"] or default_hard)
         hard = _cap_sets_for_muscles(
             hard,
@@ -1779,11 +2044,19 @@ def generate_workout_plan(
                 "secondary_muscles": ex["secondary_muscles"],
                 "movement": ex["movement"],
                 "equipment": ex["equipment"],
+                "load": rx.get("load"),
+                "rep_range": rx.get("rep_range_label"),
+                "target_reps": rx.get("target_reps"),
+                "progression_reason": rx.get("progression_reason"),
                 "prescription": {
                     "weight_lbs": rx["weight_lbs"],
+                    "load": rx.get("load"),
                     "sets": rx["sets"],
                     "reps": rx["reps"],
                     "rep_range": rx["rep_range"],
+                    "rep_range_label": rx.get("rep_range_label"),
+                    "target_reps": rx.get("target_reps"),
+                    "progression_reason": rx.get("progression_reason"),
                 },
                 "set_credits": {k: round(v, 2) for k, v in credits.items()},
                 "rationale": rx["rationale"],

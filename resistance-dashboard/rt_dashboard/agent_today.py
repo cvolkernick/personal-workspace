@@ -68,11 +68,21 @@ def _plan_exercise_row(ex: Any) -> Optional[Dict[str, Any]]:
         "target_reps",
         "cues",
         "notes",
+        "load",
+        "rep_range",
+        "progression_reason",
     ):
         if ex.get(key) is not None:
             row[key] = ex[key]
         elif rx.get(key) is not None:
             row[key] = rx[key]
+    if row.get("rep_range") is None and rx.get("rep_range_label"):
+        row["rep_range"] = rx.get("rep_range_label")
+    band = row.get("rep_range")
+    if isinstance(band, list) and len(band) >= 2:
+        row["rep_range"] = f"{int(band[0])}-{int(band[1])}"
+    if row.get("load") is None and row.get("weight_lbs") is not None:
+        row["load"] = row.get("weight_lbs")
     return row
 
 

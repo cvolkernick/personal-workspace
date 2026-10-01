@@ -48,9 +48,27 @@ def flatten_plan_exercises(exercises) -> list:
         row = dict(ex)
         row["name"] = name
         rx = row.get("prescription") if isinstance(row.get("prescription"), dict) else {}
-        for key in ("sets", "reps", "weight_lbs"):
+        for key in (
+            "sets",
+            "reps",
+            "weight_lbs",
+            "load",
+            "target_reps",
+            "progression_reason",
+        ):
             if row.get(key) is None and rx.get(key) is not None:
                 row[key] = rx[key]
+        if row.get("rep_range") is None:
+            label = rx.get("rep_range_label")
+            if label:
+                row["rep_range"] = label
+            elif rx.get("rep_range") is not None:
+                row["rep_range"] = rx.get("rep_range")
+        band = row.get("rep_range")
+        if isinstance(band, list) and len(band) >= 2:
+            row["rep_range"] = f"{int(band[0])}-{int(band[1])}"
+        if row.get("load") is None and row.get("weight_lbs") is not None:
+            row["load"] = row.get("weight_lbs")
         out.append(row)
     return out
 
