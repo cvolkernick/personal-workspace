@@ -104,6 +104,24 @@ class TestDiagnosis(unittest.TestCase):
         report = R.build_report(line + "\n", now=NOW)
         self.assertEqual(report["diagnosis"]["verdict"], "mixed")
 
+    def test_supply_block_is_on_the_tick(self):
+        line = (
+            "2026-09-19T14:00:00+00:00 hour0=False dry=False listed=80 del=0 {} "
+            "remain=80 add=2 skip={} quota=500 house=250 "
+            "supply={'pool': 4, 'subscribed_adds': 1, 'discovered_adds': 1, "
+            "'unique_channels': 22, 'searches': 2, 'search_units': 200, "
+            "'subscribed_adds_7d': 3, 'discovered_adds_7d': 2, 'share_cap': 12, "
+            "'inserts_budget': 40, 'quota_blocker': ''}"
+        )
+        tick = R.parse_tick_line(line)
+        self.assertIsNotNone(tick)
+        self.assertEqual(tick["supply"]["pool"], 4)
+        self.assertEqual(tick["supply"]["discovered_adds"], 1)
+        self.assertEqual(tick["supply"]["subscribed_adds"], 1)
+        self.assertEqual(tick["supply"]["unique_channels"], 22)
+        self.assertEqual(tick["supply"]["search_units"], 200)
+        self.assertEqual(R.public_tick(tick)["supply"]["discovered_adds_7d"], 2)
+
 
 class TestQuotaLevers(unittest.TestCase):
     def test_headroom_blocks_half_hour_ticks(self):

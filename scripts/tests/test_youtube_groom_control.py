@@ -79,10 +79,12 @@ class TestBandMath(unittest.TestCase):
     def test_policy_and_control_agree(self):
         self.assertEqual(C.HOUSE_TARGET, P.HOUSE_TARGET)
         self.assertEqual(C.HOUSE_TARGET_TOLERANCE, P.HOUSE_TARGET_TOLERANCE)
-        self.assertEqual(C.BAND_LOW, 90)
-        self.assertEqual(C.BAND_HIGH, 110)
-        self.assertEqual(P.BAND_LOW, 90)
-        self.assertEqual(P.BAND_HIGH, 110)
+        self.assertEqual(C.BAND_LOW, 235)
+        self.assertEqual(C.BAND_HIGH, 250)
+        self.assertEqual(P.BAND_LOW, 235)
+        self.assertEqual(P.BAND_HIGH, 250)
+        self.assertEqual(C.CAP, 250)
+        self.assertEqual(P.CAP, 250)
         self.assertEqual(C.EXTRA_SEED_LADDER, P.EXTRA_SEED_LADDER)
 
     def test_below_inside_above(self):
@@ -90,46 +92,51 @@ class TestBandMath(unittest.TestCase):
         self.assertEqual(below["side"], "below")
         self.assertEqual(below["playlist_count"], 59)
         self.assertEqual(below["net_new"], 0)
-        self.assertEqual(below["distance"], 31)
-        inside = C.band_metrics(_tick(remain=100, add=3, deleted=1))
+        self.assertEqual(below["distance"], 176)
+        inside = C.band_metrics(_tick(remain=242, add=3, deleted=1))
         self.assertEqual(inside["side"], "inside")
         self.assertEqual(inside["distance"], 0)
         self.assertEqual(inside["net_new"], 2)
-        above = C.band_metrics(_tick(remain=120, add=5, deleted=0))
+        above = C.band_metrics(_tick(remain=260, add=5, deleted=0))
         self.assertEqual(above["side"], "above")
         self.assertEqual(above["distance"], 10)
         self.assertEqual(P.band_side(59), "below")
-        self.assertEqual(P.distance_from_band(59), 31)
+        self.assertEqual(P.distance_from_band(59), 176)
+        self.assertEqual(P.band_side(250), "inside")
+        self.assertEqual(P.band_side(251), "above")
         self.assertEqual(P.net_new(2, 2), 0)
 
     def test_edges_of_band(self):
-        self.assertEqual(C.band_metrics(_tick(remain=90))["side"], "inside")
-        self.assertEqual(C.band_metrics(_tick(remain=110))["side"], "inside")
-        self.assertEqual(C.band_metrics(_tick(remain=89))["side"], "below")
-        self.assertEqual(C.band_metrics(_tick(remain=111))["side"], "above")
+        self.assertEqual(C.band_metrics(_tick(remain=235))["side"], "inside")
+        self.assertEqual(C.band_metrics(_tick(remain=250))["side"], "inside")
+        self.assertEqual(C.band_metrics(_tick(remain=234))["side"], "below")
+        self.assertEqual(C.band_metrics(_tick(remain=251))["side"], "above")
 
 
 class TestLoosenLadder(unittest.TestCase):
-    def test_live_min_fit_already_floor_so_throttle_then_seeds(self):
+    def test_baseline_throttle_is_off_so_first_notch_is_a_seed(self):
         knobs = dict(C.DEFAULT_KNOBS)
+        self.assertEqual(knobs["SEED_THROTTLE_WEIGHT_FLOOR"], 0.0)
+        self.assertEqual(knobs["HOUSE_TARGET"], 250)
+        self.assertEqual(knobs["CAP"], 250)
         metrics = C.band_metrics(_tick(remain=59, add=2, deleted=2))
         state = {"last_action": None, "cooldown_remaining": 0}
         first = C.decide(metrics, knobs, state, _quota())
         self.assertEqual(first["adjustment"]["action"], "loosen")
-        self.assertEqual(first["adjustment"]["knob"], "SEED_THROTTLE_WEIGHT_FLOOR")
-        self.assertEqual(first["knobs"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.05)
+        self.assertEqual(first["adjustment"]["knob"], "SEED_EXTRA")
         self.assertFalse(first["adjustment"].get("replay"))
-
-        second = C.decide(metrics, first["knobs"], {"last_action": "loosen", "cooldown_remaining": 2}, _quota())
-        self.assertEqual(second["adjustment"]["knob"], "SEED_THROTTLE_WEIGHT_FLOOR")
-        self.assertEqual(second["knobs"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.00)
-
-        third = C.decide(metrics, second["knobs"], {"last_action": "loosen", "cooldown_remaining": 2}, _quota())
-        self.assertEqual(third["adjustment"]["knob"], "SEED_EXTRA")
-        extra = third["knobs"]["SEED_EXTRA"]
-        self.assertEqual(len(extra), 1)
+        extra = first["knobs"]["SEED_EXTRA"]
         cid, name = C.EXTRA_SEED_LADDER[0]
         self.assertEqual(extra[cid], name)
+        self.assertLessEqual(first["knobs"]["CAP"], 250)
+
+    def test_explicit_throttle_still_notches_before_seeds(self):
+        knobs = dict(C.DEFAULT_KNOBS)
+        knobs["SEED_THROTTLE_WEIGHT_FLOOR"] = 0.10
+        metrics = C.band_metrics(_tick(remain=59))
+        first = C.decide(metrics, knobs, {}, _quota())
+        self.assertEqual(first["adjustment"]["knob"], "SEED_THROTTLE_WEIGHT_FLOOR")
+        self.assertEqual(first["knobs"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.05)
 
     def test_under_band_loosens_tick_over_tick_not_identical(self):
         knobs = dict(C.DEFAULT_KNOBS)
@@ -181,11 +188,12 @@ class TestLoosenLadder(unittest.TestCase):
 
 class TestTightenAndAntiOscillation(unittest.TestCase):
     def test_above_band_prunes_via_cap(self):
-        metrics = C.band_metrics(_tick(remain=120, add=5, deleted=0))
+        metrics = C.band_metrics(_tick(remain=260, add=5, deleted=0))
         d = C.decide(metrics, dict(C.DEFAULT_KNOBS), {}, _quota())
         self.assertEqual(d["adjustment"]["action"], "tighten")
         self.assertEqual(d["adjustment"]["knob"], "CAP")
-        self.assertEqual(d["knobs"]["CAP"], 110)
+        self.assertEqual(d["knobs"]["CAP"], 250)
+        self.assertLessEqual(d["knobs"]["CAP"], 250)
         self.assertTrue(d["knobs"]["PRUNE_TO_BAND"])
 
     def test_no_loosen_tighten_flip_on_consecutive_ticks(self):
@@ -193,7 +201,7 @@ class TestTightenAndAntiOscillation(unittest.TestCase):
         below = C.band_metrics(_tick(remain=59, at="t1"))
         first = C.decide(below, knobs, {}, _quota())
         self.assertEqual(first["adjustment"]["action"], "loosen")
-        above = C.band_metrics(_tick(remain=120, at="t2"))
+        above = C.band_metrics(_tick(remain=260, at="t2"))
         second = C.decide(
             above,
             first["knobs"],
@@ -232,7 +240,7 @@ class TestTightenAndAntiOscillation(unittest.TestCase):
         self.assertEqual(fourth["adjustment"]["action"], "tighten")
 
     def test_inside_band_rests(self):
-        d = C.decide(C.band_metrics(_tick(remain=100)), dict(C.DEFAULT_KNOBS), {}, _quota())
+        d = C.decide(C.band_metrics(_tick(remain=242)), dict(C.DEFAULT_KNOBS), {}, _quota())
         self.assertEqual(d["adjustment"]["action"], "rest")
         self.assertIsNone(d["adjustment"]["blocker"])
         self.assertIn("inside", d["adjustment"]["why"])
@@ -262,19 +270,20 @@ class TestApplyKnobsAndPersist(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             td = Path(tmp)
             knobs = {
+                "schema_version": 2,
                 "MIN_FIT": 0,
                 "SEED_THROTTLE_WEIGHT_FLOOR": 0.05,
                 "SEED_EXTRA": {C.EXTRA_SEED_LADDER[0][0]: C.EXTRA_SEED_LADDER[0][1]},
-                "CAP": 200,
-                "HOUSE_TARGET": 100,
+                "CAP": 250,
+                "HOUSE_TARGET": 250,
             }
             path = td / "knobs.json"
             path.write_text(json.dumps(knobs), encoding="utf-8")
             g = {
                 "MIN_FIT": 0,
-                "SEED_THROTTLE_WEIGHT_FLOOR": 0.10,
-                "HOUSE_TARGET": 100,
-                "CAP": 200,
+                "SEED_THROTTLE_WEIGHT_FLOOR": 0.0,
+                "HOUSE_TARGET": 250,
+                "CAP": 250,
                 "SEED_KEEPERS": {"UCkrwgzhIBKccuDsi_SvZtnQ": "Forward Guidance"},
             }
             applied = C.apply_live_knobs(g, knobs_path=path)
@@ -316,10 +325,46 @@ class TestApplyKnobsAndPersist(unittest.TestCase):
             )
             self.assertTrue(second["idempotent"])
             knobs = json.loads((td / "knobs.json").read_text(encoding="utf-8"))
-            self.assertEqual(knobs["SEED_THROTTLE_WEIGHT_FLOOR"], 0.05)
+            self.assertEqual(knobs["SEED_THROTTLE_WEIGHT_FLOOR"], 0.0)
+            self.assertEqual(knobs["HOUSE_TARGET"], 250)
+            self.assertEqual(knobs["CAP"], 250)
+            self.assertEqual(knobs["schema_version"], 2)
+            self.assertEqual(len(knobs["SEED_EXTRA"]), 1)
             self.assertFalse(knobs["copy_over_pi"])
-            self.assertNotIn("token", json.dumps(knobs).lower())
-            self.assertNotIn("refresh", json.dumps(first).lower())
+
+    def test_schema_1_state_rebases_to_250_and_keeps_extra_seeds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            td = Path(tmp)
+            state_path = td / "control_state.json"
+            cid, name = C.EXTRA_SEED_LADDER[0]
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "knobs": {
+                            "HOUSE_TARGET": 100,
+                            "CAP": 110,
+                            "PRUNE_TO_BAND": True,
+                            "SEED_THROTTLE_WEIGHT_FLOOR": 0.05,
+                            "SEED_EXTRA": {cid: name},
+                            "ticks_per_day": 48,
+                            "MIN_FIT": 0,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            loaded = C.load_state(state_path)
+            self.assertEqual(loaded["schema_version"], 2)
+            self.assertEqual(loaded["knobs"]["HOUSE_TARGET"], 250)
+            self.assertEqual(loaded["knobs"]["CAP"], 250)
+            self.assertEqual(loaded["knobs"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.0)
+            self.assertFalse(loaded["knobs"]["PRUNE_TO_BAND"])
+            self.assertEqual(loaded["knobs"]["SEED_EXTRA"][cid], name)
+            self.assertEqual(loaded["knobs"]["ticks_per_day"], 48)
+            blob = json.dumps(loaded).lower()
+            self.assertNotIn("token", blob)
+            self.assertNotIn("refresh", blob)
 
     def test_timer_dropin_text(self):
         hourly = C.timer_dropin_text(24)
@@ -480,6 +525,7 @@ class TestLanding(unittest.TestCase):
     def test_docs_and_service_wire_control(self):
         text = CONTROL_MD.read_text(encoding="utf-8")
         self.assertIn("90–110", text.replace("90-110", "90–110"))
+        self.assertIn("235–250", text.replace("235-250", "235–250"))
         self.assertIn("control_state.json", text)
         self.assertIn("knobs.json", text)
         self.assertIn("do not copy", text.lower())

@@ -12,11 +12,12 @@ API code.
 
 This file is the nest SoT for house caps, insert-budget math, the
 #731/#815 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), the
-#788 house fill (`HOUSE_TARGET` 50 → 100), and the #852 control-loop
-band (`HOUSE_TARGET ± HOUSE_TARGET_TOLERANCE` = 100 ± 10).
+#788 house fill (`HOUSE_TARGET` 50 → 100), the #852 control-loop band,
+and the #957 rebaseline (target/cap 250, band 235–250, stale 30d).
 No YouTube I/O. No second writer. No OAuth.
-The loop itself lives in `scripts/youtube_groom_control.py` (sidecar;
-copy alongside the Pi writer, never over it).
+The loop itself lives in `scripts/youtube_groom_control.py`. Discovery,
+share cap, and the daily climb live in `scripts/youtube_groom_supply.py`.
+Copy those sidecars alongside the Pi writer, never over it.
 """
 
 from __future__ import annotations
@@ -46,6 +47,14 @@ from typing import Iterable, Optional, Sequence
 #   SEED_THROTTLE_WEIGHT_FLOOR 0.25 → 0.10. HOUSE_TARGET/CAP unchanged.
 # #852 (control loop): HOUSE_TARGET_TOLERANCE = 10 → band 90–110.
 #   Sidecar youtube_groom_control.py notches knobs when outside the band.
+# #957: HOUSE_TARGET 100 → 250, CAP 200 → 250, tolerance 15.
+#   Band is 235–250 (high side clamped to CAP; never exceed 250).
+#   STALE_HARD_DAYS 7 → 30 and FRESH_HOURS 168 → 720 so the inner
+#   fresh prune cannot immediately delete the list back to 7 days.
+#   SEED_THROTTLE_WEIGHT_FLOOR 0.10 → 0.00 at baseline (not only as a
+#   below-band notch). WEIGHT_FLOOR 0.15 → 0.05.
+#   SEED_UPLOADS_PER_CHANNEL stays 50 (YouTube page max).
+#   CLIMB_INSERTS_PER_DAY 40 spreads the fill. That is not MAX_ADD_PER_DAY.
 # ---------------------------------------------------------------------------
 
 PLAYLIST_ID = "PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At"
@@ -54,29 +63,44 @@ PI_WRITER_PATH = "~/.local/lib/youtube-groom/youtube_groom.py"
 NEST_PATH = "scripts/youtube_groom.py"
 HISTORICAL_MD5 = "25b0bed0ca8f214f9437af3b9a8cfa9d"
 
-# Fill-to after prune. Target, not a hard playlist max.
-HOUSE_TARGET = 100
+# Fill-to after prune. #957 target. Not a YouTube 5000 cap.
+HOUSE_TARGET = 250
+PREV_HOUSE_TARGET = 100  # #788/#852
 OLD_HOUSE_TARGET = 50
-# #852 band: playlist count should sit in HOUSE_TARGET ± TOLERANCE.
-HOUSE_TARGET_TOLERANCE = 10
-BAND_LOW = HOUSE_TARGET - HOUSE_TARGET_TOLERANCE  # 90
-BAND_HIGH = HOUSE_TARGET + HOUSE_TARGET_TOLERANCE  # 110
+# High side is clamped to CAP so the band cannot sit above 250.
+HOUSE_TARGET_TOLERANCE = 15
+PREV_HOUSE_TARGET_TOLERANCE = 10
+# Breaker and hard max. #957 never exceeds 250. Was 200.
+CAP = 250
+PREV_CAP = 200
+BAND_LOW = HOUSE_TARGET - HOUSE_TARGET_TOLERANCE  # 235
+BAND_HIGH = min(HOUSE_TARGET + HOUSE_TARGET_TOLERANCE, CAP)  # 250
 
-# Breaker, not a fill target. Live reason was cap_100; now CAP 200.
-CAP = 200
-
-FRESH_HOURS = 168  # was 72; aligns with STALE_HARD_DAYS (7d)
-STALE_HARD_DAYS = 7
+FRESH_HOURS = 720  # was 168; matches STALE_HARD_DAYS (30d)
+PREV_FRESH_HOURS = 168
+STALE_HARD_DAYS = 30  # was 7
+PREV_STALE_HARD_DAYS = 7
 MAX_DELETES_PER_TICK = 80
 KEEP_N = 10  # empty-playlist prune fallback on Pi (`keep_n`)
 
-# Add-path floors on the Pi writer (#731 then #815). Channel lists stay on Pi.
+# Add-path floors on the Pi writer (#731, #815, then #957 baseline).
 MIN_FIT = 0  # thesis-fit skip disabled; accept fit≥0 (was 1)
 OLD_MIN_FIT = 1
 ORIG_MIN_FIT = 2  # pre-#731 skip fit < 2
-SEED_THROTTLE_WEIGHT_FLOOR = 0.10  # skip SEED_THROTTLE only below this (was 0.25)
+SEED_THROTTLE_WEIGHT_FLOOR = 0.0  # #957 baseline; throttle skip off
+PREV_SEED_THROTTLE_WEIGHT_FLOOR = 0.10  # #815
 OLD_SEED_THROTTLE_WEIGHT_FLOOR = 0.25
 ORIG_SEED_THROTTLE_WEIGHT_FLOOR = 0.4  # pre-#731
+WEIGHT_FLOOR = 0.05  # was 0.15 on the live writer
+PREV_WEIGHT_FLOOR = 0.15
+SEED_UPLOADS_PER_CHANNEL = 50  # unchanged; YouTube page max
+# Gradual fill. Distinct from the removed per-tick ceiling and from
+# MAX_ADD_PER_DAY, which stays unset.
+CLIMB_INSERTS_PER_DAY = 40
+CHANNEL_SHARE_MIN = 12
+CHANNEL_SHARE_FRACTION = 0.05
+DISCOVERY_MIX_TARGET = 0.40
+MAX_SEARCHES_PER_TICK = 4
 
 # YouTube platform ceiling — not our limiter.
 YOUTUBE_PLAYLIST_CEILING = 5000
@@ -118,6 +142,11 @@ HOUSE_CAPS = {
     "MAX_ADD_PER_DAY": MAX_ADD_PER_DAY,
     "MIN_FIT": MIN_FIT,
     "SEED_THROTTLE_WEIGHT_FLOOR": SEED_THROTTLE_WEIGHT_FLOOR,
+    "WEIGHT_FLOOR": WEIGHT_FLOOR,
+    "CLIMB_INSERTS_PER_DAY": CLIMB_INSERTS_PER_DAY,
+    "CHANNEL_SHARE_MIN": CHANNEL_SHARE_MIN,
+    "DISCOVERY_MIX_TARGET": DISCOVERY_MIX_TARGET,
+    "SEED_UPLOADS_PER_CHANNEL": SEED_UPLOADS_PER_CHANNEL,
 }
 
 
@@ -170,10 +199,42 @@ def skip_add_reason(
     return None
 
 
-def band_side(count: int, *, house: int = HOUSE_TARGET, tolerance: int = HOUSE_TARGET_TOLERANCE) -> str:
-    """below / inside / above the HOUSE_TARGET ± TOLERANCE band."""
+def band_edges(
+    *,
+    house: int = HOUSE_TARGET,
+    tolerance: int = HOUSE_TARGET_TOLERANCE,
+    cap: int = CAP,
+) -> tuple[int, int]:
+    """Low is house − tolerance. High never exceeds CAP."""
     low = house - tolerance
-    high = house + tolerance
+    high = min(house + tolerance, cap)
+    return low, high
+
+
+def channel_share_cap(
+    playlist_count: int,
+    *,
+    minimum: int = CHANNEL_SHARE_MIN,
+    fraction: float = CHANNEL_SHARE_FRACTION,
+) -> int:
+    """max(12, ceil(5% of the playlist)). At 250 the cap is 13."""
+    count = max(0, int(playlist_count))
+    if count == 0:
+        return minimum
+    numer = int(round(fraction * 100))
+    pct = (count * numer + 99) // 100
+    return max(minimum, pct)
+
+
+def band_side(
+    count: int,
+    *,
+    house: int = HOUSE_TARGET,
+    tolerance: int = HOUSE_TARGET_TOLERANCE,
+    cap: int = CAP,
+) -> str:
+    """below / inside / above the band. High side is clamped to CAP."""
+    low, high = band_edges(house=house, tolerance=tolerance, cap=cap)
     if count < low:
         return "below"
     if count > high:
@@ -182,11 +243,14 @@ def band_side(count: int, *, house: int = HOUSE_TARGET, tolerance: int = HOUSE_T
 
 
 def distance_from_band(
-    count: int, *, house: int = HOUSE_TARGET, tolerance: int = HOUSE_TARGET_TOLERANCE
+    count: int,
+    *,
+    house: int = HOUSE_TARGET,
+    tolerance: int = HOUSE_TARGET_TOLERANCE,
+    cap: int = CAP,
 ) -> int:
-    """How far the playlist count sits outside 90–110. 0 if inside."""
-    low = house - tolerance
-    high = house + tolerance
+    """How far the playlist count sits outside the band. 0 if inside."""
+    low, high = band_edges(house=house, tolerance=tolerance, cap=cap)
     if count < low:
         return low - count
     if count > high:
@@ -214,8 +278,9 @@ def insert_budget(
 ) -> int:
     """This-tick insert count. No per-tick insert ceiling.
 
-    Stopped by (1) remaining slots to the house target, (2) the CAP 200
+    Stopped by (1) remaining slots to the house target, (2) the CAP 250
     breaker, (3) remaining slots in the playlist (YouTube 5000).
+    The live writer also applies CLIMB_INSERTS_PER_DAY on top of this.
     Does not invent MAX_ADD_PER_DAY. Does not apply OLD_MAX_INSERTS_PER_TICK.
     """
     after = max(0, after_prune)
@@ -326,6 +391,19 @@ def scorecard() -> dict[str, object]:
             "SEED_THROTTLE_WEIGHT_FLOOR": OLD_SEED_THROTTLE_WEIGHT_FLOOR,
             "HOUSE_TARGET": OLD_HOUSE_TARGET,
         },
+        "previous": {
+            "HOUSE_TARGET": PREV_HOUSE_TARGET,
+            "CAP": PREV_CAP,
+            "FRESH_HOURS": PREV_FRESH_HOURS,
+            "STALE_HARD_DAYS": PREV_STALE_HARD_DAYS,
+            "MIN_FIT": MIN_FIT,
+            "SEED_THROTTLE_WEIGHT_FLOOR": PREV_SEED_THROTTLE_WEIGHT_FLOOR,
+            "WEIGHT_FLOOR": PREV_WEIGHT_FLOOR,
+            "HOUSE_TARGET_TOLERANCE": PREV_HOUSE_TARGET_TOLERANCE,
+            "BAND_LOW": PREV_HOUSE_TARGET - PREV_HOUSE_TARGET_TOLERANCE,
+            "BAND_HIGH": PREV_HOUSE_TARGET + PREV_HOUSE_TARGET_TOLERANCE,
+            "SEED_UPLOADS_PER_CHANNEL": SEED_UPLOADS_PER_CHANNEL,
+        },
         "new": {
             "MAX_INSERTS_PER_TICK": None,
             "HOUSE_TARGET": HOUSE_TARGET,
@@ -337,9 +415,12 @@ def scorecard() -> dict[str, object]:
             "MAX_ADD_PER_DAY": MAX_ADD_PER_DAY,
             "MIN_FIT": MIN_FIT,
             "SEED_THROTTLE_WEIGHT_FLOOR": SEED_THROTTLE_WEIGHT_FLOOR,
+            "WEIGHT_FLOOR": WEIGHT_FLOOR,
             "HOUSE_TARGET_TOLERANCE": HOUSE_TARGET_TOLERANCE,
             "BAND_LOW": BAND_LOW,
             "BAND_HIGH": BAND_HIGH,
+            "CLIMB_INSERTS_PER_DAY": CLIMB_INSERTS_PER_DAY,
+            "SEED_UPLOADS_PER_CHANNEL": SEED_UPLOADS_PER_CHANNEL,
         },
         "youtube_ceiling": YOUTUBE_PLAYLIST_CEILING,
         "cap_is_breaker": True,
@@ -347,7 +428,9 @@ def scorecard() -> dict[str, object]:
         "quota_guard_in_nest": QUOTA_GUARD_IN_NEST,
         "control_loop": {
             "issue": 852,
+            "rebased_by": 957,
             "sidecar": "scripts/youtube_groom_control.py",
+            "supply": "scripts/youtube_groom_supply.py",
             "band": f"{BAND_LOW}–{BAND_HIGH}",
             "extra_seed_count": len(EXTRA_SEED_LADDER),
             "copy_over_pi": False,
@@ -366,24 +449,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print("  insert cap: MAX_INSERTS_PER_TICK 8 → removed")
     print("  otherwise (hearted 8/31):")
     new = card["new"]
+    prev = card["previous"]
     print(
         f"    HOUSE_TARGET:         {new['HOUSE_TARGET']} "
-        f"(was {card['old']['HOUSE_TARGET']}; target, not YouTube 5000)"
+        f"(was {prev['HOUSE_TARGET']}; target, not YouTube 5000)"
     )
-    print(f"    CAP:                  {new['CAP']} (breaker)")
-    print(f"    FRESH_HOURS:          {new['FRESH_HOURS']}")
-    print(f"    STALE_HARD_DAYS:      {new['STALE_HARD_DAYS']}")
+    print(f"    CAP:                  {new['CAP']} (hard max; was {prev['CAP']})")
+    print(f"    FRESH_HOURS:          {new['FRESH_HOURS']} (was {prev['FRESH_HOURS']})")
+    print(f"    STALE_HARD_DAYS:      {new['STALE_HARD_DAYS']} (was {prev['STALE_HARD_DAYS']})")
     print(f"    MAX_DELETES_PER_TICK: {new['MAX_DELETES_PER_TICK']}")
     print(f"    KEEP_N:               {new['KEEP_N']}")
     print("    MAX_ADD_PER_DAY:      not invented")
+    print(f"    CLIMB_INSERTS_PER_DAY: {new['CLIMB_INSERTS_PER_DAY']}")
     print(f"    MIN_FIT:              {new['MIN_FIT']} (was {card['old']['MIN_FIT']})")
     print(
         f"    SEED_THROTTLE_WEIGHT_FLOOR: {new['SEED_THROTTLE_WEIGHT_FLOOR']} "
-        f"(was {card['old']['SEED_THROTTLE_WEIGHT_FLOOR']})"
+        f"(was {prev['SEED_THROTTLE_WEIGHT_FLOOR']})"
+    )
+    print(
+        f"    WEIGHT_FLOOR:         {new['WEIGHT_FLOOR']} "
+        f"(was {prev['WEIGHT_FLOOR']})"
     )
     print(
         f"    HOUSE_TARGET_TOLERANCE: {new['HOUSE_TARGET_TOLERANCE']} "
-        f"(band {new['BAND_LOW']}–{new['BAND_HIGH']}; #852)"
+        f"(band {new['BAND_LOW']}–{new['BAND_HIGH']}; #957, was 90–110)"
     )
     return 0
 
