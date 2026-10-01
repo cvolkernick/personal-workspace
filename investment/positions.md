@@ -1,12 +1,12 @@
 # Investment Portfolio — Positions & Allowlist
 
-**As of:** 2026-10-01 (~11:53 ET review)  
+**As of:** 2026-10-01 (~13:55 ET review)  
 **Live sizes / prices:** Financial Command Center only (not this file).  
 **Purpose:** Thesis allowlist and sleeve tags for humans + agentic Robinhood trading.
 
 ## Current agentic book (held)
 
-Verified 2026-10-01T15:53Z from Robinhood (account `••1752`). **Quantities live in FCC only.**
+Verified 2026-10-01T17:54Z from Robinhood (account `••1752`). **Quantities live in FCC only.**
 
 | Symbol | Sleeve | Notes |
 |--------|--------|-------|
@@ -23,7 +23,7 @@ Verified 2026-10-01T15:53Z from Robinhood (account `••1752`). **Quantities l
 **Not held:** MSTR, BITA, ASST, GOOGL, NVDA, CCJ, and the other ready watchlist names.  
 **Core allowlist unheld:** BTC (prefer Coinbase / self-custody), MSTR, BITA, ASST.  
 **Owner-exited:** BE (sold 2026-09-03; blocked; do not reseat).  
-**Live mix:** The ~$75 that cleared this morning is already in the BTC complex. A displayed pending deposit of **$75** is **not** buying power (do not size it). The 11:53 ET review did not sell or add. Broker NAV **$399.78**, cash/BP **$0.03**. Quote equity **$399.70** at ~15:53Z: BTC-complex **$73.71 (18.4%)** / stocks **$325.99 (81.6%)**. STRC **$16.00** + SATA **$14.00** = **$30.00**, **40.7%** of that complex (small-bias seat; not a reason to skip them on the next complex dollar, and not a reason to make the next dollar all-credit). Five miners **$43.71** (RIOT −5.8% and CLSK −5.1% on the day; not a same-day sale). Stocks pin: TSLA **$159.71 (49.0%)** / SPCX **$166.28 (51.0%)**, one-way gap **$3.29**, about 1% of the sleeve, not traded. Reaching 40% without selling the pin still takes about **$144** of new complex capital. Chairman 2026-09-23 still bars selling TSLA/SPCX to finish it. NAV / weights → FCC.
+**Live mix:** The ~$75 that cleared this morning is already in the BTC complex. A displayed pending deposit of **$75** is **not** buying power (do not size it). The 13:55 ET review re-checked live quotes and did not sell or add. Broker NAV **$401.48**, cash/BP **$0.03**. Quote equity **$401.40** at ~17:54Z: BTC-complex **$74.95 (18.7%)** / stocks **$326.45 (81.3%)**. STRC **$16.02** + SATA **$14.00** = **$30.02**, **40.1%** of that complex (a real seat; not a reason to skip them on the next complex dollar, and not a reason to make the next dollar all-credit). Five miners **$44.93** (RIOT −2.7%, CLSK −1.9%, MARA −0.7%, IREN −0.7%, WULF +1.8% on the day; opened today — not a same-day sale). Stocks pin: TSLA **$159.84 (49.0%)** / SPCX **$166.61 (51.0%)**, one-way gap **$6.76**, about 2.1% of the sleeve, not traded. Reaching 40% without selling the pin still takes about **$143** of new complex capital. The pending $75, once it is buying power, would lift the complex to about **31%** and would still leave about **$68** short. Chairman 2026-09-23 still bars selling TSLA/SPCX to finish it. Next spendable dollar stays in the complex. On that future **$75** ticket (not this pass): add **STRC ~$16** and **SATA ~$14** so preferred credit stays about 40% of the enlarged complex (not the whole ticket, not zero); open a sized-down **MSTR ~$18** starter — MSCI has **not** decided (comments closed 2026-09-30, result expected on or before **2026-10-16**, November review if adopted; a recycled “won’t exclude” headline is the January deferral, not an Oct 1 decision; +4.3% vs spot BTC +1.6% is not a chase); open a **smaller BITA ~$5** income seat. BITA’s book is now **63.89 / 63.93**, about **6 bp** (was ~38 bp at 13:40 and ~97 bp at 13:23) — liquidity no longer caps the seat, but do **not** enlarge it: preferred credit and the unheld MSTR gap take the new-name dollars, and +1.4% is not a reason to upsize. A minority slice may add **RIOT ~$8 / CLSK ~$8 / IREN ~$6** because those are the weaker or distinct tapes and multi-miner is diversification, not overlap. Do not equal-top all five miners. Do not add **MARA** (generic hash already seated; the marginal hash dollar still prefers the weaker RIOT/CLSK tapes) or **WULF** (strongest miner on the day, +1.8%; power-adjacent seat already distinct) — not an overlap ban, and those seats stay. Do not buy **ASST** (SATA already expresses Strive; +3.6% on the day) or **STRK** (about **52 bp**, 21 shares on the bid, last print on the bid, junior to STRC, no residual). Do not buy the equity ticker **BTC** (that is not spot). Do not buy watchlist equities. NAV / weights → FCC.
 
 ## Target structure (modernized 60/40)
 
