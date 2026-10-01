@@ -1,4 +1,4 @@
-"""Manual log: changing the exercise select loads that lift's last performance (#920)."""
+"""Manual log numbers stay empty (#949). #920 still matches the last lift, as text only."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 
 
 class ManualLogLastPerfNode(unittest.TestCase):
-    def test_select_swap_loads_last_performance(self):
+    def test_select_swap_leaves_inputs_empty(self):
         script = ROOT / "tests" / "manual_log_last_perf.js"
         proc = subprocess.run(
             ["node", str(script)],
@@ -26,11 +26,19 @@ class ManualLogLastPerfNode(unittest.TestCase):
 
 
 class ManualLogLastPerfContract(unittest.TestCase):
-    def test_help_and_cache_name_the_select_fill(self):
+    def test_help_and_cache_name_empty_inputs(self):
         log = HTML[HTML.find('id="log-card"') : HTML.find('id="history-card"')]
-        self.assertIn("loads that lift's last weight, sets, and reps", log)
-        self.assertIn("clears the weight", log)
-        self.assertIn("/app.js?v=calorie-7d-946-1", HTML)
+        self.assertIn("start empty", log)
+        self.assertIn("does not", log)
+        self.assertIn("read-only text", log)
+        self.assertNotIn("loads that lift's last weight", log)
+        self.assertIn("/app.js?v=empty-log-949-1", HTML)
+        self.assertNotIn("/app.js?v=calorie-7d-946-1", HTML)
+        sw = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
+        self.assertIn('const CACHE = "fitdash-shell-v117"', sw)
+        self.assertNotIn("fitdash-shell-v116", sw)
+        self.assertIn("/styles.css?v=empty-log-949-1", HTML)
+        self.assertNotIn("/styles.css?v=pace-rows-650-1", HTML)
         self.assertNotIn("function logPlanToForm", JS)
         self.assertIn("function applyManualLogPlanPrefill", JS)
         self.assertIn("function onManualLogExerciseChange", JS)

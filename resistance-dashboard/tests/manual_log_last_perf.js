@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Manual-log exercise select loads that lift's last performance (#920).
- * Matcher is catalog id, exact name, or alias. Calf Raises does not fill
- * from DB Calf Raises. No prior log clears the weight. An untouched log
- * opens from the plan prescription. A later refresh keeps an edited weight
- * and a changed select.
+ * Manual log numbers start empty (#949). Last-performance matching from
+ * #920 still finds the right lift, but that load is reference text only.
+ * Opening from a plan leaves weight, sets, and reps blank. Changing the
+ * exercise select clears the boxes and does not carry the previous numbers.
+ * A later refresh keeps an edited weight and does not inject a prescription.
+ * Save keeps a filled row and drops an empty one.
  */
 "use strict";
 
@@ -178,10 +179,16 @@ ${extractFn("canonicalExerciseId")}
 ${extractFn("lastPerformanceForLog")}
 ${extractFn("catalogForLogMatch")}
 ${extractFn("performanceSetPrefill")}
+${extractFn("fmtLogLoad")}
+${extractFn("planPrescriptionForName")}
+${extractFn("logReferenceText")}
+${extractFn("paintLogReference")}
+${extractFn("clearCardSetInputs")}
 ${extractFn("fillCardFromLastPerformance")}
 ${extractFn("markManualLogUserTouched")}
 ${extractFn("onManualLogExerciseChange")}
 ${extractFn("eventTargetIsSetWeight")}
+${extractFn("manualLogNumberAttr")}
 ${extractFn("addSetRow")}
 ${extractFn("catalogHomeSession")}
 ${extractFn("libraryLogExercises")}
@@ -191,6 +198,9 @@ ${extractFn("manualLogFormTouched")}
 ${extractFn("manualLogPlanPrefills")}
 ${extractFn("applyManualLogPlanPrefill")}
 ${extractFn("prefillsFromWorkoutPlan")}
+${extractFn("typedSetFromRow")}
+${extractFn("manualLogDraftState")}
+${extractFn("collectExercises")}
 ${extractFn("refreshExerciseNameSelects")}
 return {
   lastPerformanceForLog,
@@ -200,6 +210,7 @@ return {
   onManualLogExerciseChange,
   applyManualLogPlanPrefill,
   manualLogPlanPrefills,
+  collectExercises,
   refreshExerciseNameSelects,
   manualLogFormTouched,
 };`
@@ -312,10 +323,18 @@ function readSet(node) {
   };
 }
 
+function refText(node) {
+  return ((node.querySelector(".log-rx") || {}).textContent) || "";
+}
+
 let row = readSet(card());
 assert(row.name === "Calf Extensions", "plan name " + row.name);
-assert(row.weight === "80", "plan prescription weight, not last log " + row.weight);
-assert(row.sets === "2" && row.reps === "8", "plan sets/reps " + row.sets + "x" + row.reps);
+assert(row.weight === "", "plan open leaves weight empty, got " + JSON.stringify(row.weight));
+assert(row.sets === "" && row.reps === "", "plan open leaves sets/reps empty " + row.sets + "x" + row.reps);
+assert(
+  refText(card()) === "Plan 2x8 @ 80 · Last 4x8 @ 110",
+  "reference outside the inputs " + refText(card())
+);
 assert(rows.dataset.planSeeded === "1", "seeded once");
 
 api.applyManualLogPlanPrefill({
@@ -331,7 +350,9 @@ api.applyManualLogPlanPrefill({
   sessions,
 });
 row = readSet(card());
-assert(row.weight === "80" && row.name === "Calf Extensions", "refresh keeps the open prescription");
+assert(row.weight === "" && row.sets === "" && row.reps === "", "refresh does not inject 999");
+assert(row.name === "Calf Extensions", "refresh keeps the plan lift " + row.name);
+assert(refText(card()).indexOf("999") === -1, "refresh does not paint the replacement prescription");
 
 function changeTo(name) {
   const sel = card().querySelector(".ex-name");
@@ -339,17 +360,21 @@ function changeTo(name) {
   (sel.listeners.change || []).forEach((fn) => fn());
 }
 
+global.state = data;
+
 changeTo("DB Calf Raises");
 row = readSet(card());
 assert(row.name === "DB Calf Raises", "select swap name");
-assert(row.weight === "40" && row.sets === "3" && row.reps === "12", "db last performance " + JSON.stringify(row));
+assert(row.weight === "" && row.sets === "" && row.reps === "", "swap leaves inputs empty " + JSON.stringify(row));
+assert(refText(card()) === "Last 3x12 @ 40", "db last is reference only " + refText(card()));
 assert(card().dataset.userSelect === "1", "select marked changed");
 
 changeTo("Calf Extensions");
 row = readSet(card());
+assert(row.weight === "" && row.sets === "" && row.reps === "", "swap back does not fill " + JSON.stringify(row));
 assert(
-  row.weight === "110" && row.sets === "4" && row.reps === "8",
-  "extensions load Calf Raises, not DB " + JSON.stringify(row)
+  refText(card()) === "Plan 2x8 @ 80 · Last 4x8 @ 110",
+  "extensions reference is plan plus calf log " + refText(card())
 );
 
 const weightInput = card().querySelector(".set-weight");
@@ -362,12 +387,14 @@ api.refreshExerciseNameSelects();
 row = readSet(card());
 assert(row.name === "Calf Extensions", "refresh keeps the changed select " + row.name);
 assert(row.weight === "55", "refresh keeps the edited weight " + row.weight);
+assert(row.sets === "" && row.reps === "", "refresh does not fill the boxes left empty");
 
 changeTo("Lying Leg Curl");
 row = readSet(card());
 assert(row.name === "Lying Leg Curl", "no-log select");
-assert(row.weight === "", "no log clears weight, got " + JSON.stringify(row.weight));
-assert(row.sets === "1" && row.reps === "10", "cleared row does not keep the previous load " + row.sets + "x" + row.reps);
+assert(row.weight === "", "no log leaves weight empty, got " + JSON.stringify(row.weight));
+assert(row.sets === "" && row.reps === "", "swap does not keep 55 or default 1x10 " + row.sets + "x" + row.reps);
+assert(refText(card()) === "", "no plan and no log means no reference line");
 
 const refreshSrc = extractFn("refreshExerciseNameSelects");
 assert(!refreshSrc.includes("fillCardFromLastPerformance"), "option refresh does not reload last performance");
@@ -381,8 +408,34 @@ assert(!applySrc.includes("lastPerformanceForLog"), "plan open does not read las
 
 const addSrc = extractFn("addExerciseRow");
 assert(addSrc.includes('addEventListener("change"'), "select has a change handler");
-assert(addSrc.includes("onManualLogExerciseChange"), "change handler loads last performance");
+assert(addSrc.includes("onManualLogExerciseChange"), "change handler clears numbers");
 assert(!addSrc.includes("fillCardFromLastPerformance(card)"), "creating a row does not load last performance");
+const setSrc = extractFn("addSetRow");
+assert(!setSrc.includes("?? 10") && !setSrc.includes("?? 1"), "set row has no 1x10 default");
+assert(!setSrc.includes("placeholder="), "numbers are not placeholders");
+assert(!setSrc.includes("required"), "empty number inputs do not block save");
+const blank = api.performanceSetPrefill();
+assert(blank.weight_lbs === "" && blank.sets === "" && blank.reps === "", "prefill factory is empty");
+
+api.addExerciseRow({ name: "DB Calf Raises" }, data);
+const cards = rows.querySelectorAll(".exercise-card");
+assert(cards.length === 2, "second row added");
+const filled = cards[0];
+const empty = cards[1];
+filled.querySelector(".set-weight").value = "55";
+filled.querySelector(".set-sets").value = "4";
+filled.querySelector(".set-reps").value = "8";
+const saved = api.collectExercises();
+assert(saved.length === 1, "empty row is not saved " + JSON.stringify(saved));
+assert(saved[0].name === "Lying Leg Curl", "filled row name " + saved[0].name);
+assert(
+  saved[0].sets.length === 1 &&
+    saved[0].sets[0].weight_lbs === 55 &&
+    saved[0].sets[0].sets === 4 &&
+    saved[0].sets[0].reps === 8,
+  "filled row persists exactly " + JSON.stringify(saved[0])
+);
+assert(empty.querySelector(".set-weight").value === "", "empty row stays empty");
 
 assert(!SRC.includes("function logPlanToForm"), "log-this-plan button stays gone");
 

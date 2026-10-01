@@ -575,30 +575,96 @@
     return catalog;
   }
 
-  /** Blank row when this lift has no log, so the previous load does not stick. */
-  function performanceSetPrefill(sessions, exerciseName, catalog) {
-    const last = lastPerformanceForLog(sessions, exerciseName, catalog);
-    if (!last) return { weight_lbs: "", sets: 1, reps: 10 };
-    return {
-      weight_lbs: last.weight_lbs,
-      sets: last.sets,
-      reps: last.reps,
-    };
+  /**
+   * Empty number row. Last performance stays on the reference line (#949).
+   * Never seed 1×10 or a logged load into the inputs.
+   */
+  function performanceSetPrefill() {
+    return { weight_lbs: "", sets: "", reps: "" };
   }
 
-  function fillCardFromLastPerformance(card) {
-    const sel = card && card.querySelector ? card.querySelector(".ex-name") : null;
-    const name = sel ? String(sel.value || "").trim() : "";
-    const pref = performanceSetPrefill(
-      (state && state.sessions) || [],
+  function fmtLogLoad(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return "";
+    if (Math.abs(v - Math.round(v)) < 1e-9) return String(Math.round(v));
+    return String(v);
+  }
+
+  function planPrescriptionForName(name, data) {
+    const src = data || state || {};
+    const wanted = normExerciseName(name);
+    if (!wanted) return null;
+    const wantedId = canonicalExerciseId(name, (src.workout_store && src.workout_store.catalog) || catalogForLogMatch());
+    const pools = [];
+    const full = src.workout_store && src.workout_store.plan;
+    if (full && !full.is_rest_day) pools.push.apply(pools, full.exercises || []);
+    const today =
+      (src.coach && src.coach.today && src.coach.today.workout) || src.workout || null;
+    if (today && !today.is_rest_day) pools.push.apply(pools, today.exercises || []);
+    for (const ex of pools) {
+      const exName = ex && ex.name;
+      const same =
+        normExerciseName(exName) === wanted ||
+        (wantedId &&
+          canonicalExerciseId(
+            exName,
+            (src.workout_store && src.workout_store.catalog) || catalogForLogMatch()
+          ) === wantedId);
+      if (!same) continue;
+      const nested = ex && ex.prescription && typeof ex.prescription === "object" ? ex.prescription : {};
+      const weight = nested.weight_lbs != null && nested.weight_lbs !== "" ? nested.weight_lbs : ex.weight_lbs;
+      const sets = nested.sets != null ? nested.sets : ex.sets;
+      const reps = nested.reps != null ? nested.reps : ex.reps;
+      if (weight == null || weight === "" || sets == null || reps == null) continue;
+      return { weight_lbs: weight, sets, reps };
+    }
+    return null;
+  }
+
+  /** Read-only card line. Not a placeholder and not an input value. */
+  function logReferenceText(name, data) {
+    const src = data || state || {};
+    const parts = [];
+    const plan = planPrescriptionForName(name, src);
+    if (plan) {
+      const load = fmtLogLoad(plan.weight_lbs);
+      if (load) parts.push(`Plan ${plan.sets}x${plan.reps} @ ${load}`);
+    }
+    const last = lastPerformanceForLog(
+      src.sessions || [],
       name,
-      catalogForLogMatch()
+      (src.workout_store && src.workout_store.catalog) || catalogForLogMatch()
     );
+    if (last && last.weight_lbs != null && last.sets != null && last.reps != null) {
+      const load = fmtLogLoad(last.weight_lbs);
+      if (load) parts.push(`Last ${last.sets}x${last.reps} @ ${load}`);
+    }
+    return parts.join(" · ");
+  }
+
+  function paintLogReference(card, data) {
+    if (!card || !card.querySelector) return "";
+    const line = card.querySelector(".log-rx");
+    if (!line) return "";
+    const sel = card.querySelector(".ex-name");
+    const name = sel ? String(sel.value || "").trim() : "";
+    const text = name ? logReferenceText(name, data) : "";
+    line.textContent = text;
+    return text;
+  }
+
+  function clearCardSetInputs(card) {
     const wrap = card && card.querySelector ? card.querySelector(".set-rows") : null;
-    if (!wrap) return pref;
+    if (!wrap) return;
     wrap.innerHTML = "";
-    addSetRow(wrap, pref);
-    return pref;
+    addSetRow(wrap, performanceSetPrefill());
+  }
+
+  /** Exercise change clears numbers. It does not load last performance (#949). */
+  function fillCardFromLastPerformance(card) {
+    clearCardSetInputs(card);
+    paintLogReference(card);
+    return performanceSetPrefill();
   }
 
   function markManualLogUserTouched() {
@@ -622,18 +688,24 @@
       .includes("set-weight");
   }
 
+  function manualLogNumberAttr(value) {
+    if (value == null || value === "") return "";
+    return ` value="${String(value)}"`;
+  }
+
   function addSetRow(setsWrap, prefill = {}) {
     const row = document.createElement("div");
     row.className = "set-row";
+    const src = prefill || {};
     row.innerHTML = `
       <label>Weight (lbs)
-        <input type="number" class="set-weight" required min="0" step="0.5" inputmode="decimal" value="${prefill.weight_lbs ?? ""}" />
+        <input type="number" class="set-weight" min="0" step="0.5" inputmode="decimal"${manualLogNumberAttr(src.weight_lbs)} />
       </label>
       <label>Reps
-        <input type="number" class="set-reps" required min="1" step="1" inputmode="numeric" value="${prefill.reps ?? 10}" />
+        <input type="number" class="set-reps" min="1" step="1" inputmode="numeric"${manualLogNumberAttr(src.reps)} />
       </label>
       <label>Sets
-        <input type="number" class="set-sets" required min="1" step="1" inputmode="numeric" value="${prefill.sets ?? 1}" />
+        <input type="number" class="set-sets" min="1" step="1" inputmode="numeric"${manualLogNumberAttr(src.sets)} />
       </label>
       <button type="button" class="set-remove" aria-label="Remove set">✕</button>
     `;
@@ -740,27 +812,15 @@
   /**
    * One exercise card with multiple set groups.
    * Saves as: Name: 50 lbs x 1 x 10, 45 lbs x 1 x 8  (matches existing logs)
-   * prefill: { name, sets: [{weight_lbs, sets, reps}, ...] } or flat weight/sets/reps
+   * prefill.name selects the lift. Numbers stay empty (#949).
+   * source is the dashboard payload used for the read-only plan/last line.
    */
-  function addExerciseRow(prefill = {}) {
+  function addExerciseRow(prefill = {}, source) {
     const wrap = $("exercise-rows");
     const card = document.createElement("div");
     card.className = "exercise-card";
 
-    let setPrefills = [];
-    if (Array.isArray(prefill.sets) && prefill.sets.length) {
-      setPrefills = prefill.sets;
-    } else if (prefill.weight_lbs != null || prefill.reps != null) {
-      setPrefills = [
-        {
-          weight_lbs: prefill.weight_lbs,
-          sets: prefill.sets ?? 3,
-          reps: prefill.reps ?? 10,
-        },
-      ];
-    } else {
-      setPrefills = [{ weight_lbs: "", sets: 1, reps: 10 }];
-    }
+    const setPrefills = [performanceSetPrefill()];
 
     card.innerHTML = `
       <div class="exercise-card-head">
@@ -769,6 +829,7 @@
         </label>
         <button type="button" class="ex-remove" aria-label="Remove exercise">Remove</button>
       </div>
+      <div class="muted log-rx"></div>
       <div class="set-rows"></div>
       <div class="exercise-card-actions">
         <button type="button" class="btn-add-set">+ Set</button>
@@ -777,16 +838,17 @@
     `;
     fillExerciseNameSelect(card.querySelector(".ex-name"), prefill.name || "");
     const nameSel = card.querySelector(".ex-name");
-    // Plan prescription stays until the athlete changes the exercise.
     nameSel.addEventListener("change", () => onManualLogExerciseChange(card));
     card.addEventListener("input", (ev) => {
       markManualLogUserTouched();
+      if (card.dataset) card.dataset.userEdited = "1";
       if (!eventTargetIsSetWeight(ev && ev.target)) return;
       if (card.dataset) card.dataset.userWeight = "1";
     });
 
     const setsWrap = card.querySelector(".set-rows");
     setPrefills.forEach((s) => addSetRow(setsWrap, s));
+    paintLogReference(card, source);
 
     card.querySelector(".btn-add-set").addEventListener("click", () => {
       markManualLogUserTouched();
@@ -794,10 +856,10 @@
       const pref = last
         ? {
             weight_lbs: last.querySelector(".set-weight").value,
-            sets: 1,
-            reps: last.querySelector(".set-reps").value || 10,
+            sets: last.querySelector(".set-sets").value,
+            reps: last.querySelector(".set-reps").value,
           }
-        : { sets: 1, reps: 10 };
+        : performanceSetPrefill();
       addSetRow(setsWrap, pref);
       setsWrap.querySelector(".set-row:last-child .set-weight")?.focus();
     });
@@ -817,7 +879,9 @@
     for (const card of cards) {
       if (
         card.dataset &&
-        (card.dataset.userSelect === "1" || card.dataset.userWeight === "1")
+        (card.dataset.userSelect === "1" ||
+          card.dataset.userWeight === "1" ||
+          card.dataset.userEdited === "1")
       ) {
         return true;
       }
@@ -825,7 +889,7 @@
     return false;
   }
 
-  /** Prescription rows for an untouched log. Does not read last performance. */
+  /** Plan lift names for an untouched log. Numbers stay empty (#949). */
   function manualLogPlanPrefills(data) {
     const src = data || state || {};
     const full = src.workout_store && src.workout_store.plan;
@@ -837,19 +901,10 @@
       src.workout ||
       null;
     if (!today || today.is_rest_day || !(today.exercises || []).length) return [];
-    return today.exercises.map((ex) => {
-      const rx = ex.prescription || ex;
-      return {
-        name: ex.name,
-        sets: [
-          {
-            weight_lbs: rx.weight_lbs != null ? rx.weight_lbs : "",
-            sets: rx.sets != null ? rx.sets : 3,
-            reps: rx.reps != null ? rx.reps : 10,
-          },
-        ],
-      };
-    });
+    return today.exercises.map((ex) => ({
+      name: ex.name,
+      sets: [{ weight_lbs: "", sets: "", reps: "" }],
+    }));
   }
 
   /**
@@ -874,20 +929,59 @@
     const prefills = manualLogPlanPrefills(data);
     if (!prefills.length) return;
     wrap.innerHTML = "";
-    prefills.forEach((p) => addExerciseRow(p));
+    prefills.forEach((p) => addExerciseRow(p, data));
     if (wrap.dataset) wrap.dataset.planSeeded = "1";
   }
 
-  function collectExercises() {
-    return [...$("exercise-rows").querySelectorAll(".exercise-card")].map((card) => {
+  function typedSetFromRow(row) {
+    const raw = (sel) => {
+      const el = row.querySelector(sel);
+      return String(el && el.value != null ? el.value : "").trim();
+    };
+    const weight = raw(".set-weight");
+    const sets = raw(".set-sets");
+    const reps = raw(".set-reps");
+    if (weight === "" && sets === "" && reps === "") return null;
+    if (weight === "" || sets === "" || reps === "") return { partial: true };
+    const weight_lbs = Number(weight);
+    const setN = Number(sets);
+    const repN = Number(reps);
+    if (!Number.isFinite(weight_lbs) || !Number.isFinite(setN) || !Number.isFinite(repN)) {
+      return { partial: true };
+    }
+    return { weight_lbs, sets: setN, reps: repN };
+  }
+
+  /** Complete rows only. Empty rows are omitted. Partial rows set partial. */
+  function manualLogDraftState() {
+    const wrap = $("exercise-rows");
+    const exercises = [];
+    let partial = false;
+    if (!wrap) return { exercises, partial };
+    for (const card of wrap.querySelectorAll(".exercise-card")) {
       const name = card.querySelector(".ex-name").value.trim();
-      const sets = [...card.querySelectorAll(".set-row")].map((row) => ({
-        weight_lbs: Number(row.querySelector(".set-weight").value),
-        sets: Number(row.querySelector(".set-sets").value) || 1,
-        reps: Number(row.querySelector(".set-reps").value),
-      }));
-      return { name, sets };
-    });
+      const sets = [];
+      for (const row of card.querySelectorAll(".set-row")) {
+        const typed = typedSetFromRow(row);
+        if (!typed) continue;
+        if (typed.partial) {
+          partial = true;
+          continue;
+        }
+        sets.push({
+          weight_lbs: typed.weight_lbs,
+          sets: typed.sets,
+          reps: typed.reps,
+        });
+      }
+      if (!sets.length) continue;
+      exercises.push({ name, sets });
+    }
+    return { exercises, partial };
+  }
+
+  function collectExercises() {
+    return manualLogDraftState().exercises;
   }
 
   function destroyChart(c) {
@@ -7719,19 +7813,10 @@
 
   function prefillsFromWorkoutPlan(plan) {
     if (!plan || plan.is_rest_day) return [];
-    return (plan.exercises || []).map((ex) => {
-      const rx = ex.prescription || {};
-      return {
-        name: ex.name,
-        sets: [
-          {
-            weight_lbs: rx.weight_lbs != null ? rx.weight_lbs : "",
-            sets: rx.sets != null ? rx.sets : 3,
-            reps: rx.reps != null ? rx.reps : 10,
-          },
-        ],
-      };
-    });
+    return (plan.exercises || []).map((ex) => ({
+      name: ex.name,
+      sets: [{ weight_lbs: "", sets: "", reps: "" }],
+    }));
   }
 
   /* ---------- Mobile tab shell (≤720px) ---------- */
@@ -8181,6 +8266,29 @@
   async function submitWorkout(ev) {
     ev.preventDefault();
     const status = $("log-status");
+    const draft = manualLogDraftState();
+    if (draft.partial) {
+      status.textContent = "";
+      showAlert(
+        "Finish weight, sets, and reps on every row you started. Empty rows are not saved.",
+        "warn"
+      );
+      return;
+    }
+    if (!draft.exercises.length) {
+      status.textContent = "";
+      showAlert(
+        "Enter weight, sets, and reps for at least one lift. Empty rows are not saved.",
+        "warn"
+      );
+      return;
+    }
+    const unnamed = draft.exercises.some((ex) => !ex.name);
+    if (unnamed) {
+      status.textContent = "";
+      showAlert("Pick an exercise for each row you filled.", "warn");
+      return;
+    }
     status.textContent = "Saving…";
     $("btn-save").disabled = true;
     const body = {
@@ -8188,7 +8296,7 @@
       session_type: $("session_type").value,
       date: $("log-date").value,
       notes: $("log-notes").value,
-      exercises: collectExercises(),
+      exercises: draft.exercises,
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
     };
     const wake =

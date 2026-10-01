@@ -879,6 +879,14 @@ textarea {
   align-items: center;
 }
 
+.log-rx {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+}
+.log-rx:empty {
+  display: none;
+}
+
 .set-hint {
   font-size: 0.8rem;
 }
