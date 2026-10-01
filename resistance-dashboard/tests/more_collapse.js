@@ -83,7 +83,7 @@ function fakeBody(value) {
 
 const api = loadFns();
 const keys = api.moreCollapseKeys();
-assert(keys.length === 8, "eight More sections");
+assert(keys.length === 9, "nine More sections");
 assert(keys.indexOf("more-ask") === 0, "ask is a More key");
 assert(keys.indexOf("more-connections") === keys.length - 1, "connections is a More key");
 

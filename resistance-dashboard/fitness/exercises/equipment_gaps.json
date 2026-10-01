@@ -1,0 +1,145 @@
+{
+  "notes": "Prompt copy only. Nothing here is a cart, a price, or a purchase. Each item's tag is what 'I have it' writes onto the equipment inventory. Unlocks name the lifts that tag makes available.",
+  "items": [
+    {
+      "id": "cable-pulley",
+      "name": "Cable / pulley",
+      "tag": "cable",
+      "muscles": ["rear_delts", "side_delts", "triceps", "biceps"],
+      "unlocks": [
+        {"id": "face-pulls", "name": "Face pulls"},
+        {"id": "cable-reverse-fly", "name": "Cable reverse flyes"},
+        {"id": "cable-lateral-raise", "name": "Cable lateral raises"},
+        {"id": "tricep-pushdowns", "name": "Triceps pushdowns"}
+      ]
+    },
+    {
+      "id": "loading-pin",
+      "name": "Loading pin",
+      "tag": "loading_pin",
+      "muscles": ["rear_delts", "calves"],
+      "unlocks": [
+        {"id": "pin-reverse-fly", "name": "Pin reverse flyes"},
+        {"id": "pin-calf-raise", "name": "Pin calf raise"}
+      ]
+    },
+    {
+      "id": "resistance-bands",
+      "name": "Resistance bands",
+      "tag": "resistance_band",
+      "muscles": ["rear_delts", "adductors"],
+      "unlocks": [
+        {"id": "band-pull-apart", "name": "Band pull-aparts"},
+        {"id": "band-adduction", "name": "Band hip adduction"}
+      ]
+    },
+    {
+      "id": "reverse-fly-machine",
+      "name": "Reverse fly machine",
+      "tag": "reverse_fly_machine",
+      "muscles": ["rear_delts"],
+      "unlocks": [
+        {"id": "reverse-pec-deck", "name": "Reverse pec deck"}
+      ]
+    },
+    {
+      "id": "hamstring-curl",
+      "name": "Hamstring curl attachment",
+      "tag": "hamstring_curl",
+      "muscles": ["hamstrings"],
+      "unlocks": [
+        {"id": "attachment-leg-curl", "name": "Leg curls"}
+      ]
+    },
+    {
+      "id": "nordic-strap",
+      "name": "Nordic strap",
+      "tag": "nordic_strap",
+      "muscles": ["hamstrings"],
+      "unlocks": [
+        {"id": "nordic-hamstring", "name": "Nordic hamstring curls"}
+      ]
+    },
+    {
+      "id": "calf-block",
+      "name": "Calf block or step",
+      "tag": "calf_block",
+      "muscles": ["calves"],
+      "unlocks": [
+        {"id": "calf-raise-step", "name": "Standing calf raise on a step"}
+      ]
+    },
+    {
+      "id": "dip-belt",
+      "name": "Dip belt",
+      "tag": "dip_belt",
+      "muscles": ["chest", "triceps"],
+      "unlocks": [
+        {"id": "weighted-dip", "name": "Weighted dips"}
+      ]
+    },
+    {
+      "id": "ab-wheel",
+      "name": "Ab wheel",
+      "tag": "ab_wheel",
+      "muscles": ["abs"],
+      "unlocks": [
+        {"id": "ab-wheel-rollout", "name": "Ab wheel rollout"}
+      ]
+    },
+    {
+      "id": "roman-chair",
+      "name": "Roman chair",
+      "tag": "roman_chair",
+      "muscles": ["abs"],
+      "unlocks": [
+        {"id": "roman-chair-raise", "name": "Roman chair knee raises"}
+      ]
+    },
+    {
+      "id": "decline-bench",
+      "name": "Decline bench",
+      "tag": "decline_bench",
+      "muscles": ["abs"],
+      "unlocks": [
+        {"id": "decline-sit-up", "name": "Decline sit-ups"}
+      ]
+    },
+    {
+      "id": "ab-straps",
+      "name": "Ab straps",
+      "tag": "ab_straps",
+      "muscles": ["abs"],
+      "unlocks": [
+        {"id": "hanging-leg-raise", "name": "Hanging leg raises"}
+      ]
+    },
+    {
+      "id": "adduction-machine",
+      "name": "Hip adduction machine",
+      "tag": "adduction_machine",
+      "muscles": ["adductors"],
+      "unlocks": [
+        {"id": "machine-adduction", "name": "Machine hip adduction"}
+      ]
+    },
+    {
+      "id": "wrist-roller",
+      "name": "Wrist roller",
+      "tag": "wrist_roller",
+      "muscles": ["forearms"],
+      "unlocks": [
+        {"id": "wrist-roller", "name": "Wrist roller"}
+      ]
+    },
+    {
+      "id": "fat-grips",
+      "name": "Fat grips",
+      "tag": "fat_grips",
+      "muscles": ["forearms"],
+      "unlocks": [
+        {"id": "fat-grip-curl", "name": "Fat-grip curls"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "window_days": 28,
+  "secondary_fraction": 0.5,
+  "dismiss_weeks": 4,
+  "pin_weeks": 4,
+  "notes": "Major-group floors are 10 sets/week and ceilings 20, the hypertrophy landmark on #956. Small groups sit lower so calves, grip, and trunk are not judged like chest. Each primary muscle on a lift gets 1.0 of the hard sets; each secondary gets 0.5. Weekly rate is the window total divided by window_days/7. The planner's 4–8 band still owns automatic session volume. This file only flags the More-tab suggestions. Tune the numbers here.",
+  "groups": [
+    {"id": "chest", "label": "Chest", "size": "major", "min": 10, "max": 20, "tags": ["chest"]},
+    {"id": "upper_back_lats", "label": "Upper back / lats", "size": "major", "min": 10, "max": 20, "tags": ["lats", "back", "upper_back", "mid_upper_back"]},
+    {"id": "quads", "label": "Quads", "size": "major", "min": 10, "max": 20, "tags": ["quads"]},
+    {"id": "hamstrings", "label": "Hamstrings", "size": "major", "min": 10, "max": 20, "tags": ["hamstrings"]},
+    {"id": "glutes", "label": "Glutes", "size": "major", "min": 10, "max": 20, "tags": ["glutes"]},
+    {"id": "rear_delts", "label": "Rear delts", "size": "small", "min": 6, "max": 16, "tags": ["rear_delts"]},
+    {"id": "side_delts", "label": "Side delts", "size": "small", "min": 8, "max": 18, "tags": ["side_delts"]},
+    {"id": "biceps", "label": "Biceps", "size": "small", "min": 6, "max": 16, "tags": ["biceps"]},
+    {"id": "triceps", "label": "Triceps", "size": "small", "min": 6, "max": 14, "tags": ["triceps"]},
+    {"id": "calves", "label": "Calves", "size": "small", "min": 6, "max": 16, "tags": ["calves"]},
+    {"id": "abs", "label": "Abs / core", "size": "small", "min": 4, "max": 12, "tags": ["abs", "core"]},
+    {"id": "forearms", "label": "Forearms / grip", "size": "small", "min": 2, "max": 8, "tags": ["forearms"]},
+    {"id": "adductors", "label": "Adductors", "size": "small", "min": 2, "max": 8, "tags": ["adductors"]},
+    {"id": "lower_back", "label": "Lower back", "size": "small", "min": 2, "max": 8, "tags": ["lower_back"]}
+  ]
+}

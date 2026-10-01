@@ -20,10 +20,17 @@ SECTIONS = (
     ("labs-section", "training-settings-section", "more-labs", "labs-upload-form", "Labs"),
     (
         "training-settings-section",
-        "equipment-inventory-section",
+        "suggestions-section",
         "more-training",
         "workout-goals-form",
         "Training settings",
+    ),
+    (
+        "suggestions-section",
+        "equipment-inventory-section",
+        "more-suggestions",
+        "suggestions-list",
+        "Suggested additions",
     ),
     (
         "equipment-inventory-section",
@@ -142,11 +149,13 @@ class MoreTabCollapse(unittest.TestCase):
         self.assertNotIn("mobile-tabbar", more_css)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=more-collapse-955-1", HTML)
-        self.assertIn("/styles.css?v=more-collapse-955-1", HTML)
-        self.assertIn("/app.js?v=more-collapse-955-1", SW)
-        self.assertIn("/styles.css?v=more-collapse-955-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v118"', SW)
+        self.assertIn("/app.js?v=suggestions-956-1", HTML)
+        self.assertIn("/styles.css?v=suggestions-956-1", HTML)
+        self.assertIn("/app.js?v=suggestions-956-1", SW)
+        self.assertIn("/styles.css?v=suggestions-956-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v119"', SW)
+        self.assertNotIn("/app.js?v=more-collapse-955-1", HTML)
+        self.assertNotIn("fitdash-shell-v118", SW)
         self.assertNotIn("/app.js?v=empty-log-949-1", HTML)
         self.assertNotIn("/app.js?v=empty-log-949-1", SW)
         self.assertNotIn("fitdash-shell-v117", SW)

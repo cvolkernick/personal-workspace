@@ -584,7 +584,8 @@ class UiIsGearNotExercises(unittest.TestCase):
 
     def test_vercel_rewrites_and_bundle(self):
         self.assertIn("/api/equipment/add", VERCEL)
-        self.assertIn("fitness/exercises/equipment.json", VERCEL)
+        self.assertIn("fitness/**/*.json", VERCEL)
+        self.assertTrue((ROOT / "fitness/exercises/equipment.json").is_file())
         self.assertNotIn("api/equipment.py", VERCEL)
         self.assertFalse((ROOT / "api" / "equipment.py").exists())
 

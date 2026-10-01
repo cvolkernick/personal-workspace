@@ -50,6 +50,7 @@ _ROUTES = (
     "recipes",
     "recipes_delete",
     "recipes_log",
+    "suggestions",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
 _EQ_ROUTES = ("eq_add", "eq_remove", "eq_update")
@@ -155,6 +156,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "recipes_log"
     if "/api/recipes" in blob:
         return "recipes"
+    if "/api/muscle-suggestions" in blob:
+        return "suggestions"
     return ""
 
 
@@ -1539,6 +1542,52 @@ def recipes_log_body(headers, payload=None):
     return 200, {"ok": True, "log": entry}
 
 
+def suggestions_write(headers, payload=None):
+    """Add, dismiss, or answer an equipment prompt. Cookie-less 401."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    body = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "")
+    from api.dashboard import dashboard_body
+
+    status, data = dashboard_body(headers, "")
+    if status != 200 or not isinstance(data, dict):
+        if isinstance(data, dict):
+            return status, data
+        return status, {"ok": False, "error": "dashboard_unavailable"}
+    from rt_dashboard.equipment_store import save_preview_equipment
+    from rt_dashboard.muscle_suggestions import commit_from_dashboard
+
+    try:
+        result = commit_from_dashboard(uid, body, data)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+    equipment = result.get("equipment")
+    if equipment is not None:
+        try:
+            result["equipment"] = save_preview_equipment(equipment, uid)
+            result["write"] = {"ok": True, "source": "turso"}
+        except RuntimeError as exc:
+            if "turso env missing" not in str(exc):
+                return 500, {"ok": False, "error": str(exc)}
+            result["write"] = {
+                "ok": False,
+                "source": "unpersisted",
+                "error": "turso env missing",
+            }
+            result["message"] = (
+                str(result.get("message") or "Updated").rstrip(".")
+                + ". Shown on this page. Not saved — Turso is off."
+            )
+        except Exception as exc:  # noqa: BLE001
+            return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+    result.pop("state", None)
+    return 200, result
+
+
 def dispatch_client_route(
     headers, query: str, method: str, payload=None, path: str = "", client_host=None
 ):
@@ -1643,6 +1692,10 @@ def dispatch_client_route(
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return recipes_log_body(headers, payload or {})
+    if route == "suggestions":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return suggestions_write(headers, payload or {})
     return None
 
 
@@ -1676,6 +1729,7 @@ __all__ = [
     "restock_cart_body",
     "restock_retry_body",
     "restock_confirm_body",
+    "suggestions_write",
     "goals_read",
     "goals_write",
     "read_json",
