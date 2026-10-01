@@ -17,12 +17,14 @@ stay excluded. Positive amounts on that account are not income.
 
 The 90-day rolling chart (`build_rolling_cash_series`) reuses this filter,
 then drops any payee containing "reconcile". That wider drop is chart-only.
-It does not change Sankey totals or the Glance daily-flow chip. Mining stays
-on the Sankey; the rolling series is YNAB daily sums only. Lyft, Grubhub,
-and Turo are that same trailing mean on external inflows
-``classify_income_source`` accepts. They stack under the inflow line with
-an other remainder (inflow minus those three, floored at 0). Outflow stays
-a line.
+It does not change Sankey totals or the Glance daily-flow chip. The Sankey
+still draws the Braiins snapshot node. The rolling series keeps YNAB daily
+sums as inflow and adds an address-keyed Bitcoin band on top. Lyft, Grubhub,
+and Turo are the trailing 30-day mean on external inflows
+``classify_income_source`` accepts. Bitcoin is the trailing 90-day mean from
+``bitcoin_mining_income`` (not a second YNAB matcher). Other is YNAB inflow
+minus Lyft, Grubhub, and Turo, floored at 0. The envelope line is YNAB
+inflow plus Bitcoin. Outflow stays a line.
 Uncategorized outflows stay an explicit node. Missing/stale Braiins or
 Coinbase price feeds are a loud mining-unknown state, never a silent omit.
 
@@ -41,12 +43,16 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from treasury.income_sources import (
+    bitcoin_band_public,
+    bitcoin_mining_income,
+    bitcoin_trailing_mean,
     classify_income_source,
     income_source_ids,
     income_source_public,
+    BITCOIN_MEAN_DAYS,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -763,21 +769,26 @@ def build_rolling_cash_series(
     ynab_stale: bool = False,
     ynab_as_of: Optional[str] = None,
     error: Optional[str] = None,
+    bitcoin_usd_by_day: Optional[Mapping[str, float]] = None,
+    bitcoin_feed: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """90 displayed days of trailing-30-day mean inflow and outflow.
 
     Seed is ``end - 120 days`` through ``end`` (inclusive), the same bounds
     ``window_bounds(120)`` would use. Each displayed day is the mean of that
     day and the 29 before it, so quiet days count as zero. Outflows are
-    positive magnitudes. Mining is not included.
+    positive magnitudes. The Braiins snapshot node is not added into YNAB
+    inflow (``includes_mining`` stays false). Bitcoin is a separate band.
 
     Shared exclusions stay in ``_iter_countable``. The only extra drop is a
     payee containing ``reconcile``. Lyft, Grubhub, and Turo are that same
     mean over positive amounts ``classify_income_source`` accepts. ``other``
-    is inflow minus those three means, floored at 0, so the stack top matches
-    inflow except when rounding pushes the named means past it. A named source
-    that is $0 on every displayed point while some inflow point is not is
-    listed in ``source_warnings``. The remainder band is not a warning.
+    is inflow minus those three means, floored at 0. ``bitcoin`` is the
+    trailing 90-day mean of ``bitcoin_usd_by_day``. ``envelope`` is inflow
+    plus bitcoin, so the stack top matches the envelope except when rounding
+    pushes the named YNAB means past inflow. A named YNAB source that is $0
+    on every displayed point while some inflow point is not is listed in
+    ``source_warnings``. The remainder band and Bitcoin are not warnings.
     """
     end = today or date.today()
     seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
@@ -806,6 +817,12 @@ def build_rolling_cash_series(
         "ynab": ynab,
         "sources": income_source_public(),
         "other_band": dict(OTHER_INCOME_BAND),
+        "bitcoin_band": bitcoin_band_public(),
+        "bitcoin_mean_days": BITCOIN_MEAN_DAYS,
+        "bitcoin_feed": {
+            "address_set": bool((bitcoin_feed or {}).get("address_set")),
+            "from_cache": bool((bitcoin_feed or {}).get("from_cache")),
+        },
         "source_warnings": [],
         "points": [],
     }
@@ -858,12 +875,14 @@ def build_rolling_cash_series(
             point[sid] = _rolling_mean(
                 [source_by[sid][d.isoformat()] for d in window_days]
             )
+        point["bitcoin"] = bitcoin_trailing_mean(day, bitcoin_usd_by_day or {})
         point["other"] = income_band_other(
             point["inflow"],
             float(point.get("lyft") or 0),
             float(point.get("grubhub") or 0),
             float(point.get("turo") or 0),
         )
+        point["envelope"] = _money(point["inflow"] + point["bitcoin"])
         points.append(point)
     if len(points) != ROLLING_DISPLAY_DAYS:
         raise ValueError(f"expected {ROLLING_DISPLAY_DAYS} rolling points, got {len(points)}")
@@ -897,9 +916,17 @@ def load_rolling_cash_series(
     """Live YNAB pull for the rolling chart. ``fetch`` is injectable for tests.
 
     Does not widen ``ALLOWED_DAYS`` and does not call ``load_cash_streams``.
+    Bitcoin is loaded beside the YNAB pull. A mining failure does not fail
+    the YNAB series; the band reads zero unless the mining cache is usable.
     """
     end = today or date.today()
     seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
+    mined = _safe_bitcoin_income(end)
+    bitcoin_daily = mined.get("usd_by_day") or {}
+    bitcoin_feed = {
+        "address_set": bool(mined.get("address_set")),
+        "from_cache": bool(mined.get("from_cache")),
+    }
     fetcher = fetch or fetch_ynab_window
     pulled = fetcher(seed_start.isoformat())
     if not pulled.get("ok"):
@@ -908,6 +935,8 @@ def load_rolling_cash_series(
             error=str(pulled.get("error") or "YNAB fetch failed"),
             ynab_stale=True if stale is None else bool(stale),
             ynab_as_of=pulled.get("as_of"),
+            bitcoin_usd_by_day=bitcoin_daily,
+            bitcoin_feed=bitcoin_feed,
         )
     return build_rolling_cash_series(
         today=end,
@@ -917,7 +946,34 @@ def load_rolling_cash_series(
         tracking_outflow_ids=pulled.get("tracking_outflow_ids"),
         ynab_stale=False if stale is None else bool(stale),
         ynab_as_of=pulled.get("as_of"),
+        bitcoin_usd_by_day=bitcoin_daily,
+        bitcoin_feed=bitcoin_feed,
     )
+
+
+def _safe_bitcoin_income(today: date) -> Dict[str, Any]:
+    """Mining band must not take down the YNAB rolling chart."""
+    try:
+        mined = bitcoin_mining_income(today=today)
+    except Exception:
+        return {
+            "ok": True,
+            "error": None,
+            "address_set": False,
+            "from_cache": False,
+            "deposits": [],
+            "usd_by_day": {},
+        }
+    if not isinstance(mined, dict):
+        return {
+            "ok": True,
+            "error": None,
+            "address_set": False,
+            "from_cache": False,
+            "deposits": [],
+            "usd_by_day": {},
+        }
+    return mined
 
 
 def _load_snapshot(path: Path) -> Dict[str, Any]:
