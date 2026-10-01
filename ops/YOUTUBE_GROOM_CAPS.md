@@ -7,6 +7,8 @@ Nest `scripts/youtube_groom.py` is **policy only** (house caps + insert-budget m
 Hearted 8/31 values stand except the per-tick insert ceiling. Master had no
 caps file; these match PR #429’s verified Pi names.
 
+Superseded by #957 (kept so the old names stay readable):
+
 ```
 MAX_INSERTS_PER_TICK = removed   # was 8 (and 4 before 8/31)
 HOUSE_TARGET         = 100       # was 50; fill target after prune; not YouTube 5000 (#788)
@@ -21,6 +23,23 @@ SEED_THROTTLE_WEIGHT_FLOOR = 0.10  # was 0.25 (#731); was 0.4. skip SEED_THROTTL
 SEED_UPLOADS_PER_CHANNEL = 50    # was 6; live writer only — YouTube page max, 7d window (#788)
 ```
 
+#957 live values. High side of the band is clamped to CAP. Never exceed 250.
+
+```
+HOUSE_TARGET         = 250       # was 100
+HOUSE_TARGET_TOLERANCE = 15      # band 235–250
+FRESH_HOURS          = 720       # was 168; matches STALE_HARD_DAYS (30d)
+CAP                  = 250       # was 200; hard max
+STALE_HARD_DAYS      = 30        # was 7
+MIN_FIT              = 0         # unchanged; thesis-fit skip stays off
+SEED_THROTTLE_WEIGHT_FLOOR = 0.00  # was 0.10; off at baseline, not only as a notch
+WEIGHT_FLOOR         = 0.05      # was 0.15
+SEED_UPLOADS_PER_CHANNEL = 50    # unchanged; YouTube page max
+CLIMB_INSERTS_PER_DAY = 40       # gradual fill; not MAX_ADD_PER_DAY
+CHANNEL_SHARE        = max(12, ceil(5% of playlist))
+DISCOVERY_MIX_TARGET = 0.40      # rolling 7d adds from channels Chris is not subscribed to
+```
+
 Insert budget after prune = `min(slots to HOUSE_TARGET, slots to CAP, remaining playlist slots)`.  
 No add/hour clamp. Do not invent `MAX_ADD_PER_DAY`. If the Pi file has a YouTube API quota guard, keep it (nest has not seen one).
 
@@ -31,7 +50,8 @@ Auth/tick failure alerts (#480) are a **separate** log reader:
 Do not copy this policy module over the writer. Landing path:
 [`YOUTUBE_GROOM_HEALTH.md`](YOUTUBE_GROOM_HEALTH.md).
 
-Control loop (#852): hold playlist at `HOUSE_TARGET ± 10`. Sidecar
+Control loop (#852, rebased by #957): hold playlist at **235–250**
+(was 90–110). Sidecar
 [`YOUTUBE_GROOM_CONTROL.md`](YOUTUBE_GROOM_CONTROL.md) +
 `scripts/youtube_groom_control.py`. Copy alongside the writer, never over it.
 

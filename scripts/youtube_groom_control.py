@@ -2,7 +2,7 @@
 """youtube-groom continuous-improvement loop (#852). Not a second writer.
 
 Reads the last tick (from tick_report.json / last_tick dict), measures
-distance from HOUSE_TARGET ± TOLERANCE (100 ± 10), and advances **one**
+distance from the #957 band (235–250; high side clamped to CAP), and advances **one**
 criteria notch per tick. Writes:
 
   * ``$YOUTUBE_GROOM_DIR/control_state.json`` (mode 600) — knobs + last action
@@ -46,14 +46,19 @@ PI_WRITER_PATH = Path.home() / ".local" / "lib" / "youtube-groom" / "youtube_gro
 TIMER_DROPIN = Path.home() / ".config" / "systemd" / "user" / "youtube-groom.timer.d" / "control.conf"
 
 # Match nest policy scorecard. Do not import youtube_groom.py on Pi.
-HOUSE_TARGET = 100
-HOUSE_TARGET_TOLERANCE = 10
-BAND_LOW = HOUSE_TARGET - HOUSE_TARGET_TOLERANCE  # 90
-BAND_HIGH = HOUSE_TARGET + HOUSE_TARGET_TOLERANCE  # 110
-CAP = 200
+# #957 rebased the #852 loop: target 250, hard cap 250, band 235–250.
+HOUSE_TARGET = 250
+HOUSE_TARGET_TOLERANCE = 15
+CAP = 250
+BAND_LOW = HOUSE_TARGET - HOUSE_TARGET_TOLERANCE  # 235
+BAND_HIGH = min(HOUSE_TARGET + HOUSE_TARGET_TOLERANCE, CAP)  # 250
 DAILY_SOFT_CAP = 8000
 YOUTUBE_DAILY_UNITS = 10000
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+STALE_HARD_DAYS = 30
+FRESH_HOURS = 720
+WEIGHT_FLOOR = 0.05
+CLIMB_INSERTS_PER_DAY = 40
 COOLDOWN_TICKS = 2
 SEED_BROADEN_SOFT_MIN = 500
 INSERT_UNIT_COST = 50
@@ -76,7 +81,7 @@ EXTRA_SEED_LADDER = (
 
 DEFAULT_KNOBS: dict[str, Any] = {
     "MIN_FIT": 0,
-    "SEED_THROTTLE_WEIGHT_FLOOR": 0.10,
+    "SEED_THROTTLE_WEIGHT_FLOOR": 0.0,
     "SEED_EXTRA": {},
     "MAX_INSERTS_PER_TICK": None,
     "ticks_per_day": 24,
@@ -84,6 +89,10 @@ DEFAULT_KNOBS: dict[str, Any] = {
     "CAP": CAP,
     "HOUSE_TARGET": HOUSE_TARGET,
     "HOUSE_TARGET_TOLERANCE": HOUSE_TARGET_TOLERANCE,
+    "STALE_HARD_DAYS": STALE_HARD_DAYS,
+    "FRESH_HOURS": FRESH_HOURS,
+    "WEIGHT_FLOOR": WEIGHT_FLOOR,
+    "CLIMB_INSERTS_PER_DAY": CLIMB_INSERTS_PER_DAY,
 }
 
 WRITER_HOOK = (
@@ -125,10 +134,11 @@ def band_metrics(
     *,
     house: int = HOUSE_TARGET,
     tolerance: int = HOUSE_TARGET_TOLERANCE,
+    cap: int = CAP,
 ) -> dict[str, Any]:
-    """Playlist count, net new, signed distance from the 100 ± 10 band."""
+    """Playlist count, net new, distance from the 235–250 band."""
     low = house - tolerance
-    high = house + tolerance
+    high = min(house + tolerance, cap)
     if not last_tick:
         return {
             "playlist_count": None,
@@ -270,10 +280,11 @@ def loosen_one(
     limits: list[str] = []
     net = int(metrics.get("net_new") or 0)
     dist = metrics.get("distance")
+    band = f"{metrics.get('band_low', BAND_LOW)}–{metrics.get('band_high', BAND_HIGH)}"
     starve = (
         f"below band by {dist}; net_new={net} insufficient to close the gap"
         if net <= 0
-        else f"below band by {dist}; net_new={net} still not inside 90–110"
+        else f"below band by {dist}; net_new={net} still not inside {band}"
     )
 
     min_fit = int(next_knobs.get("MIN_FIT") or 0)
@@ -408,12 +419,12 @@ def tighten_one(
     knobs: dict[str, Any],
     metrics: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
-    """One incremental tighten notch. Prune-to-band first (CAP → 110)."""
+    """One incremental tighten notch. Prune-to-band first (CAP → band high, ≤250)."""
     next_knobs = deepcopy(knobs)
     limits: list[str] = []
     dist = metrics.get("distance")
     why_base = f"above band by {dist}"
-    band_cap = int(metrics.get("band_high") or BAND_HIGH)
+    band_cap = min(int(metrics.get("band_high") or BAND_HIGH), CAP)
 
     cap_now = int(next_knobs.get("CAP") or CAP)
     if not next_knobs.get("PRUNE_TO_BAND") or cap_now > band_cap:
@@ -638,33 +649,51 @@ def public_control(metrics: dict[str, Any], decision: dict[str, Any]) -> dict[st
     }
 
 
+def _fresh_state() -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "knobs": deepcopy(DEFAULT_KNOBS),
+        "last_action": None,
+        "last_tick_at": None,
+        "last_adjustment": None,
+        "cooldown_remaining": 0,
+        "limits_hit": [],
+    }
+
+
+def _migrate_knobs(old: dict[str, Any]) -> dict[str, Any]:
+    """#957 rebaseline. Keep seed breadth and tick rate; drop the 100/200 band."""
+    knobs = deepcopy(DEFAULT_KNOBS)
+    if not isinstance(old, dict):
+        return knobs
+    extra = old.get("SEED_EXTRA")
+    if isinstance(extra, dict) and extra:
+        knobs["SEED_EXTRA"] = extra
+    ticks = old.get("ticks_per_day")
+    if ticks in (24, 48):
+        knobs["ticks_per_day"] = int(ticks)
+    fit = old.get("MIN_FIT")
+    if fit in (0, 1, 2):
+        knobs["MIN_FIT"] = int(fit)
+    return knobs
+
+
 def load_state(path: Path = STATE_PATH) -> dict[str, Any]:
     if not path.is_file():
-        return {
-            "schema_version": SCHEMA_VERSION,
-            "knobs": deepcopy(DEFAULT_KNOBS),
-            "last_action": None,
-            "last_tick_at": None,
-            "last_adjustment": None,
-            "cooldown_remaining": 0,
-            "limits_hit": [],
-        }
+        return _fresh_state()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {
-            "schema_version": SCHEMA_VERSION,
-            "knobs": deepcopy(DEFAULT_KNOBS),
-            "last_action": None,
-            "last_tick_at": None,
-            "last_adjustment": None,
-            "cooldown_remaining": 0,
-            "limits_hit": [],
-        }
+        return _fresh_state()
     if not isinstance(data, dict):
         data = {}
-    knobs = {**DEFAULT_KNOBS, **(data.get("knobs") or {})}
-    data["knobs"] = knobs
+    schema = int(data.get("schema_version") or 1)
+    if schema < SCHEMA_VERSION:
+        data["knobs"] = _migrate_knobs(data.get("knobs") or {})
+        data["schema_version"] = SCHEMA_VERSION
+    else:
+        data["knobs"] = {**DEFAULT_KNOBS, **(data.get("knobs") or {})}
+        data["schema_version"] = schema
     return data
 
 
@@ -703,6 +732,10 @@ def persist_state(
         "CAP": decision["knobs"].get("CAP"),
         "HOUSE_TARGET": decision["knobs"].get("HOUSE_TARGET"),
         "HOUSE_TARGET_TOLERANCE": decision["knobs"].get("HOUSE_TARGET_TOLERANCE"),
+        "STALE_HARD_DAYS": decision["knobs"].get("STALE_HARD_DAYS"),
+        "FRESH_HOURS": decision["knobs"].get("FRESH_HOURS"),
+        "WEIGHT_FLOOR": decision["knobs"].get("WEIGHT_FLOOR"),
+        "CLIMB_INSERTS_PER_DAY": decision["knobs"].get("CLIMB_INSERTS_PER_DAY"),
         "copy_over_pi": False,
     }
     atomic_write(knobs_path, json.dumps(knobs_out, indent=2, sort_keys=True) + "\n")
@@ -809,16 +842,40 @@ def apply_live_knobs(g: dict[str, Any], *, knobs_path: Optional[Path] = None) ->
     if not isinstance(knobs, dict):
         return {}
     applied: dict[str, Any] = {}
+    schema = int(knobs.get("schema_version") or 1)
+    superseded = {
+        "HOUSE_TARGET",
+        "CAP",
+        "HOUSE_TARGET_TOLERANCE",
+        "SEED_THROTTLE_WEIGHT_FLOOR",
+        "STALE_HARD_DAYS",
+        "FRESH_HOURS",
+        "WEIGHT_FLOOR",
+        "CLIMB_INSERTS_PER_DAY",
+    }
+    ceilings = {"CAP": CAP, "HOUSE_TARGET": HOUSE_TARGET}
     for key in (
         "MIN_FIT",
         "SEED_THROTTLE_WEIGHT_FLOOR",
         "HOUSE_TARGET",
         "CAP",
         "HOUSE_TARGET_TOLERANCE",
+        "STALE_HARD_DAYS",
+        "FRESH_HOURS",
+        "WEIGHT_FLOOR",
+        "CLIMB_INSERTS_PER_DAY",
     ):
-        if key in knobs and key in g:
-            g[key] = knobs[key]
-            applied[key] = knobs[key]
+        if key not in knobs or key not in g:
+            continue
+        # A schema-1 knobs file still says house 100 / cap 200. Do not let
+        # that overlay undo the #957 writer constants.
+        if schema < SCHEMA_VERSION and key in superseded:
+            continue
+        value = knobs[key]
+        if key in ceilings:
+            value = min(int(value), ceilings[key])
+        g[key] = value
+        applied[key] = value
     extra = knobs.get("SEED_EXTRA") or {}
     if extra and isinstance(extra, dict) and "SEED_KEEPERS" in g and isinstance(g["SEED_KEEPERS"], dict):
         g["SEED_KEEPERS"] = {**g["SEED_KEEPERS"], **{str(k): str(v) for k, v in extra.items()}}

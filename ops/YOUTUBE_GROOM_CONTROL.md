@@ -1,7 +1,9 @@
 # youtube-groom control loop (#852)
 
-Hold **AI Curated** at `HOUSE_TARGET ± HOUSE_TARGET_TOLERANCE` = **100 ± 10**
-(band **90–110**). Sidecar, not a second playlist writer. Do not copy
+Hold **AI Curated** in the **235–250** band (#957). That rebases the #852
+loop, which held **100 ± 10** (band **90–110**). High side is CAP 250.
+The loop never sets a cap above 250. `HOUSE_TARGET_TOLERANCE` is 15.
+Sidecar, not a second playlist writer. Do not copy
 `scripts/youtube_groom.py` (policy scorecard) over the Pi writer.
 Do not remint OAuth. Do not run `deploy/install_remote.sh`.
 
@@ -27,12 +29,14 @@ python3 ~/.local/lib/youtube-groom/youtube_groom_control.py --dry-run --json
 
 ## Band + notches
 
-- Inside 90–110 → rest.
-- Below 90 → **one** loosen notch per tick (bias: more skippable fresh content).
+- Inside 235–250 → rest.
+- Below 235 → **one** loosen notch per tick (bias: more skippable fresh content).
+  #957 already sets the throttle floor to 0.00, so the first notch is an
+  extra seed unless a saved knob still has a higher floor.
   Order: ease `MIN_FIT` → lower `SEED_THROTTLE_WEIGHT_FLOOR` (0.10→0.05→0.00)
   → broaden `SEED_EXTRA` (one inspect-list channel) → raise add cap (already
   removed on live) → `ticks_per_day` 24→48.
-- Above 110 → **one** tighten notch per tick. First: prune-to-band (`CAP` → 110).
+- Above 250 → **one** tighten notch per tick. First: prune-to-band (`CAP` → 250).
 - Quota headroom check runs **before** any seeds / ticks / caps increase.
   `crank_without_quota` is always false. Quota exhaustion is the only
   acceptable stall (logged as `blocker=quota_exhausted`).
@@ -40,10 +44,11 @@ python3 ~/.local/lib/youtube-groom/youtube_groom_control.py --dry-run --json
   consecutive ticks.
 - Same `last_tick.at` is idempotent (15m export must not notch twice).
 
-Live 2026-09-20: `MIN_FIT` already 0, skip `{}`, net_new ≈ 0. First effective
-notches are throttle-floor then extra seeds (What Bitcoin Did, Diamandis,
-Pompliano, Bitcoin Magazine, Natalie Brunell, Milkshakes Pod — inspect
-2026-08-14 channels not in the live 6+4 set).
+#852 (2026-09-20) started with `MIN_FIT` already 0 and skip `{}`. Its first
+effective notches were throttle-floor then extra seeds (What Bitcoin Did,
+Diamandis, Pompliano, Bitcoin Magazine, Natalie Brunell, Milkshakes Pod —
+inspect 2026-08-14 channels not in the live 6+4 set). #957 sets the floor
+to 0.00, so a fresh schema-2 state notches `SEED_EXTRA` first.
 
 ## Live writer hook (surgical, not nest-copy)
 
@@ -72,17 +77,20 @@ tick. Never points `ExecStart` at the nest scorecard.
 
 ## Deploy (Pi, after merge)
 
-1. Copy **only** `scripts/youtube_groom_control.py` →
-   `~/.local/lib/youtube-groom/youtube_groom_control.py`
-2. Copy updated `scripts/youtube_groom_tick_report.py` (merges the control
-   block into `tick_report.json`). Do **not** copy nest `youtube_groom.py`.
-3. Install `scripts/youtube-groom.service` (keep `ExecStart` writer + health +
-   tick-report StopPosts; add control `--apply-timer` StopPost).
-4. Surgical `apply_live_knobs` hook on the live writer. Backup first
-   (`youtube_groom.py.bak-YYYYMMDD-852`).
-5. `systemctl --user daemon-reload` — next hourly fire + next 15m export
-6. Do **not** refresh Mac `~/.config/youtube-mcp/` (prod token is Pi)
-7. Do **not** run `deploy/install_remote.sh`
+1. Copy `scripts/youtube_groom_control.py`, `scripts/youtube_groom_supply.py`,
+   and `scripts/youtube_groom_tick_report.py` alongside the writer under
+   `~/.local/lib/youtube-groom/`. Do **not** copy nest `youtube_groom.py`.
+2. Run
+   `python3 ~/.local/lib/youtube-groom/youtube_groom_supply.py --patch-writer ~/.local/lib/youtube-groom/youtube_groom.py`.
+   That backs up `youtube_groom.py.bak-YYYYMMDD-957` and edits the writer in
+   place (`apply_live_knobs`, widened lenses, budgeted `supply_tick`).
+   Schema-1 `knobs.json` does not overlay the new house/cap. The next control
+   tick writes schema 2.
+3. Keep the existing `youtube-groom.service` (`ExecStart` stays the Pi writer;
+   health, tick-report, and control `--apply-timer` StopPosts stay).
+4. `systemctl --user daemon-reload` — next hourly fire + next 15m export.
+5. Do **not** refresh Mac `~/.config/youtube-mcp/` (prod token is Pi).
+6. Do **not** run `deploy/install_remote.sh`.
 
 ## Tests
 

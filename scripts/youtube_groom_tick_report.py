@@ -42,7 +42,7 @@ PI_WRITER_PATH = Path.home() / ".local" / "lib" / "youtube-groom" / "youtube_gro
 
 # Match live Pi writer + nest policy scorecard. Do not import youtube_groom.py
 # on Pi — that file is the writer (google API), not this log reader.
-HOUSE_TARGET = 100
+HOUSE_TARGET = 250
 DAILY_SOFT_CAP = 8000
 YOUTUBE_DAILY_UNITS = 10000
 WINDOW = timedelta(hours=24)
@@ -127,6 +127,7 @@ def parse_tick_line(line: str) -> Optional[dict[str, Any]]:
     for fm in BOOL_FIELD.finditer(line):
         flags[fm.group("key")] = fm.group("val") == "True"
     skip = _balanced_mapping(line, "skip")
+    supply = _balanced_mapping(line, "supply")
     delete_reasons = {}
     if "del=" in line:
         # delete-reason dict sits immediately after del=N
@@ -148,6 +149,7 @@ def parse_tick_line(line: str) -> Optional[dict[str, Any]]:
         "house": fields.get("house", HOUSE_TARGET),
         "deleted": fields.get("del", 0),
         "delete_reasons": {str(k): int(v) for k, v in delete_reasons.items()},
+        "supply": supply,
         "source": "append" if APPEND_PREFIX.match(line.lstrip()) else "info",
     }
 
@@ -438,6 +440,7 @@ def public_tick(tick: dict[str, Any]) -> dict[str, Any]:
         "house": tick["house"],
         "deleted": tick["deleted"],
         "delete_reasons": tick["delete_reasons"],
+        "supply": tick.get("supply") or {},
     }
 
 

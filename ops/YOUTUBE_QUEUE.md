@@ -119,6 +119,38 @@ Landing: [`YOUTUBE_GROOM_CONTROL.md`](YOUTUBE_GROOM_CONTROL.md).
 scorecard. Quota headroom still required before seeds/ticks/caps.
 Anti-oscillation cooldown prevents loosen→tighten flip-flops.
 
+## Cap 250 and discovery (#957)
+
+Chairman, 2026-09-30: raise the curator playlist to **250** and loosen fit.
+Live Pi writer only. Nest documents the constants. **Do not copy nest over Pi.**
+`scripts/youtube_groom_supply.py` is the discovery / share-cap / climb sidecar.
+Copy it alongside the writer, then run its `--patch-writer` on the Pi file.
+Do not replace the writer with the scorecard.
+
+| Knob | Was (#852) | Now (#957) |
+|------|------------|------------|
+| `HOUSE_TARGET` | **100** | **250** |
+| `CAP` | **200** | **250** (hard max) |
+| band | 90–110 | **235–250** (tolerance 15, high side clamped) |
+| `STALE_HARD_DAYS` | **7** | **30** |
+| `FRESH_HOURS` | **168** | **720** |
+| `SEED_THROTTLE_WEIGHT_FLOOR` | **0.10** | **0.00** |
+| `WEIGHT_FLOOR` | **0.15** | **0.05** |
+| `MIN_FIT` | **0** | **0** |
+| `SEED_UPLOADS_PER_CHANNEL` | **50** | **50** (YouTube page max; unchanged) |
+| `CLIMB_INSERTS_PER_DAY` | none | **40** |
+
+Discovery search runs every non-hour0 tick, after insert headroom is reserved
+(`search.list` = 100 units, max 4 calls). At least 40% of adds over 7 days
+should come from channels Chris is not subscribed to. One channel's share of
+the playlist is `max(12, ceil(5%))`. Tick log field `supply=` carries the
+pool size, the subscribed/discovered split, unique channels, and search units.
+
+30 days is the stale window because the inner fresh prune deletes anything
+older than `FRESH_HOURS` whenever one newer video exists. A 7-day window
+cannot hold 250. `CLIMB_INSERTS_PER_DAY` is the gradual fill. It is not
+`MAX_ADD_PER_DAY` and it does not bring back `MAX_INSERTS_PER_TICK`.
+
 ## Tests
 
 ```bash
