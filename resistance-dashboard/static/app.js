@@ -336,6 +336,23 @@
       : null;
   }
 
+  /** #961 line, implied burn, weekly review. Does not recompute the chips. */
+  function energyScaleExtension(opts) {
+    const api =
+      typeof window !== "undefined" ? window.FitDashEnergyWeightAlign : null;
+    return api && typeof api.energyScaleExtension === "function"
+      ? api.energyScaleExtension(opts)
+      : null;
+  }
+
+  function energyScaleExtra(model) {
+    const api =
+      typeof window !== "undefined" ? window.FitDashEnergyWeightAlign : null;
+    return api && model && typeof api.extensionHtml === "function"
+      ? api.extensionHtml(model)
+      : "";
+  }
+
   function recoveryClass(label) {
     const l = (label || "").toLowerCase();
     if (l === "ready") return "ready";
@@ -6367,6 +6384,7 @@
         let pairDays = 0;
         let sumIn = 0;
         let sumOut = 0;
+        const pairedNet = {};
         labels.forEach((day) => {
           const vin = intakeBy[day];
           const vout = burnedBy[day];
@@ -6381,6 +6399,7 @@
           sumIn += vin;
           sumOut += vout;
           cumDelta += vin - vout;
+          pairedNet[day] = vin - vout;
           pairDays += 1;
         });
         const rounded = Math.round(cumDelta);
@@ -6415,6 +6434,15 @@
           windowEnd: labels[labels.length - 1],
           goalHint,
         });
+        const scaleExt = energyScaleExtension({
+          labels,
+          pairedNet,
+          intakeRows: (data.health && data.health.nutrition) || [],
+          burnedRows: (data.health && data.health.calories_burned) || [],
+          foodLogRows: (data.health && data.health.food_logs) || [],
+          weights: (data.health && data.health.weight) || [],
+        });
+        const scaleExtra = energyScaleExtra(scaleExt);
 
         let alignHtml = "";
         if (align) {
@@ -6455,6 +6483,7 @@
                   <span class="chip-s">scale − expected</span>
                 </div>
               </div>
+              <div class="ewi-extra">${scaleExtra}</div>
               <ul class="ewi-advice">
                 ${align.advice.map((a) => `<li>${a}</li>`).join("")}
               </ul>
@@ -6470,6 +6499,17 @@
               <p class="chart-summary-meta" style="margin:0">
                 Log at least two weigh-ins ≥5 days apart in this window to compare the cumulative calorie balance to scale change.
               </p>
+              <div class="ewi-extra">${scaleExtra}</div>
+            </div>
+          `;
+        } else if (scaleExtra) {
+          alignHtml = `
+            <div class="energy-weight-insight align-warn">
+              <div class="ewi-header">
+                <span class="ewi-title">Energy vs scale · ${spanDays}d</span>
+                <span class="ewi-badge">Calibrating</span>
+              </div>
+              <div class="ewi-extra">${scaleExtra}</div>
             </div>
           `;
         }

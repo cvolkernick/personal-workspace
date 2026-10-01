@@ -98,4 +98,206 @@ const empty = align.energyWeightAlignment({
 });
 assert(empty === null, "pairDays < 5 is not enough");
 
+/**
+ * #961 — predicted-vs-actual line, implied burn, weekly review.
+ * Existing alignment numbers stay on energyWeightAlignment.
+ */
+const roll = require("../static/calorie-rolling-avg.js");
+
+function daysFrom(start, n) {
+  const out = [];
+  let d = start;
+  for (let i = 0; i < n; i++) {
+    out.push(d);
+    d = align.addDays(d, 1);
+  }
+  return out;
+}
+
+const labels = daysFrom("2026-08-01", 35);
+assert(labels[34] === "2026-09-04", "35-day window ends 2026-09-04");
+assert(labels[7] === "2026-08-08", "index 7 is Aug 8");
+assert(labels[27] === "2026-08-28", "index 27 is Aug 28");
+
+const intakeRows = [];
+const burnedRows = [];
+for (let i = 0; i < 28; i++) {
+  intakeRows.push({ date: labels[i], calories: 2200 });
+  burnedRows.push({ date: labels[i], calories: 2500 });
+}
+for (let i = 28; i < 35; i++) {
+  burnedRows.push({ date: labels[i], calories: 3000 });
+}
+const weights = [
+  { date: labels[0], weight_lbs: 180 },
+  { date: labels[7], weight_lbs: 179 },
+  { date: labels[34], weight_lbs: 176 },
+];
+
+const ext = align.energyScaleExtension({
+  labels,
+  intakeRows,
+  burnedRows,
+  weights,
+});
+assert(ext.open === true, "28/35 logged and a real weigh-in span opens the line");
+assert(Math.abs(ext.cumDeltaKcal - -8400) < 1e-6, "unlogged burn days add nothing; cum is 28×-300");
+assert(ext.pairDays === 28, "pair days stay the 28 logged days");
+assert(Math.abs(ext.finalPredicted - -2.4) <= 0.1, "predicted final is -2.4 lb");
+assert(Math.abs(ext.finalActual - -4) <= 0.1, "scale final is -4.0 lb");
+
+const card = align.energyWeightAlignment({
+  cumDeltaKcal: ext.cumDeltaKcal,
+  pairDays: ext.pairDays,
+  weights,
+  windowStart: labels[0],
+  windowEnd: labels[34],
+  goalHint: "cut",
+});
+assert(card, "existing card still returns for this window");
+assert(Math.abs(ext.finalPredicted - card.expectedLb) <= 0.1, "chart end matches From calories");
+assert(Math.abs(ext.finalActual - card.actualLb) <= 0.1, "chart end matches On scale");
+assert(
+  Math.abs(card.actualLb - card.expectedLb - card.residualLb) < 1e-6,
+  "gap chip is still scale − expected"
+);
+
+const handImplied = 2200 - (-4 * 3500) / 35;
+assert(Math.abs(ext.implied.burnPerDay - handImplied) <= 1, "implied burn matches the fixture formula");
+assert(Math.abs(ext.implied.burnPerDay - 2600) <= 1, "implied burn is 2600 kcal/day");
+assert(Math.abs(ext.implied.loggedBurnPerDay - 2500) <= 1, "logged burn stays 2500");
+assert(Math.abs(ext.implied.diffPerDay - 100) <= 1, "difference is +100 kcal/day");
+assert(ext.implied.delta7Lb === -4, "7-day average weight change is -4 lb");
+
+assert(ext.weekly && ext.weekly.days === 28, "weekly review is the trailing 28 days");
+assert(Math.abs(ext.weekly.gapLb - -1.2) <= 0.1, "4-week gap is -1.2 lb");
+assert(Math.abs(ext.weekly.impliedBurn - 2575) <= 1, "4-week implied burn is 2575");
+assert(Math.abs(ext.weekly.loggedBurn - 2500) <= 1, "4-week logged burn is 2500");
+
+const chartBurned = roll.valuesOnLabels(roll.kcalByDate(burnedRows), labels);
+assert(
+  JSON.stringify(ext.burnedSeries) === JSON.stringify(chartBurned),
+  "burned series matches the intake-vs-burned daily points"
+);
+
+const bareLabels = labels.slice(0, 28);
+const bare = align.energyScaleExtension({
+  labels: bareLabels,
+  intakeRows: intakeRows.slice(),
+  burnedRows: burnedRows.filter((row) => row.date <= labels[27]),
+  weights,
+});
+assert(bare.cumDeltaKcal === ext.cumDeltaKcal, "10-style: extra unlogged days do not change the sum");
+assert(
+  Math.abs(bare.finalPredicted - ext.finalPredicted) < 1e-9,
+  "predicted change matches the logged days alone"
+);
+
+const holeLabels = daysFrom("2026-07-01", 14);
+const holeIn = [];
+const holeBurn = [];
+for (let i = 0; i < 10; i++) {
+  holeIn.push({ date: holeLabels[i], calories: 2000 });
+  holeBurn.push({ date: holeLabels[i], calories: 1800 });
+}
+for (let i = 10; i < 14; i++) holeBurn.push({ date: holeLabels[i], calories: 4000 });
+const holes = align.energyScaleExtension({
+  labels: holeLabels,
+  intakeRows: holeIn,
+  burnedRows: holeBurn,
+  weights: [
+    { date: holeLabels[0], weight_lbs: 180 },
+    { date: holeLabels[13], weight_lbs: 179 },
+  ],
+});
+const only = align.energyScaleExtension({
+  labels: holeLabels.slice(0, 10),
+  intakeRows: holeIn,
+  burnedRows: holeBurn.slice(0, 10),
+  weights: [
+    { date: holeLabels[0], weight_lbs: 180 },
+    { date: holeLabels[9], weight_lbs: 179 },
+  ],
+});
+assert(holes.cumDeltaKcal === only.cumDeltaKcal, "10 logged + 4 unlogged equals the 10 logged days");
+assert(Math.abs(holes.finalPredicted - only.finalPredicted) < 1e-9, "unlogged days do not move the line");
+assert(holes.open === false, "10/14 fails the 14-day and 80% gates");
+assert(holes.implied == null, "implied burn is hidden when the gates fail");
+assert(holes.weekly == null, "weekly review is hidden when the gates fail");
+const holeHtml = align.extensionHtml(holes);
+assert(holeHtml.indexOf("<svg") === -1, "closed window does not draw the line");
+assert(/Calibrating/.test(holeHtml), "closed window says calibrating");
+assert(/coverage/i.test(holeHtml), "closed window names coverage");
+assert(holeHtml.indexOf("Implied burn") === -1, "implied burn copy is hidden");
+assert(holeHtml.indexOf("4-week gap") === -1, "weekly line is hidden");
+
+const openHtml = align.extensionHtml(ext);
+assert(openHtml.indexOf("<svg") !== -1, "open window draws the line");
+assert(openHtml.indexOf("ewi-chart") !== -1, "line chart has ewi-chart");
+assert(openHtml.indexOf('data-final-predicted="-2.4"') !== -1, "svg end is the predicted chip");
+assert(openHtml.indexOf('data-final-actual="-4.0"') !== -1, "svg end is the scale chip");
+assert(
+  openHtml.indexOf("Estimated from your weight trend.") !== -1,
+  "implied burn is labeled from the weight trend"
+);
+assert(openHtml.indexOf("2,600 kcal/day") !== -1, "implied burn renders 2,600");
+assert(openHtml.indexOf("4-week gap") !== -1, "weekly review names the 4-week gap");
+assert(openHtml.indexOf("-1.2 lb") !== -1, "weekly gap renders -1.2 lb");
+assert(openHtml.indexOf("2,575 kcal/day") !== -1, "weekly implied burn renders 2,575");
+
+const cardHtml =
+  '<div class="energy-weight-insight align-warn">' +
+  '<span class="chip-k">From calories</span><span class="chip-v">-2.4 lb</span>' +
+  '<span class="chip-k">On scale</span><span class="chip-v">-4.0 lb</span>' +
+  '<span class="chip-k">Gap</span>' +
+  '<div class="ewi-extra">' +
+  openHtml +
+  "</div>" +
+  '<ul class="ewi-advice"><li>existing guidance</li></ul></div>';
+const svgAt = cardHtml.indexOf("<svg");
+assert(svgAt > cardHtml.indexOf("energy-weight-insight"), "chart is inside the card");
+assert(svgAt < cardHtml.indexOf("ewi-advice"), "chart sits above the existing guidance");
+assert(cardHtml.indexOf("From calories") < svgAt, "existing chips stay above the line");
+
+const snapLabels = daysFrom("2026-05-01", 20);
+const snapIn = [];
+const snapBurn = [];
+for (let i = 0; i < 16; i++) {
+  snapIn.push({ date: snapLabels[i], calories: 2000 });
+  snapBurn.push({ date: snapLabels[i], calories: 2000 });
+}
+const snapWeights = [{ date: snapLabels[0], weight_lbs: 200 }];
+const endLoads = [190, 191, 192, 193, 194, 195, 196];
+for (let i = 0; i < endLoads.length; i++) {
+  snapWeights.push({ date: snapLabels[13 + i], weight_lbs: endLoads[i] });
+}
+const snap = align.energyScaleExtension({
+  labels: snapLabels,
+  intakeRows: snapIn,
+  burnedRows: snapBurn,
+  weights: snapWeights,
+});
+assert(snap.open === true, "16/20 opens");
+assert(snap.finalActual === -4, "final point is the card scale change, not the 7-day mean");
+assert(Math.abs(snap.actual[18] - -7.5) < 1e-9, "the point before the end is still the 7-day mean");
+
+const dupRows = [
+  { date: "2026-08-01", calories: 100 },
+  { date: "2026-08-01", calories: 1800 },
+  { date: "2026-08-02", calories: 0 },
+];
+const dup = align.energyScaleExtension({
+  labels: ["2026-08-01", "2026-08-02", "2026-08-03"],
+  intakeRows: [],
+  burnedRows: dupRows,
+  weights: [],
+});
+const dupExpect = roll.valuesOnLabels(roll.kcalByDate(dupRows), [
+  "2026-08-01",
+  "2026-08-02",
+  "2026-08-03",
+]);
+assert(JSON.stringify(dup.burnedSeries) === JSON.stringify(dupExpect), "last finite burn wins; a logged 0 stays 0; a missing day stays null");
+assert(dupExpect[0] === 1800 && dupExpect[1] === 0 && dupExpect[2] == null, "chart fixture shape");
+
 console.log("ok energy-weight-align");
