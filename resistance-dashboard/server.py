@@ -114,12 +114,14 @@ from rt_dashboard.day_constraints import (  # noqa: E402
 )
 from rt_dashboard.service_auth import (  # noqa: E402
     account_hint_mismatch,
+    agent_read_health_fields,
     inventory_agent_denied,
     inventory_agent_principal,
     inventory_session_uid,
     service_auth_denied,
     service_auth_ok as _service_auth_ok,
     service_token_from_headers as _service_token_from_headers,
+    trends_export_gate,
 )
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.workout_log import (  # noqa: E402
@@ -1513,6 +1515,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     "proxy": False,
                     "backend": None,
                     "auth_required": _auth_required(),
+                    **agent_read_health_fields(),
                 }
             )
             return
@@ -1758,6 +1761,42 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/trends/export":
+            # Read-only chart window. Same house token as /api/agent/today.
+            # A presented token that does not match is 401 even on loopback.
+            client_host = (self.client_address or ("", 0))[0]
+            user = _session_user_from_headers(self.headers)
+            denied = trends_export_gate(
+                self.headers,
+                client_host,
+                session_ok=bool(user),
+                auth_required=_auth_required(),
+            )
+            if denied:
+                self._send_json(denied, status=401)
+                return
+            try:
+                from rt_dashboard.trends_export import respond_trends_export
+
+                uid = user.get("user_id") if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                status, body = respond_trends_export(
+                    self.headers,
+                    parsed.query or "",
+                    data.get("health") or {},
+                )
+                self._send_json(body, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "trends_export_failed",
+                        "message": str(e) or type(e).__name__,
+                        "alert": "fitdash_trends_health",
+                    },
+                    status=500,
+                )
             return
         if parsed.path == "/api/dashboard":
             user = self._require_user()

@@ -33,6 +33,10 @@
       "destination": "/api/dashboard?_r=agent_today"
     },
     {
+      "source": "/api/trends/export",
+      "destination": "/api/dashboard?_r=trends_export"
+    },
+    {
       "source": "/api/agent/generate-plan",
       "destination": "/api/ask/plan?_r=agent_generate"
     },

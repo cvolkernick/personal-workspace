@@ -32,7 +32,12 @@ class VercelPreviewHealthz(unittest.TestCase):
         self.assertEqual(body["service"], "fitdash")
         self.assertEqual(body["role"], "production")
         self.assertEqual(body["gitSha"], env["VERCEL_GIT_COMMIT_SHA"])
-        self.assertEqual(set(body), {"ok", "service", "role", "gitSha"})
+        self.assertEqual(
+            set(body),
+            {"ok", "service", "role", "gitSha", "agent_read", "alert"},
+        )
+        self.assertEqual(body["agent_read"], "unconfigured")
+        self.assertEqual(body["alert"], "fitdash_agent_read_unconfigured")
         dumped = str(body)
         self.assertNotIn("should-not-leak", dumped)
         self.assertNotIn("postgres://", dumped)
@@ -81,7 +86,11 @@ class VercelPreviewHealthz(unittest.TestCase):
         self.assertNotEqual(body["role"], "production")
         self.assertEqual(body["role"], "unknown")
         self.assertIsNone(body["gitSha"])
-        self.assertEqual(set(body), {"ok", "service", "role", "gitSha"})
+        self.assertEqual(
+            set(body),
+            {"ok", "service", "role", "gitSha", "agent_read", "alert"},
+        )
+        self.assertEqual(body["agent_read"], "unconfigured")
 
 
 class VercelPreviewAuthStatus(unittest.TestCase):
