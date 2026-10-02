@@ -26,6 +26,13 @@ from treasury.adapters import (  # noqa: E402
 from treasury.fund_manager import evaluate_fund_manager, write_fund_manager_snapshot  # noqa: E402
 from treasury.policy import evaluate_treasury  # noqa: E402
 from treasury.solana_sync import overlay_solana_snapshot  # noqa: E402
+from treasury.x_money_glance import (  # noqa: E402
+    attach_plaid_x_money,
+    failed_row,
+    pins_from_config,
+    read_prior_plaid_x_money,
+    stale_after_hours,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -62,6 +69,22 @@ def main(argv: list[str] | None = None) -> int:
         prefer_live_expenses=live,
         prefer_live_solana=live,
     )
+    dash_out = ROOT / "financial-command" / "treasury_latest.json"
+    # Same live/offline gate as the rest of the snapshot. A failed Plaid read
+    # does not keep the previous balances; --offline keeps the prior block.
+    try:
+        prior_plaid = read_prior_plaid_x_money(args.out, dash_out)
+        snap["plaid_x_money"] = attach_plaid_x_money(
+            config=cfg,
+            prefer_live=live,
+            prior=prior_plaid,
+        )
+    except Exception as exc:  # noqa: BLE001 — Glance row must not fail treasury
+        snap["plaid_x_money"] = failed_row(
+            pins_from_config(cfg),
+            f"Plaid X Money attach failed: {exc}",
+            hours=stale_after_hours(cfg),
+        )
     result = evaluate_treasury(snap, policy=cfg.get("policy") or {})
     # Agentic fund manager (agentic RH account only; see investment/fund_manager.json)
     try:
@@ -78,7 +101,6 @@ def main(argv: list[str] | None = None) -> int:
     overlay_solana_snapshot(out)
     save_json(args.out, out)
     # Also publish to financial-command UI path
-    dash_out = ROOT / "financial-command" / "treasury_latest.json"
     save_json(dash_out, out)
 
     stress = result["stress"]["overall"]

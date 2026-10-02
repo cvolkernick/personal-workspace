@@ -191,6 +191,24 @@
       max-width: 100%;
       min-width: 0;
     }
+    .kpi-grid.x-money-row {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 0.35rem;
+    }
+    .x-money-row .kpi .k {
+      white-space: normal;
+      text-overflow: unset;
+    }
+    .x-money-row-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin: 0.35rem 0 0;
+      line-height: 1.35;
+    }
+    .x-money-row-note:empty { display: none; }
+    .x-money-row-note.stale,
+    .x-money-row-note.warn { color: var(--yellow); }
+    .x-money-kpi-row.is-stale .kpi { border-color: #5a4a1a; }
     #at-a-glance {
       overflow: visible;
       width: 100%;
@@ -1748,6 +1766,7 @@
     }
 
     @media (max-width: 720px) {
+      .kpi-grid.x-money-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       body { font-size: 14px; }
       html, body {
         max-width: 100%;
@@ -2200,6 +2219,10 @@
 
     <section id="at-a-glance" data-m-panel="glance" aria-label="At a glance">
       <div class="kpi-grid" id="kpi-grid"></div>
+      <div class="x-money-kpi-row" id="x-money-kpi-row">
+        <p class="x-money-row-note" id="x-money-row-note" role="status"></p>
+        <div class="kpi-grid x-money-row" id="x-money-kpi-grid" aria-label="X Money liquidity"></div>
+      </div>
     </section>
     <section class="card" id="actions-card" data-m-panel="glance">
       <div class="card-head">
@@ -3423,6 +3446,73 @@
       root.innerHTML = html;
     }
 
+    const X_MONEY_GLANCE_LABELS = [
+      "X Money Main",
+      "X Money Auto Fleet",
+      "X Money Collateral",
+      "X Money Utilities",
+    ];
+
+    function xMoneyStale(row) {
+      if (!row) return { stale: true, reason: "no Plaid X Money reading" };
+      if (row.ok === false || row.stale === true) {
+        return { stale: true, reason: row.stale_reason || "Plaid read failed" };
+      }
+      const hours = Number(row.stale_after_hours);
+      const limit = Number.isFinite(hours) && hours > 0 ? hours : 6;
+      const asOf = Date.parse(row.as_of || "");
+      if (!Number.isFinite(asOf)) return { stale: true, reason: "Plaid as_of missing" };
+      const ageH = (Date.now() - asOf) / 3600000;
+      if (ageH > limit) {
+        return { stale: true, reason: "balance is " + ageH.toFixed(1) + "h old" };
+      }
+      return { stale: false, reason: "" };
+    }
+
+    function renderXMoneyRow(snap) {
+      const grid = document.getElementById("x-money-kpi-grid");
+      const note = document.getElementById("x-money-row-note");
+      const wrap = document.getElementById("x-money-kpi-row");
+      if (!grid || !note || !wrap) return;
+      const row = (snap && snap.plaid_x_money) || null;
+      let accounts = row && Array.isArray(row.accounts) ? row.accounts : [];
+      let stale = xMoneyStale(row);
+      if (accounts.length !== X_MONEY_GLANCE_LABELS.length) {
+        accounts = X_MONEY_GLANCE_LABELS.map((label) => ({ label: label, current: null }));
+        stale = {
+          stale: true,
+          reason: (row && row.stale_reason) || "account set is not the four pinned X Money accounts",
+        };
+      }
+      const bits = [];
+      if (stale.stale) bits.push("Plaid stale — " + stale.reason);
+      if (row && row.warning) bits.push(String(row.warning));
+      if (row && row.follow_up) bits.push(String(row.follow_up));
+      note.textContent = bits.join(" ");
+      note.className =
+        "x-money-row-note" + (stale.stale ? " stale" : row && row.warning ? " warn" : "");
+      wrap.classList.toggle("is-stale", stale.stale);
+      grid.innerHTML = accounts
+        .map((acct) => {
+          const label = String(acct.label || "");
+          const value = stale.stale ? "—" : money(acct.current);
+          const sub = stale.stale ? "stale" : "Plaid";
+          const tone = stale.stale ? "yellow" : "muted";
+          const why = stale.stale
+            ? label + " is not live. " + stale.reason
+            : label + " Plaid current " + value;
+          return (
+            `<div class="kpi tone-${tone}" data-target="cash-credit" tabindex="0" ` +
+            `aria-label="${escapeHtml(label + ": " + why)}">` +
+            `<div class="kpi-tip" role="tooltip">${escapeHtml(why)}</div>` +
+            `<div class="k">${escapeHtml(label)}</div>` +
+            `<div class="v">${value}</div>` +
+            `<div class="s">${escapeHtml(sub)}</div></div>`
+          );
+        })
+        .join("");
+    }
+
     function render(data) {
       const ev = data.evaluation || {};
       const snap = data.snapshot || {};
@@ -3950,6 +4040,7 @@
           );
         })
         .join("");
+      renderXMoneyRow(snap);
       document.querySelectorAll(".kpi").forEach((el) => {
         el.addEventListener("click", () => {
           const href = el.getAttribute("data-href");

@@ -61,6 +61,32 @@
     "x_money_apy_est": 0.06,
     "notes": "Token at ~/.config/ynab/token. X Money main is last-4 2201 (Main \u2013 2201). Spaces: Auto Fleet / Collateral / Utilities. EveryDay Checking \u2013 8680 is Navy Federal \u2014 never X Money. Do not leftover-pick a random checking. X Money cash pays ~6% APY (product rate; confirm in app)."
   },
+  "plaid_x_money": {
+    "stale_after_hours": 6,
+    "accounts": [
+      {
+        "slot": "main",
+        "label": "X Money Main",
+        "account_id": "8pe84rZDNpuy6NP9EyMns7OrJ7Ja5gFZA190n"
+      },
+      {
+        "slot": "auto_fleet",
+        "label": "X Money Auto Fleet",
+        "account_id": "ZzO8KkE17zSRK37EnRaNHNVdnNngLEHvr4xOw"
+      },
+      {
+        "slot": "collateral",
+        "label": "X Money Collateral",
+        "account_id": "oKN3MEYbvKHjaedZPjwzHEaAkEkgnjsOLJP7E"
+      },
+      {
+        "slot": "utilities",
+        "label": "X Money Utilities",
+        "account_id": "5pXa0vmw8puL9q3DMLeOUx7e8x8aA1FVQDKox"
+      }
+    ],
+    "notes": "Glance chips match Plaid account_id, not the display name. Headline is balances.current. Default is not a chip. YNAB is not this row."
+  },
   "expenses_sheet": {
     "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
     "sheet_name": "Personal Expense Sheet",
