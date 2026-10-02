@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime
+from unittest import mock
+from zoneinfo import ZoneInfo
 
 from rt_dashboard.coach import (
     build_coach_brief,
@@ -17,7 +20,9 @@ from rt_dashboard.models import (
     RecoveryStatus,
     SleepSample,
 )
-from rt_dashboard.nutrition_planner import generate_meal_plan
+from rt_dashboard.daily_plan_tasks import plan_from_today_board
+from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
+from rt_dashboard.nutrition_planner import MSG_KITCHEN_CLOSED, generate_meal_plan
 
 
 class TestCoach(unittest.TestCase):
@@ -375,6 +380,81 @@ class TestCoach(unittest.TestCase):
         self.assertTrue(board["meal"].get("empty"))
         self.assertEqual(board["meal"].get("message"), "No in-stock items")
         self.assertEqual(board["meal"].get("empty_reason"), "no_in_stock")
+
+    def test_kitchen_closed_today_hides_stale_next_meal(self):
+        et = ZoneInfo("America/New_York")
+        now = datetime(2026, 10, 2, 2, 30, tzinfo=et)
+        wake = datetime(2026, 10, 1, 7, 30, tzinfo=et)
+        empty = datetime(2026, 10, 1, 22, 30, tzinfo=et)
+        stocked = {
+            "ingredients": [
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "calories": 280,
+                    "protein_g": 52,
+                    "carbs_g": 0,
+                    "fat_g": 6,
+                    "in_stock": True,
+                    "serving_g": 170,
+                    "serving_label": "170g",
+                }
+            ]
+        }
+        targets = {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55}
+        generated = generate_meal_plan(
+            stocked,
+            targets,
+            {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": empty.isoformat(),
+                "awake_budget_hours": 15.0,
+            },
+        )
+        stale = {
+            "meals": [
+                {
+                    "label": "Next meal",
+                    "eat_at": "2026-10-01T22:30:00-04:00",
+                    "eat_at_label": "10:30 PM",
+                    "items": [{"id": "chicken", "name": "Chicken", "calories": 280}],
+                }
+            ],
+            "items": [{"id": "chicken", "name": "Chicken", "calories": 280}],
+            "stocked_count": 1,
+        }
+        with mock.patch(
+            "rt_dashboard.meal_plan_store.load_last_good_meal_plan",
+            return_value=stale,
+        ):
+            plan = resolve_dashboard_meal_plan("sub-1", "2026-10-01", generated, stocked)
+        rec = RecoveryStatus(label="Ready", score=80.0, reasons=[])
+        board = build_today_board(
+            as_of="2026-10-01",
+            recovery=rec,
+            workout_plan={"is_rest_day": True, "exercises": []},
+            meal_plan=plan,
+            consumed={"calories": 0, "protein_g": 0},
+            targets=targets,
+            adherence={},
+            inventory_suggestions={"suggestions": []},
+        )
+        meal = board["meal"]
+        self.assertTrue(meal.get("empty"))
+        self.assertEqual(meal.get("meals"), [])
+        self.assertEqual(meal.get("message"), MSG_KITCHEN_CLOSED)
+        self.assertEqual(meal.get("empty_reason"), "kitchen_closed")
+        self.assertFalse(board.get("purchases"))
+        groups = plan_from_today_board(board, day="2026-10-01")
+        nutrition_items = [
+            i for g in groups if g.group == "nutrition" for i in g.items
+        ]
+        titles = " ".join(i.title for i in nutrition_items)
+        self.assertNotIn("Next meal", titles)
+        self.assertNotIn("10:30", titles)
 
     def test_food_commentary_protein_gap(self):
         logs = [
