@@ -140,7 +140,7 @@ python3 projects-dashboard/recommendations.py reject <id>
 | `action` | Updates linked backlog notes (idea→ready when appropriate) or creates a ready item |
 | `new_item` | Adds a full backlog entry (title, priority, area, MVP, description) |
 
-Persisted in `ops/backlog/suggestions.json`.
+Persisted in `ops/backlog/suggestions.json` (local runtime, gitignored). A missing file is created empty. Dashboard loads rewrite `updated_at`; that must not show up in `git status`.
 
 ## Google Tasks tab
 
