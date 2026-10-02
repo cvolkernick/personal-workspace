@@ -649,7 +649,11 @@
     return null;
   }
 
-  /** Most recent logged sets. Same rule as planner last_performance. */
+  /**
+   * Most recent logged sets. Same rule as planner last_performance:
+   * weight and reps come from the first working set. A later heavier
+   * set does not change the Last line (#977).
+   */
   function lastPerformanceForLog(sessions, exerciseName, catalog) {
     const target = normExerciseName(exerciseName);
     if (!target) return null;
@@ -670,22 +674,13 @@
         }
         const sets = Array.isArray(ex.sets) ? ex.sets.filter((st) => st && st.weight_lbs != null && st.weight_lbs !== "") : [];
         if (!sets.length) continue;
-        let top = sets[0];
-        for (const st of sets) {
-          const tw = Number(st.weight_lbs);
-          const tr = Number(st.reps) || 0;
-          const ts = Number(st.sets) || 0;
-          const bw = Number(top.weight_lbs);
-          const br = Number(top.reps) || 0;
-          const bs = Number(top.sets) || 0;
-          if (tw > bw || (tw === bw && tr > br) || (tw === bw && tr === br && ts > bs)) top = st;
-        }
+        const first = sets[0];
         const totalSets = sets.reduce((sum, st) => sum + (Number(st.sets) || 0), 0);
         return {
           date: String(s.date || "").slice(0, 10),
-          weight_lbs: Number(top.weight_lbs),
-          sets: totalSets || Number(top.sets) || 1,
-          reps: Number(top.reps) || 0,
+          weight_lbs: Number(first.weight_lbs),
+          sets: totalSets || Number(first.sets) || 1,
+          reps: Number(first.reps) || 0,
         };
       }
     }

@@ -439,6 +439,51 @@ assert(empty.querySelector(".set-weight").value === "", "empty row stays empty")
 
 assert(!SRC.includes("function logPlanToForm"), "log-this-plan button stays gone");
 
+const pairSessions = [
+  {
+    date: "2026-09-20",
+    session_type: "push",
+    exercises: [
+      {
+        name: "DB Flat Press",
+        sets: [
+          { weight_lbs: 100, sets: 1, reps: 8 },
+          { weight_lbs: 110, sets: 1, reps: 5 },
+        ],
+      },
+    ],
+  },
+];
+const pair = api.lastPerformanceForLog(pairSessions, "DB Flat Press", catalog);
+assert(pair.weight_lbs === 100, "first working weight " + JSON.stringify(pair));
+assert(pair.reps === 8, "first working reps " + JSON.stringify(pair));
+assert(pair.sets === 2, "set count stays the total " + JSON.stringify(pair));
+data.sessions = data.sessions.concat(pairSessions);
+global.state = data;
+changeTo("DB Flat Press");
+assert(
+  refText(card()) === "Last 2x8 @ 100",
+  "Last line uses the first working set " + refText(card())
+);
+
+const oneSet = api.lastPerformanceForLog(
+  [
+    {
+      date: "2026-09-21",
+      session_type: "push",
+      exercises: [
+        { name: "DB Flat Press", sets: [{ weight_lbs: 110, sets: 4, reps: 8 }] },
+      ],
+    },
+  ],
+  "DB Flat Press",
+  catalog
+);
+assert(
+  oneSet.weight_lbs === 110 && oneSet.sets === 4 && oneSet.reps === 8,
+  "one-set log stays " + JSON.stringify(oneSet)
+);
+
 const loadSrc = extractFn("loadDashboard");
 assert(loadSrc.includes("applyManualLogPlanPrefill(data)"), "dashboard open seeds the log");
 assert(
