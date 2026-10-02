@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from contextlib import ExitStack
@@ -2611,7 +2612,7 @@ class TestDailyPlanTasks(unittest.TestCase):
         )
 
     def test_all_lift_leaves_complete_training_parent(self):
-        """AC6: completing every ex-* still completes the Training parent."""
+        """#999: every ex-* checked still leaves the Training parent open."""
         day = "2026-08-29"
         store = {
             "g-train": {
@@ -2675,16 +2676,22 @@ class TestDailyPlanTasks(unittest.TestCase):
             "meal": {"meals": [], "items": []},
             "purchases": [],
         }
+        cache: dict = {}
         with tempfile.TemporaryDirectory() as tmp:
-            with self._patch_ensure(store, created, tmp):
+            with self._patch_ensure(store, created, tmp, cache=cache):
                 with mock.patch(
                     "rt_dashboard.daily_plan_tasks.gtb.complete_task",
                     side_effect=self._complete_updating_store(store, complete_calls),
                 ):
                     result = ensure_daily_tasks(board, day=day)
         self.assertTrue(result.get("ok"), result)
-        self.assertEqual(store["g-train"]["status"], "completed")
-        self.assertIn(("g-train", True), complete_calls)
+        train = next(g for g in result["groups"] if g["group"] == "training")
+        self.assertFalse(train.get("completed"), train)
+        local = (cache.get(day) or {}).get("local_completed") or {}
+        self.assertFalse(local.get("training|group"))
+        self.assertFalse(local.get("training|train-session"))
+        self.assertEqual(store["g-train"]["status"], "needsAction")
+        self.assertNotIn(("g-train", True), complete_calls)
 
     def _two_lift_board(self, day, *, already=False):
         return {
@@ -2855,7 +2862,7 @@ class TestDailyPlanTasks(unittest.TestCase):
                     self.assertEqual(store["g-train"]["status"], "needsAction")
                     self.assertNotIn(("g-train", True), calls)
 
-    def test_verified_children_still_complete_parent(self):
+    def test_verified_children_do_not_complete_training_parent(self):
         day = "2026-08-29"
         store = self._two_lift_store(
             day, session="completed", rdl="completed"
@@ -2876,8 +2883,8 @@ class TestDailyPlanTasks(unittest.TestCase):
                         sibling_all_done=True,
                     )
         self.assertTrue(marked.get("ok"), marked)
-        self.assertEqual(store["g-train"]["status"], "completed")
-        self.assertIn(("g-train", True), calls)
+        self.assertEqual(store["g-train"]["status"], "needsAction")
+        self.assertNotIn(("g-train", True), calls)
 
     def test_sibling_flag_false_still_uncompletes_parent(self):
         day = "2026-08-29"
@@ -3610,13 +3617,13 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
         self.assertIsNotNone(leaf, train[0])
         return train[0], leaf
 
-    def test_plan_preview_marks_trained_session_complete(self):
+    def test_plan_preview_trained_session_stays_open(self):
         board = self._lift_board("2026-09-10")
         board["workout"]["already_trained_today"] = True
         prev = plan_preview(board, day="2026-09-10")
         group, leaf = self._train_session_leaf(prev)
-        self.assertTrue(leaf.get("completed"), leaf)
-        self.assertTrue(group.get("completed"), group)
+        self.assertFalse(leaf.get("completed"), leaf)
+        self.assertFalse(group.get("completed"), group)
         leftover = [
             it
             for it in group.get("items") or []
@@ -3635,7 +3642,7 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
         self.assertFalse(leaf.get("completed"), leaf)
         self.assertFalse(group.get("completed"), group)
 
-    def test_ensure_auto_completes_trained_session_without_gt(self):
+    def test_ensure_does_not_auto_complete_trained_session_without_gt(self):
         store: dict = {}
         created: list[dict] = []
         day = "2026-09-10"
@@ -3650,9 +3657,10 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
                 result = ensure_daily_tasks(board, day=day)
         self.assertTrue(result.get("ok"), result)
         group, leaf = self._train_session_leaf(result)
-        self.assertTrue(leaf.get("completed"), leaf)
-        self.assertTrue(group.get("completed"), group)
+        self.assertFalse(leaf.get("completed"), leaf)
+        self.assertFalse(group.get("completed"), group)
         self.assertFalse(leaf.get("task_id"))
+        self.assertFalse(training_day_complete(day))
         leftover = [
             it
             for it in group.get("items") or []
@@ -3722,9 +3730,18 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
                     self.assertTrue(marked.get("ok"), marked)
                 second = ensure_daily_tasks(board, day=day)
                 group, leaf = self._train_session_leaf(second)
-                self.assertTrue(leaf.get("completed"), leaf)
-                self.assertTrue(group.get("completed"), group)
-                self.assertTrue(training_day_complete(day))
+                self.assertFalse(leaf.get("completed"), leaf)
+                self.assertFalse(group.get("completed"), group)
+                self.assertFalse(training_day_complete(day))
+                done_lifts = [
+                    it
+                    for it in group.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                ]
+                self.assertTrue(done_lifts, group)
+                self.assertTrue(
+                    all(it.get("completed") for it in done_lifts), done_lifts
+                )
 
     def test_partial_local_lifts_do_not_complete_training_parent(self):
         store: dict = {}
@@ -3786,7 +3803,245 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
                 )
                 self.assertFalse(training_day_complete(day))
 
-    def test_train_parent_planning_ors_log_hit(self):
+    def test_one_of_n_reload_keeps_parent_open(self):
+        """#999: one checked lift stays 1/N after reload. Flags stay unset."""
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        board = self._lift_board(day)
+        board["actions"][0]["text"] = (
+            "Complete today's PUSH session (2 lifts as prescribed)."
+        )
+        board["workout"]["exercises"].append(
+            {
+                "name": "Seated Leg Curls",
+                "sets": 2,
+                "reps": 10,
+                "weight_lbs": 40,
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ):
+                first = ensure_daily_tasks(board, day=day)
+                train = [
+                    g
+                    for g in first.get("groups") or []
+                    if g.get("group") == "training"
+                ][0]
+                lifts = [
+                    it
+                    for it in train.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                ]
+                self.assertGreaterEqual(len(lifts), 2, train)
+                marked = complete_leaf(
+                    "",
+                    "",
+                    completed=True,
+                    sibling_all_done=True,
+                    group="training",
+                    slug=lifts[0]["slug"],
+                    date=day,
+                    title=lifts[0]["title"],
+                )
+                self.assertTrue(marked.get("ok"), marked)
+                second = ensure_daily_tasks(board, day=day)
+                group, leaf = self._train_session_leaf(second)
+                self.assertFalse(group.get("completed"), group)
+                self.assertFalse(leaf.get("completed"), leaf)
+                by_slug = {
+                    it["slug"]: it
+                    for it in group.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                }
+                self.assertGreaterEqual(len(by_slug), 2, group)
+                self.assertTrue(by_slug[lifts[0]["slug"]]["completed"])
+                open_lifts = [
+                    it for it in by_slug.values() if not it.get("completed")
+                ]
+                self.assertTrue(open_lifts, group)
+                self.assertFalse(training_day_complete(day))
+                saved = json.loads(
+                    (Path(tmp) / "daily_quest_cache.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                local = (saved.get(day) or {}).get("local_completed") or {}
+                self.assertFalse(local.get("training|group"))
+                self.assertFalse(local.get("training|train-session"))
+
+    def test_regen_restores_frozen_lifts_not_the_next_letter(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        board = self._lift_board(day)
+        board["actions"][0]["text"] = (
+            "Complete today's PUSH session (2 lifts as prescribed)."
+        )
+        board["workout"]["exercises"].append(
+            {
+                "name": "Seated Leg Curls",
+                "sets": 2,
+                "reps": 10,
+                "weight_lbs": 40,
+            }
+        )
+        nxt = self._lift_board(day)
+        nxt["actions"][0]["text"] = (
+            "Complete today's PULL session (1 lift as prescribed)."
+        )
+        nxt["workout"]["session_type"] = "pull"
+        nxt["workout"]["exercises"] = [
+            {
+                "name": "Seated Cable Row",
+                "sets": 3,
+                "reps": 10,
+                "weight_lbs": 50,
+            }
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ):
+                first = ensure_daily_tasks(board, day=day)
+                train = [
+                    g
+                    for g in first.get("groups") or []
+                    if g.get("group") == "training"
+                ][0]
+                lifts = [
+                    it
+                    for it in train.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                ]
+                self.assertGreaterEqual(len(lifts), 2, train)
+                marked = complete_leaf(
+                    "",
+                    "",
+                    completed=True,
+                    group="training",
+                    slug=lifts[0]["slug"],
+                    date=day,
+                    title=lifts[0]["title"],
+                )
+                self.assertTrue(marked.get("ok"), marked)
+                second = ensure_daily_tasks(nxt, day=day)
+                group, _leaf = self._train_session_leaf(second)
+                self.assertFalse(group.get("completed"), group)
+                by_slug = {
+                    it["slug"]: it
+                    for it in group.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                }
+                self.assertIn("ex-db-flat-press", by_slug)
+                self.assertIn("ex-seated-leg-curls", by_slug)
+                self.assertNotIn("ex-seated-cable-row", by_slug)
+                self.assertTrue(by_slug[lifts[0]["slug"]]["completed"])
+                skipped = [
+                    it for it in by_slug.values() if not it.get("completed")
+                ]
+                self.assertTrue(skipped, group)
+
+    def test_uncheck_reopens_sticky_training_parent(self):
+        store: dict = {}
+        created: list[dict] = []
+        day = "2026-09-10"
+        board = self._lift_board(day)
+        board["workout"]["exercises"].append(
+            {
+                "name": "Seated Leg Curls",
+                "sets": 2,
+                "reps": 10,
+                "weight_lbs": 40,
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._gtb_patches(
+                store, created, tmp, {"FITDASH_QUEST_GT_SYNC": "0"}
+            ):
+                first = ensure_daily_tasks(board, day=day)
+                self.assertTrue(first.get("ok"), first)
+                path = Path(tmp) / "daily_quest_cache.json"
+                saved = json.loads(path.read_text(encoding="utf-8"))
+                local = dict((saved.get(day) or {}).get("local_completed") or {})
+                local["training|group"] = True
+                local["training|train-session"] = True
+                saved[day]["local_completed"] = local
+                path.write_text(json.dumps(saved), encoding="utf-8")
+                self.assertTrue(training_day_complete(day))
+                marked = complete_leaf(
+                    "",
+                    "",
+                    completed=False,
+                    group="training",
+                    slug="ex-db-flat-press",
+                    date=day,
+                    title="DB Flat Press (50 lb 3×10)",
+                )
+                self.assertTrue(marked.get("ok"), marked)
+                self.assertFalse(training_day_complete(day))
+                second = ensure_daily_tasks(board, day=day)
+                group, leaf = self._train_session_leaf(second)
+                self.assertFalse(group.get("completed"), group)
+                self.assertFalse(leaf.get("completed"), leaf)
+                by_slug = {
+                    it["slug"]: it
+                    for it in group.get("items") or []
+                    if str(it.get("slug") or "").startswith("ex-")
+                }
+                self.assertIn("ex-db-flat-press", by_slug)
+                self.assertIn("ex-seated-leg-curls", by_slug)
+                self.assertFalse(by_slug["ex-seated-leg-curls"]["completed"])
+                reloaded = json.loads(path.read_text(encoding="utf-8"))
+                flags = (reloaded.get(day) or {}).get("local_completed") or {}
+                self.assertFalse(flags.get("training|group"))
+                self.assertFalse(flags.get("training|train-session"))
+
+    def test_plan_preview_reads_partial_cache_without_writing(self):
+        day = "2026-09-10"
+        board = self._lift_board(day)
+        payload = {
+            day: {
+                "list_id": None,
+                "ids": {},
+                "local_completed": {"training|ex-db-flat-press": True},
+                "training_objective": {
+                    "frozen": True,
+                    "target_n": 2,
+                    "leaves": [
+                        {
+                            "slug": "ex-db-flat-press",
+                            "title": "DB Flat Press (50 lb 3×10)",
+                            "notes_extra": "",
+                        },
+                        {
+                            "slug": "ex-seated-leg-curls",
+                            "title": "Seated Leg Curls (40 lb 2×10)",
+                            "notes_extra": "",
+                        },
+                    ],
+                },
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "daily_quest_cache.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            before = path.read_text(encoding="utf-8")
+            with mock.patch.dict(
+                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+            ):
+                prev = plan_preview(board, day=day)
+            self.assertEqual(path.read_text(encoding="utf-8"), before)
+        group, leaf = self._train_session_leaf(prev)
+        self.assertFalse(group.get("completed"), group)
+        self.assertFalse(leaf.get("completed"), leaf)
+        by_slug = {it["slug"]: it for it in group.get("items") or []}
+        self.assertTrue(by_slug["ex-db-flat-press"]["completed"])
+        self.assertFalse(by_slug["ex-seated-leg-curls"]["completed"])
+
+    def test_train_parent_planning_ignores_log_hit(self):
         from datetime import datetime
         from zoneinfo import ZoneInfo
 
@@ -3832,7 +4087,7 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
                     "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
                     return_value={"ok": False},
                 ):
-                    self.assertTrue(
+                    self.assertFalse(
                         train_parent_completed_for_planning(
                             day,
                             sessions=[logged],
@@ -3882,6 +4137,31 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
                         now=now,
                     )
                 )
+
+
+class PartialWorkoutClient(unittest.TestCase):
+    """#999: the session card is the undo. It is not a new complete control."""
+
+    def test_train_session_stays_visible_and_uncheckable(self):
+        js = (
+            Path(__file__).resolve().parents[1] / "static" / "app.js"
+        ).read_text(encoding="utf-8")
+        click = js.split("async function onDailyQuestClick", 1)[1].split(
+            "function bindDailyQuestClicks", 1
+        )[0]
+        self.assertIn("isTrainSession", click)
+        self.assertIn('questGroup.toLowerCase() !== "training"', click)
+        self.assertIn("if (isTrainSession) await syncDailyTasksFromServer()", click)
+        self.assertNotIn("mark session complete", js.lower())
+        paint = js.split("function patchLocalQuestCompleted", 1)[1].split(
+            "function paintQuestMeter", 1
+        )[0]
+        self.assertIn('String(g.group || "") === "training"', paint)
+        body = js.split("function buildDailyQuestBodyHtml", 1)[1].split(
+            "function applyQuestsCollapseDom", 1
+        )[0]
+        self.assertIn('=== "train-session"', body)
+        self.assertIn("sessionUndo", body)
 
 
 if __name__ == "__main__":

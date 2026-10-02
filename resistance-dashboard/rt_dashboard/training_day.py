@@ -330,6 +330,34 @@ def session_has_close_stamp(session: Any) -> bool:
     return bool(str(raw or "").strip())
 
 
+def session_is_quest_seed_only(session: Any) -> bool:
+    """True when every exercise on the row is an unedited quest seed.
+
+    Checking one lift persists a session, so ``created_at`` is set. That
+    stamp must not count as a finished workout (#999). A real logged
+    exercise still can.
+    """
+    if isinstance(session, dict):
+        exercises = session.get("exercises") or []
+    else:
+        exercises = getattr(session, "exercises", None) or []
+    if not exercises:
+        return False
+    for ex in exercises:
+        if isinstance(ex, dict):
+            if ex.get("quest_seeded") or ex.get("movement_only"):
+                continue
+            raw = str(ex.get("raw") or "")
+        else:
+            if getattr(ex, "quest_seeded", False):
+                continue
+            raw = str(getattr(ex, "raw", "") or "")
+        if str(raw).startswith("quest-seeded:"):
+            continue
+        return False
+    return True
+
+
 def closed_ppl_for_planning(
     sessions: Sequence[Any],
     *,
@@ -356,6 +384,8 @@ def closed_ppl_for_planning(
         if letter not in ("push", "pull", "legs"):
             continue
         if not session_has_close_stamp(session):
+            continue
+        if session_is_quest_seed_only(session):
             continue
         if use_wake:
             if not session_in_wake(

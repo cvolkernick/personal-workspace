@@ -154,6 +154,34 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertNotIn("RDL", names)
         self.assertIn("Seated Leg Curls", names)
 
+    def test_quest_seed_close_stamp_does_not_roll_next_letter(self):
+        from rt_dashboard.quest_workout_log import seed_exercise
+
+        seeded = _session("2026-08-29", "legs", "RDL", 40, 2, 7)
+        seeded.exercises = [
+            seed_exercise(
+                "RDL",
+                title_rx={"weight_lbs": 40, "sets": 2, "reps": 7},
+            )
+        ]
+        seeded.closed_at = "2026-08-29T18:00:00-04:00"
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [seeded],
+            recovery_label="Caution",
+            recovery_score=35,
+            recovery_sparse=False,
+            as_of="2026-08-29",
+        )
+        self.assertEqual(plan["session_type"], "legs")
+        self.assertFalse(plan["already_trained_today"])
+        self.assertFalse(plan.get("session_closed_today"))
+        names = [e.get("name") for e in plan["exercises"]]
+        self.assertNotIn("DB Flat Press", names)
+        self.assertNotIn("RDL", names)
+        self.assertIn("Seated Leg Curls", names)
+
     def test_train_parent_completed_is_day_complete_so_t(self):
         sessions = [_session("2026-08-29", "legs", "RDL", 40, 2, 7)]
         plan = generate_workout_plan(

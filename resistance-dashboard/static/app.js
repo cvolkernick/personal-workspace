@@ -6706,12 +6706,17 @@
       const gTot = g.total || 0;
       const allItems = g.items || g.open_items || [];
       const open = allItems.filter((x) => !x.completed);
+      const trainingGroup = String(g.group || "") === "training";
       const visible = allItems.filter((x) => {
         if (!x.completed) return true;
+        if (String(x.slug || "").toLowerCase() === "train-session") return true;
         return looksLikeLiftQuest(g.group || x.group, x.title, x.slug);
       });
       const emoji = g.emoji || "✓";
-      html += `<div class="quest-group${g.completed || !open.length ? " is-done" : ""}" data-group="${escQuest(g.group || "")}">
+      const groupCleared = trainingGroup
+        ? !!g.completed
+        : g.completed || !open.length;
+      html += `<div class="quest-group${groupCleared ? " is-done" : ""}" data-group="${escQuest(g.group || "")}">
         <div class="quest-group-head">
           <span class="quest-group-emoji">${emoji}</span>
           <span class="quest-group-title">${escQuest(g.title || g.group || "Group")}</span>
@@ -6730,7 +6735,11 @@
         });
         const renderCard = (it, g) => {
           const { tid, lid, pid, ready } = questLeafIds(it, g, listId, !localMode);
-          const done = !!it.completed;
+          const sessionUndo =
+            String(g.group || "") === "training" &&
+            String(it.slug || "").toLowerCase() === "train-session" &&
+            !!g.completed;
+          const done = !!it.completed || sessionUndo;
           const liftDone = done && looksLikeLiftQuest(g.group || it.group, it.title, it.slug);
           // Strip redundant "Next meal: " prefix if already under meal header
           let label = it.title || "";
@@ -6984,11 +6993,19 @@
           g.open_items = g.items.filter((x) => !x.completed);
           g.done = g.items.filter((x) => x.completed).length;
           g.total = g.items.length;
-          g.completed = g.total > 0 && g.done === g.total;
+          if (String(g.group || "") === "training") {
+            if (!completed) g.completed = false;
+          } else {
+            g.completed = g.total > 0 && g.done === g.total;
+          }
         } else if (found) {
           g.done = Math.max(0, (g.done || 0) + (completed ? 1 : -1));
           if (g.total) g.done = Math.min(g.done, g.total);
-          g.completed = g.total > 0 && g.done === g.total;
+          if (String(g.group || "") === "training") {
+            if (!completed) g.completed = false;
+          } else {
+            g.completed = g.total > 0 && g.done === g.total;
+          }
           g.open_items = (g.open_items || []).filter((x) => !x.completed);
         }
       }
@@ -7282,8 +7299,9 @@
     const questTitle = (btn.getAttribute("data-title") || "").trim();
     const questSlug = (btn.getAttribute("data-slug") || "").trim();
     const isLift = looksLikeLiftQuest(questGroup, questTitle, questSlug);
+    const isTrainSession = questSlug.toLowerCase() === "train-session";
     const wantCompleted = !btn.classList.contains("is-done");
-    if (!wantCompleted && !isLift) return;
+    if (!wantCompleted && !isLift && !isTrainSession) return;
     const todayWo =
       (state && state.coach && state.coach.today && state.coach.today.workout) || {};
     const pplType = pplSessionTypeFromState(state);
@@ -7315,7 +7333,10 @@
     const remaining = groupEl
       ? Array.from(groupEl.querySelectorAll(".quest-card:not(.is-completing):not(.is-done)"))
       : [];
-    const siblingAllDone = wantCompleted && remaining.length === 0;
+    const siblingAllDone =
+      wantCompleted &&
+      remaining.length === 0 &&
+      questGroup.toLowerCase() !== "training";
     try {
       const res = await fetch("/api/daily-tasks/complete", {
         method: "POST",
@@ -7363,18 +7384,19 @@
       if (wantCompleted) {
         btn.classList.add("is-done");
         btn.setAttribute("aria-pressed", "true");
-        if (isLift) {
+        if (isLift || isTrainSession) {
           const label = questTitle || btn.textContent || "";
           btn.setAttribute("aria-label", `Uncheck: ${label}`);
           unlockQuestCard(btn);
           paintQuestMeter(groupEl);
-          applyWorkoutLogToLocalState(log);
+          if (isLift) applyWorkoutLogToLocalState(log);
           if (
-            log.ok === false ||
-            (log.reason &&
-              !log.wrote &&
-              log.action !== "dedupe" &&
-              log.action !== "ignore")
+            isLift &&
+            (log.ok === false ||
+              (log.reason &&
+                !log.wrote &&
+                log.action !== "dedupe" &&
+                log.action !== "ignore"))
           ) {
             showAlert(
               log.error || log.reason || "Quest checked, but today's log was not written",
@@ -7419,6 +7441,7 @@
         if (doneNote) doneNote.remove();
         paintQuestMeter(groupEl);
         applyWorkoutLogToLocalState(log);
+        if (isTrainSession) await syncDailyTasksFromServer();
       }
     } catch (e) {
       unlockQuestCard(btn);

@@ -247,8 +247,8 @@ def quest_gt_sync_enabled() -> bool:
     lifts/meals/sleep/cardio GTs as well (FitDash-owned; GTs stay for one-offs).
     Completion then uses local daily-tasks state (slug + group + date) so
     Today complete still works without Google Tasks ids. Wearable hits
-    (AZM / sleep) and a real Log-tab workout auto-complete that local cache
-    on ensure and first paint. Quest-seeded-only lifts do not (#527 / #604).
+    (AZM / sleep / hydration) auto-complete that local cache on ensure and
+    first paint. A training log or a partial lift check does not (#999).
     """
     raw = (os.environ.get(QUEST_GT_SYNC_ENV) or "1").strip().lower()
     return raw not in ("0", "false", "no", "off")
@@ -289,8 +289,10 @@ def wearable_quest_hit(
     hydration_hit: bool = False,
 ) -> bool:
     """True when the board already meets this leaf's target."""
-    if is_train_session_item(item) and train_hit:
-        return True
+    # A log hit must not auto-complete the Training session leaf (#999).
+    del train_hit
+    if is_train_session_item(item):
+        return False
     if is_cardio_azm_item(item) and cardio_hit:
         return True
     if is_sleep_recovery_item(item) and sleep_hit:
@@ -779,9 +781,9 @@ def training_day_complete(day: Optional[str] = None) -> bool:
     """True when Training parent or train-session is complete for ``day``.
 
     GT-less path (#593/#604): ``local_completed`` for ``training|train-session``
-    or ``training|group``. Flag-on path still peeks Google Tasks. Session-row
-    presence is not enough (#527) — callers OR ``training_log_hit`` for a
-    real Log-tab session.
+    or ``training|group``. Flag-on path still peeks Google Tasks. A quest
+    check or a Log-tab row does not set this (#999). Session-row presence
+    is not enough (#527).
     """
     day = str(day or local_today_iso())[:10]
     cache = _load_cache()
@@ -823,37 +825,24 @@ def train_parent_completed_for_planning(
     now: Any = None,
     tz_name: Optional[str] = None,
 ) -> bool:
-    """Training parent complete: local/GT quest SoT, or a real Log-tab session.
+    """Explicit Training parent/session flag only.
 
+    A real Log-tab row or a quest check must not blank the day (#999).
     Stale last_wake (weeks-old sleep battery) must not treat that old day's
-    log as today's parent. After-midnight on the current wake still uses
-    ``training_day_iso`` so last night's session can complete the parent.
+    flag as today's parent. After-midnight on the current wake still uses
+    ``training_day_iso``.
     """
     from .timeutil import local_today_iso
     from .training_day import wake_is_current
 
+    del sessions  # log rows are not a parent complete
     civil = local_today_iso(tz_name, now=now)
     as_of = str(day or civil)[:10]
     if not wake_is_current(
         last_wake_at, civil, now=now, tz_name=tz_name
     ):
         as_of = civil
-    if training_day_complete(as_of):
-        return True
-    try:
-        from .quest_workout_log import training_log_hit
-
-        return bool(
-            training_log_hit(
-                sessions,
-                as_of=as_of,
-                last_wake_at=last_wake_at,
-                now=now,
-                tz_name=tz_name,
-            )
-        )
-    except Exception:
-        return False
+    return training_day_complete(as_of)
 
 
 def _strip_training_ex_leaves(planned: List[PlannedGroup]) -> List[PlannedGroup]:
@@ -1003,6 +992,130 @@ def _attach_existing_training_leaves(
             )
         )
     return out
+
+
+def _ex_leaf(item: PlannedItem) -> bool:
+    return str(getattr(item, "slug", "") or "").startswith("ex-")
+
+
+def _leaf_record(item: PlannedItem) -> dict:
+    return {
+        "slug": str(item.slug),
+        "title": str(item.title or "")[:200],
+        "notes_extra": str(item.notes_extra or "")[:400],
+    }
+
+
+def _item_from_leaf(raw: dict) -> PlannedItem:
+    return PlannedItem(
+        group="training",
+        slug=str(raw.get("slug") or ""),
+        title=str(raw.get("title") or "")[:200],
+        notes_extra=str(raw.get("notes_extra") or "")[:400],
+    )
+
+
+def apply_training_objective(
+    planned: Sequence[PlannedGroup],
+    saved: Optional[dict],
+) -> Tuple[List[PlannedGroup], dict]:
+    """Keep today's lift list stable across reload and regen (#999).
+
+    The first non-empty ex-* set is the session target. Later planner
+    passes may be a shorter delta or the next letter. Uncompleted leaves
+    stay. Titles refresh when the same slug is still in the new plan.
+    Logged work is not added back once it has fallen out of that target.
+    New suggestions are not appended past the frozen target.
+    """
+    saved = saved if isinstance(saved, dict) else {}
+    saved_leaves = [
+        x
+        for x in (saved.get("leaves") or [])
+        if isinstance(x, dict) and str(x.get("slug") or "").startswith("ex-")
+    ]
+    saved_by_slug = {str(x.get("slug")): x for x in saved_leaves}
+    current: List[PlannedItem] = []
+    for group in planned or []:
+        if group.group != "training":
+            continue
+        for item in group.items or []:
+            if _ex_leaf(item):
+                current.append(item)
+    current_by_slug = {item.slug: item for item in current}
+
+    if saved_by_slug:
+        leaves = []
+        for slug, raw in saved_by_slug.items():
+            fresh = current_by_slug.get(slug)
+            if fresh is not None:
+                leaves.append(_leaf_record(fresh))
+            else:
+                leaves.append(
+                    {
+                        "slug": slug,
+                        "title": str(raw.get("title") or slug)[:200],
+                        "notes_extra": str(raw.get("notes_extra") or "")[:400],
+                    }
+                )
+        target_n = max(int(saved.get("target_n") or 0), len(saved_by_slug))
+        frozen = True
+    else:
+        leaves = [_leaf_record(item) for item in current]
+        target_n = len(leaves)
+        frozen = bool(leaves)
+
+    objective = {"frozen": frozen, "target_n": target_n, "leaves": leaves}
+    leaf_items = [_item_from_leaf(raw) for raw in leaves]
+    out: List[PlannedGroup] = []
+    replaced = False
+    for group in planned or []:
+        if group.group != "training":
+            out.append(group)
+            continue
+        kept = [item for item in group.items if not _ex_leaf(item)]
+        out.append(
+            PlannedGroup(
+                group=group.group,
+                title=group.title,
+                emoji=group.emoji,
+                items=kept + leaf_items,
+            )
+        )
+        replaced = True
+    if leaf_items and not replaced:
+        meta = GROUP_META.get("training") or GROUP_META["other"]
+        out.append(
+            PlannedGroup(
+                group="training",
+                title=meta["title"],
+                emoji=meta.get("emoji") or "✓",
+                items=leaf_items,
+            )
+        )
+    return out, objective
+
+
+def _objective_include_planned(planned: Sequence[PlannedGroup], objective: dict) -> dict:
+    """Remember same-day leaves that attach put back after a purge."""
+    obj = dict(objective or {})
+    leaves = [
+        dict(raw)
+        for raw in (obj.get("leaves") or [])
+        if isinstance(raw, dict) and str(raw.get("slug") or "").startswith("ex-")
+    ]
+    have = {str(raw.get("slug")) for raw in leaves}
+    for group in planned or []:
+        if group.group != "training":
+            continue
+        for item in group.items or []:
+            if not _ex_leaf(item) or item.slug in have:
+                continue
+            leaves.append(_leaf_record(item))
+            have.add(item.slug)
+    obj["leaves"] = leaves
+    obj["target_n"] = max(int(obj.get("target_n") or 0), len(leaves))
+    obj["frozen"] = bool(leaves) or bool(obj.get("frozen"))
+    return obj
 
 
 def is_calorie_pace_owned_task(task: dict, *, day: str = "") -> bool:
@@ -2235,11 +2348,14 @@ def purge_unplanned_training_leaves(
             ids.pop(ck, None)
     if deleted:
         prev = cache.get(day) if isinstance(cache.get(day), dict) else {}
-        cache[day] = {
+        nxt = {
             "list_id": list_id,
             "ids": ids,
             "local_completed": dict(prev.get("local_completed") or {}),
         }
+        if isinstance(prev.get("training_objective"), dict):
+            nxt["training_objective"] = prev["training_objective"]
+        cache[day] = nxt
         if save:
             _save_cache(cache)
     stats["deleted"] = deleted
@@ -2536,11 +2652,14 @@ def ensure_daily_tasks(
         day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
         if day_cache.get("list_id") != list_id:
             kept_local = dict(day_cache.get("local_completed") or {})
+            kept_objective = day_cache.get("training_objective")
             day_cache = {
                 "list_id": list_id,
                 "ids": {},
                 "local_completed": kept_local,
             }
+            if isinstance(kept_objective, dict):
+                day_cache["training_objective"] = kept_objective
         ids: Dict[str, str] = dict(day_cache.get("ids") or {})
         local_completed: Dict[str, bool] = {
             str(k): bool(v)
@@ -2562,6 +2681,12 @@ def ensure_daily_tasks(
             workout_board.get("already_trained_today")
         ) or training_day_complete_from_tasks(
             listed_tasks, day=day, cache_ids=ids
+        )
+        planned, training_objective = apply_training_objective(
+            planned,
+            day_cache.get("training_objective")
+            if isinstance(day_cache, dict)
+            else None,
         )
         if train_day_complete and _planned_training_lifts_all_complete(
             planned, listed_tasks, day
@@ -2714,6 +2839,9 @@ def ensure_daily_tasks(
                 planned, listed_tasks, day
             )
             listed = {"ok": True, "tasks": listed_tasks}
+        training_objective = _objective_include_planned(
+            planned, training_objective
+        )
 
         if listed and listed.get("ok"):
             ids = _hydrate_ids_from_listed(ids, planned, listed, day)
@@ -2892,54 +3020,11 @@ def ensure_daily_tasks(
                 and str(parent_task.get("status") or "") == "completed"
             ) or bool(local_completed.get(parent_ck))
             if g.group == "training":
-                # Training parent is day-complete SoT. Completing all
-                # lift leaves still completes it (happy path). Leftover
-                # incomplete lifts must not uncomplete a checked parent.
-                # GT-less: same rollup via local_completed (#593/#604).
-                lift_items = [
-                    x
-                    for x in items_out
-                    if str(x.get("slug") or "").startswith("ex-")
-                ]
-                lifts_all_done = bool(lift_items) and all(
-                    x["completed"] for x in lift_items
-                )
-                if train_hit or lifts_all_done:
-                    for x in items_out:
-                        if (
-                            x.get("slug") != TRAIN_SESSION_SLUG
-                            or x["completed"]
-                        ):
-                            continue
-                        x["completed"] = True
-                        local_completed[TRAIN_SESSION_CACHE_KEY] = True
-                        tid_sess = str(x.get("task_id") or "")
-                        if tid_sess and create_missing and not skip_group:
-                            done = gtb.complete_task(
-                                list_id, tid_sess, completed=True
-                            )
-                            if done.get("ok"):
-                                pass
-                session_done = any(
-                    x.get("slug") == TRAIN_SESSION_SLUG and x["completed"]
-                    for x in items_out
-                )
-                if (
-                    lifts_all_done or session_done or train_hit
-                ) and not parent_completed:
-                    parent_completed = True
-                    local_completed[parent_ck] = True
-                    if parent_id and create_missing:
-                        gtb.complete_task(
-                            list_id, str(parent_id), completed=True
-                        )
-                elif all_done and not parent_completed:
-                    parent_completed = True
-                    local_completed[parent_ck] = True
-                    if parent_id and create_missing:
-                        gtb.complete_task(
-                            list_id, str(parent_id), completed=True
-                        )
+                # Leaf checks, a log hit, and a full card count must not
+                # complete the Training parent (#999). parent_completed
+                # stays an explicit GT parent or local training|group flag.
+                # Leftover incomplete lifts must not uncomplete that flag.
+                pass
             elif parent_id and create_missing:
                 if all_done and not parent_completed:
                     gtb.complete_task(list_id, str(parent_id), completed=True)
@@ -2958,7 +3043,12 @@ def ensure_daily_tasks(
                     "emoji": g.emoji,
                     "task_id": parent_id,
                     "list_id": list_id,
-                    "completed": parent_completed or (bool(items_out) and done_n == len(items_out)),
+                    "completed": (
+                        parent_completed
+                        if g.group == "training"
+                        else parent_completed
+                        or (bool(items_out) and done_n == len(items_out))
+                    ),
                     "done": done_n,
                     "total": len(items_out),
                     "items": items_out,
@@ -2970,6 +3060,7 @@ def ensure_daily_tasks(
             "list_id": list_id,
             "ids": ids,
             "local_completed": local_completed,
+            "training_objective": training_objective,
         }
         cache[day] = day_cache
         # prune old days (keep last 14)
@@ -3068,12 +3159,30 @@ def _local_payload(
     )
     sleep_hit = bool(sleep_spec(board, as_of=day).get("hit")) if board else False
     train_hit = bool((board.get("workout") or {}).get("already_trained_today"))
+    saved_day: dict = {}
+    raw_cache = _load_cache()
+    raw_day = (
+        raw_cache.get(str(day)[:10]) if isinstance(raw_cache, dict) else None
+    )
+    if isinstance(raw_day, dict):
+        saved_day = raw_day
+    local_completed = {
+        str(k): bool(v)
+        for k, v in dict(saved_day.get("local_completed") or {}).items()
+    }
+    saved_objective = saved_day.get("training_objective")
+    planned, _objective = apply_training_objective(
+        planned,
+        saved_objective if isinstance(saved_objective, dict) else None,
+    )
+    del _objective  # preview and creds-fail must not persist the snapshot
     groups_out = []
     summary_done = 0
     for g in planned:
         items = []
         for it in g.items:
-            done = wearable_quest_hit(
+            ck = item_kind_key(it)
+            done = bool(local_completed.get(ck)) or wearable_quest_hit(
                 it,
                 cardio_hit=cardio_hit,
                 sleep_hit=sleep_hit,
@@ -3094,6 +3203,10 @@ def _local_payload(
             )
         done_n = sum(1 for x in items if x["completed"])
         summary_done += done_n
+        if g.group == "training":
+            group_completed = bool(local_completed.get("training|group"))
+        else:
+            group_completed = bool(items) and done_n == len(items)
         groups_out.append(
             {
                 "group": g.group,
@@ -3101,7 +3214,7 @@ def _local_payload(
                 "emoji": g.emoji,
                 "task_id": None,
                 "list_id": None,
-                "completed": bool(items) and done_n == len(items),
+                "completed": group_completed,
                 "done": done_n,
                 "total": len(items),
                 "items": items,
@@ -3289,6 +3402,51 @@ def _with_gym_calendar(payload: dict, today_board: Optional[dict], day: str) -> 
     return _stamp_gym_quest_time(out, day)
 
 
+def _training_rollup_blocked(
+    list_id: str,
+    parent_id: Optional[str],
+    group: Optional[str],
+    slug: Optional[str],
+) -> bool:
+    """Child checks never complete the Training parent (#999)."""
+    g = str(group or "").strip().lower()
+    s = str(slug or "").strip().lower()
+    if g == "training":
+        return True
+    if s == TRAIN_SESSION_SLUG or s.startswith("ex-"):
+        return True
+    if not parent_id:
+        return False
+    parent = _get_task_safe(list_id, parent_id)
+    if not parent:
+        return False
+    kind = kind_from_notes(parent.get("notes") or "") or ""
+    return kind == "training|group"
+
+
+def _clear_training_parent_flags(day: str) -> None:
+    """Drop sticky parent flags so an uncheck can reopen the workout."""
+    day = str(day or "")[:10]
+    if not _is_day_key(day):
+        return
+    cache = _load_cache()
+    raw = cache.get(day) if isinstance(cache.get(day), dict) else None
+    if not isinstance(raw, dict):
+        return
+    local = dict(raw.get("local_completed") or {})
+    changed = False
+    for key in ("training|group", TRAIN_SESSION_CACHE_KEY):
+        if local.get(key):
+            local[key] = False
+            changed = True
+    if not changed:
+        return
+    day_cache = dict(raw)
+    day_cache["local_completed"] = local
+    cache[day] = day_cache
+    _save_cache(cache)
+
+
 def _complete_local_leaf(
     *,
     group: Optional[str] = None,
@@ -3308,6 +3466,9 @@ def _complete_local_leaf(
     local_completed = dict(day_cache.get("local_completed") or {})
     ck = item_kind_key(PlannedItem(group=g, slug=s, title=str(title or "")))
     local_completed[ck] = bool(completed)
+    if g == "training" and not completed:
+        local_completed["training|group"] = False
+        local_completed[TRAIN_SESSION_CACHE_KEY] = False
     day_cache = dict(day_cache)
     day_cache["local_completed"] = local_completed
     cache[day] = day_cache
@@ -3349,11 +3510,14 @@ def complete_leaf(
         result = gtb.complete_task(list_id, task_id, completed=completed)
         if not result.get("ok"):
             return result
+        training_blocked = _training_rollup_blocked(
+            list_id, parent_id, group, slug
+        )
         if parent_id and sibling_all_done is not None:
             # Client sibling_all_done is a hint. Complete the parent only
-            # when every GT child is actually done (#934). Uncheck still
-            # clears the parent without that lookup.
-            if sibling_all_done:
+            # when every GT child is actually done (#934). Training never
+            # rolls up (#999). Uncheck still clears the parent.
+            if sibling_all_done and not training_blocked:
                 verified = _parent_children_all_complete(
                     list_id,
                     parent_id,
@@ -3361,8 +3525,16 @@ def complete_leaf(
                 )
                 if verified:
                     gtb.complete_task(list_id, parent_id, completed=True)
-            else:
+            elif not sibling_all_done:
                 gtb.complete_task(list_id, parent_id, completed=False)
+        if training_blocked and not completed:
+            flag_day = str(date or "")[:10]
+            if not flag_day:
+                flag_day = quest_mark_day(
+                    str((result.get("task") or {}).get("notes") or "")
+                ) or ""
+            if flag_day:
+                _clear_training_parent_flags(flag_day)
         calendar = None
         if completed:
             task = result.get("task") or {}
