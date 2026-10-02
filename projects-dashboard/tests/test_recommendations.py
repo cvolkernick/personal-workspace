@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -124,6 +125,75 @@ class TestRecommendations(unittest.TestCase):
         r = rec.reject_suggestion(pend["id"])
         self.assertTrue(r["ok"])
         self.assertEqual(r["suggestion"]["status"], "rejected")
+
+    def test_load_does_not_dirty_tracked_suggestions(self) -> None:
+        """A dashboard load rewrites suggestions.json and must not dirty git."""
+        repo_root = Path(__file__).resolve().parents[2]
+        ignore_text = (repo_root / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("ops/backlog/suggestions.json\n", ignore_text)
+        listed = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "--", "ops/backlog/suggestions.json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(listed.stdout.strip(), "")
+
+        repo = self.ws
+        (repo / ".gitignore").write_text(
+            "ops/backlog/suggestions.json\n"
+            "ops/backlog/items.json\n"
+            "ops/backlog/seeds/\n"
+            "ops/session-index/\n",
+            encoding="utf-8",
+        )
+        git = ["git", "-C", str(repo)]
+        subprocess.run([*git, "init", "-q"], check=True, capture_output=True)
+        subprocess.run(
+            [*git, "add", ".gitignore", "strategy/today.md", "ops/backlog/README.md"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                *git,
+                "-c",
+                "user.email=test@example.com",
+                "-c",
+                "user.name=test",
+                "commit",
+                "-q",
+                "-m",
+                "init",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        sentinel = (repo / "strategy" / "today.md").read_bytes()
+
+        first = rec.recommendations_payload(refresh=False)
+        self.assertTrue(first.get("ok"), first)
+        path = repo / "ops" / "backlog" / "suggestions.json"
+        self.assertTrue(path.is_file())
+        before = path.read_text(encoding="utf-8")
+        second = rec.recommendations_payload(refresh=False)
+        self.assertTrue(second.get("ok"), second)
+        after = path.read_text(encoding="utf-8")
+        self.assertNotEqual(before, after)
+        self.assertEqual((repo / "strategy" / "today.md").read_bytes(), sentinel)
+
+        status = subprocess.run(
+            [*git, "status", "--porcelain"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(status.stdout, "")
+        ignored = subprocess.run(
+            [*git, "check-ignore", "-q", "ops/backlog/suggestions.json"],
+            capture_output=True,
+        )
+        self.assertEqual(ignored.returncode, 0)
 
     def test_approve_action_updates_notes(self) -> None:
         rec.generate_recommendations()

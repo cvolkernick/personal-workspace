@@ -4,7 +4,8 @@ Regenerates from live personal-workspace context (backlog, initiatives,
 strategy/today.md, monorepo areas, git readiness, Grok session index).
 
 Suggestions are persisted in ops/backlog/suggestions.json so approve/reject
-survives refresh. Approved "new_item" suggestions become backlog items;
+survives refresh. That file is local runtime and gitignored. A missing file
+is created empty. Approved "new_item" suggestions become backlog items;
 "action" suggestions can be applied as notes/status bumps on existing items.
 """
 
@@ -28,6 +29,8 @@ from backlog import (
     update_item,
 )
 
+# Local runtime. Gitignored so a load that rewrites updated_at cannot block
+# `git merge --ff-only`. Created empty when the file is missing.
 SUGGESTIONS_PATH = BACKLOG_DIR / "suggestions.json"
 
 # Execution project areas only (not strategy/initiatives planning content)
