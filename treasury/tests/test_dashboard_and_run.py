@@ -162,6 +162,18 @@ class TestRunTreasuryEntry(unittest.TestCase):
         self.assertIn("stress", data["evaluation"])
         self.assertIn("actions", data["evaluation"])
         self.assertIn("overall", data["evaluation"]["stress"])
+        plaid = data["snapshot"].get("plaid_x_money") or {}
+        self.assertEqual(
+            [a.get("label") for a in plaid.get("accounts") or []],
+            [
+                "X Money Main",
+                "X Money Auto Fleet",
+                "X Money Collateral",
+                "X Money Utilities",
+            ],
+        )
+        self.assertTrue(plaid.get("stale"))
+        self.assertTrue(all(a.get("current") is None for a in plaid["accounts"]))
         # Dashboard copy
         dash = ROOT / "financial-command" / "treasury_latest.json"
         self.assertTrue(dash.is_file())

@@ -141,6 +141,33 @@ class TestGlanceKpiGridNoBp(unittest.TestCase):
         grid = _decls(_rule(self.media_820, ".kpi-grid"))
         self.assertEqual(grid.get("grid-template-columns"), "repeat(5, minmax(0, 1fr))")
 
+    def test_x_money_row_is_four_chips_under_glance(self):
+        section = re.search(
+            r'<section id="at-a-glance".*?</section>', self.html, re.S
+        )
+        self.assertIsNotNone(section)
+        body = section.group(0)
+        self.assertLess(body.find('id="kpi-grid"'), body.find('id="x-money-kpi-grid"'))
+        for label in (
+            "X Money Main",
+            "X Money Auto Fleet",
+            "X Money Collateral",
+            "X Money Utilities",
+        ):
+            self.assertIn(label, self.html)
+        self.assertIn("Plaid stale", self.html)
+        self.assertIn("function renderXMoneyRow", self.html)
+        self.assertIn("snap.plaid_x_money", self.html)
+        grid = _decls(_rule(self.css, ".kpi-grid.x-money-row"))
+        self.assertEqual(grid.get("grid-template-columns"), "repeat(4, minmax(0, 1fr))")
+        phone = _media_containing(
+            self.css, "@media (max-width: 720px)", ".kpi-grid.x-money-row"
+        )
+        phone_grid = _decls(_rule(phone, ".kpi-grid.x-money-row"))
+        self.assertEqual(
+            phone_grid.get("grid-template-columns"), "repeat(2, minmax(0, 1fr))"
+        )
+
     def test_560_and_phone_are_two_by_two(self):
         grid_560 = _decls(_rule(self.media_560, ".kpi-grid"))
         self.assertEqual(
