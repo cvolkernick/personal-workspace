@@ -4,7 +4,8 @@ Turso row is keyed by signed-in user_id + nutrition day_id (wake civil date,
 issue #828). Callers pass ``resolve_nutrition_day().day_id`` as local_today.
 Never invent pantry items or meals. Fail honest if the write cannot land.
 
-Kitchen-closed empty plans (#809) are not last-good (no items).
+Kitchen-closed empty plans (#809) are not last-good (no items) and are
+not replaced by a saved plan. The display uses the planner flag as-is.
 """
 
 from __future__ import annotations
@@ -55,6 +56,22 @@ def is_good_meal_plan(plan: Optional[dict]) -> bool:
             if isinstance(it, dict) and str(it.get("name") or "").strip():
                 return True
     return False
+
+
+def plan_kitchen_closed(plan: Optional[dict]) -> bool:
+    """True when this generate is already marked kitchen-closed.
+
+    Reads the planner payload only (#809). Does not re-derive the clock.
+    """
+    if not isinstance(plan, dict):
+        return False
+    notes = plan.get("notes") if isinstance(plan.get("notes"), dict) else {}
+    if notes.get("empty_plan_reason") == "kitchen_closed":
+        return True
+    if notes.get("kitchen_closed") is True:
+        return True
+    nd = plan.get("nutrition_day") if isinstance(plan.get("nutrition_day"), dict) else {}
+    return nd.get("kitchen_closed") is True
 
 
 def remaining_macros_full(plan: Optional[dict]) -> bool:
@@ -217,11 +234,25 @@ def resolve_dashboard_meal_plan(
 ) -> dict:
     """GET/POST meal slot: persist last good; restore same user+day when honest.
 
-    Pantry dark / stocked_count=0 / remaining-macros-full stay empty (no invented meals).
+    Pantry dark / stocked_count=0 / remaining-macros-full / kitchen-closed
+    stay empty (no invented meals, no saved next-meal clock).
     """
     inventory = inventory if isinstance(inventory, dict) else {"ingredients": []}
-    plan = apply_honest_empty_copy(generated or {}, inventory)
     key = persist_key(user_id, local_today)
+    generated = generated if isinstance(generated, dict) else {}
+    # Closed kitchen: show the planner's empty state. A saved evening plan
+    # still has a next-meal clock and must not fill this slot (#1002).
+    if plan_kitchen_closed(generated):
+        plan = dict(generated)
+        plan["persist_key"] = key
+        plan["source"] = "generate"
+        if not str(plan.get("message") or "").strip():
+            from .nutrition_planner import MSG_KITCHEN_CLOSED
+
+            plan["message"] = MSG_KITCHEN_CLOSED
+        return plan
+
+    plan = apply_honest_empty_copy(generated, inventory)
     plan["persist_key"] = key
 
     if is_good_meal_plan(plan):

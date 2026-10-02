@@ -462,7 +462,18 @@ def build_today_board(
     empty = not meals and not meal_items
     message = mp.get("message") or ""
     empty_reason = None
-    if empty:
+    notes_pre = mp.get("notes") if isinstance(mp.get("notes"), dict) else {}
+    kitchen_closed_copy = (
+        notes_pre.get("empty_plan_reason") == "kitchen_closed"
+        or notes_pre.get("kitchen_closed") is True
+    )
+    if empty and kitchen_closed_copy:
+        if not message:
+            from .nutrition_planner import MSG_KITCHEN_CLOSED
+
+            message = MSG_KITCHEN_CLOSED
+        empty_reason = "kitchen_closed"
+    elif empty:
         rem_b = mp.get("remaining_before_plan") or rem or {}
         try:
             rem_cals = float(rem_b.get("calories"))
@@ -574,7 +585,7 @@ def build_today_board(
             stocked_n = int(mp.get("stocked_count") or 0)
         except (TypeError, ValueError):
             stocked_n = 0
-        if notes_reason == "targets_met":
+        if notes_reason in ("targets_met", "kitchen_closed"):
             pass
         elif notes_reason == "pantry_blocked" or stocked_n > 0:
             purchases.append(

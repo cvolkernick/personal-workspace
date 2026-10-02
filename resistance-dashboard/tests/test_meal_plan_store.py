@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 _TESTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(_TESTS))
@@ -25,7 +27,7 @@ from rt_dashboard.meal_plan_store import (
     save_last_good_meal_plan,
 )
 from rt_dashboard.models import HealthSnapshot
-from rt_dashboard.nutrition_planner import generate_meal_plan
+from rt_dashboard.nutrition_planner import MSG_KITCHEN_CLOSED, generate_meal_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
@@ -261,6 +263,114 @@ class ResolveLastGood(unittest.TestCase):
             )
         self.assertFalse(is_good_meal_plan(out))
         self.assertEqual(out["source"], "generate")
+
+
+class KitchenClosedDisplay(unittest.TestCase):
+    """#1002: a closed kitchen must not resurrect a saved next-meal clock."""
+
+    ET = ZoneInfo("America/New_York")
+    TARGETS = {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55}
+    CONSUMED = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
+
+    def _bat(self, wake: datetime, empty: datetime) -> dict:
+        return {
+            "last_wake_at": wake.isoformat(),
+            "empty_at": empty.isoformat(),
+            "awake_budget_hours": max(1.0, (empty - wake).total_seconds() / 3600.0),
+        }
+
+    def _stale_evening(self) -> dict:
+        stale = {
+            "meals": [
+                {
+                    "label": "Next meal",
+                    "eat_at": "2026-10-01T22:30:00-04:00",
+                    "eat_at_label": "10:30 PM",
+                    "items": [
+                        {
+                            "id": "chicken",
+                            "name": "Chicken",
+                            "calories": 280,
+                            "protein_g": 52,
+                        }
+                    ],
+                }
+            ],
+            "items": [
+                {"id": "chicken", "name": "Chicken", "calories": 280, "protein_g": 52}
+            ],
+            "stocked_count": 1,
+            "in_stock_only": True,
+            "message": "Plan from 1 in-stock ingredient only (out-of-stock excluded).",
+            "remaining_before_plan": {
+                "calories": 1800,
+                "protein_g": 160,
+                "carbs_g": 180,
+                "fat_g": 50,
+            },
+        }
+        return stale
+
+    def test_closed_generate_does_not_restore_stale_next_meal(self):
+        now = datetime(2026, 10, 2, 2, 30, tzinfo=self.ET)
+        generated = generate_meal_plan(
+            STOCKED,
+            self.TARGETS,
+            self.CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=self._bat(
+                datetime(2026, 10, 1, 7, 30, tzinfo=self.ET),
+                datetime(2026, 10, 1, 22, 30, tzinfo=self.ET),
+            ),
+        )
+        self.assertEqual(generated["notes"]["empty_plan_reason"], "kitchen_closed")
+        self.assertEqual(generated["meals"], [])
+        with mock.patch(
+            "rt_dashboard.meal_plan_store.load_last_good_meal_plan",
+            return_value=self._stale_evening(),
+        ) as load:
+            out = resolve_dashboard_meal_plan(
+                "sub-1", "2026-10-01", generated, STOCKED
+            )
+        load.assert_not_called()
+        self.assertEqual(out["source"], "generate")
+        self.assertEqual(out["meals"], [])
+        self.assertEqual(out["items"], [])
+        self.assertEqual(out["message"], MSG_KITCHEN_CLOSED)
+        self.assertFalse(is_good_meal_plan(out))
+        blob = str(out)
+        self.assertNotIn("10:30", blob)
+        self.assertNotIn("22:30", blob)
+
+    def test_fresh_wake_uses_new_plan_not_saved_clock(self):
+        now = datetime(2026, 10, 2, 8, 0, tzinfo=self.ET)
+        generated = generate_meal_plan(
+            STOCKED,
+            self.TARGETS,
+            self.CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=self._bat(
+                datetime(2026, 10, 2, 7, 10, tzinfo=self.ET),
+                datetime(2026, 10, 2, 22, 30, tzinfo=self.ET),
+            ),
+        )
+        self.assertFalse(generated["nutrition_day"]["kitchen_closed"])
+        self.assertTrue(generated["meals"])
+        with mock.patch(
+            "rt_dashboard.meal_plan_store.load_last_good_meal_plan",
+            return_value=self._stale_evening(),
+        ), mock.patch(
+            "rt_dashboard.turso_http.turso_enabled", return_value=False
+        ):
+            out = resolve_dashboard_meal_plan(
+                "sub-1", "2026-10-02", generated, STOCKED
+            )
+        self.assertEqual(out["source"], "generate")
+        self.assertTrue(out["meals"])
+        self.assertNotIn("2026-10-01T22:30:00-04:00", str(out))
+        self.assertNotEqual(out["message"], MSG_KITCHEN_CLOSED)
 
 
 class DashboardPersistKey(FrozenPlannerClockMixin, unittest.TestCase):
