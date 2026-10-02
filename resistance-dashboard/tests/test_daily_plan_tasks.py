@@ -705,9 +705,12 @@ class TestDailyPlanTasks(unittest.TestCase):
                 )
         self.assertTrue(result.get("ok"))
         groups = result.get("groups") or []
-        self.assertEqual({g["group"] for g in groups}, {"cardio", "sleep"})
-        self.assertEqual(result.get("summary"), {"done": 0, "total": 2})
+        self.assertEqual(
+            {g["group"] for g in groups}, {"cardio", "hydration", "sleep"}
+        )
+        self.assertEqual(result.get("summary"), {"done": 0, "total": 3})
         self.assertTrue(any(t == "Cardio" or "AZM" in (t or "") for t in created))
+        self.assertTrue(any(str(t or "").startswith("Hydration") for t in created))
         self.assertTrue(
             any(
                 t == "Sleep & recovery" or str(t or "").startswith("Sleep —")

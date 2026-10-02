@@ -65,6 +65,7 @@ const pending = questLeafIds({ title: "Eat oats" }, {}, "");
 assert(pending.ready === false, "preview leaf without ids is not ready");
 
 assert(isFitdashOwnedQuestGroup("training") === true, "training is FitDash-owned");
+assert(isFitdashOwnedQuestGroup("hydration") === true, "hydration is FitDash-owned");
 assert(isFitdashOwnedQuestGroup("other") === false, "other stays GT-backed");
 assert(questGtSyncEnabled({}) === true, "missing flag defaults on");
 assert(questGtSyncEnabled({ quest_gt_sync: false }) === false, "explicit off");

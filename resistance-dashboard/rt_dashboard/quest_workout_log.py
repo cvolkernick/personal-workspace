@@ -19,13 +19,14 @@ SESSION_TYPES = ("push", "pull", "legs")
 SEED_PREFIX = "quest-seeded:"
 LIFT_GROUPS = frozenset({"training", "train"})
 NON_LIFT_GROUPS = frozenset(
-    {"nutrition", "shopping", "sleep", "recovery", "other", "cardio"}
+    {"nutrition", "shopping", "sleep", "recovery", "other", "cardio", "hydration"}
 )
 
 # Session-level / rest / non-exercise training actions.
 _SKIP_TITLE = re.compile(
     r"^(complete today|rest day|protect |cover remaining|eat through|eat:|"
-    r"cardio|walk · zone 2|sleep —|sleep -|sleep battery)",
+    r"cardio|walk · zone 2|hydration —|hydration -|"
+    r"sleep —|sleep -|sleep battery)",
     re.I,
 )
 # Quest title baked by plan_from_today_board: "DB Press (50 lb 3×10)"

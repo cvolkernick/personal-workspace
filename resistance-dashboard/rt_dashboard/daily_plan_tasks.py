@@ -15,9 +15,9 @@ Sync identity:
     ``[fitdash-foods:<fp>]`` so same-day food-log regen can purge only those.
   * Local cache when the filesystem persists (Pi). Vercel is ephemeral — do not
     key rollover on cache alone.
-  * Known group headers (Training / Cardio / Nutrition / Shopping /
-    Sleep & recovery) and their children, so unmarked user-OAuth leftovers
-    can still be swept.
+  * Known group headers (Training / Cardio / Nutrition / Hydration /
+    Shopping / Sleep & recovery) and their children, so unmarked
+    user-OAuth leftovers can still be swept.
 
   ~/.config/resistance-dashboard/daily_quest_cache.json
   { "day": { "list_id": "...", "ids": { "training|group": "taskId", "training|ex-foo": "..." },
@@ -44,6 +44,12 @@ from .cardio_quest import (
     KIND_KEY as CARDIO_AZM_CACHE_KEY,
     SLUG as CARDIO_AZM_SLUG,
     cardio_spec,
+)
+from .hydration_quest import (
+    GROUP as HYDRATION_GROUP,
+    KIND_KEY as HYDRATION_CACHE_KEY,
+    SLUG as HYDRATION_SLUG,
+    hydration_spec,
 )
 from .sleep_quest import (
     GROUP as SLEEP_GROUP,
@@ -97,6 +103,10 @@ CARDIO_AZM_TITLE_RE = re.compile(
     r"^(Walk · Zone 2|Cardio)\s+[—-]\s+\d+\s*/\s*\d+\s*AZM\b",
     re.I,
 )
+HYDRATION_TITLE_RE = re.compile(
+    r"^Hydration\s+[—-]\s+\d+\s*/\s*\d+\s*ml\b",
+    re.I,
+)
 KIND_MARK_RE = re.compile(r"\[fitdash-kind:([a-z0-9.|-]+)\]")
 PROTECT_BEDTIME_TITLE_RE = re.compile(r"^Protect bedtime\b", re.I)
 SLEEP_BATTERY_LOW_TITLE_RE = re.compile(r"^Sleep battery low\b", re.I)
@@ -139,6 +149,7 @@ GROUP_META = {
     "training": {"title": "Training", "order": 1, "emoji": "🏋️"},
     "cardio": {"title": "Cardio", "order": 2, "emoji": "🏃"},
     "nutrition": {"title": "Nutrition", "order": 3, "emoji": "🍽"},
+    "hydration": {"title": "Hydration", "order": 3.5, "emoji": "💧"},
     "shopping": {"title": "Shopping", "order": 4, "emoji": "🛒"},
     "sleep": {"title": "Sleep & recovery", "order": 5, "emoji": "😴"},
     "recovery": {"title": "Sleep & recovery", "order": 5, "emoji": "😴"},
@@ -146,7 +157,15 @@ GROUP_META = {
 }
 # FitDash-owned daily quests. Grocery/shopping never seeds GT (#554).
 FITDASH_OWNED_QUEST_GROUPS = frozenset(
-    {"training", "cardio", "nutrition", "shopping", "sleep", "recovery"}
+    {
+        "training",
+        "cardio",
+        "nutrition",
+        "hydration",
+        "shopping",
+        "sleep",
+        "recovery",
+    }
 )
 FITDASH_GROCERY_GROUPS = frozenset({"shopping"})
 SHOPPING_HEADER_TITLES = frozenset({"Shopping"})
@@ -208,6 +227,8 @@ def item_kind_key(item: PlannedItem) -> str:
         return SLEEP_RECOVERY_CACHE_KEY
     if is_cardio_azm_item(item):
         return CARDIO_AZM_CACHE_KEY
+    if is_hydration_item(item):
+        return HYDRATION_CACHE_KEY
     return cache_key(item.group, item.slug)
 
 
@@ -265,6 +286,7 @@ def wearable_quest_hit(
     cardio_hit: bool = False,
     sleep_hit: bool = False,
     train_hit: bool = False,
+    hydration_hit: bool = False,
 ) -> bool:
     """True when the board already meets this leaf's target."""
     if is_train_session_item(item) and train_hit:
@@ -272,6 +294,8 @@ def wearable_quest_hit(
     if is_cardio_azm_item(item) and cardio_hit:
         return True
     if is_sleep_recovery_item(item) and sleep_hit:
+        return True
+    if is_hydration_item(item) and hydration_hit:
         return True
     return False
 
@@ -408,6 +432,32 @@ def cardio_azm_action_slug(act: dict) -> Optional[str]:
         return CARDIO_AZM_SLUG
     if looks_like_cardio_azm_title(str((act or {}).get("text") or "")):
         return CARDIO_AZM_SLUG
+    return None
+
+
+def looks_like_hydration_title(title: str) -> bool:
+    return bool(HYDRATION_TITLE_RE.match((title or "").strip()))
+
+
+def is_hydration_item(item: PlannedItem) -> bool:
+    slug = str(item.slug or "")
+    if slug == HYDRATION_SLUG or slug in ("hydration", "water"):
+        return True
+    if str(item.group or "") == HYDRATION_GROUP:
+        return True
+    return looks_like_hydration_title(item.title)
+
+
+def hydration_action_slug(act: dict) -> Optional[str]:
+    """Stable slug so ml progress in the title cannot fork a leaf."""
+    aid = str((act or {}).get("id") or "").strip().lower()
+    if aid in (HYDRATION_SLUG, "hydration", "water", HYDRATION_CACHE_KEY):
+        return HYDRATION_SLUG
+    kind = str((act or {}).get("kind") or "").strip().lower()
+    if kind == HYDRATION_GROUP:
+        return HYDRATION_SLUG
+    if looks_like_hydration_title(str((act or {}).get("text") or "")):
+        return HYDRATION_SLUG
     return None
 
 
@@ -579,6 +629,8 @@ def lift_name_from_title(title: str) -> str:
         return ""
     if looks_like_cardio_azm_title(text):
         return ""
+    if looks_like_hydration_title(text):
+        return ""
     if looks_like_meal_plan_title(text):
         return ""
     match = LIFT_TITLE_RE.match(text)
@@ -595,6 +647,9 @@ def stable_action_slug(act: dict, index: int) -> str:
     cardio = cardio_azm_action_slug(act)
     if cardio:
         return cardio
+    hydration = hydration_action_slug(act)
+    if hydration:
+        return hydration
     sleep = sleep_quest_action_slug(act)
     if sleep:
         return sleep
@@ -1048,6 +1103,8 @@ def task_matches_item(task: dict, item: PlannedItem, day: str) -> bool:
         return is_protein_remaining_owned_task(task, day=day)
     if is_cardio_azm_item(item):
         return is_cardio_azm_owned_task(task, day=day)
+    if is_hydration_item(item):
+        return is_hydration_owned_task(task, day=day)
     if is_sleep_recovery_item(item):
         return is_sleep_recovery_owned_task(task, day=day)
     marked_kind = kind_from_notes(task.get("notes") or "")
@@ -1193,11 +1250,40 @@ def is_cardio_azm_owned_task(task: dict, *, day: str = "") -> bool:
     return _task_on_civil_day(task, day)
 
 
+def is_hydration_cache_key(cache_key_s: str) -> bool:
+    ck = str(cache_key_s or "")
+    if ck == HYDRATION_CACHE_KEY:
+        return True
+    if not ck.startswith("hydration|"):
+        return False
+    slug = ck.split("|", 1)[-1]
+    return slug in (HYDRATION_SLUG, "hydration", "water")
+
+
+def is_hydration_owned_task(task: dict, *, day: str = "") -> bool:
+    """FitDash hydration|water leaf for this civil day. Not a lift."""
+    if not isinstance(task, dict):
+        return False
+    title = task.get("title") or ""
+    kind = kind_from_notes(task.get("notes") or "")
+    if is_hydration_cache_key(kind):
+        return _task_on_civil_day(task, day)
+    if not looks_like_hydration_title(title):
+        return False
+    if looks_like_meal_plan_title(title) or looks_like_protein_remaining_title(title):
+        return False
+    if not _has_fitdash_kind_or_quest(task):
+        return False
+    return _task_on_civil_day(task, day)
+
+
 def _family_remap_cache_key(item: PlannedItem):
     if is_protein_remaining_item(item):
         return is_protein_remaining_cache_key
     if is_cardio_azm_item(item):
         return is_cardio_azm_cache_key
+    if is_hydration_item(item):
+        return is_hydration_cache_key
     if is_sleep_recovery_item(item):
         return is_sleep_recovery_cache_key
     return None
@@ -1531,6 +1617,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
             CALORIE_PACE_SLUG,
             SHOP_TOP_SLUG,
             CARDIO_AZM_SLUG,
+            HYDRATION_SLUG,
         ):
             if slug in saw_family:
                 continue
@@ -1683,6 +1770,35 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 slug=CARDIO_AZM_SLUG,
                 title=spec["title"][:200],
                 notes_extra=str(spec.get("motivation") or "")[:400],
+            )
+        )
+
+    hyd = hydration_spec(today, as_of=day)
+    hyd_g = groups.get(HYDRATION_GROUP)
+    hyd_items = [
+        it for it in (hyd_g.items if hyd_g else []) if is_hydration_item(it)
+    ]
+    if hyd_items:
+        leaf = hyd_items[0]
+        leaf.group = HYDRATION_GROUP
+        leaf.slug = HYDRATION_SLUG
+        leaf.title = hyd["title"][:200]
+        if not leaf.notes_extra:
+            leaf.notes_extra = str(hyd.get("motivation") or "")[:400]
+        if hyd_g is not None and len(hyd_items) > 1:
+            keep = {id(leaf)}
+            hyd_g.items = [
+                it
+                for it in hyd_g.items
+                if id(it) in keep or not is_hydration_item(it)
+            ]
+    else:
+        _g(HYDRATION_GROUP).items.append(
+            PlannedItem(
+                group=HYDRATION_GROUP,
+                slug=HYDRATION_SLUG,
+                title=hyd["title"][:200],
+                notes_extra=str(hyd.get("motivation") or "")[:400],
             )
         )
 
@@ -2357,6 +2473,8 @@ def ensure_daily_tasks(
     planned = plan_from_today_board(today_board or {}, day=day)
     cardio = cardio_spec(today_board or {}, as_of=day)
     cardio_hit = bool(cardio.get("hit"))
+    hyd = hydration_spec(today_board or {}, as_of=day)
+    hydration_hit = bool(hyd.get("hit"))
     sleep = sleep_spec(today_board or {}, as_of=day)
     sleep_hit = bool(sleep.get("hit"))
     train_hit = bool(
@@ -2716,6 +2834,7 @@ def ensure_daily_tasks(
                         cardio_hit=cardio_hit,
                         sleep_hit=sleep_hit,
                         train_hit=train_hit,
+                        hydration_hit=hydration_hit,
                     )
                 ):
                     tid_done = str(task.get("id") or tid)
@@ -2735,6 +2854,7 @@ def ensure_daily_tasks(
                         cardio_hit=cardio_hit,
                         sleep_hit=sleep_hit,
                         train_hit=train_hit,
+                        hydration_hit=hydration_hit,
                     )
                 ):
                     local_completed[ck] = True
@@ -2943,6 +3063,9 @@ def _local_payload(
 ) -> dict:
     board = today_board if isinstance(today_board, dict) else {}
     cardio_hit = bool(cardio_spec(board, as_of=day).get("hit")) if board else False
+    hydration_hit = (
+        bool(hydration_spec(board, as_of=day).get("hit")) if board else False
+    )
     sleep_hit = bool(sleep_spec(board, as_of=day).get("hit")) if board else False
     train_hit = bool((board.get("workout") or {}).get("already_trained_today"))
     groups_out = []
@@ -2955,6 +3078,7 @@ def _local_payload(
                 cardio_hit=cardio_hit,
                 sleep_hit=sleep_hit,
                 train_hit=train_hit,
+                hydration_hit=hydration_hit,
             )
             items.append(
                 {
