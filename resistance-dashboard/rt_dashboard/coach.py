@@ -17,6 +17,7 @@ from .models import (
     WeightSample,
 )
 from .cardio_quest import cardio_spec
+from .hydration_quest import hydration_spec
 from .restock_venues import venue_for_item
 from .sleep_quest import sleep_spec
 from .labs_store import labs_summary_for_coach
@@ -378,6 +379,8 @@ def build_today_board(
     inventory_dark: bool = False,
     active_zone_minutes: Optional[Sequence[Any]] = None,
     sleep_intervals: Optional[Sequence[Any]] = None,
+    hydration: Optional[Sequence[Any]] = None,
+    weight: Optional[Sequence[Any]] = None,
 ) -> dict:
     """Comprehensive same-day guide: targets + why, meal, training, actions.
 
@@ -710,6 +713,22 @@ def build_today_board(
         }
     )
 
+    hyd = hydration_spec(
+        {"date": as_of},
+        hydration=hydration,
+        weight=weight,
+        as_of=as_of,
+    )
+    actions.append(
+        {
+            "id": "water",
+            "kind": "hydration",
+            "priority": 3,
+            "text": hyd["title"],
+            "motivation": TARGET_MOTIVATIONS["hydration"],
+        }
+    )
+
     # Remaining protein is allocated into meal items by the planner.
     # A "cover remaining protein" line is not a quest, including ~0 g (#981).
     if rem.get("calories", 0) > 200 and meal_items:
@@ -831,6 +850,20 @@ def build_today_board(
             "motivation": TARGET_MOTIVATIONS["cardio"],
         },
         "active_zone_minutes": list(cardio.get("days") or []),
+        "hydration_days": list(hyd.get("days") or []),
+        "body_weight": list(hyd.get("weights") or []),
+        "hydration": {
+            "kind": hyd.get("kind"),
+            "water_ml": hyd.get("water_ml"),
+            "target_ml": hyd.get("target_ml"),
+            "target_source": hyd.get("target_source"),
+            "source": hyd.get("source"),
+            "weight_lbs": hyd.get("weight_lbs"),
+            "weight_date": hyd.get("weight_date"),
+            "hit": hyd.get("hit"),
+            "title": hyd.get("title"),
+            "motivation": TARGET_MOTIVATIONS["hydration"],
+        },
         "sleep_battery": {
             "pct_charged": bat.get("pct_charged"),
             "mode": bat.get("mode"),
@@ -1304,6 +1337,8 @@ def build_coach_payload(
         inventory_dark=inventory_dark,
         active_zone_minutes=health.active_zone_minutes if health else None,
         sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
+        hydration=health.hydration if health else None,
+        weight=health.weight if health else None,
     )
     food_commentary = build_food_commentary(
         food_logs=health.food_logs or [],

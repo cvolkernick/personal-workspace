@@ -6604,6 +6604,7 @@
       g === "train" ||
       g === "cardio" ||
       g === "nutrition" ||
+      g === "hydration" ||
       g === "shopping" ||
       g === "sleep" ||
       g === "recovery"
@@ -6664,6 +6665,7 @@
     const titleS = String(title || "").trim();
     if (
       g === "nutrition" ||
+      g === "hydration" ||
       g === "shopping" ||
       g === "sleep" ||
       g === "recovery" ||
