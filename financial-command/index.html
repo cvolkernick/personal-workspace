@@ -427,6 +427,8 @@
     }
     @media (max-width: 560px) {
       .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      /* Odd count: last chip fills the row instead of sitting alone at half width. */
+      .kpi-grid > .kpi:last-child:nth-child(odd) { grid-column: span 2; }
     }
     .kpi {
       background: var(--panel);
@@ -1841,6 +1843,8 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.35rem;
       }
+      /* Same odd-count fill as the 560px query. This block is the 2-col rule that wins through 720px. */
+      .kpi-grid > .kpi:last-child:nth-child(odd) { grid-column: span 2; }
       .kpi {
         min-width: 0;
         max-width: 100%;

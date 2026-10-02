@@ -1,4 +1,7 @@
-"""Glance #kpi-grid: four cash chips plus trailing-30d daily flow (#847, #908)."""
+"""Glance #kpi-grid: four cash chips plus trailing-30d daily flow (#847, #908).
+
+Phone widths use two columns. An odd trailing chip fills that row (#1009).
+"""
 
 from __future__ import annotations
 
@@ -11,6 +14,7 @@ INDEX = ROOT / "financial-command" / "index.html"
 
 GLANCE_LABELS = ("USDC", "Card", "LTV", "NAV", "Daily flow")
 DEAD = ("rhBpTone", "tBp", "rhBp", "bpFloor")
+ODD_LAST_CHIP = ".kpi-grid > .kpi:last-child:nth-child(odd)"
 
 
 def _first_style(html: str) -> str:
@@ -183,6 +187,18 @@ class TestGlanceKpiGridNoBp(unittest.TestCase):
             any(c and "repeat(2" in c or c == "1fr 1fr" for c in cols),
             f"720px .kpi-grid not 2-col: {cols}",
         )
+
+    def test_odd_last_chip_fills_two_col_row(self):
+        for label, block in (("560", self.media_560), ("720", self.media_720)):
+            rule = _decls(_rule(block, ODD_LAST_CHIP))
+            self.assertEqual(
+                rule.get("grid-column"),
+                "span 2",
+                f"{label}px odd last chip should fill the row",
+            )
+        self.assertNotIn(ODD_LAST_CHIP, _rule(self.css, ".kpi-grid"))
+        self.assertNotIn("nth-child(odd)", self.media_820)
+        self.assertNotIn("nth-child(odd)", _rule(self.css, ".kpi-grid.x-money-row"))
 
 
 if __name__ == "__main__":
