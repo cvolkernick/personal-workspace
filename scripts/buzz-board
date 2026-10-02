@@ -133,11 +133,32 @@ def resolve_status(name: str) -> str:
     sys.exit(1)
 
 
-def fetch_items(first: int = 100) -> list[dict]:
-    """Paginate project items; return normalized dicts."""
+def _item_matches(item: dict, number: int, kind: str | None) -> bool:
+    if item.get("number") != number:
+        return False
+    if item.get("repo") != f"{OWNER_LOGIN}/{DEFAULT_REPO}":
+        return False
+    if kind is not None and item.get("kind") != kind:
+        return False
+    return True
+
+
+def fetch_items(
+    first: int = 100,
+    *,
+    until: tuple[int, str | None] | None = None,
+) -> list[dict]:
+    """Paginate project items; return normalized dicts.
+
+    Stops after the page that reaches ``first`` items. ``until=(number, kind)``
+    keeps paging until that issue is found, so get/set-status/add do not miss
+    a card past the list window and add a second one. ``kind`` None matches
+    any content type. list and day-export do not pass ``until``.
+    """
     items: list[dict] = []
     cursor: str | None = None
     while True:
+        page_size = 50 if until is not None else min(first, 50)
         data = gql(
             """
             query($login:String!, $n:Int!, $after:String, $first:Int!) {
@@ -185,7 +206,7 @@ def fetch_items(first: int = 100) -> list[dict]:
                 "login": OWNER_LOGIN,
                 "n": PROJECT_NUMBER,
                 "after": cursor,
-                "first": min(first, 50),
+                "first": page_size,
             },
         )
         proj = data["user"]["projectV2"]
@@ -210,25 +231,26 @@ def fetch_items(first: int = 100) -> list[dict]:
                 for ln in ((content.get("labels") or {}).get("nodes") or [])
                 if (ln.get("name") or "").strip()
             ]
-            items.append(
-                {
-                    "item_id": node["id"],
-                    "status": status,
-                    "kind": kind,
-                    "number": content.get("number"),
-                    "title": content.get("title"),
-                    "url": content.get("url"),
-                    "state": content.get("state"),
-                    "repo": (content.get("repository") or {}).get("nameWithOwner"),
-                    "body": content.get("body"),
-                    "assignees": assignees,
-                    "labels": labels,
-                }
-            )
+            item = {
+                "item_id": node["id"],
+                "status": status,
+                "kind": kind,
+                "number": content.get("number"),
+                "title": content.get("title"),
+                "url": content.get("url"),
+                "state": content.get("state"),
+                "repo": (content.get("repository") or {}).get("nameWithOwner"),
+                "body": content.get("body"),
+                "assignees": assignees,
+                "labels": labels,
+            }
+            items.append(item)
+            if until is not None and _item_matches(item, until[0], until[1]):
+                return items
         if not conn["pageInfo"]["hasNextPage"]:
             break
         cursor = conn["pageInfo"]["endCursor"]
-        if len(items) >= first:
+        if until is None and len(items) >= first:
             break
     return items
 
@@ -277,14 +299,10 @@ def cmd_list(args: argparse.Namespace) -> None:
 def cmd_get(args: argparse.Namespace) -> None:
     num = args.number
     issue = rest("GET", f"/repos/{OWNER_LOGIN}/{DEFAULT_REPO}/issues/{num}")
-    # Board status if on project
-    board_status = None
-    item_id = None
-    for i in fetch_items(first=100):
-        if i.get("number") == num and i.get("repo") == f"{OWNER_LOGIN}/{DEFAULT_REPO}":
-            board_status = i.get("status")
-            item_id = i.get("item_id")
-            break
+    # Walk every page. first=100 misses later cards; set-status/add then duplicate them.
+    found = _find_item(num)
+    board_status = found.get("status") if found else None
+    item_id = found.get("item_id") if found else None
     out = {
         "number": issue["number"],
         "title": issue["title"],
@@ -345,15 +363,16 @@ def set_item_status(item_id: str, status_name: str) -> None:
     )
 
 
-def find_item_for_issue(number: int) -> dict | None:
-    for i in fetch_items(first=100):
-        if (
-            i.get("number") == number
-            and i.get("repo") == f"{OWNER_LOGIN}/{DEFAULT_REPO}"
-            and i.get("kind") == "Issue"
-        ):
-            return i
+def _find_item(number: int, *, kind: str | None = None) -> dict | None:
+    """Project item for this repo issue, including cards past the first 100 nodes."""
+    for item in fetch_items(until=(number, kind)):
+        if _item_matches(item, number, kind):
+            return item
     return None
+
+
+def find_item_for_issue(number: int) -> dict | None:
+    return _find_item(number, kind="Issue")
 
 
 def cmd_create(args: argparse.Namespace) -> None:
