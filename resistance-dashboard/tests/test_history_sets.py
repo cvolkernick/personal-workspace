@@ -1,7 +1,7 @@
-"""Workout history shows weight × sets × reps next to volume.
+"""Workout history shows weight × sets × reps next to tonnage.
 
-Chris (#fitness): history listed lift + total volume only. Set triples already
-exist on Session.to_dict(); the card just never rendered them.
+Chris (#fitness): history listed lift + total pound-load only. Set triples already
+exist on Session.to_dict(); the card renders them beside lb tonnage.
 """
 
 from __future__ import annotations
@@ -59,12 +59,12 @@ class HistorySetsModels(unittest.TestCase):
 
 class HistorySetsMarkup(unittest.TestCase):
     def test_helper_wired_before_app_js(self):
-        self.assertIn("/history-sets.js?v=history-sets-1", HTML)
+        self.assertIn("/history-sets.js?v=tonnage-1025-1", HTML)
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=guardrails-1026-1", HTML)
+        self.assertIn("/app.js?v=tonnage-1025-1", HTML)
         self.assertLess(
-            HTML.find("/history-sets.js?v=history-sets-1"),
-            HTML.find("/app.js?v=guardrails-1026-1"),
+            HTML.find("/history-sets.js?v=tonnage-1025-1"),
+            HTML.find("/app.js?v=tonnage-1025-1"),
         )
         self.assertIn("FitDashHistorySets", APP_JS)
         self.assertIn("formatExerciseLine", APP_JS)
@@ -73,11 +73,18 @@ class HistorySetsMarkup(unittest.TestCase):
             ".map((e) => `${e.name} (${Math.round(e.volume)} vol)`)",
             APP_JS,
         )
+        self.assertIn("(${Math.round(e.volume)} lb tonnage)", APP_JS)
+        self.assertIn("lb tonnage", HIST_JS)
+        self.assertNotIn(" vol)", HIST_JS)
         self.assertIn("ex-row", APP_JS)
         self.assertIn("root.FitDashHistorySets = api", HIST_JS)
 
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v128"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v129"', SW)
+        self.assertNotIn("fitdash-shell-v125", SW)
+        self.assertNotIn("/app.js?v=first-set-977-1", SW)
+        self.assertNotIn("/history-sets.js?v=history-sets-1", HTML)
+        self.assertNotIn("/history-sets.js?v=history-sets-1", SW)
         self.assertNotIn("fitdash-shell-v105", SW)
         self.assertNotIn("fitdash-shell-v101", SW)
         self.assertNotIn("fitdash-shell-v100", SW)
@@ -87,8 +94,8 @@ class HistorySetsMarkup(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v89", SW)
         self.assertNotIn("fitdash-shell-v88", SW)
         self.assertNotIn("fitdash-shell-v87", SW)
-        self.assertIn("/history-sets.js?v=history-sets-1", SW)
-        self.assertIn("/app.js?v=guardrails-1026-1", SW)
+        self.assertIn("/history-sets.js?v=tonnage-1025-1", SW)
+        self.assertIn("/app.js?v=tonnage-1025-1", SW)
         self.assertNotIn("/app.js?v=ing-micros-612-1", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", SW)
         self.assertNotIn("fitdash-shell-v81", SW)

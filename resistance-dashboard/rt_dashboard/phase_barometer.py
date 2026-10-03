@@ -779,7 +779,7 @@ def _explanation(kpis: dict, *, reading: str, phase: str, next_phase: str, prote
             f"Phase {phase_label(phase)} holds — no 2-week pivot threshold crossed"
         )
     if vol is not None and reading == "keep":
-        bits.append(f"7d volume {_fmt(vol, 0)} lb (DeanT 4–8, no muscle >12 projected)")
+        bits.append(f"7d tonnage {_fmt(vol, 0)} lb (DeanT 4–8, no muscle >12 projected)")
     text = ", ".join(bits)
     if not text.endswith("."):
         text += "."

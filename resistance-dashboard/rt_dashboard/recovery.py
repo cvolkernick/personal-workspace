@@ -348,15 +348,15 @@ def compute_recovery_status(
 
     if vol_7d >= high_volume_threshold * 1.25:
         score -= 18
-        reasons.append(f"Very high training volume last 7d ({vol_7d:,.0f} lb)")
+        reasons.append(f"Very high training tonnage last 7d ({vol_7d:,.0f} lb)")
     elif vol_7d >= high_volume_threshold:
         score -= 10
-        reasons.append(f"Elevated training volume last 7d ({vol_7d:,.0f} lb)")
+        reasons.append(f"Elevated training tonnage last 7d ({vol_7d:,.0f} lb)")
     elif vol_7d > 0:
         score += 5
-        reasons.append(f"Manageable training volume last 7d ({vol_7d:,.0f} lb)")
+        reasons.append(f"Manageable training tonnage last 7d ({vol_7d:,.0f} lb)")
     else:
-        reasons.append("No logged training volume in last 7 days")
+        reasons.append("No logged training tonnage in last 7 days")
 
     if w_delta is not None:
         if w_delta <= -2.0:

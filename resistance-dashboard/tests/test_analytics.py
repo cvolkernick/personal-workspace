@@ -221,7 +221,7 @@ class TestRecovery(unittest.TestCase):
         from datetime import datetime
 
         # Dense May sessions with huge volume — if as_of wrongly used max(session.date),
-        # recovery would report "Very high training volume last 7d".
+        # recovery would report "Very high training tonnage last 7d".
         heavy = [
             Session(
                 date="2026-05-25",
@@ -276,11 +276,11 @@ class TestRecovery(unittest.TestCase):
         self.assertEqual(status.inputs["as_of"], today)
         self.assertEqual(status.inputs["training_volume_7d"], 0.0)
         self.assertTrue(
-            any("No logged training volume" in r for r in status.reasons),
+            any("No logged training tonnage" in r for r in status.reasons),
             msg=status.reasons,
         )
         self.assertFalse(
-            any("Very high training volume" in r for r in status.reasons),
+            any("Very high training tonnage" in r for r in status.reasons),
             msg=status.reasons,
         )
 
@@ -295,7 +295,7 @@ class TestRecovery(unittest.TestCase):
         self.assertEqual(hist.inputs["as_of"], "2026-05-27")
         self.assertGreater(hist.inputs["training_volume_7d"], 0)
         self.assertTrue(
-            any("volume last 7d" in r for r in hist.reasons),
+            any("tonnage last 7d" in r for r in hist.reasons),
             msg=hist.reasons,
         )
 

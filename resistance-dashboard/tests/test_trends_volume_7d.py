@@ -1,4 +1,4 @@
-"""FitDash #752: 7-day rolling average on Trends Daily Volume.
+"""FitDash #752: 7-day rolling average on Trends Daily Tonnage.
 
 Thin line overlay. Trailing mean of that day + previous 6. Rest-day
 zeros stay in the window. 90d bars and linear trend stay.
@@ -22,15 +22,17 @@ def _volume_chart_block() -> str:
     start = APP_JS.find('volumeChart = new Chart($("chart-volume")')
     end = APP_JS.find('if ($("volume-trend-note"))')
     if start < 0 or end < 0 or end <= start:
-        raise AssertionError("Daily Volume chart block not found")
+        raise AssertionError("Daily Tonnage chart block not found")
     return APP_JS[start:end]
 
 
 class TrendsVolume7dMarkup(unittest.TestCase):
-    def test_90d_card_unchanged(self):
-        self.assertIn("Daily Volume · 90d", HTML)
+    def test_90d_card_says_tonnage(self):
+        self.assertIn("Daily Tonnage · 90d", HTML)
+        self.assertNotIn("Daily Volume · 90d", HTML)
         self.assertIn('id="chart-volume"', HTML)
-        self.assertIn("Daily volume chart last 90 days", HTML)
+        self.assertIn("Daily tonnage chart (lb) last 90 days", HTML)
+        self.assertNotIn("Daily volume chart last 90 days", HTML)
         self.assertIn('id="volume-trend-note"', HTML)
         self.assertNotIn("Daily Volume · 7d", HTML)
 
@@ -39,7 +41,8 @@ class TrendsVolume7dMarkup(unittest.TestCase):
         self.assertIn("linearTrend(volVals)", APP_JS)
         self.assertIn("const volRoll7 = rollingAverage(volVals, 7);", APP_JS)
         block = _volume_chart_block()
-        self.assertIn('type: "bar",\n            label: "Daily volume (lb)"', block)
+        self.assertIn('type: "bar",\n            label: "Daily tonnage (lb)"', block)
+        self.assertNotIn('label: "Daily volume (lb)"', block)
         self.assertIn('type: "line",\n            label: "7d rolling avg"', block)
         self.assertIn('type: "line",\n            label: "Trend"', block)
         roll = block.split('label: "7d rolling avg"', 1)[1].split(
@@ -54,7 +57,7 @@ class TrendsVolume7dMarkup(unittest.TestCase):
         self.assertIn("data: volTrend", trend)
         self.assertIn('borderColor: "#f0b429"', trend)
         self.assertIn("borderDash: [6, 4]", trend)
-        bars = block.split('label: "Daily volume (lb)"', 1)[1].split(
+        bars = block.split('label: "Daily tonnage (lb)"', 1)[1].split(
             'label: "7d rolling avg"', 1
         )[0]
         self.assertIn("data: volVals", bars)
@@ -84,9 +87,12 @@ class TrendsVolume7dMarkup(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=guardrails-1026-1", HTML)
-        self.assertIn("/app.js?v=guardrails-1026-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v128"', SW)
+        self.assertIn("/app.js?v=tonnage-1025-1", HTML)
+        self.assertIn("/app.js?v=tonnage-1025-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v129"', SW)
+        self.assertNotIn("/app.js?v=first-set-977-1", HTML)
+        self.assertNotIn("/app.js?v=first-set-977-1", SW)
+        self.assertNotIn('const CACHE = "fitdash-shell-v125"', SW)
         self.assertNotIn("/app.js?v=vol-7d-1", HTML)
         self.assertNotIn("/app.js?v=vol-7d-1", SW)
         self.assertNotIn("/app.js?v=recipes-dish-1", HTML)

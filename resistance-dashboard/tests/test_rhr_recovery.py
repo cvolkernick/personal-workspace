@@ -321,6 +321,8 @@ class TestWeeklyReviewRhr(unittest.TestCase):
             as_of=AS_OF,
         )
         self.assertFalse(any(b.startswith("RHR:") for b in review["bullets"]))
+        self.assertTrue(any("lb tonnage" in b for b in review["bullets"]))
+        self.assertFalse(any("lb volume" in b for b in review["bullets"]))
 
     def test_flagged_rhr_adds_bullet(self):
         rec = RecoveryStatus(
