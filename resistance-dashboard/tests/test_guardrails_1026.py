@@ -393,6 +393,144 @@ class AgentPhaseFeed(unittest.TestCase):
         self.assertIn("flag", body["guardrails"])
 
 
+def _key_paths(obj, prefix=""):
+    """Sorted dotted keys. List items share one `[]` slot so order cannot rename a field."""
+    if isinstance(obj, dict):
+        for key in sorted(obj):
+            path = f"{prefix}.{key}" if prefix else key
+            yield path
+            yield from _key_paths(obj[key], path)
+        return
+    if isinstance(obj, list) and obj and all(isinstance(item, dict) for item in obj):
+        merged = {}
+        for item in obj:
+            for key, value in item.items():
+                merged.setdefault(key, value)
+        for key in sorted(merged):
+            path = f"{prefix}[].{key}"
+            yield path
+            yield from _key_paths(merged[key], path)
+
+
+# Frozen at #1026. #1038 renames the tile title in the client only.
+_AGENT_GUARDRAIL_KEYS = (
+    "as_of",
+    "flag",
+    "flag.chips",
+    "flag.chips[].id",
+    "flag.chips[].label",
+    "flag.chips[].status",
+    "flag.sentence",
+    "flag.status",
+    "flag.weeks_flat",
+    "phase",
+    "phase_label",
+    "tiles",
+    "tiles[].arrow",
+    "tiles[].arrow_tone",
+    "tiles[].band",
+    "tiles[].band.high",
+    "tiles[].band.low",
+    "tiles[].band.marker",
+    "tiles[].baseline_daily_lb",
+    "tiles[].baseline_week_lb",
+    "tiles[].chips",
+    "tiles[].chips[].id",
+    "tiles[].chips[].label",
+    "tiles[].chips[].status",
+    "tiles[].compare_lb",
+    "tiles[].deload_suppressed",
+    "tiles[].delta_pct",
+    "tiles[].id",
+    "tiles[].latest_training_day_lb",
+    "tiles[].latest_training_day_lb.date",
+    "tiles[].latest_training_day_lb.lb",
+    "tiles[].lifts_sliding",
+    "tiles[].lines",
+    "tiles[].lines[].label",
+    "tiles[].lines[].move",
+    "tiles[].lines[].name",
+    "tiles[].lines[].positive",
+    "tiles[].lines[].reason",
+    "tiles[].lines[].reps",
+    "tiles[].lines[].role",
+    "tiles[].lines[].series",
+    "tiles[].lines[].series[].date",
+    "tiles[].lines[].series[].reps",
+    "tiles[].lines[].series[].weight_lbs",
+    "tiles[].lines[].status",
+    "tiles[].lines[].weeks_down",
+    "tiles[].lines[].weight_lbs",
+    "tiles[].positive",
+    "tiles[].reason",
+    "tiles[].rule",
+    "tiles[].series",
+    "tiles[].series[].date",
+    "tiles[].series[].value",
+    "tiles[].status",
+    "tiles[].value",
+    "tiles[].week_lb",
+    "tiles[].weekly_pct",
+    "tiles[].weeks_below_red",
+    "tiles[].weeks_flat",
+)
+_EXPORT_GUARDRAIL_KEYS = (
+    "as_of",
+    "flag",
+    "flag.sentence",
+    "flag.status",
+    "phase",
+    "phase_label",
+    "tiles",
+    "tiles[].id",
+    "tiles[].reason",
+    "tiles[].status",
+    "tiles[].value",
+)
+
+
+class GuardrailKeyStructure(unittest.TestCase):
+    def _rich_payload(self):
+        sessions = [
+            _sess(day, 8000, [_lift("RDL", 100, 5)])
+            for day in (WEEK[0], WEEK[1], WEEK[2], WEEK[3])
+        ]
+        weights = [(day, 180.0) for day in (WEEK[0], WEEK[1], WEEK[2], WEEK[3])]
+        return _payload(sessions, weights=weights), sessions, weights
+
+    def test_agent_today_and_export_keep_1026_keys(self):
+        payload, sessions, weights = self._rich_payload()
+        agent = export_agent_today(
+            {
+                "coach": {"today": {"date": AS_OF}},
+                "nutrition_store": {"targets": {"phase": "cut"}},
+                "sessions": sessions,
+                "health": payload["health"],
+                "workout_store": payload["workout_store"],
+                "meta": {"local_today": AS_OF},
+                "phase_barometer": {"phase": "cut"},
+            }
+        )
+        exported = export_trends_window(
+            {"weight": payload["health"]["weight"]},
+            days=90,
+            end=AS_OF,
+            tz_name="America/New_York",
+            sessions=sessions,
+            goals=GOALS,
+            phase="cut",
+        )
+        self.assertEqual(tuple(_key_paths(agent["guardrails"])), _AGENT_GUARDRAIL_KEYS)
+        self.assertEqual(tuple(_key_paths(exported["guardrails"])), _EXPORT_GUARDRAIL_KEYS)
+        self.assertEqual(
+            tuple(_key_paths(build_guardrails(payload, as_of=AS_OF))),
+            _AGENT_GUARDRAIL_KEYS,
+        )
+        sentence = agent["guardrails"]["flag"]["sentence"]
+        self.assertNotIn("treading", sentence.lower())
+        self.assertNotIn("treading", exported["guardrails"]["flag"]["sentence"].lower())
+
+
 class GuardrailMarkup(unittest.TestCase):
     def test_first_card_on_trends_not_today(self):
         html = (ROOT / "static/index.html").read_text(encoding="utf-8")
@@ -411,11 +549,19 @@ class GuardrailMarkup(unittest.TestCase):
         self.assertNotIn("First on Trends", html[weekly:weekly + 500])
         self.assertIn("function renderGuardrails", js)
         self.assertIn("Not enough data.", js)
+        self.assertIn('if (id === "flag") return "Progression"', js)
+        self.assertNotIn("Treading water", js)
+        self.assertNotIn("treading", js.lower())
+        self.assertNotIn("treading", html.lower())
+        self.assertNotIn("treading", css.lower())
         self.assertIn("@media (max-width: 560px)", css)
         self.assertIn("grid-template-columns: repeat(4, minmax(0, 1fr))", css)
-        self.assertIn('const CACHE = "fitdash-shell-v131"', sw)
-        self.assertIn("/app.js?v=weekly-review-1033-1", html)
-        self.assertIn("/app.js?v=weekly-review-1033-1", sw)
+        self.assertIn('const CACHE = "fitdash-shell-v132"', sw)
+        self.assertNotIn("fitdash-shell-v131", sw)
+        self.assertIn("/app.js?v=progression-1038-1", html)
+        self.assertIn("/app.js?v=progression-1038-1", sw)
+        self.assertNotIn("/app.js?v=weekly-review-1033-1", html)
+        self.assertNotIn("/app.js?v=weekly-review-1033-1", sw)
         self.assertIn("/styles.css?v=brand-1027-1", html)
         self.assertIn("/styles.css?v=brand-1027-1", sw)
         self.assertIn("/history-sets.js?v=tonnage-1025-1", sw)

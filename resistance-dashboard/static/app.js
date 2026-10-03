@@ -8028,7 +8028,7 @@
     if (id === "tonnage") return "Tonnage";
     if (id === "lifts") return "Main lifts";
     if (id === "scale") return "Scale";
-    if (id === "flag") return "Treading water";
+    if (id === "flag") return "Progression";
     return phaseBaroEsc(id || "Guardrail");
   }
 
