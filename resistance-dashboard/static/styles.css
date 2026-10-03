@@ -209,6 +209,10 @@ header h1 {
   letter-spacing: -0.02em;
 }
 
+header h1 .brand-accent {
+  color: var(--accent); /* #3d9cf0 */
+}
+
 header p {
   margin: 0.15rem 0 0;
   color: var(--muted);

@@ -255,7 +255,7 @@ class MainLiftCardSource(unittest.TestCase):
         self.assertIn('id="chart-strength"', html)
         self.assertIn("<h2>Main lifts</h2>", html)
         self.assertIn("/app.js?v=weekly-review-1033-1", html)
-        self.assertIn('const CACHE = "fitdash-shell-v130"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v131"', sw)
         self.assertIn("/app.js?v=weekly-review-1033-1", sw)
         self.assertIn('mainGroup.label = "Main lifts"', app)
         self.assertIn('yAxisID: "y1"', app)
