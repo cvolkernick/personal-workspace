@@ -1,0 +1,17 @@
+[Unit]
+Description=Mirror GitHub issues onto the Notion Eng Sprint Board (#1016)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# workflow-master tracks origin/master. Do not point this at the FCC
+# work/treasury checkout. Token file is mode 600 and is not in git:
+#   NOTION_SPRINT_TOKEN=...
+# Optional: NOTION_SPRINT_GITHUB_TOKEN, NOTION_SPRINT_DATA_SOURCE_ID.
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-%h/.config/notion-sprint.env
+WorkingDirectory=%h/personal-workspace-worktrees/workflow-master
+ExecStart=/usr/bin/python3 %h/personal-workspace-worktrees/workflow-master/projects-dashboard/notion_sprint_sync.py
+Nice=10
+TimeoutStartSec=180

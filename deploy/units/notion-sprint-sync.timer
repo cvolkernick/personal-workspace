@@ -1,0 +1,13 @@
+[Unit]
+Description=Every 15 minutes: Notion Eng Sprint Board sync (#1016)
+
+[Timer]
+# :00/:15/:30/:45 never lands on minute 18. FCC restarts at :x1:18 and
+# :x6:18 America/New_York, and minute-of-hour is the same in ET and UTC.
+OnCalendar=*-*-* *:00,15,30,45:00 UTC
+AccuracySec=30s
+Persistent=true
+Unit=notion-sprint-sync.service
+
+[Install]
+WantedBy=timers.target
