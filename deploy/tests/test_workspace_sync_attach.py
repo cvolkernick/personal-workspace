@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import shutil
 import subprocess
@@ -114,6 +115,9 @@ class TestSyncScriptGuards(unittest.TestCase):
         self.assertIn("! -name '*.py'", text)
         self.assertIn("! -name '*.pyc'", text)
         self.assertIn("#661", text)
+        self.assertIn("skip reset and durable untar", text)
+        self.assertIn("! -name '*.log'", text)
+        self.assertIn("! -name '*.lock'", text)
 
         names = (
             "fund_manager_journal.md",
@@ -175,6 +179,125 @@ class TestSyncScriptGuards(unittest.TestCase):
             self.assertNotIn("investment/fund_manager_decisions.jsonl", found)
             self.assertNotIn("treasury/fund_manager_journal_sync.py", found)
             self.assertNotIn("treasury/fund_manager_journal_sync.pyc", found)
+
+
+def _bare_treasury_repo(td_path: Path) -> Path:
+    repo = td_path / "main"
+    repo.mkdir()
+    _git(repo, "init", "-b", "master")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "README").write_text("x\n", encoding="utf-8")
+    (repo / "treasury").mkdir()
+    (repo / "treasury" / "config.json").write_text(
+        json.dumps({"coinbase_manual": {"card_balance": "1", "note": "a"}}) + "\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "README", "treasury/config.json")
+    _git(repo, "commit", "-m", "init")
+    _git(repo, "checkout", "-b", "work/treasury")
+    bare = td_path / "remote.git"
+    _git(td_path, "clone", "--bare", str(repo), str(bare))
+    _git(repo, "remote", "add", "origin", str(bare))
+    _git(repo, "push", "-u", "origin", "work/treasury")
+    _git(repo, "push", "-u", "origin", "master")
+    deploy = repo / "deploy"
+    deploy.mkdir()
+    shutil.copy(SYNC_SH, deploy / "workspace_sync.sh")
+    return repo
+
+
+def _run_sync(repo: Path, home: Path) -> subprocess.CompletedProcess[str]:
+    env = {
+        **GIT_ENV,
+        "WORKSPACE_DIR": str(repo),
+        "SYNC_BRANCH": "work/treasury",
+        "HOME": str(home),
+        "WORKSPACE_SYNC_KEEP_REMOTE": "1",
+    }
+    # Run the source script, not a copy inside the repo. git clean -fd on
+    # reset removes untracked deploy/workspace_sync.sh while bash is in it.
+    return subprocess.run(
+        ["bash", str(SYNC_SH)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+class TestSkipResetPreservesRuntime(unittest.TestCase):
+    def test_second_tick_skips_reset_and_keeps_log_inode(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ws-skip-") as td:
+            td_path = Path(td)
+            repo = _bare_treasury_repo(td_path)
+            _git(repo, "checkout", "--detach")
+            first = _run_sync(repo, td_path)
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            snap = repo / "treasury" / "snapshots"
+            snap.mkdir(parents=True)
+            log = snap / "fund_manager_bp_poll_test.log"
+            body = "complete poll log\n" * 20
+            log.write_text(body, encoding="utf-8")
+            inode = log.stat().st_ino
+            second = _run_sync(repo, td_path)
+            combined = second.stdout + second.stderr
+            self.assertEqual(second.returncode, 0, combined)
+            self.assertIn("skip reset and durable untar", combined)
+            self.assertEqual(log.stat().st_ino, inode)
+            self.assertEqual(log.read_text(encoding="utf-8"), body)
+
+    def test_head_move_does_not_replace_log_and_reapplies_committed_key(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ws-move-") as td:
+            td_path = Path(td)
+            repo = _bare_treasury_repo(td_path)
+            _git(repo, "checkout", "--detach")
+            first = _run_sync(repo, td_path)
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+
+            snap = repo / "treasury" / "snapshots"
+            snap.mkdir(parents=True)
+            log = snap / "fund_manager_bp_poll_test.log"
+            body = "line\n" * 12
+            log.write_text(body, encoding="utf-8")
+            inode = log.stat().st_ino
+
+            cfg_path = repo / "treasury" / "config.json"
+            durable = {
+                "coinbase_manual": {"card_balance": "99", "note": "local"},
+                "pi_only": True,
+            }
+            cfg_path.write_text(json.dumps(durable) + "\n", encoding="utf-8")
+
+            clone = td_path / "pusher"
+            _git(td_path, "clone", str(td_path / "remote.git"), str(clone))
+            _git(clone, "config", "user.email", "t@example.com")
+            _git(clone, "config", "user.name", "Test")
+            _git(clone, "checkout", "work/treasury")
+            pushed = {
+                "coinbase_manual": {"card_balance": "2", "note": "a"},
+            }
+            (clone / "treasury" / "config.json").write_text(
+                json.dumps(pushed) + "\n", encoding="utf-8"
+            )
+            _git(clone, "add", "treasury/config.json")
+            _git(clone, "commit", "-m", "bump card balance")
+            _git(clone, "push", "origin", "work/treasury")
+
+            moved = _run_sync(repo, td_path)
+            combined = moved.stdout + moved.stderr
+            self.assertEqual(moved.returncode, 0, combined)
+            self.assertNotIn("skip reset and durable untar", combined)
+            self.assertEqual(log.stat().st_ino, inode)
+            self.assertEqual(log.read_text(encoding="utf-8"), body)
+            got = json.loads(cfg_path.read_text(encoding="utf-8"))
+            self.assertEqual(got["coinbase_manual"]["card_balance"], "2")
+            self.assertEqual(got["coinbase_manual"]["note"], "local")
+            self.assertIs(got["pi_only"], True)
+            self.assertIn("reapplied committed key coinbase_manual.card_balance", combined)
+            self.assertIn(
+                "WARN durable config drifts from HEAD at coinbase_manual.note",
+                combined,
+            )
 
 
 if __name__ == "__main__":
