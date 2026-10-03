@@ -112,11 +112,28 @@ preserve_durable() {
     \( -name '*journal.md' -o -name '*journal.jsonl' -o -name '*_latest.json' -o -name 'secrets.json' \) \
     ! -name '*.py' ! -name '*.pyc' 2>/dev/null >>"$list" || true
   sort -u "$list" -o "$list"
-  if [[ -s "$list" ]]; then
-    tar -czf "$DURABLE_TAR" -T "$list" 2>/dev/null || true
-    log "preserved $(wc -l <"$list") durable path(s)"
+  # Expand directories so in-flight poll logs and locks are not in the tar.
+  # Untar used to replace fund_manager_bp_poll_*.log mid-write (#1013).
+  expanded=$(mktemp)
+  while IFS= read -r p; do
+    [[ -z "$p" ]] && continue
+    if [[ -d "$p" ]]; then
+      find "$p" \( -type f -o -type l \) \
+        ! -name '*.log' ! -name '*.lock' ! -name '*.tmp' \
+        >>"$expanded" 2>/dev/null || true
+    elif [[ -e "$p" || -L "$p" ]]; then
+      case "$p" in
+        *.log|*.lock|*.tmp) ;;
+        *) printf '%s\n' "$p" >>"$expanded" ;;
+      esac
+    fi
+  done <"$list"
+  sort -u "$expanded" -o "$expanded"
+  if [[ -s "$expanded" ]]; then
+    tar -czf "$DURABLE_TAR" -T "$expanded" 2>/dev/null || true
+    log "preserved $(wc -l <"$expanded") durable path(s)"
   fi
-  rm -f "$list"
+  rm -f "$list" "$expanded"
 }
 
 restore_durable() {
@@ -127,6 +144,158 @@ restore_durable() {
     rm -f "$DURABLE_TAR"
     log "restored durable runtime state"
   fi
+}
+
+# Compare committed treasury/config.json with the durable Pi copy (#1013).
+# Prints key paths only. Never prints values.
+#   warn COMMITTED DURABLE
+#   reconcile BEFORE AFTER DURABLE
+_config_drift_py() {
+  python3 - "$@" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+def load(path: Path):
+    if not path.is_file() or path.stat().st_size == 0:
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+def leaves(obj, prefix=""):
+    out = {}
+    if not isinstance(obj, dict):
+        return out
+    for key, val in obj.items():
+        path = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(val, dict):
+            out.update(leaves(val, path))
+        else:
+            out[path] = val
+    return out
+
+def get_path(obj, path):
+    cur = obj
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None, False
+        cur = cur[part]
+    return cur, True
+
+def set_path(obj, path, value):
+    parts = path.split(".")
+    cur = obj
+    for part in parts[:-1]:
+        nxt = cur.get(part)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[part] = nxt
+        cur = nxt
+    cur[parts[-1]] = value
+
+def del_path(obj, path):
+    parts = path.split(".")
+    cur = obj
+    for part in parts[:-1]:
+        if not isinstance(cur, dict) or part not in cur:
+            return
+        cur = cur[part]
+    if isinstance(cur, dict):
+        cur.pop(parts[-1], None)
+
+mode = sys.argv[1]
+if mode == "warn":
+    committed = load(Path(sys.argv[2]))
+    durable = load(Path(sys.argv[3]))
+    if committed is None or durable is None:
+        sys.exit(0)
+    for key, val in sorted(leaves(committed).items()):
+        got, ok = get_path(durable, key)
+        if ok and got != val:
+            print(f"WARN durable config drifts from HEAD at {key}; local value kept")
+    sys.exit(0)
+
+if mode != "reconcile":
+    print(f"WARN config reconcile skipped (unknown mode {mode})")
+    sys.exit(0)
+
+before = load(Path(sys.argv[2]))
+after = load(Path(sys.argv[3]))
+durable_path = Path(sys.argv[4])
+durable = load(durable_path)
+if before is None:
+    print("WARN config reconcile skipped (no committed config before pull); durable copy kept")
+    sys.exit(0)
+if after is None or durable is None:
+    print("WARN config reconcile skipped (after or durable unreadable)")
+    sys.exit(0)
+
+b = leaves(before)
+a = leaves(after)
+changed = False
+for key in sorted(set(b) - set(a)):
+    del_path(durable, key)
+    print(f"reapplied removed committed key {key}")
+    changed = True
+for key in sorted(a):
+    if key not in b or b[key] != a[key]:
+        set_path(durable, key, a[key])
+        print(f"reapplied committed key {key}")
+        changed = True
+    else:
+        got, ok = get_path(durable, key)
+        if ok and got != a[key]:
+            print(f"WARN durable config drifts from HEAD at {key}; local value kept")
+if changed:
+    payload = json.dumps(durable, indent=2, ensure_ascii=False) + "\n"
+    tmp = durable_path.parent / f".{durable_path.name}.{os.getpid()}.tmp"
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, durable_path)
+PY
+}
+
+_log_config_lines() {
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && log "$line"
+  done
+}
+
+warn_durable_config_drift() {
+  local committed
+  [[ -f treasury/config.json ]] || return 0
+  committed=$(mktemp)
+  if ! git show "HEAD:treasury/config.json" >"$committed" 2>/dev/null; then
+    rm -f "$committed"
+    return 0
+  fi
+  _log_config_lines < <(_config_drift_py warn "$committed" treasury/config.json)
+  rm -f "$committed"
+}
+
+reconcile_durable_config() {
+  local before="$1" after="$2" durable="$3"
+  if [[ ! -f "$before" || ! -f "$after" || ! -f "$durable" ]]; then
+    log "WARN config reconcile skipped (missing before, after, or durable)"
+    return 0
+  fi
+  _log_config_lines < <(_config_drift_py reconcile "$before" "$after" "$durable")
+  chmod 600 "$durable" 2>/dev/null || true
+}
+
+head_matches_origin() {
+  local origin_sha head_now branch_now
+  origin_sha="$(git rev-parse "$REMOTE/$BRANCH" 2>/dev/null || true)"
+  head_now="$(git rev-parse HEAD 2>/dev/null || true)"
+  branch_now="$(git branch --show-current 2>/dev/null || true)"
+  [[ -n "$origin_sha" && "$branch_now" == "$BRANCH" && "$head_now" == "$origin_sha" ]] || return 1
+  [[ ! -d .git/rebase-merge && ! -d .git/rebase-apply ]] || return 1
+  [[ ! -f .git/MERGE_HEAD && ! -f .git/CHERRY_PICK_HEAD && ! -f .git/REVERT_HEAD ]] || return 1
+  return 0
 }
 
 # Unstick mid-rebase / merge / cherry-pick that leave HEAD detached and break checkout.
@@ -270,26 +439,36 @@ BEFORE="$(git rev-parse HEAD 2>/dev/null || echo none)"
 CURRENT="$(git branch --show-current 2>/dev/null || true)"
 log "sync start branch=${CURRENT:-detached} HEAD=${BEFORE:0:8}"
 
-preserve_durable
-clear_in_progress_git_ops
-clean_blocking_untracked
-
+# Fetch before any tar/reset. A failed fetch must not untar over live logs.
 if ! git_auth fetch --prune "$REMOTE" "$BRANCH"; then
   log "ERROR: git fetch failed (check network / GITHUB_TOKEN in ~/.config/workflow-scheduler.env)"
-  restore_durable
   exit 1
 fi
 
-# Re-clear after fetch in case a concurrent process started a rebase (rare).
-clear_in_progress_git_ops
-clean_blocking_untracked
-
-if ! land_on_remote_branch; then
+if head_matches_origin; then
+  # Every 5 minutes used to hard-reset tracked treasury_latest.json back to the
+  # committed copy (no Plaid block) for the gap before untar (#1013).
+  log "HEAD ${BEFORE:0:8} matches $REMOTE/$BRANCH — skip reset and durable untar"
+  warn_durable_config_drift
+else
+  cfg_before=$(mktemp)
+  cfg_after=$(mktemp)
+  git show "HEAD:treasury/config.json" >"$cfg_before" 2>/dev/null || true
+  preserve_durable
+  clear_in_progress_git_ops
+  clean_blocking_untracked
+  if ! land_on_remote_branch; then
+    restore_durable
+    rm -f "$cfg_before" "$cfg_after"
+    exit 1
+  fi
+  if [[ -f treasury/config.json ]]; then
+    cp treasury/config.json "$cfg_after"
+  fi
   restore_durable
-  exit 1
+  reconcile_durable_config "$cfg_before" "$cfg_after" treasury/config.json
+  rm -f "$cfg_before" "$cfg_after"
 fi
-
-restore_durable
 
 # Stamp expected branch for FCC UI / tip-health (issue #628). File is in git on
 # work/treasury; rewriting keeps it correct if a local protect overwrote it.
