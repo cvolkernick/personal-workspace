@@ -1096,6 +1096,26 @@ def export_agent_today(
     if err:
         out["error"] = err
     out["main_lifts"] = _main_lift_series(data, day)
+    from .guardrails import build_guardrails, resolve_phase
+    from .phase_barometer import phase_label
+
+    phase = resolve_phase(data)
+    out["phase_barometer"] = {"phase": phase, "phase_label": phase_label(phase)}
+    guard_src = data
+    baro = data.get("phase_barometer") if isinstance(data.get("phase_barometer"), dict) else {}
+    if not baro.get("phase") or resolve_phase({"phase_barometer": baro}) != phase:
+        guard_src = dict(data)
+        guard_src["phase_barometer"] = out["phase_barometer"]
+    try:
+        out["guardrails"] = build_guardrails(guard_src, as_of=day or None)
+    except Exception:  # noqa: BLE001
+        out["guardrails"] = {
+            "phase": phase,
+            "phase_label": phase_label(phase),
+            "as_of": day or None,
+            "tiles": [],
+            "flag": {"status": "insufficient", "sentence": "Not enough data."},
+        }
     return out
 
 

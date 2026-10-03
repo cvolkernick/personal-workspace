@@ -52,6 +52,57 @@ THRESHOLDS: Dict[str, Any] = {
     },
 }
 
+# Trends guardrails (#1026). Same phase names as the barometer so the two
+# never disagree. Maintain and recomp use the cut tonnage bands. Bulk is looser.
+# Scale for maintain/recomp is a ±0.25%/week band.
+GUARDRAIL_THRESHOLDS: Dict[str, Any] = {
+    "tonnage": {
+        "flat_band_pct": 5.0,
+        "red_weeks": 2,
+        "min_training_weeks": 2,
+        "phases": {
+            "cut": {"yellow_low_pct": 10.0, "yellow_high_pct": 20.0, "red_above_pct": 20.0},
+            "maintain": {"yellow_low_pct": 10.0, "yellow_high_pct": 20.0, "red_above_pct": 20.0},
+            "recomp": {"yellow_low_pct": 10.0, "yellow_high_pct": 20.0, "red_above_pct": 20.0},
+            "slow_bulk": {"yellow_low_pct": 15.0, "yellow_high_pct": 25.0, "red_above_pct": 25.0},
+        },
+    },
+    "lifts": {"yellow_weeks_down": 2, "red_weeks_down": 3},
+    "scale": {
+        "flat_band_pct": 0.25,
+        "phases": {
+            "cut": {
+                "target_low_pct": -1.0,
+                "target_high_pct": -0.5,
+                "yellow_loss_under_pct": 0.25,
+                "yellow_loss_over_pct": 1.5,
+                "yellow_weeks": 2,
+                "red_stall_weeks": 3,
+            },
+            "slow_bulk": {
+                "target_low_pct": 0.25,
+                "target_high_pct": 0.5,
+                "yellow_gain_over_pct": 0.5,
+                "yellow_weeks": 2,
+                "red_weeks": 3,
+            },
+            "maintain": {
+                "target_low_pct": -0.25,
+                "target_high_pct": 0.25,
+                "yellow_abs_pct": 0.5,
+                "yellow_weeks": 2,
+            },
+            "recomp": {
+                "target_low_pct": -0.25,
+                "target_high_pct": 0.25,
+                "yellow_abs_pct": 0.5,
+                "yellow_weeks": 2,
+            },
+        },
+    },
+    "flag": {"flat_weeks": 3},
+}
+
 PHASE_LABELS = {
     "cut": "Cut",
     "slow_bulk": "Bulk",

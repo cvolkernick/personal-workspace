@@ -1222,6 +1222,15 @@ def trends_export_body(headers, query: str = "", client_host=None):
         # an empty main-lift list that was never read.
         sessions = None
         goals = None
+    phase = None
+    try:
+        from rt_dashboard.nutrition_store import load_preview_targets
+
+        targets, _src = load_preview_targets(uid or "default")
+        if isinstance(targets, dict):
+            phase = targets.get("phase")
+    except Exception:  # noqa: BLE001
+        phase = None
     return respond_trends_export(
         headers,
         query,
@@ -1229,6 +1238,7 @@ def trends_export_body(headers, query: str = "", client_host=None):
         extra_error=extra,
         sessions=sessions,
         goals=goals,
+        phase=phase,
     )
 
 

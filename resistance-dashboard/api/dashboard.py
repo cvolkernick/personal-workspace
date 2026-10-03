@@ -775,6 +775,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"phase_barometer: {type(exc).__name__}")
     try:
+        from rt_dashboard.guardrails import attach_guardrails
+
+        attach_guardrails(payload, as_of=today)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"guardrails: {type(exc).__name__}")
+    try:
         from rt_dashboard.hsa import attach_hsa
 
         attach_hsa(

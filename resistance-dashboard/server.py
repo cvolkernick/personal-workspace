@@ -1095,6 +1095,12 @@ def load_dashboard_data(
     except Exception as e:  # noqa: BLE001
         errors.append(f"phase_barometer: {e}")
     try:
+        from rt_dashboard.guardrails import attach_guardrails
+
+        attach_guardrails(payload, as_of=local_today)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"guardrails: {e}")
+    try:
         attach_hsa(payload, user_id=uid, health=health, as_of=local_today)
     except Exception as e:  # noqa: BLE001
         errors.append(f"hsa: {e}")
@@ -1792,12 +1798,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
                 store = data.get("workout_store") if isinstance(data.get("workout_store"), dict) else {}
                 goals = store.get("goals") if isinstance(store.get("goals"), dict) else None
+                baro = data.get("phase_barometer") if isinstance(data.get("phase_barometer"), dict) else {}
                 status, body = respond_trends_export(
                     self.headers,
                     parsed.query or "",
                     data.get("health") or {},
                     sessions=data.get("sessions") or [],
                     goals=goals,
+                    phase=baro.get("phase"),
                 )
                 self._send_json(body, status=status)
             except Exception as e:  # noqa: BLE001
