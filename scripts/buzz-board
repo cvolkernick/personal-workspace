@@ -144,21 +144,28 @@ def _item_matches(item: dict, number: int, kind: str | None) -> bool:
 
 
 def fetch_items(
-    first: int = 100,
+    first: int | None = 100,
     *,
     until: tuple[int, str | None] | None = None,
 ) -> list[dict]:
     """Paginate project items; return normalized dicts.
 
-    Stops after the page that reaches ``first`` items. ``until=(number, kind)``
-    keeps paging until that issue is found, so get/set-status/add do not miss
-    a card past the list window and add a second one. ``kind`` None matches
-    any content type. list and day-export do not pass ``until``.
+    A numeric ``first`` stops the scan after that many items. ``first=None``
+    reads every page. ``until=(number, kind)`` keeps paging until that issue
+    is found, so get/set-status/add do not miss a card past the list window
+    and add a second one. ``kind`` None matches any content type. Unfiltered
+    list and day-export pass a numeric ``first``. Status-filtered list passes
+    ``first=None`` so ``--limit`` cannot hide a column that starts past item 100.
     """
     items: list[dict] = []
     cursor: str | None = None
     while True:
-        page_size = 50 if until is not None else min(first, 50)
+        # ``until`` and a full status scan both walk 50 at a time. A numeric
+        # ``first`` keeps the historical page size, capped at 50.
+        if until is not None or first is None:
+            page_size = 50
+        else:
+            page_size = min(first, 50)
         data = gql(
             """
             query($login:String!, $n:Int!, $after:String, $first:Int!) {
@@ -250,16 +257,21 @@ def fetch_items(
         if not conn["pageInfo"]["hasNextPage"]:
             break
         cursor = conn["pageInfo"]["endCursor"]
-        if until is None and len(items) >= first:
+        if until is None and first is not None and len(items) >= first:
             break
     return items
 
 
 def cmd_list(args: argparse.Namespace) -> None:
-    items = fetch_items(first=args.limit)
+    # Status is a column, not a prefix of the project. Scan every page, then
+    # filter. ``--limit`` stays the unfiltered scan window only: applying it
+    # first dropped Parked rows that sit past item 100 (#917).
     if args.status:
         want = resolve_status(args.status)
+        items = fetch_items(first=None)
         items = [i for i in items if i.get("status") == want]
+    else:
+        items = fetch_items(first=args.limit)
     # Default: open issues only (skip closed + drafts without numbers unless --all)
     if not args.all:
         items = [
@@ -569,7 +581,13 @@ def main() -> None:
     pl = sub.add_parser("list", help="List board items")
     pl.add_argument("--status", help="Filter by Status (Ready, Parked, …)")
     pl.add_argument("--all", action="store_true", help="Include closed / non-issues")
-    pl.add_argument("--limit", type=int, default=100)
+    pl.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Max items to scan when --status is omitted. "
+        "With --status, every page is scanned and every match is returned.",
+    )
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_list)
 
