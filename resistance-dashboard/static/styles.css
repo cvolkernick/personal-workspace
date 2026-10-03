@@ -4999,3 +4999,39 @@ body.m-shell #alerts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Weekly review: actions sit above the plain observation list. */
+#weekly-review-bullets > .weekly-review-focus {
+  list-style: none;
+  margin: 0 0 0.85rem -1.1rem;
+  padding: 0.7rem 0.75rem 0.65rem;
+  border: 1px solid rgba(61, 156, 240, 0.55);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius, 10px);
+  background: rgba(61, 156, 240, 0.1);
+  color: var(--text);
+}
+#weekly-review-bullets .weekly-review-focus-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+#weekly-review-bullets .weekly-review-actions {
+  margin: 0;
+  padding-left: 1.05rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+#weekly-review-bullets .weekly-review-actions li + li {
+  margin-top: 0.28rem;
+}
+@media (max-width: 560px) {
+  #weekly-review-bullets > .weekly-review-focus {
+    margin-left: -0.85rem;
+    padding: 0.65rem 0.65rem 0.55rem;
+  }
+}

@@ -7855,15 +7855,41 @@
         banner.innerHTML = "";
       }
     }
-    const bullets = $("weekly-review-bullets");
-    if (bullets) {
-      const rows =
-        (data && data.coach && data.coach.weekly_review && data.coach.weekly_review.bullets) ||
-        [];
-      bullets.innerHTML = rows
-        .map((b) => `<li>${phaseBaroEsc(b)}</li>`)
-        .join("");
+    renderWeeklyReview(data);
+  }
+
+  function weeklyReviewRows(review) {
+    if (review && Array.isArray(review.items)) return review.items;
+    const bullets = (review && review.bullets) || [];
+    return bullets.map((b) => ({
+      text: typeof b === "string" ? b : (b && b.text) || "",
+      kind: "observation",
+    }));
+  }
+
+  function weeklyReviewText(row) {
+    if (typeof row === "string") return row;
+    return String((row && row.text) || "");
+  }
+
+  function renderWeeklyReview(data) {
+    const root = $("weekly-review-bullets");
+    if (!root) return;
+    const review = data && data.coach && data.coach.weekly_review;
+    const actions = [];
+    const observations = [];
+    weeklyReviewRows(review).forEach((row) => {
+      if (row && row.kind === "action") actions.push(row);
+      else observations.push(row);
+    });
+    let html = "";
+    if (actions.length) {
+      html += `<li class="weekly-review-focus"><p class="weekly-review-focus-title">Focus this week</p><ul class="weekly-review-actions">${actions
+        .map((row) => `<li>${phaseBaroEsc(weeklyReviewText(row))}</li>`)
+        .join("")}</ul></li>`;
     }
+    html += observations.map((row) => `<li>${phaseBaroEsc(weeklyReviewText(row))}</li>`).join("");
+    root.innerHTML = html;
   }
 
   async function phaseBaroAct(action, phase) {

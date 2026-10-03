@@ -61,18 +61,24 @@ class WeeklyReviewPlacement(unittest.TestCase):
 
 class WeeklyReviewBehaviorUnchanged(unittest.TestCase):
     def test_js_still_fills_bullets_from_coach(self):
-        fill = _fn(JS, 'const bullets = $("weekly-review-bullets")', "async function phaseBaroAct")
-        self.assertIn("data.coach.weekly_review.bullets", fill)
-        self.assertIn("phaseBaroEsc(b)", fill)
+        fill = _fn(JS, "function weeklyReviewRows", "async function phaseBaroAct")
+        self.assertIn("data.coach.weekly_review", fill)
+        self.assertIn("review.items", fill)
+        self.assertIn("review.bullets", fill)
+        self.assertIn("phaseBaroEsc(weeklyReviewText(row))", fill)
+        self.assertIn("Focus this week", fill)
+        self.assertIn("if (actions.length)", fill)
+        self.assertLess(fill.find("if (actions.length)"), fill.find("Focus this week"))
+        self.assertIn("renderWeeklyReview(data)", JS)
         self.assertNotIn("goMobileTab", fill)
 
 
 class WeeklyReviewCache(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=tonnage-1025-1", HTML)
-        self.assertIn("/app.js?v=tonnage-1025-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v129"', SW)
+        self.assertIn("/app.js?v=weekly-review-1033-1", HTML)
+        self.assertIn("/app.js?v=weekly-review-1033-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v130"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", SW)
         self.assertNotIn("/app.js?v=ing-micros-612-1", HTML)
