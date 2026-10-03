@@ -50,3 +50,9 @@ Backups/
 
 # Auto Fleet local inbox dumps / runtime (never commit)
 auto-fleet/data/runtime/
+
+# Runtime treasury evaluations (#1013). The committed 9/9 copies have no
+# Plaid block; a workspace-sync hard-reset was serving them between tar and
+# untar. Keep the files on disk. Do not track them.
+/financial-command/treasury_latest.json
+/treasury/snapshots/treasury_latest.json
