@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from treasury.adapters import SNAPSHOTS_DIR, load_json  # noqa: E402
+from treasury.adapters import SNAPSHOTS_DIR, load_json, save_json  # noqa: E402
 from treasury.expenses_sync import (  # noqa: E402
     by_source,
     funded_unique_fleet_items,
@@ -697,10 +697,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "\n" if args.pretty or args.out else ""
     )
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(
-            json.dumps(plan, indent=2) + "\n", encoding="utf-8"
-        )
+        save_json(args.out, plan)
     # always print for CLI capture
     if args.pretty or not args.out:
         sys.stdout.write(json.dumps(plan, indent=2) + "\n" if args.pretty else json.dumps(plan) + "\n")

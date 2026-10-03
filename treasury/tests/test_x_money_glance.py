@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -15,6 +17,7 @@ from treasury.x_money_glance import (
     attach_plaid_x_money,
     is_stale,
     pins_from_config,
+    read_prior_plaid_x_money,
     shape_plaid_x_money,
 )
 
@@ -189,6 +192,41 @@ class TestXMoneyGlance(unittest.TestCase):
             fetch=lambda: (_ for _ in ()).throw(AssertionError("offline must not fetch")),
         )
         self.assertIs(kept, prior)
+
+
+class TestPriorPlaidFallback(unittest.TestCase):
+    def test_ynab_x_money_file_is_not_a_plaid_block(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "x_money_latest.json"
+            path.write_text(
+                json.dumps({"source": "ynab", "balance": 19.04}) + "\n",
+                encoding="utf-8",
+            )
+            self.assertIsNone(read_prior_plaid_x_money(path))
+
+    def test_torn_latest_falls_through_to_plaid_block(self):
+        with tempfile.TemporaryDirectory() as td:
+            torn = Path(td) / "treasury_latest.json"
+            torn.write_text('{"snapshot":', encoding="utf-8")
+            alt = Path(td) / "x_money_latest.json"
+            block = {"source": "plaid", "ok": True, "stale": False, "accounts": []}
+            alt.write_text(json.dumps(block) + "\n", encoding="utf-8")
+            self.assertEqual(read_prior_plaid_x_money(torn, alt), block)
+
+    def test_evaluation_doc_still_wins(self):
+        with tempfile.TemporaryDirectory() as td:
+            latest = Path(td) / "treasury_latest.json"
+            block = {"source": "plaid", "ok": True, "accounts": [{"label": "Main"}]}
+            latest.write_text(
+                json.dumps({"snapshot": {"plaid_x_money": block}}) + "\n",
+                encoding="utf-8",
+            )
+            alt = Path(td) / "x_money_latest.json"
+            alt.write_text(
+                json.dumps({"source": "plaid", "ok": False, "accounts": []}) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(read_prior_plaid_x_money(latest, alt)["accounts"][0]["label"], "Main")
 
 
 if __name__ == "__main__":

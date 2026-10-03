@@ -1312,9 +1312,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     if isinstance(t_data, dict):
                         overlay_solana_snapshot(t_data)
                         if p_t.is_file():
-                            p_t.write_text(
-                                json.dumps(t_data, indent=2) + "\n", encoding="utf-8"
-                            )
+                            from treasury.adapters import save_json
+
+                            save_json(p_t, t_data)
                         snap = t_data.get("snapshot") or {}
                         cb_block = snap.get("coinbase") or {}
                         sol_block = snap.get("solana") or {}
