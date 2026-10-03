@@ -6701,6 +6701,7 @@
       renderWorkoutPlan(data.workout_store.plan);
     }
     renderTodayHub(data);
+    renderGuardrails(data);
   }
 
   /** Civil day of the last successful /api/daily-tasks sync in this page. */
@@ -7919,6 +7920,157 @@
     } catch (e) {
       showAlert(`Phase barometer: ${e.message}`, "err");
     }
+  }
+
+  function renderGuardrails(data) {
+    const root = $("guardrail-grid");
+    if (!root) return;
+    const guard = data && data.guardrails;
+    const tiles = guard && Array.isArray(guard.tiles) ? guard.tiles : [];
+    if (!tiles.length) {
+      root.innerHTML = '<p class="guardrail-note">Not enough data.</p>';
+      return;
+    }
+    root.innerHTML = tiles.map(guardrailTileHtml).join("");
+  }
+
+  function guardrailTileHtml(tile) {
+    const status = guardrailStatus(tile && tile.status);
+    const title = guardrailTitle(tile && tile.id);
+    if (tile && tile.id === "flag") return guardrailFlagHtml(tile, status, title);
+    if (tile && tile.id === "lifts") return guardrailLiftsHtml(tile, status, title);
+    const value = guardrailValue(tile);
+    const arrow = guardrailArrow(tile);
+    const spark = guardrailSpark(
+      tile && tile.series,
+      tile && tile.id === "tonnage" ? tile.baseline_daily_lb : null
+    );
+    const band = tile && tile.id === "scale" ? guardrailBand(tile.band) : "";
+    const note = phaseBaroEsc((tile && tile.reason) || "Not enough data.");
+    const rule = phaseBaroEsc((tile && tile.rule) || "");
+    return `<article class="guardrail-tile" data-guardrail="${phaseBaroEsc(tile && tile.id)}">
+      <p class="guardrail-title">${title}</p>
+      <span class="guardrail-dot ${status}" aria-label="${status}"></span>
+      <p class="guardrail-value">${value}${arrow}</p>
+      ${spark}
+      ${band}
+      <p class="guardrail-note">${note}</p>
+      <p class="guardrail-note">${rule}</p>
+    </article>`;
+  }
+
+  function guardrailLiftsHtml(tile, status, title) {
+    const lines = Array.isArray(tile.lines) ? tile.lines : [];
+    const body = lines.length
+      ? lines.map((line) => {
+          const lineStatus = guardrailStatus(line.status);
+          const label = line.label ? phaseBaroEsc(line.label) : "—";
+          return `<div class="guardrail-line">
+            <span>${phaseBaroEsc(line.name || line.role || "")}</span>
+            ${guardrailSpark(line.series, null)}
+            <span>${label} <span class="guardrail-dot ${lineStatus}" style="position:static;display:inline-block"></span></span>
+          </div>`;
+        }).join("")
+      : '<p class="guardrail-note">Not enough data.</p>';
+    return `<article class="guardrail-tile" data-guardrail="lifts">
+      <p class="guardrail-title">${title}</p>
+      <span class="guardrail-dot ${status}" aria-label="${status}"></span>
+      <div class="guardrail-lines">${body}</div>
+      <p class="guardrail-note">${phaseBaroEsc(tile.reason || "Not enough data.")}</p>
+      <p class="guardrail-note">${phaseBaroEsc(tile.rule || "")}</p>
+    </article>`;
+  }
+
+  function guardrailFlagHtml(tile, status, title) {
+    const chips = Array.isArray(tile.chips) ? tile.chips : [];
+    const chipHtml = chips
+      .map((chip) => {
+        const chipStatus = guardrailStatus(chip.status);
+        return `<span class="guardrail-chip ${chipStatus}">${phaseBaroEsc(chip.label || chip.id || "")}</span>`;
+      })
+      .join("");
+    return `<article class="guardrail-tile" data-guardrail="flag">
+      <p class="guardrail-title">${title}</p>
+      <span class="guardrail-flag-dot ${status}" aria-label="${status}"></span>
+      <p class="guardrail-note">${phaseBaroEsc(tile.reason || tile.value || "Not enough data.")}</p>
+      <div class="guardrail-chips">${chipHtml}</div>
+      <p class="guardrail-note">${phaseBaroEsc(tile.rule || "")}</p>
+    </article>`;
+  }
+
+  function guardrailTitle(id) {
+    if (id === "tonnage") return "Tonnage";
+    if (id === "lifts") return "Main lifts";
+    if (id === "scale") return "Scale";
+    if (id === "flag") return "Treading water";
+    return phaseBaroEsc(id || "Guardrail");
+  }
+
+  function guardrailStatus(status) {
+    if (status === "green" || status === "yellow" || status === "red") return status;
+    return "insufficient";
+  }
+
+  function guardrailValue(tile) {
+    if (!tile || tile.value == null || tile.value === "") return "—";
+    if (tile.id === "scale") {
+      const n = Number(tile.value);
+      if (!Number.isFinite(n)) return "—";
+      const pct = tile.weekly_pct == null ? "" : ` · ${Number(tile.weekly_pct) > 0 ? "+" : ""}${Number(tile.weekly_pct).toFixed(2)}%`;
+      return `${n.toFixed(1)} lb${pct}`;
+    }
+    if (tile.id === "tonnage") {
+      const n = Number(tile.value);
+      if (!Number.isFinite(n)) return "—";
+      return `${Math.round(n).toLocaleString("en-US")} lb`;
+    }
+    return phaseBaroEsc(tile.value);
+  }
+
+  function guardrailArrow(tile) {
+    if (!tile || !tile.arrow) return "";
+    const glyph = tile.arrow === "up" ? "▲" : tile.arrow === "down" ? "▼" : "▬";
+    const tone = tile.arrow_tone === "good" || tile.arrow_tone === "bad" ? tile.arrow_tone : "neutral";
+    return `<span class="guardrail-arrow ${tone}">${glyph}</span>`;
+  }
+
+  function guardrailSpark(series, baseline) {
+    const rows = Array.isArray(series) ? series : [];
+    const vals = rows.map((row) => Number(row && (row.value != null ? row.value : row.weight_lbs)));
+    const finite = vals.filter((v) => Number.isFinite(v));
+    if (!finite.length) return "";
+    const width = 88;
+    const height = 28;
+    const pad = 2;
+    const base = Number(baseline);
+    let max = Math.max(...finite, Number.isFinite(base) ? base : 0);
+    let min = Math.min(...finite, Number.isFinite(base) ? base : finite[0]);
+    if (max === min) {
+      max += 1;
+      min -= 1;
+    }
+    const xAt = (i) => pad + (i * (width - pad * 2)) / Math.max(vals.length - 1, 1);
+    const yAt = (v) => pad + (1 - (v - min) / (max - min)) * (height - pad * 2);
+    const path = vals
+      .map((v, i) => `${i ? "L" : "M"}${xAt(i).toFixed(1)},${yAt(Number.isFinite(v) ? v : min).toFixed(1)}`)
+      .join(" ");
+    let line = "";
+    if (Number.isFinite(base)) {
+      const y = yAt(base).toFixed(1);
+      line = `<line x1="${pad}" y1="${y}" x2="${width - pad}" y2="${y}" stroke="currentColor" stroke-dasharray="3 2" stroke-width="1" opacity="0.75"/>`;
+    }
+    return `<svg class="guardrail-spark" viewBox="0 0 ${width} ${height}" aria-hidden="true">${line}<path d="${path}" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
+  }
+
+  function guardrailBand(band) {
+    if (!band || band.marker == null || band.low == null || band.high == null) return "";
+    const lo = -2;
+    const hi = 2;
+    const pos = (v) => Math.max(0, Math.min(100, ((Number(v) - lo) / (hi - lo)) * 100));
+    const left = Math.min(pos(band.low), pos(band.high));
+    const width = Math.max(Math.abs(pos(band.high) - pos(band.low)), 2);
+    const mark = pos(band.marker);
+    return `<div class="guardrail-band" aria-hidden="true"><span class="guardrail-band-zone" style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%"></span><span class="guardrail-band-mark" style="left:${mark.toFixed(1)}%"></span></div>`;
   }
 
   function renderTodayHub(data) {

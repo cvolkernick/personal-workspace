@@ -145,6 +145,7 @@ def export_trends_window(
     extra_error: str = "",
     sessions: Optional[list] = None,
     goals: Optional[dict] = None,
+    phase: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Daily rows for the chart window. Unlogged intake is null, never 0."""
     nutrition = kcal_by_date(_series(health, "nutrition"))
@@ -203,6 +204,18 @@ def export_trends_window(
             end=labels[-1],
             days=days,
         )
+        from rt_dashboard.guardrails import guardrail_export
+
+        body["guardrails"] = guardrail_export(
+            {
+                "sessions": sessions,
+                "health": health if health is not None else {},
+                "workout_store": {"goals": goals if isinstance(goals, dict) else {}},
+                "phase_barometer": {"phase": phase} if phase else {},
+                "meta": {"local_today": labels[-1]},
+            },
+            as_of=labels[-1],
+        )
     return body
 
 
@@ -214,6 +227,7 @@ def respond_trends_export(
     *,
     sessions: Optional[list] = None,
     goals: Optional[dict] = None,
+    phase: Optional[str] = None,
 ) -> Tuple[int, Dict[str, Any]]:
     """Parse days and build the JSON body. Auth stays with the caller."""
     raw_days = (parse_qs(query or "").get("days") or [None])[0]
@@ -238,6 +252,7 @@ def respond_trends_export(
         extra_error=extra_error,
         sessions=sessions,
         goals=goals,
+        phase=phase,
     )
     if not body.get("ok"):
         return 503, body
