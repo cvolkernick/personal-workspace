@@ -293,5 +293,100 @@ class TestBuzzBoardItem101(unittest.TestCase):
             self.assertEqual(len(calls.added), 1)
 
 
+def _parked_past_window_nodes() -> list[dict]:
+    """120 Ready rows, then 130 open Parked rows, then one closed Parked row.
+
+    Every Parked row sits past item 100. The open Parked count is larger
+    than the default ``--limit`` of 100.
+    """
+    nodes = [_issue_node(n, f"PVTI_R_{n:03d}", "Ready") for n in range(1, 121)]
+    nodes.extend(
+        _issue_node(n, f"PVTI_P_{n}", "Parked") for n in range(900, 1030)
+    )
+    closed = _issue_node(7000, "PVTI_CLOSED", "Parked")
+    closed["content"]["state"] = "CLOSED"
+    nodes.append(closed)
+    assert len(nodes) == 251
+    assert all(node["fieldValueByName"]["name"] != "Parked" for node in nodes[:100])
+    return nodes
+
+
+class TestBuzzBoardListStatusWindow(unittest.TestCase):
+    def test_list_status_parked_returns_the_row_past_item_100(self) -> None:
+        with board_fixture(LIVE) as calls:
+            listed = json.loads(
+                _run(
+                    LIVE,
+                    LIVE.cmd_list,
+                    Namespace(status="Parked", all=False, limit=100, json=True),
+                )
+            )
+        self.assertEqual([item["number"] for item in listed], [TARGET_NUMBER])
+        self.assertEqual(listed[0]["status"], "Parked")
+        self.assertGreaterEqual(calls.queries[-1]["end"], 101)
+        self.assertGreaterEqual(len(calls.queries), 3)
+
+    def test_list_status_parked_matches_a_full_paginate(self) -> None:
+        nodes = _parked_past_window_nodes()
+        parked_open = list(range(900, 1030))
+        with board_fixture(LIVE, nodes) as calls:
+            at_default = json.loads(
+                _run(
+                    LIVE,
+                    LIVE.cmd_list,
+                    Namespace(status="Parked", all=False, limit=100, json=True),
+                )
+            )
+        self.assertEqual([item["number"] for item in at_default], parked_open)
+        self.assertGreater(calls.queries[-1]["end"], 100)
+        self.assertEqual(calls.added, [])
+        self.assertEqual(calls.updated, [])
+
+        with board_fixture(LIVE, nodes) as calls:
+            at_wide = json.loads(
+                _run(
+                    LIVE,
+                    LIVE.cmd_list,
+                    Namespace(status="Parked", all=False, limit=800, json=True),
+                )
+            )
+        self.assertEqual(at_default, at_wide)
+
+        with board_fixture(LIVE, nodes):
+            including_closed = json.loads(
+                _run(
+                    LIVE,
+                    LIVE.cmd_list,
+                    Namespace(status="Parked", all=True, limit=100, json=True),
+                )
+            )
+        self.assertEqual(
+            [item["number"] for item in including_closed],
+            parked_open + [7000],
+        )
+
+    def test_list_without_status_still_stops_at_limit(self) -> None:
+        with board_fixture(LIVE) as calls:
+            listed = json.loads(
+                _run(
+                    LIVE,
+                    LIVE.cmd_list,
+                    Namespace(status=None, all=True, limit=100, json=True),
+                )
+            )
+        self.assertEqual(len(listed), 100)
+        self.assertNotIn(TARGET_NUMBER, [item["number"] for item in listed])
+        self.assertEqual(len(calls.queries), 2)
+        self.assertEqual(calls.added, [])
+        self.assertEqual(calls.updated, [])
+
+    def test_fetch_all_pages_when_first_is_none(self) -> None:
+        with board_fixture(LIVE) as calls:
+            items = LIVE.fetch_items(first=None)
+        self.assertEqual(len(items), 101)
+        self.assertEqual(items[-1]["number"], TARGET_NUMBER)
+        self.assertGreaterEqual(len(calls.queries), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
