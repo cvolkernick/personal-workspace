@@ -31,6 +31,14 @@ RHR_MIN_SAMPLES_7 = 4
 RECOVERY_SYNC_LAG_HOURS = 6.0
 RECOVERY_NIGHT_DUE_HOURS = 24.0 + RECOVERY_SYNC_LAG_HOURS
 
+# Last-known inputs still count inside these windows. Older than this, the
+# input is missing. A score needs sleep or weight inside its window (#1040).
+SLEEP_FRESH_DAYS = 7
+WEIGHT_FRESH_DAYS = 14
+RECOVERY_UNAVAILABLE_REASON = (
+    "No recovery score — no sleep in the last 7 days and no weight in the last 14 days."
+)
+
 
 def rhr_readiness(
     rhr: Sequence[RestingHeartRateDay],
@@ -221,6 +229,54 @@ def recovery_window_end(
     return base
 
 
+def _parse_day(day: str) -> Optional[datetime]:
+    try:
+        return datetime.strptime((day or "")[:10], "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return None
+
+
+def _in_window(day: str, as_of: str, days: int) -> bool:
+    end = _parse_day(as_of)
+    got = _parse_day(day)
+    if end is None or got is None:
+        return False
+    start = end - timedelta(days=max(1, int(days)) - 1)
+    return start <= got <= end
+
+
+def _real_sleep_in_window(
+    sleep: Sequence[SleepSample],
+    as_of: str,
+    days: int = SLEEP_FRESH_DAYS,
+) -> bool:
+    """True when a real (not implied-zero) night falls inside the window."""
+    for sample in sleep or []:
+        if str(getattr(sample, "source", "") or "") == "implied_zero":
+            continue
+        if not _in_window(getattr(sample, "date", ""), as_of, days):
+            continue
+        try:
+            hours = float(sample.sleep_hours or 0)
+        except (TypeError, ValueError):
+            continue
+        if hours > 0:
+            return True
+    return False
+
+
+def _weights_in_window(
+    weight: Sequence[WeightSample],
+    as_of: str,
+    days: int = WEIGHT_FRESH_DAYS,
+) -> List[WeightSample]:
+    return [
+        sample
+        for sample in (weight or [])
+        if _in_window(getattr(sample, "date", ""), as_of, days)
+    ]
+
+
 def _latest_weight(weight: Sequence[WeightSample]) -> Optional[float]:
     if not weight:
         return None
@@ -315,15 +371,74 @@ def compute_recovery_status(
             sum(float(s.sleep_hours or 0) for s in filled7) / len(filled7),
             2,
         )
-    latest_w = _latest_weight(weight)
-    w_delta = _weight_delta_7d(weight)
+    fresh_weights = _weights_in_window(weight, as_of, WEIGHT_FRESH_DAYS)
+    weight_fresh = bool(fresh_weights)
+    sleep_fresh = _real_sleep_in_window(sleep, as_of, SLEEP_FRESH_DAYS)
+    if weight_fresh:
+        latest_w = _latest_weight(fresh_weights)
+        w_delta = _weight_delta_7d(fresh_weights)
+    else:
+        latest_w = None
+        w_delta = None
+    if not sleep_fresh:
+        # Implied zeros are not a sleep sample. Do not treat a dark window as 0h.
+        avg_sleep = None
     vol_7d = recent_training_volume(sessions, as_of=as_of, window_days=7)
+    partial = (not sleep_fresh) or (not weight_fresh)
 
-    score = 70.0  # neutral baseline when sparse data
+    def _inputs(rhr_sig: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "as_of": as_of,
+            "avg_sleep_hours_7d": avg_sleep,
+            "pending_overnight_date": omit_date,
+            "latest_weight_lbs": latest_w,
+            "weight_delta_7d_lbs": w_delta,
+            "training_volume_7d": vol_7d,
+            "partial": partial and (sleep_fresh or weight_fresh),
+            "sleep_fresh": sleep_fresh,
+            "weight_fresh": weight_fresh,
+            "rhr_skipped": bool(rhr_sig.get("skipped")),
+            "rhr_today_bpm": rhr_sig.get("today_bpm"),
+            "rhr_baseline_bpm": rhr_sig.get("baseline_bpm"),
+            "rhr_baseline_days": rhr_sig.get("baseline_days"),
+            "rhr_delta_bpm": rhr_sig.get("delta_bpm"),
+            "rhr_under_recovered": bool(rhr_sig.get("under_recovered")),
+        }
+
+    def _volume_bits(into: List[str], score_box: Optional[List[float]]) -> None:
+        if vol_7d >= high_volume_threshold * 1.25:
+            if score_box is not None:
+                score_box[0] -= 18
+            into.append(f"Very high training tonnage last 7d ({vol_7d:,.0f} lb)")
+        elif vol_7d >= high_volume_threshold:
+            if score_box is not None:
+                score_box[0] -= 10
+            into.append(f"Elevated training tonnage last 7d ({vol_7d:,.0f} lb)")
+        elif vol_7d > 0:
+            if score_box is not None:
+                score_box[0] += 5
+            into.append(f"Manageable training tonnage last 7d ({vol_7d:,.0f} lb)")
+        else:
+            into.append("No logged training tonnage in last 7 days")
+
+    if not sleep_fresh and not weight_fresh:
+        reasons = [RECOVERY_UNAVAILABLE_REASON]
+        _volume_bits(reasons, None)
+        rhr_sig = rhr_readiness(rhr, as_of)
+        return RecoveryStatus(
+            label="Unavailable",
+            score=None,
+            reasons=reasons,
+            inputs=_inputs(rhr_sig),
+        )
+
+    score = 70.0  # neutral baseline when one input is present
     reasons: List[str] = []
 
-    if avg_sleep is None:
-        reasons.append("No sleep window available — score starts from neutral baseline")
+    if not sleep_fresh:
+        reasons.append("Partial score — no sleep logged in the last 7 days.")
+    elif avg_sleep is None:
+        reasons.append("Partial score — no sleep logged in the last 7 days.")
     else:
         zero_nights = sum(1 for s in filled7 if float(s.sleep_hours or 0) <= 0)
         day_note = f"{len(filled7)} calendar days; unlogged=0"
@@ -346,19 +461,13 @@ def compute_recovery_status(
                 f"{zero_nights} night(s) with no sleep log counted as 0h (sleep debt)"
             )
 
-    if vol_7d >= high_volume_threshold * 1.25:
-        score -= 18
-        reasons.append(f"Very high training tonnage last 7d ({vol_7d:,.0f} lb)")
-    elif vol_7d >= high_volume_threshold:
-        score -= 10
-        reasons.append(f"Elevated training tonnage last 7d ({vol_7d:,.0f} lb)")
-    elif vol_7d > 0:
-        score += 5
-        reasons.append(f"Manageable training tonnage last 7d ({vol_7d:,.0f} lb)")
-    else:
-        reasons.append("No logged training tonnage in last 7 days")
+    score_box = [score]
+    _volume_bits(reasons, score_box)
+    score = score_box[0]
 
-    if w_delta is not None:
+    if not weight_fresh:
+        reasons.append("Partial score — no weight in the last 14 days.")
+    elif w_delta is not None:
         if w_delta <= -2.0:
             score -= 12
             reasons.append(f"Rapid weight drop {w_delta:+.1f} lb over ~7d — monitor recovery/fueling")
@@ -404,18 +513,5 @@ def compute_recovery_status(
         label=label,
         score=round(score, 1),
         reasons=reasons,
-        inputs={
-            "as_of": as_of,
-            "avg_sleep_hours_7d": avg_sleep,
-            "pending_overnight_date": omit_date,
-            "latest_weight_lbs": latest_w,
-            "weight_delta_7d_lbs": w_delta,
-            "training_volume_7d": vol_7d,
-            "rhr_skipped": bool(rhr_sig.get("skipped")),
-            "rhr_today_bpm": rhr_sig.get("today_bpm"),
-            "rhr_baseline_bpm": rhr_sig.get("baseline_bpm"),
-            "rhr_baseline_days": rhr_sig.get("baseline_days"),
-            "rhr_delta_bpm": rhr_sig.get("delta_bpm"),
-            "rhr_under_recovered": bool(rhr_sig.get("under_recovered")),
-        },
+        inputs=_inputs(rhr_sig),
     )

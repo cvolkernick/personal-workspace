@@ -73,9 +73,9 @@ class HeaderBrand1027(unittest.TestCase):
     def test_cache_busts_stylesheet_only(self):
         self.assertIn("/styles.css?v=brand-1027-1", HTML)
         self.assertIn("/styles.css?v=brand-1027-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v132"', SW)
-        self.assertIn("/app.js?v=progression-1038-1", HTML)
-        self.assertIn("/app.js?v=progression-1038-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v133"', SW)
+        self.assertIn("/app.js?v=recovery-1040-1", HTML)
+        self.assertIn("/app.js?v=recovery-1040-1", SW)
         self.assertIn("/history-sets.js?v=tonnage-1025-1", HTML)
         self.assertIn("/history-sets.js?v=tonnage-1025-1", SW)
         self.assertNotIn("styles.css?v=weekly-review-1033-1", HTML)

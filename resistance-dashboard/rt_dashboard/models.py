@@ -279,8 +279,8 @@ class HealthSnapshot:
 
 @dataclass
 class RecoveryStatus:
-    label: str  # e.g. "Ready", "Moderate", "Needs Rest"
-    score: float  # 0-100
+    label: str  # e.g. "Ready", "Moderate", "Needs Rest", "Unavailable"
+    score: Optional[float] = None  # 0-100, or None when both inputs are stale
     reasons: List[str] = field(default_factory=list)
     inputs: Dict[str, Any] = field(default_factory=dict)
 

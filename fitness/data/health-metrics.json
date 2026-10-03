@@ -1,5 +1,5 @@
 {
-  "source_note": "Derived from fitness/data/fitbit-report-may2026.md (scale values were kg; stored as lbs)",
+  "source_note": "Apr 20\u2013May 19 from fitness/data/fitbit-report-may2026.md (kg cells stored as lbs). May 20\u2013Jul 7 filled from the Pi Google Health cache so a cold 90-day pull cannot reopen that hole. Existing dates are not overwritten.",
   "weight": [
     {
       "date": "2026-04-20",
@@ -150,6 +150,186 @@
       "date": "2026-05-19",
       "weight_lbs": 183.2,
       "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-20",
+      "weight_lbs": 185.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-21",
+      "weight_lbs": 185.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-22",
+      "weight_lbs": 183.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-23",
+      "weight_lbs": 185.2,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-24",
+      "weight_lbs": 184.8,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-25",
+      "weight_lbs": 185.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-26",
+      "weight_lbs": 185.2,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-27",
+      "weight_lbs": 184.8,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-28",
+      "weight_lbs": 183.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-29",
+      "weight_lbs": 183.2,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-30",
+      "weight_lbs": 181.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-05-31",
+      "weight_lbs": 182.8,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-01",
+      "weight_lbs": 184.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-02",
+      "weight_lbs": 182.8,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-03",
+      "weight_lbs": 184.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-04",
+      "weight_lbs": 182.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-05",
+      "weight_lbs": 183.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-06",
+      "weight_lbs": 183.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-07",
+      "weight_lbs": 185.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-08",
+      "weight_lbs": 183.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-09",
+      "weight_lbs": 183.2,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-10",
+      "weight_lbs": 182.6,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-11",
+      "weight_lbs": 182.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-12",
+      "weight_lbs": 182.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-13",
+      "weight_lbs": 184.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-14",
+      "weight_lbs": 183.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-15",
+      "weight_lbs": 184.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-16",
+      "weight_lbs": 183.6,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-17",
+      "weight_lbs": 183.8,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-19",
+      "weight_lbs": 183.0,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-21",
+      "weight_lbs": 183.2,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-23",
+      "weight_lbs": 183.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-25",
+      "weight_lbs": 181.6,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-06-29",
+      "weight_lbs": 178.2,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-07-02",
+      "weight_lbs": 177.4,
+      "source": "google_health"
+    },
+    {
+      "date": "2026-07-07",
+      "weight_lbs": 179.0,
+      "source": "google_health"
     }
   ],
   "sleep": [
