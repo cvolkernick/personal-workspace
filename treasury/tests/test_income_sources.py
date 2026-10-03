@@ -8,8 +8,9 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +20,8 @@ if str(ROOT) not in sys.path:
 from treasury.income_sources import (  # noqa: E402
     BRAIINS_PAYOUT_ADDRESS_ENV,
     INCOME_SOURCE_LINES,
+    _CANDLE_CHUNK_DAYS,
+    _fetch_daily_closes,
     bitcoin_history_start,
     bitcoin_mining_income,
     bitcoin_trailing_mean,
@@ -246,6 +249,55 @@ class TestBitcoinMiningIncome(unittest.TestCase):
         self.assertTrue(out["fetched"])
         self.assertEqual(out["usd_by_day"], {"2026-09-01": 100.0})
         self.assertNotIn(ADDR, json.dumps(out))
+
+    def test_old_receipt_without_a_price_keeps_in_window_deposits(self) -> None:
+        recent = _tx("recent", day="2026-09-01", confirmed=True, spends=False, sats=100_000)
+        ancient = _tx("ancient", day="2020-01-15", confirmed=True, spends=False, sats=100_000)
+        calls: list[str] = []
+
+        def fetch_json(url: str):
+            calls.append(url)
+            if "mempool.space" in url and url.endswith("/txs"):
+                return [recent, ancient]
+            if "exchange.coinbase.com" in url and "candles" in url:
+                self.assertNotIn("2020", url)
+                return [[_ts("2026-09-01"), 1, 1, 1, 100_000.0, 1]]
+            raise AssertionError(url)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "braiins_address_income.json"
+            out = bitcoin_mining_income(
+                today=TODAY,
+                address=ADDR,
+                fetch_json=fetch_json,
+                cache_path=path,
+            )
+            cached_text = path.read_text(encoding="utf-8")
+        self.assertTrue(out["fetched"])
+        self.assertFalse(out["from_cache"])
+        self.assertEqual(out["usd_by_day"], {"2026-09-01": 100.0})
+        self.assertEqual([row["txid"] for row in out["deposits"]], ["recent"])
+        self.assertNotIn("2020-01-15", cached_text)
+        self.assertNotIn(ADDR, json.dumps(out))
+        self.assertNotIn(ADDR, cached_text)
+        self.assertTrue(any("candles" in url for url in calls))
+
+    def test_candle_range_longer_than_one_coinbase_page_is_split(self) -> None:
+        start = date(2025, 1, 1)
+        end = start + timedelta(days=_CANDLE_CHUNK_DAYS + 10)
+        calls: list[str] = []
+
+        def fetch_json(url: str):
+            calls.append(url)
+            return [[int(datetime(2025, 6, 1, tzinfo=timezone.utc).timestamp()), 1, 1, 1, 100.0, 1]]
+
+        closes, ok = _fetch_daily_closes(fetch_json, start, end)
+        self.assertTrue(ok)
+        self.assertEqual(closes["2025-06-01"], 100.0)
+        self.assertEqual(len(calls), 2)
+        starts = [parse_qs(urlparse(url).query)["start"][0] for url in calls]
+        self.assertLess(starts[0], starts[1])
+        self.assertNotIn(ADDR, "".join(calls))
 
     def test_cache_filename_is_gitignored(self) -> None:
         text = (ROOT / "treasury" / ".gitignore").read_text(encoding="utf-8")

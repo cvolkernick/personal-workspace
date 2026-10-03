@@ -229,7 +229,7 @@
 
     <section class="card" id="rolling-card">
       <h2>Rolling averages</h2>
-      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Lyft, Grubhub, Turo, Bitcoin, and other are shaded bands stacked under the inflow-plus-BTC envelope. Named sources use that same mean on their external inflows only. Bitcoin is the trailing 90-day mean of confirmed Braiins payouts, valued at the BTC daily close, and is added on top of YNAB inflow. Other is total YNAB inflow minus Lyft, Grubhub, and Turo, floored at 0. Seeded from 120 days so every YNAB point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. No CDN.</p>
+      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Lyft, Grubhub, Turo, Bitcoin, and other are shaded bands stacked under the inflow-plus-BTC envelope. Named sources use that same mean on their external inflows only. Bitcoin is the trailing 90-day mean of confirmed Braiins payouts at the stamped USD price, and is added on top of YNAB inflow. Other is total YNAB inflow minus Lyft, Grubhub, and Turo, floored at 0. Seeded from 120 days so every YNAB point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. No CDN.</p>
       <div class="legend" id="rolling-legend">
         <span><i class="swatch" style="background:#3dd68c"></i> Inflow + BTC</span>
         <span><i class="swatch" style="background:#ff6b6b"></i> Outflow</span>
@@ -655,15 +655,23 @@
         const warned = Array.isArray(data.source_warnings) ? data.source_warnings : [];
         const labels = {};
         for (const src of data.sources || []) labels[src.id] = src.label;
-        const names = warned.map((id) => labels[id] || id);
-        if (names.length) {
-          warn.classList.remove("hidden");
+        const payeeIds = warned.filter((id) => id !== "bitcoin");
+        const sentences = [];
+        if (payeeIds.length) {
+          const names = payeeIds.map((id) => labels[id] || id);
           const listed = names.length === 1
             ? names[0]
             : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
-          warn.textContent = listed +
+          sentences.push(listed +
             (names.length === 1 ? " is" : " are") +
-            " $0 on every point in this window while total inflow is not. A renamed payee or category would drop that band to zero.";
+            " $0 on every point in this window while total inflow is not. A renamed payee or category would drop that band to zero.");
+        }
+        if (warned.indexOf("bitcoin") !== -1) {
+          sentences.push("Bitcoin feed is missing, so that band is $0 instead of confirmed Braiins payouts.");
+        }
+        if (sentences.length) {
+          warn.classList.remove("hidden");
+          warn.textContent = sentences.join(" ");
         } else {
           warn.classList.add("hidden");
           warn.textContent = "";
