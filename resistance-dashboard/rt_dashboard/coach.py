@@ -182,6 +182,27 @@ def compute_adherence_7d(
     }
 
 
+# Closed set shared with the Focus nudge below. A bullet is an action only when
+# it trips one of these gates, states an explicit empty log, flags under-recovered
+# RHR, or is the Focus prescription. Summaries stay observations.
+_WEEKLY_RECOVERY_ACTION_BELOW = 40
+_WEEKLY_PROTEIN_ACTION_BELOW = 50
+_WEEKLY_SESSIONS_ACTION_BELOW = 3
+
+
+def _weekly_review_items(items: List[dict]) -> List[dict]:
+    """Actions first. Emission order is kept inside each kind."""
+    ranked = sorted(items, key=lambda row: 0 if row["kind"] == "action" else 1)
+    return [
+        {
+            "text": row["text"],
+            "kind": row["kind"],
+            "priority": 0 if row["kind"] == "action" else 1,
+        }
+        for row in ranked
+    ]
+
+
 def compute_weekly_review(
     *,
     sessions: Sequence[Session],
@@ -196,7 +217,12 @@ def compute_weekly_review(
     day = as_of or local_today_iso()
     end = _parse(day)
     if not end:
-        return {"as_of": day, "bullets": ["No valid date for review."]}
+        note = "No valid date for review."
+        return {
+            "as_of": day,
+            "bullets": [note],
+            "items": [{"text": note, "kind": "observation", "priority": 1}],
+        }
     start = end - timedelta(days=6)
     clean = filter_sessions(list(sessions))
     week_sess = []
@@ -236,33 +262,46 @@ def compute_weekly_review(
     s_pct = (adherence.get("sleep") or {}).get("pct")
     h_pct = (adherence.get("hydration") or {}).get("pct")
 
-    bullets: List[str] = []
-    bullets.append(
+    # bullets stay plain strings in emission order. items is the same text with
+    # kind, actions first, for the Trends card. Brief / grok_ask / day_constraints
+    # keep reading bullets.
+    items: List[dict] = []
+
+    def add(text: str, kind: str) -> None:
+        if kind not in ("action", "observation"):
+            raise ValueError(f"weekly review kind {kind!r}")
+        items.append({"text": text, "kind": kind})
+
+    add(
         f"Training: {len(week_sess)} sessions · {vol:,.0f} lb tonnage"
-        + (f" · PRs: {', '.join(prs[:4])}" if prs else " · no auto-PRs logged")
+        + (f" · PRs: {', '.join(prs[:4])}" if prs else " · no auto-PRs logged"),
+        "action" if len(week_sess) < _WEEKLY_SESSIONS_ACTION_BELOW else "observation",
     )
     if avg_sleep is not None:
-        bullets.append(
+        add(
             f"Sleep: avg {avg_sleep} h over {len(sleep_vals)} nights"
-            + (f" · goal hit {s_pct}% of logged nights" if s_pct is not None else "")
+            + (f" · goal hit {s_pct}% of logged nights" if s_pct is not None else ""),
+            "observation",
         )
     else:
-        bullets.append("Sleep: no nights logged in the last 7 days")
+        add("Sleep: no nights logged in the last 7 days", "action")
     if p_pct is not None:
-        bullets.append(
+        add(
             f"Protein: hit target (≥{int((adherence.get('protein') or {}).get('tolerance', 0.85)*100)}%) "
             f"on {p_pct}% of food-log days ({(adherence.get('protein') or {}).get('hits')}/"
-            f"{(adherence.get('protein') or {}).get('days_logged')})"
+            f"{(adherence.get('protein') or {}).get('days_logged')})",
+            "action" if p_pct < _WEEKLY_PROTEIN_ACTION_BELOW else "observation",
         )
     else:
-        bullets.append("Protein: no food logs with protein in the last 7 days")
+        add("Protein: no food logs with protein in the last 7 days", "action")
     if h_pct is not None:
-        bullets.append(
-            f"Hydration: hit ≥{(adherence.get('hydration') or {}).get('goal_ml')} ml on {h_pct}% of logged days"
+        add(
+            f"Hydration: hit ≥{(adherence.get('hydration') or {}).get('goal_ml')} ml on {h_pct}% of logged days",
+            "observation",
         )
     if w_delta is not None:
         sign = "+" if w_delta >= 0 else ""
-        bullets.append(f"Weight: {sign}{w_delta} lb over recent weigh-ins")
+        add(f"Weight: {sign}{w_delta} lb over recent weigh-ins", "observation")
     rhr_in = recovery.inputs if isinstance(recovery.inputs, dict) else {}
     if not rhr_in.get("rhr_skipped") and rhr_in.get("rhr_today_bpm") is not None:
         today_bpm = rhr_in.get("rhr_today_bpm")
@@ -271,34 +310,37 @@ def compute_weekly_review(
         delta = rhr_in.get("rhr_delta_bpm")
         if rhr_in.get("rhr_under_recovered") and delta is not None:
             sign = "+" if float(delta) >= 0 else ""
-            bullets.append(
+            add(
                 f"RHR: {float(today_bpm):.0f} bpm is {sign}{float(delta):.0f} vs "
-                f"{int(window)}d median {float(baseline):.0f} — under-recovered"
+                f"{int(window)}d median {float(baseline):.0f} — under-recovered",
+                "action",
             )
         elif baseline is not None:
-            bullets.append(
+            add(
                 f"RHR: {float(today_bpm):.0f} bpm vs {int(window)}d median "
-                f"{float(baseline):.0f}"
+                f"{float(baseline):.0f}",
+                "observation",
             )
-    bullets.append(
+    add(
         f"Recovery now: {recovery.label} ({recovery.score:.0f}/100) — "
-        + (recovery.reasons[0] if recovery.reasons else "no detail")
+        + (recovery.reasons[0] if recovery.reasons else "no detail"),
+        "observation",
     )
 
-    # Coach nudge
-    if recovery.score < 40:
-        bullets.append("Focus: prioritize sleep and a lighter session or rest tomorrow.")
-    elif p_pct is not None and p_pct < 50:
-        bullets.append("Focus: protein is the biggest nutrition gap — load inventory staples first.")
-    elif len(week_sess) < 3:
-        bullets.append("Focus: consistency — aim for your next planned PPL day soon.")
+    if recovery.score < _WEEKLY_RECOVERY_ACTION_BELOW:
+        add("Focus: prioritize sleep and a lighter session or rest tomorrow.", "action")
+    elif p_pct is not None and p_pct < _WEEKLY_PROTEIN_ACTION_BELOW:
+        add("Focus: protein is the biggest nutrition gap — load inventory staples first.", "action")
+    elif len(week_sess) < _WEEKLY_SESSIONS_ACTION_BELOW:
+        add("Focus: consistency — aim for your next planned PPL day soon.", "action")
     else:
-        bullets.append("Focus: keep the streak — execute today’s plan and hit protein remaining.")
+        add("Focus: keep the streak — execute today’s plan and hit protein remaining.", "action")
 
-    bullets.append(
+    add(
         "Volume model: ≈4–8 hard sets per major muscle/week (compound overlap counts); "
         "10–20+/muscle is usually unnecessary. Focus muscles are auto-set from weekly "
-        "volume gaps when generating today’s workout plan."
+        "volume gaps when generating today’s workout plan.",
+        "observation",
     )
 
     return {
@@ -308,7 +350,8 @@ def compute_weekly_review(
         "prs": prs,
         "avg_sleep_h": avg_sleep,
         "weight_delta_lb": w_delta,
-        "bullets": bullets,
+        "bullets": [row["text"] for row in items],
+        "items": _weekly_review_items(items),
     }
 
 
