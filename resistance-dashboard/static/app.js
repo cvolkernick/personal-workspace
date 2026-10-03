@@ -357,9 +357,31 @@
   function recoveryClass(label) {
     const l = (label || "").toLowerCase();
     if (l === "ready") return "ready";
-    if (l === "moderate") return "moderate";
+    if (l === "moderate" || l === "unavailable") return "moderate";
     if (l === "caution") return "caution";
     return "needs-rest";
+  }
+
+  function recoveryBadgeInner(rec) {
+    const r = rec || {};
+    if (r.score == null) {
+      return `<span class="badge moderate">${r.label || "Unavailable"} · —</span>`;
+    }
+    const partial = r.inputs && r.inputs.partial ? " · partial" : "";
+    return `<span class="badge ${recoveryClass(r.label)}">${r.label || "—"} · ${Math.round(Number(r.score))}${partial}</span>`;
+  }
+
+  function recoveryMissingWhy(rec) {
+    const r = rec || {};
+    const reasons = r.reasons || [];
+    if (r.score == null) {
+      return reasons[0] || "No sleep or weight in the recovery window.";
+    }
+    if (r.inputs && r.inputs.partial) {
+      const line = reasons.find((row) => String(row).indexOf("Partial score") === 0);
+      return line || "";
+    }
+    return "";
   }
 
   function fmtBatteryWhen(iso) {
@@ -6377,7 +6399,9 @@
 
     const rec = data.recovery || {};
     if ($("recovery-badge")) {
-      $("recovery-badge").innerHTML = `<span class="badge ${recoveryClass(rec.label)}">${rec.label || "—"} · ${rec.score ?? "—"}</span>`;
+      const why = rec.score == null ? recoveryMissingWhy(rec) : "";
+      const whyHtml = why ? `<p class="muted">${why}</p>` : "";
+      $("recovery-badge").innerHTML = recoveryBadgeInner(rec) + whyHtml;
     }
     renderSleepBatteryMini(
       (rec && rec.sleep_battery) || data.sleep_battery || null
@@ -8198,8 +8222,10 @@
     // One-line badge only — full Recovery + sleep-battery card lives above pacing on Today
     if ($("today-recovery")) {
       const r = today.recovery || data.recovery || {};
+      const why = recoveryMissingWhy(r);
       $("today-recovery").innerHTML = `
-        <div class="badge ${recoveryClass(r.label)}">${r.label || "—"} · ${r.score != null ? Math.round(r.score) : "—"}</div>
+        ${recoveryBadgeInner(r)}
+        ${why ? `<p class="muted" style="font-size:0.8rem;margin:0.35rem 0 0">${why}</p>` : ""}
         ${r.motivation ? `<p class="muted" style="font-size:0.8rem;margin:0.35rem 0 0">${r.motivation}</p>` : ""}
       `;
     }

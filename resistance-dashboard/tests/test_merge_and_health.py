@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -12,7 +13,9 @@ sys.path.insert(0, str(ROOT))
 
 from rt_dashboard.github_client import GitHubLiftClient  # noqa: E402
 from rt_dashboard.health_metrics_store import (  # noqa: E402
+    backfill_weights_from_fitbit_report,
     parse_fitbit_report_markdown,
+    reading_to_lbs,
     resolve_health_snapshot,
 )
 from rt_dashboard.models import (  # noqa: E402
@@ -129,7 +132,7 @@ class TestHealthAndRecovery(unittest.TestCase):
         )
         self.assertGreaterEqual(len(weights), 7)
         self.assertGreaterEqual(len(sleep), 1)
-        # Report labeled kg as "lbs" (e.g. 83.1) — must store true pounds (~183)
+        # Report cells are kilograms (83.1 kg) — stored as true pounds (~183)
         self.assertGreater(weights[-1].weight_lbs, 150.0)
         self.assertLess(weights[-1].weight_lbs, 220.0)
         self.assertAlmostEqual(weights[-1].weight_lbs, 83.1 * 2.2046226218, places=1)
@@ -188,9 +191,98 @@ class TestHealthAndRecovery(unittest.TestCase):
                 weight=resolved.weight,
                 sleep=resolved.sleep,
                 sessions=[],
+                as_of=resolved.weight[-1].date,
             )
             self.assertIsNotNone(status.inputs.get("latest_weight_lbs"))
             self.assertIsNotNone(status.inputs.get("avg_sleep_hours_7d"))
+
+    def test_fitbit_report_kg_converts_and_lbs_stays(self):
+        kg = parse_fitbit_report_markdown("| 06-01 | 80.0 kg |\n")[0]
+        lbs = parse_fitbit_report_markdown("| 06-01 | 180.5 lbs |\n")[0]
+        self.assertEqual(len(kg), 1)
+        self.assertEqual(len(lbs), 1)
+        self.assertAlmostEqual(kg[0].weight_lbs, reading_to_lbs(80.0, "kg"))
+        self.assertGreater(kg[0].weight_lbs, 150.0)
+        self.assertAlmostEqual(lbs[0].weight_lbs, 180.5)
+        self.assertEqual(lbs[0].weight_lbs, reading_to_lbs(180.5, "lbs"))
+
+    def test_backfill_fills_holes_without_overwrite_or_duplicates(self):
+        existing = [
+            WeightSample(date="2026-05-19", weight_lbs=183.2, source="google_health")
+        ]
+        report = "| 05-19 | 83.1 kg |\n| 05-20 | 84.0 kg |\n"
+        once = backfill_weights_from_fitbit_report(existing, report)
+        twice = backfill_weights_from_fitbit_report(once, report)
+        self.assertEqual(
+            [(w.date, w.weight_lbs, w.source) for w in once],
+            [(w.date, w.weight_lbs, w.source) for w in twice],
+        )
+        self.assertEqual(len(twice), 2)
+        may19 = next(w for w in twice if w.date == "2026-05-19")
+        may20 = next(w for w in twice if w.date == "2026-05-20")
+        self.assertEqual(may19.source, "google_health")
+        self.assertEqual(may19.weight_lbs, 183.2)
+        self.assertAlmostEqual(may20.weight_lbs, reading_to_lbs(84.0, "kg"))
+
+    def test_repo_weight_history_covers_may19_through_jul7(self):
+        path = (
+            Path(__file__).resolve().parents[2]
+            / "fitness"
+            / "data"
+            / "health-metrics.json"
+        )
+        data = json.loads(path.read_text(encoding="utf-8"))
+        rows = data["weight"]
+        dates = [row["date"] for row in rows]
+        self.assertEqual(len(dates), len(set(dates)))
+        by = {row["date"]: row for row in rows}
+        for day in ("2026-05-19", "2026-06-15", "2026-07-07"):
+            self.assertIn(day, by)
+            self.assertGreater(by[day]["weight_lbs"], 150.0)
+            self.assertLess(by[day]["weight_lbs"], 220.0)
+        self.assertEqual(by["2026-07-07"]["weight_lbs"], 179.0)
+        self.assertEqual(by["2026-07-07"]["source"], "google_health")
+
+    def test_resolve_keeps_google_date_and_fills_repo_hole(self):
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "fitness" / "data"
+            dest.mkdir(parents=True)
+            payload = {
+                "source_note": "test",
+                "weight": [
+                    {
+                        "date": "2026-05-20",
+                        "weight_lbs": 185.4,
+                        "source": "google_health",
+                    }
+                ],
+                "sleep": [],
+            }
+            (dest / "health-metrics.json").write_text(
+                json.dumps(payload), encoding="utf-8"
+            )
+            google = HealthSnapshot(
+                weight=[
+                    WeightSample(
+                        date="2026-07-01", weight_lbs=200.0, source="google_fit"
+                    )
+                ],
+                sleep=[
+                    SleepSample(
+                        date="2026-07-01", sleep_hours=8.0, source="google_fit"
+                    )
+                ],
+            )
+            resolved = resolve_health_snapshot(google, workspace_dir=td)
+            by = {w.date: w for w in resolved.weight}
+            self.assertEqual(by["2026-07-01"].weight_lbs, 200.0)
+            self.assertEqual(by["2026-07-01"].source, "google_fit")
+            self.assertEqual(by["2026-05-20"].weight_lbs, 185.4)
+            again = resolve_health_snapshot(resolved, workspace_dir=td)
+            self.assertEqual(
+                sorted(w.date for w in again.weight),
+                sorted(w.date for w in resolved.weight),
+            )
 
 
 if __name__ == "__main__":

@@ -29,6 +29,18 @@ _KG_AS_LBS_MIN = 40.0
 _KG_AS_LBS_MAX = 130.0
 
 
+def reading_to_lbs(value: float, unit: str) -> float:
+    """Convert one Fitbit-report cell to pounds.
+
+    ``kg`` is converted. ``lbs`` is trusted as pounds. The May 2026 report
+    file labels its scale cells as kg (they were mislabeled lbs).
+    """
+    v = float(value)
+    if (unit or "").strip().lower().startswith("kg"):
+        return round(v * KG_TO_LBS, 2)
+    return v
+
+
 def coerce_weight_to_lbs(value: float, *, source: str = "") -> float:
     """Return body weight in pounds.
 
@@ -60,22 +72,25 @@ def normalize_weight_samples(weights: List[WeightSample]) -> List[WeightSample]:
 def parse_fitbit_report_markdown(text: str) -> Tuple[List[WeightSample], List[SleepSample]]:
     """Extract weight table + average sleep from the Fitbit report markdown.
 
-    Report values are kilograms despite a ``lbs`` label — converted to pounds.
+    ``kg`` cells are converted to pounds. ``lbs`` cells are stored as pounds.
     """
     weights: List[WeightSample] = []
-    # Lines like: | 04-20 | 86.1 lbs |  or | 05-19 | 83.1 lbs |  (values are kg)
+    # Lines like: | 05-19 | 83.1 kg |  or | 06-01 | 183.2 lbs |
     for m in re.finditer(
-        r"\|\s*(\d{2})-(\d{2})\s*\|\s*(\d+(?:\.\d+)?)\s*(?:lbs?|kg)\s*\|",
+        r"\|\s*(\d{2})-(\d{2})\s*\|\s*(\d+(?:\.\d+)?)\s*(lbs?|kgs?)\s*\|",
         text,
         re.IGNORECASE,
     ):
-        mm, dd, w = m.group(1), m.group(2), float(m.group(3))
+        mm, dd, raw, unit = m.group(1), m.group(2), float(m.group(3)), m.group(4)
         # Report period is 2026
         year = 2026
         date = f"{year}-{mm}-{dd}"
-        lbs = coerce_weight_to_lbs(w, source="fitbit_report")
         weights.append(
-            WeightSample(date=date, weight_lbs=lbs, source="fitbit_report")
+            WeightSample(
+                date=date,
+                weight_lbs=reading_to_lbs(raw, unit),
+                source="fitbit_report",
+            )
         )
 
     sleep: List[SleepSample] = []
@@ -103,6 +118,32 @@ def parse_fitbit_report_markdown(text: str) -> Tuple[List[WeightSample], List[Sl
                 )
             )
     return weights, sleep
+
+
+def merge_weight_samples(
+    primary: List[WeightSample],
+    supplement: List[WeightSample],
+) -> List[WeightSample]:
+    """One sample per date. ``primary`` wins. ``supplement`` fills holes only."""
+    by_date = {}
+    for sample in supplement or []:
+        day = (getattr(sample, "date", "") or "")[:10]
+        if day:
+            by_date[day] = sample
+    for sample in primary or []:
+        day = (getattr(sample, "date", "") or "")[:10]
+        if day:
+            by_date[day] = sample
+    return [by_date[day] for day in sorted(by_date)]
+
+
+def backfill_weights_from_fitbit_report(
+    existing: List[WeightSample],
+    report_text: str,
+) -> List[WeightSample]:
+    """Add report dates that are missing. Never overwrite or duplicate a date."""
+    parsed, _sleep = parse_fitbit_report_markdown(report_text)
+    return merge_weight_samples(list(existing or []), parsed)
 
 
 def build_metrics_payload(
@@ -210,21 +251,32 @@ def ensure_local_metrics_from_fitbit_report(workspace_dir: str) -> Optional[str]
     return str(out)
 
 
+def _fill_weight_holes(snap: HealthSnapshot, workspace_dir: str) -> HealthSnapshot:
+    """Keep snap's dates. Fill missing dates from fitness/data/health-metrics.json."""
+    if snap is None or not workspace_dir:
+        return snap
+    local = load_metrics_file(str(Path(workspace_dir) / DEFAULT_REL_PATH))
+    if not local or not local.weight:
+        return snap
+    snap.weight = merge_weight_samples(list(snap.weight or []), list(local.weight))
+    return snap
+
+
 def resolve_health_snapshot(
     google_snapshot: HealthSnapshot,
     workspace_dir: str = "",
     github_token: str = "",
 ) -> HealthSnapshot:
     """
-    Prefer live Google Fit data when present; otherwise load repo health metrics
-    (local file and/or live GitHub fetch).
+    Prefer live Google Health data when present. Repo health-metrics.json fills
+    weight dates Google did not return. It never overwrites a date Google has.
     """
     if google_snapshot.weight or google_snapshot.sleep:
         if not google_snapshot.error:
-            return google_snapshot
+            return _fill_weight_holes(google_snapshot, workspace_dir)
         # partial google data still preferred
         if google_snapshot.weight and google_snapshot.sleep:
-            return google_snapshot
+            return _fill_weight_holes(google_snapshot, workspace_dir)
 
     # Ensure local metrics file exists from Fitbit report if needed
     if workspace_dir:
@@ -262,7 +314,7 @@ def resolve_health_snapshot(
                     f"Google Health: {google_snapshot.error}; "
                     f"using {label} weight/sleep for recovery"
                 )
-            return snap
+            return _fill_weight_holes(snap, workspace_dir)
 
     # Nothing available
-    return google_snapshot
+    return _fill_weight_holes(google_snapshot, workspace_dir)

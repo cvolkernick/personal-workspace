@@ -211,10 +211,50 @@ class TestRecovery(unittest.TestCase):
         self.assertTrue(rest.reasons)
         self.assertNotEqual(rest.label, ready.label)
 
-    def test_empty_health_still_returns_status(self):
-        status = compute_recovery_status(weight=[], sleep=[], sessions=[])
-        self.assertIn(status.label, ("Ready", "Moderate", "Caution", "Needs Rest"))
-        self.assertTrue(status.reasons)
+    def test_empty_health_withholds_score(self):
+        status = compute_recovery_status(
+            weight=[], sleep=[], sessions=[], as_of="2026-05-26"
+        )
+        self.assertEqual(status.label, "Unavailable")
+        self.assertIsNone(status.score)
+        self.assertTrue(any("No recovery score" in r for r in status.reasons))
+        self.assertFalse(status.inputs.get("partial"))
+
+    def test_partial_score_when_only_weight_is_in_window(self):
+        status = compute_recovery_status(
+            weight=[WeightSample(date="2026-05-26", weight_lbs=180.0)],
+            sleep=[],
+            sessions=[],
+            as_of="2026-05-26",
+        )
+        self.assertIsNotNone(status.score)
+        self.assertTrue(status.inputs.get("partial"))
+        self.assertTrue(status.inputs.get("weight_fresh"))
+        self.assertFalse(status.inputs.get("sleep_fresh"))
+        self.assertTrue(any("no sleep logged" in r for r in status.reasons))
+
+    def test_partial_score_when_only_sleep_is_in_window(self):
+        status = compute_recovery_status(
+            weight=[],
+            sleep=[SleepSample(date="2026-05-26", sleep_hours=8.0)],
+            sessions=[],
+            as_of="2026-05-26",
+        )
+        self.assertIsNotNone(status.score)
+        self.assertTrue(status.inputs.get("partial"))
+        self.assertTrue(status.inputs.get("sleep_fresh"))
+        self.assertFalse(status.inputs.get("weight_fresh"))
+        self.assertTrue(any("no weight in the last 14 days" in r for r in status.reasons))
+
+    def test_stale_sleep_and_weight_withhold_score(self):
+        status = compute_recovery_status(
+            weight=[WeightSample(date="2026-04-01", weight_lbs=180.0)],
+            sleep=[SleepSample(date="2026-04-01", sleep_hours=8.0)],
+            sessions=[],
+            as_of="2026-05-26",
+        )
+        self.assertIsNone(status.score)
+        self.assertEqual(status.label, "Unavailable")
 
     def test_as_of_defaults_to_today_not_last_session_date(self):
         """Stale lift history must not inflate 'last 7d' volume when as_of is omitted."""

@@ -24,6 +24,19 @@ from .labs_store import labs_summary_for_coach
 from .test_noise import filter_sessions
 from .timeutil import local_today_iso
 
+
+def _recovery_score_text(recovery: RecoveryStatus) -> str:
+    """Label plus score, or the withheld-score reason when the score is empty."""
+    score = getattr(recovery, "score", None)
+    if score is None:
+        why = ""
+        if recovery.reasons:
+            why = recovery.reasons[0]
+        if why:
+            return f"{recovery.label} (no score — {why})"
+        return f"{recovery.label} (no score)"
+    return f"{recovery.label} ({float(score):.0f}/100)"
+
 # Rough daily intake targets used only for micro coaching (not medical RDAs).
 _MICRO_DAILY_HINTS_G = {
     "DIETARY_FIBER": 25.0,
@@ -322,12 +335,12 @@ def compute_weekly_review(
                 "observation",
             )
     add(
-        f"Recovery now: {recovery.label} ({recovery.score:.0f}/100) — "
+        f"Recovery now: {_recovery_score_text(recovery)} — "
         + (recovery.reasons[0] if recovery.reasons else "no detail"),
         "observation",
     )
 
-    if recovery.score < _WEEKLY_RECOVERY_ACTION_BELOW:
+    if recovery.score is not None and recovery.score < _WEEKLY_RECOVERY_ACTION_BELOW:
         add("Focus: prioritize sleep and a lighter session or rest tomorrow.", "action")
     elif p_pct is not None and p_pct < _WEEKLY_PROTEIN_ACTION_BELOW:
         add("Focus: protein is the biggest nutrition gap — load inventory staples first.", "action")
@@ -465,7 +478,9 @@ def build_today_board(
     rhr_under = bool((recovery.inputs or {}).get("rhr_under_recovered"))
     if wp.get("already_trained_today"):
         rec_label = "done"
-    elif not wp.get("is_rest_day") and (recovery.score < 55 or rhr_under):
+    elif not wp.get("is_rest_day") and (
+        (recovery.score is not None and recovery.score < 55) or rhr_under
+    ):
         rec_label = "easy"
 
     focus = (wp.get("volume") or {}).get("focus") or (wp.get("context") or {}).get(
@@ -1267,17 +1282,17 @@ def build_coach_brief(
 
     if rec == "rest":
         lines.append(
-            f"**Today: rest / recovery.** Status **{recovery.label}** ({recovery.score:.0f}/100)."
+            f"**Today: rest / recovery.** Status **{_recovery_score_text(recovery)}**."
         )
     elif rec == "easy":
         lines.append(
-            f"**Today: easy day.** Recovery **{recovery.label}** ({recovery.score:.0f}/100) — keep intensity moderate."
+            f"**Today: easy day.** Recovery **{_recovery_score_text(recovery)}** — keep intensity moderate."
         )
     else:
         st = (wo.get("session_type") or "session").upper()
         n_ex = len(wo.get("exercises") or [])
         lines.append(
-            f"**Today: {st}** ({n_ex} lifts). Recovery **{recovery.label}** ({recovery.score:.0f}/100)."
+            f"**Today: {st}** ({n_ex} lifts). Recovery **{_recovery_score_text(recovery)}**."
         )
 
     if rem:

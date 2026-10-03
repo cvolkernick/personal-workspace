@@ -308,7 +308,8 @@ def recommend_nutrition_targets(
             rec_cal = tdee_hat
             reasons.append("phase=maintain; calories = TDEE hat")
 
-        rec_score = float(recovery.score) if recovery is not None else None
+        raw_score = getattr(recovery, "score", None) if recovery is not None else None
+        rec_score = float(raw_score) if raw_score is not None else None
         if rec_score is not None and rec_score < 40 and rec_cal < applied["calories"]:
             rec_cal = int(applied["calories"])
             reasons.append(

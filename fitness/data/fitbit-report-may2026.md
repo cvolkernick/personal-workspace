@@ -9,11 +9,11 @@
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Weight (Latest) | **83.1 lbs** | Aria scale synced |
+| Weight (Latest) | **83.1 kg** | Aria scale synced |
 | BMI | 23.75 | |
 | Body Fat % | 10.4% | Jackson-Pollock 3-site |
 
-*Note: Weight synced from Fitbit Aria/Aria Air scale*
+*Note: Weight synced from Fitbit Aria/Aria Air scale. Cells are kilograms (an earlier export labeled them lbs). FitDash stores pounds.*
 
 ---
 
@@ -21,36 +21,36 @@
 
 | Date | Weight |
 |------|--------|
-| 04-20 | 86.1 lbs |
-| 04-21 | 85.4 lbs |
-| 04-22 | 86.1 lbs |
-| 04-23 | 86.2 lbs |
-| 04-24 | 86.6 lbs |
-| 04-25 | 86 lbs |
-| 04-26 | 84.9 lbs |
-| 04-27 | 85.4 lbs |
-| 04-28 | 85.1 lbs |
-| 04-29 | 85.1 lbs |
-| 04-30 | 86.3 lbs |
-| 05-01 | 86.6 lbs |
-| 05-02 | 84.8 lbs |
-| 05-03 | 86.1 lbs |
-| 05-04 | 86 lbs |
-| 05-05 | 85.7 lbs |
-| 05-06 | 85.3 lbs |
-| 05-07 | 85 lbs |
-| 05-08 | 84.6 lbs |
-| 05-09 | 85 lbs |
-| 05-10 | 85.3 lbs |
-| 05-11 | 84.4 lbs |
-| 05-12 | 85.1 lbs |
-| 05-13 | 85 lbs |
-| 05-14 | 84 lbs |
-| 05-15 | 83.7 lbs |
-| 05-16 | 83.8 lbs |
-| 05-17 | 84.8 lbs |
-| 05-18 | 83.2 lbs |
-| 05-19 | 83.1 lbs |
+| 04-20 | 86.1 kg |
+| 04-21 | 85.4 kg |
+| 04-22 | 86.1 kg |
+| 04-23 | 86.2 kg |
+| 04-24 | 86.6 kg |
+| 04-25 | 86 kg |
+| 04-26 | 84.9 kg |
+| 04-27 | 85.4 kg |
+| 04-28 | 85.1 kg |
+| 04-29 | 85.1 kg |
+| 04-30 | 86.3 kg |
+| 05-01 | 86.6 kg |
+| 05-02 | 84.8 kg |
+| 05-03 | 86.1 kg |
+| 05-04 | 86 kg |
+| 05-05 | 85.7 kg |
+| 05-06 | 85.3 kg |
+| 05-07 | 85 kg |
+| 05-08 | 84.6 kg |
+| 05-09 | 85 kg |
+| 05-10 | 85.3 kg |
+| 05-11 | 84.4 kg |
+| 05-12 | 85.1 kg |
+| 05-13 | 85 kg |
+| 05-14 | 84 kg |
+| 05-15 | 83.7 kg |
+| 05-16 | 83.8 kg |
+| 05-17 | 84.8 kg |
+| 05-18 | 83.2 kg |
+| 05-19 | 83.1 kg |
 
 ---
 
