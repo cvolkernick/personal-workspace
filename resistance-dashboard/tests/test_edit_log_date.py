@@ -433,7 +433,7 @@ class HistoryDateMarkup(unittest.TestCase):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
         self.assertIn("/app.js?v=weekly-review-1033-1", HTML)
         self.assertIn("/app.js?v=weekly-review-1033-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v130"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v131"', SW)
         self.assertNotIn("/app.js?v=pf-applink-582-1", HTML)
         self.assertNotIn("/app.js?v=pf-applink-582-1", SW)
         self.assertNotIn("/app.js?v=log-date-771-1", HTML)

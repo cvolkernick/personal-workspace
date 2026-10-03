@@ -94,14 +94,14 @@ class EnergyWeightAlignNode(unittest.TestCase):
 
 class EnergyWeightAlignCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v130"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v131"', SW)
         self.assertNotIn("fitdash-shell-v119", SW)
         self.assertNotIn("suggestions-956-1", HTML)
         self.assertNotIn("suggestions-956-1", SW)
         self.assertIn("/energy-weight-align.js?v=ewi-scale-961-1", HTML)
         self.assertNotIn("ewi-cap-1", HTML)
-        self.assertIn("/styles.css?v=weekly-review-1033-1", HTML)
-        self.assertIn("/styles.css?v=weekly-review-1033-1", SW)
+        self.assertIn("/styles.css?v=brand-1027-1", HTML)
+        self.assertIn("/styles.css?v=brand-1027-1", SW)
         self.assertNotIn("fitdash-shell-v100", SW)
         self.assertNotIn("fitdash-shell-v98", SW)
         self.assertNotIn("fitdash-shell-v96", SW)
