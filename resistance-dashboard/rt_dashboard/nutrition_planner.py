@@ -70,6 +70,11 @@ MIN_MEAL_GAP = timedelta(minutes=75)
 KITCHEN_CLOSED_HOURS = frozenset({0, 1, 2, 3})
 # One meal may not carry more than this fraction of the day calorie target.
 MAX_MEAL_TARGET_FRAC = 0.40
+# Planned meals aim for this band around an even share (#1012).
+# Indivisible servings and the per-meal cap may miss it; protein wins the tie.
+MEAL_EVEN_SHARE_TOLERANCE = 0.20
+# Same slack ``_trim_items_to_meal_cap`` already used when a serving overshoots.
+_MEAL_CAP_SLACK_KCAL = 40.0
 MSG_KITCHEN_CLOSED = (
     "Kitchen's closed until wake — not packing a full day's macros overnight."
 )
@@ -1449,7 +1454,9 @@ def generate_meal_plan(
     times still follow the eating window. After empty_at overnight
     (hours 0–3) or a leftover window too short to hold half a day's
     remaining macros, the kitchen is closed (#809). One meal is capped
-    at ``MAX_MEAL_TARGET_FRAC`` of the day target.
+    at ``MAX_MEAL_TARGET_FRAC`` of the day target. Planned buckets then
+    split protein, then calories, then carbs and fat toward an even share
+    (#1012). Logged meals stay in the food log and are not re-bucketed.
 
     Food quality (#501): ≥1 veg/fruit slot before shake fill when pantry
     allows; soft fiber ~25g biases fill order; shake/powder cap ≤2 servings
@@ -2707,11 +2714,11 @@ def _trim_items_to_meal_cap(items: Sequence[dict], cap_kcal: float) -> List[dict
     kcal = 0.0
     for it in items:
         add = float(it.get("calories") or 0)
-        if add > cap_kcal + 40:
+        if add > cap_kcal + _MEAL_CAP_SLACK_KCAL:
             if kept:
                 break
             continue
-        if kept and kcal + add > cap_kcal + 40:
+        if kept and kcal + add > cap_kcal + _MEAL_CAP_SLACK_KCAL:
             break
         kept.append(it)
         kcal += add
@@ -3145,14 +3152,376 @@ def _expand_serving_units(items: Sequence[dict]) -> List[dict]:
     return units
 
 
-def _chunk_units(units: Sequence[dict], n_slots: int) -> List[List[dict]]:
-    """Deal servings across slots so a 3× protein pick is not one lunch blob."""
+def _unit_group_key(unit: dict) -> str:
+    iid = str(unit.get("id") or "").strip().lower()
+    if iid:
+        return iid
+    name = str(unit.get("name") or "").strip().lower()
+    if name:
+        return name
+    return f"anon-{id(unit)}"
+
+
+def _reslice_floor_g(unit: dict) -> float:
+    """Finest cut that still reads as the same food. Half a serving, or 25g."""
+    try:
+        serving_g = float(unit.get("serving_g") or 0)
+    except (TypeError, ValueError):
+        serving_g = 0.0
+    if serving_g > 0:
+        return max(MIN_PORTION_G, serving_g * 0.5)
+    return MIN_PORTION_G
+
+
+def _reslice_gram_group(group: Sequence[dict], n_pieces: int) -> List[dict]:
+    """Cut one food's grams into ``n_pieces`` atoms. Macros stay on that food."""
+    parent = group[0]
+    try:
+        total_g = sum(float(unit.get("portion_g") or 0) for unit in group)
+    except (TypeError, ValueError):
+        return list(group)
+    if total_g <= 0 or n_pieces <= 1:
+        return list(group)
+    keys = ("calories", "protein_g", "carbs_g", "fat_g", "fiber_g")
+    totals = {key: sum(_unit_macro(unit, key) for unit in group) for key in keys}
+    extra_keys = ("sugar_g", "sodium_mg")
+    for key in extra_keys:
+        if any(unit.get(key) is not None for unit in group):
+            totals[key] = sum(_unit_macro(unit, key) for unit in group)
+    chunks = _split_grams(total_g, n_pieces)
+    try:
+        base_g = float(parent.get("serving_g") or 0)
+    except (TypeError, ValueError):
+        base_g = 0.0
+    out: List[dict] = []
+    for grams in chunks:
+        scale = float(grams) / total_g
+        unit = deepcopy(parent)
+        for key, total in totals.items():
+            places = 0 if key == "sodium_mg" else 1
+            unit[key] = round(total * scale, places)
+        unit["portion_g"] = float(int(round(grams)))
+        if base_g > 0:
+            unit["servings"] = round(float(grams) / base_g, 2)
+            unit["serving_label"] = format_portion_label(
+                serving_g=base_g,
+                servings=float(grams) / base_g,
+                serving_label=str(parent.get("serving_label") or ""),
+            )
+        out.append(unit)
+    return out
+
+
+def _even_share_reslice(units: Sequence[dict], n_slots: int) -> List[dict]:
+    """Split a coarse gram portion when one food would miss a meal.
+
+    Three chicken breasts and four meals cannot share protein. Halves of a
+    known serving still read as that food. Egg pairs are not cut (#532).
+    """
+    if n_slots <= 1 or len(units) <= 1:
+        return list(units)
+    keys = ("protein_g", "calories", "carbs_g", "fat_g")
+    day = {key: sum(_unit_macro(unit, key) for unit in units) for key in keys}
+    grouped: Dict[str, List[dict]] = {}
+    order: List[str] = []
+    for unit in units:
+        key = _unit_group_key(unit)
+        if key not in grouped:
+            grouped[key] = []
+            order.append(key)
+        grouped[key].append(unit)
+    cut: Dict[str, int] = {}
+    for key in keys:
+        share = day[key] / n_slots
+        if share <= 0:
+            continue
+        for gid, group in grouped.items():
+            if any(egg_role(unit) for unit in group):
+                continue
+            if len(group) >= n_slots:
+                continue
+            if sum(_unit_macro(unit, key) for unit in group) <= share + 0.05:
+                continue
+            try:
+                total_g = sum(float(unit.get("portion_g") or 0) for unit in group)
+            except (TypeError, ValueError):
+                continue
+            floor_g = _reslice_floor_g(group[0])
+            if floor_g <= 0 or total_g < floor_g * (len(group) + 1):
+                continue
+            pieces = min(n_slots, int(total_g // floor_g))
+            if pieces > len(group):
+                cut[gid] = max(cut.get(gid, 0), pieces)
+    if not cut:
+        return list(units)
+    out: List[dict] = []
+    for gid in order:
+        group = grouped[gid]
+        pieces = cut.get(gid, 0)
+        if pieces > len(group):
+            out.extend(_reslice_gram_group(group, pieces))
+        else:
+            out.extend(group)
+    return out
+
+
+def _unit_macro(unit: dict, key: str) -> float:
+    try:
+        return float(unit.get(key) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _slot_can_take(
+    kept_kcal: float,
+    kept_count: int,
+    add_kcal: float,
+    cap_kcal: Optional[float],
+) -> bool:
+    """True when ``_trim_items_to_meal_cap`` would still keep this next atom."""
+    if cap_kcal is None or cap_kcal <= 0:
+        return True
+    if add_kcal > cap_kcal + _MEAL_CAP_SLACK_KCAL:
+        return False
+    if kept_count and kept_kcal + add_kcal > cap_kcal + _MEAL_CAP_SLACK_KCAL:
+        return False
+    if kept_count and kept_kcal >= cap_kcal:
+        return False
+    return True
+
+
+def _chunk_units(
+    units: Sequence[dict],
+    n_slots: int,
+    meal_cap: Optional[float] = None,
+) -> List[List[dict]]:
+    """Spread serving atoms across slots by protein, then calories, then carbs and fat.
+
+    A 3× protein pick must not land as one lunch blob. A gram portion coarser
+    than the slot count is cut down to half a serving so each meal can take
+    some. Each atom then goes to the lightest slot that can still take it
+    under the per-meal calorie cap.
+    Every slot gets a second atom before any slot gets a third, when a later
+    atom still fits. One-item slots remain only when nothing left fits there.
+    Whole-egg + egg-white atoms stay on one slot (#532). Atoms that fit
+    nowhere are left out — ``MAX_MEAL_TARGET_FRAC`` still wins.
+    """
     if not units:
         return []
     n = max(1, min(int(n_slots), len(units)))
+    if n == 1:
+        return [list(units)]
+    units = _even_share_reslice(list(units), n)
+    n = max(1, min(n, len(units)))
+
+    keys = ("protein_g", "calories", "carbs_g", "fat_g")
     slots: List[List[dict]] = [[] for _ in range(n)]
-    for i, unit in enumerate(units):
-        slots[i % n].append(unit)
+    loads: List[Dict[str, float]] = [{key: 0.0 for key in keys} for _ in range(n)]
+    pinned: set = set()
+
+    def place(idx: int, unit: dict, *, pin: bool = False) -> None:
+        slots[idx].append(unit)
+        for key in keys:
+            loads[idx][key] += _unit_macro(unit, key)
+        if pin:
+            pinned.add(id(unit))
+
+    def unload(idx: int, unit: dict) -> None:
+        slots[idx].pop(next(i for i, item in enumerate(slots[idx]) if item is unit))
+        for key in keys:
+            loads[idx][key] -= _unit_macro(unit, key)
+
+    eggs = [unit for unit in units if egg_role(unit)]
+    egg_roles = {egg_role(unit) for unit in eggs}
+    if len(egg_roles) >= 2:
+        rest = [unit for unit in units if not egg_role(unit)]
+        by_role: Dict[str, List[dict]] = {}
+        for unit in eggs:
+            by_role.setdefault(str(egg_role(unit)), []).append(unit)
+        # One atom of each role first so the mate is not trimmed off the cap.
+        staged: List[dict] = []
+        for group in by_role.values():
+            staged.append(group.pop(0))
+        for group in by_role.values():
+            staged.extend(group)
+        for unit in staged:
+            if _slot_can_take(
+                loads[0]["calories"],
+                len(slots[0]),
+                _unit_macro(unit, "calories"),
+                meal_cap,
+            ):
+                place(0, unit, pin=True)
+    else:
+        rest = list(units)
+
+    ranked = sorted(
+        rest,
+        key=lambda unit: tuple(_unit_macro(unit, key) for key in keys),
+        reverse=True,
+    )
+
+    def lightest(candidates: Sequence[int], unit: dict) -> Optional[int]:
+        legal = [
+            idx
+            for idx in candidates
+            if _slot_can_take(
+                loads[idx]["calories"],
+                len(slots[idx]),
+                _unit_macro(unit, "calories"),
+                meal_cap,
+            )
+        ]
+        if not legal:
+            return None
+        return min(
+            legal,
+            key=lambda idx: (
+                len(slots[idx]),
+                loads[idx]["protein_g"],
+                loads[idx]["calories"],
+                loads[idx]["carbs_g"],
+                loads[idx]["fat_g"],
+            ),
+        )
+
+    unplaced: List[dict] = []
+    cursor = 0
+    while cursor < len(ranked) and any(len(slots[idx]) == 0 for idx in range(n)):
+        unit = ranked[cursor]
+        cursor += 1
+        dest = lightest([idx for idx in range(n) if not slots[idx]], unit)
+        if dest is None:
+            unplaced.append(unit)
+        else:
+            place(dest, unit)
+    while cursor < len(ranked) and any(len(slots[idx]) < 2 for idx in range(n)):
+        unit = ranked[cursor]
+        cursor += 1
+        dest = lightest([idx for idx in range(n) if len(slots[idx]) < 2], unit)
+        if dest is None:
+            unplaced.append(unit)
+        else:
+            place(dest, unit)
+    for unit in unplaced + ranked[cursor:]:
+        dest = lightest(range(n), unit)
+        if dest is not None:
+            place(dest, unit)
+
+    def balance_key() -> tuple:
+        """Outside-the-band counts first (protein, then calories, then carbs, fat), then spans.
+
+        A tighter protein span must not push calories out of the even-share band.
+        """
+        active = [idx for idx in range(n) if slots[idx]]
+        if len(active) < 2:
+            return tuple([0] * (len(keys) * 2))
+        penalties = []
+        spans = []
+        for key in keys:
+            vals = [loads[idx][key] for idx in active]
+            share = sum(vals) / len(vals)
+            if share <= 0.05:
+                penalties.append(0)
+                spans.append(0.0)
+                continue
+            low = share * (1 - MEAL_EVEN_SHARE_TOLERANCE)
+            high = share * (1 + MEAL_EVEN_SHARE_TOLERANCE)
+            penalties.append(sum(1 for value in vals if value < low - 0.05 or value > high + 0.05))
+            spans.append(max(vals) - min(vals))
+        return tuple(penalties + spans)
+
+    def improves(proposed: tuple, base: tuple) -> bool:
+        for new, old in zip(proposed, base):
+            if new < old - 0.05:
+                return True
+            if new > old + 0.05:
+                return False
+        return False
+
+    def move_keeps_company(donor: int, receiver: int) -> bool:
+        """Do not mint a one-item meal while the receiver already has company."""
+        after = len(slots[donor]) - 1
+        if after >= 2:
+            return True
+        if after < 1:
+            return False
+        return len(slots[receiver]) == 1
+
+    for _ in range(48):
+        base = balance_key()
+        best: Optional[tuple] = None
+        for donor in range(n):
+            if len(slots[donor]) <= 1:
+                continue
+            for unit in list(slots[donor]):
+                if id(unit) in pinned:
+                    continue
+                for receiver in range(n):
+                    if receiver == donor:
+                        continue
+                    if not move_keeps_company(donor, receiver):
+                        continue
+                    if not _slot_can_take(
+                        loads[receiver]["calories"],
+                        len(slots[receiver]),
+                        _unit_macro(unit, "calories"),
+                        meal_cap,
+                    ):
+                        continue
+                    unload(donor, unit)
+                    place(receiver, unit)
+                    proposed = balance_key()
+                    unload(receiver, unit)
+                    place(donor, unit)
+                    if improves(proposed, base) and (best is None or improves(proposed, best[0])):
+                        best = (proposed, donor, receiver, id(unit))
+        if best is None:
+            for left in range(n):
+                for right in range(left + 1, n):
+                    for unit_a in list(slots[left]):
+                        if id(unit_a) in pinned:
+                            continue
+                        for unit_b in list(slots[right]):
+                            if id(unit_b) in pinned:
+                                continue
+                            kcal_a = _unit_macro(unit_a, "calories")
+                            kcal_b = _unit_macro(unit_b, "calories")
+                            left_after = loads[left]["calories"] - kcal_a
+                            right_after = loads[right]["calories"] - kcal_b
+                            if not _slot_can_take(left_after, len(slots[left]) - 1, kcal_b, meal_cap):
+                                continue
+                            if not _slot_can_take(right_after, len(slots[right]) - 1, kcal_a, meal_cap):
+                                continue
+                            unload(left, unit_a)
+                            unload(right, unit_b)
+                            place(left, unit_b)
+                            place(right, unit_a)
+                            proposed = balance_key()
+                            unload(left, unit_b)
+                            unload(right, unit_a)
+                            place(left, unit_a)
+                            place(right, unit_b)
+                            if improves(proposed, base) and (
+                                best is None or improves(proposed, best[0])
+                            ):
+                                best = (proposed, left, right, id(unit_a), id(unit_b))
+        if best is None:
+            break
+        if len(best) == 4:
+            _, donor, receiver, unit_id = best
+            unit = next(unit for unit in slots[donor] if id(unit) == unit_id)
+            unload(donor, unit)
+            place(receiver, unit)
+        else:
+            _, left, right, id_a, id_b = best
+            unit_a = next(unit for unit in slots[left] if id(unit) == id_a)
+            unit_b = next(unit for unit in slots[right] if id(unit) == id_b)
+            unload(left, unit_a)
+            unload(right, unit_b)
+            place(left, unit_b)
+            place(right, unit_a)
+
     return [part for part in slots if part]
 
 
@@ -3220,11 +3589,11 @@ def _bucket_meals(
     if not times:
         return []
     n_slots = min(n_slots, len(times), len(units))
-    chunks = _chunk_units(units, n_slots)
-    times = times[: len(chunks)]
     meal_cap = _max_kcal_one_meal(
         targets if isinstance(targets, dict) else None, remaining
     )
+    chunks = _chunk_units(units, n_slots, meal_cap=meal_cap)
+    times = times[: len(chunks)]
 
     meals: List[dict] = []
     upcoming_i = 0
