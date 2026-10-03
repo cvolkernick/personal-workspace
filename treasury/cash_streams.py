@@ -22,8 +22,11 @@ still draws the Braiins snapshot node. The rolling series keeps YNAB daily
 sums as inflow and adds a Bitcoin band on top. Lyft, Grubhub, and Turo are
 the trailing 30-day mean on external inflows ``classify_income_source``
 accepts. Bitcoin is the trailing 90-day mean of confirmed Braiins payouts
-at their stamped USD price (not a second YNAB matcher). An empty or missing
-payout list falls back to ``bitcoin_mining_income``. Other is YNAB inflow
+at their stamped USD price (not a second YNAB matcher). Each payout is
+dated on the America/New_York calendar day of ``at``, so an evening Eastern
+payout already past midnight UTC still steps that Eastern day. The Sankey
+window still takes the UTC date prefix. An empty or missing payout list
+falls back to ``bitcoin_mining_income``. Other is YNAB inflow
 minus Lyft, Grubhub, and Turo, floored at 0. The envelope line is YNAB
 inflow plus Bitcoin. Outflow stays a line.
 Uncategorized outflows stay an explicit node. A present Braiins payout
@@ -53,6 +56,7 @@ import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from zoneinfo import ZoneInfo
 
 from treasury.income_sources import (
     bitcoin_band_public,
@@ -82,6 +86,8 @@ ROLLING_MEAN_DAYS = 30
 # Matches window_bounds: start = end - days, both inclusive. Not an ALLOWED_DAYS
 # Sankey window — 120 stays rejected by clamp_days.
 ROLLING_SEED_DAYS = 120
+# Rolling Bitcoin band only. Sankey still uses the UTC date prefix.
+EASTERN_TZ = ZoneInfo("America/New_York")
 CC_PAYMENT_NAMES = {"credit card payment", "credit card payments"}
 INTERNAL_GROUP_NAMES = {"internal master category"}
 UNCATEGORIZED_NAMES = {"", "uncategorized", "unassigned"}
@@ -138,6 +144,35 @@ def _parse_day(raw: Any) -> Optional[date]:
         return date.fromisoformat(str(raw)[:10])
     except ValueError:
         return None
+
+
+def _eastern_calendar_day(raw: Any) -> Optional[date]:
+    """Calendar day of ``raw`` in America/New_York.
+
+    Date-only values stay on that day. Aware timestamps convert, including
+    across DST. Naive timestamps are UTC. A date-only string is not treated
+    as midnight UTC, which would shift it to the previous Eastern evening.
+    """
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        dt = raw
+    elif isinstance(raw, date):
+        return raw
+    else:
+        text = str(raw).strip().replace("Z", "+00:00")
+        if len(text) == 10:
+            try:
+                return date.fromisoformat(text)
+            except ValueError:
+                return None
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(EASTERN_TZ).date()
 
 
 def _slug(text: str, fallback: str) -> str:
@@ -1120,12 +1155,13 @@ def _bitcoin_band_feed(today: date, root: Path) -> Dict[str, Any]:
 
 
 def _bitcoin_from_braiins_payouts(root: Path) -> Optional[Dict[str, Any]]:
-    """Confirmed payout USD by day, or None when the list is not canonical.
+    """Confirmed payout USD by Eastern day, or None when the list is not canonical.
 
     A non-empty ``payouts`` list is the source the Sankey prefers. Stamped
     ``usd_at_payout`` / ``usd_price_at_payout`` values do not need a fresh
-    Coinbase spot, and a stale ``as_of`` does not drop them. Returns None
-    when the list is missing or empty so the caller can use mempool.
+    Coinbase spot, and a stale ``as_of`` does not drop them. ``at`` is
+    converted to America/New_York before the day key. Returns None when the
+    list is missing or empty so the caller can use mempool.
     Does not read the payout address.
     """
     brai = _load_snapshot(root / "treasury" / "snapshots" / "braiins_latest.json")
@@ -1140,7 +1176,7 @@ def _bitcoin_from_braiins_payouts(root: Path) -> Optional[Dict[str, Any]]:
             continue
         if str(row.get("status") or "").lower() != "confirmed":
             continue
-        day = _parse_day(row.get("at"))
+        day = _eastern_calendar_day(row.get("at"))
         if day is None:
             continue
         usd = _stamped_payout_usd(row)

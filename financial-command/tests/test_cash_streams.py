@@ -29,6 +29,7 @@ from treasury.cash_streams import (  # noqa: E402
     ROLLING_SEED_DAYS,
     TOP_N_INCOME,
     OTHER_INCOME_BAND,
+    _eastern_calendar_day,
     build_cash_streams,
     build_rolling_cash_series,
     clamp_days,
@@ -1331,6 +1332,203 @@ class TestRollingCashSeries(unittest.TestCase):
         blob = json.dumps(payload)
         self.assertNotIn("queued-not-counted", blob)
         self.assertNotIn("bc1", blob)
+
+    def test_rolling_bitcoin_buckets_evening_payouts_on_eastern_day(self) -> None:
+        # 00:52Z on 9/30 is 20:52 ET on 9/29. 02:40Z on 9/2 is 22:40 ET on 9/1.
+        # Midday UTC stays on that calendar day. 04:30Z in December is still
+        # the previous Eastern evening (EST); the same clock in July is EDT
+        # and stays on that day. 04:30Z on the fall-back morning is still EDT.
+        self.assertEqual(
+            _eastern_calendar_day("2026-09-30T00:52:03+00:00"), date(2026, 9, 29)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-09-02T02:40:25+00:00"), date(2026, 9, 1)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-09-15T16:00:00+00:00"), date(2026, 9, 15)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-12-15T04:30:00+00:00"), date(2026, 12, 14)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-07-15T04:30:00+00:00"), date(2026, 7, 15)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-11-01T04:30:00+00:00"), date(2026, 11, 1)
+        )
+        self.assertEqual(_eastern_calendar_day("2026-09-29"), date(2026, 9, 29))
+
+        series = {
+            "2026-09-01": 405.46,
+            "2026-09-15": 100.0,
+            "2026-09-29": 435.72,
+        }
+        payouts = [
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 405.46,
+                "at": "2026-09-02T02:40:25+00:00",
+                "tx_id": "sep1-et",
+            },
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 100.0,
+                "at": "2026-09-15T16:00:00+00:00",
+                "tx_id": "midday-utc",
+            },
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 435.72,
+                "at": "2026-09-30T00:52:03+00:00",
+                "tx_id": "sep29-et",
+            },
+        ]
+
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-10-03")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-10-03T12:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": "2026-10-03T12:00:00+00:00",
+                    "payouts": payouts,
+                },
+            )
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                side_effect=AssertionError("mempool"),
+            ):
+                payload = load_rolling_cash_series(
+                    today=date(2026, 10, 3),
+                    fetch=fake_fetch,
+                    stale=False,
+                    root=root,
+                )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["includes_mining"])
+        self.assertNotIn("bitcoin", payload["source_warnings"])
+        points = {p["date"]: p for p in payload["points"]}
+        sep1 = points["2026-09-01"]["bitcoin"]
+        sep2 = points["2026-09-02"]["bitcoin"]
+        sep14 = points["2026-09-14"]["bitcoin"]
+        sep15 = points["2026-09-15"]["bitcoin"]
+        sep28 = points["2026-09-28"]["bitcoin"]
+        sep29 = points["2026-09-29"]["bitcoin"]
+        sep30 = points["2026-09-30"]["bitcoin"]
+        self.assertGreater(sep1, points["2026-08-31"]["bitcoin"])
+        self.assertEqual(sep2, sep1)
+        self.assertEqual(sep1, bitcoin_trailing_mean(date(2026, 9, 1), series))
+        self.assertGreater(sep15, sep14)
+        self.assertEqual(sep15, bitcoin_trailing_mean(date(2026, 9, 15), series))
+        self.assertGreater(sep29, sep28)
+        self.assertEqual(sep30, sep29)
+        self.assertEqual(sep29, bitcoin_trailing_mean(date(2026, 9, 29), series))
+        blob = json.dumps(payload)
+        self.assertNotIn("bc1", blob)
+
+    def test_rolling_bitcoin_dst_step_uses_offset_in_effect(self) -> None:
+        # 04:30Z on 12/15 is 23:30 EST on 12/14. A fixed EDT offset would
+        # step the band on 12/15 instead.
+        series = {"2026-12-14": 90.0}
+        payouts = [
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 90.0,
+                "at": "2026-12-15T04:30:00+00:00",
+                "tx_id": "winter-evening",
+            }
+        ]
+
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-12-20")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-12-20T12:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": "2026-12-20T12:00:00+00:00",
+                    "payouts": payouts,
+                },
+            )
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                side_effect=AssertionError("mempool"),
+            ):
+                payload = load_rolling_cash_series(
+                    today=date(2026, 12, 20),
+                    fetch=fake_fetch,
+                    stale=False,
+                    root=root,
+                )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["includes_mining"])
+        self.assertNotIn("bitcoin", payload["source_warnings"])
+        points = {p["date"]: p for p in payload["points"]}
+        dec13 = points["2026-12-13"]["bitcoin"]
+        dec14 = points["2026-12-14"]["bitcoin"]
+        dec15 = points["2026-12-15"]["bitcoin"]
+        self.assertEqual(dec13, 0.0)
+        self.assertGreater(dec14, dec13)
+        self.assertEqual(dec15, dec14)
+        self.assertEqual(dec14, bitcoin_trailing_mean(date(2026, 12, 14), series))
+
+    def test_sankey_window_still_uses_utc_date(self) -> None:
+        # Same stamp the rolling band puts on 9/29. Sankey keeps the UTC day.
+        as_of = "2026-09-30T12:00:00+00:00"
+        now = datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc)
+        payout = {
+            "status": "confirmed",
+            "amount_btc": 1.0,
+            "usd_price_at_payout": 435.72,
+            "at": "2026-09-30T00:52:03+00:00",
+            "tx_id": "utc-day",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={"ok": True, "as_of": as_of, "payouts": [payout]},
+                coinbase={"as_of": as_of, "btc_usd_price": 1.0, "source": "live"},
+            )
+            on_utc_day = mining_from_snapshots(
+                start=date(2026, 9, 30),
+                end=date(2026, 9, 30),
+                root=root,
+                now=now,
+            )
+            on_eastern_day = mining_from_snapshots(
+                start=date(2026, 9, 29),
+                end=date(2026, 9, 29),
+                root=root,
+                now=now,
+            )
+        self.assertEqual(on_utc_day["status"], "ok")
+        self.assertEqual(on_utc_day["payout_count"], 1)
+        self.assertEqual(on_utc_day["usd"], 435.72)
+        self.assertEqual(on_eastern_day["status"], "ok")
+        self.assertEqual(on_eastern_day["payout_count"], 0)
+        self.assertEqual(on_eastern_day["usd"], 0.0)
 
     def test_empty_bitcoin_feed_warns_instead_of_silent_zero(self) -> None:
         def fake_fetch(since: str) -> dict:
