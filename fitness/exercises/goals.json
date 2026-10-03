@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-07-26",
+  "updated_at": "2026-10-03",
   "split": "ppl",
   "rotation": ["push", "pull", "legs"],
   "goal": "strength_hypertrophy",
@@ -18,5 +18,22 @@
   "maintenance_sets_per_muscle_week": 3,
   "session_working_set_cap": 14,
   "secondary_set_fraction": 0.5,
-  "default_hard_sets": 2
+  "default_hard_sets": 2,
+  "main_lifts": [
+    "RDL",
+    "Leg Press",
+    "DB Incline Press",
+    "DB Flat Press",
+    "Seated Cable Row",
+    "Pulldowns"
+  ],
+  "lift_aliases": {
+    "RDLs": "RDL",
+    "Romanian Deadlift": "RDL",
+    "Romanian Deadlifts": "RDL",
+    "Lat Pulldown": "Pulldowns",
+    "Lat Pulldowns": "Pulldowns",
+    "Pull Downs": "Pulldowns",
+    "Pulldown": "Pulldowns"
+  }
 }

@@ -1340,21 +1340,50 @@
       }
     }
 
-    const exercises = data.top_exercises || [];
+    const pinned = (data.main_lifts || []).filter((name) => name);
+    const ranked = data.top_exercises || [];
+    const pinnedSet = new Set(pinned);
+    const orderedPinned = pinned.filter(
+      (name) =>
+        ranked.includes(name) ||
+        (data.strength_trends &&
+          Object.prototype.hasOwnProperty.call(data.strength_trends, name))
+    );
+    const others = ranked.filter((name) => !pinnedSet.has(name));
+    const exercises =
+      orderedPinned.length || others.length ? [...orderedPinned, ...others] : ranked;
     if (!selectedExercise || !exercises.includes(selectedExercise)) {
-      selectedExercise = exercises[0] || null;
+      selectedExercise =
+        (orderedPinned[0] && exercises.includes(orderedPinned[0])
+          ? orderedPinned[0]
+          : exercises[0]) || null;
     }
     // Compact picker (select + prev/next) keeps strength card height near volume chart
     const sel = $("exercise-select");
+    const addLiftOption = (parent, name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      if (name === selectedExercise) opt.selected = true;
+      parent.appendChild(opt);
+    };
     if (sel) {
       sel.innerHTML = "";
-      exercises.forEach((name) => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        if (name === selectedExercise) opt.selected = true;
-        sel.appendChild(opt);
-      });
+      if (orderedPinned.length) {
+        const mainGroup = document.createElement("optgroup");
+        mainGroup.label = "Main lifts";
+        orderedPinned.forEach((name) => addLiftOption(mainGroup, name));
+        sel.appendChild(mainGroup);
+      }
+      if (others.length) {
+        const otherGroup = document.createElement("optgroup");
+        otherGroup.label = "Other";
+        others.forEach((name) => addLiftOption(otherGroup, name));
+        sel.appendChild(otherGroup);
+      }
+      if (!orderedPinned.length && !others.length) {
+        exercises.forEach((name) => addLiftOption(sel, name));
+      }
       if (!sel.dataset.bound) {
         sel.dataset.bound = "1";
         sel.addEventListener("change", () => {
@@ -1385,10 +1414,8 @@
     // Legacy tabs container kept hidden for any residual CSS
     const tabs = $("exercise-tabs");
     if (tabs) tabs.innerHTML = "";
-    if ($("strength-trend-note")) {
-      $("strength-trend-note").textContent = exercises.length
-        ? `${exercises.length} exercises by log frequency — use ‹ › or the menu`
-        : "No exercises with strength history yet.";
+    if ($("strength-trend-note") && !exercises.length) {
+      $("strength-trend-note").textContent = "No exercises with strength history yet.";
     }
     renderStrength(data);
 
@@ -2497,74 +2524,173 @@
     }
   }
 
+  function fmtLoad(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "";
+    return Math.abs(n - Math.round(n)) < 1e-9 ? String(Math.round(n)) : String(n);
+  }
+
+  function firstSetPair(point) {
+    const fs = point && point.first_set;
+    if (!fs || fs.weight_lbs == null || fs.reps == null) return "";
+    if (!Number.isFinite(Number(fs.weight_lbs)) || !Number.isFinite(Number(fs.reps))) return "";
+    return `${fmtLoad(fs.weight_lbs)} × ${fmtLoad(fs.reps)}`;
+  }
+
   function renderStrength(data) {
     const series =
       (selectedExercise && data.strength_trends && data.strength_trends[selectedExercise]) ||
       [];
-    const loadVals = series.map((p) => p.best_working_weight);
-    const e1rmVals = series.map((p) => p.best_e1rm);
-    const loadTrend = linearTrend(loadVals);
+    const loadVals = series.map((p) => {
+      const fs = p && p.first_set;
+      return fs && fs.weight_lbs != null && Number.isFinite(Number(fs.weight_lbs))
+        ? Number(fs.weight_lbs)
+        : null;
+    });
+    const e1rmVals = series.map((p) =>
+      p && p.best_e1rm != null && Number.isFinite(Number(p.best_e1rm)) ? Number(p.best_e1rm) : null
+    );
+    const tonnageVals = series.map((p) =>
+      p && p.lift_tonnage != null && Number.isFinite(Number(p.lift_tonnage))
+        ? Number(p.lift_tonnage)
+        : null
+    );
     const e1rmTrend = linearTrend(e1rmVals);
     const loadSlope = trendSlopePerDay(loadVals);
+    const baseOpts = chartDefaults();
     destroyChart(strengthChart);
     strengthChart = new Chart($("chart-strength"), {
-      type: "line",
       data: {
         labels: series.map((p) => p.date),
         datasets: [
           {
-            label: `${selectedExercise || "Exercise"} best load (lb)`,
+            type: "bar",
+            _kind: "tonnage",
+            label: "Session tonnage (lb)",
+            data: tonnageVals,
+            yAxisID: "y1",
+            backgroundColor: "rgba(139,155,180,0.28)",
+            borderWidth: 0,
+            maxBarThickness: 18,
+            order: 5,
+          },
+          {
+            type: "line",
+            _kind: "first",
+            label: `${selectedExercise || "Lift"} first set (lb)`,
             data: loadVals,
+            yAxisID: "y",
             borderColor: "#3d9cf0",
             tension: 0.25,
             pointRadius: 3,
-            order: 3,
+            spanGaps: true,
+            order: 2,
           },
           {
-            label: "Load trend",
-            data: loadTrend,
-            borderColor: "#5ce1a8",
-            borderDash: [6, 4],
-            borderWidth: 2.5,
-            pointRadius: 0,
-            tension: 0,
-            order: 1,
-          },
-          {
+            type: "line",
+            _kind: "e1rm",
             label: "Est. 1RM (Epley)",
             data: e1rmVals,
+            yAxisID: "y",
             borderColor: "#f0b429",
             borderDash: [5, 5],
             tension: 0.25,
             pointRadius: 2,
-            order: 4,
+            spanGaps: true,
+            order: 3,
           },
           {
+            type: "line",
+            _kind: "e1trend",
             label: "1RM trend",
             data: e1rmTrend,
+            yAxisID: "y",
             borderColor: "#c084fc",
             borderDash: [4, 4],
             borderWidth: 2,
             pointRadius: 0,
             tension: 0,
-            order: 2,
+            spanGaps: true,
+            order: 1,
           },
         ],
       },
-      options: chartDefaults(),
+      options: {
+        ...baseOpts,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          ...baseOpts.plugins,
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const point = series[ctx.dataIndex] || {};
+                if (ctx.dataset._kind === "first") {
+                  const pair = firstSetPair(point);
+                  return pair ? `First set ${pair}` : "First set —";
+                }
+                if (ctx.dataset._kind === "e1rm") {
+                  const v = ctx.parsed && ctx.parsed.y;
+                  return v == null ? "Est. 1RM —" : `Est. 1RM (Epley) ${fmtLoad(v)} lb`;
+                }
+                if (ctx.dataset._kind === "e1trend") {
+                  const v = ctx.parsed && ctx.parsed.y;
+                  return v == null ? "" : `1RM trend ${fmtLoad(v)} lb`;
+                }
+                if (ctx.dataset._kind === "tonnage") {
+                  const v = point.lift_tonnage;
+                  return v == null ? "Session tonnage —" : `Session tonnage ${fmtNum(v)} lb`;
+                }
+                return ctx.dataset.label || "";
+              },
+            },
+          },
+        },
+        scales: {
+          ...baseOpts.scales,
+          y: {
+            ...baseOpts.scales.y,
+            position: "left",
+            title: {
+              display: true,
+              text: "Load (lb)",
+              color: "#8b9bb4",
+              font: { size: 11 },
+            },
+          },
+          y1: {
+            position: "right",
+            beginAtZero: true,
+            grid: { drawOnChartArea: false },
+            ticks: { color: "#8b9bb4" },
+            title: {
+              display: true,
+              text: "Tonnage (lb)",
+              color: "#8b9bb4",
+              font: { size: 11 },
+            },
+          },
+        },
+      },
     });
     if ($("strength-trend-note")) {
       const n = series.length;
       const exercises = (data && data.top_exercises) || [];
       let base = exercises.length
-        ? `${exercises.length} exercises ranked by log frequency — pick a tab to view trend`
+        ? "Main lifts are first. Bars are this lift's session tonnage. Gold is Epley."
         : "No exercises with strength history yet.";
+      const lastPair = n ? firstSetPair(series[n - 1]) : "";
       if (selectedExercise && n >= 2 && loadSlope != null) {
         const perWeek = loadSlope * 7;
         const dir = perWeek > 0.05 ? "up" : perWeek < -0.05 ? "down" : "flat";
-        base = `${selectedExercise}: load trend ${dir} (~${perWeek >= 0 ? "+" : ""}${perWeek.toFixed(2)} lb/week) · ${n} sessions · dashed = linear fit`;
-      } else if (selectedExercise && n < 2) {
-        base = `${selectedExercise}: need ≥2 sessions for a trendline`;
+        const lastTxt = lastPair ? `last ${lastPair} · ` : "";
+        base =
+          `${selectedExercise}: ${lastTxt}first-set load ${dir} ` +
+          `(~${perWeek >= 0 ? "+" : ""}${perWeek.toFixed(2)} lb/week) · ${n} sessions · ` +
+          "bars = session tonnage · gold = Epley 1RM";
+      } else if (selectedExercise && n === 1) {
+        base = `${selectedExercise}: ${lastPair || "one logged set"} · need ≥2 sessions for a trendline`;
+      } else if (selectedExercise && n < 1) {
+        base = `${selectedExercise}: no logged sets.`;
       }
       $("strength-trend-note").textContent = base;
     }

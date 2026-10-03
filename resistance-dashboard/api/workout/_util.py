@@ -1206,7 +1206,30 @@ def trends_export_body(headers, query: str = "", client_host=None):
             "alert": "fitdash_trends_health",
         }
     extra = "; ".join(str(item) for item in (errors or []) if str(item).strip())
-    return respond_trends_export(headers, query, health, extra_error=extra)
+    from api.dashboard import _load_sessions
+    from rt_dashboard.workout_store import load_workspace_goals
+
+    uid = ""
+    if isinstance(user, dict):
+        uid = str(user.get("user_id") or user.get("id") or "")
+    sessions = None
+    goals = None
+    try:
+        sessions, _sess_err, _source = _load_sessions(uid or "default", fallback_house=True)
+        goals, _src = load_workspace_goals()
+    except Exception:  # noqa: BLE001
+        # Calorie rows still export. Skip lift series rather than show
+        # an empty main-lift list that was never read.
+        sessions = None
+        goals = None
+    return respond_trends_export(
+        headers,
+        query,
+        health,
+        extra_error=extra,
+        sessions=sessions,
+        goals=goals,
+    )
 
 
 def agent_today_body(headers, query: str = "", client_host=None):

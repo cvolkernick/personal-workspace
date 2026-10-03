@@ -1095,7 +1095,22 @@ def export_agent_today(
     err = error if error is not None else meta.get("error")
     if err:
         out["error"] = err
+    out["main_lifts"] = _main_lift_series(data, day)
     return out
+
+
+def _main_lift_series(data: Dict[str, Any], day: str) -> Dict[str, Any]:
+    """90-day main-lift points. Empty list when that lift has no logs in the window."""
+    from rt_dashboard.analytics import main_lift_series
+
+    store = _as_dict(data.get("workout_store"))
+    goals = dict(_as_dict(store.get("goals")))
+    if not isinstance(goals.get("main_lifts"), list) and isinstance(data.get("main_lifts"), list):
+        goals["main_lifts"] = data.get("main_lifts")
+    if not isinstance(goals.get("lift_aliases"), dict) and isinstance(data.get("lift_aliases"), dict):
+        goals["lift_aliases"] = data.get("lift_aliases")
+    sessions = data.get("sessions") if isinstance(data.get("sessions"), list) else []
+    return main_lift_series(sessions, goals, end=day or None, days=90)
 
 
 def assemble_dashboard_slice(

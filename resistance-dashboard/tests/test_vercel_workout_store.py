@@ -50,7 +50,18 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertEqual(raw["sets_per_muscle_week_max"], 8)
         self.assertEqual(raw["default_hard_sets"], 2)
         self.assertEqual(raw["session_working_set_cap"], 14)
-        self.assertEqual(raw["updated_at"], "2026-07-26")
+        self.assertEqual(raw["updated_at"], "2026-10-03")
+        self.assertEqual(
+            raw["main_lifts"],
+            [
+                "RDL",
+                "Leg Press",
+                "DB Incline Press",
+                "DB Flat Press",
+                "Seated Cable Row",
+                "Pulldowns",
+            ],
+        )
 
     def test_bundle_copies_match_repo_files(self):
         self.assertTrue(BUNDLE_GOALS.is_file(), BUNDLE_GOALS)
