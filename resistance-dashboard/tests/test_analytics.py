@@ -95,6 +95,15 @@ class TestParseAndVolume(unittest.TestCase):
         self.assertEqual(by_date["2026-05-26"]["best_working_weight"], 40.0)
         # e1rm May 20: 35*(1+12/30)=35*1.4=49
         self.assertAlmostEqual(by_date["2026-05-20"]["best_e1rm"], 49.0)
+        # First working set is the logged set double progression judges.
+        self.assertEqual(by_date["2026-05-20"]["first_set"], {"weight_lbs": 35.0, "reps": 12})
+        self.assertEqual(by_date["2026-05-20"]["top_set"], {"weight_lbs": 35.0, "reps": 12})
+        self.assertEqual(by_date["2026-05-20"]["set_count"], 3)
+        self.assertEqual(by_date["2026-05-20"]["lift_tonnage"], 35 * 3 * 12)
+        self.assertEqual(by_date["2026-05-26"]["first_set"], {"weight_lbs": 40.0, "reps": 5})
+        self.assertEqual(by_date["2026-05-26"]["top_set"], {"weight_lbs": 40.0, "reps": 5})
+        self.assertEqual(by_date["2026-05-26"]["set_count"], 4)
+        self.assertEqual(by_date["2026-05-26"]["lift_tonnage"], 1190.0)
         slope = exercise_strength_slope_lbs_per_day(sessions, "DB Shoulder Press")
         self.assertIsNotNone(slope)
         assert slope is not None

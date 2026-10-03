@@ -349,6 +349,26 @@ def normalize_goals(raw: Optional[dict]) -> dict:
         g["auto_focus_muscles"] = bool(raw["auto_focus_muscles"])
     if raw.get("updated_at"):
         g["updated_at"] = str(raw["updated_at"])
+    # Trends menu only. Does not change planner progression (#1024).
+    if isinstance(raw.get("main_lifts"), list):
+        lifts: List[str] = []
+        seen = set()
+        for item in raw["main_lifts"]:
+            name = re.sub(r"\s+", " ", str(item or "").strip())
+            key = name.lower()
+            if not name or key in seen:
+                continue
+            seen.add(key)
+            lifts.append(name)
+        g["main_lifts"] = lifts
+    if isinstance(raw.get("lift_aliases"), dict):
+        aliases: Dict[str, str] = {}
+        for key, val in raw["lift_aliases"].items():
+            src = re.sub(r"\s+", " ", str(key or "").strip())
+            dst = re.sub(r"\s+", " ", str(val or "").strip())
+            if src and dst:
+                aliases[src] = dst
+        g["lift_aliases"] = aliases
     return g
 
 

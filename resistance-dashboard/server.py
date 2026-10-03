@@ -1790,10 +1790,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
                 uid = user.get("user_id") if user else None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
+                store = data.get("workout_store") if isinstance(data.get("workout_store"), dict) else {}
+                goals = store.get("goals") if isinstance(store.get("goals"), dict) else None
                 status, body = respond_trends_export(
                     self.headers,
                     parsed.query or "",
                     data.get("health") or {},
+                    sessions=data.get("sessions") or [],
+                    goals=goals,
                 )
                 self._send_json(body, status=status)
             except Exception as e:  # noqa: BLE001

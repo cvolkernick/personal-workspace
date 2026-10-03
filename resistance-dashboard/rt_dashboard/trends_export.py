@@ -143,6 +143,8 @@ def export_trends_window(
     end: str,
     tz_name: str,
     extra_error: str = "",
+    sessions: Optional[list] = None,
+    goals: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Daily rows for the chart window. Unlogged intake is null, never 0."""
     nutrition = kcal_by_date(_series(health, "nutrition"))
@@ -181,7 +183,7 @@ def export_trends_window(
                 "logged": True if logged else False,
             }
         )
-    return {
+    body = {
         "ok": True,
         "days": days,
         "start": labels[0],
@@ -192,9 +194,27 @@ def export_trends_window(
         "rows": rows,
         "health_error": err or None,
     }
+    if sessions is not None:
+        from rt_dashboard.analytics import main_lift_series
+
+        body["main_lifts"] = main_lift_series(
+            sessions,
+            goals if isinstance(goals, dict) else {},
+            end=labels[-1],
+            days=days,
+        )
+    return body
 
 
-def respond_trends_export(headers, query: str, health: Any, extra_error: str = "") -> Tuple[int, Dict[str, Any]]:
+def respond_trends_export(
+    headers,
+    query: str,
+    health: Any,
+    extra_error: str = "",
+    *,
+    sessions: Optional[list] = None,
+    goals: Optional[dict] = None,
+) -> Tuple[int, Dict[str, Any]]:
     """Parse days and build the JSON body. Auth stays with the caller."""
     raw_days = (parse_qs(query or "").get("days") or [None])[0]
     days, err = parse_export_days(None if raw_days is None else str(raw_days))
@@ -202,12 +222,22 @@ def respond_trends_export(headers, query: str, health: Any, extra_error: str = "
         return 400, err
     tz_name = _query_tz(headers, query or "")
     end = local_today_iso(tz_name)
+    # None means logs were not loaded. Do not publish six empty series.
+    if sessions is not None and goals is None:
+        try:
+            from rt_dashboard.workout_store import load_workspace_goals
+
+            goals, _src = load_workspace_goals()
+        except Exception:  # noqa: BLE001
+            goals = {}
     body = export_trends_window(
         health,
         days=int(days or DEFAULT_DAYS),
         end=end,
         tz_name=tz_name,
         extra_error=extra_error,
+        sessions=sessions,
+        goals=goals,
     )
     if not body.get("ok"):
         return 503, body
