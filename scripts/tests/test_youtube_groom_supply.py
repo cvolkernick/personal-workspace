@@ -46,6 +46,7 @@ class _FakeYT:
     def __init__(self, quota: _Quota) -> None:
         self.quota = quota
         self.searches: list[str] = []
+        self.video_calls: list[list[str]] = []
 
     def search_videos(self, query, *, order="date", published_after=None, max_results=10):
         del order, published_after, max_results
@@ -70,6 +71,19 @@ class _FakeYT:
         del max_pages
         self.quota.charge("subscriptions")
         return {"UCsub"}
+
+    def videos(self, video_ids):
+        self.video_calls.append(list(video_ids))
+        if hasattr(self, "quota"):
+            self.quota.charge("list")
+        out = {}
+        for vid in video_ids:
+            out[vid] = {
+                "id": vid,
+                "contentDetails": {"duration": "PT10M"},
+                "snippet": {"title": "Long form", "description": "interview", "tags": []},
+            }
+        return out
 
     def uploads(self, channel_id: str, max_results: int = 15):
         del max_results
@@ -108,6 +122,10 @@ class TestPolicyMatch(unittest.TestCase):
         self.assertEqual(S.WEIGHT_FLOOR, P.WEIGHT_FLOOR)
         self.assertEqual(S.CLIMB_INSERTS_PER_DAY, P.CLIMB_INSERTS_PER_DAY)
         self.assertEqual(S.SEED_UPLOADS_PER_CHANNEL, P.SEED_UPLOADS_PER_CHANNEL)
+        self.assertEqual(S.MIN_LONGFORM_SEC, P.MIN_LONGFORM_SEC)
+        self.assertEqual(S.MIN_LONGFORM_SEC, 60)
+        self.assertEqual(S.SHORTS_MAX_SEC, P.SHORTS_MAX_SEC)
+        self.assertEqual(P.HOUSE_CAPS["MIN_LONGFORM_SEC"], 60)
         self.assertFalse(S.COPY_OVER_PI)
 
     def test_share_cap_is_the_larger_of_twelve_or_five_percent(self):
@@ -258,6 +276,137 @@ class TestDiscoveryTick(unittest.TestCase):
         ast.literal_eval(str(log))
 
 
+class _Log:
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+
+    def info(self, msg: str, *args: object) -> None:
+        self.lines.append(msg % args if args else msg)
+
+
+class _DurationYT:
+    def __init__(self, durations: dict[str, str | None]) -> None:
+        self.durations = durations
+        self.calls: list[list[str]] = []
+
+    def videos(self, video_ids):
+        self.calls.append(list(video_ids))
+        out = {}
+        for vid in video_ids:
+            raw = self.durations.get(vid)
+            item: dict = {
+                "id": vid,
+                "snippet": {"title": "Talk", "description": "", "tags": []},
+            }
+            if raw is not None:
+                item["contentDetails"] = {"duration": raw}
+            out[vid] = item
+        return out
+
+
+class TestLongform(unittest.TestCase):
+    def test_parse_and_boundaries(self):
+        self.assertEqual(S.parse_duration_sec("PT45S"), 45)
+        self.assertEqual(S.parse_duration_sec("PT10M"), 600)
+        self.assertEqual(S.parse_duration_sec("PT59S"), 59)
+        self.assertEqual(S.parse_duration_sec("PT60S"), 60)
+        self.assertEqual(S.parse_duration_sec("PT1H2M3S"), 3723)
+        for raw in ("garbage", "", None, "P0D", "PT"):
+            self.assertIsNone(S.parse_duration_sec(raw))
+
+    def test_short_medium_malformed_and_flag(self):
+        yt = _DurationYT(
+            {
+                "short": "PT45S",
+                "long": "PT10M",
+                "edge": "PT59S",
+                "keep": "PT60S",
+                "flag": "PT1M30S",
+                "plain": "PT1M30S",
+                "bad": "garbage",
+                "empty": "",
+                "missing": None,
+                "live": "P0D",
+            }
+        )
+        log = _Log()
+        candidates = [
+            {"video_id": "short", "title": "Clip", "duration_sec": 0},
+            {"video_id": "long", "title": "Interview", "duration_sec": 0},
+            {"video_id": "edge", "title": "Almost", "duration_sec": 0},
+            {"video_id": "keep", "title": "Minute", "duration_sec": 0},
+            {"video_id": "flag", "title": "Quick #shorts take", "duration_sec": 0},
+            {"video_id": "plain", "title": "Ninety seconds", "duration_sec": 0},
+            {"video_id": "bad", "title": "Bad", "duration_sec": 0},
+            {"video_id": "empty", "title": "Empty", "duration_sec": 0},
+            {"video_id": "missing", "title": "Missing", "duration_sec": 0},
+            {"video_id": "live", "title": "Live", "duration_sec": 0},
+        ]
+        kept, skipped = S.filter_longform(candidates, yt, log)
+        why = {row["video_id"]: row["why"] for row in skipped}
+        self.assertEqual(why["short"], "short<60s")
+        self.assertEqual(why["edge"], "short<60s")
+        self.assertEqual(why["flag"], "short-flagged")
+        self.assertEqual(why["bad"], "duration-unknown")
+        self.assertEqual(why["empty"], "duration-unknown")
+        self.assertEqual(why["missing"], "duration-unknown")
+        self.assertEqual(why["live"], "duration-unknown")
+        kept_ids = {row["video_id"]: row["duration_sec"] for row in kept}
+        self.assertEqual(kept_ids["long"], 600)
+        self.assertEqual(kept_ids["keep"], 60)
+        self.assertEqual(kept_ids["plain"], 90)
+        self.assertNotIn("plain", why)
+        self.assertTrue(any("short<60s" in line for line in log.lines))
+        self.assertTrue(all(len(call) <= 50 for call in yt.calls))
+
+    def test_supply_discovery_fetches_duration_before_a_keep(self):
+        quota = _Quota(8000)
+        yt = _FakeYT(quota)
+        state: dict = {}
+        candidates = [
+            {
+                "video_id": "known",
+                "channel_id": "UCsub",
+                "title": "Already enriched",
+                "age_hours": 1,
+                "duration_sec": 600,
+            }
+        ]
+        out, _partial = S.supply_tick(
+            yt=yt,
+            state=state,
+            candidates=candidates,
+            playlist_items=[],
+            subscribed_seed=set(),
+            quota_remaining=quota.remaining,
+            quota_can=quota.can,
+            now=NOW,
+            thesis_fit=lambda title, description="": 1,
+            fresh_hours=720,
+            after_prune=100,
+        )
+        discovered = next(c for c in out if c["video_id"] == "d-1")
+        self.assertEqual(discovered["duration_sec"], 0)
+        kept, skipped = S.filter_longform(out, yt, _Log())
+        fetched = [vid for call in yt.video_calls for vid in call]
+        self.assertIn("d-1", fetched)
+        self.assertNotIn("known", fetched)
+        kept_ids = {row["video_id"]: row["duration_sec"] for row in kept}
+        self.assertEqual(kept_ids["d-1"], 600)
+        self.assertEqual(kept_ids["known"], 600)
+        self.assertNotIn("d-1", {row["video_id"] for row in skipped})
+
+    def test_patched_writer_parses_when_the_pi_copy_is_local(self):
+        path = Path("/tmp/youtube_groom_pi.py")
+        if not path.is_file():
+            self.skipTest("no local writer copy")
+        patched = S.patch_writer_source(path.read_text(encoding="utf-8"))
+        ast.parse(patched)
+        self.assertEqual(patched, S.patch_writer_source(patched))
+        self.assertNotIn("or dur == 0", patched)
+        self.assertIn("filter_longform(", patched)
+
+
 class TestWriterPatch(unittest.TestCase):
     def test_patch_is_idempotent_on_the_anchors(self):
         text = _anchor_excerpt()
@@ -272,6 +421,11 @@ class TestWriterPatch(unittest.TestCase):
         self.assertIn("WEIGHT_FLOOR = 0.05", once)
         self.assertIn("def search_videos", once)
         self.assertIn("supply_tick(", once)
+        self.assertIn("filter_longform(", once)
+        self.assertIn('log.warning("longform filter failed")', once)
+        self.assertNotIn("or dur == 0", once)
+        self.assertIn("unknown is not a bonus (#1045)", once)
+        self.assertEqual(once.count("filter_longform("), 1)
         self.assertIn("prepare_adds(", once)
         self.assertIn("record_add(", once)
         self.assertIn("solar|geothermal", once)
@@ -299,6 +453,7 @@ CAP = 200
 SEED_THROTTLE_WEIGHT_FLOOR = 0.10  # skip SEED_THROTTLE only below this (was 0.25, #815)
 SEED_UPLOADS_PER_CHANNEL = 50  # was 6; YouTube page max so 7d window can fill house 100
 WEIGHT_FLOOR = 0.15
+    duration = 1 if 15 * 60 <= dur <= 3 * 3600 or dur == 0 else 0
 HARD_LENSES = {
     "energy": (
         r"\\b(nuclear|smr|uranium|grid|electricity|watt|gw\\b|terawatt|"

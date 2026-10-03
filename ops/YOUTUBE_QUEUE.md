@@ -12,6 +12,18 @@ Constants note: [`YOUTUBE_GROOM_CAPS.md`](YOUTUBE_GROOM_CAPS.md).
 
 `PLANS/YOUTUBE_PLAYLIST_GROOMING.md` does not exist on master or PR #429 — not added.
 
+## Long-form only (#1045)
+
+Never add a YouTube Short to **AI Curated**. Chris, 2026-10-03.
+
+- A Short is `contentDetails.duration` under **60 seconds** (`MIN_LONGFORM_SEC`). That is the definition, not YouTube's 3-minute Shorts cap.
+- YouTube can still flag a 61–180 second video as a Short (`SHORTS_MAX_SEC`). Those are skipped when the title, description, or tags contain `#shorts` / `#short`, when the candidate URL contains `/shorts/`, or when `SHORTS_URL_PROBE=1` and `https://www.youtube.com/shorts/<id>` returns 200 with redirects off (303 to `/watch` means not a Short). The probe is off by default. It is an unofficial heuristic. The Data API has no `isShort` field. Errors fail open.
+- Missing, malformed, and `P0D` durations are not added.
+- Skip reasons: `short<60s`, `short-flagged`, `duration-unknown`. They show up on `skipped_add`, in `skip_reasons`, and in `groom.log`. Chris is not paged for a skip.
+- The gate is `filter_longform` in the supply sidecar, after discovery and before ranking. Unknown durations do not get a ranking bonus.
+- Shorts already on the playlist stay until a later prune decision. This slice does not remove them.
+- Copy the updated sidecar beside the Pi writer and run `--patch-writer`. Do not copy `scripts/youtube_groom.py` over the writer.
+
 ## Why the playlist sat ~25, then grew slowly
 
 Not a `TARGET_SIZE=25` (that name does not exist on Pi).  
