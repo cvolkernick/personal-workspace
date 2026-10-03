@@ -11,7 +11,7 @@ Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#
 | Item | Choice |
 |------|--------|
 | Intake | Google Drive folder **Panamerica - Roadside Leads** (`1QS6rqyApNDCrsJ90mp83rnbEthlzznxy`) |
-| Store | JSON file (`FileStore`). Default `~/.local/share/panamerica-roadside-crm/store.json` |
+| Store | JSON file (`FileStore`) on **prism-gateway**. Default `~/.local/share/panamerica-roadside-crm/store.json` (mode 600). See [Canonical store host](#canonical-store-host-1048) |
 | States | `needs-info \| new → sms_sent → call_attempted → responded → interested → converted \| declined \| dead` |
 | Dedupe | Phone number. A number already in the CRM never gets a second first-touch |
 | Copy | `outreach_copy.py` + `prompts/alexandra.roadside.v1.md`. Chris-approved 2026-09-20 (#855). Location slot (#860): proximity → `near {place} in {city}`; road → `on {road}`. CRM keeps the full location string. `--live` still blocked until `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send human gate). SMS A/B (#896): variant A is that champion; variant B is an unapproved placeholder and is not assigned or sent until a Chris copy change sets `SMS_VARIANT_B_APPROVED` |
@@ -20,6 +20,24 @@ Issues: [#807](https://github.com/cvolkernick/personal-workspace/issues/807), [#
 | Phone extract | Prefer dashed/parenthesized NANP. GPS/decimal degree runs (`26.639011, -82.039046`) are rejected; coordinate-only text is `UNKNOWN` (#862) |
 
 Secrets (`BLAND_AGENT_ID`, API keys, Drive tokens) live in env — never in this repo, issues, or logs.
+
+## Canonical store host (#1048)
+
+prism-gateway (user `prism-agent`) is the canonical host for this JSON store. P1 (#1049) replaces it with one SQLite file and an API on the same host. Until that lands, the pipeline keeps `FileStore`.
+
+| Item | Path on prism-gateway |
+|------|------------------------|
+| Roadside store | `~/.local/share/panamerica-roadside-crm/store.json` (mode 600) |
+| Outreach log | `~/.local/share/panamerica-roadside-crm/outreach_log.jsonl` (mode 600) |
+| Vendors | `~/.local/share/panamerica-roadside-crm/vendors.json` (mode 600) |
+
+`PANAMERICA_ROADSIDE_STORE` overrides the store path. Unset, the default is the prism-agent home when the process runs on prism-gateway.
+
+The box file `/home/box/.local/share/panamerica-roadside-crm/store.json` is not a second writer. After the copy, that file is renamed with a `.moved-to-prism-<date>` suffix. Leave `store.json.polluted-2026-09-30.bak` in place.
+
+`outreach_log.jsonl` is one JSON object per line for outreach that is not a roadside lead (Marketplace delivery, provider message id, error code). Do not put those rows through `marketplace_leads.run ingest`. `vendors.json` holds `type: vendor` records. A vendor is not an SMS lead.
+
+This doc does not approve a live send. Leave `PANAMERICA_ROADSIDE_COPY_APPROVED` unset.
 
 Drive is **intake only**. Photos with no CRM lead, or CRM leads with no photos, are drift the daily pass reconciles.
 
