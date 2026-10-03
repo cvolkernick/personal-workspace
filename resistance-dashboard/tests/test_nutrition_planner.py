@@ -35,6 +35,8 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     MIN_MEAL_GAP,
     MSG_KITCHEN_CLOSED,
     MAX_MEAL_TARGET_FRAC,
+    MEAL_EVEN_SHARE_TOLERANCE,
+    _chunk_units,
     _apply_pace_delay,
     _catch_up_delay,
     _kitchen_is_closed,
@@ -3521,6 +3523,204 @@ class TestPlannerClockPin830(unittest.TestCase):
         self.assertEqual(plan["meals"], [])
         self.assertEqual(plan["notes"]["empty_plan_reason"], "kitchen_closed")
         self.assertEqual(plan["message"], MSG_KITCHEN_CLOSED)
+
+
+def _atom(name, kcal, protein, carbs, fat, iid=None):
+    return {
+        "id": iid or name,
+        "name": name,
+        "calories": kcal,
+        "protein_g": protein,
+        "carbs_g": carbs,
+        "fat_g": fat,
+        "servings": 1,
+    }
+
+
+class TestMealSpread1012(unittest.TestCase):
+    """#1012: planned buckets share protein, then calories, then carbs and fat."""
+
+    def _sums(self, chunks, key):
+        return [sum(float(unit.get(key) or 0) for unit in part) for part in chunks]
+
+    def _assert_even(self, chunks, keys):
+        self.assertGreaterEqual(len(chunks), 2)
+        for key in keys:
+            totals = self._sums(chunks, key)
+            share = sum(totals) / len(totals)
+            if share <= 0:
+                continue
+            low = share * (1 - MEAL_EVEN_SHARE_TOLERANCE)
+            high = share * (1 + MEAL_EVEN_SHARE_TOLERANCE)
+            for value in totals:
+                self.assertGreaterEqual(value, low - 0.05, msg=f"{key} {totals} share {share}")
+                self.assertLessEqual(value, high + 0.05, msg=f"{key} {totals} share {share}")
+
+    def test_lopsided_order_spreads_protein_and_calories(self):
+        # Round-robin on this order piles 600+600 on slot 0 and leaves slot 1 at 50+50.
+        units = [
+            _atom("steak", 600, 55, 0, 18, "steak-a"),
+            _atom("rice", 50, 1, 11, 0, "rice-a"),
+            _atom("steak", 600, 55, 0, 18, "steak-b"),
+            _atom("rice", 50, 1, 11, 0, "rice-b"),
+            _atom("steak", 600, 55, 0, 18, "steak-c"),
+            _atom("rice", 50, 1, 11, 0, "rice-c"),
+        ]
+        chunks = _chunk_units(units, 3, meal_cap=840)
+        self.assertEqual(len(chunks), 3)
+        self.assertEqual(sum(len(part) for part in chunks), len(units))
+        self.assertTrue(all(len(part) >= 2 for part in chunks))
+        self._assert_even(chunks, ("protein_g", "calories", "carbs_g", "fat_g"))
+        for part in chunks:
+            kcal = sum(float(unit["calories"]) for unit in part)
+            self.assertLessEqual(kcal, 840 + 40)
+
+    def test_cap_drops_atoms_that_fit_nowhere(self):
+        units = [
+            _atom("huge", 900, 80, 0, 30, "huge"),
+            _atom("a", 200, 20, 10, 4, "a"),
+            _atom("b", 200, 20, 10, 4, "b"),
+            _atom("c", 200, 10, 30, 2, "c"),
+            _atom("d", 200, 10, 30, 2, "d"),
+        ]
+        chunks = _chunk_units(units, 3, meal_cap=840)
+        placed = [unit["id"] for part in chunks for unit in part]
+        self.assertNotIn("huge", placed)
+        self.assertEqual(sorted(placed), ["a", "b", "c", "d"])
+        for part in chunks:
+            self.assertLessEqual(sum(float(unit["calories"]) for unit in part), 840 + 40)
+        # Four atoms, three slots: a one-item meal is the leftover atom, not a dropped pile.
+        self.assertTrue(all(part for part in chunks))
+
+    def test_coarse_chicken_is_cut_so_every_meal_gets_some(self):
+        units = []
+        for grams in (225, 225, 220):
+            units.append(
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "portion_g": float(grams),
+                    "serving_g": 170.0,
+                    "serving_label": "170g cooked",
+                    "calories": round(280 * grams / 170, 1),
+                    "protein_g": round(52 * grams / 170, 1),
+                    "carbs_g": 0.0,
+                    "fat_g": round(6 * grams / 170, 1),
+                    "servings": round(grams / 170, 2),
+                }
+            )
+        for grams in (235, 235, 230, 230):
+            units.append(
+                {
+                    "id": "rice",
+                    "name": "Rice",
+                    "portion_g": float(grams),
+                    "serving_g": 195.0,
+                    "serving_label": "195g cooked",
+                    "calories": round(215 * grams / 195, 1),
+                    "protein_g": round(5 * grams / 195, 1),
+                    "carbs_g": round(45 * grams / 195, 1),
+                    "fat_g": round(2 * grams / 195, 1),
+                    "servings": round(grams / 195, 2),
+                }
+            )
+        chunks = _chunk_units(units, 4, meal_cap=840)
+        self.assertEqual(len(chunks), 4)
+        self._assert_even(chunks, ("protein_g", "calories", "carbs_g", "fat_g"))
+        for part in chunks:
+            chicken = [unit for unit in part if unit["id"] == "chicken"]
+            self.assertTrue(chicken)
+            for piece in chicken:
+                self.assertGreaterEqual(piece["portion_g"], 85)
+            self.assertLessEqual(sum(float(unit["calories"]) for unit in part), 880)
+
+    def test_second_atom_fills_a_short_slot_before_piling_on(self):
+        units = [
+            _atom("p1", 400, 40, 0, 8, "p1"),
+            _atom("p2", 400, 40, 0, 8, "p2"),
+            _atom("p3", 400, 40, 0, 8, "p3"),
+            _atom("c1", 200, 4, 40, 2, "c1"),
+            _atom("c2", 200, 4, 40, 2, "c2"),
+            _atom("c3", 200, 4, 40, 2, "c3"),
+        ]
+        chunks = _chunk_units(units, 3, meal_cap=840)
+        self.assertEqual(len(chunks), 3)
+        self.assertTrue(all(len(part) == 2 for part in chunks))
+        self._assert_even(chunks, ("protein_g", "calories", "carbs_g", "fat_g"))
+
+    def test_planned_day_meals_stay_near_an_even_share(self):
+        now = datetime(2026, 8, 22, 10, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+        )
+        meals = plan["meals"]
+        self.assertGreaterEqual(len(meals), 2)
+        hours = {
+            (
+                datetime.fromisoformat(meal["eat_at"]).hour,
+                datetime.fromisoformat(meal["eat_at"]).minute,
+            )
+            for meal in meals
+        }
+        self.assertTrue(hours <= {(12, 0), (15, 30), (19, 0), (21, 0)})
+        meal_cap = FULL_TARGETS["calories"] * MAX_MEAL_TARGET_FRAC
+        totals = []
+        for meal in meals:
+            kcal = float(meal["totals"]["calories"])
+            self.assertLessEqual(kcal, meal_cap + 80)
+            self.assertGreaterEqual(len(meal["items"]), 1)
+            totals.append(meal["totals"])
+        for key in ("protein_g", "calories", "carbs_g", "fat_g"):
+            values = [float(row[key]) for row in totals]
+            share = sum(values) / len(values)
+            if share <= 0:
+                continue
+            low = share * (1 - MEAL_EVEN_SHARE_TOLERANCE)
+            high = share * (1 + MEAL_EVEN_SHARE_TOLERANCE)
+            for value in values:
+                self.assertGreaterEqual(
+                    value,
+                    low - 1.0,
+                    msg=f"{key} {values} outside even share {share}",
+                )
+                self.assertLessEqual(
+                    value,
+                    high + 1.0,
+                    msg=f"{key} {values} outside even share {share}",
+                )
+
+    def test_logged_meal_is_not_rebalanced_into_a_bucket(self):
+        now = datetime(2026, 8, 22, 15, 0, tzinfo=ET)
+        logs = [
+            {
+                "name": "Oatmeal",
+                "calories": 600,
+                "protein_g": 20,
+                "carbs_g": 80,
+                "fat_g": 12,
+                "time": "08:00",
+            }
+        ]
+        consumed = {"calories": 600, "protein_g": 20, "carbs_g": 80, "fat_g": 12}
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            consumed,
+            food_logs_today=logs,
+            now=now,
+            tz_name="America/New_York",
+        )
+        self.assertEqual(plan["food_logs_today"][0]["name"], "Oatmeal")
+        self.assertGreaterEqual(len(plan["meals"]), 1)
+        for meal in plan["meals"]:
+            eat = datetime.fromisoformat(meal["eat_at"])
+            self.assertGreaterEqual(eat, now - timedelta(minutes=20))
+            self.assertNotIn("Oatmeal", {item["name"] for item in meal["items"]})
+            self.assertNotIn((12, 0), {(eat.hour, eat.minute)})
 
 
 if __name__ == "__main__":
