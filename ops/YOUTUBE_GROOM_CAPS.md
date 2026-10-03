@@ -43,6 +43,21 @@ DISCOVERY_MIX_TARGET = 0.40      # rolling 7d adds from channels Chris is not su
 Insert budget after prune = `min(slots to HOUSE_TARGET, slots to CAP, remaining playlist slots)`.  
 No add/hour clamp. Do not invent `MAX_ADD_PER_DAY`. If the Pi file has a YouTube API quota guard, keep it (nest has not seen one).
 
+#1045 long-form only. Do not add a YouTube Short to AI Curated.
+
+```
+MIN_LONGFORM_SEC     = 60        # Chris: under 60s is a Short
+SHORTS_MAX_SEC       = 180       # YouTube may mark a Short up to 3 minutes
+```
+
+Skip reasons, silent to Chris, written to `skipped_add`, `skip_reasons`, and `groom.log`:
+
+- `short<60s` — duration under 60 seconds
+- `short-flagged` — `#shorts` / `#short` in the title, description, or tags, a `/shorts/` URL on the candidate, or (only when `SHORTS_URL_PROBE=1`) a 60–180s video whose `https://www.youtube.com/shorts/<id>` URL returns 200. The probe is off by default. It is unofficial. The Data API has no `isShort` field. Probe errors fail open.
+- `duration-unknown` — missing, malformed, or `P0D` (live/upcoming). Unknown duration is not added, and it no longer gets the old `dur == 0` ranking bonus.
+
+`filter_longform` in `scripts/youtube_groom_supply.py` runs after `supply_tick` and before ranking. `search.list` does not set `videoDuration`: `medium` drops interviews over 20 minutes, and `long` alone drops the 4–20 minute band. Shorts already on the playlist are not pruned.
+
 Playlist id: `PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At`
 
 Auth/tick failure alerts (#480) are a **separate** log reader:

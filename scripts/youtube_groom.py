@@ -14,6 +14,7 @@ This file is the nest SoT for house caps, insert-budget math, the
 #731/#815 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), the
 #788 house fill (`HOUSE_TARGET` 50 → 100), the #852 control-loop band,
 and the #957 rebaseline (target/cap 250, band 235–250, stale 30d).
+#1045: AI Curated adds are long-form only (`MIN_LONGFORM_SEC` 60).
 No YouTube I/O. No second writer. No OAuth.
 The loop itself lives in `scripts/youtube_groom_control.py`. Discovery,
 share cap, and the daily climb live in `scripts/youtube_groom_supply.py`.
@@ -85,6 +86,9 @@ KEEP_N = 10  # empty-playlist prune fallback on Pi (`keep_n`)
 
 # Add-path floors on the Pi writer (#731, #815, then #957 baseline).
 MIN_FIT = 0  # thesis-fit skip disabled; accept fit≥0 (was 1)
+# Chris, 2026-10-03: a Short is under 60s. YouTube also flags Shorts up to 3 min.
+MIN_LONGFORM_SEC = 60
+SHORTS_MAX_SEC = 180
 OLD_MIN_FIT = 1
 ORIG_MIN_FIT = 2  # pre-#731 skip fit < 2
 SEED_THROTTLE_WEIGHT_FLOOR = 0.0  # #957 baseline; throttle skip off
@@ -141,6 +145,8 @@ HOUSE_CAPS = {
     "MAX_INSERTS_PER_TICK": None,
     "MAX_ADD_PER_DAY": MAX_ADD_PER_DAY,
     "MIN_FIT": MIN_FIT,
+    "MIN_LONGFORM_SEC": MIN_LONGFORM_SEC,
+    "SHORTS_MAX_SEC": SHORTS_MAX_SEC,
     "SEED_THROTTLE_WEIGHT_FLOOR": SEED_THROTTLE_WEIGHT_FLOOR,
     "WEIGHT_FLOOR": WEIGHT_FLOOR,
     "CLIMB_INSERTS_PER_DAY": CLIMB_INSERTS_PER_DAY,
@@ -190,8 +196,21 @@ def skip_add_reason(
     is_seed_throttle: bool,
     min_fit: int = MIN_FIT,
     throttle_floor: float = SEED_THROTTLE_WEIGHT_FLOOR,
+    duration_sec: Optional[int] = None,
+    is_short: bool = False,
+    min_longform_sec: int = MIN_LONGFORM_SEC,
 ) -> Optional[str]:
-    """Pi add-path skip reason. Policy only — seed channel ids stay on the writer."""
+    """Pi add-path skip reason. Policy only — seed channel ids stay on the writer.
+
+    ``duration_sec is None`` means the duration was missing or unparseable.
+    Callers that are not scoring a video pass a known long-form duration.
+    """
+    if duration_sec is not None and duration_sec < min_longform_sec:
+        return "short<60s"
+    if is_short:
+        return "short-flagged"
+    if duration_sec is None:
+        return "duration-unknown"
     if fit < min_fit:
         return f"fit={fit}"
     if is_seed_throttle and channel_weight < throttle_floor:

@@ -10,13 +10,22 @@ Quota: ``search.list`` is 100 units. Inserts are reserved first
 (``CLIMB_INSERTS_PER_DAY`` × 50) so discovery cannot starve adds.
 A day climbs by at most ``CLIMB_INSERTS_PER_DAY`` videos. The hard
 playlist max is CAP 250.
+
+#1045 long-form gate: ``filter_longform`` drops Shorts before ranking.
+``search.list`` does not set ``videoDuration``. ``medium`` would drop
+interviews longer than 20 minutes, and ``long`` alone would drop the
+4–20 minute band. The duration filter is the enforcement.
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
+import os
+import re
 import shutil
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
@@ -71,6 +80,17 @@ DISCOVERY_QUERIES = (
 )
 
 COPY_OVER_PI = False
+
+# Chris, 2026-10-03: never add a Short to AI Curated. Under 60s is a Short.
+# YouTube also lets a Short run to 3 minutes, so duration alone is not enough.
+MIN_LONGFORM_SEC = 60
+SHORTS_MAX_SEC = 180
+# Unofficial. Data API has no isShort. Off unless SHORTS_URL_PROBE=1.
+SHORTS_URL_PROBE = os.environ.get("SHORTS_URL_PROBE") == "1"
+SHORTS_PROBE_TIMEOUT_SEC = 3.0
+_DURATION_RE = re.compile(
+    r"^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$"
+)
 
 
 class PatchError(RuntimeError):
@@ -678,6 +698,196 @@ def finish_supply_report(
     return out
 
 
+def parse_duration_sec(raw: Any) -> Optional[int]:
+    """Strict ISO 8601 duration in seconds. Never raises.
+
+    Missing, malformed, and ``P0D`` (live/upcoming) are None. ``PT0S`` is 0.
+    """
+    if raw is None or not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    if not text or text == "P0D":
+        return None
+    match = _DURATION_RE.fullmatch(text)
+    if not match:
+        return None
+    days, hours, mins, secs = match.groups()
+    if days is None and hours is None and mins is None and secs is None:
+        return None
+    total = int(days or 0) * 86400 + int(hours or 0) * 3600 + int(mins or 0) * 60
+    if secs is not None:
+        total += int(float(secs))
+    return total
+
+
+def _has_short_tag(text: str) -> bool:
+    return re.search(r"#shorts?\b", text.lower()) is not None
+
+
+def _probe_shorts_url(video_id: str, *, timeout: float = SHORTS_PROBE_TIMEOUT_SEC) -> bool:
+    """200 means Short. 303 to /watch means not. Any error fails open."""
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    url = f"https://www.youtube.com/shorts/{video_id}"
+    request = urllib.request.Request(url, method="GET")
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        response = opener.open(request, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 200:
+            return True
+        if exc.code == 303:
+            location = str(exc.headers.get("Location") or "")
+            return "/watch" not in location
+        return False
+    except Exception:
+        return False
+    try:
+        code = response.getcode()
+    except Exception:
+        return False
+    return code == 200
+
+
+def is_shorts_flagged(video: Any, *, duration_sec: Optional[int] = None) -> bool:
+    """Best-effort Shorts mark. The Data API has no isShort field.
+
+    ``#shorts`` / ``#short`` in the title, description, or tags, or a
+    ``/shorts/`` URL on the candidate. For 60–180s only, and only when
+    ``SHORTS_URL_PROBE=1``, a no-redirect GET of the Shorts URL. Probe
+    errors fail open (not flagged).
+    """
+    if not isinstance(video, dict):
+        return False
+    snippet = video.get("snippet") if isinstance(video.get("snippet"), dict) else {}
+    parts = [
+        str(video.get("title") or snippet.get("title") or ""),
+        str(video.get("description") or snippet.get("description") or ""),
+    ]
+    tags = video.get("tags")
+    if tags is None:
+        tags = snippet.get("tags")
+    if isinstance(tags, list):
+        parts.extend(str(tag) for tag in tags)
+    if _has_short_tag("\n".join(parts)):
+        return True
+    for key in ("url", "link"):
+        if "/shorts/" in str(video.get(key) or "").lower():
+            return True
+    dur = duration_sec if duration_sec is not None else video.get("duration_sec")
+    if not isinstance(dur, int) or isinstance(dur, bool):
+        return False
+    if dur < MIN_LONGFORM_SEC or dur > SHORTS_MAX_SEC:
+        return False
+    if os.environ.get("SHORTS_URL_PROBE") != "1":
+        return False
+    vid = video.get("video_id") or video.get("id") or ""
+    if isinstance(vid, dict):
+        vid = vid.get("videoId") or ""
+    if not vid:
+        return False
+    return _probe_shorts_url(str(vid))
+
+
+def _duration_missing(candidate: dict[str, Any]) -> bool:
+    dur = candidate.get("duration_sec")
+    return not isinstance(dur, int) or isinstance(dur, bool) or dur == 0
+
+
+def _videos_by_id(yt: Any, video_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+    found: dict[str, dict[str, Any]] = {}
+    if not video_ids or yt is None or not hasattr(yt, "videos"):
+        return found
+    for start in range(0, len(video_ids), 50):
+        chunk = list(video_ids[start : start + 50])
+        got = yt.videos(chunk)
+        if isinstance(got, dict):
+            for key, item in got.items():
+                if isinstance(item, dict):
+                    found[str(key)] = item
+        elif isinstance(got, list):
+            for item in got:
+                if not isinstance(item, dict):
+                    continue
+                vid = item.get("id")
+                if isinstance(vid, dict):
+                    vid = vid.get("videoId")
+                if vid:
+                    found[str(vid)] = item
+    return found
+
+
+def _skip_row(candidate: dict[str, Any], why: str) -> dict[str, str]:
+    return {
+        "video_id": str(candidate.get("video_id") or ""),
+        "title": str(candidate.get("title") or ""),
+        "why": why,
+    }
+
+
+def filter_longform(
+    candidates: Sequence[dict[str, Any]],
+    yt: Any,
+    log: Any,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Drop Shorts and unknown durations before ranking.
+
+    Candidates with ``duration_sec`` 0 or missing are enriched from
+    ``yt.videos`` (50 ids per call). Skip reasons are ``short<60s``,
+    ``short-flagged``, and ``duration-unknown``.
+    """
+    rows = [c for c in candidates if isinstance(c, dict)]
+    need = [str(c.get("video_id") or "") for c in rows if c.get("video_id") and _duration_missing(c)]
+    fetched = _videos_by_id(yt, [vid for vid in need if vid])
+    kept: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    for candidate in rows:
+        vid = str(candidate.get("video_id") or "")
+        item = fetched.get(vid) or {}
+        if _duration_missing(candidate):
+            raw = (item.get("contentDetails") or {}).get("duration") if item else None
+            candidate["duration_sec"] = parse_duration_sec(raw)
+        duration = candidate.get("duration_sec")
+        if not isinstance(duration, int) or isinstance(duration, bool):
+            duration = None
+            candidate["duration_sec"] = None
+        view = dict(candidate)
+        snippet = item.get("snippet") if isinstance(item.get("snippet"), dict) else {}
+        if snippet.get("tags") and not view.get("tags"):
+            view["tags"] = snippet.get("tags")
+        if snippet.get("description"):
+            view["description"] = snippet.get("description") or view.get("description")
+        flagged = is_shorts_flagged(view, duration_sec=duration if isinstance(duration, int) else None)
+        why = ""
+        if isinstance(duration, int) and duration < MIN_LONGFORM_SEC:
+            why = "short<60s"
+        elif flagged:
+            why = "short-flagged"
+        elif duration is None:
+            why = "duration-unknown"
+        if not why:
+            kept.append(candidate)
+            continue
+        skipped.append(_skip_row(candidate, why))
+        if log is not None:
+            log.info("skip add %s %s", vid, why)
+    return kept, skipped
+
+
+def _patch_duration_bonus(text: str) -> str:
+    """Unknown duration must not earn the 15–180 min ranking bonus."""
+    old = "    duration = 1 if 15 * 60 <= dur <= 3 * 3600 or dur == 0 else 0\n"
+    new = "    duration = 1 if 15 * 60 <= dur <= 3 * 3600 else 0  # unknown is not a bonus (#1045)\n"
+    if old in text:
+        return text.replace(old, new, 1)
+    if "or dur == 0" in text and "def score_candidate" in text:
+        raise PatchError("missing anchor: duration-bonus")
+    return text
+
+
 def _replace_once(text: str, old: str, new: str, label: str) -> str:
     # `new` often starts with `old`. Check the rewritten text first so a
     # second run does not insert the same line again.
@@ -861,6 +1071,49 @@ def patch_writer_source(text: str, *, parse: bool = True) -> str:
 '''
     if "supply_tick(" not in text:
         text = _replace_once(text, "        ranked_add = []\n", supply_call + "        ranked_add = []\n", "supply-tick")
+    longform_call = '''        except Exception:
+            log.warning("supply lane failed")
+        try:
+            from youtube_groom_supply import filter_longform
+
+            candidates, longform_skipped = filter_longform(candidates, yt, log)
+            skipped_add.extend(longform_skipped)
+        except Exception:
+            log.warning("longform filter failed")
+            kept_longform = []
+            for c in candidates:
+                dur = c.get("duration_sec")
+                blob = f"{c.get('title') or ''} {c.get('description') or ''}".lower()
+                flagged = "#short" in blob or "/shorts/" in blob
+                known_long = (
+                    isinstance(dur, int)
+                    and not isinstance(dur, bool)
+                    and dur >= 60
+                    and not flagged
+                )
+                if known_long:
+                    kept_longform.append(c)
+                else:
+                    why = "short<60s" if isinstance(dur, int) and not isinstance(dur, bool) and 0 < dur < 60 else "duration-unknown"
+                    if flagged and not (isinstance(dur, int) and not isinstance(dur, bool) and 0 < dur < 60):
+                        why = "short-flagged"
+                    skipped_add.append(
+                        {
+                            "video_id": c.get("video_id") or "",
+                            "title": c.get("title") or "",
+                            "why": why,
+                        }
+                    )
+            candidates = kept_longform
+        ranked_add = []
+'''
+    text = _replace_once(
+        text,
+        '        except Exception:\n            log.warning("supply lane failed")\n        ranked_add = []\n',
+        longform_call,
+        "longform",
+    )
+    text = _patch_duration_bonus(text)
     text = _replace_once(
         text,
         "    added: list[dict[str, Any]] = []\n    skipped_add: list[dict[str, Any]] = []\n",
@@ -1034,6 +1287,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print(f"  CLIMB_INSERTS_PER_DAY={CLIMB_INSERTS_PER_DAY}")
     print(f"  share=max({CHANNEL_SHARE_MIN}, ceil({CHANNEL_SHARE_FRACTION:.0%}))")
     print(f"  discovery_mix_target={DISCOVERY_MIX_TARGET} searches/tick<={MAX_SEARCHES_PER_TICK}")
+    print(f"  MIN_LONGFORM_SEC={MIN_LONGFORM_SEC} SHORTS_MAX_SEC={SHORTS_MAX_SEC}")
     return 0
 
 

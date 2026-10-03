@@ -203,19 +203,27 @@ class TestPruneFirstThenFill(unittest.TestCase):
 class TestAddPathFloors815(unittest.TestCase):
     def test_fit_zero_is_kept(self):
         self.assertIsNone(
-            M.skip_add_reason(fit=0, channel_weight=1.0, is_seed_throttle=False)
+            M.skip_add_reason(
+                fit=0, channel_weight=1.0, is_seed_throttle=False, duration_sec=600
+            )
         )
         self.assertIsNone(
-            M.skip_add_reason(fit=1, channel_weight=1.0, is_seed_throttle=False)
+            M.skip_add_reason(
+                fit=1, channel_weight=1.0, is_seed_throttle=False, duration_sec=600
+            )
         )
         self.assertIsNone(
-            M.skip_add_reason(fit=2, channel_weight=1.0, is_seed_throttle=False)
+            M.skip_add_reason(
+                fit=2, channel_weight=1.0, is_seed_throttle=False, duration_sec=600
+            )
         )
 
     def test_throttle_floor_off_at_baseline(self):
         # #815 skipped only below 0.10. #957 turns the baseline floor off.
         self.assertIsNone(
-            M.skip_add_reason(fit=3, channel_weight=0.09, is_seed_throttle=True)
+            M.skip_add_reason(
+                fit=3, channel_weight=0.09, is_seed_throttle=True, duration_sec=600
+            )
         )
         self.assertEqual(
             M.skip_add_reason(
@@ -223,11 +231,53 @@ class TestAddPathFloors815(unittest.TestCase):
                 channel_weight=0.09,
                 is_seed_throttle=True,
                 throttle_floor=0.10,
+                duration_sec=600,
             ),
             "throttled-decay",
         )
         self.assertIsNone(
-            M.skip_add_reason(fit=3, channel_weight=0.343, is_seed_throttle=True)
+            M.skip_add_reason(
+                fit=3, channel_weight=0.343, is_seed_throttle=True, duration_sec=600
+            )
+        )
+
+    def test_longform_skip_reasons(self):
+        self.assertEqual(M.MIN_LONGFORM_SEC, 60)
+        self.assertEqual(M.SHORTS_MAX_SEC, 180)
+        self.assertEqual(M.HOUSE_CAPS["MIN_LONGFORM_SEC"], 60)
+        self.assertEqual(M.HOUSE_CAPS["SHORTS_MAX_SEC"], 180)
+        self.assertEqual(
+            M.skip_add_reason(
+                fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=45
+            ),
+            "short<60s",
+        )
+        self.assertEqual(
+            M.skip_add_reason(
+                fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=59
+            ),
+            "short<60s",
+        )
+        self.assertEqual(
+            M.skip_add_reason(
+                fit=3,
+                channel_weight=1.0,
+                is_seed_throttle=False,
+                duration_sec=90,
+                is_short=True,
+            ),
+            "short-flagged",
+        )
+        self.assertEqual(
+            M.skip_add_reason(
+                fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=None
+            ),
+            "duration-unknown",
+        )
+        self.assertIsNone(
+            M.skip_add_reason(
+                fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=60
+            )
         )
 
 
