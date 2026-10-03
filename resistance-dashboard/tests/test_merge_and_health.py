@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -29,6 +30,19 @@ from rt_dashboard.models import (  # noqa: E402
 from rt_dashboard.parse import parse_workout_markdown  # noqa: E402
 from rt_dashboard.recovery import compute_recovery_status  # noqa: E402
 from rt_dashboard.session_merge import merge_sessions  # noqa: E402
+
+
+def _resolve_without_github(google, workspace_dir=""):
+    """Resolve health from the temp workspace only.
+
+    ``resolve_health_snapshot`` prefers the live GitHub copy of
+    ``fitness/data/health-metrics.json``. Tests must not depend on master.
+    """
+    with mock.patch(
+        "rt_dashboard.health_metrics_store.fetch_metrics_from_github",
+        return_value=None,
+    ):
+        return resolve_health_snapshot(google, workspace_dir=workspace_dir)
 
 
 class TestSessionMerge(unittest.TestCase):
@@ -164,7 +178,7 @@ class TestHealthAndRecovery(unittest.TestCase):
                 )
             ],
         )
-        resolved = resolve_health_snapshot(google, workspace_dir="")
+        resolved = _resolve_without_github(google, workspace_dir="")
         self.assertEqual(resolved.weight[0].source, "google_fit")
         self.assertEqual(resolved.sleep[0].sleep_hours, 8.0)
 
@@ -182,11 +196,17 @@ class TestHealthAndRecovery(unittest.TestCase):
             empty_google = HealthSnapshot(
                 error="Missing Google OAuth credentials"
             )
-            resolved = resolve_health_snapshot(
+            resolved = _resolve_without_github(
                 empty_google, workspace_dir=td
             )
             self.assertGreater(len(resolved.weight), 0)
             self.assertGreater(len(resolved.sleep), 0)
+            self.assertTrue(
+                all(sample.source == "fitbit_report" for sample in resolved.weight)
+            )
+            self.assertTrue(
+                all(sample.source == "fitbit_report" for sample in resolved.sleep)
+            )
             status = compute_recovery_status(
                 weight=resolved.weight,
                 sleep=resolved.sleep,
@@ -273,12 +293,12 @@ class TestHealthAndRecovery(unittest.TestCase):
                     )
                 ],
             )
-            resolved = resolve_health_snapshot(google, workspace_dir=td)
+            resolved = _resolve_without_github(google, workspace_dir=td)
             by = {w.date: w for w in resolved.weight}
             self.assertEqual(by["2026-07-01"].weight_lbs, 200.0)
             self.assertEqual(by["2026-07-01"].source, "google_fit")
             self.assertEqual(by["2026-05-20"].weight_lbs, 185.4)
-            again = resolve_health_snapshot(resolved, workspace_dir=td)
+            again = _resolve_without_github(resolved, workspace_dir=td)
             self.assertEqual(
                 sorted(w.date for w in again.weight),
                 sorted(w.date for w in resolved.weight),
