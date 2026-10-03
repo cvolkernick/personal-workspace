@@ -1,0 +1,15 @@
+[Unit]
+Description=Bland post-call webhook relay -> Alexandra alert endpoint
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/bland-relay/env
+Environment=RELAY_HOST=127.0.0.1 RELAY_PORT=8799 PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/bin/bland-relay.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
