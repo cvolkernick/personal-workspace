@@ -238,7 +238,7 @@ def compute_weekly_review(
 
     bullets: List[str] = []
     bullets.append(
-        f"Training: {len(week_sess)} sessions · {vol:,.0f} lb volume"
+        f"Training: {len(week_sess)} sessions · {vol:,.0f} lb tonnage"
         + (f" · PRs: {', '.join(prs[:4])}" if prs else " · no auto-PRs logged")
     )
     if avg_sleep is not None:

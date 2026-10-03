@@ -1259,8 +1259,8 @@
   }
 
   function renderCharts(data) {
-    // Daily volume = last 90 calendar days, one bar per day (0 if no session).
-    // 7d rolling = trailing weekly volume (day + previous 6; rest days stay 0).
+    // Daily tonnage = last 90 calendar days, one bar per day (0 if no session).
+    // 7d rolling = trailing weekly tonnage (day + previous 6; rest days stay 0).
     const vol = data.volume_by_day || [];
     const volLabels = vol.map((v) => v.date);
     const volVals = vol.map((v) => v.volume);
@@ -1276,7 +1276,7 @@
         datasets: [
           {
             type: "bar",
-            label: "Daily volume (lb)",
+            label: "Daily tonnage (lb)",
             data: volVals,
             backgroundColor: "rgba(61,156,240,0.55)",
             borderRadius: 4,
@@ -2704,7 +2704,7 @@
       window.FitDashHistorySets &&
       typeof window.FitDashHistorySets.formatExerciseLine === "function"
         ? window.FitDashHistorySets.formatExerciseLine
-        : (e) => `${e.name} (${Math.round(e.volume)} vol)`;
+        : (e) => `${e.name} (${Math.round(e.volume)} lb tonnage)`;
     (sessions || []).slice(0, 40).forEach((s) => {
       const li = document.createElement("li");
       const exercises = s.exercises || [];
@@ -2722,7 +2722,7 @@
           </label>
           <button type="button" class="hist-date-save btn-touch">Save date</button>
         </div>
-        <div class="meta">Volume ${fmtNum(s.volume)} lb · ${exercises.length} exercises</div>
+        <div class="meta">Tonnage ${fmtNum(s.volume)} lb · ${exercises.length} exercises</div>
         <div class="ex">${exHtml}</div>
       `;
       list.appendChild(li);

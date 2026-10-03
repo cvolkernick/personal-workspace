@@ -6,7 +6,7 @@ Mobile-friendly dashboard that:
 
 - **Pulls lift history** from the GitHub repo `cvolkernick/personal-workspace` (`fitness/workouts/{push,pull,legs}.md`)
 - **Logs new workouts** by appending to those markdown files (GitHub Contents API when `GITHUB_TOKEN` is set; local workspace otherwise)
-- **Charts** weekly volume and per-exercise strength (best working load + Epley e1RM)
+- **Charts** daily tonnage and per-exercise strength (best working load + Epley e1RM)
 - **Fetches weight & sleep** from Google Fit REST (`dataset:aggregate` / sessions) when OAuth env vars are set
 - **Suggests recovery status** from sleep, recent training volume, and weight trend
 - **Nutrition targets:** **applied** values live in `fitness/nutrition/targets.json` (Kitchen form, `set targets`, meal plan, calorie pacing, 7d adherence). **Recommended** values come from `recommend_nutrition_targets` (goal vs current data) — recommend on load, write only on explicit apply. Same pattern as `suggest_focus_muscles`. Contract: [`fitness/nutrition/COACH_TARGETS.md`](../fitness/nutrition/COACH_TARGETS.md). Ask Grok explains that payload; it does not own the numbers.

@@ -1,5 +1,5 @@
 /**
- * FitDash workout history: weight × sets × reps next to volume.
+ * FitDash workout history: weight × sets × reps next to tonnage.
  * Matches GitHub log triples: ``225 lbs x 3 x 8``.
  */
 (function (root) {
@@ -46,8 +46,8 @@
     var pr = ex && ex.is_pr ? " (PR)" : "";
     var vol = formatVolume(ex && ex.volume);
     var setsLabel = formatSets(ex);
-    if (setsLabel) return name + pr + " (" + setsLabel + " · " + vol + " vol)";
-    return name + pr + " (" + vol + " vol)";
+    if (setsLabel) return name + pr + " (" + setsLabel + " · " + vol + " lb tonnage)";
+    return name + pr + " (" + vol + " lb tonnage)";
   }
 
   var api = {

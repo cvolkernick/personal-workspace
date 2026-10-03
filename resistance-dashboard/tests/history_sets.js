@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Workout history lines must include weight × sets × reps next to volume.
+ * Workout history lines must include weight × sets × reps next to tonnage.
  */
 "use strict";
 
@@ -28,10 +28,10 @@ const multi = hist.formatExerciseLine({
 });
 assert(
   multi ===
-    "DB Flat Press (50 lbs x 1 x 12, 45 lbs x 1 x 12, 40 lbs x 1 x 12 · 1,620 vol)" ||
+    "DB Flat Press (50 lbs x 1 x 12, 45 lbs x 1 x 12, 40 lbs x 1 x 12 · 1,620 lb tonnage)" ||
     multi ===
-      "DB Flat Press (50 lbs x 1 x 12, 45 lbs x 1 x 12, 40 lbs x 1 x 12 · 1620 vol)",
-  "multi-load next to volume, got: " + multi
+      "DB Flat Press (50 lbs x 1 x 12, 45 lbs x 1 x 12, 40 lbs x 1 x 12 · 1620 lb tonnage)",
+  "multi-load next to tonnage, got: " + multi
 );
 
 const pr = hist.formatExerciseLine({
@@ -42,9 +42,13 @@ const pr = hist.formatExerciseLine({
 });
 assert(pr.indexOf("Tricep Pushdowns (PR)") === 0, "PR suffix on name");
 assert(pr.indexOf("47.5 lbs x 3 x 12") !== -1, "uses sets_label from API");
-assert(pr.indexOf("vol") !== -1, "keeps volume");
+assert(pr.indexOf("lb tonnage") !== -1, "labels the pound total as tonnage");
+assert(pr.indexOf(" vol)") === -1, "drops the vol suffix");
 
 const volOnly = hist.formatExerciseLine({ name: "Unknown", volume: 100 });
-assert(volOnly === "Unknown (100 vol)" || volOnly === "Unknown (100 vol)", "volume fallback");
+assert(
+  volOnly === "Unknown (100 lb tonnage)",
+  "tonnage fallback, got: " + volOnly
+);
 
 console.log("ok history-sets");

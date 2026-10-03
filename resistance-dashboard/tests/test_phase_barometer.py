@@ -103,6 +103,8 @@ class CurrentSnapshotBlocks(unittest.TestCase):
         self.assertIn("42.9", d["explanation"])
         self.assertIn("1.65", d["explanation"])
         self.assertIn("energy-availability", d["explanation"])
+        self.assertIn("7d tonnage 18100 lb", d["explanation"])
+        self.assertNotIn("7d volume", d["explanation"])
         self.assertFalse(d["banner"])
 
     def test_never_pivot_when_protein_under_70(self):
