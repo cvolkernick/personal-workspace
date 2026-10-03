@@ -60,8 +60,13 @@ OPTIONAL_FIELDS = ("Owner", "GitHub Issue URL")
 
 _WORKER_RE = re.compile(r"^\s*\*\*Worker:\*\*\s*(.+)$", re.IGNORECASE | re.MULTILINE)
 _ISSUE_URL_RE = re.compile(r"/issues/(\d+)\b")
-_ISSUE_REF_RE = re.compile(r"(?:^|[^A-Za-z0-9])#(\d+)\b")
 _NAME_NUM_RE = re.compile(r"^\s*#(\d+)\b")
+# Text fallback for a missing closingIssuesReferences edge. Bare #N mentions do not count.
+_CLOSING_CLAUSE_RE = re.compile(
+    r"(?i)\b(?:fixes|closes|resolves)\b\s*:?\s*"
+    r"((?:#\d+\b(?:\s*(?:,\s*(?:and\s+)?|and\s+))?)*)"
+)
+_HASH_NUM_RE = re.compile(r"#(\d+)\b")
 
 
 class AuthError(RuntimeError):
@@ -104,6 +109,15 @@ class Plan:
     actions: list[Action] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     unchanged: int = 0
+
+
+def closing_numbers_from_text(text: str | None) -> set[int]:
+    """Issue numbers named by Fixes, Closes, or Resolves. A bare #N is not a link."""
+    found: set[int] = set()
+    for match in _CLOSING_CLAUSE_RE.finditer(text or ""):
+        for number in _HASH_NUM_RE.findall(match.group(1) or ""):
+            found.add(int(number))
+    return found
 
 
 def parse_worker(body: str | None) -> str | None:
@@ -733,6 +747,7 @@ class GithubClient:
             pullRequests(states: OPEN, first: 50, after: $cursor) {
               pageInfo { hasNextPage endCursor }
               nodes {
+                isDraft
                 title
                 body
                 closingIssuesReferences(first: 20) { nodes { number } }
@@ -749,13 +764,14 @@ class GithubClient:
             )
             conn = ((data.get("repository") or {}).get("pullRequests")) or {}
             for node in conn.get("nodes") or []:
+                if node.get("isDraft"):
+                    continue
                 for ref in ((node.get("closingIssuesReferences") or {}).get("nodes")) or []:
                     number = ref.get("number")
                     if isinstance(number, int):
                         linked.add(number)
                 text = f"{node.get('title') or ''}\n{node.get('body') or ''}"
-                for match in _ISSUE_REF_RE.finditer(text):
-                    linked.add(int(match.group(1)))
+                linked.update(closing_numbers_from_text(text))
             page = conn.get("pageInfo") or {}
             if not page.get("hasNextPage"):
                 break

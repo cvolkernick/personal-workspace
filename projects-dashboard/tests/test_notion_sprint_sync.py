@@ -248,6 +248,80 @@ class FieldPreservationTest(unittest.TestCase):
         self.assertIn("Issue #", plan.actions[0].properties)
 
 
+class OpenPrMatcherTest(unittest.TestCase):
+    def test_mention_does_not_set_open_pr(self) -> None:
+        """A bare #N, including PR #1018's mention of #718, is not an open PR."""
+        client = sync.GithubClient(
+            "token",
+            "cvolkernick/personal-workspace",
+            "cvolkernick",
+            1,
+        )
+        nodes = [
+            {
+                "isDraft": False,
+                "title": "fix(fcc): keep the Glance Plaid block across offline writers (#1013)",
+                "body": (
+                    "Overlapping writers exposed the tracked copies (#718, #1013).\n"
+                    "A YNAB snapshot does not become a Glance row (#996).\n\n"
+                    "Fixes #1013\n"
+                ),
+                "closingIssuesReferences": {"nodes": [{"number": 1013}]},
+            },
+            {
+                "isDraft": False,
+                "title": "keyword fallback",
+                "body": "See #7.\n\nCloses #55, #56, and #57\nResolves: #58\nFix #59\n",
+                "closingIssuesReferences": {"nodes": []},
+            },
+            {
+                "isDraft": True,
+                "title": "draft",
+                "body": "Fixes #1016",
+                "closingIssuesReferences": {"nodes": [{"number": 1016}]},
+            },
+        ]
+
+        def gql(query, variables):
+            if "pullRequests" in query:
+                self.assertIn("isDraft", query)
+                self.assertIn("closingIssuesReferences", query)
+                return {
+                    "repository": {
+                        "pullRequests": {
+                            "pageInfo": {"hasNextPage": False},
+                            "nodes": nodes,
+                        }
+                    }
+                }
+            if "projectV2(number:" in query:
+                return {"user": {"projectV2": {"id": "PVT"}}}
+            return {"node": {"items": {"pageInfo": {"hasNextPage": False}, "nodes": []}}}
+
+        client._gql = gql  # type: ignore[method-assign]
+        client._search_open_candidates = lambda: {  # type: ignore[method-assign]
+            number: issue(number=number, labels={"spec"})
+            for number in (718, 996, 1013, 7, 55, 56, 57, 58, 59, 1016)
+        }
+        client._fetch_numbers = lambda numbers: {}  # type: ignore[method-assign]
+
+        found = {item.number: item.open_pr for item in client.fetch([])}
+        self.assertFalse(found[718])
+        self.assertFalse(found[996])
+        self.assertFalse(found[7])
+        self.assertFalse(found[59])
+        self.assertFalse(found[1016])
+        self.assertTrue(found[1013])
+        self.assertTrue(found[55])
+        self.assertTrue(found[56])
+        self.assertTrue(found[57])
+        self.assertTrue(found[58])
+        sprint = issue(number=718, labels={"spec"})
+        sprint.open_pr = found[718]
+        self.assertIsNone(sync.desired_status(sprint))
+        self.assertIsNone(sync.next_status("Sprint", sync.desired_status(sprint), creating=False))
+
+
 class FccWindowTest(unittest.TestCase):
     def test_hours_ending_1_or_6_at_minute_18(self) -> None:
         for hour in (1, 6, 11, 16, 21):
