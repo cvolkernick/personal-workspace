@@ -3515,6 +3515,14 @@
     };
   }
 
+  function syncRecipeMethodRequired() {
+    const source = String(($("recipe-source") && $("recipe-source").value) || "user");
+    const steps = $("recipe-steps");
+    if (steps) steps.required = source !== "coach";
+    const hint = $("recipe-method-hint");
+    if (hint) hint.hidden = source !== "coach";
+  }
+
   function resetRecipeForm() {
     if ($("recipe-id")) $("recipe-id").value = "";
     if ($("recipe-name")) $("recipe-name").value = "";
@@ -3524,6 +3532,7 @@
     const rows = $("recipe-ing-rows");
     if (rows) rows.innerHTML = "";
     addRecipeIngRow();
+    syncRecipeMethodRequired();
     const st = $("recipe-form-status");
     if (st) st.textContent = "";
   }
@@ -3540,6 +3549,7 @@
     const ings = rec.ingredients || [];
     if (!ings.length) addRecipeIngRow();
     ings.forEach((line) => addRecipeIngRow(line));
+    syncRecipeMethodRequired();
     const card = $("recipes-card");
     if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -3567,13 +3577,16 @@
       const needsMethod = dish
         ? ""
         : ` <span class="recipe-stale-badge">needs method</span>`;
+      const methodStale = rec.instructions_stale
+        ? ` <span class="recipe-stale-badge">stale method</span>`
+        : "";
       const yieldCopy =
         rec.yield_label ||
         `Makes ${rec.yield_servings || 1} serving${
           Number(rec.yield_servings) === 1 ? "" : "s"
         } of ${rec.name || "this dish"}`;
       html += `<button type="button" class="recipe-card${rec.stale || !dish ? " is-stale" : ""}" data-action="recipe-open" data-id="${invEscapeAttr(rec.id || "")}">
-        <div class="recipe-card-name">${rec.name || "Dish"}${stale}${needsMethod}</div>
+        <div class="recipe-card-name">${rec.name || "Dish"}${stale}${methodStale}${needsMethod}</div>
         <div class="recipe-card-meta muted">${yieldCopy} · per serving</div>
         ${invMacroStrip(macros, true)}
       </button>`;
@@ -3615,6 +3628,9 @@
     const needsMethod = isDish(rec)
       ? ""
       : `<p class="recipe-stale-badge">Needs a method — this is still a grouping, not a dish.</p>`;
+    const methodStale = rec.instructions_stale
+      ? `<p class="recipe-stale-badge">Method is stale — ingredients changed. These steps are not the current method.</p>`
+      : "";
     const yieldCopy =
       rec.yield_label ||
       `Makes ${yld} serving${yld === 1 ? "" : "s"} of ${dishName}`;
@@ -3622,14 +3638,16 @@
     box.innerHTML = `
       <div class="recipe-card-name">${dishName}</div>
       <div class="recipe-card-meta muted">${yieldCopy}</div>
-      ${stale}${needsMethod}
+      ${stale}${needsMethod}${methodStale}
       ${invMacroStrip(macros, true)}
       ${invMicroStrip(macros, true)}
       <div class="recipe-method-label">Method</div>
       ${
-        steps
-          ? `<ol class="recipe-method">${steps}</ol>`
-          : `<p class="muted" style="margin:0.35rem 0 0">Add a method to make this a dish.</p>`
+        rec.instructions_stale
+          ? ""
+          : steps
+            ? `<ol class="recipe-method">${steps}</ol>`
+            : `<p class="muted" style="margin:0.35rem 0 0">Add a method to make this a dish.</p>`
       }
       <p class="muted" style="margin:0.65rem 0 0.2rem;font-size:0.8rem">What went in (batch → one serving of the dish)</p>
       <table>
@@ -4002,7 +4020,7 @@
           if (st) st.textContent = "Name required";
           return;
         }
-        if (!body.instructions.length) {
+        if (!body.instructions.length && body.source !== "coach") {
           if (st) st.textContent = "Add a method — a recipe is a dish, not a pile of ingredients";
           return;
         }
@@ -4043,6 +4061,10 @@
         addRecipeIngRow();
       });
     }
+    if ($("recipe-source")) {
+      $("recipe-source").addEventListener("change", syncRecipeMethodRequired);
+    }
+    syncRecipeMethodRequired();
   }
 
   /** One delegated listener — survives re-renders and avoids dead buttons. */

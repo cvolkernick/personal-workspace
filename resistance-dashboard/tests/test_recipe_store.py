@@ -12,8 +12,10 @@ from rt_dashboard.recipe_store import (
     add_recipe_logs_to_consumed,
     assert_ingredient_not_in_use,
     attach_recipes_to_plan,
+    coach_preparation_steps,
     compose_from_meal_items,
     compute_recipe_macros,
+    create_dish_from_items,
     dish_yield_label,
     fingerprint_ingredients,
     get_recipe,
@@ -22,6 +24,7 @@ from rt_dashboard.recipe_store import (
     mark_recipes_stale_for_ingredient,
     name_from_items,
     normalize_recipe,
+    present_recipe,
     recipe_logs_as_food_entries,
     recipes_using_ingredient,
     require_dish,
@@ -592,6 +595,167 @@ class PhantomGroupingRemoval(unittest.TestCase):
         self.assertIn("vit", stale["stale_ingredient_ids"])
         self.assertEqual(stale["instructions"], ["Blend until smooth."])
         self.assertNotIn("grp1", [r["id"] for r in self.store.rows])
+
+
+class PreparedDishCreation(unittest.TestCase):
+    """#1069: a recipe is a method over the real batch, not a named pile."""
+
+    def test_create_writes_ordered_steps_for_the_real_batch(self):
+        items = [
+            {"id": "chicken", "name": "Chicken", "portion_g": 170},
+            {"id": "rice", "name": "Rice", "portion_g": 150},
+        ]
+        rec = create_dish_from_items(items, inventory=_inv(CHICKEN, RICE))
+        self.assertTrue(is_dish(rec))
+        self.assertIsNotNone(present_recipe(rec))
+        steps = rec["instructions"]
+        self.assertGreaterEqual(len(steps), 3)
+        self.assertTrue(steps[0].startswith("Measure"))
+        self.assertTrue(steps[-1].startswith("Portion"))
+        blob = " ".join(steps)
+        self.assertIn("170g Chicken", blob)
+        self.assertIn("150g Rice", blob)
+        self.assertIn("165F", blob)
+        self.assertEqual(rec["ingredients"][0]["grams_batch"], 170)
+        self.assertEqual(rec["ingredients"][1]["grams_batch"], 150)
+        low = blob.lower()
+        for banned in ("olive", "salt", "butter", "garlic", "onion", "oil", "water"):
+            self.assertNotIn(banned, low)
+
+    def test_rice_only_does_not_invent_a_poultry_temp(self):
+        rec = create_dish_from_items(
+            [{"id": "rice", "name": "Rice", "portion_g": 150}],
+            inventory=_inv(RICE),
+        )
+        blob = " ".join(rec["instructions"])
+        self.assertIn("150g Rice", blob)
+        self.assertNotIn("165", blob)
+        self.assertNotIn("Chicken", blob)
+        self.assertEqual(rec["ingredients"][0]["grams_batch"], 150)
+
+    def test_servings_quantity_is_not_turned_into_grams(self):
+        rec = create_dish_from_items(
+            [{"id": "eggs", "name": "Eggs", "servings": 2}]
+        )
+        self.assertEqual(rec["ingredients"], [{"ingredient_id": "eggs", "servings_batch": 2}])
+        blob = " ".join(rec["instructions"])
+        self.assertIn("2 servings Eggs", blob)
+        self.assertNotIn("g Eggs", blob)
+
+    def test_grouping_is_not_presented_or_saved(self):
+        draft = compose_from_meal_items(
+            [{"id": "chicken", "name": "Chicken", "portion_g": 170}]
+        )
+        self.assertEqual(draft["instructions"], [])
+        self.assertFalse(is_dish(draft))
+        self.assertIsNone(present_recipe(draft))
+        empty = create_dish_from_items([{"name": "Mystery"}])
+        self.assertFalse(is_dish(empty))
+        self.assertIsNone(present_recipe(empty))
+
+    def test_stale_method_is_not_presented_as_current(self):
+        stale = {
+            "name": "Bowl",
+            "instructions": ["Use 170g Chicken."],
+            "instructions_stale": True,
+            "ingredients": [{"ingredient_id": "chicken", "grams_batch": 200}],
+        }
+        shown = present_recipe(stale)
+        self.assertEqual(shown["instructions"], [])
+        self.assertEqual(shown["stale_instructions"], ["Use 170g Chicken."])
+
+    def test_explicit_method_is_kept_and_grams_stay(self):
+        rec = create_dish_from_items(
+            [{"id": "oats", "name": "Oats", "portion_g": 40}],
+            instructions=["Mix and chill overnight."],
+        )
+        self.assertEqual(rec["instructions"], ["Mix and chill overnight."])
+        self.assertEqual(rec["ingredients"][0]["grams_batch"], 40)
+
+    def test_coach_steps_do_not_change_when_lines_are_empty(self):
+        self.assertEqual(coach_preparation_steps("Soup", []), [])
+
+
+class PreparedDishSave(PhantomGroupingRemoval):
+    def test_coach_save_fills_steps_from_inventory_names(self):
+        saved = upsert_recipe(
+            "sub-1",
+            {
+                "name": "Chicken + Rice",
+                "source": "coach",
+                "yield_servings": 1,
+                "ingredients": [
+                    {"ingredient_id": "chicken", "grams_batch": 170},
+                    {"ingredient_id": "rice", "grams_batch": 150},
+                ],
+            },
+            inventory=_inv(CHICKEN, RICE),
+        )
+        blob = " ".join(saved["instructions"])
+        self.assertTrue(saved["is_dish"])
+        self.assertFalse(saved["instructions_stale"])
+        self.assertIn("170g Chicken", blob)
+        self.assertIn("150g Rice", blob)
+        self.assertEqual(saved["ingredients"][0]["grams_batch"], 170)
+        self.assertEqual(saved["ingredients"][1]["grams_batch"], 150)
+        self.assertIsNotNone(present_recipe(saved))
+
+    def test_ingredient_edit_regenerates_instead_of_keeping_old_steps(self):
+        saved = upsert_recipe(
+            "sub-1",
+            {
+                "name": "Chicken",
+                "source": "user",
+                "yield_servings": 1,
+                "ingredients": [{"ingredient_id": "chicken", "grams_batch": 170}],
+                "instructions": ["Blend until smooth."],
+            },
+            inventory=_inv(CHICKEN),
+        )
+        self.assertEqual(saved["instructions"], ["Blend until smooth."])
+        edited = upsert_recipe(
+            "sub-1",
+            {
+                "id": saved["id"],
+                "name": "Chicken",
+                "source": "user",
+                "yield_servings": 1,
+                "ingredients": [{"ingredient_id": "chicken", "grams_batch": 200}],
+                "instructions": ["Blend until smooth."],
+            },
+            inventory=_inv(CHICKEN),
+        )
+        blob = " ".join(edited["instructions"])
+        self.assertIn("200g Chicken", blob)
+        self.assertNotIn("170g", blob)
+        self.assertNotIn("Blend until smooth.", edited["instructions"])
+        self.assertEqual(edited["ingredients"][0]["grams_batch"], 200)
+        self.assertFalse(edited["instructions_stale"])
+
+    def test_rewritten_method_that_cites_the_new_batch_is_kept(self):
+        saved = upsert_recipe(
+            "sub-1",
+            {
+                "name": "Chicken",
+                "source": "user",
+                "ingredients": [{"ingredient_id": "chicken", "grams_batch": 170}],
+                "instructions": ["Grill 170g Chicken."],
+            },
+            inventory=_inv(CHICKEN),
+        )
+        edited = upsert_recipe(
+            "sub-1",
+            {
+                "id": saved["id"],
+                "name": "Chicken",
+                "source": "user",
+                "ingredients": [{"ingredient_id": "chicken", "grams_batch": 200}],
+                "instructions": ["Grill 200g Chicken until done."],
+            },
+            inventory=_inv(CHICKEN),
+        )
+        self.assertEqual(edited["instructions"], ["Grill 200g Chicken until done."])
+        self.assertEqual(edited["ingredients"][0]["grams_batch"], 200)
 
 
 if __name__ == "__main__":
