@@ -19,10 +19,11 @@ The 90-day rolling chart (`build_rolling_cash_series`) reuses this filter,
 then drops any payee containing "reconcile". That wider drop is chart-only.
 It does not change Sankey totals or the Glance daily-flow chip. The Sankey
 still draws the Braiins snapshot node. The rolling series keeps YNAB daily
-sums as inflow and adds an address-keyed Bitcoin band on top. Lyft, Grubhub,
-and Turo are the trailing 30-day mean on external inflows
-``classify_income_source`` accepts. Bitcoin is the trailing 90-day mean from
-``bitcoin_mining_income`` (not a second YNAB matcher). Other is YNAB inflow
+sums as inflow and adds a Bitcoin band on top. Lyft, Grubhub, and Turo are
+the trailing 30-day mean on external inflows ``classify_income_source``
+accepts. Bitcoin is the trailing 90-day mean of confirmed Braiins payouts
+at their stamped USD price (not a second YNAB matcher). An empty or missing
+payout list falls back to ``bitcoin_mining_income``. Other is YNAB inflow
 minus Lyft, Grubhub, and Turo, floored at 0. The envelope line is YNAB
 inflow plus Bitcoin. Outflow stays a line.
 Uncategorized outflows stay an explicit node. A present Braiins payout
@@ -30,7 +31,11 @@ list stays canonical, including loud-unknown when that list or the Coinbase
 spot used to value it is missing or stale. An empty or unknown payout list
 falls back to confirmed mempool.space receipts to ``braiins.payout_address``
 (env ``BRAIINS_PAYOUT_ADDRESS`` wins). If that read also fails, the mining
-node stays loud-unknown. Never a silent omit.
+node stays loud-unknown. Never a silent omit. The rolling band uses the
+same non-empty list at the stamped USD price and does not require a fresh
+spot. Receipts older than the candle window are dropped before pricing.
+A feed that does not price is ``source_warnings`` ``bitcoin``, not a silent
+``ok`` zero.
 
 Cash Streams freshness is the live YNAB *transaction* pull ``as_of``, not the
 age of balance snapshots (``x_money`` / ``one_card`` / ``rh_checking``). Those
@@ -900,6 +905,7 @@ def build_rolling_cash_series(
     error: Optional[str] = None,
     bitcoin_usd_by_day: Optional[Mapping[str, float]] = None,
     bitcoin_feed: Optional[Mapping[str, Any]] = None,
+    bitcoin_missing: bool = False,
 ) -> Dict[str, Any]:
     """90 displayed days of trailing-30-day mean inflow and outflow.
 
@@ -917,7 +923,9 @@ def build_rolling_cash_series(
     plus bitcoin, so the stack top matches the envelope except when rounding
     pushes the named YNAB means past inflow. A named YNAB source that is $0
     on every displayed point while some inflow point is not is listed in
-    ``source_warnings``. The remainder band and Bitcoin are not warnings.
+    ``source_warnings``. The remainder band is not a warning. Bitcoin is a
+    warning only when ``bitcoin_missing`` is set and that band is $0 on
+    every displayed point.
     """
     end = today or date.today()
     seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
@@ -1015,7 +1023,9 @@ def build_rolling_cash_series(
         points.append(point)
     if len(points) != ROLLING_DISPLAY_DAYS:
         raise ValueError(f"expected {ROLLING_DISPLAY_DAYS} rolling points, got {len(points)}")
-    warnings = _source_warnings(points, source_ids)
+    warnings = _source_warnings(
+        points, source_ids, bitcoin_missing=bitcoin_missing
+    )
     return {
         "ok": True,
         "error": None,
@@ -1025,14 +1035,22 @@ def build_rolling_cash_series(
     }
 
 
-def _source_warnings(points: Sequence[Dict[str, Any]], source_ids: Sequence[str]) -> List[str]:
-    """Sources that read $0 on every displayed point while inflow does not."""
-    if not any(float(point.get("inflow") or 0) != 0.0 for point in points):
-        return []
+def _source_warnings(
+    points: Sequence[Dict[str, Any]],
+    source_ids: Sequence[str],
+    *,
+    bitcoin_missing: bool = False,
+) -> List[str]:
+    """YNAB sources at $0 while inflow is not, plus a missing Bitcoin feed."""
     warnings: List[str] = []
-    for sid in source_ids:
-        if all(float(point.get(sid) or 0) == 0.0 for point in points):
-            warnings.append(sid)
+    if any(float(point.get("inflow") or 0) != 0.0 for point in points):
+        for sid in source_ids:
+            if all(float(point.get(sid) or 0) == 0.0 for point in points):
+                warnings.append(sid)
+    if bitcoin_missing and points and all(
+        float(point.get("bitcoin") or 0) == 0.0 for point in points
+    ):
+        warnings.append("bitcoin")
     return warnings
 
 
@@ -1041,21 +1059,26 @@ def load_rolling_cash_series(
     today: Optional[date] = None,
     stale: Optional[bool] = None,
     fetch=None,
+    root: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Live YNAB pull for the rolling chart. ``fetch`` is injectable for tests.
 
     Does not widen ``ALLOWED_DAYS`` and does not call ``load_cash_streams``.
-    Bitcoin is loaded beside the YNAB pull. A mining failure does not fail
-    the YNAB series; the band reads zero unless the mining cache is usable.
+    Bitcoin prefers confirmed rows on ``braiins_latest.json``. The mempool
+    read runs only when that payout list is missing or empty. A mining
+    failure does not fail the YNAB series; the band reads zero and
+    ``source_warnings`` includes ``bitcoin``.
     """
     end = today or date.today()
     seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
-    mined = _safe_bitcoin_income(end)
+    base = root or ROOT
+    mined = _bitcoin_band_feed(end, base)
     bitcoin_daily = mined.get("usd_by_day") or {}
     bitcoin_feed = {
         "address_set": bool(mined.get("address_set")),
         "from_cache": bool(mined.get("from_cache")),
     }
+    bitcoin_missing = bool(mined.get("missing"))
     fetcher = fetch or fetch_ynab_window
     pulled = fetcher(seed_start.isoformat())
     if not pulled.get("ok"):
@@ -1066,6 +1089,7 @@ def load_rolling_cash_series(
             ynab_as_of=pulled.get("as_of"),
             bitcoin_usd_by_day=bitcoin_daily,
             bitcoin_feed=bitcoin_feed,
+            bitcoin_missing=bitcoin_missing,
         )
     return build_rolling_cash_series(
         today=end,
@@ -1077,7 +1101,79 @@ def load_rolling_cash_series(
         ynab_as_of=pulled.get("as_of"),
         bitcoin_usd_by_day=bitcoin_daily,
         bitcoin_feed=bitcoin_feed,
+        bitcoin_missing=bitcoin_missing,
     )
+
+
+def _bitcoin_band_feed(today: date, root: Path) -> Dict[str, Any]:
+    """Stamped Braiins payouts, else the in-window mempool read."""
+    snap = _bitcoin_from_braiins_payouts(root)
+    if snap is not None:
+        return snap
+    mined = _safe_bitcoin_income(today)
+    return {
+        "address_set": bool(mined.get("address_set")),
+        "from_cache": bool(mined.get("from_cache")),
+        "usd_by_day": mined.get("usd_by_day") or {},
+        "missing": not bool(mined.get("fetched")),
+    }
+
+
+def _bitcoin_from_braiins_payouts(root: Path) -> Optional[Dict[str, Any]]:
+    """Confirmed payout USD by day, or None when the list is not canonical.
+
+    A non-empty ``payouts`` list is the source the Sankey prefers. Stamped
+    ``usd_at_payout`` / ``usd_price_at_payout`` values do not need a fresh
+    Coinbase spot, and a stale ``as_of`` does not drop them. Returns None
+    when the list is missing or empty so the caller can use mempool.
+    Does not read the payout address.
+    """
+    brai = _load_snapshot(root / "treasury" / "snapshots" / "braiins_latest.json")
+    if not brai.get("ok"):
+        return None
+    if not _braiins_payout_list_present(brai):
+        return None
+    usd_by_day: Dict[str, float] = {}
+    priced = 0
+    for row in brai.get("payouts") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("status") or "").lower() != "confirmed":
+            continue
+        day = _parse_day(row.get("at"))
+        if day is None:
+            continue
+        usd = _stamped_payout_usd(row)
+        if usd is None or usd <= 0:
+            continue
+        key = day.isoformat()
+        usd_by_day[key] = round(usd_by_day.get(key, 0.0) + usd, 2)
+        priced += 1
+    return {
+        "address_set": False,
+        "from_cache": True,
+        "usd_by_day": usd_by_day,
+        "missing": priced == 0,
+    }
+
+
+def _stamped_payout_usd(row: Mapping[str, Any]) -> Optional[float]:
+    raw = row.get("usd_at_payout")
+    try:
+        if raw is not None:
+            usd = float(raw)
+            if usd > 0:
+                return round(usd, 2)
+    except (TypeError, ValueError):
+        pass
+    try:
+        btc_f = float(row.get("amount_btc"))
+        px = float(row.get("usd_price_at_payout"))
+    except (TypeError, ValueError):
+        return None
+    if btc_f <= 0 or px <= 0:
+        return None
+    return round(btc_f * px, 2)
 
 
 def _safe_bitcoin_income(today: date) -> Dict[str, Any]:

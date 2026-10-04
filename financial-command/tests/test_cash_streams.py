@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from treasury.income_sources import bitcoin_trailing_mean  # noqa: E402
 from treasury.cash_streams import (  # noqa: E402
     ALLOWED_DAYS,
     DEFAULT_DAYS,
@@ -1227,30 +1228,132 @@ class TestRollingCashSeries(unittest.TestCase):
                 "as_of": AS_OF,
             }
 
-        with mock.patch(
-            "treasury.cash_streams.bitcoin_mining_income",
-            return_value=_bitcoin_income_unset(),
-        ):
-            payload = load_rolling_cash_series(
-                today=TODAY, fetch=fake_fetch, stale=False
-            )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                return_value=_bitcoin_income_unset(),
+            ):
+                payload = load_rolling_cash_series(
+                    today=TODAY, fetch=fake_fetch, stale=False, root=root
+                )
         self.assertEqual(seen["since"], "2026-05-14")
         self.assertTrue(payload["ok"])
         self.assertFalse(payload["ynab"]["stale"])
         self.assertEqual(payload["points"][-1]["inflow"], 1.0)
+        self.assertIn("bitcoin", payload["source_warnings"])
 
         def fail_fetch(since: str) -> dict:
             return {"ok": False, "error": "no YNAB token"}
 
-        with mock.patch(
-            "treasury.cash_streams.bitcoin_mining_income",
-            return_value=_bitcoin_income_unset(),
-        ):
-            err = load_rolling_cash_series(today=TODAY, fetch=fail_fetch)
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                return_value=_bitcoin_income_unset(),
+            ):
+                err = load_rolling_cash_series(
+                    today=TODAY, fetch=fail_fetch, root=Path(tmp)
+                )
         self.assertFalse(err["ok"])
         self.assertEqual(err["error"], "no YNAB token")
         self.assertEqual(err["points"], [])
         self.assertTrue(err["ynab"]["stale"])
+
+    def test_rolling_bitcoin_uses_stamped_braiins_payouts(self) -> None:
+        # Issue amounts: 7/25 $399.72, 8/5 $172.94, 9/1 $405.46, 9/29 $435.72.
+        # usd_at_payout wins over amount_btc * usd_price_at_payout.
+        chart_day = date(2026, 10, 3)
+        series = {
+            "2026-07-25": 399.72,
+            "2026-08-05": 172.94,
+            "2026-09-01": 405.46,
+            "2026-09-29": 435.72,
+        }
+        payouts = [
+            {
+                "status": "confirmed",
+                "amount_btc": 1.0,
+                "usd_price_at_payout": 1.0,
+                "usd_at_payout": usd,
+                "at": day + "T12:00:00+00:00",
+                "tx_id": "p-" + day,
+            }
+            for day, usd in series.items()
+        ]
+        payouts.append(
+            {
+                "status": "queued",
+                "amount_btc": 1.0,
+                "usd_at_payout": 99999.0,
+                "at": "2026-09-29T18:00:00+00:00",
+                "tx_id": "queued-not-counted",
+            }
+        )
+
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-10-03")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-10-03T12:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": "2026-10-03T12:00:00+00:00",
+                    "payouts": payouts,
+                },
+            )
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                side_effect=AssertionError("mempool"),
+            ):
+                payload = load_rolling_cash_series(
+                    today=chart_day, fetch=fake_fetch, stale=False, root=root
+                )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["includes_mining"])
+        sep1 = next(p for p in payload["points"] if p["date"] == "2026-09-01")
+        sep29 = next(p for p in payload["points"] if p["date"] == "2026-09-29")
+        self.assertGreater(sep1["bitcoin"], 0.0)
+        self.assertGreater(sep29["bitcoin"], 0.0)
+        self.assertEqual(sep1["bitcoin"], bitcoin_trailing_mean(date(2026, 9, 1), series))
+        self.assertEqual(
+            sep29["bitcoin"], bitcoin_trailing_mean(date(2026, 9, 29), series)
+        )
+        self.assertNotIn("bitcoin", payload["source_warnings"])
+        self.assertEqual(payload["bitcoin_feed"]["from_cache"], True)
+        blob = json.dumps(payload)
+        self.assertNotIn("queued-not-counted", blob)
+        self.assertNotIn("bc1", blob)
+
+    def test_empty_bitcoin_feed_warns_instead_of_silent_zero(self) -> None:
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-09-11")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": AS_OF,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                return_value=_bitcoin_income_unset(),
+            ):
+                payload = load_rolling_cash_series(
+                    today=TODAY, fetch=fake_fetch, stale=False, root=Path(tmp)
+                )
+        self.assertTrue(payload["ok"])
+        self.assertTrue(all(point["bitcoin"] == 0.0 for point in payload["points"]))
+        self.assertIn("bitcoin", payload["source_warnings"])
+        self.assertFalse(payload["includes_mining"])
 
     def test_sankey_days_120_still_clamps(self) -> None:
         seen: dict[str, str] = {}
@@ -1358,6 +1461,8 @@ class TestCashStreamsPage(unittest.TestCase):
             html.index("curve: d3.curveMonotoneX"),
         )
         self.assertIn("drop that band to zero", html)
+        self.assertIn("Bitcoin feed is missing", html)
+        self.assertIn("stamped USD price", html)
         self.assertIn("external inflows only", html)
         self.assertIn("@media (max-width: 720px)", html)
         self.assertIn('$/day', html)

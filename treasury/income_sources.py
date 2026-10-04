@@ -111,6 +111,8 @@ _MEMPOOL_CHAIN = "https://mempool.space/api/address/{address}/txs/chain/{txid}"
 _CANDLE_URL = "https://api.exchange.coinbase.com/products/BTC-USD/candles"
 _CACHE_NAME = "braiins_address_income.json"
 _PAGE_CAP = 40
+# Coinbase rejects a candle request wider than 300 points. Stay one under.
+_CANDLE_CHUNK_DAYS = 299
 _UA = "personal-workspace-treasury/bitcoin-mining-income"
 
 
@@ -171,6 +173,11 @@ def bitcoin_mining_income(
     good cache for this address. The cache stores tx ids, days, and amounts
     — not the address. An empty mempool body is retried once. ``fetched`` is
     false when the address is unset or the read failed and the cache missed.
+
+    Receipts older than ``bitcoin_history_start`` are dropped before pricing.
+    One output outside the Coinbase candle window must not fail the receipts
+    that the rolling chart can still show. Candle requests are split so a
+    wider window stays under the exchange cap.
     """
     end = today or date.today()
     resolved = _resolve_payout_address(address, config_path=config_path)
@@ -199,6 +206,7 @@ def bitcoin_mining_income(
         return _fallback_or_zero(cache_file, digest)
 
     raw = mining_deposits_from_txs(resolved, fetched)
+    raw = _deposits_in_price_window(raw, bitcoin_history_start(end))
     if prices is not None:
         priced = _price_deposits(raw, prices)
         price_ok = _prices_cover(raw, prices)
@@ -385,6 +393,22 @@ def _prices_cover(deposits: Sequence[Mapping[str, Any]], prices: Mapping[str, fl
     return all(_close_for_day(str(row["day"]), prices) is not None for row in deposits)
 
 
+def _deposits_in_price_window(
+    deposits: Sequence[Mapping[str, Any]],
+    start: date,
+) -> List[Dict[str, Any]]:
+    """Drop receipts the candle window is not asked to price."""
+    kept: List[Dict[str, Any]] = []
+    for row in deposits:
+        try:
+            day = date.fromisoformat(str(row.get("day") or ""))
+        except ValueError:
+            continue
+        if day >= start:
+            kept.append(dict(row))
+    return kept
+
+
 def _usd_by_day(deposits: Sequence[Mapping[str, Any]]) -> Dict[str, float]:
     out: Dict[str, float] = {}
     for row in deposits:
@@ -495,6 +519,28 @@ def _oldest_confirmed_day(page: Sequence[Any]) -> Optional[date]:
 
 
 def _fetch_daily_closes(
+    fetch_json: Callable[[str], Any],
+    start: date,
+    end: date,
+) -> Tuple[Dict[str, float], bool]:
+    """Daily BTC-USD closes. A range past the candle cap is requested in chunks."""
+    if end < start:
+        return {}, False
+    merged: Dict[str, float] = {}
+    cursor = start
+    while cursor <= end:
+        chunk_end = min(end, cursor + timedelta(days=_CANDLE_CHUNK_DAYS - 1))
+        part, ok = _fetch_closes_span(fetch_json, cursor, chunk_end)
+        if not ok:
+            return {}, False
+        merged.update(part)
+        cursor = chunk_end + timedelta(days=1)
+    if not merged:
+        return {}, False
+    return merged, True
+
+
+def _fetch_closes_span(
     fetch_json: Callable[[str], Any],
     start: date,
     end: date,
