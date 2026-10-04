@@ -70,6 +70,14 @@ MIN_MEAL_GAP = timedelta(minutes=75)
 KITCHEN_CLOSED_HOURS = frozenset({0, 1, 2, 3})
 # One meal may not carry more than this fraction of the day calorie target.
 MAX_MEAL_TARGET_FRAC = 0.40
+# #1068: variety constrains the even split. 250g is a full plate; a labeled
+# serving that is already larger stays one serving. An item that is the
+# whole meal, or at least PRIMARY_KCAL_FRAC of it, may lead at most
+# MAX_PRIMARY_MEALS meals. Above that, macros yield and the note says why.
+MAX_MEAL_ITEM_G = 250.0
+MAX_PRIMARY_MEALS = 2
+PRIMARY_KCAL_FRAC = 0.70
+MAX_INGREDIENT_KCAL_FRAC = 0.50
 # Planned meals aim for this band around an even share (#1012).
 # Indivisible servings and the per-meal cap may miss it; protein wins the tie.
 MEAL_EVEN_SHARE_TOLERANCE = 0.20
@@ -1412,6 +1420,338 @@ def colocate_egg_pair(meals: List[dict]) -> List[dict]:
     return meals
 
 
+def sane_meal_portion_g(item: dict) -> Optional[float]:
+    """Per-meal gram cap. No mass → caller leaves the free-text serving alone."""
+    if not isinstance(item, dict):
+        return None
+    try:
+        serving_g = float(item.get("serving_g") or 0)
+    except (TypeError, ValueError):
+        serving_g = 0.0
+    if serving_g <= 0:
+        return None
+    if serving_g >= MAX_MEAL_ITEM_G:
+        return float(serving_g)
+    return float(MAX_MEAL_ITEM_G)
+
+
+def _plan_item_key(item: dict) -> str:
+    key = str(item.get("id") or item.get("name") or "").strip().lower()
+    return key
+
+
+def plate_roles_for_item(item: dict) -> set:
+    """Plate roles for composition. One ingredient is still one food."""
+    if not isinstance(item, dict):
+        return set()
+    roles: set = set()
+    if is_veg_or_fruit(item) or item.get("is_veg_or_fruit"):
+        roles.add("produce")
+    if is_shake_or_powder(item) or item.get("is_shake"):
+        roles.add("protein")
+        return roles
+    blob = _ing_blob(item)
+    cat = str(item.get("category") or "").strip().lower()
+    if "produce" not in roles and (
+        _protein_density(item) >= 0.05
+        or cat in {"protein", "meat", "dairy", "legume"}
+        or any(
+            tok in blob
+            for tok in (
+                "bean",
+                "lentil",
+                "chickpea",
+                "chicken",
+                "turkey",
+                "beef",
+                "fish",
+                "yogurt",
+                "egg",
+                "tuna",
+                "salmon",
+                "tofu",
+                "tempeh",
+            )
+        )
+    ):
+        roles.add("protein")
+    try:
+        carbs = float(item.get("carbs_g") or 0)
+        protein = float(item.get("protein_g") or 0)
+    except (TypeError, ValueError):
+        carbs, protein = 0.0, 0.0
+    if "produce" not in roles and (cat in {"carb", "starch"} or (carbs >= 15 and carbs >= protein)):
+        roles.add("carb")
+    if cat == "fat" or "olive oil" in blob or "avocado" in blob:
+        roles.add("fat")
+    return roles
+
+
+def _scale_plan_item_grams(item: dict, grams: float) -> dict:
+    """Shrink a gram line. Macros stay on the same food."""
+    try:
+        current = float(item.get("portion_g") or 0)
+    except (TypeError, ValueError):
+        return item
+    if current <= 0 or grams <= 0 or grams >= current - 0.05:
+        return item
+    scale = float(grams) / current
+    out = deepcopy(item)
+    for key in _MACRO_KEYS:
+        out[key] = round(float(item.get(key) or 0) * scale, 1)
+    for key in ("fiber_g", "sugar_g"):
+        if item.get(key) is not None:
+            out[key] = round(float(item.get(key) or 0) * scale, 1)
+    if item.get("sodium_mg") is not None:
+        out["sodium_mg"] = round(float(item.get("sodium_mg") or 0) * scale, 0)
+    rounded = _round_portion_g(grams, serving_g=_ingredient_serving_g(out) or None)
+    if rounded <= 0:
+        rounded = float(grams)
+    out["portion_g"] = float(int(round(rounded)))
+    serving_g = _ingredient_serving_g(out)
+    if serving_g is not None and serving_g > 0:
+        out["servings"] = round(float(out["portion_g"]) / float(serving_g), 2)
+        out["serving_label"] = format_portion_label(
+            serving_g=float(serving_g),
+            servings=float(out["portion_g"]) / float(serving_g),
+            serving_label=str(item.get("serving_label") or ""),
+        )
+    return out
+
+
+def meal_primary_key(meal: dict) -> Optional[str]:
+    """Ingredient that *is* the meal: the only item, or ≥70% of its calories.
+
+    A chicken-and-rice plate stays under that line, so even share may keep
+    the protein on every meal (#1012). A bowl that is only beans does not.
+    """
+    items = [it for it in (meal.get("items") or []) if isinstance(it, dict)]
+    if not items:
+        return None
+    kcal = sum(float(it.get("calories") or 0) for it in items)
+    top = max(items, key=lambda it: float(it.get("calories") or 0))
+    # #501 owns powder repeats, including the escape past the shake cap.
+    if is_shake_or_powder(top) or top.get("is_shake"):
+        return None
+    share = (float(top.get("calories") or 0) / kcal) if kcal > 0 else 1.0
+    if len(items) == 1 or share + 1e-9 >= PRIMARY_KCAL_FRAC:
+        return _plan_item_key(top) or None
+    return None
+
+
+def variety_fallback_text(stocked: Sequence[dict]) -> str:
+    """Honest thin-pantry line. Names the missing plate role. Does not invent food."""
+    protein_names: List[str] = []
+    has_produce = False
+    has_carb = False
+    for ing in stocked:
+        if is_shake_or_powder(ing):
+            continue
+        roles = plate_roles_for_item(ing)
+        if "protein" in roles and "produce" not in roles:
+            protein_names.append(str(ing.get("name") or ing.get("id") or "protein"))
+        if "produce" in roles:
+            has_produce = True
+        if "carb" in roles:
+            has_carb = True
+    parts: List[str] = []
+    if len(protein_names) < 2:
+        parts.append("add a second protein so meals stop repeating")
+    if not has_produce:
+        parts.append("add a vegetable")
+    if not has_carb:
+        parts.append("add a starch")
+    if not parts:
+        parts.append("add another food so plates are not one ingredient")
+    detail = ". ".join(part[0].upper() + part[1:] for part in parts)
+    return (
+        "Not enough variety in inventory to build real meals. "
+        f"{detail}. Suggested staples lists what to add. Not inventing food."
+    )
+
+
+def _meal_cap_kcal(targets: Optional[dict]) -> float:
+    day = float((targets or {}).get("calories") or 0)
+    if day <= 0:
+        return 840.0
+    return max(250.0, day * MAX_MEAL_TARGET_FRAC)
+
+
+def _recompute_meal(meal: dict) -> dict:
+    items = _collapse_plan_items(list(meal.get("items") or []))
+    meal = dict(meal)
+    meal["items"] = items
+    _recompute_meal_totals(meal)
+    return meal
+
+
+def _cap_meal_portions(meal: dict) -> tuple:
+    """Return (meal, trimmed)."""
+    trimmed = False
+    items = []
+    for item in list(meal.get("items") or []):
+        cap = sane_meal_portion_g(item)
+        try:
+            grams = float(item.get("portion_g") or 0)
+        except (TypeError, ValueError):
+            grams = 0.0
+        if cap is not None and grams > cap + 0.5:
+            item = _scale_plan_item_grams(item, cap)
+            trimmed = True
+        items.append(item)
+    meal = dict(meal)
+    meal["items"] = items
+    return _recompute_meal(meal), trimmed
+
+
+def _side_for_mono_meal(meal: dict, stocked: Sequence[dict]) -> Optional[dict]:
+    """One stocked vegetable for a one-item plate. Never invents off-pantry food."""
+    items = [it for it in (meal.get("items") or []) if isinstance(it, dict)]
+    if len(items) != 1:
+        return None
+    present = {_plan_item_key(it) for it in items}
+    present_roles: set = set()
+    for it in items:
+        present_roles |= plate_roles_for_item(it)
+    best: Optional[tuple] = None
+    for ing in stocked:
+        if is_shake_or_powder(ing):
+            continue
+        key = _plan_item_key(ing)
+        if not key or key in present:
+            continue
+        roles = plate_roles_for_item(ing)
+        # Produce only. Copying a protein onto every plate splits egg pairs
+        # and invents a second serving the selector did not plan.
+        if "produce" not in roles or "produce" in present_roles:
+            continue
+        if best is None:
+            best = (1, ing)
+    return None if best is None else best[1]
+
+
+def apply_plate_variety(
+    meals: List[dict],
+    stocked: Sequence[dict],
+    targets: Optional[dict] = None,
+) -> tuple:
+    """Cap portions and mono repeats. Even share of what remains stays put.
+
+    Returns ``(meals, info)``. ``info["changed"]`` is false when every plate
+    was already inside the band, so a composed day is not rewritten.
+    """
+    info = {
+        "changed": False,
+        "yielded": False,
+        "text": "",
+        "portion_capped": False,
+        "primary_capped": False,
+    }
+    if not meals:
+        return meals, info
+    cap_kcal = _meal_cap_kcal(targets)
+    capped: List[dict] = []
+    for meal in meals:
+        meal, trimmed = _cap_meal_portions(meal)
+        if trimmed:
+            info["portion_capped"] = True
+            info["changed"] = True
+        if meal.get("items"):
+            capped.append(meal)
+
+    hits: Dict[str, List[int]] = {}
+    for idx, meal in enumerate(capped):
+        key = meal_primary_key(meal)
+        if key:
+            hits.setdefault(key, []).append(idx)
+    drop_at: set = set()
+    for key, idxs in hits.items():
+        if len(idxs) <= MAX_PRIMARY_MEALS:
+            continue
+        info["primary_capped"] = True
+        info["changed"] = True
+        ranked = sorted(
+            idxs,
+            key=lambda i: (
+                len(
+                    [
+                        it
+                        for it in (capped[i].get("items") or [])
+                        if _plan_item_key(it) != key
+                    ]
+                ),
+                sum(
+                    float(it.get("calories") or 0)
+                    for it in (capped[i].get("items") or [])
+                    if _plan_item_key(it) != key
+                ),
+                -i,
+            ),
+            reverse=True,
+        )
+        keep = set(ranked[:MAX_PRIMARY_MEALS])
+        for idx in idxs:
+            if idx in keep:
+                continue
+            kept_items = [
+                it
+                for it in (capped[idx].get("items") or [])
+                if _plan_item_key(it) != key
+            ]
+            if not kept_items:
+                drop_at.add(idx)
+                continue
+            meal = dict(capped[idx])
+            meal["items"] = kept_items
+            capped[idx] = _recompute_meal(meal)
+    if drop_at:
+        capped = [meal for idx, meal in enumerate(capped) if idx not in drop_at]
+
+    for idx, meal in enumerate(capped):
+        side = _side_for_mono_meal(meal, stocked)
+        if side is None:
+            continue
+        pick = _one_serving_pick(side)
+        row = _plan_item_from_ingredient(side, servings=pick[0], portion_g=pick[1])
+        cap_g = sane_meal_portion_g(row)
+        try:
+            grams = float(row.get("portion_g") or 0)
+        except (TypeError, ValueError):
+            grams = 0.0
+        if cap_g is not None and grams > cap_g + 0.5:
+            row = _scale_plan_item_grams(row, cap_g)
+        side_kcal = float(row.get("calories") or 0)
+        have = float((meal.get("totals") or {}).get("calories") or 0)
+        if have + side_kcal > cap_kcal + _MEAL_CAP_SLACK_KCAL:
+            continue
+        meal = dict(meal)
+        meal["items"] = list(meal.get("items") or []) + [row]
+        capped[idx] = _recompute_meal(meal)
+        info["changed"] = True
+
+    planned = sum(float((meal.get("totals") or {}).get("calories") or 0) for meal in capped)
+    mono_share = False
+    if planned > 0:
+        by_key: Dict[str, float] = {}
+        primary_keys = set()
+        for meal in capped:
+            key = meal_primary_key(meal)
+            if key:
+                primary_keys.add(key)
+            for it in meal.get("items") or []:
+                item_key = _plan_item_key(it)
+                if item_key:
+                    by_key[item_key] = by_key.get(item_key, 0.0) + float(it.get("calories") or 0)
+        for key in primary_keys:
+            if by_key.get(key, 0.0) > planned * MAX_INGREDIENT_KCAL_FRAC + 0.5:
+                mono_share = True
+                break
+    if info["primary_capped"] or mono_share:
+        info["yielded"] = True
+        info["text"] = variety_fallback_text(stocked)
+    return [meal for meal in capped if meal.get("items")], info
+
+
 def generate_meal_plan(
     inventory: dict,
     targets: dict,
@@ -1472,6 +1812,15 @@ def generate_meal_plan(
     are allowed when the pantry is too thin; honesty notes that instead
     of inventing food. Whole-food slots first; shakes last-resort under
     the #501 cap.
+
+    Variety (#1068) constrains that even split. One item stays within
+    ``MAX_MEAL_ITEM_G`` per meal (a labeled serving that is already
+    larger stays one serving). An ingredient that is the only item, or
+    at least ``PRIMARY_KCAL_FRAC`` of the meal, is primary in at most
+    ``MAX_PRIMARY_MEALS`` meals. A stocked second role is added to a
+    one-item plate when it fits the meal cap. A thin pantry still uses
+    the food it has, and the note names what to add. Composed plates
+    under that line are left on the even split.
 
     Eggs (#532): if the plan includes whole eggs **or** egg whites, the
     stocked mate is co-scheduled on the **same meal** as a grouped unit
@@ -1881,6 +2230,9 @@ def generate_meal_plan(
             if len(plan_items) > before_n:
                 shake_cap_escaped = True
 
+    variety_changed = False
+    variety_yielded = False
+    variety_text = ""
     if kitchen_closed:
         plan_items = []
         meals = []
@@ -1917,16 +2269,35 @@ def generate_meal_plan(
             targets=targets,
         )
         meals = colocate_egg_pair(meals)
+        meals, variety_info = apply_plate_variety(meals, stocked, targets)
+        meals = colocate_egg_pair(meals)
+        variety_changed = bool(variety_info.get("changed"))
+        variety_yielded = bool(variety_info.get("yielded"))
+        variety_text = str(variety_info.get("text") or "")
         meal_kcal = sum(
             float((m.get("totals") or {}).get("calories") or 0) for m in meals
         )
         items_kcal = sum(float(it.get("calories") or 0) for it in plan_items)
-        if meals and meal_kcal + 1.0 < items_kcal:
+        if variety_changed or (meals and meal_kcal + 1.0 < items_kcal):
             # Per-meal cap dropped overflow — keep items in sync with buckets.
             flat: List[dict] = []
             for m in meals:
                 flat.extend(list(m.get("items") or []))
+            prior_rank: Dict[str, int] = {}
+            for it in plan_items:
+                key = _plan_item_key(it)
+                if key and key not in prior_rank:
+                    prior_rank[key] = len(prior_rank)
             plan_items = _collapse_plan_items(flat)
+            if variety_changed:
+                # Meal order is not selection order. Veg-before-shake (#501)
+                # reads the flat list in the order foods were chosen.
+                plan_items.sort(
+                    key=lambda it: (
+                        prior_rank.get(_plan_item_key(it), len(prior_rank)),
+                        _plan_item_key(it),
+                    )
+                )
             for k in _MACRO_KEYS:
                 totals[k] = round(sum(float(it.get(k) or 0) for it in plan_items), 1)
             totals["fiber_g"] = round(
@@ -2053,6 +2424,9 @@ def generate_meal_plan(
         "sodium_consumed_mg": sodium_logged,
         "sodium_miss": sodium_miss,
         **_diversity_notes_fields(distinct=distinct_n, limited=diversity_limited),
+        "variety_yielded": variety_yielded,
+        "variety_portion_cap_g": MAX_MEAL_ITEM_G,
+        "variety_primary_max": MAX_PRIMARY_MEALS,
         "egg_pair": egg_pair_note,
         "nutrition_day": nutrition_day,
         "kitchen_closed": kitchen_closed,
@@ -2189,7 +2563,15 @@ def generate_meal_plan(
                 ),
             }
         )
-    if diversity_limited:
+    if variety_yielded and variety_text:
+        honesty.append(
+            {
+                "level": "warn",
+                "kind": "diversity",
+                "text": variety_text,
+            }
+        )
+    elif diversity_limited:
         honesty.append(
             {
                 "level": "muted",
