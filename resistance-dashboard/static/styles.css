@@ -3786,7 +3786,7 @@ body.m-shell .quest-card {
   }
 }
 
-/* Energy balance vs body-weight insight (under intake/burned chips) */
+/* Energy balance vs body-weight insight (own card beside intake vs burned). */
 .energy-weight-insight {
   margin-top: 0.15rem;
   padding: 0.55rem 0.65rem 0.5rem;
