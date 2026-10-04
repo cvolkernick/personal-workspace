@@ -24,7 +24,7 @@
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=tonnage-1025-1" defer></script>
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
-    <script src="/app.js?v=recipe-dishes-1069-1" defer></script>
+    <script src="/app.js?v=trends-layout-1070-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -508,17 +508,23 @@
         <p class="muted" id="sleep-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
       </section>
 
-      <section class="grid two" style="margin-top: 1rem" id="calories-macros-charts" data-m-panel="trends">
-        <article class="card">
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="calories-energy-row" data-m-panel="trends">
+        <article class="card card-fill" id="calories-intake-card">
           <h2>Calories intake vs burned · 90d</h2>
           <div class="chart-box"><canvas id="chart-calories" aria-label="Calories chart last 90 days"></canvas></div>
           <div class="chart-summary" id="nutrition-note" aria-live="polite"></div>
         </article>
-        <article class="card">
-          <h2>Macro split (%) · 90d</h2>
-          <div class="chart-box"><canvas id="chart-macros" aria-label="Macro split chart last 90 days"></canvas></div>
-          <div class="chart-summary" id="macros-note" aria-live="polite"></div>
+        <article class="card card-fill" id="energy-scale-card" aria-label="Energy vs scale">
+          <h2>Energy vs scale</h2>
+          <div id="energy-scale-mount"></div>
         </article>
+      </section>
+
+      <!-- Macro split stays its own card until the Chairman confirms a new row partner. -->
+      <section class="card" style="margin-top: 1rem" id="macro-split-card" data-m-panel="trends" aria-label="Macro split">
+        <h2>Macro split (%) · 90d</h2>
+        <div class="chart-box"><canvas id="chart-macros" aria-label="Macro split chart last 90 days"></canvas></div>
+        <div class="chart-summary" id="macros-note" aria-live="polite"></div>
       </section>
 
       <section class="grid two equal-cards" style="margin-top: 1rem" id="weight-hydration-row" data-m-panel="trends">
@@ -1190,35 +1196,36 @@
         </article>
       </section>
 
-      <!-- AZM under daily volume + strength; RHR directly under AZM (#796). -->
-      <section class="card" style="margin-top: 1rem" id="azm-trend-card" data-m-panel="trends" aria-label="Active Zone Minutes last 90 days">
-        <h2>Active Zone Minutes · 90d</h2>
-        <div class="azm-week-row">
-          <div class="chart-summary-chip" id="azm-week-chip">
-            <span class="chip-k">7d rolling avg</span>
-            <span class="chip-v" id="azm-week-value">—</span>
-            <span class="chip-s" id="azm-week-sub">90d</span>
+      <!-- AZM and RHR share one half-width row under daily volume + strength. -->
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="azm-rhr-row" data-m-panel="trends">
+        <article class="card card-fill" id="azm-trend-card" data-m-panel="trends" aria-label="Active Zone Minutes last 90 days">
+          <h2>Active Zone Minutes · 90d</h2>
+          <div class="azm-week-row">
+            <div class="chart-summary-chip" id="azm-week-chip">
+              <span class="chip-k">7d rolling avg</span>
+              <span class="chip-v" id="azm-week-value">—</span>
+              <span class="chip-s" id="azm-week-sub">90d</span>
+            </div>
+            <div class="chart-summary-chip" id="azm-target-chip">
+              <span class="chip-k">Target</span>
+              <span class="chip-v" id="azm-target-value">—</span>
+              <span class="chip-s" id="azm-target-sub">14d median</span>
+            </div>
+            <ul class="azm-legend" id="azm-legend" aria-label="AZM chart color key">
+              <li><span class="azm-swatch azm-swatch-daily" aria-hidden="true"></span> Daily</li>
+              <li><span class="azm-swatch azm-swatch-roll" aria-hidden="true"></span> 7d rolling avg</li>
+              <li><span class="azm-swatch azm-swatch-trend" aria-hidden="true"></span> Trendline</li>
+              <li><span class="azm-swatch azm-swatch-target" aria-hidden="true"></span> Target</li>
+            </ul>
           </div>
-          <div class="chart-summary-chip" id="azm-target-chip">
-            <span class="chip-k">Target</span>
-            <span class="chip-v" id="azm-target-value">—</span>
-            <span class="chip-s" id="azm-target-sub">14d median</span>
-          </div>
-          <ul class="azm-legend" id="azm-legend" aria-label="AZM chart color key">
-            <li><span class="azm-swatch azm-swatch-daily" aria-hidden="true"></span> Daily</li>
-            <li><span class="azm-swatch azm-swatch-roll" aria-hidden="true"></span> 7d rolling avg</li>
-            <li><span class="azm-swatch azm-swatch-trend" aria-hidden="true"></span> Trendline</li>
-            <li><span class="azm-swatch azm-swatch-target" aria-hidden="true"></span> Target</li>
-          </ul>
-        </div>
-        <div class="chart-box azm-spark" id="azm-sparkline"></div>
-        <p class="muted" id="azm-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
-      </section>
-
-      <section class="card" style="margin-top: 1rem" id="rhr-trend-card" data-m-panel="trends" aria-label="Resting heart rate trend">
-        <h2>Resting HR (bpm) · 90d</h2>
-        <div class="chart-box"><canvas id="chart-rhr" aria-label="Resting heart rate chart last 90 days"></canvas></div>
-        <p class="muted" id="rhr-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+          <div class="chart-box azm-spark" id="azm-sparkline"></div>
+          <p class="muted" id="azm-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
+        <article class="card card-fill" id="rhr-trend-card" data-m-panel="trends" aria-label="Resting heart rate trend">
+          <h2>Resting HR (bpm) · 90d</h2>
+          <div class="chart-box"><canvas id="chart-rhr" aria-label="Resting heart rate chart last 90 days"></canvas></div>
+          <p class="muted" id="rhr-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
       </section>
 
       <!-- Connections / recovery (More). Google re-auth is rare; not a daily header control. -->

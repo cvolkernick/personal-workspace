@@ -6518,9 +6518,11 @@
       const n = ((data.health && data.health.nutrition) || []).length;
       const h = ((data.health && data.health.hydration) || []).length;
       const b = ((data.health && data.health.calories_burned) || []).length;
+      const scaleMount = $("energy-scale-mount");
       if (!n && !h && !b) {
         note.innerHTML =
           `<p class="chart-summary-empty">No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.</p>`;
+        if (scaleMount) scaleMount.innerHTML = "";
       } else {
         // Cumulative intake − burned over the same window as the chart.
         // Days with both series present only, so the sum matches the shaded bands.
@@ -6708,11 +6710,11 @@
               }</span>
             </div>
           </div>
-          ${alignHtml}
           <p class="chart-summary-meta">
             Rolling ${spanDays}d · ${n} civil days · ${b} burned days · lines = 7-day avg · points = daily · green band = surplus · red band = deficit
           </p>
         `;
+        if (scaleMount) scaleMount.innerHTML = alignHtml;
       }
     }
 

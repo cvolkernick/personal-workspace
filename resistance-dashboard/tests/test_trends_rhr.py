@@ -21,7 +21,7 @@ class TrendsRhrMarkup(unittest.TestCase):
         self.assertIn("Resting HR (bpm) · 90d", HTML)
         weekly = HTML.find('id="weekly-review-card"')
         sleep = HTML.find('id="sleep-trend-card"')
-        cals = HTML.find('id="calories-macros-charts"')
+        cals = HTML.find('id="calories-energy-row"')
         vol = HTML.find('id="charts-volume-strength"')
         azm = HTML.find('id="azm-trend-card"')
         rhr = HTML.find('id="rhr-trend-card"')
@@ -30,13 +30,13 @@ class TrendsRhrMarkup(unittest.TestCase):
         self.assertLess(sleep, cals)
         self.assertLess(cals, vol)
         self.assertLess(vol, azm)
-        self.assertLess(azm, rhr, "RHR sits directly under AZM on Trends")
+        self.assertLess(azm, rhr, "RHR follows AZM on the same Trends row")
         self.assertLess(rhr, conn)
         between = HTML[azm:rhr]
         for other in (
             "weekly-review-card",
             "sleep-trend-card",
-            "calories-macros-charts",
+            "calories-energy-row",
             "weight-hydration-row",
             "charts-volume-strength",
         ):
@@ -63,9 +63,9 @@ class TrendsRhrMarkup(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=recipe-dishes-1069-1", HTML)
-        self.assertIn("/app.js?v=recipe-dishes-1069-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v134"', SW)
+        self.assertIn("/app.js?v=trends-layout-1070-1", HTML)
+        self.assertIn("/app.js?v=trends-layout-1070-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v135"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)
