@@ -8,6 +8,7 @@ Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.
 |---|---|---|
 | `POST /<RELAY_PATH>` | `X-Webhook-Signature` HMAC | Bland webhook. Forwards the raw body to Alexandra. |
 | `POST /<FWD_PATH>` | `FWD_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` | 904 inbound SMS from the phone forwarder. Forwards the normalized payload. Records the sender for the reply allowlist unless `test: true`. |
+| `POST /<SMSGW_HOOK_PATH>` | Secret path, plus SMSGate `X-Signature`/`X-Timestamp` HMAC when `SMSGW_SIGNING_KEY` is set | SMSGate cloud `sms:received` webhook (#1054). Same inbound path as the forwarder: allowlist record, STOP/opt-out, same payload to Alexandra. Replaces the SMS Forwarder app. |
 | `POST /<SEND_PATH>` | `SEND_TOKEN`, same headers | Alexandra sends one SMS. |
 
 Send body:
@@ -43,7 +44,42 @@ App: [SMS Gateway for Android](https://sms-gate.app) (`me.capcom.smsgateway`). A
 
 `SMSGW_URL=https://api.sms-gate.app/3rdparty/v1`
 
-The relay POSTs `{phoneNumbers, textMessage}` to `{SMSGW_URL}/messages` with HTTP Basic auth (the app's cloud username and password). Cloud OpenAPI 1.49.0 lists `POST /3rdparty/v1/messages` only. The device local server still uses `/message`. If `SMSGW_URL` already ends in `/message` or `/messages`, that full URL is the endpoint, so local mode is `SMSGW_URL=http://<phone>:8080/message` once the phone is reachable. Do not switch inbound off the forwarder app in this slice.
+The relay POSTs `{phoneNumbers, textMessage}` to `{SMSGW_URL}/messages` with HTTP Basic auth (the app's cloud username and password). Cloud OpenAPI 1.49.0 lists `POST /3rdparty/v1/messages` only. The device local server still uses `/message`. If `SMSGW_URL` already ends in `/message` or `/messages`, that full URL is the endpoint, so local mode is `SMSGW_URL=http://<phone>:8080/message` once the phone is reachable. Inbound now comes from the SMSGate `sms:received` webhook (see below). The forwarder route stays available.
+
+## SMSGate inbound webhook (#1054)
+
+The SMS Gateway app (`me.capcom.smsgateway`, cloud mode) posts `sms:received` events:
+
+```json
+{"deviceId": "...", "event": "sms:received", "id": "...", "webhookId": "...",
+ "payload": {"messageId": "...", "message": "text", "sender": "+19045550199",
+             "recipient": "+19043343975", "simNumber": 1, "receivedAt": "2026-10-03T23:00:00.000-04:00"}}
+```
+
+The route maps `payload.sender` to `from`, `payload.message` to `body` and `payload.receivedAt` to `received_at`, in the same record the forwarder route builds (`source` stays `t-mobile-904-forwarder`; `raw` holds the SMSGate envelope). It records the sender in `sms_send_state.json` inbound (72-hour allowlist), applies STOP/START exactly like the forwarder, and forwards to `ALEXANDRA_ALERT_URL`. Other events get 200 `ignored`, so the phone does not retry them. A repeated event `id` that was already forwarded gets 200 `duplicate`. A forward failure returns 502, so the app retries with backoff, and raises the usual #701 alert.
+
+Auth:
+
+- `SMSGW_HOOK_PATH` is a long random path generated on prism. A wrong or missing path gets 404.
+- `SMSGW_SIGNING_KEY`, when set, requires `X-Signature` = hex HMAC-SHA256(key, raw body + `X-Timestamp`), with `X-Timestamp` (Unix seconds) within 5 minutes. A missing, bad or stale signature gets 401. When it is unset, the secret path alone authenticates and the relay logs a startup warning.
+
+The signing key lives in the app: **Settings → Webhooks → Signing Key**. The app generates it at first use, and you can view or change it there. To turn HMAC on, copy the key from that screen and enter it on prism with a hidden prompt: `~/bin/bland-relay-setkey SMSGW_SIGNING_KEY`. Do not paste it into chat.
+
+Setup on prism:
+
+```bash
+python3 -c 'import secrets; print("smsgate-" + secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey SMSGW_HOOK_PATH
+~/bin/bland-relay-setkey SMSGW_SIGNING_KEY   # optional; hidden prompt
+```
+
+Register the webhook (cloud API, HTTP Basic `SMSGW_USER`/`SMSGW_PASS`). Python urllib needs a non-default `User-Agent`, because the default gets Cloudflare error 1010:
+
+```
+POST https://api.sms-gate.app/3rdparty/v1/webhooks
+{"url": "https://prism-gateway.tailb1085a.ts.net:8443/<SMSGW_HOOK_PATH>", "event": "sms:received", "device_id": "<optional>"}
+```
+
+`GET /3rdparty/v1/webhooks` lists them, and `DELETE /3rdparty/v1/webhooks/<id>` removes one. The app also lists them under Settings → Webhooks → Registered webhooks.
 
 ## Secrets
 
@@ -55,6 +91,8 @@ printf %s "$VALUE" | ~/bin/bland-relay-setkey SMSGW_USER
 printf %s "$VALUE" | ~/bin/bland-relay-setkey SMSGW_PASS
 printf %s "$VALUE" | ~/bin/bland-relay-setkey SEND_PATH
 printf %s "$VALUE" | ~/bin/bland-relay-setkey SEND_TOKEN
+printf %s "$VALUE" | ~/bin/bland-relay-setkey SMSGW_HOOK_PATH
+printf %s "$VALUE" | ~/bin/bland-relay-setkey SMSGW_SIGNING_KEY
 printf %s 1 | ~/bin/bland-relay-setkey SMS_SEND_DISABLED   # kill switch
 printf %s 0 | ~/bin/bland-relay-setkey SMS_SEND_DISABLED
 ```
@@ -75,7 +113,7 @@ chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey
 systemctl --user restart bland-relay.service
 ```
 
-Rollback is `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
+Rollback is `~/bin/*.bak-pre1054` (latest), `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
 
 ## Tests
 
@@ -85,4 +123,4 @@ From this directory, with pytest on the path:
 python3 -m pytest tests -q
 ```
 
-Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature.
+Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, and the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction.
