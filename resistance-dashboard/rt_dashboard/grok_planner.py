@@ -176,11 +176,13 @@ def generate_grok_plans(
     food_logs_today: Optional[list] = None,
     recovery: Optional[dict] = None,
     sessions_brief: Optional[list] = None,
+    sessions: Optional[list] = None,
     goals: Optional[dict] = None,
     catalog: Optional[dict] = None,
     next_session_type: Optional[str] = None,
     inventory: Optional[dict] = None,
     equipment: Optional[dict] = None,
+    as_of: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. In-stock pantry only. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
@@ -487,10 +489,20 @@ def generate_grok_plans(
         "empty": not capped and not workout.get("is_rest_day"),
         "source": "grok",
     }
-    if isinstance(equipment, dict):
-        from .workout_planner import clamp_workout_to_equipment
+    from .workout_planner import clamp_llm_plan_loads, clamp_workout_to_equipment
 
+    if isinstance(equipment, dict):
         workout_out = clamp_workout_to_equipment(workout_out, catalog, equipment)
+    history = sessions if sessions is not None else (sessions_brief or [])
+    workout_out = clamp_llm_plan_loads(
+        workout_out,
+        history,
+        catalog,
+        goals=goals,
+        recovery=recovery,
+        equipment=equipment if isinstance(equipment, dict) else None,
+        as_of=as_of,
+    )
     workout_out = stamp_today_session(
         workout_out,
         sessions_brief or [],

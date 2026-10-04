@@ -55,6 +55,8 @@ def flatten_plan_exercises(exercises) -> list:
             "load",
             "target_reps",
             "progression_reason",
+            "load_source",
+            "load_reason",
         ):
             if row.get(key) is None and rx.get(key) is not None:
                 row[key] = rx[key]
