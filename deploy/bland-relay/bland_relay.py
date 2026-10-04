@@ -4,8 +4,10 @@
 POST /<RELAY_PATH> verifies X-Webhook-Signature (hex HMAC-SHA256 of the raw
 body, optional "sha256=" prefix) and forwards the raw body to
 ALEXANDRA_ALERT_URL. POST /<FWD_PATH> accepts the 904 phone forwarder and
-forwards a normalized SMS payload to the same alert URL. POST /<SEND_PATH>
-lets Alexandra send one plain SMS back through SMS Gateway for Android.
+forwards a normalized SMS payload to the same alert URL. POST /<SMSGW_HOOK_PATH>
+accepts the SMS Gateway for Android (SMSGate) cloud `sms:received` webhook and
+feeds it through the same inbound path (#1054). POST /<SEND_PATH> lets
+Alexandra send one plain SMS back through SMS Gateway for Android.
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
 comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
@@ -39,6 +41,8 @@ RECIPIENT_MAX = 5
 GLOBAL_WINDOW_S = 60 * 60
 GLOBAL_MAX = 30
 LINE_904 = "+19043343975"
+SMSGATE_SKEW_S = 5 * 60
+SMSGATE_SEEN_MAX = 512
 
 # Whole inbound message, after trimming punctuation. A later normal text does
 # not clear STOP; only these opt-in words do. Carrier-style keywords.
@@ -59,10 +63,14 @@ SECRET_ENV_KEYS = (
     "SMSGW_URL",
     "SMSGW_USER",
     "SMSGW_PASS",
+    "SMSGW_HOOK_PATH",
+    "SMSGW_SIGNING_KEY",
 )
 
 _alert_lock = threading.Lock()
 _sms_lock = threading.Lock()
+_seen_lock = threading.Lock()
+_seen_events = {}  # SMSGate event id -> epoch, successful forwards only (retry dedupe)
 ALERT_COOLDOWN_S = 15 * 60
 TREASURY_DIR = Path.home() / "personal-workspace"
 
@@ -86,6 +94,10 @@ def fwd_path():
 
 def send_path():
     return _secret_path("SEND_PATH")
+
+
+def smsgate_path():
+    return _secret_path("SMSGW_HOOK_PATH")
 
 
 def _state_dir():
@@ -432,6 +444,51 @@ def _tail4(to):
     return digits[-4:] if len(digits) >= 4 else "----"
 
 
+def smsgate_signature_ok(key, body, ts, sig, now=None):
+    """SMSGate payload signing: hex HMAC-SHA256(key, raw_body + X-Timestamp).
+
+    X-Timestamp is Unix seconds; reject outside +/- SMSGATE_SKEW_S. Returns
+    (ok, reason) where reason is "ok", "missing", "stale" or "bad".
+    """
+    ts = (ts or "").strip()
+    sig = (sig or "").strip().lower()
+    if sig.startswith("sha256="):
+        sig = sig[7:]
+    if not ts or not sig:
+        return False, "missing"
+    try:
+        ts_i = int(ts)
+    except ValueError:
+        return False, "bad"
+    now = time.time() if now is None else now
+    if abs(now - ts_i) > SMSGATE_SKEW_S:
+        return False, "stale"
+    expected = hmac.new(key.encode(), body + ts.encode(), hashlib.sha256).hexdigest()
+    if len(sig) != len(expected) or not hmac.compare_digest(expected, sig):
+        return False, "bad"
+    return True, "ok"
+
+
+def _seen_event(event_id, now=None):
+    if not event_id:
+        return False
+    now = time.time() if now is None else now
+    with _seen_lock:
+        for k in [k for k, at in _seen_events.items() if now - at > 2 * 24 * 3600]:
+            _seen_events.pop(k, None)
+        return event_id in _seen_events
+
+
+def _mark_event(event_id, now=None):
+    if not event_id:
+        return
+    now = time.time() if now is None else now
+    with _seen_lock:
+        _seen_events[event_id] = now
+        while len(_seen_events) > SMSGATE_SEEN_MAX:
+            _seen_events.pop(next(iter(_seen_events)))
+
+
 def _spawn(target, args=()):
     """Background alert. Tests replace this so a failure does not race the response."""
     threading.Thread(target=target, args=args, daemon=True).start()
@@ -492,6 +549,55 @@ class H(BaseHTTPRequestHandler):
         _spawn(alert_failure, ("904-sms-forwarder", err, attempts))
         return self._send(502, {"ok": False, "error": "forward failed"})
 
+    def _smsgate_inbound(self):
+        body = self._read_body()
+        if body is None:
+            return self._send(413, {"ok": False, "error": "bad length"})
+        key = env("SMSGW_SIGNING_KEY")
+        if key:
+            ok, why = smsgate_signature_ok(
+                key, body, self.headers.get("X-Timestamp"), self.headers.get("X-Signature"),
+            )
+            if not ok:
+                log.warning("smsgate webhook: signature %s (%d bytes)", why, len(body))
+                return self._send(401, {"ok": False, "error": "bad signature"})
+        try:
+            data = json.loads(body)
+        except Exception:  # noqa: BLE001
+            data = None
+        if not isinstance(data, dict):
+            log.warning("smsgate webhook: bad json (%d bytes)", len(body))
+            return self._send(400, {"ok": False, "error": "bad json"})
+        event = data.get("event")
+        if event != "sms:received":
+            # 2xx so the phone does not retry an event this route does not handle.
+            log.info("smsgate webhook: ignored event=%s", re.sub(r"[^a-z:_-]", "", str(event))[:32] or "-")
+            return self._send(200, {"ok": True, "ignored": True})
+        out_obj = normalize_smsgate(data)
+        if out_obj is None:
+            log.warning("smsgate webhook: sms:received without sender")
+            return self._send(400, {"ok": False, "error": "bad payload"})
+        event_id = re.sub(r"[^A-Za-z0-9_.:-]", "", str(data.get("id") or ""))[:64]
+        if _seen_event(event_id):
+            log.info("smsgate webhook: duplicate event id=%s", event_id)
+            return self._send(200, {"ok": True, "duplicate": True})
+        try:
+            note_inbound(out_obj.get("from"), out_obj.get("body"))
+        except Exception as e:  # noqa: BLE001
+            log.error("inbound note failed: %s", type(e).__name__)
+        out = json.dumps(out_obj, ensure_ascii=False).encode("utf-8")
+        status, err, attempts = forward(out)
+        tail = _tail4(out_obj.get("from") or "")
+        if status is not None:
+            _mark_event(event_id)
+            log.info(
+                "smsgate inbound ok: from=***%s len=%d signed=%s id=%s -> %d",
+                tail, len(out_obj.get("body") or ""), bool(key), event_id or "-", status,
+            )
+            return self._send(200, {"ok": True})
+        _spawn(alert_failure, ("904-smsgate-webhook", err, attempts))
+        return self._send(502, {"ok": False, "error": "forward failed"})
+
     def _send_sms(self):
         if env("SMS_SEND_DISABLED") == "1":
             log.warning("sms send disabled")
@@ -545,6 +651,8 @@ class H(BaseHTTPRequestHandler):
         if path_is(path, send_path()):
             return self._send_sms()
         rp = relay_path()
+        if path_is(path, smsgate_path()):
+            return self._smsgate_inbound()
         if path_is(path, fwd_path()):
             return self._fwd_904()
         if not path_is(path, rp):
@@ -633,9 +741,33 @@ def normalize_904(body, ctype):
     }
 
 
+def normalize_smsgate(data):
+    """SMSGate sms:received envelope -> the same record normalize_904 produces.
+
+    Envelope: {deviceId, event, id, webhookId, payload: {messageId, message,
+    sender, recipient, simNumber, receivedAt}}. Returns None without a sender.
+    """
+    p = data.get("payload") if isinstance(data.get("payload"), dict) else {}
+    sender = p.get("sender") if p.get("sender") not in (None, "") else p.get("phoneNumber")
+    if sender in (None, ""):
+        return None
+    text = p.get("message")
+    return {
+        "source": "t-mobile-904-forwarder",
+        "channel": "sms",
+        "line": LINE_904,
+        "from": str(sender),
+        "body": None if text is None else str(text),
+        "received_at": p.get("receivedAt"),
+        "relayed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "test": False,
+        "raw": data,
+    }
+
+
 def _warn_paths():
     seen = {}
-    for name in ("RELAY_PATH", "FWD_PATH", "SEND_PATH"):
+    for name in ("RELAY_PATH", "FWD_PATH", "SEND_PATH", "SMSGW_HOOK_PATH"):
         val = _secret_path(name)
         if not val:
             continue
@@ -656,6 +788,8 @@ def main():
         log.warning("SEND_PATH is set but the send route is not fully configured")
     if env("SMS_SEND_DISABLED") == "1":
         log.warning("SMS_SEND_DISABLED=1")
+    if smsgate_path() and not env("SMSGW_SIGNING_KEY"):
+        log.warning("SMSGW_HOOK_PATH set without SMSGW_SIGNING_KEY: SMSGate webhook authenticated by secret path only")
     _warn_paths()
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)
