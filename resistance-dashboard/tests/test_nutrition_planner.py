@@ -35,7 +35,11 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     MIN_MEAL_GAP,
     MSG_KITCHEN_CLOSED,
     MAX_MEAL_TARGET_FRAC,
+    MAX_MEAL_ITEM_G,
+    MAX_PRIMARY_MEALS,
     MEAL_EVEN_SHARE_TOLERANCE,
+    meal_primary_key,
+    plate_roles_for_item,
     _chunk_units,
     _apply_pace_delay,
     _catch_up_delay,
@@ -3721,6 +3725,126 @@ class TestMealSpread1012(unittest.TestCase):
             self.assertGreaterEqual(eat, now - timedelta(minutes=20))
             self.assertNotIn("Oatmeal", {item["name"] for item in meal["items"]})
             self.assertNotIn((12, 0), {(eat.hour, eat.minute)})
+
+
+class TestMealVariety1068(unittest.TestCase):
+    """#1068: variety constrains the even split. Thin pantry says so."""
+
+    def _beans_and_spinach(self):
+        return {
+            "ingredients": [
+                {
+                    "id": "beans",
+                    "name": "Black beans",
+                    "serving_g": 130,
+                    "serving_label": "130g",
+                    "calories": 140,
+                    "protein_g": 9,
+                    "carbs_g": 25,
+                    "fat_g": 0.5,
+                    "fiber_g": 8,
+                    "in_stock": True,
+                },
+                {
+                    "id": "spinach",
+                    "name": "Spinach",
+                    "category": "veg",
+                    "serving_g": 90,
+                    "serving_label": "90g",
+                    "calories": 20,
+                    "protein_g": 2,
+                    "carbs_g": 3,
+                    "fat_g": 0.3,
+                    "fiber_g": 2,
+                    "in_stock": True,
+                },
+            ]
+        }
+
+    def test_beans_are_not_the_whole_day(self):
+        plan = generate_meal_plan(
+            self._beans_and_spinach(),
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+        )
+        meals = plan["meals"]
+        self.assertGreaterEqual(len(meals), 1)
+        self.assertLessEqual(len(meals), MAX_PRIMARY_MEALS)
+        primaries = []
+        for meal in meals:
+            self.assertGreaterEqual(len(meal["items"]), 2)
+            roles = set()
+            for item in meal["items"]:
+                roles |= plate_roles_for_item(item)
+                portion = item.get("portion_g")
+                if portion is not None:
+                    self.assertLessEqual(float(portion), MAX_MEAL_ITEM_G + 0.5)
+            self.assertGreaterEqual(len(roles), 2, msg=meal["items"])
+            key = meal_primary_key(meal)
+            if key:
+                primaries.append(key)
+        self.assertLessEqual(primaries.count("beans"), MAX_PRIMARY_MEALS)
+        text = " ".join(h.get("text") or "" for h in plan["honesty"])
+        self.assertIn("Not enough variety in inventory to build real meals", text)
+        self.assertIn("add a second protein so meals stop repeating", text.lower())
+        self.assertIn("not inventing", text.lower())
+        self.assertTrue(plan["notes"]["variety_yielded"])
+        # #1012 still holds on the meals that remain.
+        for key in ("protein_g", "calories"):
+            values = [float(meal["totals"][key]) for meal in meals]
+            share = sum(values) / len(values)
+            low = share * (1 - MEAL_EVEN_SHARE_TOLERANCE)
+            high = share * (1 + MEAL_EVEN_SHARE_TOLERANCE)
+            for value in values:
+                self.assertGreaterEqual(value, low - 1.0, msg=f"{key} {values}")
+                self.assertLessEqual(value, high + 1.0, msg=f"{key} {values}")
+
+    def test_composed_plate_is_not_rewritten(self):
+        plan = generate_meal_plan(STOCKED_CUTTING, FULL_TARGETS, EMPTY_CONSUMED)
+        self.assertFalse(plan["notes"]["variety_yielded"])
+        self.assertGreaterEqual(len(plan["meals"]), 2)
+        text = " ".join(h.get("text") or "" for h in plan["honesty"])
+        self.assertNotIn("Not enough variety", text)
+        for meal in plan["meals"]:
+            self.assertGreaterEqual(len(meal["items"]), 2)
+            self.assertIsNone(meal_primary_key(meal))
+            for item in meal["items"]:
+                self.assertLessEqual(float(item["portion_g"]), MAX_MEAL_ITEM_G + 0.5)
+
+    def test_only_chicken_stays_honest(self):
+        plan = generate_meal_plan(
+            {
+                "ingredients": [
+                    {
+                        "id": "chicken",
+                        "name": "Chicken breast",
+                        "category": "protein",
+                        "serving_g": 170,
+                        "calories": 280,
+                        "protein_g": 52,
+                        "fat_g": 6,
+                        "in_stock": True,
+                    }
+                ]
+            },
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+        )
+        self.assertTrue(plan["items"])
+        self.assertTrue(plan["notes"]["variety_yielded"])
+        text = " ".join(
+            h.get("text") or ""
+            for h in plan["honesty"]
+            if h.get("kind") == "diversity"
+        )
+        self.assertIn("not enough variety", text.lower())
+        self.assertIn("add a vegetable", text.lower())
+        self.assertIn("not inventing", text.lower())
+        self.assertLessEqual(len(plan["meals"]), MAX_PRIMARY_MEALS)
+        for meal in plan["meals"]:
+            for item in meal["items"]:
+                if item.get("portion_g") is not None:
+                    self.assertLessEqual(float(item["portion_g"]), MAX_MEAL_ITEM_G + 0.5)
 
 
 if __name__ == "__main__":
