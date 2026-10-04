@@ -11,6 +11,7 @@ Preferred scopes (Google Health API):
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import time
@@ -34,6 +35,8 @@ from .models import (
     StepSample,
     WeightSample,
 )
+
+log = logging.getLogger(__name__)
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 HEALTH_BASE = "https://health.googleapis.com/v4/users/me"
@@ -59,6 +62,18 @@ class GoogleHealthError(RuntimeError):
         super().__init__(message)
         self.status = status
         self.body = body
+
+
+def _nutrition_stream_retryable(exc: BaseException) -> bool:
+    """Nutrition-log walks up to 40 pages. Retry that stream once.
+
+    ``_request`` wraps transport failures as ``GoogleHealthError``. A raw
+    timeout or ``URLError`` still counts if it escapes a caller.
+    """
+    return isinstance(
+        exc,
+        (GoogleHealthError, TimeoutError, socket.timeout, urllib.error.URLError, OSError),
+    )
 
 
 def _ns(dt: datetime) -> int:
@@ -380,6 +395,11 @@ class GoogleHealthClient:
             pass
         return self.fetch_sleep_fit(days=days, tz_name=tz_name), []
 
+    def _record_stream_failure(self, name: str, exc: BaseException, errors: List[str]) -> None:
+        """One line per stream that stays failed. Vercel runtime logs pick this up."""
+        errors.append(f"{name}: {exc}")
+        log.warning("google health stream %s failed: %s", name, exc)
+
     def _civil_range_body(
         self,
         days: int,
@@ -663,12 +683,19 @@ class GoogleHealthClient:
                 name = futs[fut]
                 try:
                     result = fut.result()
-                except GoogleHealthError as e:
-                    errors.append(f"{name}: {e}")
-                    continue
-                except Exception as e:  # noqa: BLE001
-                    errors.append(f"{name}: {e}")
-                    continue
+                except Exception as exc:  # noqa: BLE001
+                    # Nutrition is the only 40-page walk. One retry covers a
+                    # transient GoogleHealthError or a raw transport error.
+                    # Other streams stay single-attempt.
+                    if name == "nutrition" and _nutrition_stream_retryable(exc):
+                        try:
+                            result = _nutrition()
+                        except Exception as retry_exc:  # noqa: BLE001
+                            self._record_stream_failure(name, retry_exc, errors)
+                            continue
+                    else:
+                        self._record_stream_failure(name, exc, errors)
+                        continue
                 if name == "weight":
                     weight = result  # type: ignore[assignment]
                 elif name == "sleep":

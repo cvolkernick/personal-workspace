@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.workout._util import agent_today_body, dispatch_client_route
 from rt_dashboard.agent_today import export_agent_today
+from rt_dashboard.google_health import GoogleHealthClient, GoogleHealthError
 from rt_dashboard.models import (
     ActiveZoneMinutesDay,
     ExerciseEntry,
@@ -28,6 +29,7 @@ from rt_dashboard.models import (
     Session,
     SetEntry,
     SleepSample,
+    WeightSample,
 )
 
 
@@ -1443,6 +1445,116 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertEqual(dash["error"], "auth_required")
         self.assertEqual(wo_status, 401)
         self.assertEqual(wo["error"], "auth_required")
+
+    def _run_nutrition_stream(self, nutrition_fn):
+        """Cookie-less today with real fetch_health. Other streams succeed."""
+        env = {
+            "FITDASH_SERVICE_TOKEN": "house-secret",
+            "FITDASH_SERVICE_LOOPBACK": "0",
+            "TZ": "UTC",
+        }
+        empty_bottle = {
+            "available": False,
+            "percent": None,
+            "status": "not_configured",
+            "name": None,
+            "field": None,
+            "error": None,
+        }
+        sleep = (
+            [SleepSample(date="2026-08-18", sleep_hours=7.5, source="google_health")],
+            [],
+        )
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.timeutil.local_today_iso", return_value="2026-08-23"
+            ), mock.patch(
+                "api.dashboard._load_sessions", return_value=([], [], "turso")
+            ), mock.patch.object(
+                GoogleHealthClient, "credentials_present", return_value=True
+            ), mock.patch.object(
+                GoogleHealthClient, "ensure_access_token", return_value="tok"
+            ), mock.patch.object(
+                GoogleHealthClient,
+                "fetch_weight",
+                return_value=[WeightSample(date="2026-08-18", weight_lbs=180.0)],
+            ), mock.patch.object(
+                GoogleHealthClient, "fetch_sleep_bundle", return_value=sleep
+            ), mock.patch.object(
+                GoogleHealthClient, "fetch_nutrition_bundle", side_effect=nutrition_fn
+            ), mock.patch.object(
+                GoogleHealthClient, "fetch_hydration", return_value=[]
+            ), mock.patch.object(
+                GoogleHealthClient, "fetch_calories_burned", return_value=[]
+            ), mock.patch.object(
+                GoogleHealthClient, "fetch_active_zone_minutes", return_value=[]
+            ), mock.patch.object(
+                GoogleHealthClient, "fetch_resting_heart_rate", return_value=[]
+            ), mock.patch.object(
+                GoogleHealthClient, "fetch_steps", return_value=[]
+            ), mock.patch(
+                "rt_dashboard.hidrate_client.hidrate_bottle_charge",
+                return_value=empty_bottle,
+            ), mock.patch(
+                "rt_dashboard.hidrate_client.hidrate_hydration_samples",
+                return_value=[],
+            ), mock.patch(
+                "rt_dashboard.meal_plan_store.load_last_good_meal_plan",
+                return_value=None,
+            ):
+                return agent_today_body(
+                    {"X-FitDash-Service-Token": "house-secret"}, ""
+                )
+
+    def test_store_path_surfaces_nutrition_stream_error(self):
+        calls = {"n": 0}
+
+        def _nutrition(*_args, **_kwargs):
+            calls["n"] += 1
+            raise GoogleHealthError("Google Health/Fit transport error: timed out")
+
+        status, body = self._run_nutrition_stream(_nutrition)
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(calls["n"], 2)
+        self.assertIn("nutrition", body.get("error") or "")
+        self.assertIn("transport error", body.get("error") or "")
+        self.assertEqual(body["week"]["nutrition"]["days"], [])
+        self.assertIsNone(body["week"]["nutrition"]["calories"])
+        self.assertIsNone(body["today"]["nutrition"]["calories"])
+        self.assertIsNone(body["today"]["nutrition"]["protein_g"])
+        self.assertEqual(body["week"]["start"], "2026-08-17")
+        self.assertEqual(body["week"]["end"], "2026-08-23")
+        self.assertEqual(body["week"]["sleep"][0]["duration_hours"], 7.5)
+        self._assert_no_secrets(body)
+
+    def test_store_path_nutrition_retry_fills_week(self):
+        calls = {"n": 0}
+
+        def _nutrition(*_args, **_kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise GoogleHealthError("Google Health/Fit transport error: timed out")
+            return (
+                [NutritionDay(date="2026-08-18", calories=661.6, protein_g=50.3)],
+                [],
+            )
+
+        status, body = self._run_nutrition_stream(_nutrition)
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(calls["n"], 2)
+        err = body.get("error") or ""
+        self.assertNotIn("nutrition:", err)
+        days = body["week"]["nutrition"]["days"]
+        self.assertEqual(len(days), 1)
+        self.assertEqual(days[0]["date"], "2026-08-18")
+        self.assertEqual(days[0]["calories"], 661.6)
+        self.assertEqual(days[0]["protein_g"], 50.3)
+        self.assertEqual(body["week"]["nutrition"]["calories"], 661.6)
+        self.assertEqual(body["week"]["start"], "2026-08-17")
+        self.assertEqual(body["week"]["end"], "2026-08-23")
+        self._assert_no_secrets(body)
 
 
 if __name__ == "__main__":

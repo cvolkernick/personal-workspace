@@ -26,6 +26,7 @@ from rt_dashboard.google_health import (
 from rt_dashboard.models import (
     ActiveZoneMinutesDay,
     HealthSnapshot,
+    NutritionDay,
     WeightSample,
 )
 
@@ -251,6 +252,65 @@ class TestFetchHealthIncludesAzm(_NoLiveNetwork):
         self.assertEqual(snap.active_zone_minutes, [])
         self.assertIn("active_zone_minutes", snap.error or "")
         self.assertEqual(len(snap.weight), 1)
+
+    def test_nutrition_transport_error_retries_once(self):
+        client = self._client()
+        calls = {"n": 0}
+
+        def _nutrition(days=90):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise socket.timeout("The read operation timed out")
+            return (
+                [NutritionDay(date="2026-08-18", calories=661.6, protein_g=50.3)],
+                [],
+            )
+
+        client.fetch_nutrition_bundle = _nutrition  # type: ignore[method-assign]
+        with self.assertNoLogs("rt_dashboard.google_health", level="WARNING"):
+            snap = client.fetch_health(days=14)
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(len(snap.nutrition), 1)
+        self.assertEqual(snap.nutrition[0].calories, 661.6)
+        self.assertIsNone(snap.error)
+        self.assertEqual(self._opened.call_count, 0)
+
+    def test_nutrition_error_after_retry_stays_on_snapshot(self):
+        client = self._client()
+        client.fetch_weight = lambda days=30: [  # type: ignore[method-assign]
+            WeightSample(date="2026-08-16", weight_lbs=180.0)
+        ]
+        calls = {"n": 0}
+
+        def _nutrition(days=90):
+            calls["n"] += 1
+            raise GoogleHealthError("Google Health/Fit transport error: timed out")
+
+        client.fetch_nutrition_bundle = _nutrition  # type: ignore[method-assign]
+        with self.assertLogs("rt_dashboard.google_health", level="WARNING") as logs:
+            snap = client.fetch_health(days=14)
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(snap.nutrition, [])
+        self.assertIn("nutrition", snap.error or "")
+        self.assertIn("transport error", snap.error or "")
+        self.assertEqual(len(snap.weight), 1)
+        self.assertEqual(sum("nutrition" in line for line in logs.output), 1)
+        self.assertEqual(self._opened.call_count, 0)
+
+    def test_nutrition_value_error_is_not_retried(self):
+        client = self._client()
+        calls = {"n": 0}
+
+        def _nutrition(days=90):
+            calls["n"] += 1
+            raise ValueError("bad payload")
+
+        client.fetch_nutrition_bundle = _nutrition  # type: ignore[method-assign]
+        snap = client.fetch_health(days=14)
+        self.assertEqual(calls["n"], 1)
+        self.assertIn("nutrition", snap.error or "")
+        self.assertIn("bad payload", snap.error or "")
+        self.assertEqual(snap.nutrition, [])
 
     def test_azm_error_alone_is_honest_empty_error_snapshot(self):
         client = self._client()

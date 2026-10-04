@@ -68,14 +68,20 @@ def _load_health(tz_name: str | None = None):
         health = GoogleHealthClient().fetch_health(days=days, tz_name=tz_name)
     except Exception as exc:  # noqa: BLE001
         health = HealthSnapshot(error=f"health_pull: {type(exc).__name__}")
-        return health, errors
-    try:
-        health, meta = overlay_hidrate_hydration(health, days=days)
-        hidrate_err = str((meta or {}).get("error") or "").strip()
-        if hidrate_err:
-            errors.append(f"hidrate: {hidrate_err[:160]}")
-    except Exception as exc:  # noqa: BLE001
-        errors.append(f"hidrate: {type(exc).__name__}")
+    else:
+        try:
+            health, meta = overlay_hidrate_hydration(health, days=days)
+            hidrate_err = str((meta or {}).get("error") or "").strip()
+            if hidrate_err:
+                errors.append(f"hidrate: {hidrate_err[:160]}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"hidrate: {type(exc).__name__}")
+    # A dropped stream (nutrition pages up to 40 times) stays on the snapshot
+    # while the other streams succeed. Cookie-less /api/agent/today reads
+    # ``errors`` only, so copy ``health.error`` or the export looks ok and empty.
+    health_err = str(getattr(health, "error", None) or "").strip()
+    if health_err:
+        errors.append(health_err)
     return health, errors
 
 
