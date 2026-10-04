@@ -24,7 +24,7 @@
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=tonnage-1025-1" defer></script>
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
-    <script src="/app.js?v=recovery-1040-1" defer></script>
+    <script src="/app.js?v=recipe-dishes-1069-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -581,6 +581,9 @@
               Method (required — one step per line)
               <textarea id="recipe-steps" rows="4" required placeholder="Blend spinach, banana, and protein powder until smooth.&#10;Chill 10 minutes."></textarea>
             </label>
+            <p class="muted" id="recipe-method-hint" hidden>
+              Leave this blank. The coach writes ordered steps from these ingredients and quantities.
+            </p>
             <p class="muted" style="margin:0.35rem 0 0.2rem;font-size:0.8rem">
               What goes in — inventory items, grams for the <em>whole batch</em> of the dish.
             </p>

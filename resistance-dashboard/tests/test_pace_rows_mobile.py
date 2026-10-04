@@ -74,7 +74,7 @@ class PaceRowsCache(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertIn("/styles.css?v=brand-1027-1", HTML)
         self.assertIn("/styles.css?v=brand-1027-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v133"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v134"', SW)
         self.assertNotIn("/styles.css?v=kitchen-collapse-1", HTML)
         self.assertNotIn("/styles.css?v=kitchen-collapse-1", SW)
         self.assertNotIn("fitdash-shell-v107", SW)

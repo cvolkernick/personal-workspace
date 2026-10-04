@@ -5,8 +5,10 @@ servings of that finished dish. Loose pantry items eaten as themselves
 are not recipes — they stay on the meal-plan quick-add path.
 
 Turso is SoT. There is no seed library; recipes appear when a user (or
-coach) saves a dish with preparation steps. File JSON must never
-overwrite a Turso row.
+coach) saves a dish with preparation steps. A coach-composed recipe
+gets those steps at creation from the ingredient set already on the
+draft — names and quantities only, nothing added or resized. File JSON
+must never overwrite a Turso row.
 
 Servings: yield_servings is the batch size of the finished dish.
 Ingredient grams_batch are totals for that yield. Per-serving =
@@ -24,6 +26,7 @@ Drift:
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -255,7 +258,221 @@ def compose_from_meal_items(
         "updated_at": now,
         "stale": False,
         "stale_ingredient_ids": [],
+        "instructions_stale": False,
     }
+
+
+def _qty_token(grams: float, servings: float) -> str:
+    if grams > 0:
+        return f"{grams:g}g"
+    if servings > 0:
+        return f"{servings:g} servings"
+    return ""
+
+
+def _join_phrases(parts: Sequence[str]) -> str:
+    items = [p for p in parts if p]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def _named_lines(
+    lines: Sequence[dict],
+    items: Optional[Sequence[dict]] = None,
+    inventory: Optional[dict] = None,
+) -> List[dict]:
+    by_item: Dict[str, dict] = {}
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        iid = str(it.get("id") or it.get("ingredient_id") or "").strip()
+        if iid:
+            by_item[iid] = it
+    by_inv = _inventory_by_id(inventory)
+    named: List[dict] = []
+    for line in lines or []:
+        if not isinstance(line, dict):
+            continue
+        iid = str(line.get("ingredient_id") or "").strip()
+        if not iid:
+            continue
+        src = by_item.get(iid) or {}
+        ing = by_inv.get(iid) or {}
+        name = str(src.get("name") or ing.get("name") or line.get("name") or iid).strip() or iid
+        named.append({**line, "ingredient_id": iid, "name": name})
+    return named
+
+
+def _method_verb(title: str) -> str:
+    text = str(title or "").lower()
+    if any(key in text for key in ("smoothie", "shake", "blend")):
+        return "blend"
+    if any(key in text for key in ("soup", "stew", "chili", "broth")):
+        return "simmer"
+    if any(key in text for key in ("stir-fry", "stir fry", "skillet", "saute", "sauté")):
+        return "skillet"
+    if any(key in text for key in ("oat", "overnight")):
+        return "rest"
+    if "salad" in text:
+        return "toss"
+    return "cook"
+
+
+def _doneness_clause(names: Sequence[str]) -> str:
+    """Food-safety temps for ingredients already on the recipe. No new foods."""
+    notes: List[str] = []
+    for name in names:
+        low = name.lower()
+        if any(word in low for word in ("chicken", "turkey", "poultry")):
+            notes.append(f"Cook {name} to 165F")
+        elif "ground" in low and any(word in low for word in ("beef", "pork")):
+            notes.append(f"Cook {name} to 160F")
+        elif any(word in low for word in ("salmon", "shrimp", "tuna", "cod", "fish")):
+            notes.append(f"Cook {name} to 145F")
+    if not notes:
+        return ""
+    unique: List[str] = []
+    for note in notes:
+        if note not in unique:
+            unique.append(note)
+    return " " + ". ".join(unique) + "."
+
+
+def coach_preparation_steps(name: str, lines: Sequence[dict]) -> List[str]:
+    """Ordered prep, cook, and portion steps.
+
+    Every step names only ingredients and quantities already on ``lines``.
+    The dish title picks a verb. It is not copied in, so a title cannot
+    smuggle in a food the batch does not have.
+    """
+    measured: List[str] = []
+    names: List[str] = []
+    for line in lines or []:
+        if not isinstance(line, dict):
+            continue
+        label = str(line.get("name") or line.get("ingredient_id") or "").strip()
+        grams = _as_float(line.get("grams_batch"), 0.0)
+        servings = _as_float(line.get("servings_batch"), 0.0)
+        token = _qty_token(grams, servings)
+        if not label or not token:
+            continue
+        names.append(label)
+        measured.append(f"{token} {label}")
+    if not measured:
+        return []
+    listed = _join_phrases(measured)
+    verb = _method_verb(name)
+    done = _doneness_clause(names)
+    if verb == "blend":
+        cook = f"Blend {listed} until smooth.{done}"
+    elif verb == "simmer":
+        cook = f"Simmer {listed} until they are one dish.{done}"
+    elif verb == "skillet":
+        cook = f"Cook {listed} in a pan until they are one dish.{done}"
+    elif verb == "rest":
+        cook = f"Combine {listed} and rest until they are one dish.{done}"
+    elif verb == "toss":
+        cook = f"Toss {listed} together until they are one dish.{done}"
+    else:
+        cook = f"Cook {listed} together until they are one dish.{done}"
+    return [
+        f"Measure {listed}.",
+        cook,
+        f"Portion the finished dish. The batch was {listed}.",
+    ]
+
+
+def _qty_mentioned(blob: str, token: str) -> bool:
+    if not token:
+        return False
+    return re.search(rf"(?<![\d.]){re.escape(token.lower())}", blob) is not None
+
+
+def steps_cover_lines(steps: Sequence[str], lines: Sequence[dict]) -> bool:
+    """True when every line's name and quantity appear in the steps."""
+    named = [line for line in lines or [] if isinstance(line, dict)]
+    if not named:
+        return False
+    blob = "\n".join(str(step) for step in steps or []).lower()
+    if not blob.strip():
+        return False
+    for line in named:
+        name = str(line.get("name") or line.get("ingredient_id") or "").strip().lower()
+        token = _qty_token(
+            _as_float(line.get("grams_batch"), 0.0),
+            _as_float(line.get("servings_batch"), 0.0),
+        ).lower()
+        if not name or not token or name not in blob or not _qty_mentioned(blob, token):
+            return False
+    return True
+
+
+def _ingredient_signature(lines: Sequence[dict]) -> tuple:
+    rows = []
+    for line in lines or []:
+        if not isinstance(line, dict):
+            continue
+        iid = str(line.get("ingredient_id") or "").strip()
+        if not iid:
+            continue
+        rows.append(
+            (
+                iid,
+                round(_as_float(line.get("grams_batch"), 0.0), 4),
+                round(_as_float(line.get("servings_batch"), 0.0), 4),
+            )
+        )
+    return tuple(sorted(rows))
+
+
+def create_dish_from_items(
+    items: Sequence[dict],
+    *,
+    yield_servings: float = 1.0,
+    name: str = "",
+    source: str = "coach",
+    inventory: Optional[dict] = None,
+    instructions: Optional[Sequence[str]] = None,
+) -> dict:
+    """Create a recipe draft from an ingredient set.
+
+    Coach creation with no method gets preparation steps from the real
+    lines. A draft that still has no steps is a grouping: do not present
+    or save it. Explicit steps are kept (manual entry). Ingredient grams
+    and servings are the compose result — this does not resize them.
+    """
+    draft = compose_from_meal_items(
+        items,
+        yield_servings=yield_servings,
+        name=name,
+        source=source,
+        instructions=None,
+    )
+    named = _named_lines(draft.get("ingredients") or [], items, inventory)
+    explicit = _instruction_steps(instructions) if instructions is not None else []
+    if explicit:
+        draft["instructions"] = explicit
+        draft["instructions_stale"] = False
+    else:
+        draft["instructions"] = coach_preparation_steps(draft.get("name") or "", named)
+        draft["instructions_stale"] = False
+    return draft
+
+
+def present_recipe(recipe: Optional[dict]) -> Optional[dict]:
+    """A grouping is not a recipe. Stale steps are not the current method."""
+    if not is_dish(recipe):
+        return None
+    out = dict(recipe or {})
+    if out.get("instructions_stale"):
+        out["stale_instructions"] = list(out.get("instructions") or [])
+        out["instructions"] = []
+    return out
 
 
 def normalize_recipe(raw: dict, *, existing: Optional[dict] = None) -> dict:
@@ -312,7 +529,61 @@ def normalize_recipe(raw: dict, *, existing: Optional[dict] = None) -> dict:
         "updated_at": now,
         "stale": bool(data.get("stale") if "stale" in data else base.get("stale")),
         "stale_ingredient_ids": stale_ids,
+        "instructions_stale": bool(
+            data["instructions_stale"]
+            if "instructions_stale" in data
+            else base.get("instructions_stale")
+        ),
     }
+
+
+def _apply_method(
+    rec: dict,
+    raw: Optional[dict],
+    existing: Optional[dict],
+    inventory: Optional[dict],
+) -> dict:
+    """Fill a coach method, and replace steps that no longer match the batch.
+
+    A manual method is kept on first save. After the ingredient set changes,
+    steps that do not name the current lines are regenerated. They are not
+    left in place as if they still described the dish.
+    """
+    named = _named_lines(rec.get("ingredients") or [], inventory=inventory)
+    existing_steps = _instruction_steps((existing or {}).get("instructions"))
+    ing_changed = existing is not None and _ingredient_signature(
+        rec.get("ingredients") or []
+    ) != _ingredient_signature((existing or {}).get("ingredients") or [])
+    raw_steps = raw.get("instructions") if isinstance(raw, dict) else None
+    submitted = _instruction_steps(raw_steps) if isinstance(raw_steps, list) else None
+    steps_rewritten = (
+        submitted is not None and submitted != existing_steps and bool(submitted)
+    )
+    fresh = coach_preparation_steps(str(rec.get("name") or ""), named)
+    if not _instruction_steps(rec.get("instructions")):
+        if rec.get("source") == "coach" and fresh:
+            rec["instructions"] = fresh
+        rec["instructions_stale"] = False
+        return rec
+    if ing_changed and not steps_cover_lines(rec.get("instructions") or [], named):
+        if fresh:
+            rec["instructions"] = fresh
+            rec["instructions_stale"] = False
+        else:
+            rec["instructions_stale"] = True
+        return rec
+    if (
+        existing
+        and existing.get("instructions_stale")
+        and not steps_rewritten
+        and not steps_cover_lines(rec.get("instructions") or [], named)
+        and fresh
+    ):
+        rec["instructions"] = fresh
+        rec["instructions_stale"] = False
+        return rec
+    rec["instructions_stale"] = False
+    return rec
 
 
 def _line_macros(line: dict, ing: Optional[dict], yield_servings: float) -> dict:
@@ -651,6 +922,7 @@ def upsert_recipe(
     if rid:
         existing = get_recipe(uid, rid, inventory=None)
     rec = normalize_recipe(raw or {}, existing=existing)
+    rec = _apply_method(rec, raw if isinstance(raw, dict) else {}, existing, inventory)
     # require_method=False still cannot store a grouping. It only skips the
     # check when the row is already a dish (stale-mark rewrite).
     if require_method or not is_dish(rec):
