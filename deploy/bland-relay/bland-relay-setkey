@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Usage: printf %s "$VALUE" | bland-relay-setkey KEY
+# Reads the value from stdin (never argv), writes ~/.config/bland-relay/env
+# atomically, and restarts the unit. Never prints the value.
+set -euo pipefail
+KEY="${1:-}"
+case "$KEY" in
+  ALEXANDRA_ALERT_URL|ALEXANDRA_ALERT_AUTH|BLAND_WEBHOOK_SECRET|RELAY_PATH|\
+  FWD_TOKEN|FWD_PATH|SEND_TOKEN|SEND_PATH|SMSGW_URL|SMSGW_USER|SMSGW_PASS|\
+  SMS_SEND_DISABLED) ;;
+  *)
+    echo "usage: printf %s VALUE | $0 KEY" >&2
+    echo "KEY is one of: ALEXANDRA_ALERT_URL ALEXANDRA_ALERT_AUTH BLAND_WEBHOOK_SECRET RELAY_PATH FWD_TOKEN FWD_PATH SEND_TOKEN SEND_PATH SMSGW_URL SMSGW_USER SMSGW_PASS SMS_SEND_DISABLED" >&2
+    exit 2
+    ;;
+esac
+if [ -t 0 ]; then read -rs -p "value for $KEY (hidden): " VAL; echo >&2; else VAL="$(cat)"; fi
+VAL="${VAL%$'\n'}"; VAL="${VAL%$'\r'}"
+case "$VAL" in *$'\n'*) echo "value must be one line" >&2; exit 2;; esac
+if [ "$KEY" = "SMS_SEND_DISABLED" ]; then
+  case "$VAL" in
+    0|1) ;;
+    *) echo "SMS_SEND_DISABLED must be 0 or 1" >&2; exit 2;;
+  esac
+fi
+ENVF="$HOME/.config/bland-relay/env"
+KEY="$KEY" VAL="$VAL" ENVF="$ENVF" python3 - <<'PY'
+import os, tempfile
+p=os.environ["ENVF"]; k=os.environ["KEY"]; v=os.environ["VAL"]
+lines=open(p).read().splitlines() if os.path.exists(p) else []
+out=[]; done=False
+for l in lines:
+    if l.split("=",1)[0].strip()==k:
+        if not done: out.append(f"{k}={v}"); done=True
+    else: out.append(l)
+if not done: out.append(f"{k}={v}")
+d=os.path.dirname(p); os.makedirs(d, mode=0o700, exist_ok=True)
+fd,tmp=tempfile.mkstemp(dir=d, prefix=".env.")
+with os.fdopen(fd,"w") as f: f.write("\n".join(out)+"\n")
+os.chmod(tmp,0o600); os.replace(tmp,p)
+PY
+systemctl --user reset-failed bland-relay.service 2>/dev/null || true
+systemctl --user restart bland-relay.service
+sleep 1
+echo "$KEY updated (len ${#VAL}); bland-relay.service: $(systemctl --user is-active bland-relay.service)"
