@@ -1856,6 +1856,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     today,
                     day=day,
                     sleep_battery=bat if isinstance(bat, dict) else None,
+                    user_id=str(uid) if uid else None,
                 )
                 self._send_json({"ok": True, "daily_tasks": result})
             except Exception as e:  # noqa: BLE001

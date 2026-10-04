@@ -1409,6 +1409,11 @@ def build_coach_payload(
         hydration=health.hydration if health else None,
         weight=health.weight if health else None,
     )
+    wo = today.get("workout") if isinstance(today.get("workout"), dict) else None
+    if wo is not None:
+        from .gym_calendar import apply_civil_booking_flags
+
+        apply_civil_booking_flags(wo, sessions, day)
     food_commentary = build_food_commentary(
         food_logs=health.food_logs or [],
         nutrition=health.nutrition,

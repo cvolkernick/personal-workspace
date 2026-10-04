@@ -37,6 +37,13 @@ Reconciliation contract (one writer, one key) (#901):
 - A persisted close for the day deletes the unlocked ``[fitdash-gym:D]``
   chip and does not create another (#951). A partial log (no close stamp)
   still keeps the chip. A user-locked chip stays.
+- Booking uses the close instant's America/New_York date, not a stale
+  ``last_wake_at`` (#1064). A session logged after 00:00 ET on civil day D
+  counts for D. ``role="coach"`` does not create a chip when that day is
+  already logged, and it deletes an unlocked chip when the session is
+  closed. Once a chip has been created, ``context.gym_chip_created``
+  remembers the date. A later miss does not create another unless
+  ``rearm`` is set (explicit replan or ``gym_chip_rearm``).
 - Session-bound Calendar API only (main login, not Health OAuth). Stored
   refresh tokens / headless daily run are out of scope (#609).
 """
@@ -82,6 +89,9 @@ DEFAULT_DRIVE_MINUTES = {CLUB_HOME: 0, CLUB_ALT: 20, CLUB_SECOND: 15}
 
 _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
+# (user_id, civil day) chips this process already created (#1064).
+_PROCESS_CHIPS: set[Tuple[str, str]] = set()
+
 _FALLBACK_RANKED = {
     "mon": [("05:00", "06:30", 30), ("22:30", "00:00", 33), ("06:30", "08:00", 38)],
     "tue": [("05:00", "06:30", 31), ("22:30", "00:00", 35), ("07:00", "08:30", 43)],
@@ -107,6 +117,7 @@ class GymDay:
     session_type: str = ""
     workout_logged: bool = False
     session_closed: bool = False
+    block_create: bool = False
 
 
 @dataclass
@@ -837,6 +848,194 @@ def pick_placement(
     return pairs[0]
 
 
+def _normalize_chip_days(raw: Any) -> set[str]:
+    if isinstance(raw, str):
+        day = raw[:10]
+        return {day} if len(day) == 10 else set()
+    if isinstance(raw, list):
+        return {str(item)[:10] for item in raw if len(str(item)[:10]) == 10}
+    if isinstance(raw, dict):
+        return {
+            str(key)[:10]
+            for key, value in raw.items()
+            if value and len(str(key)[:10]) == 10
+        }
+    return set()
+
+
+def chip_created_days(plan: Optional[dict]) -> set[str]:
+    """Civil days whose ``[fitdash-gym:D]`` chip was already created (#1064)."""
+    if not isinstance(plan, dict):
+        return set()
+    ctx = plan.get("context") if isinstance(plan.get("context"), dict) else {}
+    raw = ctx.get("gym_chip_created")
+    if raw is None:
+        raw = plan.get("gym_chip_created")
+    return _normalize_chip_days(raw)
+
+
+def remember_gym_chip(plan: dict, day: str) -> None:
+    """Record that coach created or still holds the chip for ``day``."""
+    civil = str(day or "")[:10]
+    if not civil or not isinstance(plan, dict):
+        return
+    ctx = dict(plan.get("context") or {})
+    days = chip_created_days(plan)
+    days.add(civil)
+    ctx["gym_chip_created"] = sorted(days)
+    plan["context"] = ctx
+
+
+def _process_chip_has(user_id: Optional[str], day: str) -> bool:
+    if not user_id:
+        return False
+    return (str(user_id), str(day)[:10]) in _PROCESS_CHIPS
+
+
+def _process_chip_add(user_id: Optional[str], day: str) -> None:
+    if user_id:
+        _PROCESS_CHIPS.add((str(user_id), str(day)[:10]))
+
+
+def _session_letter(session: Any) -> str:
+    if isinstance(session, dict):
+        return str(session.get("session_type") or session.get("type") or "").lower()
+    return str(getattr(session, "session_type", "") or "").lower()
+
+
+def _session_date(session: Any) -> str:
+    if isinstance(session, dict):
+        return str(session.get("date") or "")[:10]
+    return str(getattr(session, "date", "") or "")[:10]
+
+
+def session_close_civil_day(session: Any) -> str:
+    """America/New_York date of a persisted close. Empty when there is none.
+
+    Ignores ``last_wake_at``. A quest-seed-only row is not a close (#999).
+    """
+    from .training_day import (
+        session_close_dt,
+        session_has_close_stamp,
+        session_is_quest_seed_only,
+    )
+
+    if not session_has_close_stamp(session) or session_is_quest_seed_only(session):
+        return ""
+    closed = session_close_dt(session, tz_name=GYM_TZ_NAME)
+    if closed is None:
+        return ""
+    return closed.astimezone(gym_tz()).strftime("%Y-%m-%d")
+
+
+def civil_closed_letter(sessions: Optional[Sequence[Any]], day: str) -> Optional[str]:
+    """PPL letter whose close falls on civil ``day``, ignoring last_wake (#1064)."""
+    target = str(day or "")[:10]
+    if not target:
+        return None
+    best_at = None
+    best: Optional[str] = None
+    from .training_day import session_close_dt
+
+    for session in sessions or []:
+        letter = _session_letter(session)
+        if letter not in ("push", "pull", "legs"):
+            continue
+        if session_close_civil_day(session) != target:
+            continue
+        closed = session_close_dt(session, tz_name=GYM_TZ_NAME)
+        if best_at is None or (closed is not None and closed >= best_at):
+            best_at = closed
+            best = letter
+    return best
+
+
+def civil_partial_letter(sessions: Optional[Sequence[Any]], day: str) -> Optional[str]:
+    """PPL letter logged on civil ``day`` with no close stamp.
+
+    A partial log keeps an existing chip and must not grow a new one.
+    """
+    from .training_day import session_has_close_stamp, session_is_quest_seed_only
+
+    target = str(day or "")[:10]
+    if not target:
+        return None
+    for session in sessions or []:
+        if _session_date(session) != target:
+            continue
+        letter = _session_letter(session)
+        if letter not in ("push", "pull", "legs"):
+            continue
+        if session_is_quest_seed_only(session) or session_has_close_stamp(session):
+            continue
+        return letter
+    return None
+
+
+def apply_civil_booking_flags(
+    workout: dict, sessions: Optional[Sequence[Any]], day: str
+) -> dict:
+    """Stamp booking flags from civil-day logs. Does not roll the next letter."""
+    if not isinstance(workout, dict):
+        return workout
+    if civil_closed_letter(sessions, day):
+        workout["session_closed_today"] = True
+        return workout
+    partial = civil_partial_letter(sessions, day)
+    if partial and not workout.get("ppl_logged_today"):
+        ctx = workout.get("context") if isinstance(workout.get("context"), dict) else {}
+        if not ctx.get("ppl_logged_today"):
+            workout["ppl_logged_today"] = partial
+    return workout
+
+
+def _explicit_rearm(plan: Optional[dict], rearm: bool) -> bool:
+    if rearm:
+        return True
+    if not isinstance(plan, dict):
+        return False
+    ctx = plan.get("context") if isinstance(plan.get("context"), dict) else {}
+    return bool(plan.get("gym_chip_rearm") or ctx.get("gym_chip_rearm"))
+
+
+def _merge_saved_chip_stamp(plan: dict, user_id: str, day: str) -> None:
+    from .workout_plan_store import load_last_good_workout_plan
+
+    saved = load_last_good_workout_plan(user_id, day)
+    extra = chip_created_days(saved)
+    if not extra:
+        return
+    ctx = dict(plan.get("context") or {})
+    days = chip_created_days(plan) | extra
+    ctx["gym_chip_created"] = sorted(days)
+    plan["context"] = ctx
+
+
+def persist_gym_chip_stamp(user_id: str, day: str, plan: dict) -> None:
+    """Copy ``gym_chip_created`` onto the saved plan when one already exists."""
+    from .workout_plan_store import (
+        is_good_workout_plan,
+        load_last_good_workout_plan,
+        save_last_good_workout_plan,
+    )
+
+    days = chip_created_days(plan)
+    if not user_id or not days:
+        return
+    saved = load_last_good_workout_plan(user_id, day)
+    if not isinstance(saved, dict) or not is_good_workout_plan(saved):
+        return
+    ctx = dict(saved.get("context") or {})
+    existing = _normalize_chip_days(ctx.get("gym_chip_created"))
+    merged = existing | days
+    if merged == existing:
+        return
+    ctx["gym_chip_created"] = sorted(merged)
+    updated = dict(saved)
+    updated["context"] = ctx
+    save_last_good_workout_plan(user_id, day, updated)
+
+
 def workout_logged_today(
     workout: Optional[dict],
     *,
@@ -901,6 +1100,14 @@ def gym_day_from_workout(
                 now=now,
             )
         )
+    if isinstance(plan.get("sessions"), list):
+        # Close instant on civil D counts even when last_wake is stale (#1064).
+        sessions = plan.get("sessions") or []
+        if civil_closed_letter(sessions, str(day)[:10]):
+            closed = True
+            logged = True
+        elif not logged and civil_partial_letter(sessions, str(day)[:10]):
+            logged = True
     if rest:
         return GymDay(
             day=str(day)[:10],
@@ -1158,6 +1365,11 @@ def sync_gym_sessions(
                         }
                     )
             else:
+                # Logged day, or a chip we already created and then lost:
+                # do not insert another (#1064). Partial logs with a chip
+                # take the update branch above and stay.
+                if gym_day.workout_logged or gym_day.block_create:
+                    continue
                 if slot_starts_quiet_hours(slot.start):
                     continue
                 gcal.create_event(cal_id, body)
@@ -1206,7 +1418,14 @@ def sync_gym_from_workout(
     day: str,
     role: str = "coach",
     now: Optional[datetime] = None,
+    rearm: bool = False,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
+    plan = workout if isinstance(workout, dict) else None
+    civil = str(day)[:10]
+    rearmed = _explicit_rearm(plan, rearm)
+    if plan is not None and user_id and not rearmed:
+        _merge_saved_chip_stamp(plan, user_id, civil)
     gym = gym_day_from_workout(workout, day, now=now)
     if gym is None:
         return {
@@ -1221,7 +1440,22 @@ def sync_gym_from_workout(
             "locked": 0,
             "moves": [],
         }
-    return sync_gym_sessions([gym], role=role, now=now)
+    if (
+        plan is not None
+        and role == "coach"
+        and not rearmed
+        and (civil in chip_created_days(plan) or _process_chip_has(user_id, civil))
+    ):
+        gym.block_create = True
+    result = sync_gym_sessions([gym], role=role, now=now)
+    if plan is not None and role == "coach" and (
+        result.get("created") or result.get("updated")
+    ):
+        remember_gym_chip(plan, civil)
+        _process_chip_add(user_id, civil)
+        if user_id:
+            persist_gym_chip_stamp(user_id, civil, plan)
+    return result
 
 
 def cancel_gym_for_day(day: str) -> Dict[str, Any]:

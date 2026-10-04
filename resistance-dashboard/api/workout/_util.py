@@ -632,12 +632,14 @@ def daily_tasks_body(headers, payload=None):
         "sleep_battery"
     )
     google = session_google_from_headers(headers) or {}
+    plan_uid = str((user or {}).get("user_id") or (user or {}).get("id") or "") or None
     with bound_session_google(google):
         result = stamp_quest_list_ids(
             ensure_daily_tasks(
                 today,
                 day=day,
                 sleep_battery=bat if isinstance(bat, dict) else None,
+                user_id=plan_uid,
             )
         )
     if not result.get("ok"):

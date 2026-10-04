@@ -2565,6 +2565,7 @@ def ensure_daily_tasks(
     day: Optional[str] = None,
     create_missing: bool = True,
     sleep_battery: Optional[dict] = None,
+    user_id: Optional[str] = None,
 ) -> dict:
     """Ensure / refresh quests. Titles stay human-only; notes carry markers.
 
@@ -2622,6 +2623,7 @@ def ensure_daily_tasks(
             ),
             today_board,
             day,
+            user_id=user_id,
         )
 
     try:
@@ -2637,6 +2639,7 @@ def ensure_daily_tasks(
                 ),
                 today_board,
                 day,
+                user_id=user_id,
             )
 
         cache = _load_cache()
@@ -3110,6 +3113,7 @@ def ensure_daily_tasks(
             },
             today_board,
             day,
+            user_id=user_id,
         )
     except Exception as e:
         return _with_gym_calendar(
@@ -3123,6 +3127,7 @@ def ensure_daily_tasks(
             ),
             today_board,
             day,
+            user_id=user_id,
         )
 
 
@@ -3320,13 +3325,17 @@ def _sync_meal_calendar(
         }
 
 
-def _sync_gym_calendar(today_board: Optional[dict], day: str) -> dict:
+def _sync_gym_calendar(
+    today_board: Optional[dict], day: str, user_id: Optional[str] = None
+) -> dict:
     """Best-effort gym event upsert beside plan publish. Never fails the checklist."""
     try:
         from .gym_calendar import sync_gym_from_workout
 
-        workout = (today_board or {}).get("workout") or {}
-        return sync_gym_from_workout(workout, day=day, role="coach")
+        workout = dict((today_board or {}).get("workout") or {})
+        return sync_gym_from_workout(
+            workout, day=day, role="coach", user_id=user_id
+        )
     except Exception as exc:  # noqa: BLE001
         return {
             "ok": False,
@@ -3395,9 +3404,14 @@ def _stamp_gym_quest_time(payload: dict, day: str) -> dict:
     return apply_gym_quest_time_label(payload, label)
 
 
-def _with_gym_calendar(payload: dict, today_board: Optional[dict], day: str) -> dict:
+def _with_gym_calendar(
+    payload: dict,
+    today_board: Optional[dict],
+    day: str,
+    user_id: Optional[str] = None,
+) -> dict:
     out = dict(payload)
-    out["gym_calendar"] = _sync_gym_calendar(today_board, day)
+    out["gym_calendar"] = _sync_gym_calendar(today_board, day, user_id=user_id)
     out["sleep_block_calendar"] = _sync_sleep_block_calendar(today_board)
     return _stamp_gym_quest_time(out, day)
 
