@@ -46,29 +46,6 @@ def ask_plan_body(headers, payload=None):
 
     pack = wo.get("training_pack") or {}
     brief = pack.get("sessions") or brief_sessions(sessions, limit=5)
-    result = generate_grok_plans(
-        str(user["id"]),
-        targets=nut.get("targets") or {},
-        consumed=nut.get("today_consumed") or {},
-        food_logs_today=nut.get("food_logs_today") or [],
-        recovery={
-            "label": rec.get("label"),
-            "score": rec.get("score"),
-            "reasons": (rec.get("reasons") or [])[:4],
-            "sparse": rec.get("sparse"),
-            "rest_if_recovery_below": (wo.get("goals") or {}).get(
-                "rest_if_recovery_below"
-            )
-            or 40,
-        },
-        sessions_brief=brief,
-        goals=wo.get("goals") or {},
-        catalog=wo.get("catalog") or {},
-        next_session_type=wo.get("next_session_type") or pack.get("next_session_type"),
-        inventory=nut.get("inventory"),
-        equipment=wo.get("equipment"),
-    )
-    from rt_dashboard.agent_plan import persist_grok_result
     from rt_dashboard.timeutil import local_today_iso
 
     day = (
@@ -76,6 +53,35 @@ def ask_plan_body(headers, payload=None):
         or (dashboard.get("meta") or {}).get("local_today")
         or local_today_iso()
     )
+    inputs = rec.get("inputs") if isinstance(rec.get("inputs"), dict) else {}
+    recovery = {
+        "label": rec.get("label"),
+        "score": rec.get("score"),
+        "reasons": (rec.get("reasons") or [])[:4],
+        "sparse": rec.get("sparse"),
+        "rest_if_recovery_below": (wo.get("goals") or {}).get(
+            "rest_if_recovery_below"
+        )
+        or 40,
+    }
+    if rec.get("rhr_under_recovered") or inputs.get("rhr_under_recovered"):
+        recovery["rhr_under_recovered"] = True
+    result = generate_grok_plans(
+        str(user["id"]),
+        targets=nut.get("targets") or {},
+        consumed=nut.get("today_consumed") or {},
+        food_logs_today=nut.get("food_logs_today") or [],
+        recovery=recovery,
+        sessions_brief=brief,
+        sessions=sessions,
+        goals=wo.get("goals") or {},
+        catalog=wo.get("catalog") or {},
+        next_session_type=wo.get("next_session_type") or pack.get("next_session_type"),
+        inventory=nut.get("inventory"),
+        equipment=wo.get("equipment"),
+        as_of=str(day)[:10],
+    )
+    from rt_dashboard.agent_plan import persist_grok_result
     persist = persist_grok_result(str(user["id"]), str(day)[:10], result)
     result = dict(result)
     result["persist"] = persist

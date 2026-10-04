@@ -71,6 +71,8 @@ def _plan_exercise_row(ex: Any) -> Optional[Dict[str, Any]]:
         "load",
         "rep_range",
         "progression_reason",
+        "load_source",
+        "load_reason",
     ):
         if ex.get(key) is not None:
             row[key] = ex[key]

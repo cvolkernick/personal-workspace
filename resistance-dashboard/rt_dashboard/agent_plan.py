@@ -495,11 +495,13 @@ def ensure_today_grok_plan(
             "food_logs_today": ctx.get("food_logs_today") or [],
             "recovery": ctx.get("recovery") or {},
             "sessions_brief": ctx.get("sessions_brief") or [],
+            "sessions": ctx.get("sessions"),
             "goals": ctx.get("goals") or {},
             "catalog": ctx.get("catalog") or {},
             "next_session_type": letter or ctx.get("next_session_type"),
             "inventory": ctx.get("inventory"),
             "equipment": ctx.get("equipment"),
+            "as_of": local_today,
         }
         result = generate_grok_plans(uid, **grok_kwargs)
         # Pi/Mac cookie-less: Turso grok_sessions may miss; ~/.grok/auth.json is the local SuperGrok path.

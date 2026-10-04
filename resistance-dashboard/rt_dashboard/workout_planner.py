@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-from .models import Session
+from .models import ExerciseEntry, Session, SetEntry
 
 CATALOG_PATH = "fitness/exercises/catalog.json"
 GOALS_PATH = "fitness/exercises/goals.json"
@@ -49,6 +49,15 @@ ISOLATION_REP_BAND = (8, 15)
 LIBRARY_LOAD_CAPS = {
     "dumbbells": 50.0,
     "fitbench": 30.0,
+}
+
+# Never-logged LLM loads (#1062). Empty bar, one light pin, or a light DB.
+# A model guess above this ceiling is capped. History uses prescribe() instead.
+NEW_LIFT_LOAD_CAP_LBS = {
+    "db": 15.0,
+    "pin": 45.0,
+    "bar": 45.0,
+    "unknown": 45.0,
 }
 
 LOWER_BODY_MUSCLES = frozenset(
@@ -1641,6 +1650,326 @@ def prescribe(
         "last": last,
         "continuity_phase": cont.get("phase"),
     }
+
+
+def _session_is_deload(session: Any) -> bool:
+    """A logged deload is not a double-progression baseline."""
+    if isinstance(session, dict):
+        flagged = bool(session.get("deload") or session.get("deload_week"))
+        kind = str(session.get("session_type") or session.get("type") or "")
+        notes = str(session.get("notes") or "")
+    else:
+        flagged = bool(
+            getattr(session, "deload", False) or getattr(session, "deload_week", False)
+        )
+        kind = str(getattr(session, "session_type", "") or "")
+        notes = str(getattr(session, "notes", "") or "")
+    return flagged or kind.strip().lower() == "deload" or "deload" in notes.lower()
+
+
+def _set_entry_from_dict(raw: dict) -> Optional[SetEntry]:
+    weight = raw.get("weight_lbs")
+    if weight is None:
+        weight = raw.get("best_working_weight")
+    reps = raw.get("reps")
+    if weight is None or reps is None:
+        return None
+    try:
+        count = raw.get("sets")
+        if isinstance(count, list):
+            count = 1
+        return SetEntry(
+            weight_lbs=float(weight),
+            sets=int(count or 1),
+            reps=int(reps),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _exercise_from_dict(raw: dict) -> Optional[ExerciseEntry]:
+    name = str(raw.get("name") or raw.get("exercise") or "").strip()
+    if not name:
+        return None
+    sets: List[SetEntry] = []
+    raw_sets = raw.get("sets")
+    if isinstance(raw_sets, list):
+        for st in raw_sets:
+            if isinstance(st, SetEntry):
+                sets.append(st)
+            elif isinstance(st, dict):
+                parsed = _set_entry_from_dict(st)
+                if parsed:
+                    sets.append(parsed)
+    if not sets:
+        summary = _set_entry_from_dict(raw)
+        if summary:
+            sets.append(summary)
+    if not sets:
+        return None
+    return ExerciseEntry(name=name, sets=sets)
+
+
+def progression_sessions(sessions: Sequence[Any]) -> List[Session]:
+    """Non-deload logs as Session models. Dict briefs are accepted."""
+    out: List[Session] = []
+    for session in sessions or []:
+        if _session_is_deload(session):
+            continue
+        if isinstance(session, Session):
+            out.append(session)
+            continue
+        if not isinstance(session, dict):
+            continue
+        exercises: List[ExerciseEntry] = []
+        for ex in session.get("exercises") or []:
+            if isinstance(ex, ExerciseEntry):
+                exercises.append(ex)
+            elif isinstance(ex, dict):
+                parsed = _exercise_from_dict(ex)
+                if parsed:
+                    exercises.append(parsed)
+        if not exercises:
+            continue
+        out.append(
+            Session(
+                date=str(session.get("date") or "")[:10],
+                session_type=str(
+                    session.get("session_type") or session.get("type") or ""
+                ),
+                exercises=exercises,
+                notes=str(session.get("notes") or ""),
+            )
+        )
+    return out
+
+
+def _catalog_index(catalog: Optional[dict]) -> Dict[str, dict]:
+    out: Dict[str, dict] = {}
+    for ex in (catalog or {}).get("exercises") or []:
+        if isinstance(ex, dict) and ex.get("id"):
+            out[str(ex["id"])] = ex
+    return out
+
+
+def _catalog_row_for_name(name: str, catalog: Optional[dict]) -> dict:
+    by_id = _catalog_index(catalog)
+    cid = match_catalog_id(name, by_id) if name and by_id else None
+    if cid and cid in by_id:
+        return by_id[cid]
+    key = _norm_name(name)
+    for ex in (catalog or {}).get("exercises") or []:
+        if isinstance(ex, dict) and _norm_name(str(ex.get("name") or "")) == key:
+            return ex
+    return {"name": name, "movement": "compound"}
+
+
+def _fmt_load(weight: float) -> str:
+    if abs(float(weight) - round(float(weight))) < 1e-9:
+        return str(int(round(float(weight))))
+    return f"{float(weight):g}"
+
+
+def _positive_int(value: Any) -> Optional[int]:
+    if isinstance(value, bool) or isinstance(value, list):
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    return n
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if isinstance(value, bool) or value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _llm_sets(row: dict, rx: dict) -> Optional[int]:
+    return _positive_int(row.get("sets")) or _positive_int(rx.get("sets"))
+
+
+def _llm_weight(row: dict, rx: dict) -> Optional[float]:
+    for src in (row, rx):
+        for key in ("weight_lbs", "load"):
+            weight = _optional_float(src.get(key))
+            if weight is not None:
+                return weight
+    return None
+
+
+def _llm_reps(row: dict, rx: dict) -> Optional[int]:
+    return _positive_int(row.get("reps")) or _positive_int(rx.get("reps"))
+
+
+def conservative_new_lift_lbs(
+    catalog_ex: dict,
+    equipment: Optional[dict] = None,
+) -> float:
+    """Ceiling for a lift with no usable log. Inventory max can only lower it."""
+    kind = _implement_kind(catalog_ex or {}, equipment)
+    cap = float(NEW_LIFT_LOAD_CAP_LBS.get(kind, 45.0))
+    owned = resolve_load_cap(catalog_ex or {}, equipment)
+    if owned is not None:
+        cap = min(cap, float(owned))
+    return cap
+
+
+def _history_load_reason(rx: dict) -> str:
+    last = rx.get("last") or {}
+    anchor = last.get("first_weight_lbs")
+    if anchor is None:
+        anchor = last.get("weight_lbs")
+    judged = last.get("first_reps")
+    if judged is None:
+        judged = last.get("reps")
+    weight = rx.get("weight_lbs")
+    reps = rx.get("reps")
+    verb = {
+        "hold_plus1": "hold",
+        "add_load": "add to",
+        "drop_load": "drop to",
+        "deload_override": "deload",
+    }.get(str(rx.get("progression_reason") or ""), "set")
+    return (
+        f"{_fmt_load(float(anchor))}×{int(judged)} last first set → "
+        f"{verb} {_fmt_load(float(weight))}, aim {int(reps)}"
+    )
+
+
+def _plan_day(as_of: Optional[str]) -> Optional[str]:
+    day = str(as_of or "")[:10]
+    if len(day) == 10:
+        return day
+    return None
+
+
+def clamp_llm_plan_loads(
+    workout: dict,
+    sessions: Sequence[Any],
+    catalog: Optional[dict],
+    *,
+    goals: Optional[dict] = None,
+    recovery: Optional[dict] = None,
+    equipment: Optional[dict] = None,
+    as_of: Optional[str] = None,
+) -> dict:
+    """Overwrite LLM load and reps with the SOP target when a log exists.
+
+    Exercise choice, order, and set count stay with the model. A logged
+    deload is not the baseline. Today's deload flag, recovery under 50, or
+    an RHR under-recovery flag still wins through ``prescribe``. A lift
+    with no history keeps the model number up to ``NEW_LIFT_LOAD_CAP_LBS``.
+    """
+    workout = dict(workout or {})
+    exercises = workout.get("exercises")
+    if not isinstance(exercises, list):
+        return workout
+    goals = goals if isinstance(goals, dict) else {}
+    recovery = recovery if isinstance(recovery, dict) else {}
+    inputs = recovery.get("inputs") if isinstance(recovery.get("inputs"), dict) else {}
+    deload = bool(
+        goals.get("deload") or goals.get("deload_week") or recovery.get("deload")
+    )
+    score = _optional_float(recovery.get("score"))
+    rhr = bool(
+        recovery.get("rhr_under_recovered") or inputs.get("rhr_under_recovered")
+    )
+    equip = equipment if isinstance(equipment, dict) else None
+    usable = progression_sessions(sessions)
+    continuity = training_continuity(
+        days_since_last_session(sessions or [], as_of=_plan_day(as_of))
+    )
+    hard = _positive_int(goals.get("default_hard_sets"))
+    by_id = _catalog_index(catalog)
+    clamped: List[dict] = []
+    for raw in exercises:
+        if not isinstance(raw, dict):
+            continue
+        row = dict(raw)
+        name = str(row.get("name") or row.get("exercise") or "").strip()
+        if not name:
+            continue
+        row["name"] = name
+        cat = _catalog_row_for_name(name, catalog)
+        rx_in = dict(row.get("prescription") or {})
+        llm_sets = _llm_sets(row, rx_in)
+        last = last_performance(usable, name, by_id or None)
+        rx = prescribe(
+            cat,
+            last,
+            recovery_score=score,
+            continuity=continuity,
+            default_hard_sets=hard,
+            rhr_under_recovered=rhr,
+            equipment=equip,
+            deload=deload,
+        )
+        if last and rx.get("weight_lbs") is not None:
+            source = (
+                "deload"
+                if rx.get("progression_reason") == "deload_override"
+                else "sop"
+            )
+            weight = float(rx["weight_lbs"])
+            reps = int(rx["reps"])
+            load_reason = _history_load_reason(rx)
+            row["progression_reason"] = rx.get("progression_reason")
+            row["rep_range"] = rx.get("rep_range_label")
+            row["target_reps"] = reps
+            rx_in["progression_reason"] = rx.get("progression_reason")
+            rx_in["rep_range"] = rx.get("rep_range")
+            rx_in["rep_range_label"] = rx.get("rep_range_label")
+            rx_in["target_reps"] = reps
+        else:
+            source = "llm_new"
+            cap = conservative_new_lift_lbs(cat, equip)
+            guessed = _llm_weight(row, rx_in)
+            reps = _llm_reps(row, rx_in)
+            if reps is None:
+                reps = int((rx.get("rep_range") or [5])[0])
+            if guessed is None:
+                weight = cap
+                load_reason = (
+                    f"no history → conservative default {_fmt_load(cap)}, aim {reps}"
+                )
+            elif guessed > cap + 1e-9:
+                weight = cap
+                load_reason = f"no history → capped at {_fmt_load(cap)}, aim {reps}"
+            else:
+                weight = guessed
+                load_reason = (
+                    f"no history → kept LLM {_fmt_load(weight)}, aim {reps}"
+                )
+            row["target_reps"] = reps
+            rx_in["target_reps"] = reps
+            if rx.get("rep_range_label") and row.get("rep_range") is None:
+                row["rep_range"] = rx.get("rep_range_label")
+                rx_in["rep_range_label"] = rx.get("rep_range_label")
+        chosen_sets = llm_sets if llm_sets is not None else _positive_int(rx.get("sets"))
+        if chosen_sets is not None:
+            row["sets"] = chosen_sets
+            rx_in["sets"] = chosen_sets
+        row["weight_lbs"] = weight
+        row["load"] = weight
+        row["reps"] = reps
+        row["load_source"] = source
+        row["load_reason"] = load_reason
+        rx_in["weight_lbs"] = weight
+        rx_in["load"] = weight
+        rx_in["reps"] = reps
+        rx_in["load_source"] = source
+        rx_in["load_reason"] = load_reason
+        row["prescription"] = rx_in
+        clamped.append(row)
+    workout["exercises"] = clamped
+    return workout
 
 
 def generate_workout_plan(
