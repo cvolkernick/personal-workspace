@@ -9,6 +9,7 @@ Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.
 | `POST /<RELAY_PATH>` | `X-Webhook-Signature` HMAC | Bland webhook. Forwards the raw body to Alexandra. |
 | `POST /<FWD_PATH>` | `FWD_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` | 904 inbound SMS from the phone forwarder. Forwards the normalized payload. Records the sender for the reply allowlist unless `test: true`. |
 | `POST /<SMSGW_HOOK_PATH>` | Secret path, plus SMSGate `X-Signature`/`X-Timestamp` HMAC when `SMSGW_SIGNING_KEY` is set | SMSGate cloud `sms:received` webhook (#1054). Same inbound path as the forwarder: allowlist record, STOP/opt-out, same payload to Alexandra. Replaces the SMS Forwarder app. |
+| `POST /<RCS_HOOK_PATH>` | Secret path, plus `RCS_HOOK_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` when set | Google Messages notifications from the 904 phone (#1056), so RCS chats arrive too. Same allowlist, STOP, and payload. Deduped against SMSGate. Kill switch `RCS_HOOK_DISABLED=1`. |
 | `POST /<SEND_PATH>` | `SEND_TOKEN`, same headers | Alexandra sends one SMS. |
 
 Send body:
@@ -81,6 +82,55 @@ POST https://api.sms-gate.app/3rdparty/v1/webhooks
 
 `GET /3rdparty/v1/webhooks` lists them, and `DELETE /3rdparty/v1/webhooks/<id>` removes one. The app also lists them under Settings → Webhooks → Registered webhooks.
 
+## RCS inbound via Google Messages notifications (#1056)
+
+SMSGate only sees SMS/MMS. Its docs say "RCS messages don't trigger SMS webhooks," and no event type covers RCS. To catch RCS chats, a notification-listener app on the 904 Pixel posts each Google Messages notification (`com.google.android.apps.messaging`) to `POST /<RCS_HOOK_PATH>`.
+
+**App: Notification Relay Webhook** (`com.notifrelay.app`, AGPL-3.0, [github.com/cobanov/notification-relay-webhook](https://github.com/cobanov/notification-relay-webhook), APK from [Releases](https://github.com/cobanov/notification-relay-webhook/releases/latest)). Why this app:
+
+- It reads notification text with `getCharSequence`, so styled or emoji text is not dropped.
+- It builds real JSON, so quotes and newlines in a message can't corrupt the body.
+- It flags group summaries and has a per-app allowlist and custom headers.
+- It's free and open source.
+
+The trade-off is that it doesn't retry automatically. You can resend failed items by hand under Logs. Android Nomad Gateway (`tech.wdg.incomingactivitygateway`) was the runner-up. It has a template and retries, but it reads text with `getString`, which loses spannable text, and it doesn't escape template values. The relay still accepts that app's template bodies through a lenient parser. Neither app is on Play or F-Droid, so sideload the APK.
+
+Body (fixed by the app; the relay also takes `title`/`text`/`package` from any template):
+
+```json
+{"package": "com.google.android.apps.messaging", "title": "Chris V", "text": "need a tow",
+ "big_text": null, "postedAt": "2026-10-04T03:59:00Z", "group_summary": false, "...": "..."}
+```
+
+Handling:
+
+- Requests without the secret path get 404. When `RCS_HOOK_TOKEN` is set, a missing or wrong token gets 401. `RCS_HOOK_DISABLED=1` returns 503 and is the kill switch for this route only. `SMS_SEND_DISABLED` still controls replies.
+- Other packages, group summaries, and empty or placeholder text get 200 `ignored`, so the app doesn't retry them.
+- Sender: Google Messages shows the contact **name** as the title for saved contacts and a formatted number for unsaved ones. The relay uses an explicit `number` field when the template has one. Otherwise it parses the title as a NANP number, then looks the title up in `RCS_NAME_MAP`, matched without regard to case or spacing. Use the `Name=+1NXXNXXXXXX;Other Name=+1NXXNXXXXXX` form, because the systemd `EnvironmentFile` strips double quotes and that breaks raw JSON. A JSON object is accepted only if it reaches the process intact. A resolved number is recorded for the 72-hour allowlist and STOP/START exactly like SMS. An unmapped name is forwarded with `from` set to `unknown sender <name>`. It is **not** recorded or allowlisted, so Alexandra can't reply to it.
+- Payload: same keys as the SMSGate and forwarder record (`source` `t-mobile-904-forwarder`, `channel` `sms`, `line`, `from`, `body`, `received_at`, `relayed_at`, `test`, `raw`), plus `via: "rcs-notification"` and `sender_name`.
+- Dedupe: Google Messages also posts a notification for every plain SMS. Within 120 s, the same sender and body (whitespace and case ignored) are forwarded once. When the RCS side only has an unmapped name, the body alone decides. The RCS route waits up to `RCS_DEDUPE_WAIT_S` (default 8 s, max 20) for SMSGate to report the same SMS, so the SMSGate path normally wins. If the RCS notification is forwarded first, a later SMSGate event for the same message gets 200 `duplicate`. It still records the number for the allowlist and STOP. Repeated notification updates for the same message also collapse. A failed forward releases its claim and returns 502.
+- Logs show `rcs inbound ok: from=***1234 how=title|number|name_map|unknown len=N`. They do not show the body, contact names, the token, or the path.
+
+Setup on prism (each `setkey` restarts the unit):
+
+```bash
+python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(48)), end="")' | ~/bin/bland-relay-setkey RCS_HOOK_PATH
+python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(40)), end="")' | ~/bin/bland-relay-setkey RCS_HOOK_TOKEN
+printf %s 'Contact Name=+1NXXNXXXXXX;Other Name=+1NXXNXXXXXX' | ~/bin/bland-relay-setkey RCS_NAME_MAP   # optional
+```
+
+Phone setup (904 Pixel):
+
+1. Download `notification-relay-webhook-v1.0.0.apk` from the Releases link above and install it. Allow "install unknown apps" for the browser when Android asks.
+2. Android 13+ blocks notification access for sideloaded apps at first. Go to **Settings → Apps → Notification Relay Webhook → ⋮ → Allow restricted settings**.
+3. Open the app and grant **Notification access** (Settings → Notifications → Device & app notifications → Notification Relay Webhook → Allow). This is the only permission the route needs.
+4. Add a webhook. URL: `https://prism-gateway.tailb1085a.ts.net:8443/<RCS_HOOK_PATH>`. Header: `Authorization` = `Bearer <RCS_HOOK_TOKEN>`. Tap **Test**. The relay answers 200 `ignored` because a test is not a Messages notification. Then tap **Save**.
+5. Set forwarding mode to **Allowlist** and select only **Messages** (`com.google.android.apps.messaging`). Turn on "ignore group summaries" and "ignore ongoing" if the app offers them.
+6. Battery: **Settings → Apps → Notification Relay Webhook → Battery → Unrestricted**.
+7. Keep Google Messages notifications **on**, including for conversations. Don't mute the senders whose texts must reach Alexandra. A muted conversation posts no notification.
+8. Keep RCS on. Don't change SMSGate.
+9. For saved contacts, add their names to `RCS_NAME_MAP` on prism, exactly as Google Messages shows them. Otherwise they arrive as `unknown sender <name>` and can't be replied to.
+
 ## Secrets
 
 Values go in `~/.config/bland-relay/env` only, through `bland-relay-setkey` (stdin, not argv). Not in git, chat, or logs.
@@ -95,11 +145,15 @@ printf %s "$VALUE" | ~/bin/bland-relay-setkey SMSGW_HOOK_PATH
 printf %s "$VALUE" | ~/bin/bland-relay-setkey SMSGW_SIGNING_KEY
 printf %s 1 | ~/bin/bland-relay-setkey SMS_SEND_DISABLED   # kill switch
 printf %s 0 | ~/bin/bland-relay-setkey SMS_SEND_DISABLED
+printf %s "$VALUE" | ~/bin/bland-relay-setkey RCS_HOOK_PATH
+printf %s "$VALUE" | ~/bin/bland-relay-setkey RCS_HOOK_TOKEN
+printf %s "Name=+1NXXNXXXXXX;Name 2=+1NXXNXXXXXX" | ~/bin/bland-relay-setkey RCS_NAME_MAP
+printf %s 1 | ~/bin/bland-relay-setkey RCS_HOOK_DISABLED   # RCS route kill switch
 ```
 
 `SEND_PATH` and `SEND_TOKEN` are long random strings. Alexandra gets the Funnel URL plus the token in her own secret store.
 
-Phone setup, before any live send: install the app, turn Cloud Server on, tap Online, grant SMS, set battery to Unrestricted, leave RCS off in Google Messages. RCS chats never reach the forwarder.
+Phone setup, before any live send: install the app, turn Cloud Server on, tap Online, grant SMS, and set battery to Unrestricted. Keep **RCS on** in Google Messages. With RCS off, SMSGate outbound sends stall at Processed (#1023). RCS chats never fire `sms:received`, so they come in through the RCS notification route (see the #1056 section above).
 
 ## Deploy
 
@@ -113,7 +167,7 @@ chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey
 systemctl --user restart bland-relay.service
 ```
 
-Rollback is `~/bin/*.bak-pre1054` (latest), `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
+Rollback is `~/bin/*.bak-pre1056` (latest), `~/bin/*.bak-pre1054`, `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
 
 ## Tests
 
@@ -123,4 +177,4 @@ From this directory, with pytest on the path:
 python3 -m pytest tests -q
 ```
 
-Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, and the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction.
+Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction. The RCS notification route (`tests/test_rcs_webhook.py`) covers: app payload and lenient template parsing, number/title/name-map/unknown sender resolution, token 401, path 404, kill switch 503, package/summary filtering, STOP/START, the unknown sender not being allowlisted, dedupe both ways against SMSGate plus repeat notifications and window expiry, the SMSGate head-start wait, forward failure and retry, and log redaction.
