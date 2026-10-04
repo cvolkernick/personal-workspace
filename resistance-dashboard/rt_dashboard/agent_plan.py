@@ -25,13 +25,51 @@ from .workout_store import stamp_today_session
 _GEN_LOCK = threading.Lock()
 
 
-def _with_gym_calendar(result: dict, workout: Optional[dict], day: str) -> dict:
+def _ctx_last_wake(ctx: Optional[dict]) -> Optional[str]:
+    if not isinstance(ctx, dict):
+        return None
+    wake = ctx.get("last_wake_at")
+    if wake:
+        return str(wake)
+    recovery = ctx.get("recovery") if isinstance(ctx.get("recovery"), dict) else {}
+    battery = (
+        recovery.get("sleep_battery")
+        if isinstance(recovery.get("sleep_battery"), dict)
+        else {}
+    )
+    found = battery.get("last_wake_at") or recovery.get("last_wake_at")
+    return str(found) if found else None
+
+
+def _with_gym_calendar(
+    result: dict,
+    workout: Optional[dict],
+    day: str,
+    *,
+    user_id: Optional[str] = None,
+    rearm: bool = False,
+    sessions=None,
+    last_wake_at: Optional[str] = None,
+) -> dict:
     """Best-effort gym Calendar sync. Never fails SuperGrok persist."""
     out = dict(result)
+    board = dict(workout) if isinstance(workout, dict) else None
+    if board is not None and isinstance(workout, dict) and isinstance(workout.get("context"), dict):
+        board["context"] = dict(workout["context"])
+    if board is not None and sessions is not None:
+        board["sessions"] = sessions
+    if board is not None and last_wake_at and not board.get("last_wake_at"):
+        board["last_wake_at"] = last_wake_at
     try:
         from .gym_calendar import sync_gym_from_workout
 
-        out["gym_calendar"] = sync_gym_from_workout(workout, day=day, role="coach")
+        out["gym_calendar"] = sync_gym_from_workout(
+            board if board is not None else workout,
+            day=day,
+            role="coach",
+            rearm=rearm,
+            user_id=user_id,
+        )
     except Exception as exc:  # noqa: BLE001
         out["gym_calendar"] = {
             "ok": False,
@@ -39,6 +77,12 @@ def _with_gym_calendar(result: dict, workout: Optional[dict], day: str) -> dict:
             "error": str(exc),
             "error_code": "calendar_error",
         }
+    if isinstance(workout, dict) and isinstance(board, dict):
+        created = (board.get("context") or {}).get("gym_chip_created")
+        if created:
+            ctx = dict(workout.get("context") or {})
+            ctx["gym_chip_created"] = created
+            workout["context"] = ctx
     return out
 
 
@@ -405,6 +449,18 @@ def ensure_today_grok_plan(
         )
     is_rest = bool(stamped.get("is_rest_day"))
     letter = _letter(stamped.get("session_type"))
+
+    def _gym(result: dict, workout: Optional[dict], day: str, *, rearm: bool = False) -> dict:
+        return _with_gym_calendar(
+            result,
+            workout,
+            day,
+            user_id=uid,
+            rearm=rearm,
+            sessions=ctx.get("sessions"),
+            last_wake_at=_ctx_last_wake(ctx),
+        )
+
     if stamped.get("session_closed_today"):
         workout = _deterministic_workout(ctx)
         good = is_good_workout_plan(workout)
@@ -423,7 +479,7 @@ def ensure_today_grok_plan(
                 or "No plan could be built from the library."
             )
             workout = _loud_empty(workout, err)
-        return _with_gym_calendar(
+        return _gym(
             {
                 "ok": good,
                 "skipped": "session_closed",
@@ -436,7 +492,7 @@ def ensure_today_grok_plan(
             local_today,
         )
     if stamped.get("already_trained_today"):
-        return _with_gym_calendar(
+        return _gym(
             {
                 "ok": True,
                 "skipped": "already_trained",
@@ -462,7 +518,7 @@ def ensure_today_grok_plan(
         rest_workout = dict(empty)
         rest_workout["is_rest_day"] = True
         rest_workout["session_type"] = str(rest_workout.get("session_type") or "rest")
-        return _with_gym_calendar(
+        return _gym(
             {
                 "ok": True,
                 "skipped": "rest",
@@ -477,7 +533,7 @@ def ensure_today_grok_plan(
     with _GEN_LOCK:
         saved = None if force else load_last_good_workout_plan(uid, local_today)
         if _covers_today(saved, letter):
-            return _with_gym_calendar(
+            return _gym(
                 {
                     "ok": True,
                     "skipped": "already_generated",
@@ -533,7 +589,7 @@ def ensure_today_grok_plan(
             if is_good_workout_plan(fallback):
                 persist = save_last_good_workout_plan(uid, local_today, fallback)
                 if persist.get("ok"):
-                    return _with_gym_calendar(
+                    return _gym(
                         {
                             "ok": True,
                             "skipped": None,
@@ -544,6 +600,7 @@ def ensure_today_grok_plan(
                         },
                         fallback,
                         local_today,
+                        rearm=force,
                     )
             err = (
                 (fallback or {}).get("generate_error")
@@ -559,7 +616,7 @@ def ensure_today_grok_plan(
                 "persist": persist,
                 "error": err,
             }
-        return _with_gym_calendar(
+        return _gym(
             {
                 "ok": True,
                 "skipped": None,
@@ -572,6 +629,7 @@ def ensure_today_grok_plan(
             },
             workout,
             local_today,
+            rearm=force,
         )
 
 

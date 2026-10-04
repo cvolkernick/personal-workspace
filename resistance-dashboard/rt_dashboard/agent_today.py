@@ -132,6 +132,7 @@ def _empty_workout() -> Dict[str, Any]:
         "recent_sessions": [],
         "message": None,
         "empty": True,
+        "session_closed_today": False,
     }
 
 
@@ -376,6 +377,23 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     )
     if not has_signal:
         return _empty_workout()
+    from .gym_calendar import civil_closed_letter
+
+    slot_ctx = _as_dict(slot.get("context"))
+    plan_ctx = _as_dict(plan.get("context"))
+    closed_letter = civil_closed_letter(planning, day)
+    if closed_letter:
+        # Stale last_wake must not hide the letter that actually closed today.
+        session_type = closed_letter
+        is_rest = False
+    session_closed = bool(
+        slot.get("session_closed_today")
+        or plan.get("session_closed_today")
+        or coach_wo.get("session_closed_today")
+        or slot_ctx.get("session_closed_today")
+        or plan_ctx.get("session_closed_today")
+        or closed_letter
+    )
     out = {
         "session_type": session_type,
         "is_rest_day": is_rest,
@@ -385,6 +403,7 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         "recent_sessions": recent,
         "message": message,
         "empty": not plan_exercises and not logged and not session_type and not is_rest,
+        "session_closed_today": session_closed,
     }
     gen_err = slot.get("generate_error") or plan.get("generate_error")
     if gen_err:
