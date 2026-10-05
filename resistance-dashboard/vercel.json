@@ -5,5 +5,8 @@
       "work/treasury": false,
       "fix/vercel-skip-work-treasury-938-live": false
     }
-  }
+  },
+  "ignoreCommand": "python3 scripts/vercel_ignore.py || exit 1",
+  "framework": null,
+  "outputDirectory": "static"
 }
