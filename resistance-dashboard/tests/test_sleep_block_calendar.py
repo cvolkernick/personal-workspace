@@ -590,5 +590,174 @@ class EnsureWiresSleepBlock(unittest.TestCase):
         wind.assert_not_called()
 
 
+def _meal_chip(*, eid, day, slot, start, end, title):
+    return {
+        "id": eid,
+        "summary": title,
+        "description": f"[fitdash-meal:{day}:{slot}]",
+        "start": {"dateTime": start, "timeZone": "America/New_York"},
+        "end": {"dateTime": end, "timeZone": "America/New_York"},
+        "status": "confirmed",
+        "reminders": {
+            "useDefault": False,
+            "overrides": [{"method": "popup", "minutes": 10}],
+        },
+        "extendedProperties": {
+            "private": {
+                "fitdashMeal": "1",
+                "fitdashDay": day,
+                "fitdashSlot": slot,
+            }
+        },
+    }
+
+
+def _patch_calendar(*, sleep_events, meal_events):
+    """One mock. Sleep and meal modules share gcal_session."""
+    created, updated, deleted = [], [], []
+    meal_updates, meal_deletes = [], []
+
+    def list_events(cid, **kw):
+        props = kw.get("private_props") or {}
+        if props.get(PROP_SLEEP) == "1":
+            if props.get(PROP_DATE):
+                day = props.get(PROP_DATE)
+                return [
+                    ev
+                    for ev in sleep_events
+                    if (ev.get("extendedProperties") or {})
+                    .get("private", {})
+                    .get(PROP_DATE)
+                    == day
+                ]
+            return list(sleep_events)
+        if props.get(PROP_WINDDOWN) == "1":
+            return []
+        return list(meal_events)
+
+    def update_event(cid, eid, body):
+        if str(eid).startswith("meal"):
+            meal_updates.append((eid, body))
+        else:
+            updated.append((eid, body))
+        return {}
+
+    def delete_event(cid, eid):
+        if str(eid).startswith("meal"):
+            meal_deletes.append(eid)
+        else:
+            deleted.append(eid)
+        return {"ok": True}
+
+    patches = [
+        mock.patch(
+            "rt_dashboard.gcal_session.credentials_status",
+            return_value={"ok": True},
+        ),
+        mock.patch(
+            "rt_dashboard.gcal_session.resolve_calendar_id",
+            return_value="cvolkern@gmail.com",
+        ),
+        mock.patch("rt_dashboard.gcal_session.list_events", side_effect=list_events),
+        mock.patch(
+            "rt_dashboard.gcal_session.create_event",
+            side_effect=lambda cid, body: created.append(body) or {"id": "ev-new"},
+        ),
+        mock.patch("rt_dashboard.gcal_session.update_event", side_effect=update_event),
+        mock.patch("rt_dashboard.gcal_session.delete_event", side_effect=delete_event),
+    ]
+    bags = {
+        "created": created,
+        "updated": updated,
+        "deleted": deleted,
+        "meal_updates": meal_updates,
+        "meal_deletes": meal_deletes,
+    }
+    return patches, bags
+
+
+class MealReflowWhenSleepMoves(unittest.TestCase):
+    def test_locked_chip_reflows_2100_snack_and_midnight_meal(self):
+        now = datetime(2026, 10, 5, 16, 0, tzinfo=ET)
+        sleep = _ev(
+            eid="sleep-locked",
+            day="2026-10-05",
+            start="2026-10-05T19:45:00-04:00",
+            end="2026-10-06T03:45:00-04:00",
+            planned="2026-10-05T02:02:00-04:00",
+        )
+        snack = _meal_chip(
+            eid="meal-snack",
+            day="2026-10-05",
+            slot="meal-3",
+            start="2026-10-05T21:00:00-04:00",
+            end="2026-10-05T21:20:00-04:00",
+            title="Optional snack · Tilapia",
+        )
+        midnight = _meal_chip(
+            eid="meal-midnight",
+            day="2026-10-05",
+            slot="meal-0",
+            start="2026-10-06T00:00:00-04:00",
+            end="2026-10-06T00:20:00-04:00",
+            title="Next meal · Tilapia",
+        )
+        patches, bags = _patch_calendar(
+            sleep_events=[sleep], meal_events=[snack, midnight]
+        )
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            result = sync_sleep_block_from_battery(
+                _battery("2026-10-05T02:02:00-04:00"),
+                now=now,
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["locked"], 1)
+        self.assertEqual(bags["created"], [])
+        self.assertEqual(bags["updated"], [])
+        self.assertEqual(bags["deleted"], [])
+        self.assertEqual(bags["meal_deletes"], ["meal-snack"])
+        self.assertEqual([eid for eid, _body in bags["meal_updates"]], ["meal-midnight"])
+        body = bags["meal_updates"][0][1]
+        self.assertIn("[fitdash-meal:2026-10-05:meal-0]", body["description"])
+        self.assertEqual(body["extendedProperties"]["private"]["fitdashSlot"], "meal-0")
+        moved = datetime.fromisoformat(body["start"]["dateTime"])
+        sleep_start = datetime(2026, 10, 5, 19, 45, tzinfo=ET)
+        self.assertLess(moved, sleep_start)
+        self.assertGreaterEqual(moved, now)
+        self.assertLessEqual(datetime.fromisoformat(body["end"]["dateTime"]), sleep_start)
+        self.assertEqual(result["meals_reflowed"]["deleted"], 1)
+        self.assertEqual(result["meals_reflowed"]["updated"], 1)
+
+    def test_creating_sleep_reflows_overlapping_meals(self):
+        now = datetime(2026, 10, 5, 16, 0, tzinfo=ET)
+        snack = _meal_chip(
+            eid="meal-snack",
+            day="2026-10-05",
+            slot="meal-3",
+            start="2026-10-05T21:00:00-04:00",
+            end="2026-10-05T21:20:00-04:00",
+            title="Optional snack · Tilapia",
+        )
+        patches, bags = _patch_calendar(sleep_events=[], meal_events=[snack])
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            result = sync_sleep_block_from_battery(
+                _battery(
+                    "2026-10-05T19:45:00-04:00",
+                    planned_wake_at="2026-10-06T03:45:00-04:00",
+                ),
+                now=now,
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(len(bags["created"]), 1)
+        self.assertEqual(bags["created"][0]["start"]["dateTime"], "2026-10-05T19:45:00-04:00")
+        self.assertEqual(bags["meal_deletes"], [])
+        self.assertEqual(bags["deleted"], [])
+        self.assertEqual([eid for eid, _body in bags["meal_updates"]], ["meal-snack"])
+        moved = datetime.fromisoformat(bags["meal_updates"][0][1]["start"]["dateTime"])
+        self.assertLess(moved, datetime(2026, 10, 5, 19, 45, tzinfo=ET))
+        self.assertIn("[fitdash-meal:2026-10-05:meal-3]", bags["meal_updates"][0][1]["description"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -13,7 +13,9 @@ window, that instant is the end instead.
 
 Reconciliation contract (same hybrid as #653 wind-down / #610 gym):
 - Idempotency key is ``[fitdash-sleep:YYYY-MM-DD]`` — one event per night.
-- Time is physiology: ``empty_at`` + duration. Do not shift for overlap.
+- Time is physiology: ``empty_at`` + duration. Do not shift the sleep
+  chip for overlap. Meal ``[fitdash-meal:*]`` chips that overlap the
+  block are re-timed in place (#1075).
 - Re-sync updates the existing tagged event, never stacks a duplicate.
 - Neither side moves an event whose start ≠ ``fitdashSleepPlannedStart``
   (user moved it = locked).
@@ -306,6 +308,45 @@ def list_window_events(
     )
 
 
+def sleep_windows_around(now: datetime) -> List[dict]:
+    """Actual ``[fitdash-sleep:*]`` chips near ``now``. Empty without Calendar."""
+    status = gcal.credentials_status()
+    if not status.get("ok"):
+        return []
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=sleep_tz())
+    cal_id = gcal.resolve_calendar_id()
+    events = gcal.list_events(
+        cal_id,
+        time_min=(now - timedelta(hours=6)).isoformat(timespec="seconds"),
+        time_max=(now + timedelta(hours=36)).isoformat(timespec="seconds"),
+    )
+    windows: List[dict] = []
+    seen: set[str] = set()
+    for ev in events:
+        if not is_sleep_event(ev):
+            continue
+        eid = str(ev.get("id") or "")
+        if not eid or eid in seen:
+            continue
+        start = parse_dt(event_start_iso(ev))
+        end = parse_dt(event_end_iso(ev))
+        if start is None or end is None or end <= start:
+            continue
+        seen.add(eid)
+        day = event_sleep_date(ev) or night_date_of(start)
+        windows.append(
+            {
+                "id": eid,
+                "start": start.isoformat(timespec="seconds"),
+                "end": end.isoformat(timespec="seconds"),
+                "locked": is_user_locked(ev),
+                "tag": sleep_desc_tag(day),
+            }
+        )
+    return windows
+
+
 def _delete_quiet(calendar_id: str, event_id: str) -> bool:
     try:
         result = gcal.delete_event(calendar_id, event_id)
@@ -443,16 +484,52 @@ def _no_empty_at() -> dict[str, Any]:
     }
 
 
+def _event_window(ev: dict) -> Optional[Tuple[datetime, datetime]]:
+    start = parse_dt(event_start_iso(ev))
+    end = parse_dt(event_end_iso(ev))
+    if start is None or end is None or end <= start:
+        return None
+    return start, end
+
+
+def _with_meal_reflow(
+    result: dict,
+    windows: List[Tuple[datetime, datetime]],
+    *,
+    now: Optional[datetime] = None,
+) -> dict:
+    """Meal chips move after a sleep chip is written or seen as moved."""
+    if not result.get("ok") or not windows:
+        result.setdefault("meals_reflowed", {"ok": True, "skipped": True, "updated": 0, "deleted": 0})
+        return result
+    try:
+        from .meal_calendar import reflow_meals_out_of_sleep
+
+        result["meals_reflowed"] = reflow_meals_out_of_sleep(windows, now=now)
+    except Exception as exc:  # noqa: BLE001
+        result["meals_reflowed"] = {
+            "ok": False,
+            "skipped": True,
+            "error": str(exc),
+            "updated": 0,
+            "deleted": 0,
+        }
+    return result
+
+
 def sync_sleep_block_from_battery(
     sleep_battery: Optional[dict],
     *,
     role: str = "coach",
+    now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Upsert the tagged sleep block for this wake cycle's empty_at.
 
     ``role="coach"`` is dashboard / daily-tasks. ``role="monitor"`` is the
     assistant reconcile: same tag, may create if missing, must not re-time
-    a user-locked event. Time is never moved for calendar overlap.
+    a user-locked event. The sleep chip is never moved for overlap. Meal
+    chips that land inside the block are upserted in place, or an optional
+    snack is removed when it cannot fit before wind-down (#1075).
     """
     start = empty_at_from_battery(sleep_battery)
     if start is None:
@@ -479,9 +556,13 @@ def sync_sleep_block_from_battery(
             if ev.get("id") and _delete_quiet(cal_id, str(ev["id"])):
                 deleted += 1
 
+        reflow_windows: List[Tuple[datetime, datetime]] = []
         for ev in stale:
             if is_user_locked(ev):
                 locked += 1
+                window = _event_window(ev)
+                if window:
+                    reflow_windows.append(window)
                 continue
             if ev.get("id") and _delete_quiet(cal_id, str(ev["id"])):
                 deleted += 1
@@ -494,16 +575,51 @@ def sync_sleep_block_from_battery(
 
         if keep and is_user_locked(keep):
             locked += 1
-            return {
+            window = _event_window(keep)
+            if window:
+                reflow_windows.append(window)
+            return _with_meal_reflow(
+                {
+                    "ok": True,
+                    "skipped": False,
+                    "error": None,
+                    "error_code": None,
+                    "calendar_id": cal_id,
+                    "role": role,
+                    "upserted": 0,
+                    "created": 0,
+                    "updated": 0,
+                    "deleted": deleted,
+                    "locked": locked,
+                    "winddown_retired": winddown_retired,
+                    "flagged": flagged,
+                    "flagged_count": len(flagged),
+                    "night": night,
+                    "empty_at": start.isoformat(timespec="seconds"),
+                    "end_at": end.isoformat(timespec="seconds"),
+                },
+                reflow_windows,
+                now=now,
+            )
+
+        if keep and keep.get("id"):
+            gcal.update_event(cal_id, str(keep["id"]), body)
+            updated += 1
+        else:
+            gcal.create_event(cal_id, body)
+            created += 1
+        reflow_windows.append((start, end))
+        return _with_meal_reflow(
+            {
                 "ok": True,
                 "skipped": False,
                 "error": None,
                 "error_code": None,
                 "calendar_id": cal_id,
                 "role": role,
-                "upserted": 0,
-                "created": 0,
-                "updated": 0,
+                "upserted": created + updated,
+                "created": created,
+                "updated": updated,
                 "deleted": deleted,
                 "locked": locked,
                 "winddown_retired": winddown_retired,
@@ -512,33 +628,10 @@ def sync_sleep_block_from_battery(
                 "night": night,
                 "empty_at": start.isoformat(timespec="seconds"),
                 "end_at": end.isoformat(timespec="seconds"),
-            }
-
-        if keep and keep.get("id"):
-            gcal.update_event(cal_id, str(keep["id"]), body)
-            updated += 1
-        else:
-            gcal.create_event(cal_id, body)
-            created += 1
-        return {
-            "ok": True,
-            "skipped": False,
-            "error": None,
-            "error_code": None,
-            "calendar_id": cal_id,
-            "role": role,
-            "upserted": created + updated,
-            "created": created,
-            "updated": updated,
-            "deleted": deleted,
-            "locked": locked,
-            "winddown_retired": winddown_retired,
-            "flagged": flagged,
-            "flagged_count": len(flagged),
-            "night": night,
-            "empty_at": start.isoformat(timespec="seconds"),
-            "end_at": end.isoformat(timespec="seconds"),
-        }
+            },
+            reflow_windows,
+            now=now,
+        )
     except Exception as exc:  # noqa: BLE001
         return {
             "ok": False,
