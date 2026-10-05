@@ -11,6 +11,11 @@ is not a boundary. The eating window is a pacing overlay only.
   that began that morning. Food after onset is the new day.
 * **Meal slot timing** — sleep-battery eating window (wake → empty_at)
   still places *when* to eat inside the waking day.
+* **Sleep chip (#1075)** — a ``[fitdash-sleep:*]`` block, from wind-down
+  start through wake-buffer end, is a no-eat window. An eat_at inside it
+  is pulled earlier. An optional snack that cannot fit before the chip
+  is dropped. A locked chip sets the eating-window end when it disagrees
+  with ``empty_at``.
 * **Kitchen closed (#809)** — after ``empty_at`` during hours 00:00–03:59
   the planner emits no meals (no mega-meal). Remaining macros are still
   the waking-day remainder, not a new civil day. A leftover window
@@ -1768,6 +1773,7 @@ def generate_meal_plan(
     recommended_targets: Optional[dict] = None,
     food_logs: Optional[Sequence[Any]] = None,
     sleep_intervals: Optional[Sequence[Any]] = None,
+    sleep_blocks: Optional[Sequence[Any]] = None,
 ) -> dict:
     """
     Greedy remaining-day plan from stocked ingredients.
@@ -1791,7 +1797,11 @@ def generate_meal_plan(
     Slot count is 1–4 from remaining macros + in-stock items, capped by
     remaining-window capacity — never empty timed hinges, never invented food.
     Remaining macros use the wake-to-sleep nutrition day (#828); slot
-    times still follow the eating window. After empty_at overnight
+    times still follow the eating window. A ``[fitdash-sleep:*]`` chip
+    is a no-eat window (#1075): times inside it move earlier, and an
+    optional snack drops when the gap before the chip is too small. A
+    locked chip cuts the eating window when it disagrees with
+    ``empty_at``. After empty_at overnight
     (hours 0–3) or a leftover window too short to hold half a day's
     remaining macros, the kitchen is closed (#809). One meal is capped
     at ``MAX_MEAL_TARGET_FRAC`` of the day target. Planned buckets then
@@ -1837,6 +1847,7 @@ def generate_meal_plan(
         now = now.replace(tzinfo=tz)
     else:
         now = now.astimezone(tz)
+    sleep_windows = _sleep_windows_for_plan(sleep_blocks, now)
     start, end = _eating_window_bounds(
         now,
         tz,
@@ -1844,6 +1855,7 @@ def generate_meal_plan(
         window_start=window_start,
         window_end=window_end,
         sleep_battery=sleep_battery,
+        sleep_windows=sleep_windows,
     )
     consumed, consumed_clock, nd_span = _consumed_for_planner(
         consumed,
@@ -1864,6 +1876,7 @@ def generate_meal_plan(
         remaining_before,
         targets,
         sleep_battery=sleep_battery,
+        sleep_windows=sleep_windows,
     )
     nutrition_day = _nutrition_day_payload(
         now=now,
@@ -2267,6 +2280,7 @@ def generate_meal_plan(
             sleep_battery=sleep_battery,
             consumed=consumed,
             targets=targets,
+            sleep_windows=sleep_windows,
         )
         meals = colocate_egg_pair(meals)
         meals, variety_info = apply_plate_variety(meals, stocked, targets)
@@ -2430,6 +2444,14 @@ def generate_meal_plan(
         "egg_pair": egg_pair_note,
         "nutrition_day": nutrition_day,
         "kitchen_closed": kitchen_closed,
+        "sleep_no_eat": [
+            {
+                "start": start_at.isoformat(timespec="seconds"),
+                "end": end_at.isoformat(timespec="seconds"),
+                "locked": locked,
+            }
+            for start_at, end_at, locked in (sleep_windows or [])
+        ],
     }
 
     honesty: List[dict] = []
@@ -3012,6 +3034,210 @@ def _consumed_for_planner(
     return caller, "caller", nd
 
 
+def _coerce_window_dt(value: Any, tz) -> Optional[datetime]:
+    dt = _parse_meal_dt(value)
+    if dt is None:
+        return None
+    if tz is not None:
+        return dt.astimezone(tz)
+    return dt
+
+
+def parse_sleep_windows(blocks: Optional[Sequence[Any]], tz) -> List[tuple]:
+    """``[fitdash-sleep:*]`` no-eat windows as ``(start, end, locked)``.
+
+    Start is included (wind-down). End is excluded (wake buffer is still
+    inside, so the end instant itself is the first minute after the chip).
+    """
+    out: List[tuple] = []
+    for raw in blocks or []:
+        locked = False
+        start = end = None
+        if isinstance(raw, dict):
+            locked = bool(raw.get("locked"))
+            start = _coerce_window_dt(raw.get("start") or raw.get("start_at"), tz)
+            end = _coerce_window_dt(raw.get("end") or raw.get("end_at"), tz)
+            if start is None and isinstance(raw.get("start"), dict):
+                start = _coerce_window_dt(raw["start"].get("dateTime"), tz)
+            if end is None and isinstance(raw.get("end"), dict):
+                end = _coerce_window_dt(raw["end"].get("dateTime"), tz)
+        elif isinstance(raw, (tuple, list)) and len(raw) >= 2:
+            start = _coerce_window_dt(raw[0], tz)
+            end = _coerce_window_dt(raw[1], tz)
+            if len(raw) >= 3:
+                locked = bool(raw[2])
+        if start is None or end is None or end <= start:
+            continue
+        out.append((start, end, locked))
+    return out
+
+
+def _load_sleep_blocks(now: datetime) -> list:
+    """Calendar chips when a session is bound. No session → no windows."""
+    try:
+        from .gtasks_session import session_is_bound
+
+        if not session_is_bound():
+            return []
+        from .sleep_block_calendar import sleep_windows_around
+
+        return sleep_windows_around(now)
+    except Exception:
+        return []
+
+
+def _sleep_windows_for_plan(sleep_blocks: Optional[Sequence[Any]], now: datetime) -> List[tuple]:
+    if sleep_blocks is None:
+        sleep_blocks = _load_sleep_blocks(now)
+    return parse_sleep_windows(sleep_blocks, now.tzinfo)
+
+
+def _inside_sleep(dt: datetime, windows: Sequence[tuple]) -> bool:
+    for start, end, _locked in windows:
+        if start <= dt < end:
+            return True
+    return False
+
+
+def _blocking_sleep(dt: datetime, windows: Sequence[tuple]):
+    for window in windows:
+        start, end, _locked = window
+        if start <= dt < end:
+            return window
+    return None
+
+
+def eating_end_for_sleep(
+    now: datetime,
+    windows: Sequence[tuple],
+    end: datetime,
+) -> datetime:
+    """Cut ``end`` at the next sleep-chip start. A locked chip wins."""
+    locked: List[datetime] = []
+    other: List[datetime] = []
+    for start, stop, is_locked in windows:
+        if stop <= now:
+            continue
+        if not (now < start < end):
+            continue
+        if is_locked:
+            locked.append(start)
+        else:
+            other.append(start)
+    chosen = locked or other
+    if not chosen:
+        return end
+    return min(chosen)
+
+
+def _gap_clear(candidate: datetime, occupied: Sequence[datetime], gap: timedelta) -> bool:
+    for other in occupied:
+        if abs((candidate - other).total_seconds()) < gap.total_seconds():
+            return False
+    return True
+
+
+def _fit_before_sleep(
+    original: datetime,
+    windows: Sequence[tuple],
+    occupied: Sequence[datetime],
+    now: datetime,
+    gap: timedelta,
+) -> Optional[datetime]:
+    """Latest legal hinge strictly before the chip that contains ``original``."""
+    hit = _blocking_sleep(original, windows)
+    if hit is None:
+        snapped = original.replace(second=0, microsecond=0)
+        if _gap_clear(snapped, occupied, gap):
+            return snapped
+        return None
+    sleep_start, _sleep_end, _locked = hit
+    floor = now.astimezone(sleep_start.tzinfo or now.tzinfo).replace(second=0, microsecond=0)
+    hinges: List[datetime] = []
+    for hour, minute in list(DEFAULT_SLOT_HM) + [FOURTH_SLOT_HM]:
+        cand = sleep_start.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if cand >= sleep_start or cand < floor:
+            continue
+        if _inside_sleep(cand, windows):
+            continue
+        hinges.append(cand)
+    for cand in reversed(hinges):
+        if _gap_clear(cand, occupied, gap):
+            return cand
+    edge = (sleep_start - timedelta(minutes=1)).replace(second=0, microsecond=0)
+    if edge >= floor and not _inside_sleep(edge, windows) and _gap_clear(edge, occupied, gap):
+        return edge
+    return None
+
+
+def clamp_eat_instants(
+    times: Sequence[datetime],
+    windows: Sequence[tuple],
+    *,
+    optional: Sequence[bool],
+    now: datetime,
+    gap: Optional[timedelta] = None,
+) -> List[Optional[datetime]]:
+    """Pull eat_at values out of a sleep chip. ``None`` drops that slot.
+
+    Times already outside the chip stay. Required meals claim a hinge
+    before the chip first. An optional snack takes a leftover hinge or drops.
+    """
+    gap = MIN_MEAL_GAP if gap is None else gap
+    normalized: List[datetime] = []
+    for raw in times:
+        dt = raw if isinstance(raw, datetime) else _parse_meal_dt(raw)
+        if dt is None:
+            normalized.append(now)
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=now.tzinfo)
+        else:
+            dt = dt.astimezone(now.tzinfo)
+        normalized.append(dt)
+    n = len(normalized)
+    flags = list(optional or [])
+    if len(flags) < n:
+        flags.extend([False] * (n - len(flags)))
+    placed: List[Optional[datetime]] = [None] * n
+    if not windows:
+        return [t.replace(second=0, microsecond=0) for t in normalized]
+    for i, dt in enumerate(normalized):
+        if not _inside_sleep(dt, windows):
+            placed[i] = dt.replace(second=0, microsecond=0)
+
+    def _place(want_optional: bool) -> None:
+        order = sorted(range(n), key=lambda i: normalized[i])
+        for i in order:
+            if placed[i] is not None:
+                continue
+            if bool(flags[i]) != want_optional:
+                continue
+            if not _inside_sleep(normalized[i], windows):
+                placed[i] = normalized[i].replace(second=0, microsecond=0)
+                continue
+            occupied = [item for item in placed if item is not None]
+            placed[i] = _fit_before_sleep(normalized[i], windows, occupied, now, gap)
+
+    _place(False)
+    _place(True)
+    return placed
+
+
+def clamp_resolved_times(
+    times: Sequence[datetime],
+    windows: Sequence[tuple],
+    *,
+    now: datetime,
+) -> List[datetime]:
+    """Planner hook. The fourth upcoming slot is the optional snack."""
+    if not times or not windows:
+        return list(times)
+    flags = [i >= len(UPCOMING_MEAL_LABELS) - 1 for i in range(len(times))]
+    placed = clamp_eat_instants(times, windows, optional=flags, now=now)
+    return _dedupe_sorted_times([t for t in placed if t is not None])
+
+
 def _kitchen_is_closed(
     now: datetime,
     start: datetime,
@@ -3020,8 +3246,14 @@ def _kitchen_is_closed(
     targets: Optional[dict] = None,
     *,
     sleep_battery: Optional[dict] = None,
+    sleep_windows: Optional[Sequence[tuple]] = None,
 ) -> bool:
-    """Post-empty / post-midnight pre-wake: do not emit a new day's plan."""
+    """Post-empty / post-midnight pre-wake: do not emit a new day's plan.
+
+    Also closed while ``now`` sits inside a ``[fitdash-sleep:*]`` chip.
+    """
+    if _inside_sleep(now, sleep_windows or []):
+        return True
     overnight = now.hour in KITCHEN_CLOSED_HOURS
     bat = sleep_battery if isinstance(sleep_battery, dict) else {}
     bat_end = _parse_meal_dt(bat.get("empty_at"))
@@ -3116,6 +3348,7 @@ def _eating_window_bounds(
     window_start: Any = None,
     window_end: Any = None,
     sleep_battery: Optional[dict] = None,
+    sleep_windows: Optional[Sequence[tuple]] = None,
 ) -> tuple:
     start = _parse_meal_dt(window_start)
     end = _parse_meal_dt(window_end)
@@ -3159,6 +3392,10 @@ def _eating_window_bounds(
         end = start + timedelta(hours=24)
     if end <= start:
         end = start + timedelta(hours=12)
+    # Locked (or only) sleep chip beats a stale empty_at / civil midnight.
+    cut = eating_end_for_sleep(now, sleep_windows or [], end)
+    if start < cut < end:
+        end = cut
     return start, end
 
 
@@ -3308,6 +3545,7 @@ def _resolve_eat_times(
     eat_slots: Optional[Sequence[Any]] = None,
     consumed: Any = None,
     targets: Any = None,
+    sleep_windows: Optional[Sequence[tuple]] = None,
 ) -> List[datetime]:
     """n clock times inside the remaining eating window. Never invents food.
 
@@ -3324,9 +3562,10 @@ def _resolve_eat_times(
     )
 
     def _finish(times: Sequence[datetime]) -> List[datetime]:
-        return _apply_pace_delay(
+        paced = _apply_pace_delay(
             times, now=now, start=start, end=end, catch_up=catch_up
         )
+        return clamp_resolved_times(paced, sleep_windows or [], now=now)
 
     day = now.replace(second=0, microsecond=0)
     horizon = _slot_horizon(now)
@@ -3919,6 +4158,7 @@ def _bucket_meals(
     sleep_battery: Optional[dict] = None,
     consumed: Any = None,
     targets: Any = None,
+    sleep_windows: Optional[Sequence[tuple]] = None,
 ) -> List[dict]:
     """Split in-stock plan items into 1–4 timed buckets. No empty hinges."""
     if not items:
@@ -3940,6 +4180,7 @@ def _bucket_meals(
         window_start=window_start,
         window_end=window_end,
         sleep_battery=sleep_battery,
+        sleep_windows=sleep_windows,
     )
     cap = _remaining_meal_capacity(now, start, end)
     if cap <= 0:
@@ -3951,6 +4192,7 @@ def _bucket_meals(
         remaining,
         targets if isinstance(targets, dict) else None,
         sleep_battery=sleep_battery,
+        sleep_windows=sleep_windows,
     ):
         return []
     n_slots = _desired_slot_count(items, remaining)
@@ -3965,6 +4207,7 @@ def _bucket_meals(
         eat_slots=eat_slots,
         consumed=consumed,
         targets=targets,
+        sleep_windows=sleep_windows,
     )
     horizon = _slot_horizon(now)
     times = [t for t in times if t >= horizon]

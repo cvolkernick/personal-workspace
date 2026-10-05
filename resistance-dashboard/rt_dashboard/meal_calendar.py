@@ -383,3 +383,200 @@ def cancel_reminder_for_task(
             "error_code": "calendar_error",
             "deleted": 0,
         }
+
+
+def _meal_is_optional(ev: dict) -> bool:
+    """Fourth planner slot and any card titled Optional snack."""
+    title = str((ev or {}).get("summary") or "").lower()
+    if "optional snack" in title:
+        return True
+    return event_slot_key(ev).strip().lower() in {"meal-3", "optional-snack"}
+
+
+def _meal_start_iso(ev: dict) -> str:
+    start = ((ev or {}).get("start") or {}).get("dateTime") or ""
+    return str(start).strip()
+
+
+def _meal_time_zone(ev: dict) -> str:
+    return str(((ev or {}).get("start") or {}).get("timeZone") or "").strip()
+
+
+def _timed_edge(dt: datetime, time_zone: str) -> dict:
+    node = {"dateTime": dt.isoformat(timespec="seconds")}
+    if time_zone:
+        node["timeZone"] = time_zone
+    return node
+
+
+def _is_meal_event(ev: dict) -> bool:
+    if str(_private(ev).get(PROP_MEAL) or "") == "1":
+        return True
+    return bool(DESC_TAG_RE.search(str((ev or {}).get("description") or "")))
+
+
+def _overlaps_window(dt: datetime, windows: Sequence[tuple]) -> bool:
+    for start, end in windows:
+        if start <= dt < end:
+            return True
+    return False
+
+
+def _meal_end_before_sleep(start: datetime, windows: Sequence[tuple]) -> datetime:
+    end = start + DEFAULT_DURATION
+    for sleep_start, _sleep_end in windows:
+        if start < sleep_start < end:
+            end = sleep_start
+    if end <= start:
+        end = start + timedelta(minutes=1)
+    return end
+
+
+def _shifted_meal_body(ev: dict, new_start: datetime, windows: Sequence[tuple]) -> dict:
+    zone = _meal_time_zone(ev)
+    body = {
+        "summary": ev.get("summary") or "",
+        "description": ev.get("description") or "",
+        "start": _timed_edge(new_start, zone),
+        "end": _timed_edge(_meal_end_before_sleep(new_start, windows), zone),
+        "status": ev.get("status") or "confirmed",
+    }
+    if ev.get("reminders"):
+        body["reminders"] = ev["reminders"]
+    if ev.get("extendedProperties"):
+        body["extendedProperties"] = ev["extendedProperties"]
+    return body
+
+
+def reflow_meals_out_of_sleep(
+    windows: Sequence[Any],
+    *,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Upsert ``[fitdash-meal:*]`` chips so none overlap a sleep block.
+
+    Same event id and tag. Optional snacks that cannot land before the
+    chip are deleted. No new events and no calendar migration.
+    """
+    spans: List[tuple] = []
+    for raw in windows or []:
+        if isinstance(raw, dict):
+            start = parse_eat_at(str(raw.get("start") or ""))
+            end = parse_eat_at(str(raw.get("end") or ""))
+        elif isinstance(raw, (tuple, list)) and len(raw) >= 2:
+            start, end = raw[0], raw[1]
+            if not isinstance(start, datetime):
+                start = parse_eat_at(str(start))
+            if not isinstance(end, datetime):
+                end = parse_eat_at(str(end))
+        else:
+            continue
+        if start is None or end is None or end <= start:
+            continue
+        spans.append((start, end))
+    if not spans:
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "no_window",
+            "updated": 0,
+            "deleted": 0,
+        }
+    if now is None:
+        now = datetime.now(spans[0][0].tzinfo or timezone.utc)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=spans[0][0].tzinfo or timezone.utc)
+    status = gcal.credentials_status()
+    if not status.get("ok"):
+        return {
+            "ok": False,
+            "skipped": True,
+            "error": status.get("error") or gcal.MISSING_CALENDAR_SCOPE,
+            "error_code": status.get("error_code") or "missing_calendar_scope",
+            "updated": 0,
+            "deleted": 0,
+        }
+    try:
+        from .nutrition_planner import clamp_eat_instants, parse_sleep_windows
+
+        cal_id = gcal.resolve_calendar_id()
+        lo = min(start for start, _end in spans) - timedelta(hours=18)
+        hi = max(end for _start, end in spans)
+        listed = gcal.list_events(
+            cal_id,
+            time_min=lo.isoformat(timespec="seconds"),
+            time_max=hi.isoformat(timespec="seconds"),
+        )
+        meals: List[dict] = []
+        seen: set[str] = set()
+        for ev in listed:
+            eid = str(ev.get("id") or "")
+            if not eid or eid in seen or not _is_meal_event(ev):
+                continue
+            if _meal_start_iso(ev) == "":
+                continue
+            seen.add(eid)
+            meals.append(ev)
+        meals.sort(key=lambda ev: _meal_start_iso(ev))
+        if not meals:
+            return {
+                "ok": True,
+                "skipped": False,
+                "updated": 0,
+                "deleted": 0,
+                "calendar_id": cal_id,
+            }
+        clock = now.astimezone(spans[0][0].tzinfo or now.tzinfo)
+        sleep_windows = parse_sleep_windows(
+            [
+                {"start": start.isoformat(timespec="seconds"), "end": end.isoformat(timespec="seconds")}
+                for start, end in spans
+            ],
+            clock.tzinfo,
+        )
+        times = []
+        optional = []
+        for ev in meals:
+            eat = parse_eat_at(_meal_start_iso(ev))
+            if eat is None:
+                eat = clock
+            times.append(eat)
+            optional.append(_meal_is_optional(ev))
+        placed = clamp_eat_instants(times, sleep_windows, optional=optional, now=clock)
+        updated = 0
+        deleted = 0
+        for ev, new_at, old in zip(meals, placed, times):
+            old_local = old.astimezone(clock.tzinfo)
+            if not _overlaps_window(old_local, [(s, e) for s, e, _locked in sleep_windows]):
+                continue
+            eid = str(ev.get("id") or "")
+            if new_at is None:
+                if _delete_quiet(cal_id, eid):
+                    deleted += 1
+                continue
+            old_min = old_local.replace(second=0, microsecond=0)
+            new_min = new_at.astimezone(clock.tzinfo).replace(second=0, microsecond=0)
+            if new_min == old_min:
+                continue
+            gcal.update_event(
+                cal_id,
+                eid,
+                _shifted_meal_body(ev, new_min, spans),
+            )
+            updated += 1
+        return {
+            "ok": True,
+            "skipped": False,
+            "updated": updated,
+            "deleted": deleted,
+            "calendar_id": cal_id,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "skipped": True,
+            "error": str(exc),
+            "error_code": "calendar_error",
+            "updated": 0,
+            "deleted": 0,
+        }

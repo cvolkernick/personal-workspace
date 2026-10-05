@@ -43,10 +43,14 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     _chunk_units,
     _apply_pace_delay,
     _catch_up_delay,
+    _eating_window_bounds,
     _kitchen_is_closed,
     _max_kcal_one_meal,
     _remaining_meal_capacity,
     _resolve_eat_times,
+    clamp_eat_instants,
+    eating_end_for_sleep,
+    parse_sleep_windows,
     inventory_gap_role,
     is_shake_or_powder,
     is_veg_or_fruit,
@@ -3845,6 +3849,167 @@ class TestMealVariety1068(unittest.TestCase):
             for item in meal["items"]:
                 if item.get("portion_g") is not None:
                     self.assertLessEqual(float(item["portion_g"]), MAX_MEAL_ITEM_G + 0.5)
+
+
+# 10/5 flight night: locked Sleep 19:45 → 03:45, stale empty_at still 02:02.
+_OCT5_SLEEP = {
+    "start": "2026-10-05T19:45:00-04:00",
+    "end": "2026-10-06T03:45:00-04:00",
+    "locked": True,
+    "tag": "[fitdash-sleep:2026-10-06]",
+}
+_OCT5_SLEEP_START = datetime(2026, 10, 5, 19, 45, tzinfo=ET)
+_OCT5_SLEEP_END = datetime(2026, 10, 6, 3, 45, tzinfo=ET)
+_STALE_OCT5_BATTERY = {
+    "last_wake_at": "2026-10-04T13:02:00-04:00",
+    "empty_at": "2026-10-05T02:02:00-04:00",
+}
+
+
+def _inside_oct5_sleep(dt: datetime) -> bool:
+    return _OCT5_SLEEP_START <= dt < _OCT5_SLEEP_END
+
+
+class SleepChipNoEat(unittest.TestCase):
+    def test_oct5_fixture_pulls_midnight_and_drops_optional_snack(self):
+        now = datetime(2026, 10, 5, 16, 0, tzinfo=ET)
+        windows = parse_sleep_windows([_OCT5_SLEEP], ET)
+        snack = datetime(2026, 10, 5, 21, 0, tzinfo=ET)
+        midnight = datetime(2026, 10, 6, 0, 0, tzinfo=ET)
+        placed = clamp_eat_instants(
+            [snack, midnight],
+            windows,
+            optional=[True, False],
+            now=now,
+        )
+        self.assertIsNone(placed[0])
+        self.assertIsNotNone(placed[1])
+        self.assertFalse(_inside_oct5_sleep(placed[1]))
+        self.assertLess(placed[1], _OCT5_SLEEP_START)
+        self.assertGreaterEqual(placed[1], now)
+
+    def test_oct5_fixture_pulls_both_when_the_afternoon_is_still_open(self):
+        now = datetime(2026, 10, 5, 10, 0, tzinfo=ET)
+        windows = parse_sleep_windows([_OCT5_SLEEP], ET)
+        placed = clamp_eat_instants(
+            [
+                datetime(2026, 10, 5, 21, 0, tzinfo=ET),
+                datetime(2026, 10, 6, 0, 0, tzinfo=ET),
+            ],
+            windows,
+            optional=[True, False],
+            now=now,
+        )
+        self.assertIsNotNone(placed[0])
+        self.assertIsNotNone(placed[1])
+        for eat in placed:
+            self.assertFalse(_inside_oct5_sleep(eat))
+            self.assertLess(eat, _OCT5_SLEEP_START)
+        gap = abs((placed[0] - placed[1]).total_seconds())
+        self.assertGreaterEqual(gap, MIN_MEAL_GAP.total_seconds())
+
+    def test_locked_chip_cuts_stale_empty_at_window(self):
+        now = datetime(2026, 10, 5, 16, 0, tzinfo=ET)
+        bare_start, bare_end = _eating_window_bounds(
+            now,
+            ET,
+            "America/New_York",
+            sleep_battery=_STALE_OCT5_BATTERY,
+        )
+        self.assertEqual(bare_end, datetime(2026, 10, 6, 0, 0, tzinfo=ET))
+        windows = parse_sleep_windows([_OCT5_SLEEP], ET)
+        _start, end = _eating_window_bounds(
+            now,
+            ET,
+            "America/New_York",
+            sleep_battery=_STALE_OCT5_BATTERY,
+            sleep_windows=windows,
+        )
+        self.assertEqual(end, _OCT5_SLEEP_START)
+        self.assertLess(end, bare_end)
+        self.assertEqual(bare_start.date(), datetime(2026, 10, 5).date())
+
+    def test_locked_chip_beats_a_later_unlocked_chip(self):
+        now = datetime(2026, 10, 5, 16, 0, tzinfo=ET)
+        windows = parse_sleep_windows(
+            [
+                {
+                    "start": "2026-10-05T22:00:00-04:00",
+                    "end": "2026-10-06T06:00:00-04:00",
+                    "locked": False,
+                },
+                _OCT5_SLEEP,
+            ],
+            ET,
+        )
+        end = eating_end_for_sleep(
+            now, windows, datetime(2026, 10, 6, 0, 0, tzinfo=ET)
+        )
+        self.assertEqual(end, _OCT5_SLEEP_START)
+
+    def test_planner_does_not_schedule_2100_inside_locked_sleep(self):
+        now = datetime(2026, 10, 5, 10, 0, tzinfo=ET)
+        open_plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=_STALE_OCT5_BATTERY,
+            sleep_blocks=[],
+        )
+        open_hours = {
+            (
+                datetime.fromisoformat(meal["eat_at"]).hour,
+                datetime.fromisoformat(meal["eat_at"]).minute,
+            )
+            for meal in open_plan["meals"]
+        }
+        self.assertIn((21, 0), open_hours)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=_STALE_OCT5_BATTERY,
+            sleep_blocks=[_OCT5_SLEEP],
+        )
+        self.assertTrue(plan["meals"])
+        self.assertFalse(plan["notes"]["kitchen_closed"])
+        self.assertEqual(plan["notes"]["sleep_no_eat"][0]["start"][:16], "2026-10-05T19:45")
+        labels = [meal["label"] for meal in plan["meals"]]
+        self.assertNotIn("Optional snack", labels)
+        for meal in plan["meals"]:
+            eat = datetime.fromisoformat(meal["eat_at"])
+            self.assertFalse(_inside_oct5_sleep(eat))
+            self.assertLess(eat, _OCT5_SLEEP_START)
+            self.assertNotEqual((eat.hour, eat.minute), (21, 0))
+            self.assertNotEqual((eat.hour, eat.minute), (0, 0))
+
+    def test_inside_locked_sleep_closes_the_kitchen(self):
+        now = datetime(2026, 10, 5, 21, 0, tzinfo=ET)
+        windows = parse_sleep_windows([_OCT5_SLEEP], ET)
+        self.assertTrue(
+            _kitchen_is_closed(
+                now,
+                datetime(2026, 10, 5, 0, 0, tzinfo=ET),
+                datetime(2026, 10, 6, 0, 0, tzinfo=ET),
+                sleep_windows=windows,
+            )
+        )
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+            sleep_battery=_STALE_OCT5_BATTERY,
+            sleep_blocks=[_OCT5_SLEEP],
+        )
+        self.assertEqual(plan["meals"], [])
+        self.assertTrue(plan["notes"]["kitchen_closed"])
+        self.assertEqual(plan["notes"]["empty_plan_reason"], "kitchen_closed")
 
 
 if __name__ == "__main__":
