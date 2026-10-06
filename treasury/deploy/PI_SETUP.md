@@ -54,17 +54,19 @@ Environment=TREASURY_RH_ROLE=producer
 sudo cp treasury/deploy/fund-manager.service treasury/deploy/fund-manager.timer /etc/systemd/system/
 sudo cp treasury/deploy/rh-refresh.service treasury/deploy/rh-refresh.timer /etc/systemd/system/
 sudo cp treasury/deploy/ynab-refresh.service treasury/deploy/ynab-refresh.timer /etc/systemd/system/
+sudo cp treasury/deploy/expenses-refresh.service treasury/deploy/expenses-refresh.timer /etc/systemd/system/
 sudo cp treasury/deploy/fund-manager-bp-poll.service treasury/deploy/fund-manager-bp-poll.timer /etc/systemd/system/
 sudo cp treasury/deploy/braiins-refresh.service treasury/deploy/braiins-refresh.timer /etc/systemd/system/
 sudo cp treasury/deploy/coinbase-price-refresh.service treasury/deploy/coinbase-price-refresh.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rh-refresh.timer
 sudo systemctl enable --now ynab-refresh.timer
+sudo systemctl enable --now expenses-refresh.timer
 sudo systemctl enable --now braiins-refresh.timer
 sudo systemctl enable --now coinbase-price-refresh.timer
 sudo systemctl enable --now fund-manager.timer
 sudo systemctl enable --now fund-manager-bp-poll.timer
-systemctl list-timers | grep -E 'fund|rh-refresh|ynab-refresh|braiins|coinbase-price'
+systemctl list-timers | grep -E 'fund|rh-refresh|ynab-refresh|expenses-refresh|braiins|coinbase-price'
 ```
 
 ### 4) Smoke on Pi (required before Mac disarm)
@@ -109,6 +111,7 @@ app if it still shows historical noise.
 |-------|----------|--------|
 | `rh-refresh` | ~3h | MCP snapshot so FCC RH trade stays green |
 | `ynab-refresh` | ~3h | YNAB One Card / RH Checking / X Money snapshots (#668) |
+| `expenses-refresh` | ~3h | Personal Expense Sheet → `expenses_latest.json` (#1053). Does not push to the Mac. |
 | `braiins-refresh` | ~4h | Braiins pool snapshot (`payouts` list) so Cash Streams mining stays green (#689) |
 | `coinbase-price-refresh` | ~2h | Public BTC/USD spot so Cash Streams mining valuation stays green (#695) |
 | `fund-manager` | weekdays ~12:30 | Rules HOLD if 60/40 ok; else Grok team review |

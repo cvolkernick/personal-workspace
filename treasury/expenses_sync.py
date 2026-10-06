@@ -88,6 +88,62 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Sheet dates move on a bill cycle, not a market tick. 12h matches the FCC
+# Sheet feed chip (#1053). Older than this is flagged, not silently trusted.
+EXPENSES_STALE_AFTER_HOURS = 12.0
+
+
+def parse_as_of(raw: Any) -> Optional[datetime]:
+    """Parse an expense snapshot as_of. Missing or junk → None."""
+    if not raw:
+        return None
+    try:
+        t = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t
+
+
+def expenses_freshness(
+    snapshot: Optional[Dict[str, Any]],
+    *,
+    now: Optional[datetime] = None,
+    max_hours: float = EXPENSES_STALE_AFTER_HOURS,
+) -> Dict[str, Any]:
+    """Age of an expenses snapshot. Stale when as_of is missing or too old.
+
+    ``label`` is the FCC banner text. It includes the as-of timestamp and the
+    age in hours so a frozen sheet is visible without opening the JSON.
+    """
+    as_of_raw = snapshot.get("as_of") if isinstance(snapshot, dict) else None
+    parsed = parse_as_of(as_of_raw)
+    clock = now or datetime.now(timezone.utc)
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=timezone.utc)
+    age = None
+    if parsed is not None:
+        age = max(0.0, (clock - parsed).total_seconds() / 3600.0)
+    stale = age is None or age > float(max_hours)
+    if not stale:
+        label = None
+    elif parsed is None or age is None:
+        label = "Expenses snapshot stale · as-of missing"
+    else:
+        label = (
+            f"Expenses snapshot stale · as of {parsed.isoformat()} · "
+            f"{age:.1f}h old (warn >{float(max_hours):.0f}h)"
+        )
+    return {
+        "as_of": parsed.isoformat() if parsed is not None else None,
+        "age_hours": round(age, 1) if age is not None else None,
+        "stale": stale,
+        "threshold_hours": float(max_hours),
+        "label": label,
+    }
+
+
 def parse_money(val: Any) -> Optional[float]:
     if val is None:
         return None
@@ -863,8 +919,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--sheet-id", help="Override spreadsheet id")
     args = parser.parse_args(argv)
     data = sync_expenses(sheet_id=args.sheet_id, prefer_live=not args.offline)
-    if data.get("source") == "empty" and data.get("live_error"):
-        print(json.dumps({"ok": False, "error": data["live_error"]}, indent=2), file=sys.stderr)
+    # A failed sheet pull must not rewrite the file. Rewriting the cached body
+    # bumps mtime and looks like a refresh while as_of stays frozen (#1053).
+    if data.get("live_error") or data.get("source") in (None, "empty"):
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": data.get("live_error") or "no expenses snapshot",
+                    "source": data.get("source"),
+                },
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
         return 1
     path = write_expenses_snapshot(data)
     s = data.get("summary") or {}

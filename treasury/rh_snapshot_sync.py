@@ -820,6 +820,82 @@ def _attach_existing_as_of(out: Dict[str, Any], dest: Path) -> None:
         out["age_hours"] = round(_age_hours(as_of) or 0.0, 2)
 
 
+EXPENSES_SNAP = "expenses_latest.json"
+
+# Remote one-shot: print MISSING, NO_AS_OF, UNREADABLE, or the as_of string.
+# stdin is the program so the Pi file is never pulled to the Mac to compare.
+_REMOTE_AS_OF_PY = """
+import json, os, sys
+path = sys.argv[1]
+if not os.path.isfile(path):
+    print("MISSING")
+    raise SystemExit(0)
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    print("UNREADABLE")
+    raise SystemExit(0)
+if not isinstance(data, dict):
+    print("UNREADABLE")
+    raise SystemExit(0)
+raw = data.get("as_of")
+print(raw if raw else "NO_AS_OF")
+"""
+
+
+def read_remote_snapshot_as_of(
+    ssh_host: str,
+    remote_path: str,
+    timeout: float,
+) -> Tuple[str, Optional[datetime]]:
+    """Read only as_of from a remote snapshot. Status is missing|ok|unreadable."""
+    try:
+        r = subprocess.run(
+            _ssh_base(ssh_host, timeout) + ["python3", "-", remote_path],
+            input=_REMOTE_AS_OF_PY,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 15,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return "unreadable", None
+    if r.returncode != 0:
+        return "unreadable", None
+    text = (r.stdout or "").strip()
+    line = text.splitlines()[-1].strip() if text else ""
+    if line == "MISSING":
+        return "missing", None
+    if line in ("", "UNREADABLE", "NO_AS_OF"):
+        return "unreadable", None
+    parsed = _parse_as_of(line)
+    if parsed is None:
+        return "unreadable", None
+    return "ok", parsed
+
+
+def expenses_push_decision(
+    local_as_of: Optional[datetime],
+    remote_status: str,
+    remote_as_of: Optional[datetime],
+) -> str:
+    """Whether Mac may SCP expenses_latest.json onto the Pi (#1053).
+
+    Never replace a newer remote as_of with an older local one. An unreadable
+    remote clock fails closed (skip) so a parse error cannot clobber the Pi.
+    A missing remote file is the only case that pushes without a comparison.
+    """
+    if remote_status == "missing":
+        return "push"
+    if remote_status != "ok" or remote_as_of is None:
+        return "skip_remote_unreadable"
+    if local_as_of is None:
+        return "skip_local_as_of_missing"
+    if local_as_of > remote_as_of:
+        return "push"
+    return "skip_remote_newer_or_equal"
+
+
 def push_snapshots_to_pi(
     files: Optional[List[str]] = None,
     *,
@@ -882,6 +958,27 @@ def push_snapshots_to_pi(
         if not local.is_file():
             out["skipped"].append({"file": name, "reason": "missing_local"})
             continue
+        if name == EXPENSES_SNAP:
+            local_data = load_json(local) or {}
+            local_as = _parse_as_of(
+                local_data.get("as_of") if isinstance(local_data, dict) else None
+            )
+            remote_status, remote_as = read_remote_snapshot_as_of(
+                ssh_host,
+                f"{remote_snap}/{name}",
+                timeout,
+            )
+            decision = expenses_push_decision(local_as, remote_status, remote_as)
+            if decision != "push":
+                out["skipped"].append(
+                    {
+                        "file": name,
+                        "reason": decision,
+                        "local_as_of": local_as.isoformat() if local_as else None,
+                        "remote_as_of": remote_as.isoformat() if remote_as else None,
+                    }
+                )
+                continue
         remote = f"{ssh_host}:{remote_snap}/{name}"
         try:
             r = subprocess.run(
