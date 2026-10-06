@@ -1,0 +1,18 @@
+# User unit for prism-gateway. Bind stays on the tailnet (127.0.0.1 here;
+# ops can point --host at the tailnet address). Do not put this behind Funnel.
+# The process user owns ~/.local/share/panamerica-crm/crm.db mode 600.
+# Tokens live in that user's env, one seat each, never in this file.
+
+[Unit]
+Description=Panamerica CRM API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+ExecStart=/usr/bin/python3 -m workflows.crm.api --host 127.0.0.1 --port 8791 --db %h/.local/share/panamerica-crm/crm.db --export %h/.local/share/panamerica-roadside-crm/store.json
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

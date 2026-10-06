@@ -19,6 +19,19 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def open_store(cfg: Any) -> "FileStore":
+    """File backend by default. `crm` keeps the same method surface on SQLite."""
+    backend = str(getattr(cfg, "backend", "file") or "file").strip().lower()
+    if backend == "file":
+        return FileStore(cfg.store_path)
+    if backend != "crm":
+        raise RuntimeError(f"unknown PANAMERICA_ROADSIDE_BACKEND {backend}")
+    from crm_store import CrmStore, resolve_db_path
+
+    db_path = resolve_db_path(Path(cfg.store_path), getattr(cfg, "crm_db_path", None))
+    return CrmStore(db_path, Path(cfg.store_path))  # type: ignore[return-value]
+
+
 def today_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 

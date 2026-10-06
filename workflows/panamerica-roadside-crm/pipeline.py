@@ -27,7 +27,7 @@ from models import (
     SMS_VARIANT_IDS,
     Lead,
 )
-from store import FileStore, utc_now
+from store import FileStore, open_store
 
 
 class PipelineError(RuntimeError):
@@ -519,7 +519,7 @@ def make_pipeline(
     bland: Any = None,
     geocoder: Any = None,
 ) -> Pipeline:
-    store = FileStore(cfg.store_path)
+    store = open_store(cfg)
     adapters = build_adapters(cfg, drive=drive, ocr=ocr, bland=bland, geocoder=geocoder)
     return Pipeline(cfg, store, adapters)
 
