@@ -280,15 +280,94 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertNotIn("Retained", [n["name"] for n in payload["nodes"]])
         self.assertTrue(any(lk["source"] == "deficit" and lk["target"] == "revenue" for lk in payload["links"]))
 
-    def test_other_income_roll_up(self) -> None:
+    def test_named_sources_stay_out_of_top_n_overflow(self) -> None:
         txs = [
             _tx(amount=(TOP_N_INCOME + 1 - i) * 1000, payee=f"P{i}")
             for i in range(TOP_N_INCOME + 2)
         ]
+        txs.append(_tx(amount=500, payee="HW*GrubHub Holdings Inc."))
         payload = build_cash_streams(days=90, today=TODAY, transactions=txs)
         names = _ids(payload, "inflow")
-        self.assertIn("Other income", names)
-        self.assertEqual(len([n for n in names if n != "Other income"]), TOP_N_INCOME)
+        self.assertNotIn("Other income", names)
+        self.assertIn("HW*GrubHub Holdings Inc.", names)
+        # P9 is a zero-amount row, so the countable set is the other nine plus Grubhub.
+        self.assertEqual(len(names), TOP_N_INCOME + 2)
+        unknown = {row["name"] for row in payload["unidentified_credits"]}
+        self.assertNotIn("HW*GrubHub Holdings Inc.", unknown)
+        self.assertEqual(unknown, {f"P{i}" for i in range(TOP_N_INCOME + 1)})
+
+    def test_transfer_text_is_excluded_and_totals_reconcile(self) -> None:
+        kept = [
+            _tx(amount=100_000, payee="Lyft", date_s="2026-08-01"),
+            _tx(amount=20_000, payee="Interest payment", date_s="2026-08-01"),
+            _tx(amount=8_000, payee="Employer payroll", date_s="2026-08-04"),
+            _tx(
+                amount=-40_000,
+                payee="Kroger",
+                category_id="c-groc",
+                category_name="Groceries",
+                date_s="2026-08-01",
+            ),
+            _tx(
+                amount=-12_000,
+                payee="Corner store",
+                category_name="Uncategorized",
+                date_s="2026-08-05",
+            ),
+        ]
+        unpaired_credit = [
+            _tx(amount=7_000, payee="CREDIT", date_s="2026-08-03"),
+        ]
+        transfers = [
+            _tx(amount=50_000, payee="CREDIT", date_s="2026-08-02"),
+            _tx(amount=-50_000, payee="DEBIT", date_s="2026-08-02"),
+            _tx(amount=-20_000, payee="Scheduled payment", category_name="Uncategorized"),
+            _tx(amount=-30_000, payee="Payment", category_name="Uncategorized"),
+            _tx(amount=15_000, payee="Zelle from checking"),
+            _tx(amount=-15_000, payee="A2A transfer"),
+            _tx(amount=1_000, payee="ACCTVERIFY"),
+            _tx(amount=-1_000, payee="ACCT VERIFY"),
+            _tx(amount=2_000, payee="Account Verify"),
+            _tx(amount=-11_000, payee="Card payment", category_name="Uncategorized"),
+            _tx(amount=-4_000, payee="Credit card payment", category_name="Uncategorized"),
+            _tx(amount=-9_000, payee="Payment thank you", category_name="Uncategorized"),
+        ]
+        mixed = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=kept + unpaired_credit + transfers,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        without_transfers = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=kept + unpaired_credit,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(mixed["totals"], without_transfers["totals"])
+        self.assertEqual(mixed["totals"]["inflow"], 135.0)
+        self.assertEqual(mixed["totals"]["outflow"], 52.0)
+        names = set(_ids(mixed, "inflow"))
+        self.assertIn("Lyft", names)
+        self.assertIn("Interest payment", names)
+        self.assertIn("Employer payroll", names)
+        self.assertIn("CREDIT", names)
+        self.assertNotIn("Zelle from checking", names)
+        self.assertNotIn("ACCTVERIFY", names)
+        self.assertNotIn("Account Verify", names)
+        self.assertNotIn("Card payment", _ids(mixed, "category"))
+        self.assertNotIn("Credit card payment", _ids(mixed, "category"))
+        self.assertNotIn("Scheduled payment", _ids(mixed, "category"))
+        self.assertNotIn("Payment", _ids(mixed, "inflow"))
+        categories = set(_ids(mixed, "category"))
+        self.assertIn("Groceries", categories)
+        self.assertIn("Uncategorized", categories)
+        uncategorized = next(n for n in mixed["nodes"] if n["name"] == "Uncategorized")
+        self.assertEqual(uncategorized["amount"], 12.0)
+        unknown = {row["name"]: row["amount"] for row in mixed["unidentified_credits"]}
+        self.assertEqual(unknown, {"Employer payroll": 8.0, "CREDIT": 7.0})
 
     def test_splits_go_to_categories(self) -> None:
         txs = [
@@ -493,7 +572,7 @@ class TestCashStreamsBuilder(unittest.TestCase):
         )
         names = _ids(payload, "inflow")
         self.assertEqual(names[0], MINING_NODE_NAME)
-        self.assertIn("Other income", names)
+        self.assertNotIn("Other income", names)
         self.assertAlmostEqual(
             next(n["amount"] for n in payload["nodes"] if n["id"] == "in-mining"),
             12.34,
@@ -503,7 +582,8 @@ class TestCashStreamsBuilder(unittest.TestCase):
             for n in payload["nodes"]
             if n["layer"] == "inflow" and n["id"] not in {"in-mining", "deficit"}
         ]
-        self.assertEqual(len([n for n in ynab_in if n != "Other income"]), TOP_N_INCOME)
+        self.assertEqual(len(ynab_in), TOP_N_INCOME + 1)
+        self.assertEqual(set(ynab_in), {f"P{i}" for i in range(TOP_N_INCOME + 1)})
 
     def test_mining_unknown_does_not_add_zero_node(self) -> None:
         txs = [_tx(amount=10_000, payee="Lyft")]
@@ -935,16 +1015,23 @@ class TestRollingCashSeries(unittest.TestCase):
     """
 
     def _assert_band_stack(self, point: dict) -> None:
-        """Named YNAB bands plus other plus bitcoin meet the envelope."""
-        lyft = point["lyft"]
-        grubhub = point["grubhub"]
-        turo = point["turo"]
+        """Named YNAB bands plus unidentified plus bitcoin meet the envelope."""
+        named_ids = (
+            "lyft",
+            "grubhub",
+            "turo",
+            "rewards",
+            "interest",
+            "refunds",
+            "cash_deposits",
+        )
+        named_vals = [float(point.get(sid) or 0) for sid in named_ids]
         bitcoin = point["bitcoin"]
         other = point["other"]
-        named = round(lyft + grubhub + turo, 2)
+        named = round(sum(named_vals), 2)
         self.assertGreaterEqual(other, 0.0)
         self.assertGreaterEqual(bitcoin, 0.0)
-        self.assertEqual(other, income_band_other(point["inflow"], lyft, grubhub, turo))
+        self.assertEqual(other, income_band_other(point["inflow"], *named_vals))
         envelope = round(point["inflow"] + bitcoin, 2)
         self.assertEqual(point["envelope"], envelope)
         if named <= point["inflow"]:
@@ -987,8 +1074,15 @@ class TestRollingCashSeries(unittest.TestCase):
         for point in payload["points"]:
             self._assert_band_stack(point)
         self.assertEqual(payload["source_warnings"], [])
-        self.assertEqual([s["id"] for s in payload["sources"]], ["lyft", "grubhub", "turo"])
-        self.assertEqual(payload["other_band"], {"id": "other", "label": "Other", "color": "#6b7c8d"})
+        self.assertEqual(
+            [s["id"] for s in payload["sources"]],
+            ["lyft", "grubhub", "turo", "rewards", "interest", "refunds", "cash_deposits"],
+        )
+        self.assertEqual(
+            payload["other_band"],
+            {"id": "other", "label": "Unidentified credits", "color": "#6b7c8d"},
+        )
+        self.assertEqual(payload["unidentified_credits"], [])
         self.assertEqual(payload["bitcoin_mean_days"], 90)
         self.assertEqual(payload["bitcoin_band"], {"id": "bitcoin", "label": "Bitcoin", "color": "#f5c542"})
         self.assertEqual(payload["bitcoin_feed"], {"address_set": False, "from_cache": False})
@@ -1088,6 +1182,13 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(last["other"], 3.5)
         self.assertEqual(payload["source_warnings"], [])
         self.assertNotIn("other", payload["source_warnings"])
+        self.assertEqual(
+            payload["unidentified_credits"],
+            [
+                {"name": "Employer", "amount": 90.0},
+                {"name": "Grubby", "amount": 15.0},
+            ],
+        )
         self.assertEqual(last["lyft"] + last["grubhub"] + last["turo"] + last["other"], 16.5)
         self.assertEqual(last["bitcoin"], 0.0)
         self.assertEqual(last["envelope"], 16.5)
@@ -1422,6 +1523,10 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn(".band-lyft", html)
         self.assertIn(".band-grubhub", html)
         self.assertIn(".band-turo", html)
+        self.assertIn(".band-rewards", html)
+        self.assertIn(".band-interest", html)
+        self.assertIn(".band-refunds", html)
+        self.assertIn(".band-cash-deposits", html)
         self.assertIn(".band-bitcoin", html)
         self.assertIn(".band-other", html)
         self.assertIn("fill-opacity: 0.6", html)
@@ -1434,19 +1539,28 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn("> Lyft</span>", html)
         self.assertIn("> Grubhub</span>", html)
         self.assertIn("> Turo</span>", html)
+        self.assertIn("> Rewards</span>", html)
+        self.assertIn("> Interest</span>", html)
+        self.assertIn("> Refunds</span>", html)
+        self.assertIn("> Cash deposits</span>", html)
         self.assertIn("> Bitcoin</span>", html)
-        self.assertIn("> Other</span>", html)
+        self.assertIn("> Unidentified</span>", html)
+        self.assertIn("not pooled into Other", html)
         self.assertIn("> Inflow + BTC</span>", html)
         self.assertIn('key: "lyft"', html)
-        band_lyft = html.index('key: "lyft"')
-        band_grubhub = html.index('key: "grubhub"')
-        band_turo = html.index('key: "turo"')
-        band_bitcoin = html.index('key: "bitcoin"')
-        band_other = html.index('key: "other"')
-        self.assertLess(band_lyft, band_grubhub)
-        self.assertLess(band_grubhub, band_turo)
-        self.assertLess(band_turo, band_bitcoin)
-        self.assertLess(band_bitcoin, band_other)
+        band_keys = (
+            "lyft",
+            "grubhub",
+            "turo",
+            "rewards",
+            "interest",
+            "refunds",
+            "cash_deposits",
+            "bitcoin",
+            "other",
+        )
+        band_at = [html.index(f'key: "{key}"') for key in band_keys]
+        self.assertEqual(band_at, sorted(band_at))
         self.assertIn('key: "envelope"', html)
         self.assertIn("of envelope", html)
         self.assertNotIn("of inflow", html)
@@ -1566,7 +1680,10 @@ class TestCashStreamsApi(unittest.TestCase):
         self.assertEqual(data["other_band"]["id"], "other")
         self.assertEqual(data["bitcoin_band"]["id"], "bitcoin")
         self.assertEqual(data["bitcoin_mean_days"], 90)
-        self.assertEqual([row["id"] for row in data["sources"]], ["lyft", "grubhub", "turo"])
+        self.assertEqual(
+            [row["id"] for row in data["sources"]],
+            ["lyft", "grubhub", "turo", "rewards", "interest", "refunds", "cash_deposits"],
+        )
         self.assertNotIn("nodes", data)
         self.assertNotIn("totals", data)
 

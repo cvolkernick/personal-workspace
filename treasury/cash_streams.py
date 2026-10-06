@@ -19,14 +19,16 @@ The 90-day rolling chart (`build_rolling_cash_series`) reuses this filter,
 then drops any payee containing "reconcile". That wider drop is chart-only.
 It does not change Sankey totals or the Glance daily-flow chip. The Sankey
 still draws the Braiins snapshot node. The rolling series keeps YNAB daily
-sums as inflow and adds a Bitcoin band on top. Lyft, Grubhub, and Turo are
-the trailing 30-day mean on external inflows ``classify_income_source``
-accepts. Bitcoin is the trailing 90-day mean of confirmed Braiins payouts
-at their stamped USD price (not a second YNAB matcher). An empty or missing
-payout list falls back to ``bitcoin_mining_income``. Other is YNAB inflow
-minus Lyft, Grubhub, and Turo, floored at 0. The envelope line is YNAB
-inflow plus Bitcoin. Outflow stays a line.
-Uncategorized outflows stay an explicit node. A present Braiins payout
+sums as inflow and adds a Bitcoin band on top. Lyft, Grubhub, Turo, Rewards,
+Interest, Refunds, and Cash deposits are the trailing 30-day mean on
+external inflows ``classify_income_source`` accepts. Bitcoin is the trailing
+90-day mean of confirmed Braiins payouts at their stamped USD price (not a
+second YNAB matcher). An empty or missing payout list falls back to
+``bitcoin_mining_income``. Unidentified credits are YNAB inflow minus those
+named sources, floored at 0, and are listed by payee instead of pooled.
+The envelope line is YNAB inflow plus Bitcoin. Outflow stays a line.
+Named Sankey sources stay out of any top-N cutoff. Uncategorized outflows
+that are not transfers stay an explicit node. A present Braiins payout
 list stays canonical, including loud-unknown when that list or the Coinbase
 spot used to value it is missing or stale. An empty or unknown payout list
 falls back to confirmed mempool.space receipts to ``braiins.payout_address``
@@ -50,6 +52,7 @@ payee. Expense nodes are YNAB categories today — same helper if payees render.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -61,6 +64,7 @@ from treasury.income_sources import (
     classify_income_source,
     income_source_ids,
     income_source_public,
+    income_source_warn_ids,
     BITCOIN_MEAN_DAYS,
 )
 
@@ -157,6 +161,88 @@ def window_bounds(days: int, today: Optional[date] = None) -> Tuple[date, date, 
 
 def _is_transfer(tx: Dict[str, Any]) -> bool:
     return bool(tx.get("transfer_account_id"))
+
+
+def _payee_text(tx: Dict[str, Any]) -> str:
+    return str(tx.get("payee_name") or tx.get("payee") or "").strip().casefold()
+
+
+def _transfer_blob(tx: Dict[str, Any]) -> str:
+    return " ".join(
+        str(tx.get(key) or "")
+        for key in ("payee_name", "payee", "memo")
+    ).casefold()
+
+
+def _generic_credit_debit(tx: Dict[str, Any]) -> Optional[str]:
+    """Bank descriptor CREDIT or DEBIT. 'Credit card' is not this tag."""
+    payee = _payee_text(tx)
+    if payee in {"credit", "debit"}:
+        return payee
+    match = re.match(r"^(credit|debit)\b(.*)$", payee)
+    if not match or "card" in match.group(2):
+        return None
+    return match.group(1)
+
+
+def _is_text_transfer(tx: Dict[str, Any]) -> bool:
+    """Scheduled payment, card payment, Zelle, A2A, or ACCTVERIFY.
+
+    Exact payee 'payment' is the generic bank payment line. A longer payee
+    that merely contains the word payment stays countable.
+    """
+    blob = _transfer_blob(tx)
+    payee = _payee_text(tx)
+    if payee in {"payment", "payment thank you", "autopay", "auto pay"}:
+        return True
+    if "scheduled payment" in blob or "card payment" in blob:
+        return True
+    if re.search(r"(?<![a-z0-9])zelle(?![a-z0-9])", blob):
+        return True
+    if re.search(r"(?<![a-z0-9])a2a(?![a-z0-9])", blob):
+        return True
+    compact = re.sub(r"[^a-z0-9]", "", blob)
+    return "acctverify" in compact or "accountverify" in compact
+
+
+def _milli_int(milli: Any) -> Optional[int]:
+    try:
+        return int(milli)
+    except (TypeError, ValueError):
+        return None
+
+
+def _paired_credit_debit_ids(transactions: Iterable[Dict[str, Any]]) -> set:
+    """Parent txs in a same-day CREDIT/DEBIT pair of equal absolute milliunits.
+
+    One credit matches one debit. An unpaired generic CREDIT or DEBIT stays
+    countable. YNAB rows that already carry ``transfer_account_id`` are not
+    candidates.
+    """
+    credits: Dict[Tuple[str, int], List[int]] = {}
+    debits: Dict[Tuple[str, int], List[int]] = {}
+    for tx in transactions or []:
+        if not isinstance(tx, dict) or tx.get("deleted") or _is_transfer(tx):
+            continue
+        kind = _generic_credit_debit(tx)
+        if kind is None:
+            continue
+        milli = _milli_int(tx.get("amount"))
+        day = _parse_day(tx.get("date"))
+        if milli is None or milli == 0 or day is None:
+            continue
+        key = (day.isoformat(), abs(milli))
+        slot = id(tx)
+        if kind == "credit" and milli > 0:
+            credits.setdefault(key, []).append(slot)
+        elif kind == "debit" and milli < 0:
+            debits.setdefault(key, []).append(slot)
+    paired: set = set()
+    for key, credit_ids in credits.items():
+        for credit_id, debit_id in zip(credit_ids, debits.get(key) or []):
+            paired.add(credit_id)
+            paired.add(debit_id)
+    return paired
 
 
 def _is_starting_balance(tx: Dict[str, Any]) -> bool:
@@ -306,8 +392,11 @@ def _iter_countable(
 ) -> Iterable[Dict[str, Any]]:
     track_ids = {str(x) for x in (tracking_outflow_ids or ())}
     budget_ids = {str(x) for x in on_budget_ids} if on_budget_ids is not None else None
+    paired_ids = _paired_credit_debit_ids(transactions)
     for tx in transactions or []:
         if not isinstance(tx, dict) or tx.get("deleted"):
+            continue
+        if id(tx) in paired_ids:
             continue
         day = _parse_day(tx.get("date"))
         if day is None or day < start or day > end:
@@ -323,6 +412,8 @@ def _iter_countable(
             if not isinstance(row, dict) or row.get("deleted"):
                 continue
             if _is_transfer(row) or (not subs and _is_transfer(tx)):
+                continue
+            if _is_text_transfer(row) or _is_text_transfer(tx):
                 continue
             if _is_starting_balance(row) or _is_starting_balance(tx):
                 continue
@@ -718,12 +809,14 @@ def build_cash_streams(
             "totals": {"inflow": 0.0, "outflow": 0.0, "retained": 0.0},
             "ynab": ynab,
             "mining": mining_out,
+            "unidentified_credits": [],
         }
 
     lookup = category_lookup(category_groups or [])
     budget_ids = set(on_budget_ids) if on_budget_ids is not None else None
     tracking_ids = set(tracking_outflow_ids) if tracking_outflow_ids else set()
     inflows: Dict[str, float] = {}
+    named_labels: set = set()
     group_totals: Dict[str, float] = {}
     cat_totals: Dict[Tuple[str, str], float] = {}
 
@@ -737,8 +830,11 @@ def build_cash_streams(
     ):
         amt = row["amount"]
         if amt > 0:
-            payee = display_payee(row["payee"] or "Unknown payee", payee_display_names)
+            raw = row["payee"] or "Unknown payee"
+            payee = display_payee(raw, payee_display_names)
             inflows[payee] = _money(inflows.get(payee, 0) + amt)
+            if classify_income_source(raw, row.get("category")) or classify_income_source(payee):
+                named_labels.add(payee)
         elif amt < 0:
             spent = abs(amt)
             group = row["group"] or "Uncategorized"
@@ -750,15 +846,16 @@ def build_cash_streams(
             cat_totals[key] = _money(cat_totals.get(key, 0) + spent)
 
     ranked = sorted(inflows.items(), key=lambda kv: (-kv[1], kv[0].lower()))
-    source_nodes: List[Tuple[str, str, float]] = []
-    if len(ranked) > TOP_N_INCOME:
-        keep = ranked[:TOP_N_INCOME]
-        other = _money(sum(v for _, v in ranked[TOP_N_INCOME:]))
-        source_nodes = [(f"in-{i}", name, _money(val)) for i, (name, val) in enumerate(keep)]
-        if other > 0:
-            source_nodes.append((f"in-{TOP_N_INCOME}", "Other income", other))
-    else:
-        source_nodes = [(f"in-{i}", name, _money(val)) for i, (name, val) in enumerate(ranked)]
+    # Named sources never fall into a top-N overflow bucket. Unidentified
+    # credits stay one node per payee. There is no "Other income" pool.
+    source_nodes = [
+        (f"in-{i}", name, _money(val)) for i, (name, val) in enumerate(ranked)
+    ]
+    unidentified_credits = [
+        {"name": name, "amount": _money(val)}
+        for name, val in ranked
+        if name not in named_labels
+    ]
 
     mining_usd = 0.0
     if mining_out.get("status") == "ok":
@@ -779,6 +876,7 @@ def build_cash_streams(
             "totals": {"inflow": 0.0, "outflow": 0.0, "retained": 0.0},
             "ynab": ynab,
             "mining": mining_out,
+            "unidentified_credits": unidentified_credits,
         }
 
     nodes: List[Dict[str, Any]] = []
@@ -856,6 +954,7 @@ def build_cash_streams(
         },
         "ynab": ynab,
         "mining": mining_out,
+        "unidentified_credits": unidentified_credits,
     }
 
 
@@ -872,22 +971,22 @@ def _rolling_mean(values: Sequence[float]) -> float:
     return _money(sum(values) / float(len(values)))
 
 
-# Muted slate: darker than Turo gray #b7c0c8, lighter than the chart panel,
-# so the remainder reads as a fill and not as a fifth line.
+# Muted slate: darker than Turo gray #b7c0c8, lighter than the chart panel.
+# This remainder is unidentified credits, listed by payee, not a pooled Other.
 OTHER_INCOME_BAND: Dict[str, str] = {
     "id": "other",
-    "label": "Other",
+    "label": "Unidentified credits",
     "color": "#6b7c8d",
 }
 
 
-def income_band_other(inflow: float, lyft: float, grubhub: float, turo: float) -> float:
-    """Remainder of inflow after Lyft, Grubhub, and Turo, floored at 0.
+def income_band_other(inflow: float, *named: float) -> float:
+    """Remainder of inflow after named source means, floored at 0.
 
     Inputs are the already-rounded trailing means. Independent cent rounding
     can push the named means a cent past inflow; that case stays at 0.
     """
-    remainder = round(float(inflow) - float(lyft) - float(grubhub) - float(turo), 2)
+    remainder = round(float(inflow) - sum(float(value) for value in named), 2)
     if remainder <= 0:
         return 0.0
     return remainder
@@ -916,16 +1015,17 @@ def build_rolling_cash_series(
     inflow (``includes_mining`` stays false). Bitcoin is a separate band.
 
     Shared exclusions stay in ``_iter_countable``. The only extra drop is a
-    payee containing ``reconcile``. Lyft, Grubhub, and Turo are that same
-    mean over positive amounts ``classify_income_source`` accepts. ``other``
-    is inflow minus those three means, floored at 0. ``bitcoin`` is the
-    trailing 90-day mean of ``bitcoin_usd_by_day``. ``envelope`` is inflow
-    plus bitcoin, so the stack top matches the envelope except when rounding
-    pushes the named YNAB means past inflow. A named YNAB source that is $0
+    payee containing ``reconcile``. Named sources are that same mean over
+    positive amounts ``classify_income_source`` accepts. ``other`` is inflow
+    minus those named means, floored at 0. ``bitcoin`` is the trailing
+    90-day mean of ``bitcoin_usd_by_day``. ``envelope`` is inflow plus
+    bitcoin, so the stack top matches the envelope except when rounding
+    pushes the named YNAB means past inflow. Lyft, Grubhub, or Turo at $0
     on every displayed point while some inflow point is not is listed in
-    ``source_warnings``. The remainder band is not a warning. Bitcoin is a
-    warning only when ``bitcoin_missing`` is set and that band is $0 on
-    every displayed point.
+    ``source_warnings``. Unidentified credits are listed by payee on
+    ``unidentified_credits`` rather than pooled. Bitcoin is a warning only
+    when ``bitcoin_missing`` is set and that band is $0 on every displayed
+    point.
     """
     end = today or date.today()
     seed_start = end - timedelta(days=ROLLING_SEED_DAYS)
@@ -961,6 +1061,7 @@ def build_rolling_cash_series(
             "from_cache": bool((bitcoin_feed or {}).get("from_cache")),
         },
         "source_warnings": [],
+        "unidentified_credits": [],
         "points": [],
     }
     if error:
@@ -977,6 +1078,8 @@ def build_rolling_cash_series(
     source_by = {
         sid: {day.isoformat(): 0.0 for day in seed_days} for sid in source_ids
     }
+    unknown_totals: Dict[str, float] = {}
+    display_key = display_start.isoformat()
     lookup = category_lookup(category_groups or [])
     budget_ids = set(on_budget_ids) if on_budget_ids is not None else None
     tracking_ids = set(tracking_outflow_ids) if tracking_outflow_ids else set()
@@ -995,6 +1098,9 @@ def build_rolling_cash_series(
             if source_id in source_by:
                 bucket = source_by[source_id]
                 bucket[row["date"]] = _money(bucket[row["date"]] + row["amount"])
+            elif row["date"] >= display_key:
+                name = str(row.get("payee") or "").strip() or "Unknown payee"
+                unknown_totals[name] = _money(unknown_totals.get(name, 0.0) + row["amount"])
         elif row["amount"] < 0:
             outflow_by[row["date"]] = _money(outflow_by[row["date"]] + abs(row["amount"]))
 
@@ -1015,22 +1121,27 @@ def build_rolling_cash_series(
         point["bitcoin"] = bitcoin_trailing_mean(day, bitcoin_usd_by_day or {})
         point["other"] = income_band_other(
             point["inflow"],
-            float(point.get("lyft") or 0),
-            float(point.get("grubhub") or 0),
-            float(point.get("turo") or 0),
+            *[float(point.get(sid) or 0) for sid in source_ids],
         )
         point["envelope"] = _money(point["inflow"] + point["bitcoin"])
         points.append(point)
     if len(points) != ROLLING_DISPLAY_DAYS:
         raise ValueError(f"expected {ROLLING_DISPLAY_DAYS} rolling points, got {len(points)}")
     warnings = _source_warnings(
-        points, source_ids, bitcoin_missing=bitcoin_missing
+        points, income_source_warn_ids(), bitcoin_missing=bitcoin_missing
     )
+    unidentified_credits = [
+        {"name": name, "amount": amount}
+        for name, amount in sorted(
+            unknown_totals.items(), key=lambda kv: (-kv[1], kv[0].lower())
+        )
+    ]
     return {
         "ok": True,
         "error": None,
         **base,
         "source_warnings": warnings,
+        "unidentified_credits": unidentified_credits,
         "points": points,
     }
 

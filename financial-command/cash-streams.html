@@ -110,6 +110,10 @@
     .band-lyft { fill: #ff69b4; fill-opacity: 0.6; stroke: none; }
     .band-grubhub { fill: #ff8c1a; fill-opacity: 0.6; stroke: none; }
     .band-turo { fill: #b7c0c8; fill-opacity: 0.6; stroke: none; }
+    .band-rewards { fill: #1abc9c; fill-opacity: 0.6; stroke: none; }
+    .band-interest { fill: #5dade2; fill-opacity: 0.6; stroke: none; }
+    .band-refunds { fill: #c39bd3; fill-opacity: 0.6; stroke: none; }
+    .band-cash-deposits { fill: #d4ac0d; fill-opacity: 0.6; stroke: none; }
     .band-bitcoin { fill: #f5c542; fill-opacity: 0.6; stroke: none; }
     .band-other { fill: #6b7c8d; fill-opacity: 0.6; stroke: none; }
     .source-warn {
@@ -197,10 +201,11 @@
     <div id="load-error" class="error hidden"></div>
     <div id="stale-banner" class="stale-banner hidden"></div>
     <div id="mining-banner" class="stale-banner hidden"></div>
+    <div id="unidentified-banner" class="source-warn hidden" role="status"></div>
 
     <section class="card">
       <h2>Window</h2>
-      <p class="hint">Live YNAB transactions + Braiins mining, rolling window ending today. Refresh re-fetches this chart from YNAB now — it does not sync cash-balance snapshots (X Money / One Card / RH Checking). Transfers excluded. Coinbase→Main withdrawals are transfers, not income. Uncategorized stays visible. Missing mining feeds are a loud unknown, never a silent $0. No CDN.</p>
+      <p class="hint">Live YNAB transactions + Braiins mining, rolling window ending today. Refresh re-fetches this chart from YNAB now — it does not sync cash-balance snapshots (X Money / One Card / RH Checking). Transfers excluded, including paired CREDIT/DEBIT, scheduled payments, card payments, Zelle, A2A, and ACCTVERIFY. Coinbase→Main withdrawals are transfers, not income. Named sources stay labeled. Unidentified credits are listed by payee, not pooled. A real uncategorized spend stays visible. Missing mining feeds are a loud unknown, never a silent $0. No CDN.</p>
       <div class="controls" id="period-toggle">
         <button type="button" data-days="30">30d</button>
         <button type="button" data-days="60">60d</button>
@@ -229,20 +234,24 @@
 
     <section class="card" id="rolling-card">
       <h2>Rolling averages</h2>
-      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Lyft, Grubhub, Turo, Bitcoin, and other are shaded bands stacked under the inflow-plus-BTC envelope. Named sources use that same mean on their external inflows only. Bitcoin is the trailing 90-day mean of confirmed Braiins payouts at the stamped USD price, and is added on top of YNAB inflow. Other is total YNAB inflow minus Lyft, Grubhub, and Turo, floored at 0. Seeded from 120 days so every YNAB point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. No CDN.</p>
+      <p class="hint" id="rolling-hint">Last 90 days. Each point is the trailing 30-day mean of daily YNAB inflow and outflow, in $/day. Lyft, Grubhub, Turo, Rewards, Interest, Refunds, Cash deposits, Bitcoin, and unidentified credits are shaded bands stacked under the inflow-plus-BTC envelope. Named sources use that same mean on their external inflows only. Bitcoin is the trailing 90-day mean of confirmed Braiins payouts at the stamped USD price, and is added on top of YNAB inflow. Unidentified credits are total YNAB inflow minus the named sources, floored at 0, and are listed by payee instead of pooled. Seeded from 120 days so every YNAB point has a full window. Transfers, starting balances, and FCC reconcile follow the Sankey filter. Payees containing "reconcile" are dropped on this chart only. No CDN.</p>
       <div class="legend" id="rolling-legend">
         <span><i class="swatch" style="background:#3dd68c"></i> Inflow + BTC</span>
         <span><i class="swatch" style="background:#ff6b6b"></i> Outflow</span>
         <span><i class="swatch" style="background:#ff69b4"></i> Lyft</span>
         <span><i class="swatch" style="background:#ff8c1a"></i> Grubhub</span>
         <span><i class="swatch" style="background:#b7c0c8"></i> Turo</span>
+        <span><i class="swatch" style="background:#1abc9c"></i> Rewards</span>
+        <span><i class="swatch" style="background:#5dade2"></i> Interest</span>
+        <span><i class="swatch" style="background:#c39bd3"></i> Refunds</span>
+        <span><i class="swatch" style="background:#d4ac0d"></i> Cash deposits</span>
         <span><i class="swatch" style="background:#f5c542"></i> Bitcoin</span>
-        <span><i class="swatch" style="background:#6b7c8d"></i> Other</span>
+        <span><i class="swatch" style="background:#6b7c8d"></i> Unidentified</span>
       </div>
       <div id="rolling-source-warn" class="source-warn hidden" role="status"></div>
       <div id="rolling-error" class="error hidden"></div>
       <div class="chart-wrap rolling-wrap" id="rolling-wrap">
-        <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow and outflow, with Lyft, Grubhub, Turo, Bitcoin, and other stacked under the inflow-plus-BTC envelope, dollars per day"></svg>
+        <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow and outflow, with named sources, Bitcoin, and unidentified credits stacked under the inflow-plus-BTC envelope, dollars per day"></svg>
       </div>
     </section>
   </main>
@@ -401,6 +410,17 @@
         }
         const mining = data.mining || {};
         const mineBanner = document.getElementById("mining-banner");
+        const unknownBanner = document.getElementById("unidentified-banner");
+        const unknown = Array.isArray(data.unidentified_credits) ? data.unidentified_credits : [];
+        if (unknown.length) {
+          const listed = unknown.map((row) => (row.name || "Unknown payee") + " " + money(row.amount)).join(", ");
+          unknownBanner.classList.remove("hidden");
+          unknownBanner.textContent =
+            "Unidentified credits are listed by name, not pooled into Other: " + listed + ".";
+        } else {
+          unknownBanner.classList.add("hidden");
+          unknownBanner.textContent = "";
+        }
         if (mining.status !== "ok") {
           mineBanner.className = "error";
           mineBanner.textContent =
@@ -460,19 +480,25 @@
       }
     }
 
-    // Bottom to top. Other is the remainder, not a classified source.
+    // Bottom to top. Unidentified is the remainder, not a classified source.
     const ROLLING_BANDS = [
       { key: "lyft", cls: "band-lyft" },
       { key: "grubhub", cls: "band-grubhub" },
       { key: "turo", cls: "band-turo" },
+      { key: "rewards", cls: "band-rewards" },
+      { key: "interest", cls: "band-interest" },
+      { key: "refunds", cls: "band-refunds" },
+      { key: "cash_deposits", cls: "band-cash-deposits" },
       { key: "bitcoin", cls: "band-bitcoin" },
       { key: "other", cls: "band-other" },
     ];
+    const NAMED_YNAB_BANDS = ["lyft", "grubhub", "turo", "rewards", "interest", "refunds", "cash_deposits"];
 
     function bandOther(point) {
       const fromServer = Number(point.other);
       if (Number.isFinite(fromServer)) return fromServer > 0 ? fromServer : 0;
-      const remainder = point.inflow - point.lyft - point.grubhub - point.turo;
+      let remainder = Number(point.inflow) || 0;
+      for (const key of NAMED_YNAB_BANDS) remainder -= Number(point[key]) || 0;
       return remainder > 0 ? remainder : 0;
     }
 
@@ -522,7 +548,7 @@
         1,
         d3.max(points, (d) => d.envelope) || 0,
         d3.max(points, (d) => d.outflow) || 0,
-        d3.max(points, (d) => d.lyft + d.grubhub + d.turo + d.bitcoin + d.other) || 0
+        d3.max(points, (d) => ROLLING_BANDS.reduce((sum, band) => sum + (Number(d[band.key]) || 0), 0)) || 0
       );
       const y = d3.scaleLinear().domain([0, maxY * 1.2]).range([innerH, 0]);
       const tickCount = width < 640 ? 4 : 8;
@@ -607,8 +633,12 @@
           bandTip("Lyft", row.lyft, row.envelope) + "<br>" +
           bandTip("Grubhub", row.grubhub, row.envelope) + "<br>" +
           bandTip("Turo", row.turo, row.envelope) + "<br>" +
+          bandTip("Rewards", row.rewards, row.envelope) + "<br>" +
+          bandTip("Interest", row.interest, row.envelope) + "<br>" +
+          bandTip("Refunds", row.refunds, row.envelope) + "<br>" +
+          bandTip("Cash deposits", row.cash_deposits, row.envelope) + "<br>" +
           bandTip("Bitcoin", row.bitcoin, row.envelope) + "<br>" +
-          bandTip("Other", row.other, row.envelope);
+          bandTip("Unidentified", row.other, row.envelope);
         const src = event.touches && event.touches[0] ? event.touches[0] : event;
         const left = Math.max(8, Math.min(src.clientX + 12, window.innerWidth - 220));
         const top = Math.max(8, Math.min(src.clientY + 12, window.innerHeight - 248));
@@ -668,6 +698,11 @@
         }
         if (warned.indexOf("bitcoin") !== -1) {
           sentences.push("Bitcoin feed is missing, so that band is $0 instead of confirmed Braiins payouts.");
+        }
+        const unknown = Array.isArray(data.unidentified_credits) ? data.unidentified_credits : [];
+        if (unknown.length) {
+          const listed = unknown.map((row) => (row.name || "Unknown payee") + " " + moneyCents(row.amount)).join(", ");
+          sentences.push("Unidentified credits are listed by name, not pooled into Other: " + listed + ".");
         }
         if (sentences.length) {
           warn.classList.remove("hidden");

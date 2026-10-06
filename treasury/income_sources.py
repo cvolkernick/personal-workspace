@@ -1,4 +1,4 @@
-"""Canonical Lyft / Grubhub / Turo income matcher, plus Braiins mining income.
+"""Canonical income matcher, plus Braiins mining income.
 
 The Cash Streams rolling chart classifies external inflows with
 ``classify_income_source``. The Monday forecast income drift check must
@@ -11,12 +11,15 @@ YNAB or Plaid.
 Match is case-insensitive on payee and category. A needle hits only as a
 whole token (bounded by anything that is not a letter or digit), so
 "Lyft Inc" and "HW*GrubHub Holdings Inc." count and "Grubby" does not.
-Needles are lyft, grubhub or grub, and turo. Payee is tried first, then
-category. Within one field, first source wins: lyft, then grubhub, then turo.
+Needles are lyft, grubhub or grub, turo, then rewards, interest, refunds,
+and cash deposit. Payee is tried first, then category. Within one field,
+first source wins, so Lyft still beats a later rewards needle on the same
+payee.
 
 This function does not apply transfer, starting-balance, or reconcile
 exclusions. Callers that share the cash-streams filter apply those first,
-then classify the remaining inflows.
+then classify the remaining inflows. Anything that still returns None is
+an unidentified credit and must stay under its own payee name.
 """
 
 from __future__ import annotations
@@ -35,24 +38,53 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 # Colors are the chart contract: Lyft pink, Grubhub orange, Turo gray.
 # Gray is light enough to read on the Cash Streams dark panel.
+# warn_if_zero is only the original three. A quiet Rewards window is normal
+# and must not light the renamed-payee warning.
 INCOME_SOURCE_LINES: Tuple[Dict[str, object], ...] = (
     {
         "id": "lyft",
         "label": "Lyft",
         "color": "#ff69b4",
         "needles": ("lyft",),
+        "warn_if_zero": True,
     },
     {
         "id": "grubhub",
         "label": "Grubhub",
         "color": "#ff8c1a",
         "needles": ("grubhub", "grub"),
+        "warn_if_zero": True,
     },
     {
         "id": "turo",
         "label": "Turo",
         "color": "#b7c0c8",
         "needles": ("turo",),
+        "warn_if_zero": True,
+    },
+    {
+        "id": "rewards",
+        "label": "Rewards",
+        "color": "#1abc9c",
+        "needles": ("reward", "rewards", "cashback", "cash back"),
+    },
+    {
+        "id": "interest",
+        "label": "Interest",
+        "color": "#5dade2",
+        "needles": ("interest",),
+    },
+    {
+        "id": "refunds",
+        "label": "Refunds",
+        "color": "#c39bd3",
+        "needles": ("refund", "refunds"),
+    },
+    {
+        "id": "cash_deposits",
+        "label": "Cash deposits",
+        "color": "#d4ac0d",
+        "needles": ("cash deposit", "cash deposits"),
     },
 )
 
@@ -64,6 +96,13 @@ def _token(needle: str) -> re.Pattern[str]:
 
 def income_source_ids() -> Tuple[str, ...]:
     return tuple(str(row["id"]) for row in INCOME_SOURCE_LINES)
+
+
+def income_source_warn_ids() -> Tuple[str, ...]:
+    """Sources that should warn when they are $0 and inflow is not."""
+    return tuple(
+        str(row["id"]) for row in INCOME_SOURCE_LINES if row.get("warn_if_zero")
+    )
 
 
 def income_source_public() -> List[Dict[str, str]]:
@@ -94,7 +133,7 @@ def _match_field(blob: str) -> Optional[str]:
 
 
 def classify_income_source(payee: object = "", category: object = "") -> Optional[str]:
-    """Return lyft, grubhub, or turo when payee or category matches. Else None."""
+    """Return a named source id when payee or category matches. Else None."""
     for part in (payee, category):
         hit = _match_field(str(part or ""))
         if hit:
