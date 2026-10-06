@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import shutil
 import subprocess
@@ -175,6 +176,88 @@ class TestSyncScriptGuards(unittest.TestCase):
             self.assertNotIn("investment/fund_manager_decisions.jsonl", found)
             self.assertNotIn("treasury/fund_manager_journal_sync.py", found)
             self.assertNotIn("treasury/fund_manager_journal_sync.pyc", found)
+
+
+def _write_expenses(repo: Path, as_of: str) -> None:
+    path = repo / "treasury" / "snapshots" / "expenses_latest.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"as_of": as_of, "source": "google_sheets", "summary": {}}),
+        encoding="utf-8",
+    )
+
+
+def _as_of(repo: Path) -> str:
+    path = repo / "treasury" / "snapshots" / "expenses_latest.json"
+    return json.loads(path.read_text(encoding="utf-8"))["as_of"]
+
+
+class TestExpensesAsOfNotClobbered(unittest.TestCase):
+    """#1053: workspace-sync must not put an older expenses snapshot back."""
+
+    def _run(self, repo: Path, home: Path):
+        deploy = repo / "deploy"
+        deploy.mkdir(exist_ok=True)
+        shutil.copy(MAP_PY, deploy / "product_branch_map.py")
+        shutil.copy(SYNC_SH, deploy / "workspace_sync.sh")
+        env = {
+            **GIT_ENV,
+            "WORKSPACE_DIR": str(repo),
+            "SYNC_BRANCH": "work/treasury",
+            "HOME": str(home),
+            "WORKSPACE_SYNC_KEEP_REMOTE": "1",
+        }
+        return subprocess.run(
+            ["bash", str(deploy / "workspace_sync.sh")],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    def _repo(self, td: Path, as_of: str) -> Path:
+        repo = td / "main"
+        repo.mkdir()
+        _git(repo, "init", "-b", "work/treasury")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "Test")
+        _write_expenses(repo, as_of)
+        _git(repo, "add", "treasury/snapshots/expenses_latest.json")
+        _git(repo, "commit", "-m", "expenses")
+        bare = td / "remote.git"
+        _git(td, "clone", "--bare", str(repo), str(bare))
+        _git(repo, "remote", "add", "origin", str(bare))
+        _git(repo, "push", "-u", "origin", "work/treasury")
+        return repo
+
+    def test_newer_pi_file_survives_older_commit(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ws-exp-new-") as td:
+            td_path = Path(td)
+            repo = self._repo(td_path, "2026-09-14T16:00:00+00:00")
+            _write_expenses(repo, "2026-10-03T20:53:00+00:00")
+            before = (repo / "treasury" / "snapshots" / "expenses_latest.json").read_bytes()
+            proc = self._run(repo, td_path / "home")
+            combined = proc.stdout + proc.stderr
+            self.assertEqual(proc.returncode, 0, combined)
+            self.assertEqual(_as_of(repo), "2026-10-03T20:53:00+00:00", combined)
+            self.assertEqual(
+                (repo / "treasury" / "snapshots" / "expenses_latest.json").read_bytes(),
+                before,
+            )
+
+    def test_newer_commit_replaces_older_pi_file(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="ws-exp-old-") as td:
+            td_path = Path(td)
+            repo = self._repo(td_path, "2026-09-14T16:00:00+00:00")
+            _write_expenses(repo, "2026-10-03T20:53:00+00:00")
+            _git(repo, "add", "treasury/snapshots/expenses_latest.json")
+            _git(repo, "commit", "-m", "newer expenses")
+            _git(repo, "push", "origin", "work/treasury")
+            _git(repo, "reset", "--hard", "HEAD~1")
+            self.assertEqual(_as_of(repo), "2026-09-14T16:00:00+00:00")
+            proc = self._run(repo, td_path / "home")
+            combined = proc.stdout + proc.stderr
+            self.assertEqual(proc.returncode, 0, combined)
+            self.assertEqual(_as_of(repo), "2026-10-03T20:53:00+00:00", combined)
 
 
 if __name__ == "__main__":
