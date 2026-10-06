@@ -12,6 +12,9 @@
   POST /api/session-index  — write ops/session-index only
   POST /api/start-work     — body {"area":"treasury"} → work/treasury
   GET  /api/health
+  GET  /api/kanban         — eng backlog columns over GitHub issues
+  POST /api/kanban/move    — status-label move when KANBAN_WRITE=1
+  GET  /kanban/            — eng board UI
   GET  /api/sprint         — ceremony state + optional Buzz Board columns
   GET  /api/process        — Schedule/Process: live Buzz workflows + day/week flow
 
@@ -79,12 +82,32 @@ from recommendations import (  # noqa: E402
 )
 from remote_backend import add_backend_args, resolve_backend, try_proxy_api  # noqa: E402
 from session_backup import write_full_archive, write_session_index  # noqa: E402
+from kanban_board import (  # noqa: E402
+    GitHubClient,
+    GitHubError,
+    KanbanAuthError,
+    load_board,
+    move_request,
+    write_enabled as kanban_write_enabled,
+)
 from process_schedule import process_payload  # noqa: E402
 from sprint import sprint_payload  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
 DEFAULT_PORT = 8765
 DEFAULT_BACKEND_CONFIG = ROOT / "backend.json"
+_KANBAN_DIST = ROOT / "eng-kanban" / "dist"
+_KANBAN_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".json": "application/json",
+    ".map": "application/json",
+    ".woff2": "font/woff2",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
 _BACKEND_URL: Optional[str] = None
 _BACKEND_LABEL: str = ""
 _FRONTEND: str = ""
@@ -117,7 +140,54 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
 
+    def _serve_kanban(self, path: str) -> None:
+        dist = _KANBAN_DIST.resolve()
+        index = dist / "index.html"
+        if not index.is_file():
+            body = (
+                "Eng board is not built. From projects-dashboard/eng-kanban "
+                "run npm ci && npm run build.\n"
+            ).encode("utf-8")
+            self.send_response(503)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        rel = path[len("/kanban") :].lstrip("/") or "index.html"
+        candidate = (dist / rel).resolve()
+        try:
+            candidate.relative_to(dist)
+        except ValueError:
+            candidate = index
+        if not candidate.is_file():
+            candidate = index
+        data = candidate.read_bytes()
+        self.send_response(200)
+        self.send_header(
+            "Content-Type",
+            _KANBAN_TYPES.get(candidate.suffix, "application/octet-stream"),
+        )
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self) -> None:  # noqa: N802
+        parsed_early = urlparse(self.path)
+        if parsed_early.path == "/api/kanban":
+            try:
+                self._json(200, load_board(GitHubClient.from_environment()))
+            except KanbanAuthError:
+                self._json(503, {"ok": False, "error": "GitHub token is not configured"})
+            except GitHubError as exc:
+                self._json(502, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                self._json(500, {"ok": False, "error": str(exc)})
+            return
+        if parsed_early.path == "/kanban" or parsed_early.path.startswith("/kanban/"):
+            self._serve_kanban(parsed_early.path)
+            return
         if try_proxy_api(
             self,
             _BACKEND_URL,
@@ -317,6 +387,24 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        if path == "/api/kanban/move":
+            body = self._read_json()
+            try:
+                result = move_request(
+                    body,
+                    GitHubClient.from_environment(),
+                    write_enabled=kanban_write_enabled(),
+                )
+            except KanbanAuthError:
+                self._json(503, {"ok": False, "error": "GitHub token is not configured"})
+                return
+            except GitHubError as exc:
+                self._json(502, {"ok": False, "error": str(exc)})
+                return
+            code = 200 if result.get("ok") else 409
+            self._json(code, result)
+            return
         if try_proxy_api(
             self,
             _BACKEND_URL,
