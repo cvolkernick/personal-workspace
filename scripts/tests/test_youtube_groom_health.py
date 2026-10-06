@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 MOD = ROOT / "youtube_groom_health.py"
@@ -78,15 +79,21 @@ class TestScanLog(unittest.TestCase):
         self.assertIsNone(scan.last_success_at)
 
     def test_invalid_grant_and_refresh_error(self):
-        scan = H.scan_log(_log(SUCCESS, GRANT))
+        scan = H.scan_log(_log(SUCCESS, GRANT), tz=timezone.utc)
         self.assertEqual(scan.last_failure_kind, "invalid_grant")
         self.assertIsNotNone(scan.last_failure_at)
         self.assertGreaterEqual(scan.last_failure_at, scan.last_success_at)
 
     def test_traceback_inherits_error_timestamp(self):
-        scan = H.scan_log(GRANT)
+        scan = H.scan_log(GRANT, tz=timezone.utc)
         self.assertEqual(scan.last_failure_kind, "invalid_grant")
         self.assertEqual(scan.last_failure_at, datetime(2026, 9, 6, 13, 0, 5, tzinfo=timezone.utc))
+
+    def test_asctime_is_host_local_not_utc(self):
+        line = "2026-10-04 19:30:53,123 ERROR quota soft-cap would exceed on list x1 (used=8000)"
+        got = H.line_timestamp(line, tz=ZoneInfo("America/New_York"))
+        self.assertEqual(got, datetime(2026, 10, 4, 23, 30, 53, tzinfo=timezone.utc))
+        self.assertNotEqual(got, datetime(2026, 10, 4, 19, 30, 53, tzinfo=timezone.utc))
 
     def test_uncaught_groom_failed(self):
         scan = H.scan_log(
@@ -96,6 +103,41 @@ class TestScanLog(unittest.TestCase):
             )
         )
         self.assertEqual(scan.last_failure_kind, "uncaught")
+
+
+class TestQuotaCapHealth(unittest.TestCase):
+    def test_soft_cap_line_is_throttled_not_uncaught(self):
+        # Pacific day 2026-10-05 starts 07:00Z. Grace is 09:00Z.
+        success = (
+            "2026-10-05T10:00:00+00:00 hour0=False dry=False listed=41 "
+            "del=0 {} remain=41 add=0 skip={} quota=200"
+        )
+        cap = "2026-10-05 12:30:00,000 ERROR quota soft-cap would exceed on list x1 (used=8000)"
+        scan = H.scan_log(_log(success, cap), tz=timezone.utc)
+        self.assertEqual(scan.last_failure_kind, "quota_cap")
+        self.assertNotEqual(scan.last_failure_kind, "uncaught")
+        now = datetime(2026, 10, 5, 16, 0, tzinfo=timezone.utc)
+        status, reason = H.classify_status(scan, now=now, writer_present=True)
+        self.assertEqual((status, reason), ("throttled", "quota_cap"))
+        decision = H.decide(scan, {}, now=now, writer_present=True)
+        self.assertEqual(decision.status, "throttled")
+        self.assertIsNone(decision.alert_kind)
+        self.assertFalse(decision.post)
+
+    def test_quota_skip_line_matches_quota_cap(self):
+        line = "quota_skip used=7950 cap=8000 resets_at=2026-10-06T00:00:00-07:00"
+        self.assertEqual(H.classify_failure(line), "quota_cap")
+
+    def test_no_success_since_reset_plus_2h_is_stale(self):
+        success = (
+            "2026-10-04T20:00:00+00:00 hour0=False dry=False listed=41 "
+            "del=0 {} remain=41 add=0 skip={} quota=200"
+        )
+        cap = "quota_cap quota soft-cap would exceed on list x1 (used=8000)"
+        scan = H.scan_log(_log(success, cap))
+        now = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
+        status, reason = H.classify_status(scan, now=now, writer_present=True)
+        self.assertEqual((status, reason), ("broken", "stale_success"))
 
 
 class TestClassify(unittest.TestCase):
@@ -132,7 +174,7 @@ class TestClassify(unittest.TestCase):
             "google.auth.exceptions.RefreshError: ('invalid_grant: Token has been "
             "expired or revoked.', {'error': 'invalid_grant'})"
         )
-        scan = H.scan_log(_log(success, fail))
+        scan = H.scan_log(_log(success, fail), tz=timezone.utc)
         self.assertEqual(scan.last_tick, "failure")
         self.assertEqual(scan.last_failure_kind, "invalid_grant")
         self.assertLess(scan.last_failure_at, scan.last_success_at)
@@ -151,7 +193,7 @@ class TestClassify(unittest.TestCase):
             "2026-09-06T16:30:00+00:00 hour0=False dry=False listed=28 "
             "del=13 remain=28 add=9 skip={} quota=400"
         )
-        scan = H.scan_log(_log(fail, success))
+        scan = H.scan_log(_log(fail, success), tz=timezone.utc)
         self.assertEqual(scan.last_tick, "success")
         self.assertGreater(scan.last_failure_at, scan.last_success_at)
         later = datetime(2026, 9, 6, 17, 0, tzinfo=timezone.utc)

@@ -75,6 +75,68 @@ LIVE_SEED_IDS = {
 }
 
 
+class TestRetiredSeeds(unittest.TestCase):
+    def test_ladder_has_the_corrected_channel_ids(self):
+        ids = {cid for cid, _name in C.EXTRA_SEED_LADDER}
+        self.assertIn("UCevXpeL8cNyAnww-NqJ4m2w", ids)
+        self.assertIn("UCru3nlhzHrbgK21x0MdB_eg", ids)
+        self.assertNotIn("UCYXLs8tkNQrENrT1s60rxCw", ids)
+        self.assertNotIn("UCfs-Vb0DOIZNN0xKyfz-svg", ids)
+        self.assertEqual(C.EXTRA_SEED_LADDER, P.EXTRA_SEED_LADDER)
+
+    def test_migrate_replaces_lookalikes_without_keeping_both(self):
+        extra = C.migrate_seed_extra(
+            {
+                "UCYXLs8tkNQrENrT1s60rxCw": "Anthony Pompliano",
+                "UCfs-Vb0DOIZNN0xKyfz-svg": "Natalie Brunell",
+                "UCtvg5cXLY_tHDJeBoRySBtg": "What Bitcoin Did",
+            }
+        )
+        self.assertNotIn("UCYXLs8tkNQrENrT1s60rxCw", extra)
+        self.assertNotIn("UCfs-Vb0DOIZNN0xKyfz-svg", extra)
+        self.assertEqual(extra["UCevXpeL8cNyAnww-NqJ4m2w"], "Anthony Pompliano")
+        self.assertEqual(extra["UCru3nlhzHrbgK21x0MdB_eg"], "Natalie Brunell")
+        self.assertEqual(extra["UCtvg5cXLY_tHDJeBoRySBtg"], "What Bitcoin Did")
+
+    def test_one_control_tick_drops_retired_ids_from_knobs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_path = root / "control_state.json"
+            knobs_path = root / "knobs.json"
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": C.SCHEMA_VERSION,
+                        "knobs": {
+                            **C.DEFAULT_KNOBS,
+                            "SEED_EXTRA": {
+                                "UCYXLs8tkNQrENrT1s60rxCw": "Anthony Pompliano",
+                                "UCfs-Vb0DOIZNN0xKyfz-svg": "Natalie Brunell",
+                            },
+                        },
+                        "last_action": None,
+                        "last_tick_at": None,
+                        "cooldown_remaining": 0,
+                        "limits_hit": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            C.run_loop(
+                _tick(remain=242, add=0, deleted=0),
+                _quota(),
+                state_path=state_path,
+                knobs_path=knobs_path,
+                dry_run=False,
+            )
+            knobs = json.loads(knobs_path.read_text(encoding="utf-8"))
+            extra = knobs["SEED_EXTRA"]
+            self.assertNotIn("UCYXLs8tkNQrENrT1s60rxCw", extra)
+            self.assertNotIn("UCfs-Vb0DOIZNN0xKyfz-svg", extra)
+            self.assertEqual(extra["UCevXpeL8cNyAnww-NqJ4m2w"], "Anthony Pompliano")
+            self.assertEqual(extra["UCru3nlhzHrbgK21x0MdB_eg"], "Natalie Brunell")
+
+
 class TestBandMath(unittest.TestCase):
     def test_policy_and_control_agree(self):
         self.assertEqual(C.HOUSE_TARGET, P.HOUSE_TARGET)

@@ -126,9 +126,9 @@ QUOTA_GUARD_IN_NEST = None
 EXTRA_SEED_LADDER = (
     ("UCtvg5cXLY_tHDJeBoRySBtg", "What Bitcoin Did"),
     ("UCCpNQKYvrnWQNjZprabMJlw", "Peter H. Diamandis"),
-    ("UCYXLs8tkNQrENrT1s60rxCw", "Anthony Pompliano"),
+    ("UCevXpeL8cNyAnww-NqJ4m2w", "Anthony Pompliano"),
     ("UCk6EGp5yqsB-YtBE3AF8dWw", "Bitcoin Magazine"),
-    ("UCfs-Vb0DOIZNN0xKyfz-svg", "Natalie Brunell"),
+    ("UCru3nlhzHrbgK21x0MdB_eg", "Natalie Brunell"),
     ("UCPcO_WZXKQa1lFwCGltWc8A", "Brent Johnson Milkshakes Pod"),
 )
 
