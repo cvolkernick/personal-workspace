@@ -54,6 +54,13 @@
       font-weight: 600; text-decoration: none;
     }
     a.btn-bl-orch:hover { border-color: var(--accent); color: var(--accent); }
+    a.nav-board {
+      display: inline-flex; align-items: center;
+      background: var(--panel); border: 1px solid var(--border); color: var(--text);
+      border-radius: 8px; padding: 0.45rem 0.9rem; font-size: 0.9rem;
+      font-weight: 600; text-decoration: none;
+    }
+    a.nav-board:hover { border-color: var(--accent); color: var(--accent); }
     .rec-card.orch-focus {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
@@ -794,6 +801,7 @@
       <div class="header-meta" id="header-meta"></div>
     </div>
     <div class="actions">
+      <a class="nav-board" href="/kanban/">Eng board</a>
       <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched only</label>
       <span id="updated" class="sub"></span>
       <button type="button" id="btn-session-index" title="Write ops/session-index to disk">Session index</button>

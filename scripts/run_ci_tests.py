@@ -116,6 +116,24 @@ def run_gethelpfrom_node() -> int:
     return _run(["node", "--test", "tests/web.test.js"], cwd=root, env=os.environ.copy())
 
 
+def discover_kanban_node(root: Path = ROOT) -> Path | None:
+    ui = root / "projects-dashboard" / "eng-kanban"
+    if (ui / "package.json").is_file() and (ui / "package-lock.json").is_file():
+        return ui
+    return None
+
+
+def run_kanban_node() -> int:
+    root = discover_kanban_node()
+    if root is None:
+        print("projects-dashboard/eng-kanban package-lock.json missing")
+        return 1
+    code = _run(["npm", "ci", "--ignore-scripts"], cwd=root, env=os.environ.copy())
+    if code != 0:
+        return code
+    return _run(["npm", "test"], cwd=root, env=os.environ.copy())
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--python-only", action="store_true")
@@ -140,6 +158,10 @@ def main(argv: list[str] | None = None) -> int:
         print("gethelpfrom:")
         for s in discover_gethelpfrom_node_tests():
             print(" ", s.relative_to(ROOT))
+        kanban = discover_kanban_node()
+        print("kanban:")
+        if kanban is not None:
+            print(" ", kanban.relative_to(ROOT))
         return 0
 
     results: list[tuple[str, int]] = []
@@ -155,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
             label = str(path.relative_to(ROOT))
             results.append((label, run_js(path)))
         results.append(("products/gethelpfrom.ai/tests/web.test.js", run_gethelpfrom_node()))
+        results.append(("projects-dashboard/eng-kanban", run_kanban_node()))
 
     print()
     print("| Suite | Result |")
