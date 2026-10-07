@@ -23,7 +23,7 @@ Secrets (`BLAND_AGENT_ID`, API keys, Drive tokens) live in env — never in this
 
 ## Canonical store host (#1048)
 
-prism-gateway (user `prism-agent`) is the canonical host for this JSON store. P1 (#1049) replaces it with one SQLite file and an API on the same host. Until that lands, the pipeline keeps `FileStore`.
+prism-gateway (user `prism-agent`) is the canonical host for this JSON store. P1 (#1049) adds `workflows/crm/` (SQLite + `crm-api`) and a `CrmStore` adapter. The pipeline still defaults to `FileStore`. Set `PANAMERICA_ROADSIDE_BACKEND=crm` only after the importer parity report matches. `file` leaves the backup JSON untouched.
 
 | Item | Path on prism-gateway |
 |------|------------------------|

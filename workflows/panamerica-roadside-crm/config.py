@@ -43,6 +43,9 @@ class Config:
     simulate_replies: bool = False
     simulate_interest: bool = False
     now: Optional[Callable[[], datetime]] = None
+    # file until a fixture dry-run matches. crm is the P1 SQLite adapter.
+    backend: str = "file"
+    crm_db_path: Optional[Path] = None
 
     def clock(self) -> datetime:
         if self.now is not None:
@@ -81,6 +84,10 @@ class Config:
             webhook_secret=_env("PANAMERICA_ROADSIDE_WEBHOOK_SECRET"),
             webhook_public_url=_env("PANAMERICA_ROADSIDE_WEBHOOK_URL"),
             fixture_path=Path(fixture).expanduser() if fixture else None,
+            backend=_env("PANAMERICA_ROADSIDE_BACKEND", "file").lower() or "file",
+            crm_db_path=Path(_env("PANAMERICA_CRM_DB")).expanduser()
+            if _env("PANAMERICA_CRM_DB")
+            else None,
         )
         return replace(cfg, **overrides) if overrides else cfg
 
@@ -112,7 +119,7 @@ class Config:
             "vision_key_set": bool(self.vision_api_key),
             "alert_webhook_set": bool(self.alert_webhook),
             "webhook_secret_set": bool(self.webhook_secret),
-            "canonical_store": "file",
+            "canonical_store": self.backend or "file",
         }
 
 
