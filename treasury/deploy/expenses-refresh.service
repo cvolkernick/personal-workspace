@@ -1,0 +1,19 @@
+[Unit]
+Description=Expense sheet snapshot producer (prism/Pi, #1053)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=prism-agent
+Group=prism-agent
+WorkingDirectory=/home/prism-agent/personal-workspace
+ExecStart=/home/prism-agent/personal-workspace/treasury/expenses_refresh.sh
+Environment=HOME=/home/prism-agent
+Environment=FCC_HOST_TAG=prism
+Environment=TREASURY_SKIP_PUSH_PI=1
+Environment=PATH=/home/prism-agent/.grok/bin:/home/prism-agent/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Public Google sheet CSV. Does not place orders or push snapshots.
+
+[Install]
+WantedBy=multi-user.target

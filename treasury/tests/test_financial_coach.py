@@ -301,5 +301,27 @@ class TestInferHabitsFleetOps(unittest.TestCase):
         self.assertNotIn("Unspecified", by_src)
 
 
+class TestExpensesFreshnessOnPlan(unittest.TestCase):
+    def test_plan_flags_stale_expenses_with_as_of(self):
+        snaps = {
+            "expenses": {
+                "as_of": "2026-09-14T16:00:00+00:00",
+                "source": "google_sheets",
+                "tabs": {},
+                "summary": {},
+            }
+        }
+        plan = build_coach_plan(snaps, today=date(2026, 10, 6))
+        fresh = plan["expenses_freshness"]
+        self.assertTrue(fresh["stale"])
+        self.assertIn("2026-09-14T16:00:00+00:00", fresh["label"])
+        self.assertIn("h old", fresh["label"])
+        why = {
+            d["field"]: d["why"] for d in plan["data_requests"]
+        }
+        self.assertIn("expenses_freshness", why)
+        self.assertIn("2026-09-14T16:00:00+00:00", why["expenses_freshness"])
+
+
 if __name__ == "__main__":
     unittest.main()

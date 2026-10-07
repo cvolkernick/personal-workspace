@@ -582,6 +582,93 @@ class RhNotifyAc4Tests(unittest.TestCase):
         self.assertNotIn("ntfy.sh", posted)
 
 
+class ExpensesPushGuardTests(unittest.TestCase):
+    def test_decision_never_replaces_newer_with_older(self) -> None:
+        older = datetime(2026, 9, 14, tzinfo=timezone.utc)
+        newer = datetime(2026, 10, 3, 20, 53, tzinfo=timezone.utc)
+        self.assertEqual(
+            rss.expenses_push_decision(older, "ok", newer),
+            "skip_remote_newer_or_equal",
+        )
+        self.assertEqual(rss.expenses_push_decision(newer, "ok", older), "push")
+        self.assertEqual(
+            rss.expenses_push_decision(newer, "ok", newer),
+            "skip_remote_newer_or_equal",
+        )
+        self.assertEqual(rss.expenses_push_decision(newer, "missing", None), "push")
+        self.assertEqual(
+            rss.expenses_push_decision(newer, "unreadable", None),
+            "skip_remote_unreadable",
+        )
+        self.assertEqual(
+            rss.expenses_push_decision(None, "ok", newer),
+            "skip_local_as_of_missing",
+        )
+
+    def test_push_older_snapshot_leaves_pi_copy_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            local_dir = root / "local"
+            local_dir.mkdir()
+            pi = root / "pi" / "expenses_latest.json"
+            pi.parent.mkdir()
+            pi_body = {
+                "as_of": "2026-10-03T20:53:00+00:00",
+                "source": "google_sheets",
+                "summary": {"upcoming_expense_monthly": 1},
+            }
+            pi.write_text(json.dumps(pi_body), encoding="utf-8")
+            before = pi.read_bytes()
+            before_mtime = pi.stat().st_mtime_ns
+            (local_dir / "expenses_latest.json").write_text(
+                json.dumps(
+                    {
+                        "as_of": "2026-09-14T16:00:00+00:00",
+                        "source": "google_sheets",
+                        "summary": {"upcoming_expense_monthly": 0},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            real_run = rss.subprocess.run
+
+            def fake_run(cmd, **kwargs):
+                cmd = list(cmd)
+                result = mock.Mock(returncode=0, stdout="", stderr="")
+                if cmd and cmd[0] == "scp":
+                    raise AssertionError(
+                        "older expenses snapshot must not be copied onto the Pi"
+                    )
+                if cmd and cmd[0] == "ssh" and "python3" in cmd:
+                    # patch.object replaces subprocess.run on the module, so
+                    # the Pi-side reader has to call the original.
+                    ran = real_run(
+                        [rss.sys.executable, "-", str(pi)],
+                        input=kwargs.get("input") or "",
+                        capture_output=True,
+                        text=True,
+                    )
+                    result.returncode = ran.returncode
+                    result.stdout = ran.stdout
+                    result.stderr = ran.stderr
+                    return result
+                return result
+
+            with mock.patch.object(rss, "SNAPSHOTS_DIR", local_dir), mock.patch.object(
+                rss, "_pi_settings", _fake_pi_settings
+            ), mock.patch.object(
+                rss.shutil, "which", return_value="/usr/bin/scp"
+            ), mock.patch.object(rss.subprocess, "run", side_effect=fake_run):
+                out = rss.push_snapshots_to_pi(files=["expenses_latest.json"])
+
+            self.assertNotIn("expenses_latest.json", out["pushed"])
+            self.assertEqual(out["skipped"][0]["reason"], "skip_remote_newer_or_equal")
+            self.assertEqual(out["skipped"][0]["remote_as_of"], "2026-10-03T20:53:00+00:00")
+            self.assertEqual(pi.read_bytes(), before)
+            self.assertEqual(pi.stat().st_mtime_ns, before_mtime)
+
+
 def _fake_pi_settings() -> dict:
     return {
         "ssh": "prism-agent@192.168.100.98",

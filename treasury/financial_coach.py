@@ -26,6 +26,7 @@ if str(ROOT) not in sys.path:
 from treasury.adapters import SNAPSHOTS_DIR, load_json  # noqa: E402
 from treasury.expenses_sync import (  # noqa: E402
     by_source,
+    expenses_freshness,
     funded_unique_fleet_items,
     parse_sheet_date,
 )
@@ -455,17 +456,23 @@ def collect_data_requests(
     ):
         age = _age_hours(snap.get("as_of")) if snap else None
         if snap and age is not None and age > max_h:
+            as_of_txt = snap.get("as_of") or "missing"
             reqs.append(
                 {
                     "field": f"{name}_freshness",
                     "why": (
-                        f"{name} snapshot is ~{age:.0f}h old (warn >{max_h:.0f}h); "
+                        f"{name} snapshot is {age:.1f}h old "
+                        f"(as of {as_of_txt}; warn >{max_h:.0f}h); "
                         "balances may be wrong until YNAB/sync refresh."
                     ),
                     "how": (
                         "FCC Refresh (live) or python3 treasury/ynab_sync.py"
                         if name in ("x_money", "one_card", "rh_checking")
-                        else f"Refresh via FCC or matching sync for {name}."
+                        else (
+                            "Pi expenses-refresh.timer, or python3 -m treasury.expenses_sync"
+                            if name == "expenses"
+                            else f"Refresh via FCC or matching sync for {name}."
+                        )
                     ),
                 }
             )
@@ -609,6 +616,7 @@ def build_coach_plan(
         "ok": True,
         "as_of_plan": t.isoformat(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "expenses_freshness": expenses_freshness(expenses),
         "summary": {
             "obligation_count": len(lines),
             "total_due": total_due,
