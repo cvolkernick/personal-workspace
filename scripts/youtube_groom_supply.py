@@ -420,6 +420,7 @@ def supply_tick(
     after_prune: int,
     house_target: int = HOUSE_TARGET,
     cap: int = CAP,
+    max_searches: Optional[int] = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Append discovery candidates and tag every candidate's lane.
 
@@ -437,7 +438,8 @@ def supply_tick(
         max(0, int(cap) - max(0, after_prune)),
     )
     inserts_wanted = climb_inserts_allowed(adds_today(state, now), slots)
-    searches = search_budget(quota_remaining, inserts_wanted)
+    search_cap = MAX_SEARCHES_PER_TICK if max_searches is None else max(0, int(max_searches))
+    searches = search_budget(quota_remaining, inserts_wanted, max_searches=search_cap)
     blocker = ""
     if searches == 0 and inserts_wanted > 0:
         blocker = "quota_headroom"
@@ -455,7 +457,9 @@ def supply_tick(
                     published_after=published_after,
                     max_results=DISCOVERY_RESULTS,
                 )
-            except Exception:
+            except Exception as exc:
+                if exc.__class__.__name__ == "QuotaCapReached":
+                    raise
                 break
             search_calls += 1
             for item in items or []:
@@ -503,7 +507,9 @@ def supply_tick(
                 break
             try:
                 ups = yt.uploads(cid, max_results=DISCOVERY_UPLOADS_PER_CHANNEL)
-            except Exception:
+            except Exception as exc:
+                if exc.__class__.__name__ == "QuotaCapReached":
+                    raise
                 continue
             for up in ups or []:
                 cand = candidate_from_item(
@@ -554,7 +560,9 @@ def _subscribed_ids(
             ids = {str(x) for x in yt.subscription_channel_ids(max_pages=SUBSCRIPTION_PAGES)}
             state["subscribed_channels"] = {"day": today, "ids": sorted(ids), "source": "api"}
             source = "api"
-        except Exception:
+        except Exception as exc:
+            if exc.__class__.__name__ == "QuotaCapReached":
+                raise
             ids = set()
             source = "seeds_only"
     return ids | set(subscribed_seed), source

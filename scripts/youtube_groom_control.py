@@ -69,15 +69,23 @@ TICKS_PER_DAY_NOTCHES = (24, 48)
 
 # Extra seed ladder from the 2026-08-14 inspect (channels that were already
 # on AI Curated, not in the live 6 keepers + 4 throttle). One channel per
-# broaden notch. IDs resolved from the public @handle pages 2026-09-20.
+# broaden notch. Pompliano and Brunell were corrected in #1074: the 2026-09-20
+# handle lookup stored empty look-alike channels.
 EXTRA_SEED_LADDER = (
     ("UCtvg5cXLY_tHDJeBoRySBtg", "What Bitcoin Did"),
     ("UCCpNQKYvrnWQNjZprabMJlw", "Peter H. Diamandis"),
-    ("UCYXLs8tkNQrENrT1s60rxCw", "Anthony Pompliano"),
+    ("UCevXpeL8cNyAnww-NqJ4m2w", "Anthony Pompliano"),
     ("UCk6EGp5yqsB-YtBE3AF8dWw", "Bitcoin Magazine"),
-    ("UCfs-Vb0DOIZNN0xKyfz-svg", "Natalie Brunell"),
+    ("UCru3nlhzHrbgK21x0MdB_eg", "Natalie Brunell"),
     ("UCPcO_WZXKQa1lFwCGltWc8A", "Brent Johnson Milkshakes Pod"),
 )
+
+# #1074: 2026-09-20 handle resolution stored empty look-alikes. Remove these
+# IDs from SEED_EXTRA. Do not keep them beside the corrected ladder IDs.
+RETIRED_SEED_IDS = {
+    "UCYXLs8tkNQrENrT1s60rxCw": "UCevXpeL8cNyAnww-NqJ4m2w",
+    "UCfs-Vb0DOIZNN0xKyfz-svg": "UCru3nlhzHrbgK21x0MdB_eg",
+}
 
 DEFAULT_KNOBS: dict[str, Any] = {
     "MIN_FIT": 0,
@@ -197,6 +205,29 @@ def _seed_extra_dict(knobs: dict[str, Any]) -> dict[str, str]:
     if not isinstance(raw, dict):
         return {}
     return {str(k): str(v) for k, v in raw.items()}
+
+
+def migrate_seed_extra(extra: Any) -> dict[str, str]:
+    """Drop retired look-alike channel IDs. Do not keep them and the replacements."""
+    if not isinstance(extra, dict):
+        return {}
+    ladder = dict(EXTRA_SEED_LADDER)
+    out: dict[str, str] = {}
+    for cid, name in extra.items():
+        cid = str(cid)
+        replacement = RETIRED_SEED_IDS.get(cid)
+        if replacement:
+            if replacement not in out:
+                out[replacement] = ladder.get(replacement, str(name))
+            continue
+        out[cid] = str(name)
+    return out
+
+
+def _with_migrated_seeds(knobs: dict[str, Any]) -> dict[str, Any]:
+    out = dict(knobs)
+    out["SEED_EXTRA"] = migrate_seed_extra(out.get("SEED_EXTRA"))
+    return out
 
 
 def next_extra_seed(knobs: dict[str, Any]) -> Optional[tuple[str, str]]:
@@ -532,7 +563,7 @@ def decide(
     quota: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Pick rest / one loosen / one tighten. Idempotent per last_tick.at."""
-    knobs = {**DEFAULT_KNOBS, **(knobs or {})}
+    knobs = _with_migrated_seeds({**DEFAULT_KNOBS, **(knobs or {})})
     last_action = state.get("last_action")
     cooldown = int(state.get("cooldown_remaining") or 0)
     tick_at = metrics.get("tick_at")
@@ -542,7 +573,7 @@ def decide(
         replay = deepcopy(state["last_adjustment"])
         replay["replay"] = True
         return {
-            "knobs": deepcopy(state.get("knobs") or knobs),
+            "knobs": _with_migrated_seeds(deepcopy(state.get("knobs") or knobs)),
             "adjustment": replay,
             "limits_hit": list(state.get("limits_hit") or []),
             "cooldown_remaining": cooldown,
@@ -694,6 +725,8 @@ def load_state(path: Path = STATE_PATH) -> dict[str, Any]:
     else:
         data["knobs"] = {**DEFAULT_KNOBS, **(data.get("knobs") or {})}
         data["schema_version"] = schema
+    if isinstance(data.get("knobs"), dict):
+        data["knobs"] = _with_migrated_seeds(data["knobs"])
     return data
 
 
@@ -876,9 +909,9 @@ def apply_live_knobs(g: dict[str, Any], *, knobs_path: Optional[Path] = None) ->
             value = min(int(value), ceilings[key])
         g[key] = value
         applied[key] = value
-    extra = knobs.get("SEED_EXTRA") or {}
-    if extra and isinstance(extra, dict) and "SEED_KEEPERS" in g and isinstance(g["SEED_KEEPERS"], dict):
-        g["SEED_KEEPERS"] = {**g["SEED_KEEPERS"], **{str(k): str(v) for k, v in extra.items()}}
+    extra = migrate_seed_extra(knobs.get("SEED_EXTRA") or {})
+    if extra and "SEED_KEEPERS" in g and isinstance(g["SEED_KEEPERS"], dict):
+        g["SEED_KEEPERS"] = {**g["SEED_KEEPERS"], **extra}
         applied["SEED_EXTRA"] = extra
     return applied
 

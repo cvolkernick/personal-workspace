@@ -9,6 +9,10 @@ Verified **broken** when the log is readable and:
   * last tick shows RefreshError / invalid_grant / uncaught exception, OR
   * last successful ``listed=`` is older than STALE_AFTER (2h).
 
+A quota soft-cap stop is **throttled**, not broken, when the next Pacific
+reset is under 24h away and a tick has succeeded since that reset plus 2h.
+It does not page. Asctime log lines are host-local, not UTC.
+
 **unknown** (check failed, never "BROKEN") when the log is missing, empty,
 unreadable, or has no parseable tick. "I couldn't tell" is not a groom failure.
 
@@ -33,6 +37,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
+from zoneinfo import ZoneInfo
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from youtube_groom_quota import next_reset, quota_window_start
 
 STATE_DIR = Path(
     os.environ.get("YOUTUBE_GROOM_DIR", Path.home() / ".local" / "share" / "youtube-groom")
@@ -62,6 +73,10 @@ TS_LOG = re.compile(
 )
 
 FAILURE_KINDS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "quota_cap",
+        re.compile(r"quota_skip\b|quota soft-cap would exceed|\bquota_cap\b", re.I),
+    ),
     ("invalid_grant", re.compile(r"invalid_grant", re.I)),
     ("RefreshError", re.compile(r"RefreshError", re.I)),
     (
@@ -93,13 +108,26 @@ def parse_ts(raw: str) -> Optional[datetime]:
     return dt.astimezone(timezone.utc)
 
 
-def line_timestamp(line: str) -> Optional[datetime]:
+def local_timezone() -> Any:
+    """Host zone for logging asctime lines. ``YOUTUBE_GROOM_LOG_TZ`` overrides it."""
+    raw = os.environ.get("YOUTUBE_GROOM_LOG_TZ", "").strip()
+    if raw:
+        if raw.upper() in {"UTC", "Z"}:
+            return timezone.utc
+        return ZoneInfo(raw)
+    tz = datetime.now().astimezone().tzinfo
+    return tz or timezone.utc
+
+
+def line_timestamp(line: str, tz: Any = None) -> Optional[datetime]:
     m = TS_ISO.match(line)
     if m:
         return parse_ts(m.group("ts"))
     m = TS_LOG.match(line)
     if m:
-        return parse_ts(m.group("ts").replace(" ", "T") + "+00:00")
+        naive = datetime.strptime(m.group("ts"), "%Y-%m-%d %H:%M:%S")
+        zone = local_timezone() if tz is None else tz
+        return naive.replace(tzinfo=zone).astimezone(timezone.utc)
     return None
 
 
@@ -133,7 +161,7 @@ class LogScan:
 
 @dataclass
 class HealthDecision:
-    status: str  # healthy | broken | skipped | unknown
+    status: str  # healthy | broken | throttled | skipped | unknown
     reason: str
     scan: LogScan
     alert_kind: Optional[str] = None  # broken | recovery | reminder
@@ -147,12 +175,12 @@ class HealthDecision:
     extra_tags: list[list[str]] = field(default_factory=list)
 
 
-def scan_log(text: str) -> LogScan:
+def scan_log(text: str, tz: Any = None) -> LogScan:
     scan = LogScan(empty_log=not text.strip())
     current_ts: Optional[datetime] = None
     for raw in text.splitlines():
         line = raw.rstrip("\n")
-        ts = line_timestamp(line)
+        ts = line_timestamp(line, tz=tz)
         if ts is not None:
             current_ts = ts
         if not line.strip():
@@ -252,6 +280,17 @@ def classify_status(scan: LogScan, *, now: datetime, writer_present: bool) -> tu
     # Last-tick is scan order (later line in the file), not last_fail >= last_ok.
     # Mixed clocks: ISO UTC success vs asctime-as-UTC would hide a later invalid_grant.
     if scan.last_tick == "failure":
+        if scan.last_failure_kind == "quota_cap":
+            reset = next_reset(now)
+            if reset.astimezone(timezone.utc) - now >= timedelta(hours=24):
+                return "broken", "quota_cap"
+            grace = quota_window_start(now) + timedelta(hours=2)
+            last_ok = scan.last_success_at
+            if now >= grace.astimezone(timezone.utc) and (
+                last_ok is None or last_ok < grace.astimezone(timezone.utc)
+            ):
+                return "broken", "stale_success"
+            return "throttled", "quota_cap"
         return "broken", scan.last_failure_kind or "uncaught"
     if scan.last_tick != "success":
         return "unknown", "no_parseable_tick"
@@ -334,6 +373,13 @@ def decide(
 
     if status == "skipped":
         decision.persist = False
+        return decision
+
+    if status == "throttled":
+        # Soft-cap stop inside the current Pacific quota day. Do not page.
+        decision.broken_since = None
+        decision.alert_kind = None
+        decision.post = False
         return decision
 
     if status == "broken":
