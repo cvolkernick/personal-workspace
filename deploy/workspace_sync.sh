@@ -17,6 +17,12 @@ BRANCH="${SYNC_BRANCH:-work/treasury}"
 REMOTE="${SYNC_REMOTE:-origin}"
 LOG_TAG="workspace-sync"
 DURABLE_TAR="${TMPDIR:-/tmp}/workspace-sync-durable-$$.tgz"
+# Side copies of expenses_latest.json (#1053). The durable tar of
+# treasury/snapshots can fail (thousands of logs) and is swallowed. A hard
+# reset then leaves the committed Mac copy, which is how a stale sheet
+# came back. These two files are the clock we compare after that reset.
+EXPENSES_SAVED="${TMPDIR:-/tmp}/workspace-sync-expenses-pre-$$.json"
+EXPENSES_RESET="${TMPDIR:-/tmp}/workspace-sync-expenses-reset-$$.json"
 LOG_DIR="${HOME}/.local/share/workspace-sync"
 LOG_FILE="${LOG_DIR}/sync.log"
 SERVED_SHA_FILE="${HOME}/.config/personal-workspace/last_served_origin_sha"
@@ -127,6 +133,84 @@ restore_durable() {
     rm -f "$DURABLE_TAR"
     log "restored durable runtime state"
   fi
+}
+
+# Issue #1053: never let an older expenses_latest.json replace a newer as_of.
+save_expenses_clock() {
+  rm -f "$EXPENSES_SAVED"
+  if [[ -f treasury/snapshots/expenses_latest.json ]]; then
+    cp -p treasury/snapshots/expenses_latest.json "$EXPENSES_SAVED" \
+      || log "WARN: could not side-copy expenses snapshot"
+  fi
+}
+
+capture_reset_expenses() {
+  rm -f "$EXPENSES_RESET"
+  if [[ -f treasury/snapshots/expenses_latest.json ]]; then
+    cp -p treasury/snapshots/expenses_latest.json "$EXPENSES_RESET" || true
+  fi
+}
+
+keep_newer_expenses() {
+  local live="treasury/snapshots/expenses_latest.json"
+  local -a args=("$live")
+  [[ -f "${EXPENSES_SAVED:-}" ]] && args+=("$EXPENSES_SAVED")
+  [[ -f "${EXPENSES_RESET:-}" ]] && args+=("$EXPENSES_RESET")
+  if [[ ! -f "${EXPENSES_SAVED:-}" && ! -f "${EXPENSES_RESET:-}" ]]; then
+    return 0
+  fi
+  local out
+  if out=$(python3 - "${args[@]}" <<'PY'
+import json, shutil, sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+def as_of(path):
+    p = Path(path)
+    if not p.is_file():
+        return None
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict) or not data.get("as_of"):
+        return None
+    try:
+        t = datetime.fromisoformat(str(data["as_of"]).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t
+
+dest = Path(sys.argv[1])
+best = None
+best_t = None
+for raw in sys.argv[1:]:
+    t = as_of(raw)
+    if t is None:
+        continue
+    if best_t is None or t > best_t:
+        best_t = t
+        best = Path(raw)
+if best is None or best_t is None:
+    print("unchanged")
+    raise SystemExit(0)
+if best.resolve() != dest.resolve():
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(best, dest)
+print(best_t.isoformat())
+PY
+  ); then
+    log "expenses as_of kept ${out:-unchanged}"
+  else
+    log "WARN: expenses as_of compare failed — restoring pre-sync copy"
+    if [[ -f "${EXPENSES_SAVED:-}" ]]; then
+      mkdir -p treasury/snapshots
+      cp -p "$EXPENSES_SAVED" "$live" || true
+    fi
+  fi
+  rm -f "${EXPENSES_SAVED:-}" "${EXPENSES_RESET:-}"
 }
 
 # Unstick mid-rebase / merge / cherry-pick that leave HEAD detached and break checkout.
@@ -270,6 +354,7 @@ BEFORE="$(git rev-parse HEAD 2>/dev/null || echo none)"
 CURRENT="$(git branch --show-current 2>/dev/null || true)"
 log "sync start branch=${CURRENT:-detached} HEAD=${BEFORE:0:8}"
 
+save_expenses_clock
 preserve_durable
 clear_in_progress_git_ops
 clean_blocking_untracked
@@ -277,6 +362,7 @@ clean_blocking_untracked
 if ! git_auth fetch --prune "$REMOTE" "$BRANCH"; then
   log "ERROR: git fetch failed (check network / GITHUB_TOKEN in ~/.config/workflow-scheduler.env)"
   restore_durable
+  keep_newer_expenses
   exit 1
 fi
 
@@ -286,10 +372,13 @@ clean_blocking_untracked
 
 if ! land_on_remote_branch; then
   restore_durable
+  keep_newer_expenses
   exit 1
 fi
 
+capture_reset_expenses
 restore_durable
+keep_newer_expenses
 
 # Stamp expected branch for FCC UI / tip-health (issue #628). File is in git on
 # work/treasury; rewriting keeps it correct if a local protect overwrote it.
