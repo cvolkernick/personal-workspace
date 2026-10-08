@@ -10501,3 +10501,381 @@
 - **critic:** challenge — Hold preferred when bands ok — avoid churn
 - **executor:** await_team — No MCP orders on pure rules HOLD
 
+
+## 2026-10-08T13:36:43 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T13:51:46 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T14:06:47 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T14:21:47 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T14:36:49 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T14:51:52 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T15:06:51 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T15:21:52 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T15:36:57 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T15:51:57 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T16:06:57 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T16:21:58 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T16:30:23 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T16:36:58 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T16:52:02 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T17:07:03 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T17:22:07 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T17:37:06 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T17:52:07 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T18:07:10 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T18:22:11 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T18:37:11 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T18:52:14 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T19:07:18 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T19:22:19 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T19:37:28 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-10-08T19:52:31 — rebalance
+**Summary:** Rules → need team/LLM: drift BTC-complex=20% stocks=80% (targets 60/40 ±5%)
+**Book:** NAV $423.9773 · BP $0.16
+**Weights before (deployed):** BTC-complex 0.1952 · Stocks 0.8048
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $423.98 BP $0.16 cash $0.16
+- **thesis:** rebalance — deployed BTC 0.1952 stocks 0.8048
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
