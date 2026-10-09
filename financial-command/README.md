@@ -47,6 +47,10 @@ Root-absolute assets from those apps (`fetch("/api/…")`, `<script src="/app.js
 | `/api/refresh` | POST | Re-run evaluation (`{"offline": true}` optional) |
 | `/api/btc-network` | GET | Bitcoin network hashrate + difficulty (mempool.space, 6h cache) |
 | `/api/runway` | GET | Cash-flow forecast. Default min-buffer from `policy.min_liquid_buffer_usd`. `?threshold=` overrides per-view. |
+| `/brief` | GET | Daily Brief newspaper, newest edition (#1091, see `BRIEF.md`) |
+| `/brief/YYYY-MM-DD/am\|pm` | GET | Edition permalink |
+| `/brief/archive` | GET | Edition archive by Eastern date |
+| `/api/brief/latest` | GET | Newest edition JSON |
 | `/fleet/*` | * | Reverse-proxy → Auto Fleet (`127.0.0.1:8796`). Same-origin for the installed PWA. |
 | `/horizon/*` | * | Reverse-proxy → Horizon Macro (`127.0.0.1:8795`). Same-origin for the installed PWA. |
 

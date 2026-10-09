@@ -22,6 +22,7 @@ Serves static UI + APIs:
   POST /api/ask           — {question} ask Grok about FCC/treasury domain
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
+  GET  /brief, /brief/YYYY-MM-DD/am|pm, /brief/archive — Daily Brief newspaper (#1091, brief.py)
   ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796, LAN-debug still :8796)
   ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795, LAN-debug still :8795)
 
@@ -81,6 +82,44 @@ def _ensure_tool_path() -> None:
 
 _ensure_tool_path()
 
+
+def _load_brief_module():
+    """Daily Brief newspaper (#1091): load brief.py beside this file, lazily.
+
+    Isolated so a broken brief module can never take the rest of FCC down.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "fcc_brief", Path(__file__).resolve().parent / "brief.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_BRIEF_MOD = None
+
+
+def brief_route(path: str):
+    """(status, content_type, body) for /brief* and /api/brief/*, else None."""
+    global _BRIEF_MOD
+    if not (path == "/brief" or path.startswith("/brief/") or path.startswith("/api/brief/")):
+        return None
+    try:
+        if _BRIEF_MOD is None:
+            _BRIEF_MOD = _load_brief_module()
+        return _BRIEF_MOD.route(path)
+    except Exception as exc:  # noqa: BLE001 - never 500 the whole FCC on a bad edition
+        sys.stderr.write(f"[fcc] brief route error: {exc!r}\n")
+        body = (
+            "<!doctype html><meta charset=utf-8><title>The Daily Brief</title>"
+            "<p>The Daily Brief could not be rendered. Check the FCC log.</p>"
+        )
+        return 500, "text/html; charset=utf-8", body
+
+
 from treasury.adapters import load_config, save_config  # noqa: E402
 from treasury.financial_advisor import (  # noqa: E402
     AdvisorError,
@@ -111,6 +150,8 @@ BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 BTC_NETWORK_SNAPSHOT = ROOT / "treasury" / "snapshots" / "btc_network_latest.json"
 _YNAB_REFRESH_COOLDOWN_S = 300.0  # don't hammer YNAB more than once / 5 min
 _last_ynab_refresh_ts = 0.0
+_EXPENSES_REFRESH_COOLDOWN_S = 300.0
+_last_expenses_refresh_ts = 0.0
 # Set in main() from --offline / --consumer. Used for initial boot + consumer detect.
 _SERVER_STARTED_OFFLINE = False
 _SERVER_CONSUMER = False
@@ -210,6 +251,57 @@ def _maybe_refresh_ynab_for_coach(*, force: bool = False) -> bool:
         return True
     except Exception as e:
         sys.stderr.write(f"[fcc] coach ynab_sync warning: {e}\n")
+        return False
+
+
+def _expenses_snapshot_stale() -> bool:
+    """True when expenses_latest.json is missing or older than the sheet threshold.
+
+    The expense sheet is a public CSV. Prism can refresh it in --offline
+    consumer mode; this does not require a YNAB token.
+    """
+    from treasury.expenses_sync import expenses_freshness
+
+    path = ROOT / "treasury" / "snapshots" / "expenses_latest.json"
+    data = None
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = None
+    fresh = expenses_freshness(data if isinstance(data, dict) else None)
+    return bool(fresh.get("stale"))
+
+
+def _maybe_refresh_expenses_for_coach(*, force: bool = False) -> bool:
+    """Pull the expense sheet when the snapshot is stale. Returns True if sync ran.
+
+    FCC on Prism is started with --offline, so boot never reaches expenses_sync.
+    /api/coach is the read path. A stale file is refreshed here, and
+    expenses-refresh.timer covers the clock between visits (#1053).
+    """
+    global _last_expenses_refresh_ts
+
+    now = time.time()
+    if not force and now - _last_expenses_refresh_ts < _EXPENSES_REFRESH_COOLDOWN_S:
+        return False
+    if not force and not _expenses_snapshot_stale():
+        return False
+    try:
+        from treasury.expenses_sync import main as exp_main
+
+        rc = exp_main([])
+        _last_expenses_refresh_ts = time.time()
+        if rc not in (0, None):
+            sys.stderr.write(f"[fcc] coach expenses_sync failed rc={rc}\n")
+            return False
+        sys.stderr.write("[fcc] coach: expenses_sync refreshed expense sheet\n")
+        return True
+    except SystemExit:
+        _last_expenses_refresh_ts = time.time()
+        return True
+    except Exception as e:
+        sys.stderr.write(f"[fcc] coach expenses_sync warning: {e}\n")
         return False
 
 
@@ -717,8 +809,24 @@ class FCCHandler(SimpleHTTPRequestHandler):
             if self.command != "HEAD":
                 self.wfile.write(html)
 
+    def _maybe_serve_brief(self) -> bool:
+        res = brief_route(urlparse(self.path).path)
+        if res is None:
+            return False
+        code, ctype, body = res
+        raw = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+        return True
+
     def do_GET(self) -> None:  # noqa: N802
         if self._maybe_proxy_lens():
+            return
+        if self._maybe_serve_brief():
             return
         parsed = urlparse(self.path)
         path = parsed.path
@@ -940,6 +1048,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
                 # Auto-refresh YNAB cash feeds when stale (soft UI poll never hits YNAB)
                 refreshed = _maybe_refresh_ynab_for_coach(force=force)
+                # Public expense sheet. Runs in --offline consumer mode (#1053).
+                expenses_refreshed = _maybe_refresh_expenses_for_coach(force=force)
                 tre_fcc = ROOT / "financial-command" / "treasury_latest.json"
                 if refreshed:
                     try:
@@ -978,6 +1088,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 plan.setdefault("ok", True)
                 if refreshed:
                     plan["ynab_refreshed"] = True
+                if expenses_refreshed:
+                    plan["expenses_refreshed"] = True
                 # never invent cash: residuals must be non-negative
                 for v in (plan.get("residuals") or {}).values():
                     if isinstance(v, (int, float)) and v < -0.01:
@@ -1005,6 +1117,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
         # that and 404 (or serve the workspace stub at /). FitDash HEAD matches GET
         # because its document root actually has those files.
         if self._maybe_proxy_lens():
+            return
+        if self._maybe_serve_brief():
             return
         path = urlparse(self.path).path
         if not path.startswith("/api/"):

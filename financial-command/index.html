@@ -209,6 +209,15 @@
     .x-money-row-note.stale,
     .x-money-row-note.warn { color: var(--yellow); }
     .x-money-kpi-row.is-stale .kpi { border-color: #5a4a1a; }
+    .expenses-stale {
+      color: var(--yellow);
+      border: 1px solid #5a4a1a;
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+      margin: 0.35rem 0 0;
+      font-size: 0.8rem;
+    }
+    .expenses-stale[hidden] { display: none; }
     #at-a-glance {
       overflow: visible;
       width: 100%;
@@ -2267,6 +2276,7 @@
         </div>
         <button type="button" class="btn" id="btn-coach-refresh">Refresh</button>
       </div>
+      <div id="expenses-stale-flag" class="expenses-stale" hidden></div>
       <div id="coach-summary" class="hint">Loading pay plan…</div>
       <div id="coach-advice" style="margin-top:0.25rem"></div>
       <div class="bill-legend" aria-label="Due-date color legend">
@@ -2682,6 +2692,47 @@
         if (last) bits.push("tx " + last);
       }
       return bits.join(" · ");
+    }
+    function expensesFreshnessFromSnapshot(ex, maxH = 12) {
+      const asOf = ex && ex.as_of;
+      const t = Date.parse(asOf || "");
+      if (!Number.isFinite(t)) {
+        return {
+          stale: true,
+          as_of: asOf || null,
+          age_hours: null,
+          threshold_hours: maxH,
+          label: "Expenses snapshot stale · as-of missing",
+        };
+      }
+      const age = Math.max(0, (Date.now() - t) / 3600000);
+      const stale = age > maxH;
+      return {
+        stale: stale,
+        as_of: asOf,
+        age_hours: Math.round(age * 10) / 10,
+        threshold_hours: maxH,
+        label: stale
+          ? "Expenses snapshot stale · as of " +
+            asOf +
+            " · " +
+            age.toFixed(1) +
+            "h old (warn >" +
+            maxH +
+            "h)"
+          : null,
+      };
+    }
+    function applyExpensesStaleFlag(info) {
+      const el = document.getElementById("expenses-stale-flag");
+      if (!el || !info) return;
+      if (info.stale && info.label) {
+        el.hidden = false;
+        el.textContent = info.label;
+      } else {
+        el.hidden = true;
+        el.textContent = "";
+      }
     }
     function ageLabel(iso) {
       if (!iso) return null;
@@ -3647,6 +3698,7 @@
       const rhc = snap.rh_checking || {};
       const xm = snap.x_money || {};
       const ex = snap.expenses || {};
+      applyExpensesStaleFlag(expensesFreshnessFromSnapshot(ex));
       const es = ex.summary || {};
       const pol = ev.policy || DEFAULT_POLICY;
       const br = data.braiins || {};
@@ -5422,6 +5474,9 @@
       const habEl = document.getElementById("coach-habits");
       const reqEl = document.getElementById("coach-requests");
       if (!sumEl) return;
+      if (plan && plan.expenses_freshness) {
+        applyExpensesStaleFlag(plan.expenses_freshness);
+      }
       if (!plan || !plan.ok) {
         sumEl.textContent =
           "Coach unavailable: " + (plan && plan.error ? plan.error : "no data") +

@@ -4,7 +4,7 @@
   "as_of": "2026-09-11",
   "mode": "active",
   "status": "live_autopilot",
-  "live": true,
+  "live": false,
   "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading — low-frequency active management. Process is size-invariant: same research/rotate standards at $10 or $10k.",
   "cadence": {
     "scheduled_reviews_per_day": 1,
