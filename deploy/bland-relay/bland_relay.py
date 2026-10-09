@@ -10,9 +10,11 @@ feeds it through the same inbound path (#1054). POST /<RCS_HOOK_PATH>
 accepts Google Messages notifications from a notification-listener app on the
 904 phone so RCS chats reach the same inbound path, deduped against SMSGate
 (#1056). POST /<SEND_PATH> lets Alexandra send one plain SMS back through SMS
-Gateway for Android. POST /<FC_PATH> manages approved first-contact numbers
-(request / approve / list / revoke, #1100) so the send route can reach a number
-that never texted 904, after Chris approves it.
+Gateway for Android. POST /<FC_PATH> manages first-contact numbers
+(add / request / approve / list / revoke, #1100) so the send route can reach a
+number that never texted 904. With FC_REQUIRE_APPROVAL=0 (the default) an add
+allows the number at once; FC_REQUIRE_APPROVAL=1 restores the per-number
+approval gate (Chris approves each number).
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
 comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
@@ -329,9 +331,9 @@ def opt_word(text):
 def note_inbound(sender, text, now=None, via="sms"):
     """Record that this number texted 904. Opt-out sticks until START/UNSTOP/YES.
 
-    Also runs the first-contact hook: a reply converts an approved entry to the
-    normal inbound window, STOP blocks it, and "YES <code>" from an approver
-    number approves a pending request (#1100).
+    Also runs the first-contact hook: a reply converts an active entry to the
+    normal inbound window, STOP blocks it, and, only when FC_REQUIRE_APPROVAL=1,
+    "YES <code>" from an approver number approves a pending request (#1100).
     """
     num = normalize_nanp(sender)
     if not num:
@@ -421,13 +423,23 @@ def reserve_send_ex(to, now=None):
 
 
 # ---------------------------------------------------------------------------
-# Approved first-contact outbound (#1100)
+# First-contact outbound (#1100)
 #
-# A number that never texted 904 can be sent to only after Chris approves it:
-# an agent `request`s it (SEND_TOKEN), gets a one-time code, and Chris types
-# yes with that code, either as an SMS "YES <code>" to 904 from a number in
-# FC_APPROVER_NUMBERS or in chat, relayed by the seat holding FC_APPROVE_TOKEN
-# (the relay keeps only its SHA-256). Opt-out always wins. State lives in
+# FC_REQUIRE_APPROVAL=0 (default): an agent `add`s (or `request`s) a number
+# with SEND_TOKEN and it is active at once. No code, no approver; the YES-code
+# SMS path and the chat approve route are inert and FC_APPROVER_NUMBERS is
+# ignored. Opt-out, rate limits, FC_DAILY_MAX, TTL, the sends-before-reply cap,
+# both kill switches, the audit log and the CRM record all still apply.
+#
+# FC_REQUIRE_APPROVAL=1: a number that never texted 904 can be sent to only
+# after Chris approves it: an agent `request`s it, gets a one-time code, and
+# Chris types yes with that code, either as an SMS "YES <code>" to 904 from a
+# number in FC_APPROVER_NUMBERS or in chat, relayed by the seat holding
+# FC_APPROVE_TOKEN (the relay keeps only its SHA-256).
+#
+# Either way opt-out always wins, and only a currently active entry is a
+# renewal exempt from FC_DAILY_MAX; re-adding a revoked, expired, converted or
+# opted-out number counts as a new number (#1102 a). State lives in
 # sms_send_state.json under the same lock as the inbound allowlist.
 # ---------------------------------------------------------------------------
 FC_PURPOSE_KINDS = ("lead", "renter", "vendor")
@@ -482,6 +494,17 @@ def fc_disabled():
 
 def fc_path():
     return _secret_path("FC_PATH")
+
+
+def fc_require_approval():
+    """FC_REQUIRE_APPROVAL: 0/unset = no per-number approval (default), 1 = gated.
+    Any other value fails closed to gated."""
+    raw = env("FC_REQUIRE_APPROVAL").lower()
+    if raw in ("", "0", "false", "no", "off"):
+        return False
+    if raw not in ("1", "true", "yes", "on"):
+        log.warning("FC_REQUIRE_APPROVAL is not 0 or 1; requiring approval")
+    return True
 
 
 def _csv_set(raw):
@@ -605,6 +628,7 @@ def crm_interaction_record(to, grant, result, err, now, purpose=None, placed_by=
     meta = {"purpose": purpose, "purpose_kind": kind, "placed_by": placed_by or "send-route",
             "first_contact": first, "grant": (grant or {}).get("kind")}
     if first:
+        meta["approval_required"] = entry.get("approved_via") != "auto"
         meta["approval"] = {"approved_by": entry.get("approved_by"), "approval_ref": entry.get("approval_ref"),
                             "approved_via": entry.get("approved_via"), "approved_at": entry.get("approved_at_iso")}
     return {
@@ -648,6 +672,12 @@ def _fc_recent_approvals(st, now):
     return len(rows)
 
 
+def _fc_cap_exempt(entries, num, now):
+    """Only a currently active entry is a renewal that skips FC_DAILY_MAX (#1102 a)."""
+    entry = entries.get(num)
+    return entry is not None and _fc_status(entry, now) == "active"
+
+
 def _fc_opted_out(st, num):
     inbound = st.get("inbound") if isinstance(st.get("inbound"), dict) else {}
     return bool((inbound.get(num) or {}).get("opt_out"))
@@ -685,10 +715,18 @@ def _fc_approve_locked(st, num, approver, text, ref, via, now):
     if _fc_opted_out(st, num):
         pending.pop(num, None)
         return "opt_out", None
+    if not _fc_cap_exempt(entries, num, now) and _fc_recent_approvals(st, now) >= fc_daily_max():
+        return "daily_cap", None
+    return None, _fc_activate_locked(st, num, req, approver, text, ref, via, now)
+
+
+def _fc_activate_locked(st, num, req, approver, text, ref, via, now):
+    """Write the active entry for num (caller holds _sms_lock and has checked
+    opt-out and the daily cap). Returns the entry."""
+    entries, pending = _fc_maps(st)
     prior = entries.get(num)
     renewal = prior is not None
-    if not renewal and _fc_recent_approvals(st, now) >= fc_daily_max():
-        return "daily_cap", None
+    cap_exempt = _fc_cap_exempt(entries, num, now)
     history = list((prior or {}).get("history") or [])[-9:]
     if prior:
         history.append({k: prior.get(k) for k in ("status", "approved_by", "approved_at_iso", "expires_at_iso")})
@@ -698,7 +736,7 @@ def _fc_approve_locked(st, num, approver, text, ref, via, now):
         "purpose": req.get("purpose"),
         "requested_by": req.get("requested_by"),
         "requested_at_iso": req.get("requested_at_iso"),
-        "approved_by": approver,
+        "approved_by": approver or None,
         "approval_text": (text or "")[:FC_TEXT_MAX],
         "approval_ref": (ref or "")[:FC_REF_MAX],
         "approved_via": via,
@@ -712,14 +750,20 @@ def _fc_approve_locked(st, num, approver, text, ref, via, now):
     }
     entries[num] = entry
     pending.pop(num, None)
-    if not renewal:
+    if not cap_exempt:
         st["fc_approvals"].append(now)
-    fc_audit("approve", now, to=num, name=entry["name"], purpose_kind=entry["purpose_kind"],
-             purpose=entry["purpose"], requested_by=entry["requested_by"], approved_by=approver,
-             approval_text=entry["approval_text"], approval_ref=entry["approval_ref"], via=via,
-             renewal=renewal, expires_at=entry["expires_at_iso"])
-    log.info("first-contact approved to=***%s via=%s renewal=%s", _tail4(num), via, renewal)
-    return None, entry
+    if via == "auto":
+        fc_audit("add", now, to=num, name=entry["name"], purpose_kind=entry["purpose_kind"],
+                 purpose=entry["purpose"], requested_by=entry["requested_by"], approval_required=False,
+                 renewal=renewal, expires_at=entry["expires_at_iso"])
+        log.info("first-contact added (no approval) to=***%s renewal=%s", _tail4(num), renewal)
+    else:
+        fc_audit("approve", now, to=num, name=entry["name"], purpose_kind=entry["purpose_kind"],
+                 purpose=entry["purpose"], requested_by=entry["requested_by"], approved_by=approver,
+                 approval_text=entry["approval_text"], approval_ref=entry["approval_ref"], via=via,
+                 renewal=renewal, expires_at=entry["expires_at_iso"])
+        log.info("first-contact approved to=***%s via=%s renewal=%s", _tail4(num), via, renewal)
+    return entry
 
 
 def _fc_on_inbound_locked(st, num, word, text, via, now):
@@ -738,6 +782,8 @@ def _fc_on_inbound_locked(st, num, word, text, via, now):
     if word in OPT_OUT_WORDS and num in pending:
         pending.pop(num, None)
         fc_audit("pending_dropped_opt_out", now, to=num, via=via)
+    if not fc_require_approval():
+        return  # no approvals: "YES <code>" is ordinary text, FC_APPROVER_NUMBERS ignored
     approver = fc_approver_numbers().get(num)
     m = FC_SMS_APPROVE_RE.match(str(text or ""))
     if not approver or not m:
@@ -794,6 +840,8 @@ def fc_request(data, now=None):
     seat = _fc_seat(data.get("requested_by"))
     if not seat:
         return 400, {"ok": False, "error": "requested_by required"}
+    if not fc_require_approval():
+        return _fc_add(to, name, kind, purpose, seat, now)
     code = "%06d" % (int.from_bytes(os.urandom(4), "big") % 1_000_000)
     with _sms_lock:
         st = _load_json(_sms_state_path())
@@ -804,7 +852,7 @@ def fc_request(data, now=None):
         for k in [k for k, v in pending.items() if now - float(v.get("requested_at") or 0) > FC_PENDING_S]:
             pending.pop(k, None)
         renewal = to in entries
-        if not renewal and _fc_recent_approvals(st, now) >= fc_daily_max():
+        if not _fc_cap_exempt(entries, to, now) and _fc_recent_approvals(st, now) >= fc_daily_max():
             fc_audit("deny", now, to=to, reason="daily_cap", requested_by=seat, action="request")
             return 429, {"ok": False, "error": "daily_cap"}
         if to not in pending and len(pending) >= FC_PENDING_MAX:
@@ -834,8 +882,41 @@ def fc_request(data, now=None):
     }
 
 
+def _fc_add(to, name, kind, purpose, seat, now):
+    """FC_REQUIRE_APPROVAL=0: allow `to` now. Opt-out and FC_DAILY_MAX still
+    apply. Re-adding an already active number changes nothing (no TTL or
+    sends-before-reply reset, so the caps cannot be bypassed by re-adding)."""
+    with _sms_lock:
+        st = _load_json(_sms_state_path())
+        entries, _ = _fc_maps(st)
+        if _fc_opted_out(st, to):
+            fc_audit("deny", now, to=to, reason="opt_out", requested_by=seat, action="add")
+            return 403, {"ok": False, "error": "opt_out"}
+        if _fc_cap_exempt(entries, to, now):
+            return 200, {"ok": True, "status": "active", "to": to, "approval_required": False,
+                         "already_active": True, "entry": _fc_public(entries[to], now)}
+        if _fc_recent_approvals(st, now) >= fc_daily_max():
+            fc_audit("deny", now, to=to, reason="daily_cap", requested_by=seat, action="add")
+            return 429, {"ok": False, "error": "daily_cap"}
+        req = {"name": name, "purpose_kind": kind, "purpose": purpose, "requested_by": seat,
+               "requested_at_iso": _iso(now)}
+        entry = _fc_activate_locked(st, to, req, None, "", "FC_REQUIRE_APPROVAL=0", "auto", now)
+        st.setdefault("inbound", {})
+        st.setdefault("sends", [])
+        try:
+            _save_json(_sms_state_path(), st)
+        except OSError as e:
+            log.error("sms state write failed: %s", type(e).__name__)
+            return 500, {"ok": False, "error": "state write failed"}
+    return 200, {"ok": True, "status": "active", "to": to, "approval_required": False,
+                 "already_active": False, "entry": _fc_public(entry, now)}
+
+
 def fc_approve(data, now=None):
     now = time.time() if now is None else now
+    if not fc_require_approval():
+        return 409, {"ok": False, "error": "approval_not_required",
+                     "detail": "FC_REQUIRE_APPROVAL=0: numbers are active as soon as they are added"}
     to = normalize_nanp(data.get("to")) if isinstance(data.get("to"), str) else None
     if not to or not valid_e164(to):
         return 400, {"ok": False, "error": "bad to"}
@@ -905,6 +986,7 @@ def fc_list(data, now=None):
     if want != "all":
         rows = [r for r in rows if r["status"] == want]
     return 200, {"ok": True, "entries": rows, "daily_used": used, "daily_max": fc_daily_max(),
+                 "approval_required": fc_require_approval(),
                  "ttl_days": fc_ttl_s() // FC_DAY_S, "max_sends_before_reply": fc_max_sends()}
 
 
@@ -1494,15 +1576,19 @@ class H(BaseHTTPRequestHandler):
             return self._send(*fc_list(data))
         if action == "revoke":
             return self._send(*fc_revoke(data))
-        if action not in ("request", "approve"):
-            return self._send(400, {"ok": False, "error": "action must be request, approve, list or revoke"})
+        if action not in ("add", "request", "approve"):
+            return self._send(400, {"ok": False, "error": "action must be add, request, approve, list or revoke"})
+        if action == "approve" and not fc_require_approval():
+            fc_audit("deny", None, to=str(data.get("to") or "")[:20], reason="approval_not_required",
+                     action="approve")
+            return self._send(*fc_approve(data))  # 409 approval_not_required
         if env("SMS_SEND_DISABLED") == "1":
             log.warning("first-contact %s refused: sms send disabled", action)
             return self._send(503, {"ok": False, "error": "send disabled"})
         if fc_disabled():
             log.warning("first-contact %s refused: FC_DISABLED=1", action)
             return self._send(503, {"ok": False, "error": "first contact disabled"})
-        if action == "request":
+        if action in ("add", "request"):
             return self._send(*fc_request(data))
         if role != "approver":
             fc_audit("deny", None, to=str(data.get("to") or "")[:20], reason="approve_without_approver_token",
@@ -1684,15 +1770,21 @@ def main():
         log.warning("RCS_HOOK_PATH set without RCS_HOOK_TOKEN: RCS route authenticated by secret path only")
     if env("RCS_HOOK_DISABLED") == "1":
         log.warning("RCS_HOOK_DISABLED=1")
-    if fc_path():
+    if fc_path() and not fc_require_approval():
+        log.warning("first-contact: FC_REQUIRE_APPROVAL=0 - numbers are allowed as soon as they are added")
+        if env("FC_APPROVER_NUMBERS") or env("FC_APPROVE_TOKEN_SHA256"):
+            log.info("first-contact: approver numbers/token ignored while approval is off")
+    elif fc_path():
         if not env("FC_APPROVE_TOKEN_SHA256"):
             log.warning("FC_PATH set without FC_APPROVE_TOKEN_SHA256: chat approvals off (SMS approvals only)")
         elif env("SEND_TOKEN") and _sha256(env("SEND_TOKEN")) == env("FC_APPROVE_TOKEN_SHA256").lower():
             log.error("!!! FC_APPROVE_TOKEN equals SEND_TOKEN - chat approvals refused !!!")
         if not fc_approver_numbers():
             log.warning("FC_APPROVER_NUMBERS empty: SMS approvals off")
-        log.info("first-contact: daily_max=%d ttl_days=%d max_sends_before_reply=%d disabled=%s",
-                 fc_daily_max(), fc_ttl_s() // FC_DAY_S, fc_max_sends(), fc_disabled())
+    if fc_path():
+        log.info("first-contact: require_approval=%s daily_max=%d ttl_days=%d max_sends_before_reply=%d "
+                 "disabled=%s", fc_require_approval(), fc_daily_max(), fc_ttl_s() // FC_DAY_S,
+                 fc_max_sends(), fc_disabled())
     _warn_paths()
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)

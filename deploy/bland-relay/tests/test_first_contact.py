@@ -21,7 +21,7 @@ ENV_KEYS = (
     "SMSGW_HOOK_PATH", "SMSGW_SIGNING_KEY", "RCS_HOOK_PATH", "RCS_HOOK_TOKEN", "RCS_NAME_MAP",
     "SMS_SEND_DISABLED", "FC_PATH", "FC_APPROVE_TOKEN_SHA256", "FC_APPROVERS", "FC_AGENT_SEATS",
     "FC_APPROVER_NUMBERS", "FC_DAILY_MAX", "FC_TTL_DAYS", "FC_MAX_SENDS_BEFORE_REPLY", "FC_DISABLED",
-    "FC_AUDIT_PATH", "CRM_INGEST_MODE", "CRM_OUTBOX_PATH",
+    "FC_AUDIT_PATH", "CRM_INGEST_MODE", "CRM_OUTBOX_PATH", "FC_REQUIRE_APPROVAL",
 )
 
 
@@ -41,6 +41,9 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("FC_PATH", FC.lstrip("/"))
     monkeypatch.setenv("FC_APPROVE_TOKEN_SHA256", hashlib.sha256(APPROVE_TOK.encode()).hexdigest())
     monkeypatch.setenv("FC_APPROVER_NUMBERS", f"chris={CHRIS}")
+    # The approval-gate tests below run with the gate on; the no-approval tests
+    # (default FC_REQUIRE_APPROVAL=0) are at the end and use the `no_approval` fixture.
+    monkeypatch.setenv("FC_REQUIRE_APPROVAL", "1")
 
 
 @pytest.fixture
@@ -545,3 +548,230 @@ def test_cli_request_approve_list_revoke(http, gateway, tmp_path):
     rc, out, _ = _cli(http, tmp_path, ["revoke", "--to", LEAD, "--reason", "done", "--by", "forge"])
     assert rc == 0 and '"revoked"' in out
     assert gateway == []
+
+
+# --- #1102 (a): re-requests of inactive entries count against FC_DAILY_MAX --------
+
+def test_gated_rerequest_of_revoked_or_expired_counts_against_cap(monkeypatch):
+    monkeypatch.setenv("FC_DAILY_MAX", "2")
+    monkeypatch.setenv("FC_TTL_DAYS", "1")
+    t = 6_000_000
+    a, b = "+19045550101", "+19045550102"
+    for num in (a, b):
+        _, req = bland_relay.fc_request(request_body(to=num), now=t)
+        assert bland_relay.fc_approve(approve_body(req["code"], to=num), now=t)[0] == 200
+    c, r = bland_relay.fc_request(request_body(to=a), now=t + 60)  # active renewal: exempt
+    assert c == 200 and r["renewal"] is True
+    bland_relay.fc_revoke({"to": a, "reason": "x", "revoked_by": "forge"}, now=t + 60)
+    c, r = bland_relay.fc_request(request_body(to=a), now=t + 120)  # revoked: counts
+    assert c == 429 and r["error"] == "daily_cap"
+    t2 = t + bland_relay.FC_DAY_S - 10  # b expired? not yet (TTL 1 day)
+    assert bland_relay.reserve_send(b, now=t2) is None
+    t3 = t + bland_relay.FC_DAY_S + 5  # b expired, cap window rolled
+    _, req = bland_relay.fc_request(request_body(to="+19045550103"), now=t3)
+    assert bland_relay.fc_approve(approve_body(req["code"], to="+19045550103"), now=t3)[0] == 200
+    _, req = bland_relay.fc_request(request_body(to="+19045550104"), now=t3)
+    assert bland_relay.fc_approve(approve_body(req["code"], to="+19045550104"), now=t3)[0] == 200
+    c, r = bland_relay.fc_request(request_body(to=b), now=t3 + 1)  # expired: counts
+    assert c == 429 and r["error"] == "daily_cap"
+
+
+def test_gated_cap_rechecked_at_approve_when_entry_lapsed(monkeypatch):
+    monkeypatch.setenv("FC_DAILY_MAX", "1")
+    monkeypatch.setenv("FC_TTL_DAYS", "1")
+    day = bland_relay.FC_DAY_S
+    t = 7_000_000
+    a, b = "+19045550101", "+19045550102"
+    _, req = bland_relay.fc_request(request_body(to=a), now=t)
+    assert bland_relay.fc_approve(approve_body(req["code"], to=a), now=t)[0] == 200
+    _, ra = bland_relay.fc_request(request_body(to=a), now=t + day - 5)  # active: exempt at request
+    _, rb = bland_relay.fc_request(request_body(to=b), now=t + day + 1)
+    assert bland_relay.fc_approve(approve_body(rb["code"], to=b), now=t + day + 1)[0] == 200
+    c, r = bland_relay.fc_approve(approve_body(ra["code"], to=a), now=t + day + 2)  # a has expired
+    assert c == 429 and r["error"] == "daily_cap"
+
+
+# --- FC_REQUIRE_APPROVAL=0 (default): no per-number approval ----------------------
+
+@pytest.fixture
+def no_approval(monkeypatch):
+    monkeypatch.delenv("FC_REQUIRE_APPROVAL", raising=False)  # unset == 0 (the default)
+    assert bland_relay.fc_require_approval() is False
+
+
+def add_body(to=LEAD, **kw):
+    body = request_body(to=to, **kw)
+    body["action"] = "add"
+    return body
+
+
+def test_require_approval_flag_values(monkeypatch):
+    for raw, want in (("", False), ("0", False), ("off", False), ("1", True), ("true", True),
+                      ("maybe", True)):
+        monkeypatch.setenv("FC_REQUIRE_APPROVAL", raw)
+        assert bland_relay.fc_require_approval() is want, raw
+
+
+def test_no_approval_add_allows_immediately(http, gateway, no_approval, tmp_path):
+    assert send(http)[1]["error"] == "not_allowlisted"
+    c, r = post(http, FC, add_body())
+    assert c == 200 and r["status"] == "active" and r["approval_required"] is False
+    assert "code" not in r and r["entry"]["approved_via"] == "auto"
+    assert r["entry"]["approval_ref"] == "FC_REQUIRE_APPROVAL=0" and "approved_by" not in r["entry"]
+    assert send(http)[0] == 200
+    assert gateway == [(LEAD, "Hi Dana, this is Panamerica Auto.")]
+    # `request` is the same thing when approval is off
+    c, r = post(http, FC, request_body(to="+19045550124"))
+    assert c == 200 and r["status"] == "active"
+    _, lst = post(http, FC, {"action": "list"})
+    assert lst["approval_required"] is False and lst["daily_used"] == 2
+    assert {e["status"] for e in lst["entries"]} == {"active"}
+
+
+def test_no_approval_add_still_validates(http, no_approval):
+    assert post(http, FC, add_body(to="12"))[0] == 400
+    assert post(http, FC, add_body(to="+449045550123"))[0] == 400  # not NANP E.164
+    assert post(http, FC, add_body(name=""))[0] == 400
+    assert post(http, FC, add_body(purpose_kind="friend"))[0] == 400
+    assert post(http, FC, add_body(purpose="x"))[0] == 400
+    assert post(http, FC, add_body(requested_by=""))[0] == 400
+    assert post(http, FC, add_body(), token="wrong")[0] == 401
+
+
+def test_no_approval_readding_active_does_not_reset_caps(http, gateway, no_approval, monkeypatch):
+    monkeypatch.setenv("FC_MAX_SENDS_BEFORE_REPLY", "2")
+    post(http, FC, add_body())
+    assert send(http)[0] == 200 and send(http)[0] == 200
+    c, r = post(http, FC, add_body())
+    assert c == 200 and r["already_active"] is True and r["entry"]["sends"] == 2
+    c, r = send(http)
+    assert c == 429 and r["error"] == "first_contact_send_cap"
+    bland_relay.note_inbound(LEAD, "who is this?")  # reply converts -> normal window
+    assert send(http)[0] == 200
+
+
+def test_no_approval_stop_blocks_add_and_send(http, gateway, no_approval, tmp_path):
+    bland_relay.note_inbound(LEAD, "STOP", now=1_000)  # long ago, outside 72h
+    c, r = post(http, FC, add_body())
+    assert c == 403 and r["error"] == "opt_out"
+    assert send(http)[1]["error"] == "opt_out"
+    bland_relay.note_inbound(LEAD, "START", now=2_000)
+    assert post(http, FC, add_body())[0] == 200
+    bland_relay.note_inbound(LEAD, "STOP")
+    assert send(http)[1]["error"] == "opt_out"
+    c, r = post(http, FC, add_body())  # still opted out: cannot be re-added
+    assert c == 403 and r["error"] == "opt_out"
+    assert gateway == []
+    assert any(r.get("reason") == "opt_out" and r.get("action") == "add" for r in audit(tmp_path))
+
+
+def test_no_approval_daily_cap_counts_readds(no_approval, monkeypatch):
+    monkeypatch.setenv("FC_DAILY_MAX", "2")
+    monkeypatch.setenv("FC_TTL_DAYS", "1")
+    t = 8_000_000
+    a, b, c3 = "+19045550101", "+19045550102", "+19045550103"
+    assert bland_relay.fc_request(add_body(to=a), now=t)[0] == 200
+    assert bland_relay.fc_request(add_body(to=b), now=t)[0] == 200
+    assert bland_relay.fc_request(add_body(to=c3), now=t)[1]["error"] == "daily_cap"
+    assert bland_relay.fc_request(add_body(to=a), now=t + 1)[1]["already_active"] is True  # no slot used
+    # revoked re-add counts
+    bland_relay.fc_revoke({"to": a, "reason": "x", "revoked_by": "forge"}, now=t + 2)
+    assert bland_relay.fc_request(add_body(to=a), now=t + 3)[1]["error"] == "daily_cap"
+    # next day: a (revoked) re-add uses a slot; b expired re-add uses the other
+    t2 = t + bland_relay.FC_DAY_S + 10
+    assert bland_relay.reserve_send(b, now=t2) == "first_contact_expired"
+    assert bland_relay.fc_request(add_body(to=a), now=t2)[0] == 200
+    assert bland_relay.fc_request(add_body(to=b), now=t2)[0] == 200
+    assert bland_relay.fc_request(add_body(to=c3), now=t2)[1]["error"] == "daily_cap"
+    # opted-out then START: re-add counts too
+    bland_relay.note_inbound(a, "STOP", now=t2 + 5)
+    bland_relay.note_inbound(a, "START", now=t2 + 6)
+    t3 = t2 + bland_relay.FC_DAY_S + 10
+    _, lst = bland_relay.fc_list({}, now=t3)
+    assert lst["daily_used"] == 0
+    for num in (a, c3):
+        assert bland_relay.fc_request(add_body(to=num), now=t3)[0] == 200
+    assert bland_relay.fc_request(add_body(to=b), now=t3)[1]["error"] == "daily_cap"
+
+
+def test_no_approval_ttl_expiry(no_approval, monkeypatch):
+    monkeypatch.setenv("FC_TTL_DAYS", "7")
+    t = 9_000_000
+    _, r = bland_relay.fc_request(add_body(), now=t)
+    assert r["status"] == "active"
+    ttl = 7 * bland_relay.FC_DAY_S
+    assert bland_relay.reserve_send(LEAD, now=t + ttl - 10) is None
+    assert bland_relay.reserve_send(LEAD, now=t + ttl + 1) == "first_contact_expired"
+
+
+def test_no_approval_kill_switches(http, gateway, no_approval, monkeypatch):
+    post(http, FC, add_body())
+    monkeypatch.setenv("SMS_SEND_DISABLED", "1")
+    assert post(http, FC, add_body(to="+19045550124")) == (503, {"ok": False, "error": "send disabled"})
+    assert send(http)[0] == 503
+    monkeypatch.delenv("SMS_SEND_DISABLED")
+    monkeypatch.setenv("FC_DISABLED", "1")
+    assert post(http, FC, add_body(to="+19045550124"))[0] == 503
+    assert send(http)[1]["error"] == "first_contact_disabled"
+    assert post(http, FC, {"action": "list"})[0] == 200
+    assert post(http, FC, {"action": "revoke", "to": LEAD, "reason": "kill", "revoked_by": "forge"})[0] == 200
+    assert gateway == []
+
+
+def test_no_approval_existing_rate_limits_apply(http, gateway, no_approval, monkeypatch):
+    monkeypatch.setenv("FC_MAX_SENDS_BEFORE_REPLY", "20")
+    post(http, FC, add_body())
+    for _ in range(bland_relay.RECIPIENT_MAX):
+        assert send(http)[0] == 200
+    assert send(http)[1]["error"] == "rate_limited"
+
+
+def test_no_approval_audit_and_crm(http, gateway, no_approval, tmp_path):
+    post(http, FC, add_body())
+    assert send(http, placed_by="alexandra")[0] == 200
+    rows = audit(tmp_path)
+    assert [r["event"] for r in rows] == ["add", "send"]
+    assert rows[0]["approval_required"] is False and rows[0]["requested_by"] == "alexandra"
+    assert "approved_by" not in rows[0]
+    [rec] = outbox(tmp_path)
+    assert rec["metadata"]["first_contact"] is True and rec["metadata"]["approval_required"] is False
+    assert rec["metadata"]["approval"]["approved_via"] == "auto"
+    assert rec["party_hint"]["display_name"] == "Dana Lead" and rec["party_hint"]["type"] == "lead"
+
+
+def test_no_approval_approve_route_is_inert(http, gateway, no_approval, tmp_path):
+    for tok in (APPROVE_TOK, SEND_TOK):
+        c, r = post(http, FC, approve_body("123456"), tok)
+        assert c == 409 and r["error"] == "approval_not_required"
+    assert post(http, FC, approve_body("123456"), "wrong")[0] == 401
+    assert bland_relay.fc_approve(approve_body("123456"))[0] == 409
+    assert send(http)[1]["error"] == "not_allowlisted"
+    assert any(r.get("reason") == "approval_not_required" for r in audit(tmp_path))
+
+
+def test_no_approval_sms_yes_from_approver_does_nothing(http, gateway, no_approval, monkeypatch, tmp_path):
+    # a gated-mode pending request left over from before the flag was turned off
+    monkeypatch.setenv("FC_REQUIRE_APPROVAL", "1")
+    _, req = post(http, FC, request_body())
+    monkeypatch.delenv("FC_REQUIRE_APPROVAL")
+    for via in ("smsgate", "sms", "forwarder", "rcs-number", "rcs-title"):
+        bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via=via)
+    assert send(http)[1]["error"] == "not_allowlisted"
+    _, lst = post(http, FC, {"action": "list"})
+    assert [e["status"] for e in lst["entries"]] == ["pending"] and lst["daily_used"] == 0
+    assert not any(r["event"] in ("approve", "deny") for r in audit(tmp_path))
+
+
+def test_no_approval_cli_add(http, gateway, no_approval, tmp_path):
+    rc, out, err = _cli(http, tmp_path, ["add", "--to", "904-555-0123", "--name", "Dana Lead",
+                                         "--kind", "lead", "--purpose", "GVG fleet lead", "--by", "alexandra"])
+    assert rc == 0, err
+    res = json.loads(out.split("\n", 1)[1])
+    assert res["status"] == "active" and res["approval_required"] is False and "code" not in res
+    rc, out, err = _cli(http, tmp_path, ["add", "--to", LEAD, "--name", "Dana"])  # missing args
+    assert rc == 2
+    rc, out, _ = _cli(http, tmp_path, ["approve", "--to", LEAD, "--code", "123456", "--approver", "chris",
+                                       "--text", "yes 123456", "--ref", "r", "--token-stdin"],
+                      stdin=APPROVE_TOK + "\n")
+    assert rc == 1 and "approval_not_required" in out
+    assert send(http)[0] == 200
