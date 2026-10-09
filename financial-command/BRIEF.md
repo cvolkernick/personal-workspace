@@ -78,6 +78,24 @@ archive pages show what was open then): Overdue (< date, red) / Due today /
 Due this week (next 7 days) / Later / No date. The Reminders card shows the
 overdue + due-today count and top 3.
 
+### Building `todos[]` from Notion (Grok, at publish time)
+
+Verified against the live data source on 2026-10-09 (Notion connector,
+read-only SQL):
+
+```sql
+SELECT "Task name" AS title, "Status" AS status,
+       "date:Due date:start" AS due, url AS notion_url
+FROM "collection://2f6cba2a-d31b-80b1-a138-000b1721d50d"
+WHERE "Status" != 'Done'
+ORDER BY due
+```
+
+Then read each page body for `Owner: …` / `Priority: …` lines (fetch the
+page) and set `owner` / `priority`, else `null` (owner falls back to the
+`Assignee` name). If the Notion query fails, publish with the previous
+edition's `todos[]` or `[]`; never block the paper on Notion.
+
 ## Degrades without Grok / LLM
 
 FCC only renders stored JSON: no LLM, no network, no credentials. If the
@@ -89,3 +107,20 @@ it is older than 14 h.
 
 Not shipped: there is no Notion integration token on prism, and #1091 says not
 to add one. The To-Do section is snapshot-only and says so in the footer.
+
+## Deploy
+
+No new service, port, or timer. `server.py` routes `/brief*` and
+`/api/brief/*` to `brief.py` (loaded lazily; a render error returns a 500
+page for the brief only, never the rest of FCC).
+
+1. Merge into `work/treasury`.
+2. `workspace-sync.timer` (every 5 min) pulls and restarts
+   `financial-command.service` on change. Manual equivalent:
+   `systemctl --user restart financial-command.service` on prism.
+3. Smoke: `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/brief`
+   on prism should print `200` (empty-store page until the first publish).
+4. The edition store dir is created on first publish.
+
+The morning/evening routines that call `publish` stay on Grok's side
+(Grok's scheduler, ~8 AM / ~8 PM ET); nothing is installed on prism for them.
