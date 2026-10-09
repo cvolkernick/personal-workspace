@@ -9,7 +9,7 @@ Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.
 | `POST /<RELAY_PATH>` | `X-Webhook-Signature` HMAC | Bland webhook. Forwards the raw body to Alexandra. |
 | `POST /<FWD_PATH>` | `FWD_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` | 904 inbound SMS from the phone forwarder. Forwards the normalized payload. Records the sender for the reply allowlist unless `test: true`. |
 | `POST /<SMSGW_HOOK_PATH>` | Secret path, plus SMSGate `X-Signature`/`X-Timestamp` HMAC when `SMSGW_SIGNING_KEY` is set | SMSGate cloud `sms:received` webhook (#1054). Same inbound path as the forwarder: allowlist record, STOP/opt-out, same payload to Alexandra. Replaces the SMS Forwarder app. |
-| `POST /<RCS_HOOK_PATH>` | Secret path, plus `RCS_HOOK_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` when set | Google Messages notifications from the 904 phone (#1056), so RCS chats arrive too. Same allowlist, STOP, and payload. Deduped against SMSGate. Kill switch `RCS_HOOK_DISABLED=1`. |
+| `POST /<RCS_HOOK_PATH>` | Secret path, plus `RCS_HOOK_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` when set | Google Messages notifications from the 904 phone (#1056), so RCS chats arrive too. Same allowlist, STOP, and payload. Deduped against SMSGate. Kill switch `RCS_HOOK_DISABLED=1`. Turo app notifications on the same route go to the Turo relay (#1104, below). |
 | `POST /<SEND_PATH>` | `SEND_TOKEN`, same headers | Alexandra sends one SMS. |
 | `POST /<FC_PATH>` | `SEND_TOKEN` (add/request/list/revoke) or the approver token (approve, only with `FC_REQUIRE_APPROVAL=1`) | First-contact numbers (#1100). See below. |
 
@@ -134,6 +134,50 @@ Phone setup (904 Pixel):
 8. Keep RCS on. Don't change SMSGate.
 9. For saved contacts, add their names to `RCS_NAME_MAP` on prism, exactly as Google Messages shows them. Otherwise they arrive as `unknown sender <name>` and can't be replied to.
 
+## Turo notifications (#1104)
+
+The same notification-relay app posts Turo app notifications (package `com.relayrides.android.relayrides`) to the RCS route on the same path and token. The RCS route sends them to the Turo relay instead of ignoring them. Google Messages handling is unchanged, and other packages still get `200 ignored: package`.
+
+Pipeline (stdlib, no model):
+1. **Normalize**, preferring `big_text` over `text`, to `guest` (title, with any ` • vehicle` suffix split off), `text`, `sub_text`, `category`, `posted_at` (from `postedAt`, UTC ISO), `key` and `received_at` (relay time, UTC ISO). Also parsed: `reservation_id` (a 7–9 digit trip number; a labeled "Trip/Reservation/Booking #" first, then a bare number in title, sub_text, text), `vehicle` and `plate` (24EWUH/25EWUH map to "Toyota Corolla <plate>", Rivian/R1S to "Rivian R1S", Corolla to "Toyota Corolla", plus common makes). Unknown fields are `null`.
+2. **Dedupe** within `TURO_DEDUPE_WINDOW_S` (default 24 h) when any of these repeat: the same `key` + text, the same guest + text, or a shorter prefix of a text seen from the same guest within 10 min (truncated re-posts). This covers re-posts on update and the app's 3 retries. State is in `turo_state.json`, so it survives restarts.
+3. **Inbox:** one JSON line per event in `~/.local/state/bland-relay/turo_inbox.jsonl` (`TURO_INBOX_PATH`), mode 0600. Phone numbers and emails in `text`/`sub_text` are replaced with `[phone]`/`[email]`. Lines older than `TURO_RETENTION_DAYS` (default 30) are pruned at startup and daily. Suppressed events are written with `suppressed: true`. Full text goes only to the Helm/Alexandra webhooks. The journal never has bodies, guest names, trip numbers or full numbers.
+4. **Suppress** events matching `TURO_SUPPRESS_RE` (default `safe ?wheels`, case-insensitive; matched against title, sub_text, vehicle and text). These are Alex/SafeWheels vehicles, not our fleet (our fleet is the Rivian R1S, Corolla 24EWUH and Corolla 25EWUH). Suppressed events are written to the inbox only: no SMS, no webhook. **Set the Alex vehicle names here**, e.g. `safe ?wheels|camry|model 3`.
+5. **Urgent filter**, in priority order: `safety`, `accident_damage`, `lockout`, `no_start`, `charging`. Defaults live in `TURO_URGENT_DEFAULTS` in code. Override a class with `TURO_URGENT_RE_<CLASS>` (e.g. `TURO_URGENT_RE_NO_START`). A sentence that matches the negative list `TURO_URGENT_NEG` (default: "before return", "already there", "pre-existing", "instructions", "no smoking", "thanks for the help", "no damage", …) is skipped. So "the scratch was already there" is not urgent, but "already there. I just got rear-ended" is. `matched_term` is logged in the inbox for tuning. An invalid override regex logs a warning and the default is used. Note: a systemd EnvironmentFile may eat backslashes, so check `journalctl` after changing a pattern.
+6. **owner_alert** (urgent only): a 904 SMS `URGENT Turo [<class>]: <guest>: <first 140 chars>` to `TURO_OWNER_ALERT_TO`. The only number accepted is `+12073100000`, hard-coded as `TURO_OWNER_ALERT_ALLOWED`. Any other value is refused by the relay and by `bland-relay-setkey`. The alert skips only the 72 h inbound window, and only for that number. It still respects `SMS_SEND_DISABLED`, STOP/opt-out, `TURO_OWNER_ALERT_DISABLED`, an alert dedupe (same guest + text), `TURO_ALERT_GUEST_MAX` (1) per `TURO_ALERT_GUEST_WINDOW_S` (600 s), `TURO_ALERT_HOUR_MAX` (6/h overall), and the relay-wide `RECIPIENT_MAX`/`GLOBAL_MAX`. A gateway failure goes to `alert_failure` (journal + #701). **Non-urgent Turo traffic never texts anyone.**
+7. **Handoff**, each in its own background task with a `TURO_WEBHOOK_TIMEOUT_S` (default 5 s) timeout and 2 tries. A failure is logged and sent to #701, and never blocks the owner alert or the 200 to the phone:
+   - **Helm:** every non-suppressed event is POSTed as JSON to `HELM_TURO_WEBHOOK_URL`. Auth is `Authorization: Bearer <HELM_TURO_WEBHOOK_KEY>`, the same scheme as `ALEXANDRA_ALERT_AUTH` on the live Alexandra routine webhook. A key that already contains a space (e.g. `Bearer …`) is sent as is. `HELM_TURO_WEBHOOK_HEADER` (e.g. `X-Webhook-Key`) sends the bare key in that header instead.
+   - **Alexandra:** urgent events only, through the existing `forward()` to `ALEXANDRA_ALERT_URL`/`ALEXANDRA_ALERT_AUTH`, with `"kind": "turo_urgent"`. Turn it off with `TURO_ALEX_PUSH_DISABLED=1`.
+   - With no URL set, the event is only in the JSONL. Helm reads it in its daily pass.
+
+Kill switch: `TURO_HOOK_DISABLED=1` answers Turo posts with `200 ignored: turo_disabled` (200, so the app doesn't retry), with no inbox write, SMS or webhook. Messages keep working. `RCS_HOOK_DISABLED=1` still stops the whole route.
+
+Event JSON (Helm body; the Alexandra body is the same with `kind: "turo_urgent"`):
+
+```json
+{"kind": "turo_event", "schema": "panamerica.turo.event.v1", "src": "turo", "event_id": "16 hex",
+ "guest": "Sam", "reservation_id": "12345678", "vehicle": "Rivian R1S", "plate": null,
+ "text": "full message (big_text preferred)", "sub_text": null, "category": "msg",
+ "posted_at": "2026-10-09T20:00:00Z", "received_at": "2026-10-09T20:00:02Z", "key": "notification key",
+ "urgent": true, "urgent_class": "lockout", "matched_term": "locked out", "line": "+19043343975"}
+```
+
+Helm matches on `reservation_id` first, then `guest` + `vehicle`. `event_id` is stable for a key + text, so it can serve as an idempotency key.
+
+Setup on prism (after deploy):
+
+```bash
+printf %s "+12073100000" | ~/bin/bland-relay-setkey TURO_OWNER_ALERT_TO
+printf %s "$HELM_URL" | ~/bin/bland-relay-setkey HELM_TURO_WEBHOOK_URL    # from Helm's "Turo inbound" routine
+printf %s "$HELM_KEY" | ~/bin/bland-relay-setkey HELM_TURO_WEBHOOK_KEY
+printf %s 'safe ?wheels|<alex vehicle names>' | ~/bin/bland-relay-setkey TURO_SUPPRESS_RE
+# optional: TURO_HOOK_DISABLED TURO_OWNER_ALERT_DISABLED TURO_ALEX_PUSH_DISABLED HELM_TURO_WEBHOOK_HEADER
+#   TURO_URGENT_RE_{LOCKOUT,NO_START,ACCIDENT_DAMAGE,CHARGING,SAFETY} TURO_URGENT_NEG TURO_DEDUPE_WINDOW_S
+#   TURO_ALERT_GUEST_WINDOW_S TURO_ALERT_GUEST_MAX TURO_ALERT_HOUR_MAX TURO_INBOX_PATH TURO_RETENTION_DAYS TURO_WEBHOOK_TIMEOUT_S
+```
+
+Phone: in Notification Relay Webhook → Allowlist → select apps, also check **Turo** (keep Messages checked). See the #718 design comment §3 for the full checklist. The payload format is assumed until the first real notification. Check the app's Logs tab and tune the parser and regexes from `turo_inbox.jsonl`.
+
 ## First contact (#1100)
 
 The send route only reaches numbers that texted 904 in the last 72 hours. To text a number that never texted 904 (a GVG lead, Turo renter or vendor), an agent first adds it to the first-contact allowlist. Sending is unchanged: once a number is active, use `send-904` (or `POST /<SEND_PATH>`) as usual.
@@ -223,6 +267,8 @@ printf %s "$VALUE" | ~/bin/bland-relay-setkey RCS_HOOK_PATH
 printf %s "$VALUE" | ~/bin/bland-relay-setkey RCS_HOOK_TOKEN
 printf %s "Name=+1NXXNXXXXXX;Name 2=+1NXXNXXXXXX" | ~/bin/bland-relay-setkey RCS_NAME_MAP
 printf %s 1 | ~/bin/bland-relay-setkey RCS_HOOK_DISABLED   # RCS route kill switch
+printf %s 1 | ~/bin/bland-relay-setkey TURO_HOOK_DISABLED  # Turo relay kill switch (#1104)
+printf %s "$VALUE" | ~/bin/bland-relay-setkey HELM_TURO_WEBHOOK_KEY
 ```
 
 `SEND_PATH` and `SEND_TOKEN` are long random strings. Alexandra gets the Funnel URL plus the token in her own secret store.
@@ -241,7 +287,7 @@ chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/sen
 systemctl --user restart bland-relay.service
 ```
 
-Back up first (`for f in bland_relay.py bland-relay.py bland-relay-setkey send-904; do cp ~/bin/$f ~/bin/$f.bak-pre1100; done`). Rollback is `~/bin/*.bak-pre1100` (latest), `~/bin/*.bak-pre1056`, `~/bin/*.bak-pre1054`, `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
+Back up first (`for f in bland_relay.py bland-relay.py bland-relay-setkey send-904 send-904-fc; do cp ~/bin/$f ~/bin/$f.bak-pre1104; done`). Rollback is `~/bin/*.bak-pre1104` (latest), `~/bin/*.bak-1103`, `~/bin/*.bak-pre1100`, `~/bin/*.bak-pre1056`, `~/bin/*.bak-pre1054`, `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
 
 ## Tests
 
@@ -253,4 +299,4 @@ python3 -m pytest tests -q
 
 `tests/test_first_contact.py` (#1100, SMSGate mocked, no network) covers, with `FC_REQUIRE_APPROVAL=1`: approval required, chat and SMS approval, no agent/self approval, code/text/ref checks, opt-out at request/approve/send and START, daily and sends-before-reply caps, existing rate limits, expiry/renewal/conversion, both kill switches, list/revoke, audit and CRM outbox records (no body, no secrets, 0600), log redaction, and the `send-904-fc` CLI; the #1102 (a) daily-cap rule for revoked/expired re-requests; and, with approval off (default): immediate add, validation, STOP blocking add/send until START, the daily cap counting re-adds, TTL, no cap reset on re-add, existing rate limits, both kill switches, audit/CRM records, the approve route and SMS `YES <code>` being inert, and `send-904-fc add`.
 
-Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction. The RCS notification route (`tests/test_rcs_webhook.py`) covers: app payload and lenient template parsing, number/title/name-map/unknown sender resolution, token 401, path 404, kill switch 503, package/summary filtering, STOP/START, the unknown sender not being allowlisted, dedupe both ways against SMSGate plus repeat notifications and window expiry, the SMSGate head-start wait, forward failure and retry, and log redaction.
+Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction. The RCS notification route (`tests/test_rcs_webhook.py`) covers: app payload and lenient template parsing, number/title/name-map/unknown sender resolution, token 401, path 404, kill switch 503, package/summary filtering, STOP/START, the unknown sender not being allowlisted, dedupe both ways against SMSGate plus repeat notifications and window expiry, the SMSGate head-start wait, forward failure and retry, and log redaction. The Turo relay (`tests/test_turo_relay.py`, #1104, gateway/webhooks mocked and real network blocked) covers: the Turo branch on the same path/token, token 401 and path 404, other packages still ignored, Messages unchanged, `big_text` preference, the normalized shape, reservation/vehicle/guest parsing with nulls, dedupe (key+text, guest+text, prefix re-post, window expiry, persisted state), suppression (default, env, bad regex), each urgent class, priority, the negative list and env overrides, owner_alert (template, only the allowed number, any other refused, unset, 72 h skip for the owner only, `SMS_SEND_DISABLED`, STOP/START, dedupe, per-guest and hourly limits, relay-wide slot, gateway failure), non-urgent never texting, both kill switches, the Helm POST shape and auth (default Bearer, scheme passthrough, custom header, bad header, no key, timeout), JSONL-only when URLs are unset, the Alexandra `turo_urgent` push, webhook failure/exception isolation, inbox 0600/redaction/retention, and log/secret redaction.
