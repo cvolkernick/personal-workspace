@@ -22,6 +22,7 @@ Serves static UI + APIs:
   POST /api/ask           — {question} ask Grok about FCC/treasury domain
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
+  GET  /brief, /brief/YYYY-MM-DD/am|pm, /brief/archive — Daily Brief newspaper (#1091, brief.py)
   ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796, LAN-debug still :8796)
   ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795, LAN-debug still :8795)
 
@@ -80,6 +81,44 @@ def _ensure_tool_path() -> None:
 
 
 _ensure_tool_path()
+
+
+def _load_brief_module():
+    """Daily Brief newspaper (#1091): load brief.py beside this file, lazily.
+
+    Isolated so a broken brief module can never take the rest of FCC down.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "fcc_brief", Path(__file__).resolve().parent / "brief.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_BRIEF_MOD = None
+
+
+def brief_route(path: str):
+    """(status, content_type, body) for /brief* and /api/brief/*, else None."""
+    global _BRIEF_MOD
+    if not (path == "/brief" or path.startswith("/brief/") or path.startswith("/api/brief/")):
+        return None
+    try:
+        if _BRIEF_MOD is None:
+            _BRIEF_MOD = _load_brief_module()
+        return _BRIEF_MOD.route(path)
+    except Exception as exc:  # noqa: BLE001 - never 500 the whole FCC on a bad edition
+        sys.stderr.write(f"[fcc] brief route error: {exc!r}\n")
+        body = (
+            "<!doctype html><meta charset=utf-8><title>The Daily Brief</title>"
+            "<p>The Daily Brief could not be rendered. Check the FCC log.</p>"
+        )
+        return 500, "text/html; charset=utf-8", body
+
 
 from treasury.adapters import load_config, save_config  # noqa: E402
 from treasury.financial_advisor import (  # noqa: E402
@@ -770,8 +809,24 @@ class FCCHandler(SimpleHTTPRequestHandler):
             if self.command != "HEAD":
                 self.wfile.write(html)
 
+    def _maybe_serve_brief(self) -> bool:
+        res = brief_route(urlparse(self.path).path)
+        if res is None:
+            return False
+        code, ctype, body = res
+        raw = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+        return True
+
     def do_GET(self) -> None:  # noqa: N802
         if self._maybe_proxy_lens():
+            return
+        if self._maybe_serve_brief():
             return
         parsed = urlparse(self.path)
         path = parsed.path
@@ -1062,6 +1117,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
         # that and 404 (or serve the workspace stub at /). FitDash HEAD matches GET
         # because its document root actually has those files.
         if self._maybe_proxy_lens():
+            return
+        if self._maybe_serve_brief():
             return
         path = urlparse(self.path).path
         if not path.startswith("/api/"):
