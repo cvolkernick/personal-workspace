@@ -200,9 +200,14 @@ def test_wrong_or_missing_path_is_404(http, fwd, monkeypatch):
     assert fwd == []
 
 
-def test_path_only_mode_when_no_token(http, fwd, monkeypatch):
+def test_no_token_refuses_whole_route(http, fwd, monkeypatch):
+    # No path-only mode: unset or blank RCS_HOOK_TOKEN refuses every post (#1106 review).
     monkeypatch.delenv("RCS_HOOK_TOKEN")
-    assert post(http, RCS, notif())[0] == 200
+    assert post(http, RCS, notif())[0] == 503
+    assert post(http, RCS, notif(), bearer())[0] == 503
+    monkeypatch.setenv("RCS_HOOK_TOKEN", "  ")
+    assert post(http, RCS, notif())[0] == 503
+    assert fwd == []
 
 
 def test_kill_switch_503(http, fwd, monkeypatch):
