@@ -14,6 +14,6 @@ This is the running list of anything that needs Chris at the MacBook. Grok adds 
 	- [ ] SAMPLE nested: sub-step under the item above
 	- [x] SAMPLE nested done, must not appear
 - Plain bullet, not a checkbox
-- [ ] SAMPLE: Copy a routine webhook into Forge's masked secret form (#718) <b>&</b>
+- [ ] SAMPLE: Copy a routine webhook into Forge's masked secret form (#718) <b>R&D</b>
 </content>
 </page>
