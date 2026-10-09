@@ -25,5 +25,15 @@
     {"title": "SAMPLE this week: tire rotation", "status": "Not started", "due": "2026-10-13", "owner": "Chris", "priority": "Low", "notion_url": "https://www.notion.so/sample-week"},
     {"title": "SAMPLE later: plan Q1 budget", "status": "Not started", "due": "2026-11-15", "owner": "Chris", "priority": null, "notion_url": "https://www.notion.so/sample-later"},
     {"title": "SAMPLE no date: clean garage", "status": "Not started", "due": null, "owner": null, "priority": null, "notion_url": "https://www.notion.so/sample-nodate"}
-  ]
+  ],
+  "mac_tasks": {
+    "source_url": "https://app.notion.com/p/3efcba2ad31b814aa4ece8389594cdc5",
+    "fetched_at": "2026-10-09T08:01:00-04:00",
+    "page_found": true,
+    "items": [
+      {"text": "SAMPLE: Set up SuperTake"},
+      {"text": "SAMPLE: Reconnect the MacBook so Byline can use it again"},
+      {"text": "SAMPLE: Check the Mac before Monday's pre-flight"}
+    ]
+  }
 }
