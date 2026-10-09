@@ -14,7 +14,7 @@ RCS = "/rcs-secret-path"
 TOKEN = "rcs-token-abc123"
 TURO = "com.relayrides.android.relayrides"
 MSGS = "com.google.android.apps.messaging"
-OWNER = "+12073100000"
+OWNER = "+12025550123"
 HELM_URL = "https://helm.example.invalid/hook"
 HELM_KEY = "helm-key-xyz789"
 ENV_KEYS = (
@@ -210,15 +210,17 @@ def test_big_text_preferred(live):
 def test_normalized_shape(live):
     handle(turo(text="Pickup at 3pm works", title="Sam • 2024 Toyota Corolla", sub_text="Trip 12345678"))
     ev = live.helm[0]["obj"]
-    for k in ("guest", "reservation_id", "vehicle", "plate", "text", "sub_text", "category", "posted_at",
-              "received_at", "key", "urgent", "urgent_class", "event_id", "kind", "schema"):
-        assert k in ev
+    # Helm gets exactly the trimmed field set (#1106 review).
+    assert set(ev) == set(bland_relay.TURO_HELM_FIELDS) == {
+        "kind", "schema", "event_id", "guest", "reservation_id", "vehicle", "plate", "text",
+        "received_at", "urgent", "urgent_class"}
     assert ev["guest"] == "Sam"
     assert ev["reservation_id"] == "12345678"
     assert ev["vehicle"] == "Toyota Corolla"
-    assert ev["sub_text"] == "Trip 12345678" and ev["category"] == "msg"
-    assert ev["posted_at"] == "2025-10-09T20:00:00Z"
-    assert ev["key"] == "0|com.relayrides|1|null|10001"
+    row = inbox()[0]  # the local inbox keeps the extra context
+    assert row["sub_text"] == "Trip 12345678" and row["category"] == "msg"
+    assert row["posted_at"] == "2025-10-09T20:00:00Z"
+    assert row["key"] == "0|com.relayrides|1|null|10001"
     assert ev["kind"] == "turo_event" and ev["urgent"] is False and ev["urgent_class"] is None
 
 
@@ -226,7 +228,7 @@ def test_unknown_fields_are_null(live):
     handle(turo(text="See you tomorrow", title="Sam"))
     ev = live.helm[0]["obj"]
     assert ev["reservation_id"] is None and ev["vehicle"] is None and ev["plate"] is None
-    assert ev["sub_text"] is None
+    assert inbox()[0]["sub_text"] is None
 
 
 @pytest.mark.parametrize("fields,want", [
@@ -398,20 +400,28 @@ def test_non_urgent_never_texts(live):
     assert live.sms == [] and len(live.helm) == 3 and live.alex == []
 
 
-def test_owner_alert_refuses_other_number(live, monkeypatch, caplog):
+def test_owner_alert_env_number_is_the_only_recipient(live, monkeypatch, caplog):
     monkeypatch.setenv("TURO_OWNER_ALERT_TO", "+12025550177")
-    with caplog.at_level(logging.ERROR, logger="bland-relay"):
+    with caplog.at_level(logging.INFO, logger="bland-relay"):
+        handle(turo(text="I'm locked out"))
+    assert [to for to, _ in live.sms] == ["+12025550177"]
+    assert "2025550177" not in caplog.text and "***0177" in caplog.text
+
+
+@pytest.mark.parametrize("bad", ["(202) 555-0123", "2025550123", "12025550123", "+1202555012",
+                                 "+12025550123x", "+11025550123", "not-a-number"])
+def test_owner_alert_invalid_e164_disabled_and_not_logged(live, monkeypatch, caplog, bad):
+    monkeypatch.setenv("TURO_OWNER_ALERT_TO", bad)
+    with caplog.at_level(logging.INFO, logger="bland-relay"):
         handle(turo(text="I'm locked out"))
     assert live.sms == []
-    assert "not the allowed owner number" in caplog.text
-    assert "2025550177" not in caplog.text
-    assert len(live.helm) == 1  # handoff still happens
+    assert "not valid E.164" in caplog.text
+    assert "5550123" not in caplog.text and "555012" not in caplog.text
+    assert len(live.helm) == 1 and len(live.alex) == 1  # handoff still happens
 
 
-def test_owner_alert_accepts_formatted_allowed_number(live, monkeypatch):
-    monkeypatch.setenv("TURO_OWNER_ALERT_TO", "(207) 310-0000")
-    handle(turo(text="I'm locked out"))
-    assert live.sms == [(OWNER, live.sms[0][1])]
+def test_no_owner_number_in_code():
+    assert not hasattr(bland_relay, "TURO_OWNER_ALERT_ALLOWED")
 
 
 def test_owner_alert_unset_no_sms(live, monkeypatch):
@@ -579,6 +589,8 @@ def test_alexandra_urgent_push_tagged(live):
     assert len(live.alex) == 1
     obj = live.alex[0]["obj"]
     assert obj["kind"] == "turo_urgent" and obj["urgent_class"] == "lockout"
+    assert set(obj) == set(bland_relay.TURO_ALEX_FIELDS) == {
+        "kind", "guest", "reservation_id", "vehicle", "text", "urgent_class", "received_at"}
 
 
 def test_alexandra_push_disable(live, monkeypatch):
@@ -656,9 +668,31 @@ def test_logs_have_no_body_or_secrets(live, caplog):
         handle(turo(text="I'm locked out at 12 Elm St", title="Samantha", sub_text="Trip 12345678"))
     assert "Elm St" not in caplog.text and "Samantha" not in caplog.text
     assert "12345678" not in caplog.text and HELM_KEY not in caplog.text
-    assert "2073100000" not in caplog.text
+    assert OWNER.lstrip("+") not in caplog.text and OWNER[2:] not in caplog.text
 
 
 def test_scrub_redacts_helm_secrets(live):
     assert HELM_KEY not in bland_relay._scrub("x " + HELM_KEY)
     assert HELM_URL not in bland_relay._scrub("x " + HELM_URL)
+
+
+# --- RCS_HOOK_TOKEN is mandatory for the route that carries Turo ----------
+
+@pytest.mark.parametrize("val", [None, "", "   "])
+def test_turo_route_refused_without_rcs_token(http, live, monkeypatch, val):
+    if val is None:
+        monkeypatch.delenv("RCS_HOOK_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("RCS_HOOK_TOKEN", val)
+    for tok in (None, "", TOKEN, "anything"):
+        code, _ = post(http, turo(text="I'm locked out"), tok=tok)
+        assert code in (401, 503)
+    code, _ = post(http, {"package": MSGS, "title": "Sam", "text": "hello"}, tok=None)
+    assert code in (401, 503)  # whole RCS route, not just Turo
+    assert live.sms == [] and live.helm == [] and live.alex == [] and inbox() == []
+
+
+def test_turo_route_missing_token_401(http, live):
+    code, _ = post(http, turo(text="I'm locked out"), tok=None)
+    assert code == 401
+    assert live.sms == [] and live.helm == [] and inbox() == []
