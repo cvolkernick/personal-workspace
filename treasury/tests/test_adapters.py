@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -25,6 +26,30 @@ from treasury.adapters import (  # noqa: E402
     should_force_offline_consumer,
     write_robinhood_snapshot,
 )
+
+
+class TestSaveJsonAtomic(unittest.TestCase):
+    def test_replace_keeps_previous_file_until_temp_is_complete(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "treasury_latest.json"
+            path.write_text('{"old": true}\n', encoding="utf-8")
+            seen: dict = {}
+            real = os.replace
+
+            def capture(src, dst):
+                seen["src"] = Path(src).read_text(encoding="utf-8")
+                seen["dst_before"] = Path(dst).read_text(encoding="utf-8")
+                seen["same_dir"] = Path(src).parent == Path(dst).parent
+                return real(src, dst)
+
+            with mock.patch("treasury.adapters.os.replace", side_effect=capture):
+                save_json(path, {"ok": True, "n": 1})
+            self.assertEqual(json.loads(seen["src"]), {"ok": True, "n": 1})
+            self.assertEqual(json.loads(seen["dst_before"]), {"old": True})
+            self.assertTrue(seen["same_dir"])
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"ok": True, "n": 1})
+            leftovers = [p for p in Path(td).iterdir() if p != path]
+            self.assertEqual(leftovers, [])
 
 
 class TestParseCoinbase(unittest.TestCase):
