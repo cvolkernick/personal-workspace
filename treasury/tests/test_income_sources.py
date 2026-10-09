@@ -44,8 +44,12 @@ class TestClassifyIncomeSource(unittest.TestCase):
         self.assertEqual(public["turo"]["label"], "Turo")
         self.assertEqual(
             [row["id"] for row in INCOME_SOURCE_LINES],
-            ["lyft", "grubhub", "turo"],
+            ["lyft", "grubhub", "turo", "rewards", "interest", "refunds", "cash_deposits"],
         )
+        self.assertEqual(public["rewards"]["label"], "Rewards")
+        self.assertEqual(public["interest"]["label"], "Interest")
+        self.assertEqual(public["refunds"]["label"], "Refunds")
+        self.assertEqual(public["cash_deposits"]["label"], "Cash deposits")
         for row in income_source_public():
             self.assertNotIn("needles", row)
 
@@ -70,6 +74,15 @@ class TestClassifyIncomeSource(unittest.TestCase):
         self.assertEqual(classify_income_source("Lyft", "Turo"), "lyft")
         self.assertEqual(classify_income_source("Turo", "Grubhub"), "turo")
         self.assertEqual(classify_income_source("Daily pay", "Grubhub"), "grubhub")
+
+    def test_explicit_streams_match_tokens_and_leave_unknowns_none(self) -> None:
+        self.assertEqual(classify_income_source("Cash back rewards"), "rewards")
+        self.assertEqual(classify_income_source("Interest payment"), "interest")
+        self.assertEqual(classify_income_source("Amazon refund"), "refunds")
+        self.assertEqual(classify_income_source("ATM cash deposit"), "cash_deposits")
+        self.assertEqual(classify_income_source("Lyft Rewards"), "lyft")
+        self.assertIsNone(classify_income_source("Interesting Cafe"))
+        self.assertIsNone(classify_income_source("Employer"))
 
 
 def _ts(day: str) -> int:
