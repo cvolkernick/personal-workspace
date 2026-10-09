@@ -340,6 +340,143 @@ class TestRender(TmpStore):
         self.assertEqual(data["edition"]["edition"], "pm")
 
 
+class TestMacTasks(TmpStore):
+    """Mac tasks section: unchecked boxes from the Notion checklist page snapshot."""
+
+    MAC_URL = "https://app.notion.com/p/3efcba2ad31b814aa4ece8389594cdc5"
+
+    def render(self, mac, *, set_block=True, edition="am"):
+        ed = sample("sample-am" if edition == "am" else "sample-pm")
+        ed.pop("mac_tasks", None)
+        if set_block:
+            ed["mac_tasks"] = mac
+        self.pub(ed)
+        code, _, body = brief.route(f"/brief/{ed['date']}/{edition}", root=self.root,
+                                    now=datetime(2026, 10, 9, 21, 0, tzinfo=brief.ET))
+        self.assertEqual(code, 200)
+        return body
+
+    def section(self, body):
+        start = body.index('id="sec-mac"')
+        return body[start:body.index("</section>", start)]
+
+    def test_builder_from_notion_fixture(self):
+        md = (SAMPLES / "notion-mac-tasks-page.md").read_text(encoding="utf-8")
+        block = brief.mac_tasks_from_markdown(md, fetched_at="2026-10-09T08:01:00-04:00")
+        texts = [i["text"] for i in block["items"]]
+        self.assertEqual(len(texts), 5)  # 4 top-level unchecked + 1 nested unchecked
+        self.assertIn("SAMPLE nested: sub-step under the item above", texts)
+        self.assertFalse(any("must not appear" in t for t in texts))
+        self.assertNotIn("Plain bullet, not a checkbox", texts)
+        self.assertTrue(block["page_found"])
+        self.assertEqual(block["source_url"], self.MAC_URL)
+        self.assertEqual(brief.validate_mac_tasks(block), [])
+
+    def test_builder_missing_page(self):
+        block = brief.mac_tasks_from_markdown(None, fetched_at="2026-10-09T08:01:00-04:00")
+        self.assertEqual(block["items"], [])
+        self.assertFalse(block["page_found"])
+
+    def test_cli_mac_tasks(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = brief.main(["mac-tasks", str(SAMPLES / "notion-mac-tasks-page.md"),
+                             "--fetched-at", "2026-10-09T08:01:00-04:00"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(json.loads(buf.getvalue())["items"]), 5)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            brief.main(["mac-tasks", "--missing"])
+        self.assertFalse(json.loads(buf.getvalue())["page_found"])
+
+    def test_renders_items_one_line_each(self):
+        body = self.render({"source_url": self.MAC_URL, "fetched_at": "2026-10-09T08:01:00-04:00",
+                            "page_found": True, "items": [{"text": "Set up SuperTake"}, {"text": "Reconnect MacBook"}]})
+        sec = self.section(body)
+        self.assertEqual(sec.count('<li class="mac-item">'), 2)
+        self.assertIn("Set up SuperTake", sec)
+        self.assertIn("2 waiting", sec)
+        self.assertIn(f'href="{self.MAC_URL}"', sec)
+        self.assertNotIn("Nothing waiting at the Mac", sec)
+        self.assertIn('href="#sec-mac">Mac tasks</a>', body)  # section pill
+        self.assertIn("Mac tasks: snapshot of the Notion checklist page (8:01 AM ET)", body)
+        # follows To-Do, before Business
+        self.assertLess(body.index('id="sec-todo"'), body.index('id="sec-mac"'))
+        self.assertLess(body.index('id="sec-mac"'), body.index('id="sec-business"'))
+
+    def test_reminders_card_count(self):
+        body = self.render({"page_found": True, "items": [{"text": "a"}, {"text": "b"}, {"text": "c"}]})
+        card = body[body.index('class="card card-rem"'):]
+        card = card[:card.index('class="card"')]
+        self.assertIn('<a href="#sec-mac">3 Mac tasks</a>', card)
+        body1 = self.render({"page_found": True, "items": [{"text": "only"}]})
+        self.assertIn('<a href="#sec-mac">1 Mac task</a>', body1)
+
+    def test_all_checked_empty_state(self):
+        mac = {"source_url": self.MAC_URL, "fetched_at": "2026-10-09T08:01:00-04:00", "page_found": True,
+               "items": [{"text": "done one", "checked": True}, {"text": "done two", "checked": True}]}
+        # publisher may pass checked rows: normalize drops them (like Done todos)
+        body = self.render(mac)
+        sec = self.section(body)
+        self.assertIn('<p class="empty">Nothing waiting at the Mac</p>', sec)
+        self.assertIn('data-mac-state="clear"', sec)
+        self.assertNotIn("done one", body)
+        self.assertIn('<a href="#sec-mac">0 Mac tasks</a>', body)
+        self.assertEqual(brief.validate_mac_tasks({"items": [{"text": "x", "checked": True}]}),
+                         ["mac_tasks.items[0]: checked items must not be in the snapshot"])
+
+    def test_page_missing_empty_state(self):
+        body = self.render({"source_url": self.MAC_URL, "fetched_at": "2026-10-09T08:01:00-04:00",
+                            "page_found": False, "items": [{"text": "stale leftover"}]})
+        sec = self.section(body)
+        self.assertIn("Nothing waiting at the Mac", sec)
+        self.assertIn('data-mac-state="missing"', sec)
+        self.assertNotIn("stale leftover", body)
+        self.assertIn('<a href="#sec-mac">0 Mac tasks</a>', body)
+
+    def test_block_absent_backward_compat(self):
+        for edition in ("am", "pm"):
+            body = self.render(None, set_block=False, edition=edition)
+            sec = self.section(body)
+            self.assertIn('<p class="empty">Nothing waiting at the Mac</p>', sec)
+            self.assertIn('data-mac-state="absent"', sec)
+            self.assertIn("0 waiting", sec)
+            self.assertIn('<a href="#sec-mac">0 Mac tasks</a>', body)
+            self.assertIn("Mac tasks: no snapshot in this edition.", body)
+        # old editions already in the store (written before mac_tasks existed) still render
+        _, _, body = brief.route("/brief/2026-10-09/pm", root=self.root,
+                                 now=datetime(2026, 10, 9, 21, 0, tzinfo=brief.ET))
+        self.assertIn("Nothing waiting at the Mac", body)
+        self.assertEqual(brief.validate(brief.normalize(sample("sample-pm"))), [])
+
+    def test_html_escaped(self):
+        body = self.render({"source_url": self.MAC_URL, "page_found": True,
+                            "items": [{"text": '<script>alert(1)</script>'}, {"text": '"><img src=x onerror=alert(1)> & co'}]})
+        sec = self.section(body)
+        self.assertNotIn("<script>alert", body)
+        self.assertNotIn("<img src=x", body)
+        lt, gt, amp = "&" + "lt;", "&" + "gt;", "&" + "amp;"  # split so no literal entities in source
+        self.assertIn(f"{lt}script{gt}alert(1){lt}/script{gt}", sec)
+        self.assertIn(f"{amp} co", sec)
+
+    def test_schema_validation(self):
+        v = brief.validate_mac_tasks
+        self.assertEqual(v(None), [])
+        self.assertEqual(v({"items": []}), [])
+        self.assertTrue(v("nope"))
+        self.assertTrue(v({"source_url": "javascript:alert(1)", "items": []}))
+        self.assertTrue(v({"fetched_at": "yesterday", "items": []}))
+        self.assertTrue(v({"page_found": "yes", "items": []}))
+        self.assertTrue(v({"items": [{"text": ""}]}))
+        self.assertTrue(v({"items": "a,b"}))
+        ed = brief.normalize({**sample("sample-am"), "mac_tasks": {"items": ["bare string ok"]}})
+        self.assertEqual(ed["mac_tasks"]["items"], [{"text": "bare string ok"}])
+        self.assertEqual(brief.validate(ed), [])
+        bad = {**sample("sample-am"), "mac_tasks": {"source_url": "ftp://x", "items": []}}
+        with self.assertRaises(brief.BriefError):
+            brief.publish(bad, root=self.root)
+
+
 class TestCli(TmpStore):
     def test_publish_cli(self):
         old = os.environ.get("FCC_BRIEF_DIR")

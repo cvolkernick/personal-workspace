@@ -15,6 +15,7 @@ CLI (Grok's morning/evening routines call this over SSH on prism)::
   python3 financial-command/brief.py publish <file.json|->   # validate + write (idempotent)
   python3 financial-command/brief.py validate <file.json|->  # validate only
   python3 financial-command/brief.py list                    # editions, newest first
+  python3 financial-command/brief.py mac-tasks <page.md|->   # Notion page body -> mac_tasks JSON
   financial-command/fcc brief publish <file.json|->          # same, via wrapper
 
 No LLM, no network, no credentials: rendering only reads the edition store.
@@ -48,6 +49,9 @@ BUCKET_TITLES = {
     "nodate": "No date",
 }
 STALE_HOURS = 14.0
+MAC_TASKS_TITLE = "Mac tasks"
+MAC_TASKS_EMPTY = "Nothing waiting at the Mac"
+MAC_TASKS_URL = "https://app.notion.com/p/3efcba2ad31b814aa4ece8389594cdc5"
 LOCATION = "Fort Myers, FL"
 PAPER_NAME = "The Daily Brief"
 TAGLINE = "All the news that fits the day. Printed for Chris, by Grok."
@@ -55,6 +59,8 @@ TAGLINE = "All the news that fits the day. Printed for Chris, by Grok."
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-(am|pm)\.json$")
 _SECTION_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
+# Notion enhanced-Markdown to-do line: "- [ ] text" / "- [x] text", any indent (nested).
+_TODO_LINE_RE = re.compile(r"^(?P<indent>[ \t]*)[-*+] \[(?P<mark>[ xX])\][ \t]+(?P<text>.*\S)[ \t]*$")
 
 
 class BriefError(ValueError):
@@ -174,6 +180,19 @@ def normalize(edition: dict, *, now: datetime | None = None) -> dict:
     if isinstance(ed.get("todos"), list):
         # Snapshot is "every row not Done"; drop Done rows instead of failing the publish.
         ed["todos"] = [t for t in ed["todos"] if not (isinstance(t, dict) and t.get("status") == "Done")]
+    mt = ed.get("mac_tasks")
+    if isinstance(mt, dict) and isinstance(mt.get("items"), list):
+        # Snapshot is "every UNCHECKED box"; accept bare strings, drop checked items.
+        mt = dict(mt)
+        items = []
+        for it in mt["items"]:
+            if isinstance(it, str):
+                it = {"text": it}
+            if isinstance(it, dict) and it.get("checked") is True:
+                continue
+            items.append(it)
+        mt["items"] = items
+        ed["mac_tasks"] = mt
     return ed
 
 
@@ -279,7 +298,76 @@ def validate(edition: dict) -> list[str]:
                 isinstance(nu, str) and nu.startswith("https://")
             ):
                 p.append(f"{w0}.notion_url: https URL")
+    p.extend(validate_mac_tasks(edition.get("mac_tasks")))
     return p
+
+
+def validate_mac_tasks(mt: Any) -> list[str]:
+    """Optional ``mac_tasks`` block; absent/null is valid (renders the empty state)."""
+    if mt is None:
+        return []
+    if not isinstance(mt, dict):
+        return ["mac_tasks: object {source_url, fetched_at, items:[{text}], page_found}"]
+    p: list[str] = []
+    su = mt.get("source_url")
+    if su not in (None, "") and not (isinstance(su, str) and su.startswith("https://")):
+        p.append("mac_tasks.source_url: https URL or null")
+    fa = mt.get("fetched_at")
+    if fa not in (None, "") and _parse_ts(fa) is None:
+        p.append("mac_tasks.fetched_at: ISO-8601 timestamp or null")
+    pf = mt.get("page_found", True)
+    if not isinstance(pf, bool):
+        p.append("mac_tasks.page_found: boolean")
+    items = mt.get("items", [])
+    if not isinstance(items, list):
+        p.append("mac_tasks.items: list (may be empty)")
+        return p
+    for i, it in enumerate(items):
+        w = f"mac_tasks.items[{i}]"
+        if not isinstance(it, dict) or not isinstance(it.get("text"), str) or not it["text"].strip():
+            p.append(f"{w}: object {{text}} with non-empty text")
+        elif it.get("checked") is True:
+            p.append(f"{w}: checked items must not be in the snapshot")
+    return p
+
+
+def mac_tasks_from_markdown(
+    md: str | None,
+    *,
+    source_url: str | None = MAC_TASKS_URL,
+    fetched_at: str | None = None,
+    page_found: bool = True,
+) -> dict:
+    """Build the ``mac_tasks`` block from a Notion page body (enhanced Markdown).
+
+    The Notion connector's ``notion-fetch`` returns the page body inside
+    ``<content>...</content>``; to-do blocks are lines ``- [ ] text`` (unchecked)
+    and ``- [x] text`` (checked). Nested to-dos are indented by tabs/spaces and are
+    included as their own line (flattened, in page order). Everything else (prose,
+    headings, bullets) is ignored. Pass ``page_found=False`` (or ``md=None``) when
+    the page could not be fetched.
+    """
+    if fetched_at is None:
+        fetched_at = eastern_now().isoformat(timespec="seconds")
+    items: list[dict] = []
+    if md is None:
+        page_found = False
+    elif page_found:
+        body = md
+        m = re.search(r"<content>(.*?)</content>", md, re.S)
+        if m:
+            body = m.group(1)
+        in_fence = False
+        for line in body.splitlines():
+            if line.lstrip().startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            t = _TODO_LINE_RE.match(line)
+            if t and t.group("mark") == " ":
+                items.append({"text": t.group("text").strip()})
+    return {"source_url": source_url, "fetched_at": fetched_at, "items": items, "page_found": bool(page_found)}
 
 
 def load_json_arg(arg: str) -> dict:
@@ -542,7 +630,50 @@ def render_todos(todos: list[dict], today: date, *, edition: str = "am") -> str:
     return "".join(out)
 
 
-def _reminders_card(todos: list[dict], today: date) -> str:
+def mac_task_items(mt: Any) -> list[str]:
+    """Unchecked Mac task texts from an edition's ``mac_tasks`` block.
+
+    Backward compatible: a missing/null/malformed block or ``page_found: false``
+    yields [] (rendered as the "Nothing waiting at the Mac" empty state).
+    """
+    if not isinstance(mt, dict) or mt.get("page_found", True) is False:
+        return []
+    out = []
+    for it in mt.get("items") or []:
+        if isinstance(it, str):
+            it = {"text": it}
+        if not isinstance(it, dict) or it.get("checked") is True:
+            continue
+        txt = it.get("text")
+        if isinstance(txt, str) and txt.strip():
+            out.append(txt.strip())
+    return out
+
+
+def render_mac_tasks(mt: Any) -> str:
+    items = mac_task_items(mt)
+    n = len(items)
+    src = mt.get("source_url") if isinstance(mt, dict) else None
+    open_link = (
+        f' <a class="mac-src" href="{_e(src)}" target="_blank" rel="noopener noreferrer">Notion</a>'
+        if isinstance(src, str) and src.startswith("https://")
+        else ""
+    )
+    state = "items" if n else ("absent" if not isinstance(mt, dict) else ("missing" if mt.get("page_found", True) is False else "clear"))
+    head = (
+        f'<section class="sec" id="sec-mac" data-mac-state="{state}"><h2 class="sec-h">{_e(MAC_TASKS_TITLE)}'
+        f'<span class="sec-count">{n} waiting{open_link}</span></h2>'
+    )
+    if not n:
+        return head + f'<p class="empty">{_e(MAC_TASKS_EMPTY)}</p></section>'
+    rows = "".join(
+        f'<li class="mac-item"><span class="mac-box" aria-hidden="true"></span><span class="mac-text">{_e(t)}</span></li>'
+        for t in items
+    )
+    return head + f'<ul class="mac-list" aria-label="Unchecked Mac tasks">{rows}</ul></section>'
+
+
+def _reminders_card(todos: list[dict], today: date, mac_count: int = 0) -> str:
     g = bucket_todos(todos, today)
     urgent = g["overdue"] + g["today"]
     n = len(urgent)
@@ -554,7 +685,9 @@ def _reminders_card(todos: list[dict], today: date) -> str:
     return (
         f'<div class="card card-rem"><div class="card-k">Reminders</div>'
         f'<div class="card-v{" red" if g["overdue"] else ""}">{n} due</div>'
-        f'<div class="card-sub muted">{len(g["overdue"])} overdue · {len(g["today"])} today</div>{body}</div>'
+        f'<div class="card-sub muted">{len(g["overdue"])} overdue · {len(g["today"])} today</div>'
+        f'<div class="card-sub mac-count"><a href="#sec-mac">{mac_count} Mac task{"" if mac_count == 1 else "s"}</a></div>'
+        f"{body}</div>"
     )
 
 
@@ -621,6 +754,12 @@ a{color:var(--link)}.muted{color:var(--muted)}.red{color:var(--red)}
 .chip{border-radius:999px;padding:.05rem .45rem;background:var(--chip);border:1px solid var(--border);font-size:.68rem}
 .chip-hi{border-color:var(--red);color:var(--red)}.chip-prog{border-color:var(--link);color:var(--link)}
 .empty{font-style:italic;color:var(--muted)}
+.mac-list{list-style:none;padding:0!important}
+.mac-item{display:flex;gap:.5rem;align-items:flex-start;border-bottom:1px dotted var(--border);padding:.3rem 0;font-family:var(--serif);font-size:.98rem;min-width:0}
+.mac-box{flex:0 0 auto;width:.9rem;height:.9rem;margin-top:.28rem;border:1.5px solid var(--fg);border-radius:.18rem;background:var(--card)}
+.mac-text{min-width:0;overflow-wrap:anywhere}
+.mac-src{font-size:.7rem;margin-left:.35rem}
+.card .mac-count{font-size:.72rem;margin-top:.1rem}.card .mac-count a{color:var(--fg);text-decoration:none;border-bottom:1px dotted var(--muted)}
 .edition-nav{display:flex;justify-content:space-between;gap:.5rem;margin:1.2rem 0 .5rem;font-size:.85rem}
 .edition-nav a,.edition-nav span{border:1px solid var(--border);border-radius:999px;padding:.3rem .8rem;text-decoration:none;color:var(--fg);background:var(--card)}
 .edition-nav span{opacity:.4}
@@ -725,7 +864,7 @@ def render_edition(
         '<div class="cards">'
         f'<div class="card"><div class="card-k">Weather</div><div class="card-v">{_e(_weather_short(ed.get("weather")))}</div></div>'
         f'<div class="card"><div class="card-k">Today</div><div class="card-v">{_e(highlight) or "—"}</div></div>'
-        f"{_reminders_card(todos, today)}"
+        f"{_reminders_card(todos, today, len(mac_task_items(ed.get('mac_tasks'))))}"
         f'<div class="card"><div class="card-k">{"Tomorrow" if ed["edition"] == "pm" else "Upcoming"}</div>{up_html}</div>'
         "</div>"
     )
@@ -750,6 +889,7 @@ def render_edition(
     # (day-ahead / tomorrow) or replaces an explicit "todo" placeholder.
     secs = [s for s in ed.get("sections") or [] if isinstance(s, dict)]
     todo_html = render_todos(todos, today, edition=ed["edition"])
+    mac_html = render_mac_tasks(ed.get("mac_tasks"))
     blocks: list[tuple[str, str, str]] = []  # (id, title, html)
     placed = False
     for s in secs:
@@ -775,15 +915,26 @@ def render_edition(
             placed = True
     if not placed:
         blocks.insert(0, ("todo", "To-Do", todo_html))
+    # Mac tasks always directly follow the To-Do block (every am and pm edition).
+    ti = next(i for i, b in enumerate(blocks) if b[0] == "todo")
+    blocks.insert(ti + 1, ("mac", MAC_TASKS_TITLE, mac_html))
 
     pills = (
         '<nav class="pills" aria-label="Sections"><a href="#sec-front">Front Page</a>'
         + "".join(f'<a href="#sec-{_e(i)}">{_e(t)}</a>' for i, t, _ in blocks)
         + "</nav>"
     )
+    mt = ed.get("mac_tasks")
+    mac_at = _fmt_et_time(mt.get("fetched_at")) if isinstance(mt, dict) else ""
+    mac_note = (
+        f"Mac tasks: snapshot of the Notion checklist page ({_e(mac_at)}). "
+        if mac_at
+        else ("" if isinstance(mt, dict) else "Mac tasks: no snapshot in this edition. ")
+    )
     snap = (
         f'<div class="foot">To-Do: snapshot from Notion Todo List at publish '
         f'({_e(_fmt_et_time(ed.get("published_at")))}, {_e(ed["date"])}). '
+        f"{mac_note}"
         "Read-only; edit items in Notion. Published "
         f'{_e(_fmt_et_time(ed.get("published_at")))} · <a href="{edition_url(key)}">Permalink</a></div>'
     )
@@ -905,6 +1056,11 @@ def main(argv: list[str] | None = None) -> int:
     p_val.add_argument("file")
     sub.add_parser("list", help="list editions, newest first")
     sub.add_parser("path", help="print the edition store directory")
+    p_mac = sub.add_parser("mac-tasks", help="build the mac_tasks block from a Notion page body (Markdown)")
+    p_mac.add_argument("file", nargs="?", default="-", help="notion-fetch page text/Markdown, or - for stdin")
+    p_mac.add_argument("--source-url", default=MAC_TASKS_URL)
+    p_mac.add_argument("--fetched-at", default=None, help="ISO timestamp (default: now ET)")
+    p_mac.add_argument("--missing", action="store_true", help="page not found: emit page_found=false")
     args = ap.parse_args(argv)
 
     try:
@@ -924,6 +1080,16 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == "path":
             print(store_dir())
+            return 0
+        if args.cmd == "mac-tasks":
+            md = None
+            if not args.missing:
+                try:
+                    md = sys.stdin.read() if args.file == "-" else Path(args.file).read_text(encoding="utf-8")
+                except OSError as e:
+                    raise BriefError(f"cannot read {args.file}: {e}") from e
+            block = mac_tasks_from_markdown(md, source_url=args.source_url, fetched_at=args.fetched_at)
+            print(json.dumps(block, ensure_ascii=False, indent=2))
             return 0
     except BriefError as e:
         print(json.dumps({"ok": False, "problems": e.problems}), file=sys.stderr)
