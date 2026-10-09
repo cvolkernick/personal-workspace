@@ -11,11 +11,12 @@ Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.
 | `POST /<SMSGW_HOOK_PATH>` | Secret path, plus SMSGate `X-Signature`/`X-Timestamp` HMAC when `SMSGW_SIGNING_KEY` is set | SMSGate cloud `sms:received` webhook (#1054). Same inbound path as the forwarder: allowlist record, STOP/opt-out, same payload to Alexandra. Replaces the SMS Forwarder app. |
 | `POST /<RCS_HOOK_PATH>` | Secret path, plus `RCS_HOOK_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` when set | Google Messages notifications from the 904 phone (#1056), so RCS chats arrive too. Same allowlist, STOP, and payload. Deduped against SMSGate. Kill switch `RCS_HOOK_DISABLED=1`. |
 | `POST /<SEND_PATH>` | `SEND_TOKEN`, same headers | Alexandra sends one SMS. |
+| `POST /<FC_PATH>` | `SEND_TOKEN` (request/list/revoke) or the approver token (approve) | Approved first-contact numbers (#1100). See below. |
 
 Send body:
 
 ```json
-{"to": "+19045550199", "message": "text", "in_reply_to": "optional"}
+{"to": "+19045550199", "message": "text", "in_reply_to": "optional", "purpose": "optional", "placed_by": "optional seat"}
 ```
 
 `to` is strict E.164 US NANP (`+1` then NXX NXX XXXX). `message` is required, stripped, and at most 640 characters. `in_reply_to` is accepted and not sent to the gateway.
@@ -28,7 +29,9 @@ Success is `{"ok": true, "id": "...", "state": "Pending"}`. The id and state com
 | Send token or gateway settings missing | 503 `relay not configured` |
 | Bad or missing token | 401 |
 | Bad `to` or `message` | 400 |
-| Number has not texted 904 in the last 72 hours | 403 `not_allowlisted` |
+| Number has not texted 904 in the last 72 hours and has no active first-contact approval | 403 `not_allowlisted` |
+| First-contact approval expired / `FC_DISABLED=1` | 403 `first_contact_expired` / `first_contact_disabled` |
+| First-contact number already got `FC_MAX_SENDS_BEFORE_REPLY` texts without replying | 429 `first_contact_send_cap` |
 | Inbound STOP (or UNSUBSCRIBE, CANCEL, END, QUIT, STOPALL, REVOKE, OPTOUT) | 403 `opt_out` |
 | More than 5 sends to one number in 10 minutes, or 30 sends in an hour | 429 `rate_limited` |
 | Gateway error | 502 `gateway failed`, plus the existing #701 alert (15-minute dedupe shared with Bland) |
@@ -131,6 +134,59 @@ Phone setup (904 Pixel):
 8. Keep RCS on. Don't change SMSGate.
 9. For saved contacts, add their names to `RCS_NAME_MAP` on prism, exactly as Google Messages shows them. Otherwise they arrive as `unknown sender <name>` and can't be replied to.
 
+## Approved first contact (#1100)
+
+The send route only reaches numbers that texted 904 in the last 72 hours. A first text to a GVG lead, Turo renter or vendor needs Chris's typed yes first. Sending is unchanged: once a number is approved, use `send-904` (or `POST /<SEND_PATH>`) as usual.
+
+### Flow
+
+1. **Request** (any agent, `SEND_TOKEN`):
+   ```bash
+   send-904-fc request --to "+19045550123" --name "Dana Lead" --kind lead \
+     --purpose "GVG lead asked about fleet rental" --by alexandra
+   ```
+   The relay normalizes the number to E.164, refuses opted-out numbers (403 `opt_out`) and the daily cap (429 `daily_cap`), and returns a one-time 6-digit `code` (valid 24 h; only its hash is stored) and an `ask` sentence to show Chris.
+2. **Chris approves** by typing yes with the code, one of:
+   - **SMS (preferred):** Chris texts `YES 123456` to 904 from a number in `FC_APPROVER_NUMBERS`. The SMSGate (signed) or forwarder inbound route matches it. RCS notifications resolved only through `RCS_NAME_MAP` never approve.
+   - **Chat:** the user-facing seat (Grok) relays his typed text:
+     ```bash
+     printf '%s\n' "$FC_APPROVE_TOKEN" | send-904-fc approve --to "+19045550123" --code 123456 \
+       --approver chris --text "yes 123456" --ref "<chat message id/link>" --token-stdin
+     ```
+   The approver must be in `FC_APPROVERS` (default `chris`), must not be an agent seat (`FC_AGENT_SEATS` plus built-ins alexandra, grok, forge, buzz, grokbuild, gvg, muse…) and must not be the requester. The text must start with yes/approve/ok and contain the code. `approval_ref` is required. `SEND_TOKEN` can never approve, and an approver token equal to `SEND_TOKEN` is refused.
+3. **Send** with `send-904` as usual. The entry stores approver, approval text, ref, via, `approved_at` and `expires_at`.
+4. **List / revoke:** `send-904-fc list [--status active|pending|expired|converted|revoked|opted_out]`, `send-904-fc revoke --to ... --reason ... --by <seat>`. Both work even with the kill switch on.
+
+Route body for `POST /<FC_PATH>`: `{"action": "request"|"approve"|"list"|"revoke", ...}` with the fields above (`to`, `name`, `purpose_kind`, `purpose`, `requested_by`; `code`, `approver`, `approval_text`, `approval_ref`; `status`; `reason`, `revoked_by`).
+
+### Guardrails
+
+| Rule | Setting |
+|---|---|
+| Opt-out wins: STOP blocks request, approve and send, even with approval, until START/UNSTOP/YES | always |
+| Existing 5 / number / 10 min and 30 / hour global | always |
+| New first-contact numbers approved per rolling 24 h (renewals don't count) | `FC_DAILY_MAX` (default 20) |
+| Approval lifetime; renew with a new request + approval (resets the send count) | `FC_TTL_DAYS` (default 30, max 90) |
+| Texts per entry until the contact replies | `FC_MAX_SENDS_BEFORE_REPLY` (default 3) |
+| A reply converts the entry (`converted`) to the normal 72 h inbound window | always |
+| `SMS_SEND_DISABLED=1`: send 503, request/approve 503, SMS approvals ignored | kill switch |
+| `FC_DISABLED=1`: first-contact only (route 503, approvals stop granting sends) | kill switch |
+
+### Audit and CRM
+
+- `~/.local/state/bland-relay/first_contact_audit.jsonl` (0600, append-only; `FC_AUDIT_PATH` overrides): `request`, `approve`, `deny`, `revoke`, `convert`, `opt_out`, `send`, `send_refused`. Full E.164 numbers and the approval text, never message bodies or secrets.
+- `~/.local/state/bland-relay/crm_outbox.jsonl` (0600; `CRM_OUTBOX_PATH` overrides, `CRM_INGEST_MODE=off` disables): one record per send through the relay (first contact and replies), schema `panamerica.crm.interaction.v1` = the #1049 `interaction` columns (`channel`, `direction`, `provider`, `provider_msg_id`, `from_addr`, `to_addr`, `summary`, `outcome`, `error_code`, `occurred_at`, `logged_by`) plus `metadata` (`purpose`, `purpose_kind`, `placed_by`, `first_contact`, `approval`) and `party_hint` (`phone`, `display_name`, `type`, `tags`, `source`) for #1097 auto-create. No `body`. crm-api is not deployed on prism yet (#1097 step 0); `CrmOutboxSink` is the adapter #1097 replaces with a `POST /v1/interactions` sink, draining this file idempotently on `provider_msg_id`.
+
+### Setup on prism (after merge)
+
+```bash
+python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(48)), end="")' | ~/bin/bland-relay-setkey FC_PATH
+# Approver token: generate it in the approving seat's own secret store. Only its hash goes on prism.
+printf %s "$FC_APPROVE_TOKEN" | sha256sum | cut -d' ' -f1 | tr -d '\n' | ~/bin/bland-relay-setkey FC_APPROVE_TOKEN_SHA256
+printf %s 'chris=+1NXXNXXXXXX' | ~/bin/bland-relay-setkey FC_APPROVER_NUMBERS   # Chris's own cell(s)
+# optional: FC_APPROVERS FC_AGENT_SEATS FC_DAILY_MAX FC_TTL_DAYS FC_MAX_SENDS_BEFORE_REPLY FC_DISABLED CRM_INGEST_MODE CRM_OUTBOX_PATH
+```
+
 ## Secrets
 
 Values go in `~/.config/bland-relay/env` only, through `bland-relay-setkey` (stdin, not argv). Not in git, chat, or logs.
@@ -161,13 +217,13 @@ Not done by the PR. After merge, on prism:
 
 ```bash
 cp deploy/bland-relay/bland_relay.py deploy/bland-relay/bland-relay.py ~/bin/
-cp deploy/bland-relay/bland-relay-setkey ~/bin/
-chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey
+cp deploy/bland-relay/bland-relay-setkey deploy/bland-relay/send-904 deploy/bland-relay/send-904-fc ~/bin/
+chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/send-904-fc
 # unit file already matches ~/.config/systemd/user/bland-relay.service
 systemctl --user restart bland-relay.service
 ```
 
-Rollback is `~/bin/*.bak-pre1056` (latest), `~/bin/*.bak-pre1054`, `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
+Back up first (`for f in bland_relay.py bland-relay.py bland-relay-setkey send-904; do cp ~/bin/$f ~/bin/$f.bak-pre1100; done`). Rollback is `~/bin/*.bak-pre1100` (latest), `~/bin/*.bak-pre1056`, `~/bin/*.bak-pre1054`, `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
 
 ## Tests
 
@@ -176,5 +232,7 @@ From this directory, with pytest on the path:
 ```bash
 python3 -m pytest tests -q
 ```
+
+`tests/test_first_contact.py` (#1100, SMSGate mocked, no network) covers: approval required, chat and SMS approval, no agent/self approval, code/text/ref checks, opt-out at request/approve/send and START, daily and sends-before-reply caps, existing rate limits, expiry/renewal/conversion, both kill switches, list/revoke, audit and CRM outbox records (no body, no secrets, 0600), log redaction, and the `send-904-fc` CLI.
 
 Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction. The RCS notification route (`tests/test_rcs_webhook.py`) covers: app payload and lenient template parsing, number/title/name-map/unknown sender resolution, token 401, path 404, kill switch 503, package/summary filtering, STOP/START, the unknown sender not being allowlisted, dedupe both ways against SMSGate plus repeat notifications and window expiry, the SMSGate head-start wait, forward failure and retry, and log redaction.
