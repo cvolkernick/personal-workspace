@@ -14,7 +14,11 @@ Gateway for Android. POST /<FC_PATH> manages first-contact numbers
 (add / request / approve / list / revoke, #1100) so the send route can reach a
 number that never texted 904. With FC_REQUIRE_APPROVAL=0 (the default) an add
 allows the number at once; FC_REQUIRE_APPROVAL=1 restores the per-number
-approval gate (Chris approves each number).
+approval gate (Chris approves each number). Turo app notifications posted to
+the same RCS route (package com.relayrides.android.relayrides) go to the Turo
+relay (#1104): JSONL inbox, Helm webhook, and for urgent messages only a
+templated 904 SMS to TURO_OWNER_ALERT_TO (the only recipient) plus a "turo_urgent" push to
+ALEXANDRA_ALERT_URL.
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
 comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
@@ -81,6 +85,8 @@ SECRET_ENV_KEYS = (
     "RCS_HOOK_TOKEN",
     "FC_PATH",
     "FC_APPROVE_TOKEN_SHA256",
+    "HELM_TURO_WEBHOOK_URL",
+    "HELM_TURO_WEBHOOK_KEY",
 )
 
 _alert_lock = threading.Lock()
@@ -241,7 +247,7 @@ def _save_state(st):
         log.error("alert state write failed: %s", type(e).__name__)
 
 
-def forward(body):
+def forward(body, timeout=10):
     url, auth = env("ALEXANDRA_ALERT_URL"), env("ALEXANDRA_ALERT_AUTH")
     if not url:
         return None, "ALEXANDRA_ALERT_URL unset", 0
@@ -252,7 +258,7 @@ def forward(body):
     for attempt in (1, 2):
         try:
             req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=10) as r:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 if 200 <= r.status < 300:
                     return r.status, "", attempt
                 last = f"HTTP {r.status}"
@@ -1311,6 +1317,578 @@ def _spawn(target, args=()):
     threading.Thread(target=target, args=args, daemon=True).start()
 
 
+# ---------------------------------------------------------------------------
+# Turo notifications (#1104)
+#
+# The same notification-relay app that posts Google Messages notifications to
+# the RCS route also posts Turo app notifications (package
+# com.relayrides.android.relayrides). The RCS route hands those to
+# turo_handle(): normalize (prefer big_text), dedupe, append to a JSONL inbox,
+# drop suppressed (not-our-fleet) vehicles, classify urgency with regexes only,
+# then in the background: owner_alert SMS (urgent only, one fixed number),
+# Helm webhook (every non-suppressed event) and the Alexandra forward (urgent
+# only, kind "turo_urgent"). Each background task is isolated, so a webhook
+# failure never blocks the owner alert.
+TURO_PACKAGE = "com.relayrides.android.relayrides"
+# owner_alert texts only TURO_OWNER_ALERT_TO (env, strict E.164). No number
+# lives in code; unset/invalid disables owner alerts. Logs show the last 4 only.
+TURO_DEDUPE_DEFAULT_S = 24 * 60 * 60
+TURO_PREFIX_WINDOW_S = 10 * 60
+TURO_SEEN_MAX = 2000
+TURO_ALERT_TEXT_CHARS = 140
+TURO_GUEST_MAX = 64
+TURO_TEXT_MAX = 4000
+TURO_SCHEMA = "panamerica.turo.event.v1"
+# Outbound payloads carry only what the consumer needs (internal ev keeps more
+# for dedupe/suppression/inbox).
+TURO_HELM_FIELDS = ("kind", "schema", "event_id", "guest", "reservation_id", "vehicle", "plate",
+                    "text", "received_at", "urgent", "urgent_class")
+TURO_ALEX_FIELDS = ("kind", "guest", "reservation_id", "vehicle", "text", "urgent_class", "received_at")
+TURO_CLASSES = ("safety", "accident_damage", "lockout", "no_start", "charging")  # priority order
+TURO_URGENT_DEFAULTS = {
+    "lockout": (
+        r"locked? (myself )?out|lock ?out|can'?t (get in|unlock|open (the )?(car|door))|"
+        r"won'?t (unlock|open)|(doors?|car) (is |are )?(still )?locked|"
+        r"(key ?card|phone ?key|key ?fob|digital key|the app|app|key) (is )?(not|isn'?t|won'?t|doesn'?t|didn'?t) work|"
+        r"\bno key\b|lost (the |my )?key"
+    ),
+    "no_start": (
+        r"won'?t (start|turn on|move|go into (drive|gear))|(doesn'?t|does not|not|isn'?t|didn'?t) start(ing)?\b|"
+        r"dead (battery|12 ?v)|\b12 ?v\b|no power|screen (is )?(black|dead|blank)|stuck in park|"
+        r"(car|it|truck|rivian) (is )?dead\b"
+    ),
+    "accident_damage": (
+        r"accident|crash(ed)?\b|collision|(got|was|been|i) hit\b|hit (a|by|another|me)\b|rear.?ended|"
+        r"fender|damage(d)?\b|\bdents?\b|\bdented\b|scratch|broken (window|glass|mirror|windshield)|"
+        r"cracked (window|glass|windshield)|police|\btow(ed|ing| truck)?\b|flat tire|blown tire|airbags?\b"
+    ),
+    "charging": (
+        r"won'?t charge|not charging|can'?t charge|doesn'?t charge|"
+        r"charg(er|ing) (fail|error|issue|problem|broken|not work)|supercharger|"
+        r"(battery|range|charge) (is )?(very |really |super )?(low|at \d)|\b\d{1,2} ?% (left|battery|charge)|"
+        r"ran out of (charge|battery|range)|out of (charge|battery)|stranded"
+    ),
+    "safety": (
+        r"emergency|\b911\b|unsafe|danger|\bsmoke\b|smoking (from|under|out)|\bfire\b|on fire|burning|"
+        r"injur|\bhurt\b|ambulance|hospital|\bhelp!|\burgent\b|\basap\b|stuck on (the )?(road|highway|freeway|interstate)"
+    ),
+}
+TURO_URGENT_NEG_DEFAULT = (
+    r"before (i |we )?(return|drop.?off|pick.?up)|already (there|on file|documented|noted|in the photos)|"
+    r"pre.?existing|instructions?|no smoking|smoking (allowed|policy)|non.?smok|"
+    r"(thanks|thank you) (so much )?for (the|your|all the) help|"
+    r"\bno (damage|scratch(es)?|dents?|issues?|problems?)\b|in case of (an )?(emergency|accident)"
+)
+TURO_SUPPRESS_DEFAULT = r"safe ?wheels"
+TURO_TRIP_CTX_RE = re.compile(
+    r"(?:trip|reservation|booking|res)\b\s*(?:#|id|no\.?|number|num)?\s*[:#]?\s*(\d{7,9})(?!\d)", re.IGNORECASE)
+TURO_TRIP_BARE_RE = re.compile(r"(?<![\d$.,:/-])(\d{7,9})(?![\d.,:/-]?\d)")
+TURO_PLATES = {"24EWUH": "Toyota Corolla 24EWUH", "25EWUH": "Toyota Corolla 25EWUH"}
+TURO_VEHICLE_RE = re.compile(
+    r"\b(?:(?:19|20)\d{2}\s+)?(?:"
+    r"rivian(?:\s+r1[st])?|r1[st]|toyota(?:\s+\w+)?|corolla|tesla(?:\s+model\s*[3sxy])?|model\s*[3sxy]\b|"
+    r"honda(?:\s+\w+)?|nissan(?:\s+\w+)?|hyundai(?:\s+\w+)?|kia(?:\s+\w+)?|ford(?:\s+\w+)?|"
+    r"chevy(?:\s+\w+)?|chevrolet(?:\s+\w+)?|bmw(?:\s+\w+)?|mercedes(?:-benz)?(?:\s+\w+)?|"
+    r"jeep(?:\s+\w+)?|subaru(?:\s+\w+)?|mazda(?:\s+\w+)?|volkswagen(?:\s+\w+)?|vw\s+\w+|audi(?:\s+\w+)?|"
+    r"lexus(?:\s+\w+)?|polestar(?:\s+\d)?|lucid(?:\s+air)?)\b", re.IGNORECASE)
+TURO_TITLE_SPLIT_RE = re.compile(r"\s+(?:•|·|\||–|—|-)\s+")
+TURO_PHONE_RE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
+TURO_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+TURO_SENTENCE_RE = re.compile(r"(?<=[.!?\n])\s+|\n+")
+
+_turo_lock = threading.Lock()
+_turo_prune = {"at": 0.0}
+_turo_regex_cache = {}
+
+
+def _turo_int(name, default, lo, hi):
+    return _int_env(name, default, lo, hi)
+
+
+def turo_disabled():
+    return env("TURO_HOOK_DISABLED") == "1"
+
+
+def _turo_state_path():
+    return _state_dir() / "turo_state.json"
+
+
+def turo_inbox_path():
+    override = env("TURO_INBOX_PATH")
+    return Path(override) if override else _state_dir() / "turo_inbox.jsonl"
+
+
+def _turo_compile(name, default):
+    """Env override (case-insensitive) or the code default. A bad override logs and falls back."""
+    raw = env(name) or default
+    hit = _turo_regex_cache.get((name, raw))
+    if hit is not None:
+        return hit
+    try:
+        rx = re.compile(raw, re.IGNORECASE) if raw else None
+    except re.error:
+        log.warning("%s is not a valid regex; using the default", name)
+        rx = re.compile(default, re.IGNORECASE) if default else None
+    _turo_regex_cache[(name, raw)] = rx
+    return rx
+
+
+def turo_urgent_patterns():
+    return {c: _turo_compile("TURO_URGENT_RE_" + c.upper(), TURO_URGENT_DEFAULTS[c]) for c in TURO_CLASSES}
+
+
+def classify_turo(text):
+    """-> (class or None, matched term or None). Regex only. A sentence matching
+    TURO_URGENT_NEG is skipped, so "the scratch was already there" is not urgent
+    but "already there. I just got rear-ended" still is."""
+    if not text:
+        return None, None
+    neg = _turo_compile("TURO_URGENT_NEG", TURO_URGENT_NEG_DEFAULT)
+    sentences = [s for s in TURO_SENTENCE_RE.split(str(text)) if s and s.strip()]
+    kept = [s for s in sentences if not (neg and neg.search(s))]
+    pats = turo_urgent_patterns()
+    for cls in TURO_CLASSES:
+        rx = pats.get(cls)
+        if rx is None:
+            continue
+        for s in kept:
+            m = rx.search(s)
+            if m:
+                return cls, m.group(0)[:40]
+    return None, None
+
+
+def turo_suppressed(*fields):
+    rx = _turo_compile("TURO_SUPPRESS_RE", TURO_SUPPRESS_DEFAULT)
+    if rx is None:
+        return False
+    hay = " \n".join(str(f) for f in fields if f)
+    return bool(hay and rx.search(hay))
+
+
+def parse_turo_reservation(*fields):
+    """7-9 digit trip number. Labeled ("Trip #12345678") anywhere first, then a
+    bare number in the order given (title, sub_text, text). None if absent."""
+    for f in fields:
+        if f:
+            m = TURO_TRIP_CTX_RE.search(str(f))
+            if m:
+                return m.group(1)
+    for f in fields:
+        if f:
+            m = TURO_TRIP_BARE_RE.search(str(f))
+            if m:
+                return m.group(1)
+    return None
+
+
+def parse_turo_vehicle(*fields):
+    """-> (vehicle or None, plate or None). Our plates map to a canonical name."""
+    hay = " \n".join(str(f) for f in fields if f)
+    if not hay:
+        return None, None
+    up = re.sub(r"[\s-]", "", hay.upper())
+    for plate, name in TURO_PLATES.items():
+        if plate in up:
+            return name, plate
+    m = TURO_VEHICLE_RE.search(hay)
+    if not m:
+        return None, None
+    v = " ".join(m.group(0).split())
+    low = v.lower()
+    if re.search(r"rivian|r1s|r1t", low):
+        return ("Rivian R1T" if "r1t" in low else "Rivian R1S"), None
+    if "corolla" in low:
+        return "Toyota Corolla", None
+    return v[:40], None
+
+
+def _turo_guest(title):
+    """Title minus a " • vehicle" style suffix. -> (guest or None, suffix or None)."""
+    t = " ".join(str(title or "").split())
+    if not t or _placeholder(t):
+        return None, None
+    parts = TURO_TITLE_SPLIT_RE.split(t, maxsplit=1)
+    guest = parts[0].strip()[:TURO_GUEST_MAX] or None
+    rest = parts[1].strip() if len(parts) > 1 else None
+    return guest, rest
+
+
+def _turo_posted_iso(posted):
+    """postedAt (epoch ms or s) -> UTC ISO; any other string passes through."""
+    if posted in (None, ""):
+        return None
+    try:
+        v = float(posted)
+    except (TypeError, ValueError):
+        return str(posted)[:40]
+    if v > 1e12:
+        v /= 1000.0
+    if v <= 0:
+        return None
+    return _iso(v)
+
+
+def turo_redact(text):
+    s = TURO_EMAIL_RE.sub("[email]", str(text or ""))
+    return TURO_PHONE_RE.sub("[phone]", s)
+
+
+def _turo_field(raw, keys):
+    v = _first(raw, keys) if isinstance(raw, dict) else None
+    if v is None or _placeholder(v):
+        return None
+    s = str(v).strip()
+    return s or None
+
+
+def normalize_turo(parsed, now=None):
+    """Notification -> Turo event dict, or None when there is no text."""
+    now = time.time() if now is None else now
+    raw = parsed.get("raw") if isinstance(parsed.get("raw"), dict) else {}
+    text = _turo_field(raw, ("big_text", "bigtext")) or _turo_field(raw, ("text", "content", "message", "body"))
+    if not text:
+        return None
+    text = text[:TURO_TEXT_MAX]
+    title = _turo_field(raw, ("title", "sender", "conversation", "name", "contact"))
+    sub_text = _turo_field(raw, ("sub_text", "subtext", "summary_text"))
+    category = _turo_field(raw, ("category",))
+    nkey = _turo_field(raw, ("key", "notification_key", "id"))
+    guest, title_rest = _turo_guest(title)
+    vehicle, plate = parse_turo_vehicle(title_rest, sub_text, text)
+    cls, term = classify_turo(text)
+    tkey = _text_key(text)
+    eid = hashlib.sha256(f"{nkey or ''}|{tkey}".encode("utf-8")).hexdigest()[:16]
+    return {
+        "kind": "turo_event",
+        "schema": TURO_SCHEMA,
+        "src": "turo",
+        "event_id": eid,
+        "guest": guest,
+        "reservation_id": parse_turo_reservation(title, sub_text, text),
+        "vehicle": vehicle,
+        "plate": plate,
+        "text": text,
+        "sub_text": sub_text,
+        "category": category,
+        "posted_at": _turo_posted_iso(parsed.get("posted_at")),
+        "received_at": _iso(now),
+        "key": nkey,
+        "urgent": cls is not None,
+        "urgent_class": cls,
+        "matched_term": term,
+        "line": LINE_904,
+    }
+
+
+def _turo_dup_locked(st, ev, now):
+    """Caller holds _turo_lock. True when ev repeats a recent event; else records it."""
+    window = _turo_int("TURO_DEDUPE_WINDOW_S", TURO_DEDUPE_DEFAULT_S, 60, 7 * 24 * 3600)
+    tkey = _text_key(ev["text"])
+    h = hashlib.sha256(f"{ev.get('key') or ''}|{tkey}".encode("utf-8")).hexdigest()
+    th = hashlib.sha256(tkey.encode("utf-8")).hexdigest()
+    gkey = (ev.get("guest") or "").casefold()
+    seen = [r for r in (st.get("seen") or []) if isinstance(r, dict) and now - float(r.get("at") or 0) <= window]
+    for r in seen:
+        if r.get("h") == h:
+            st["seen"] = seen
+            return True
+        if r.get("g") == gkey and r.get("th") == th:
+            st["seen"] = seen
+            return True
+        # A shorter copy of a text already seen from this guest (re-post of a
+        # truncated notification). A longer text is new content and passes.
+        if (r.get("g") == gkey and now - float(r.get("at") or 0) <= TURO_PREFIX_WINDOW_S
+                and len(tkey) >= 8 and str(r.get("p") or "").startswith(tkey[:200])
+                and len(tkey) < int(r.get("n") or 0)):
+            st["seen"] = seen
+            return True
+    seen.append({"at": now, "h": h, "th": th, "g": gkey, "p": tkey[:200], "n": len(tkey)})
+    st["seen"] = seen[-TURO_SEEN_MAX:]
+    return False
+
+
+def turo_claim(ev, now=None):
+    """Atomically record ev. False when it is a duplicate."""
+    now = time.time() if now is None else now
+    with _turo_lock:
+        st = _load_json(_turo_state_path())
+        dup = _turo_dup_locked(st, ev, now)
+        try:
+            _save_json(_turo_state_path(), st)
+        except OSError as e:
+            log.error("turo state write failed: %s", type(e).__name__)
+    return not dup
+
+
+def turo_prune_inbox(now=None, force=False):
+    """Drop inbox lines older than TURO_RETENTION_DAYS (default 30). Never raises."""
+    now = time.time() if now is None else now
+    if not force and now - _turo_prune["at"] < 24 * 3600:
+        return 0
+    _turo_prune["at"] = now
+    days = _turo_int("TURO_RETENTION_DAYS", 30, 1, 3650)
+    cutoff = _iso(now - days * 24 * 3600)
+    p = turo_inbox_path()
+    try:
+        with _turo_lock:
+            if not p.exists():
+                return 0
+            keep, dropped = [], 0
+            for line in p.read_text(encoding="utf-8").splitlines():
+                try:
+                    at = str(json.loads(line).get("received_at") or "")
+                except (ValueError, AttributeError):
+                    at = ""
+                if at and at < cutoff:
+                    dropped += 1
+                else:
+                    keep.append(line)
+            if dropped:
+                tmp = p.with_suffix(".tmp")
+                tmp.write_text("".join(x + "\n" for x in keep), encoding="utf-8")
+                os.chmod(tmp, 0o600)
+                os.replace(tmp, p)
+            return dropped
+    except OSError as e:
+        log.error("turo inbox prune failed: %s", type(e).__name__)
+        return 0
+
+
+def turo_append_inbox(ev, suppressed, now=None):
+    """JSONL inbox line (0600). Phone numbers and emails in text are redacted."""
+    row = dict(ev)
+    row["text"] = turo_redact(ev.get("text"))
+    row["sub_text"] = turo_redact(ev.get("sub_text")) if ev.get("sub_text") else ev.get("sub_text")
+    row["suppressed"] = bool(suppressed)
+    try:
+        with _turo_lock:
+            _append_jsonl(turo_inbox_path(), row)
+    except OSError as e:
+        log.error("turo inbox write failed: %s", type(e).__name__)
+    turo_prune_inbox(now)
+
+
+def turo_owner_alert_to():
+    """-> (strict E.164 owner number, None) or (None, reason). Never logs the number."""
+    raw = env("TURO_OWNER_ALERT_TO")
+    if not raw:
+        return None, "owner_unset"
+    if not valid_e164(raw):
+        return None, "owner_invalid"
+    return raw, None
+
+
+def owner_alert_message(ev):
+    text = " ".join(str(ev.get("text") or "").split())[:TURO_ALERT_TEXT_CHARS]
+    guest = ev.get("guest") or "guest"
+    return f"URGENT Turo [{ev.get('urgent_class')}]: {guest}: {text}"
+
+
+def owner_alert(ev, now=None):
+    """Templated 904 SMS to TURO_OWNER_ALERT_TO (the only recipient), urgent events only.
+
+    Skips the 72-hour inbound window only for that exact env number (it is the
+    sole recipient). Unset or non-E.164 TURO_OWNER_ALERT_TO disables alerts.
+    Respects SMS_SEND_DISABLED, TURO_OWNER_ALERT_DISABLED, STOP, alert dedupe,
+    TURO_ALERT_GUEST_MAX per TURO_ALERT_GUEST_WINDOW_S, TURO_ALERT_HOUR_MAX and the
+    relay-wide RECIPIENT_MAX/GLOBAL_MAX. Returns "sent" or the skip reason.
+    """
+    now = time.time() if now is None else now
+    if not ev.get("urgent") or not ev.get("urgent_class"):
+        return "not_urgent"
+    if env("TURO_OWNER_ALERT_DISABLED") == "1":
+        log.warning("turo owner alert skipped: TURO_OWNER_ALERT_DISABLED=1")
+        return "alert_disabled"
+    to, why = turo_owner_alert_to()
+    if to is None:
+        if why == "owner_unset":
+            log.warning("turo owner alert disabled: TURO_OWNER_ALERT_TO unset")
+        else:
+            log.warning("turo owner alert disabled: TURO_OWNER_ALERT_TO is not valid E.164 (+1NXXNXXXXXX)")
+        return why
+    if env("SMS_SEND_DISABLED") == "1":
+        log.warning("turo owner alert skipped: SMS_SEND_DISABLED=1")
+        return "send_disabled"
+    if not gateway_configured():
+        log.error("turo owner alert skipped: gateway not configured")
+        return "gateway_unconfigured"
+    guest_w = _turo_int("TURO_ALERT_GUEST_WINDOW_S", 600, 0, 24 * 3600)
+    guest_max = _turo_int("TURO_ALERT_GUEST_MAX", 1, 1, 100)
+    hour_max = _turo_int("TURO_ALERT_HOUR_MAX", 6, 1, 100)
+    dedupe_w = _turo_int("TURO_DEDUPE_WINDOW_S", TURO_DEDUPE_DEFAULT_S, 60, 7 * 24 * 3600)
+    gkey = (ev.get("guest") or "").casefold()
+    th = hashlib.sha256(_text_key(ev.get("text")).encode("utf-8")).hexdigest()
+    with _sms_lock:
+        st = _load_json(_sms_state_path())
+        inbound = st.get("inbound") if isinstance(st.get("inbound"), dict) else {}
+        if (inbound.get(to) or {}).get("opt_out"):
+            log.warning("turo owner alert skipped: owner opted out (STOP)")
+            return "opt_out"
+        keep_s = max(dedupe_w, GLOBAL_WINDOW_S, guest_w)
+        alerts = [a for a in (st.get("turo_alerts") or [])
+                  if isinstance(a, dict) and now - float(a.get("at") or 0) < keep_s]
+        reason = None
+        if any(a.get("g") == gkey and a.get("th") == th and now - float(a["at"]) < dedupe_w for a in alerts):
+            reason = "duplicate"
+        elif sum(1 for a in alerts if a.get("g") == gkey and now - float(a["at"]) < guest_w) >= guest_max:
+            reason = "rate_limited_guest"
+        elif sum(1 for a in alerts if now - float(a["at"]) < GLOBAL_WINDOW_S) >= hour_max:
+            reason = "rate_limited_hour"
+        sends = [{"to": r.get("to"), "at": float(r.get("at") or 0)} for r in (st.get("sends") or [])
+                 if isinstance(r, dict) and now - float(r.get("at") or 0) < GLOBAL_WINDOW_S]
+        if reason is None:
+            per = sum(1 for r in sends if r.get("to") == to and now - r["at"] < RECIPIENT_WINDOW_S)
+            if per >= RECIPIENT_MAX or len(sends) >= GLOBAL_MAX:
+                reason = "rate_limited"
+        if reason:
+            log.warning("turo owner alert skipped: %s class=%s", reason, ev.get("urgent_class"))
+            return reason
+        # Reserve before the gateway call, like reserve_send_ex: a failed call
+        # still consumes the slot so retries cannot multiply SMS.
+        alerts.append({"at": now, "g": gkey, "th": th})
+        sends.append({"to": to, "at": now})
+        st["turo_alerts"] = alerts
+        st["sends"] = sends
+        try:
+            _save_json(_sms_state_path(), st)
+        except OSError as e:
+            log.error("sms state write failed: %s", type(e).__name__)
+            return "state_write_failed"
+    msg = owner_alert_message(ev)
+    result, err = gateway_send(to, msg)
+    if result is None:
+        log.error("turo owner alert gateway failed to=***%s error=%s", _tail4(to), _scrub(err))
+        alert_failure("turo-owner-alert", err, 1, "Turo owner alert SMS failed")
+        return "gateway_failed"
+    log.info("turo owner alert sent to=***%s class=%s len=%d id=%s", _tail4(to), ev.get("urgent_class"),
+             len(msg), result.get("id") or "-")
+    return "sent"
+
+
+def _turo_timeout():
+    return float(_turo_int("TURO_WEBHOOK_TIMEOUT_S", 5, 1, 15))
+
+
+def helm_auth_header():
+    """-> (header name, value) or None. Default mirrors ALEXANDRA_ALERT_AUTH:
+    "Authorization: Bearer <key>" (a key that already has a scheme is sent as is).
+    HELM_TURO_WEBHOOK_HEADER picks another header (value = the bare key)."""
+    key = env("HELM_TURO_WEBHOOK_KEY")
+    if not key:
+        return None
+    name = env("HELM_TURO_WEBHOOK_HEADER") or "Authorization"
+    if not re.fullmatch(r"[A-Za-z0-9-]{1,64}", name):
+        log.warning("HELM_TURO_WEBHOOK_HEADER invalid; using Authorization")
+        name = "Authorization"
+    if name.lower() == "authorization" and " " not in key:
+        return name, "Bearer " + key
+    return name, key
+
+
+def post_json(url, obj, headers=None, timeout=5.0, tries=2):
+    """-> (status or None, error, attempts). Short timeouts; never raises."""
+    body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+    hdrs = {"Content-Type": "application/json", "User-Agent": "bland-relay/1"}
+    hdrs.update(headers or {})
+    last = ""
+    for attempt in range(1, tries + 1):
+        try:
+            req = urllib.request.Request(url, data=body, headers=hdrs, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                if 200 <= r.status < 300:
+                    return r.status, "", attempt
+                last = f"HTTP {r.status}"
+        except urllib.error.HTTPError as e:
+            last = f"HTTP {e.code}"
+        except Exception as e:  # noqa: BLE001
+            last = type(e).__name__
+        if attempt < tries:
+            time.sleep(1)
+    return None, last, tries
+
+
+def helm_push(ev):
+    """POST one non-suppressed event to HELM_TURO_WEBHOOK_URL. Unset URL = JSONL only."""
+    url = env("HELM_TURO_WEBHOOK_URL")
+    if not url:
+        return "unset"
+    hdr = helm_auth_header()
+    try:
+        payload = {k: ev.get(k) for k in TURO_HELM_FIELDS}
+        status, err, attempts = post_json(url, payload, dict([hdr]) if hdr else None, _turo_timeout())
+    except Exception as e:  # noqa: BLE001
+        status, err, attempts = None, type(e).__name__, 1
+    if status is not None:
+        log.info("turo helm push ok event=%s urgent=%s -> %d", ev.get("event_id"), ev.get("urgent"), status)
+        return "ok"
+    log.error("turo helm push failed event=%s error=%s", ev.get("event_id"), _scrub(err))
+    alert_failure("turo-helm-webhook", err, attempts, "Turo Helm webhook failed")
+    return "failed"
+
+
+def alexandra_turo_push(ev):
+    """Urgent events to Alexandra through the existing forward()/ALEXANDRA_ALERT_URL."""
+    if not ev.get("urgent"):
+        return "not_urgent"
+    if env("TURO_ALEX_PUSH_DISABLED") == "1":
+        return "disabled"
+    if not env("ALEXANDRA_ALERT_URL"):
+        return "unset"
+    obj = {k: ev.get(k) for k in TURO_ALEX_FIELDS}
+    obj["kind"] = "turo_urgent"
+    try:
+        status, err, attempts = forward(json.dumps(obj, ensure_ascii=False).encode("utf-8"),
+                                        timeout=_turo_timeout())
+    except Exception as e:  # noqa: BLE001
+        status, err, attempts = None, type(e).__name__, 1
+    if status is not None:
+        log.info("turo alexandra push ok event=%s -> %d", ev.get("event_id"), status)
+        return "ok"
+    log.error("turo alexandra push failed event=%s error=%s", ev.get("event_id"), _scrub(err))
+    alert_failure("turo-alexandra-push", err, attempts, "Turo urgent push to Alexandra failed")
+    return "failed"
+
+
+def _turo_safe(fn, *args):
+    try:
+        fn(*args)
+    except Exception as e:  # noqa: BLE001 - one task must never take down another
+        log.error("turo %s crashed: %s", getattr(fn, "__name__", "task"), type(e).__name__)
+
+
+def turo_handle(parsed, now=None):
+    """-> (http status, response body). Never texts for non-urgent events."""
+    now = time.time() if now is None else now
+    if turo_disabled():
+        log.info("turo notification ignored (TURO_HOOK_DISABLED=1)")
+        return 200, {"ok": True, "ignored": "turo_disabled"}
+    if parsed.get("summary"):
+        return 200, {"ok": True, "ignored": "empty"}
+    ev = normalize_turo(parsed, now)
+    if ev is None:
+        log.info("turo notification ignored (empty text)")
+        return 200, {"ok": True, "ignored": "empty"}
+    if not turo_claim(ev, now):
+        log.info("turo duplicate event=%s", ev["event_id"])
+        return 200, {"ok": True, "turo": "duplicate"}
+    raw = parsed.get("raw") if isinstance(parsed.get("raw"), dict) else {}
+    title = _turo_field(raw, ("title",))
+    if turo_suppressed(title, ev.get("sub_text"), ev.get("vehicle"), ev.get("text")):
+        turo_append_inbox(ev, True, now)
+        log.info("turo suppressed (not our fleet) event=%s", ev["event_id"])
+        return 200, {"ok": True, "turo": "suppressed"}
+    turo_append_inbox(ev, False, now)
+    log.info("turo event=%s urgent=%s class=%s len=%d trip=%s vehicle=%s",
+             ev["event_id"], ev["urgent"], ev["urgent_class"] or "-", len(ev["text"]),
+             bool(ev["reservation_id"]), bool(ev["vehicle"]))
+    if ev["urgent"]:
+        _spawn(_turo_safe, (owner_alert, ev, now))
+        _spawn(_turo_safe, (alexandra_turo_push, ev))
+    _spawn(_turo_safe, (helm_push, ev))
+    return 200, {"ok": True, "turo": "accepted", "urgent": ev["urgent"]}
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "relay"
     sys_version = ""
@@ -1427,11 +2005,15 @@ class H(BaseHTTPRequestHandler):
             log.warning("rcs inbound disabled (RCS_HOOK_DISABLED=1)")
             return self._send(503, {"ok": False, "error": "rcs inbound disabled"})
         tok = env("RCS_HOOK_TOKEN")
-        if tok:
-            got = token_from_headers(self.headers)
-            if not token_ok(got, tok):
-                log.warning("rcs webhook: bad/missing token (len %d)", len(got))
-                return self._send(401, {"ok": False, "error": "unauthorized"})
+        if not tok:
+            # No unauthenticated mode: the RCS route (and the Turo branch on it)
+            # refuses everything until RCS_HOOK_TOKEN is set.
+            log.warning("rcs webhook refused: RCS_HOOK_TOKEN unset")
+            return self._send(503, {"ok": False, "error": "rcs token not configured"})
+        got = token_from_headers(self.headers)
+        if not token_ok(got, tok):
+            log.warning("rcs webhook: bad/missing token (len %d)", len(got))
+            return self._send(401, {"ok": False, "error": "unauthorized"})
         body = self._read_body()
         if body is None:
             return self._send(413, {"ok": False, "error": "bad length"})
@@ -1440,6 +2022,8 @@ class H(BaseHTTPRequestHandler):
             log.warning("rcs webhook: unparseable body (%d bytes)", len(body))
             return self._send(400, {"ok": False, "error": "bad payload"})
         pkg = parsed.get("package")
+        if pkg == TURO_PACKAGE:
+            return self._send(*turo_handle(parsed))
         if pkg and not _placeholder(pkg) and pkg != RCS_PACKAGE:
             log.info("rcs webhook: ignored package")
             return self._send(200, {"ok": True, "ignored": "package"})
@@ -1767,9 +2351,20 @@ def main():
     if smsgate_path() and not env("SMSGW_SIGNING_KEY"):
         log.warning("SMSGW_HOOK_PATH set without SMSGW_SIGNING_KEY: SMSGate webhook authenticated by secret path only")
     if rcs_path() and not env("RCS_HOOK_TOKEN"):
-        log.warning("RCS_HOOK_PATH set without RCS_HOOK_TOKEN: RCS route authenticated by secret path only")
+        log.warning("RCS_HOOK_PATH set without RCS_HOOK_TOKEN: RCS route (incl. Turo) refuses all posts (503)")
     if env("RCS_HOOK_DISABLED") == "1":
         log.warning("RCS_HOOK_DISABLED=1")
+    if turo_disabled():
+        log.warning("TURO_HOOK_DISABLED=1")
+    owner, why = turo_owner_alert_to()
+    if why == "owner_invalid":
+        log.warning("TURO_OWNER_ALERT_TO is not valid E.164 (+1NXXNXXXXXX): Turo owner alerts disabled")
+    log.info("turo: disabled=%s owner_alert=%s owner=***%s helm_webhook=%s alexandra_push=%s",
+             turo_disabled(), bool(owner) and env("TURO_OWNER_ALERT_DISABLED") != "1",
+             _tail4(owner) if owner else "----",
+             bool(env("HELM_TURO_WEBHOOK_URL")),
+             bool(env("ALEXANDRA_ALERT_URL")) and env("TURO_ALEX_PUSH_DISABLED") != "1")
+    turo_prune_inbox(force=True)
     if fc_path() and not fc_require_approval():
         log.warning("first-contact: FC_REQUIRE_APPROVAL=0 - numbers are allowed as soon as they are added")
         if env("FC_APPROVER_NUMBERS") or env("FC_APPROVE_TOKEN_SHA256"):
