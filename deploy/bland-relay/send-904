@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""send-904: send an SMS reply via the local bland relay send route.
+
+Usage: send-904 <to> [in_reply_to]   (message on stdin)
+Reads SEND_TOKEN / SEND_PATH from ~/.config/bland-relay/env. Never prints them.
+"""
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+ENV_FILE = os.path.expanduser("~/.config/bland-relay/env")
+BASE = "http://127.0.0.1:8799"
+USAGE = "usage: send-904 <to +1XXXXXXXXXX> [in_reply_to] < message"
+
+
+def load_env(path):
+    out = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.rstrip("\r\n")
+            s = line.strip()
+            if not s or s.startswith("#") or "=" not in s:
+                continue
+            k, v = s.split("=", 1)
+            k = k.strip()
+            if k.startswith("export "):
+                k = k[7:].strip()
+            v = v.strip()
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+                v = v[1:-1]
+            out[k] = v
+    return out
+
+
+def main():
+    args = sys.argv[1:]
+    if not args or not args[0].strip() or len(args) > 2:
+        print(USAGE, file=sys.stderr)
+        return 2
+    to = args[0].strip()
+    in_reply_to = args[1] if len(args) > 1 else None
+
+    msg = sys.stdin.read()
+    if msg.endswith("\n"):
+        msg = msg[:-1]
+    if not msg.strip():
+        print("error: empty message on stdin", file=sys.stderr)
+        print(USAGE, file=sys.stderr)
+        return 2
+
+    try:
+        env = load_env(ENV_FILE)
+    except OSError as e:
+        print("error: cannot read relay env file (%s)" % type(e).__name__, file=sys.stderr)
+        return 3
+    token = env.get("SEND_TOKEN", "")
+    path = env.get("SEND_PATH", "").lstrip("/")
+    if not token or not path:
+        print("error: SEND_TOKEN or SEND_PATH missing from env file", file=sys.stderr)
+        return 3
+
+    body = {"to": to, "message": msg}
+    if in_reply_to:
+        body["in_reply_to"] = in_reply_to
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        BASE + "/" + path,
+        data=data,
+        method="POST",
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + token},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            code, raw = r.status, r.read()
+    except urllib.error.HTTPError as e:
+        code, raw = e.code, e.read()
+    except Exception as e:  # noqa: BLE001 - never echo URL/token
+        print("error: request to relay failed (%s)" % type(e).__name__, file=sys.stderr)
+        return 4
+
+    text = raw.decode("utf-8", "replace")
+    try:
+        text = json.dumps(json.loads(text), ensure_ascii=False)
+    except Exception:  # noqa: BLE001
+        pass
+    # Defense in depth: never let secrets reach stdout.
+    for secret in (token, path):
+        if secret and secret in text:
+            text = text.replace(secret, "[REDACTED]")
+    print(code)
+    print(text)
+    return 0 if 200 <= code < 300 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
