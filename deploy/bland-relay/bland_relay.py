@@ -17,7 +17,7 @@ allows the number at once; FC_REQUIRE_APPROVAL=1 restores the per-number
 approval gate (Chris approves each number). Turo app notifications posted to
 the same RCS route (package com.relayrides.android.relayrides) go to the Turo
 relay (#1104): JSONL inbox, Helm webhook, and for urgent messages only a
-templated 904 SMS to the one allowed owner number plus a "turo_urgent" push to
+templated 904 SMS to TURO_OWNER_ALERT_TO (the only recipient) plus a "turo_urgent" push to
 ALEXANDRA_ALERT_URL.
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
@@ -1330,9 +1330,8 @@ def _spawn(target, args=()):
 # only, kind "turo_urgent"). Each background task is isolated, so a webhook
 # failure never blocks the owner alert.
 TURO_PACKAGE = "com.relayrides.android.relayrides"
-# The only number owner_alert may text. TURO_OWNER_ALERT_TO must equal it;
-# any other value is refused. Changing it is a code change on purpose.
-TURO_OWNER_ALERT_ALLOWED = "+12073100000"
+# owner_alert texts only TURO_OWNER_ALERT_TO (env, strict E.164). No number
+# lives in code; unset/invalid disables owner alerts. Logs show the last 4 only.
 TURO_DEDUPE_DEFAULT_S = 24 * 60 * 60
 TURO_PREFIX_WINDOW_S = 10 * 60
 TURO_SEEN_MAX = 2000
@@ -1340,6 +1339,11 @@ TURO_ALERT_TEXT_CHARS = 140
 TURO_GUEST_MAX = 64
 TURO_TEXT_MAX = 4000
 TURO_SCHEMA = "panamerica.turo.event.v1"
+# Outbound payloads carry only what the consumer needs (internal ev keeps more
+# for dedupe/suppression/inbox).
+TURO_HELM_FIELDS = ("kind", "schema", "event_id", "guest", "reservation_id", "vehicle", "plate",
+                    "text", "received_at", "urgent", "urgent_class")
+TURO_ALEX_FIELDS = ("kind", "guest", "reservation_id", "vehicle", "text", "urgent_class", "received_at")
 TURO_CLASSES = ("safety", "accident_damage", "lockout", "no_start", "charging")  # priority order
 TURO_URGENT_DEFAULTS = {
     "lockout": (
@@ -1665,6 +1669,16 @@ def turo_append_inbox(ev, suppressed, now=None):
     turo_prune_inbox(now)
 
 
+def turo_owner_alert_to():
+    """-> (strict E.164 owner number, None) or (None, reason). Never logs the number."""
+    raw = env("TURO_OWNER_ALERT_TO")
+    if not raw:
+        return None, "owner_unset"
+    if not valid_e164(raw):
+        return None, "owner_invalid"
+    return raw, None
+
+
 def owner_alert_message(ev):
     text = " ".join(str(ev.get("text") or "").split())[:TURO_ALERT_TEXT_CHARS]
     guest = ev.get("guest") or "guest"
@@ -1672,9 +1686,10 @@ def owner_alert_message(ev):
 
 
 def owner_alert(ev, now=None):
-    """Templated 904 SMS to the one allowed owner number, urgent events only.
+    """Templated 904 SMS to TURO_OWNER_ALERT_TO (the only recipient), urgent events only.
 
-    Skips only the 72-hour inbound window, and only for TURO_OWNER_ALERT_ALLOWED.
+    Skips the 72-hour inbound window only for that exact env number (it is the
+    sole recipient). Unset or non-E.164 TURO_OWNER_ALERT_TO disables alerts.
     Respects SMS_SEND_DISABLED, TURO_OWNER_ALERT_DISABLED, STOP, alert dedupe,
     TURO_ALERT_GUEST_MAX per TURO_ALERT_GUEST_WINDOW_S, TURO_ALERT_HOUR_MAX and the
     relay-wide RECIPIENT_MAX/GLOBAL_MAX. Returns "sent" or the skip reason.
@@ -1685,14 +1700,13 @@ def owner_alert(ev, now=None):
     if env("TURO_OWNER_ALERT_DISABLED") == "1":
         log.warning("turo owner alert skipped: TURO_OWNER_ALERT_DISABLED=1")
         return "alert_disabled"
-    raw_to = env("TURO_OWNER_ALERT_TO")
-    if not raw_to:
-        log.warning("turo owner alert skipped: TURO_OWNER_ALERT_TO unset")
-        return "owner_unset"
-    to = normalize_nanp(raw_to)
-    if to != TURO_OWNER_ALERT_ALLOWED:
-        log.error("!!! turo owner alert refused: TURO_OWNER_ALERT_TO is not the allowed owner number !!!")
-        return "owner_not_allowed"
+    to, why = turo_owner_alert_to()
+    if to is None:
+        if why == "owner_unset":
+            log.warning("turo owner alert disabled: TURO_OWNER_ALERT_TO unset")
+        else:
+            log.warning("turo owner alert disabled: TURO_OWNER_ALERT_TO is not valid E.164 (+1NXXNXXXXXX)")
+        return why
     if env("SMS_SEND_DISABLED") == "1":
         log.warning("turo owner alert skipped: SMS_SEND_DISABLED=1")
         return "send_disabled"
@@ -1801,7 +1815,8 @@ def helm_push(ev):
         return "unset"
     hdr = helm_auth_header()
     try:
-        status, err, attempts = post_json(url, ev, dict([hdr]) if hdr else None, _turo_timeout())
+        payload = {k: ev.get(k) for k in TURO_HELM_FIELDS}
+        status, err, attempts = post_json(url, payload, dict([hdr]) if hdr else None, _turo_timeout())
     except Exception as e:  # noqa: BLE001
         status, err, attempts = None, type(e).__name__, 1
     if status is not None:
@@ -1820,7 +1835,7 @@ def alexandra_turo_push(ev):
         return "disabled"
     if not env("ALEXANDRA_ALERT_URL"):
         return "unset"
-    obj = dict(ev)
+    obj = {k: ev.get(k) for k in TURO_ALEX_FIELDS}
     obj["kind"] = "turo_urgent"
     try:
         status, err, attempts = forward(json.dumps(obj, ensure_ascii=False).encode("utf-8"),
@@ -1990,11 +2005,15 @@ class H(BaseHTTPRequestHandler):
             log.warning("rcs inbound disabled (RCS_HOOK_DISABLED=1)")
             return self._send(503, {"ok": False, "error": "rcs inbound disabled"})
         tok = env("RCS_HOOK_TOKEN")
-        if tok:
-            got = token_from_headers(self.headers)
-            if not token_ok(got, tok):
-                log.warning("rcs webhook: bad/missing token (len %d)", len(got))
-                return self._send(401, {"ok": False, "error": "unauthorized"})
+        if not tok:
+            # No unauthenticated mode: the RCS route (and the Turo branch on it)
+            # refuses everything until RCS_HOOK_TOKEN is set.
+            log.warning("rcs webhook refused: RCS_HOOK_TOKEN unset")
+            return self._send(503, {"ok": False, "error": "rcs token not configured"})
+        got = token_from_headers(self.headers)
+        if not token_ok(got, tok):
+            log.warning("rcs webhook: bad/missing token (len %d)", len(got))
+            return self._send(401, {"ok": False, "error": "unauthorized"})
         body = self._read_body()
         if body is None:
             return self._send(413, {"ok": False, "error": "bad length"})
@@ -2332,16 +2351,17 @@ def main():
     if smsgate_path() and not env("SMSGW_SIGNING_KEY"):
         log.warning("SMSGW_HOOK_PATH set without SMSGW_SIGNING_KEY: SMSGate webhook authenticated by secret path only")
     if rcs_path() and not env("RCS_HOOK_TOKEN"):
-        log.warning("RCS_HOOK_PATH set without RCS_HOOK_TOKEN: RCS route authenticated by secret path only")
+        log.warning("RCS_HOOK_PATH set without RCS_HOOK_TOKEN: RCS route (incl. Turo) refuses all posts (503)")
     if env("RCS_HOOK_DISABLED") == "1":
         log.warning("RCS_HOOK_DISABLED=1")
     if turo_disabled():
         log.warning("TURO_HOOK_DISABLED=1")
-    owner = env("TURO_OWNER_ALERT_TO")
-    if owner and normalize_nanp(owner) != TURO_OWNER_ALERT_ALLOWED:
-        log.error("!!! TURO_OWNER_ALERT_TO is not the allowed owner number - Turo owner alerts refused !!!")
-    log.info("turo: disabled=%s owner_alert=%s helm_webhook=%s alexandra_push=%s",
+    owner, why = turo_owner_alert_to()
+    if why == "owner_invalid":
+        log.warning("TURO_OWNER_ALERT_TO is not valid E.164 (+1NXXNXXXXXX): Turo owner alerts disabled")
+    log.info("turo: disabled=%s owner_alert=%s owner=***%s helm_webhook=%s alexandra_push=%s",
              turo_disabled(), bool(owner) and env("TURO_OWNER_ALERT_DISABLED") != "1",
+             _tail4(owner) if owner else "----",
              bool(env("HELM_TURO_WEBHOOK_URL")),
              bool(env("ALEXANDRA_ALERT_URL")) and env("TURO_ALEX_PUSH_DISABLED") != "1")
     turo_prune_inbox(force=True)
