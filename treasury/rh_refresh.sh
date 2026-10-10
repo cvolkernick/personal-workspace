@@ -13,7 +13,8 @@
 #
 # Env:
 #   TREASURY_RH_ROLE=producer|backup|consumer
-#   TREASURY_PI_SSH=prism-agent@192.168.100.98
+#   TREASURY_PI_SSH=prism-agent@192.0.2.10   (required on the Mac/consumer;
+#                    committed default prism-agent@prism.example fails)
 #   TREASURY_PI_ROOT=/home/prism-agent/personal-workspace
 #   TREASURY_SKIP_PI=1 / TREASURY_SKIP_LOCAL_MCP=1 / TREASURY_SKIP_PUSH_PI=1
 #   TREASURY_RH_MCP_TIMEOUT_S=240
