@@ -27,7 +27,7 @@ from typing import Any
 # Section ids/titles that are FCC territory as a whole.
 FCC_SECTION_RE = re.compile(
     r"\b(business|money|financ\w*|treasury|funds?|fund-\w+|markets?|portfolio|capital|books?|cash|"
-    r"crypto|accounts?|balances?|budget|bills?|payments?|income|spend\w*|invest\w*|trading|wallet)\b",
+    r"crypto|accounts?|balances?|budget|ynab|bills?|payments?|income|spend\w*|invest\w*|trading|wallet)\b",
     re.I,
 )
 

@@ -195,6 +195,10 @@ class TestNoFccOnHorizonHost(RenderBase):
         self.assertNotIn('id="sec-loose-ends"', body)  # every line was money
         self.assertIn('id="sec-shipped"', body)
 
+    def test_ynab_section_withheld(self):
+        self.assertTrue(redact.is_fcc_section({"id": "ynab", "title": "YNAB"}))
+        self.assertFalse(redact.is_fcc_section({"id": "fleet", "title": "Fleet"}))
+
     def test_store_keeps_full_edition(self):
         raw = store.load_edition("2026-10-09", "am", self.root)
         self.assertIn("Business", [s["title"] for s in raw["sections"]])
