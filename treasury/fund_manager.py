@@ -80,6 +80,55 @@ def load_fund_policy(path: Optional[Path] = None) -> Dict[str, Any]:
     return data
 
 
+def allocate_new_cash(
+    sleeve_cfg: Dict[str, Any],
+    amount: float,
+) -> List[Dict[str, Any]]:
+    """Split NEW cash into buy-only intents per ``new_money_weights``.
+
+    Pure helper for the btc_digital_credit (and similar) sleeve config.
+    Emits buys only — never sells or trims. Executor wiring lands with #1093.
+    Floating residual is one buy intent with ``symbol="floating"`` and the
+    configured ``floating_universe`` tickers listed for downstream sizing.
+    """
+    amt = _f(amount, 0.0)
+    if amt <= 0:
+        return []
+    weights = (sleeve_cfg or {}).get("new_money_weights") or {}
+    if not isinstance(weights, dict) or not weights:
+        return []
+    pinned = ("STRC", "SATA", "STRK")
+    intents: List[Dict[str, Any]] = []
+    for sym in pinned:
+        w = _f(weights.get(sym), 0.0)
+        if w <= 0:
+            continue
+        intents.append(
+            {
+                "side": "buy",
+                "symbol": sym,
+                "amount_usd": round(amt * w, 10),
+                "weight": w,
+            }
+        )
+    float_w = _f(weights.get("floating"), 0.0)
+    if float_w > 0:
+        universe = list(weights.get("floating_universe") or [])
+        intents.append(
+            {
+                "side": "buy",
+                "symbol": "floating",
+                "amount_usd": round(amt * float_w, 10),
+                "weight": float_w,
+                "universe": universe,
+            }
+        )
+    # Guard: never emit sells from this path
+    assert all(i.get("side") == "buy" for i in intents)
+    return intents
+
+
+
 def load_watchlist(path: Optional[Path] = None) -> Dict[str, Any]:
     """Load thematic monitor/consider list (not holdings / not auto-buy)."""
     p = path or WATCHLIST_PATH
