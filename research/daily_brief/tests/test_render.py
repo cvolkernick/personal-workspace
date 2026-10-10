@@ -447,6 +447,47 @@ class TestQuoteOfTheDay(unittest.TestCase):
         self.assertNotIn(_NO_QUOTE, page)
 
 
+class TestImages(unittest.TestCase):
+    """Pictures when the edition has an http(s) image; no empty frame."""
+
+    def test_http_images_render_and_are_escaped(self):
+        ed = sample("sample-am")
+        ed["date"] = "2026-10-15"
+        ed["front_page"] = dict(ed["front_page"])
+        ed["front_page"]["image"] = "https://example.com/front.jpg?q=a&b=1"
+        day = dict(ed["sections"][0])
+        day["image"] = "https://example.com/day.jpg"
+        day["items"] = list(day["items"]) + [
+            {"text": "SAMPLE: pier light", "image": "https://example.com/pier.jpg"},
+            {"text": "SAMPLE: a loopback frame", "image": "http://127.0.0.1:8795/secret.jpg"},
+            {"text": "SAMPLE: a tailnet frame", "image": "https://prism-gateway.example.ts.net/pic.jpg"},
+            {"text": "SAMPLE: a local path frame", "image": "https://example.com/financial-command/pic.jpg"},
+            {"text": "SAMPLE: not a url", "image": "not-a-url"},
+            {"text": "SAMPLE: a file path", "image": "/tmp/local-frame.jpg"},
+        ]
+        ed["sections"] = [day] + list(ed["sections"][1:])
+        page = render.render_edition(ed)
+        for src in (
+            "https://example.com/front.jpg?q=a&amp;b=1",
+            "https://example.com/day.jpg",
+            "https://example.com/pier.jpg",
+            "http://127.0.0.1:8795/secret.jpg",
+            "https://prism-gateway.example.ts.net/pic.jpg",
+            "https://example.com/financial-command/pic.jpg",
+        ):
+            self.assertIn(f'src="{src}"', page, src)
+        self.assertNotIn("not-a-url", page)
+        self.assertNotIn("/tmp/local-frame.jpg", page)
+        self.assertNotIn("<figure></figure>", page)
+        self.assertIn("<h4>Local weather</h4>", page)
+        self.assertIn(html.escape(ed["front_page"]["headline"]), page)
+
+    def test_no_image_leaves_no_empty_figure(self):
+        page = render.render_edition(sample("sample-am"))
+        self.assertNotIn("<figure", page)
+        self.assertNotIn("<img", page)
+
+
 class TestNoQuotePlaceholder(RenderBase):
     def test_placeholder_absent_from_every_sample_page(self):
         pages = (
