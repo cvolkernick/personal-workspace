@@ -186,7 +186,7 @@ class TestFundPolicy(unittest.TestCase):
             "btc_morpho_ltv",
             "usdc_cash",
             "rh_sleeve",
-            "strc_jr",
+            "solana",
             "none",
         }
         urgencies = {"watch", "this_week", "immediate", "structural"}
@@ -211,7 +211,7 @@ class TestFundPolicy(unittest.TestCase):
             by_kind[item["kind"]] += 1
             by_id[item["id"]] = item
 
-        self.assertEqual(by_kind["global"], 6)
+        self.assertEqual(by_kind["global"], 5)
         self.assertEqual(by_kind["held"], 7)
         self.assertEqual(by_kind["watch"], 7)
         self.assertEqual(by_id["NVDA"]["may_change"], "none")
