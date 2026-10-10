@@ -142,7 +142,7 @@
   },
   "pi_sync": {
     "enabled": true,
-    "ssh": "prism-agent@prism.example",
+    "ssh": "prism-agent@prism-gateway",
     "remote_root": "/home/prism-agent/personal-workspace",
     "connect_timeout_s": 5,
     "max_age_hours": 6,
@@ -157,6 +157,6 @@
       "solana_latest.json",
       "expenses_latest.json"
     ],
-    "notes": "#518 RH + #689 Braiins + #695 Coinbase price SoT is prism/Pi (not in push_files). Mac may still push YNAB/Sheet/Solana. Liquid CB balances still Mac CLI (out of #695). max_age_hours=6; mcp_timeout_s=240. ssh is a placeholder (prism.example never resolves): set TREASURY_PI_SSH=prism-agent@<prism-host> on any host that pulls from or pushes to prism. Override: TREASURY_RH_ROLE, TREASURY_RH_PUSH=1 / TREASURY_BRAIINS_PUSH=1 / TREASURY_COINBASE_PUSH=1 (emergency only), TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
+    "notes": "#518 RH + #689 Braiins + #695 Coinbase price SoT is prism/Pi (not in push_files). Mac may still push YNAB/Sheet/Solana. Liquid CB balances still Mac CLI (out of #695). max_age_hours=6; mcp_timeout_s=240. ssh defaults to prism-agent@prism-gateway (tailnet MagicDNS short name); TREASURY_PI_SSH is an optional override. Override: TREASURY_RH_ROLE, TREASURY_RH_PUSH=1 / TREASURY_BRAIINS_PUSH=1 / TREASURY_COINBASE_PUSH=1 (emergency only), TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }

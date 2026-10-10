@@ -130,8 +130,8 @@ Local Mac FCC does **not** share the Pi filesystem. To keep **RH trade** green o
 TREASURY_RH_ROLE=consumer TREASURY_SKIP_LOCAL_MCP=1 python3 -m treasury.rh_snapshot_sync --print
 ```
 
-SSH target: set `TREASURY_PI_SSH` (e.g. `prism-agent@192.0.2.10`) → `/home/prism-agent/personal-workspace`.
-The committed default `prism-agent@prism.example` is a placeholder and fails as `pi_unreachable`.
+SSH target: defaults to `prism-agent@prism-gateway` (tailnet MagicDNS short name) → `/home/prism-agent/personal-workspace`.
+`TREASURY_PI_SSH` is an optional override (e.g. `prism-agent@192.0.2.10`).
 
 ## Notifications
 GitHub standing issue [#701](https://github.com/cvolkernick/personal-workspace/issues/701)
