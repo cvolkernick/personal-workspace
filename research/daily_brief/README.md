@@ -23,7 +23,7 @@ proxy onto :8795, no FCC chrome), so no new Tailscale mapping is needed.
 ```
 research/daily_brief/
   store.py     edition JSON store, schema, publish, To-Do bucketing, Mac tasks builder
-  redact.py    keeps FCC marks, balances and capital so-whats off the Horizon host
+  redact.py    keeps the owner's book (balances, holdings, sends, P&L) off the Horizon host
   render.py    /daily-brief pages + routes (Horizon base palette and type)
   cli.py       publish CLI (also: python3 -m research.daily_brief ...)
   fixtures/    sample editions + Notion Mac tasks page
@@ -39,20 +39,23 @@ files, OFFLINE_PUBLISH.md), and neither is `investment/book_channel_map.json`.
 
 ## Rules on the Horizon host
 
-- **No FCC money.** No FCC marks, balances or capital so-whats render here.
-  Every edition goes through `redact.scrub_edition` before rendering and
-  before `/daily-brief/api/latest`. Withheld: whole money sections (id/title
-  like business, money, treasury, fund, markets, portfolio, ynab-style
-  budget/bills/payments), and any line, todo, Mac task, quote, theme or
-  front-page paragraph with an amount (`$900`, `0.05 BTC`), an account or
-  ticker word (USDC, Coinbase, balance, NAV, P&L, runway, ...) or a link into
-  FCC. A money headline is replaced by "Front page held for the private
-  edition". The footer says how many lines were held back. The match is
-  deliberately broad: a false positive only hides a line. The stored edition
-  JSON is not modified.
-- **No model widgets.** No regime, weather or model widgets. The newspaper's
-  local weather box is not rendered here (the field stays in the schema and
-  the store). The footer says "Not Horizon model output."
+- **No personal book.** The owner's balances, holdings, sends, debt figures,
+  wallet addresses, business P&L and FCC links do not render here. Every
+  edition goes through `redact.scrub_edition` before rendering and before
+  `/daily-brief/api/latest`. News is kept: Markets, Business and Books
+  headlines stay, tickers in a headline stay, and words like tax, credit,
+  interest, cash, fund or loan do not by themselves hide a line. A to-do
+  worded without an amount or account stays ("Review rent ledger"); a send
+  ("$25 to Alex Sample") is dropped, and when the amount or recipient is only
+  part of a line that span is removed. Whole sections are withheld only when
+  the section is the private book (YNAB, treasury, portfolio, balances,
+  wallet). A headline that is itself a personal send is replaced by "Front
+  page held for the private edition". The footer says how many lines were
+  held back. The stored edition JSON is not modified.
+- **Local weather, not a model widget.** The edition's weather box is shown,
+  labeled "Local weather". There is no regime widget and no Horizon model
+  weather. A quiet line under the masthead says "Daily Brief, not Horizon
+  model output." The footer repeats that this page is not Horizon model output.
 - **No FCC chrome.** No FCC nav, tab bar, manifest or back-link. Links are
   root-absolute under `/daily-brief` so they survive the lens prefixing;
   in-page anchors carry the page path because the lens injects a `<base>`.
@@ -112,7 +115,7 @@ Override with `DAILY_BRIEF_DIR` (the legacy `FCC_BRIEF_DIR` still works).
 
 Section ids are lowercase slugs. Suggested ids: am `day-ahead`, `business`,
 `fleet`, `shipped`, `drafted-replies`; pm `tomorrow`, `loose-ends`,
-`roadside`, `ynab` (Mon). Money sections (`business`, `ynab`, ...) stay in the stored edition but are withheld from the Horizon-hosted page (see "Rules on the Horizon host"). The To-Do block is inserted after `day-ahead` /
+`roadside`, `ynab` (Mon). Private-book sections (`ynab`, and anything titled like treasury, portfolio, balances or wallet) stay in the stored edition but are withheld from the Horizon-hosted page. Markets, Business and Books are filtered line by line (see "Rules on the Horizon host"). The To-Do block is inserted after `day-ahead` /
 `tomorrow` (or where a section with id `todo` sits). Links must be http(s).
 
 ### `todos[]` (Notion Todo List snapshot)
@@ -247,7 +250,7 @@ publisher is down, `/daily-brief` keeps showing the last edition with a
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8795/daily-brief      # 200
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/horizon/daily-brief/archive   # 200
    curl -sI http://127.0.0.1:8000/brief/2026-10-09/am | grep -i '^location'        # /horizon/daily-brief/2026-10-09/am
-   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -cE 'USDC|Coinbase|\$[0-9]'   # 0
+   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -cE 'USDC|we hold|Robinhood|financial-command|0x[a-fA-F0-9]{40}'   # 0
    ```
 
 No new systemd unit and no new port: the page runs inside the existing

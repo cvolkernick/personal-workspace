@@ -25,10 +25,16 @@ FCC_NAV_MARKERS = (
 )
 # Horizon model widgets that must not appear on this page.
 MODEL_MARKERS = ("regime", "world-state", "world_state", "scenario", "version_id", "Weather")
-# Money strings planted in the fixtures; none may reach the Horizon host.
-PLANTED_MONEY = (
-    "USDC", "$154", "$750", "$900", "$245", "$41,200", "BTC", "Coinbase", "Robinhood", "balance",
-    "Fund manager", "Burn rate", "treasury", "Business", "buyout", "new dashboard card",
+# Personal-book strings planted in the fixtures. News tickers, the Business
+# section title, and a Coinbase headline are not in this list: those are the
+# paper, and the tests below require them to survive.
+PLANTED_BOOK = (
+    "USDC", "$154", "$750", "$900", "$245", "$41,200", "$25", "0.05 BTC",
+    "Coinbase USDC", "Robinhood", "balance", "Fund manager", "Burn rate",
+    "treasury snapshot", "buyout", "we hold", "may_change", "trim SOL",
+    "Morpho", "LTV", "card balance", "0x5550000000000000000000000000000000000001",
+    "financial-command", "Turo revenue", "Panamerica payout", "Alex Sample",
+    "new dashboard card", "target 8%", "target 5%", "so-what",
 )
 
 
@@ -99,7 +105,9 @@ class TestRoutes(RenderBase):
         self.assertEqual(data["url"], "/daily-brief/2026-10-09/pm")
         self.assertEqual(data["edition"]["front_page"]["headline"], redact.HELD_HEADLINE)
         self.assertNotIn("USDC", body)
-        self.assertNotIn("weather", data["edition"])
+        self.assertNotIn("we hold", body)
+        self.assertEqual(data["edition"]["weather"], "Tomorrow: 87° / 73°, sunny")
+        self.assertIn("ETH steadies after a quiet session", body)
 
     def test_html_escaped(self):
         ed = sample("sample-am")
@@ -179,25 +187,33 @@ class TestNoFccOnHorizonHost(RenderBase):
     def test_no_fcc_money_fields_in_rendered_html(self):
         for p in self.PAGES + ("/daily-brief/api/latest",):
             _, _, body = self.get(p)
-            for m in PLANTED_MONEY:
+            for m in PLANTED_BOOK:
                 self.assertNotIn(m, body, f"{m!r} on {p}")
             text = visible_text(body) if not p.endswith("latest") else body
-            hit = redact.MONEY_RE.search(text)
-            self.assertIsNone(hit, f"money-like {hit and hit.group(0)!r} on {p}")
-            self.assertNotRegex(text, r"[$]\s?\d")
+            hit = redact.book_match(text)
+            self.assertIsNone(hit, f"personal-book {hit!r} on {p}")
 
     def test_withheld_count_and_clean_parts_kept(self):
         _, _, body = self.get("/daily-brief/2026-10-09/am")
         self.assertIn("lines with money details kept off this page", body)
         self.assertIn("SAMPLE: Daily Brief moves to the Horizon host", body)
         self.assertIn("2 pickups, 1 dropoff today", body)
-        self.assertNotIn('id="sec-business"', body)
-        self.assertNotIn('id="sec-loose-ends"', body)  # every line was money
         self.assertIn('id="sec-shipped"', body)
+        self.assertIn("Reply to the shop about the Thursday pickup", body)
+        self.assertNotIn("0.05 BTC", body)
 
     def test_ynab_section_withheld(self):
         self.assertTrue(redact.is_fcc_section({"id": "ynab", "title": "YNAB"}))
+        self.assertTrue(redact.is_fcc_section({"id": "portfolio", "title": "Portfolio"}))
         self.assertFalse(redact.is_fcc_section({"id": "fleet", "title": "Fleet"}))
+        self.assertFalse(redact.is_fcc_section({"id": "markets", "title": "Markets"}))
+        self.assertFalse(redact.is_fcc_section({"id": "business", "title": "Business"}))
+        self.assertFalse(redact.is_fcc_section({"id": "books", "title": "Books"}))
+        ed = sample("sample-empty-todos")
+        ed["sections"].append({"id": "ynab", "title": "YNAB", "items": ["Review categories"]})
+        clean, held = redact.scrub_edition(ed)
+        self.assertNotIn("ynab", [s["id"] for s in clean["sections"]])
+        self.assertGreaterEqual(held, 1)
 
     def test_store_keeps_full_edition(self):
         raw = store.load_edition("2026-10-09", "am", self.root)
@@ -209,6 +225,54 @@ class TestNoFccOnHorizonHost(RenderBase):
             self.assertNotIn("research.horizon", src, mod)
             self.assertNotIn("world_state", src, mod)
             self.assertNotIn("from treasury", src, mod)
+
+
+class TestNewsAndWeatherKept(RenderBase):
+    def test_markets_business_books_and_tickers(self):
+        _, _, body = self.get("/daily-brief/2026-10-09/am")
+        for sid, title in (("markets", "Markets"), ("business", "Business"), ("books", "Books")):
+            self.assertIn(f'id="sec-{sid}"', body)
+            self.assertIn(title, body)
+        for line in (
+            "NVDA rises after the chipmaker lifts its outlook",
+            "AAPL tops $180 as the buyback continues",
+            "BTC holds near the prior close; ETF flows turn positive",
+            "Senate tax bill advances; credit markets calm as interest rates hold",
+            "Cash levels at funds rise and loan demand cools",
+            "Treasury yields ease on the long end",
+            "Coinbase plans a new listing next month",
+            "Inflation target 2% holds in the latest print",
+            "AAPL price target 20% is unchanged",
+            "Panamerica opens a driver handbook",
+            "SAMPLE: a short novel about a lighthouse keeper",
+            "Review rent ledger",
+            "Call the shop, then review rent ledger",
+        ):
+            self.assertIn(line, body, line)
+        # The amount and the recipient are gone; the to-do around them stays.
+        self.assertNotIn("$25", body)
+        self.assertNotIn("Alex Sample", body)
+        self.assertNotIn("before the $25", body)
+
+    def test_local_weather_box(self):
+        _, _, am = self.get("/daily-brief/2026-10-09/am")
+        self.assertIn("<h4>Local weather</h4>", am)
+        self.assertIn("Partly cloudy, afternoon storms", am)
+        self.assertIn("88°", am)
+        self.assertIn("74°", am)
+        self.assertIn("40% after 2 PM", am)
+        _, _, pm = self.get("/daily-brief/2026-10-09/pm")
+        self.assertIn("<h4>Local weather</h4>", pm)
+        self.assertIn("Tomorrow: 87° / 73°, sunny", pm)
+        _, _, old = self.get("/daily-brief/2026-10-08/pm")
+        self.assertIn("<h4>Local weather</h4>", old)
+        self.assertIn("Not reported", old)
+        self.assertNotIn(">Weather<", old)
+
+    def test_not_model_line(self):
+        for p in ("/daily-brief", "/daily-brief/2026-10-09/am", "/daily-brief/2026-10-09/pm",
+                  "/daily-brief/archive", "/daily-brief/2026-10-08/pm"):
+            self.assertIn("Daily Brief, not Horizon model output", self.get(p)[2], p)
 
 
 class TestHorizonServerIntegration(RenderBase):
