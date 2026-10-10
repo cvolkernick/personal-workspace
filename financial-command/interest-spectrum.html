@@ -242,9 +242,8 @@
         rate; vault GraphQL alone does not paint the product chip.
         USDG HY precedence: live Morpho GraphQL avgNetApy (Steakhouse USDG / Robinhood
         Chain) &gt; FCC settings fallback &gt; seed 7% + Gold-cancel caveat — do not invent rates.
-        JR-strcUSX is a spectrum chip only (live epoch APY from
-        app.solstice.finance/strcusx AccountingState, else ~20% docs
-        target).         Chip size is not a balance.
+        Yield chips use locked seeds until books have a live APY.
+
         Wells / 20 Tesla stays off FCC.
         Display-only FCF nudge after essentials are current — not a trade trigger.
       </p>
@@ -431,7 +430,7 @@
       const uroot = document.getElementById("unknown-row");
       const ucard = document.getElementById("unknown-card");
       if (!unknown.length) {
-        uroot.innerHTML = `<p class="hint" style="margin:0">Yield chips use locked seeds until books have a live APY. Bitcoin and Agentic Fund stay est. CAGR (not cash APR/APY). JR-strcUSX uses the live epoch APY from app.solstice.finance/strcusx, else a ~20% docs target.</p>`;
+        uroot.innerHTML = `<p class="hint" style="margin:0">Yield chips use locked seeds until books have a live APY. Bitcoin and Agentic Fund stay est. CAGR (not cash APR/APY).</p>`;
         if (ucard) ucard.classList.remove("hidden");
       } else {
         uroot.innerHTML = unknown

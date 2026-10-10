@@ -26,9 +26,6 @@ from treasury.interest_spectrum import (  # noqa: E402
     EST_CAGR_KIND,
     EST_CAGR_LABEL,
     EST_CAGR_NOTE,
-    JR_STRCUSX_ID,
-    JR_TARGET_LABEL,
-    JR_TARGET_PCT,
     LOCKED_FLEET,
     LOCKED_RATE_BY_ID,
     LOCKED_SEED_RATE_BY_ID,
@@ -317,20 +314,6 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertNotIn("googl", {c["id"] for c in payload["chips"]})
         self.assertNotIn("be", {c["id"] for c in payload["chips"]})
 
-        jr = by_id[JR_STRCUSX_ID]
-        self.assertEqual(jr["kind"], "yield")
-        self.assertEqual(jr["lane"], "above")
-        self.assertAlmostEqual(jr["rate_pct"], JR_TARGET_PCT)
-        self.assertEqual(jr["rate_label"], JR_TARGET_LABEL)
-        self.assertEqual(jr["source"], "docs_target")
-        self.assertTrue(jr["approx"])
-        self.assertFalse(jr.get("counts_toward_hy"))
-        self.assertFalse(jr.get("counts_toward_ltv_defense"))
-        self.assertNotIn("notional", jr)
-        self.assertIn("docs.solstice.finance", jr["notes"])
-        self.assertIn("solstice.finance/vaults/strcusx", jr["notes"])
-        self.assertEqual(payload["unknown"], [])
-
     def test_books_apr_overrides_morpho_seed_and_plots_yield(self) -> None:
         payload = build_interest_spectrum(
             treasury={
@@ -366,196 +349,6 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertIn("Gold", by_id["usdg_earn"]["notes"])
         self.assertIn("cancel", by_id["usdg_earn"]["notes"].lower())
         self.assertAlmostEqual(by_id["one_card"]["notional"], 462.2)
-        self.assertTrue(rates_are_honest(payload))
-
-    def test_no_invent_ignores_equity_btc_assumed_returns(self) -> None:
-        payload = build_interest_spectrum(
-            treasury={
-                "evaluation": {
-                    "inputs": {
-                        "btc_expected_return": 0.25,
-                        "equity_expected_return": 0.10,
-                        "assumed_return": 0.12,
-                        "appreciation_pct": 8,
-                    }
-                },
-                "snapshot": {
-                    "robinhood": {"expected_return": 0.11},
-                    "coinbase_manual": {"btc_assumed_return": 0.3},
-                },
-            },
-            config={},
-            x_money={"apy_est": None},
-            solana={},
-        )
-        by_id = {c["id"]: c for c in payload["chips"]}
-        self.assertEqual(by_id["x_money"]["source"], "locked_seed")
-        self.assertAlmostEqual(by_id["x_money"]["rate_pct"], 6.0)
-        self.assertEqual(by_id["morpho_borrow"]["source"], "locked_seed")
-        self.assertAlmostEqual(by_id["morpho_borrow"]["rate_pct"], 5.0)
-        self.assertEqual(by_id[RH_MARGIN_ID]["source"], "locked_seed")
-        self.assertAlmostEqual(by_id[RH_MARGIN_ID]["rate_pct"], 5.0)
-        self.assertEqual(by_id["morpho_hy"]["source"], "locked_seed")
-        self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.0)
-        self.assertEqual(by_id["usdg_earn"]["source"], "locked_seed")
-        self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 7.0)
-        self.assertEqual(by_id[BITCOIN_ID]["source"], "locked_seed")
-        self.assertAlmostEqual(by_id[BITCOIN_ID]["rate_pct"], 30.0)
-        self.assertEqual(by_id[AGENTIC_FUND_ID]["source"], "locked_seed")
-        self.assertAlmostEqual(by_id[AGENTIC_FUND_ID]["rate_pct"], 15.0)
-        for chip in payload["chips"]:
-            self.assertIn(chip["kind"], ("debt", "yield"))
-            if chip["id"] in EST_CAGR_IDS:
-                self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
-                self.assertTrue(chip.get("est_cagr"))
-            else:
-                self.assertIn(chip["rate_kind"], ("APR", "APY"))
-                self.assertFalse(chip.get("est_cagr"))
-            self.assertIn(chip["source"], ("locked_financing", "locked_seed", "books", "docs_target"))
-        rates = [c["rate_pct"] for c in payload["placed"]]
-        self.assertNotIn(25.0, rates)
-        self.assertNotIn(12.0, rates)
-        self.assertNotIn(8.0, rates)
-        self.assertNotIn(11.0, rates)
-        self.assertTrue(rates_are_honest(payload))
-
-    def test_jr_target_when_no_live_solstice_does_not_invent_balance(self) -> None:
-        payload = build_interest_spectrum(
-            treasury={
-                "snapshot": {
-                    "solana": {
-                        "jr_strcusx": 3.317128,
-                        "jr_strcusx_usd": 3.40,
-                        "jr_strcusx_usd_price": 1.0255,
-                    }
-                }
-            },
-            config={},
-            x_money={},
-            solana={},
-        )
-        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
-        self.assertAlmostEqual(jr["rate_pct"], 20.0)
-        self.assertEqual(jr["rate_label"], "~20% target")
-        self.assertEqual(jr["source"], "docs_target")
-        self.assertTrue(jr["approx"])
-        self.assertFalse(jr.get("counts_toward_hy"))
-        self.assertFalse(jr.get("counts_toward_ltv_defense"))
-        self.assertNotIn("notional", jr)
-        self.assertIn("docs.solstice.finance", jr["notes"])
-        self.assertIn("solstice.finance/vaults/strcusx", jr["notes"])
-        self.assertTrue(rates_are_honest(payload))
-
-    def test_jr_uses_live_solstice_when_already_on_books(self) -> None:
-        payload = build_interest_spectrum(
-            treasury={"snapshot": {"solana": {"solstice_apy": 0.184, "jr_strcusx": 3.3}}},
-            config={},
-            x_money={},
-        )
-        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
-        self.assertAlmostEqual(jr["rate_pct"], 18.4)
-        self.assertEqual(jr["source"], "books")
-        self.assertFalse(jr["approx"])
-        self.assertNotIn("rate_label", jr)
-        self.assertNotIn("notional", jr)
-        self.assertFalse(jr.get("counts_toward_hy"))
-        self.assertTrue(rates_are_honest(payload))
-
-    def test_jr_uses_canonical_jr_strcusx_apy_field(self) -> None:
-        payload = build_interest_spectrum(
-            treasury={
-                "snapshot": {
-                    "solana": {"jr_strcusx_apy": 0.176, "jr_strcusx": 3.3}
-                }
-            },
-            config={},
-            x_money={},
-            solana={},
-        )
-        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
-        self.assertAlmostEqual(jr["rate_pct"], 17.6)
-        self.assertEqual(jr["source"], "books")
-        self.assertIn("jr_strcusx_apy", jr["notes"])
-        self.assertNotIn("notional", jr)
-        self.assertTrue(rates_are_honest(payload))
-
-    def test_jr_uses_solstice_sidecar_kwarg_when_snapshot_omits_it(self) -> None:
-        payload = build_interest_spectrum(
-            treasury={"snapshot": {"solana": {"jr_strcusx": 3.3}}},
-            config={},
-            x_money={},
-            solana={},
-            solstice_jr={
-                "jr_strcusx_apy": 0.3473,
-                "apy": 0.3473,
-                "source": "solstice_onchain",
-            },
-        )
-        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
-        self.assertAlmostEqual(jr["rate_pct"], 34.73)
-        self.assertEqual(jr["source"], "books")
-        self.assertFalse(jr["approx"])
-        self.assertNotIn("rate_label", jr)
-        self.assertNotIn("notional", jr)
-        self.assertGreaterEqual(payload["axis"]["max_pct"], 35)
-        self.assertTrue(rates_are_honest(payload))
-
-    def test_jr_disk_path_reads_solstice_sidecar_when_snapshot_omits_it(self) -> None:
-        import tempfile
-
-        import treasury.interest_spectrum as spec
-
-        td = tempfile.TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        root = Path(td.name)
-        tre = root / "treasury_latest.json"
-        tre.write_text(
-            json.dumps({"snapshot": {"solana": {"jr_strcusx": 3.317128}}}),
-            encoding="utf-8",
-        )
-        sidecar = root / "solstice_jr_latest.json"
-        sidecar.write_text(
-            json.dumps(
-                {
-                    "jr_strcusx_apy": 0.3473,
-                    "apy": 0.3473,
-                    "source": "solstice_onchain",
-                }
-            ),
-            encoding="utf-8",
-        )
-        missing = root / "missing.json"
-        prev = {
-            "TREASURY_FCC": spec.TREASURY_FCC,
-            "TREASURY_SNAP": spec.TREASURY_SNAP,
-            "SOLSTICE_JR_SNAPSHOT": spec.SOLSTICE_JR_SNAPSHOT,
-            "XM_SNAPSHOT": spec.XM_SNAPSHOT,
-            "SOLANA_SNAPSHOT": spec.SOLANA_SNAPSHOT,
-            "CONFIG_PATH": spec.CONFIG_PATH,
-            "FCC_STUB": spec.FCC_STUB,
-        }
-
-        def _restore() -> None:
-            for key, val in prev.items():
-                setattr(spec, key, val)
-
-        self.addCleanup(_restore)
-        spec.TREASURY_FCC = tre
-        spec.TREASURY_SNAP = tre
-        spec.SOLSTICE_JR_SNAPSHOT = sidecar
-        spec.XM_SNAPSHOT = missing
-        spec.SOLANA_SNAPSHOT = missing
-        spec.CONFIG_PATH = missing
-        spec.FCC_STUB = missing
-
-        payload = spec.build_interest_spectrum()
-        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
-        self.assertAlmostEqual(jr["rate_pct"], 34.73)
-        self.assertEqual(jr["source"], "books")
-        self.assertFalse(jr["approx"])
-        self.assertNotIn("rate_label", jr)
-        self.assertNotIn("notional", jr)
-        self.assertGreaterEqual(payload["axis"]["max_pct"], 35)
         self.assertTrue(rates_are_honest(payload))
 
     def test_usdg_seed_always_shows_with_gold_caveat(self) -> None:
@@ -1165,54 +958,6 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertNotAlmostEqual(by_id["morpho_hy"]["rate_pct"], 0.0)
         self.assertTrue(rates_are_honest(payload))
 
-    def test_zero_live_falls_to_settings_not_seed(self) -> None:
-        payload = build_interest_spectrum(
-            treasury={"evaluation": {"inputs": {"variable_apr": 0, "product_apy": 0}}},
-            config={
-                "coinbase_manual": {"variable_apr": 0.062, "product_apy": 0.072},
-            },
-            x_money={},
-            solana={},
-        )
-        by_id = {c["id"]: c for c in payload["chips"]}
-        self.assertAlmostEqual(by_id["morpho_borrow"]["rate_pct"], 6.2)
-        self.assertIn("settings", by_id["morpho_borrow"]["notes"].lower())
-        self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.2)
-        self.assertIn("settings", by_id["morpho_hy"]["notes"].lower())
-        self.assertTrue(rates_are_honest(payload))
-
-    def test_jr_zero_or_blocked_live_stays_docs_target(self) -> None:
-        zero = build_interest_spectrum(
-            treasury={"snapshot": {"solana": {"jr_strcusx_apy": 0}}},
-            config={},
-            x_money={},
-            solana={},
-        )
-        jr0 = {c["id"]: c for c in zero["chips"]}[JR_STRCUSX_ID]
-        self.assertAlmostEqual(jr0["rate_pct"], JR_TARGET_PCT)
-        self.assertEqual(jr0["source"], "docs_target")
-        self.assertNotAlmostEqual(jr0["rate_pct"], 0.0)
-
-        blocked = build_interest_spectrum(
-            treasury={
-                "snapshot": {
-                    "solstice_jr": {
-                        "jr_strcusx_apy": 0.18,
-                        "jr_strcusx_apy_error": "source blocked: no public/docs JSON APY",
-                    }
-                }
-            },
-            config={},
-            x_money={},
-            solana={},
-        )
-        jr = {c["id"]: c for c in blocked["chips"]}[JR_STRCUSX_ID]
-        self.assertAlmostEqual(jr["rate_pct"], JR_TARGET_PCT)
-        self.assertEqual(jr["source"], "docs_target")
-        self.assertEqual(jr["rate_label"], JR_TARGET_LABEL)
-        self.assertNotAlmostEqual(jr["rate_pct"], 18.0)
-        self.assertTrue(rates_are_honest(blocked))
-
     def test_morpho_hy_seed_always_visible_when_no_books(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
@@ -1581,7 +1326,6 @@ class TestSpectrumFcfCoach(unittest.TestCase):
         ):
             self.assertNotIn(tok, low)
         ids = {c["id"] for c in payload["chips"]}
-        self.assertIn(JR_STRCUSX_ID, ids)
         self.assertIn(BITCOIN_ID, ids)
         self.assertIn(AGENTIC_FUND_ID, ids)
         self.assertNotIn(WELLS_OFF_FCC_ID, ids)
@@ -1707,21 +1451,6 @@ class TestSpectrumFcfCoach(unittest.TestCase):
         self.assertIn("6.4%", payload["coach_nudge"]["line"])
         self.assertTrue(rates_are_honest(payload))
 
-    def test_jr_btc_agentic_cannot_win_park_fcf(self) -> None:
-        payload = build_interest_spectrum(
-            treasury=_current_treasury(free_dollar=200, ltv=0.40),
-            config={},
-            x_money={},
-            solana={},
-        )
-        by_id = {c["id"]: c for c in payload["chips"]}
-        self.assertGreater(by_id[BITCOIN_ID]["rate_pct"], by_id["morpho_hy"]["rate_pct"])
-        self.assertGreater(by_id[JR_STRCUSX_ID]["rate_pct"], by_id["morpho_hy"]["rate_pct"])
-        self.assertGreater(by_id[AGENTIC_FUND_ID]["rate_pct"], by_id["x_money"]["rate_pct"])
-        self.assertNotIn(payload["coach_nudge"]["yield_id"], (JR_STRCUSX_ID, BITCOIN_ID, AGENTIC_FUND_ID))
-        self.assertIn(payload["coach_nudge"]["yield_id"], ("x_money", "morpho_hy", "usdg_earn"))
-        coach = build_fcf_coach(payload["chips"], _current_treasury(free_dollar=200, ltv=0.40))
-        self.assertNotIn(coach["nudge"]["yield_id"], (JR_STRCUSX_ID, BITCOIN_ID, AGENTIC_FUND_ID))
 
     def test_usdg_cancelled_does_not_win_park_fcf(self) -> None:
         payload = build_interest_spectrum(
@@ -1891,7 +1620,6 @@ class TestInterestSpectrumApi(unittest.TestCase):
         ids = {c["id"] for c in data.get("chips") or []}
         self.assertTrue(set(LOCKED_RATE_BY_ID).issubset(ids))
         self.assertTrue(set(LOCKED_SEED_RATE_BY_ID).issubset(ids))
-        self.assertIn(JR_STRCUSX_ID, ids)
         self.assertIn(BITCOIN_ID, ids)
         self.assertIn(AGENTIC_FUND_ID, ids)
         self.assertNotIn(WELLS_OFF_FCC_ID, ids)

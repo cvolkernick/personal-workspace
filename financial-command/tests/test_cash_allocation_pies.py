@@ -34,7 +34,6 @@ REMOVED_METRIC_LABELS = (
     "Liq. price (BTC)",
     "Bank cash (RH+X)",
     "Solana book",
-    "JR-strcUSX",
 )
 
 EXCLUDED_SLICE_LABELS = (
@@ -102,10 +101,6 @@ def cash_allocation_pools(inp: dict, xm: dict, rhc: dict, sol: dict) -> dict:
             pool("Liquid BTC", inp.get("liquid_btc_usd")),
             pool("SOL", sol.get("sol_usd")),
             pool("On-chain USDC", inp.get("solana_usdc", sol.get("usdc"))),
-            pool(
-                "JR-strcUSX",
-                inp.get("solana_jr_strcusx_usd", sol.get("jr_strcusx_usd")),
-            ),
             pool("HY LTV Buffer", inp.get("vault_usdc")),
             pool("USDC security deposit", inp.get("card_security_deposit_usdc")),
         ]
@@ -218,8 +213,7 @@ class TestCashAllocationPiesMarkup(unittest.TestCase):
             "Liquid BTC",
             "SOL",
             "On-chain USDC",
-            "JR-strcUSX",
-            "HY LTV Buffer",
+                    "HY LTV Buffer",
             "USDC security deposit",
         ):
             self.assertIn(f'pool("{label}"', js)
@@ -262,7 +256,6 @@ class TestCashAllocationMeceOracle(unittest.TestCase):
             "vault_usdc": 100.0,
             "card_security_deposit_usdc": 500.0,
             "solana_usdc": 0.0,
-            "solana_jr_strcusx_usd": 13.08,
             "working_usdc": 206.0,
             "bank_cash": 721.14,
             "bill_pay_cash": 40.0,
@@ -296,7 +289,7 @@ class TestCashAllocationMeceOracle(unittest.TestCase):
         self.assertAlmostEqual(
             cash_total, 40.0 + 106.0 + 1375.61 + 483.78 + 130.35
         )
-        self.assertAlmostEqual(crypto_total, 820.0 + 1.12 + 13.08 + 100.0 + 500.0)
+        self.assertAlmostEqual(crypto_total, 820.0 + 1.12 + 100.0 + 500.0)
         # Derived / capacity metrics are not in the pie total.
         self.assertNotAlmostEqual(all_total, inp["working_usdc"])
         self.assertGreater(all_total, inp["bank_cash"])

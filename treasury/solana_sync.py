@@ -1,7 +1,7 @@
 """Read-only Solana book: public RPC + Jupiter prices, whitelist only.
 
-Never requests a private key. JR-strcUSX is DC-credit parlay — not HY / LTV
-defense and not working USDC.
+Never requests a private key. Whitelist SOL + USDC. NFT/meme dust ignored.
+JR-strcUSX retired 2026-10-10 (Solstice wound down).
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 WSOL_MINT = "So11111111111111111111111111111111111111112"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-JR_STRCUSX_MINT = "BQ6LPc68knpko292UsMLbQYfaHhWD7S84sA98632hrzX"
 DEFAULT_WALLET = "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm"
 DEFAULT_RPC = "https://api.mainnet-beta.solana.com"
 DEFAULT_PRICE_URL = "https://lite-api.jup.ag/price/v3"
@@ -29,7 +28,6 @@ SNAPSHOT_NAME = "solana_latest.json"
 DEFAULT_WHITELIST: List[Dict[str, str]] = [
     {"symbol": "SOL", "mint": WSOL_MINT, "role": "gas"},
     {"symbol": "USDC", "mint": USDC_MINT, "role": "onchain_stable"},
-    {"symbol": "JR-strcUSX", "mint": JR_STRCUSX_MINT, "role": "dc_credit_parlay"},
 ]
 
 
@@ -61,7 +59,7 @@ def solana_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         "counts_toward_ltv_defense": bool(raw.get("counts_toward_ltv_defense", False)),
         "counts_toward_working_usdc": bool(raw.get("counts_toward_working_usdc", False)),
         "notes": raw.get("notes")
-        or "Public RPC only. JR-strcUSX is DC-credit parlay, never HY/LTV defense.",
+        or "Public RPC only. Whitelist SOL + USDC. NFT/meme dust ignored.",
     }
 
 
@@ -159,9 +157,6 @@ def _empty_result(cfg: Dict[str, Any], *, err: str, source: str = "empty") -> Di
         "sol_usd_price": None,
         "sol_usd": 0.0,
         "usdc": 0.0,
-        "jr_strcusx": 0.0,
-        "jr_strcusx_usd_price": None,
-        "jr_strcusx_usd": 0.0,
         "book_usd": 0.0,
         "counts_toward_hy": False,
         "counts_toward_ltv_defense": False,
@@ -196,8 +191,6 @@ def normalize_solana_book(
     sol_px = prices.get(WSOL_MINT)
     holdings: List[Dict[str, Any]] = []
     usdc = 0.0
-    jr_amt = 0.0
-    jr_px = prices.get(JR_STRCUSX_MINT)
     matched = 0
 
     for spec in whitelist:
@@ -212,9 +205,6 @@ def normalize_solana_book(
             px = prices.get(mint)
             if mint == USDC_MINT:
                 usdc = amt
-            if mint == JR_STRCUSX_MINT:
-                jr_amt = amt
-                jr_px = px
         usd = (amt * px) if px is not None else None
         holdings.append(
             {
@@ -246,9 +236,6 @@ def normalize_solana_book(
         "sol_usd_price": sol_px,
         "sol_usd": (sol_amt * sol_px) if sol_px is not None else 0.0,
         "usdc": usdc,
-        "jr_strcusx": jr_amt,
-        "jr_strcusx_usd_price": jr_px,
-        "jr_strcusx_usd": (jr_amt * jr_px) if jr_px is not None else 0.0,
         "book_usd": book_usd,
         "counts_toward_hy": False,
         "counts_toward_ltv_defense": False,
@@ -398,7 +385,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "book_usd": book.get("book_usd"),
                 "sol": book.get("sol"),
                 "usdc": book.get("usdc"),
-                "jr_strcusx": book.get("jr_strcusx"),
                 "out": str(path),
                 "live_error": book.get("live_error"),
             },

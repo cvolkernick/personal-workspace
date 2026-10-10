@@ -10,8 +10,7 @@ SoT:
             Planned stays sheet monthly $900. Weekly $208 / 2026-09-04 never paint.
   Rent    — planned = sheet monthly; actual = completed v2 USDC type=send to nvolkern@gmail.com.
             Standing $350 one row every 14d from 2026-09-11. Daily $25 dead after 2026-08-30.
-  JR      — self-send dest CzuRx… $35 manual Friday reminder. Not automatic $70.
-            Not Rent / Thaís / mint. Surface only when a sheet item already joins.
+  JR-strcUSX Friday $35 self-send retired 2026-10-10 (Solstice wound down).
   join    — sheet Item → one YNAB category_id (map name / sheet_item / payee).
 
 Never writes money, never nudges the coach, never touches Interest Spectrum.
@@ -60,7 +59,6 @@ COINBASE_USDC_LABEL = "Coinbase USDC"
 _COINBASE_USDC_ITEM_FIRST = frozenset({"rent", "thais", "jr"})
 _THAIS_ITEM_FIRST = "thais"
 _RENT_ITEM_FIRST = "rent"
-_JR_ITEM_FIRST = frozenset({"jr", "self-send", "selfsend"})
 
 # Never render: One Card payment-as-payment, RH Gold remnant.
 _OFF_MAP_ITEM_NEEDLES = (
@@ -215,9 +213,7 @@ def _ascii_item_key(val: Any) -> str:
 
 
 def is_coinbase_usdc_item(item_name: Any) -> bool:
-    """Rent, Thaís, and JR self-send are Coinbase USDC, even if sheet From drifted."""
-    if is_jr_self_send_item(item_name):
-        return True
+    """Rent and Thaís are Coinbase USDC, even if sheet From drifted."""
     key = _ascii_item_key(item_name)
     if not key:
         return False
@@ -233,16 +229,6 @@ def is_rent_item(item_name: Any) -> bool:
     key = _ascii_item_key(item_name)
     return bool(key) and key.split()[0] == _RENT_ITEM_FIRST
 
-
-def is_jr_self_send_item(item_name: Any) -> bool:
-    """JR self-send sheet item only. Do not invent a planned line."""
-    key = _ascii_item_key(item_name)
-    if not key:
-        return False
-    toks = key.split()
-    if toks[0] in _JR_ITEM_FIRST:
-        return True
-    return "self send" in key or "self-send" in key
 
 
 def is_coinbase_usdc_from(from_label: Any) -> bool:
@@ -539,8 +525,6 @@ def _standing_for_item(
         kind = "thais"
     elif is_rent_item(item_name):
         kind = "rent"
-    elif is_jr_self_send_item(item_name):
-        kind = "jr_self_send"
     else:
         return None
     for row in standing:
@@ -619,8 +603,7 @@ def build_planned_actual_strip(
         )
         thais = is_thais_item(item.get("item"))
         rent = is_rent_item(item.get("item"))
-        jr_self = is_jr_self_send_item(item.get("item"))
-        usdc_named = thais or rent or jr_self
+        usdc_named = thais or rent
         off_book = (coinbase_usdc and not usdc_named) or (
             not coinbase_usdc and is_off_book_from(from_label)
         )
@@ -703,8 +686,7 @@ def build_planned_actual_strip(
             "Display only. planned = Essential/Fleet/Collateral sheet monthly; "
             "actual = this-month YNAB in-map spend by payee "
             "(Thaís = dest AwMH3… $900 monthly on the 10th; "
-            "Rent = one $350 send to nvolkern@gmail.com every 14d from 2026-09-11; "
-            "JR self-send = dest CzuRx… $35 manual Friday reminder, not automatic $70). "
+            "Rent = one $350 send to nvolkern@gmail.com every 14d from 2026-09-11). "
             "Weekly $208, daily $25 after 2026-08-30, and 2026-09-04 never paint. "
             "two-charge, cadence-lump, and payment-shaped are not lifestyle over."
         ),

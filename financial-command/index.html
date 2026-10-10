@@ -2324,9 +2324,9 @@
     </section>
 
     <details class="panel" id="panel-solana" data-m-panel="cash">
-      <summary>Solana · JR-strcUSX</summary>
+      <summary>Solana</summary>
       <div class="body">
-        <p class="hint">Public RPC whitelist — SOL + USDC + JR-strcUSX. JR is DC-credit parlay, never HY / LTV defense. NFT/meme dust ignored.</p>
+        <p class="hint">Public RPC whitelist — SOL + USDC. NFT/meme dust ignored.</p>
         <div id="solana-metrics"></div>
         <div id="solana-holdings" style="margin-top:0.4rem"></div>
       </div>
@@ -4245,7 +4245,7 @@
 
       // MECE capital pools for Cash & credit pies (#756).
       // Counted once: RH Checking, X Money main (if >0), X Money spaces,
-      // idle spot USDC, Liquid BTC USD, SOL USD, on-chain USDC, JR-strcUSX USD,
+      // idle spot USDC, Liquid BTC USD, SOL USD, on-chain USDC,
       // HY LTV Buffer (vault), USDC security deposit.
       // Excluded (derived / overlap / not assets): working_usdc, bank_cash,
       // bill_pay_cash, solana_book_usd, liquid_btc qty, card_available_credit,
@@ -4287,7 +4287,6 @@
           pool("Liquid BTC", inp.liquid_btc_usd),
           pool("SOL", sol.sol_usd),
           pool("On-chain USDC", inp.solana_usdc ?? sol.usdc),
-          pool("JR-strcUSX", inp.solana_jr_strcusx_usd ?? sol.jr_strcusx_usd),
           pool("HY LTV Buffer", inp.vault_usdc),
           pool("USDC security deposit", inp.card_security_deposit_usdc),
         ]);
@@ -4410,52 +4409,6 @@
           ),
           metric("On-chain USDC", money(inp.solana_usdc ?? solSnap.usdc)),
           metric(
-            "JR-strcUSX",
-            (inp.solana_jr_strcusx != null
-              ? Number(inp.solana_jr_strcusx).toFixed(4)
-              : "—") +
-              " · " +
-              money(inp.solana_jr_strcusx_usd ?? solSnap.jr_strcusx_usd)
-          ),
-          metric("Wallet", w ? w.slice(0, 4) + "…" + w.slice(-4) : "—"),
-          metric("Feed", (solSnap.source || "—") + (solSnap.slot ? " · slot " + solSnap.slot : "")),
-        ].join("");
-      }
-      const solHoldEl = document.getElementById("solana-holdings");
-      if (solHoldEl) {
-        const expl = solSnap.explorer
-          ? `<p class="hint"><a href="${escapeHtml(solSnap.explorer)}" target="_blank" rel="noopener">Solscan →</a>` +
-            (solSnap.ignored_token_accounts
-              ? ` · ${solSnap.ignored_token_accounts} non-book token accounts ignored`
-              : "") +
-            `</p>`
-          : "";
-        solHoldEl.innerHTML =
-          expl +
-          (solHold.length
-            ? solHold
-                .map((h) =>
-                  metric(
-                    h.symbol || "?",
-                    (h.amount != null ? Number(h.amount).toFixed(4) : "—") +
-                      " · " +
-                      money(h.usd) +
-                      (h.role ? " · " + h.role : "")
-                  )
-                )
-                .join("")
-            : `<p class="hint">No whitelist holdings yet — Refresh FCC</p>`);
-      }
-
-      // Bills side panel (pay-from + KPIs). List filled by coach when available.
-      // Pay-urgency list: Essential + Fleet ops + Collateral (awareness). Burn = funded unique Fleet only.
-      // Productive / Consumer stay capital-targets only. Essential renamed from Personal.
-      const persTab = (ex.tabs && (ex.tabs.Essential || ex.tabs.Personal)) || {};
-      const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};
-      const collTab = (ex.tabs && ex.tabs.Collateral) || {};
-      const discTab =
-        (ex.tabs &&
-          (ex.tabs["Productive Discretionary"] ||
             ex.tabs.Discretionary)) ||
         {};
       const consumerTab =

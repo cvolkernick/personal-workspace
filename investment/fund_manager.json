@@ -223,7 +223,7 @@
             "STRC",
             "SATA"
           ],
-          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA — BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2× owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit. Owner 2026-08-30: STRK (Strategy Strike 8% convertible preferred) is watchlist/consider-set only — sibling of held STRC, not preferred_core, not a substitute. Name it each deploy; reject unless residual-after-floors (or BP ≥ min_trade) plus a logged RV case vs STRC/SATA. Not Jack Mallers Strike; not Starknet STRK; not JR-strcUSX."
+          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA — BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2× owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit. Owner 2026-08-30: STRK (Strategy Strike 8% convertible preferred) is watchlist/consider-set only — sibling of held STRC, not preferred_core, not a substitute. Name it each deploy; reject unless residual-after-floors (or BP ≥ min_trade) plus a logged RV case vs STRC/SATA. Not Jack Mallers Strike; not Starknet STRK."
         },
         "miners_infra": {
           "priority": "diversify_within_sleeve",

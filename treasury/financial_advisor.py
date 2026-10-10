@@ -277,8 +277,6 @@ def build_treasury_context(
             "x_money_cash": inp.get("x_money_cash", xm.get("cash")),
             "x_money_apy_est": inp.get("x_money_apy_est", xm.get("apy_est")),
             "solana_book_usd": inp.get("solana_book_usd"),
-            "solana_jr_strcusx": inp.get("solana_jr_strcusx"),
-            "solana_jr_strcusx_usd": inp.get("solana_jr_strcusx_usd"),
             "solana_counts_toward_hy": False,
             "rh_buying_power": inp.get("rh_buying_power"),
             "expenses_upcoming_monthly": es.get("upcoming_expense_monthly")
@@ -324,10 +322,6 @@ def build_treasury_context(
             "book_usd": inp.get("solana_book_usd") or (snap.get("solana") or {}).get("book_usd"),
             "sol": inp.get("solana_sol") or (snap.get("solana") or {}).get("sol"),
             "usdc": inp.get("solana_usdc") or (snap.get("solana") or {}).get("usdc"),
-            "jr_strcusx": inp.get("solana_jr_strcusx")
-            or (snap.get("solana") or {}).get("jr_strcusx"),
-            "jr_strcusx_usd": inp.get("solana_jr_strcusx_usd")
-            or (snap.get("solana") or {}).get("jr_strcusx_usd"),
             "counts_toward_hy": False,
             "source": (snap.get("solana") or {}).get("source"),
         },
