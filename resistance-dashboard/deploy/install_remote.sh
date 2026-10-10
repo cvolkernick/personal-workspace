@@ -2,7 +2,7 @@
 # Deploy FitDash (resistance-dashboard) to a Raspberry Pi / always-on host.
 #
 # Usage (from monorepo root on your Mac, on the same LAN as the Pi):
-#   bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.168.100.98
+#   bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.0.2.10
 #   bash resistance-dashboard/deploy/install_remote.sh user@host --dir /home/user/personal-workspace
 #
 # Serves UI + API on 0.0.0.0:8787.
