@@ -3,7 +3,7 @@
 # Usage: bash research/horizon/deploy/install_remote.sh [user@host]
 set -euo pipefail
 
-REMOTE="${1:-prism-agent@192.168.100.98}"
+REMOTE="${1:-prism-agent@prism-gateway}"
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 UNIT_SRC="$ROOT/research/horizon/deploy/horizon-dashboard.service"
 UNIT_NAME="horizon-dashboard.service"
@@ -34,6 +34,6 @@ ssh -o BatchMode=yes "$REMOTE" "systemctl --user daemon-reload && \
   curl -fsS http://127.0.0.1:8795/api/health"
 
 echo "✓ Horizon Macro on Pi"
-echo "  LAN:       http://192.168.100.98:8795/"
-echo "  Tailscale: http://100.67.114.2:8795/"
-echo "  Health:    http://192.168.100.98:8795/api/health"
+echo "  Horizon binds 127.0.0.1:8795 (HORIZON_BIND_HOST overrides)."
+echo "  Browser:   \$PRISM_PUBLIC_BASE/horizon/ (tailnet HTTPS via Tailscale Serve)"
+echo "  Health:    ssh \$REMOTE 'curl -fsS http://127.0.0.1:8795/api/health'"
