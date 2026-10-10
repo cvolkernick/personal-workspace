@@ -8,12 +8,12 @@ phones and laptops on LAN or over **Tailscale**.
 | Port | **8787** |
 | Bind | `0.0.0.0` (LAN + mesh) |
 | Unit | `resistance-dashboard.service` (systemd user) |
-| Known LAN host | `192.168.100.98` (same Pi as other dashboards) |
-| SSH example | `prism-agent@192.168.100.98` |
+| Known LAN host | `192.0.2.10` (same Pi as other dashboards) |
+| SSH example | `prism-agent@192.0.2.10` |
 
 ## Prerequisites
 
-1. Pi online; SSH key works: `ssh prism-agent@192.168.100.98`
+1. Pi online; SSH key works: `ssh prism-agent@192.0.2.10`
 2. Python 3 on the Pi
 3. On this Mac: monorepo with FitDash (`resistance-dashboard/`)
 4. Optional but recommended: `~/.config/resistance-dashboard/env` (Google + GitHub tokens) — the installer copies it
@@ -23,22 +23,22 @@ phones and laptops on LAN or over **Tailscale**.
 From monorepo root:
 
 ```bash
-bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.168.100.98
+bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.0.2.10
 ```
 
 Or only this service via monorepo umbrella (if `deploy/` is present on your branch):
 
 ```bash
-bash deploy/install_remote.sh prism-agent@192.168.100.98 --only resistance
+bash deploy/install_remote.sh prism-agent@192.0.2.10 --only resistance
 ```
 
 ## Verify
 
 ```bash
-curl -sS http://192.168.100.98:8787/api/healthz
-open http://192.168.100.98:8787/
-ssh prism-agent@192.168.100.98 'systemctl --user status resistance-dashboard'
-ssh prism-agent@192.168.100.98 'journalctl --user -u resistance-dashboard -f'
+curl -sS http://192.0.2.10:8787/api/healthz
+open http://192.0.2.10:8787/
+ssh prism-agent@192.0.2.10 'systemctl --user status resistance-dashboard'
+ssh prism-agent@192.0.2.10 'journalctl --user -u resistance-dashboard -f'
 ```
 
 ## Off-LAN (remote access)

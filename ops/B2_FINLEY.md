@@ -7,8 +7,8 @@ seat cannot reach the LAN — do not SSH from here.
 
 | Hostname | Role tag | User | LAN | Tailscale |
 |----------|----------|------|-----|-----------|
-| `prism-gateway` | `app-books` | `prism-agent` | 192.168.100.98 | 100.67.114.2 |
-| `finley-gateway` | `b2-puller` | `finley-agent` | 192.168.100.216 | 100.124.165.50 |
+| `prism-gateway` | `app-books` | `prism-agent` | 192.0.2.10 | 100.67.114.2 |
+| `finley-gateway` | `b2-puller` | `finley-agent` | 192.0.2.11 | 100.124.165.50 |
 
 v1: B2 / knowledge graph primary on finley **:8792** **and** this puller on the
 **same box**. Pull **FROM** `prism-gateway`. Write only what was pulled.
@@ -38,7 +38,7 @@ App Pi query: `http://finley-gateway:8792/api/health` (or Tailscale `100.124.165
 
 ```bash
 # From a machine that can SSH to finley (not this cloud VM):
-bash deploy/b2-puller/install_finley.sh finley-agent@192.168.100.216
+bash deploy/b2-puller/install_finley.sh finley-agent@192.0.2.11
 # or MagicDNS:
 bash deploy/b2-puller/install_finley.sh finley-agent@finley-gateway
 
