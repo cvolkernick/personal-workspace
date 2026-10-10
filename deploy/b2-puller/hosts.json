@@ -5,7 +5,7 @@
     {
       "hostname": "prism-gateway",
       "role": "app-books",
-      "lan": "192.168.100.98",
+      "lan": "192.0.2.10",
       "tailscale": "100.67.114.2",
       "user": "prism-agent",
       "workspace": "/home/prism-agent/personal-workspace",
@@ -14,7 +14,7 @@
     {
       "hostname": "finley-gateway",
       "role": "b2-puller",
-      "lan": "192.168.100.216",
+      "lan": "192.0.2.11",
       "tailscale": "100.124.165.50",
       "user": "finley-agent",
       "workspace": "/home/finley-agent/personal-workspace",

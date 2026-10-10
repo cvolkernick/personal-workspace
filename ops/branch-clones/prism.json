@@ -6,7 +6,7 @@
   "head": "2d4aaf0",
   "current_branch": "(detached)",
   "path": "/home/prism-agent/personal-workspace",
-  "ssh": "prism-agent@192.168.100.98",
+  "ssh": "prism-agent@prism-gateway",
   "branches": [
     {
       "name": "master",

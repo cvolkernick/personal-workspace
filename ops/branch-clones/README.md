@@ -20,7 +20,7 @@ ops/branch-clones/hosts.json
     {
       "machine": "prism",
       "label": "Pi",
-      "ssh": "prism-agent@192.168.100.98",
+      "ssh": "prism-agent@prism-gateway",
       "path": "/home/prism-agent/personal-workspace",
       "timeout_sec": 8
     }
