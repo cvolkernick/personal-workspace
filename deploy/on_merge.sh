@@ -24,7 +24,7 @@ MAP_PY="$ROOT/deploy/map_changed_paths.py"
 LOCK_DIR="${SDLC_DEPLOY_LOCK_DIR:-${XDG_RUNTIME_DIR:-/tmp}}"
 LOCK_FILE="$LOCK_DIR/sdlc-on-merge.lock"
 CHANNEL_UUID="${BUZZ_WORKFLOW_CHANNEL:-db0e8f97-0c81-4976-b299-1c460b87134e}"
-PI_HOST="${PI_HOST:-${DASHBOARD_HOST:-192.168.100.98}}"
+PI_HOST="${PI_HOST:-${DASHBOARD_HOST:-prism-gateway}}"
 REMOTE_TARGET="${SDLC_DEPLOY_REMOTE:-prism-agent@${PI_HOST}}"
 LOG_TAG="on-merge"
 
@@ -163,13 +163,18 @@ health_check() {
   fi
   for key in "${keys[@]}"; do
     [[ -z "$key" || "$key" == "panamerica" || "$key" == "horizon" ]] && continue
-    if [[ -n "$host_override" ]]; then
-      if PI_HOST="$host_override" python3 "$ROOT/dashboard_endpoints.py" --probe "$key" >/dev/null 2>&1; then
+    local probe_host="$host_override"
+    # FCC and Horizon bind 127.0.0.1 only: always health-check them on loopback.
+    case "$key" in
+      financial-command|horizon) probe_host="127.0.0.1" ;;
+    esac
+    if [[ -n "$probe_host" ]]; then
+      if PI_HOST="$probe_host" python3 "$ROOT/dashboard_endpoints.py" --probe "$key" >/dev/null 2>&1; then
         status="ok"
       else
         status="down"
       fi
-      url="$(PI_HOST="$host_override" python3 "$ROOT/dashboard_endpoints.py" --health "$key" 2>/dev/null || echo "?")"
+      url="$(PI_HOST="$probe_host" python3 "$ROOT/dashboard_endpoints.py" --health "$key" 2>/dev/null || echo "?")"
     else
       if python3 "$ROOT/dashboard_endpoints.py" --probe "$key" >/dev/null 2>&1; then
         status="ok"
