@@ -1,6 +1,6 @@
 # Robinhood snapshot producer — prism/Pi SoT (#518)
 
-**Source of truth host: `prism` (Pi, `prism-agent@192.168.100.98`).**
+**Source of truth host: `prism` (Pi, `prism-agent@192.0.2.10`).**
 Box RH MCP is spare only — not primary. No live trades from this producer.
 
 **Do not merge this Issue until the eng-gate sequence below is green.**
@@ -56,7 +56,7 @@ Env: `TREASURY_RH_ROLE=producer|backup|consumer`. Pi unit sets `producer`.
 
 ## Step 1 — Pi install + OAuth (Mac tokens do not travel)
 
-On prism (`ssh prism-agent@192.168.100.98`):
+On prism (`ssh prism-agent@192.0.2.10`):
 
 ```bash
 cd /home/prism-agent/personal-workspace   # edit unit paths if the clone differs

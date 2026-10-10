@@ -18,7 +18,10 @@ Env (optional):
   TREASURY_RH_PUSH=1           allow Mac→Pi robinhood_latest.json (off by default)
   TREASURY_BRAIINS_PUSH=1      allow Mac→Pi braiins_latest.json (off by default; #689)
   TREASURY_COINBASE_PUSH=1     allow Mac→Pi coinbase_latest.json (off by default; #695)
-  TREASURY_PI_SSH     e.g. prism-agent@192.168.100.98
+  TREASURY_PI_SSH     optional override for the prism SSH target, e.g.
+                      prism-agent@192.0.2.10. Default is prism-agent@prism-gateway
+                      (tailnet MagicDNS short name), which resolves on any host
+                      on the tailnet with MagicDNS on.
   TREASURY_PI_ROOT    e.g. /home/prism-agent/personal-workspace
   TREASURY_PI_CONNECT_TIMEOUT  (seconds, default 5)
   TREASURY_RH_MAX_AGE_HOURS    accept remote only if as_of younger than this (default 6)
@@ -55,7 +58,9 @@ if str(ROOT) not in sys.path:
 
 from treasury.adapters import SNAPSHOTS_DIR, load_config, load_json, save_json  # noqa: E402
 
-DEFAULT_SSH = "prism-agent@192.168.100.98"
+# prism over the tailnet by its MagicDNS short name. Never a LAN IP.
+# TREASURY_PI_SSH (or a local pi_sync.ssh) overrides it.
+DEFAULT_SSH = "prism-agent@prism-gateway"
 DEFAULT_REMOTE_ROOTS = (
     "/home/prism-agent/personal-workspace",
     "/home/pi/personal-workspace",

@@ -1,6 +1,6 @@
 # Coinbase BTC/USD price producer — prism/Pi SoT (#695)
 
-**Source of truth host: `prism` (Pi, `prism-agent@192.168.100.98`).**
+**Source of truth host: `prism` (Pi, `prism-agent@192.0.2.10`).**
 Mac launchd `com.personalworkspace.cb-solana-refresh` still produces **liquid
 balances** on the Mac (Coinbase CLI). It must **not** push
 `treasury/snapshots/coinbase_latest.json` — Pi owns that file for the mining
@@ -61,7 +61,7 @@ The live clock is the Pi file `treasury/snapshots/coinbase_latest.json`
 `as_of`, not the copy committed in git. That file is omitted from
 `pi_sync.push_files`.
 
-Checked 2026-10-01 on `prism-agent@192.168.100.98`:
+Checked 2026-10-01 on `prism-agent@192.0.2.10`:
 
 - Unit: `/etc/systemd/system/coinbase-price-refresh.timer` →
   `coinbase-price-refresh.service` (enabled, 2h). Public spot, no token.

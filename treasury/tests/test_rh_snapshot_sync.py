@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import re
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -667,6 +670,44 @@ class ExpensesPushGuardTests(unittest.TestCase):
             self.assertEqual(out["skipped"][0]["remote_as_of"], "2026-10-03T20:53:00+00:00")
             self.assertEqual(pi.read_bytes(), before)
             self.assertEqual(pi.stat().st_mtime_ns, before_mtime)
+
+
+
+class PiSshTargetTests(unittest.TestCase):
+    """prism SSH target defaults to the MagicDNS short name; env overrides it."""
+
+    def test_default_ssh_is_magicdns_short_name(self) -> None:
+        self.assertEqual(rss.DEFAULT_SSH, "prism-agent@prism-gateway")
+
+    def test_env_overrides_config_and_default(self) -> None:
+        cfg = {"pi_sync": {"ssh": "prism-agent@prism-gateway"}}
+        with mock.patch.object(rss, "load_config", return_value=cfg), mock.patch.dict(
+            os.environ, {"TREASURY_PI_SSH": "prism-agent@192.0.2.10"}, clear=False
+        ):
+            self.assertEqual(rss._pi_settings()["ssh"], "prism-agent@192.0.2.10")
+
+    def test_unset_falls_back_to_magicdns_default(self) -> None:
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_PI_SSH"}
+        with mock.patch.object(rss, "load_config", return_value={}), mock.patch.dict(
+            os.environ, env, clear=True
+        ):
+            self.assertEqual(rss._pi_settings()["ssh"], "prism-agent@prism-gateway")
+
+    def test_no_placeholder_warning_on_default(self) -> None:
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_PI_SSH"}
+        err = io.StringIO()
+        with mock.patch.object(rss, "load_config", return_value={}), mock.patch.dict(
+            os.environ, env, clear=True
+        ), mock.patch.object(sys, "stderr", err):
+            rss._pi_settings()
+        self.assertNotIn("placeholder", err.getvalue())
+
+    def test_committed_config_uses_magicdns_not_an_ip(self) -> None:
+        cfg_path = Path(rss.__file__).resolve().parent / "config.json"
+        ssh = json.loads(cfg_path.read_text(encoding="utf-8"))["pi_sync"]["ssh"]
+        self.assertEqual(ssh, "prism-agent@prism-gateway")
+        host = ssh.rsplit("@", 1)[-1]
+        self.assertIsNone(re.fullmatch(r"[0-9.]+", host), ssh)
 
 
 def _fake_pi_settings() -> dict:
