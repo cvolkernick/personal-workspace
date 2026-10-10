@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import socket
 import struct
 import sys
@@ -13,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
+from unittest import mock
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -142,7 +144,12 @@ class TestFccPwaFiles(unittest.TestCase):
 
     def test_pwa_js_gates_install_to_https_or_loopback(self) -> None:
         pwa = (FCC / "pwa.js").read_text(encoding="utf-8")
-        self.assertIn("https://prism-gateway.tailb1085a.ts.net", pwa)
+        self.assertIn('var CANONICAL_HTTPS_ORIGIN = "__FCC_PUBLIC_ORIGIN__";', pwa)
+        self.assertNotIn("prism.example.ts.net", pwa)
+        self.assertIn(
+            "if (CANONICAL_HTTPS_ORIGIN && !isInstallOrigin() && isStandalone())",
+            pwa,
+        )
         self.assertIn("beforeinstallprompt", pwa)
         self.assertIn('location.protocol === "https:"', pwa)
         self.assertIn("display-mode: standalone", pwa)
@@ -160,17 +167,49 @@ class TestFccPwaInstallOrigin(unittest.TestCase):
         self.assertTrue(fn(host="127.0.0.1:8000"))
         self.assertTrue(fn(host="localhost:8000"))
         self.assertTrue(fn(host="[::1]:8000"))
-        self.assertTrue(fn(host="prism-gateway.tailb1085a.ts.net"))
-        self.assertTrue(fn(host="prism-gateway.tailb1085a.ts.net:443"))
-        self.assertTrue(fn(host="192.168.100.98:8000", forwarded_proto="https"))
+        self.assertTrue(fn(host="192.0.2.10:8000", forwarded_proto="https"))
+        with mock.patch.dict(
+            os.environ, {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"}, clear=False
+        ):
+            self.assertEqual(self.mod.canonical_https_host(), "fcc.unit.ts.net")
+            self.assertTrue(fn(host="fcc.unit.ts.net"))
+            self.assertTrue(fn(host="fcc.unit.ts.net:443"))
+            self.assertFalse(fn(host="fcc.unit.ts.net:8000"))
 
     def test_lan_http_is_not_install(self) -> None:
         fn = self.mod.is_pwa_install_origin
-        self.assertFalse(fn(host="192.168.100.98:8000"))
-        self.assertFalse(fn(host="prism-gateway:8000"))
-        self.assertFalse(fn(host="prism-gateway.tailb1085a.ts.net:8000"))
+        self.assertFalse(fn(host="192.0.2.10:8000"))
+        self.assertFalse(fn(host="gateway.example:8000"))
+        self.assertFalse(fn(host="prism.example.ts.net:8000"))
         self.assertFalse(fn(host="10.0.0.5"))
         self.assertFalse(fn(host=""))
+
+    def test_unset_or_invalid_base_is_not_canonical(self) -> None:
+        fn = self.mod.is_pwa_install_origin
+        with mock.patch.dict(os.environ, {"PRISM_PUBLIC_BASE": ""}, clear=False):
+            self.assertEqual(self.mod.canonical_https_host(), "")
+            self.assertFalse(fn(host="prism.example.ts.net"))
+            self.assertFalse(fn(host="prism.example.ts.net:443"))
+            self.assertFalse(fn(host=""))
+        with mock.patch.dict(
+            os.environ,
+            {"PRISM_PUBLIC_BASE": "https://prism.example.ts.net"},
+            clear=False,
+        ):
+            self.assertEqual(self.mod.prism_public_origin(), "")
+            self.assertEqual(self.mod.canonical_https_host(), "")
+            self.assertFalse(fn(host="prism.example.ts.net"))
+            self.assertFalse(fn(host="prism.example.ts.net:443"))
+
+    def test_public_base_overrides_canonical_host(self) -> None:
+        fn = self.mod.is_pwa_install_origin
+        env = {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            self.assertEqual(self.mod.canonical_https_host(), "fcc.unit.ts.net")
+            self.assertTrue(fn(host="fcc.unit.ts.net"))
+            self.assertTrue(fn(host="fcc.unit.ts.net:443"))
+            self.assertFalse(fn(host="fcc.unit.ts.net:8000"))
+            self.assertFalse(fn(host="prism.example.ts.net"))
 
     def test_lan_manifest_is_browser_display(self) -> None:
         data = self.mod.build_pwa_manifest(install_origin=False)
@@ -372,9 +411,9 @@ class TestFccPwaHttp(unittest.TestCase):
 
     def test_lan_host_manifest_is_browse_only(self) -> None:
         for host in (
-            "192.168.100.98:8000",
-            "prism-gateway:8000",
-            "prism-gateway.tailb1085a.ts.net:8000",
+            "192.0.2.10:8000",
+            "gateway.example:8000",
+            "prism.example.ts.net:8000",
         ):
             code, ctype, body = self._get_with_headers(
                 "/manifest.webmanifest", {"Host": host}
@@ -386,28 +425,73 @@ class TestFccPwaHttp(unittest.TestCase):
             self.assertEqual(data["id"], "/lan-browse", host)
 
     def test_canonical_https_host_manifest_is_standalone(self) -> None:
-        for headers in (
-            {"Host": "prism-gateway.tailb1085a.ts.net"},
-            {"Host": "prism-gateway.tailb1085a.ts.net:443"},
-            {
-                "Host": "192.168.100.98:8000",
-                "X-Forwarded-Proto": "https",
-            },
+        with mock.patch.dict(
+            os.environ, {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"}, clear=False
         ):
-            code, _, body = self._get_with_headers("/manifest.webmanifest", headers)
-            self.assertEqual(code, 200, headers)
-            data = json.loads(body.decode("utf-8"))
-            self.assertEqual(data["display"], "standalone", headers)
-            self.assertEqual(data["id"], "/", headers)
+            cases = (
+                {"Host": "fcc.unit.ts.net"},
+                {"Host": "fcc.unit.ts.net:443"},
+                {
+                    "Host": "192.0.2.10:8000",
+                    "X-Forwarded-Proto": "https",
+                },
+            )
+            for headers in cases:
+                code, _, body = self._get_with_headers("/manifest.webmanifest", headers)
+                self.assertEqual(code, 200, headers)
+                data = json.loads(body.decode("utf-8"))
+                self.assertEqual(data["display"], "standalone", headers)
+                self.assertEqual(data["id"], "/", headers)
+
+    def test_placeholder_host_manifest_stays_browse_only(self) -> None:
+        with mock.patch.dict(os.environ, {"PRISM_PUBLIC_BASE": ""}, clear=False):
+            code, _, body = self._get_with_headers(
+                "/manifest.webmanifest", {"Host": "prism.example.ts.net"}
+            )
+        self.assertEqual(code, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertEqual(data["display"], "browser")
+        self.assertEqual(data["id"], "/lan-browse")
 
     def test_lan_host_still_serves_html(self) -> None:
         code, ctype, body = self._get_with_headers(
-            "/", {"Host": "192.168.100.98:8000"}
+            "/", {"Host": "192.0.2.10:8000"}
         )
         self.assertEqual(code, 200)
         self.assertIn("html", ctype.lower())
         self.assertIn(b"Financial Command Center", body)
         self.assertIn(b'href="/manifest.webmanifest"', body)
+
+    def test_served_pwa_js_uses_public_base(self) -> None:
+        with mock.patch.dict(os.environ, {"PRISM_PUBLIC_BASE": ""}, clear=False):
+            code, ctype, body = self._get("/pwa.js")
+        self.assertEqual(code, 200)
+        self.assertIn("javascript", ctype.lower())
+        self.assertIn(b'var CANONICAL_HTTPS_ORIGIN = "";', body)
+        self.assertNotIn(b"prism.example.ts.net", body)
+        self.assertNotIn(b"__FCC_PUBLIC_ORIGIN__", body)
+        self.assertIn(
+            b"if (CANONICAL_HTTPS_ORIGIN && !isInstallOrigin() && isStandalone())",
+            body,
+        )
+        with mock.patch.dict(
+            os.environ, {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"}
+        ):
+            code, _, swapped = self._get("/pwa.js")
+            head_code, _, head_len = self._head("/pwa.js")
+        self.assertEqual(code, 200)
+        self.assertEqual(head_code, 200)
+        self.assertIn(b'var CANONICAL_HTTPS_ORIGIN = "https://fcc.unit.ts.net";', swapped)
+        self.assertNotIn(b"prism.example.ts.net", swapped)
+        self.assertNotIn(b"__FCC_PUBLIC_ORIGIN__", swapped)
+        self.assertEqual(head_len, len(swapped))
+        with mock.patch.dict(
+            os.environ, {"PRISM_PUBLIC_BASE": "https://prism.example.ts.net"}
+        ):
+            code, _, invalid = self._get("/pwa.js")
+        self.assertEqual(code, 200)
+        self.assertIn(b'var CANONICAL_HTTPS_ORIGIN = "";', invalid)
+        self.assertNotIn(b"prism.example.ts.net", invalid)
 
 
 if __name__ == "__main__":

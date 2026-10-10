@@ -7,10 +7,10 @@ see `research/daily_brief/README.md`).
 What FCC still has:
 
 - `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL`
-  (default `/horizon/daily-brief`, i.e.
-  https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief) with the same
-  subpath and query. The logic is in `brief_redirect.py`; `server.py` is
-  unchanged and reaches it through its existing `brief_route` -> `brief.route`.
+  (default `/horizon/daily-brief`). The tailnet URL is that path on
+  `PRISM_PUBLIC_BASE` once the env is a valid https origin. The logic is in
+  `brief_redirect.py`; `server.py` reaches it through its existing
+  `brief_route` -> `brief.route`.
 - `financial-command/brief.py` is a thin shim, so the publish command is unchanged:
 
   ```bash

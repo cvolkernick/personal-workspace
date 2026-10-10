@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -43,6 +44,23 @@ from research.horizon.store import (  # noqa: E402
 )
 
 DEFAULT_PORT = 8795
+DEFAULT_BIND_HOST = "127.0.0.1"
+
+
+def resolve_bind_host(
+    explicit: str | None = None,
+    environ: dict[str, str] | None = None,
+) -> str:
+    """Bind address. Explicit --host wins, else HORIZON_BIND_HOST, else 127.0.0.1.
+
+    HORIZON_BIND_HOST=0.0.0.0 restores the previous all-interfaces listen.
+    FCC's /horizon/* proxy always dials 127.0.0.1, which 0.0.0.0 still accepts.
+    """
+    if explicit is not None and str(explicit).strip():
+        return str(explicit).strip()
+    env = os.environ if environ is None else environ
+    raw = (env.get("HORIZON_BIND_HOST") or "").strip()
+    return raw or DEFAULT_BIND_HOST
 
 
 def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None = None) -> dict:
@@ -449,7 +467,15 @@ class HorizonHandler(SimpleHTTPRequestHandler):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Horizon visual dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument(
+        "--host",
+        default=None,
+        help=(
+            "Bind address. Default 127.0.0.1, or HORIZON_BIND_HOST when set. "
+            "HORIZON_BIND_HOST=0.0.0.0 listens on all interfaces (previous behavior). "
+            "An explicit --host wins over the env var."
+        ),
+    )
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument(
         "--bootstrap",
@@ -457,14 +483,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Run offline pipeline once before serving if no brief exists",
     )
     args = parser.parse_args(argv)
+    bind_host = resolve_bind_host(args.host)
 
     brief_path, _ = brief_latest_paths(DEFAULT_DATA_DIR)
     if args.bootstrap or not brief_path.is_file():
         print("[horizon] bootstrapping offline world-state + brief…", flush=True)
         run_pipeline(workspace=ROOT, data_dir=DEFAULT_DATA_DIR, offline=True)
 
-    server = ThreadingHTTPServer((args.host, args.port), HorizonHandler)
-    url = f"http://{args.host}:{args.port}/"
+    server = ThreadingHTTPServer((bind_host, args.port), HorizonHandler)
+    url = f"http://127.0.0.1:{args.port}/"
+    print(f"[horizon] bind {bind_host}:{args.port}", flush=True)
     print(f"[horizon] front page at {url} (macro model at {url.rstrip('/')}{MODEL_PATH})", flush=True)
     if not args.no_browser:
         webbrowser.open(url)
