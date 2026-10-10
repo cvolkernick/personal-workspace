@@ -2,7 +2,7 @@
 # Install B2 / knowledge graph + prism puller on finley-gateway (role b2-puller).
 #
 # Forge / operator on the LAN (this cloud VM cannot reach the LAN):
-#   bash deploy/b2-puller/install_finley.sh finley-agent@192.168.100.216
+#   bash deploy/b2-puller/install_finley.sh finley-agent@192.0.2.11
 #   bash deploy/b2-puller/install_finley.sh finley-agent@finley-gateway
 #   bash deploy/b2-puller/install_finley.sh --local   # already on finley
 #
