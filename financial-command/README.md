@@ -101,7 +101,7 @@ Root-absolute assets from those apps (`fetch("/api/…")`, `<script src="/app.js
    Tabs: **Personal/Essential** = burn; **Fleet** = `fleet_ops` (combined adds funded unique names only; empty-From out); **Collateral** = investments (not burn); **Productive / Consumer Discretionary** = capital targets.
    **Forecast tab "Buffer target"** is the monthly planning floor. Runway's daily min-buffer is `treasury/config.json` `policy.min_liquid_buffer_usd` (currently $200, matching the sheet). They are intentionally separate; disagreement is visible drift on Runway, never silent.
 5. Manual Morpho LTV / vault (and optional card override) from `treasury/config.json`.
-6. **Solana** public RPC + Jupiter prices → `treasury/snapshots/solana_latest.json` (whitelist SOL / USDC / JR-strcUSX; JR is not HY).
+6. **Solana** public RPC + Jupiter prices → `treasury/snapshots/solana_latest.json` (whitelist SOL / USDC).
 7. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
 8. **Bitcoin network** hashrate + difficulty via mempool.space → `treasury/snapshots/btc_network_latest.json` (public; Pi can fetch).
 
