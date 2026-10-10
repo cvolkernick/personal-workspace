@@ -50,7 +50,7 @@ python3 -m treasury.plaid_mcp.link_server
 ```
 
 3. Complete Plaid Link for **X Money** only. Access token is written to `~/.config/plaid-bank/access_token` (not printed).
-4. Copy the four files to Pi `prism-agent@192.168.100.98:~/.config/plaid-bank/` and `chmod 600`.
+4. Copy the four files to Pi `prism-agent@192.0.2.10:~/.config/plaid-bank/` and `chmod 600`.
 
 Link is **not** an MCP tool. Agents cannot create Items or exchange public tokens.
 
@@ -75,10 +75,10 @@ PLAID_MCP_TOKEN=… python3 -m treasury.plaid_mcp --host 0.0.0.0 --port 18801
 ## Pi unit
 
 ```bash
-bash deploy/install_remote.sh prism-agent@192.168.100.98 --only plaid-bank
+bash deploy/install_remote.sh prism-agent@192.0.2.10 --only plaid-bank
 ```
 
-Unit: `plaid-bank-mcp.service` · port **18801** · Tailscale `http://100.67.114.2:18801/healthz`
+Unit: `plaid-bank-mcp.service` · port **18801** · Tailscale `http://prism-gateway:18801/healthz` (MagicDNS)
 
 **Do not** public port-forward `:18801`. Grok Bot custom MCP that needs a public URL is a separate authenticated tunnel (Chris order) — not this PR.
 
@@ -86,11 +86,11 @@ Unit: `plaid-bank-mcp.service` · port **18801** · Tailscale `http://100.67.114
 
 ```bash
 # status / logs
-ssh prism-agent@192.168.100.98 'systemctl --user status plaid-bank-mcp --no-pager'
-ssh prism-agent@192.168.100.98 'journalctl --user -u plaid-bank-mcp -n 80 --no-pager'
+ssh prism-agent@192.0.2.10 'systemctl --user status plaid-bank-mcp --no-pager'
+ssh prism-agent@192.0.2.10 'journalctl --user -u plaid-bank-mcp -n 80 --no-pager'
 
 # restart
-ssh prism-agent@192.168.100.98 'systemctl --user restart plaid-bank-mcp'
+ssh prism-agent@192.0.2.10 'systemctl --user restart plaid-bank-mcp'
 
 # rotate MCP bearer (does not touch Plaid Item)
 python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
@@ -104,7 +104,7 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 
 ```bash
 curl -sS -H "Authorization: Bearer $PLAID_MCP_TOKEN" \
-  http://192.168.100.98:18801/api/balances
+  http://192.0.2.10:18801/api/balances
 ```
 
 Do not dual-write YNAB. This is an independent venue SoT.

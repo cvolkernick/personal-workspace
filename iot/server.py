@@ -18,7 +18,7 @@ Local schedule worker is disabled in proxy mode so routines fire once on the Pi.
 
 Usage:
   python3 iot/server.py
-  python3 iot/server.py --backend http://192.168.100.98:8780
+  python3 iot/server.py --backend http://192.0.2.10:8780
   python3 iot/server.py --local          # force direct LAN control (no proxy)
   python3 iot/server.py --port 8780 --no-browser
 """

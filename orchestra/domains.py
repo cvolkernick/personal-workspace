@@ -1,7 +1,8 @@
 """Domain registry: subordinate dashboards, ports, and on-disk sources.
 
 Deep-link URLs point at the always-on Pi host (see deploy/endpoints.json /
-dashboard_endpoints.py), not localhost.
+dashboard_endpoints.py). Finance links come from PRISM_PUBLIC_BASE, with a
+loopback fallback: FCC binds 127.0.0.1.
 """
 
 from __future__ import annotations
@@ -17,17 +18,18 @@ if str(_ROOT) not in sys.path:
 try:
     from dashboard_endpoints import domain_url_map, service_url
 except ImportError:  # pragma: no cover
+    # Loopback only, never a LAN IP. FCC binds 127.0.0.1.
     def domain_url_map() -> dict[str, str]:  # type: ignore[misc]
         return {
-            "workflow": "http://192.168.100.98:8765/",
-            "finance": "http://192.168.100.98:8000/financial-command/index.html",
-            "fitness": "http://192.168.100.98:8787/",
-            "holistic": "http://192.168.100.98:8770/",
-            "iot": "http://192.168.100.98:8780/",
+            "workflow": "http://127.0.0.1:8765/",
+            "finance": "http://127.0.0.1:8000/financial-command/index.html",
+            "fitness": "http://127.0.0.1:8787/",
+            "holistic": "http://127.0.0.1:8770/",
+            "iot": "http://127.0.0.1:8780/",
         }
 
     def service_url(name: str) -> str:  # type: ignore[misc]
-        return domain_url_map().get(name, f"http://192.168.100.98/")
+        return domain_url_map().get(name, "http://127.0.0.1/")
 
 
 _URLS = domain_url_map()

@@ -2,7 +2,7 @@
 # Deploy FitDash (resistance-dashboard) to a Raspberry Pi / always-on host.
 #
 # Usage (from monorepo root on your Mac, on the same LAN as the Pi):
-#   bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.168.100.98
+#   bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.0.2.10
 #   bash resistance-dashboard/deploy/install_remote.sh user@host --dir /home/user/personal-workspace
 #
 # Serves UI + API on 0.0.0.0:8787.
@@ -54,6 +54,23 @@ else
 fi
 
 REMOTE_DIR="${REMOTE_DIR:-/home/${RUSER}/personal-workspace}"
+
+# OAuth redirect base pinned on the Pi. No committed default: set
+# FITDASH_PUBLIC_URL, or PRISM_PUBLIC_BASE (the tailnet HTTPS origin), e.g.
+#   PRISM_PUBLIC_BASE=https://<prism tailnet host> bash resistance-dashboard/deploy/install_remote.sh ...
+PUBLIC_URL="${FITDASH_PUBLIC_URL:-${PRISM_PUBLIC_BASE:-}}"
+PUBLIC_URL="${PUBLIC_URL%/}"
+if [[ -z "$PUBLIC_URL" ]]; then
+  if [[ "$DRY" -eq 1 ]]; then
+    echo "WARN: FITDASH_PUBLIC_URL and PRISM_PUBLIC_BASE are unset; a real deploy would stop here." >&2
+  else
+    echo "ERROR: set FITDASH_PUBLIC_URL or PRISM_PUBLIC_BASE (https tailnet origin) before deploying." >&2
+    exit 2
+  fi
+elif [[ "$PUBLIC_URL" != https://* ]]; then
+  echo "ERROR: FITDASH_PUBLIC_URL / PRISM_PUBLIC_BASE must be an https origin: $PUBLIC_URL" >&2
+  exit 2
+fi
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APP_SRC="$ROOT/resistance-dashboard"
 UNIT_SRC="$(cd "$(dirname "$0")" && pwd)/resistance-dashboard.service"
@@ -115,8 +132,7 @@ scp "$TMP/resistance-dashboard.service" "$REMOTE:~/.config/systemd/user/"
 # Then pin Pi-only OAuth public URL so a Mac localhost env never becomes
 # Google's redirect_uri (that yields "this site can't be reached" on phone).
 LOCAL_ENV="${HOME}/.config/resistance-dashboard/env"
-# Override with FITDASH_PUBLIC_URL=... when invoking deploy if MagicDNS changes.
-PUBLIC_URL="${FITDASH_PUBLIC_URL:-https://prism-gateway.tailb1085a.ts.net}"
+# PUBLIC_URL comes from FITDASH_PUBLIC_URL / PRISM_PUBLIC_BASE (checked above).
 if [[ -f "$LOCAL_ENV" ]]; then
   echo "→ Syncing ~/.config/resistance-dashboard/env to Pi (mode 600)…"
   scp "$LOCAL_ENV" "$REMOTE:~/.config/resistance-dashboard/env"
@@ -180,7 +196,7 @@ REMOTE
 
 echo ""
 echo "Deploy complete."
-echo "  Preferred: https://prism-gateway.tailb1085a.ts.net/  (Tailscale Serve HTTPS)"
+echo "  Preferred: ${PUBLIC_URL}/  (Tailscale Serve HTTPS)"
 echo "  LAN:       http://$RHOST:8787/"
 echo "  Healthz:   curl -sS http://$RHOST:8787/api/healthz"
 echo "  OAuth:     ${PUBLIC_URL}/api/auth/google/callback  (must match Google Console)"

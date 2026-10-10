@@ -80,7 +80,7 @@ class ServiceAuthHelperTests(unittest.TestCase):
             fitdash_server._service_auth_ok(_Headers(), "192.168.100.5")
         )
         self.assertFalse(
-            fitdash_server._service_auth_ok(_Headers(), "100.67.114.2")
+            fitdash_server._service_auth_ok(_Headers(), "100.64.0.10")
         )
 
     def test_loopback_denied_when_disabled(self) -> None:

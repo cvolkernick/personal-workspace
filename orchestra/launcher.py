@@ -117,7 +117,16 @@ def domain_spec(domain_id: str) -> Optional[dict[str, Any]]:
         if spec.get("id") == did:
             return dict(spec)
     if did in _EXTRA_SPECS:
-        return dict(_EXTRA_SPECS[did])
+        spec = dict(_EXTRA_SPECS[did])
+        if did in ("horizon", "horizon_macro"):
+            # Horizon binds 127.0.0.1: link via PRISM_PUBLIC_BASE when set.
+            try:
+                from dashboard_endpoints import service_url
+
+                spec["url"] = service_url("horizon")
+            except Exception:  # noqa: BLE001
+                pass
+        return spec
     return None
 
 

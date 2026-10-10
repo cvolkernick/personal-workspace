@@ -24,7 +24,11 @@ from dashboard_endpoints import _DEFAULT_SERVICES  # noqa: E402
 
 FLEET = Path(__file__).resolve().parents[1]
 ENDPOINTS = ROOT / "deploy" / "endpoints.json"
-HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+# Regexes: any 192.168.x.x LAN address and any 100.64.0.0/10 tailnet address.
+HARDCODED_IPS = (
+    r"\b192\.168\.\d{1,3}\.\d{1,3}\b",
+    r"\b100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}\b",
+)
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
     "vercel.com",
@@ -58,11 +62,38 @@ def _fcc_bind() -> tuple[int, str]:
     return port, path
 
 
-def fcc_href(hostname: str) -> str:
-    """Same contract as auto-fleet/nav-fcc.js fleetFccHref."""
-    host = hostname or "127.0.0.1"
+def _loopback(host: str) -> bool:
+    return host.lower() in {"127.0.0.1", "localhost", "[::1]", "::1"}
+
+
+def fcc_href(
+    hostname: str | None = None,
+    *,
+    pathname: str = "/",
+    protocol: str = "http:",
+    loc_hostname: str = "127.0.0.1",
+) -> str:
+    """Same contract as auto-fleet/nav-fcc.js fleetFccHref (#1116).
+
+    FCC binds 127.0.0.1, so only loopback page hosts get a :8000 link. The
+    /fleet/ lens and other hosts use the same-origin FCC path; *.ts.net and
+    https pages use the https origin.
+    """
     port, path = _fcc_bind()
-    return f"http://{host}:{port}{path}"
+    host = hostname or loc_hostname or "127.0.0.1"
+    page = "/" if hostname else (pathname or "/")
+    proto = "http:" if hostname else (protocol or "http:")
+    on_lens = page == "/fleet" or page.startswith("/fleet/")
+    on_ts = host.lower().endswith(".ts.net")
+    if not hostname and (on_lens or proto == "https:" or on_ts):
+        if proto == "https:" or on_ts:
+            return f"https://{host}{path}"
+        return path
+    if on_ts:
+        return f"https://{host}{path}"
+    if _loopback(host):
+        return f"http://{host}:{port}{path}"
+    return path
 
 
 class _AnchorParser(HTMLParser):
@@ -135,42 +166,68 @@ class TestFleetHeader(unittest.TestCase):
         self.assertIn("nav-fcc.js", html)
         self.assertNotIn("<iframe", html.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, fcc["href"])
-            self.assertNotIn(ip, header)
+            self.assertNotRegex(fcc["href"], ip)
+            self.assertNotRegex(header, ip)
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, fcc["href"])
             self.assertNotIn(needle, header)
             self.assertNotIn(needle, html)
 
-    def test_fcc_href_uses_page_host(self) -> None:
+    def test_fcc_href_loopback_port_else_same_origin(self) -> None:
         js = (FLEET / "nav-fcc.js").read_text(encoding="utf-8")
         port, path = _fcc_bind()
-        self.assertIn("location.hostname", js)
+        self.assertIn("loc.hostname", js)
+        self.assertIn("loc.pathname", js)
+        self.assertIn("loc.protocol", js)
+        self.assertIn("global.location", js)
         self.assertIn(f"FCC_PORT = {port}", js)
         self.assertIn(f'FCC_PATH = "{path}"', js)
+        self.assertIn(".ts.net", js)
+        self.assertIn("isLoopback", js)
         self.assertIn("fleetFccHref", js)
         self.assertNotIn("<iframe", js.lower())
         self.assertNotIn("vercel", js.lower())
         self.assertNotIn("orchestra", js.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, js)
+            self.assertNotRegex(js, ip)
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(
-            fcc_href("192.168.100.98"),
-            f"http://192.168.100.98:{port}{path}",
-        )
-        self.assertEqual(fcc_href("100.67.114.2"), f"http://100.67.114.2:{port}{path}")
-        self.assertEqual(fcc_href("prism-gateway"), f"http://prism-gateway:{port}{path}")
+        # Non-loopback hosts: same-origin path, never host:8000.
+        self.assertEqual(fcc_href("192.0.2.10"), path)
+        self.assertEqual(fcc_href("192.0.2.11"), path)
+        self.assertNotIn(":8000", fcc_href("192.0.2.10"))
+        self.assertEqual(fcc_href("gateway.example"), path)
+        self.assertNotIn(":8000", fcc_href("gateway.example"))
+        self.assertEqual(fcc_href(pathname="/", loc_hostname="192.0.2.10"), path)
+        # Loopback keeps the direct port link.
         self.assertEqual(fcc_href("127.0.0.1"), f"http://127.0.0.1:{port}{path}")
+        self.assertEqual(fcc_href("localhost"), f"http://localhost:{port}{path}")
         self.assertEqual(fcc_href(""), f"http://127.0.0.1:{port}{path}")
-        self.assertNotEqual(fcc_href("prism-gateway"), f"http://127.0.0.1:{port}{path}")
-
+        self.assertNotEqual(
+            fcc_href("gateway.example"), f"http://127.0.0.1:{port}{path}"
+        )
         self.assertRegex(
             js,
             r"""["']http://["']\s*\+\s*host\s*\+\s*["']:["']\s*\+\s*FCC_PORT\s*\+\s*FCC_PATH""",
         )
+
+    def test_fcc_href_same_origin_lens_and_tailnet_https(self) -> None:
+        _, path = _fcc_bind()
+        self.assertEqual(fcc_href(pathname="/fleet/", loc_hostname="127.0.0.1"), path)
+        self.assertEqual(fcc_href(pathname="/fleet", loc_hostname="192.0.2.10"), path)
+        self.assertEqual(
+            fcc_href(
+                pathname="/fleet/", protocol="https:", loc_hostname="prism.example.ts.net"
+            ),
+            "https://prism.example.ts.net" + path,
+        )
+        self.assertEqual(
+            fcc_href(pathname="/", protocol="http:", loc_hostname="prism.example.ts.net"),
+            "https://prism.example.ts.net" + path,
+        )
+        js = (FLEET / "nav-fcc.js").read_text(encoding="utf-8")
+        self.assertIn('path.indexOf("/fleet/")', js)
 
     def test_header_has_no_orchestra(self) -> None:
         html = (FLEET / "index.html").read_text(encoding="utf-8")

@@ -28,7 +28,11 @@ SURFACES = (
     "interest-spectrum.html",
     "bias-spectrum.html",
 )
-HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+# Regexes: any 192.168.x.x LAN address and any 100.64.0.0/10 tailnet address.
+HARDCODED_IPS = (
+    r"\b192\.168\.\d{1,3}\.\d{1,3}\b",
+    r"\b100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}\b",
+)
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
     "vercel.com",
@@ -94,13 +98,21 @@ def fleet_href(hostname: str) -> str:
     return f"http://{host}:8796/"
 
 
+def _loopback(host: str) -> bool:
+    return host.lower() in {"127.0.0.1", "localhost", "[::1]", "::1"}
+
+
 def horizon_href(hostname: str) -> str:
     """Same contract as financial-command/nav-horizon.js fccHorizonHref.
 
-    Port is research/horizon/server.py DEFAULT_PORT — not invented here.
+    Horizon binds 127.0.0.1 (#1116): loopback page hosts get the direct
+    :8795 link (port is research/horizon/server.py DEFAULT_PORT); every other
+    host gets the same-origin /horizon/ path.
     """
     host = hostname or "127.0.0.1"
-    return f"http://{host}:{HORIZON_PORT}/"
+    if _loopback(host):
+        return f"http://{host}:{HORIZON_PORT}/"
+    return "/horizon/"
 
 
 class TestFccNavFleet(unittest.TestCase):
@@ -118,8 +130,8 @@ class TestFccNavFleet(unittest.TestCase):
             self.assertNotIn("<iframe", html.lower(), name)
             self.assertIn("nav-fleet.js", html, name)
             for ip in HARDCODED_IPS:
-                self.assertNotIn(ip, fleet["href"], name)
-                self.assertNotIn(ip, html, name)
+                self.assertNotRegex(fleet["href"], ip, name)
+                self.assertNotRegex(html, ip, name)
 
     def test_fleet_href_uses_current_hostname_port_8796(self) -> None:
         js = (FCC / "nav-fleet.js").read_text(encoding="utf-8")
@@ -128,10 +140,10 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertIn("fccFleetHref", js)
         self.assertNotIn("<iframe", js.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, js)
+            self.assertNotRegex(js, ip)
 
-        self.assertEqual(fleet_href("192.168.100.98"), "http://192.168.100.98:8796/")
-        self.assertEqual(fleet_href("100.67.114.2"), "http://100.67.114.2:8796/")
+        self.assertEqual(fleet_href("192.0.2.10"), "http://192.0.2.10:8796/")
+        self.assertEqual(fleet_href("192.0.2.11"), "http://192.0.2.11:8796/")
         self.assertEqual(fleet_href("prism-gateway"), "http://prism-gateway:8796/")
         self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
         self.assertEqual(fleet_href(""), "http://127.0.0.1:8796/")
@@ -326,8 +338,8 @@ class TestFccNavFleet(unittest.TestCase):
         Phone / LAN / Tailscale entry uses window.location.hostname.
         """
         self.assertEqual(fleet_href("prism-gateway"), "http://prism-gateway:8796/")
-        self.assertEqual(fleet_href("192.168.100.98"), "http://192.168.100.98:8796/")
-        self.assertEqual(fleet_href("100.67.114.2"), "http://100.67.114.2:8796/")
+        self.assertEqual(fleet_href("192.0.2.10"), "http://192.0.2.10:8796/")
+        self.assertEqual(fleet_href("192.0.2.11"), "http://192.0.2.11:8796/")
         self.assertNotEqual(fleet_href("prism-gateway"), "http://127.0.0.1:8796/")
         self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
         self.assertEqual(fleet_href("localhost"), "http://localhost:8796/")
@@ -358,30 +370,34 @@ class TestFccNavHorizon(unittest.TestCase):
             self.assertIn("nav-horizon.js", html, name)
             self.assertNotIn("nav-orchestra.js", html, name)
             for ip in HARDCODED_IPS:
-                self.assertNotIn(ip, hz["href"], name)
-                self.assertNotIn(ip, html, name)
+                self.assertNotRegex(hz["href"], ip, name)
+                self.assertNotRegex(html, ip, name)
             for needle in PUBLIC_URL_NEEDLES:
                 self.assertNotIn(needle, hz["href"], name)
                 self.assertNotIn(needle, html, name)
 
-    def test_horizon_href_uses_current_hostname_and_server_port(self) -> None:
+    def test_horizon_href_loopback_port_else_same_origin(self) -> None:
         js = (FCC / "nav-horizon.js").read_text(encoding="utf-8")
         self.assertIn("location.hostname", js)
+        self.assertIn("isLoopback", js)
+        self.assertIn('HORIZON_PATH = "/horizon/"', js)
         self.assertIn(f"HORIZON_PORT = {HORIZON_PORT}", js)
         self.assertIn("fccHorizonHref", js)
         self.assertNotIn("<iframe", js.lower())
         self.assertNotIn("vercel", js.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, js)
+            self.assertNotRegex(js, ip)
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(horizon_href("192.168.100.98"), f"http://192.168.100.98:{HORIZON_PORT}/")
-        self.assertEqual(horizon_href("100.67.114.2"), f"http://100.67.114.2:{HORIZON_PORT}/")
-        self.assertEqual(horizon_href("prism-gateway"), f"http://prism-gateway:{HORIZON_PORT}/")
+        # Non-loopback hosts: same-origin /horizon/, never host:8795.
+        for host in ("192.0.2.10", "192.0.2.11", "gateway.example", "prism.example.ts.net"):
+            self.assertEqual(horizon_href(host), "/horizon/", host)
+            self.assertNotIn(f":{HORIZON_PORT}", horizon_href(host), host)
+        # Loopback keeps the direct port link.
         self.assertEqual(horizon_href("127.0.0.1"), f"http://127.0.0.1:{HORIZON_PORT}/")
+        self.assertEqual(horizon_href("localhost"), f"http://localhost:{HORIZON_PORT}/")
         self.assertEqual(horizon_href(""), f"http://127.0.0.1:{HORIZON_PORT}/")
-        self.assertNotEqual(horizon_href("prism-gateway"), "http://127.0.0.1:8795/")
 
         self.assertRegex(
             js,

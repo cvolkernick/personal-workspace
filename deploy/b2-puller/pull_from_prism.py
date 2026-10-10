@@ -236,7 +236,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument(
         "--remote",
         default=os.environ.get("B2_PULL_REMOTE", "prism-agent@prism-gateway"),
-        help="SSH target for live pull (MagicDNS; Tailscale 100.67.114.2 works)",
+        help="SSH target for live pull (tailnet MagicDNS; B2_PULL_REMOTE overrides)",
     )
     p.add_argument("--dry-run", action="store_true")
     p.add_argument(

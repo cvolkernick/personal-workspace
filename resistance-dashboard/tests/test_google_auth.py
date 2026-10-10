@@ -61,7 +61,7 @@ class RemotePublicUrlAuthTests(unittest.TestCase):
 
         prev = os.environ.get("FITDASH_PUBLIC_URL")
         try:
-            os.environ["FITDASH_PUBLIC_URL"] = "https://prism-gateway.tailb1085a.ts.net"
+            os.environ["FITDASH_PUBLIC_URL"] = "https://fcc.unit.ts.net"
             out = ga.start_auth_flow(force=True)
             self.assertTrue(out.get("ok"))
             self.assertEqual(out.get("status"), "use_login")

@@ -5,10 +5,10 @@ seat cannot reach the LAN — do not SSH from here.
 
 ## Roles (not hostnames)
 
-| Hostname | Role tag | User | LAN | Tailscale |
+| Hostname | Role tag | User | LAN (example) | Tailscale |
 |----------|----------|------|-----|-----------|
-| `prism-gateway` | `app-books` | `prism-agent` | 192.168.100.98 | 100.67.114.2 |
-| `finley-gateway` | `b2-puller` | `finley-agent` | 192.168.100.216 | 100.124.165.50 |
+| `prism-gateway` | `app-books` | `prism-agent` | 192.0.2.10 | MagicDNS `prism-gateway` |
+| `finley-gateway` | `b2-puller` | `finley-agent` | 192.0.2.11 | MagicDNS `finley-gateway` |
 
 v1: B2 / knowledge graph primary on finley **:8792** **and** this puller on the
 **same box**. Pull **FROM** `prism-gateway`. Write only what was pulled.
@@ -32,13 +32,13 @@ self-backup, venue keys, or a units-only timer. No off-site bucket in v1
 (and it must not get its own clock later).
 
 Graph root: `~/B2` (`B2_GRAPH_PATH`). Pull dest: `~/b2-pulls/prism`.
-App Pi query: `http://finley-gateway:8792/api/health` (or Tailscale `100.124.165.50`).
+App Pi query: `http://finley-gateway:8792/api/health` (tailnet MagicDNS).
 
 ## Install (Forge / operator on LAN)
 
 ```bash
 # From a machine that can SSH to finley (not this cloud VM):
-bash deploy/b2-puller/install_finley.sh finley-agent@192.168.100.216
+bash deploy/b2-puller/install_finley.sh finley-agent@192.0.2.11
 # or MagicDNS:
 bash deploy/b2-puller/install_finley.sh finley-agent@finley-gateway
 
@@ -51,10 +51,14 @@ Need passwordless SSH **from finley → prism**:
 ```bash
 # on finley-agent
 ssh prism-agent@prism-gateway 'echo ok'
-# fallback: prism-agent@100.67.114.2
 ```
 
-Override remote: `B2_PULL_REMOTE=prism-agent@100.67.114.2`.
+`prism-gateway` is the tailnet MagicDNS short name, so finley needs Tailscale
+with MagicDNS on. finley also needs its own SSH key authorized on prism and
+prism's host key in `~/.ssh/known_hosts` (BatchMode cannot prompt).
+
+Override remote (keep any real address in the machine's local config, not in
+this repo): `B2_PULL_REMOTE=prism-agent@<prism tailnet IP>`.
 
 Do **not** run `deploy/install_remote.sh` against finley — that installer is
 app-books (FCC, FitDash, Orchestra, Auto Fleet).

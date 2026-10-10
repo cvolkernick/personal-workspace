@@ -54,7 +54,8 @@ class TestFccTailscaleServe(unittest.TestCase):
 
     def test_sop_maps_fcc_to_tailscale_not_vercel(self) -> None:
         sop = SOP.read_text(encoding="utf-8")
-        self.assertIn("prism-gateway.tailb1085a.ts.net", sop)
+        self.assertIn("PRISM_PUBLIC_BASE", sop)
+        self.assertNotRegex(sop, r"\.tail[0-9a-f]+\.ts\.net")
         self.assertIn("Tailscale Serve", sop)
         self.assertIn("financial-command", sop)
         self.assertIn("Never Vercel", sop)
@@ -66,7 +67,8 @@ class TestFccTailscaleServe(unittest.TestCase):
 
     def test_readme_documents_https_origin(self) -> None:
         readme = README.read_text(encoding="utf-8")
-        self.assertIn("https://prism-gateway.tailb1085a.ts.net/", readme)
+        self.assertIn("<PRISM_PUBLIC_BASE>/", readme)
+        self.assertNotRegex(readme, r"\.tail[0-9a-f]+\.ts\.net")
         self.assertIn("fcc_tailscale_serve.sh", readme)
         self.assertIn("tailnet", readme.lower())
 

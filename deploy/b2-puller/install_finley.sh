@@ -2,7 +2,7 @@
 # Install B2 / knowledge graph + prism puller on finley-gateway (role b2-puller).
 #
 # Forge / operator on the LAN (this cloud VM cannot reach the LAN):
-#   bash deploy/b2-puller/install_finley.sh finley-agent@192.168.100.216
+#   bash deploy/b2-puller/install_finley.sh finley-agent@192.0.2.11
 #   bash deploy/b2-puller/install_finley.sh finley-agent@finley-gateway
 #   bash deploy/b2-puller/install_finley.sh --local   # already on finley
 #
@@ -83,7 +83,7 @@ if [[ "$LOCAL" -eq 1 ]]; then
   systemctl --user status b2.service --no-pager | head -12 || true
   echo "B2 / knowledge graph: http://127.0.0.1:8792/  (LAN/Tailscale: finley-gateway:8792)"
   echo "Puller dest: $HOME/b2-pulls/prism"
-  echo "Need SSH from this host to prism-agent@prism-gateway (or 100.67.114.2)."
+  echo "Need SSH from this host to prism-agent@prism-gateway (tailnet MagicDNS; override with B2_PULL_REMOTE)."
   exit 0
 fi
 

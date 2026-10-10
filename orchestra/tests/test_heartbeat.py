@@ -103,8 +103,8 @@ class WriteLoadApiTests(unittest.TestCase):
                 "collector": {"name": "pi-heartbeat", "version": "0.1.0"},
                 "services": [],
                 "mesh": {
-                    "lan_ip": "192.168.100.98",
-                    "tailscale_ip": "100.67.114.2",
+                    "lan_ip": "192.0.2.10",
+                    "tailscale_ip": "100.64.0.10",
                     "reachable_lan": True,
                     "reachable_tailscale": True,
                 },
@@ -168,8 +168,8 @@ class CollectMockTests(unittest.TestCase):
         ), mock.patch(
             "heartbeat.detect_mesh",
             return_value={
-                "lan_ip": "192.168.100.98",
-                "tailscale_ip": "100.67.114.2",
+                "lan_ip": "192.0.2.10",
+                "tailscale_ip": "100.64.0.10",
                 "reachable_lan": True,
                 "reachable_tailscale": True,
             },

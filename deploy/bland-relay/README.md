@@ -80,7 +80,7 @@ Register the webhook (cloud API, HTTP Basic `SMSGW_USER`/`SMSGW_PASS`). Python u
 
 ```
 POST https://api.sms-gate.app/3rdparty/v1/webhooks
-{"url": "https://prism-gateway.tailb1085a.ts.net:8443/<SMSGW_HOOK_PATH>", "event": "sms:received", "device_id": "<optional>"}
+{"url": "<PRISM_PUBLIC_BASE>:8443/<SMSGW_HOOK_PATH>", "event": "sms:received", "device_id": "<optional>"}
 ```
 
 `GET /3rdparty/v1/webhooks` lists them, and `DELETE /3rdparty/v1/webhooks/<id>` removes one. The app also lists them under Settings → Webhooks → Registered webhooks.
@@ -127,7 +127,7 @@ Phone setup (904 Pixel):
 1. Download `notification-relay-webhook-v1.0.0.apk` from the Releases link above and install it. Allow "install unknown apps" for the browser when Android asks.
 2. Android 13+ blocks notification access for sideloaded apps at first. Go to **Settings → Apps → Notification Relay Webhook → ⋮ → Allow restricted settings**.
 3. Open the app and grant **Notification access** (Settings → Notifications → Device & app notifications → Notification Relay Webhook → Allow). This is the only permission the route needs.
-4. Add a webhook. URL: `https://prism-gateway.tailb1085a.ts.net:8443/<RCS_HOOK_PATH>`. Header: `Authorization` = `Bearer <RCS_HOOK_TOKEN>`. Tap **Test**. The relay answers 200 `ignored` because a test is not a Messages notification. Then tap **Save**.
+4. Add a webhook. URL: `<PRISM_PUBLIC_BASE>:8443/<RCS_HOOK_PATH>` (prism-gateway's tailnet HTTPS name, port 8443). Header: `Authorization` = `Bearer <RCS_HOOK_TOKEN>`. Tap **Test**. The relay answers 200 `ignored` because a test is not a Messages notification. Then tap **Save**.
 5. Set forwarding mode to **Allowlist** and select only **Messages** (`com.google.android.apps.messaging`). Turn on "ignore group summaries" and "ignore ongoing" if the app offers them.
 6. Battery: **Settings → Apps → Notification Relay Webhook → Battery → Unrestricted**.
 7. Keep Google Messages notifications **on**, including for conversations. Don't mute the senders whose texts must reach Alexandra. A muted conversation posts no notification.

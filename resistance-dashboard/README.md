@@ -31,8 +31,8 @@ python3 server.py --host 0.0.0.0 --port 8787 --no-browser --local
 When on the home LAN (see `deploy/README.md`):
 
 ```bash
-bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.168.100.98
-# → http://192.168.100.98:8787/
+bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.0.2.10
+# → http://192.0.2.10:8787/
 ```
 
 Off-LAN: Tailscale on Pi + client (do **not** public port-forward while single-user).

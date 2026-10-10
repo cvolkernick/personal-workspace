@@ -41,7 +41,7 @@ try:
 
     ORCHESTRA_URL = _service_url("orchestra")
 except Exception:  # noqa: BLE001
-    ORCHESTRA_URL = f"http://192.168.100.98:{DEFAULT_PORT}/"
+    ORCHESTRA_URL = f"http://127.0.0.1:{DEFAULT_PORT}/"
 
 
 def _annotate_domains_freshness(

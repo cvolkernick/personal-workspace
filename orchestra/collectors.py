@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 def _svc_url(name: str) -> str:
-    """Always-on Pi URL for a dashboard service."""
+    """Always-on URL for a dashboard service (FCC via PRISM_PUBLIC_BASE)."""
     try:
         from dashboard_endpoints import service_url
         return service_url(name)
     except Exception:
+        # Loopback only. The server rewrites loopback links to the client's
+        # host, except FCC/Horizon, which bind 127.0.0.1.
         ports = {
-            "projects-dashboard": "http://192.168.100.98:8765/",
-            "financial-command": "http://192.168.100.98:8000/financial-command/index.html",
-            "resistance-dashboard": "http://192.168.100.98:8787/",
-            "holistic": "http://192.168.100.98:8770/",
-            "iot": "http://192.168.100.98:8780/",
+            "projects-dashboard": "http://127.0.0.1:8765/",
+            "financial-command": "http://127.0.0.1:8000/financial-command/index.html",
+            "resistance-dashboard": "http://127.0.0.1:8787/",
+            "holistic": "http://127.0.0.1:8770/",
+            "iot": "http://127.0.0.1:8780/",
         }
-        return ports.get(name, "http://192.168.100.98/")
+        return ports.get(name, "http://127.0.0.1/")
 
 
 import json
@@ -90,23 +92,36 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return meta, parts[2]
 
 
-def _default_probe_host() -> str:
-    """Probe always-on Pi host when available; fall back to localhost."""
-    try:
-        from dashboard_endpoints import pi_host
+def _default_probe_host(environ: dict[str, str] | None = None) -> str:
+    """Host for same-machine port probes.
 
-        return pi_host()
-    except Exception:  # noqa: BLE001
-        return "127.0.0.1"
+    FCC and Horizon bind 127.0.0.1, so a LAN or tailnet address would mark
+    them down. This is not the public link host (PRISM_PUBLIC_BASE /
+    dashboard_endpoints.service_url). ORCHESTRA_PROBE_HOST overrides the
+    default. Leave it unset on prism.
+    """
+    env = os.environ if environ is None else environ
+    raw = (env.get("ORCHESTRA_PROBE_HOST") or "").strip()
+    return raw or "127.0.0.1"
 
 
 def probe_port(
-    port: int, host: str | None = None, timeout: float = 0.35
+    port: int,
+    host: str | None = None,
+    timeout: float = 0.35,
+    environ: dict[str, str] | None = None,
 ) -> bool:
-    """True if something accepts TCP connections on host:port (Pi by default)."""
+    """True if something accepts TCP connections on host:port.
+
+    Omitted host uses _default_probe_host (127.0.0.1), not a LAN address.
+    """
     if not port:
         return False
-    target = host if host is not None else _default_probe_host()
+    target = (
+        host
+        if host is not None and str(host).strip()
+        else _default_probe_host(environ)
+    )
     try:
         with socket.create_connection((target, int(port)), timeout=timeout):
             return True

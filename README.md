@@ -37,13 +37,13 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 ### Pi backends 24/7 (open in browser — no local server)
 
 **Pi hosts backends 24/7** via systemd (`deploy/install_remote.sh` → bind `0.0.0.0`, restart always).  
-**Double-click / open launchers open the Pi URL** (not localhost). Default host: `192.168.100.98` (`deploy/endpoints.json`; override with `PI_HOST`).  
+**Double-click / open launchers open the Pi URL** (not localhost). Default host: `prism-gateway`, the tailnet MagicDNS short name (`deploy/endpoints.json`; override with `PI_HOST`). FCC and Horizon bind 127.0.0.1: their links come from `PRISM_PUBLIC_BASE`.  
 **Pi FCC live root auto-pulls `origin/work/treasury` every 5 minutes** (`workspace-sync.timer`; refuses `master` / `work/holistic`) and restarts units when code changes. FitDash production is Vercel from `master`.  
 **Off-network:** Tailscale (or equivalent) + `PI_HOST=<mesh>` — not public port-forward.
 
 ```bash
 # On Pi (once): install all six always-on backends + auto-sync
-bash deploy/install_remote.sh prism-agent@192.168.100.98
+bash deploy/install_remote.sh prism-agent@192.0.2.10
 
 # On Mac — open always-on UIs (no server process):
 open-command-center.command          # Orchestra :8790
@@ -54,16 +54,16 @@ bash deploy/open_dashboard.sh iot
 PI_HOST=100.x.y.z bash deploy/open_dashboard.sh orchestra
 ```
 
-| Service | Always-on URL (LAN) |
+| Service | Always-on URL (`192.0.2.10` = example Pi address) |
 |---------|---------------------|
-| Orchestra | http://192.168.100.98:8790/ |
-| financial-command | http://192.168.100.98:8000/financial-command/index.html |
-| projects-dashboard | http://192.168.100.98:8765/ |
-| holistic | http://192.168.100.98:8770/ |
-| iot | http://192.168.100.98:8780/ |
-| resistance-dashboard | http://192.168.100.98:8787/ |
-| oomwoo | http://192.168.100.98:8798/ |
-| life-compass (private, LAN/mesh only) | http://192.168.100.98:8793/ |
+| Orchestra | http://192.0.2.10:8790/ |
+| financial-command | `<PRISM_PUBLIC_BASE>/financial-command/index.html` (binds 127.0.0.1:8000) |
+| projects-dashboard | http://192.0.2.10:8765/ |
+| holistic | http://192.0.2.10:8770/ |
+| iot | http://192.0.2.10:8780/ |
+| resistance-dashboard | http://192.0.2.10:8787/ |
+| oomwoo | http://192.0.2.10:8798/ |
+| life-compass (private, LAN/mesh only) | http://192.0.2.10:8793/ |
 
 Full guide: [`deploy/README.md`](deploy/README.md). Helpers: `dashboard_endpoints.py`, `remote_backend.py`.
 

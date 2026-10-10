@@ -29,7 +29,7 @@ Default host is in `deploy/endpoints.json` (`pi_host`). Override anytime with en
 
 Each unit: **bind all interfaces (`0.0.0.0`)**, **`--no-browser`**, **`--local`** (API handled on the Pi), **Restart=always**.
 
-FCC PWA origin (Tailscale Serve, tailnet only): `https://prism-gateway.tailb1085a.ts.net/` → loopback `:8000`. See **FCC HTTPS** below.
+FCC PWA origin (Tailscale Serve, tailnet only): `<PRISM_PUBLIC_BASE>/` (prism-gateway's `*.ts.net` HTTPS name) → loopback `:8000`. See **FCC HTTPS** below.
 
 ## Install on Pi
 
@@ -126,9 +126,9 @@ Do **not** “fix” a stale `~/.config/personal-workspace/` copy by adding `dep
 
 ### FCC HTTPS (PWA install)
 
-Browsers will not offer a PWA install prompt on `http://100.67.114.2:8000`. FCC is served at a **private** trusted origin:
+Browsers will not offer a PWA install prompt on plain `http://<tailnet IP>:8000`, and FCC now binds 127.0.0.1, so that URL does not answer anyway. FCC is served at a **private** trusted origin:
 
-`https://prism-gateway.tailb1085a.ts.net/` → `http://127.0.0.1:8000` via Tailscale Serve (tailnet only, not Funnel, not Vercel).
+`<PRISM_PUBLIC_BASE>/` → `http://127.0.0.1:8000` via Tailscale Serve (tailnet only, not Funnel, not Vercel).
 
 ```bash
 # Apply or re-apply on prism-gateway. Does not rsync the repo.

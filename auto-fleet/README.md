@@ -9,7 +9,7 @@ trip detail. Not a financial interface. Not FCC. Not a global bookings inbox.
 tree, or `financial-command/`.
 
 Port **8796**. Prod is `auto-fleet.service` on `prism-gateway`
-(`http://100.67.114.2:8796/` · `http://prism-gateway:8796/`). Mac is dev.
+(`http://prism-gateway:8796/`, tailnet MagicDNS). Mac is dev.
 
 **Turo payout destination:** **X Money**. Payout mail is a cash-landed
 signal, not a booking record.
@@ -239,7 +239,7 @@ no VIN, no absolute `~/.config` paths.
 ## Pi install (Slice C)
 
 ```bash
-bash deploy/install_remote.sh prism-agent@192.168.100.98 --only auto-fleet
+bash deploy/install_remote.sh prism-agent@192.0.2.10 --only auto-fleet
 ```
 
 Installs `auto-fleet.service` (`0.0.0.0:8796`, `Restart=always`) and

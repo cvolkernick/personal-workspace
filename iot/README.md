@@ -13,7 +13,7 @@ python3 iot/server.py
 # Force direct Mac→bulbs (no Pi):
 python3 iot/server.py --local
 # Explicit backend:
-python3 iot/server.py --backend http://192.168.100.98:8780
+python3 iot/server.py --backend http://192.0.2.10:8780
 
 # CLI (always direct from this machine)
 python3 iot/wiz-lights/wiz-lights.py all cyan

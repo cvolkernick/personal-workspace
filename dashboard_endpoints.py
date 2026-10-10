@@ -7,7 +7,14 @@ URLs in the browser — not start a localhost server.
 Host precedence:
   1. env PI_HOST or DASHBOARD_HOST
   2. deploy/endpoints.json → pi_host
-  3. fallback 192.168.100.98
+  3. fallback FALLBACK_HOST (prism's tailnet MagicDNS short name)
+
+FCC (financial-command, :8000) and Horizon (:8795) bind 127.0.0.1 on prism,
+so they are never linked or probed on pi_host:
+  - links come from PRISM_PUBLIC_BASE (prism_public.py):
+    <base>/financial-command/index.html and <base>/horizon/
+  - with PRISM_PUBLIC_BASE unset or invalid, links fall back to loopback
+  - health URLs are always loopback (127.0.0.1)
 """
 
 from __future__ import annotations
@@ -21,7 +28,17 @@ from typing import Any, Optional
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_ENDPOINTS_PATH = ROOT / "deploy" / "endpoints.json"
-FALLBACK_HOST = "192.168.100.98"
+# Tailnet MagicDNS short name, not a LAN IP. PI_HOST / DASHBOARD_HOST override.
+FALLBACK_HOST = "prism-gateway"
+LOOPBACK_HOST = "127.0.0.1"
+
+# Services that bind 127.0.0.1 only. Links: PRISM_PUBLIC_BASE + public_path,
+# else loopback. Probes and health checks: always loopback.
+LOOPBACK_ONLY_SERVICES: dict[str, dict[str, Any]] = {
+    "financial-command": {"port": 8000, "public_path": "/financial-command/index.html"},
+    "horizon": {"port": 8795, "public_path": "/horizon/"},
+}
+LOOPBACK_ONLY_PORTS = frozenset(int(v["port"]) for v in LOOPBACK_ONLY_SERVICES.values())
 
 # service key → (port, path, health)
 _DEFAULT_SERVICES: dict[str, dict[str, Any]] = {
@@ -93,23 +110,63 @@ def services(cfg: Optional[dict[str, Any]] = None) -> dict[str, dict[str, Any]]:
     return out
 
 
-def service_base_url(name: str, cfg: Optional[dict[str, Any]] = None) -> str:
-    """http://host:port (no trailing path)."""
+def _prism_public_origin(environ: Optional[dict[str, str]] = None) -> str:
+    """Validated PRISM_PUBLIC_BASE origin, or "" when unset or invalid."""
+    try:
+        import prism_public
+    except ImportError:  # pragma: no cover - repo root not on sys.path
+        return ""
+    return prism_public.prism_public_origin(environ)
+
+
+def is_loopback_only(name: str) -> bool:
+    return name in LOOPBACK_ONLY_SERVICES
+
+
+def loopback_base_url(name: str, cfg: Optional[dict[str, Any]] = None) -> str:
+    """http://127.0.0.1:port for a service (probes, health, unset-base links)."""
     data = cfg if cfg is not None else load_endpoints()
     svc = services(data).get(name)
     if not svc:
         raise KeyError(f"unknown dashboard service: {name}")
+    return f"http://{LOOPBACK_HOST}:{int(svc['port'])}"
+
+
+def service_base_url(name: str, cfg: Optional[dict[str, Any]] = None) -> str:
+    """http://host:port (no trailing path).
+
+    Loopback-only services (FCC, Horizon) return the loopback base, never
+    pi_host: they do not listen there.
+    """
+    data = cfg if cfg is not None else load_endpoints()
+    svc = services(data).get(name)
+    if not svc:
+        raise KeyError(f"unknown dashboard service: {name}")
+    if is_loopback_only(name):
+        return loopback_base_url(name, data)
     host = pi_host(data)
     port = int(svc["port"])
     return f"{scheme(data)}://{host}:{port}"
 
 
-def service_url(name: str, cfg: Optional[dict[str, Any]] = None) -> str:
-    """Full UI URL including path."""
+def service_url(
+    name: str,
+    cfg: Optional[dict[str, Any]] = None,
+    environ: Optional[dict[str, str]] = None,
+) -> str:
+    """Full UI URL including path.
+
+    FCC and Horizon: <PRISM_PUBLIC_BASE>/financial-command/index.html and
+    <PRISM_PUBLIC_BASE>/horizon/ when the base is valid, else loopback.
+    """
     data = cfg if cfg is not None else load_endpoints()
     svc = services(data).get(name)
     if not svc:
         raise KeyError(f"unknown dashboard service: {name}")
+    if is_loopback_only(name):
+        origin = _prism_public_origin(environ)
+        if origin:
+            return origin + str(LOOPBACK_ONLY_SERVICES[name]["public_path"])
     base = service_base_url(name, data)
     path = str(svc.get("path") or "/")
     if not path.startswith("/"):
