@@ -29,6 +29,15 @@ URL="$(python3 -c "from dashboard_endpoints import service_url; print(service_ur
 HEALTH="$(python3 -c "from dashboard_endpoints import health_url; print(health_url('${SERVICE}'))")"
 HOST="$(python3 -c "from dashboard_endpoints import pi_host; print(pi_host())")"
 
+# FCC and Horizon bind 127.0.0.1 on prism. With PRISM_PUBLIC_BASE set the URL
+# is the https tailnet origin; open it without a loopback probe.
+if [[ "$URL" == https://* ]]; then
+  echo "Opening $URL"
+  open_url "$URL"
+  echo "$URL"
+  exit 0
+fi
+
 echo "Always-on host: $HOST"
 echo "Probing $HEALTH …"
 if curl -sf --connect-timeout 3 --max-time 6 "$HEALTH" >/dev/null; then
