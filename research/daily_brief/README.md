@@ -12,7 +12,7 @@ world-state or model brief artifacts.
 | Permalink | `https://prism.example.ts.net/horizon/daily-brief/YYYY-MM-DD/am\|pm` |
 | Archive | `https://prism.example.ts.net/horizon/daily-brief/archive` |
 | On the Horizon host (loopback) | `http://127.0.0.1:8795/daily-brief` |
-| JSON | `/daily-brief/api/latest` (the stored edition), `/daily-brief/api/editions` |
+| JSON | `/daily-brief/api/latest` (the stored edition; a missing quote uses the page's quote of the day), `/daily-brief/api/editions` |
 | Old FCC URLs | `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL` + same subpath + query |
 
 Tailnet rows use the placeholder `prism.example.ts.net` as a shape example.
@@ -55,7 +55,10 @@ files, OFFLINE_PUBLISH.md), and neither is `investment/book_channel_map.json`.
   Sections, items, to-dos, Mac tasks, front-page copy, amounts, balances,
   holdings, sends, weather, and links render as published, prism links included.
   `redact.scrub_edition` returns that edition unchanged (held count 0) so the
-  page and the API share one view. Edition text is HTML-escaped so it cannot
+  page and the API share one view. An edition saved without a quote still has
+  none on disk; the page and the API both fill the same quote of the day
+  (Eastern date + am/pm) and never the "No quote today." placeholder. A stored
+  quote is returned unchanged. Edition text is HTML-escaped so it cannot
   inject markup. The stored JSON is not modified.
 - **Local weather, not a model widget.** The edition's weather box is shown,
   labeled "Local weather". There is no regime widget and no Horizon model

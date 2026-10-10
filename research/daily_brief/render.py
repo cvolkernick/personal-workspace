@@ -3,13 +3,16 @@
   /daily-brief                     newest edition (am or pm)
   /daily-brief/YYYY-MM-DD/am|pm    permalink
   /daily-brief/archive             editions by Eastern date
-  /daily-brief/api/latest          newest edition JSON (the stored edition)
+  /daily-brief/api/latest          newest edition JSON (stored edition; quote fallback)
   /daily-brief/api/editions        edition index
 
 A sibling of Horizon's own pages, not part of the Horizon model. It never
 reads Horizon world-state or brief artifacts. The page is internal-only, on
 Tailscale, and shows the stored edition with no money filter. The page and
-``/daily-brief/api/latest`` are built from the same view. Styling reuses
+``/daily-brief/api/latest`` are built from the same view. A missing quote is
+filled in that view with the quote of the day (date + edition); the file on
+disk is not rewritten, and the "No quote today." placeholder is never emitted.
+Styling reuses
 Horizon's base palette and type. The newspaper's own local weather box is
 shown; Horizon regime and model widgets are not.
 
@@ -117,18 +120,44 @@ def _quiet_line() -> str:
     return f'<p class="not-model">{_e(NOT_MODEL_LINE)}</p>'
 
 
+_QUOTE_PLACEHOLDER = "No quote today."
+
+
 def display_quote(ed: dict) -> Any:
     """The edition's own quote, or the quote of the day.
 
     Applied at render time so an edition stored without ``quote`` still shows
-    one. ``_quote_html`` HTML-escapes the text and the byline.
+    one. ``_quote_html`` HTML-escapes the text and the byline. The same
+    function fills the API JSON, so the page and the API cannot pick different
+    lines. Never returns the placeholder.
     """
     provided = ed.get("quote")
-    if quote_text(provided):
+    if quote_text(provided) and quote_text(provided) != _QUOTE_PLACEHOLDER:
         return provided
     if not QUOTES:
         return None
-    return quote_for(str(ed.get("date") or ""), str(ed.get("edition") or ""))
+    picked = quote_for(str(ed.get("date") or ""), str(ed.get("edition") or ""))
+    if quote_text(picked) == _QUOTE_PLACEHOLDER:
+        return None
+    return picked
+
+
+def edition_for_api(ed: dict) -> dict:
+    """Stored edition for JSON, with the quote the HTML page shows.
+
+    A quote already on the edition is left as published (string or object,
+    ``by`` or ``author``). A missing, blank, or placeholder quote becomes
+    ``display_quote`` for this date and edition. Does not rewrite the file.
+    """
+    clean = scrub_edition(ed)[0]
+    shown = display_quote(ed)
+    if shown is None:
+        clean.pop("quote", None)
+        return clean
+    if quote_text(clean.get("quote")) and quote_text(clean.get("quote")) != _QUOTE_PLACEHOLDER:
+        return clean
+    clean["quote"] = shown
+    return clean
 
 
 def _quote_html(q: Any) -> str:
@@ -595,7 +624,7 @@ def route(path: str, *, root: Path | None = None, now: datetime | None = None) -
     if path == BASE_PATH + "/api/latest":
         k = latest_key(root)
         ed = load_edition(*k, root=root) if k else None
-        clean = scrub_edition(ed)[0] if ed else None
+        clean = edition_for_api(ed) if ed else None
         payload = {"ok": clean is not None, "edition": clean, "url": edition_url(k) if k else None}
         return (200 if clean else 404), "application/json", json.dumps(payload, ensure_ascii=False)
     if path == BASE_PATH + "/api/editions":

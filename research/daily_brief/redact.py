@@ -14,8 +14,9 @@ import copy
 def scrub_edition(edition: dict) -> tuple[dict, int]:
     """(stored edition, lines held back).
 
-    Nothing is held back. The same object is rendered to HTML and returned by
-    ``/daily-brief/api/latest``.
+    Nothing is held back. The HTML page and ``/daily-brief/api/latest`` both
+    start from this copy. A missing quote is filled later, on the page and in
+    the API response, and is not written here.
     """
     if not isinstance(edition, dict):
         return {}, 0
