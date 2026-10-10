@@ -50,8 +50,11 @@ files, OFFLINE_PUBLISH.md), and neither is `investment/book_channel_map.json`.
   headlines keep tickers and news amounts ("AAPL tops $180"). Words like tax,
   credit, interest, cash, fund or loan do not by themselves hide a line.
   Everywhere else (to-dos, Mac tasks, fleet, day-ahead, shipped, the front
-  page, theme, quote) any currency amount is removed, and the line is dropped
-  when what remains is not a real to-do.
+  page, theme, quote) any amount is removed: a currency symbol, a code before
+  or after the number (`USD 900`), a bare `12.4k`, or pay/sent/owe next to a
+  name, `@handle`, or number. The line is dropped when what remains is not a
+  real to-do. A base58 address split by spaces or line breaks is still an
+  address.
 - **Sends, holdings, debt.** A plain to-do stays ("Pay rent", "Review rent
   ledger"). A send is stripped with or without a dollar sign and at any name
   casing ("900 USDC to Alex Sample", "Send $900 to alex", "Zelle Jordan
@@ -62,9 +65,11 @@ files, OFFLINE_PUBLISH.md), and neither is `investment/book_channel_map.json`.
 - **Links.** Every link field (item `link`, to-do `notion_url`, Mac
   `source_url`, front-page `image`) is checked. FCC paths and the prism host
   are stripped: `financial-command`, `/fcc`, `/treasury`, `prism-gateway`,
-  `prism:<port>`, `*.ts.net`, `localhost`, `127.0.0.1`, `100.x` tailnet
-  addresses, and ports 8790 and 8795. The line of text stays when the URL was
-  only in the link field. A URL written in the text drops the line.
+  `prism:<port>`, any single-label host (`http://prism/...`,
+  `chris-mac:3000`), `*.ts.net`, `localhost`, `127.0.0.1`, `[::1]`, `100.x`
+  tailnet addresses, the Tailscale range `fd7a:115c:a1e0::/48`, and ports
+  8790 and 8795. The line of text stays when the URL was only in the link
+  field. A URL written in the text drops the line.
 - Whole sections are withheld only when the section is the private book
   (YNAB, treasury, portfolio, balances, wallet). A headline that is itself a
   personal send is replaced by "Front page held for the private edition". The

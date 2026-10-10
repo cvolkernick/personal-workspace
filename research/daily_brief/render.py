@@ -273,9 +273,9 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .wx-temp{font:700 1.1rem var(--serif)}
 .qotd blockquote{margin:0;font:italic .85rem var(--serif)}.qotd cite{font-size:.72rem;color:var(--muted)}
 .masthead{min-width:0}
-.masthead h1{font-family:var(--serif);font-weight:900;font-size:clamp(2rem,7vw,3.4rem);line-height:1;margin:.1rem 0;letter-spacing:-.01em;overflow-wrap:anywhere}
+.masthead h1{font-family:var(--serif);font-weight:800;font-size:clamp(2rem,7vw,3.4rem);line-height:1;margin:.1rem 0;letter-spacing:-.01em;overflow-wrap:anywhere}
 .tagline{font:italic .8rem var(--serif);color:var(--muted)}
-.not-model{margin:.2rem 0 0;font:500 .68rem var(--sans);letter-spacing:.01em;color:var(--dim)}
+.not-model{margin:.2rem 0 0;font:600 .68rem var(--sans);letter-spacing:.01em;color:var(--dim)}
 .dateline{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .8rem;border-top:3px double var(--border2);border-bottom:1px solid var(--border2);padding:.3rem 0;margin:.5rem 0;font:600 .7rem var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin:.6rem 0}
 .card{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:.55rem .65rem;min-width:0;font-size:.8rem}
@@ -294,7 +294,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1.4rem}
 .sec{border-top:2px solid var(--border2);padding-top:.35rem;margin-top:.8rem;min-width:0;scroll-margin-top:.5rem}
 .sec-h{font:700 1.1rem var(--sans);margin:0 0 .3rem;display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
-.sec-count{font:500 .7rem var(--sans);color:var(--muted)}
+.sec-count{font:600 .7rem var(--sans);color:var(--muted)}
 .sec ul{margin:0;padding-left:1.1rem}.sec li{margin:.2rem 0;overflow-wrap:anywhere}
 .todo-group h3{font:700 .72rem var(--sans);letter-spacing:.06em;text-transform:uppercase;margin:.55rem 0 .2rem;color:var(--muted)}
 .todo-overdue h3{color:var(--red)}

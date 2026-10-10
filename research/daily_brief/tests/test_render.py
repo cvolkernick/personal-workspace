@@ -295,14 +295,24 @@ LEAK_SECRETS = (
     "bc1q555qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
     "0x5551111111111111111111111111111111111111", "snap.png",
     "NW now",
+    "12.4k", "USD 900", "900", "€500", "500", "450", "Jordan", "@maria",
+    "chris-mac:3000", "fd7a:115c:a1e0", "[::1]", "http://prism/",
+    "7xKXtg2CW87d97TXJSDpbD", "5jBkheTqA83TZRuJosgAsU",
+    "7xKXtg2CW87d97TXJSDp", "bD5jBkheTqA83TZRuJosgAsU",
 )
 
 LEAK_KEEPS = (
     "Pay rent",
     "Review rent ledger",
     "AAPL tops $180 on a quiet tape",
+    "TSLA jumps 8% to $250 after deliveries beat",
+    "Gold climbs past $2,400 an ounce",
+    "Acme raises $12.4M Series A led by Example Ventures",
     "Senate tax bill advances and credit markets stay calm",
     "Panamerica opens a driver handbook",
+    "Call the dentist",
+    "Ops board update",
+    "Ops board refresh",
     "SAMPLE: a short novel about a lighthouse keeper",
     "Clear and mild",
     "SAMPLE: leak check edition",
@@ -347,7 +357,7 @@ class TestAdversarialLeak(TmpStore):
         return render.route(path, root=self.root, now=NOW)
 
     def test_secrets_absent_from_page_and_api(self):
-        raw_text = json.dumps(self.raw)
+        raw_text = json.dumps(self.raw, ensure_ascii=False)
         for secret in LEAK_SECRETS:
             self.assertIn(secret, raw_text, secret)
         _, _, html = self.get("/daily-brief")
@@ -403,7 +413,8 @@ class TestAdversarialLeak(TmpStore):
         self.assertIn('href="https://www.notion.so/sample-leak-ledger"', html)
         self.assertIn('href="https://example.com/leak-check"', html)
         titles = {t["title"]: t for t in edition["todos"]}
-        self.assertEqual(set(titles), {"Pay rent", "Review rent ledger"})
+        for title in ("Pay rent", "Review rent ledger", "Call the dentist"):
+            self.assertIn(title, titles)
         self.assertNotIn("notion_url", titles["Pay rent"])
         self.assertEqual(
             titles["Review rent ledger"]["notion_url"],

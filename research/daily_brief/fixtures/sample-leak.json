@@ -48,6 +48,8 @@
           "fcc_note": "secret-item-note"
         },
         "Senate tax bill advances and credit markets stay calm",
+        "TSLA jumps 8% to $250 after deliveries beat",
+        "Gold climbs past $2,400 an ounce",
         "Allocation: BTC 42% / ETH 18% / SOL 10% / cash 30%",
         "Book is 60% BTC, 25% USDC, 15% SOL",
         "Long 0.85 BTC avg cost $61,200",
@@ -59,6 +61,7 @@
       "title": "Business",
       "items": [
         "Panamerica opens a driver handbook",
+        "Acme raises $12.4M Series A led by Example Ventures",
         "P&L this week +$3,240",
         "Unrealized PnL -$1,120 on SOL",
         "Up $2,100 on the week across the book"
@@ -76,6 +79,16 @@
       "title": "Fleet",
       "items": [
         "2 pickups today",
+        "Fleet reserve sits at 12.4k this week",
+        "Paid Jordan 450 yesterday",
+        "Deposit wallet 7xKXtg2CW87d97TXJSDpbD\n5jBkheTqA83TZRuJosgAsU confirm",
+        "See [the dashboard](http://prism-gateway:8790/treasury) today",
+        "Open [ops board](http://prism/fcc/book) for review",
+        "Check http://chris-mac:3000/books for the update",
+        "Notes at http://[fd7a:115c:a1e0::1]/ledger now",
+        "Notes at http://[::1]:9000/ledger now",
+        {"text": "Ops board update", "link": "http://[fd7a:115c:a1e0::5]/x"},
+        {"text": "Ops board refresh", "link": "http://prism/brief"},
         "Car loan remaining $18,300",
         "Debt: $45k across two cards",
         "Savings: $8,250.17"
@@ -126,6 +139,70 @@
   ],
   "todos": [
     {
+      "title": "Move 12.4k to savings",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-move"
+    },
+    {
+      "title": "Pay landlord USD 900 Friday",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-usd"
+    },
+    {
+      "title": "Cover the €500 invoice",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-eur"
+    },
+    {
+      "title": "paid Jordan 450 for the tires",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-jordan"
+    },
+    {
+      "title": "Confirm the deposit was sent to @maria",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-maria"
+    },
+    {
+      "title": "Check `7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU` before Monday",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-sol"
+    },
+    {
+      "title": "Wallet 7xKXtg2CW87d97TXJSDp bD5jBkheTqA83TZRuJosgAsU verify",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-sol-split"
+    },
+    {
+      "title": "Call the dentist",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-leak-dentist"
+    },
+    {
       "title": "Pay rent",
       "status": "Not started",
       "due": "2026-10-12",
@@ -174,6 +251,9 @@
     "items": [
       {
         "text": "SAMPLE: reboot the studio Mac"
+      },
+      {
+        "text": "sent to @maria for October"
       },
       {
         "text": "SAMPLE: open the studio notes",

@@ -13,13 +13,18 @@ Withheld everywhere:
     ("900 USDC to Alex Sample", "Send $900 to alex", "Zelle Jordan Example")
   * debt, loan, and P&L amounts, not only next to Turo or Panamerica
   * wallet addresses: EVM, Bitcoin bech32, legacy and P2SH, Solana base58
-  * links to FCC or the prism host (prism-gateway, prism:<port>, *.ts.net,
-    localhost, 127.0.0.1, 100.x tailnet addresses, ports 8790 and 8795)
+  * links to FCC or the prism host (prism-gateway, prism:<port>, a bare
+    single-label host such as prism or chris-mac:3000, *.ts.net, localhost,
+    127.0.0.1, [::1], 100.x, the Tailscale range fd7a:115c:a1e0::/48,
+    ports 8790 and 8795)
 
 On the owner's own lines (to-dos, Mac tasks, fleet, day-ahead, shipped, the
 front page, theme, quote, and every section that is not Markets, Business or
-Books) any currency amount is removed. The line is dropped when what remains
-is not a real to-do.
+Books) any amount is removed: a currency symbol, a code before or after the
+number (``USD 900``, ``900 USDC``), a bare ``12.4k`` / ``12.4m``, or a
+pay/sent/owe next to a name, ``@handle``, or number. The line is dropped when
+what remains is not a real to-do. A Solana address split by spaces or line
+breaks is still an address.
 
 The public edition is an allowlist of the fields the page renders. Unknown
 keys (an ``fcc_snapshot``, an extra weather field) never reach HTML or
@@ -58,6 +63,8 @@ _WEATHER_KEYS = ("summary", "high", "low", "icon", "rain", "wind", "note")
 _LINK_KEYS = ("link", "notion_url", "source_url", "image")
 
 # FCC pages and the prism / tailnet host. A hit strips the link or the line.
+# A single-label host (http://prism/..., http://chris-mac:3000/...) is private
+# even with no FCC path. Multi-label public hosts (example.com) are not.
 _PRIVATE_LINK_RE = re.compile(
     r"financial-command"
     r"|/fcc\b"
@@ -69,7 +76,12 @@ _PRIVATE_LINK_RE = re.compile(
     r"|localhost"
     r"|127\.0\.0\.1"
     r"|\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"
-    r"|:(?:8790|8795)\b",
+    r"|:(?:8790|8795)\b"
+    r"|fd7a:115c:a1e0"
+    r"|\[::1\]"
+    r"|https?://\[[^\]]+\]"
+    r"|https?://[a-z0-9-]+(?::\d+)?(?=/|\s|$)"
+    r"|\b[a-z][a-z0-9-]{1,62}:\d{2,5}\b",
     re.I,
 )
 _URL_RE = re.compile(r"https?://[^\s<>\"')\]]+")
@@ -88,7 +100,19 @@ _WALLET_RES: tuple[re.Pattern[str], ...] = (
 
 _CURRENCY_RE = re.compile(
     r"[+\-]?\s*[$€£¥]\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmMbBnN])?"
-    r"|\b\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?\s*(?:usd|usdc|usdt|btc|eth|sol|sats?)\b",
+    r"|\b\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?\s*(?:usd|eur|gbp|usdc|usdt|btc|eth|sol|sats?)\b"
+    # "USD 900" / "EUR 500": the code sits in front of the number.
+    r"|\b(?:usd|eur|gbp|jpy|chf|cad|aud|usdc|usdt|btc|eth|sol)\s+\d[\d,]*(?:\.\d+)?(?:\s?[kKmMbB])?\b",
+    re.I,
+)
+# Owner lines only. News headlines keep "$12.4M" and "$2,400".
+# "Pay rent" has no number and no @handle, so it does not match.
+_OWNER_MONEY_RE = re.compile(
+    r"\b\d[\d,]*(?:\.\d+)?\s?[kKmMbB]\b"
+    r"|\b(?:paid|pay|paying|sent|send|sending|owe|owes|owing)\b"
+    r"(?:\s+to)?\s+@[A-Za-z0-9_.-]{2,}\b"
+    r"|\b(?:paid|pay|paying|sent|send|sending|owe|owes|owing)\b"
+    r"(?:\s+to)?(?:\s+[A-Za-z][\w.-]{1,40}){1,3}\s+\d[\d,]*(?:\.\d+)?(?:\s?[kKmMbB])?",
     re.I,
 )
 # "$25 to Alex Sample", "900 USDC to alex", any casing.
@@ -219,7 +243,39 @@ def is_private_link(url: Any) -> bool:
     return isinstance(url, str) and bool(_PRIVATE_LINK_RE.search(url))
 
 
+# Chunks this long are address pieces, not English words. Joining them across
+# spaces or line breaks catches a Solana address written as two halves.
+_B58_CHUNK = re.compile(rf"{_B58_CLASS}{{8,44}}")
+
+
+def _split_wallet_span(text: str) -> tuple[int, int] | None:
+    """Span covering base58 chunks that join into one address."""
+    runs = list(_B58_CHUNK.finditer(text))
+    n = len(runs)
+    for i in range(n):
+        joined = ""
+        for k in range(i, n):
+            if k > i:
+                gap = text[runs[k - 1].end():runs[k].start()]
+                if not gap.isspace():
+                    break
+            joined += runs[k].group(0)
+            if len(joined) > 44:
+                break
+            if (
+                k > i
+                and 32 <= len(joined) <= 44
+                and _NONHEX_B58_RE.search(joined)
+                and re.search(r"\d", joined)
+            ):
+                return (runs[i].start(), runs[k].end())
+    return None
+
+
 def _wallet_in(text: str) -> str | None:
+    split = _split_wallet_span(text)
+    if split:
+        return text[split[0]:split[1]]
     for p in _WALLET_RES:
         for m in p.finditer(text):
             token = m.group(0)
@@ -352,6 +408,7 @@ def _scrub_line(text: str, *, news: bool) -> tuple[str | None, int]:
     # News lines keep amounts that are not already a book pattern.
     if not news:
         nxt = _RECIPIENT_RE.sub(" ", cleaned)
+        nxt = _OWNER_MONEY_RE.sub(" ", nxt)
         nxt = _CURRENCY_RE.sub(" ", nxt)
         if nxt != cleaned:
             changed = True
