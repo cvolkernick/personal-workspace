@@ -18,7 +18,7 @@ from research.daily_brief import cli
 
 class TestSchema(unittest.TestCase):
     def test_fixtures_validate(self):
-        for n in ("sample-am", "sample-pm", "sample-empty-todos", "sample-leak"):
+        for n in ("sample-am", "sample-pm", "sample-empty-todos"):
             self.assertEqual(store.validate(store.normalize(sample(n))), [], n)
 
     def test_bad_edition(self):

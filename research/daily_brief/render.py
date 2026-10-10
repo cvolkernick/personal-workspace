@@ -3,15 +3,15 @@
   /daily-brief                     newest edition (am or pm)
   /daily-brief/YYYY-MM-DD/am|pm    permalink
   /daily-brief/archive             editions by Eastern date
-  /daily-brief/api/latest          newest edition JSON (money-scrubbed)
+  /daily-brief/api/latest          newest edition JSON (the stored edition)
   /daily-brief/api/editions        edition index
 
 A sibling of Horizon's own pages, not part of the Horizon model. It never
-reads Horizon world-state or brief artifacts and never reads FCC books.
-Every edition passes through ``redact.scrub_edition`` before rendering, so the
-owner's balances, holdings, sends and P&L do not reach this host. Styling
-reuses Horizon's base palette and type. The newspaper's own local weather box
-is shown; Horizon regime and model widgets are not.
+reads Horizon world-state or brief artifacts. The page is internal-only, on
+Tailscale, and shows the stored edition with no money filter. The page and
+``/daily-brief/api/latest`` are built from the same view. Styling reuses
+Horizon's base palette and type. The newspaper's own local weather box is
+shown; Horizon regime and model widgets are not.
 
 Links are root-absolute (``/daily-brief/...``) so they also work through
 FCC's ``/horizon/*`` lens, which prefixes root-absolute URLs. In-page anchors
@@ -27,7 +27,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from research.daily_brief.redact import HELD_NOTE, scrub_edition
+from research.daily_brief.redact import scrub_edition
 from research.daily_brief.store import (
     BASE_PATH,
     BUCKET_TITLES,
@@ -273,9 +273,9 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .wx-temp{font:700 1.1rem var(--serif)}
 .qotd blockquote{margin:0;font:italic .85rem var(--serif)}.qotd cite{font-size:.72rem;color:var(--muted)}
 .masthead{min-width:0}
-.masthead h1{font-family:var(--serif);font-weight:800;font-size:clamp(2rem,7vw,3.4rem);line-height:1;margin:.1rem 0;letter-spacing:-.01em;overflow-wrap:anywhere}
+.masthead h1{font-family:var(--serif);font-weight:900;font-size:clamp(2rem,7vw,3.4rem);line-height:1;margin:.1rem 0;letter-spacing:-.01em;overflow-wrap:anywhere}
 .tagline{font:italic .8rem var(--serif);color:var(--muted)}
-.not-model{margin:.2rem 0 0;font:600 .68rem var(--sans);letter-spacing:.01em;color:var(--dim)}
+.not-model{margin:.2rem 0 0;font:500 .68rem var(--sans);letter-spacing:.01em;color:var(--dim)}
 .dateline{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .8rem;border-top:3px double var(--border2);border-bottom:1px solid var(--border2);padding:.3rem 0;margin:.5rem 0;font:600 .7rem var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin:.6rem 0}
 .card{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:.55rem .65rem;min-width:0;font-size:.8rem}
@@ -294,7 +294,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1.4rem}
 .sec{border-top:2px solid var(--border2);padding-top:.35rem;margin-top:.8rem;min-width:0;scroll-margin-top:.5rem}
 .sec-h{font:700 1.1rem var(--sans);margin:0 0 .3rem;display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
-.sec-count{font:600 .7rem var(--sans);color:var(--muted)}
+.sec-count{font:500 .7rem var(--sans);color:var(--muted)}
 .sec ul{margin:0;padding-left:1.1rem}.sec li{margin:.2rem 0;overflow-wrap:anywhere}
 .todo-group h3{font:700 .72rem var(--sans);letter-spacing:.06em;text-transform:uppercase;margin:.55rem 0 .2rem;color:var(--muted)}
 .todo-overdue h3{color:var(--red)}
@@ -378,7 +378,7 @@ def render_edition(
     is_latest_view: bool = False,
     now: datetime | None = None,
 ) -> str:
-    ed, held = scrub_edition(raw)
+    ed = scrub_edition(raw)[0]
     key = (ed["date"], ed["edition"])
     self_path = BASE_PATH if is_latest_view else edition_url(key)
     today = date.fromisoformat(ed["date"])
@@ -485,12 +485,10 @@ def render_edition(
         if mac_at
         else ("" if isinstance(mt, dict) else "Mac tasks: no snapshot in this edition. ")
     )
-    noun = "line" if held == 1 else "lines"
-    held_note = f'<span data-held="{held}">{held} {noun} {HELD_NOTE}. </span>' if held else ""
     snap = (
         f'<div class="foot">To-Do: snapshot from Notion Todo List at publish '
         f'({_e(_fmt_et_time(ed.get("published_at")))}, {_e(ed["date"])}). '
-        f"{mac_note}{held_note}"
+        f"{mac_note}"
         "Read-only; edit items in Notion. Published "
         f'{_e(_fmt_et_time(ed.get("published_at")))} \u00b7 <a href="{edition_url(key)}">Permalink</a>'
         f'<br>{_e(NOT_MODEL_NOTE)}</div>'

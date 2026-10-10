@@ -12,7 +12,7 @@ world-state or model brief artifacts.
 | Permalink | `https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief/YYYY-MM-DD/am\|pm` |
 | Archive | `https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief/archive` |
 | On the Horizon host (LAN debug) | `http://<prism>:8795/daily-brief` |
-| JSON | `/daily-brief/api/latest` (money-scrubbed), `/daily-brief/api/editions` |
+| JSON | `/daily-brief/api/latest` (the stored edition), `/daily-brief/api/editions` |
 | Old FCC URLs | `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL` + same subpath + query |
 
 The tailnet URL goes through FCC's existing `/horizon/*` lens (a plain reverse
@@ -23,7 +23,7 @@ proxy onto :8795, no FCC chrome), so no new Tailscale mapping is needed.
 ```
 research/daily_brief/
   store.py     edition JSON store, schema, publish, To-Do bucketing, Mac tasks builder
-  redact.py    keeps the owner's book (balances, holdings, sends, P&L) off the Horizon host
+  redact.py    passes the stored edition through unchanged (internal-only; no money filter)
   render.py    /daily-brief pages + routes (Horizon base palette and type)
   cli.py       publish CLI (also: python3 -m research.daily_brief ...)
   fixtures/    sample editions + Notion Mac tasks page
@@ -39,49 +39,22 @@ files, OFFLINE_PUBLISH.md), and neither is `investment/book_channel_map.json`.
 
 ## Rules on the Horizon host
 
-- **No personal book.** The owner's balances, holdings, allocation, orders,
-  sends, debt figures, P&L, wallet addresses, and FCC or prism links do not
-  render here. Every edition goes through `redact.scrub_edition` before
-  rendering and before `/daily-brief/api/latest`. That object is an allowlist
-  of the fields the page renders: unknown keys (an `fcc_snapshot`, an extra
-  weather field) are dropped. Fail closed: when a line might be the owner's
-  money, it is redacted.
-- **News amounts stay on three desks only.** Markets, Business and Books
-  headlines keep tickers and news amounts ("AAPL tops $180"). Words like tax,
-  credit, interest, cash, fund or loan do not by themselves hide a line.
-  Everywhere else (to-dos, Mac tasks, fleet, day-ahead, shipped, the front
-  page, theme, quote) any amount is removed: a currency symbol, a code before
-  or after the number (`USD 900`), a bare `12.4k`, or pay/sent/owe next to a
-  name, `@handle`, or number. The line is dropped when what remains is not a
-  real to-do. A base58 address split by spaces or line breaks is still an
-  address.
-- **Sends, holdings, debt.** A plain to-do stays ("Pay rent", "Review rent
-  ledger"). A send is stripped with or without a dollar sign and at any name
-  casing ("900 USDC to Alex Sample", "Send $900 to alex", "Zelle Jordan
-  Example"). Holdings and allocation ("BTC 42%", "we hold"), buy/sell orders,
-  and loan, debt, or P&L amounts are stripped even when they sit in a news
-  section. Wallet addresses cover EVM, Bitcoin bech32, legacy and P2SH, and
-  Solana base58. A Notion page id (pure hex) is not treated as an address.
-- **Links.** Every link field (item `link`, to-do `notion_url`, Mac
-  `source_url`, front-page `image`) is checked. FCC paths and the prism host
-  are stripped: `financial-command`, `/fcc`, `/treasury`, `prism-gateway`,
-  `prism:<port>`, any single-label host (`http://prism/...`,
-  `chris-mac:3000`), `*.ts.net`, `localhost`, `127.0.0.1`, `[::1]`, `100.x`
-  tailnet addresses, the Tailscale range `fd7a:115c:a1e0::/48`, and ports
-  8790 and 8795. The line of text stays when the URL was only in the link
-  field. A URL written in the text drops the line.
-- Whole sections are withheld only when the section is the private book
-  (YNAB, treasury, portfolio, balances, wallet). A headline that is itself a
-  personal send is replaced by "Front page held for the private edition". The
-  footer says how many lines were held back. The stored edition JSON is not
-  modified.
+- **Internal-only, unfiltered.** The Daily Brief is private. It is reachable
+  only over Tailscale. By owner decision there is no public edition and no
+  money filter: the page and `/daily-brief/api/latest` show the stored edition.
+  Sections, items, to-dos, Mac tasks, front-page copy, amounts, balances,
+  holdings, sends, weather, and links render as published, prism links included.
+  `redact.scrub_edition` returns that edition unchanged (held count 0) so the
+  page and the API share one view. Edition text is HTML-escaped so it cannot
+  inject markup. The stored JSON is not modified.
 - **Local weather, not a model widget.** The edition's weather box is shown,
   labeled "Local weather". There is no regime widget and no Horizon model
   weather. A quiet line under the masthead says "Daily Brief, not Horizon
   model output." The footer repeats that this page is not Horizon model output.
-- **No FCC chrome.** No FCC nav, tab bar, manifest or back-link. Links are
-  root-absolute under `/daily-brief` so they survive the lens prefixing;
-  in-page anchors carry the page path because the lens injects a `<base>`.
+- **No FCC chrome.** No FCC nav, tab bar, manifest or back-link. Links inside
+  an edition render as given. Navigation links are root-absolute under
+  `/daily-brief` so they survive the lens prefixing; in-page anchors carry the
+  page path because the lens injects a `<base>`.
 - Horizon is on hold; this adds no Horizon data and does not trigger the
   Horizon pipeline.
 
@@ -138,8 +111,10 @@ Override with `DAILY_BRIEF_DIR` (the legacy `FCC_BRIEF_DIR` still works).
 
 Section ids are lowercase slugs. Suggested ids: am `day-ahead`, `business`,
 `fleet`, `shipped`, `drafted-replies`; pm `tomorrow`, `loose-ends`,
-`roadside`, `ynab` (Mon). Private-book sections (`ynab`, and anything titled like treasury, portfolio, balances or wallet) stay in the stored edition but are withheld from the Horizon-hosted page. Markets, Business and Books are filtered line by line (see "Rules on the Horizon host"). The To-Do block is inserted after `day-ahead` /
-`tomorrow` (or where a section with id `todo` sits). Links must be http(s).
+`roadside`, `ynab` (Mon). Every section in the stored edition is rendered.
+The To-Do block is inserted after `day-ahead` /
+`tomorrow` (or where a section with id `todo` sits). Links must be http(s)
+and are rendered as given.
 
 ### `todos[]` (Notion Todo List snapshot)
 
@@ -273,7 +248,8 @@ publisher is down, `/daily-brief` keeps showing the last edition with a
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8795/daily-brief      # 200
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/horizon/daily-brief/archive   # 200
    curl -sI http://127.0.0.1:8000/brief/2026-10-09/am | grep -i '^location'        # /horizon/daily-brief/2026-10-09/am
-   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -cE 'USDC|we hold|Robinhood|financial-command|prism-gateway|fcc_snapshot|0x[a-fA-F0-9]{40}'   # 0
+   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -c 'Daily Brief, not Horizon model output'   # 1
+   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -c '<h4>Local weather</h4>'   # 1
    ```
 
 No new systemd unit and no new port: the page runs inside the existing
