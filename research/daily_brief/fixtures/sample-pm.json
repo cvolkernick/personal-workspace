@@ -22,10 +22,19 @@
       ]
     },
     {
+      "id": "markets",
+      "title": "Markets",
+      "items": [
+        "ETH steadies after a quiet session"
+      ]
+    },
+    {
       "id": "loose-ends",
       "title": "Loose Ends",
       "items": [
-        "Reply to landlord re: lease"
+        "Reply to landlord re: lease",
+        "SAMPLE book: we hold ETH, target 5%",
+        "SAMPLE book: wallet 0x5550000000000000000000000000000000000001"
       ]
     },
     {

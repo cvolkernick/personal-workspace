@@ -1,7 +1,8 @@
-"""Daily Brief pages on the Horizon host: routes, sections, no FCC chrome, no FCC money."""
+"""Daily Brief pages on the Horizon host: routes, full edition, no FCC chrome."""
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -18,23 +19,14 @@ from research.daily_brief.tests._common import ROOT, TmpStore, sample, store
 
 NOW = datetime(2026, 10, 9, 21, 0, tzinfo=store.ET)
 
-# Anything that would make this page look like (or lead back into) FCC.
+# Page chrome that must not appear. Edition links (including prism and
+# financial-command URLs published in the fixture) are content and stay.
 FCC_NAV_MARKERS = (
-    "FCC", "financial-command", "nav-horizon.js", "mobile-tabbar", "data-m-tab",
+    "nav-horizon.js", "mobile-tabbar", "data-m-tab",
     "manifest.webmanifest", "favicon.svg", 'href="/"', "Financial Command",
 )
 # Horizon model widgets that must not appear on this page.
 MODEL_MARKERS = ("regime", "world-state", "world_state", "scenario", "version_id", "Weather")
-# Money strings planted in the fixtures; none may reach the Horizon host.
-PLANTED_MONEY = (
-    "USDC", "$154", "$750", "$900", "$245", "$41,200", "BTC", "Coinbase", "Robinhood", "balance",
-    "Fund manager", "Burn rate", "treasury", "Business", "buyout", "new dashboard card",
-)
-
-
-def visible_text(page: str) -> str:
-    page = re.sub(r"<style>.*?</style>", " ", page, flags=re.S)
-    return re.sub(r"<[^>]+>", " ", page)
 
 
 class RenderBase(TmpStore):
@@ -52,7 +44,8 @@ class TestRoutes(RenderBase):
         self.assertEqual(code, 200)
         self.assertIn("text/html", ctype)
         self.assertIn("Evening Edition", body)
-        self.assertIn(redact.HELD_HEADLINE, body)  # pm headline carried money
+        self.assertIn("SAMPLE: USDC send is $245 short for tomorrow", body)
+        self.assertNotIn("Front page held for the private edition", body)
         self.assertNotIn('class="stale"', body)
         self.assertEqual(self.get("/daily-brief/")[0], 200)
 
@@ -92,14 +85,19 @@ class TestRoutes(RenderBase):
         _, _, body = self.get("/daily-brief", now=datetime(2026, 10, 11, 9, 0, tzinfo=store.ET))
         self.assertIn('class="stale"', body)
 
-    def test_api_latest_is_scrubbed(self):
+    def test_api_latest_matches_stored_edition(self):
         code, ctype, body = self.get("/daily-brief/api/latest")
         self.assertEqual(code, 200)
+        self.assertIn("application/json", ctype)
         data = json.loads(body)
+        stored = store.load_edition("2026-10-09", "pm", self.root)
         self.assertEqual(data["url"], "/daily-brief/2026-10-09/pm")
-        self.assertEqual(data["edition"]["front_page"]["headline"], redact.HELD_HEADLINE)
-        self.assertNotIn("USDC", body)
-        self.assertNotIn("weather", data["edition"])
+        self.assertEqual(data["edition"], stored)
+        self.assertEqual(data["edition"], redact.scrub_edition(stored)[0])
+        self.assertEqual(data["edition"]["front_page"]["headline"], "SAMPLE: USDC send is $245 short for tomorrow")
+        self.assertIn("we hold ETH, target 5%", body)
+        self.assertEqual(data["edition"]["weather"], "Tomorrow: 87° / 73°, sunny")
+        self.assertIn("ETH steadies after a quiet session", body)
 
     def test_html_escaped(self):
         ed = sample("sample-am")
@@ -125,9 +123,10 @@ class TestSections(RenderBase):
     def test_mac_tasks_items(self):
         _, _, body = self.get("/daily-brief/2026-10-09/am")
         self.assertIn('data-mac-state="items"', body)
-        self.assertEqual(body.count('class="mac-item"'), 3)
+        self.assertEqual(body.count('class="mac-item"'), 4)
         self.assertIn("SAMPLE: Set up SuperTake", body)
-        self.assertIn("3 Mac tasks", body)
+        self.assertIn("SAMPLE: check the Robinhood balance on the Mac", body)
+        self.assertIn("4 Mac tasks", body)
 
     def test_mac_tasks_empty_states(self):
         _, _, pm = self.get("/daily-brief/2026-10-09/pm")  # every box checked
@@ -176,29 +175,6 @@ class TestNoFccOnHorizonHost(RenderBase):
                 self.assertNotIn(m, body, f"{m!r} on {p}")
         self.assertIn("Not Horizon model output", self.get("/daily-brief")[2])
 
-    def test_no_fcc_money_fields_in_rendered_html(self):
-        for p in self.PAGES + ("/daily-brief/api/latest",):
-            _, _, body = self.get(p)
-            for m in PLANTED_MONEY:
-                self.assertNotIn(m, body, f"{m!r} on {p}")
-            text = visible_text(body) if not p.endswith("latest") else body
-            hit = redact.MONEY_RE.search(text)
-            self.assertIsNone(hit, f"money-like {hit and hit.group(0)!r} on {p}")
-            self.assertNotRegex(text, r"[$]\s?\d")
-
-    def test_withheld_count_and_clean_parts_kept(self):
-        _, _, body = self.get("/daily-brief/2026-10-09/am")
-        self.assertIn("lines with money details kept off this page", body)
-        self.assertIn("SAMPLE: Daily Brief moves to the Horizon host", body)
-        self.assertIn("2 pickups, 1 dropoff today", body)
-        self.assertNotIn('id="sec-business"', body)
-        self.assertNotIn('id="sec-loose-ends"', body)  # every line was money
-        self.assertIn('id="sec-shipped"', body)
-
-    def test_ynab_section_withheld(self):
-        self.assertTrue(redact.is_fcc_section({"id": "ynab", "title": "YNAB"}))
-        self.assertFalse(redact.is_fcc_section({"id": "fleet", "title": "Fleet"}))
-
     def test_store_keeps_full_edition(self):
         raw = store.load_edition("2026-10-09", "am", self.root)
         self.assertIn("Business", [s["title"] for s in raw["sections"]])
@@ -209,6 +185,157 @@ class TestNoFccOnHorizonHost(RenderBase):
             self.assertNotIn("research.horizon", src, mod)
             self.assertNotIn("world_state", src, mod)
             self.assertNotIn("from treasury", src, mod)
+
+
+class TestNewsAndWeatherKept(RenderBase):
+    def test_markets_business_books_and_tickers(self):
+        _, _, body = self.get("/daily-brief/2026-10-09/am")
+        for sid, title in (("markets", "Markets"), ("business", "Business"), ("books", "Books")):
+            self.assertIn(f'id="sec-{sid}"', body)
+            self.assertIn(title, body)
+        for line in (
+            "NVDA rises after the chipmaker lifts its outlook",
+            "AAPL tops $180 as the buyback continues",
+            "BTC holds near the prior close; ETF flows turn positive",
+            "Senate tax bill advances; credit markets calm as interest rates hold",
+            "Cash levels at funds rise and loan demand cools",
+            "Treasury yields ease on the long end",
+            "Coinbase plans a new listing next month",
+            "Inflation target 2% holds in the latest print",
+            "AAPL price target 20% is unchanged",
+            "Panamerica opens a driver handbook",
+            "SAMPLE: a short novel about a lighthouse keeper",
+            "Review rent ledger",
+            "Call the shop, then review rent ledger before the $25 to Alex Sample",
+            "$25 to Alex Sample",
+            "SAMPLE money todo: move $900 USDC",
+            "SAMPLE money paragraph: Coinbase USDC is about $154, so the Saturday send is $750 short.",
+        ):
+            self.assertIn(line, body, line)
+
+    def test_local_weather_box(self):
+        _, _, am = self.get("/daily-brief/2026-10-09/am")
+        self.assertIn("<h4>Local weather</h4>", am)
+        self.assertIn("Partly cloudy, afternoon storms", am)
+        self.assertIn("88°", am)
+        self.assertIn("74°", am)
+        self.assertIn("40% after 2 PM", am)
+        _, _, pm = self.get("/daily-brief/2026-10-09/pm")
+        self.assertIn("<h4>Local weather</h4>", pm)
+        self.assertIn("Tomorrow: 87° / 73°, sunny", pm)
+        _, _, old = self.get("/daily-brief/2026-10-08/pm")
+        self.assertIn("<h4>Local weather</h4>", old)
+        self.assertIn("Not reported", old)
+        self.assertNotIn(">Weather<", old)
+
+    def test_not_model_line(self):
+        for p in ("/daily-brief", "/daily-brief/2026-10-09/am", "/daily-brief/2026-10-09/pm",
+                  "/daily-brief/archive", "/daily-brief/2026-10-08/pm"):
+            self.assertIn("Daily Brief, not Horizon model output", self.get(p)[2], p)
+
+    def test_original_font_weights(self):
+        _, _, body = self.get("/daily-brief/2026-10-09/am")
+        self.assertIn(".masthead h1{font-family:var(--serif);font-weight:900;", body)
+        self.assertIn(".not-model{margin:.2rem 0 0;font:500 .68rem var(--sans);", body)
+        self.assertIn(".sec-count{font:500 .7rem var(--sans);", body)
+
+
+def assert_full_edition(testcase, stored: dict, html_body: str, api_edition: dict) -> None:
+    """Every stored field the page shows is present, and the API is that edition."""
+    testcase.assertEqual(api_edition, stored)
+    testcase.assertEqual(redact.scrub_edition(stored), (stored, 0))
+    testcase.assertNotIn("Front page held for the private edition", html_body)
+    testcase.assertNotIn("lines with money details kept off this page", html_body)
+    testcase.assertNotIn('data-held=', html_body)
+    fp = stored.get("front_page") or {}
+    testcase.assertIn(html.escape(fp.get("headline") or ""), html_body)
+    if fp.get("subhead"):
+        testcase.assertIn(html.escape(fp["subhead"]), html_body)
+    for para in re.split(r"\n\s*\n", fp.get("body") or ""):
+        if para.strip():
+            testcase.assertIn(html.escape(para.strip()), html_body, para.strip()[:80])
+    testcase.assertIn("<h4>Local weather</h4>", html_body)
+    weather = stored.get("weather")
+    if isinstance(weather, str):
+        testcase.assertIn(html.escape(weather), html_body)
+    elif isinstance(weather, dict):
+        for key in ("summary", "icon", "rain", "wind", "note"):
+            if weather.get(key):
+                testcase.assertIn(html.escape(str(weather[key])), html_body, key)
+        if weather.get("high") is not None:
+            testcase.assertIn(f"{html.escape(str(weather['high']))}°", html_body)
+        if weather.get("low") is not None:
+            testcase.assertIn(f"{html.escape(str(weather['low']))}°", html_body)
+    for section in stored.get("sections") or []:
+        sid = section.get("id") or ""
+        testcase.assertIn(f'id="sec-{html.escape(sid)}"', html_body, sid)
+        if section.get("title"):
+            testcase.assertIn(html.escape(section["title"]), html_body, section["title"])
+        for item in section.get("items") or []:
+            text = item if isinstance(item, str) else item.get("text", "")
+            if text:
+                testcase.assertIn(html.escape(text), html_body, text)
+            if isinstance(item, dict) and item.get("link"):
+                testcase.assertIn(f'href="{html.escape(item["link"])}"', html_body, item["link"])
+    for todo in stored.get("todos") or []:
+        title = todo.get("title") or ""
+        testcase.assertIn(html.escape(title), html_body, title)
+        if todo.get("notion_url"):
+            testcase.assertIn(f'href="{html.escape(todo["notion_url"])}"', html_body, title)
+    mt = stored.get("mac_tasks") if isinstance(stored.get("mac_tasks"), dict) else None
+    if mt:
+        if isinstance(mt.get("source_url"), str) and mt["source_url"].startswith("https://"):
+            testcase.assertIn(f'href="{html.escape(mt["source_url"])}"', html_body)
+        for item in mt.get("items") or []:
+            if isinstance(item, dict) and item.get("checked") is True:
+                continue
+            text = item if isinstance(item, str) else (item.get("text") or "")
+            if text:
+                testcase.assertIn(html.escape(text), html_body, text)
+
+
+class TestFullEdition(TmpStore):
+    def test_morning_edition_renders_unchanged(self):
+        self.pub(sample("sample-am"))
+        stored = store.load_edition("2026-10-09", "am", self.root)
+        _, _, page = render.route("/daily-brief/2026-10-09/am", root=self.root, now=NOW)
+        code, _, api_body = render.route("/daily-brief/api/latest", root=self.root, now=NOW)
+        self.assertEqual(code, 200)
+        api_edition = json.loads(api_body)["edition"]
+        assert_full_edition(self, stored, page, api_edition)
+        self.assertIn(
+            'href="https://prism-gateway.tailb1085a.ts.net/financial-command/index.html"',
+            page,
+        )
+        self.assertIn("SAMPLE: Rivian buyout quote is $41,200", page)
+        self.assertIn("SAMPLE book: wallet 0x5550000000000000000000000000000000000001", page)
+        self.assertIn("Daily Brief, not Horizon model output", page)
+
+    def test_evening_page_matches_latest_api(self):
+        self.pub(sample("sample-pm"))
+        stored = store.load_edition("2026-10-09", "pm", self.root)
+        _, _, page = render.route("/daily-brief", root=self.root, now=NOW)
+        _, _, api_body = render.route("/daily-brief/api/latest", root=self.root, now=NOW)
+        assert_full_edition(self, stored, page, json.loads(api_body)["edition"])
+        self.assertIn("SAMPLE: USDC send is $245 short for tomorrow", page)
+        self.assertIn("Tomorrow: 87° / 73°, sunny", page)
+
+    def test_ynab_section_renders(self):
+        ed = sample("sample-empty-todos")
+        ed["sections"].append({
+            "id": "ynab",
+            "title": "YNAB",
+            "items": ["Review categories", "SAMPLE: card balance is $245"],
+        })
+        self.pub(ed)
+        stored = store.load_edition(ed["date"], ed["edition"], self.root)
+        _, _, page = render.route(
+            f"/daily-brief/{ed['date']}/{ed['edition']}", root=self.root, now=NOW,
+        )
+        _, _, api_body = render.route("/daily-brief/api/latest", root=self.root, now=NOW)
+        assert_full_edition(self, stored, page, json.loads(api_body)["edition"])
+        self.assertIn('id="sec-ynab"', page)
+        self.assertIn("SAMPLE: card balance is $245", page)
 
 
 class TestHorizonServerIntegration(RenderBase):
@@ -229,7 +356,7 @@ class TestHorizonServerIntegration(RenderBase):
                         self.assertIn("text/html", r.headers["Content-Type"])
                         page = r.read()
                         self.assertIn(b"The Daily Brief", page)
-                        self.assertNotIn(b"USDC", page)
+                        self.assertIn(b"Daily Brief, not Horizon model output", page)
                 with self.assertRaises(urllib.error.HTTPError) as cm:
                     urllib.request.urlopen(base + "/daily-brief/2020-01-01/am", timeout=10)
                 self.assertEqual(cm.exception.code, 404)

@@ -35,11 +35,40 @@
       ]
     },
     {
+      "id": "markets",
+      "title": "Markets",
+      "items": [
+        "NVDA rises after the chipmaker lifts its outlook",
+        "AAPL tops $180 as the buyback continues",
+        "BTC holds near the prior close; ETF flows turn positive",
+        "Senate tax bill advances; credit markets calm as interest rates hold",
+        "Cash levels at funds rise and loan demand cools",
+        "Treasury yields ease on the long end",
+        "Coinbase plans a new listing next month",
+        "Inflation target 2% holds in the latest print",
+        "AAPL price target 20% is unchanged",
+        "SAMPLE book: we hold NVDA, target 8%, may_change",
+        "SAMPLE book: trim SOL",
+        "SAMPLE book: Coinbase USDC balance is $154",
+        "SAMPLE book: capital so-what is concentration"
+      ]
+    },
+    {
       "id": "business",
       "title": "Business",
       "items": [
+        "Panamerica opens a driver handbook",
         "SAMPLE: Fund manager live trading paused",
-        "SAMPLE: Burn rate on track vs. buffer target"
+        "SAMPLE: Burn rate on track vs. buffer target",
+        "SAMPLE: Turo revenue payout is $900",
+        "SAMPLE: Panamerica payout hit $750"
+      ]
+    },
+    {
+      "id": "books",
+      "title": "Books",
+      "items": [
+        "SAMPLE: a short novel about a lighthouse keeper"
       ]
     },
     {
@@ -69,8 +98,12 @@
       "id": "loose-ends",
       "title": "Loose Ends",
       "items": [
+        "Reply to the shop about the Thursday pickup",
         "SAMPLE: 0.05 BTC send is still pending",
-        "SAMPLE: treasury snapshot is stale"
+        "SAMPLE: treasury snapshot is stale",
+        "SAMPLE book: Morpho loan LTV is 42%",
+        "SAMPLE book: card balance is $245",
+        "SAMPLE book: wallet 0x5550000000000000000000000000000000000001"
       ]
     },
     {
@@ -127,6 +160,30 @@
       "owner": "Me",
       "priority": "High",
       "notion_url": "https://www.notion.so/sample-money"
+    },
+    {
+      "title": "Review rent ledger",
+      "status": "Not started",
+      "due": "2026-10-12",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-rent-ledger"
+    },
+    {
+      "title": "$25 to Alex Sample",
+      "status": "Not started",
+      "due": "2026-10-09",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-rent-send"
+    },
+    {
+      "title": "Call the shop, then review rent ledger before the $25 to Alex Sample",
+      "status": "Not started",
+      "due": "2026-10-09",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-rent-note"
     }
   ],
   "mac_tasks": {

@@ -3,14 +3,15 @@
   /daily-brief                     newest edition (am or pm)
   /daily-brief/YYYY-MM-DD/am|pm    permalink
   /daily-brief/archive             editions by Eastern date
-  /daily-brief/api/latest          newest edition JSON (money-scrubbed)
+  /daily-brief/api/latest          newest edition JSON (the stored edition)
   /daily-brief/api/editions        edition index
 
 A sibling of Horizon's own pages, not part of the Horizon model. It never
-reads Horizon world-state or brief artifacts and never reads FCC books.
-Every edition passes through ``redact.scrub_edition`` before rendering, so FCC
-marks, balances and capital so-whats do not reach this host. Styling reuses
-Horizon's base palette and type; there are no regime, weather or model widgets.
+reads Horizon world-state or brief artifacts. The page is internal-only, on
+Tailscale, and shows the stored edition with no money filter. The page and
+``/daily-brief/api/latest`` are built from the same view. Styling reuses
+Horizon's base palette and type. The newspaper's own local weather box is
+shown; Horizon regime and model widgets are not.
 
 Links are root-absolute (``/daily-brief/...``) so they also work through
 FCC's ``/horizon/*`` lens, which prefixes root-absolute URLs. In-page anchors
@@ -26,7 +27,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from research.daily_brief.redact import HELD_NOTE, scrub_edition
+from research.daily_brief.redact import scrub_edition
 from research.daily_brief.store import (
     BASE_PATH,
     BUCKET_TITLES,
@@ -52,6 +53,7 @@ PAPER_NAME = "The Daily Brief"
 TAGLINE = "All the news that fits the day. Printed by Grok."
 LOCATION = "Fort Myers, FL"
 DASH, OLDER, NEWER = "\u2014", "\u2190 Older", "Newer \u2192"
+NOT_MODEL_LINE = "Daily Brief, not Horizon model output"
 NOT_MODEL_NOTE = "A personal newspaper published by Grok. Not Horizon model output."
 
 _e = html.escape
@@ -86,6 +88,32 @@ def _link(text: str, url: Any, cls: str = "") -> str:
     if _is_http(url):
         return f'<a{c} href="{_e(url)}" target="_blank" rel="noopener noreferrer">{_e(text)}</a>'
     return f"<span{c}>{_e(text)}</span>" if cls else _e(text)
+
+
+def _weather_html(w: Any) -> str:
+    """Local conditions from the edition. Empty when the edition has none."""
+    if not w:
+        return '<div class="wx-sum muted">Not reported</div>'
+    if isinstance(w, str):
+        return f'<div class="wx-sum">{_e(w)}</div>'
+    parts = []
+    hi, lo = w.get("high"), w.get("low")
+    icon = w.get("icon") or ""
+    if hi is not None or lo is not None:
+        parts.append(
+            f'<div class="wx-temp">{_e(str(icon))} {_e(str(hi if hi is not None else DASH))}°'
+            f" / {_e(str(lo if lo is not None else DASH))}°</div>"
+        )
+    if w.get("summary"):
+        parts.append(f'<div class="wx-sum">{_e(str(w["summary"]))}</div>')
+    extra = [str(w[k]) for k in ("rain", "wind", "note") if w.get(k)]
+    if extra:
+        parts.append(f'<div class="wx-extra muted">{_e(" · ".join(extra))}</div>')
+    return "".join(parts) or '<div class="wx-sum muted">Not reported</div>'
+
+
+def _quiet_line() -> str:
+    return f'<p class="not-model">{_e(NOT_MODEL_LINE)}</p>'
 
 
 def _quote_html(q: Any) -> str:
@@ -239,13 +267,15 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.8rem;margin-bottom:.4rem;flex-wrap:wrap}
 .topbar a{border:1px solid var(--border);border-radius:999px;padding:.2rem .6rem;color:var(--text);background:var(--panel)}
 .stale{border:1px solid var(--red);color:var(--red);border-radius:var(--radius);padding:.4rem .6rem;font-size:.8rem;margin:.4rem 0}
-.head{display:grid;grid-template-columns:2fr 1fr;gap:.75rem;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.5rem}
-.qotd{font-size:.8rem;border:1px solid var(--border);border-radius:var(--radius);padding:.45rem .6rem;background:var(--panel);min-width:0}
-.qotd h4{margin:0 0 .2rem;font:600 .65rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.head{display:grid;grid-template-columns:1fr 2fr 1fr;gap:.75rem;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.5rem}
+.wx,.qotd{font-size:.8rem;border:1px solid var(--border);border-radius:var(--radius);padding:.45rem .6rem;background:var(--panel);min-width:0}
+.wx h4,.qotd h4{margin:0 0 .2rem;font:600 .65rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.wx-temp{font:700 1.1rem var(--serif)}
 .qotd blockquote{margin:0;font:italic .85rem var(--serif)}.qotd cite{font-size:.72rem;color:var(--muted)}
 .masthead{min-width:0}
 .masthead h1{font-family:var(--serif);font-weight:900;font-size:clamp(2rem,7vw,3.4rem);line-height:1;margin:.1rem 0;letter-spacing:-.01em;overflow-wrap:anywhere}
 .tagline{font:italic .8rem var(--serif);color:var(--muted)}
+.not-model{margin:.2rem 0 0;font:500 .68rem var(--sans);letter-spacing:.01em;color:var(--dim)}
 .dateline{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .8rem;border-top:3px double var(--border2);border-bottom:1px solid var(--border2);padding:.3rem 0;margin:.5rem 0;font:600 .7rem var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin:.6rem 0}
 .card{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:.55rem .65rem;min-width:0;font-size:.8rem}
@@ -292,7 +322,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-around;background:rgba(6,10,16,.92);border-top:1px solid var(--border);padding:.35rem 0 calc(.35rem + env(safe-area-inset-bottom));z-index:5}
 .tabbar a{color:var(--muted);font-size:.7rem;display:flex;flex-direction:column;align-items:center;min-width:3.4rem}
 .tabbar a.active{color:var(--text);font-weight:700}.tabbar .i{font-size:1rem}
-@media (max-width:760px){.head{grid-template-columns:minmax(0,1fr)}.cards{grid-template-columns:minmax(0,1fr)}.grid{grid-template-columns:minmax(0,1fr)}.front .body{columns:1}}
+@media (max-width:760px){.head{grid-template-columns:1fr 1fr}.masthead{grid-column:1/-1;order:-1}.cards{grid-template-columns:minmax(0,1fr)}.grid{grid-template-columns:minmax(0,1fr)}.front .body{columns:1}}
 """
 
 HTML = "text/html; charset=utf-8"
@@ -348,7 +378,7 @@ def render_edition(
     is_latest_view: bool = False,
     now: datetime | None = None,
 ) -> str:
-    ed, held = scrub_edition(raw)
+    ed = scrub_edition(raw)[0]
     key = (ed["date"], ed["edition"])
     self_path = BASE_PATH if is_latest_view else edition_url(key)
     today = date.fromisoformat(ed["date"])
@@ -377,7 +407,8 @@ def render_edition(
     )
     head = (
         '<header class="head">'
-        f'<div class="masthead"><h1>{_e(PAPER_NAME)}</h1><div class="tagline">{_e(TAGLINE)}</div></div>'
+        f'<div class="wx"><h4>Local weather</h4>{_weather_html(ed.get("weather"))}</div>'
+        f'<div class="masthead"><h1>{_e(PAPER_NAME)}</h1><div class="tagline">{_e(TAGLINE)}</div>{_quiet_line()}</div>'
         f'<div class="qotd"><h4>Quote of the day</h4>{_quote_html(ed.get("quote"))}</div>'
         "</header>"
     )
@@ -454,12 +485,10 @@ def render_edition(
         if mac_at
         else ("" if isinstance(mt, dict) else "Mac tasks: no snapshot in this edition. ")
     )
-    noun = "line" if held == 1 else "lines"
-    held_note = f'<span data-held="{held}">{held} {noun} {HELD_NOTE}. </span>' if held else ""
     snap = (
         f'<div class="foot">To-Do: snapshot from Notion Todo List at publish '
         f'({_e(_fmt_et_time(ed.get("published_at")))}, {_e(ed["date"])}). '
-        f"{mac_note}{held_note}"
+        f"{mac_note}"
         "Read-only; edit items in Notion. Published "
         f'{_e(_fmt_et_time(ed.get("published_at")))} \u00b7 <a href="{edition_url(key)}">Permalink</a>'
         f'<br>{_e(NOT_MODEL_NOTE)}</div>'
@@ -496,7 +525,8 @@ def render_archive(root: Path | None = None) -> str:
     body = (
         _topbar()
         + f'<header class="masthead" style="margin:.4rem 0"><h1>{_e(PAPER_NAME)}</h1>'
-        '<div class="tagline">Archive \u00b7 editions by Eastern date</div></header>'
+        '<div class="tagline">Archive \u00b7 editions by Eastern date</div>'
+        f"{_quiet_line()}</header>"
         f'<div class="dateline"><span>{len(keys)} editions</span><span>{latest}</span></div>'
         f"{rows}"
         f'<div class="foot">{_e(NOT_MODEL_NOTE)}</div>'
@@ -507,7 +537,7 @@ def render_archive(root: Path | None = None) -> str:
 def render_empty() -> str:
     body = (
         _topbar()
-        + f'<header class="masthead"><h1>{_e(PAPER_NAME)}</h1><div class="tagline">{_e(TAGLINE)}</div></header>'
+        + f'<header class="masthead"><h1>{_e(PAPER_NAME)}</h1><div class="tagline">{_e(TAGLINE)}</div>{_quiet_line()}</header>'
         '<p class="empty" style="text-align:center;margin-top:2rem">No edition published yet. '
         "The morning (~8 AM ET) and evening (~8 PM ET) editions appear here once Grok publishes them.</p>"
         f'<div class="foot">{_e(NOT_MODEL_NOTE)}</div>'
@@ -518,6 +548,7 @@ def render_empty() -> str:
 def render_not_found(d: str, e: str) -> str:
     body = _topbar() + (
         f'<p class="empty" style="margin-top:2rem">No {_e(edition_label(e) if e in EDITIONS else "edition")} on file for {_e(d)}.</p>'
+        f'<div class="foot">{_quiet_line()}</div>'
     )
     return _page(f"{PAPER_NAME} \u00b7 not found", body)
 

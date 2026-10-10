@@ -12,7 +12,7 @@ world-state or model brief artifacts.
 | Permalink | `https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief/YYYY-MM-DD/am\|pm` |
 | Archive | `https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief/archive` |
 | On the Horizon host (LAN debug) | `http://<prism>:8795/daily-brief` |
-| JSON | `/daily-brief/api/latest` (money-scrubbed), `/daily-brief/api/editions` |
+| JSON | `/daily-brief/api/latest` (the stored edition), `/daily-brief/api/editions` |
 | Old FCC URLs | `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL` + same subpath + query |
 
 The tailnet URL goes through FCC's existing `/horizon/*` lens (a plain reverse
@@ -23,7 +23,7 @@ proxy onto :8795, no FCC chrome), so no new Tailscale mapping is needed.
 ```
 research/daily_brief/
   store.py     edition JSON store, schema, publish, To-Do bucketing, Mac tasks builder
-  redact.py    keeps FCC marks, balances and capital so-whats off the Horizon host
+  redact.py    passes the stored edition through unchanged (internal-only; no money filter)
   render.py    /daily-brief pages + routes (Horizon base palette and type)
   cli.py       publish CLI (also: python3 -m research.daily_brief ...)
   fixtures/    sample editions + Notion Mac tasks page
@@ -39,23 +39,22 @@ files, OFFLINE_PUBLISH.md), and neither is `investment/book_channel_map.json`.
 
 ## Rules on the Horizon host
 
-- **No FCC money.** No FCC marks, balances or capital so-whats render here.
-  Every edition goes through `redact.scrub_edition` before rendering and
-  before `/daily-brief/api/latest`. Withheld: whole money sections (id/title
-  like business, money, treasury, fund, markets, portfolio, ynab-style
-  budget/bills/payments), and any line, todo, Mac task, quote, theme or
-  front-page paragraph with an amount (`$900`, `0.05 BTC`), an account or
-  ticker word (USDC, Coinbase, balance, NAV, P&L, runway, ...) or a link into
-  FCC. A money headline is replaced by "Front page held for the private
-  edition". The footer says how many lines were held back. The match is
-  deliberately broad: a false positive only hides a line. The stored edition
-  JSON is not modified.
-- **No model widgets.** No regime, weather or model widgets. The newspaper's
-  local weather box is not rendered here (the field stays in the schema and
-  the store). The footer says "Not Horizon model output."
-- **No FCC chrome.** No FCC nav, tab bar, manifest or back-link. Links are
-  root-absolute under `/daily-brief` so they survive the lens prefixing;
-  in-page anchors carry the page path because the lens injects a `<base>`.
+- **Internal-only, unfiltered.** The Daily Brief is private. It is reachable
+  only over Tailscale. By owner decision there is no public edition and no
+  money filter: the page and `/daily-brief/api/latest` show the stored edition.
+  Sections, items, to-dos, Mac tasks, front-page copy, amounts, balances,
+  holdings, sends, weather, and links render as published, prism links included.
+  `redact.scrub_edition` returns that edition unchanged (held count 0) so the
+  page and the API share one view. Edition text is HTML-escaped so it cannot
+  inject markup. The stored JSON is not modified.
+- **Local weather, not a model widget.** The edition's weather box is shown,
+  labeled "Local weather". There is no regime widget and no Horizon model
+  weather. A quiet line under the masthead says "Daily Brief, not Horizon
+  model output." The footer repeats that this page is not Horizon model output.
+- **No FCC chrome.** No FCC nav, tab bar, manifest or back-link. Links inside
+  an edition render as given. Navigation links are root-absolute under
+  `/daily-brief` so they survive the lens prefixing; in-page anchors carry the
+  page path because the lens injects a `<base>`.
 - Horizon is on hold; this adds no Horizon data and does not trigger the
   Horizon pipeline.
 
@@ -112,8 +111,10 @@ Override with `DAILY_BRIEF_DIR` (the legacy `FCC_BRIEF_DIR` still works).
 
 Section ids are lowercase slugs. Suggested ids: am `day-ahead`, `business`,
 `fleet`, `shipped`, `drafted-replies`; pm `tomorrow`, `loose-ends`,
-`roadside`, `ynab` (Mon). Money sections (`business`, `ynab`, ...) stay in the stored edition but are withheld from the Horizon-hosted page (see "Rules on the Horizon host"). The To-Do block is inserted after `day-ahead` /
-`tomorrow` (or where a section with id `todo` sits). Links must be http(s).
+`roadside`, `ynab` (Mon). Every section in the stored edition is rendered.
+The To-Do block is inserted after `day-ahead` /
+`tomorrow` (or where a section with id `todo` sits). Links must be http(s)
+and are rendered as given.
 
 ### `todos[]` (Notion Todo List snapshot)
 
@@ -247,7 +248,8 @@ publisher is down, `/daily-brief` keeps showing the last edition with a
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8795/daily-brief      # 200
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/horizon/daily-brief/archive   # 200
    curl -sI http://127.0.0.1:8000/brief/2026-10-09/am | grep -i '^location'        # /horizon/daily-brief/2026-10-09/am
-   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -cE 'USDC|Coinbase|\$[0-9]'   # 0
+   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -c 'Daily Brief, not Horizon model output'   # 1
+   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -c '<h4>Local weather</h4>'   # 1
    ```
 
 No new systemd unit and no new port: the page runs inside the existing
