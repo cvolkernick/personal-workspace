@@ -30,7 +30,7 @@
     "card_balance_as_of": "2026-09-26T19:46:55Z",
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
-    "notes": "vault_usdc = HY LTV Buffer balance (generic high-yield leverage defense — not product-branded USDC/USDG, not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance 498.82 is the 2026-09-26 owner-verified One Card owed (#944). source=manual beats a disagreeing YNAB/Plaid read until that read is within $1, then YNAB wins again.",
+    "notes": "vault_usdc = HY LTV Buffer balance (generic high-yield leverage defense — not product-branded USDC/USDG, not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit ≈ deposit − balance. card_balance 498.82 is the 2026-09-26 owner-verified One Card owed (#944). source=manual beats a disagreeing YNAB/Plaid read until that read is within $1, then YNAB wins again.",
     "variable_apr": null,
     "liquidation_price_btc_usd": null
   },
@@ -42,13 +42,13 @@
     "usdg_earn_apy_est": "0.07",
     "margin_loan_usd": null,
     "equity_collateral_usd": null,
-    "notes": "Primary \u2022\u2022\u2022\u20229737 = equity book + optional margin to fund USDG. Agentic \u2022\u2022\u2022\u20221752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto\u2192Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
+    "notes": "Primary ••••9737 = equity book + optional margin to fund USDG. Agentic ••••1752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto→Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
   },
   "ynab": {
     "budget_name": null,
     "account_name": null,
     "checking_account_name": null,
-    "x_money_account_name": "Main \u2013 2201",
+    "x_money_account_name": "Main – 2201",
     "x_money_account_last4": "2201",
     "x_money_space_names": [
       "Auto Fleet",
@@ -59,7 +59,7 @@
       "8680"
     ],
     "x_money_apy_est": 0.06,
-    "notes": "Token at ~/.config/ynab/token. X Money main is last-4 2201 (Main \u2013 2201). Spaces: Auto Fleet / Collateral / Utilities. EveryDay Checking \u2013 8680 is Navy Federal \u2014 never X Money. Do not leftover-pick a random checking. X Money cash pays ~6% APY (product rate; confirm in app)."
+    "notes": "Token at ~/.config/ynab/token. X Money main is last-4 2201 (Main – 2201). Spaces: Auto Fleet / Collateral / Utilities. EveryDay Checking – 8680 is Navy Federal — never X Money. Do not leftover-pick a random checking. X Money cash pays ~6% APY (product rate; confirm in app)."
   },
   "plaid_x_money": {
     "stale_after_hours": 6,
@@ -122,19 +122,14 @@
         "symbol": "USDC",
         "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
         "role": "onchain_stable"
-      },
-      {
-        "symbol": "JR-strcUSX",
-        "mint": "BQ6LPc68knpko292UsMLbQYfaHhWD7S84sA98632hrzX",
-        "role": "dc_credit_parlay"
       }
     ],
-    "notes": "Public RPC only. JR-strcUSX is DC-credit parlay, never HY/LTV defense. NFT/meme dust ignored."
+    "notes": "Public RPC only. Whitelist SOL + USDC. NFT/meme dust ignored. JR-strcUSX retired 2026-10-10 (Solstice wound down)."
   },
   "braiins": {
     "payout_threshold_btc": 0.005,
     "payout_address": "3K9pyUufLpazzUC1NTD16JkwCouQmF3TLg",
-    "notes": "Owner 2026-08-27: pool payout threshold returned 0.01 \u2192 0.005 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer 0.01 from the 2026-08-05 raise, and do not wait for history (last send was a 0.002 manual). Braiins free on-chain floor is 0.005; this is now both the pool minimum and our account rule. #689: Pi is the producer (braiins-refresh.timer); token at ~/.config/braiins/token on prism-agent, never this file. #960: payout_address is the public on-chain destination used when the Braiins payout list is empty or unknown. Do not copy it into snapshot files."
+    "notes": "Owner 2026-08-27: pool payout threshold returned 0.01 → 0.005 BTC (Braiins UI). FCC next-payout ETA / progress read this override — do not re-infer 0.01 from the 2026-08-05 raise, and do not wait for history (last send was a 0.002 manual). Braiins free on-chain floor is 0.005; this is now both the pool minimum and our account rule. #689: Pi is the producer (braiins-refresh.timer); token at ~/.config/braiins/token on prism-agent, never this file. #960: payout_address is the public on-chain destination used when the Braiins payout list is empty or unknown. Do not copy it into snapshot files."
   },
   "rh_producer": {
     "sot_host": "prism",
