@@ -118,6 +118,37 @@ class TestPublishCli(TmpStore):
         written = json.loads((self.root / "2026-10-09-am.json").read_text(encoding="utf-8"))
         self.assertEqual(written["edition"], "am")
 
+    def test_public_url_placeholder_and_env(self):
+        kept = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("DAILY_BRIEF_PUBLIC_BASE", "PRISM_PUBLIC_BASE")
+        }
+        with mock.patch.dict(os.environ, kept, clear=True):
+            self.assertEqual(
+                cli.public_url("/daily-brief/2026-10-09/am"),
+                "https://prism.example.ts.net/horizon/daily-brief/2026-10-09/am",
+            )
+        with mock.patch.dict(
+            os.environ,
+            {"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"},
+            clear=False,
+        ):
+            os.environ.pop("DAILY_BRIEF_PUBLIC_BASE", None)
+            self.assertEqual(
+                cli.public_url("/daily-brief/x"),
+                "https://dash.example.ts.net/horizon/daily-brief/x",
+            )
+        with mock.patch.dict(
+            os.environ,
+            {"DAILY_BRIEF_PUBLIC_BASE": "https://other.example.ts.net/horizon"},
+            clear=False,
+        ):
+            self.assertEqual(
+                cli.public_url("/daily-brief/x"),
+                "https://other.example.ts.net/horizon/daily-brief/x",
+            )
+
     def test_cli_rejects_bad_edition(self):
         bad = self.root / "bad.json"
         bad.write_text(json.dumps({"date": "2026-10-09"}), encoding="utf-8")

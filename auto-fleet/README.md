@@ -12,7 +12,9 @@ Port **8796**. Prod is `auto-fleet.service` on `prism-gateway`
 (`http://100.67.114.2:8796/` · `http://prism-gateway:8796/`). Source lives
 on **`work/treasury`** (FCC live pin) so `workspace-sync` keeps
 `auto-fleet/server.py`. Mac is dev. FCC same-origin path:
-`https://prism-gateway.tailb1085a.ts.net/fleet/`.
+`https://prism.example.ts.net/fleet/` (placeholder; live origin is
+`PRISM_PUBLIC_BASE`). FCC listens on `127.0.0.1:8000` unless
+`FCC_BIND_HOST=0.0.0.0`.
 
 **Turo payout destination:** **X Money**. Payout mail is a cash-landed
 signal, not a booking record.
@@ -219,7 +221,7 @@ the FCC live clone.
 # Unit only — never install_remote.sh against the FCC pin (that rsyncs the
 # whole tree). The unit file already lives in ~/.config/systemd/user/.
 ssh prism-agent@192.168.100.98 'systemctl --user restart auto-fleet && systemctl --user is-active auto-fleet'
-curl -sfS https://prism-gateway.tailb1085a.ts.net/fleet/api/health
+curl -sfS https://prism.example.ts.net/fleet/api/health
 ```
 
 Emergency sidecar if the pin does not yet have this tree: rsync **only**

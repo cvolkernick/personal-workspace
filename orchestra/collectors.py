@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 from datetime import datetime, timezone
@@ -10,9 +11,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 try:
-    from .domains import DOMAIN_SPECS
+    from .domains import DOMAIN_SPECS, service_url
 except ImportError:  # script / unittest path insert
-    from domains import DOMAIN_SPECS
+    from domains import DOMAIN_SPECS, service_url
 
 
 def _now() -> str:
@@ -71,12 +72,33 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return meta, parts[2]
 
 
-def probe_port(port: int, host: str = "127.0.0.1", timeout: float = 0.25) -> bool:
-    """True if something accepts TCP connections on host:port."""
+def _default_probe_host(environ: dict[str, str] | None = None) -> str:
+    """Host for same-machine port probes.
+
+    FCC and Horizon bind 127.0.0.1, so a LAN address would mark them down.
+    This is not the public tailnet host (PRISM_PUBLIC_BASE / service_url).
+    ORCHESTRA_PROBE_HOST overrides the default. Leave it unset on prism.
+    """
+    env = os.environ if environ is None else environ
+    raw = (env.get("ORCHESTRA_PROBE_HOST") or "").strip()
+    return raw or "127.0.0.1"
+
+
+def probe_port(
+    port: int,
+    host: str | None = None,
+    timeout: float = 0.25,
+    environ: dict[str, str] | None = None,
+) -> bool:
+    """True if something accepts TCP connections on host:port.
+
+    Omitted host uses _default_probe_host (127.0.0.1), not a LAN address.
+    """
     if not port:
         return False
+    target = host if host is not None and str(host).strip() else _default_probe_host(environ)
     try:
-        with socket.create_connection((host, int(port)), timeout=timeout):
+        with socket.create_connection((target, int(port)), timeout=timeout):
             return True
     except OSError:
         return False
@@ -282,7 +304,7 @@ def collect_finance(workspace: Path) -> dict[str, Any]:
             "signals": {},
             "available": False,
             "live": None,
-            "url": "http://127.0.0.1:8000/financial-command/",
+            "url": service_url("finance"),
             "launch": "python3 financial-command/server.py",
             "port": 8000,
             "sources": sources_missing,
@@ -345,7 +367,7 @@ def collect_finance(workspace: Path) -> dict[str, Any]:
         },
         "available": True,
         "live": None,
-        "url": "http://127.0.0.1:8000/financial-command/",
+        "url": service_url("finance"),
         "launch": "python3 financial-command/server.py",
         "port": 8000,
         "sources": [source] if source else [],

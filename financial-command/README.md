@@ -16,12 +16,38 @@ python3 financial-command/server.py --port 8000
 
 Opens: http://localhost:8000/financial-command/index.html
 
+### Bind address
+
+FCC listens on `127.0.0.1:8000` (`FCC_BIND_HOST`, default). Tailscale Serve
+proxies to that address, so the tailnet path keeps working. `/horizon/*` still
+proxies to Horizon at `127.0.0.1:8795` (it does not follow `HORIZON_BIND_HOST`).
+
+`FCC_BIND_HOST=0.0.0.0` listens on all interfaces again. An explicit `--host`
+wins over the env var. If the unit's `ExecStart` still passes `--host 0.0.0.0`,
+remove that flag or the env var does not apply.
+
+```bash
+mkdir -p ~/.config/systemd/user/financial-command.service.d
+printf '[Service]\nEnvironment=FCC_BIND_HOST=127.0.0.1\nEnvironment=PRISM_PUBLIC_BASE=https://<tailnet-magicdns-host>\n' \
+  > ~/.config/systemd/user/financial-command.service.d/bind.conf
+# Rollback: Environment=FCC_BIND_HOST=0.0.0.0
+systemctl --user daemon-reload
+systemctl --user restart financial-command.service
+```
+
+`PRISM_PUBLIC_BASE` is the HTTPS origin with no path. The repo default is
+`https://prism.example.ts.net`. On prism set it to the Tailscale Serve hostname
+so the PWA install check and the served `pwa.js` bounce target match the cert.
+Daily Brief publish reads `DAILY_BRIEF_PUBLIC_BASE` (include `/horizon`). If
+that is unset, the CLI uses `PRISM_PUBLIC_BASE` + `/horizon`.
+
 ### PWA install origin
 
-Install the desktop/phone app from **Tailscale HTTPS only**:
-[`https://prism-gateway.tailb1085a.ts.net/`](https://prism-gateway.tailb1085a.ts.net/).
+Install the desktop/phone app from **Tailscale HTTPS only**
+(`PRISM_PUBLIC_BASE`, placeholder `https://prism.example.ts.net` until the env
+is set).
 
-Plain HTTP (`http://<lan-ip>:8000`, `http://prism-gateway:8000`) stays a browser fallback. Those origins serve a `display: browser` manifest and do not register a service worker, so Chromium will not treat them as the installed app (every page would show "Not Secure"). Loopback (`http://127.0.0.1:8000`) is a secure context and stays installable for local tests.
+Plain HTTP on a non-canonical host stays a browser fallback. Those origins serve a `display: browser` manifest and do not register a service worker, so Chromium will not treat them as the installed app (every page would show "Not Secure"). Loopback (`http://127.0.0.1:8000`) is a secure context and stays installable for local tests. Direct LAN `:8000` is closed unless `FCC_BIND_HOST=0.0.0.0`.
 
 An already-installed HTTP app (standalone display-mode) is redirected to the HTTPS origin.
 
@@ -32,9 +58,9 @@ The PWA manifest is origin-scoped (`scope: "/"`, `start_url: "/"`). Cross-port `
 FCC `server.py` reverse-proxies:
 
 - `/fleet/` → Auto Fleet backend (`auto-fleet/server.py` on the `work/treasury` pin, Pi unit `auto-fleet.service`, bind `:8796`)
-- `/horizon/` → Horizon Macro (`research/horizon/server.py`, Pi unit `horizon-dashboard.service`, bind `:8795`)
+- `/horizon/` → Horizon Macro (`research/horizon/server.py`, Pi unit `horizon-dashboard.service`, `127.0.0.1:8795`)
 
-Nav emits `/fleet/` and `/horizon/` — no `http://` deep-links. Direct `:8795` / `:8796` stay as LAN-debug fallbacks; they are not linked from FCC.
+Nav emits `/fleet/` and `/horizon/` — no `http://` deep-links. Horizon's own port is loopback unless `HORIZON_BIND_HOST=0.0.0.0`. FCC does not link to a LAN IP or `:8795`.
 
 Root-absolute assets from those apps (`fetch("/api/…")`, `<script src="/app.js">`) are rewritten under the prefix so they do not escape to FCC (same bug class as #677, in reverse).
 

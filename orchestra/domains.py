@@ -2,7 +2,52 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
+
+# Placeholder tailnet origin. Set PRISM_PUBLIC_BASE on prism (systemd drop-in
+# or the orchestra process environment). Do not put a real hostname here.
+DEFAULT_PUBLIC_ORIGIN = "https://prism.example.ts.net"
+
+
+def public_origin(environ: dict[str, str] | None = None) -> str:
+    """HTTPS origin for tailnet links. Separate from the loopback probe host."""
+    env = os.environ if environ is None else environ
+    raw = (env.get("PRISM_PUBLIC_BASE") or "").strip()
+    if not raw:
+        return DEFAULT_PUBLIC_ORIGIN
+    if "://" not in raw:
+        raw = "https://" + raw
+    scheme, _, rest = raw.partition("://")
+    hostport = rest.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0].strip()
+    if scheme.lower() not in ("https", "http") or not hostport:
+        return DEFAULT_PUBLIC_ORIGIN
+    return f"{scheme.lower()}://{hostport}"
+
+
+def service_url(name: str, environ: dict[str, str] | None = None) -> str:
+    """Browser link for a loopback-only service, via the tailnet FCC origin.
+
+    Finance and Horizon are not opened on a LAN IP. Port probes stay on
+    127.0.0.1 (orchestra.collectors._default_probe_host).
+    """
+    origin = public_origin(environ)
+    key = (name or "").strip().lower()
+    if key in ("finance", "financial-command", "fcc"):
+        return origin + "/financial-command/"
+    if key in ("horizon", "horizon-dashboard"):
+        return origin + "/horizon/"
+    raise KeyError(name)
+
+
+def health_url(name: str, environ: dict[str, str] | None = None) -> str:
+    origin = public_origin(environ)
+    key = (name or "").strip().lower()
+    if key in ("finance", "financial-command", "fcc"):
+        return origin + "/api/health"
+    if key in ("horizon", "horizon-dashboard"):
+        return origin + "/horizon/api/health"
+    raise KeyError(name)
 
 # Subordinate dashboards (ports match monorepo convention)
 DOMAIN_SPECS: list[dict[str, Any]] = [
@@ -32,7 +77,7 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "label": "Finance / Treasury",
         "description": "Dual-venue liquidity (Coinbase + Robinhood)",
         "port": 8000,
-        "url": "http://127.0.0.1:8000/financial-command/",
+        "url": DEFAULT_PUBLIC_ORIGIN + "/financial-command/",
         "launch": "python3 financial-command/server.py",
         "sources": [
             "treasury/",

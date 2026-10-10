@@ -7,10 +7,12 @@ against temporary workspace fixtures — no mocking of units under test.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 ORCH = ROOT / "orchestra"
@@ -20,6 +22,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from collectors import (  # noqa: E402
+    _default_probe_host,
     collect_all_domains,
     collect_finance,
     collect_fitness,
@@ -28,6 +31,7 @@ from collectors import (  # noqa: E402
     collect_strategy,
     collect_workflow,
 )
+from domains import health_url, service_url  # noqa: E402
 from payload import build_orchestra_payload  # noqa: E402
 from priorities import synthesize_priorities  # noqa: E402
 from synergies import detect_synergies  # noqa: E402
@@ -426,6 +430,50 @@ class PrioritySynthesisTests(unittest.TestCase):
             self.assertEqual(payload["meta"]["subordinate_ports"]["iot"], 8780)
             # unused var silence
             _ = sources
+
+
+class LocalProbeAndPublicUrlTests(unittest.TestCase):
+    def test_probe_host_is_loopback_and_separate_from_public_base(self) -> None:
+        self.assertEqual(_default_probe_host({}), "127.0.0.1")
+        self.assertEqual(
+            _default_probe_host({"ORCHESTRA_PROBE_HOST": "192.0.2.10"}),
+            "192.0.2.10",
+        )
+        self.assertEqual(
+            _default_probe_host({"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}),
+            "127.0.0.1",
+        )
+
+    def test_finance_and_horizon_urls_use_tailnet_placeholder(self) -> None:
+        self.assertEqual(
+            service_url("finance", {}),
+            "https://prism.example.ts.net/financial-command/",
+        )
+        self.assertEqual(
+            health_url("finance", {}),
+            "https://prism.example.ts.net/api/health",
+        )
+        self.assertEqual(
+            service_url("horizon", {"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}),
+            "https://dash.example.ts.net/horizon/",
+        )
+        self.assertEqual(
+            health_url("horizon", {"PRISM_PUBLIC_BASE": "dash.example.ts.net"}),
+            "https://dash.example.ts.net/horizon/api/health",
+        )
+        for url in (service_url("finance", {}), health_url("finance", {})):
+            self.assertNotIn("192.168.", url)
+            self.assertNotIn(":8000", url)
+
+    def test_collect_finance_link_follows_public_base(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.dict(
+                os.environ, {"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}
+            ):
+                snap = collect_finance(Path(td))
+        self.assertTrue(snap["url"].startswith("https://dash.example.ts.net/"))
+        self.assertNotIn(":8000", snap["url"])
+        self.assertEqual(snap["port"], 8000)
 
 
 if __name__ == "__main__":

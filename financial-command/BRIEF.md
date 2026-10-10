@@ -8,7 +8,8 @@ What FCC still has:
 
 - `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL`
   (default `/horizon/daily-brief`, i.e.
-  https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief) with the same
+  https://prism.example.ts.net/horizon/daily-brief once `PRISM_PUBLIC_BASE` or
+  `DAILY_BRIEF_PUBLIC_BASE` is set on prism) with the same
   subpath and query. The logic is in `brief_redirect.py`; `server.py` is
   unchanged and reaches it through its existing `brief_route` -> `brief.route`.
 - `financial-command/brief.py` is a thin shim, so the publish command is unchanged:

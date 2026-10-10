@@ -33,13 +33,26 @@ from research.daily_brief.store import (
     validate,
 )
 
-# Where the page is reachable for people (FCC lens onto the Horizon host by default).
-DEFAULT_PUBLIC_BASE = "https://prism-gateway.tailb1085a.ts.net/horizon"
+# Placeholder only. On prism set DAILY_BRIEF_PUBLIC_BASE, or PRISM_PUBLIC_BASE
+# (origin, no path) and this appends /horizon. Neither default is a real host.
+DEFAULT_PUBLIC_ORIGIN = "https://prism.example.ts.net"
+DEFAULT_PUBLIC_BASE = DEFAULT_PUBLIC_ORIGIN + "/horizon"
+
+
+def public_base() -> str:
+    explicit = os.environ.get("DAILY_BRIEF_PUBLIC_BASE", "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    origin = os.environ.get("PRISM_PUBLIC_BASE", "").strip().rstrip("/")
+    if origin:
+        if "://" not in origin:
+            origin = "https://" + origin
+        return origin + "/horizon"
+    return DEFAULT_PUBLIC_BASE
 
 
 def public_url(path: str) -> str:
-    base = os.environ.get("DAILY_BRIEF_PUBLIC_BASE", DEFAULT_PUBLIC_BASE).rstrip("/")
-    return base + path
+    return public_base() + path
 
 
 def main(argv: list[str] | None = None) -> int:

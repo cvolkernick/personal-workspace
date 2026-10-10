@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import socket
 import struct
 import sys
@@ -13,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
+from unittest import mock
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -142,7 +144,7 @@ class TestFccPwaFiles(unittest.TestCase):
 
     def test_pwa_js_gates_install_to_https_or_loopback(self) -> None:
         pwa = (FCC / "pwa.js").read_text(encoding="utf-8")
-        self.assertIn("https://prism-gateway.tailb1085a.ts.net", pwa)
+        self.assertIn("https://prism.example.ts.net", pwa)
         self.assertIn("beforeinstallprompt", pwa)
         self.assertIn('location.protocol === "https:"', pwa)
         self.assertIn("display-mode: standalone", pwa)
@@ -160,17 +162,28 @@ class TestFccPwaInstallOrigin(unittest.TestCase):
         self.assertTrue(fn(host="127.0.0.1:8000"))
         self.assertTrue(fn(host="localhost:8000"))
         self.assertTrue(fn(host="[::1]:8000"))
-        self.assertTrue(fn(host="prism-gateway.tailb1085a.ts.net"))
-        self.assertTrue(fn(host="prism-gateway.tailb1085a.ts.net:443"))
+        self.assertTrue(fn(host="prism.example.ts.net"))
+        self.assertTrue(fn(host="prism.example.ts.net:443"))
         self.assertTrue(fn(host="192.168.100.98:8000", forwarded_proto="https"))
 
     def test_lan_http_is_not_install(self) -> None:
         fn = self.mod.is_pwa_install_origin
         self.assertFalse(fn(host="192.168.100.98:8000"))
         self.assertFalse(fn(host="prism-gateway:8000"))
-        self.assertFalse(fn(host="prism-gateway.tailb1085a.ts.net:8000"))
+        self.assertFalse(fn(host="prism.example.ts.net:8000"))
         self.assertFalse(fn(host="10.0.0.5"))
         self.assertFalse(fn(host=""))
+
+    def test_public_base_overrides_canonical_host(self) -> None:
+        fn = self.mod.is_pwa_install_origin
+        env = {"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            self.assertEqual(self.mod.canonical_https_host(), "dash.example.ts.net")
+            self.assertTrue(fn(host="dash.example.ts.net"))
+            self.assertTrue(fn(host="dash.example.ts.net:443"))
+            self.assertFalse(fn(host="dash.example.ts.net:8000"))
+            self.assertFalse(fn(host="prism.example.ts.net"))
+        self.assertEqual(self.mod.canonical_https_host(), "prism.example.ts.net")
 
     def test_lan_manifest_is_browser_display(self) -> None:
         data = self.mod.build_pwa_manifest(install_origin=False)
@@ -374,7 +387,7 @@ class TestFccPwaHttp(unittest.TestCase):
         for host in (
             "192.168.100.98:8000",
             "prism-gateway:8000",
-            "prism-gateway.tailb1085a.ts.net:8000",
+            "prism.example.ts.net:8000",
         ):
             code, ctype, body = self._get_with_headers(
                 "/manifest.webmanifest", {"Host": host}
@@ -387,8 +400,8 @@ class TestFccPwaHttp(unittest.TestCase):
 
     def test_canonical_https_host_manifest_is_standalone(self) -> None:
         for headers in (
-            {"Host": "prism-gateway.tailb1085a.ts.net"},
-            {"Host": "prism-gateway.tailb1085a.ts.net:443"},
+            {"Host": "prism.example.ts.net"},
+            {"Host": "prism.example.ts.net:443"},
             {
                 "Host": "192.168.100.98:8000",
                 "X-Forwarded-Proto": "https",
@@ -408,6 +421,22 @@ class TestFccPwaHttp(unittest.TestCase):
         self.assertIn("html", ctype.lower())
         self.assertIn(b"Financial Command Center", body)
         self.assertIn(b'href="/manifest.webmanifest"', body)
+
+    def test_served_pwa_js_uses_public_base(self) -> None:
+        code, ctype, body = self._get("/pwa.js")
+        self.assertEqual(code, 200)
+        self.assertIn("javascript", ctype.lower())
+        self.assertIn(b"https://prism.example.ts.net", body)
+        with mock.patch.dict(
+            os.environ, {"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}
+        ):
+            code, _, swapped = self._get("/pwa.js")
+            head_code, _, head_len = self._head("/pwa.js")
+        self.assertEqual(code, 200)
+        self.assertEqual(head_code, 200)
+        self.assertIn(b"https://dash.example.ts.net", swapped)
+        self.assertNotIn(b"https://prism.example.ts.net", swapped)
+        self.assertEqual(head_len, len(swapped))
 
 
 if __name__ == "__main__":

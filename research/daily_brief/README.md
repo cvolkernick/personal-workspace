@@ -8,15 +8,21 @@ world-state or model brief artifacts.
 
 | | |
 |---|---|
-| Latest (tailnet) | https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief |
-| Permalink | `https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief/YYYY-MM-DD/am\|pm` |
-| Archive | `https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief/archive` |
-| On the Horizon host (LAN debug) | `http://<prism>:8795/daily-brief` |
+| Latest (tailnet) | https://prism.example.ts.net/horizon/daily-brief |
+| Permalink | `https://prism.example.ts.net/horizon/daily-brief/YYYY-MM-DD/am\|pm` |
+| Archive | `https://prism.example.ts.net/horizon/daily-brief/archive` |
+| On the Horizon host (loopback) | `http://127.0.0.1:8795/daily-brief` |
 | JSON | `/daily-brief/api/latest` (the stored edition), `/daily-brief/api/editions` |
 | Old FCC URLs | `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL` + same subpath + query |
 
+Tailnet rows use the placeholder `prism.example.ts.net`. On prism set
+`PRISM_PUBLIC_BASE` (origin only) or `DAILY_BRIEF_PUBLIC_BASE` (this default
+is that origin plus `/horizon`). See `financial-command/README.md` for the
+systemd drop-in. Horizon listens on `127.0.0.1:8795` unless
+`HORIZON_BIND_HOST=0.0.0.0`.
+
 The tailnet URL goes through FCC's existing `/horizon/*` lens (a plain reverse
-proxy onto :8795, no FCC chrome), so no new Tailscale mapping is needed.
+proxy onto `127.0.0.1:8795`, no FCC chrome), so no new Tailscale mapping is needed.
 
 ## Layout
 
@@ -71,7 +77,7 @@ ssh prism-gateway 'python3 ~/personal-workspace/financial-command/brief.py valid
 ```
 
 Success (exit 0):
-`{"ok": true, "path": ".../2026-10-09-am.json", "url": "/daily-brief/2026-10-09/am", "public_url": "https://prism-gateway.tailb1085a.ts.net/horizon/daily-brief/2026-10-09/am", ...}`.
+`{"ok": true, "path": ".../2026-10-09-am.json", "url": "/daily-brief/2026-10-09/am", "public_url": "https://prism.example.ts.net/horizon/daily-brief/2026-10-09/am", ...}`.
 Put `public_url` in the chat brief (`DAILY_BRIEF_PUBLIC_BASE` overrides the
 prefix). Schema errors exit 2 with `{"ok": false, "problems": [...]}` on
 stderr and write nothing.
@@ -236,8 +242,10 @@ publisher is down, `/daily-brief` keeps showing the last edition with a
 
    ```bash
    mkdir -p ~/.config/systemd/user/horizon-dashboard.service.d
-   printf '[Service]\nExecStart=\nExecStart=/usr/bin/python3 %%h/personal-workspace/research/horizon/server.py --host 0.0.0.0 --port 8795 --no-browser\n' \
+   printf '[Service]\nExecStart=\nExecStart=/usr/bin/python3 %%h/personal-workspace/research/horizon/server.py --port 8795 --no-browser\nEnvironment=HORIZON_BIND_HOST=127.0.0.1\n' \
      > ~/.config/systemd/user/horizon-dashboard.service.d/no-bootstrap.conf
+   # Rollback (all interfaces, previous bind): Environment=HORIZON_BIND_HOST=0.0.0.0
+   # Do not pass --host 0.0.0.0 here; an explicit --host overrides the env var.
    systemctl --user daemon-reload
    systemctl --user restart horizon-dashboard.service
    ```
@@ -267,8 +275,11 @@ tailscale serve status    # expect: /daily-brief proxy http://127.0.0.1:8795/dai
 
 Then point FCC's redirect at it: add `Environment=BRIEF_BASE_URL=/daily-brief`
 to a `financial-command.service` drop-in and restart FCC; set
-`DAILY_BRIEF_PUBLIC_BASE=https://prism-gateway.tailb1085a.ts.net` for the CLI's
-`public_url`. Undo with `tailscale serve --set-path /daily-brief off`.
+`DAILY_BRIEF_PUBLIC_BASE` to the tailnet origin plus the path you mounted
+(the CLI default is `https://prism.example.ts.net/horizon`, a placeholder).
+`PRISM_PUBLIC_BASE` is used when `DAILY_BRIEF_PUBLIC_BASE` is unset: the CLI
+appends `/horizon`. Put both in the same drop-in as `FCC_BIND_HOST` (see
+`financial-command/README.md`). Undo with `tailscale serve --set-path /daily-brief off`.
 
 ## Rollback
 

@@ -25,7 +25,10 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 - Full payload: http://127.0.0.1:8790/api/orchestra
 - Health: http://127.0.0.1:8790/api/health
 
-Add `?probe=1` to probe child server ports for live badges.
+Add `?probe=1` to probe child server ports for live badges. Probes use
+`127.0.0.1` (`ORCHESTRA_PROBE_HOST` overrides). Finance and Horizon links use
+`PRISM_PUBLIC_BASE` (default `https://prism.example.ts.net`), not a LAN address.
+Set that env in the orchestra process so the links match the tailnet origin.
 
 ## Subordinate dashboards
 

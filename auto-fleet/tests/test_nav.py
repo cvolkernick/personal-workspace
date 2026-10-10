@@ -54,6 +54,10 @@ def _fcc_bind() -> tuple[int, str]:
     return port, FCC_PATH
 
 
+def _loopback(host: str) -> bool:
+    return host.lower() in {"127.0.0.1", "localhost", "[::1]", "::1"}
+
+
 def fcc_href(
     hostname: str | None = None,
     *,
@@ -63,16 +67,20 @@ def fcc_href(
 ) -> str:
     """Same contract as auto-fleet/nav-fcc.js fleetFccHref."""
     port, path = _fcc_bind()
-    if hostname:
-        return f"http://{hostname}:{port}{path}"
-    host = loc_hostname or "127.0.0.1"
-    on_lens = pathname == "/fleet" or pathname.startswith("/fleet/")
+    host = hostname or loc_hostname or "127.0.0.1"
+    page = "/" if hostname else (pathname or "/")
+    proto = "http:" if hostname else (protocol or "http:")
+    on_lens = page == "/fleet" or page.startswith("/fleet/")
     on_ts = host.lower().endswith(".ts.net")
-    if on_lens or protocol == "https:" or on_ts:
-        if protocol == "https:" or on_ts:
+    if not hostname and (on_lens or proto == "https:" or on_ts):
+        if proto == "https:" or on_ts:
             return f"https://{host}{path}"
         return path
-    return f"http://{host}:{port}{path}"
+    if on_ts:
+        return f"https://{host}{path}"
+    if _loopback(host):
+        return f"http://{host}:{port}{path}"
+    return path
 
 
 class _AnchorParser(HTMLParser):
@@ -171,16 +179,14 @@ class TestFleetHeader(unittest.TestCase):
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(
-            fcc_href("192.168.100.98"),
-            f"http://192.168.100.98:{port}{path}",
-        )
-        self.assertEqual(fcc_href("100.67.114.2"), f"http://100.67.114.2:{port}{path}")
-        self.assertEqual(fcc_href("prism-gateway"), f"http://prism-gateway:{port}{path}")
+        self.assertEqual(fcc_href("192.168.100.98"), path)
+        self.assertEqual(fcc_href("100.67.114.2"), path)
+        self.assertNotIn(":8000", fcc_href("192.168.100.98"))
+        self.assertEqual(fcc_href("prism-gateway"), path)
         self.assertEqual(fcc_href("127.0.0.1"), f"http://127.0.0.1:{port}{path}")
         self.assertEqual(
             fcc_href(pathname="/", loc_hostname="192.168.100.98"),
-            f"http://192.168.100.98:{port}{path}",
+            path,
         )
         self.assertNotEqual(
             fcc_href("prism-gateway"), f"http://127.0.0.1:{port}{path}"
@@ -201,17 +207,17 @@ class TestFleetHeader(unittest.TestCase):
             fcc_href(
                 pathname="/fleet/",
                 protocol="https:",
-                loc_hostname="prism-gateway.tailb1085a.ts.net",
+                loc_hostname="prism.example.ts.net",
             ),
-            "https://prism-gateway.tailb1085a.ts.net" + path,
+            "https://prism.example.ts.net" + path,
         )
         self.assertEqual(
             fcc_href(
                 pathname="/",
                 protocol="http:",
-                loc_hostname="prism-gateway.tailb1085a.ts.net",
+                loc_hostname="prism.example.ts.net",
             ),
-            "https://prism-gateway.tailb1085a.ts.net" + path,
+            "https://prism.example.ts.net" + path,
         )
         js = (FLEET / "nav-fcc.js").read_text(encoding="utf-8")
         self.assertIn('path.indexOf("/fleet/")', js)

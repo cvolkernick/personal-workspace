@@ -1,19 +1,21 @@
 /**
- * Origin-scoped SW. Canonical install origin is Tailscale HTTPS
- * (https://prism-gateway.tailb1085a.ts.net). Manifest + SW live at /
+ * Origin-scoped SW. Canonical install origin is Tailscale HTTPS.
+ * The placeholder below is replaced at serve time from PRISM_PUBLIC_BASE
+ * (default https://prism.example.ts.net). Manifest + SW live at /
  * so Android/desktop install from that origin is standalone, not a bookmark.
  *
- * Plain-HTTP LAN (:8000) stays browse-only: do not register a SW or honor
- * beforeinstallprompt there (#749). An already-installed HTTP app (standalone
- * display-mode) is bounced to the HTTPS origin. Loopback is a secure context
- * and stays installable for local tests.
+ * FCC binds 127.0.0.1:8000 unless FCC_BIND_HOST is set (0.0.0.0 restores
+ * all-interfaces). Plain-HTTP :8000 stays browse-only: do not register a SW
+ * or honor beforeinstallprompt there (#749). An already-installed HTTP app
+ * (standalone display-mode) is bounced to the HTTPS origin. Loopback is a
+ * secure context and stays installable for local tests.
  *
  * Unregister the old /financial-command/ SW if it is still controlling.
  */
 (function () {
   "use strict";
 
-  var CANONICAL_HTTPS_ORIGIN = "https://prism-gateway.tailb1085a.ts.net";
+  var CANONICAL_HTTPS_ORIGIN = "https://prism.example.ts.net";
 
   function hostname() {
     return String(location.hostname || "").toLowerCase();
