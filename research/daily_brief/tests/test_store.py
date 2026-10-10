@@ -8,10 +8,11 @@ import os
 import subprocess
 import sys
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from unittest import mock
 
+import prism_public
 from research.daily_brief.tests._common import FIXTURES, ROOT, TmpStore, sample, store
 from research.daily_brief import cli, quotes
 
@@ -148,6 +149,81 @@ class TestPublishCli(TmpStore):
         self.assertTrue(out["public_url"].endswith("/daily-brief/2026-10-09/am"))
         written = json.loads((self.root / "2026-10-09-am.json").read_text(encoding="utf-8"))
         self.assertEqual(written["edition"], "am")
+
+    def test_public_url_relative_fallback_and_env(self):
+        prism_public.reset_warnings()
+        kept = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("DAILY_BRIEF_PUBLIC_BASE", "PRISM_PUBLIC_BASE")
+        }
+        err = io.StringIO()
+        with mock.patch.dict(os.environ, kept, clear=True), redirect_stderr(err):
+            self.assertEqual(
+                cli.public_url("/daily-brief/2026-10-09/am"),
+                "/daily-brief/2026-10-09/am",
+            )
+        self.assertIn("ERROR:", err.getvalue())
+        self.assertNotIn("prism.example.ts.net", err.getvalue())
+        with mock.patch.dict(
+            os.environ,
+            {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"},
+            clear=False,
+        ):
+            os.environ.pop("DAILY_BRIEF_PUBLIC_BASE", None)
+            self.assertEqual(
+                cli.public_url("/daily-brief/x"),
+                "https://fcc.unit.ts.net/horizon/daily-brief/x",
+            )
+        with mock.patch.dict(
+            os.environ,
+            {"DAILY_BRIEF_PUBLIC_BASE": "https://fcc.unit.ts.net/horizon"},
+            clear=False,
+        ):
+            self.assertEqual(
+                cli.public_url("/daily-brief/x"),
+                "https://fcc.unit.ts.net/horizon/daily-brief/x",
+            )
+        with mock.patch.dict(
+            os.environ,
+            {"DAILY_BRIEF_PUBLIC_BASE": "https://fcc.unit.ts.net"},
+            clear=False,
+        ):
+            self.assertEqual(
+                cli.public_url("/daily-brief/x"),
+                "https://fcc.unit.ts.net/daily-brief/x",
+            )
+
+    def test_invalid_daily_brief_base_does_not_fall_through(self):
+        prism_public.reset_warnings()
+        err = io.StringIO()
+        env = {
+            "DAILY_BRIEF_PUBLIC_BASE": "https://prism.example.ts.net/horizon",
+            "PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net",
+        }
+        with mock.patch.dict(os.environ, env, clear=False), redirect_stderr(err):
+            self.assertEqual(cli.public_url("/daily-brief/x"), "/daily-brief/x")
+        self.assertIn("DAILY_BRIEF_PUBLIC_BASE", err.getvalue())
+        self.assertIn("Not falling through", err.getvalue())
+        self.assertNotIn("fcc.unit.ts.net", err.getvalue())
+
+    def test_publish_prints_relative_url_and_warns_when_base_unset(self):
+        prism_public.reset_warnings()
+        kept = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("DAILY_BRIEF_PUBLIC_BASE", "PRISM_PUBLIC_BASE")
+        }
+        with mock.patch.dict(os.environ, kept, clear=True), self._env():
+            buf = io.StringIO()
+            err = io.StringIO()
+            with redirect_stdout(buf), redirect_stderr(err):
+                rc = cli.main(["publish", str(FIXTURES / "sample-am.json")])
+        self.assertEqual(rc, 0)
+        out = json.loads(buf.getvalue())
+        self.assertEqual(out["public_url"], "/daily-brief/2026-10-09/am")
+        self.assertNotIn("prism.example.ts.net", buf.getvalue())
+        self.assertIn("ERROR:", err.getvalue())
 
     def test_cli_rejects_bad_edition(self):
         bad = self.root / "bad.json"

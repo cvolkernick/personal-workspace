@@ -304,7 +304,7 @@ class TestFullEdition(TmpStore):
         api_edition = json.loads(api_body)["edition"]
         assert_full_edition(self, stored, page, api_edition)
         self.assertIn(
-            'href="https://prism-gateway.tailb1085a.ts.net/financial-command/index.html"',
+            'href="https://prism.example.ts.net/financial-command/index.html"',
             page,
         )
         self.assertIn("SAMPLE: Rivian buyout quote is $41,200", page)

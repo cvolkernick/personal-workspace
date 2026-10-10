@@ -3,7 +3,9 @@
  *
  * Horizon is a nested aspect of FCC, not a merged UI. No iframe, no embed.
  * Installed PWA scope is "/": same-origin /horizon/ stays in the standalone window.
- * Direct :8795 remains a LAN-debug fallback (not linked from FCC).
+ * Horizon listens on 127.0.0.1:8795. Direct LAN :8795 needs
+ * HORIZON_BIND_HOST=0.0.0.0 (that restores the old all-interfaces bind).
+ * FCC does not link to a LAN IP or :8795.
  */
 (function (global) {
   "use strict";

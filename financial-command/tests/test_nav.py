@@ -30,7 +30,7 @@ SURFACES = (
     "interest-spectrum.html",
     "bias-spectrum.html",
 )
-HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+HARDCODED_IPS = ("192.0.2.10", "192.0.2.11")
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
     "vercel.com",
@@ -130,8 +130,8 @@ class TestFccNavFleet(unittest.TestCase):
         for ip in HARDCODED_IPS:
             self.assertNotIn(ip, js)
 
-        self.assertEqual(fleet_href("192.168.100.98"), "/fleet/")
-        self.assertEqual(fleet_href("prism-gateway"), "/fleet/")
+        self.assertEqual(fleet_href("192.0.2.10"), "/fleet/")
+        self.assertEqual(fleet_href("gateway.example"), "/fleet/")
         self.assertEqual(fleet_href("127.0.0.1"), "/fleet/")
         self.assertEqual(fleet_href(""), "/fleet/")
 
@@ -325,12 +325,12 @@ class TestFccNavFleet(unittest.TestCase):
 
     def test_live_entry_fleet_href_is_same_origin_path(self) -> None:
         """Installed PWA: Fleet stays on the HTTPS origin, not :8796."""
-        self.assertEqual(fleet_href("prism-gateway"), "/fleet/")
-        self.assertEqual(fleet_href("192.168.100.98"), "/fleet/")
-        self.assertEqual(fleet_href("100.67.114.2"), "/fleet/")
+        self.assertEqual(fleet_href("gateway.example"), "/fleet/")
+        self.assertEqual(fleet_href("192.0.2.10"), "/fleet/")
+        self.assertEqual(fleet_href("192.0.2.11"), "/fleet/")
         self.assertEqual(fleet_href("127.0.0.1"), "/fleet/")
         self.assertEqual(fleet_href("localhost"), "/fleet/")
-        self.assertNotIn("http://", fleet_href("prism-gateway"))
+        self.assertNotIn("http://", fleet_href("gateway.example"))
 
 
 class TestFccNavHorizon(unittest.TestCase):
@@ -376,8 +376,8 @@ class TestFccNavHorizon(unittest.TestCase):
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(horizon_href("192.168.100.98"), "/horizon/")
-        self.assertEqual(horizon_href("prism-gateway"), "/horizon/")
+        self.assertEqual(horizon_href("192.0.2.10"), "/horizon/")
+        self.assertEqual(horizon_href("gateway.example"), "/horizon/")
         self.assertEqual(horizon_href("127.0.0.1"), "/horizon/")
         self.assertEqual(horizon_href(""), "/horizon/")
 
