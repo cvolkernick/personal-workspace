@@ -488,6 +488,47 @@ class TestImages(unittest.TestCase):
         self.assertNotIn("<img", page)
 
 
+class TestDesktopRows(unittest.TestCase):
+    """A section with no partner in its desktop row spans the row."""
+
+    def test_stranded_indexes(self):
+        f = render.stranded_blocks
+        self.assertEqual(f(["day-ahead", "todo", "mac", "a", "b", "c"]), {0, 5})
+        self.assertEqual(f(["todo", "mac", "a", "b"]), set())
+        self.assertEqual(f(["a", "todo", "mac", "b", "c", "d", "e"]), {0})
+        self.assertEqual(f(["a", "b", "c", "todo", "mac"]), {2})
+        self.assertEqual(f(["todo", "mac"]), set())
+        self.assertEqual(f([]), set())
+
+    def _wide_ids(self, page):
+        return set(re.findall(r'<section class="sec sec-wide" id="sec-([a-z0-9-]+)"', page))
+
+    def test_day_ahead_spans_on_the_morning_sample(self):
+        page = render.render_edition(sample("sample-am"))
+        # day-ahead, To-Do, Mac tasks, then seven sections: day-ahead and the last one span.
+        self.assertEqual(self._wide_ids(page), {"day-ahead", "drafted-replies"})
+        self.assertIn(".sec-wide{grid-column:1 / -1}", page.replace("#sec-todo,#sec-mac,", ""))
+
+    def test_every_sample_has_no_lone_half_row(self):
+        for n in ("sample-am", "sample-pm", "sample-empty-todos"):
+            page = render.render_edition(sample(n))
+            ids = re.findall(r'<section class="sec[^"]*" id="sec-([a-z0-9-]+)"', page)
+            wide = self._wide_ids(page) | {"todo", "mac"}
+            col = 0
+            for sid in ids:
+                if sid in wide:
+                    self.assertEqual(col, 0, f"{n}: {sid} starts a row after a lone half section")
+                else:
+                    col ^= 1
+            self.assertEqual(col, 0, f"{n}: last row has a lone half section")
+
+    def test_wide_rule_only_at_desktop_width(self):
+        css = render._CSS
+        phone, desktop = css.split("@media (min-width:960px){", 1)
+        self.assertNotIn("sec-wide", phone)
+        self.assertIn(".sec-wide{grid-column:1 / -1}", desktop.replace("#sec-todo,#sec-mac,", ""))
+
+
 class TestNoQuotePlaceholder(RenderBase):
     def test_placeholder_absent_from_every_sample_page(self):
         pages = (
