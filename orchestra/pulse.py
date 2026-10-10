@@ -19,7 +19,7 @@ except ImportError:  # unittest path insert
     from attention import hours_since, parse_timestamp
 
 CIVIL_TZ = ZoneInfo("America/New_York")
-HORIZON_URL = "http://127.0.0.1:8795/"
+HORIZON_URL = "http://127.0.0.1:8795/"  # loopback fallback; Horizon binds 127.0.0.1
 HORIZON_PORT = 8795
 ALLOCATOR_URL = "http://127.0.0.1:8770/"
 WORKFLOW_URL = "http://127.0.0.1:8765/"
@@ -244,6 +244,16 @@ def meridian_packet_live(fan_in: Optional[dict[str, Any]]) -> bool:
     return bool(regime.get("available") or imps.get("available"))
 
 
+def horizon_url() -> str:
+    """Horizon link: <PRISM_PUBLIC_BASE>/horizon/, else the loopback URL."""
+    try:
+        from dashboard_endpoints import service_url
+
+        return service_url("horizon")
+    except Exception:  # noqa: BLE001
+        return HORIZON_URL
+
+
 def build_world(fan_in: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """One Horizon line if Meridian packet is live. Else blank. No tabs/heat/GFS."""
     fan = fan_in if isinstance(fan_in, dict) else {}
@@ -266,7 +276,7 @@ def build_world(fan_in: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         "line": line,
         "live": live,
         "blank": not bool(line),
-        "url": HORIZON_URL,
+        "url": horizon_url(),
         "port": HORIZON_PORT,
         "label": "WORLD",
         "opens": "horizon",

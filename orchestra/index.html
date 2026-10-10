@@ -201,6 +201,9 @@
       if (!url) return url;
       const host = pageHost();
       if (!host || host === "127.0.0.1" || host === "localhost") return url;
+      // FCC (:8000) and Horizon (:8795) bind 127.0.0.1 only; their public
+      // links come from PRISM_PUBLIC_BASE. Never point them at the page host.
+      if (/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\]):(8000|8795)(\/|$)/.test(String(url))) return url;
       return String(url)
         .replace(/:\/\/127\.0\.0\.1/g, "://" + host)
         .replace(/:\/\/localhost/g, "://" + host)

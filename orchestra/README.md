@@ -34,7 +34,14 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 - Pi heartbeat (ops plane): http://127.0.0.1:8790/api/heartbeat  
   (file: `orchestra/data/heartbeat/latest.json` · timer: `pi-heartbeat.timer` · see `ops/INSTALL_PI_HEARTBEAT.md`)
 
-Add `?probe=1` to probe child server ports for live badges.
+Add `?probe=1` to probe child server ports for live badges. Probes use
+`127.0.0.1` (`ORCHESTRA_PROBE_HOST` overrides), never `pi_host`. FCC (:8000)
+and Horizon (:8795) bind 127.0.0.1, so their links come from
+`PRISM_PUBLIC_BASE` (`prism_public.py`): `<base>/financial-command/index.html`
+and `<base>/horizon/`. If it is unset or invalid, those links fall back to
+`http://127.0.0.1:8000/financial-command/index.html` and
+`http://127.0.0.1:8795/`. Loopback links to those two ports are never
+rewritten to `ORCHESTRATOR_PUBLIC_HOST` or the request host.
 
 See `REVIEW.md` for architecture review and prioritized roadmap.
 
