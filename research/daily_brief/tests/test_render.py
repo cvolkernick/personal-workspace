@@ -34,7 +34,7 @@ PLANTED_BOOK = (
     "treasury snapshot", "buyout", "we hold", "may_change", "trim SOL",
     "Morpho", "LTV", "card balance", "0x5550000000000000000000000000000000000001",
     "financial-command", "Turo revenue", "Panamerica payout", "Alex Sample",
-    "new dashboard card", "target 8%", "target 5%", "so-what",
+    "prism-gateway", ".ts.net", "target 8%", "target 5%", "so-what",
 )
 
 
@@ -201,6 +201,9 @@ class TestNoFccOnHorizonHost(RenderBase):
         self.assertIn('id="sec-shipped"', body)
         self.assertIn("Reply to the shop about the Thursday pickup", body)
         self.assertNotIn("0.05 BTC", body)
+        # A private href is stripped; the line of text stays.
+        self.assertIn("SAMPLE: new dashboard card", body)
+        self.assertNotIn("tailb1085a", body)
 
     def test_ynab_section_withheld(self):
         self.assertTrue(redact.is_fcc_section({"id": "ynab", "title": "YNAB"}))
@@ -273,6 +276,153 @@ class TestNewsAndWeatherKept(RenderBase):
         for p in ("/daily-brief", "/daily-brief/2026-10-09/am", "/daily-brief/2026-10-09/pm",
                   "/daily-brief/archive", "/daily-brief/2026-10-08/pm"):
             self.assertIn("Daily Brief, not Horizon model output", self.get(p)[2], p)
+
+
+# Secrets planted in fixtures/sample-leak.json. Each one must be in the raw
+# edition and absent from both the rendered page and /daily-brief/api/latest.
+LEAK_SECRETS = (
+    "$12,400", "$8,250.17", "$31,415", "$250k", "$18,300", "$45k",
+    "+$3,240", "-$1,120", "$2,100", "$58,000", "$61,200", "$612", "$450",
+    "$900", "$190", "900 USDC", "USDC", "0.85 BTC", "2.5 SOL", "0.1 BTC",
+    "Northwind", "Alex Sample", "to alex", "Jordan Example", "prism-gateway",
+    ".ts.net", "prism:8790", "127.0.0.1", "localhost", "100.64.0.2", "8795",
+    "8790", "fcc_snapshot", "secret-nav-250000", "secret-weather-key",
+    "secret-section-nav", "secret-item-note", "todo-secret-field",
+    "financial-command", "/treasury", "/fcc", "Allocation", "avg cost",
+    "Unrealized", "P&L", "PnL", "Car loan", "Brokerage cash", "Net worth",
+    "1NorthwindFakeAddrzzzzzzzzz", "3NorthwindFakeP2SHzzzzzzzzzz",
+    "7FakeNorthwindMintzzzzzzzzzzzzzzzz",
+    "bc1q555qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+    "0x5551111111111111111111111111111111111111", "snap.png",
+    "NW now",
+)
+
+LEAK_KEEPS = (
+    "Pay rent",
+    "Review rent ledger",
+    "AAPL tops $180 on a quiet tape",
+    "Senate tax bill advances and credit markets stay calm",
+    "Panamerica opens a driver handbook",
+    "SAMPLE: a short novel about a lighthouse keeper",
+    "Clear and mild",
+    "SAMPLE: leak check edition",
+    "The leak check edition is a fixture with fake figures only",
+    "9:00 AM  Standup with Grok",
+    "2 pickups today",
+    "SAMPLE: reboot the studio Mac",
+    "SAMPLE: open the studio notes",
+    "SAMPLE: dashboard note",
+    "SAMPLE: leak check ships",
+    "Tailnet book",
+    "Local debug",
+    "A public sentence for the masthead.",
+)
+
+_PUBLIC_KEYS = {
+    "edition": {"date", "edition", "vol", "no", "published_at", "theme", "quote",
+                "weather", "front_page", "sections", "todos", "mac_tasks"},
+    "front": {"headline", "subhead", "body", "image"},
+    "section": {"id", "title", "items"},
+    "item": {"text", "link", "checked"},
+    "todo": {"title", "status", "due", "owner", "priority", "notion_url"},
+    "mac": {"source_url", "fetched_at", "page_found", "items"},
+    "quote": {"text", "author"},
+    "weather": {"summary", "high", "low", "icon", "rain", "wind", "note"},
+}
+
+
+def _hrefs(page: str) -> list[str]:
+    return re.findall(r'(?:href|src)="([^"]*)"', page)
+
+
+class TestAdversarialLeak(TmpStore):
+    """The reviewer's leak edition, with fake names, hosts, and addresses."""
+
+    def setUp(self):
+        super().setUp()
+        self.raw = sample("sample-leak")
+        self.pub(self.raw)
+
+    def get(self, path):
+        return render.route(path, root=self.root, now=NOW)
+
+    def test_secrets_absent_from_page_and_api(self):
+        raw_text = json.dumps(self.raw)
+        for secret in LEAK_SECRETS:
+            self.assertIn(secret, raw_text, secret)
+        _, _, html = self.get("/daily-brief")
+        _, _, api_body = self.get("/daily-brief/api/latest")
+        for secret in LEAK_SECRETS:
+            self.assertNotIn(secret, html, f"html leaked {secret!r}")
+            self.assertNotIn(secret, api_body, f"api leaked {secret!r}")
+        self.assertNotIn("P&amp;L", html)
+        self.assertIsNone(redact.book_match(visible_text(html)))
+        self.assertIsNone(redact.book_match(api_body))
+        for url in _hrefs(html):
+            self.assertFalse(redact.is_private_link(url), url)
+            self.assertIsNone(redact.book_match(url), url)
+
+        data = json.loads(api_body)
+        edition = data["edition"]
+        self.assertNotIn("fcc_snapshot", edition)
+        self.assertTrue(set(edition) <= _PUBLIC_KEYS["edition"])
+        self.assertTrue(set(edition["front_page"]) <= _PUBLIC_KEYS["front"])
+        self.assertNotIn("image", edition["front_page"])
+        self.assertTrue(set(edition["quote"]) <= _PUBLIC_KEYS["quote"])
+        self.assertTrue(set(edition["weather"]) <= _PUBLIC_KEYS["weather"])
+        self.assertNotIn("theme", edition)
+        for section in edition["sections"]:
+            self.assertTrue(set(section) <= _PUBLIC_KEYS["section"], section.get("id"))
+            for item in section["items"]:
+                if isinstance(item, dict):
+                    self.assertTrue(set(item) <= _PUBLIC_KEYS["item"])
+        for todo in edition["todos"]:
+            self.assertTrue(set(todo) <= _PUBLIC_KEYS["todo"])
+        mac = edition["mac_tasks"]
+        self.assertTrue(set(mac) <= _PUBLIC_KEYS["mac"])
+        self.assertNotIn("source_url", mac)
+        for item in mac["items"]:
+            self.assertTrue(set(item) <= _PUBLIC_KEYS["item"])
+
+        stored = store.load_edition("2026-10-12", "am", self.root)
+        self.assertEqual(stored["fcc_snapshot"]["note"], "secret-nav-250000")
+        self.assertIn("secret-weather-key", json.dumps(stored["weather"]))
+
+    def test_plain_todos_news_and_weather_stay(self):
+        _, _, html = self.get("/daily-brief")
+        _, _, api_body = self.get("/daily-brief/api/latest")
+        edition = json.loads(api_body)["edition"]
+        api_text = json.dumps(edition)
+        for line in LEAK_KEEPS:
+            self.assertIn(line, html, line)
+            self.assertIn(line, api_text, line)
+        self.assertIn("<h4>Local weather</h4>", html)
+        self.assertIn("Daily Brief, not Horizon model output", html)
+        self.assertIn("70°", html)
+        self.assertIn("55°", html)
+        self.assertIn('href="https://www.notion.so/sample-leak-ledger"', html)
+        self.assertIn('href="https://example.com/leak-check"', html)
+        titles = {t["title"]: t for t in edition["todos"]}
+        self.assertEqual(set(titles), {"Pay rent", "Review rent ledger"})
+        self.assertNotIn("notion_url", titles["Pay rent"])
+        self.assertEqual(
+            titles["Review rent ledger"]["notion_url"],
+            "https://www.notion.so/sample-leak-ledger",
+        )
+        shipped = next(s for s in edition["sections"] if s["id"] == "shipped")
+        by_text = {it["text"]: it for it in shipped["items"]}
+        self.assertNotIn("link", by_text["SAMPLE: dashboard note"])
+        self.assertNotIn("link", by_text["SAMPLE: command link"])
+        self.assertNotIn("link", by_text["Tailnet book"])
+        self.assertNotIn("link", by_text["Local debug"])
+        self.assertEqual(by_text["SAMPLE: leak check ships"]["link"], "https://example.com/leak-check")
+        self.assertNotIn("Notes live at", api_text)
+        mac_by_text = {it["text"]: it for it in edition["mac_tasks"]["items"]}
+        self.assertNotIn("link", mac_by_text["SAMPLE: open the studio notes"])
+        self.assertEqual(
+            [s["id"] for s in edition["sections"]],
+            ["day-ahead", "markets", "business", "books", "fleet", "shipped"],
+        )
 
 
 class TestHorizonServerIntegration(RenderBase):

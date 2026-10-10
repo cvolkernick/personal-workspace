@@ -39,19 +39,37 @@ files, OFFLINE_PUBLISH.md), and neither is `investment/book_channel_map.json`.
 
 ## Rules on the Horizon host
 
-- **No personal book.** The owner's balances, holdings, sends, debt figures,
-  wallet addresses, business P&L and FCC links do not render here. Every
-  edition goes through `redact.scrub_edition` before rendering and before
-  `/daily-brief/api/latest`. News is kept: Markets, Business and Books
-  headlines stay, tickers in a headline stay, and words like tax, credit,
-  interest, cash, fund or loan do not by themselves hide a line. A to-do
-  worded without an amount or account stays ("Review rent ledger"); a send
-  ("$25 to Alex Sample") is dropped, and when the amount or recipient is only
-  part of a line that span is removed. Whole sections are withheld only when
-  the section is the private book (YNAB, treasury, portfolio, balances,
-  wallet). A headline that is itself a personal send is replaced by "Front
-  page held for the private edition". The footer says how many lines were
-  held back. The stored edition JSON is not modified.
+- **No personal book.** The owner's balances, holdings, allocation, orders,
+  sends, debt figures, P&L, wallet addresses, and FCC or prism links do not
+  render here. Every edition goes through `redact.scrub_edition` before
+  rendering and before `/daily-brief/api/latest`. That object is an allowlist
+  of the fields the page renders: unknown keys (an `fcc_snapshot`, an extra
+  weather field) are dropped. Fail closed: when a line might be the owner's
+  money, it is redacted.
+- **News amounts stay on three desks only.** Markets, Business and Books
+  headlines keep tickers and news amounts ("AAPL tops $180"). Words like tax,
+  credit, interest, cash, fund or loan do not by themselves hide a line.
+  Everywhere else (to-dos, Mac tasks, fleet, day-ahead, shipped, the front
+  page, theme, quote) any currency amount is removed, and the line is dropped
+  when what remains is not a real to-do.
+- **Sends, holdings, debt.** A plain to-do stays ("Pay rent", "Review rent
+  ledger"). A send is stripped with or without a dollar sign and at any name
+  casing ("900 USDC to Alex Sample", "Send $900 to alex", "Zelle Jordan
+  Example"). Holdings and allocation ("BTC 42%", "we hold"), buy/sell orders,
+  and loan, debt, or P&L amounts are stripped even when they sit in a news
+  section. Wallet addresses cover EVM, Bitcoin bech32, legacy and P2SH, and
+  Solana base58. A Notion page id (pure hex) is not treated as an address.
+- **Links.** Every link field (item `link`, to-do `notion_url`, Mac
+  `source_url`, front-page `image`) is checked. FCC paths and the prism host
+  are stripped: `financial-command`, `/fcc`, `/treasury`, `prism-gateway`,
+  `prism:<port>`, `*.ts.net`, `localhost`, `127.0.0.1`, `100.x` tailnet
+  addresses, and ports 8790 and 8795. The line of text stays when the URL was
+  only in the link field. A URL written in the text drops the line.
+- Whole sections are withheld only when the section is the private book
+  (YNAB, treasury, portfolio, balances, wallet). A headline that is itself a
+  personal send is replaced by "Front page held for the private edition". The
+  footer says how many lines were held back. The stored edition JSON is not
+  modified.
 - **Local weather, not a model widget.** The edition's weather box is shown,
   labeled "Local weather". There is no regime widget and no Horizon model
   weather. A quiet line under the masthead says "Daily Brief, not Horizon
@@ -250,7 +268,7 @@ publisher is down, `/daily-brief` keeps showing the last edition with a
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8795/daily-brief      # 200
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/horizon/daily-brief/archive   # 200
    curl -sI http://127.0.0.1:8000/brief/2026-10-09/am | grep -i '^location'        # /horizon/daily-brief/2026-10-09/am
-   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -cE 'USDC|we hold|Robinhood|financial-command|0x[a-fA-F0-9]{40}'   # 0
+   curl -s http://127.0.0.1:8000/horizon/daily-brief | grep -cE 'USDC|we hold|Robinhood|financial-command|prism-gateway|fcc_snapshot|0x[a-fA-F0-9]{40}'   # 0
    ```
 
 No new systemd unit and no new port: the page runs inside the existing

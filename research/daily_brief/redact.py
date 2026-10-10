@@ -1,28 +1,29 @@
 """Keep the owner's book off the Horizon host.
 
-The Daily Brief is a newspaper. Markets, Business and Books headlines stay,
-including tickers and ordinary money words (tax, credit, interest, cash, fund,
-loan). Plain-language to-dos, Mac tasks and the local weather box stay too.
+Fail closed: when a line might be the owner's money, it is redacted. Markets,
+Business and Books headlines stay, including tickers and ordinary money words
+(tax, credit, interest, cash, fund, loan) and news amounts such as
+"AAPL tops $180". Plain to-dos stay ("Pay rent", "Review rent ledger").
 
-What is withheld is the owner's own book, not news that mentions money:
+Withheld everywhere:
 
-  * balances, account names used as accounts, holdings, positions, NAV, runway
-  * a line that ties a ticker or asset to the owner's book: "we hold", a
-    target %, buy/sell/trim, may_change, or a capital so-what
-  * personal money ops: rent or USDC sends and their recipients, debt / loan /
-    LTV figures (Morpho and the like), card balances, wallet addresses
-  * business P&L figures (Turo / Panamerica revenue or payouts)
-  * links into FCC
+  * balances, even with no keyword ("Checking at Northwind is $12,400")
+  * holdings, allocation, and orders ("we hold", "BTC 42%", "Buy 0.1 BTC")
+  * sends and recipients, with or without a "$", any name casing
+    ("900 USDC to Alex Sample", "Send $900 to alex", "Zelle Jordan Example")
+  * debt, loan, and P&L amounts, not only next to Turo or Panamerica
+  * wallet addresses: EVM, Bitcoin bech32, legacy and P2SH, Solana base58
+  * links to FCC or the prism host (prism-gateway, prism:<port>, *.ts.net,
+    localhost, 127.0.0.1, 100.x tailnet addresses, ports 8790 and 8795)
 
-A to-do worded without an amount or account is kept. "$25 to Alex Sample" is
-dropped. Where the amount or recipient is only part of the line, that span is
-removed and the rest of the line stays.
+On the owner's own lines (to-dos, Mac tasks, fleet, day-ahead, shipped, the
+front page, theme, quote, and every section that is not Markets, Business or
+Books) any currency amount is removed. The line is dropped when what remains
+is not a real to-do.
 
-Whole sections are withheld only when the section itself is the private book
-(YNAB, treasury, portfolio, balances, wallet, and the like). A Markets,
-Business or Books section is filtered line by line.
-
-The stored edition is not modified. This module returns a copy.
+The public edition is an allowlist of the fields the page renders. Unknown
+keys (an ``fcc_snapshot``, an extra weather field) never reach HTML or
+``/daily-brief/api/latest``. The stored edition is not modified.
 """
 
 from __future__ import annotations
@@ -38,19 +39,64 @@ BOOK_SECTION_RE = re.compile(
     re.I,
 )
 
-# Links that lead into FCC or its book pages.
-FCC_LINK_RE = re.compile(r"financial-command|/fcc\b|/treasury\b|/api/treasury", re.I)
+# Newspaper desks. Only their item text may keep a news-style amount.
+_NEWS_SECTION_RE = re.compile(r"^(markets?|business|books)$", re.I)
 
-# Ethereum and Bitcoin addresses. A hit drops the line.
-_WALLET_RE = re.compile(
-    r"\b0x[a-fA-F0-9]{40}\b"
-    r"|\bbc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{11,87}\b",
+# Fields the page actually renders. Anything else is dropped.
+_EDITION_KEYS = (
+    "date", "edition", "vol", "no", "published_at",
+    "theme", "quote", "weather", "front_page", "sections", "todos", "mac_tasks",
+)
+_FRONT_KEYS = ("headline", "subhead", "body", "image")
+_SECTION_KEYS = ("id", "title", "items")
+_ITEM_KEYS = ("text", "link")
+_TODO_KEYS = ("title", "status", "due", "owner", "priority", "notion_url")
+_MAC_KEYS = ("source_url", "fetched_at", "page_found", "items")
+_MAC_ITEM_KEYS = ("text", "link", "checked")
+_QUOTE_KEYS = ("text", "author")
+_WEATHER_KEYS = ("summary", "high", "low", "icon", "rain", "wind", "note")
+_LINK_KEYS = ("link", "notion_url", "source_url", "image")
+
+# FCC pages and the prism / tailnet host. A hit strips the link or the line.
+_PRIVATE_LINK_RE = re.compile(
+    r"financial-command"
+    r"|/fcc\b"
+    r"|/treasury\b"
+    r"|/api/treasury"
+    r"|prism-gateway"
+    r"|\bprism\s*:"
+    r"|\.ts\.net\b"
+    r"|localhost"
+    r"|127\.0\.0\.1"
+    r"|\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"
+    r"|:(?:8790|8795)\b",
     re.I,
 )
+_URL_RE = re.compile(r"https?://[^\s<>\"')\]]+")
 
-# "$25 to Alex Sample" — amount plus a named recipient. Removed from the line.
-_AMOUNT_TO_NAME_RE = re.compile(
-    r"\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?\s+to\s+[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?"
+# Base58 without 0, O, I, l. A real address also carries a non-hex letter so a
+# Notion id (pure hex) is not treated as a wallet.
+_B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+_B58_CLASS = "[" + _B58 + "]"
+_NONHEX_B58_RE = re.compile(r"[g-zGHJKLMNP-Z]")
+_WALLET_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b0x[a-fA-F0-9]{40}\b", re.I),
+    re.compile(r"\bbc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{11,87}\b", re.I),
+    re.compile(rf"\b[13]{_B58_CLASS}{{25,34}}\b"),
+    re.compile(rf"(?<!{_B58_CLASS}){_B58_CLASS}{{32,44}}(?!{_B58_CLASS})"),
+)
+
+_CURRENCY_RE = re.compile(
+    r"[+\-]?\s*[$€£¥]\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmMbBnN])?"
+    r"|\b\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?\s*(?:usd|usdc|usdt|btc|eth|sol|sats?)\b",
+    re.I,
+)
+# "$25 to Alex Sample", "900 USDC to alex", any casing.
+_RECIPIENT_RE = re.compile(
+    r"[+\-]?\s*[$€£¥]\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmMbBnN])?\s+to\s+[A-Za-z]{2,}(?:\s+[A-Za-z]{2,})?"
+    r"|\b\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?\s*(?:usd|usdc|usdt|btc|eth|sol|sats?)\s+to\s+"
+    r"[A-Za-z]{2,}(?:\s+[A-Za-z]{2,})?",
+    re.I,
 )
 
 _DANGLING_RE = re.compile(
@@ -59,9 +105,8 @@ _DANGLING_RE = re.compile(
     re.I,
 )
 
-# Each pattern is specific to the owner's book. A news headline that merely
-# says "tax", "credit", "interest", "cash", "fund", "loan", or a ticker does
-# not match.
+# Personal book, on a news line or an owner line. "Pay rent" does not match:
+# rent is only a send when an amount or a recipient is also present.
 _BOOK_RES: tuple[re.Pattern[str], ...] = (
     re.compile(
         r"\b(?:balances?|runway|burn rate|net worth|buying power)\b"
@@ -75,47 +120,75 @@ _BOOK_RES: tuple[re.Pattern[str], ...] = (
         r"|\bsleeves?\b"
         r"|\b(?:we|i|our|my)\s+hold\b"
         r"|\bholdings\b"
-        r"|\b(?:our|my)\s+positions?\b",
+        r"|\b(?:our|my)\s+positions?\b"
+        r"|\bchecking\s+at\b"
+        r"|\bsavings\s*:"
+        r"|\bbrokerage\s+cash\b"
+        r"|\bNW\s+now\b",
         re.I,
     ),
-    # Allocation target ("target 8%"), not a macro "inflation target 2%" or a
-    # street "price target 20%".
+    # Allocation target ("target 8%"), not a macro "inflation target 2%"
+    # or a street "price target 20%".
     re.compile(r"\b(?<!inflation )(?<!price )target\s+\d+(?:\.\d+)?\s*%", re.I),
-    re.compile(r"\btreasury\s+(?:snapshot|balance|account|book)\b", re.I),
-    re.compile(r"\b(?:card|loan|debt)\s+balances?\b", re.I),
-    re.compile(r"\bLTV\b", re.I),
     re.compile(
-        r"\bmorpho\b.{0,40}(?:\d|ltv|loan|debt)"
-        r"|(?:\d|ltv|loan|debt).{0,40}\bmorpho\b",
+        r"\b(?:btc|bitcoin|eth|ethereum|sol|solana|usdc|usdt)\s+\d+(?:\.\d+)?\s*%"
+        r"|\b\d+(?:\.\d+)?\s*%\s*(?:btc|bitcoin|eth|ethereum|sol|solana|usdc|usdt)\b"
+        r"|\ballocation\b",
         re.I,
     ),
-    # Account names only when the line uses them as the owner's account.
+    re.compile(
+        r"\bavg(?:erage)?\s+cost\b"
+        r"|\b(?:long|short)\s+\d"
+        r"|\bwallet\s+holds\b"
+        r"|\bholds\s+\d"
+        r"|\bworth\s+[+\-]?\s*[$€£¥]",
+        re.I,
+    ),
+    re.compile(
+        r"\b(?:buy|sell|bought|sold)\s+\d"
+        r"|\b(?:buy|sell)\b.{0,48}\b(?:limit|shares)\b"
+        r"|\blimit\s+[+\-]?\s*[$€£¥]\s?\d",
+        re.I,
+    ),
+    re.compile(r"\btreasury\s+(?:snapshot|balance|account|book)\b", re.I),
+    re.compile(
+        r"\b(?:loan|debt)\b.{0,48}[+\-]?\s*[$€£¥]\s?\d"
+        r"|[+\-]?\s*[$€£¥]\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?.{0,32}\b(?:loan|debt|cards?)\b"
+        r"|\bLTV\b"
+        r"|\bmorpho\b",
+        re.I,
+    ),
+    re.compile(
+        r"\bp\s*&\s*l\b"
+        r"|\bpnl\b"
+        r"|\b(?:unrealized|realized)\b"
+        r"|\b(?:up|down)\s+[+\-]?\s*[$€£¥]\s?\d"
+        r"|[+\-][$€£¥]\s?\d"
+        r"|\bacross\s+the\s+book\b",
+        re.I,
+    ),
     re.compile(
         r"\b(?:coinbase|robinhood|plaid|ynab|brokerage)\b.{0,48}"
         r"\b(?:balance|account|send|sent|holding|position|usdc|usd|transfer)\b"
         r"|\b(?:balance|account|send|sent|holding|position|usdc|transfer)\b.{0,48}"
         r"\b(?:coinbase|robinhood|plaid|ynab|brokerage)\b"
-        r"|\b(?:check|open|review|move|login|log in)\b.{0,32}"
-        r"\b(?:coinbase|robinhood|plaid|ynab)\b",
+        r"|\b(?:check|open|review|move|login|log in)\b.{0,32}\b(?:coinbase|robinhood|plaid|ynab)\b",
         re.I,
     ),
-    # Personal sends: rent, stablecoins, or a coin amount on the move.
+    # Asset sends. "Pay rent" has no asset and no amount, so it does not match.
     re.compile(
-        r"\b(?:send|sent|sending|wire|wires|transfer|transferred|pay|paid|paying)\b"
-        r".{0,32}\b(?:usdc|usdt|btc|eth|sol|rent)\b"
+        r"\b(?:send|sent|sending|wire|wires|transfer|transferred)\b.{0,40}"
+        r"\b(?:usdc|usdt|btc|eth|sol|usd|sats?)\b"
         r"|\b(?:usdc|usdt|btc|eth|sol)\b.{0,32}\b(?:send|sent|sending)\b"
-        r"|\brent\s+(?:send|sent|payment|wire|payout)\b"
         r"|\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?\s*(?:usdc|usdt|btc|eth|sol|sats?)\b"
-        r"|\b\d[\d,.]*\s*(?:usdc|usdt|btc|eth|sol|sats?)\b.{0,32}"
-        r"\b(?:send|sent|sending|move|transfer|wire|pending)\b",
+        r"|\b\d[\d,.]*\s*(?:btc|eth|sol|usdc|usdt|sats?)\b"
+        r"|\b(?:zelle|venmo|cash\s*app)\b"
+        r"|\bwire\s+(?!the\b|a\b|an\b|it\b)[A-Za-z]{2,}",
         re.I,
     ),
-    # Business P&L figures, not a Turo pickup on the schedule.
     re.compile(
         r"\b(?:turo|panamerica)\b.{0,60}\b(?:revenue|payouts?|profits?|p&l|pnl|earned)\b"
-        r"|\b(?:revenue|payouts?|profits?|p&l|pnl)\b.{0,60}\b(?:turo|panamerica)\b"
-        r"|\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM])?.{0,40}\b(?:turo|panamerica)\b"
-        r"|\b(?:turo|panamerica)\b.{0,40}\$\s?\d",
+        r"|\b(?:revenue|payouts?|profits?|p&l|pnl)\b.{0,60}\b(?:turo|panamerica)\b",
         re.I,
     ),
     re.compile(
@@ -132,23 +205,70 @@ _TRIM_ASSET_RE = re.compile(
 )
 _TRIM_TICKER_RE = re.compile(r"\b[A-Z]{2,5}\b")
 _TRIM_AMOUNT_RE = re.compile(r"\d+\s*%|\$\s?\d")
-
+_SEND_LEFTOVER_RE = re.compile(
+    r"^(?:sample\b[:\s]*)?(?:book\b[:\s]*)?"
+    r"(?:send|sent|sending|pay|paid|paying|wire|zelle|venmo)\b[\w\s',.]*$",
+    re.I,
+)
 HELD_HEADLINE = "Front page held for the private edition"
 HELD_NOTE = "with money details kept off this page"
 
 
+def is_private_link(url: Any) -> bool:
+    """True for FCC links and anything on the prism / tailnet host."""
+    return isinstance(url, str) and bool(_PRIVATE_LINK_RE.search(url))
+
+
+def _wallet_in(text: str) -> str | None:
+    for p in _WALLET_RES:
+        for m in p.finditer(text):
+            token = m.group(0)
+            # EVM and bech32 are specific. Base58 hits must carry a non-hex
+            # letter so a 32-char Notion id is left alone.
+            if token.lower().startswith(("0x", "bc1")) or _NONHEX_B58_RE.search(token):
+                return token
+    return None
+
+
+def _trim_order(text: str) -> bool:
+    """'trim SOL' / 'trim 5%' is an owner order. 'trim the hedge' is not."""
+    if not _TRIM_RE.search(text):
+        return False
+    return bool(_TRIM_ASSET_RE.search(text) or _TRIM_TICKER_RE.search(text) or _TRIM_AMOUNT_RE.search(text))
+
+
+# "Pay rent" stays. "Pay rent $25" does not. The amount has to sit with the
+# phrase: a news amount elsewhere on the page is not this to-do.
+_RENT_MONEY_RE = re.compile(
+    r"\b(?:pay|paid|paying|send|sent|sending|wire)\b.{0,40}\brent\b.{0,48}"
+    r"(?:[+\-]?\s*[$€£¥]\s?\d"
+    r"|\b\d[\d,]*(?:\.\d+)?\s*(?:usd|usdc|usdt|btc|eth|sol|sats?)\b"
+    r"|\bto\s+[A-Za-z]{2,})",
+    re.I | re.S,
+)
+
+
+def _rent_with_money(text: str) -> bool:
+    return _RENT_MONEY_RE.search(text) is not None
+
+
 def book_match(text: Any) -> str | None:
-    """Return the personal-book fragment in ``text``, or None if it may be shown."""
+    """Return the personal-book fragment in ``text``, or None if it may be shown.
+
+    News amounts ("AAPL tops $180") and plain to-dos ("Pay rent") return None.
+    """
     if not isinstance(text, str) or not text:
         return None
-    m = _WALLET_RE.search(text)
-    if m:
-        return m.group(0)
-    m = FCC_LINK_RE.search(text)
+    hit = _wallet_in(text)
+    if hit:
+        return hit
+    m = _PRIVATE_LINK_RE.search(text)
     if m:
         return m.group(0)
     if _trim_order(text):
         return "trim"
+    if _rent_with_money(text):
+        return "rent"
     for p in _BOOK_RES:
         m = p.search(text)
         if m:
@@ -179,11 +299,12 @@ def is_fcc_section(section: Any) -> bool:
     return False
 
 
-def _trim_order(text: str) -> bool:
-    """'trim SOL' / 'trim 5%' is an owner order. 'trim the hedge' is not."""
-    if not _TRIM_RE.search(text):
-        return False
-    return bool(_TRIM_ASSET_RE.search(text) or _TRIM_TICKER_RE.search(text) or _TRIM_AMOUNT_RE.search(text))
+def _is_news_section(section: dict) -> bool:
+    for key in ("id", "title"):
+        v = section.get(key)
+        if isinstance(v, str) and _NEWS_SECTION_RE.match(v.replace("-", " ").strip()):
+            return True
+    return False
 
 
 def _meaningful(text: str) -> bool:
@@ -201,170 +322,310 @@ def _tidy(text: str) -> str:
     return text.strip(" \t-–—:;,")
 
 
-def _scrub_text(text: str) -> tuple[str | None, int]:
+def _blank_private_urls(text: str) -> str:
+    def repl(m: re.Match[str]) -> str:
+        return " " if is_private_link(m.group(0)) else m.group(0)
+
+    return _URL_RE.sub(repl, text)
+
+
+def _blank_wallets(text: str) -> str:
+    def repl(m: re.Match[str]) -> str:
+        token = m.group(0)
+        if token.lower().startswith(("0x", "bc1")) or _NONHEX_B58_RE.search(token):
+            return " "
+        return token
+
+    out = text
+    for p in _WALLET_RES:
+        out = p.sub(repl, out)
+    return out
+
+
+def _scrub_line(text: str, *, news: bool) -> tuple[str | None, int]:
     """(kept text or None to drop the line, 1 if anything was withheld)."""
     if book_match(text):
         return None, 1
-    if _AMOUNT_TO_NAME_RE.search(text):
-        cleaned = _tidy(_AMOUNT_TO_NAME_RE.sub(" ", text))
-        if _meaningful(cleaned):
-            return cleaned, 1
+    cleaned = text
+    changed = False
+    # Owner lines lose every currency amount and any "$N to name" clause.
+    # News lines keep amounts that are not already a book pattern.
+    if not news:
+        nxt = _RECIPIENT_RE.sub(" ", cleaned)
+        nxt = _CURRENCY_RE.sub(" ", nxt)
+        if nxt != cleaned:
+            changed = True
+            cleaned = nxt
+    nxt = _blank_private_urls(_blank_wallets(cleaned))
+    if nxt != cleaned:
+        changed = True
+        cleaned = nxt
+    if not changed:
+        return text, 0
+    cleaned = _tidy(cleaned)
+    if book_match(cleaned) or _SEND_LEFTOVER_RE.match(cleaned) or not _meaningful(cleaned):
         return None, 1
-    return text, 0
+    return cleaned, 1
 
 
-def _scrub_item(it: Any) -> tuple[Any, int]:
+def _scrub_link(url: Any) -> tuple[Any, int]:
+    if isinstance(url, str) and is_private_link(url):
+        return None, 1
+    return url, 0
+
+
+def _scrub_item(it: Any, *, news: bool) -> tuple[Any, int]:
     if isinstance(it, str):
-        kept, n = _scrub_text(it)
-        return kept, n
-    if isinstance(it, dict):
-        link = it.get("link")
-        if isinstance(link, str) and FCC_LINK_RE.search(link):
-            return None, 1
-        if "text" not in it:
-            return it, 0
-        text = it.get("text")
-        if not isinstance(text, str):
-            return it, 0
-        kept, n = _scrub_text(text)
-        if kept is None:
-            return None, 1
-        if n:
-            out = dict(it)
-            out["text"] = kept
-            return out, n
-        return it, 0
-    return it, 0
+        return _scrub_line(it, news=news)
+    if not isinstance(it, dict):
+        return None, 1  # unknown shape: fail closed
+    held = 0
+    text = it.get("text")
+    kept_text: str | None
+    if isinstance(text, str):
+        kept_text, n = _scrub_line(text, news=news)
+        held += n
+        if kept_text is None:
+            return None, held or 1
+    elif text is None and "text" not in it:
+        kept_text = None
+    else:
+        return None, 1
+    link, n = _scrub_link(it.get("link"))
+    held += n
+    if kept_text is None:
+        return None, held or 1
+    out: dict[str, Any] = {"text": kept_text}
+    if link:
+        out["link"] = link
+    if "checked" in it and isinstance(it.get("checked"), bool):
+        out["checked"] = it["checked"]
+    return out, held
 
 
 def _scrub_weather(w: Any) -> tuple[Any, int]:
     if isinstance(w, str):
-        kept, n = _scrub_text(w)
+        kept, n = _scrub_line(w, news=False)
         return (kept if kept else ""), n
     if not isinstance(w, dict):
-        return w, 0
+        return None, 1
     out: dict[str, Any] = {}
     held = 0
-    for k, v in w.items():
+    for k in _WEATHER_KEYS:
+        if k not in w:
+            continue
+        v = w[k]
         if isinstance(v, str):
-            kept, n = _scrub_text(v)
+            kept, n = _scrub_line(v, news=False)
             held += n
             if kept:
                 out[k] = kept
-        else:
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
             out[k] = v
+        else:
+            held += 1
+    # Unknown weather keys are the owner's book until proven otherwise.
+    held += sum(1 for k in w if k not in _WEATHER_KEYS)
     return out, held
 
 
-def scrub_edition(edition: dict) -> tuple[dict, int]:
-    """(copy of edition safe for the Horizon host, number of parts withheld)."""
-    ed = copy.deepcopy(edition)
-    held = 0
+def _allow_text(value: Any, *, news: bool) -> tuple[str | None, int]:
+    if not isinstance(value, str):
+        return None, 1 if value not in (None, "") else 0
+    return _scrub_line(value, news=news)
 
-    secs = []
-    for s in ed.get("sections") or []:
+
+def _project_quote(q: Any) -> tuple[Any, int]:
+    if isinstance(q, str):
+        kept, n = _scrub_line(q, news=False)
+        return (kept, n) if kept else (None, n or 1)
+    if not isinstance(q, dict):
+        return None, 1
+    held = sum(1 for k in q if k not in _QUOTE_KEYS)
+    text, n = _allow_text(q.get("text"), news=False) if "text" in q else (None, 0)
+    held += n
+    if not text:
+        return None, held or 1
+    out: dict[str, Any] = {"text": text}
+    if isinstance(q.get("author"), str):
+        author, n = _scrub_line(q["author"], news=False)
+        held += n
+        if author:
+            out["author"] = author
+    return out, held
+
+
+def _project_front(fp: Any) -> tuple[dict, int]:
+    if not isinstance(fp, dict):
+        return {"headline": HELD_HEADLINE}, 1
+    held = sum(1 for k in fp if k not in _FRONT_KEYS)
+    out: dict[str, Any] = {}
+    headline, n = _allow_text(fp.get("headline"), news=False) if isinstance(fp.get("headline"), str) else (None, 0)
+    held += n
+    out["headline"] = headline if headline else HELD_HEADLINE
+    if isinstance(fp.get("subhead"), str):
+        sub, n = _scrub_line(fp["subhead"], news=False)
+        held += n
+        if sub:
+            out["subhead"] = sub
+    body = fp.get("body")
+    if isinstance(body, str) and body.strip():
+        paras = [p for p in re.split(r"\n\s*\n", body) if p.strip()]
+        keep = []
+        for p in paras:
+            kept, n = _scrub_line(p, news=False)
+            held += n
+            if kept:
+                keep.append(kept)
+        if keep:
+            out["body"] = "\n\n".join(keep)
+    image, n = _scrub_link(fp.get("image"))
+    held += n
+    if isinstance(image, str):
+        out["image"] = image
+    return out, held
+
+
+def _project_sections(sections: Any) -> tuple[list, int]:
+    if not isinstance(sections, list):
+        return [], 1
+    held = 0
+    out = []
+    for s in sections:
         if not isinstance(s, dict):
+            held += 1
             continue
         if is_fcc_section(s):
             held += max(1, len(s.get("items") or []))
             continue
+        held += sum(1 for k in s if k not in _SECTION_KEYS)
+        news = _is_news_section(s)
         items = s.get("items") or []
+        if not isinstance(items, list):
+            held += 1
+            items = []
         keep = []
         for it in items:
-            kept, n = _scrub_item(it)
+            kept, n = _scrub_item(it, news=news)
             held += n
             if kept is not None:
                 keep.append(kept)
         if items and not keep:
-            continue  # every line was the owner's book: drop the empty shell
-        s = dict(s)
-        s["items"] = keep
-        secs.append(s)
-    ed["sections"] = secs
+            continue
+        title = s.get("title") if isinstance(s.get("title"), str) else ""
+        sid = s.get("id") if isinstance(s.get("id"), str) else ""
+        # A title that is itself a balance does not head a public section.
+        if not news and isinstance(title, str) and book_match(title):
+            held += 1
+            continue
+        out.append({"id": sid, "title": title, "items": keep})
+    return out, held
 
-    fp = dict(ed.get("front_page") or {})
-    headline, n = _scrub_text(fp["headline"]) if isinstance(fp.get("headline"), str) else (fp.get("headline"), 0)
-    held += n
-    if n and headline is None:
-        fp["headline"] = HELD_HEADLINE
-    elif isinstance(headline, str):
-        fp["headline"] = headline
-    if isinstance(fp.get("subhead"), str):
-        sub, n = _scrub_text(fp["subhead"])
-        held += n
-        if sub:
-            fp["subhead"] = sub
-        else:
-            fp.pop("subhead", None)
-    body = fp.get("body")
-    if isinstance(body, str) and body.strip():
-        paras = [p for p in re.split(r"\n\s*\n", body) if p.strip()]
-        keep_p = []
-        for p in paras:
-            kept, n = _scrub_text(p)
-            held += n
-            if kept:
-                keep_p.append(kept)
-        fp["body"] = "\n\n".join(keep_p)
-    if isinstance(fp.get("image"), str) and FCC_LINK_RE.search(fp["image"]):
-        fp.pop("image", None)
-        held += 1
-    ed["front_page"] = fp
 
-    if isinstance(ed.get("theme"), str):
-        theme, n = _scrub_text(ed["theme"])
-        held += n
-        if theme:
-            ed["theme"] = theme
-        else:
-            ed.pop("theme", None)
-
-    q = ed.get("quote")
-    if isinstance(q, str):
-        kept, n = _scrub_text(q)
-        held += n
-        if kept:
-            ed["quote"] = kept
-        else:
-            ed.pop("quote", None)
-    elif isinstance(q, dict) and isinstance(q.get("text"), str):
-        kept, n = _scrub_text(q["text"])
-        held += n
-        if kept:
-            q = dict(q)
-            q["text"] = kept
-            ed["quote"] = q
-        else:
-            ed.pop("quote", None)
-
-    todos = ed.get("todos") or []
-    keep_t = []
+def _project_todos(todos: Any) -> tuple[list, int]:
+    if not isinstance(todos, list):
+        return [], 1
+    held = 0
+    out = []
     for t in todos:
-        if isinstance(t, dict) and isinstance(t.get("title"), str):
-            kept, n = _scrub_text(t["title"])
-            held += n
-            if kept:
-                if n:
-                    t = dict(t)
-                    t["title"] = kept
-                keep_t.append(t)
-        else:
-            keep_t.append(t)
-    ed["todos"] = keep_t
+        if not isinstance(t, dict):
+            held += 1
+            continue
+        held += sum(1 for k in t if k not in _TODO_KEYS)
+        title, n = _allow_text(t.get("title"), news=False) if isinstance(t.get("title"), str) else (None, 0)
+        held += n
+        if not title:
+            held += 0 if n else 1
+            continue
+        item: dict[str, Any] = {"title": title}
+        for k in ("status", "due", "owner", "priority"):
+            if k in t and t[k] is not None:
+                if k in ("owner", "priority") and isinstance(t[k], str) and book_match(t[k]):
+                    held += 1
+                    continue
+                item[k] = t[k]
+        url, n = _scrub_link(t.get("notion_url"))
+        held += n
+        if isinstance(url, str):
+            item["notion_url"] = url
+        out.append(item)
+    return out, held
 
-    mt = ed.get("mac_tasks")
-    if isinstance(mt, dict) and isinstance(mt.get("items"), list):
-        mt = dict(mt)
-        keep_m = []
-        for it in mt["items"]:
-            kept, n = _scrub_item(it)
+
+def _project_mac(mt: Any) -> tuple[Any, int]:
+    if mt is None:
+        return None, 0
+    if not isinstance(mt, dict):
+        return None, 1
+    held = sum(1 for k in mt if k not in _MAC_KEYS)
+    out: dict[str, Any] = {}
+    url, n = _scrub_link(mt.get("source_url"))
+    held += n
+    if isinstance(url, str):
+        out["source_url"] = url
+    if "fetched_at" in mt:
+        out["fetched_at"] = mt.get("fetched_at")
+    if "page_found" in mt and isinstance(mt.get("page_found"), bool):
+        out["page_found"] = mt["page_found"]
+    items = mt.get("items") or []
+    keep = []
+    if isinstance(items, list):
+        for it in items:
+            kept, n = _scrub_item(it, news=False)
             held += n
             if kept is not None:
-                keep_m.append(kept)
-        mt["items"] = keep_m
-        ed["mac_tasks"] = mt
+                keep.append(kept)
+    else:
+        held += 1
+    out["items"] = keep
+    return out, held
 
-    if "weather" in ed:
-        ed["weather"], n = _scrub_weather(ed.get("weather"))
+
+def scrub_edition(edition: dict) -> tuple[dict, int]:
+    """(allowlisted edition safe for the Horizon host, parts withheld).
+
+    The same object is rendered to HTML and returned by ``/daily-brief/api/latest``.
+    """
+    if not isinstance(edition, dict):
+        return {"front_page": {"headline": HELD_HEADLINE}, "sections": [], "todos": []}, 1
+    src = copy.deepcopy(edition)
+    held = sum(1 for k in src if k not in _EDITION_KEYS)
+
+    sections, n = _project_sections(src.get("sections"))
+    held += n
+    front, n = _project_front(src.get("front_page"))
+    held += n
+    todos, n = _project_todos(src.get("todos"))
+    held += n
+
+    out: dict[str, Any] = {
+        "front_page": front,
+        "sections": sections,
+        "todos": todos,
+    }
+    for k in ("date", "edition", "vol", "no", "published_at"):
+        if k in src:
+            out[k] = src[k]
+    if isinstance(src.get("theme"), str):
+        theme, n = _scrub_line(src["theme"], news=False)
         held += n
-    return ed, held
+        if theme:
+            out["theme"] = theme
+    elif "theme" in src and src.get("theme") not in (None, ""):
+        held += 1
+    if "quote" in src and src.get("quote") not in (None, ""):
+        quote, n = _project_quote(src.get("quote"))
+        held += n
+        if quote:
+            out["quote"] = quote
+    if "mac_tasks" in src and src.get("mac_tasks") is not None:
+        mac, n = _project_mac(src.get("mac_tasks"))
+        held += n
+        if mac is not None:
+            out["mac_tasks"] = mac
+    if "weather" in src and src.get("weather") not in (None, ""):
+        weather, n = _scrub_weather(src.get("weather"))
+        held += n
+        if weather:
+            out["weather"] = weather
+    return out, held
