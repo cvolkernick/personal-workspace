@@ -118,8 +118,18 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertNotIn("engine_target", lyft)
         asics = next(s for s in model["income_sources"] if s["id"] == "asics")
         self.assertEqual(asics.get("engine_target"), "digital_credit")
-        self.assertEqual(model["version"], 41)
-        self.assertEqual(model["as_of"], "2026-09-11")
+        self.assertEqual(model["version"], 42)
+        self.assertEqual(model["as_of"], "2026-10-10")
+        self.assertNotIn("jr_strcusx", [c["id"] for c in model["channels"]])
+        le = next(c for c in model["layout"]["columns"] if c["id"] == "liquidity_engine")
+        self.assertNotIn("jr_strcusx", le["ids"])
+        self.assertFalse(
+            any(
+                e.get("from") == "jr_strcusx" or e.get("to") == "jr_strcusx"
+                for e in model["edges"]
+            )
+        )
+        self.assertNotIn("JR-strcUSX", html)
         lyft_edges = [
             (e["from"], e["to"])
             for e in model["edges"]
