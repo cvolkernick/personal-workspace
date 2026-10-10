@@ -1,8 +1,9 @@
 """Daily Brief after the move to the Horizon host (#1091).
 
 FCC keeps two things: the publish CLI shim (financial-command/brief.py) and a
-302 from /brief* to BRIEF_BASE_URL. Rendering tests live in
-research/daily_brief/tests.
+302 from /brief* to BRIEF_BASE_URL. The redirect lives in brief_redirect.py and
+is reached through server.py's unchanged brief_route -> brief.route. Rendering
+tests live in research/daily_brief/tests.
 """
 
 from __future__ import annotations
@@ -75,12 +76,12 @@ class TestPublishShim(unittest.TestCase):
 
 class TestRedirectMapping(unittest.TestCase):
     def t(self, path, base=None):
-        return server_mod.brief_redirect_target(path, base)
+        return brief.brief_redirect_target(path, base)
 
     def test_default_base_is_horizon_lens(self):
         with mock.patch.dict(os.environ, {}):
             os.environ.pop("BRIEF_BASE_URL", None)
-            self.assertEqual(server_mod.brief_base_url(), "/horizon/daily-brief")
+            self.assertEqual(brief.brief_base_url(), "/horizon/daily-brief")
             self.assertEqual(self.t("/brief"), "/horizon/daily-brief")
 
     def test_paths_and_query_preserved(self):
@@ -107,6 +108,49 @@ class TestRedirectMapping(unittest.TestCase):
             self.assertIsNone(self.t(p), p)
 
 
+    def test_location_cannot_carry_extra_headers(self):
+        got = self.t("/brief/x\r\nSet-Cookie: a=b", "/daily-brief")
+        self.assertNotIn("\r", got)
+        self.assertNotIn("\n", got)
+        self.assertNotIn(" ", got)
+        with mock.patch.dict(os.environ, {"BRIEF_BASE_URL": "/daily-brief\r\nX-Evil: 1"}):
+            got = self.t("/brief")
+        self.assertNotIn("\r", got)
+        self.assertNotIn("\n", got)
+
+
+class TestBriefRoute(unittest.TestCase):
+    """server.brief_route(path) -> brief.route(path) -> (302, ctype+Location, body)."""
+
+    def test_route_returns_302_with_location(self):
+        with mock.patch.dict(os.environ, {"BRIEF_BASE_URL": "/daily-brief"}):
+            code, ctype, body = brief.route("/brief/archive")
+        self.assertEqual(code, 302)
+        first, loc = ctype.split("\r\n")
+        self.assertEqual(first, "text/html; charset=utf-8")
+        self.assertEqual(loc, "Location: /daily-brief/archive")
+        self.assertIn('href="/daily-brief/archive"', body)
+
+    def test_route_none_for_other_paths(self):
+        for p in ("/", "/briefing", "/api/treasury", "/horizon/daily-brief"):
+            self.assertIsNone(brief.route(p), p)
+
+    def test_server_brief_route_is_unchanged_and_delegates(self):
+        # server.py keeps its original brief_route; it loads brief.py and calls route().
+        with mock.patch.dict(os.environ, {"BRIEF_BASE_URL": "/horizon/daily-brief"}):
+            server_mod._BRIEF_MOD = None
+            code, ctype, _ = server_mod.brief_route("/api/brief/latest")
+        self.assertEqual(code, 302)
+        self.assertTrue(ctype.endswith("\r\nLocation: /horizon/daily-brief/api/latest"))
+        self.assertIsNone(server_mod.brief_route("/api/treasury"))
+
+    def test_no_fcc_rendering_left_in_route(self):
+        with mock.patch.dict(os.environ, {"FCC_BRIEF_DIR": tempfile.gettempdir()}):
+            res = brief.route("/brief")
+        self.assertEqual(res[0], 302)
+        self.assertNotIn("Daily Brief</h1>", res[2])
+
+
 class TestServerRedirects(unittest.TestCase):
     def test_fcc_server_302s_brief_routes(self):
         httpd = ThreadingHTTPServer(("127.0.0.1", 0), server_mod.FCCHandler)
@@ -117,15 +161,25 @@ class TestServerRedirects(unittest.TestCase):
             with mock.patch.dict(os.environ, {"BRIEF_BASE_URL": "/horizon/daily-brief"}):
                 for method in ("GET", "HEAD"):
                     for path, want in (("/brief", "/horizon/daily-brief"),
+                                       ("/brief/", "/horizon/daily-brief"),
+                                       ("/brief?utm=1", "/horizon/daily-brief?utm=1"),
                                        ("/brief/2026-10-09/am?x=1", "/horizon/daily-brief/2026-10-09/am?x=1"),
-                                       ("/brief/archive", "/horizon/daily-brief/archive")):
+                                       ("/brief/archive", "/horizon/daily-brief/archive"),
+                                       ("/api/brief/latest", "/horizon/daily-brief/api/latest")):
                         c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
                         c.request(method, path)
                         r = c.getresponse()
                         r.read()
                         self.assertEqual(r.status, 302, (method, path))
                         self.assertEqual(r.getheader("Location"), want, (method, path))
+                        self.assertTrue(r.getheader("Content-Type", "").startswith("text/html"))
                         c.close()
+                c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+                c.request("GET", "/briefing")
+                r = c.getresponse()
+                r.read()
+                self.assertNotEqual(r.status, 302)
+                c.close()
         finally:
             httpd.shutdown()
             httpd.server_close()
