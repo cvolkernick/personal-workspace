@@ -14,7 +14,8 @@ This file is the nest SoT for house caps, insert-budget math, the
 #731/#815 add-path floors (`MIN_FIT`, `SEED_THROTTLE_WEIGHT_FLOOR`), the
 #788 house fill (`HOUSE_TARGET` 50 → 100), the #852 control-loop band,
 and the #957 rebaseline (target/cap 250, band 235–250, stale 30d).
-#1045: AI Curated adds are long-form only (`MIN_LONGFORM_SEC` 60).
+#1045: AI Curated adds are long-form only. A Short is <=180s (`SHORTS_MAX_SEC`)
+or served at /shorts/<id>; the rule is `scripts/youtube_groom_shorts.py`.
 No YouTube I/O. No second writer. No OAuth.
 The loop itself lives in `scripts/youtube_groom_control.py`. Discovery,
 share cap, and the daily climb live in `scripts/youtube_groom_supply.py`.
@@ -86,9 +87,10 @@ KEEP_N = 10  # empty-playlist prune fallback on Pi (`keep_n`)
 
 # Add-path floors on the Pi writer (#731, #815, then #957 baseline).
 MIN_FIT = 0  # thesis-fit skip disabled; accept fit≥0 (was 1)
-# Chris, 2026-10-03: a Short is under 60s. YouTube also flags Shorts up to 3 min.
-MIN_LONGFORM_SEC = 60
+# Chris, 2026-10-03: AI Curated is long-form only. YouTube Shorts run up to
+# 3 minutes, so anything <=180s is a Short (was: under 60s).
 SHORTS_MAX_SEC = 180
+MIN_LONGFORM_SEC = SHORTS_MAX_SEC + 1
 OLD_MIN_FIT = 1
 ORIG_MIN_FIT = 2  # pre-#731 skip fit < 2
 SEED_THROTTLE_WEIGHT_FLOOR = 0.0  # #957 baseline; throttle skip off
@@ -206,7 +208,7 @@ def skip_add_reason(
     Callers that are not scoring a video pass a known long-form duration.
     """
     if duration_sec is not None and duration_sec < min_longform_sec:
-        return "short<60s"
+        return "short<=180s"
     if is_short:
         return "short-flagged"
     if duration_sec is None:

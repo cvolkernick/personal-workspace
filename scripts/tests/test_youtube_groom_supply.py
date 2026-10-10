@@ -123,9 +123,9 @@ class TestPolicyMatch(unittest.TestCase):
         self.assertEqual(S.CLIMB_INSERTS_PER_DAY, P.CLIMB_INSERTS_PER_DAY)
         self.assertEqual(S.SEED_UPLOADS_PER_CHANNEL, P.SEED_UPLOADS_PER_CHANNEL)
         self.assertEqual(S.MIN_LONGFORM_SEC, P.MIN_LONGFORM_SEC)
-        self.assertEqual(S.MIN_LONGFORM_SEC, 60)
+        self.assertEqual(S.MIN_LONGFORM_SEC, 181)
         self.assertEqual(S.SHORTS_MAX_SEC, P.SHORTS_MAX_SEC)
-        self.assertEqual(P.HOUSE_CAPS["MIN_LONGFORM_SEC"], 60)
+        self.assertEqual(P.HOUSE_CAPS["MIN_LONGFORM_SEC"], 181)
         self.assertFalse(S.COPY_OVER_PI)
 
     def test_share_cap_is_the_larger_of_twelve_or_five_percent(self):
@@ -320,9 +320,11 @@ class TestLongform(unittest.TestCase):
                 "short": "PT45S",
                 "long": "PT10M",
                 "edge": "PT59S",
-                "keep": "PT60S",
-                "flag": "PT1M30S",
-                "plain": "PT1M30S",
+                "minute": "PT60S",
+                "three": "PT3M",
+                "keep": "PT3M1S",
+                "flag": "PT10M",
+                "served": "PT4M",
                 "bad": "garbage",
                 "empty": "",
                 "missing": None,
@@ -334,30 +336,49 @@ class TestLongform(unittest.TestCase):
             {"video_id": "short", "title": "Clip", "duration_sec": 0},
             {"video_id": "long", "title": "Interview", "duration_sec": 0},
             {"video_id": "edge", "title": "Almost", "duration_sec": 0},
-            {"video_id": "keep", "title": "Minute", "duration_sec": 0},
+            {"video_id": "minute", "title": "Minute", "duration_sec": 0},
+            {"video_id": "three", "title": "Three minutes", "duration_sec": 0},
+            {"video_id": "keep", "title": "Just over", "duration_sec": 0},
             {"video_id": "flag", "title": "Quick #shorts take", "duration_sec": 0},
-            {"video_id": "plain", "title": "Ninety seconds", "duration_sec": 0},
+            {"video_id": "served", "title": "Served as a Short", "duration_sec": 0},
             {"video_id": "bad", "title": "Bad", "duration_sec": 0},
             {"video_id": "empty", "title": "Empty", "duration_sec": 0},
             {"video_id": "missing", "title": "Missing", "duration_sec": 0},
             {"video_id": "live", "title": "Live", "duration_sec": 0},
         ]
-        kept, skipped = S.filter_longform(candidates, yt, log)
+        probed: list[str] = []
+
+        def probe(vid: str):
+            probed.append(vid)
+            return vid == "served"
+
+        cache: dict = {"stale-id": True}
+        kept, skipped = S.filter_longform(candidates, yt, log, probe_cache=cache, probe=probe)
         why = {row["video_id"]: row["why"] for row in skipped}
-        self.assertEqual(why["short"], "short<60s")
-        self.assertEqual(why["edge"], "short<60s")
+        self.assertEqual(why["short"], "short<=180s")
+        self.assertEqual(why["edge"], "short<=180s")
+        self.assertEqual(why["minute"], "short<=180s")
+        self.assertEqual(why["three"], "short<=180s")
         self.assertEqual(why["flag"], "short-flagged")
+        self.assertEqual(why["served"], "short-url")
         self.assertEqual(why["bad"], "duration-unknown")
         self.assertEqual(why["empty"], "duration-unknown")
         self.assertEqual(why["missing"], "duration-unknown")
         self.assertEqual(why["live"], "duration-unknown")
         kept_ids = {row["video_id"]: row["duration_sec"] for row in kept}
-        self.assertEqual(kept_ids["long"], 600)
-        self.assertEqual(kept_ids["keep"], 60)
-        self.assertEqual(kept_ids["plain"], 90)
-        self.assertNotIn("plain", why)
-        self.assertTrue(any("short<60s" in line for line in log.lines))
+        self.assertEqual(kept_ids, {"long": 600, "keep": 181})
+        # <=180s never needs the network; only >180s long-form is probed.
+        self.assertEqual(sorted(probed), ["keep", "long", "served"])
+        self.assertEqual(cache, {"keep": False, "long": False, "served": True})
+        self.assertTrue(any("short<=180s" in line for line in log.lines))
         self.assertTrue(all(len(call) <= 50 for call in yt.calls))
+        # Second pass: answers come from the cache, no new probes.
+        probed.clear()
+        S.filter_longform(
+            [{"video_id": "long", "title": "Interview", "duration_sec": 600}],
+            yt, log, probe_cache=cache, probe=probe,
+        )
+        self.assertEqual(probed, [])
 
     def test_supply_discovery_fetches_duration_before_a_keep(self):
         quota = _Quota(8000)
@@ -387,7 +408,7 @@ class TestLongform(unittest.TestCase):
         )
         discovered = next(c for c in out if c["video_id"] == "d-1")
         self.assertEqual(discovered["duration_sec"], 0)
-        kept, skipped = S.filter_longform(out, yt, _Log())
+        kept, skipped = S.filter_longform(out, yt, _Log(), probe=lambda vid: False)
         fetched = [vid for call in yt.video_calls for vid in call]
         self.assertIn("d-1", fetched)
         self.assertNotIn("known", fetched)
