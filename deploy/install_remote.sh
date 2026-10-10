@@ -2,7 +2,7 @@
 # Deploy all personal-workspace dashboard backends to a Raspberry Pi (or always-on host).
 #
 # Usage (from monorepo root on your Mac):
-#   bash deploy/install_remote.sh prism-agent@192.168.100.98
+#   bash deploy/install_remote.sh prism-agent@192.0.2.10
 #   bash deploy/install_remote.sh user@host --dir /home/user/personal-workspace
 #   bash deploy/install_remote.sh user@host --only orchestra,iot
 #   bash deploy/install_remote.sh user@host --dry-run
