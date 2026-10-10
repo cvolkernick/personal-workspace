@@ -27,8 +27,12 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 
 Add `?probe=1` to probe child server ports for live badges. Probes use
 `127.0.0.1` (`ORCHESTRA_PROBE_HOST` overrides). Finance and Horizon links use
-`PRISM_PUBLIC_BASE` (default `https://prism.example.ts.net`), not a LAN address.
-Set that env in the orchestra process so the links match the tailnet origin.
+`PRISM_PUBLIC_BASE` when it is a valid https origin (`prism_public.py`). If it
+is unset or invalid, those links fall back to
+`http://127.0.0.1:8000/financial-command/` and `http://127.0.0.1:8795/`.
+Startup logs `ERROR:` on stderr. Under systemd (`INVOCATION_ID`) the process
+exits non-zero. Set the env in the orchestra process so the links match the
+tailnet origin. `https://prism.example.ts.net` is not a valid base.
 
 ## Subordinate dashboards
 

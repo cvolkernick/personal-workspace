@@ -15,11 +15,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-from research.daily_brief.store import (
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+import prism_public  # noqa: E402
+from research.daily_brief.store import (  # noqa: E402
     MAC_TASKS_URL,
     BriefError,
     edition_url,
@@ -33,26 +37,21 @@ from research.daily_brief.store import (
     validate,
 )
 
-# Placeholder only. On prism set DAILY_BRIEF_PUBLIC_BASE, or PRISM_PUBLIC_BASE
-# (origin, no path) and this appends /horizon. Neither default is a real host.
-DEFAULT_PUBLIC_ORIGIN = "https://prism.example.ts.net"
-DEFAULT_PUBLIC_BASE = DEFAULT_PUBLIC_ORIGIN + "/horizon"
 
+def public_base() -> str | None:
+    """Validated public prefix, or None when publish should print a relative path.
 
-def public_base() -> str:
-    explicit = os.environ.get("DAILY_BRIEF_PUBLIC_BASE", "").strip()
-    if explicit:
-        return explicit.rstrip("/")
-    origin = os.environ.get("PRISM_PUBLIC_BASE", "").strip().rstrip("/")
-    if origin:
-        if "://" not in origin:
-            origin = "https://" + origin
-        return origin + "/horizon"
-    return DEFAULT_PUBLIC_BASE
+    Does not exit under systemd. Publish still succeeds; the warning is on stderr.
+    """
+    return prism_public.daily_brief_public_base(fatal_under_systemd=False)
 
 
 def public_url(path: str) -> str:
-    return public_base() + path
+    rel = path if path.startswith("/") else "/" + path
+    base = public_base()
+    if not base:
+        return rel
+    return base + rel
 
 
 def main(argv: list[str] | None = None) -> int:

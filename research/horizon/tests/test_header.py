@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 HORIZON = Path(__file__).resolve().parents[1]
 FCC_SERVER = ROOT / "financial-command" / "server.py"
-HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+HARDCODED_IPS = ("192.0.2.10", "192.0.2.11")
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
     "vercel.com",
@@ -186,17 +186,17 @@ class TestHorizonHeader(unittest.TestCase):
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(fcc_href("192.168.100.98"), path)
-        self.assertEqual(fcc_href("100.67.114.2"), path)
-        self.assertNotIn(":8000", fcc_href("192.168.100.98"))
-        self.assertEqual(fcc_href("prism-gateway"), path)
-        self.assertNotIn(":8000", fcc_href("prism-gateway"))
+        self.assertEqual(fcc_href("192.0.2.10"), path)
+        self.assertEqual(fcc_href("192.0.2.11"), path)
+        self.assertNotIn(":8000", fcc_href("192.0.2.10"))
+        self.assertEqual(fcc_href("gateway.example"), path)
+        self.assertNotIn(":8000", fcc_href("gateway.example"))
         self.assertEqual(fcc_href("127.0.0.1"), f"http://127.0.0.1:{port}{path}")
         self.assertEqual(
-            fcc_href(pathname="/", loc_hostname="192.168.100.98"),
+            fcc_href(pathname="/", loc_hostname="192.0.2.10"),
             path,
         )
-        self.assertNotIn(":8000", fcc_href(pathname="/", loc_hostname="192.168.100.98"))
+        self.assertNotIn(":8000", fcc_href(pathname="/", loc_hostname="192.0.2.10"))
 
     def test_fcc_href_same_origin_lens_and_tailnet_https(self) -> None:
         port, path = _fcc_bind()
@@ -206,7 +206,7 @@ class TestHorizonHeader(unittest.TestCase):
             path,
         )
         self.assertEqual(
-            fcc_href(pathname="/horizon", loc_hostname="192.168.100.98"),
+            fcc_href(pathname="/horizon", loc_hostname="192.0.2.10"),
             path,
         )
         self.assertEqual(

@@ -31,7 +31,12 @@ from collectors import (  # noqa: E402
     collect_strategy,
     collect_workflow,
 )
-from domains import health_url, service_url  # noqa: E402
+from domains import (  # noqa: E402
+    FINANCE_LOOPBACK_URL,
+    HORIZON_LOOPBACK_URL,
+    health_url,
+    service_url,
+)
 from payload import build_orchestra_payload  # noqa: E402
 from priorities import synthesize_priorities  # noqa: E402
 from synergies import detect_synergies  # noqa: E402
@@ -440,40 +445,74 @@ class LocalProbeAndPublicUrlTests(unittest.TestCase):
             "192.0.2.10",
         )
         self.assertEqual(
-            _default_probe_host({"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}),
+            _default_probe_host({"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"}),
             "127.0.0.1",
         )
 
-    def test_finance_and_horizon_urls_use_tailnet_placeholder(self) -> None:
+    def test_finance_and_horizon_urls_fall_back_to_loopback(self) -> None:
+        self.assertEqual(service_url("finance", {}), FINANCE_LOOPBACK_URL)
         self.assertEqual(
-            service_url("finance", {}),
-            "https://prism.example.ts.net/financial-command/",
+            health_url("finance", {}), "http://127.0.0.1:8000/api/health"
+        )
+        self.assertEqual(service_url("horizon", {}), HORIZON_LOOPBACK_URL)
+        self.assertEqual(
+            health_url("horizon", {}), "http://127.0.0.1:8795/api/health"
+        )
+        invalid = {"PRISM_PUBLIC_BASE": "https://prism.example.ts.net"}
+        self.assertEqual(service_url("finance", invalid), FINANCE_LOOPBACK_URL)
+        self.assertEqual(service_url("horizon", invalid), HORIZON_LOOPBACK_URL)
+        for url in (service_url("finance", {}), health_url("finance", invalid)):
+            self.assertNotIn("prism.example.ts.net", url)
+            self.assertIn("127.0.0.1", url)
+
+    def test_finance_and_horizon_urls_use_valid_public_base(self) -> None:
+        env = {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"}
+        self.assertEqual(
+            service_url("finance", env),
+            "https://fcc.unit.ts.net/financial-command/",
         )
         self.assertEqual(
-            health_url("finance", {}),
-            "https://prism.example.ts.net/api/health",
+            health_url("finance", env),
+            "https://fcc.unit.ts.net/api/health",
         )
         self.assertEqual(
-            service_url("horizon", {"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}),
-            "https://dash.example.ts.net/horizon/",
+            service_url("horizon", env),
+            "https://fcc.unit.ts.net/horizon/",
         )
         self.assertEqual(
-            health_url("horizon", {"PRISM_PUBLIC_BASE": "dash.example.ts.net"}),
-            "https://dash.example.ts.net/horizon/api/health",
+            health_url("horizon", {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net/"}),
+            "https://fcc.unit.ts.net/horizon/api/health",
         )
-        for url in (service_url("finance", {}), health_url("finance", {})):
-            self.assertNotIn("192.168.", url)
-            self.assertNotIn(":8000", url)
+        bare = {"PRISM_PUBLIC_BASE": "fcc.unit.ts.net"}
+        self.assertEqual(service_url("horizon", bare), HORIZON_LOOPBACK_URL)
 
     def test_collect_finance_link_follows_public_base(self) -> None:
         with tempfile.TemporaryDirectory() as td:
+            snap = collect_finance(Path(td))
+        self.assertEqual(snap["url"], FINANCE_LOOPBACK_URL)
+        self.assertEqual(snap["port"], 8000)
+        with tempfile.TemporaryDirectory() as td:
             with mock.patch.dict(
-                os.environ, {"PRISM_PUBLIC_BASE": "https://dash.example.ts.net"}
+                os.environ, {"PRISM_PUBLIC_BASE": "https://fcc.unit.ts.net"}
             ):
                 snap = collect_finance(Path(td))
-        self.assertTrue(snap["url"].startswith("https://dash.example.ts.net/"))
+        self.assertEqual(snap["url"], "https://fcc.unit.ts.net/financial-command/")
         self.assertNotIn(":8000", snap["url"])
         self.assertEqual(snap["port"], 8000)
+
+    def test_server_exits_under_systemd_when_base_missing(self) -> None:
+        import server as orchestra_server
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "INVOCATION_ID": "unit-test",
+                "PRISM_PUBLIC_BASE": "https://prism.example.ts.net",
+            },
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                orchestra_server.main(["--no-browser"])
+        self.assertEqual(ctx.exception.code, 1)
 
 
 if __name__ == "__main__":

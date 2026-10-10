@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 FCC = ROOT / "financial-command"
@@ -55,6 +57,22 @@ class TestFccBindHost(unittest.TestCase):
         self.assertIn("FCC_BIND_HOST", src)
         self.assertIn("resolve_bind_host(args.host)", src)
         self.assertIn('default=None', src)
+        main = src.split("def main(", 1)[1]
+        guard = main.index("prism_public.guard_prism_public_base()")
+        refresh = main.index("run_treasury_main(")
+        self.assertLess(guard, refresh)
+
+    def test_systemd_missing_base_exits_before_refresh(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"INVOCATION_ID": "unit-test", "PRISM_PUBLIC_BASE": ""},
+            clear=False,
+        ):
+            with mock.patch.object(self.mod, "run_treasury_main") as refresh:
+                with self.assertRaises(SystemExit) as ctx:
+                    self.mod.main(["--offline", "--no-browser", "--port", "9"])
+        self.assertEqual(ctx.exception.code, 1)
+        refresh.assert_not_called()
 
 
 if __name__ == "__main__":

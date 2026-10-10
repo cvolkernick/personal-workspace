@@ -23,7 +23,7 @@ FLEET = Path(__file__).resolve().parents[1]
 FCC_SERVER = ROOT / "financial-command" / "server.py"
 FCC_PORT = 8000
 FCC_PATH = "/financial-command/index.html"
-HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+HARDCODED_IPS = ("192.0.2.10", "192.0.2.11")
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
     "vercel.com",
@@ -179,17 +179,17 @@ class TestFleetHeader(unittest.TestCase):
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(fcc_href("192.168.100.98"), path)
-        self.assertEqual(fcc_href("100.67.114.2"), path)
-        self.assertNotIn(":8000", fcc_href("192.168.100.98"))
-        self.assertEqual(fcc_href("prism-gateway"), path)
+        self.assertEqual(fcc_href("192.0.2.10"), path)
+        self.assertEqual(fcc_href("192.0.2.11"), path)
+        self.assertNotIn(":8000", fcc_href("192.0.2.10"))
+        self.assertEqual(fcc_href("gateway.example"), path)
         self.assertEqual(fcc_href("127.0.0.1"), f"http://127.0.0.1:{port}{path}")
         self.assertEqual(
-            fcc_href(pathname="/", loc_hostname="192.168.100.98"),
+            fcc_href(pathname="/", loc_hostname="192.0.2.10"),
             path,
         )
         self.assertNotEqual(
-            fcc_href("prism-gateway"), f"http://127.0.0.1:{port}{path}"
+            fcc_href("gateway.example"), f"http://127.0.0.1:{port}{path}"
         )
 
     def test_fcc_href_same_origin_lens_and_tailnet_https(self) -> None:
@@ -200,7 +200,7 @@ class TestFleetHeader(unittest.TestCase):
             path,
         )
         self.assertEqual(
-            fcc_href(pathname="/fleet", loc_hostname="192.168.100.98"),
+            fcc_href(pathname="/fleet", loc_hostname="192.0.2.10"),
             path,
         )
         self.assertEqual(

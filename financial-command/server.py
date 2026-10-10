@@ -51,6 +51,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import prism_public  # noqa: E402
+
 
 def _ensure_tool_path() -> None:
     """launchd/ensure often starts us with PATH=/usr/bin:/bin — restore homebrew CLIs.
@@ -611,45 +613,32 @@ def _root_fcc_js_remap(path: str) -> str | None:
     return _root_fcc_file_remap(path)
 
 
-DEFAULT_PUBLIC_ORIGIN = "https://prism.example.ts.net"
-_PUBLIC_ORIGIN_RE = re.compile(r"https://[A-Za-z0-9._:-]+\Z")
 DEFAULT_BIND_HOST = "127.0.0.1"
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+_PWA_ORIGIN_TOKEN = b"__FCC_PUBLIC_ORIGIN__"
 
 
 def prism_public_origin() -> str:
-    """Tailnet HTTPS origin. PRISM_PUBLIC_BASE, else a placeholder.
+    """Validated PRISM_PUBLIC_BASE, or "" when unset or invalid.
 
-    The default is not a real hostname. On prism, set PRISM_PUBLIC_BASE in a
-    financial-command.service drop-in (see financial-command/README.md).
+    On prism, set PRISM_PUBLIC_BASE in a financial-command.service drop-in
+    (see financial-command/README.md). An empty result must not redirect.
     """
-    raw = (os.environ.get("PRISM_PUBLIC_BASE") or "").strip()
-    if not raw:
-        return DEFAULT_PUBLIC_ORIGIN
-    if "://" not in raw:
-        raw = "https://" + raw
-    scheme, _, rest = raw.partition("://")
-    hostport = rest.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0].strip()
-    origin = f"{scheme.lower()}://{hostport}"
-    if not _PUBLIC_ORIGIN_RE.fullmatch(origin):
-        return DEFAULT_PUBLIC_ORIGIN
-    return origin
+    return prism_public.prism_public_origin()
 
 
 def canonical_https_host() -> str:
-    hostport = prism_public_origin().split("://", 1)[-1]
-    if hostport.startswith("["):
-        end = hostport.find("]")
-        if end != -1:
-            return hostport[: end + 1].lower()
-    return hostport.split(":", 1)[0].lower()
+    return prism_public.canonical_https_host()
 
 
 def pwa_js_body() -> bytes:
-    """Serve pwa.js with the placeholder origin swapped for PRISM_PUBLIC_BASE."""
+    """Serve pwa.js with the origin token replaced from PRISM_PUBLIC_BASE.
+
+    Unset or invalid leaves the constant empty so the page does not redirect.
+    """
     raw = (ROOT / "financial-command" / "pwa.js").read_bytes()
     origin = prism_public_origin().encode("ascii")
-    return raw.replace(DEFAULT_PUBLIC_ORIGIN.encode("ascii"), origin)
+    return raw.replace(_PWA_ORIGIN_TOKEN, origin)
 
 
 def resolve_bind_host(
@@ -695,13 +684,13 @@ def is_pwa_install_origin(*, host: str = "", forwarded_proto: str = "") -> bool:
     """True when this request is the canonical HTTPS PWA origin or loopback.
 
     Tailscale Serve terminates TLS and forwards HTTP to 127.0.0.1:8000.
-    The browser origin is PRISM_PUBLIC_BASE (placeholder
-    https://prism.example.ts.net until that env is set). Host is the cert CN
-    (no :8000) and/or X-Forwarded-Proto: https. Plain-HTTP on a non-canonical
-    host stays browse-only so Chromium does not install an insecure app
-    (#749). Direct LAN :8000 is closed unless FCC_BIND_HOST=0.0.0.0.
-    Loopback stays installable: it is a secure context and the unit tests
-    bind 127.0.0.1.
+    The browser origin is PRISM_PUBLIC_BASE when that value is a valid https
+    origin. Host is the cert CN (no :8000) and/or X-Forwarded-Proto: https.
+    Plain-HTTP on a non-canonical host stays browse-only so Chromium does not
+    install an insecure app (#749). Direct LAN :8000 is closed unless
+    FCC_BIND_HOST=0.0.0.0. Loopback stays installable: it is a secure context
+    and the unit tests bind 127.0.0.1. An unset or invalid base yields no
+    canonical host, so a placeholder hostname is never treated as installable.
     """
     proto = (forwarded_proto or "").split(",")[0].strip().lower()
     if proto == "https":
@@ -709,7 +698,8 @@ def is_pwa_install_origin(*, host: str = "", forwarded_proto: str = "") -> bool:
     name, port = parse_host_header(host)
     if name in _LOOPBACK_HOSTS:
         return True
-    if name == canonical_https_host() and port in (None, 443):
+    canon = canonical_https_host()
+    if canon and name == canon and port in (None, 443):
         return True
     return False
 
@@ -1650,6 +1640,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Snapshot consumer (Pi/phone): Refresh re-reads files only, never live YNAB/CB",
     )
     args = parser.parse_args(argv)
+    prism_public.guard_prism_public_base()
 
     global _SERVER_STARTED_OFFLINE, _SERVER_CONSUMER
     _SERVER_STARTED_OFFLINE = bool(args.offline)

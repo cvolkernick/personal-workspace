@@ -35,21 +35,33 @@ systemctl --user daemon-reload
 systemctl --user restart financial-command.service
 ```
 
-`PRISM_PUBLIC_BASE` is the HTTPS origin with no path. The repo default is
-`https://prism.example.ts.net`. On prism set it to the Tailscale Serve hostname
-so the PWA install check and the served `pwa.js` bounce target match the cert.
-Daily Brief publish reads `DAILY_BRIEF_PUBLIC_BASE` (include `/horizon`). If
-that is unset, the CLI uses `PRISM_PUBLIC_BASE` + `/horizon`.
+`PRISM_PUBLIC_BASE` is the HTTPS origin with no path: `https`, a real DNS host,
+no userinfo, port, query, or fragment. `prism_public.py` is the only checker
+(FCC, orchestra, and Daily Brief all import it). `https://prism.example.ts.net`
+is documentation only; the `example` label is rejected and is never used as a
+redirect target. If the var is unset or invalid, FCC logs `ERROR:` on stderr
+at startup and serves `pwa.js` with an empty origin so an installed HTTP app
+is not redirected. Under systemd (`INVOCATION_ID` set) that startup exits
+non-zero. On prism set the var to the Tailscale Serve hostname so the PWA
+install check and the bounce target match the cert.
+
+Daily Brief publish reads `DAILY_BRIEF_PUBLIC_BASE` (`https://host` or
+`https://host/horizon` only). If that var is set but invalid, publish does
+not fall through to `PRISM_PUBLIC_BASE`. If both are unset or invalid, publish
+still exits 0 and prints the relative path, plus an `ERROR:` warning on
+stderr. The CLI does not exit just because the base is missing, including
+when `INVOCATION_ID` is set. SSH does not see a systemd drop-in, so set the
+vars in the shell that runs publish as well.
 
 ### PWA install origin
 
-Install the desktop/phone app from **Tailscale HTTPS only**
-(`PRISM_PUBLIC_BASE`, placeholder `https://prism.example.ts.net` until the env
-is set).
+Install the desktop/phone app from **Tailscale HTTPS only** (`PRISM_PUBLIC_BASE`).
+Until that env is a valid origin, there is no canonical host and `pwa.js` does
+not redirect.
 
 Plain HTTP on a non-canonical host stays a browser fallback. Those origins serve a `display: browser` manifest and do not register a service worker, so Chromium will not treat them as the installed app (every page would show "Not Secure"). Loopback (`http://127.0.0.1:8000`) is a secure context and stays installable for local tests. Direct LAN `:8000` is closed unless `FCC_BIND_HOST=0.0.0.0`.
 
-An already-installed HTTP app (standalone display-mode) is redirected to the HTTPS origin.
+An already-installed HTTP app (standalone display-mode) is redirected to the HTTPS origin only when `PRISM_PUBLIC_BASE` is valid.
 
 ### Same-origin Fleet + Horizon (installed PWA)
 

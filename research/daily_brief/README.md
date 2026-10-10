@@ -15,11 +15,15 @@ world-state or model brief artifacts.
 | JSON | `/daily-brief/api/latest` (the stored edition), `/daily-brief/api/editions` |
 | Old FCC URLs | `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL` + same subpath + query |
 
-Tailnet rows use the placeholder `prism.example.ts.net`. On prism set
-`PRISM_PUBLIC_BASE` (origin only) or `DAILY_BRIEF_PUBLIC_BASE` (this default
-is that origin plus `/horizon`). See `financial-command/README.md` for the
-systemd drop-in. Horizon listens on `127.0.0.1:8795` unless
-`HORIZON_BIND_HOST=0.0.0.0`.
+Tailnet rows use the placeholder `prism.example.ts.net` as a shape example.
+That host is not a runtime default: `prism_public.py` rejects the `example`
+label. On prism set `PRISM_PUBLIC_BASE` (https origin, no path) or
+`DAILY_BRIEF_PUBLIC_BASE` (`https://host` or `https://host/horizon` only).
+If `DAILY_BRIEF_PUBLIC_BASE` is set but invalid, publish does not fall
+through to `PRISM_PUBLIC_BASE`. If both are unset or invalid, publish prints
+the relative path and an `ERROR:` line on stderr, and still exits 0. See
+`financial-command/README.md` for the systemd drop-in. Horizon listens on
+`127.0.0.1:8795` unless `HORIZON_BIND_HOST=0.0.0.0`.
 
 The tailnet URL goes through FCC's existing `/horizon/*` lens (a plain reverse
 proxy onto `127.0.0.1:8795`, no FCC chrome), so no new Tailscale mapping is needed.
@@ -77,10 +81,11 @@ ssh prism-gateway 'python3 ~/personal-workspace/financial-command/brief.py valid
 ```
 
 Success (exit 0):
-`{"ok": true, "path": ".../2026-10-09-am.json", "url": "/daily-brief/2026-10-09/am", "public_url": "https://prism.example.ts.net/horizon/daily-brief/2026-10-09/am", ...}`.
-Put `public_url` in the chat brief (`DAILY_BRIEF_PUBLIC_BASE` overrides the
-prefix). Schema errors exit 2 with `{"ok": false, "problems": [...]}` on
-stderr and write nothing.
+`{"ok": true, "path": ".../2026-10-09-am.json", "url": "/daily-brief/2026-10-09/am", "public_url": "/daily-brief/2026-10-09/am", ...}`
+when both public-base vars are unset (stderr includes `ERROR:`). With a valid
+base, `public_url` is that base plus the path. Put `public_url` in the chat
+brief. Schema errors exit 2 with `{"ok": false, "problems": [...]}` on
+stderr and write nothing. A missing public base does not change the exit code.
 
 - Idempotent: the same `date` + `edition` overwrites (atomic replace).
 - `date` / `edition` may be omitted: derived from `published_at` (or now) in
@@ -275,11 +280,13 @@ tailscale serve status    # expect: /daily-brief proxy http://127.0.0.1:8795/dai
 
 Then point FCC's redirect at it: add `Environment=BRIEF_BASE_URL=/daily-brief`
 to a `financial-command.service` drop-in and restart FCC; set
-`DAILY_BRIEF_PUBLIC_BASE` to the tailnet origin plus the path you mounted
-(the CLI default is `https://prism.example.ts.net/horizon`, a placeholder).
-`PRISM_PUBLIC_BASE` is used when `DAILY_BRIEF_PUBLIC_BASE` is unset: the CLI
-appends `/horizon`. Put both in the same drop-in as `FCC_BIND_HOST` (see
-`financial-command/README.md`). Undo with `tailscale serve --set-path /daily-brief off`.
+`DAILY_BRIEF_PUBLIC_BASE` to `https://<tailnet-host>` or
+`https://<tailnet-host>/horizon`. There is no placeholder default. When the
+var is unset, a valid `PRISM_PUBLIC_BASE` is used and `/horizon` is appended.
+When neither is valid, publish prints the relative path and warns. Put both
+in the same drop-in as `FCC_BIND_HOST` (see `financial-command/README.md`),
+and in the shell that runs publish over SSH. Undo with
+`tailscale serve --set-path /daily-brief off`.
 
 ## Rollback
 
