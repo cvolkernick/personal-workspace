@@ -69,7 +69,7 @@ systemctl --user start workspace-sync.service
 journalctl --user -u workspace-sync.service -n 50 --no-pager
 
 # Manual full/subset install still available
-bash deploy/install_remote.sh prism-agent@192.168.100.98 --only orchestra,iot
+bash deploy/install_remote.sh prism-agent@192.0.2.10 --only orchestra,iot
 ```
 
 ## GitHub secrets (optional fast path)
@@ -80,7 +80,7 @@ To kick Pi immediately on every `master` push, set repo secrets:
 
 | Secret | Example |
 |--------|---------|
-| `PI_SSH_HOST` | `192.168.100.98` or Tailscale IP |
+| `PI_SSH_HOST` | `192.0.2.10` or Tailscale IP |
 | `PI_SSH_KEY` | private key for `prism-agent` |
 | `PI_SSH_USER` | `prism-agent` (optional; default in workflow) |
 
@@ -89,7 +89,8 @@ To kick Pi immediately on every `master` push, set repo secrets:
 `deploy/on_merge.sh` probes service keys via `dashboard_endpoints.py` against:
 
 - **local mode (Pi):** `127.0.0.1`
-- **remote mode (Mac):** `PI_HOST` / `endpoints.json` (`192.168.100.98`)
+- **remote mode (Mac):** `PI_HOST` / `endpoints.json` (`prism-gateway`, tailnet MagicDNS)
+- **financial-command and horizon:** always `127.0.0.1` in both modes (they bind loopback only)
 
 Failures exit non-zero so the systemd oneshot / CI can surface them. Buzz notify is best-effort.
 

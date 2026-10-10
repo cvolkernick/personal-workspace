@@ -126,7 +126,7 @@ Do **not** “fix” a stale `~/.config/personal-workspace/` copy by adding `dep
 
 ### FCC HTTPS (PWA install)
 
-Browsers will not offer a PWA install prompt on `http://100.67.114.2:8000`. FCC is served at a **private** trusted origin:
+Browsers will not offer a PWA install prompt on plain `http://<tailnet IP>:8000`, and FCC now binds 127.0.0.1, so that URL does not answer anyway. FCC is served at a **private** trusted origin:
 
 `https://prism-gateway.tailb1085a.ts.net/` → `http://127.0.0.1:8000` via Tailscale Serve (tailnet only, not Funnel, not Vercel).
 
