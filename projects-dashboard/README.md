@@ -176,7 +176,7 @@ Same pattern as Orchestra / IoT / FCC: systemd user unit on the Pi, bind `0.0.0.
 | Path | URL |
 |------|-----|
 | **LAN** | http://192.0.2.10:8765/ |
-| **Tailscale** | http://100.67.114.2:8765/ or http://prism-gateway:8765/ |
+| **Tailscale** | http://prism-gateway:8765/ (MagicDNS) |
 | **Health** | `/api/health` |
 | **Branch graph** | `/api/branch-graph?max=80&remotes=1` |
 

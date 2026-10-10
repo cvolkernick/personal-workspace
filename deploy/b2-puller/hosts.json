@@ -6,7 +6,7 @@
       "hostname": "prism-gateway",
       "role": "app-books",
       "lan": "192.0.2.10",
-      "tailscale": "100.67.114.2",
+      "tailscale": "prism-gateway",
       "user": "prism-agent",
       "workspace": "/home/prism-agent/personal-workspace",
       "stays": ["FCC :8000", "FitDash", "Orchestra", "Auto Fleet", "youtube-groom"]
@@ -15,7 +15,7 @@
       "hostname": "finley-gateway",
       "role": "b2-puller",
       "lan": "192.0.2.11",
-      "tailscale": "100.124.165.50",
+      "tailscale": "finley-gateway",
       "user": "finley-agent",
       "workspace": "/home/finley-agent/personal-workspace",
       "b2_port": 8792,

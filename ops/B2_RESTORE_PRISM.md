@@ -25,7 +25,7 @@ Books are **as of last snapshot**, not live.
 ## Steps (operator on LAN)
 
 1. **Stand up the box** — hostname `prism-gateway`, user `prism-agent`, Tailscale
-   `100.67.114.2`. Do not SSH from the cloud VM.
+   MagicDNS `prism-gateway`. Do not SSH from the cloud VM.
 
 2. **Git** — clone and hard-reset to the last known good `master`:
 
@@ -70,8 +70,8 @@ Books are **as of last snapshot**, not live.
    - Do **not** load `FCC_TREASURY_JSON` onto Vercel
    - Do **not** copy raw treasury onto a Mac
 
-6. **Point prism at B2** — query `http://finley-gateway:8792/` (or
-   `http://100.124.165.50:8792/`). Do not rsync `~/B2` onto prism.
+6. **Point prism at B2** — query `http://finley-gateway:8792/` (tailnet
+   MagicDNS). Do not rsync `~/B2` onto prism.
 
 7. **youtube-groom** — unit files came back from the pull; start the existing
    groom unit if it was installed. State/log/never_readd are as of last pull.
