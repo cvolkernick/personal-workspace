@@ -23,7 +23,8 @@ from dashboard_endpoints import _DEFAULT_SERVICES  # noqa: E402
 
 HORIZON = Path(__file__).resolve().parents[1]
 ENDPOINTS = ROOT / "deploy" / "endpoints.json"
-HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+# Regexes: any 192.168.x.x LAN address, and prism's tailnet IP.
+HARDCODED_IPS = (r"\b192\.168\.\d{1,3}\.\d{1,3}\b", r"\b100\.67\.114\.2\b")
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
     "vercel.com",
@@ -139,8 +140,8 @@ class TestHorizonHeader(unittest.TestCase):
         self.assertIn("nav-fcc.js", html)
         self.assertNotIn("<iframe", html.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, fcc["href"])
-            self.assertNotIn(ip, header)
+            self.assertNotRegex(fcc["href"], ip)
+            self.assertNotRegex(header, ip)
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, fcc["href"])
             self.assertNotIn(needle, header)
@@ -158,13 +159,13 @@ class TestHorizonHeader(unittest.TestCase):
         self.assertNotIn("orchestra", js.lower())
         self.assertNotIn("seasonal", js.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, js)
+            self.assertNotRegex(js, ip)
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
         self.assertEqual(
-            fcc_href("192.168.100.98"),
-            f"http://192.168.100.98:{port}{path}",
+            fcc_href("192.0.2.10"),
+            f"http://192.0.2.10:{port}{path}",
         )
         self.assertEqual(fcc_href("100.67.114.2"), f"http://100.67.114.2:{port}{path}")
         self.assertEqual(fcc_href("prism-gateway"), f"http://prism-gateway:{port}{path}")

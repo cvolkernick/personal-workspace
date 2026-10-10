@@ -28,7 +28,8 @@ SURFACES = (
     "interest-spectrum.html",
     "bias-spectrum.html",
 )
-HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+# Regexes: any 192.168.x.x LAN address, and prism's tailnet IP.
+HARDCODED_IPS = (r"\b192\.168\.\d{1,3}\.\d{1,3}\b", r"\b100\.67\.114\.2\b")
 PUBLIC_URL_NEEDLES = (
     "vercel.app",
     "vercel.com",
@@ -118,8 +119,8 @@ class TestFccNavFleet(unittest.TestCase):
             self.assertNotIn("<iframe", html.lower(), name)
             self.assertIn("nav-fleet.js", html, name)
             for ip in HARDCODED_IPS:
-                self.assertNotIn(ip, fleet["href"], name)
-                self.assertNotIn(ip, html, name)
+                self.assertNotRegex(fleet["href"], ip, name)
+                self.assertNotRegex(html, ip, name)
 
     def test_fleet_href_uses_current_hostname_port_8796(self) -> None:
         js = (FCC / "nav-fleet.js").read_text(encoding="utf-8")
@@ -128,9 +129,9 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertIn("fccFleetHref", js)
         self.assertNotIn("<iframe", js.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, js)
+            self.assertNotRegex(js, ip)
 
-        self.assertEqual(fleet_href("192.168.100.98"), "http://192.168.100.98:8796/")
+        self.assertEqual(fleet_href("192.0.2.10"), "http://192.0.2.10:8796/")
         self.assertEqual(fleet_href("100.67.114.2"), "http://100.67.114.2:8796/")
         self.assertEqual(fleet_href("prism-gateway"), "http://prism-gateway:8796/")
         self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
@@ -326,7 +327,7 @@ class TestFccNavFleet(unittest.TestCase):
         Phone / LAN / Tailscale entry uses window.location.hostname.
         """
         self.assertEqual(fleet_href("prism-gateway"), "http://prism-gateway:8796/")
-        self.assertEqual(fleet_href("192.168.100.98"), "http://192.168.100.98:8796/")
+        self.assertEqual(fleet_href("192.0.2.10"), "http://192.0.2.10:8796/")
         self.assertEqual(fleet_href("100.67.114.2"), "http://100.67.114.2:8796/")
         self.assertNotEqual(fleet_href("prism-gateway"), "http://127.0.0.1:8796/")
         self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
@@ -358,8 +359,8 @@ class TestFccNavHorizon(unittest.TestCase):
             self.assertIn("nav-horizon.js", html, name)
             self.assertNotIn("nav-orchestra.js", html, name)
             for ip in HARDCODED_IPS:
-                self.assertNotIn(ip, hz["href"], name)
-                self.assertNotIn(ip, html, name)
+                self.assertNotRegex(hz["href"], ip, name)
+                self.assertNotRegex(html, ip, name)
             for needle in PUBLIC_URL_NEEDLES:
                 self.assertNotIn(needle, hz["href"], name)
                 self.assertNotIn(needle, html, name)
@@ -372,11 +373,11 @@ class TestFccNavHorizon(unittest.TestCase):
         self.assertNotIn("<iframe", js.lower())
         self.assertNotIn("vercel", js.lower())
         for ip in HARDCODED_IPS:
-            self.assertNotIn(ip, js)
+            self.assertNotRegex(js, ip)
         for needle in PUBLIC_URL_NEEDLES:
             self.assertNotIn(needle, js)
 
-        self.assertEqual(horizon_href("192.168.100.98"), f"http://192.168.100.98:{HORIZON_PORT}/")
+        self.assertEqual(horizon_href("192.0.2.10"), f"http://192.0.2.10:{HORIZON_PORT}/")
         self.assertEqual(horizon_href("100.67.114.2"), f"http://100.67.114.2:{HORIZON_PORT}/")
         self.assertEqual(horizon_href("prism-gateway"), f"http://prism-gateway:{HORIZON_PORT}/")
         self.assertEqual(horizon_href("127.0.0.1"), f"http://127.0.0.1:{HORIZON_PORT}/")

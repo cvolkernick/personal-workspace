@@ -25,12 +25,14 @@ Or double-click `research/horizon/start.command`.
 
 | Surface | URL |
 |---------|-----|
-| LAN | http://192.168.100.98:8795/ |
-| Tailscale (off-LAN) | http://100.67.114.2:8795/ |
-| Health | http://192.168.100.98:8795/api/health |
+| Browser (tailnet HTTPS) | `<PRISM_PUBLIC_BASE>/horizon/` |
+| On prism (loopback) | http://127.0.0.1:8795/ |
+| Health (on prism) | http://127.0.0.1:8795/api/health |
+
+Horizon binds 127.0.0.1, so `http://<LAN or tailnet IP>:8795/` does not answer.
 
 ```bash
-bash research/horizon/deploy/install_remote.sh prism-agent@192.168.100.98
+bash research/horizon/deploy/install_remote.sh prism-agent@192.0.2.10
 # unit: horizon-dashboard.service (user systemd, Restart=always)
 ```
 
