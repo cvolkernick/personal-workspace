@@ -1,6 +1,6 @@
 # Fund-manager producer — prism/Pi SoT (#729)
 
-**Source of truth host: `prism` (Pi, `prism-agent@192.168.100.98`).**
+**Source of truth host: `prism` (Pi, `prism-agent@192.0.2.10`).**
 Mac launchd `com.personalworkspace.fund-manager-daily` and
 `com.personalworkspace.fund-manager-bp-poll` are retired. Do not run two
 producers against the agentic book — dual team/LLM reviews can double-spend
