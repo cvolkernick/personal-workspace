@@ -78,7 +78,7 @@ PLAID_MCP_TOKEN=… python3 -m treasury.plaid_mcp --host 0.0.0.0 --port 18801
 bash deploy/install_remote.sh prism-agent@192.0.2.10 --only plaid-bank
 ```
 
-Unit: `plaid-bank-mcp.service` · port **18801** · Tailscale `http://100.67.114.2:18801/healthz`
+Unit: `plaid-bank-mcp.service` · port **18801** · Tailscale `http://prism-gateway:18801/healthz` (MagicDNS)
 
 **Do not** public port-forward `:18801`. Grok Bot custom MCP that needs a public URL is a separate authenticated tunnel (Chris order) — not this PR.
 
