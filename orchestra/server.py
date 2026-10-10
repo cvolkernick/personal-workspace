@@ -31,6 +31,7 @@ if str(ORCHESTRA_DIR) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import prism_public  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
 
 
@@ -144,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
+    prism_public.guard_prism_public_base()
 
     server = ThreadingHTTPServer((args.host, args.port), OrchestraHandler)
     url = f"http://{args.host}:{args.port}/"

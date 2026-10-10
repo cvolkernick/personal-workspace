@@ -32,7 +32,23 @@ class TestDashboardArtifacts(unittest.TestCase):
 
     def test_server_accepts_host_flag(self):
         src = (HORIZON / "server.py").read_text(encoding="utf-8")
-        self.assertIn('add_argument("--host"', src)
+        self.assertRegex(src, r'add_argument\(\s*"--host"')
+        self.assertIn("HORIZON_BIND_HOST", src)
+        self.assertIn("resolve_bind_host(args.host)", src)
+
+    def test_bind_host_defaults_loopback_and_env_override(self):
+        from research.horizon.server import resolve_bind_host
+
+        self.assertEqual(resolve_bind_host(None, {}), "127.0.0.1")
+        self.assertEqual(resolve_bind_host("", {}), "127.0.0.1")
+        self.assertEqual(
+            resolve_bind_host(None, {"HORIZON_BIND_HOST": "0.0.0.0"}),
+            "0.0.0.0",
+        )
+        self.assertEqual(
+            resolve_bind_host("192.0.2.20", {"HORIZON_BIND_HOST": "0.0.0.0"}),
+            "192.0.2.20",
+        )
 
     def test_build_dashboard_payload_shipped(self):
         from research.horizon.pipeline import run_pipeline

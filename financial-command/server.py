@@ -23,8 +23,9 @@ Serves static UI + APIs:
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
   GET  /brief, /brief/YYYY-MM-DD/am|pm, /brief/archive — Daily Brief newspaper (#1091, brief.py)
-  ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796, LAN-debug still :8796)
-  ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795, LAN-debug still :8795)
+  ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796)
+  ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795)
+                         Direct LAN :8795 needs HORIZON_BIND_HOST=0.0.0.0.
 
 Usage:
   python3 financial-command/server.py
@@ -49,6 +50,8 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+import prism_public  # noqa: E402
 
 
 def _ensure_tool_path() -> None:
@@ -515,7 +518,8 @@ def _root_fcc_file_remap(path: str) -> str | None:
     return None
 
 
-# Same-origin PWA lenses. Direct :8795 / :8796 stay LAN-debug fallbacks.
+# Same-origin PWA lenses. The proxy always dials loopback, including when
+# HORIZON_BIND_HOST=0.0.0.0 (that bind still accepts 127.0.0.1).
 # Fleet backend: auto-fleet/server.py on this work/treasury pin
 # (auto-fleet.service → 127.0.0.1:8796). Missing tree → /fleet/ 502.
 LENS_UPSTREAMS = {
@@ -609,8 +613,47 @@ def _root_fcc_js_remap(path: str) -> str | None:
     return _root_fcc_file_remap(path)
 
 
-CANONICAL_HTTPS_HOST = "prism-gateway.tailb1085a.ts.net"
+DEFAULT_BIND_HOST = "127.0.0.1"
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+_PWA_ORIGIN_TOKEN = b"__FCC_PUBLIC_ORIGIN__"
+
+
+def prism_public_origin() -> str:
+    """Validated PRISM_PUBLIC_BASE, or "" when unset or invalid.
+
+    On prism, set PRISM_PUBLIC_BASE in a financial-command.service drop-in
+    (see financial-command/README.md). An empty result must not redirect.
+    """
+    return prism_public.prism_public_origin()
+
+
+def canonical_https_host() -> str:
+    return prism_public.canonical_https_host()
+
+
+def pwa_js_body() -> bytes:
+    """Serve pwa.js with the origin token replaced from PRISM_PUBLIC_BASE.
+
+    Unset or invalid leaves the constant empty so the page does not redirect.
+    """
+    raw = (ROOT / "financial-command" / "pwa.js").read_bytes()
+    origin = prism_public_origin().encode("ascii")
+    return raw.replace(_PWA_ORIGIN_TOKEN, origin)
+
+
+def resolve_bind_host(
+    explicit: str | None = None,
+    environ: dict[str, str] | None = None,
+) -> str:
+    """Bind address. Explicit --host wins, else FCC_BIND_HOST, else 127.0.0.1.
+
+    FCC_BIND_HOST=0.0.0.0 restores the previous all-interfaces listen.
+    """
+    if explicit is not None and str(explicit).strip():
+        return str(explicit).strip()
+    env = os.environ if environ is None else environ
+    raw = (env.get("FCC_BIND_HOST") or "").strip()
+    return raw or DEFAULT_BIND_HOST
 _PWA_MANIFEST_PATHS = (
     "/manifest.webmanifest",
     "/financial-command/manifest.webmanifest",
@@ -640,12 +683,14 @@ def parse_host_header(host: str) -> tuple[str, int | None]:
 def is_pwa_install_origin(*, host: str = "", forwarded_proto: str = "") -> bool:
     """True when this request is the canonical HTTPS PWA origin or loopback.
 
-    Tailscale Serve terminates TLS and forwards HTTP to :8000. The browser
-    origin is https://prism-gateway.tailb1085a.ts.net — Host is the cert CN
-    (no :8000) and/or X-Forwarded-Proto: https. Plain-HTTP LAN (IP:8000,
-    MagicDNS:8000) stays browse-only so Chromium does not install an
-    insecure app (#749). Loopback stays installable: it is a secure context
-    and the unit tests bind 127.0.0.1.
+    Tailscale Serve terminates TLS and forwards HTTP to 127.0.0.1:8000.
+    The browser origin is PRISM_PUBLIC_BASE when that value is a valid https
+    origin. Host is the cert CN (no :8000) and/or X-Forwarded-Proto: https.
+    Plain-HTTP on a non-canonical host stays browse-only so Chromium does not
+    install an insecure app (#749). Direct LAN :8000 is closed unless
+    FCC_BIND_HOST=0.0.0.0. Loopback stays installable: it is a secure context
+    and the unit tests bind 127.0.0.1. An unset or invalid base yields no
+    canonical host, so a placeholder hostname is never treated as installable.
     """
     proto = (forwarded_proto or "").split(",")[0].strip().lower()
     if proto == "https":
@@ -653,7 +698,8 @@ def is_pwa_install_origin(*, host: str = "", forwarded_proto: str = "") -> bool:
     name, port = parse_host_header(host)
     if name in _LOOPBACK_HOSTS:
         return True
-    if name == CANONICAL_HTTPS_HOST and port in (None, 443):
+    canon = canonical_https_host()
+    if canon and name == canon and port in (None, 443):
         return True
     return False
 
@@ -1108,6 +1154,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return
         if self._maybe_serve_pwa_manifest():
             return
+        if self._maybe_serve_pwa_js():
+            return
         self._remap_static_path()
         return super().do_GET()
 
@@ -1123,6 +1171,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if not path.startswith("/api/"):
             if self._maybe_serve_pwa_manifest():
+                return
+            if self._maybe_serve_pwa_js():
                 return
             self._remap_static_path()
         return super().do_HEAD()
@@ -1143,6 +1193,19 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return True
         self.send_response(200)
         self.send_header("Content-Type", "application/manifest+json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+        return True
+
+    def _maybe_serve_pwa_js(self) -> bool:
+        path = urlparse(self.path).path
+        if path not in ("/pwa.js", "/financial-command/pwa.js"):
+            return False
+        body = pwa_js_body()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/javascript; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if self.command != "HEAD":
@@ -1552,8 +1615,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Financial Command Center server")
     parser.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Bind address (use 0.0.0.0 for LAN/Tailscale on Pi)",
+        default=None,
+        help=(
+            "Bind address. Default 127.0.0.1, or FCC_BIND_HOST when set. "
+            "FCC_BIND_HOST=0.0.0.0 listens on all interfaces (previous behavior). "
+            "An explicit --host wins over the env var."
+        ),
     )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
@@ -1573,6 +1640,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Snapshot consumer (Pi/phone): Refresh re-reads files only, never live YNAB/CB",
     )
     args = parser.parse_args(argv)
+    prism_public.guard_prism_public_base()
 
     global _SERVER_STARTED_OFFLINE, _SERVER_CONSUMER
     _SERVER_STARTED_OFFLINE = bool(args.offline)
@@ -1612,7 +1680,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as e:
         print(f"initial treasury refresh warning: {e}", file=sys.stderr)
 
-    bind_host = (args.host or "127.0.0.1").strip() or "127.0.0.1"
+    bind_host = resolve_bind_host(args.host)
     url = f"http://127.0.0.1:{args.port}/financial-command/index.html"
     wl = f"http://127.0.0.1:{args.port}/financial-command/watchlist.html"
     print(f"Financial Command Center → {url}")
