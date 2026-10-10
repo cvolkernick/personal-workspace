@@ -7,6 +7,7 @@
   GET  /api/world-state  — latest world-state JSON
   GET  /api/dashboard    — combined payload for UI
   POST /api/refresh      — re-run pipeline (body: {"offline": true})
+  GET  /daily-brief/*    — Daily Brief newspaper (research/daily_brief; not model output)
 
 Usage:
   python3 research/horizon/server.py
@@ -92,6 +93,28 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
     }
 
 
+def daily_brief_route(path: str):
+    """(status, content_type, body) for /daily-brief*, else None.
+
+    Sibling page, not part of the Horizon model: research/daily_brief never
+    reads world-state or model briefs. Lazy and error-isolated so a bad
+    edition can never take the dashboard down.
+    """
+    if not (path == "/daily-brief" or path.startswith("/daily-brief/")):
+        return None
+    try:
+        from research.daily_brief.render import route
+
+        return route(path)
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"[horizon] daily-brief error: {exc!r}\n")
+        body = (
+            "<!doctype html><meta charset=utf-8><title>The Daily Brief</title>"
+            "<p>The Daily Brief could not be rendered. Check the Horizon log.</p>"
+        )
+        return 500, "text/html; charset=utf-8", body
+
+
 class HorizonHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(HORIZON_DIR), **kwargs)
@@ -127,7 +150,29 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    def _maybe_serve_daily_brief(self) -> bool:
+        res = daily_brief_route(urlparse(self.path).path)
+        if res is None:
+            return False
+        code, ctype, body = res
+        raw = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+        return True
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        if self._maybe_serve_daily_brief():
+            return
+        return super().do_HEAD()
+
     def do_GET(self) -> None:  # noqa: N802
+        if self._maybe_serve_daily_brief():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 

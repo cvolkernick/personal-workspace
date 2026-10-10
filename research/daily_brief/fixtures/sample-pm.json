@@ -1,0 +1,66 @@
+{
+  "date": "2026-10-09",
+  "edition": "pm",
+  "vol": 1,
+  "no": 3,
+  "published_at": "2026-10-09T20:05:00-04:00",
+  "theme": "Wind down",
+  "quote": "Done is better than perfect.",
+  "weather": "Tomorrow: 87° / 73°, sunny",
+  "front_page": {
+    "headline": "SAMPLE: USDC send is $245 short for tomorrow",
+    "subhead": "What closed today and what is coming due.",
+    "body": "Sample evening copy for the #1091 acceptance check."
+  },
+  "sections": [
+    {
+      "id": "tomorrow",
+      "title": "Tomorrow",
+      "items": [
+        "10:00 AM  Turo dropoff",
+        "2:00 PM  Dentist"
+      ]
+    },
+    {
+      "id": "loose-ends",
+      "title": "Loose Ends",
+      "items": [
+        "Reply to landlord re: lease"
+      ]
+    },
+    {
+      "id": "roadside",
+      "title": "Roadside Follow-ups",
+      "items": []
+    }
+  ],
+  "todos": [
+    {
+      "title": "SAMPLE overdue: renew registration",
+      "status": "Not started",
+      "due": "2026-10-06",
+      "owner": "Me",
+      "priority": "High",
+      "notion_url": "https://www.notion.so/sample-overdue"
+    },
+    {
+      "title": "SAMPLE this week: tire rotation",
+      "status": "Not started",
+      "due": "2026-10-13T09:00:00-04:00",
+      "owner": "Me",
+      "priority": "Low",
+      "notion_url": "https://www.notion.so/sample-week"
+    }
+  ],
+  "mac_tasks": {
+    "source_url": "https://app.notion.com/p/3efcba2ad31b814aa4ece8389594cdc5",
+    "fetched_at": "2026-10-09T20:01:00-04:00",
+    "page_found": true,
+    "items": [
+      {
+        "text": "SAMPLE: done already",
+        "checked": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-08",
+  "edition": "pm",
+  "vol": 1,
+  "no": 1,
+  "published_at": "2026-10-08T20:00:00-04:00",
+  "theme": "First proof",
+  "front_page": {"headline": "SAMPLE: Nothing open on the list"},
+  "sections": [{"id": "tomorrow", "title": "Tomorrow", "items": ["Paper launch"]}],
+  "todos": []
+}
