@@ -14,7 +14,7 @@ from datetime import datetime
 from http.server import ThreadingHTTPServer
 from unittest import mock
 
-from research.daily_brief import redact, render
+from research.daily_brief import quotes, redact, render
 from research.daily_brief.tests._common import ROOT, TmpStore, sample, store
 
 NOW = datetime(2026, 10, 9, 21, 0, tzinfo=store.ET)
@@ -370,6 +370,94 @@ class TestHorizonServerIntegration(RenderBase):
                 httpd.server_close()
         after = sorted(p.name for p in data_dir.rglob("*")) if data_dir.exists() else []
         self.assertEqual(before, after, "Daily Brief must not write Horizon model artifacts")
+
+
+_NO_QUOTE = "No quote today."
+
+
+class TestQuoteOfTheDay(unittest.TestCase):
+    """Missing and empty quotes fall back; a provided quote is kept; the placeholder never renders."""
+
+    def _bare(self, edition: str = "pm", day: str = "2026-10-08") -> dict:
+        ed = sample("sample-empty-todos")
+        ed.pop("quote", None)
+        ed["date"] = day
+        ed["edition"] = edition
+        return ed
+
+    def _blockquote(self, page: str) -> str:
+        m = re.search(r"<blockquote>(.*?)</blockquote>", page)
+        self.assertIsNotNone(m, page)
+        return m.group(1)
+
+    def test_missing_quote_uses_the_curated_line(self):
+        ed = self._bare()
+        page = render.render_edition(ed)
+        picked = quotes.quote_for(ed["date"], ed["edition"])
+        self.assertIn(picked["text"], page)
+        self.assertIn(picked["by"], page)
+        self.assertNotIn(_NO_QUOTE, page)
+
+    def test_empty_quote_uses_the_curated_line(self):
+        picked = quotes.quote_for("2026-10-08", "pm")
+        for empty in ("", "   ", {"text": ""}, {"text": "   ", "by": "Nope"}, {"by": "Nope"}, None):
+            ed = self._bare()
+            ed["quote"] = empty
+            page = render.render_edition(ed)
+            self.assertIn(picked["text"], page, empty)
+            self.assertNotIn("Nope", page, empty)
+            self.assertNotIn(_NO_QUOTE, page, empty)
+
+    def test_provided_quote_is_used(self):
+        ed = self._bare(edition="am", day="2026-10-09")
+        ed["quote"] = {"text": "A provided line for the morning paper.", "by": "Fixture Voice"}
+        page = render.render_edition(ed)
+        self.assertIn("A provided line for the morning paper.", page)
+        self.assertIn("Fixture Voice", page)
+        self.assertNotIn(_NO_QUOTE, page)
+        # The sample editions already carry their own lines.
+        am = render.render_edition(sample("sample-am"))
+        self.assertIn("The secret of getting ahead is getting started.", am)
+        self.assertIn("Mark Twain", am)
+        pm = render.render_edition(sample("sample-pm"))
+        self.assertIn("Done is better than perfect.", pm)
+
+    def test_deterministic_and_differs_morning_and_evening(self):
+        am_ed = self._bare(edition="am", day="2026-10-09")
+        pm_ed = self._bare(edition="pm", day="2026-10-09")
+        am_1 = render.render_edition(am_ed)
+        am_2 = render.render_edition(am_ed)
+        pm = render.render_edition(pm_ed)
+        self.assertEqual(self._blockquote(am_1), self._blockquote(am_2))
+        self.assertNotEqual(self._blockquote(am_1), self._blockquote(pm))
+        self.assertIn(quotes.quote_for("2026-10-09", "am")["text"], self._blockquote(am_1))
+
+    def test_provided_quote_with_an_amount_is_escaped_not_replaced(self):
+        ed = self._bare()
+        ed["quote"] = {"text": "Checking at Northwind is $12,400 today", "by": "Sample Author"}
+        page = render.render_edition(ed)
+        self.assertIn("Checking at Northwind is $12,400 today", page)
+        self.assertIn("Sample Author", page)
+        self.assertNotIn(_NO_QUOTE, page)
+        ed["quote"] = {"text": "A <b>line</b> & more", "by": "A & B"}
+        page = render.render_edition(ed)
+        self.assertIn("A &lt;b&gt;line&lt;/b&gt; &amp; more", page)
+        self.assertIn("A &amp; B", page)
+        self.assertNotIn("<b>line</b>", page)
+        self.assertNotIn(_NO_QUOTE, page)
+
+
+class TestNoQuotePlaceholder(RenderBase):
+    def test_placeholder_absent_from_every_sample_page(self):
+        pages = (
+            "/daily-brief",
+            "/daily-brief/2026-10-09/am",
+            "/daily-brief/2026-10-09/pm",
+            "/daily-brief/2026-10-08/pm",
+            "/daily-brief/archive",
+        )
+        for path in pages:
+            self.assertNotIn(_NO_QUOTE, self.get(path)[2], path)
 
 
 if __name__ == "__main__":

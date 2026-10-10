@@ -93,7 +93,7 @@ Override with `DAILY_BRIEF_DIR` (the legacy `FCC_BRIEF_DIR` still works).
   "vol": 1, "no": 2,               // int or string (optional)
   "published_at": "2026-10-09T08:02:00-04:00",
   "theme": "Ship the paper",       // day theme (optional)
-  "quote": {"text": "...", "author": "..."},   // or a plain string
+  "quote": {"text": "...", "author": "..."},   // or {text, by}, or a plain string; empty/omitted gets a stable quote of the day
   "weather": {"summary": "Partly cloudy", "high": 88, "low": 74, "icon": "⛅", "rain": "40% after 2 PM"}, // or a string
   "front_page": {"headline": "...", "subhead": "...", "body": "para 1\n\npara 2", "image": "https://..."},
   "sections": [
