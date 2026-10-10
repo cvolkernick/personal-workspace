@@ -9,6 +9,8 @@
   GET  /api/dashboard    — combined payload for UI
   POST /api/refresh      — re-run pipeline (body: {"offline": true})
   GET  /daily-brief/*    — Daily Brief newspaper (research/daily_brief; not model output)
+  GET  /manifest.webmanifest, /sw.js, /pwa.js, /icon-*.png, /apple-touch-icon.png
+                         — install shell ("Add to Home Screen"); prefix-aware
 
 Usage:
   python3 research/horizon/server.py
@@ -18,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 import webbrowser
@@ -182,12 +185,107 @@ def landing_route(path: str, query: str):
     return None
 
 
+# ---------------------------------------------------------------- install shell
+# Same pattern as FCC (manifest + icons + worker + apple-touch meta), but
+# Horizon-owned files so FCC's origin-scoped pwa.js/sw.js stay untouched.
+# Manifest URLs are relative, so behind FCC's /horizon lens the app's
+# start_url and scope resolve to /horizon/; directly on :8795 they are /.
+PWA_ICONS_PATH = HORIZON_DIR / "pwa_icons.json"
+PWA_ICON_NAMES = (
+    "icon-192.png",
+    "icon-512.png",
+    "icon-maskable-192.png",
+    "icon-maskable-512.png",
+    "apple-touch-icon.png",
+    "favicon-32.png",
+)
+# iOS probes these at the app root when a page has no apple-touch-icon link.
+_ICON_ALIASES = {
+    "apple-touch-icon-precomposed.png": "apple-touch-icon.png",
+    "apple-touch-icon-120x120.png": "apple-touch-icon.png",
+    "apple-touch-icon-120x120-precomposed.png": "apple-touch-icon.png",
+    "apple-touch-icon-180x180.png": "apple-touch-icon.png",
+    "apple-touch-icon-180x180-precomposed.png": "apple-touch-icon.png",
+}
+_ICON_CACHE: dict[str, bytes] | None = None
+_NO_CACHE_SHELL = ("/sw.js", "/manifest.webmanifest", "/pwa.js")
+
+# Root-absolute so nested /daily-brief/<date>/<slot> pages resolve correctly;
+# FCC's lens rewrites these to /horizon/... like every other Horizon asset.
+PWA_HEAD = (
+    '<link rel="manifest" href="/manifest.webmanifest">'
+    '<meta name="theme-color" content="#060a10">'
+    '<meta name="mobile-web-app-capable" content="yes">'
+    '<meta name="apple-mobile-web-app-capable" content="yes">'
+    '<meta name="apple-mobile-web-app-status-bar-style" content="black">'
+    '<meta name="apple-mobile-web-app-title" content="Horizon">'
+    '<link rel="apple-touch-icon" href="/apple-touch-icon.png">'
+    '<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">'
+    '<script src="/pwa.js" defer></script>'
+)
+
+
+def pwa_icon(name: str) -> bytes | None:
+    """PNG bytes for an icon path name (decoded once from pwa_icons.json)."""
+    global _ICON_CACHE
+    name = _ICON_ALIASES.get(name, name)
+    if name not in PWA_ICON_NAMES:
+        return None
+    if _ICON_CACHE is None:
+        try:
+            raw = json.loads(PWA_ICONS_PATH.read_text(encoding="utf-8"))
+            _ICON_CACHE = {k: base64.b64decode(v) for k, v in raw.items() if k in PWA_ICON_NAMES}
+        except (OSError, ValueError) as exc:
+            sys.stderr.write(f"[horizon] pwa icons unavailable: {exc!r}\n")
+            _ICON_CACHE = {}
+    return _ICON_CACHE.get(name)
+
+
+def with_pwa_head(html: str) -> str:
+    """Add the install-shell head tags to a Horizon-served HTML page (idempotent)."""
+    if 'rel="manifest"' in html:
+        return html
+    if "</head>" in html:
+        return html.replace("</head>", PWA_HEAD + "</head>", 1)
+    return PWA_HEAD + html
+
+
 class HorizonHandler(SimpleHTTPRequestHandler):
+    # Stdlib maps .webmanifest to octet-stream on some Pythons; pin the types.
+    extensions_map = {
+        **getattr(SimpleHTTPRequestHandler, "extensions_map", {}),
+        ".webmanifest": "application/manifest+json",
+        ".js": "text/javascript; charset=utf-8",
+        ".png": "image/png",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(HORIZON_DIR), **kwargs)
 
     def log_message(self, fmt: str, *args) -> None:
         sys.stderr.write("[horizon] " + (fmt % args) + "\n")
+
+    def end_headers(self) -> None:
+        # Worker and manifest must revalidate so a shell update reaches the phone.
+        if urlparse(getattr(self, "path", "") or "").path in _NO_CACHE_SHELL:
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
+    def _maybe_serve_pwa_icon(self) -> bool:
+        path = urlparse(self.path).path
+        if path.count("/") != 1 or not path.endswith(".png"):
+            return False
+        raw = pwa_icon(path[1:])
+        if raw is None:
+            return False
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "public, max-age=86400")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+        return True
 
     def _json(self, code: int, payload: dict) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
@@ -222,6 +320,8 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         if res is None:
             return False
         code, ctype, body = res
+        if code == 200 and ctype.startswith("text/html"):
+            body = with_pwa_head(body)
         raw = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -258,14 +358,14 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         if kind == "brief":
             code, _ctype, body = daily_brief_route("/daily-brief")
             if code == 200:
-                body = front_page_html(body)
+                body = with_pwa_head(front_page_html(body))
             self._send_html(code, body.encode("utf-8"))
             return True
         self._send_html(200, (HORIZON_DIR / "index.html").read_bytes())
         return True
 
     def do_HEAD(self) -> None:  # noqa: N802
-        if self._maybe_serve_daily_brief() or self._maybe_serve_landing():
+        if self._maybe_serve_daily_brief() or self._maybe_serve_landing() or self._maybe_serve_pwa_icon():
             return
         return super().do_HEAD()
 
@@ -314,7 +414,7 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             self._json(200, {"ok": True, "world_state": state})
             return
 
-        if self._maybe_serve_landing():
+        if self._maybe_serve_landing() or self._maybe_serve_pwa_icon():
             return
         return super().do_GET()
 
