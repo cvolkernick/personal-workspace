@@ -391,7 +391,9 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .lead-wrap .cards{grid-template-columns:minmax(0,1fr);gap:1.8rem;margin:0}
 .lead-wrap .front .body,.lead-wrap .front .subhead{max-width:none}
 .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:3.5rem}
-#sec-todo,#sec-mac{grid-column:1 / -1}
+#sec-todo,#sec-mac,.sec-wide{grid-column:1 / -1}
+.sec-wide>ul{columns:2;column-gap:3.5rem}
+.sec-wide>ul>li{break-inside:avoid}
 .lead-fig{margin:1.4rem 0 1.7rem}
 }
 """
@@ -547,6 +549,7 @@ def render_edition(
         blocks.insert(0, ("todo", "To-Do", todo_html))
     ti = next(i for i, b in enumerate(blocks) if b[0] == "todo")
     blocks.insert(ti + 1, ("mac", MAC_TASKS_TITLE, mac_html))
+    blocks = _span_stranded(blocks)
 
     pills = (
         '<nav class="pills" aria-label="Sections"><a href="#sec-front">Front Page</a>'
@@ -575,6 +578,43 @@ def render_edition(
         + _edition_nav(key, root) + snap
     )
     return _page(f"{PAPER_NAME} \u00b7 {label} \u00b7 {ed['date']}", body, active="latest", self_path=self_path)
+
+
+# Blocks that always take the full row of the two-column desktop grid.
+_FULL_ROW = ("todo", "mac")
+_WIDE_CLS = "sec sec-wide"
+
+
+def stranded_blocks(ids: list[str]) -> set[int]:
+    """Indexes of half-width blocks that would sit alone in a desktop row.
+
+    The desktop grid has two columns and To-Do / Mac tasks span both. A section
+    right before a full-row block, or last on the page, with no partner beside
+    it, leaves the other column empty. Those sections span the row instead.
+    Publisher order is kept. Phones use one column, so nothing changes there.
+    """
+    out: set[int] = set()
+    pending: int | None = None
+    for i, sid in enumerate(ids):
+        if sid in _FULL_ROW:
+            if pending is not None:
+                out.add(pending)
+            pending = None
+        elif pending is None:
+            pending = i
+        else:
+            pending = None
+    if pending is not None:
+        out.add(pending)
+    return out
+
+
+def _span_stranded(blocks: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    wide = stranded_blocks([b[0] for b in blocks])
+    return [
+        (sid, t, h.replace('<section class="sec"', f'<section class="{_WIDE_CLS}"', 1) if i in wide else h)
+        for i, (sid, t, h) in enumerate(blocks)
+    ]
 
 
 def render_archive(root: Path | None = None) -> str:

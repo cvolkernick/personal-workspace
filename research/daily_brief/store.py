@@ -10,6 +10,8 @@ The page itself is served by the Horizon host under ``/daily-brief`` (see
 
 from __future__ import annotations
 
+import copy
+import ipaddress
 import json
 import os
 import re
@@ -18,6 +20,7 @@ import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 from zoneinfo import ZoneInfo
 
 from research.daily_brief.quotes import quote_for, quote_text
@@ -138,6 +141,117 @@ def _check_link(problems: list[str], where: str, url: Any) -> None:
         problems.append(f"{where}: link must be an http(s) URL")
 
 
+# Picture URLs: https on a public host, and an image file or a known image CDN.
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif")
+# Hosts (or parent domains) that serve images without a file extension.
+IMAGE_CDN_HOSTS = (
+    "images.unsplash.com",
+    "upload.wikimedia.org",
+    "i.imgur.com",
+    "pbs.twimg.com",
+    "images.pexels.com",
+    "cdn.pixabay.com",
+    "lh3.googleusercontent.com",
+    "i.ytimg.com",
+    "res.cloudinary.com",
+    "imgix.net",
+    "images.ctfassets.net",
+    "cdn.sanity.io",
+)
+# Private, internal and tailnet name suffixes. Tailscale MagicDNS names end in .ts.net.
+_PRIVATE_HOST_SUFFIXES = (
+    ".ts.net", ".localhost", ".local", ".localdomain", ".internal", ".intranet",
+    ".lan", ".home", ".corp", ".private", ".home.arpa", ".test", ".invalid", ".example",
+)
+_PRIVATE_HOSTS = ("localhost", "localhost.localdomain")
+
+
+def _host_matches(host: str, domain: str) -> bool:
+    return host == domain or host.endswith("." + domain)
+
+
+def image_url_problem(url: Any) -> str | None:
+    """Why an image URL is refused at publish, or None when it is fine.
+
+    The rule for every image field (``front_page.image``, ``sections[].image``,
+    ``sections[].items[].image``): https only; a public host, so no IP literal
+    that is private, loopback, link-local, CGNAT/tailnet or otherwise not
+    global, and no localhost, single-label, ``.local``-style or ``*.ts.net``
+    name; no user:password@; and a path ending in a common image extension,
+    or a host on ``IMAGE_CDN_HOSTS``.
+    """
+    if not isinstance(url, str):
+        return "not a string"
+    raw = url.strip()
+    if not raw:
+        return "empty"
+    if any(c.isspace() or ord(c) < 32 for c in raw):
+        return "contains whitespace or control characters"
+    try:
+        parts = urlsplit(raw)
+        parts.port  # raises ValueError on a malformed port
+    except ValueError:
+        return "not a valid URL"
+    if parts.scheme.lower() != "https":
+        return "must be https"
+    if parts.username is not None or parts.password is not None:
+        return "credentials in URL"
+    host = (parts.hostname or "").rstrip(".").lower()
+    if not host:
+        return "no host"
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+    if ip is not None:
+        if not ip.is_global:
+            return "private, loopback or tailnet address"
+        return "IP address host; use a domain name"
+    if host in _PRIVATE_HOSTS or "." not in host or host.endswith(_PRIVATE_HOST_SUFFIXES):
+        return "private, loopback or tailnet host"
+    if any(_host_matches(host, cdn) for cdn in IMAGE_CDN_HOSTS):
+        return None
+    path = unquote(parts.path or "").lower()
+    if not path.endswith(IMAGE_EXTENSIONS):
+        return "not an image file (" + ", ".join(IMAGE_EXTENSIONS) + ") or a known image CDN"
+    return None
+
+
+def drop_bad_images(edition: dict) -> tuple[dict, list[str]]:
+    """Copy of ``edition`` with refused image URLs removed, plus one warning each.
+
+    Only the ``image`` keys change. A bad picture never fails a publish; the
+    section or item stays, without its picture. See ``image_url_problem``.
+    """
+    if not isinstance(edition, dict):
+        return edition, []
+    ed = dict(edition)
+    warnings: list[str] = []
+
+    def check(holder: dict, where: str) -> None:
+        if "image" not in holder or holder["image"] in (None, ""):
+            return
+        why = image_url_problem(holder["image"])
+        if why:
+            warnings.append(f"{where}.image: dropped ({why})")
+            del holder["image"]
+
+    if isinstance(ed.get("front_page"), dict):
+        ed["front_page"] = dict(ed["front_page"])
+        check(ed["front_page"], "front_page")
+    if isinstance(ed.get("sections"), list):
+        ed["sections"] = copy.deepcopy(ed["sections"])
+        for i, sec in enumerate(ed["sections"]):
+            if not isinstance(sec, dict):
+                continue
+            check(sec, f"sections[{i}]")
+            if isinstance(sec.get("items"), list):
+                for j, it in enumerate(sec["items"]):
+                    if isinstance(it, dict):
+                        check(it, f"sections[{i}].items[{j}]")
+    return ed, warnings
+
+
 def _check_due(raw: Any) -> bool:
     if raw in (None, ""):
         return True
@@ -248,7 +362,7 @@ def validate(edition: dict) -> list[str]:
         for k in ("subhead", "body"):
             if fp.get(k) is not None and not isinstance(fp[k], str):
                 p.append(f"front_page.{k}: string")
-        _check_link(p, "front_page.image", fp.get("image"))
+        # front_page.image is checked by drop_bad_images: a bad picture warns, never fails.
 
     secs = edition.get("sections")
     if not isinstance(secs, list):
@@ -395,8 +509,25 @@ def load_json_arg(arg: str) -> dict:
 
 
 def publish(edition: dict, *, root: Path | None = None, now: datetime | None = None) -> Path:
-    """Validate and atomically write; same date+edition overwrites (idempotent)."""
-    ed = normalize(edition, now=now)
+    """Validate and atomically write; same date+edition overwrites (idempotent).
+
+    Refused image URLs are dropped and reported on stderr, see ``publish_report``.
+    """
+    dest, warnings = publish_report(edition, root=root, now=now)
+    for w in warnings:
+        print(f"daily-brief: warning: {w}", file=sys.stderr)
+    return dest
+
+
+def publish_report(
+    edition: dict, *, root: Path | None = None, now: datetime | None = None
+) -> tuple[Path, list[str]]:
+    """``publish`` that returns ``(path, warnings)`` instead of printing warnings.
+
+    Every image field goes through ``drop_bad_images`` first, so a bad picture
+    is a warning and the rest of the edition still publishes.
+    """
+    ed, warnings = drop_bad_images(normalize(edition, now=now))
     problems = validate(ed)
     if problems:
         raise BriefError(problems)
@@ -412,7 +543,7 @@ def publish(edition: dict, *, root: Path | None = None, now: datetime | None = N
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
-    return dest
+    return dest, warnings
 
 
 # ------------------------------------------------------------------ store reads
