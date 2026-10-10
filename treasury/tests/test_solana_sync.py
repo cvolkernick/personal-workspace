@@ -1,4 +1,4 @@
-"""Solana whitelist adapter — parse, isolate JR from HY, offline fallback."""
+"""Solana whitelist adapter — parse, offline fallback (JR-strcUSX retired)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ if str(ROOT) not in sys.path:
 
 from treasury.policy import evaluate_treasury  # noqa: E402
 from treasury.solana_sync import (  # noqa: E402
-    JR_STRCUSX_MINT,
     USDC_MINT,
     WSOL_MINT,
     fetch_solana,
@@ -23,6 +22,9 @@ from treasury.solana_sync import (  # noqa: E402
     parse_token_accounts,
     write_solana_snapshot,
 )
+
+# Retired mint — still appears on-chain as dust; must be ignored when not whitelisted.
+_RETIRED_STRCUSX_MINT = "BQ6LPc68knpko292UsMLbQYfaHhWD7S84sA98632hrzX"
 
 
 def _rpc_accounts(*rows):
@@ -53,8 +55,8 @@ class TestParseAndNormalize(unittest.TestCase):
     def test_whitelist_only_and_usd(self):
         rows = parse_token_accounts(
             _rpc_accounts(
-                (USDC_MINT, 0.0, 6),
-                (JR_STRCUSX_MINT, 3.317128, 6),
+                (USDC_MINT, 12.5, 6),
+                (_RETIRED_STRCUSX_MINT, 3.317128, 6),
                 ("FLJYGHpCCcfYUdzhcfHSeSd2peb5SMajNWaCsRnhpump", 69.0, 6),
             )
         )
@@ -66,24 +68,22 @@ class TestParseAndNormalize(unittest.TestCase):
             prices={
                 WSOL_MINT: 76.0,
                 USDC_MINT: 1.0,
-                JR_STRCUSX_MINT: 1.0255,
+                _RETIRED_STRCUSX_MINT: 1.0255,
             },
             whitelist=[
                 {"symbol": "SOL", "mint": WSOL_MINT, "role": "gas"},
                 {"symbol": "USDC", "mint": USDC_MINT, "role": "onchain_stable"},
-                {"symbol": "JR-strcUSX", "mint": JR_STRCUSX_MINT, "role": "dc_credit_parlay"},
             ],
         )
         self.assertAlmostEqual(book["sol"], 0.058890792)
-        self.assertAlmostEqual(book["usdc"], 0.0)
-        self.assertAlmostEqual(book["jr_strcusx"], 3.317128)
-        self.assertAlmostEqual(book["jr_strcusx_usd"], 3.317128 * 1.0255, places=4)
+        self.assertAlmostEqual(book["usdc"], 12.5)
+        self.assertNotIn("jr_strcusx", book)
         self.assertFalse(book["counts_toward_hy"])
         self.assertFalse(book["counts_toward_working_usdc"])
-        self.assertEqual(book["ignored_token_accounts"], 1)
+        self.assertEqual(book["ignored_token_accounts"], 2)
         symbols = {h["symbol"] for h in book["holdings"]}
-        self.assertEqual(symbols, {"SOL", "USDC", "JR-strcUSX"})
-        self.assertNotIn("STORE", symbols)
+        self.assertEqual(symbols, {"SOL", "USDC"})
+        self.assertNotIn("JR-strcUSX", symbols)
 
 
 class TestFetchFallback(unittest.TestCase):
@@ -94,15 +94,14 @@ class TestFetchFallback(unittest.TestCase):
                 {
                     "source": "live",
                     "sol": 0.05,
-                    "usdc": 0,
-                    "jr_strcusx": 3.3,
+                    "usdc": 3.3,
                     "book_usd": 7.2,
                     "counts_toward_hy": True,  # poisoned — fetch must force false
                 },
                 path=p,
             )
             r = fetch_solana(prefer_live=False, snapshot_path=p)
-            self.assertAlmostEqual(r["jr_strcusx"], 3.3)
+            self.assertAlmostEqual(r["usdc"], 3.3)
             self.assertFalse(r["counts_toward_hy"])
             self.assertFalse(r["counts_toward_ltv_defense"])
 
@@ -110,7 +109,7 @@ class TestFetchFallback(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "sol.json"
             write_solana_snapshot(
-                {"source": "live", "jr_strcusx": 1.0, "book_usd": 1.0, "sol": 0},
+                {"source": "live", "usdc": 1.0, "book_usd": 1.0, "sol": 0},
                 path=p,
             )
             with mock.patch(
@@ -119,7 +118,7 @@ class TestFetchFallback(unittest.TestCase):
             ):
                 r = fetch_solana(prefer_live=True, snapshot_path=p)
             self.assertEqual(r["live_error"], "rpc down")
-            self.assertAlmostEqual(r["jr_strcusx"], 1.0)
+            self.assertAlmostEqual(r["usdc"], 1.0)
             self.assertFalse(r["counts_toward_hy"])
 
     def test_overlay_fills_empty_block_does_not_clobber(self):
@@ -130,7 +129,7 @@ class TestFetchFallback(unittest.TestCase):
                     "source": "live",
                     "as_of": "2026-08-29T18:12:13+00:00",
                     "book_usd": 9.58,
-                    "jr_strcusx": 3.317128,
+                    "usdc": 3.317128,
                 },
                 path=p,
             )
@@ -150,7 +149,7 @@ class TestFetchFallback(unittest.TestCase):
 
 
 class TestPolicyIsolation(unittest.TestCase):
-    def test_jr_does_not_fill_hy_or_working_usdc(self):
+    def test_solana_does_not_fill_hy_or_working_usdc(self):
         snap = {
             "coinbase": {"liquid_usdc": 10.0, "source": "live"},
             "coinbase_manual": {"vault_usdc": 50.0, "ltv": 0.2},
@@ -161,8 +160,6 @@ class TestPolicyIsolation(unittest.TestCase):
                 "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
                 "sol": 0.05,
                 "usdc": 12.0,
-                "jr_strcusx": 100.0,
-                "jr_strcusx_usd": 102.0,
                 "book_usd": 118.0,
                 "counts_toward_hy": False,
             },
@@ -171,11 +168,10 @@ class TestPolicyIsolation(unittest.TestCase):
         self.assertAlmostEqual(ev["inputs"]["working_usdc"], 60.0)
         self.assertAlmostEqual(ev["inputs"]["liquid_usdc"], 10.0)
         self.assertFalse(ev["inputs"]["solana_counts_toward_hy"])
-        jr = ev["sleeves"]["strc_jr"]
-        self.assertFalse(jr["counts_toward_hy"])
-        self.assertFalse(jr["counts_toward_ltv_defense"])
-        self.assertAlmostEqual(jr["jr_strcusx"], 100.0)
-        self.assertAlmostEqual(jr["usdc"], 12.0)
+        sleeve = ev["sleeves"]["solana"]
+        self.assertFalse(sleeve["counts_toward_hy"])
+        self.assertFalse(sleeve["counts_toward_ltv_defense"])
+        self.assertAlmostEqual(sleeve["usdc"], 12.0)
         self.assertIn("NOT HY", ev["agent_brief"])
 
 
