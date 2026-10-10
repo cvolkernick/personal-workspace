@@ -1,14 +1,17 @@
 /**
  * Deep-link Auto Fleet → FCC (#748).
  *
- * FCC bind (LAN-debug): port 8000, path /financial-command/index.html
- * (financial-command/server.py --port default). Do not invent.
+ * FCC listens on 127.0.0.1:8000 unless FCC_BIND_HOST=0.0.0.0 (that restores
+ * the old all-interfaces bind). Path /financial-command/index.html matches
+ * financial-command/server.py. Do not invent a different port.
  *
  * Access paths:
- * 1. Same-origin PWA lens https://<host>/fleet/* → /financial-command/index.html
- *    (or https://<host>/financial-command/index.html). Stays in the installed app.
+ * 1. Same-origin PWA lens /fleet/* → /financial-command/index.html.
+ *    Stays in the installed app.
  * 2. Tailscale Serve hostname (*.ts.net) → https origin, never :8000.
- * 3. LAN-debug :8796 → http://<host>:8000/financial-command/index.html
+ * 3. Loopback :8796 → http://127.0.0.1:8000/financial-command/index.html.
+ * 4. Any other page host → the same-origin FCC path. Do not build
+ *    http://<page-host>:8000; FCC is not listening there.
  *
  * Do not write root-absolute href or fetch strings here: FCC's /fleet/
  * proxy rewrites those and would trap the back-link under the lens prefix.
@@ -20,23 +23,31 @@
   var FCC_PORT = 8000;
   var FCC_PATH = "/financial-command/index.html";
 
+  function isLoopback(host) {
+    var h = String(host || "").toLowerCase();
+    return h === "127.0.0.1" || h === "localhost" || h === "[::1]" || h === "::1";
+  }
+
   function fccHref(hostname) {
     var loc = global.location || {};
-    if (hostname) {
-      return "http://" + hostname + ":" + FCC_PORT + FCC_PATH;
-    }
-    var host = loc.hostname || "127.0.0.1";
-    var path = loc.pathname || "/";
-    var protocol = loc.protocol || "http:";
+    var host = hostname || loc.hostname || "127.0.0.1";
+    var path = hostname ? "/" : loc.pathname || "/";
+    var protocol = hostname ? "http:" : loc.protocol || "http:";
     var onLens = path === "/fleet" || path.indexOf("/fleet/") === 0;
     var onTsNet = /\.ts\.net$/i.test(host);
-    if (onLens || protocol === "https:" || onTsNet) {
+    if (!hostname && (onLens || protocol === "https:" || onTsNet)) {
       if (protocol === "https:" || onTsNet) {
         return "https://" + host + FCC_PATH;
       }
       return FCC_PATH;
     }
-    return "http://" + host + ":" + FCC_PORT + FCC_PATH;
+    if (onTsNet) {
+      return "https://" + host + FCC_PATH;
+    }
+    if (isLoopback(host)) {
+      return "http://" + host + ":" + FCC_PORT + FCC_PATH;
+    }
+    return FCC_PATH;
   }
 
   function wireFccNav() {

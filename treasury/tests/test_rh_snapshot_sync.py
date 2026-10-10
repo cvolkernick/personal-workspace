@@ -258,7 +258,7 @@ class RhProducerRoleTests(unittest.TestCase):
             if k not in ("TREASURY_RH_ROLE", "TREASURY_RH_PRODUCER", "TREASURY_RH_BACKUP")
         }
         with mock.patch.dict(os.environ, cleared, clear=True), mock.patch.object(
-            rss, "_this_host", return_value="prism-gateway"
+            rss, "_this_host", return_value="gateway.example"
         ), mock.patch.object(rss, "_sot_host", return_value="prism"):
             self.assertEqual(rss._rh_role(), "consumer")
 
@@ -266,7 +266,7 @@ class RhProducerRoleTests(unittest.TestCase):
         status = {
             "ok": False,
             "role": "producer",
-            "this_host": "prism-gateway",
+            "this_host": "gateway.example",
             "producer_host": "prism",
             "error": "no_refresh_path",
             "error_class": "skipped",
@@ -317,7 +317,7 @@ class RhProducerRoleTests(unittest.TestCase):
         status = {
             "ok": False,
             "role": "producer",
-            "this_host": "prism-gateway",
+            "this_host": "gateway.example",
             "producer_host": "prism",
             "error": "local_mcp_timeout:240s",
             "error_class": "timeout",
@@ -671,7 +671,7 @@ class ExpensesPushGuardTests(unittest.TestCase):
 
 def _fake_pi_settings() -> dict:
     return {
-        "ssh": "prism-agent@192.168.100.98",
+        "ssh": "prism-agent@192.0.2.10",
         "remote_root": "/home/prism-agent/personal-workspace",
         "connect_timeout_s": 5.0,
         "max_age_hours": 6.0,
