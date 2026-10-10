@@ -18,7 +18,9 @@ Env (optional):
   TREASURY_RH_PUSH=1           allow Mac→Pi robinhood_latest.json (off by default)
   TREASURY_BRAIINS_PUSH=1      allow Mac→Pi braiins_latest.json (off by default; #689)
   TREASURY_COINBASE_PUSH=1     allow Mac→Pi coinbase_latest.json (off by default; #695)
-  TREASURY_PI_SSH     e.g. prism-agent@192.168.100.98
+  TREASURY_PI_SSH     prism SSH target, e.g. prism-agent@192.0.2.10. Required on
+                      any host that pulls from or pushes to prism (Mac). The
+                      committed default is a placeholder that fails to resolve.
   TREASURY_PI_ROOT    e.g. /home/prism-agent/personal-workspace
   TREASURY_PI_CONNECT_TIMEOUT  (seconds, default 5)
   TREASURY_RH_MAX_AGE_HOURS    accept remote only if as_of younger than this (default 6)
@@ -55,7 +57,11 @@ if str(ROOT) not in sys.path:
 
 from treasury.adapters import SNAPSHOTS_DIR, load_config, load_json, save_json  # noqa: E402
 
-DEFAULT_SSH = "prism-agent@192.168.100.98"
+# Placeholder only. The real prism target comes from TREASURY_PI_SSH (or a
+# local pi_sync.ssh). ".example" never resolves, so an unset target fails
+# loudly as pi_unreachable instead of silently hitting a LAN address.
+DEFAULT_SSH = "prism-agent@prism.example"
+PLACEHOLDER_SSH_SUFFIX = ".example"
 DEFAULT_REMOTE_ROOTS = (
     "/home/prism-agent/personal-workspace",
     "/home/pi/personal-workspace",
@@ -365,6 +371,12 @@ def notify_rh_producer_failure(
     )
 
 
+def ssh_target_is_placeholder(ssh: str) -> bool:
+    """True when the SSH target is the committed placeholder (env not set)."""
+    host = (ssh or "").strip().rsplit("@", 1)[-1].lower()
+    return not host or host.endswith(PLACEHOLDER_SSH_SUFFIX)
+
+
 def _pi_settings() -> Dict[str, Any]:
     cfg = load_config() or {}
     ps = dict(cfg.get("pi_sync") or {})
@@ -416,6 +428,12 @@ def _pi_settings() -> Dict[str, Any]:
     if not isinstance(push_files, list):
         push_files = list(DEFAULT_PUSH_FILES)
     push_files = _strip_rh_push([str(x) for x in push_files if x])
+    if (enabled or push_enabled) and ssh_target_is_placeholder(ssh):
+        # Only when a Pi pull/push could run (prism producer sets SKIP_PI).
+        sys.stderr.write(
+            f"[rh_snapshot_sync] WARN: prism SSH target is the placeholder {ssh!r}; "
+            "set TREASURY_PI_SSH (e.g. prism-agent@<prism-host>) to pull/push.\n"
+        )
     return {
         "ssh": ssh,
         "remote_root": root,
