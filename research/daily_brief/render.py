@@ -27,6 +27,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from research.daily_brief.quotes import QUOTES, quote_attribution, quote_for, quote_text
 from research.daily_brief.redact import scrub_edition
 from research.daily_brief.store import (
     BASE_PATH,
@@ -116,13 +117,27 @@ def _quiet_line() -> str:
     return f'<p class="not-model">{_e(NOT_MODEL_LINE)}</p>'
 
 
+def display_quote(ed: dict) -> Any:
+    """The edition's own quote, or the quote of the day.
+
+    Applied at render time so an edition stored without ``quote`` still shows
+    one. ``_quote_html`` HTML-escapes the text and the byline.
+    """
+    provided = ed.get("quote")
+    if quote_text(provided):
+        return provided
+    if not QUOTES:
+        return None
+    return quote_for(str(ed.get("date") or ""), str(ed.get("edition") or ""))
+
+
 def _quote_html(q: Any) -> str:
-    if not q:
-        return '<p class="muted">No quote today.</p>'
-    if isinstance(q, str):
-        return f"<blockquote>“{_e(q)}”</blockquote>"
-    who = f'<cite>— {_e(str(q.get("author")))}</cite>' if q.get("author") else ""
-    return f"<blockquote>“{_e(q['text'])}”</blockquote>{who}"
+    text = quote_text(q)
+    if not text:
+        return ""
+    who = quote_attribution(q)
+    cite = f"<cite>— {_e(who)}</cite>" if who else ""
+    return f"<blockquote>“{_e(text)}”</blockquote>{cite}"
 
 
 def _item_html(it: Any) -> str:
@@ -409,7 +424,7 @@ def render_edition(
         '<header class="head">'
         f'<div class="wx"><h4>Local weather</h4>{_weather_html(ed.get("weather"))}</div>'
         f'<div class="masthead"><h1>{_e(PAPER_NAME)}</h1><div class="tagline">{_e(TAGLINE)}</div>{_quiet_line()}</div>'
-        f'<div class="qotd"><h4>Quote of the day</h4>{_quote_html(ed.get("quote"))}</div>'
+        f'<div class="qotd"><h4>Quote of the day</h4>{_quote_html(display_quote(ed))}</div>'
         "</header>"
     )
 

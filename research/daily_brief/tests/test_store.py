@@ -13,7 +13,7 @@ from datetime import date
 from unittest import mock
 
 from research.daily_brief.tests._common import FIXTURES, ROOT, TmpStore, sample, store
-from research.daily_brief import cli
+from research.daily_brief import cli, quotes
 
 
 class TestSchema(unittest.TestCase):
@@ -72,6 +72,37 @@ class TestStore(TmpStore):
 
     def test_edition_url_on_horizon_host(self):
         self.assertEqual(store.edition_url(("2026-10-09", "am")), "/daily-brief/2026-10-09/am")
+
+
+class TestQuoteFill(TmpStore):
+    def test_publish_fills_a_missing_quote(self):
+        ed = sample("sample-empty-todos")
+        self.assertNotIn("quote", ed)
+        store.publish(ed, root=self.root)
+        raw = store.load_edition("2026-10-08", "pm", self.root)
+        picked = quotes.quote_for("2026-10-08", "pm")
+        self.assertEqual(raw["quote"], {"text": picked["text"], "author": picked["by"]})
+
+    def test_publish_replaces_an_empty_quote(self):
+        ed = sample("sample-empty-todos")
+        ed["quote"] = {"text": "  ", "by": "Nope"}
+        store.publish(ed, root=self.root)
+        raw = store.load_edition("2026-10-08", "pm", self.root)
+        picked = quotes.quote_for("2026-10-08", "pm")
+        self.assertEqual(raw["quote"]["text"], picked["text"])
+        self.assertNotIn("Nope", json.dumps(raw["quote"]))
+
+    def test_publish_keeps_a_provided_quote(self):
+        ed = sample("sample-am")
+        store.publish(ed, root=self.root)
+        raw = store.load_edition("2026-10-09", "am", self.root)
+        self.assertEqual(raw["quote"]["text"], "The secret of getting ahead is getting started.")
+        self.assertEqual(raw["quote"]["author"], "Mark Twain")
+        ed = sample("sample-empty-todos")
+        ed["quote"] = {"text": "Bring your own line.", "by": "Fixture Voice"}
+        store.publish(ed, root=self.root)
+        raw = store.load_edition("2026-10-08", "pm", self.root)
+        self.assertEqual(raw["quote"], {"text": "Bring your own line.", "by": "Fixture Voice"})
 
 
 class TestBucketing(unittest.TestCase):

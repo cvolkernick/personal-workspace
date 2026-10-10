@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from research.daily_brief.quotes import quote_for, quote_text
+
 BASE_PATH = "/daily-brief"
 ET = ZoneInfo("America/New_York")
 EDITIONS = ("am", "pm")
@@ -150,8 +152,24 @@ def _check_due(raw: Any) -> bool:
     return _parse_ts(raw) is not None
 
 
+def _fill_quote(ed: dict) -> None:
+    """Store a quote of the day when the publisher left the field empty.
+
+    A non-empty ``text`` (or a plain string) is kept as given, including a
+    ``by`` attribution. The page also fills a missing quote at render time,
+    so editions already on disk still show one.
+    """
+    if quote_text(ed.get("quote")):
+        return
+    day, edition = ed.get("date"), ed.get("edition")
+    if not isinstance(day, str) or edition not in EDITIONS:
+        return
+    picked = quote_for(day, edition)
+    ed["quote"] = {"text": picked["text"], "author": picked["by"]}
+
+
 def normalize(edition: dict, *, now: datetime | None = None) -> dict:
-    """Fill derivable fields (date/edition/published_at) without changing content."""
+    """Fill derivable fields (date/edition/published_at) and a quote when none was given."""
     if not isinstance(edition, dict):
         raise BriefError("edition must be a JSON object")
     ed = dict(edition)
@@ -184,6 +202,7 @@ def normalize(edition: dict, *, now: datetime | None = None) -> dict:
             items.append(it)
         mt["items"] = items
         ed["mac_tasks"] = mt
+    _fill_quote(ed)
     return ed
 
 
@@ -215,7 +234,7 @@ def validate(edition: dict) -> list[str]:
     q = edition.get("quote")
     if q is not None and not isinstance(q, str):
         if not (isinstance(q, dict) and isinstance(q.get("text"), str)):
-            p.append("quote: string or {text, author?}")
+            p.append("quote: string or {text, author? or by?}")
     w = edition.get("weather")
     if w is not None and not isinstance(w, (str, dict)):
         p.append("weather: string or object {summary, high, low, ...}")
