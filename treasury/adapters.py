@@ -639,7 +639,7 @@ def build_snapshot(
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
                 "x_money": "ynab/plaid (X Money main last-4 2201 + Auto Fleet/Collateral/Utilities spaces; 8680 is Navy Federal, not X Money)",
-                "solana": "public RPC + Jupiter prices; whitelist SOL/USDC/JR-strcUSX; JR is not HY",
+                "solana": "public RPC + Jupiter prices; whitelist SOL/USDC",
                 "expenses": "google sheet: Essential + funded unique Fleet = burn; Fleet tab is fleet_ops (empty-From / name overlap out of combined); Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
                 "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
                 "external_usdc_send": "not via Advanced Trade transfer",

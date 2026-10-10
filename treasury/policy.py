@@ -481,7 +481,7 @@ def assess_data_quality(
             "Morpho LTV, High Yield vault, and One Card are app-only — not Advanced Trade API.",
             "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
             "Liquid CB balances exclude vault/collateral locked on Morpho.",
-            "Solana whitelist (SOL/USDC/JR-strcUSX) is read-only public RPC; JR is not HY.",
+            "Solana whitelist (SOL/USDC) is read-only public RPC.",
         ],
         "config_path": meta.get("config_path"),
         "rh_accounts": meta.get("rh_accounts") or {},
@@ -1699,8 +1699,7 @@ def evaluate_treasury(
         + (f" ({x_money.get('account_name')})" if x_money.get("account_name") else "")
         + f" | RH brokerage BP: ${bp:.2f} cash: ${cash:.2f} equity: ${equity:.2f}",
         f"Solana: ${_f(solana.get('book_usd')):.2f} book"
-        + f" (SOL {_f(solana.get('sol')):.4f} · USDC ${_f(solana.get('usdc')):.2f}"
-        + f" · JR-strcUSX {_f(solana.get('jr_strcusx')):.4f} ~${_f(solana.get('jr_strcusx_usd')):.2f})"
+        + f" (SOL {_f(solana.get('sol')):.4f} · USDC ${_f(solana.get('usdc')):.2f})"
         + " | NOT HY / not LTV defense / not working USDC"
         + (f" | {solana.get('wallet')}" if solana.get("wallet") else ""),
         f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
@@ -1809,12 +1808,6 @@ def evaluate_treasury(
             "solana_usdc": _f(solana.get("usdc"))
             if solana.get("source") not in (None, "empty")
             else None,
-            "solana_jr_strcusx": _f(solana.get("jr_strcusx"))
-            if solana.get("source") not in (None, "empty")
-            else None,
-            "solana_jr_strcusx_usd": _f(solana.get("jr_strcusx_usd"))
-            if solana.get("source") not in (None, "empty")
-            else None,
             "solana_counts_toward_hy": False,
             "bank_cash": bank_cash if bank_cash_known else None,
             "bill_pay_cash": bill_pay_cash,
@@ -1908,13 +1901,11 @@ def evaluate_treasury(
                 "gap": buckets["gaps"]["bridge_dry_powder"],
                 "note": "Retired 2026-08-11 — floor=0; CB↔RH residual served by HY LTV Buffer",
             },
-            "strc_jr": {
+            "solana": {
                 "wallet": solana.get("wallet"),
                 "sol": _f(solana.get("sol")),
                 "sol_usd": _f(solana.get("sol_usd")),
                 "usdc": _f(solana.get("usdc")),
-                "jr_strcusx": _f(solana.get("jr_strcusx")),
-                "jr_strcusx_usd": _f(solana.get("jr_strcusx_usd")),
                 "book_usd": _f(solana.get("book_usd")),
                 "counts_toward_hy": False,
                 "counts_toward_ltv_defense": False,
@@ -1923,8 +1914,8 @@ def evaluate_treasury(
                 "as_of": solana.get("as_of"),
                 "explorer": solana.get("explorer"),
                 "note": (
-                    "Solana whitelist book (SOL + USDC + JR-strcUSX). "
-                    "JR is DC-credit parlay — never HY / LTV defense / working USDC."
+                    "Solana whitelist book (SOL + USDC). "
+                    "Never HY / LTV defense / working USDC."
                 ),
             },
         },
@@ -1961,8 +1952,7 @@ def evaluate_treasury(
                 "Productive Discretionary before Consumer wishlist",
                 "RH margin: cool (<28%)→HY LTV Buffer; hot (≥35%) HY→stock; hard 40%",
                 "Either engine hot → no new dual extract",
-                "Solana JR-strcUSX is DC-credit parlay — never HY / LTV defense",
-            ],
+                            ],
             "double_leverage_warning": (
                 "DUAL ENGINE RISK: Do not fund RH margin growth with freshly "
                 "borrowed Coinbase Morpho USDC without an explicit risk budget. "

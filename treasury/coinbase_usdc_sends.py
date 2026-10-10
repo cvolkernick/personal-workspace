@@ -12,10 +12,9 @@ Weekly $208 / daily $25 after 2026-08-30 / 2026-09-04 never paint.
 Proof ids baa3976e and 7b8bf83b stay excluded.
 
 Rent standing stays $350 one row every 14d from 2026-09-11 1:00 PM ET.
-JR self-send dest CzuRx… is $35, treated as a manual Friday reminder —
-match $35 dest sends if present; do not invent automatic biweekly $70.
-JR is not Rent / Thaís / mint. Rent planned stays sheet monthly —
-never rewrite to $25 * days or 14×$25.
+Own-wallet Solana self-sends are never Rent / Thaís.
+Rent planned stays sheet monthly — never rewrite to $25 * days or 14×$25.
+JR-strcUSX Friday $35 self-send retired 2026-10-10 (Solstice wound down).
 
 No Transfer key. No sender code. Key lives only on prism.
 Tests use fixtures only. This module never copies or logs the CDP key.
@@ -65,11 +64,8 @@ RENT_STANDING_AMOUNT = 350.0
 RENT_DAILY_AMOUNT = 25.0
 RENT_DAILY_LAST_DATE = date(2026, 8, 30)
 
-JR_SELF_SEND_DEST = "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm"
-JR_SELF_SEND_AMOUNT = 35.0
-JR_SELF_SEND_LABEL = "self-send"
-JR_SELF_SEND_NETWORK = "solana"
-JR_REMINDER_CADENCE = "manual_friday_reminder"
+# Own Solana wallet — exclude from Rent / Thaís booking (not a payee).
+SOLANA_SELF_WALLET = "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm"
 
 PAY_FRIDAY_TZ_NAME = "America/New_York"
 PAY_FRIDAY_TZ = ZoneInfo(PAY_FRIDAY_TZ_NAME)
@@ -82,11 +78,11 @@ THAIS_STANDING_FIRST_DATE = THAIS_STANDING_FIRST.date()
 
 # Proof / dest-test ids. Prefix match — issue paints the leading hex, not a new UUID.
 THAIS_PROOF_ID_PREFIX = "baa3976e"
-JR_DEST_TEST_ID_PREFIX = "7b8bf83b"
+DEST_TEST_ID_PREFIX = "7b8bf83b"  # 2026-08-30 $5 dest-test (retired JR path)
 EXCLUDED_SEND_ID_PREFIXES = frozenset(
     {
         THAIS_PROOF_ID_PREFIX,  # 2026-08-27 $1 Thaís Solana proof
-        JR_DEST_TEST_ID_PREFIX,  # 2026-08-30 $5 JR dest-test
+        DEST_TEST_ID_PREFIX,
     }
 )
 THAIS_EXCLUDED_SEND_IDS = frozenset(
@@ -94,9 +90,9 @@ THAIS_EXCLUDED_SEND_IDS = frozenset(
         "baa3976e-3304-53f7-b168-e35f16325653",  # 2026-08-27 $1 Solana proof
     }
 )
-JR_EXCLUDED_SEND_IDS = frozenset(
+DEST_TEST_EXCLUDED_SEND_IDS = frozenset(
     {
-        JR_DEST_TEST_ID_PREFIX,
+        DEST_TEST_ID_PREFIX,
     }
 )
 
@@ -315,7 +311,7 @@ def matches_thais(tx: Dict[str, Any]) -> bool:
     """
     if is_excluded_send_id(tx):
         return False
-    if dest_matches_address(tx, JR_SELF_SEND_DEST):
+    if dest_matches_address(tx, SOLANA_SELF_WALLET):
         return False
     d = tx_date(tx)
     if d == THAIS_NEVER_PAINT_DATE:
@@ -344,7 +340,7 @@ def matches_rent(tx: Dict[str, Any]) -> bool:
     """Rent = completed v2 USDC type=send to nvolkern@gmail.com only. Email only.
 
     Daily $25 books through 2026-08-30 only. 8/31–9/10 $25 do not paint.
-    Standing $350 is one row from 2026-09-11. JR / Thaís dests never book as Rent.
+    Standing $350 is one row from 2026-09-11. Own-wallet / Thaís dests never book as Rent.
     """
     if tx_type(tx) != SEND_TYPE:
         return False
@@ -352,7 +348,7 @@ def matches_rent(tx: Dict[str, Any]) -> bool:
         return False
     if is_excluded_send_id(tx):
         return False
-    if dest_matches_address(tx, JR_SELF_SEND_DEST):
+    if dest_matches_address(tx, SOLANA_SELF_WALLET):
         return False
     if dest_matches_address(tx, THAIS_DEST):
         return False
@@ -369,23 +365,6 @@ def matches_rent(tx: Dict[str, Any]) -> bool:
     if _near_amount(amt, RENT_DAILY_AMOUNT):
         return d is not None and d <= RENT_DAILY_LAST_DATE
     return False
-
-
-def matches_jr_self_send(tx: Dict[str, Any]) -> bool:
-    """JR self-send = dest CzuRx… $35 if present. Not automatic $70. Not Rent / Thaís / mint."""
-    if is_excluded_send_id(tx):
-        return False
-    if dest_matches_address(tx, THAIS_DEST):
-        return False
-    if dest_email(tx) and dest_email(tx) in {_fold(x) for x in RENT_DEST_FINGERPRINTS}:
-        return False
-    if not dest_matches_address(tx, JR_SELF_SEND_DEST):
-        return False
-    if not network_ok(tx, JR_SELF_SEND_NETWORK):
-        return False
-    amt = send_spend_amount(tx)
-    # Manual Friday reminder amount. Do not invent automatic biweekly $70.
-    return _near_amount(amt, JR_SELF_SEND_AMOUNT)
 
 
 def extract_raw_txs(payload: Any) -> List[Dict[str, Any]]:
@@ -547,16 +526,6 @@ def next_thais_monthly(as_of: Any = None) -> datetime:
     return datetime(now.year, now.month + 1, THAIS_MONTHLY_DAY, 13, 0, 0, tzinfo=PAY_FRIDAY_TZ)
 
 
-def next_friday_reminder(as_of: Any = None) -> datetime:
-    """Next Friday 1:00 PM ET reminder. Not an automatic $70 send."""
-    now = _as_et(as_of)
-    days_ahead = (4 - now.weekday()) % 7
-    candidate = datetime(now.year, now.month, now.day, 13, 0, 0, tzinfo=PAY_FRIDAY_TZ)
-    candidate = candidate + timedelta(days=days_ahead)
-    if now <= candidate:
-        return candidate
-    return candidate + timedelta(days=7)
-
 
 def standing_send_defs() -> Tuple[Dict[str, Any], ...]:
     """Merge-only standing join rows. Not completed txs. Not live-money."""
@@ -591,23 +560,6 @@ def standing_send_defs() -> Tuple[Dict[str, Any], ...]:
             "book_as": "rent",
             "book_shape": "one_row",
         },
-        {
-            "id": "standing-jr-self-send-35",
-            "kind": "jr_self_send",
-            "label": JR_SELF_SEND_LABEL,
-            "type": SEND_TYPE,
-            "currency": USDC,
-            "amount": JR_SELF_SEND_AMOUNT,
-            "dest": JR_SELF_SEND_DEST,
-            "network": JR_SELF_SEND_NETWORK,
-            "cadence": JR_REMINDER_CADENCE,
-            "automatic": False,
-            "first_at": PAY_FRIDAY_FIRST.isoformat(),
-            "tz": PAY_FRIDAY_TZ_NAME,
-            "book_as": "jr_self_send",
-            "not": ("rent", "thais", "mint"),
-            "notes": "manual Friday reminder — not automatic biweekly $70",
-        },
     )
 
 
@@ -615,8 +567,6 @@ def _next_for_standing(row: Dict[str, Any], as_of: Any = None) -> datetime:
     kind = str(row.get("kind") or "")
     if kind == "thais":
         return next_thais_monthly(as_of)
-    if kind == "jr_self_send":
-        return next_friday_reminder(as_of)
     return next_pay_friday(as_of)
 
 
@@ -660,8 +610,6 @@ def item_sends_for_month(
         if key == "thais" and matches_thais(tx):
             matched.append(tx)
         elif key == "rent" and matches_rent(tx):
-            matched.append(tx)
-        elif key in {"jr", "self-send", "selfsend"} and matches_jr_self_send(tx):
             matched.append(tx)
     return matched
 
