@@ -4,6 +4,10 @@ Domain deep-links default to 127.0.0.1 (correct for single-machine). When the
 dashboard is opened from another machine (Mac → Pi LAN/Tailscale), those
 loopback URLs must be rewritten to the host the client used (or an explicit env).
 
+FCC (:8000) and Horizon (:8795) bind 127.0.0.1 only, so loopback links to
+those ports are never rewritten: another host would not answer. Their public
+links come from PRISM_PUBLIC_BASE (dashboard_endpoints.service_url).
+
 Precedence for public hostname:
   1. ORCHESTRA_PUBLIC_HOST / DASHBOARD_PUBLIC_HOST env (hostname only, no scheme)
   2. Host header of the incoming request (hostname part)
@@ -15,6 +19,21 @@ import os
 import re
 from typing import Any, Optional
 from urllib.parse import urlparse
+
+# Ports bound to 127.0.0.1 only (FCC, Horizon). Keep in sync with
+# dashboard_endpoints.LOOPBACK_ONLY_SERVICES.
+LOOPBACK_ONLY_PORTS = frozenset({8000, 8795})
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _is_loopback_only_url(url: str) -> bool:
+    try:
+        parts = urlparse(url)
+        host = (parts.hostname or "").lower()
+        port = parts.port
+    except ValueError:
+        return False
+    return host in _LOOPBACK_HOSTS and port in LOOPBACK_ONLY_PORTS
 
 
 def public_hostname(
@@ -39,7 +58,7 @@ def public_hostname(
             if host and host not in ("0.0.0.0",):
                 return host
     if request_host_header:
-        # Host: 192.168.100.98:8790  or  prism-gateway:8790
+        # Host: 192.0.2.10:8790  or  prism-gateway:8790
         host = request_host_header.split(",")[0].strip()
         host = host.split("/")[0]
         if "@" in host:
@@ -51,8 +70,13 @@ def public_hostname(
 
 
 def rewrite_loopback_url(url: Optional[str], public_host: str) -> Optional[str]:
-    """Replace 127.0.0.1 / localhost in an absolute URL with public_host."""
+    """Replace 127.0.0.1 / localhost in an absolute URL with public_host.
+
+    Loopback-only services (FCC :8000, Horizon :8795) are left as is.
+    """
     if not url or not public_host:
+        return url
+    if _is_loopback_only_url(url):
         return url
     out = url
     out = out.replace("://127.0.0.1", f"://{public_host}")
