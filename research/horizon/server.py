@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Horizon visual dashboard server.
 
-  GET  /                 — dashboard UI
+  GET  /                 — front page: the Daily Brief (FRONT_PAGE flag; query → /model)
+  GET  /model            — macro-model dashboard UI (index.html, unchanged)
   GET  /api/health
   GET  /api/brief        — latest synthesis brief JSON
   GET  /api/world-state  — latest world-state JSON
@@ -115,6 +116,72 @@ def daily_brief_route(path: str):
         return 500, "text/html; charset=utf-8", body
 
 
+# ---------------------------------------------------------------- front page
+# One flag. "daily-brief": / serves the Daily Brief and the dashboard lives at
+# /model. "model": / serves the dashboard as before (/model keeps working).
+# Only HTML landing routes move; /api/*, /data/* and static assets are untouched.
+FRONT_PAGE = "daily-brief"
+MODEL_PATH = "/model"
+
+# Dashboard element ids an old "/#<id>" deep link may target (index.html).
+DASHBOARD_ANCHORS = (
+    "kpis", "tabs", "domain-heat", "overview-top", "overview-strat",
+    "panel-overview", "panel-brief", "panel-world", "panel-strategy",
+    "panel-watchlist", "panel-graph", "brief-list", "world-domains",
+    "strategy-head", "strategy-grid", "watch-body", "graph-svg", "edge-list",
+)
+
+# Relative href: resolves under the /horizon prefix (FCC injects <base href="/horizon/">).
+_MODEL_LINK = '<a href="model" id="nav-model" title="Horizon macro-model dashboard">Macro Model</a>'
+
+# Old "/#panel-…" links: hashes never reach the server, so hop client-side.
+# Prefix-aware: builds the target from location.pathname (/ or /horizon/).
+_ANCHOR_HOP = (
+    "<script>(function(){var ids=" + json.dumps(list(DASHBOARD_ANCHORS)) + ";"
+    "var h=(location.hash||'').slice(1);if(!h||ids.indexOf(h)<0)return;"
+    "var p=location.pathname||'';if(p.slice(-1)!=='/')p+='/';"
+    "location.replace(p+'model'+location.search+location.hash);})();</script>"
+)
+
+
+def front_page_html(body: str) -> str:
+    """Daily Brief HTML for the root: adds the Macro Model link + anchor hop.
+
+    /daily-brief itself is served byte-for-byte from the renderer.
+    """
+    if '<div class="topbar">' in body:
+        body = body.replace('<div class="topbar">', '<div class="topbar">' + _MODEL_LINK, 1)
+    else:
+        body = body.replace('<div class="paper">', '<div class="paper"><div class="topbar">' + _MODEL_LINK + "</div>", 1)
+    if "</head>" in body:
+        body = body.replace("</head>", _ANCHOR_HOP + "</head>", 1)
+    else:
+        body = _ANCHOR_HOP + body
+    return body
+
+
+def landing_route(path: str, query: str):
+    """Map an HTML landing path to an action, or None to fall through.
+
+    ("redirect", location) | ("brief", None) | ("model", None)
+    """
+    if FRONT_PAGE != "daily-brief":
+        if path in ("/", "/index.html", MODEL_PATH):
+            return ("model", None)
+        if path == MODEL_PATH + "/":
+            return ("redirect", MODEL_PATH + (f"?{query}" if query else ""))
+        return None
+    q = f"?{query}" if query else ""
+    if path == "/":
+        # The brief takes no query params; any query is an old dashboard deep link.
+        return ("redirect", MODEL_PATH + q) if query else ("brief", None)
+    if path in ("/index.html", MODEL_PATH + "/"):
+        return ("redirect", MODEL_PATH + q)
+    if path == MODEL_PATH:
+        return ("model", None)
+    return None
+
+
 class HorizonHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(HORIZON_DIR), **kwargs)
@@ -165,8 +232,40 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             self.wfile.write(raw)
         return True
 
+    def _send_html(self, code: int, raw: bytes) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+
+    def _maybe_serve_landing(self) -> bool:
+        parsed = urlparse(self.path)
+        res = landing_route(parsed.path, parsed.query)
+        if res is None:
+            return False
+        kind, location = res
+        if kind == "redirect":
+            # Root-absolute: FCC's /horizon proxy rewrites Location under its prefix.
+            self.send_response(302)
+            self.send_header("Location", location)
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return True
+        if kind == "brief":
+            code, _ctype, body = daily_brief_route("/daily-brief")
+            if code == 200:
+                body = front_page_html(body)
+            self._send_html(code, body.encode("utf-8"))
+            return True
+        self._send_html(200, (HORIZON_DIR / "index.html").read_bytes())
+        return True
+
     def do_HEAD(self) -> None:  # noqa: N802
-        if self._maybe_serve_daily_brief():
+        if self._maybe_serve_daily_brief() or self._maybe_serve_landing():
             return
         return super().do_HEAD()
 
@@ -215,9 +314,8 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             self._json(200, {"ok": True, "world_state": state})
             return
 
-        if path in ("/", "/index.html"):
-            # Prefer index.html explicitly
-            self.path = "/index.html"
+        if self._maybe_serve_landing():
+            return
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
@@ -267,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
 
     server = ThreadingHTTPServer((args.host, args.port), HorizonHandler)
     url = f"http://{args.host}:{args.port}/"
-    print(f"[horizon] dashboard at {url}", flush=True)
+    print(f"[horizon] front page at {url} (macro model at {url.rstrip('/')}{MODEL_PATH})", flush=True)
     if not args.no_browser:
         webbrowser.open(url)
     try:

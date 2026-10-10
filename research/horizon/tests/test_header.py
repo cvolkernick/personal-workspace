@@ -301,7 +301,7 @@ class TestHorizonHeaderLive(unittest.TestCase):
             return exc.code, exc.read()
 
     def test_served_index_has_fcc_not_orchestra_or_seasonal(self) -> None:
-        code, body = self._get("/")
+        code, body = self._get("/model")
         self.assertEqual(code, 200)
         self.assertIn(b'id="nav-fcc"', body)
         self.assertIn(b">FCC<", body)
