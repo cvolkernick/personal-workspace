@@ -239,7 +239,7 @@ no VIN, no absolute `~/.config` paths.
 ## Pi install (Slice C)
 
 ```bash
-bash deploy/install_remote.sh prism-agent@192.168.100.98 --only auto-fleet
+bash deploy/install_remote.sh prism-agent@192.0.2.10 --only auto-fleet
 ```
 
 Installs `auto-fleet.service` (`0.0.0.0:8796`, `Restart=always`) and
