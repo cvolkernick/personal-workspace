@@ -1,0 +1,131 @@
+{
+ "page1": {
+  "history": [
+   {
+    "id": "1001",
+    "messagesAdded": [
+     {
+      "message": {
+       "id": "a1",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "1002",
+    "messagesAdded": [
+     {
+      "message": {
+       "id": "a2",
+       "labelIds": [
+        "Label_1"
+       ]
+      }
+     },
+     {
+      "message": {
+       "id": "n1",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "1003",
+    "messagesAdded": [
+     {
+      "message": {
+       "id": "sent1",
+       "labelIds": [
+        "SENT"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "1004",
+    "messagesAdded": [
+     {
+      "message": {
+       "id": "b1",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "historyId": "1004",
+  "nextPageToken": "p2"
+ },
+ "page2": {
+  "history": [
+   {
+    "id": "1005",
+    "messagesAdded": [
+     {
+      "message": {
+       "id": "c1",
+       "labelIds": [
+        "Label_1"
+       ]
+      }
+     },
+     {
+      "message": {
+       "id": "n2",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "1006",
+    "messagesAdded": [
+     {
+      "message": {
+       "id": "j1",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     },
+     {
+      "message": {
+       "id": "s1",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     },
+     {
+      "message": {
+       "id": "o1",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     },
+     {
+      "message": {
+       "id": "a1",
+       "labelIds": [
+        "INBOX"
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "historyId": "1010"
+ }
+}
