@@ -18,6 +18,7 @@ import bland_relay
 import gmail_turo_watch as gtw
 import turo_email
 
+REAL_OPS_ALERT = gtw.ops_alert
 FIX = Path(__file__).parent / "fixtures" / "gmail_turo"
 MESSAGES = json.loads((FIX / "messages.json").read_text(encoding="utf-8"))
 HISTORY = json.loads((FIX / "history.json").read_text(encoding="utf-8"))
@@ -34,7 +35,8 @@ ENV_KEYS = (
     "TURO_SUPPRESS_RE", "TURO_DEDUPE_WINDOW_S", "TURO_XDEDUPE_WINDOW_S", "TURO_INBOX_PATH",
     "HELM_TURO_WEBHOOK_URL", "HELM_TURO_WEBHOOK_KEY", "HELM_TURO_WEBHOOK_HEADER", "TURO_ALEX_PUSH_DISABLED",
     "TURO_EMAIL_DISABLED", "TURO_EMAIL_SHADOW", "TURO_EMAIL_TOKEN", "TURO_EMAIL_PORT",
-    "TURO_EMAIL_MAX_AGE_S", "TURO_EMAIL_REQUIRE_DKIM", "TURO_EMAIL_FROM_DOMAINS", "TURO_EMAIL_RELAY_URL",
+    "TURO_EMAIL_MAX_AGE_S", "TURO_EMAIL_REQUIRE_DKIM", "TURO_EMAIL_REQUIRE_DMARC", "TURO_EMAIL_MAX_ATTEMPTS",
+    "GOOGLE_APPLICATION_CREDENTIALS", "GMAIL_WATCH_SUBSCRIPTION", "TURO_EMAIL_FROM_DOMAINS", "TURO_EMAIL_RELAY_URL",
     "GMAIL_WATCH_EMAIL", "GMAIL_WATCH_TOPIC", "GMAIL_WATCH_LABEL_IDS", "GMAIL_WATCH_STATE_DIR",
     "TURO_ALERT_GUEST_WINDOW_S", "TURO_ALERT_GUEST_MAX", "TURO_ALERT_HOUR_MAX",
 )
@@ -58,7 +60,12 @@ def isolated(monkeypatch, tmp_path):
 
     monkeypatch.setattr(bland_relay.urllib.request, "urlopen", no_network)
     monkeypatch.setattr(gtw.urllib.request, "urlopen", no_network)
+    monkeypatch.setattr(gtw, "ops_alert", lambda *a: ALERTS.append(a))
+    ALERTS.clear()
     yield
+
+
+ALERTS = []
 
 
 class Rig:
@@ -198,6 +205,7 @@ def test_parse_ignores(mid, reason):
 
 def test_parse_dkim_can_be_relaxed(monkeypatch):
     monkeypatch.setenv("TURO_EMAIL_REQUIRE_DKIM", "0")
+    monkeypatch.setenv("TURO_EMAIL_REQUIRE_DMARC", "0")
     f, _ = turo_email.parse_gmail_message(MSG["s1"], NOW)
     assert f["guest"] == "Mallory"
 
@@ -426,12 +434,13 @@ def test_state_file_mode(rig):
 def test_renew_sets_topic_and_history(rig, monkeypatch):
     monkeypatch.setenv("GMAIL_WATCH_TOPIC", "projects/example-project/topics/gmail-turo")
     g = FakeGmail()
-    assert gtw.cmd_renew(g) == 0
+    assert gtw.cmd_renew(g, relay_poster(rig), now=NOW) == 0
     assert g.watch_body == {"topic": "projects/example-project/topics/gmail-turo", "labels": []}
     st = gtw.load_state()
     assert st["history_id"] == "1000" and st["watch_expiration_ms"] > MESSAGES["now_ms"]
     gtw.save_state(dict(st, history_id="1500"))
-    assert gtw.cmd_renew(g) == 0 and gtw.load_state()["history_id"] == "1500"
+    assert gtw.cmd_renew(g, relay_poster(rig), now=NOW) == 0 and gtw.load_state()["history_id"] == "1500"
+    assert not [c for c in g.calls if c[0] == "history"]  # watch was live: no catch-up
 
 
 def test_renew_label_filter_and_bad_topic(rig, monkeypatch):
@@ -440,7 +449,7 @@ def test_renew_label_filter_and_bad_topic(rig, monkeypatch):
     monkeypatch.setenv("GMAIL_WATCH_TOPIC", "projects/p/topics/t")
     monkeypatch.setenv("GMAIL_WATCH_LABEL_IDS", "Label_1, INBOX")
     g = FakeGmail()
-    gtw.cmd_renew(g)
+    gtw.cmd_renew(g, now=NOW)
     assert g.watch_body["labels"] == ["Label_1", "INBOX"]
 
 
@@ -451,7 +460,7 @@ def test_relay_url_must_be_loopback(monkeypatch):
 
 
 def test_post_to_relay_without_token_fails_closed(monkeypatch):
-    assert gtw.post_to_relay({"message_id": "x"}) is False
+    assert gtw.post_to_relay({"message_id": "x"}) == gtw.RETRY
 
 
 def test_gmail_client_refresh_and_errors(tmp_path):
@@ -569,3 +578,214 @@ def test_repo_files_have_no_real_contact_data():
         for m in phone.finditer(text):
             assert m.group(1) == "555", p.name
         assert "gmail.com" not in text.replace("gmail.googleapis.com", ""), p.name
+
+
+# --- review fixes (#1143) ---------------------------------------------------
+
+@pytest.mark.parametrize("mid,want", [
+    ("f1", "dkim"),            # forged pass A-R below Gmail's real failing top A-R
+    ("f2", "auth_missing"),
+    ("f3", "auth_not_gmail"),  # topmost A-R is not Gmail's MX
+    ("f4", "dmarc"),
+    ("d0", "no_date"),         # internalDate missing
+])
+def test_auth_and_date_rejects(mid, want):
+    assert turo_email.parse_gmail_message(MSG[mid], NOW) == (None, want)
+
+
+@pytest.mark.parametrize("mid", ["j1", "f5"])
+def test_auth_real_pass_accepts(mid):
+    f, why = turo_email.parse_gmail_message(MSG[mid], NOW)
+    assert why is None and f["guest"] == "Jordan"
+
+
+def test_auth_only_top_header_counts():
+    hdrs = MSG["f1"]["payload"]["headers"]
+    ars = [h for h in hdrs if h["name"] == "Authentication-Results"]
+    assert len(ars) == 2 and "dkim=pass" in ars[1]["value"]
+    assert turo_email.auth_ok(hdrs, ("turo.com",)) == (False, "dkim")
+
+
+def test_auth_parse_ignores_comments():
+    _id, res = turo_email.parse_auth_results(
+        "mx.google.com; spf=pass (google.com: x; dkim=pass header.i=@turo.com) smtp.mailfrom=a.example")
+    assert [(m, r) for m, r, _p in res] == [("spf", "pass")]
+
+
+def _stub_poster(rig, verdicts):
+    """Relay stub: verdicts maps guest -> poster result; others go to the real relay."""
+    base = relay_poster(rig)
+
+    def poster(fields):
+        v = verdicts.get(fields["guest"])
+        if v is None:
+            return base(fields)
+        rig.handoffs.append(fields)
+        return v
+    return poster
+
+
+def test_relay_4xx_skips_at_once_and_advances(rig):
+    st = {"history_id": "1000"}
+    assert gtw.sync(FakeGmail(), st, _stub_poster(rig, {"Blake": gtw.REJECT}), NOW)
+    assert st["history_id"] == "1010" and st["skipped"]["b1"]["reason"] == "relay 4xx"
+    assert [h["guest"] for h in rig.helm] == ["Avery", "Jordan"]
+    assert len(ALERTS) == 1 and ALERTS[0][0] == "b1"
+
+
+def test_relay_5xx_retries_then_skips(rig, monkeypatch):
+    monkeypatch.setenv("TURO_EMAIL_MAX_ATTEMPTS", "3")
+    st = {"history_id": "1000"}
+    poster = _stub_poster(rig, {"Blake": gtw.RETRY})
+    for n in (1, 2):
+        assert gtw.sync(FakeGmail(), st, poster, NOW + n) is False
+        assert st["history_id"] == "1000" and st["attempts"]["b1"]["n"] == n
+    assert ALERTS == []
+    assert gtw.sync(FakeGmail(), st, poster, NOW + 3) is True
+    assert st["history_id"] == "1010" and "b1" in st["skipped"] and "b1" not in st["attempts"]
+    assert [h["guest"] for h in rig.helm] == ["Avery", "Jordan"]
+    assert len(ALERTS) == 1
+    st["history_id"] = "1000"  # replay: a skipped id is not retried or re-alerted
+    assert gtw.sync(FakeGmail(), st, poster, NOW + 4) is True and len(ALERTS) == 1
+
+
+def test_fetch_error_retries_then_skips(rig, monkeypatch):
+    monkeypatch.setenv("TURO_EMAIL_MAX_ATTEMPTS", "2")
+    st = {"history_id": "1000"}
+    g = FakeGmail(fail_ids={"b1"})
+    assert gtw.sync(g, st, relay_poster(rig), NOW) is False and st["history_id"] == "1000"
+    assert gtw.sync(g, st, relay_poster(rig), NOW + 1) is True and st["history_id"] == "1010"
+    assert st["skipped"]["b1"]["reason"] == "gmail fetch 500" and len(ALERTS) == 1
+
+
+def test_default_max_attempts_is_5():
+    assert gtw.max_attempts() == 5
+
+
+def test_state_bounded_to_7_days():
+    st = {"attempts": {"old": {"n": 1, "at": NOW - 8 * 86400}, "new": {"n": 1, "at": NOW}},
+          "skipped": {"old": {"at": NOW - 8 * 86400}, "new": {"at": NOW - 86400}}}
+    gtw.prune_state(st, NOW)
+    assert set(st["attempts"]) == {"new"} and set(st["skipped"]) == {"new"}
+
+
+def test_ops_alert_reuses_relay_alert_path(monkeypatch):
+    calls = []
+    monkeypatch.setattr(bland_relay, "alert_failure", lambda *a: calls.append(a))
+    REAL_OPS_ALERT("m123", "relay 4xx", 1)
+    assert calls == [("gmail-msg-m123", "relay 4xx", 1, "Turo Gmail watcher skipped a message (#1142)")]
+
+
+def _x(guest, vehicle, body, res, src):
+    if src == "gmail":
+        ev = {"src": "gmail", "guest": guest, "vehicle": vehicle, "reservation_id": res, "text": body}
+    else:
+        ev = {"src": "turo", "text": f"About {vehicle} from {guest}:\n{body}", "key": f"0|p|{res}|null|1"}
+    return ev
+
+
+def test_truncated_with_marker_matches(rig):
+    st = {}
+    phone = _x("Jordan", "Rivian R1S", "Can I bring a bike…", "10000003", "turo")
+    mail = _x("Jordan", "Rivian R1S", "Can I bring a bike rack for the trip? We have two bikes.", "10000003", "gmail")
+    assert bland_relay._turo_xdup_locked(st, phone, NOW) is None
+    assert bland_relay._turo_xdup_locked(st, mail, NOW + 1) is not None
+
+
+def test_short_different_message_does_not_suppress_longer(rig):
+    notification("Jordan", "Rivian R1S", "Thanks!", now=NOW - 5)
+    m = json.loads(json.dumps(MSG["j1"]))
+    f, _ = turo_email.parse_gmail_message(m, NOW)
+    f["text"] = "Thanks! But the car will not start and the screen is black."
+    code, body = bland_relay.turo_email_handle(f, NOW)
+    assert body["turo"] == "accepted" and body["urgent"] is True
+    assert len(rig.helm) == 2
+
+
+def test_short_prefix_under_60_percent_no_match():
+    st = {}
+    phone = _x("Jordan", "Rivian R1S", "Can I bring a bike", "10000003", "turo")  # 18/37, no marker
+    mail = _x("Jordan", "Rivian R1S", "Can I bring a bike rack for the trip?", "10000003", "gmail")
+    bland_relay._turo_xdup_locked(st, phone, NOW)
+    assert bland_relay._turo_xdup_locked(st, mail, NOW + 1) is None
+
+
+def test_cross_match_consumes_earlier_record():
+    st = {}
+    phone = _x("Jordan", "Rivian R1S", "Can I bring a bike rack for the trip?", "10000003", "turo")
+    mail = _x("Jordan", "Rivian R1S", "Can I bring a bike rack for the trip?", "10000003", "gmail")
+    assert bland_relay._turo_xdup_locked(st, phone, NOW) is None
+    assert bland_relay._turo_xdup_locked(st, mail, NOW + 1) is not None
+    assert st["xseen"] == []  # consumed
+    # A second email with the same text is not suppressed by the same phone record.
+    assert bland_relay._turo_xdup_locked(st, dict(mail), NOW + 2) is None
+    assert [r["src"] for r in st["xseen"]] == ["gmail"]
+
+
+def test_long_bodies_compare_beyond_kept_prefix():
+    st = {}
+    body = "x" * 500 + " tail one"
+    phone = _x("Jordan", "Rivian R1S", body, "10000003", "turo")
+    mail = _x("Jordan", "Rivian R1S", body, "10000003", "gmail")
+    bland_relay._turo_xdup_locked(st, phone, NOW)
+    assert bland_relay._turo_xdup_locked(st, mail, NOW + 1) is not None
+    other = _x("Jordan", "Rivian R1S", "x" * 500 + " something else entirely different here", "10000003", "turo")
+    bland_relay._turo_xdup_locked(st, other, NOW + 2)
+    assert bland_relay._turo_xdup_locked(st, _x("Jordan", "Rivian R1S", "x" * 500 + " tail two", "10000003",
+                                                "gmail"), NOW + 3) is None
+
+
+def test_subscriber_disabled_idles_without_reading(rig, monkeypatch):
+    monkeypatch.setenv("TURO_EMAIL_DISABLED", "1")
+    waited = []
+    assert gtw.cmd_run(wait=lambda: waited.append(1)) == 0 and waited == [1]
+    g = FakeGmail()
+    s = gtw.Syncer(g, poster=relay_poster(rig))
+    gtw.save_state({"history_id": "1000"})
+    assert s.handle(json.dumps({"historyId": 1010}).encode(), NOW) is False  # not acked
+    assert s.catch_up(NOW) is False
+    assert g.calls == [] and rig.helm == [] and gtw.load_state() == {"history_id": "1000"}
+
+
+def test_renew_after_lapse_catches_up(rig, monkeypatch):
+    monkeypatch.setenv("GMAIL_WATCH_TOPIC", "projects/p/topics/t")
+    gtw.save_state({"history_id": "1000", "watch_expiration_ms": int((NOW - 3600) * 1000)})
+    g = FakeGmail()
+    assert gtw.cmd_renew(g, relay_poster(rig), now=NOW) == 0
+    assert [c for c in g.calls if c[0] == "history"]
+    assert gtw.load_state()["history_id"] == "1010"
+    assert [h["guest"] for h in rig.helm] == ["Avery", "Blake", "Jordan"]
+
+
+def test_renew_after_lapse_expired_history_recovers(rig, monkeypatch):
+    monkeypatch.setenv("GMAIL_WATCH_TOPIC", "projects/p/topics/t")
+    gtw.save_state({"history_id": "1000", "watch_expiration_ms": int((NOW - 9 * 86400) * 1000)})
+    assert gtw.cmd_renew(FakeGmail(history_404=True), relay_poster(rig), now=NOW) == 0
+    assert gtw.load_state()["history_id"] == "2000"
+
+
+@pytest.mark.parametrize("mode,ok", [(0o600, True), (0o400, True), (0o640, False), (0o644, False), (0o604, False)])
+def test_key_file_mode(tmp_path, mode, ok):
+    k = tmp_path / "sa.json"
+    k.write_text("{}")
+    k.chmod(mode)
+    assert (gtw.check_key_file(str(k)) is None) is ok
+
+
+def test_run_refuses_world_readable_key(tmp_path, monkeypatch, caplog):
+    k = tmp_path / "sa.json"
+    k.write_text("{}")
+    k.chmod(0o644)
+    monkeypatch.setenv("GMAIL_WATCH_SUBSCRIPTION", "projects/p/subscriptions/s")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(k))
+    assert gtw.cmd_run() == 2
+    assert "chmod 600" in caplog.text
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(tmp_path / "missing.json"))
+    assert gtw.cmd_run() == 2
+
+
+def test_shadow_mode_still_advances_history(rig, monkeypatch):
+    monkeypatch.setenv("TURO_EMAIL_SHADOW", "1")
+    ok, st = run_sync(rig)
+    assert ok and st["history_id"] == "1010" and "a1" in st["processed"]
+    assert rig.helm == []
