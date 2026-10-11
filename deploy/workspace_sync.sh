@@ -10,10 +10,17 @@
 # Package-level rsync (e.g. resistance-dashboard/deploy/install_remote.sh) is
 # emergency / pre-merge only — the next successful sync hard-resets code trees
 # to origin/work/treasury.
+#
+# SYNC_ROLE (default fcc-live = today's behavior): fcc-live may land
+# work/treasury only. backup-host (non-FCC box such as the B2 puller host) may
+# land master only and skips the FCC-only steps (branch stamp, FCC bounce, tip
+# health, live-clone commit hook). Unknown roles are refused before any git
+# mutation. Allowlists live in deploy/product_branch_map.py.
 set -euo pipefail
 
 DIR="${WORKSPACE_DIR:-$HOME/personal-workspace}"
 BRANCH="${SYNC_BRANCH:-work/treasury}"
+ROLE="${SYNC_ROLE:-fcc-live}"
 REMOTE="${SYNC_REMOTE:-origin}"
 LOG_TAG="workspace-sync"
 DURABLE_TAR="${TMPDIR:-/tmp}/workspace-sync-durable-$$.tgz"
@@ -49,16 +56,37 @@ if [[ ! -d .git ]]; then
 fi
 
 # Refuse wrong pulls before any git mutation (issue #560).
-# Allowlist is work/treasury only on the FCC live root.
+# Allowlist is work/treasury only on the FCC live root (SYNC_ROLE=fcc-live).
 MAP_PY="$DIR/deploy/product_branch_map.py"
 if command -v python3 >/dev/null 2>&1 && [[ -f "$MAP_PY" ]]; then
-  if ! python3 "$MAP_PY" check-sync --branch "$BRANCH" >/dev/null; then
-    log "ERROR: refused SYNC_BRANCH=${BRANCH} for FCC live root (allowlist: work/treasury only)"
+  if ! python3 "$MAP_PY" check-sync --branch "$BRANCH" --checkout "$ROLE" >/dev/null; then
+    if [[ "$ROLE" == "fcc-live" ]]; then
+      log "ERROR: refused SYNC_BRANCH=${BRANCH} for FCC live root (allowlist: work/treasury only)"
+    else
+      log "ERROR: refused SYNC_BRANCH=${BRANCH} for SYNC_ROLE=${ROLE}"
+    fi
     exit 1
   fi
-elif [[ "$BRANCH" != "work/treasury" ]]; then
-  log "ERROR: FCC live root refuses SYNC_BRANCH=${BRANCH} (allowlist: work/treasury only)"
-  exit 1
+else
+  # No map: same allowlists, fail closed on unknown roles.
+  case "$ROLE" in
+    fcc-live)
+      if [[ "$BRANCH" != "work/treasury" ]]; then
+        log "ERROR: FCC live root refuses SYNC_BRANCH=${BRANCH} (allowlist: work/treasury only)"
+        exit 1
+      fi
+      ;;
+    backup-host)
+      if [[ "$BRANCH" != "master" ]]; then
+        log "ERROR: SYNC_ROLE=backup-host refuses SYNC_BRANCH=${BRANCH} (allowlist: master only)"
+        exit 1
+      fi
+      ;;
+    *)
+      log "ERROR: unknown SYNC_ROLE=${ROLE} refuses SYNC_BRANCH=${BRANCH}"
+      exit 1
+      ;;
+  esac
 fi
 
 # Keep origin URL free of embedded credentials (tests may keep a local origin)
@@ -327,6 +355,10 @@ HOOK
 }
 
 restart_fcc() {
+  if [[ "$ROLE" != "fcc-live" ]]; then
+    log "SYNC_ROLE=${ROLE}: no FCC on this host — skip FCC bounce"
+    return 0
+  fi
   if command -v systemctl >/dev/null 2>&1 && \
      systemctl --user cat financial-command.service >/dev/null 2>&1; then
     log "restarting financial-command.service"
@@ -380,11 +412,13 @@ capture_reset_expenses
 restore_durable
 keep_newer_expenses
 
-# Stamp expected branch for FCC UI / tip-health (issue #628). File is in git on
-# work/treasury; rewriting keeps it correct if a local protect overwrote it.
-mkdir -p financial-command
-echo "$BRANCH" >financial-command/current-branch.txt
-install_live_commit_hook
+if [[ "$ROLE" == "fcc-live" ]]; then
+  # Stamp expected branch for FCC UI / tip-health (issue #628). File is in git on
+  # work/treasury; rewriting keeps it correct if a local protect overwrote it.
+  mkdir -p financial-command
+  echo "$BRANCH" >financial-command/current-branch.txt
+  install_live_commit_hook
+fi
 
 AFTER="$(git rev-parse HEAD)"
 ON_BRANCH="$(git branch --show-current 2>/dev/null || echo '?')"
@@ -402,6 +436,7 @@ fi
 
 run_fcc_tip_health() {
   # Issue #562: read-only SHA/branch assert. Never blocks sync; never mutates git.
+  [[ "$ROLE" == "fcc-live" ]] || return 0
   local py="${HOME}/.config/personal-workspace/fcc_tip_health.py"
   [[ -f "$py" ]] || py="$DIR/deploy/fcc_tip_health.py"
   [[ -f "$py" ]] || return 0

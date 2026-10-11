@@ -7,6 +7,13 @@ onto the FCC checkout — that is the 2026-09-09 Jul-index / wrong-tree incident
 
 Used by ``deploy/workspace_sync.sh`` (refuse before any git mutation) and as
 the PR-base lock for FCC-only landings.
+
+Sync roles (``SYNC_ROLE`` in the workspace-sync unit, ``--checkout``/``--role``
+here). Each role has an explicit branch allowlist; an unknown role fails closed.
+
+- ``fcc-live`` (default when unset): prism FCC live root, ``work/treasury`` only.
+- ``backup-host``: a non-FCC box (finley / B2 puller) that runs code from
+  ``master`` and serves no FCC; ``master`` only.
 """
 
 from __future__ import annotations
@@ -18,6 +25,13 @@ from typing import Iterable, Optional
 ALLOWED_FCC_LIVE_SYNC_BRANCHES = frozenset({"work/treasury"})
 # Incident cases called out in #560 AC; anything outside the allowlist is refused.
 REFUSED_FCC_LIVE_SYNC_BRANCHES = frozenset({"master", "main", "work/holistic"})
+
+DEFAULT_SYNC_ROLE = "fcc-live"
+# Role -> branches that role may land. Not listed = refused (fail closed).
+SYNC_ROLE_BRANCHES: dict[str, frozenset[str]] = {
+    "fcc-live": ALLOWED_FCC_LIVE_SYNC_BRANCHES,
+    "backup-host": frozenset({"master"}),
+}
 
 PRODUCT_SOT: dict[str, str] = {
     "fcc": "work/treasury",
@@ -57,16 +71,28 @@ def classify_path(path: str) -> str:
     return "other"
 
 
-def check_sync_branch(branch: str, *, checkout: str = "fcc-live") -> str:
-    """Return *branch* if this checkout may land it; raise otherwise.
+def check_sync_branch(branch: str, *, checkout: str = DEFAULT_SYNC_ROLE) -> str:
+    """Return *branch* if this checkout (sync role) may land it; raise otherwise.
 
-    ``checkout='fcc-live'`` is the prism ``~/personal-workspace`` FCC root.
-    Other checkout kinds are not locked by this map.
+    ``checkout='fcc-live'`` is the prism ``~/personal-workspace`` FCC root
+    (``work/treasury`` only). ``checkout='backup-host'`` is a non-FCC box that
+    runs ``master`` (``master`` only). Any other role is refused (fail closed).
     """
     b = (branch or "").strip()
-    if checkout != "fcc-live":
-        if not b:
-            raise SyncBranchRefused("SYNC_BRANCH is empty")
+    role = (checkout or "").strip()
+    if role not in SYNC_ROLE_BRANCHES:
+        known = ", ".join(sorted(SYNC_ROLE_BRANCHES))
+        raise SyncBranchRefused(
+            f"unknown SYNC_ROLE={role or 'unset'} refuses SYNC_BRANCH={b or 'unset'} "
+            f"(known roles: {known})"
+        )
+    if role != "fcc-live":
+        allowed = SYNC_ROLE_BRANCHES[role]
+        if b not in allowed:
+            raise SyncBranchRefused(
+                f"SYNC_ROLE={role} refuses SYNC_BRANCH={b or 'unset'} "
+                f"(allowlist: {', '.join(sorted(allowed))} only)"
+            )
         return b
     if b not in ALLOWED_FCC_LIVE_SYNC_BRANCHES:
         raise SyncBranchRefused(
@@ -117,7 +143,13 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     p_check = sub.add_parser("check-sync", help="Exit 0 iff SYNC_BRANCH is allowed")
     p_check.add_argument("--branch", required=True)
-    p_check.add_argument("--checkout", default="fcc-live")
+    p_check.add_argument(
+        "--checkout",
+        "--role",
+        dest="checkout",
+        default=DEFAULT_SYNC_ROLE,
+        help="sync role: fcc-live (default) | backup-host; unknown roles are refused",
+    )
 
     p_prod = sub.add_parser("pr-base", help="Print PR base branch")
     p_prod.add_argument("--product", help="fcc | treasury | fitdash")
