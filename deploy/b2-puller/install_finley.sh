@@ -11,7 +11,10 @@
 #   b2-puller.timer     PULSE LOCK hourly :20 America/New_York — one job:
 #                       books + youtube-groom + published + units FROM prism-gateway
 #                       (no prism self-backup, no venue keys, no units-only timer, no replica)
-#   workspace-sync.timer git pull of this repo (no app-books units)
+#   workspace-sync.timer git pull of this repo's master (no app-books units).
+#                       Uses deploy/b2-puller/units/workspace-sync.{service,timer}
+#                       (SYNC_ROLE=backup-host, SYNC_BRANCH=master), not the FCC
+#                       live-root unit in deploy/units (work/treasury only).
 #
 # Does not install FCC, FitDash, Orchestra, Auto Fleet, youtube-groom.
 # Does not copy venue keys. Does not write FCC_TREASURY_JSON / Vercel / Mac dests.
@@ -41,6 +44,8 @@ done
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UNITS_SRC="$ROOT/deploy/units"
+# Finley-specific templates override deploy/units (workspace-sync = backup-host role).
+FINLEY_UNITS_SRC="$ROOT/deploy/b2-puller/units"
 FINLEY_UNITS=(
   b2.service
   b2-puller.service
@@ -49,6 +54,14 @@ FINLEY_UNITS=(
   workspace-sync.timer
 )
 
+unit_src() {
+  if [[ -f "$FINLEY_UNITS_SRC/$1" ]]; then
+    echo "$FINLEY_UNITS_SRC/$1"
+  else
+    echo "$UNITS_SRC/$1"
+  fi
+}
+
 if [[ "$LOCAL" -eq 1 ]]; then
   RUSER="${USER:-finley-agent}"
   REMOTE_DIR="${REMOTE_DIR:-$HOME/personal-workspace}"
@@ -56,7 +69,7 @@ if [[ "$LOCAL" -eq 1 ]]; then
   echo "Dir: $REMOTE_DIR"
   mkdir -p "$HOME/.config/systemd/user" "$HOME/B2" "$HOME/b2-pulls/prism"
   for f in "${FINLEY_UNITS[@]}"; do
-    src="$UNITS_SRC/$f"
+    src="$(unit_src "$f")"
     [[ -f "$src" ]] || { echo "missing $src" >&2; exit 1; }
     sed "s|%h/personal-workspace|${REMOTE_DIR}|g" "$src" > "$HOME/.config/systemd/user/$f"
   done
@@ -134,7 +147,7 @@ rsync "${RSYNC_ARGS[@]}" "$ROOT/" "$REMOTE:$REMOTE_DIR/"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 for f in "${FINLEY_UNITS[@]}"; do
-  sed "s|%h/personal-workspace|${REMOTE_DIR}|g" "$UNITS_SRC/$f" > "$TMP/$f"
+  sed "s|%h/personal-workspace|${REMOTE_DIR}|g" "$(unit_src "$f")" > "$TMP/$f"
 done
 scp "$TMP"/* "$REMOTE:~/.config/systemd/user/"
 

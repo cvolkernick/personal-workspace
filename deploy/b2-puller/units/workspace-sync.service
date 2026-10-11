@@ -1,0 +1,16 @@
+[Unit]
+Description=Backup host (B2 puller): pull personal-workspace master (SYNC_ROLE=backup-host) and restart changed units
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=WORKSPACE_DIR=%h/personal-workspace
+# Not the FCC live root. backup-host may land master only; the FCC root keeps
+# deploy/units/workspace-sync.service (SYNC_ROLE unset = fcc-live, work/treasury only).
+Environment=SYNC_ROLE=backup-host
+Environment=SYNC_BRANCH=master
+ExecStartPre=/bin/bash -c 'if [ "${SYNC_ROLE}" != "backup-host" ] || [ "${SYNC_BRANCH}" != "master" ]; then echo "backup-host unit refuses SYNC_ROLE=${SYNC_ROLE:-unset} SYNC_BRANCH=${SYNC_BRANCH:-unset} (want backup-host + master)" >&2; exit 1; fi'
+# master carries deploy/workspace_sync.sh, so run it from the checkout.
+ExecStart=/bin/bash %h/personal-workspace/deploy/workspace_sync.sh
