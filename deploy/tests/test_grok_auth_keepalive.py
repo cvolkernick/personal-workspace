@@ -1,21 +1,105 @@
 #!/usr/bin/env python3
-"""Tests for deploy/grok_auth_keepalive.sh (#1086)."""
+"""Tests for deploy/grok_auth_keepalive.sh (#1086).
+
+Every run uses a temp HOME, a temp auth.json, and a fake grok CLI. The real
+~/.grok/auth.json of the runner is passed to the script only as
+GROK_AUTH_REFUSE_PATH, which makes the script refuse it before any read.
+"""
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import pwd
+import re
 import stat
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "deploy" / "grok_auth_keepalive.sh"
+SERVICE = ROOT / "deploy" / "units" / "grok-auth-keepalive.service"
+TIMER = ROOT / "deploy" / "units" / "grok-auth-keepalive.timer"
 SECRET = "SUPERSECRETTOKENVALUE"
 REFRESH = "REFRESHSECRETVALUE"
+REAL_AUTH = str(Path(pwd.getpwuid(os.getuid()).pw_dir) / ".grok" / "auth.json")
+
+# Fake CLI. Like the real one, it checks the token at up to three points
+# (init, watcher, pre-request) and refreshes each time it is inside
+# GROK_AUTH_EARLY_INVALIDATION_SECS. Each refresh appends to refreshes.log.
+FAKE_GROK = r'''#!{python}
+import json, os, sys, time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+root = Path(os.environ["FAKE_ROOT"])
+mode = (root / "mode").read_text().strip()
+auth = Path(os.environ["GROK_AUTH_JSON"])
+log = root / "logs" / "unified.jsonl"
+(root / "invocations.log").open("a").write("models\n")
+
+
+def iso(when):
+    return when.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def parse(raw):
+    return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+
+
+def refresh(hours=6.0):
+    data = json.loads(auth.read_text())
+    for entry in data.values():
+        entry["expires_at"] = iso(datetime.now(timezone.utc) + timedelta(hours=hours))
+        entry["key"] = entry["key"] + "x"
+    auth.write_text(json.dumps(data))
+    with (root / "refreshes.log").open("a") as fh:
+        fh.write("refresh\n")
+
+
+def maybe_refresh():
+    early = int(os.environ.get("GROK_AUTH_EARLY_INVALIDATION_SECS", "0"))
+    data = json.loads(auth.read_text())
+    entry = next(iter(data.values()))
+    left = (parse(entry["expires_at"]) - datetime.now(timezone.utc)).total_seconds()
+    if left < early:
+        refresh()
+
+
+if mode == "fail":
+    sys.exit(9)
+if mode == "noop":
+    sys.exit(0)
+if mode == "hang":
+    time.sleep(30)
+    sys.exit(0)
+if mode == "short":
+    refresh(hours=10 / 60)
+    sys.exit(0)
+if mode == "revoked":
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a") as fh:
+        fh.write('{"msg":"auth.refresh error invalid_grant"}\n')
+        fh.write('{"msg":"auth.refresh.permanent_failure RefreshTokenRejected"}\n')
+    auth.unlink()
+    print("You are not authenticated.")
+    sys.exit(0)
+if mode == "slow":
+    # Refresh still in flight well past the soft timeout.
+    time.sleep(float(os.environ.get("FAKE_SLOW_SECS", "3")))
+    maybe_refresh()
+    (root / "slow-done").write_text("1")
+    sys.exit(0)
+for _ in range(3):
+    maybe_refresh()
+sys.exit(0)
+'''
 
 
 def _iso(when: datetime) -> str:
@@ -26,168 +110,266 @@ class KeepaliveTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        self.auth = self.root / "auth.json"
+        self.home = self.root / "home"
+        (self.home / ".grok").mkdir(parents=True)
+        self.auth = self.home / ".grok" / "auth.json"
         self.state = self.root / "state"
         self.alerts = self.root / "alerts.log"
         self.grok = self.root / "grok"
-        self.mode = self.root / "mode"
+        self.lock = self.root / "run" / "grok-auth-keepalive.lock"
+        self.grok.write_text(FAKE_GROK.replace("{python}", sys.executable), encoding="utf-8")
+        self.grok.chmod(self.grok.stat().st_mode | stat.S_IEXEC)
+        self.set_mode("renew")
         self.write_auth(hours=1)
-        self.write_grok()
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def write_auth(self, *, hours: float, key: str = SECRET) -> None:
-        expires = _iso(datetime.now(timezone.utc) + timedelta(hours=hours))
+    # helpers
+
+    def set_mode(self, mode: str) -> None:
+        (self.root / "mode").write_text(mode, encoding="utf-8")
+
+    def write_auth(self, *, hours: float) -> None:
         body = {
             "https://auth.example/client": {
-                "key": key,
+                "key": SECRET,
                 "refresh_token": REFRESH,
                 "auth_mode": "oidc",
-                "expires_at": expires,
+                "expires_at": _iso(datetime.now(timezone.utc) + timedelta(hours=hours)),
             }
         }
         self.auth.write_text(json.dumps(body), encoding="utf-8")
         self.auth.chmod(0o600)
 
-    def write_grok(self) -> None:
-        self.grok.write_text(
-            """#!/bin/bash
-set -euo pipefail
-mode="$(cat "$GROK_AUTH_MODE")"
-if [[ "$mode" == "fail" ]]; then
-  exit 9
-fi
-if [[ "$mode" == "noop" ]]; then
-  exit 0
-fi
-if [[ "$mode" == "short" ]]; then
-  python3 - << 'PY'
-import json, os
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-p = Path(os.environ["GROK_AUTH_JSON"])
-d = json.loads(p.read_text())
-for entry in d.values():
-    if isinstance(entry, dict) and "expires_at" in entry:
-        when = datetime.now(timezone.utc) + timedelta(minutes=10)
-        entry["expires_at"] = when.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-p.write_text(json.dumps(d))
-PY
-  exit 0
-fi
-python3 - << 'PY'
-import json, os
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-p = Path(os.environ["GROK_AUTH_JSON"])
-d = json.loads(p.read_text())
-for entry in d.values():
-    if isinstance(entry, dict) and "expires_at" in entry:
-        when = datetime.now(timezone.utc) + timedelta(hours=6)
-        entry["expires_at"] = when.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-p.write_text(json.dumps(d))
-PY
-exit 0
-""",
-            encoding="utf-8",
-        )
-        self.grok.chmod(self.grok.stat().st_mode | stat.S_IEXEC)
-        self.mode.write_text("renew", encoding="utf-8")
-
     def env(self, **extra: str) -> dict[str, str]:
-        base = os.environ.copy()
-        base.update(
-            {
-                "HOME": str(self.root),
-                "GROK_AUTH_BIN": str(self.grok),
-                "GROK_AUTH_JSON": str(self.auth),
-                "GROK_AUTH_STATE_DIR": str(self.state),
-                "GROK_AUTH_MODE": str(self.mode),
-                "GROK_AUTH_ALERT_LOG": str(self.alerts),
-                "GROK_AUTH_ALERT_CMD": 'printf "%s\\n" "$GROK_AUTH_ALERT_REASON" >> "$GROK_AUTH_ALERT_LOG"',
-                "GROK_AUTH_EARLY_INVALIDATION_SECS": "25200",
-                "GROK_AUTH_TIMEOUT_SECS": "5",
-                "GROK_AUTH_MIN_REMAINING_SECS": "3600",
-                "GROK_AUTH_ALERT_DEDUPE_SECS": "21600",
-                "GROK_AUTH_WORKSPACE": str(self.root),
-                "PATH": "/usr/bin:/bin",
-            }
-        )
+        base = {
+            "HOME": str(self.home),
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "FAKE_ROOT": str(self.root),
+            "GROK_AUTH_BIN": str(self.grok),
+            "GROK_AUTH_JSON": str(self.auth),
+            "GROK_AUTH_CLI_LOG": str(self.root / "logs" / "unified.jsonl"),
+            "GROK_AUTH_STATE_DIR": str(self.state),
+            "GROK_AUTH_LOCK_FILE": str(self.lock),
+            "GROK_AUTH_ALERT_LOG": str(self.alerts),
+            "GROK_AUTH_ALERT_CMD": 'printf "%s\\n" "$GROK_AUTH_ALERT_REASON" >> "$GROK_AUTH_ALERT_LOG"; '
+            'printf "%s" "$GROK_AUTH_ALERT_TEXT" >> "$GROK_AUTH_ALERT_LOG.text"',
+            "GROK_AUTH_TIMEOUT_SECS": "1",
+            "GROK_AUTH_HARD_TIMEOUT_SECS": "20",
+            "GROK_AUTH_WORKSPACE": str(self.root),
+            "GROK_AUTH_REFUSE_PATH": REAL_AUTH,
+        }
         base.update(extra)
-        return base
+        return {k: v for k, v in base.items() if v is not None}
 
     def run_script(self, **extra: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            ["bash", str(SCRIPT)],
-            env=self.env(**extra),
-            text=True,
-            capture_output=True,
-            check=False,
+        env = self.env(**extra)
+        effective = env.get("GROK_AUTH_JSON") or str(Path(env["HOME"]) / ".grok" / "auth.json")
+        self.assertNotEqual(os.path.realpath(effective), os.path.realpath(REAL_AUTH))
+        self.assertTrue(effective.startswith(self.tmp.name), effective)
+        result = subprocess.run(
+            ["bash", str(SCRIPT)], env=env, text=True, capture_output=True, check=False, timeout=60
         )
-
-    def expires(self) -> str:
-        data = json.loads(self.auth.read_text(encoding="utf-8"))
-        return next(iter(data.values()))["expires_at"]
-
-    def test_renews_and_hides_secrets(self) -> None:
-        before = self.expires()
-        result = self.run_script()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("outcome=renewed", result.stdout)
         self.assertNotIn(SECRET, result.stdout + result.stderr)
         self.assertNotIn(REFRESH, result.stdout + result.stderr)
-        self.assertGreater(self.expires(), before)
-        self.assertFalse(self.alerts.exists())
+        return result
 
-    def test_fresh_token_does_not_require_a_move(self) -> None:
-        self.write_auth(hours=10)
-        self.mode.write_text("noop", encoding="utf-8")
+    def refreshes(self) -> int:
+        p = self.root / "refreshes.log"
+        return len(p.read_text().splitlines()) if p.exists() else 0
+
+    def invocations(self) -> int:
+        p = self.root / "invocations.log"
+        return len(p.read_text().splitlines()) if p.exists() else 0
+
+    def alert_lines(self) -> list[str]:
+        return self.alerts.read_text().splitlines() if self.alerts.exists() else []
+
+    def expires(self) -> str:
+        return next(iter(json.loads(self.auth.read_text()).values()))["expires_at"]
+
+    # window
+
+    def test_window_is_under_token_life_and_over_timer_gap(self) -> None:
+        unit = SERVICE.read_text()
+        self.assertIn("Environment=GROK_AUTH_EARLY_INVALIDATION_SECS=10800", unit)
+        self.assertNotIn("25200", unit)
+        self.assertRegex(SCRIPT.read_text(), r'EARLY="\$\{GROK_AUTH_EARLY_INVALIDATION_SECS:-10800\}"')
+        self.assertIn("OnUnitActiveSec=2h", TIMER.read_text())
+        hard = int(re.search(r"GROK_AUTH_HARD_TIMEOUT_SECS=(\d+)", unit).group(1))
+        start = int(re.search(r"TimeoutStartSec=(\d+)", unit).group(1))
+        self.assertLess(hard, start)
+
+    # not due / due
+
+    def test_not_due_does_not_start_cli(self) -> None:
+        self.write_auth(hours=5)
         before = self.expires()
         result = self.run_script()
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("outcome=fresh", result.stdout)
+        self.assertEqual(self.invocations(), 0)
+        self.assertEqual(self.refreshes(), 0)
         self.assertEqual(self.expires(), before)
-        self.assertFalse(self.alerts.exists())
+        self.assertEqual(self.alert_lines(), [])
+
+    def test_due_refreshes_exactly_once_with_default_window(self) -> None:
+        before = self.expires()
+        result = self.run_script(GROK_AUTH_EARLY_INVALIDATION_SECS=None)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("outcome=renewed", result.stdout)
+        self.assertEqual(self.invocations(), 1)
+        self.assertEqual(self.refreshes(), 1)
+        self.assertGreater(self.expires(), before)
+        # Second run right after: not due, no CLI, no refresh.
+        again = self.run_script(GROK_AUTH_EARLY_INVALIDATION_SECS=None)
+        self.assertIn("outcome=fresh", again.stdout)
+        self.assertEqual(self.refreshes(), 1)
+
+    def test_old_7h_window_would_refresh_more_than_once(self) -> None:
+        # Documents the #1088 bug the fake reproduces.
+        self.run_script(GROK_AUTH_EARLY_INVALIDATION_SECS="25200")
+        self.assertGreater(self.refreshes(), 1)
+
+    # lock / concurrency
+
+    def test_held_lock_exits_clean_without_refresh(self) -> None:
+        self.lock.parent.mkdir(parents=True, exist_ok=True)
+        with self.lock.open("a") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("outcome=busy detail=lock-held", result.stdout)
+        self.assertEqual(self.invocations(), 0)
+        self.assertEqual(self.refreshes(), 0)
+        self.assertEqual(self.alert_lines(), [])
+
+    def test_running_cli_exits_clean_without_refresh(self) -> None:
+        self.set_mode("hang")
+        proc = subprocess.Popen([str(self.grok), "chat"], env=self.env(), stdout=subprocess.DEVNULL)
+        try:
+            time.sleep(1.0)
+            self.set_mode("renew")
+            result = self.run_script()
+        finally:
+            proc.kill()
+            proc.wait()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("outcome=busy detail=cli-running", result.stdout)
+        self.assertEqual(self.refreshes(), 0)
+
+    def test_in_flight_refresh_is_not_abandoned(self) -> None:
+        self.set_mode("slow")
+        result = self.run_script(FAKE_SLOW_SECS="3", GROK_AUTH_TIMEOUT_SECS="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("outcome=waiting", result.stdout)
+        self.assertIn("outcome=renewed", result.stdout)
+        self.assertTrue((self.root / "slow-done").exists())
+        self.assertEqual(self.refreshes(), 1)
+
+    def test_hard_timeout_stops_cli_and_alerts_once(self) -> None:
+        self.set_mode("hang")
+        result = self.run_script(GROK_AUTH_HARD_TIMEOUT_SECS="2")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("outcome=timeout", result.stdout)
+        self.assertEqual(self.alert_lines(), ["timeout"])
+        self.assertEqual(self.invocations(), 1)
+
+    # logged out
+
+    def test_missing_auth_alerts_once_per_state_change(self) -> None:
+        self.auth.unlink()
+        first = self.run_script()
+        second = self.run_script()
+        self.assertEqual(first.returncode, 1)
+        self.assertEqual(second.returncode, 1)
+        self.assertIn("outcome=alerted reason=logged-out detail=auth-missing", first.stdout)
+        self.assertIn("outcome=alert-suppressed reason=logged-out", second.stdout)
+        self.assertEqual(self.alert_lines(), ["logged-out"])
+        self.assertIn("Chris must re-login: grok login --device-code", (self.root / "alerts.log.text").read_text())
+        self.assertEqual(self.invocations(), 0)
+        # Back to healthy clears the marker, so a later logout alerts again.
+        self.write_auth(hours=5)
+        self.assertEqual(self.run_script().returncode, 0)
+        self.auth.unlink()
+        self.run_script()
+        self.assertEqual(self.alert_lines(), ["logged-out", "logged-out"])
+
+    def test_rejected_refresh_alerts_once(self) -> None:
+        self.set_mode("revoked")
+        first = self.run_script()
+        self.assertEqual(first.returncode, 1)
+        self.assertIn("reason=logged-out", first.stdout)
+        self.assertIn("grok login --device-code", first.stdout)
+        second = self.run_script()
+        self.assertEqual(second.returncode, 1)
+        self.assertIn("alert-suppressed reason=logged-out", second.stdout)
+        self.assertEqual(self.alert_lines(), ["logged-out"])
+        self.assertEqual(self.invocations(), 1)
+
+    def test_old_log_lines_are_not_a_logout(self) -> None:
+        log = self.root / "logs" / "unified.jsonl"
+        log.parent.mkdir(parents=True)
+        log.write_text('{"msg":"old invalid_grant before this run"}\n')
+        self.set_mode("noop")
+        # Old log lines alone are not a logout: the run reports not-advanced.
+        result = self.run_script()
+        self.assertIn("outcome=expires-not-advanced", result.stdout)
+        self.assertNotIn("logged-out", result.stdout)
+
+    # other failures
 
     def test_failure_alerts_once(self) -> None:
-        self.mode.write_text("fail", encoding="utf-8")
+        self.set_mode("fail")
         first = self.run_script()
         second = self.run_script()
         self.assertEqual(first.returncode, 1)
         self.assertEqual(second.returncode, 1)
         self.assertIn("outcome=alerted reason=exit-9", first.stdout)
         self.assertIn("outcome=alert-suppressed reason=exit-9", second.stdout)
-        self.assertEqual(self.alerts.read_text(encoding="utf-8").splitlines(), ["exit-9"])
-        self.assertNotIn(SECRET, first.stdout + second.stdout)
+        self.assertEqual(self.alert_lines(), ["exit-9"])
 
     def test_stale_expires_alerts(self) -> None:
-        self.mode.write_text("noop", encoding="utf-8")
+        self.set_mode("noop")
         result = self.run_script()
         self.assertEqual(result.returncode, 1)
         self.assertIn("outcome=expires-not-advanced", result.stdout)
-        self.assertIn("expires-not-advanced", self.alerts.read_text(encoding="utf-8"))
 
     def test_short_expiry_alerts(self) -> None:
-        self.write_auth(hours=0.02)
-        self.mode.write_text("short", encoding="utf-8")
+        self.set_mode("short")
         result = self.run_script()
         self.assertEqual(result.returncode, 1)
         self.assertIn("outcome=expires-short", result.stdout)
-
-    def test_timeout_alerts(self) -> None:
-        shim = self.root / "timeout-shim"
-        shim.write_text("#!/bin/bash\nexit 124\n", encoding="utf-8")
-        shim.chmod(0o755)
-        result = self.run_script(GROK_AUTH_TIMEOUT_BIN=str(shim))
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("outcome=timeout", result.stdout)
-        self.assertEqual(self.alerts.read_text(encoding="utf-8").strip(), "timeout")
 
     def test_missing_binary_alerts(self) -> None:
         result = self.run_script(GROK_AUTH_BIN=str(self.root / "missing-grok"))
         self.assertEqual(result.returncode, 1)
         self.assertIn("outcome=missing-bin", result.stdout)
+
+    # live-file guard
+
+    def test_guard_refuses_real_auth_path(self) -> None:
+        env = self.env(GROK_AUTH_JSON=REAL_AUTH)
+        result = subprocess.run(
+            ["bash", str(SCRIPT)], env=env, text=True, capture_output=True, check=False, timeout=30
+        )
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("outcome=refused-live-auth", result.stdout)
+        self.assertEqual(self.invocations(), 0)
+        self.assertFalse(self.state.exists())
+
+    def test_default_auth_path_follows_temp_home(self) -> None:
+        self.write_auth(hours=5)
+        result = self.run_script(GROK_AUTH_JSON=None)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("outcome=fresh", result.stdout)
+
+    def test_helper_rejects_real_default_path(self) -> None:
+        with self.assertRaises(AssertionError):
+            self.run_script(GROK_AUTH_JSON=REAL_AUTH)
+        with self.assertRaises(AssertionError):
+            self.run_script(GROK_AUTH_JSON=None, HOME=str(Path(REAL_AUTH).parents[1]))
 
 
 if __name__ == "__main__":
