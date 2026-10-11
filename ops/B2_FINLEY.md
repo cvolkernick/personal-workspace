@@ -23,7 +23,7 @@ Inventory: `deploy/b2-puller/hosts.json`.
 |------|----------------|---------|
 | `b2.service` | **:8792** | B2 / knowledge graph dashboard (`b2-ux/server.py`) |
 | `b2-puller.timer` | **hourly :20 `America/New_York`**, all 7 days incl. overnight | One job PULLS books + youtube-groom + published + units **from** prism |
-| `workspace-sync.timer` | 5m | git pull of this repo (not a pull clock; no FCC / FitDash / Orchestra units) |
+| `workspace-sync.timer` | 5m | git pull of this repo's `master` (`SYNC_ROLE=backup-host`, unit template in `deploy/b2-puller/units/`; not a pull clock; no FCC / FitDash / Orchestra units) |
 
 **PULSE LOCK:** one systemd timer on finley (`b2-puller.timer` → `b2-puller.service`).
 `OnCalendar=*-*-* *:20:00 America/New_York`. One job pulls book snapshots +
