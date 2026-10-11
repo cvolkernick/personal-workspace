@@ -16,9 +16,9 @@ gone too, this runbook cannot run.
 |----------|----------------|
 | treasury / book snapshots (as of last pull) | venue keys (Coinbase, Robinhood, YNAB token, `.env`) |
 | `financial-command/treasury_latest.json` | `treasury/config.json` venue wiring |
-| youtube-groom `state.json`, `never_readd`, `groom.log` | live FCC/FitDash/Orchestra processes (reinstall units) |
-| systemd **unit files** (user) | linger / `GITHUB_TOKEN` / scheduler env |
-| nest-published copies | knowledge graph (stays on finley; prism queries `:8792`) |
+| youtube-groom `~/.local/share/youtube-groom/` (state, log) | live FCC/FitDash/Orchestra processes (reinstall units) |
+| systemd **unit files** (user) | linger / `GITHUB_TOKEN` / scheduler env / `*token*.conf*` drop-ins |
+| — | knowledge graph (stays on finley; prism queries `:8792`) |
 
 Books are **as of last snapshot**, not live.
 
@@ -74,7 +74,7 @@ Books are **as of last snapshot**, not live.
    MagicDNS). Do not rsync `~/B2` onto prism.
 
 7. **youtube-groom** — unit files came back from the pull; start the existing
-   groom unit if it was installed. State/log/never_readd are as of last pull.
+   groom unit if it was installed. State/log are as of last pull.
 
 ## Finley is gone
 

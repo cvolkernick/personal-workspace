@@ -66,18 +66,19 @@ app-books (FCC, FitDash, Orchestra, Auto Fleet).
 ## Pull list (source of truth: `deploy/b2-puller/paths.py`)
 
 Pulled from prism `$HOME` into `~/b2-pulls/prism` on finley. Missing sources skip.
-Write **only** what was pulled.
+Write **only** what was pulled. A trailing `/` means the directory's contents land
+at the mapped path (`treasury/snapshots/` -> `~/b2-pulls/prism/treasury/snapshots/`).
 
 | Relative path | Why |
 |---------------|-----|
 | `personal-workspace/treasury/snapshots/` | book snapshots |
 | `personal-workspace/financial-command/treasury_latest.json` | published book copy |
-| `youtube-groom/state.json` | groom state |
-| `youtube-groom/never_readd` | never-readd list |
-| `youtube-groom/groom.log` | groom log |
-| `.config/systemd/user/` | systemd user unit files |
-| `.buzz/published/` | nest-published copies |
-| `nest-published/` | nest-published copies (alt path) |
+| `.local/share/youtube-groom/` | groom state, `groom.log`, knobs/health |
+| `.config/systemd/user/` | systemd user unit files (token drop-ins excluded) |
+
+Excluded from every pull (`PULL_EXCLUDES`): `*token*.conf*`, e.g.
+`*.service.d/github-token.conf` and its `.bak` copies. The prism-side forced
+command for the puller key also excludes them server-side.
 
 ## Live-block / refuse
 

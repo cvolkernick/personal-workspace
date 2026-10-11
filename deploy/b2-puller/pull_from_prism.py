@@ -31,14 +31,17 @@ from paths import (  # noqa: E402
     DEFAULT_PRISM_HOME,
     DEFAULT_PULL_DEST,
     FINLEY_HOSTNAME,
+    PULL_EXCLUDES,
     PULL_RELATIVE,
     ROLE_B2_PULLER,
     assert_pull_list_clean,
     classify_dest,
     classify_source,
     dest_for_source,
+    is_excluded_name,
     is_refused_dest,
     is_refused_name,
+    remote_source,
 )
 
 
@@ -64,22 +67,34 @@ def _copy_local(src: Path, dest: Path) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         if dest.exists():
             shutil.rmtree(dest)
-        shutil.copytree(src, dest)
+        shutil.copytree(src, dest, ignore=shutil.ignore_patterns(*PULL_EXCLUDES))
+        return
+    if is_excluded_name(src):
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
 
 
-def _rsync_remote(remote: str, src: str, dest: Path, dry: bool) -> bool:
-    dest.parent.mkdir(parents=True, exist_ok=True)
+def build_rsync_cmd(remote: str, src: str, dest: Path, dry: bool) -> list[str]:
+    """rsync argv for one pull entry. A directory src ends with "/" so its
+    contents land in dest/ (no doubled dir). Empty remote = local src (tests)."""
     cmd = ["rsync", "-a", "--protect-args"]
     if dry:
         cmd.append("--dry-run")
+    cmd.extend(f"--exclude={pat}" for pat in PULL_EXCLUDES)
+    source = f"{remote}:{src}" if remote else src
+    if src.endswith("/"):
+        cmd.extend([source, str(dest) + "/"])
+    else:
+        cmd.extend([source, str(dest)])
+    return cmd
+
+
+def _rsync_remote(remote: str, src: str, dest: Path, dry: bool) -> bool:
+    dest.parent.mkdir(parents=True, exist_ok=True)
     if src.endswith("/"):
         dest.mkdir(parents=True, exist_ok=True)
-        cmd.extend([f"{remote}:{src}", str(dest) + "/"])
-    else:
-        cmd.extend([f"{remote}:{src}", str(dest)])
+    cmd = build_rsync_cmd(remote, src, dest, dry)
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "").strip()
@@ -101,6 +116,17 @@ def _nested_refused(root: Path) -> list[str]:
         return []
     files = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file()]
     return [str(p) for p in files if is_refused_name(p)]
+
+
+def _purge_excluded(root: Path) -> int:
+    """Belt and braces: delete any PULL_EXCLUDES match that still landed."""
+    if not root.exists():
+        return 0
+    files = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file()]
+    bad = [p for p in files if is_excluded_name(p)]
+    for p in bad:
+        p.unlink(missing_ok=True)
+    return len(bad)
 
 
 def _purge(paths: list[str]) -> None:
@@ -163,6 +189,7 @@ def pull(
                 pulled.append({"path": rel, "dest": str(dest), "dry_run": True})
                 continue
             _copy_local(src, dest)
+            _purge_excluded(dest)
             landed_bad = _nested_refused(dest)
             if landed_bad:
                 _purge(landed_bad)
@@ -177,12 +204,13 @@ def pull(
             pulled.append({"path": rel, "dest": str(dest), "wrote": _iter_written(dest)})
             continue
 
-        remote_src = str(Path(DEFAULT_PRISM_HOME) / rel)
+        remote_src = remote_source(rel, prism_home=DEFAULT_PRISM_HOME)
         ok = _rsync_remote(remote, remote_src, dest, dry_run)
         if not ok:
             skipped.append({"path": rel, "reason": "remote missing or rsync failed"})
             continue
         if not dry_run:
+            _purge_excluded(dest)
             landed_bad = _nested_refused(dest)
             if landed_bad:
                 _purge(landed_bad)

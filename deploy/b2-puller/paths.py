@@ -9,6 +9,7 @@ treasury on Vercel or a Mac are live-blocked.
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
 from dataclasses import dataclass
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 # Relative to the prism user home unless noted.
-# youtube-groom and nest-published live on the app box, not this monorepo.
+# youtube-groom state lives on the app box under ~/.local/share, not this monorepo.
 # Caps scorecard only: ops/YOUTUBE_QUEUE.md (writer stays on Pi).
 DEFAULT_PRISM_HOME = "/home/prism-agent"
 DEFAULT_PRISM_WORKSPACE = "/home/prism-agent/personal-workspace"
@@ -39,16 +40,20 @@ PULSE_LOCK = "PULSE LOCK"
 
 # Book / restore allowlist (paths relative to prism $HOME).
 # Snapshots only — not treasury/config.json (account numbers + venue wiring).
+# A trailing "/" marks a directory: its *contents* land at the mapped dest
+# (treasury/snapshots/ -> <dest>/treasury/snapshots/, not .../snapshots/snapshots/).
 PULL_RELATIVE: tuple[str, ...] = (
     "personal-workspace/treasury/snapshots/",
     "personal-workspace/financial-command/treasury_latest.json",
-    "youtube-groom/state.json",
-    "youtube-groom/never_readd",
-    "youtube-groom/groom.log",
+    ".local/share/youtube-groom/",
     ".config/systemd/user/",
-    ".buzz/published/",
-    "nest-published/",
 )
+
+# rsync --exclude patterns applied to every pull (and to local fixture copies).
+# Token drop-ins such as workflow-dashboard.service.d/github-token.conf (and
+# .bak variants) sit inside .config/systemd/user/ and must never be pulled.
+# The prism-side forced command also excludes these server-side.
+PULL_EXCLUDES: tuple[str, ...] = ("*token*.conf*",)
 
 # Live-block: venue keys, tokens, env dumps, Vercel treasury env, Mac homes.
 # robinhood_latest.json is a book snapshot (allow). *token* / *secret* files are not.
@@ -123,6 +128,25 @@ def is_refused_dest(path: str | os.PathLike[str]) -> bool:
     return bool(_REFUSE_DEST_RE.search(n))
 
 
+def is_excluded_name(path: str | os.PathLike[str]) -> bool:
+    """True when the basename matches a PULL_EXCLUDES pattern (case-insensitive)."""
+    base = Path(_norm(path).rstrip("/")).name.lower()
+    return any(fnmatch.fnmatchcase(base, pat.lower()) for pat in PULL_EXCLUDES)
+
+
+def remote_source(rel: str, *, prism_home: str = DEFAULT_PRISM_HOME) -> str:
+    """Absolute prism path for a pull-list entry, keeping a directory's trailing "/".
+
+    pathlib drops trailing slashes, which made rsync copy the directory itself
+    into the dest (snapshots/snapshots/). Keep the slash so rsync copies contents.
+    """
+    rel_n = _norm(rel)
+    src = prism_home.rstrip("/") + "/" + rel_n.lstrip("/")
+    if rel_n.endswith("/") and not src.endswith("/"):
+        src += "/"
+    return src
+
+
 def classify_source(path: str | os.PathLike[str]) -> Classify:
     n = _norm(path)
     if is_refused_name(n):
@@ -164,8 +188,7 @@ def assert_pull_list_clean(paths: Optional[Iterable[str]] = None) -> list[str]:
 def pull_sources(*, prism_home: str = DEFAULT_PRISM_HOME) -> list[str]:
     """Absolute source paths on prism (missing sources are skipped at pull time)."""
     assert_pull_list_clean()
-    home = Path(prism_home)
-    return [str(home / rel) for rel in PULL_RELATIVE]
+    return [remote_source(rel, prism_home=prism_home) for rel in PULL_RELATIVE]
 
 
 def dest_for_source(rel: str, dest_root: str | os.PathLike[str]) -> Path:

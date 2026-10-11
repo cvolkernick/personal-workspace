@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -91,16 +92,132 @@ class TestRefuseSources(unittest.TestCase):
         self.assertFalse(P.classify_source("treasury/config.json").allowed)
 
     def test_youtube_groom_allowlist_only(self):
-        self.assertTrue(P.classify_source("youtube-groom/state.json").allowed)
-        self.assertTrue(P.classify_source("youtube-groom/never_readd").allowed)
-        self.assertTrue(P.classify_source("youtube-groom/groom.log").allowed)
-        self.assertFalse(P.classify_source("youtube-groom/secrets.json").allowed)
-        self.assertFalse(P.classify_source("youtube-groom/.env").allowed)
+        yg = ".local/share/youtube-groom/"
+        self.assertTrue(P.classify_source(yg + "state.json").allowed)
+        self.assertTrue(P.classify_source(yg + "groom.log").allowed)
+        self.assertFalse(P.classify_source(yg + "secrets.json").allowed)
+        self.assertFalse(P.classify_source(yg + ".env").allowed)
+        # Old app-home locations never existed on prism; no longer pulled.
+        self.assertFalse(P.classify_source("youtube-groom/state.json").allowed)
+        self.assertFalse(P.classify_source("youtube-groom/never_readd").allowed)
 
-    def test_units_and_nest_published(self):
+    def test_units_allowed_published_dropped(self):
         self.assertTrue(P.classify_source(".config/systemd/user/b2.service").allowed)
-        self.assertTrue(P.classify_source(".buzz/published/note.md").allowed)
-        self.assertTrue(P.classify_source("nest-published/guide.md").allowed)
+        self.assertFalse(P.classify_source(".buzz/published/note.md").allowed)
+        self.assertFalse(P.classify_source("nest-published/guide.md").allowed)
+
+
+class TestTokenExclude(unittest.TestCase):
+    def test_pattern_present(self):
+        self.assertIn("*token*.conf*", P.PULL_EXCLUDES)
+
+    def test_token_dropins_excluded(self):
+        for name in (
+            "github-token.conf",
+            "github-token.conf.bak-962",
+            ".config/systemd/user/example.service.d/github-token.conf",
+            ".config/systemd/user/example.service.d/github-token.conf.bak",
+            "api-token.conf.bak.20260101T000000Z",
+            "GitHub-Token.CONF",
+        ):
+            self.assertTrue(P.is_excluded_name(name), msg=name)
+
+    def test_regular_files_not_excluded(self):
+        for name in (
+            "orchestra-dashboard.service",
+            "public-base.conf",
+            "treasury_latest.json",
+            "token_report.json",
+            "state.json",
+        ):
+            self.assertFalse(P.is_excluded_name(name), msg=name)
+
+    def test_rsync_cmd_carries_exclude(self):
+        cmd = Pull.build_rsync_cmd(
+            "agent@example-host", "/home/agent/.config/systemd/user/", Path("/tmp/d/u"), False
+        )
+        self.assertIn("--exclude=*token*.conf*", cmd)
+        self.assertLess(cmd.index("--exclude=*token*.conf*"), cmd.index("agent@example-host:/home/agent/.config/systemd/user/"))
+
+
+class TestPathMapping(unittest.TestCase):
+    """Directories keep their trailing slash so rsync copies contents, not the dir."""
+
+    def test_remote_source_keeps_dir_slash(self):
+        home = "/home/example-agent"
+        self.assertEqual(
+            P.remote_source("personal-workspace/treasury/snapshots/", prism_home=home),
+            "/home/example-agent/personal-workspace/treasury/snapshots/",
+        )
+        self.assertEqual(
+            P.remote_source(".local/share/youtube-groom/", prism_home=home + "/"),
+            "/home/example-agent/.local/share/youtube-groom/",
+        )
+        self.assertEqual(
+            P.remote_source("personal-workspace/financial-command/treasury_latest.json", prism_home=home),
+            "/home/example-agent/personal-workspace/financial-command/treasury_latest.json",
+        )
+
+    def test_pull_sources_dirs_end_with_slash(self):
+        for rel, src in zip(P.PULL_RELATIVE, P.pull_sources(prism_home="/home/example-agent")):
+            self.assertEqual(rel.endswith("/"), src.endswith("/"), msg=src)
+
+    def test_dest_mapping(self):
+        root = "/srv/example-pull"
+        self.assertEqual(
+            P.dest_for_source("personal-workspace/treasury/snapshots/", root),
+            Path(root) / "treasury" / "snapshots",
+        )
+        self.assertEqual(
+            P.dest_for_source(".local/share/youtube-groom/", root),
+            Path(root) / ".local" / "share" / "youtube-groom",
+        )
+        self.assertEqual(
+            P.dest_for_source(".config/systemd/user/", root),
+            Path(root) / ".config" / "systemd" / "user",
+        )
+
+    def test_rsync_cmd_dir_contents_into_dest(self):
+        cmd = Pull.build_rsync_cmd(
+            "agent@example-host",
+            "/home/agent/personal-workspace/treasury/snapshots/",
+            Path("/srv/example-pull/treasury/snapshots"),
+            True,
+        )
+        self.assertEqual(cmd[-2], "agent@example-host:/home/agent/personal-workspace/treasury/snapshots/")
+        self.assertEqual(cmd[-1], "/srv/example-pull/treasury/snapshots/")
+        self.assertIn("--dry-run", cmd)
+
+    def test_rsync_cmd_file(self):
+        cmd = Pull.build_rsync_cmd(
+            "agent@example-host", "/home/agent/f.json", Path("/srv/example-pull/f.json"), False
+        )
+        self.assertEqual(cmd[-2:], ["agent@example-host:/home/agent/f.json", "/srv/example-pull/f.json"])
+        self.assertNotIn("--dry-run", cmd)
+
+
+@unittest.skipIf(shutil.which("rsync") is None, "rsync not installed")
+class TestRealRsyncLayout(unittest.TestCase):
+    """Run the real rsync argv against a local fixture (empty remote = local src)."""
+
+    def test_no_doubled_dir_and_token_excluded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            units = home / ".config" / "systemd" / "user"
+            dropin = units / "example.service.d"
+            dropin.mkdir(parents=True)
+            (units / "example.service").write_text("[Unit]\n", encoding="utf-8")
+            (dropin / "override.conf").write_text("[Service]\n", encoding="utf-8")
+            (dropin / "github-token.conf").write_text("fake\n", encoding="utf-8")
+            (dropin / "github-token.conf.bak-1").write_text("fake\n", encoding="utf-8")
+            dest = Path(tmp) / "pull" / ".config" / "systemd" / "user"
+            for _ in range(2):  # idempotent: second run must not nest either
+                self.assertTrue(
+                    Pull._rsync_remote("", P.remote_source(".config/systemd/user/", prism_home=str(home)), dest, False)
+                )
+            got = sorted(str(p.relative_to(dest)) for p in dest.rglob("*") if p.is_file())
+            self.assertEqual(got, ["example.service", "example.service.d/override.conf"])
+            self.assertFalse((dest / "user").exists())
 
 
 class TestRefuseDest(unittest.TestCase):
@@ -139,17 +256,17 @@ class TestPullWritesOnlyAllowlist(unittest.TestCase):
         )
         (self.home / "iot").mkdir()
         (self.home / "iot" / "secrets.json").write_text('{"k":"v"}', encoding="utf-8")
-        yg = self.home / "youtube-groom"
-        yg.mkdir()
+        yg = self.home / ".local" / "share" / "youtube-groom"
+        yg.mkdir(parents=True)
         (yg / "state.json").write_text("{}", encoding="utf-8")
-        (yg / "never_readd").write_text("id1\n", encoding="utf-8")
         (yg / "groom.log").write_text("ok\n", encoding="utf-8")
         units = self.home / ".config" / "systemd" / "user"
         units.mkdir(parents=True)
         (units / "orchestra-dashboard.service").write_text("[Unit]\n", encoding="utf-8")
-        pub = self.home / ".buzz" / "published"
-        pub.mkdir(parents=True)
-        (pub / "note.md").write_text("# nest\n", encoding="utf-8")
+        dropin = units / "example.service.d"
+        dropin.mkdir()
+        (dropin / "github-token.conf").write_text("fake\n", encoding="utf-8")
+        (dropin / "github-token.conf.bak-1").write_text("fake\n", encoding="utf-8")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -169,11 +286,11 @@ class TestPullWritesOnlyAllowlist(unittest.TestCase):
         dest_files = [p for p in self.dest.rglob("*") if p.is_file()]
         dest_rel = [str(p.relative_to(self.dest)) for p in dest_files]
         self.assertIn("treasury/snapshots/treasury_latest.json", dest_rel)
-        self.assertIn("youtube-groom/state.json", dest_rel)
-        self.assertIn("youtube-groom/never_readd", dest_rel)
-        self.assertIn("youtube-groom/groom.log", dest_rel)
+        self.assertNotIn("treasury/snapshots/snapshots/treasury_latest.json", dest_rel)
+        self.assertIn(".local/share/youtube-groom/state.json", dest_rel)
+        self.assertIn(".local/share/youtube-groom/groom.log", dest_rel)
         self.assertIn(".config/systemd/user/orchestra-dashboard.service", dest_rel)
-        self.assertIn(".buzz/published/note.md", dest_rel)
+        self.assertFalse(any("token" in r for r in dest_rel), msg=dest_rel)
         self.assertNotIn("treasury/config.json", dest_rel)
         self.assertNotIn("iot/secrets.json", dest_rel)
         self.assertTrue((self.dest / "MANIFEST.json").is_file())
@@ -248,10 +365,11 @@ class TestLockedPullCadence(unittest.TestCase):
     def test_one_job_covers_books_groom_published_units(self):
         blob = " ".join(P.PULL_RELATIVE)
         self.assertIn("treasury/snapshots", blob)
-        self.assertIn("youtube-groom/state.json", blob)
-        self.assertIn(".buzz/published", blob)
-        self.assertIn("nest-published", blob)
+        self.assertIn(".local/share/youtube-groom", blob)
         self.assertIn(".config/systemd/user", blob)
+        # .buzz/published and nest-published never existed on prism; dropped.
+        self.assertNotIn(".buzz/published", blob)
+        self.assertNotIn("nest-published", blob)
         svc = (ROOT / "deploy" / "units" / "b2-puller.service").read_text(
             encoding="utf-8"
         )
