@@ -1,0 +1,19 @@
+[Unit]
+Description=Gmail push (Pub/Sub streaming pull) -> Turo guest messages -> bland-relay (#1142)
+After=network-online.target bland-relay.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/gmail-turo-watch/env
+Environment=PYTHONUNBUFFERED=1
+# Long-lived StreamingPull connection: Pub/Sub pushes notifications down it. Not polling.
+ExecStart=%h/.venvs/gmail-turo-watch/bin/python %h/bin/gmail_turo_watch.py run
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target
