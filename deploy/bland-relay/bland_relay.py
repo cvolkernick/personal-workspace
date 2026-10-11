@@ -27,6 +27,8 @@ comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
 secrets, secret paths, message bodies, or full phone numbers.
 """
 import base64
+import contextlib
+import fcntl
 import hashlib
 import hmac
 import json
@@ -211,13 +213,35 @@ def _scrub(msg):
     return msg[:300]
 
 
-def alert_failure(call_id, err, attempts, title=None):
-    """Journal ALERT always; GitHub #701 comment at most once per 15 min."""
+@contextlib.contextmanager
+def _alert_file_lock():
+    """Thread lock plus a flock, so the relay and gmail-turo-watch (#1142), which
+    share alert_state.json, never interleave read-modify-write or the .tmp file."""
+    with _alert_lock:
+        fd = None
+        try:
+            path = _alert_state_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(str(path.with_suffix(".lock")), os.O_RDWR | os.O_CREAT, 0o600)
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        except OSError as e:
+            log.warning("alert state lock unavailable: %s", type(e).__name__)
+        try:
+            yield
+        finally:
+            if fd is not None:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+                os.close(fd)
+
+
+def alert_failure(call_id, err, attempts, title=None, id_label=None, attempts_label=None, source=None):
+    """Journal ALERT always; GitHub #701 comment at most once per 15 min.
+    id_label/attempts_label/source let another service (gmail-turo-watch) word its own alert."""
     err = _scrub(err)
     now = time.time()
     ts = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(now))
     log.error("ALERT forward failed: call_id=%s error=%s attempts=%d", call_id or "-", err, attempts)
-    with _alert_lock:
+    with _alert_file_lock():
         st = _load_json(_alert_state_path())
         last = float(st.get("last_posted_epoch") or 0)
         if now - last < ALERT_COOLDOWN_S:
@@ -226,14 +250,14 @@ def alert_failure(call_id, err, attempts, title=None):
             _save_state(st)
             return
         suppressed = int(st.get("suppressed") or 0)
-        id_label = "Send id" if str(call_id).startswith("sms-") else "Bland call_id"
+        id_label = id_label or ("Send id" if str(call_id).startswith("sms-") else "Bland call_id")
         text = (
             f"- Time: {ts}\n"
             f"- {id_label}: `{call_id or 'n/a'}`\n"
             f"- Error: {err}\n"
-            f"- Forward attempts: {attempts}\n"
+            f"- {attempts_label or 'Forward attempts'}: {attempts}\n"
             f"- Failures suppressed since previous relay comment (15 min dedupe): {suppressed}\n"
-            f"- Source: prism `bland-relay.service` (`journalctl --user-unit bland-relay.service`)"
+            f"- Source: {source or 'prism `bland-relay.service` (`journalctl --user-unit bland-relay.service`)'}"
         )
         res = _post_github(title or "Bland relay: Alexandra alert forward failed", text)
         if res.get("posted"):
