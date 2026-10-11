@@ -46,17 +46,18 @@ No add/hour clamp. Do not invent `MAX_ADD_PER_DAY`. If the Pi file has a YouTube
 #1045 long-form only. Do not add a YouTube Short to AI Curated.
 
 ```
-MIN_LONGFORM_SEC     = 60        # Chris: under 60s is a Short
-SHORTS_MAX_SEC       = 180       # YouTube may mark a Short up to 3 minutes
+SHORTS_MAX_SEC       = 180       # <=180s is a Short (YouTube Shorts run up to 3 minutes)
+MIN_LONGFORM_SEC     = 181       # was 60
 ```
 
 Skip reasons, silent to Chris, written to `skipped_add`, `skip_reasons`, and `groom.log`:
 
-- `short<60s` — duration under 60 seconds
-- `short-flagged` — `#shorts` / `#short` in the title, description, or tags, a `/shorts/` URL on the candidate, or (only when `SHORTS_URL_PROBE=1`) a 60–180s video whose `https://www.youtube.com/shorts/<id>` URL returns 200. The probe is off by default. It is unofficial. The Data API has no `isShort` field. Probe errors fail open.
+- `short<=180s` — duration 180 seconds or less (was `short<60s`)
+- `short-flagged` — `#shorts` / `#short` in the title, description, or tags, or a `/shorts/` URL on the candidate.
+- `short-url` — `https://www.youtube.com/shorts/<id>` answers 200 without a redirect to `/watch` (no Data API quota; errors fall back to the duration rule). See `scripts/youtube_groom_shorts.py`.
 - `duration-unknown` — missing, malformed, or `P0D` (live/upcoming). Unknown duration is not added, and it no longer gets the old `dur == 0` ranking bonus.
 
-`filter_longform` in `scripts/youtube_groom_supply.py` runs after `supply_tick` and before ranking. `search.list` does not set `videoDuration`: `medium` drops interviews over 20 minutes, and `long` alone drops the 4–20 minute band. Shorts already on the playlist are not pruned.
+`filter_longform` in `scripts/youtube_groom_supply.py` runs after `supply_tick` and before ranking. `search.list` does not set `videoDuration`: `medium` drops interviews over 20 minutes, and `long` alone drops the 4–20 minute band. Every groom pass also prunes Shorts already on the playlist (`short<=180s` / `short-url`).
 
 Playlist id: `PLHS8knJRXDexbFZmFI6iBjoW8iSdpc9At`
 

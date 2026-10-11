@@ -242,28 +242,28 @@ class TestAddPathFloors815(unittest.TestCase):
         )
 
     def test_longform_skip_reasons(self):
-        self.assertEqual(M.MIN_LONGFORM_SEC, 60)
+        self.assertEqual(M.MIN_LONGFORM_SEC, 181)
         self.assertEqual(M.SHORTS_MAX_SEC, 180)
-        self.assertEqual(M.HOUSE_CAPS["MIN_LONGFORM_SEC"], 60)
+        self.assertEqual(M.HOUSE_CAPS["MIN_LONGFORM_SEC"], 181)
         self.assertEqual(M.HOUSE_CAPS["SHORTS_MAX_SEC"], 180)
         self.assertEqual(
             M.skip_add_reason(
                 fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=45
             ),
-            "short<60s",
+            "short<=180s",
         )
         self.assertEqual(
             M.skip_add_reason(
                 fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=59
             ),
-            "short<60s",
+            "short<=180s",
         )
         self.assertEqual(
             M.skip_add_reason(
                 fit=3,
                 channel_weight=1.0,
                 is_seed_throttle=False,
-                duration_sec=90,
+                duration_sec=600,
                 is_short=True,
             ),
             "short-flagged",
@@ -274,9 +274,16 @@ class TestAddPathFloors815(unittest.TestCase):
             ),
             "duration-unknown",
         )
+        for dur in (60, 61, 180):
+            self.assertEqual(
+                M.skip_add_reason(
+                    fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=dur
+                ),
+                "short<=180s",
+            )
         self.assertIsNone(
             M.skip_add_reason(
-                fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=60
+                fit=3, channel_weight=1.0, is_seed_throttle=False, duration_sec=181
             )
         )
 

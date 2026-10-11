@@ -1,0 +1,100 @@
+# Excerpt of the Pi live writer (not in git) as it stood after the
+# 2026-10-07 shorts-prune hotfix. Fixture for youtube_groom_shorts.patch_writer_source.
+from __future__ import annotations
+
+import re
+from typing import Any
+
+
+# shorts-prune hotfix 2026-10-07: prune any Short already on the playlist.
+SHORTS_PRUNE_MIN_SEC = 60
+SHORTS_PRUNE_MAX_SEC = 180
+
+
+def _shorts_url_status(video_id: str) -> int | None:
+    """No-redirect GET of youtube.com/shorts/<id>. 200 = Short, 303 to /watch = not."""
+    import urllib.error
+    import urllib.request
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    req = urllib.request.Request(f"https://www.youtube.com/shorts/{video_id}", method="GET")
+    try:
+        resp = urllib.request.build_opener(_NoRedirect).open(req, timeout=5)
+        return int(resp.getcode())
+    except urllib.error.HTTPError as exc:
+        if exc.code == 303 and "/watch" not in str(exc.headers.get("Location") or ""):
+            return None
+        return int(exc.code)
+    except Exception:
+        return None
+
+
+def _shorts_prune_reason(item: dict[str, Any], video: dict[str, Any], cache: dict[str, Any]) -> str:
+    dur = item.get("duration_sec")
+    if isinstance(dur, int) and not isinstance(dur, bool) and 0 < dur < SHORTS_PRUNE_MIN_SEC:
+        return "short<60s"
+    vs = video.get("snippet") or {}
+    parts = [item.get("title") or "", item.get("description") or ""]
+    parts.extend(str(t) for t in (vs.get("tags") or []))
+    if re.search(r"#shorts?\b", "\n".join(parts), re.I):
+        return "short-flagged"
+    if isinstance(dur, int) and not isinstance(dur, bool) and SHORTS_PRUNE_MIN_SEC <= dur <= SHORTS_PRUNE_MAX_SEC:
+        vid = item.get("video_id") or ""
+        if not vid:
+            return ""
+        if vid not in cache:
+            status = _shorts_url_status(vid)
+            if status not in (200, 303):
+                return ""  # probe error: fail open, retry next tick
+            cache[vid] = status == 200
+        return "short-url" if cache[vid] else ""
+    return ""
+
+
+def _groom_after_gate(args, state, quota):
+    candidates: list[dict[str, Any]] = []
+    skipped_add: list[dict[str, Any]] = []
+    yt = log = None
+    if True:
+        try:
+            from youtube_groom_supply import filter_longform
+
+            candidates, longform_skipped = filter_longform(candidates, yt, log)
+            skipped_add.extend(longform_skipped)
+        except Exception as exc:
+            reraise_if_quota(exc)
+            log.warning("longform filter failed")
+            kept_longform = []
+            for c in candidates:
+                dur = c.get("duration_sec")
+                blob = f"{c.get('title') or ''} {c.get('description') or ''}".lower()
+                flagged = "#short" in blob or "/shorts/" in blob
+                known_long = (
+                    isinstance(dur, int)
+                    and not isinstance(dur, bool)
+                    and dur >= 60
+                    and not flagged
+                )
+                if known_long:
+                    kept_longform.append(c)
+                else:
+                    why = "short<60s" if isinstance(dur, int) and not isinstance(dur, bool) and 0 < dur < 60 else "duration-unknown"
+                    if flagged and not (isinstance(dur, int) and not isinstance(dur, bool) and 0 < dur < 60):
+                        why = "short-flagged"
+                    skipped_add.append(
+                        {
+                            "video_id": c.get("video_id") or "",
+                            "title": c.get("title") or "",
+                            "why": why,
+                        }
+                    )
+            candidates = kept_longform
+        ranked_add = []
+    return candidates
+
+
+def reraise_if_quota(exc):
+    return None
