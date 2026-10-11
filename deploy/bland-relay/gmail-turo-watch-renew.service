@@ -1,0 +1,13 @@
+[Unit]
+Description=Renew the Gmail users.watch for Turo guest messages (#1142)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/gmail-turo-watch/env
+Environment=PYTHONUNBUFFERED=1
+# Stdlib only: one users.watch call. The watch lasts 7 days; daily renewal keeps 6 days of slack.
+ExecStart=/usr/bin/python3 %h/bin/gmail_turo_watch.py renew
+NoNewPrivileges=yes
+PrivateTmp=yes
