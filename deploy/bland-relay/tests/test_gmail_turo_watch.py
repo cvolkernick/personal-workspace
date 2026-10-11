@@ -39,7 +39,8 @@ ENV_KEYS = (
     "HELM_TURO_WEBHOOK_URL", "HELM_TURO_WEBHOOK_KEY", "HELM_TURO_WEBHOOK_HEADER", "TURO_ALEX_PUSH_DISABLED",
     "TURO_EMAIL_DISABLED", "TURO_EMAIL_SHADOW", "TURO_EMAIL_TOKEN", "TURO_EMAIL_PORT",
     "TURO_EMAIL_MAX_AGE_S", "TURO_EMAIL_REQUIRE_DKIM", "TURO_EMAIL_REQUIRE_DMARC", "TURO_EMAIL_MAX_ATTEMPTS",
-    "GOOGLE_APPLICATION_CREDENTIALS", "GMAIL_WATCH_SUBSCRIPTION", "TURO_EMAIL_ATTEMPT_SPACING_S", "TURO_EMAIL_FROM_DOMAINS", "TURO_EMAIL_RELAY_URL",
+    "GOOGLE_APPLICATION_CREDENTIALS", "GMAIL_WATCH_SUBSCRIPTION", "TURO_EMAIL_ATTEMPT_SPACING_S",
+    "TURO_EMAIL_MAX_DOWN_ATTEMPTS", "TURO_EMAIL_DOWN_ALERT_S", "TURO_EMAIL_FROM_DOMAINS", "TURO_EMAIL_RELAY_URL",
     "GMAIL_WATCH_EMAIL", "GMAIL_WATCH_TOPIC", "GMAIL_WATCH_LABEL_IDS", "GMAIL_WATCH_STATE_DIR",
     "TURO_ALERT_GUEST_WINDOW_S", "TURO_ALERT_GUEST_MAX", "TURO_ALERT_HOUR_MAX",
 )
@@ -812,8 +813,10 @@ def _http_error(code):
 @pytest.mark.parametrize("exc,want", [
     (lambda: urllib.error.URLError(ConnectionRefusedError(111, "refused")), "down"),
     (lambda: ConnectionRefusedError(111, "refused"), "down"),
-    (lambda: urllib.error.URLError(ConnectionResetError()), "down"),
-    (lambda: http.client.RemoteDisconnected("closed"), "down"),
+    (lambda: urllib.error.URLError(ConnectionResetError()), "retry"),
+    (lambda: ConnectionResetError(), "retry"),
+    (lambda: ConnectionAbortedError(), "retry"),
+    (lambda: http.client.RemoteDisconnected("closed"), "retry"),
     (lambda: urllib.error.URLError(socket.timeout("timed out")), "retry"),
     (lambda: TimeoutError(), "retry"),
     (lambda: _http_error(500), "retry"),
@@ -860,14 +863,111 @@ def test_attempt_spacing_configurable(rig, monkeypatch):
     assert gtw.sync(FakeGmail(), st, poster, NOW) is True and "b1" in st["skipped"]
 
 
-def test_relay_down_never_counts(rig):
+def test_relay_down_alerts_after_10_minutes(rig):
     st = {"history_id": "1000"}
     poster = _stub_poster(rig, {"Blake": gtw.DOWN})
-    for i in range(20):  # 20 minutes of relay restarts
+    for i in range(10):  # 0 .. 549 s
         assert gtw.sync(FakeGmail(), st, poster, NOW + 61 * i) is False
-    assert st["attempts"]["b1"]["n"] == 0 and "b1" not in st.get("skipped", {}) and ALERTS == []
+    assert ALERTS == [] and st["relay_down_since"] == NOW
+    for i in range(10, 20):  # 610 s .. 1159 s
+        assert gtw.sync(FakeGmail(), st, poster, NOW + 61 * i) is False
+    assert len(ALERTS) == 1, ALERTS  # one a day, not one per sync
+    mid, text, _n, title = ALERTS[0]
+    assert title == "Turo Gmail watcher: relay unreachable (#1142)"
+    assert "relay unreachable (connection refused) for 10 min" in text and "TURO_EMAIL_PORT" in text
+    assert st["attempts"]["b1"]["d"] == 20 and st["attempts"]["b1"]["n"] == 0
+    assert "b1" not in st.get("skipped", {}) and st["history_id"] == "1000"
     assert gtw.sync(FakeGmail(), st, relay_poster(rig), NOW + 2000) is True  # relay back
     assert "b1" not in st["attempts"] and [h["guest"] for h in rig.helm] == ["Avery", "Blake", "Jordan"]
+    assert "relay_down_since" not in st and "relay_down" not in st["stall_alert_at"]  # re-armed
+
+
+def test_relay_down_realerts_daily(rig, monkeypatch):
+    monkeypatch.setenv("TURO_EMAIL_MAX_AGE_S", str(3 * 86400))
+    monkeypatch.setenv("TURO_EMAIL_MAX_DOWN_ATTEMPTS", "1000")
+    st = {"history_id": "1000"}
+    poster = _stub_poster(rig, {"Blake": gtw.DOWN})
+    for t in (0, 700, 3600, 86400 + 701):
+        gtw.sync(FakeGmail(), st, poster, NOW + t)
+    assert len(ALERTS) == 2
+
+
+def test_grok_repro_refused_bad_message_skipped_good_delivered(rig):
+    """1 bad (relay refuses every time) + 1 good, 200 syncs 61 s apart."""
+    st = {"history_id": "1000"}
+    poster = _stub_poster(rig, {"Blake": gtw.DOWN})
+    results = [gtw.sync(FakeGmail(), st, poster, NOW + 61 * i) for i in range(200)]
+    assert results.index(True) == 29  # 30th spaced refused attempt skips
+    assert st["skipped"]["b1"]["reason"] == "relay down" and st["skipped"]["b1"]["attempts"] == 30
+    assert st["history_id"] == "1010"
+    assert [h["guest"] for h in rig.helm] == ["Avery", "Jordan"]
+    titles = [a[3] if len(a) > 3 else "skip" for a in ALERTS]
+    assert titles == ["Turo Gmail watcher: relay unreachable (#1142)", "skip"]  # stall alert, then skip alert
+    assert "relay_down_since" not in st  # Jordan's handoff cleared it
+
+
+def test_grok_repro_crashing_message_counts_remote_disconnected(rig, monkeypatch):
+    """A message that crashes the relay shows up as RemoteDisconnected: normal cap (5)."""
+    monkeypatch.setenv("TURO_EMAIL_TOKEN", "t" * 40)
+    crash = _opener_raising(http.client.RemoteDisconnected("Remote end closed connection without response"))
+    base = relay_poster(rig)
+
+    def p(fields):
+        if fields["guest"] == "Blake":
+            return gtw.post_to_relay(fields, opener=crash)
+        return base(fields)
+
+    st = {"history_id": "1000"}
+    results = [gtw.sync(FakeGmail(), st, p, NOW + 61 * i) for i in range(200)]
+    assert results.index(True) == 4
+    assert st["skipped"]["b1"]["reason"] == "relay 5xx/timeout" and st["skipped"]["b1"]["attempts"] == 5
+    assert [h["guest"] for h in rig.helm] == ["Avery", "Jordan"] and st["history_id"] == "1010"
+    assert len(ALERTS) == 1  # the skip alert; no relay-down stall (the relay accepted the connection)
+
+
+def test_relay_down_spacing_applies(rig):
+    st = {"history_id": "1000"}
+    poster = _stub_poster(rig, {"Blake": gtw.DOWN})
+    for i in range(50):  # 50 syncs within 50 s
+        gtw.sync(FakeGmail(), st, poster, NOW + i)
+    assert st["attempts"]["b1"]["d"] == 1
+
+
+def test_gmail_auth_stall_alerts_once(rig):
+    st = {"history_id": "1000"}
+    g = FakeGmail(fail_ids={"b1"}, fail_status=401)
+    for i in range(30):
+        assert gtw.sync(g, st, relay_poster(rig), NOW + 61 * i) is False
+    assert len(ALERTS) == 1
+    _mid, text, _n, title = ALERTS[0]
+    assert title == "Turo Gmail watcher: Gmail access failing (#1142)"
+    assert "Gmail API access failing for 10 min (messages.get 401)" in text
+    assert st["attempts"]["b1"]["n"] == 0 and "b1" not in st.get("skipped", {})
+    assert gtw.sync(FakeGmail(), st, relay_poster(rig), NOW + 3000) is True  # token fixed
+    assert "gmail_stall_since" not in st and "Blake" in [h["guest"] for h in rig.helm]
+
+
+class _TokenDead(FakeGmail):
+    def history(self, *_a, **_k):
+        raise gtw.GmailError("no_token", "token refresh")
+
+
+class _GmailUnreachable(FakeGmail):
+    def history(self, *_a, **_k):
+        raise urllib.error.URLError(OSError("network unreachable"))
+
+
+@pytest.mark.parametrize("cls,needle", [(_TokenDead, "token refresh -> no_token"), (_GmailUnreachable, "URLError")])
+def test_gmail_token_or_network_stall_alerts(rig, cls, needle):
+    gtw.save_state({"history_id": "1000"})
+    s = gtw.Syncer(cls(), poster=relay_poster(rig))
+    assert s.catch_up(NOW) is False and ALERTS == []
+    assert s.catch_up(NOW + 300) is False and ALERTS == []
+    assert s.catch_up(NOW + 601) is False and len(ALERTS) == 1
+    assert s.catch_up(NOW + 1200) is False and len(ALERTS) == 1
+    assert needle in ALERTS[0][1] and ALERTS[0][3] == "Turo Gmail watcher: Gmail access failing (#1142)"
+    assert gtw.Syncer(FakeGmail(), poster=relay_poster(rig)).catch_up(NOW + 1300) is True
+    assert "gmail_stall_since" not in gtw.load_state()
 
 
 def test_relay_auth_mismatch_retries_and_alerts_once(rig):
