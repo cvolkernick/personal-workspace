@@ -191,6 +191,33 @@ python3 -m unittest discover -s deploy/tests -v
 **Optional fast path:** repo secrets `PI_SSH_HOST` + `PI_SSH_KEY` so the Action
 starts `workspace-sync.service` immediately; otherwise the 5‑minute timer is enough.
 
+## SuperGrok auth keepalive (#1086)
+
+FitDash on prism reads `~/.grok/auth.json` and does not refresh it. A user
+timer runs the 1.0.13 CLI (`~/.grok/bin/grok`, not `~/.local/bin/grok`) every
+2h so the access token is renewed before the ~6h expiry. `deploy/` is not on
+the FCC `work/treasury` pin, so install the copy that survives workspace-sync:
+
+```bash
+install -m 0755 deploy/grok_auth_keepalive.sh \
+  ~/.config/personal-workspace/grok_auth_keepalive.sh
+cp deploy/units/grok-auth-keepalive.service \
+   deploy/units/grok-auth-keepalive.timer \
+   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now grok-auth-keepalive.timer
+```
+
+Journal proof: `journalctl --user -u grok-auth-keepalive`. The line is
+`outcome`, `exit`, and `expires_at` only.
+
+ntfy is retired (#704). A failed run comments once per 6h on GitHub #701
+via `treasury.pi_ops_alert` on the live tree. Rollback:
+
+```bash
+systemctl --user disable --now grok-auth-keepalive.timer
+```
+
 ## Related
 
 - Per-package IoT-only deploy: `iot/deploy/` (worker vs dashboard).
