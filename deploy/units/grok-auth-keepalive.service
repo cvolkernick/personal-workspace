@@ -8,10 +8,13 @@ Type=oneshot
 # 1.0.13 binary is selected inside the wrapper. Do not use ~/.local/bin/grok.
 Environment=HOME=%h
 Environment=GROK_AUTH_BIN=%h/.grok/bin/grok
-Environment=GROK_AUTH_EARLY_INVALIDATION_SECS=25200
+# 3h: under the ~6h token life, over the 2h timer gap (#1086 review).
+Environment=GROK_AUTH_EARLY_INVALIDATION_SECS=10800
 Environment=GROK_AUTH_TIMEOUT_SECS=45
+# The wrapper waits for an in-flight refresh up to this, then stops the CLI.
+Environment=GROK_AUTH_HARD_TIMEOUT_SECS=120
 ExecStart=%h/.config/personal-workspace/grok_auth_keepalive.sh
-TimeoutStartSec=90
+TimeoutStartSec=180
 Nice=10
 
 [Install]

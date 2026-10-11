@@ -4,11 +4,21 @@
 #
 # The access token lasts about 6h. FitDash only reads this file. The CLI
 # refreshes it when GROK_AUTH_EARLY_INVALIDATION_SECS says the token is due.
-# The default here is 7h, which is longer than the token lifetime, so every
-# timer run renews. The timer itself is every 2h.
+# The window is 3h (10800s): shorter than the ~6h token life and longer than
+# the 2h timer gap, so a fresh token is never "due" again and each run does at
+# most one refresh. A run where the token is not due does not start the CLI.
 #
-# Install on prism (user units). deploy/ is not on the FCC work/treasury pin,
-# so the timer runs a copy outside the git tree:
+# One refresh per run, behind a flock. If the lock or another grok CLI
+# process is busy, the run exits 0 (outcome=busy) and leaves it to them.
+# A started CLI is never abandoned: the run waits for it to exit, and only
+# stops it after GROK_AUTH_HARD_TIMEOUT_SECS. There is no retry in a run.
+#
+# Logged out (auth.json missing, "You are not authenticated.", or
+# invalid_grant / RefreshTokenRejected / revoked in the CLI log during the
+# run) posts one alert per state change and exits 1.
+#
+# Install (user units). deploy/ is not on the FCC work/treasury pin, so the
+# timer runs a copy outside the git tree:
 #
 #   install -m 0755 deploy/grok_auth_keepalive.sh \
 #     ~/.config/personal-workspace/grok_auth_keepalive.sh
@@ -20,23 +30,39 @@
 #
 # Rollback: systemctl --user disable --now grok-auth-keepalive.timer
 #
-# ntfy is retired (#704). A failure comments once per 6h on GitHub #701
-# through treasury.pi_ops_alert on the live FCC tree. The comment carries the
-# reason and expires_at only. Never prints key, refresh_token, or a JWT.
+# Testing must never touch the live auth.json. Point GROK_AUTH_JSON (or HOME)
+# at a temp copy, and never save and restore over the live file: refresh
+# tokens rotate, and a restored copy gets the session revoked.
+#
+# ntfy is retired (#704). Alerts comment on GitHub #701 through
+# treasury.pi_ops_alert on the live FCC tree. The comment carries the reason
+# and expires_at only. Never prints key, refresh_token, or a JWT.
 set -euo pipefail
 
-GROK_BIN="${GROK_AUTH_BIN:-/home/prism-agent/.grok/bin/grok}"
+GROK_BIN="${GROK_AUTH_BIN:-${HOME}/.grok/bin/grok}"
 AUTH_JSON="${GROK_AUTH_JSON:-${HOME}/.grok/auth.json}"
-EARLY="${GROK_AUTH_EARLY_INVALIDATION_SECS:-25200}"
+CLI_LOG="${GROK_AUTH_CLI_LOG:-$(dirname "$AUTH_JSON")/logs/unified.jsonl}"
+EARLY="${GROK_AUTH_EARLY_INVALIDATION_SECS:-10800}"
 TIMEOUT_SECS="${GROK_AUTH_TIMEOUT_SECS:-45}"
+HARD_TIMEOUT_SECS="${GROK_AUTH_HARD_TIMEOUT_SECS:-120}"
 MIN_REMAINING="${GROK_AUTH_MIN_REMAINING_SECS:-3600}"
 DEDUPE_SECS="${GROK_AUTH_ALERT_DEDUPE_SECS:-21600}"
 STATE_DIR="${GROK_AUTH_STATE_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/grok-auth-keepalive}"
+LOCK_FILE="${GROK_AUTH_LOCK_FILE:-${XDG_RUNTIME_DIR:-${HOME}/.cache}/grok-auth-keepalive.lock}"
 WORKSPACE="${GROK_AUTH_WORKSPACE:-${HOME}/personal-workspace}"
+RELOGIN_MSG="Chris must re-login: grok login --device-code"
+
+# Test guard: the suite sets GROK_AUTH_REFUSE_PATH to the runner's real
+# ~/.grok/auth.json. Refuse before reading anything.
+if [[ -n "${GROK_AUTH_REFUSE_PATH:-}" && "$AUTH_JSON" == "$GROK_AUTH_REFUSE_PATH" ]]; then
+  printf '%s\n' "outcome=refused-live-auth exit=3"
+  exit 3
+fi
+
 export GROK_AUTH_EARLY_INVALIDATION_SECS="$EARLY"
 export GROK_AUTH_JSON
 
-mkdir -p "$STATE_DIR"
+mkdir -p "$STATE_DIR" "$(dirname "$LOCK_FILE")"
 chmod 700 "$STATE_DIR" 2>/dev/null || true
 
 log() {
@@ -47,33 +73,7 @@ read_expires() {
   python3 - "$1" << 'PY'
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
-
-
-def parse(raw):
-    if not raw:
-        return None
-    text = str(raw).strip().replace("Z", "+00:00")
-    if "." in text:
-        head, rest = text.split(".", 1)
-        digits = []
-        tail = ""
-        for index, ch in enumerate(rest):
-            if ch.isdigit():
-                digits.append(ch)
-            else:
-                tail = rest[index:]
-                break
-        text = head + "." + ("".join(digits) + "000000")[:6] + tail
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
-
 
 path = Path(sys.argv[1])
 try:
@@ -81,29 +81,25 @@ try:
 except (OSError, json.JSONDecodeError):
     print("")
     raise SystemExit(0)
-best = None
-best_at = None
+best = ""
 if isinstance(data, dict):
     for entry in data.values():
         if not isinstance(entry, dict):
             continue
         if not (entry.get("key") or entry.get("access_token")):
             continue
-        parsed = parse(entry.get("expires_at"))
-        if best is None or (parsed is not None and (best_at is None or parsed > best_at)):
-            best = entry
-            best_at = parsed
-if not best or not best.get("expires_at"):
-    print("")
-else:
-    print(best.get("expires_at"))
+        raw = str(entry.get("expires_at") or "")
+        if raw and raw > best:
+            best = raw
+print(best)
 PY
 }
 
-classify() {
-  python3 - "$1" "$2" "$3" "$EARLY" "$MIN_REMAINING" << 'PY'
+# Prints "<due 0|1|x> <seconds remaining>"; x = unparseable.
+due_check() {
+  python3 - "$1" "$EARLY" << 'PY'
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
 def parse(raw):
@@ -130,89 +126,50 @@ def parse(raw):
     return parsed
 
 
-before_raw, after_raw, rc_raw, early_raw, min_raw = sys.argv[1:]
-rc = int(rc_raw)
-early = int(early_raw)
-minimum = int(min_raw)
-before = parse(before_raw)
-after = parse(after_raw)
-now = datetime.now(timezone.utc)
-shown = after_raw or before_raw or ""
-
-if rc == 124:
-    print(f"timeout\t1\t{shown}")
+when = parse(sys.argv[1])
+if when is None:
+    print("x 0")
     raise SystemExit(0)
-if rc == 127:
-    print(f"missing-bin\t1\t{shown}")
-    raise SystemExit(0)
-if rc != 0:
-    print(f"exit-{rc}\t1\t{shown}")
-    raise SystemExit(0)
-if before is None and after is None:
-    print("unreadable-auth\t1\t")
-    raise SystemExit(0)
-
-due = before is None or (before - now).total_seconds() < early
-if not due:
-    print(f"fresh\t0\t{after_raw or before_raw}")
-    raise SystemExit(0)
-if after is None or (before is not None and after <= before):
-    print(f"expires-not-advanced\t1\t{shown}")
-    raise SystemExit(0)
-if after < now + timedelta(seconds=minimum):
-    print(f"expires-short\t1\t{after_raw}")
-    raise SystemExit(0)
-print(f"renewed\t0\t{after_raw}")
+left = int((when - datetime.now(timezone.utc)).total_seconds())
+print(("1" if left < int(sys.argv[2]) else "0") + f" {left}")
 PY
 }
 
-send_alert() {
-  local reason="$1"
-  local exp="$2"
-  local prev="$3"
-  local now until
-  now="$(date -u +%s)"
-  until=0
-  if [[ -f "$STATE_DIR/alert-until" ]]; then
-    until="$(tr -cd '0-9' <"$STATE_DIR/alert-until" || true)"
-    until="${until:-0}"
+alert_text() {
+  local reason="$1" exp="$2" prev="$3"
+  local text
+  text="reason=${reason}"$'\n'"expires_at=${exp}"$'\n'"previous_expires_at=${prev}"$'\n'"exit=${rc}"$'\n'
+  if [[ "$reason" == "logged-out" ]]; then
+    text+="action=${RELOGIN_MSG}"$'\n'
   fi
-  if (( now < until )); then
-    log "outcome=alert-suppressed reason=${reason} expires_at=${exp} previous_expires_at=${prev} exit=${rc}"
-    return 0
-  fi
-  printf '%s\n' "$((now + DEDUPE_SECS))" >"$STATE_DIR/alert-until"
+  printf '%s' "$text"
+}
+
+post_alert() {
+  local reason="$1" exp="$2" prev="$3"
+  local text
+  text="$(alert_text "$reason" "$exp" "$prev")"
   if [[ -n "${GROK_AUTH_ALERT_CMD:-}" ]]; then
     GROK_AUTH_ALERT_REASON="$reason" \
+      GROK_AUTH_ALERT_TEXT="$text" \
       GROK_AUTH_EXPIRES_AT="$exp" \
       GROK_AUTH_PREVIOUS_EXPIRES_AT="$prev" \
       GROK_AUTH_EXIT="$rc" \
       bash -c "$GROK_AUTH_ALERT_CMD" \
       || log "outcome=alert-failed reason=${reason} exit=${rc}"
-  else
-    GROK_AUTH_ALERT_REASON="$reason" \
-      GROK_AUTH_EXPIRES_AT="$exp" \
-      GROK_AUTH_PREVIOUS_EXPIRES_AT="$prev" \
-      GROK_AUTH_EXIT="$rc" \
-      GROK_AUTH_WORKSPACE="$WORKSPACE" \
-      python3 - << 'PY' || log "outcome=alert-failed reason=${reason} exit=${rc}"
+    return 0
+  fi
+  GROK_AUTH_ALERT_TEXT="$text" \
+    GROK_AUTH_WORKSPACE="$WORKSPACE" \
+    python3 - << 'PY' || log "outcome=alert-failed reason=${reason} exit=${rc}"
 import os
 import sys
 
 workspace = os.environ.get("GROK_AUTH_WORKSPACE") or ""
 if workspace:
     sys.path.insert(0, workspace)
-reason = os.environ.get("GROK_AUTH_ALERT_REASON") or "failed"
-exp = os.environ.get("GROK_AUTH_EXPIRES_AT") or ""
-prev = os.environ.get("GROK_AUTH_PREVIOUS_EXPIRES_AT") or ""
-code = os.environ.get("GROK_AUTH_EXIT") or ""
-text = (
-    f"reason={reason}\n"
-    f"expires_at={exp}\n"
-    f"previous_expires_at={prev}\n"
-    f"exit={code}\n"
-)
-if "eyJ" in text or len(text) > 400:
+text = os.environ.get("GROK_AUTH_ALERT_TEXT") or ""
+if "eyJ" in text or len(text) > 600:
     print("skipped:unsafe-text")
     raise SystemExit(0)
 try:
@@ -226,36 +183,158 @@ if result.get("posted"):
 else:
     print("skipped:" + str(result.get("skipped") or "not-posted"))
 PY
+}
+
+# Generic failures: at most one alert per DEDUPE_SECS.
+send_alert() {
+  local reason="$1" exp="$2" prev="$3"
+  local now until
+  now="$(date -u +%s)"
+  until=0
+  if [[ -f "$STATE_DIR/alert-until" ]]; then
+    until="$(tr -cd '0-9' <"$STATE_DIR/alert-until" || true)"
+    until="${until:-0}"
   fi
+  if (( now < until )); then
+    log "outcome=alert-suppressed reason=${reason} expires_at=${exp} previous_expires_at=${prev} exit=${rc}"
+    return 0
+  fi
+  printf '%s\n' "$((now + DEDUPE_SECS))" >"$STATE_DIR/alert-until"
+  post_alert "$reason" "$exp" "$prev"
   log "outcome=alerted reason=${reason} expires_at=${exp} previous_expires_at=${prev} exit=${rc}"
 }
 
-before="$(read_expires "$AUTH_JSON")"
-rc=0
-if [[ ! -x "$GROK_BIN" ]]; then
-  rc=127
-else
-  set +e
-  if [[ -n "${GROK_AUTH_TIMEOUT_BIN:-}" ]]; then
-    "$GROK_AUTH_TIMEOUT_BIN" "$TIMEOUT_SECS" "$GROK_BIN" models </dev/null >/dev/null 2>&1
-    rc=$?
-  elif command -v timeout >/dev/null 2>&1; then
-    timeout --signal=TERM "$TIMEOUT_SECS" "$GROK_BIN" models </dev/null >/dev/null 2>&1
-    rc=$?
+# Logged out: one alert per state change. A healthy run clears the marker.
+logged_out() {
+  local why="$1" prev="$2"
+  if [[ -f "$STATE_DIR/logged-out" ]]; then
+    log "outcome=alert-suppressed reason=logged-out detail=${why} exit=${rc}"
   else
-    "$GROK_BIN" models </dev/null >/dev/null 2>&1
-    rc=$?
+    printf '%s\n' "$(date -u +%s) ${why}" >"$STATE_DIR/logged-out"
+    post_alert "logged-out" "" "$prev"
+    log "outcome=alerted reason=logged-out detail=${why} exit=${rc}"
   fi
-  set -e
+  log "outcome=logged-out detail=${why} exit=${rc} previous_expires_at=${prev} action=${RELOGIN_MSG}"
+  exit 1
+}
+
+healthy() {
+  rm -f "$STATE_DIR/alert-until" "$STATE_DIR/logged-out"
+  log "$1"
+  exit 0
+}
+
+rc=0
+
+# One run at a time. Held by our CLI child too, so a run never overlaps a
+# refresh another run started.
+exec 9>>"$LOCK_FILE"
+if ! flock -n 9; then
+  log "outcome=busy detail=lock-held exit=0"
+  exit 0
 fi
-after="$(read_expires "$AUTH_JSON")"
-IFS=$'\t' read -r outcome alert_flag shown <<<"$(classify "$before" "$after" "$rc")"
-line="outcome=${outcome} exit=${rc} expires_at=${shown} previous_expires_at=${before}"
-if [[ "$alert_flag" == "1" ]]; then
-  send_alert "$outcome" "$shown" "$before"
-  log "$line"
+
+if [[ ! -e "$AUTH_JSON" ]]; then
+  logged_out "auth-missing" ""
+fi
+
+before="$(read_expires "$AUTH_JSON")"
+read -r due left <<<"$(due_check "$before")"
+if [[ "$due" == "x" ]]; then
+  rc=1
+  send_alert "unreadable-auth" "" "$before"
+  log "outcome=unreadable-auth exit=1 previous_expires_at=${before}"
   exit 1
 fi
-rm -f "$STATE_DIR/alert-until"
-log "$line"
-exit 0
+if [[ "$due" == "0" ]]; then
+  healthy "outcome=fresh exit=0 expires_at=${before} remaining_secs=${left} window_secs=${EARLY}"
+fi
+
+if [[ ! -x "$GROK_BIN" ]]; then
+  rc=127
+  send_alert "missing-bin" "$before" "$before"
+  log "outcome=missing-bin exit=127 expires_at=${before}"
+  exit 1
+fi
+
+# Another grok CLI process will refresh on its own; two refreshers racing on
+# a rotating refresh token is what revoked the 10/07 session.
+if pgrep -u "$(id -u)" -f -- "$GROK_BIN" >/dev/null 2>&1; then
+  log "outcome=busy detail=cli-running exit=0 expires_at=${before}"
+  exit 0
+fi
+
+log_size=0
+if [[ -f "$CLI_LOG" ]]; then
+  log_size="$(stat -c %s "$CLI_LOG" 2>/dev/null || echo 0)"
+fi
+out="$(mktemp "$STATE_DIR/cli-out.XXXXXX")"
+trap 'rm -f "$out"' EXIT
+
+"$GROK_BIN" models </dev/null >"$out" 2>&1 &
+cli_pid=$!
+start="$(date +%s)"
+soft_logged=0
+while kill -0 "$cli_pid" 2>/dev/null; do
+  elapsed=$(( $(date +%s) - start ))
+  if (( elapsed >= HARD_TIMEOUT_SECS )); then
+    kill -TERM "$cli_pid" 2>/dev/null || true
+    break
+  fi
+  if (( elapsed >= TIMEOUT_SECS && soft_logged == 0 )); then
+    log "outcome=waiting detail=cli-still-running elapsed_secs=${elapsed}"
+    soft_logged=1
+  fi
+  sleep 0.2
+done
+set +e
+wait "$cli_pid"
+rc=$?
+set -e
+elapsed=$(( $(date +%s) - start ))
+if (( elapsed >= HARD_TIMEOUT_SECS )) && (( rc != 0 )); then
+  rc=124
+fi
+
+new_log=""
+if [[ -f "$CLI_LOG" ]]; then
+  cur_size="$(stat -c %s "$CLI_LOG" 2>/dev/null || echo 0)"
+  if (( cur_size > log_size )); then
+    new_log="$(tail -c +"$((log_size + 1))" "$CLI_LOG" \
+      | grep -oE 'invalid_grant|RefreshTokenRejected|Refresh token has been revoked|permanent_failure' \
+      | head -1 || true)"
+  fi
+fi
+if grep -q "You are not authenticated" "$out" 2>/dev/null; then
+  logged_out "cli-not-authenticated" "$before"
+fi
+if [[ ! -e "$AUTH_JSON" ]]; then
+  logged_out "auth-deleted" "$before"
+fi
+if [[ -n "$new_log" ]]; then
+  logged_out "refresh-rejected" "$before"
+fi
+
+after="$(read_expires "$AUTH_JSON")"
+if (( rc == 124 )); then
+  send_alert "timeout" "$after" "$before"
+  log "outcome=timeout exit=124 expires_at=${after} previous_expires_at=${before}"
+  exit 1
+fi
+if (( rc != 0 )); then
+  send_alert "exit-${rc}" "$after" "$before"
+  log "outcome=exit-${rc} exit=${rc} expires_at=${after} previous_expires_at=${before}"
+  exit 1
+fi
+if [[ -z "$after" || "$after" == "$before" ]]; then
+  send_alert "expires-not-advanced" "$after" "$before"
+  log "outcome=expires-not-advanced exit=0 expires_at=${after} previous_expires_at=${before}"
+  exit 1
+fi
+read -r _ after_left <<<"$(due_check "$after")"
+if (( after_left < MIN_REMAINING )); then
+  send_alert "expires-short" "$after" "$before"
+  log "outcome=expires-short exit=0 expires_at=${after} previous_expires_at=${before}"
+  exit 1
+fi
+healthy "outcome=renewed exit=0 expires_at=${after} previous_expires_at=${before}"

@@ -195,7 +195,10 @@ starts `workspace-sync.service` immediately; otherwise the 5‑minute timer is e
 
 FitDash on prism reads `~/.grok/auth.json` and does not refresh it. A user
 timer runs the 1.0.13 CLI (`~/.grok/bin/grok`, not `~/.local/bin/grok`) every
-2h so the access token is renewed before the ~6h expiry. `deploy/` is not on
+2h so the access token is renewed before the ~6h expiry. The renewal window is
+3h (`GROK_AUTH_EARLY_INVALIDATION_SECS=10800`): a run with more than 3h left
+does not start the CLI, and a due run refreshes once, behind a flock. If the
+lock or another grok CLI process is busy, the run exits 0 (`outcome=busy`). `deploy/` is not on
 the FCC `work/treasury` pin, so install the copy that survives workspace-sync:
 
 ```bash
@@ -212,7 +215,15 @@ Journal proof: `journalctl --user -u grok-auth-keepalive`. The line is
 `outcome`, `exit`, and `expires_at` only.
 
 ntfy is retired (#704). A failed run comments once per 6h on GitHub #701
-via `treasury.pi_ops_alert` on the live tree. Rollback:
+via `treasury.pi_ops_alert` on the live tree. A logout (auth.json missing,
+`You are not authenticated.`, or `invalid_grant` / `RefreshTokenRejected` in
+the CLI log during the run) comments once per state change with the re-login
+ask (`grok login --device-code`) and the unit shows failed.
+
+Testing must never touch the live `auth.json`. Point `GROK_AUTH_JSON` (or
+`HOME`) at a temp copy and stub the CLI with `GROK_AUTH_BIN`. Never save and
+restore over the live file: refresh tokens rotate, and a restored copy gets
+the session revoked. Rollback:
 
 ```bash
 systemctl --user disable --now grok-auth-keepalive.timer
