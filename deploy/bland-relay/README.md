@@ -215,7 +215,7 @@ Gmail users.watch ──► Pub/Sub topic ──► subscription ◄══ Strea
 - **Same code path.** The relay builds the event with `turo_event()`, the normalizer it also uses for notifications. `src` is `gmail`, `key` is `gmail|<trip>`, `guest` is the first name, and `vehicle` and `reservation_id` come from the email. Then `turo_ingest()` runs, which is also the tail of `turo_handle()`. Suppress (`TURO_SUPPRESS_RE` also sees the subject, so a co-host owner prefix suppresses), urgent classes, owner alert, Alexandra and Helm are all shared, and `turo_state.json` keeps one writer.
 - **Dedupe.**
   - The two Gmail copies collapse on the existing key + text and guest + text rules.
-  - Across sources, `xseen` in `turo_state.json` matches guest first name, vehicle, trip and body text. The relay side reads these from `About <Vehicle> from <Guest>:\n<body>` and the trip from the notification key. A shorter body of 24+ chars that is a prefix of the other also matches.
+  - Across sources, `xseen` in `turo_state.json` matches guest first name, vehicle, trip and body text. The relay side reads these from `About <Vehicle> from <Guest>:\n<body>` and the trip from the notification key. A shorter body also matches when it is a prefix of the other and ends with `…`/`...` or is at least 60% of its length (see the body rule below).
   - Body rule: identical after normalization, or the shorter is a prefix of the longer **and** either ends with a truncation marker (`…` or `...`) or is at least 60% of its length (and at least 8 chars). Only the first 400 chars are stored, so an unmarked body longer than that must match exactly.
   - A cross-source match **consumes** the earlier record, so one phone notification can suppress at most one email (and vice versa).
   - Matches use a sliding `TURO_XDEDUPE_WINDOW_S` window (default `TURO_DEDUPE_WINDOW_S`, 24 h).
@@ -223,8 +223,10 @@ Gmail users.watch ──► Pub/Sub topic ──► subscription ◄══ Strea
   - The later copy gets `duplicate`, and the log line `turo cross-source duplicate ... src=<later> first_src=<earlier> age_s=<n>` shows which source won.
 - **Acks and poison messages.** A Pub/Sub message is acked once every new Gmail message in the batch is handled. Handled means handed to the relay with a 2xx (accepted, duplicate, suppressed or ignored), filtered out, or skipped. `historyId` only advances then; otherwise the Pub/Sub message is nacked and redelivered.
   - Attempts are counted per Gmail message id in `state.json`.
-  - A relay **4xx** skips that message at once; retrying cannot help.
-  - A relay 5xx/network error or a Gmail fetch error is retried up to `TURO_EMAIL_MAX_ATTEMPTS` (default 5). Then the message is skipped.
+  - A relay **4xx** skips that message at once; retrying cannot help. **Except 401/403:** a token mismatch would hit every email, so it is retried and never skipped, with one #701 alert (`relay auth mismatch: check TURO_EMAIL_TOKEN`, at most once a day, re-armed after the next successful handoff). A missing `TURO_EMAIL_TOKEN` is treated the same way.
+  - A relay **5xx or timeout**, or a per-message Gmail fetch error, is retried and counted. At most one attempt per message is counted per `TURO_EMAIL_ATTEMPT_SPACING_S` (default 60 s; stored as `last_attempt_at`), so a burst of notifications during a short outage doesn't burn the budget. After `TURO_EMAIL_MAX_ATTEMPTS` (default 5) counted attempts the message is skipped.
+  - **Relay down** (connection refused/reset, e.g. stopped or restarting) is retried and never counted. Gmail 401/403/429 and token-refresh failures hit every message and are not counted either.
+  - Note: `TURO_EMAIL_MAX_AGE_S` (12 h) still applies when a message is finally handed off, so an outage longer than that drops older mail as `too_old` (journal only); those messages reached Helm via the phone path or not at all.
   - A skipped message is recorded under `skipped`, gets one ops alert through the relay's `alert_failure()` (journal ALERT + #701, 15 min dedupe), and stops pinning `historyId`.
   - `attempts`/`skipped` are pruned after 7 days.
   - The Pub/Sub dead-letter topic (below) is the backstop for anything else that keeps failing.
@@ -236,6 +238,7 @@ Gmail users.watch ──► Pub/Sub topic ──► subscription ◄══ Strea
   - `TURO_EMAIL_SHADOW=1` logs the verdict (`new` / `duplicate` / `cross_duplicate`, suppressed, urgent) and writes nothing to relay state, the inbox or the webhooks. **The watcher still advances `historyId` and marks those Gmail messages processed**, so going live does not replay shadow-period mail. Messages that arrived during shadow reach Helm only via the phone path.
   - Leaving `TURO_EMAIL_PORT` unset turns the listener off.
 - **Listener.** It binds 127.0.0.1 only and is never behind Serve or Funnel. It needs `TURO_EMAIL_TOKEN` and refuses requests that carry proxy headers (`Tailscale-Funnel-Request`, `X-Forwarded-For`).
+- **Alerts.** Watcher alerts go through the relay's `alert_failure()` with their own wording (`Gmail message id`, `Attempts`, source `gmail-turo-watch.service`). They share `alert_state.json` and its 15 min cooldown with the relay, and both processes update that file under a `flock` (`alert_state.lock`).
 - **Key file.** `run` refuses to start (exit 2, `refusing to start: service-account key mode is 0o644; run chmod 600 on it`) unless `GOOGLE_APPLICATION_CREDENTIALS` is a regular file with no group/other bits (0600 or 0400).
 - **Known and accepted limits.**
   - Cross-source dedupe relies on the Turo app's `About <Vehicle> from <Guest>:` notification format. If Turo changes it, phone and email copies of a message both reach Helm (no loss, just doubles) until the regex is updated.

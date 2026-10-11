@@ -25,13 +25,15 @@ Env (systemd EnvironmentFile; nothing here is printed):
   TURO_EMAIL_TOKEN          bearer for the relay listener
   GOOGLE_APPLICATION_CREDENTIALS  subscriber-only service-account key (run only; must be 0600)
   TURO_EMAIL_DISABLED       1 = watcher idles: no streaming pull, no acks, no Gmail reads
-  TURO_EMAIL_MAX_ATTEMPTS   per-message tries for 5xx/network/fetch errors before skip (default 5)
+  TURO_EMAIL_MAX_ATTEMPTS   per-message tries for relay 5xx/timeouts and fetch errors before skip (default 5)
+  TURO_EMAIL_ATTEMPT_SPACING_S  count at most one attempt per message per this many seconds (default 60)
 
 Logs never contain tokens, message bodies, guest names or addresses.
 """
 import argparse
 import contextlib
 import fcntl
+import http.client
 import json
 import logging
 import os
@@ -57,6 +59,9 @@ HISTORY_PAGES_MAX = 20
 RECOVERY_QUERY = 'from:turo.com "sent you a message" newer_than:1d'
 HTTP_TIMEOUT_S = 15
 DEFAULT_MAX_ATTEMPTS = 5
+DEFAULT_ATTEMPT_SPACING_S = 60
+AUTH_ALERT_EVERY_S = 24 * 3600
+SERVICE = "gmail-turo-watch.service"
 STATE_KEEP_S = 7 * 24 * 3600
 
 
@@ -129,6 +134,13 @@ def max_attempts():
         return max(1, min(int(env("TURO_EMAIL_MAX_ATTEMPTS") or DEFAULT_MAX_ATTEMPTS), 50))
     except ValueError:
         return DEFAULT_MAX_ATTEMPTS
+
+
+def attempt_spacing_s():
+    try:
+        return max(0, min(int(env("TURO_EMAIL_ATTEMPT_SPACING_S") or DEFAULT_ATTEMPT_SPACING_S), 3600))
+    except ValueError:
+        return DEFAULT_ATTEMPT_SPACING_S
 
 
 def _hid(v):
@@ -219,7 +231,12 @@ class Gmail:
 
 # ---------------------------------------------------------------------------
 # Relay handoff (loopback only).
-OK, REJECT, RETRY = "ok", "reject", "retry"
+# Relay verdicts. OK: handled. REJECT: 4xx, skip now. RETRY: 5xx/timeout, counted
+# toward the skip limit. DOWN: connection refused/reset (relay stopped or
+# restarting), retried and never counted. AUTH: 401/403 or no token, retried,
+# never counted, one deduped alert.
+OK, REJECT, RETRY, DOWN, AUTH = "ok", "reject", "retry", "down", "auth"
+_DOWN_ERRORS = (ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, http.client.RemoteDisconnected)
 
 
 def relay_url():
@@ -231,12 +248,13 @@ def relay_url():
 
 
 def post_to_relay(fields, opener=None):
-    """-> OK (2xx), REJECT (4xx: retrying cannot help) or RETRY (5xx/network). Never raises."""
+    """-> OK (2xx), AUTH (401/403/no token), REJECT (other 4xx), RETRY (5xx, timeout,
+    other errors) or DOWN (connection refused/reset). Never raises."""
     opener = opener or urllib.request.urlopen
     tok = env("TURO_EMAIL_TOKEN")
     if not tok:
         log.error("TURO_EMAIL_TOKEN unset: cannot hand off")
-        return RETRY
+        return AUTH
     data = json.dumps(fields, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(relay_url(), data=data, method="POST",
                                  headers={"Content-Type": "application/json", "Authorization": "Bearer " + tok})
@@ -248,20 +266,38 @@ def post_to_relay(fields, opener=None):
             return OK if 200 <= r.status < 300 else RETRY
     except urllib.error.HTTPError as e:
         log.error("handoff msg=%s -> HTTP %d", fields.get("message_id"), e.code)
+        if e.code in (401, 403):
+            return AUTH
         return REJECT if 400 <= e.code < 500 else RETRY
     except Exception as e:  # noqa: BLE001
-        log.error("handoff msg=%s failed: %s", fields.get("message_id"), type(e).__name__)
+        reason = getattr(e, "reason", e) if isinstance(e, urllib.error.URLError) else e
+        if isinstance(reason, _DOWN_ERRORS):
+            log.warning("handoff msg=%s: relay not reachable (%s); retry without counting",
+                        fields.get("message_id"), type(reason).__name__)
+            return DOWN
+        log.error("handoff msg=%s failed: %s", fields.get("message_id"), type(reason).__name__)
     return RETRY
 
 
-def ops_alert(mid, reason, attempts):
-    """One #701 comment via the relay's existing alert_failure (journal ALERT + 15 min GitHub dedupe)."""
+def ops_alert(mid, reason, attempts, title="Turo Gmail watcher skipped a message (#1142)"):
+    """One #701 comment via the relay's alert_failure (journal ALERT + 15 min GitHub
+    dedupe, alert state under a file lock), worded for this service."""
     try:
         import bland_relay  # stdlib; sits next to this file in ~/bin
-        bland_relay.alert_failure(f"gmail-msg-{mid}", reason, attempts,
-                                  "Turo Gmail watcher skipped a message (#1142)")
+        bland_relay.alert_failure(mid or "n/a", reason, attempts, title,
+                                  id_label="Gmail message id", attempts_label="Attempts",
+                                  source=f"prism `{SERVICE}` (`journalctl --user-unit {SERVICE}`)")
     except Exception as e:  # noqa: BLE001 - alerting must never block the stream
         log.error("ops alert failed: %s", type(e).__name__)
+
+
+def _auth_alert(st, mid, now):
+    """Relay rejected our token: retry forever (never skip), alert at most once a day."""
+    if now - float(st.get("auth_alert_at") or 0) < AUTH_ALERT_EVERY_S:
+        return
+    st["auth_alert_at"] = now
+    ops_alert(mid, "relay auth mismatch: check TURO_EMAIL_TOKEN (watcher env vs bland-relay env)", 0,
+              "Turo Gmail watcher: relay auth mismatch (#1142)")
 
 
 def _verdict(v):
@@ -285,25 +321,41 @@ def _skip(st, mid, reason, attempts, now):
         ops_alert(mid, reason, attempts)
 
 
-def _failed(st, mid, reason, now):
-    """A retryable failure. -> True when the message was skipped (attempts exhausted)."""
+def _failed(st, mid, reason, now, count=True):
+    """A retryable failure. Counts at most one attempt per message per
+    TURO_EMAIL_ATTEMPT_SPACING_S, and none when count is False (relay down).
+    -> True when the message was skipped (attempts exhausted)."""
     att = st.setdefault("attempts", {})
-    rec = att.get(mid) if isinstance(att.get(mid), dict) else {"n": 0}
-    n = int(rec.get("n") or 0) + 1
-    att[mid] = {"n": n, "at": now, "reason": reason}
+    rec = dict(att.get(mid)) if isinstance(att.get(mid), dict) else {"n": 0}
+    n = int(rec.get("n") or 0)
+    last = rec.get("last_attempt_at")
+    counted = count and (last is None or now - float(last) >= attempt_spacing_s())
+    if counted:
+        n += 1
+        rec["last_attempt_at"] = now
+    rec.update(n=n, at=now, reason=reason)
+    att[mid] = rec
     if n >= max_attempts():
         _skip(st, mid, reason, n, now)
         return True
-    log.warning("retry later msg=%s reason=%s attempt=%d/%d", mid, reason, n, max_attempts())
+    log.warning("retry later msg=%s reason=%s attempt=%d/%d%s", mid, reason, n, max_attempts(),
+                "" if counted else " (not counted)")
     return False
+
+
+def _gmail_counts(status):
+    """Per-message Gmail errors count; auth/quota/token problems hit every message and don't."""
+    return isinstance(status, int) and status not in (401, 403, 429)
 
 
 def process_ids(gmail, ids, st, poster, now=None):
     """Fetch, filter and hand off. -> True when every message was handled or skipped.
 
-    A 4xx from the relay skips the message at once. 5xx/network and Gmail fetch
-    errors are retried (nack) up to TURO_EMAIL_MAX_ATTEMPTS, then skipped, so one
-    poison message can never pin historyId."""
+    A 4xx from the relay (except 401/403) skips the message at once. Relay
+    5xx/timeouts and per-message Gmail fetch errors are retried (nack) and
+    counted, at most once per TURO_EMAIL_ATTEMPT_SPACING_S, up to
+    TURO_EMAIL_MAX_ATTEMPTS, then skipped, so one poison message can never pin
+    historyId. Relay down (refused/reset) and 401/403 are retried, never counted."""
     now = time.time() if now is None else now
     prune_state(st, now)
     done = list(st.get("processed") or [])
@@ -319,7 +371,7 @@ def process_ids(gmail, ids, st, poster, now=None):
                 done.append(mid)
                 continue
             log.error("message fetch failed: %s", e)
-            if _failed(st, mid, f"gmail fetch {e.status}", now):
+            if _failed(st, mid, f"gmail fetch {e.status}", now, count=_gmail_counts(e.status)):
                 seen.add(mid)
                 continue
             st["processed"] = done[-PROCESSED_MAX:]
@@ -334,13 +386,18 @@ def process_ids(gmail, ids, st, poster, now=None):
                 _skip(st, mid, "relay 4xx", 1, now)
                 seen.add(mid)
                 continue
+            if v == AUTH:
+                _auth_alert(st, mid, now)
             if v != OK:
-                if _failed(st, mid, "relay 5xx/network", now):
+                why = {AUTH: "relay auth", DOWN: "relay down"}.get(v, "relay 5xx/timeout")
+                if _failed(st, mid, why, now, count=v == RETRY):
                     seen.add(mid)
                     continue
                 st["processed"] = done[-PROCESSED_MAX:]
                 return False
         st.get("attempts", {}).pop(mid, None)
+        if fields is not None:
+            st.pop("auth_alert_at", None)  # token works again; a future mismatch re-alerts
         seen.add(mid)
         done.append(mid)
     st["processed"] = done[-PROCESSED_MAX:]
