@@ -18,7 +18,9 @@ approval gate (Chris approves each number). Turo app notifications posted to
 the same RCS route (package com.relayrides.android.relayrides) go to the Turo
 relay (#1104): JSONL inbox, Helm webhook, and for urgent messages only a
 templated 904 SMS to TURO_OWNER_ALERT_TO (the only recipient) plus a "turo_urgent" push to
-ALEXANDRA_ALERT_URL.
+ALEXANDRA_ALERT_URL. Turo guest-message emails (Gmail push, #1142) arrive from
+gmail_turo_watch.py on a loopback-only listener (TURO_EMAIL_PORT) and run
+through the same normalizer and turo_ingest() path, deduped across sources.
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
 comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
@@ -87,6 +89,7 @@ SECRET_ENV_KEYS = (
     "FC_APPROVE_TOKEN_SHA256",
     "HELM_TURO_WEBHOOK_URL",
     "HELM_TURO_WEBHOOK_KEY",
+    "TURO_EMAIL_TOKEN",
 )
 
 _alert_lock = threading.Lock()
@@ -1395,6 +1398,14 @@ TURO_TITLE_SPLIT_RE = re.compile(r"\s+(?:•|·|\||–|—|-)\s+")
 TURO_PHONE_RE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 TURO_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 TURO_SENTENCE_RE = re.compile(r"(?<=[.!?\n])\s+|\n+")
+# Cross-source dedupe (#1142). A Turo app guest-message notification reads
+# "About <Vehicle> from <Guest>:\n<body>"; the Gmail copy carries the same
+# guest, vehicle and body. xseen entries only ever match the other source.
+TURO_ABOUT_RE = re.compile(r"\AAbout (?P<v>[^\n]{1,80}?) from (?P<g>[^:\n]{1,64}):[ \t]*\n(?P<b>.+)\Z", re.DOTALL)
+TURO_XPREFIX_MIN = 24
+TURO_EMAIL_PATH = "/turo/email"
+TURO_EMAIL_MAX_BODY = 64 * 1024
+TURO_EMAIL_SRC = "gmail"
 
 _turo_lock = threading.Lock()
 _turo_prune = {"at": 0.0}
@@ -1542,18 +1553,12 @@ def _turo_field(raw, keys):
     return s or None
 
 
-def normalize_turo(parsed, now=None):
-    """Notification -> Turo event dict, or None when there is no text."""
+def turo_event(text, title=None, sub_text=None, category=None, nkey=None, posted_at=None, now=None):
+    """Shared Turo normalizer for every source (#1104, #1142). -> event dict, or None without text."""
     now = time.time() if now is None else now
-    raw = parsed.get("raw") if isinstance(parsed.get("raw"), dict) else {}
-    text = _turo_field(raw, ("big_text", "bigtext")) or _turo_field(raw, ("text", "content", "message", "body"))
     if not text:
         return None
     text = text[:TURO_TEXT_MAX]
-    title = _turo_field(raw, ("title", "sender", "conversation", "name", "contact"))
-    sub_text = _turo_field(raw, ("sub_text", "subtext", "summary_text"))
-    category = _turo_field(raw, ("category",))
-    nkey = _turo_field(raw, ("key", "notification_key", "id"))
     guest, title_rest = _turo_guest(title)
     vehicle, plate = parse_turo_vehicle(title_rest, sub_text, text)
     cls, term = classify_turo(text)
@@ -1571,7 +1576,7 @@ def normalize_turo(parsed, now=None):
         "text": text,
         "sub_text": sub_text,
         "category": category,
-        "posted_at": _turo_posted_iso(parsed.get("posted_at")),
+        "posted_at": _turo_posted_iso(posted_at),
         "received_at": _iso(now),
         "key": nkey,
         "urgent": cls is not None,
@@ -1579,6 +1584,23 @@ def normalize_turo(parsed, now=None):
         "matched_term": term,
         "line": LINE_904,
     }
+
+
+def normalize_turo(parsed, now=None):
+    """Notification -> Turo event dict, or None when there is no text."""
+    raw = parsed.get("raw") if isinstance(parsed.get("raw"), dict) else {}
+    text = _turo_field(raw, ("big_text", "bigtext")) or _turo_field(raw, ("text", "content", "message", "body"))
+    if not text:
+        return None
+    return turo_event(
+        text,
+        title=_turo_field(raw, ("title", "sender", "conversation", "name", "contact")),
+        sub_text=_turo_field(raw, ("sub_text", "subtext", "summary_text")),
+        category=_turo_field(raw, ("category",)),
+        nkey=_turo_field(raw, ("key", "notification_key", "id")),
+        posted_at=parsed.get("posted_at"),
+        now=now,
+    )
 
 
 def _turo_dup_locked(st, ev, now):
@@ -1608,17 +1630,108 @@ def _turo_dup_locked(st, ev, now):
     return False
 
 
+def _turo_first_name(name):
+    parts = str(name or "").split()
+    return parts[0].casefold() if parts else ""
+
+
+def _turo_key_reservation(nkey):
+    """Trip number inside a Turo notification key ("0|pkg|<trip>|null|uid"), else None."""
+    for part in str(nkey or "").split("|"):
+        if re.fullmatch(r"\d{7,9}", part):
+            return part
+    return None
+
+
+def turo_xinfo(ev):
+    """Cross-source identity of a guest message (#1142), or None for other events.
+
+    -> {"g": first name, "v": vehicle, "r": reservation or "", "t": text_key(body)}.
+    Gmail events carry the fields directly; relay events parse "About V from G:\n body".
+    """
+    if ev.get("src") == TURO_EMAIL_SRC:
+        guest, vehicle, res, body = ev.get("guest"), ev.get("vehicle"), ev.get("reservation_id"), ev.get("text")
+    else:
+        m = TURO_ABOUT_RE.match(str(ev.get("text") or "").strip())
+        if not m:
+            return None
+        guest, body = m.group("g"), m.group("b")
+        vehicle = parse_turo_vehicle(m.group("v"))[0]
+        res = ev.get("reservation_id") or _turo_key_reservation(ev.get("key"))
+    g, t = _turo_first_name(guest), _text_key(body)
+    if not g or not t:
+        return None
+    return {"g": g, "v": (vehicle or "").casefold(), "r": str(res or ""), "t": t}
+
+
+def _turo_xmatch(a, b):
+    if a.get("g") != b.get("g"):
+        return False
+    if a.get("v") and b.get("v") and a["v"] != b["v"]:
+        return False
+    if a.get("r") and b.get("r") and a["r"] != b["r"]:
+        return False
+    ta, tb = str(a.get("t") or ""), str(b.get("t") or "")
+    if ta == tb:
+        return True
+    short, long_ = (ta, tb) if len(ta) < len(tb) else (tb, ta)
+    return len(short) >= TURO_XPREFIX_MIN and long_.startswith(short)
+
+
+def _turo_xdup_locked(st, ev, now):
+    """Caller holds _turo_lock. -> the other source's record when ev already
+    arrived from it (relay vs Gmail); else records ev and returns None. An entry
+    never matches its own source, so single-source behavior is unchanged."""
+    xi = turo_xinfo(ev)
+    if xi is None:
+        return None
+    window = _turo_int("TURO_XDEDUPE_WINDOW_S",
+                       _turo_int("TURO_DEDUPE_WINDOW_S", TURO_DEDUPE_DEFAULT_S, 60, 7 * 24 * 3600),
+                       60, 7 * 24 * 3600)
+    src = ev.get("src") or "turo"
+    xseen = [r for r in (st.get("xseen") or [])
+             if isinstance(r, dict) and now - float(r.get("at") or 0) <= window]
+    for r in xseen:
+        if r.get("src") != src and _turo_xmatch(xi, {"g": r.get("g"), "v": r.get("v"), "r": r.get("r"),
+                                                    "t": r.get("p")}):
+            st["xseen"] = xseen
+            return r
+    xseen.append({"at": now, "src": src, "g": xi["g"], "v": xi["v"], "r": xi["r"], "p": xi["t"][:400]})
+    st["xseen"] = xseen[-TURO_SEEN_MAX:]
+    return None
+
+
+def _turo_claim_locked(st, ev, now):
+    """-> "new", "duplicate" or "cross_duplicate". Records ev when new."""
+    if _turo_dup_locked(st, ev, now):
+        return "duplicate"
+    first = _turo_xdup_locked(st, ev, now)
+    if first is not None:
+        log.info("turo cross-source duplicate event=%s src=%s first_src=%s age_s=%d", ev.get("event_id"),
+                 ev.get("src"), first.get("src"), int(now - float(first.get("at") or now)))
+        return "cross_duplicate"
+    return "new"
+
+
 def turo_claim(ev, now=None):
-    """Atomically record ev. False when it is a duplicate."""
+    """Atomically record ev. False when it is a duplicate (same or other source)."""
     now = time.time() if now is None else now
     with _turo_lock:
         st = _load_json(_turo_state_path())
-        dup = _turo_dup_locked(st, ev, now)
+        verdict = _turo_claim_locked(st, ev, now)
         try:
             _save_json(_turo_state_path(), st)
         except OSError as e:
             log.error("turo state write failed: %s", type(e).__name__)
-    return not dup
+    return verdict == "new"
+
+
+def turo_peek(ev, now=None):
+    """Shadow mode: the claim verdict without writing state."""
+    now = time.time() if now is None else now
+    with _turo_lock:
+        st = json.loads(json.dumps(_load_json(_turo_state_path())))
+        return _turo_claim_locked(st, ev, now)
 
 
 def turo_prune_inbox(now=None, force=False):
@@ -1857,24 +1970,20 @@ def _turo_safe(fn, *args):
         log.error("turo %s crashed: %s", getattr(fn, "__name__", "task"), type(e).__name__)
 
 
-def turo_handle(parsed, now=None):
-    """-> (http status, response body). Never texts for non-urgent events."""
-    now = time.time() if now is None else now
-    if turo_disabled():
-        log.info("turo notification ignored (TURO_HOOK_DISABLED=1)")
-        return 200, {"ok": True, "ignored": "turo_disabled"}
-    if parsed.get("summary"):
-        return 200, {"ok": True, "ignored": "empty"}
-    ev = normalize_turo(parsed, now)
-    if ev is None:
-        log.info("turo notification ignored (empty text)")
-        return 200, {"ok": True, "ignored": "empty"}
+def turo_ingest(ev, now, suppress_fields, shadow=False):
+    """Shared tail for every Turo source (#1142): dedupe, suppress, inbox, then
+    owner alert + Alexandra (urgent only) and Helm in the background.
+    -> (http status, response body). shadow=True logs the verdict and does nothing."""
+    if shadow:
+        verdict = turo_peek(ev, now)
+        sup = turo_suppressed(*suppress_fields)
+        log.info("turo shadow src=%s event=%s verdict=%s suppressed=%s urgent=%s class=%s",
+                 ev.get("src"), ev["event_id"], verdict, sup, ev["urgent"], ev["urgent_class"] or "-")
+        return 200, {"ok": True, "turo": "shadow", "verdict": verdict, "suppressed": sup}
     if not turo_claim(ev, now):
         log.info("turo duplicate event=%s", ev["event_id"])
         return 200, {"ok": True, "turo": "duplicate"}
-    raw = parsed.get("raw") if isinstance(parsed.get("raw"), dict) else {}
-    title = _turo_field(raw, ("title",))
-    if turo_suppressed(title, ev.get("sub_text"), ev.get("vehicle"), ev.get("text")):
+    if turo_suppressed(*suppress_fields):
         turo_append_inbox(ev, True, now)
         log.info("turo suppressed (not our fleet) event=%s", ev["event_id"])
         return 200, {"ok": True, "turo": "suppressed"}
@@ -1887,6 +1996,147 @@ def turo_handle(parsed, now=None):
         _spawn(_turo_safe, (alexandra_turo_push, ev))
     _spawn(_turo_safe, (helm_push, ev))
     return 200, {"ok": True, "turo": "accepted", "urgent": ev["urgent"]}
+
+
+def turo_handle(parsed, now=None):
+    """-> (http status, response body). Never texts for non-urgent events."""
+    now = time.time() if now is None else now
+    if turo_disabled():
+        log.info("turo notification ignored (TURO_HOOK_DISABLED=1)")
+        return 200, {"ok": True, "ignored": "turo_disabled"}
+    if parsed.get("summary"):
+        return 200, {"ok": True, "ignored": "empty"}
+    ev = normalize_turo(parsed, now)
+    if ev is None:
+        log.info("turo notification ignored (empty text)")
+        return 200, {"ok": True, "ignored": "empty"}
+    raw = parsed.get("raw") if isinstance(parsed.get("raw"), dict) else {}
+    title = _turo_field(raw, ("title",))
+    return turo_ingest(ev, now, (title, ev.get("sub_text"), ev.get("vehicle"), ev.get("text")))
+
+
+# ---------------------------------------------------------------------------
+# Turo guest-message emails (#1142)
+#
+# gmail_turo_watch.py (Gmail users.watch -> Pub/Sub streaming pull) parses
+# Turo guest-message emails with turo_email.py and POSTs the fields here over
+# a loopback-only listener. The event goes through turo_event() and
+# turo_ingest(), the same code as the notification path, so suppress rules,
+# urgent classes, owner alert, Helm and dedupe are shared, and turo_state.json
+# keeps a single writer (this process).
+def turo_email_disabled():
+    return turo_disabled() or env("TURO_EMAIL_DISABLED") == "1"
+
+
+def turo_email_event(obj, now=None):
+    """Parsed email fields -> Turo event (src "gmail"), or None without text."""
+    now = time.time() if now is None else now
+    if not isinstance(obj, dict):
+        return None
+    text = str(obj.get("text") or "").strip()
+    guest = " ".join(str(obj.get("guest") or "").split())[:TURO_GUEST_MAX] or None
+    if not text or not guest:
+        return None
+    res = str(obj.get("reservation_id") or "").strip()
+    res = res if re.fullmatch(r"\d{7,9}", res) else None
+    mid = re.sub(r"[^A-Za-z0-9]", "", str(obj.get("message_id") or ""))[:32]
+    ev = turo_event(text, title=guest, category="email", nkey=f"gmail|{res or mid}",
+                    posted_at=obj.get("internal_ms"), now=now)
+    ev["src"] = TURO_EMAIL_SRC
+    ev["line"] = None
+    vehicle, plate = parse_turo_vehicle(obj.get("vehicle"))
+    if vehicle:
+        ev["vehicle"], ev["plate"] = vehicle, plate
+    if res:
+        ev["reservation_id"] = res
+    return ev
+
+
+def turo_email_handle(obj, now=None):
+    """-> (http status, response body). Same ingest path as turo_handle()."""
+    now = time.time() if now is None else now
+    if turo_email_disabled():
+        log.info("turo email ignored (disabled)")
+        return 200, {"ok": True, "ignored": "turo_disabled"}
+    ev = turo_email_event(obj, now)
+    if ev is None:
+        log.info("turo email ignored (empty)")
+        return 200, {"ok": True, "ignored": "empty"}
+    fields = (obj.get("subject"), obj.get("vehicle"), ev.get("vehicle"), ev.get("text"))
+    return turo_ingest(ev, now, fields, shadow=env("TURO_EMAIL_SHADOW") == "1")
+
+
+class TuroEmailHandler(BaseHTTPRequestHandler):
+    """Loopback-only listener for gmail_turo_watch.py. Never behind Serve/Funnel."""
+    server_version = "relay"
+    sys_version = ""
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def _send(self, code, obj):
+        b = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def _nf(self):
+        self._send(404, {"ok": False, "error": "not found"})
+
+    do_GET = do_PUT = do_DELETE = do_PATCH = do_HEAD = _nf
+
+    def do_POST(self):
+        if self.path.split("?", 1)[0] != TURO_EMAIL_PATH:
+            return self._nf()
+        if self.headers.get("Tailscale-Funnel-Request") or self.headers.get("X-Forwarded-For"):
+            log.warning("turo email listener: proxied request refused")
+            return self._send(403, {"ok": False, "error": "forbidden"})
+        tok = env("TURO_EMAIL_TOKEN")
+        if not tok:
+            return self._send(503, {"ok": False, "error": "not configured"})
+        got = token_from_headers(self.headers)
+        if not token_ok(got, tok):
+            log.warning("turo email listener: bad/missing token (len %d)", len(got))
+            return self._send(401, {"ok": False, "error": "unauthorized"})
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if n <= 0 or n > TURO_EMAIL_MAX_BODY:
+            return self._send(413, {"ok": False, "error": "bad length"})
+        try:
+            obj = json.loads(self.rfile.read(n).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._send(400, {"ok": False, "error": "bad payload"})
+        try:
+            return self._send(*turo_email_handle(obj))
+        except Exception as e:  # noqa: BLE001
+            log.error("turo email handle failed: %s", type(e).__name__)
+            return self._send(500, {"ok": False, "error": "internal"})
+
+
+def start_turo_email_listener():
+    """Start the loopback listener when TURO_EMAIL_PORT and TURO_EMAIL_TOKEN are set. -> server or None."""
+    raw = env("TURO_EMAIL_PORT")
+    if not raw:
+        return None
+    if not env("TURO_EMAIL_TOKEN"):
+        log.warning("TURO_EMAIL_PORT set without TURO_EMAIL_TOKEN: turo email listener off")
+        return None
+    try:
+        port = int(raw)
+    except ValueError:
+        log.warning("TURO_EMAIL_PORT invalid: turo email listener off")
+        return None
+    if not 1 <= port <= 65535 or port == PORT:
+        log.warning("TURO_EMAIL_PORT out of range or equal to RELAY_PORT: turo email listener off")
+        return None
+    srv = ThreadingHTTPServer(("127.0.0.1", port), TuroEmailHandler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    log.info("turo email listener on 127.0.0.1:%d shadow=%s", port, env("TURO_EMAIL_SHADOW") == "1")
+    return srv
 
 
 class H(BaseHTTPRequestHandler):
@@ -2381,6 +2631,7 @@ def main():
                  "disabled=%s", fc_require_approval(), fc_daily_max(), fc_ttl_s() // FC_DAY_S,
                  fc_max_sends(), fc_disabled())
     _warn_paths()
+    start_turo_email_listener()
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)
     srv.serve_forever()
