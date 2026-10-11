@@ -90,6 +90,36 @@ if mode == "revoked":
     auth.unlink()
     print("You are not authenticated.")
     sys.exit(0)
+if mode == "notauth-renew":
+    # What the real CLI does for a due token: prints the message, then the
+    # PreRequest refresh renews it.
+    print("You are not authenticated.")
+    maybe_refresh()
+    sys.exit(0)
+if mode in ("garbage", "garbage-notauth"):
+    # The CLI rewrote auth.json with an expires_at nobody can parse.
+    data = json.loads(auth.read_text())
+    for entry in data.values():
+        entry["expires_at"] = "not-a-date"
+    auth.write_text(json.dumps(data))
+    if mode == "garbage-notauth":
+        print("You are not authenticated.")
+    sys.exit(0)
+if mode == "notauth-noop":
+    print("You are not authenticated.")
+    sys.exit(0)
+if mode == "rejected-but-renewed":
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a") as fh:
+        fh.write('{"msg":"auth.refresh error invalid_grant","ctx":{"rt_prefix":"RTPREFIXLEAK1"}}\n')
+    maybe_refresh()
+    sys.exit(0)
+if mode == "hang-child":
+    import subprocess as sp
+    child = sp.Popen(["sleep", "60"])
+    (root / "child.pid").write_text(str(child.pid))
+    time.sleep(30)
+    sys.exit(0)
 if mode == "slow":
     # Refresh still in flight well past the soft timeout.
     time.sleep(float(os.environ.get("FAKE_SLOW_SECS", "3")))
@@ -318,6 +348,114 @@ class KeepaliveTests(unittest.TestCase):
         self.assertIn("outcome=expires-not-advanced", result.stdout)
         self.assertNotIn("logged-out", result.stdout)
 
+    def test_not_authenticated_text_then_renew_is_renewed(self) -> None:
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / "logged-out").write_text("0 cli-not-authenticated\n")
+        self.set_mode("notauth-renew")
+        before = self.expires()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("outcome=renewed exit=0", result.stdout)
+        self.assertNotIn("logged-out", result.stdout)
+        self.assertGreater(self.expires(), before)
+        self.assertEqual(self.refreshes(), 1)
+        self.assertEqual(self.alert_lines(), [])
+        self.assertFalse((self.state / "logged-out").exists())
+
+    def test_not_authenticated_text_without_advance_alerts_once(self) -> None:
+        self.set_mode("notauth-noop")
+        first = self.run_script()
+        second = self.run_script()
+        self.assertEqual(first.returncode, 1)
+        self.assertEqual(second.returncode, 1)
+        self.assertIn("outcome=logged-out detail=cli-not-authenticated exit=1", first.stdout)
+        self.assertIn("alert-suppressed reason=logged-out", second.stdout)
+        self.assertEqual(self.alert_lines(), ["logged-out"])
+
+    def test_expired_before_unparseable_after_with_logout_text_is_logged_out(self) -> None:
+        self.write_auth(hours=-1)
+        self.set_mode("garbage-notauth")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("outcome=logged-out detail=cli-not-authenticated exit=1", result.stdout)
+        self.assertNotIn("outcome=renewed", result.stdout)
+        self.assertNotIn("expires-short", result.stdout)
+        self.assertEqual(self.alert_lines(), ["logged-out"])
+        self.assertTrue((self.state / "logged-out").exists())
+
+    def test_unparseable_after_without_logout_text_is_not_advanced(self) -> None:
+        self.set_mode("garbage")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("outcome=expires-not-advanced exit=1", result.stdout)
+        self.assertNotIn("outcome=renewed", result.stdout)
+        self.assertEqual(self.alert_lines(), ["expires-not-advanced"])
+
+    def test_cli_exit_is_none_when_cli_never_ran(self) -> None:
+        result = self.run_script(GROK_AUTH_BIN=str(self.root / "missing-grok"))
+        self.assertIn("outcome=missing-bin exit=1 cli_exit=none", result.stdout)
+        self.auth.unlink()
+        gone = self.run_script()
+        self.assertIn("outcome=logged-out detail=auth-missing exit=1 cli_exit=none", gone.stdout)
+
+    def test_rejection_line_with_advance_is_renewed_and_not_echoed(self) -> None:
+        self.set_mode("rejected-but-renewed")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("outcome=renewed", result.stdout)
+        self.assertEqual(self.alert_lines(), [])
+        self.assertNotIn("RTPREFIXLEAK1", result.stdout + result.stderr)
+
+    def test_failure_lines_report_script_exit(self) -> None:
+        self.set_mode("noop")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("outcome=expires-not-advanced exit=1 cli_exit=0", result.stdout)
+        self.set_mode("short")
+        self.write_auth(hours=0.05)
+        short = self.run_script()
+        self.assertEqual(short.returncode, 1)
+        self.assertIn("outcome=expires-short exit=1 cli_exit=0", short.stdout)
+        for line in (result.stdout + short.stdout).splitlines():
+            if line.startswith(("outcome=expires", "outcome=logged-out", "outcome=timeout")):
+                self.assertNotIn(" exit=0", line)
+
+    def test_hard_timeout_kills_cli_children(self) -> None:
+        self.set_mode("hang-child")
+        result = self.run_script(GROK_AUTH_HARD_TIMEOUT_SECS="2")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("outcome=timeout exit=1 cli_exit=124", result.stdout)
+        pid = int((self.root / "child.pid").read_text())
+        deadline = time.time() + 5
+        alive = True
+        while time.time() < deadline:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                alive = False
+                break
+            # Reaped by init? A zombie still answers kill 0; check its state.
+            try:
+                if Path(f"/proc/{pid}/stat").read_text().split()[2] == "Z":
+                    alive = False
+                    break
+            except OSError:
+                alive = False
+                break
+            time.sleep(0.1)
+        self.assertFalse(alive, "CLI child survived the hard timeout")
+
+    def test_guard_resolves_symlink_to_real_auth(self) -> None:
+        link = self.root / "auth-link.json"
+        link.symlink_to(REAL_AUTH)
+        env = self.env(GROK_AUTH_JSON=str(link))
+        result = subprocess.run(
+            ["bash", str(SCRIPT)], env=env, text=True, capture_output=True, check=False, timeout=30
+        )
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("outcome=refused-live-auth", result.stdout)
+        self.assertEqual(self.invocations(), 0)
+
     # other failures
 
     def test_failure_alerts_once(self) -> None:
@@ -337,6 +475,7 @@ class KeepaliveTests(unittest.TestCase):
         self.assertIn("outcome=expires-not-advanced", result.stdout)
 
     def test_short_expiry_alerts(self) -> None:
+        self.write_auth(hours=0.05)
         self.set_mode("short")
         result = self.run_script()
         self.assertEqual(result.returncode, 1)
