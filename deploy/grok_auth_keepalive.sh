@@ -232,7 +232,8 @@ healthy() {
   exit 0
 }
 
-rc=0
+# CLI exit status; "none" until the CLI has actually run.
+rc=none
 
 # One run at a time. Held by our CLI child too, so a run never overlaps a
 # refresh another run started.
@@ -249,7 +250,6 @@ fi
 before="$(read_expires "$AUTH_JSON")"
 read -r due left <<<"$(due_check "$before")"
 if [[ "$due" == "x" ]]; then
-  rc=1
   send_alert "unreadable-auth" "" "$before"
   log "outcome=unreadable-auth exit=1 previous_expires_at=${before}"
   exit 1
@@ -259,9 +259,8 @@ if [[ "$due" == "0" ]]; then
 fi
 
 if [[ ! -x "$GROK_BIN" ]]; then
-  rc=127
   send_alert "missing-bin" "$before" "$before"
-  log "outcome=missing-bin exit=1 cli_exit=127 expires_at=${before}"
+  log "outcome=missing-bin exit=1 cli_exit=none expires_at=${before}"
   exit 1
 fi
 
@@ -330,11 +329,15 @@ if [[ ! -e "$AUTH_JSON" ]]; then
 fi
 
 after="$(read_expires "$AUTH_JSON")"
+# Advanced only when both dates parse and after is really later. due_check
+# prints "x 0" for an unparseable date; an unparseable after is never
+# "advanced", so logout text / rejection lines then mean logged-out.
 advanced=0
 if [[ -n "$after" ]]; then
-  read -r _ before_left_now <<<"$(due_check "$before")"
-  read -r _ after_left_now <<<"$(due_check "$after")"
-  if (( after_left_now > before_left_now )); then
+  read -r before_ok before_left_now <<<"$(due_check "$before")"
+  read -r after_ok after_left_now <<<"$(due_check "$after")"
+  if [[ "$before_ok" != "x" && "$after_ok" != "x" ]] \
+    && (( after_left_now > before_left_now )); then
     advanced=1
   fi
 fi

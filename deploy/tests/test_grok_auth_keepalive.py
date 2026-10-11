@@ -96,6 +96,15 @@ if mode == "notauth-renew":
     print("You are not authenticated.")
     maybe_refresh()
     sys.exit(0)
+if mode in ("garbage", "garbage-notauth"):
+    # The CLI rewrote auth.json with an expires_at nobody can parse.
+    data = json.loads(auth.read_text())
+    for entry in data.values():
+        entry["expires_at"] = "not-a-date"
+    auth.write_text(json.dumps(data))
+    if mode == "garbage-notauth":
+        print("You are not authenticated.")
+    sys.exit(0)
 if mode == "notauth-noop":
     print("You are not authenticated.")
     sys.exit(0)
@@ -362,6 +371,32 @@ class KeepaliveTests(unittest.TestCase):
         self.assertIn("outcome=logged-out detail=cli-not-authenticated exit=1", first.stdout)
         self.assertIn("alert-suppressed reason=logged-out", second.stdout)
         self.assertEqual(self.alert_lines(), ["logged-out"])
+
+    def test_expired_before_unparseable_after_with_logout_text_is_logged_out(self) -> None:
+        self.write_auth(hours=-1)
+        self.set_mode("garbage-notauth")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("outcome=logged-out detail=cli-not-authenticated exit=1", result.stdout)
+        self.assertNotIn("outcome=renewed", result.stdout)
+        self.assertNotIn("expires-short", result.stdout)
+        self.assertEqual(self.alert_lines(), ["logged-out"])
+        self.assertTrue((self.state / "logged-out").exists())
+
+    def test_unparseable_after_without_logout_text_is_not_advanced(self) -> None:
+        self.set_mode("garbage")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("outcome=expires-not-advanced exit=1", result.stdout)
+        self.assertNotIn("outcome=renewed", result.stdout)
+        self.assertEqual(self.alert_lines(), ["expires-not-advanced"])
+
+    def test_cli_exit_is_none_when_cli_never_ran(self) -> None:
+        result = self.run_script(GROK_AUTH_BIN=str(self.root / "missing-grok"))
+        self.assertIn("outcome=missing-bin exit=1 cli_exit=none", result.stdout)
+        self.auth.unlink()
+        gone = self.run_script()
+        self.assertIn("outcome=logged-out detail=auth-missing exit=1 cli_exit=none", gone.stdout)
 
     def test_rejection_line_with_advance_is_renewed_and_not_echoed(self) -> None:
         self.set_mode("rejected-but-renewed")
