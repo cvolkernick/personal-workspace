@@ -8,11 +8,13 @@ turo_event()/turo_ingest() code as the 904 phone notifications. This module
 only decides "is this a Turo guest message" and pulls out guest, vehicle,
 reservation and the message body. No network, no logging of bodies.
 
-Kept: From is a turo.com address, Gmail's Authentication-Results says
-dkim=pass for a turo.com domain, the subject reads "<Guest> has sent you a
-message about your <Vehicle>" (optionally prefixed "(<owner>'s vehicle) - "),
-and the message is younger than TURO_EMAIL_MAX_AGE_S. Everything else is
-ignored with a reason.
+Kept: From is a turo.com address; the TOPMOST Authentication-Results header
+(the one Gmail's own MX prepends; anything below it can be written by the
+sender) starts with "mx.google.com;" and says dkim=pass for a turo.com
+header.i/header.d and dmarc=pass for header.from=turo.com; the subject reads
+"<Guest> has sent you a message about your <Vehicle>" (optionally prefixed
+"(<owner>'s vehicle) - "); internalDate is present and younger than
+TURO_EMAIL_MAX_AGE_S. Everything else is ignored with a reason.
 """
 import base64
 import html
@@ -31,7 +33,8 @@ SUBJECT_RE = re.compile(
     r"(?P<guest>[^\n]{1,64}?) has sent you (?:a |an )?(?:new )?messages? about your (?P<vehicle>[^\n]{1,80}?)\.?\s*\Z",
     re.IGNORECASE,
 )
-DKIM_PASS_RE = re.compile(r"\bdkim=pass\b[^;]*?\bheader\.(?:i|d)=@?([A-Za-z0-9.-]+)", re.IGNORECASE)
+AR_COMMENT_RE = re.compile(r"\([^()]*\)")
+AR_PROP_RE = re.compile(r"([A-Za-z0-9_.-]+)=(\S+)")
 RES_RES = (
     re.compile(r"/reservation/(\d{7,9})(?!\d)"),
     re.compile(r"Reservation ID\s*#?\s*(\d{7,9})(?!\d)", re.IGNORECASE),
@@ -59,6 +62,10 @@ def max_age_s():
 
 def require_dkim():
     return _env("TURO_EMAIL_REQUIRE_DKIM") != "0"
+
+
+def require_dmarc():
+    return _env("TURO_EMAIL_REQUIRE_DMARC") != "0"
 
 
 def _domain_ok(domain, doms):
@@ -115,14 +122,49 @@ def body_text(payload):
     return plain or (_html_to_text(htm) if htm else "")
 
 
-def dkim_ok(hdrs, doms):
-    for value in hdrs.get("authentication-results") or []:
-        if "mx.google.com" not in value.lower():
+def parse_auth_results(value):
+    """One Authentication-Results value -> (authserv-id, [(method, result, {prop: value})])."""
+    v = str(value or "")
+    for _ in range(3):  # nested comments
+        v = AR_COMMENT_RE.sub(" ", v)
+    parts = [x.strip() for x in v.split(";")]
+    if not parts:
+        return "", []
+    authserv = parts[0].split()[0].lower() if parts[0].split() else ""
+    results = []
+    for clause in parts[1:]:
+        words = clause.split()
+        if not words or "=" not in words[0]:
             continue
-        for m in DKIM_PASS_RE.finditer(value):
-            if _domain_ok(m.group(1), doms):
-                return True
-    return False
+        method, _, result = words[0].partition("=")
+        props = {k.lower(): val.strip('"').lstrip("@").lower() for k, val in AR_PROP_RE.findall(" ".join(words[1:]))}
+        results.append((method.lower(), result.lower(), props))
+    return authserv, results
+
+
+def auth_ok(raw_headers, doms):
+    """-> (ok, reason). Only the topmost Authentication-Results counts: Gmail's MX
+    prepends its own, so it is first in header order; lower ones may be forged."""
+    top = None
+    for h in raw_headers or []:
+        if isinstance(h, dict) and str(h.get("name") or "").lower() == "authentication-results":
+            top = str(h.get("value") or "")
+            break
+    if top is None:
+        return False, "auth_missing"
+    if not top.strip().lower().startswith("mx.google.com;"):
+        return False, "auth_not_gmail"
+    _authserv, results = parse_auth_results(top)
+    dkim = any(m == "dkim" and r == "pass" and (_domain_ok(p.get("header.i", "").rsplit("@", 1)[-1], doms)
+                                                or _domain_ok(p.get("header.d", ""), doms))
+               for m, r, p in results)
+    dmarc = any(m == "dmarc" and r == "pass" and _domain_ok(p.get("header.from", ""), doms)
+                for m, r, p in results)
+    if require_dkim() and not dkim:
+        return False, "dkim"
+    if require_dmarc() and not dmarc:
+        return False, "dmarc"
+    return True, None
 
 
 def extract_message(text, guest, vehicle):
@@ -173,13 +215,16 @@ def parse_gmail_message(msg, now=None):
     m = SUBJECT_RE.match(subject)
     if not m:
         return None, "not_guest_message"
-    if require_dkim() and not dkim_ok(hdrs, doms):
-        return None, "dkim"
+    ok, why = auth_ok(payload.get("headers"), doms)
+    if not ok:
+        return None, why
     try:
         internal_ms = int(msg.get("internalDate") or 0)
     except (TypeError, ValueError):
         internal_ms = 0
-    if internal_ms and now - internal_ms / 1000.0 > max_age_s():
+    if internal_ms <= 0:
+        return None, "no_date"
+    if now - internal_ms / 1000.0 > max_age_s():
         return None, "too_old"
     guest = m.group("guest").strip()
     vehicle = m.group("vehicle").strip()
@@ -194,5 +239,5 @@ def parse_gmail_message(msg, now=None):
         "reservation_id": reservation_id(text),
         "text": message,
         "subject": subject[:300],
-        "internal_ms": internal_ms or None,
+        "internal_ms": internal_ms,
     }, None

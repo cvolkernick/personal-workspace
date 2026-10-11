@@ -207,27 +207,72 @@ Gmail users.watch ──► Pub/Sub topic ──► subscription ◄══ Strea
 - **Transport: streaming pull, not push.** The subscriber holds one long-lived StreamingPull stream, and Pub/Sub sends messages down it. There is no public endpoint, OIDC verification or new Funnel path. Its only credential is a service-account key that can subscribe to one subscription. A Funnel path with Pub/Sub push plus OIDC was rejected because it adds a public route.
 - **Filter (`turo_email.py`, stdlib).** An email counts only when all of these hold:
   - The From address is on a turo.com domain.
-  - Gmail's `Authentication-Results` shows `dkim=pass` for a turo.com domain (`TURO_EMAIL_REQUIRE_DKIM=0` turns this off).
+  - The **topmost** `Authentication-Results` header (the first in Gmail's header order, which Gmail's MX prepends) starts with `mx.google.com;` and has `dkim=pass` with `header.i`/`header.d` on turo.com (or a subdomain) and `dmarc=pass header.from=turo.com`. Lower A-R headers are ignored because a sender can write them. A missing or non-Gmail top A-R is rejected. `TURO_EMAIL_REQUIRE_DKIM=0` / `TURO_EMAIL_REQUIRE_DMARC=0` relax this for debugging only.
   - The subject is `[(<owner>'s vehicle) - ]<Guest> has sent you a message about your <Vehicle>`.
-  - The message is younger than `TURO_EMAIL_MAX_AGE_S` (12 h).
+  - `internalDate` is present (a missing date is rejected) and younger than `TURO_EMAIL_MAX_AGE_S` (12 h).
 
   It extracts guest, vehicle, reservation id and the message body; the body is the text between the header line and `Reply <url>`. Bookings, invoices, trip changes and non-Turo mail are ignored.
 - **Same code path.** The relay builds the event with `turo_event()`, the normalizer it also uses for notifications. `src` is `gmail`, `key` is `gmail|<trip>`, `guest` is the first name, and `vehicle` and `reservation_id` come from the email. Then `turo_ingest()` runs, which is also the tail of `turo_handle()`. Suppress (`TURO_SUPPRESS_RE` also sees the subject, so a co-host owner prefix suppresses), urgent classes, owner alert, Alexandra and Helm are all shared, and `turo_state.json` keeps one writer.
 - **Dedupe.**
   - The two Gmail copies collapse on the existing key + text and guest + text rules.
   - Across sources, `xseen` in `turo_state.json` matches guest first name, vehicle, trip and body text. The relay side reads these from `About <Vehicle> from <Guest>:\n<body>` and the trip from the notification key. A shorter body of 24+ chars that is a prefix of the other also matches.
+  - Body rule: identical after normalization, or the shorter is a prefix of the longer **and** either ends with a truncation marker (`…` or `...`) or is at least 60% of its length (and at least 8 chars). Only the first 400 chars are stored, so an unmarked body longer than that must match exactly.
+  - A cross-source match **consumes** the earlier record, so one phone notification can suppress at most one email (and vice versa).
   - Matches use a sliding `TURO_XDEDUPE_WINDOW_S` window (default `TURO_DEDUPE_WINDOW_S`, 24 h).
   - An xseen entry never matches its own source, so relay-only behavior is unchanged.
   - The later copy gets `duplicate`, and the log line `turo cross-source duplicate ... src=<later> first_src=<earlier> age_s=<n>` shows which source won.
-- **Acks.** A Pub/Sub message is acked after the relay answers 2xx: accepted, duplicate, suppressed or ignored. If Gmail or the relay fails, it is nacked and Pub/Sub redelivers. `historyId` advances only after the whole batch is handed off. On start there is one catch-up from the stored historyId. If that historyId has expired (404), there is a one-time recovery by query (`newer_than:1d`).
-- **Watch renewal.** `gmail-turo-watch-renew.timer` runs daily (watches expire after 7 days) and calls `gmail_turo_watch.py renew`, which is one `users.watch` call. By default it has no label filter, because co-host guest mail skips INBOX. `GMAIL_WATCH_LABEL_IDS` narrows it.
+- **Acks and poison messages.** A Pub/Sub message is acked once every new Gmail message in the batch is handled. Handled means handed to the relay with a 2xx (accepted, duplicate, suppressed or ignored), filtered out, or skipped. `historyId` only advances then; otherwise the Pub/Sub message is nacked and redelivered.
+  - Attempts are counted per Gmail message id in `state.json`.
+  - A relay **4xx** skips that message at once; retrying cannot help.
+  - A relay 5xx/network error or a Gmail fetch error is retried up to `TURO_EMAIL_MAX_ATTEMPTS` (default 5). Then the message is skipped.
+  - A skipped message is recorded under `skipped`, gets one ops alert through the relay's `alert_failure()` (journal ALERT + #701, 15 min dedupe), and stops pinning `historyId`.
+  - `attempts`/`skipped` are pruned after 7 days.
+  - The Pub/Sub dead-letter topic (below) is the backstop for anything else that keeps failing.
+  - On start there is one catch-up from the stored historyId. If that historyId has expired (404), there is a one-time recovery by query (`newer_than:1d`).
+- **Watch renewal.** `gmail-turo-watch-renew.timer` runs daily (watches expire after 7 days) and calls `gmail_turo_watch.py renew`, which is one `users.watch` call. By default it has no label filter, because co-host guest mail skips INBOX. `GMAIL_WATCH_LABEL_IDS` narrows it. If the stored watch had already **lapsed** (its expiration is in the past), renew then runs one catch-up sync from the stored historyId, with the same expired-historyId recovery. Renew and the run service share a file lock on `state.json`.
 - **Kill switches.**
-  - `TURO_EMAIL_DISABLED=1`, or the existing `TURO_HOOK_DISABLED=1`, turns the email path off.
-  - `TURO_EMAIL_SHADOW=1` logs the verdict (`new` / `duplicate` / `cross_duplicate`, suppressed, urgent) and writes nothing.
+  - Relay side: `TURO_EMAIL_DISABLED=1`, or the existing `TURO_HOOK_DISABLED=1`, turns the email path off (the relay answers `ignored`).
+  - Watcher side: `TURO_EMAIL_DISABLED=1` in `~/.config/gmail-turo-watch/env` makes `gmail_turo_watch.py run` idle. It opens no stream, reads no Gmail and acks nothing, so notifications stay queued in the subscription (up to its retention). Remove it and restart to resume; the catch-up then picks up from the stored historyId.
+  - `TURO_EMAIL_SHADOW=1` logs the verdict (`new` / `duplicate` / `cross_duplicate`, suppressed, urgent) and writes nothing to relay state, the inbox or the webhooks. **The watcher still advances `historyId` and marks those Gmail messages processed**, so going live does not replay shadow-period mail. Messages that arrived during shadow reach Helm only via the phone path.
   - Leaving `TURO_EMAIL_PORT` unset turns the listener off.
 - **Listener.** It binds 127.0.0.1 only and is never behind Serve or Funnel. It needs `TURO_EMAIL_TOKEN` and refuses requests that carry proxy headers (`Tailscale-Funnel-Request`, `X-Forwarded-For`).
+- **Key file.** `run` refuses to start (exit 2, `refusing to start: service-account key mode is 0o644; run chmod 600 on it`) unless `GOOGLE_APPLICATION_CREDENTIALS` is a regular file with no group/other bits (0600 or 0400).
+- **Known and accepted limits.**
+  - Cross-source dedupe relies on the Turo app's `About <Vehicle> from <Guest>:` notification format. If Turo changes it, phone and email copies of a message both reach Helm (no loss, just doubles) until the regex is updated.
+  - Stacked/summary notifications (several messages in one notification) don't cross-dedupe against the individual emails.
 
 Files: `gmail_turo_watch.py`, `turo_email.py`, `gmail-turo-watch.service`, `gmail-turo-watch-renew.service`, `gmail-turo-watch-renew.timer`, `gmail-turo-watch.env.example`.
+
+GCP (human, once, in the GCP project that owns the Gmail OAuth client; Gmail requires the topic there):
+
+1. Enable the Pub/Sub API.
+2. Create topic `gmail-turo`. Grant `gmail-api-push@system.gserviceaccount.com` **Publisher** on it.
+3. Create topic `gmail-turo-dlq` and a pull subscription `gmail-turo-dlq-hold` on it (retention 7 d) so dead letters can be inspected.
+4. Create the pull subscription `gmail-turo-pi` on `gmail-turo`: ack deadline 60 s, retention 1 d, retry policy 10 s min / 300 s max backoff, **dead-letter topic `gmail-turo-dlq`, max delivery attempts 10**.
+5. Dead-lettering needs the Pub/Sub service agent `service-<PROJECT_NUMBER>@gcp-sa-pubsub.iam.gserviceaccount.com` to have **Publisher on `gmail-turo-dlq`** and **Subscriber on `gmail-turo-pi`**. The console offers to add both when you enable dead lettering.
+6. Create service account `gmail-turo-sub` with **Subscriber on `gmail-turo-pi` only** (no project role). Create one JSON key and copy it to `~/.config/gmail-turo-watch/subscriber-sa.json` on prism, `chmod 600`.
+
+```bash
+# gcloud equivalent (PROJECT = the OAuth client's project id, PN = its project number)
+gcloud services enable pubsub.googleapis.com --project PROJECT
+gcloud pubsub topics create gmail-turo gmail-turo-dlq --project PROJECT
+gcloud pubsub topics add-iam-policy-binding gmail-turo --project PROJECT \
+  --member serviceAccount:gmail-api-push@system.gserviceaccount.com --role roles/pubsub.publisher
+gcloud pubsub subscriptions create gmail-turo-dlq-hold --topic gmail-turo-dlq --message-retention-duration 7d --project PROJECT
+gcloud pubsub subscriptions create gmail-turo-pi --topic gmail-turo --project PROJECT --ack-deadline 60 \
+  --message-retention-duration 1d --min-retry-delay 10s --max-retry-delay 300s \
+  --dead-letter-topic gmail-turo-dlq --max-delivery-attempts 10
+gcloud pubsub topics add-iam-policy-binding gmail-turo-dlq --project PROJECT \
+  --member serviceAccount:service-PN@gcp-sa-pubsub.iam.gserviceaccount.com --role roles/pubsub.publisher
+gcloud pubsub subscriptions add-iam-policy-binding gmail-turo-pi --project PROJECT \
+  --member serviceAccount:service-PN@gcp-sa-pubsub.iam.gserviceaccount.com --role roles/pubsub.subscriber
+gcloud iam service-accounts create gmail-turo-sub --project PROJECT
+gcloud pubsub subscriptions add-iam-policy-binding gmail-turo-pi --project PROJECT \
+  --member serviceAccount:gmail-turo-sub@PROJECT.iam.gserviceaccount.com --role roles/pubsub.subscriber
+gcloud iam service-accounts keys create subscriber-sa.json --iam-account gmail-turo-sub@PROJECT.iam.gserviceaccount.com
+```
+
+No OAuth re-consent is needed: the existing Gmail token already has `gmail.readonly`, which covers `users.watch`, history and message reads.
 
 Setup on prism (after the GCP steps in #1142):
 
@@ -238,7 +283,7 @@ printf %s 8797 | ~/bin/bland-relay-setkey TURO_EMAIL_PORT
 printf %s 1 | ~/bin/bland-relay-setkey TURO_EMAIL_SHADOW              # first 48 h
 systemctl --user restart bland-relay.service                          # log: "turo email listener on 127.0.0.1:8797"
 python3 -m venv ~/.venvs/gmail-turo-watch && ~/.venvs/gmail-turo-watch/bin/pip install 'google-cloud-pubsub>=2.20,<3'
-install -d -m 700 ~/.config/gmail-turo-watch   # env from gmail-turo-watch.env.example (0600) + subscriber SA key (0600)
+install -d -m 700 ~/.config/gmail-turo-watch   # env from gmail-turo-watch.env.example (0600) + subscriber SA key (chmod 600; run refuses anything looser)
 cp deploy/bland-relay/gmail-turo-watch{.service,-renew.service,-renew.timer} ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user start gmail-turo-watch-renew.service && journalctl --user -u gmail-turo-watch-renew -n 5   # "watch ok expires=…"
@@ -366,4 +411,4 @@ python3 -m pytest tests -q
 
 `tests/test_first_contact.py` (#1100, SMSGate mocked, no network) covers, with `FC_REQUIRE_APPROVAL=1`: approval required, chat and SMS approval, no agent/self approval, code/text/ref checks, opt-out at request/approve/send and START, daily and sends-before-reply caps, existing rate limits, expiry/renewal/conversion, both kill switches, list/revoke, audit and CRM outbox records (no body, no secrets, 0600), log redaction, and the `send-904-fc` CLI; the #1102 (a) daily-cap rule for revoked/expired re-requests; and, with approval off (default): immediate add, validation, STOP blocking add/send until START, the daily cap counting re-adds, TTL, no cap reset on re-add, existing rate limits, both kill switches, audit/CRM records, the approve route and SMS `YES <code>` being inert, and `send-904-fc add`.
 
-Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction. The RCS notification route (`tests/test_rcs_webhook.py`) covers: app payload and lenient template parsing, number/title/name-map/unknown sender resolution, token 401, unset/blank token 503 (no path-only mode), path 404, kill switch 503, package/summary filtering, STOP/START, the unknown sender not being allowlisted, dedupe both ways against SMSGate plus repeat notifications and window expiry, the SMSGate head-start wait, forward failure and retry, and log redaction. The Turo relay (`tests/test_turo_relay.py`, #1104, gateway/webhooks mocked and real network blocked) covers: the Turo branch on the same path/token, token 401, unset/blank `RCS_HOOK_TOKEN` refusing the whole route, path 404, other packages still ignored, Messages unchanged, `big_text` preference, the normalized shape, reservation/vehicle/guest parsing with nulls, dedupe (key+text, guest+text, prefix re-post, window expiry, persisted state), suppression (default, env, bad regex), each urgent class, priority, the negative list and env overrides, owner_alert (template, `TURO_OWNER_ALERT_TO` as the only recipient, invalid E.164 disabled and never logged, no number in code, unset, 72 h skip for the owner only, `SMS_SEND_DISABLED`, STOP/START, dedupe, per-guest and hourly limits, relay-wide slot, gateway failure), non-urgent never texting, both kill switches, the trimmed Helm field set and auth (default Bearer, scheme passthrough, custom header, bad header, no key, timeout), JSONL-only when URLs are unset, the trimmed Alexandra `turo_urgent` push, webhook failure/exception isolation, inbox 0600/redaction/retention, and log/secret redaction. The Gmail push path (`tests/test_gmail_turo_watch.py`, #1142, Gmail history/messages from `tests/fixtures/gmail_turo`, webhooks stubbed, network blocked) covers: the parser (both copies, multi-line, HTML-only, non-Turo, booking mail, spoofed DKIM, too old, SPAM/SENT, lookalike domain), end-to-end history sync, the two Gmail copies giving one Helm POST, relay-first and email-first cross-source dedupe, truncated notifications, the guest/vehicle/trip guard and window, unchanged relay-only behavior, co-host suppression, the urgent owner alert + Alexandra, no second owner alert, kill switches, shadow mode, nack on relay or Gmail failure without advancing historyId, history 404 recovery, ack rules, watch renew, the loopback-only listener (token, path, proxy headers), and the unit templates (the only timer is the daily renew).
+Covered: token 401, validation, 72-hour allowlist, STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction. The RCS notification route (`tests/test_rcs_webhook.py`) covers: app payload and lenient template parsing, number/title/name-map/unknown sender resolution, token 401, unset/blank token 503 (no path-only mode), path 404, kill switch 503, package/summary filtering, STOP/START, the unknown sender not being allowlisted, dedupe both ways against SMSGate plus repeat notifications and window expiry, the SMSGate head-start wait, forward failure and retry, and log redaction. The Turo relay (`tests/test_turo_relay.py`, #1104, gateway/webhooks mocked and real network blocked) covers: the Turo branch on the same path/token, token 401, unset/blank `RCS_HOOK_TOKEN` refusing the whole route, path 404, other packages still ignored, Messages unchanged, `big_text` preference, the normalized shape, reservation/vehicle/guest parsing with nulls, dedupe (key+text, guest+text, prefix re-post, window expiry, persisted state), suppression (default, env, bad regex), each urgent class, priority, the negative list and env overrides, owner_alert (template, `TURO_OWNER_ALERT_TO` as the only recipient, invalid E.164 disabled and never logged, no number in code, unset, 72 h skip for the owner only, `SMS_SEND_DISABLED`, STOP/START, dedupe, per-guest and hourly limits, relay-wide slot, gateway failure), non-urgent never texting, both kill switches, the trimmed Helm field set and auth (default Bearer, scheme passthrough, custom header, bad header, no key, timeout), JSONL-only when URLs are unset, the trimmed Alexandra `turo_urgent` push, webhook failure/exception isolation, inbox 0600/redaction/retention, and log/secret redaction. The Gmail push path (`tests/test_gmail_turo_watch.py`, #1142, Gmail history/messages from `tests/fixtures/gmail_turo`, webhooks stubbed, network blocked) covers: the parser (both copies, multi-line, HTML-only, non-Turo, booking mail, spoofed DKIM, too old, SPAM/SENT, lookalike domain), end-to-end history sync, the two Gmail copies giving one Helm POST, relay-first and email-first cross-source dedupe, truncated notifications, the guest/vehicle/trip guard and window, unchanged relay-only behavior, co-host suppression, the urgent owner alert + Alexandra, no second owner alert, kill switches, shadow mode, nack on relay or Gmail failure without advancing historyId, history 404 recovery, ack rules, watch renew, the loopback-only listener (token, path, proxy headers), the unit templates (the only timer is the daily renew), and the #1143 review fixes: topmost-A-R-only auth (forged lower header, missing A-R, non-Gmail top, DMARC fail rejected; real pass accepted), missing internalDate, 4xx skip and 5xx/fetch retry-then-skip with one alert and bounded state, cross-source consumption, the truncation/60% prefix rule, the watcher-side disable switch, catch-up after a lapsed watch, the key-file mode check, and shadow mode advancing historyId.

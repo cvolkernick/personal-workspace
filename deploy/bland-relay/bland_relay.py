@@ -1402,7 +1402,12 @@ TURO_SENTENCE_RE = re.compile(r"(?<=[.!?\n])\s+|\n+")
 # "About <Vehicle> from <Guest>:\n<body>"; the Gmail copy carries the same
 # guest, vehicle and body. xseen entries only ever match the other source.
 TURO_ABOUT_RE = re.compile(r"\AAbout (?P<v>[^\n]{1,80}?) from (?P<g>[^:\n]{1,64}):[ \t]*\n(?P<b>.+)\Z", re.DOTALL)
-TURO_XPREFIX_MIN = 24
+# A shorter body only matches a longer one from the other source when it is a
+# prefix of it AND either ends with a truncation marker or is >= 60% as long.
+TURO_XPREFIX_RATIO = 0.6
+TURO_XPREFIX_MIN = 8
+TURO_XKEEP = 400
+TURO_TRUNC_RE = re.compile(r"\s*(?:…|\.{3})\s*\Z")
 TURO_EMAIL_PATH = "/turo/email"
 TURO_EMAIL_MAX_BODY = 64 * 1024
 TURO_EMAIL_SRC = "gmail"
@@ -1646,8 +1651,11 @@ def _turo_key_reservation(nkey):
 def turo_xinfo(ev):
     """Cross-source identity of a guest message (#1142), or None for other events.
 
-    -> {"g": first name, "v": vehicle, "r": reservation or "", "t": text_key(body)}.
-    Gmail events carry the fields directly; relay events parse "About V from G:\n body".
+    -> {"g": first name, "v": vehicle, "r": reservation or "", "p": first 400 chars of
+    text_key(body) without a trailing "…"/"...", "n": its full length, "h": its hash,
+    "tr": True when a truncation marker was stripped}. Gmail events carry the fields
+    directly; relay events parse "About V from G:\n body" (single-message
+    notifications only; stacked/summary notifications don't cross-dedupe).
     """
     if ev.get("src") == TURO_EMAIL_SRC:
         guest, vehicle, res, body = ev.get("guest"), ev.get("vehicle"), ev.get("reservation_id"), ev.get("text")
@@ -1661,27 +1669,45 @@ def turo_xinfo(ev):
     g, t = _turo_first_name(guest), _text_key(body)
     if not g or not t:
         return None
-    return {"g": g, "v": (vehicle or "").casefold(), "r": str(res or ""), "t": t}
+    trunc = bool(TURO_TRUNC_RE.search(t))
+    if trunc:
+        t = TURO_TRUNC_RE.sub("", t)
+        if not t:
+            return None
+    return {"g": g, "v": (vehicle or "").casefold(), "r": str(res or ""), "p": t[:TURO_XKEEP], "n": len(t),
+            "h": hashlib.sha256(t.encode("utf-8")).hexdigest()[:32], "tr": trunc}
 
 
 def _turo_xmatch(a, b):
+    """Same guest, compatible vehicle/trip, and the same body: identical, or the
+    shorter one is a prefix of the longer and (marked truncated or >= 60% long)."""
     if a.get("g") != b.get("g"):
         return False
     if a.get("v") and b.get("v") and a["v"] != b["v"]:
         return False
     if a.get("r") and b.get("r") and a["r"] != b["r"]:
         return False
-    ta, tb = str(a.get("t") or ""), str(b.get("t") or "")
-    if ta == tb:
+    if a.get("h") and a.get("h") == b.get("h"):
         return True
-    short, long_ = (ta, tb) if len(ta) < len(tb) else (tb, ta)
-    return len(short) >= TURO_XPREFIX_MIN and long_.startswith(short)
+    na, nb = int(a.get("n") or 0), int(b.get("n") or 0)
+    short, long_ = (a, b) if na < nb else (b, a)
+    ns, nl = min(na, nb), max(na, nb)
+    if ns < TURO_XPREFIX_MIN or ns == nl:
+        return False
+    if ns > TURO_XKEEP and not short.get("tr"):
+        return False  # only 400 chars are kept: an unmarked long prefix can't be verified
+    ps, pl = str(short.get("p") or ""), str(long_.get("p") or "")
+    k = min(ns, TURO_XKEEP)
+    if len(ps) < k or len(pl) < k or ps[:k] != pl[:k]:
+        return False
+    return bool(short.get("tr")) or ns >= TURO_XPREFIX_RATIO * nl
 
 
 def _turo_xdup_locked(st, ev, now):
     """Caller holds _turo_lock. -> the other source's record when ev already
-    arrived from it (relay vs Gmail); else records ev and returns None. An entry
-    never matches its own source, so single-source behavior is unchanged."""
+    arrived from it (relay vs Gmail); that record is consumed so it can match
+    only once. Else records ev and returns None. An entry never matches its
+    own source, so single-source behavior is unchanged."""
     xi = turo_xinfo(ev)
     if xi is None:
         return None
@@ -1691,12 +1717,11 @@ def _turo_xdup_locked(st, ev, now):
     src = ev.get("src") or "turo"
     xseen = [r for r in (st.get("xseen") or [])
              if isinstance(r, dict) and now - float(r.get("at") or 0) <= window]
-    for r in xseen:
-        if r.get("src") != src and _turo_xmatch(xi, {"g": r.get("g"), "v": r.get("v"), "r": r.get("r"),
-                                                    "t": r.get("p")}):
-            st["xseen"] = xseen
+    for i, r in enumerate(xseen):
+        if r.get("src") != src and _turo_xmatch(xi, r):
+            st["xseen"] = xseen[:i] + xseen[i + 1:]
             return r
-    xseen.append({"at": now, "src": src, "g": xi["g"], "v": xi["v"], "r": xi["r"], "p": xi["t"][:400]})
+    xseen.append(dict(xi, at=now, src=src))
     st["xseen"] = xseen[-TURO_SEEN_MAX:]
     return None
 
