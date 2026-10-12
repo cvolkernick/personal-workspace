@@ -53,6 +53,10 @@ stderr. The CLI does not exit just because the base is missing, including
 when `INVOCATION_ID` is set. SSH does not see a systemd drop-in, so set the
 vars in the shell that runs publish as well.
 
+### Horizon own origin
+
+Set `HORIZON_PUBLIC_ORIGIN` (e.g. `https://<tailnet-magicdns-host>:10000`, Horizon on its own Tailscale Serve port) in this drop-in to 302 `/horizon/*` GET/HEAD to Horizon's own origin, path and query kept. `/horizon/api/*` and non-GET still proxy. Unset keeps the same-origin proxy. See `research/horizon/README.md`.
+
 ### PWA install origin
 
 Install the desktop/phone app from **Tailscale HTTPS only** (`PRISM_PUBLIC_BASE`).

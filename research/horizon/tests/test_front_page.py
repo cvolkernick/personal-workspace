@@ -128,7 +128,9 @@ class TestFrontPageWithEdition(_LiveServer):
         code, headers, body = self._get("/model")
         self.assertEqual(code, 200)
         self.assertIn("text/html", headers.get("Content-Type", ""))
-        self.assertEqual(body, (HORIZON / "index.html").read_bytes())
+        # Only addition: the site nav after <body> (test_site_nav.py).
+        want = server.with_site_nav((HORIZON / "index.html").read_text(encoding="utf-8"), "/model")
+        self.assertEqual(body.decode("utf-8"), want)
         self.assertIn(b"domain-heat", body)
 
     def test_model_links_back_to_daily_brief(self) -> None:
@@ -147,8 +149,9 @@ class TestFrontPageWithEdition(_LiveServer):
             self.assertEqual(code, want_code, path)
             self.assertEqual(headers.get("Content-Type"), want_ctype, path)
             if want_code == 200 and want_ctype.startswith("text/html"):
-                # Only addition: the install-shell head tags (test_pwa.py).
-                want_body = server.with_pwa_head(want_body)
+                # Only additions: the install-shell head tags (test_pwa.py)
+                # and the site nav after <body> (test_site_nav.py).
+                want_body = server.with_site_nav(server.with_pwa_head(want_body), path)
             self.assertEqual(body.decode("utf-8"), want_body, path)
         latest = json.loads(self._get("/daily-brief/api/latest")[2])
         self.assertTrue(latest["ok"])

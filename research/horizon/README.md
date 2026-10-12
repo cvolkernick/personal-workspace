@@ -47,8 +47,46 @@ files (FCC's `pwa.js` / `sw.js` are not touched):
 
 `server.py` adds the head tags (manifest, theme-color, apple-touch-icon, apple
 meta) to the front page and every `/daily-brief` page; `index.html` (`/model`)
-carries the same tags in its head. Install from the HTTPS lens URL at
-`/horizon/` (iPhone: Safari → Share → Add to Home Screen).
+carries the same tags in its head.
+
+#### Own origin (separate app from FCC)
+
+FCC's manifest and root worker use scope `/` on the FCC origin, so while
+Horizon lives under `/horizon/` there a browser treats it as part of FCC and
+only offers "Open in FCC". Horizon therefore gets its own tailnet origin via
+Tailscale Serve on its own HTTPS port, served at the root. `8443` is taken
+(Funnel → :8799), so Horizon uses `10000`:
+
+```bash
+sudo tailscale serve --bg --yes --https=10000 http://127.0.0.1:8795
+# → https://<tailnet-magicdns-host>:10000/
+```
+
+No base-path setting is needed: the server is root-native, the manifest's
+relative `start_url`/`scope` resolve to `/`, and `pwa.js` registers `sw.js`
+with scope `/`. Then point FCC's `/horizon/*` at it with a
+`financial-command.service` drop-in and restart FCC:
+
+```ini
+[Service]
+Environment=HORIZON_PUBLIC_ORIGIN=https://<tailnet-magicdns-host>:10000
+```
+
+With `HORIZON_PUBLIC_ORIGIN` set, FCC 302-redirects GET/HEAD `/horizon/<path>?<query>`
+to `<origin>/<path>?<query>` (so `/brief/*`, published `/horizon/daily-brief/...`
+links and FCC's Horizon nav keep working). `/horizon/api/*` and non-GET calls
+still proxy, and `/horizon/sw.js` serves a small worker that clears
+`horizon-shell-*` and unregisters the old `/horizon/` registration. Unset, FCC
+keeps the same-origin proxy. Install from the own-origin URL (iPhone: Safari →
+Share → Add to Home Screen).
+
+### Site nav
+
+Every HTML page (front page, `/daily-brief`, the archive, edition permalinks,
+`/model`) gets one sticky top nav: Home, Daily Brief, Archive, Model. Links are
+relative: behind FCC's lens (`X-Forwarded-Prefix`, `<base href="/horizon/">`)
+they are base-relative; on the own origin they climb from the page directory.
+Additive only; the brief keeps its "Daily Brief, not Horizon model output" label.
 
 ### Not the seasonal planner
 

@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import webbrowser
+import re
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -268,6 +269,80 @@ def with_pwa_head(html: str) -> str:
     return PWA_HEAD + html
 
 
+# ---------------------------------------------------------------- site nav
+# One persistent top nav on every Horizon HTML page (front page, /daily-brief,
+# the archive, edition permalinks, /model). Links are relative so they work at
+# the root of Horizon's own origin and under FCC's /horizon/ lens:
+# - Behind the lens (X-Forwarded-Prefix set) FCC injects <base href="/horizon/">,
+#   so links are relative to the app base ("daily-brief", "model").
+# - On Horizon's own origin there is no <base>, so links climb from the page's
+#   directory ("../../daily-brief" on /daily-brief/2026-10-11/pm).
+# Additive only: the brief keeps its "Daily Brief, not Horizon model output"
+# label and the renderer's own topbar/tabbar.
+SITE_NAV_ID = "hz-site-nav"
+SITE_NAV_LINKS = (
+    ("home", "Home", ""),
+    ("daily-brief", "Daily Brief", "daily-brief"),
+    ("archive", "Archive", "daily-brief/archive"),
+    ("model", "Model", "model"),
+)
+_SITE_NAV_CSS = (
+    "<style>#hz-site-nav{position:sticky;top:0;z-index:50;display:flex;gap:.35rem;"
+    "flex-wrap:wrap;align-items:center;padding:.45rem max(.75rem,env(safe-area-inset-left));"
+    "background:#060a10;border-bottom:1px solid #1c2633;font:600 .82rem system-ui,-apple-system,sans-serif}"
+    "#hz-site-nav a{color:#c9d6e3;text-decoration:none;padding:.22rem .65rem;border-radius:999px;"
+    "border:1px solid #1c2633}"
+    "#hz-site-nav a[aria-current=page]{color:#060a10;background:#c9d6e3;border-color:#c9d6e3}</style>"
+)
+_BODY_OPEN = re.compile(r"<body\b[^>]*>", re.I)
+
+
+def site_nav_active(path: str) -> str:
+    p = (path or "/").rstrip("/") or "/"
+    if p == "/":
+        return "home"
+    if p == MODEL_PATH:
+        return "model"
+    if p == "/daily-brief/archive":
+        return "archive"
+    if p == "/daily-brief" or p.startswith("/daily-brief/"):
+        return "daily-brief"
+    return ""
+
+
+def site_nav_prefix(path: str, forwarded_prefix: str = "") -> str:
+    """Relative climb from the page to the app base ("" or "../" * depth)."""
+    if (forwarded_prefix or "").strip():
+        return ""
+    depth = max(0, (path or "/").count("/") - 1)
+    return "../" * depth
+
+
+def site_nav_html(path: str, forwarded_prefix: str = "") -> str:
+    prefix = site_nav_prefix(path, forwarded_prefix)
+    active = site_nav_active(path)
+    links = []
+    for key, label, rel in SITE_NAV_LINKS:
+        href = (prefix + rel) or "./"
+        cur = ' aria-current="page"' if key == active else ""
+        links.append(f'<a href="{href}" data-nav="{key}"{cur}>{label}</a>')
+    return (
+        _SITE_NAV_CSS
+        + f'<nav id="{SITE_NAV_ID}" aria-label="Horizon">'
+        + "".join(links)
+        + "</nav>"
+    )
+
+
+def with_site_nav(html: str, path: str, forwarded_prefix: str = "") -> str:
+    """Insert the site nav right after <body> (idempotent)."""
+    if f'id="{SITE_NAV_ID}"' in html:
+        return html
+    nav = site_nav_html(path, forwarded_prefix)
+    out, n = _BODY_OPEN.subn(lambda m: m.group(0) + nav, html, count=1)
+    return out if n else nav + html
+
+
 class HorizonHandler(SimpleHTTPRequestHandler):
     # Stdlib maps .webmanifest to octet-stream on some Pythons; pin the types.
     extensions_map = {
@@ -305,6 +380,10 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             self.wfile.write(raw)
         return True
 
+    def _forwarded_prefix(self) -> str:
+        # Set only by FCC's /horizon lens (which also injects <base href="/horizon/">).
+        return (self.headers.get("X-Forwarded-Prefix") or "").strip()
+
     def _json(self, code: int, payload: dict) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(code)
@@ -339,7 +418,7 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             return False
         code, ctype, body = res
         if code == 200 and ctype.startswith("text/html"):
-            body = with_pwa_head(body)
+            body = with_site_nav(with_pwa_head(body), urlparse(self.path).path, self._forwarded_prefix())
         raw = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -376,10 +455,13 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         if kind == "brief":
             code, _ctype, body = daily_brief_route("/daily-brief")
             if code == 200:
-                body = with_pwa_head(front_page_html(body))
+                body = with_site_nav(
+                    with_pwa_head(front_page_html(body)), parsed.path, self._forwarded_prefix()
+                )
             self._send_html(code, body.encode("utf-8"))
             return True
-        self._send_html(200, (HORIZON_DIR / "index.html").read_bytes())
+        model = (HORIZON_DIR / "index.html").read_text(encoding="utf-8")
+        self._send_html(200, with_site_nav(model, parsed.path, self._forwarded_prefix()).encode("utf-8"))
         return True
 
     def do_HEAD(self) -> None:  # noqa: N802

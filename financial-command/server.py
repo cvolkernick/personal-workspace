@@ -24,7 +24,10 @@ Serves static UI + APIs:
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
   GET  /brief, /brief/YYYY-MM-DD/am|pm, /brief/archive — Daily Brief newspaper (#1091, brief.py)
   ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796)
-  ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795)
+  ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795). With
+                         HORIZON_PUBLIC_ORIGIN set, GET/HEAD redirect to Horizon's
+                         own origin (path + query kept); /horizon/api/* and
+                         non-GET still proxy
                          Direct LAN :8795 needs HORIZON_BIND_HOST=0.0.0.0.
 
 Usage:
@@ -546,6 +549,61 @@ _ROOT_ABS_REF = re.compile(
 )
 
 
+# Horizon on its own origin (Tailscale Serve on its own HTTPS port). FCC's
+# manifest and root worker use scope "/", so while Horizon lives under
+# /horizon/ on this origin a browser treats it as part of FCC and only offers
+# "Open in FCC". With HORIZON_PUBLIC_ORIGIN set, FCC redirects there instead.
+# /horizon/api/* keeps proxying (health checks, orchestra), as do non-GET calls.
+_HORIZON_PREFIX = "/horizon"
+
+# Served at /horizon/sw.js once Horizon has moved: replaces the #1119 worker
+# registered at scope /horizon/ on this origin, clears its caches, and
+# unregisters itself so the old in-FCC install shell does not linger.
+HORIZON_RETIRE_SW = b"""/* Horizon moved to its own origin. Retire the old /horizon/ worker. */
+self.addEventListener("install", function () { self.skipWaiting(); });
+self.addEventListener("activate", function (event) {
+  event.waitUntil(
+    caches.keys()
+      .then(function (keys) {
+        return Promise.all(keys.filter(function (k) {
+          return k.indexOf("horizon-shell-") === 0;
+        }).map(function (k) { return caches.delete(k); }));
+      })
+      .then(function () { return self.registration.unregister(); })
+  );
+});
+"""
+
+
+def horizon_public_origin() -> str:
+    return prism_public.horizon_public_origin()
+
+
+def horizon_redirect_target(raw_path: str, method: str, origin: str | None = None) -> str | None:
+    """Location on Horizon's own origin for an FCC /horizon/* request, else None.
+
+    /horizon                         -> {origin}/
+    /horizon/daily-brief/2026-10-11/pm?x=1 -> {origin}/daily-brief/2026-10-11/pm?x=1
+    None when HORIZON_PUBLIC_ORIGIN is unset, for non-GET/HEAD, for
+    /horizon/api/*, and for /horizon/sw.js (served as a retiring worker).
+    """
+    origin = horizon_public_origin() if origin is None else origin
+    if not origin or method not in ("GET", "HEAD"):
+        return None
+    parsed = urlparse(raw_path)
+    path = parsed.path
+    if not (path == _HORIZON_PREFIX or path.startswith(_HORIZON_PREFIX + "/")):
+        return None
+    rest = path[len(_HORIZON_PREFIX):] or "/"
+    if rest == "/api" or rest.startswith("/api/") or rest == "/sw.js":
+        return None
+    target = origin + rest
+    if parsed.query:
+        target += "?" + parsed.query
+    # Strip anything that could split the header.
+    return "".join(ch for ch in target if ch >= " " and ch != "\x7f")
+
+
 def lens_proxy_spec(path: str) -> tuple[str, str, tuple[str, int]] | None:
     """Map /fleet/foo → ('/fleet', '/foo', upstream). None if not a lens path."""
     for prefix, addr in LENS_UPSTREAMS.items():
@@ -770,7 +828,33 @@ class FCCHandler(SimpleHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
 
+    def _maybe_redirect_horizon(self) -> bool:
+        origin = horizon_public_origin()
+        if not origin:
+            return False
+        path = urlparse(self.path).path
+        if path == _HORIZON_PREFIX + "/sw.js" and self.command in ("GET", "HEAD"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(HORIZON_RETIRE_SW)))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(HORIZON_RETIRE_SW)
+            return True
+        target = horizon_redirect_target(self.path, self.command, origin)
+        if target is None:
+            return False
+        self.send_response(302)
+        self.send_header("Location", target)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        return True
+
     def _maybe_proxy_lens(self) -> bool:
+        if self._maybe_redirect_horizon():
+            return True
         path = urlparse(self.path).path
         if path in LENS_UPSTREAMS:
             self.send_response(302)

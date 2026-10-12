@@ -97,6 +97,46 @@ def prism_public_origin(environ: dict[str, str] | None = None) -> str:
     return parse_public_base(raw, allow_horizon=False) or ""
 
 
+_HORIZON_SERVE_PORTS = (443, 8443, 10000)
+
+
+def horizon_public_origin(environ: dict[str, str] | None = None) -> str:
+    """Validated HORIZON_PUBLIC_ORIGIN, or "" when unset or invalid.
+
+    Horizon's own tailnet origin (Tailscale Serve on its own HTTPS port, e.g.
+    https://host:10000). When set, FCC redirects /horizon/* there instead of
+    proxying, so Horizon installs as its own app. Only https, a real DNS host,
+    and a Serve port (443, 8443, 10000) are accepted. No path, query, or
+    fragment. A value equal to PRISM_PUBLIC_BASE is refused (redirect loop).
+    """
+    env = os.environ if environ is None else environ
+    text = (env.get("HORIZON_PUBLIC_ORIGIN") or "").strip().rstrip("/")
+    if not text or any(ch.isspace() for ch in text):
+        return ""
+    parts = urlsplit(text)
+    if parts.scheme.lower() != "https" or not parts.netloc:
+        return ""
+    if parts.username is not None or parts.password is not None:
+        return ""
+    if parts.path or parts.query or parts.fragment:
+        return ""
+    try:
+        port = parts.port
+    except ValueError:
+        return ""
+    if port is not None and port not in _HORIZON_SERVE_PORTS:
+        return ""
+    host = parts.hostname
+    if not host or not _dns_host_ok(host):
+        return ""
+    origin = "https://" + host.lower()
+    if port not in (None, 443):
+        origin += f":{port}"
+    if origin == prism_public_origin(env):
+        return ""
+    return origin
+
+
 def canonical_https_host(environ: dict[str, str] | None = None) -> str:
     """Hostname of the validated origin, or "" when there is none."""
     origin = prism_public_origin(environ)
