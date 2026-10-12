@@ -447,6 +447,72 @@ class TestQuoteOfTheDay(unittest.TestCase):
         self.assertNotIn(_NO_QUOTE, page)
 
 
+class TestApiQuoteFallback(TmpStore):
+    """Editions saved before the quote fallback have none on disk.
+
+    The page already picks a line. The API must pick the same line, and must
+    not invent the placeholder. A quote that was stored is returned as stored.
+    """
+
+    def _write_raw(self, ed: dict) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+        (self.root / store.edition_filename(ed["date"], ed["edition"])).write_text(
+            json.dumps(ed, ensure_ascii=False), encoding="utf-8"
+        )
+
+    def _blockquote(self, page: str) -> str:
+        m = re.search(r"<blockquote>“(.*?)”</blockquote>", page, re.S)
+        self.assertIsNotNone(m, page)
+        return html.unescape(m.group(1))
+
+    def _cite(self, page: str) -> str:
+        m = re.search(r"<cite>— (.*?)</cite>", page)
+        self.assertIsNotNone(m, page)
+        return html.unescape(m.group(1))
+
+    def test_old_edition_without_a_quote_matches_the_page(self):
+        ed = sample("sample-empty-todos")
+        self.assertNotIn("quote", ed)
+        self._write_raw(ed)
+        picked = quotes.quote_for(ed["date"], ed["edition"])
+        _, _, page = render.route(f"/daily-brief/{ed['date']}/{ed['edition']}", root=self.root)
+        _, _, latest = render.route("/daily-brief", root=self.root)
+        code, ctype, body = render.route("/daily-brief/api/latest", root=self.root)
+        self.assertEqual(code, 200)
+        self.assertIn("application/json", ctype)
+        api_ed = json.loads(body)["edition"]
+        self.assertEqual(api_ed["quote"], {"text": picked["text"], "by": picked["by"]})
+        self.assertEqual(self._blockquote(page), picked["text"])
+        self.assertEqual(self._cite(page), picked["by"])
+        self.assertEqual(self._blockquote(latest), picked["text"])
+        self.assertEqual(self._cite(latest), picked["by"])
+        self.assertNotIn(_NO_QUOTE, page)
+        self.assertNotIn(_NO_QUOTE, latest)
+        self.assertNotIn(_NO_QUOTE, body)
+        stored = store.load_edition(ed["date"], ed["edition"], self.root)
+        self.assertNotIn("quote", stored)
+        self.assertEqual({k: v for k, v in api_ed.items() if k != "quote"}, stored)
+
+    def test_stored_quote_is_unchanged(self):
+        for name in ("sample-am", "sample-pm"):
+            for path in self.root.iterdir():
+                path.unlink()
+            ed = sample(name)
+            self._write_raw(ed)
+            stored = store.load_edition(ed["date"], ed["edition"], self.root)
+            _, _, page = render.route(
+                f"/daily-brief/{ed['date']}/{ed['edition']}", root=self.root
+            )
+            code, _, body = render.route("/daily-brief/api/latest", root=self.root)
+            self.assertEqual(code, 200, name)
+            api_ed = json.loads(body)["edition"]
+            self.assertEqual(api_ed, stored, name)
+            text = stored["quote"] if isinstance(stored["quote"], str) else stored["quote"]["text"]
+            self.assertEqual(self._blockquote(page), text, name)
+            self.assertNotIn(_NO_QUOTE, body, name)
+            self.assertNotIn(_NO_QUOTE, page, name)
+
+
 class TestNoQuotePlaceholder(RenderBase):
     def test_placeholder_absent_from_every_sample_page(self):
         pages = (
