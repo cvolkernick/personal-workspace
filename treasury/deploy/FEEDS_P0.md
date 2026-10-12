@@ -20,8 +20,8 @@ RH + Braiins + CB price + fund-manager are Pi-produced.
 | 2 | Pi pull accept window **12 → 6h** (matches FCC stale / alert threshold) |
 | 3 | **#518** RH producer = prism/Pi (`TREASURY_RH_ROLE=producer`). Mac launchd unloaded or consumer-only |
 | 4 | **#689** Braiins producer = prism/Pi (`braiins-refresh.timer` every **4h**). Mac launchd retired. Token at `~/.config/braiins/token` on prism-agent, never `treasury/config.json`. |
-| 5 | After Mac **non-RH / non-Braiins / non-CB-price** success → push YNAB/Sheet/Solana/treasury → Pi. **Not** `robinhood_latest.json`, `braiins_latest.json`, or `coinbase_latest.json` |
-| 6 | **Coinbase balances + Solana** Mac producer hourly (`com.personalworkspace.cb-solana-refresh`). **BTC/USD price** is Pi (`coinbase-price-refresh.timer` every **2h**, #695). |
+| 5 | After Mac **non-RH / non-Braiins / non-CB-price / non-Solana** success → push YNAB/Sheet/treasury → Pi. **Not** `robinhood_latest.json`, `braiins_latest.json`, `coinbase_latest.json`, or `solana_latest.json` |
+| 6 | **Coinbase balances** Mac producer hourly (`com.personalworkspace.cb-solana-refresh`). **BTC/USD price** is Pi (`coinbase-price-refresh.timer` every **2h**, #695). **Solana** is Pi (`solana-refresh.timer` user unit every **15min**, `SOLANA_PRODUCER.md`); the Mac job no longer pushes `solana_latest.json`. |
 | 7 | **#555** #701 gates: no comment on `skipped` / `no_refresh_path`; no comment on `local_mcp_timeout` if `as_of` is under 6h or MCP is not the live path; Mac leftover fund-manager must not treat `rh_checking` as RH brokerage. Do **not** reload Mac `rh-refresh`. |
 | 8 | **#668** YNAB cash snapshots (One Card / RH Checking / X Money): dedicated `ynab-refresh` every **3h** on Pi systemd + Mac launchd. Not a fund-manager sidecar (weekdays/market-hours only). |
 | 9 | **#689** Braiins cutover: see `BRAIINS_PRODUCER.md`. Smoke `payouts` list on Pi, then disarm Mac launchd. |
