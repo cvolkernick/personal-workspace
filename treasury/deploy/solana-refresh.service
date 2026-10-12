@@ -1,0 +1,18 @@
+[Unit]
+Description=Solana wallet snapshot producer (prism/Pi SoT, user unit)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# systemd *user* unit (prism-agent, linger on). Install: SOLANA_PRODUCER.md.
+WorkingDirectory=%h/personal-workspace
+ExecStart=/usr/bin/python3 -m treasury.solana_sync
+Environment=FCC_HOST_TAG=prism
+Environment=TREASURY_SKIP_PUSH_PI=1
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Public Solana RPC + public price only. SOL + USDC whitelist. No keys, no secrets.
+
+[Install]
+WantedBy=default.target

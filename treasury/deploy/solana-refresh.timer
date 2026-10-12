@@ -1,0 +1,11 @@
+[Unit]
+Description=Solana wallet snapshot producer every 15min (FCC freshness, prism SoT)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=true
+Unit=solana-refresh.service
+
+[Install]
+WantedBy=timers.target
