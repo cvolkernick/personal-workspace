@@ -48,7 +48,7 @@ import urllib.request
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -579,11 +579,35 @@ def horizon_public_origin() -> str:
     return prism_public.horizon_public_origin()
 
 
+def normalize_horizon_rest(rest: str) -> str:
+    """Normalize the path after /horizon before redirecting.
+
+    Collapses repeated slashes, drops "." segments and resolves ".." without
+    ever climbing above Horizon's root (also when percent-encoded as %2e).
+    Other segments keep their original encoding. A trailing slash is kept.
+    """
+    out: list[str] = []
+    for seg in (rest or "/").split("/"):
+        dec = unquote(seg).lower()
+        if dec in ("", "."):
+            continue
+        if dec == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(seg)
+    norm = "/" + "/".join(out)
+    if out and (rest or "").endswith("/"):
+        norm += "/"
+    return norm
+
+
 def horizon_redirect_target(raw_path: str, method: str, origin: str | None = None) -> str | None:
     """Location on Horizon's own origin for an FCC /horizon/* request, else None.
 
     /horizon                         -> {origin}/
     /horizon/daily-brief/2026-10-11/pm?x=1 -> {origin}/daily-brief/2026-10-11/pm?x=1
+    //horizon//daily-brief/./x/../archive -> {origin}/daily-brief/archive (normalized)
     None when HORIZON_PUBLIC_ORIGIN is unset, for non-GET/HEAD, for
     /horizon/api/*, and for /horizon/sw.js (served as a retiring worker).
     """
@@ -594,7 +618,7 @@ def horizon_redirect_target(raw_path: str, method: str, origin: str | None = Non
     path = parsed.path
     if not (path == _HORIZON_PREFIX or path.startswith(_HORIZON_PREFIX + "/")):
         return None
-    rest = path[len(_HORIZON_PREFIX):] or "/"
+    rest = normalize_horizon_rest(path[len(_HORIZON_PREFIX):] or "/")
     if rest == "/api" or rest.startswith("/api/") or rest == "/sw.js":
         return None
     target = origin + rest
@@ -833,7 +857,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if not origin:
             return False
         path = urlparse(self.path).path
-        if path == _HORIZON_PREFIX + "/sw.js" and self.command in ("GET", "HEAD"):
+        is_hz = path == _HORIZON_PREFIX or path.startswith(_HORIZON_PREFIX + "/")
+        rest = normalize_horizon_rest(path[len(_HORIZON_PREFIX):]) if is_hz else ""
+        if rest == "/sw.js" and self.command in ("GET", "HEAD"):
             self.send_response(200)
             self.send_header("Content-Type", "text/javascript; charset=utf-8")
             self.send_header("Content-Length", str(len(HORIZON_RETIRE_SW)))
