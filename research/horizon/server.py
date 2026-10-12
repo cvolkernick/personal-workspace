@@ -28,7 +28,7 @@ import webbrowser
 import re
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 HORIZON_DIR = Path(__file__).resolve().parent
 ROOT = HORIZON_DIR.parents[1]
@@ -285,6 +285,7 @@ SITE_NAV_LINKS = (
     ("daily-brief", "Daily Brief", "daily-brief"),
     ("archive", "Archive", "daily-brief/archive"),
     ("model", "Model", "model"),
+    ("directory", "Directory", "directory"),
 )
 _SITE_NAV_CSS = (
     "<style>#hz-site-nav{position:sticky;top:0;z-index:50;display:flex;gap:.35rem;"
@@ -303,6 +304,8 @@ def site_nav_active(path: str) -> str:
         return "home"
     if p == MODEL_PATH:
         return "model"
+    if p == DIRECTORY_PATH or p.startswith(DIRECTORY_PATH + "/"):
+        return "directory"
     if p == "/daily-brief/archive":
         return "archive"
     if p == "/daily-brief" or p.startswith("/daily-brief/"):
@@ -341,6 +344,48 @@ def with_site_nav(html: str, path: str, forwarded_prefix: str = "") -> str:
     nav = site_nav_html(path, forwarded_prefix)
     out, n = _BODY_OPEN.subn(lambda m: m.group(0) + nav, html, count=1)
     return out if n else nav + html
+
+
+# ---------------------------------------------------------------- directory
+# Team & Systems Directory sub-page (not the front page). The HTML is generated
+# by directory/build.py and committed; the PDF is built from it on prism by
+# directory/make_pdf.sh (headless Chromium) and is not committed.
+DIRECTORY_PATH = "/directory"
+DIRECTORY_DIR = HORIZON_DIR / "directory"
+DIRECTORY_PDF_NAME = "team-directory.pdf"
+DIRECTORY_PDF_PATH = DIRECTORY_PATH + "/" + DIRECTORY_PDF_NAME
+_DIRECTORY_BAR = (
+    '<div id="hz-dir-pdf" style="display:flex;gap:.5rem;justify-content:flex-end;'
+    'padding:.35rem max(.75rem,env(safe-area-inset-left));background:#0b121b;'
+    'font:600 .78rem system-ui,-apple-system,sans-serif">'
+    '<a href="{base}team-directory.pdf" target="_blank" rel="noopener" '
+    'style="color:#c9d6e3">View PDF</a>'
+    '<a href="{base}team-directory.pdf?download=1" download '
+    'style="color:#c9d6e3">Download PDF</a></div>'
+)
+
+
+def directory_route(path: str, query: str):
+    """("redirect", loc) | ("html", None) | ("pdf", attachment: bool) | None."""
+    if path == DIRECTORY_PATH + "/" or path == DIRECTORY_PATH + "/index.html":
+        return ("redirect", DIRECTORY_PATH)
+    if path == DIRECTORY_PATH:
+        return ("html", None)
+    if path == DIRECTORY_PDF_PATH:
+        dl = parse_qs(query or "").get("download", [""])[0].lower() in ("1", "true", "yes")
+        return ("pdf", dl)
+    return None
+
+
+def directory_html(path: str, forwarded_prefix: str = "") -> str | None:
+    try:
+        raw = (DIRECTORY_DIR / "index.html").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    base = "directory/" if (forwarded_prefix or "").strip() else site_nav_prefix(path) + "directory/"
+    page = with_site_nav(with_pwa_head(raw), path, forwarded_prefix)
+    bar = _DIRECTORY_BAR.format(base=base)
+    return page.replace("</nav>", "</nav>" + bar, 1)
 
 
 class HorizonHandler(SimpleHTTPRequestHandler):
@@ -464,12 +509,51 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         self._send_html(200, with_site_nav(model, parsed.path, self._forwarded_prefix()).encode("utf-8"))
         return True
 
+    def _maybe_serve_directory(self) -> bool:
+        parsed = urlparse(self.path)
+        res = directory_route(parsed.path, parsed.query)
+        if res is None:
+            return False
+        kind, arg = res
+        if kind == "redirect":
+            self.send_response(302)
+            self.send_header("Location", arg)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        if kind == "html":
+            page = directory_html(parsed.path, self._forwarded_prefix())
+            if page is None:
+                self._send_html(404, b"<h1>Directory not built</h1>")
+            else:
+                self._send_html(200, page.encode("utf-8"))
+            return True
+        try:
+            raw = (DIRECTORY_DIR / DIRECTORY_PDF_NAME).read_bytes()
+        except OSError:
+            self._send_html(404, b"<h1>PDF not built yet (run directory/make_pdf.sh)</h1>")
+            return True
+        disp = "attachment" if arg else "inline"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Disposition", f'{disp}; filename="{DIRECTORY_PDF_NAME}"')
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+        return True
+
     def do_HEAD(self) -> None:  # noqa: N802
+        if self._maybe_serve_directory():
+            return
         if self._maybe_serve_daily_brief() or self._maybe_serve_landing() or self._maybe_serve_pwa_icon():
             return
         return super().do_HEAD()
 
     def do_GET(self) -> None:  # noqa: N802
+        if self._maybe_serve_directory():
+            return
         if self._maybe_serve_daily_brief():
             return
         parsed = urlparse(self.path)

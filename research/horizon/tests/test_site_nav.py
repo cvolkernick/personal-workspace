@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Persistent Horizon top nav (Home, Daily Brief, Archive, Model) on every page.
+"""Persistent Horizon top nav (Home, Daily Brief, Archive, Model, Directory) on every page.
 
 Links must resolve on Horizon's own origin (served at /) and behind FCC's
 /horizon/ lens (X-Forwarded-Prefix + injected <base href="/horizon/">).
@@ -43,12 +43,14 @@ PAGES = {
     "/daily-brief/archive": "archive",
     "/daily-brief/2026-10-09/am": "daily-brief",
     "/model": "model",
+    "/directory": "directory",
 }
 EXPECT = {
     "home": "/",
     "daily-brief": "/daily-brief",
     "archive": "/daily-brief/archive",
     "model": "/model",
+    "directory": "/directory",
 }
 _NAV_RE = re.compile(r'<nav id="hz-site-nav"[^>]*>(.*?)</nav>', re.S)
 _LINK_RE = re.compile(r'<a href="([^"]*)" data-nav="([a-z-]+)"([^>]*)>')
@@ -113,7 +115,7 @@ class TestSiteNav(unittest.TestCase):
             self.assertEqual(code, 200, path)
             html = body.decode("utf-8")
             links = self._links(html)
-            self.assertEqual(list(links), ["home", "daily-brief", "archive", "model"], path)
+            self.assertEqual(list(links), ["home", "daily-brief", "archive", "model", "directory"], path)
             for key, (_href, rest) in links.items():
                 self.assertEqual("aria-current" in rest, key == active, f"{path} {key}")
             # Nav sits right after <body ...>, before the page content.
