@@ -4408,7 +4408,45 @@
               money(solSnap.sol_usd)
           ),
           metric("On-chain USDC", money(inp.solana_usdc ?? solSnap.usdc)),
-          metric(
+          metric("Wallet", w ? w.slice(0, 4) + "…" + w.slice(-4) : "—"),
+          metric("Feed", (solSnap.source || "—") + (solSnap.slot ? " · slot " + solSnap.slot : "")),
+        ].join("");
+      }
+      const solHoldEl = document.getElementById("solana-holdings");
+      if (solHoldEl) {
+        const expl = solSnap.explorer
+          ? `<p class="hint"><a href="${escapeHtml(solSnap.explorer)}" target="_blank" rel="noopener">Solscan →</a>` +
+            (solSnap.ignored_token_accounts
+              ? ` · ${solSnap.ignored_token_accounts} non-book token accounts ignored`
+              : "") +
+            `</p>`
+          : "";
+        solHoldEl.innerHTML =
+          expl +
+          (solHold.length
+            ? solHold
+                .map((h) =>
+                  metric(
+                    h.symbol || "?",
+                    (h.amount != null ? Number(h.amount).toFixed(4) : "—") +
+                      " · " +
+                      money(h.usd) +
+                      (h.role ? " · " + h.role : "")
+                  )
+                )
+                .join("")
+            : `<p class="hint">No whitelist holdings yet — Refresh FCC</p>`);
+      }
+
+      // Bills side panel (pay-from + KPIs). List filled by coach when available.
+      // Pay-urgency list: Essential + Fleet ops + Collateral (awareness). Burn = funded unique Fleet only.
+      // Productive / Consumer stay capital-targets only. Essential renamed from Personal.
+      const persTab = (ex.tabs && (ex.tabs.Essential || ex.tabs.Personal)) || {};
+      const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};
+      const collTab = (ex.tabs && ex.tabs.Collateral) || {};
+      const discTab =
+        (ex.tabs &&
+          (ex.tabs["Productive Discretionary"] ||
             ex.tabs.Discretionary)) ||
         {};
       const consumerTab =
