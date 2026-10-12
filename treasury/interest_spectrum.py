@@ -1277,7 +1277,13 @@ def build_interest_spectrum(
         snap_xm = (treasury.get("snapshot") or {}).get("x_money")
         if isinstance(snap_xm, dict):
             x_money = snap_xm
-    solana = solana if isinstance(solana, dict) else _load_json(SOLANA_SNAPSHOT)
+    if not isinstance(solana, dict):
+        try:
+            from treasury.solana_sync import load_preferred_solana
+
+            solana = load_preferred_solana(snapshot_path=SOLANA_SNAPSHOT) or {}
+        except Exception:  # noqa: BLE001 — chip read must not fail the spectrum
+            solana = _load_json(SOLANA_SNAPSHOT)
     if not solana:
         snap_sol = (treasury.get("snapshot") or {}).get("solana")
         if isinstance(snap_sol, dict):

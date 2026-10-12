@@ -5,6 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# A hung fetch must not wedge the timer (oneshot has no default cap).
+TimeoutStartSec=5min
 User=prism-agent
 Group=prism-agent
 WorkingDirectory=/home/prism-agent/personal-workspace
