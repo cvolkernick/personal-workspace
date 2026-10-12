@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Persistent Horizon top nav (Home, Daily Brief, Archive, Model) on every page.
+"""Persistent Horizon top nav (Home, Daily Brief, Archive, Model, Directory) on every page.
 
 Links must resolve on Horizon's own origin (served at /) and behind FCC's
 /horizon/ lens (X-Forwarded-Prefix + injected <base href="/horizon/">).
@@ -43,12 +43,14 @@ PAGES = {
     "/daily-brief/archive": "archive",
     "/daily-brief/2026-10-09/am": "daily-brief",
     "/model": "model",
+    "/directory": "directory",
 }
 EXPECT = {
     "home": "/",
     "daily-brief": "/daily-brief",
     "archive": "/daily-brief/archive",
     "model": "/model",
+    "directory": "/directory",
 }
 _NAV_RE = re.compile(r'<nav id="hz-site-nav"[^>]*>(.*?)</nav>', re.S)
 _LINK_RE = re.compile(r'<a href="([^"]*)" data-nav="([a-z-]+)"([^>]*)>')
@@ -80,6 +82,15 @@ class TestSiteNav(unittest.TestCase):
         store.publish(copy.deepcopy(ed), root=Path(cls._tmp.name))
         cls._env = mock.patch.dict(os.environ, {"DAILY_BRIEF_DIR": cls._tmp.name})
         cls._env.start()
+        # Directory content is prism-local; use a placeholder fixture page.
+        dird = Path(cls._tmp.name) / "directory-fixture"
+        dird.mkdir()
+        (dird / "index.html").write_text(
+            "<!doctype html><html><head><title>Fixture</title></head><body><p>Example</p></body></html>",
+            encoding="utf-8",
+        )
+        cls._dir = mock.patch.object(server, "DIRECTORY_DIR", dird)
+        cls._dir.start()
         cls.port = _free_port()
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", cls.port), server.HorizonHandler)
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
@@ -92,6 +103,7 @@ class TestSiteNav(unittest.TestCase):
         cls.httpd.server_close()
         cls.thread.join(timeout=5)
         cls._env.stop()
+        cls._dir.stop()
         cls._tmp.cleanup()
 
     def _get(self, path: str, headers: dict[str, str] | None = None, method: str = "GET"):
@@ -113,7 +125,7 @@ class TestSiteNav(unittest.TestCase):
             self.assertEqual(code, 200, path)
             html = body.decode("utf-8")
             links = self._links(html)
-            self.assertEqual(list(links), ["home", "daily-brief", "archive", "model"], path)
+            self.assertEqual(list(links), ["home", "daily-brief", "archive", "model", "directory"], path)
             for key, (_href, rest) in links.items():
                 self.assertEqual("aria-current" in rest, key == active, f"{path} {key}")
             # Nav sits right after <body ...>, before the page content.
