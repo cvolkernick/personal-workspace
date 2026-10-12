@@ -113,6 +113,35 @@ class TestRedirectTarget(unittest.TestCase):
         self.assertEqual(t("/horizon/model?tab=world", "GET", HZ), HZ + "/model?tab=world")
         self.assertEqual(t("/horizon/manifest.webmanifest", "GET", HZ), HZ + "/manifest.webmanifest")
 
+    def test_path_is_normalized_query_kept(self) -> None:
+        n = self.mod.normalize_horizon_rest
+        self.assertEqual(n("/"), "/")
+        self.assertEqual(n(""), "/")
+        self.assertEqual(n("//daily-brief///archive"), "/daily-brief/archive")
+        self.assertEqual(n("/daily-brief/./2026-10-09/../archive"), "/daily-brief/archive")
+        self.assertEqual(n("/../../etc/passwd"), "/etc/passwd")
+        self.assertEqual(n("/a/%2e%2E/b"), "/b")
+        self.assertEqual(n("/a/%2e/b"), "/a/b")
+        self.assertEqual(n("/daily-brief/"), "/daily-brief/")
+        self.assertEqual(n("/a%20b/c"), "/a%20b/c")
+        t = self.mod.horizon_redirect_target
+        self.assertEqual(
+            t("/horizon//daily-brief/./x/../archive?x=1&y=a/../b", "GET", HZ),
+            HZ + "/daily-brief/archive?x=1&y=a/../b",
+        )
+        self.assertEqual(t("/horizon/../../model?tab=world", "GET", HZ), HZ + "/model?tab=world")
+        self.assertEqual(t("/horizon//", "GET", HZ), HZ + "/")
+        # Normalization never turns a page into a redirect around the API or worker carve-outs.
+        self.assertIsNone(t("/horizon//api/health", "GET", HZ))
+        self.assertIsNone(t("/horizon/x/../api/health", "GET", HZ))
+        self.assertIsNone(t("/horizon/./sw.js", "GET", HZ))
+        for path in ("/horizon/a/../b", "/horizon//x//y", "/horizon/%2e%2e/%2e%2e/z"):
+            loc = t(path, "GET", HZ)
+            self.assertTrue(loc.startswith(HZ + "/"), path)
+            rest = loc[len(HZ):]
+            self.assertNotIn("//", rest, path)
+            self.assertNotIn("/../", rest + "/", path)
+
     def test_not_redirected(self) -> None:
         t = self.mod.horizon_redirect_target
         self.assertIsNone(t("/horizon/daily-brief", "GET", ""))
@@ -178,6 +207,14 @@ class TestFccServesRedirect(unittest.TestCase):
             code, _, _, body = self._req("POST", "/horizon/api/refresh", b"{}")
             self.assertEqual(code, 200)
             self.assertIn(b'"posted":true', body)
+
+    def test_set_redirect_is_normalized_over_http(self) -> None:
+        with mock.patch.dict(os.environ, {"HORIZON_PUBLIC_ORIGIN": HZ}):
+            code, loc, _, _ = self._req("GET", "/horizon//daily-brief/./a/../archive?x=1")
+            self.assertEqual((code, loc), (302, HZ + "/daily-brief/archive?x=1"))
+            code, _, ctype, body = self._req("GET", "/horizon/./sw.js")
+            self.assertEqual(code, 200)
+            self.assertIn(b"self.registration.unregister()", body)
 
     def test_set_serves_retiring_worker(self) -> None:
         with mock.patch.dict(os.environ, {"HORIZON_PUBLIC_ORIGIN": HZ}):
