@@ -5,8 +5,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import socket
 import struct
+import subprocess
 import sys
 import threading
 import unittest
@@ -128,6 +130,20 @@ class TestFccPwaFiles(unittest.TestCase):
         precache = src.split("const PRECACHE = [", 1)[1].split("];", 1)[0]
         self.assertNotIn(".json", precache)
         self.assertNotIn("/api/", precache)
+
+    def test_sw_activate_only_prunes_fcc_shell_caches(self) -> None:
+        src = (FCC / "sw.js").read_text(encoding="utf-8")
+        self.assertIn('const CACHE_PREFIX = "fcc-shell-";', src)
+        activate = src.split('addEventListener("activate"', 1)[1].split("addEventListener(", 1)[0]
+        self.assertIn("k.startsWith(CACHE_PREFIX)", activate)
+        self.assertNotIn(".filter((k) => k !== CACHE)", activate)
+
+    def test_sw_fetch_skips_horizon_and_fleet(self) -> None:
+        src = (FCC / "sw.js").read_text(encoding="utf-8")
+        self.assertIn('p.startsWith("/horizon/")', src)
+        self.assertIn('p.startsWith("/fleet/")', src)
+        fetch = src.split('addEventListener("fetch"', 1)[1]
+        self.assertLess(fetch.index("isSiblingApp(url)) return;"), fetch.index("event.respondWith("))
 
     def test_html_surfaces_link_manifest_and_register_sw(self) -> None:
         pwa = (FCC / "pwa.js").read_text(encoding="utf-8")
@@ -492,6 +508,77 @@ class TestFccPwaHttp(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn(b'var CANONICAL_HTTPS_ORIGIN = "";', invalid)
         self.assertNotIn(b"prism.example.ts.net", invalid)
+
+
+_SW_HARNESS = r"""
+const fs = require("fs");
+const vm = require("vm");
+const src = fs.readFileSync(process.argv[process.argv.length - 1], "utf8");
+const listeners = {};
+const deleted = [];
+let keys = ["fcc-shell-v1", "fcc-shell-v7", "horizon-shell-v1", "fleet-shell-v2", "other"];
+const caches = {
+  keys: async () => keys.slice(),
+  delete: async (k) => { deleted.push(k); keys = keys.filter((x) => x !== k); return true; },
+  open: async () => ({ addAll: async () => {}, put: async () => {} }),
+  match: async () => undefined,
+};
+const self = {
+  location: new URL("https://fcc.unit.ts.net/sw.js"),
+  addEventListener: (t, fn) => { listeners[t] = fn; },
+  skipWaiting: async () => {},
+  clients: { claim: async () => {} },
+};
+vm.runInNewContext(src, { self, caches, URL, Promise, fetch: async () => ({ ok: true, clone() { return this; } }) });
+(async () => {
+  let wait;
+  listeners.activate({ waitUntil: (p) => { wait = p; } });
+  await wait;
+  const responded = {};
+  for (const path of [
+    "/", "/financial-command/index.html", "/pwa.js",
+    "/horizon", "/horizon/", "/horizon/daily-brief", "/horizon/daily-brief/api/editions",
+    "/horizon/model", "/horizon/sw.js", "/fleet/", "/fleet/api/x", "/api/treasury",
+  ]) {
+    let hit = false;
+    listeners.fetch({
+      request: { method: "GET", url: "https://fcc.unit.ts.net" + path },
+      respondWith: () => { hit = true; },
+    });
+    responded[path] = hit;
+  }
+  process.stdout.write(JSON.stringify({ deleted, keys, responded }));
+})();
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TestFccSwBehavior(unittest.TestCase):
+    """Run sw.js under node with stubbed caches/fetch (#1119 follow-up)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        out = subprocess.run(
+            ["node", "-e", _SW_HARNESS, str(FCC / "sw.js")],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+        cls.result = json.loads(out.stdout)
+
+    def test_activate_deletes_only_old_fcc_shells(self) -> None:
+        self.assertEqual(sorted(self.result["deleted"]), ["fcc-shell-v1", "fcc-shell-v7"])
+        for keep in ("horizon-shell-v1", "fleet-shell-v2", "other"):
+            self.assertIn(keep, self.result["keys"])
+
+    def test_fetch_never_responds_for_horizon_or_fleet(self) -> None:
+        r = self.result["responded"]
+        for path in (
+            "/horizon", "/horizon/", "/horizon/daily-brief",
+            "/horizon/daily-brief/api/editions", "/horizon/model", "/horizon/sw.js",
+            "/fleet/", "/fleet/api/x", "/api/treasury",
+        ):
+            self.assertFalse(r[path], path)
+        for path in ("/", "/financial-command/index.html", "/pwa.js"):
+            self.assertTrue(r[path], path)
 
 
 if __name__ == "__main__":
