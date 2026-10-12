@@ -140,10 +140,43 @@ def _quote_html(q: Any) -> str:
     return f"<blockquote>“{_e(text)}”</blockquote>{cite}"
 
 
-def _item_html(it: Any) -> str:
+def _http_image(url: Any) -> str | None:
+    """An http(s) image URL, or None. The page HTML-escapes the src."""
+    if not _is_http(url):
+        return None
+    return url
+
+
+def _figure(url: str | None, cls: str) -> str:
+    if not url:
+        return ""
+    return f'<figure class="{cls}"><img src="{_e(url)}" alt="" loading="lazy"></figure>'
+
+
+def _image_index(raw: Any) -> dict[str, dict]:
+    """Section id to an http(s) section image and item images, keyed by text."""
+    out: dict[str, dict] = {}
+    if not isinstance(raw, dict):
+        return out
+    for section in raw.get("sections") or []:
+        if not isinstance(section, dict) or not isinstance(section.get("id"), str):
+            continue
+        items: dict[str, str] = {}
+        for it in section.get("items") or []:
+            if not isinstance(it, dict) or not isinstance(it.get("text"), str):
+                continue
+            url = _http_image(it.get("image"))
+            if url and it["text"] not in items:
+                items[it["text"]] = url
+        out[section["id"]] = {"image": _http_image(section.get("image")), "items": items}
+    return out
+
+
+def _item_html(it: Any, image: str | None = None) -> str:
+    fig = _figure(image, "item-fig")
     if isinstance(it, str):
-        return f"<li>{_e(it)}</li>"
-    return f"<li>{_link(it.get('text', ''), it.get('link'))}</li>"
+        return f"<li>{_e(it)}{fig}</li>"
+    return f"<li>{_link(it.get('text', ''), it.get('link'))}{fig}</li>"
 
 
 def _chip(text: str, cls: str) -> str:
@@ -271,73 +304,98 @@ def _item_text(it: Any) -> str:
 
 
 # Horizon base palette and type (research/horizon/index.html :root). Dark only, like Horizon.
+# Mobile first. Boxes, pills and badges stay out so the lead and the section
+# titles can carry the page.
 _CSS = r"""
 :root{--bg:#060a10;--panel:#0f1620;--panel2:#121c28;--border:#1c2a3a;--border2:#2a3d52;--text:#e8eef6;--muted:#7f96ad;--dim:#5a7085;
 --red:#ff6b6b;--accent:#5b9fd4;--cyan:#4fd1c5;--radius:.6rem;
 --sans:"Segoe UI",ui-sans-serif,system-ui,-apple-system,sans-serif;--serif:Georgia,"Times New Roman",serif}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14.5px;line-height:1.45;overflow-x:hidden;min-height:100vh}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:17px;line-height:1.6;overflow-x:hidden;min-height:100vh}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.muted{color:var(--muted)}.red{color:var(--red)}
-.paper{max-width:1040px;margin:0 auto;padding:.75rem .9rem 5.5rem}
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.8rem;margin-bottom:.4rem;flex-wrap:wrap}
-.topbar a{border:1px solid var(--border);border-radius:999px;padding:.2rem .6rem;color:var(--text);background:var(--panel)}
-.stale{border:1px solid var(--red);color:var(--red);border-radius:var(--radius);padding:.4rem .6rem;font-size:.8rem;margin:.4rem 0}
-.head{display:grid;grid-template-columns:1fr 2fr 1fr;gap:.75rem;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.5rem}
-.wx,.qotd{font-size:.8rem;border:1px solid var(--border);border-radius:var(--radius);padding:.45rem .6rem;background:var(--panel);min-width:0}
-.wx h4,.qotd h4{margin:0 0 .2rem;font:600 .65rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.wx-temp{font:700 1.1rem var(--serif)}
-.qotd blockquote{margin:0;font:italic .85rem var(--serif)}.qotd cite{font-size:.72rem;color:var(--muted)}
-.masthead{min-width:0}
-.masthead h1{font-family:var(--serif);font-weight:900;font-size:clamp(2rem,7vw,3.4rem);line-height:1;margin:.1rem 0;letter-spacing:-.01em;overflow-wrap:anywhere}
-.tagline{font:italic .8rem var(--serif);color:var(--muted)}
+.paper{max-width:40rem;margin:0 auto;padding:1.35rem 1.2rem 6.75rem}
+.topbar{display:flex;justify-content:space-between;align-items:baseline;gap:.75rem 1.25rem;flex-wrap:wrap;font:600 .72rem/1.2 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 1.75rem}
+.topbar a{color:var(--muted);background:none;border:0;padding:0}
+.topbar .muted{letter-spacing:.04em;text-transform:none;font-weight:600}
+.stale{border:0;border-left:2px solid var(--red);border-radius:0;color:var(--red);padding:.15rem 0 .15rem .8rem;font-size:.92rem;line-height:1.45;margin:0 0 1.4rem}
+.head{display:flex;flex-direction:column;gap:1.6rem}
+.masthead{order:-1;text-align:center;min-width:0}
+.masthead h1{font-family:var(--serif);font-weight:900;font-size:clamp(2.65rem,11vw,4.6rem);line-height:.92;letter-spacing:-.03em;margin:0 0 .45rem;overflow-wrap:anywhere}
+.tagline{font:italic 1.02rem/1.4 var(--serif);color:var(--muted)}
 .not-model{margin:.2rem 0 0;font:500 .68rem var(--sans);letter-spacing:.01em;color:var(--dim)}
-.dateline{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .8rem;border-top:3px double var(--border2);border-bottom:1px solid var(--border2);padding:.3rem 0;margin:.5rem 0;font:600 .7rem var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin:.6rem 0}
-.card{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:.55rem .65rem;min-width:0;font-size:.8rem}
-.card-k{font:600 .62rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.card-v{font:700 1.05rem var(--sans);overflow-wrap:anywhere}.card ul{margin:.25rem 0 0;padding-left:1rem}.card li{overflow-wrap:anywhere}
+.wx,.qotd{font-size:.98rem;line-height:1.45;min-width:0;background:none;border:0;padding:0}
+.wx h4,.qotd h4{margin:0 0 .4rem;font:600 .68rem/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.wx-temp{font:600 1.45rem/1.15 var(--serif);letter-spacing:-.02em}
+.wx-sum{margin-top:.2rem}.wx-extra{margin-top:.15rem;font-size:.88rem}
+.qotd blockquote{margin:0;font:italic 1.08rem/1.45 var(--serif)}
+.qotd cite{display:block;margin-top:.4rem;font:600 .78rem/1.3 var(--sans);font-style:normal;color:var(--muted)}
+.dateline{display:flex;flex-wrap:wrap;justify-content:center;gap:.4rem 1.1rem;border:0;border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);padding:.7rem 0;margin:1.7rem 0 1.9rem;font:600 .68rem/1.2 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:center}
+.front{border:0;padding:0;margin:0 0 .4rem}
+.theme{font:600 .72rem/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);margin:0 0 .55rem}
+.front h2{font:700 clamp(1.9rem,6.4vw,2.85rem)/1.12 var(--serif);letter-spacing:-.02em;margin:0 0 .7rem;overflow-wrap:anywhere}
+.front .subhead{font:italic 1.16rem/1.45 var(--serif);color:var(--muted);margin:0 0 1.15rem;max-width:40rem}
+.front .body{max-width:40rem;font-size:1.05rem;line-height:1.65}
+.front .body p{margin:0 0 1.05rem}
+.lead-fig,.sec-fig,.item-fig{margin:1.15rem 0 1.45rem}
+.lead-fig img,.sec-fig img,.item-fig img,.front img{display:block;width:100%;height:auto;border-radius:0}
+.item-fig{margin:.55rem 0 .15rem}
+.item-fig img{max-height:15rem;object-fit:cover}
+.cards{display:grid;grid-template-columns:minmax(0,1fr);gap:1.5rem;margin:2.1rem 0 1.6rem}
+.card{border:0;border-radius:0;background:none;padding:0;min-width:0;font-size:.98rem;line-height:1.45}
+.card-k{font:600 .68rem/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.card-v{font:600 1.28rem/1.25 var(--serif);margin-top:.3rem;overflow-wrap:anywhere}
+.card-sub{margin-top:.2rem;font-size:.88rem}
+.card ul{list-style:none;margin:.65rem 0 0;padding:0}
+.card li{margin:.4rem 0;overflow-wrap:anywhere}
 .card li.overdue a,.card li.overdue{color:var(--red)}
-.pills{display:flex;gap:.35rem;overflow-x:auto;padding:.2rem 0 .5rem;scrollbar-width:none;max-width:100%}
-.pills a{flex:0 0 auto;font-size:.75rem;color:var(--text);background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:.2rem .65rem}
-.front{border-bottom:1px solid var(--border);padding-bottom:.6rem;margin-bottom:.4rem}
-.front h2{font:800 clamp(1.4rem,5vw,2.1rem)/1.15 var(--serif);margin:.3rem 0;overflow-wrap:anywhere}
-.front .subhead{font:italic 1rem var(--serif);color:var(--muted);margin:.2rem 0 .5rem}
-.front .body{columns:2 18rem;column-gap:1.4rem;font-size:1rem}
-.front .body p{margin:0 0 .6rem}
-.front img{max-width:100%;height:auto;border-radius:var(--radius);margin:.4rem 0}
-.theme{font:600 .7rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--cyan)}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1.4rem}
-.sec{border-top:2px solid var(--border2);padding-top:.35rem;margin-top:.8rem;min-width:0;scroll-margin-top:.5rem}
-.sec-h{font:700 1.1rem var(--sans);margin:0 0 .3rem;display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
-.sec-count{font:500 .7rem var(--sans);color:var(--muted)}
-.sec ul{margin:0;padding-left:1.1rem}.sec li{margin:.2rem 0;overflow-wrap:anywhere}
-.todo-group h3{font:700 .72rem var(--sans);letter-spacing:.06em;text-transform:uppercase;margin:.55rem 0 .2rem;color:var(--muted)}
+.card .mac-count{font-size:.88rem;margin-top:.35rem}
+.card .mac-count a{color:var(--text);border:0}
+.pills{display:flex;flex-wrap:wrap;gap:.45rem 1rem;overflow:visible;padding:0 0 1.5rem;max-width:100%;scrollbar-width:none}
+.pills a{flex:0 0 auto;background:none;border:0;border-radius:0;padding:0;color:var(--muted);font:600 .72rem/1.2 var(--sans);letter-spacing:.08em;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.sec{border:0;border-top:1px solid var(--border);padding-top:1.15rem;margin-top:2.75rem;min-width:0;scroll-margin-top:1rem}
+.sec-h{font:700 1.45rem/1.15 var(--serif);letter-spacing:-.015em;margin:0 0 .9rem;display:flex;justify-content:space-between;align-items:baseline;gap:.75rem}
+.sec-count{font:500 .7rem var(--sans);letter-spacing:.02em;color:var(--muted)}
+.sec ul{list-style:none;margin:0;padding:0}
+.sec li{margin:0;padding:.6rem 0;overflow-wrap:anywhere;line-height:1.45}
+.todo-group h3{font:600 .72rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;margin:1.5rem 0 .15rem;color:var(--muted)}
 .todo-overdue h3{color:var(--red)}
 .todo-list{list-style:none;padding:0!important}
-.todo-item{border-bottom:1px dotted var(--border);padding:.3rem 0}
+.todo-item{border:0;padding:.8rem 0}
 .todo-item.overdue .todo-title,.todo-item.overdue .todo-due{color:var(--red);font-weight:600}
-.todo-title{font-size:.98rem}
-.todo-meta{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;font-size:.72rem;margin-top:.1rem}
+.todo-title{font-size:1.05rem}
+.todo-meta{display:flex;flex-wrap:wrap;gap:.35rem .7rem;align-items:baseline;font-size:.78rem;margin-top:.15rem;color:var(--muted)}
 .todo-due{color:var(--muted)}
-.chip{border-radius:999px;padding:.05rem .45rem;background:var(--panel2);border:1px solid var(--border);font-size:.68rem}
-.chip-hi{border-color:var(--red);color:var(--red)}.chip-prog{border-color:var(--accent);color:var(--accent)}
-.empty{font-style:italic;color:var(--muted)}
+.chip{border:0;border-radius:0;background:none;padding:0;color:var(--muted);font-size:.78rem}
+.chip-hi{color:var(--red)}.chip-prog{color:var(--accent)}.chip-owner,.chip-lo{color:var(--muted)}
+.empty{font-style:italic;color:var(--muted);margin:.2rem 0}
 .mac-list{list-style:none;padding:0!important}
-.mac-item{display:flex;gap:.5rem;align-items:flex-start;border-bottom:1px dotted var(--border);padding:.3rem 0;font-size:.98rem;min-width:0}
-.mac-box{flex:0 0 auto;width:.9rem;height:.9rem;margin-top:.28rem;border:1.5px solid var(--text);border-radius:.18rem;background:var(--panel)}
+.mac-item{display:flex;gap:.7rem;align-items:flex-start;border:0;padding:.7rem 0;font-size:1.05rem;min-width:0}
+.mac-box{flex:0 0 auto;width:.95rem;height:.95rem;margin-top:.28rem;border:1px solid var(--muted);border-radius:.15rem;background:transparent}
 .mac-text{min-width:0;overflow-wrap:anywhere}
-.mac-src{font-size:.7rem;margin-left:.35rem}
-.card .mac-count{font-size:.72rem;margin-top:.1rem}.card .mac-count a{color:var(--text);border-bottom:1px dotted var(--muted)}
-.edition-nav{display:flex;justify-content:space-between;gap:.5rem;margin:1.2rem 0 .5rem;font-size:.85rem}
-.edition-nav a,.edition-nav span{border:1px solid var(--border);border-radius:999px;padding:.3rem .8rem;color:var(--text);background:var(--panel)}
+.mac-src{font-size:.75rem;margin-left:.4rem;letter-spacing:.04em}
+.edition-nav{display:flex;justify-content:space-between;gap:1rem;margin:2.6rem 0 .4rem;font-size:.95rem}
+.edition-nav a,.edition-nav span{border:0;border-radius:0;background:none;padding:.2rem 0;color:var(--text)}
 .edition-nav span{opacity:.4}
-.foot{font-size:.72rem;color:var(--muted);text-align:center;margin-top:.8rem}
-.archive-day{border-bottom:1px solid var(--border);padding:.45rem 0;display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap}
-.archive-day a{margin-left:.5rem}
-.tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-around;background:rgba(6,10,16,.92);border-top:1px solid var(--border);padding:.35rem 0 calc(.35rem + env(safe-area-inset-bottom));z-index:5}
-.tabbar a{color:var(--muted);font-size:.7rem;display:flex;flex-direction:column;align-items:center;min-width:3.4rem}
-.tabbar a.active{color:var(--text);font-weight:700}.tabbar .i{font-size:1rem}
-@media (max-width:760px){.head{grid-template-columns:1fr 1fr}.masthead{grid-column:1/-1;order:-1}.cards{grid-template-columns:minmax(0,1fr)}.grid{grid-template-columns:minmax(0,1fr)}.front .body{columns:1}}
+.foot{font-size:.78rem;line-height:1.55;color:var(--muted);text-align:center;margin-top:2rem}
+.archive-day{border:0;padding:.75rem 0;display:flex;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.archive-day a{margin-left:.75rem}
+.tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-around;background:rgba(6,10,16,.94);border-top:1px solid var(--border);padding:.4rem 0 calc(.45rem + env(safe-area-inset-bottom));z-index:5}
+.tabbar a{color:var(--muted);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:.1rem;min-width:3.4rem}
+.tabbar a.active{color:var(--text);font-weight:600}.tabbar .i{font-size:1rem;letter-spacing:0;text-transform:none}
+@media (min-width:960px){
+.paper{max-width:72rem;padding:2.1rem 2.6rem 5rem}
+.head{display:grid;grid-template-columns:minmax(0,1fr) minmax(16rem,1.35fr) minmax(0,1fr);gap:1.5rem 2.4rem;align-items:end}
+.masthead{order:0}
+.lead-wrap{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(16rem,.9fr);gap:2.5rem 3rem;align-items:start}
+.lead-wrap .cards{grid-template-columns:minmax(0,1fr);gap:1.8rem;margin:0}
+.lead-wrap .front .body,.lead-wrap .front .subhead{max-width:none}
+.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:3.5rem}
+#sec-todo,#sec-mac,.sec-wide{grid-column:1 / -1}
+.sec-wide>ul{columns:2;column-gap:3.5rem}
+.sec-wide>ul>li{break-inside:avoid}
+.lead-fig{margin:1.4rem 0 1.7rem}
+}
 """
 
 HTML = "text/html; charset=utf-8"
@@ -445,7 +503,7 @@ def render_edition(
     )
 
     body_paras = [p.strip() for p in re.split(r"\n\s*\n", fp.get("body") or "") if p.strip()]
-    img = f'<img src="{_e(fp["image"])}" alt="" loading="lazy">' if _is_http(fp.get("image")) else ""
+    img = _figure(_http_image(fp.get("image")), "lead-fig")
     theme_html = '<div class="theme">' + _e(ed.get("theme") or "") + "</div>" if ed.get("theme") else ""
     sub_html = '<p class="subhead">' + _e(fp["subhead"]) + "</p>" if fp.get("subhead") else ""
     front = (
@@ -457,6 +515,7 @@ def render_edition(
 
     # Publisher order; To-Do after the schedule section (day-ahead / tomorrow)
     # or in place of an explicit "todo" placeholder; Mac tasks right after To-Do.
+    images = _image_index(raw)
     secs = [s for s in ed.get("sections") or [] if isinstance(s, dict)]
     todo_html = render_todos(todos, today, edition=ed["edition"])
     mac_html = render_mac_tasks(ed.get("mac_tasks"))
@@ -472,13 +531,16 @@ def render_edition(
                 placed = True
             continue
         items = s.get("items") or []
+        meta = images.get(sid) or {}
+        item_imgs = meta.get("items") or {}
         inner = (
-            "<ul>" + "".join(_item_html(i) for i in items) + "</ul>"
+            "<ul>" + "".join(_item_html(i, item_imgs.get(_item_text(i))) for i in items) + "</ul>"
             if items
             else '<p class="empty">Nothing to report</p>'
         )
+        fig = _figure(meta.get("image"), "sec-fig")
         blocks.append(
-            (sid, s.get("title", ""), f'<section class="sec" id="sec-{_e(sid)}"><h2 class="sec-h">{_e(s.get("title", ""))}</h2>{inner}</section>')
+            (sid, s.get("title", ""), f'<section class="sec" id="sec-{_e(sid)}"><h2 class="sec-h">{_e(s.get("title", ""))}</h2>{fig}{inner}</section>')
         )
         if not placed and sid in ("day-ahead", "tomorrow"):
             blocks.append(("todo", "To-Do", todo_html))
@@ -487,6 +549,7 @@ def render_edition(
         blocks.insert(0, ("todo", "To-Do", todo_html))
     ti = next(i for i, b in enumerate(blocks) if b[0] == "todo")
     blocks.insert(ti + 1, ("mac", MAC_TASKS_TITLE, mac_html))
+    blocks = _span_stranded(blocks)
 
     pills = (
         '<nav class="pills" aria-label="Sections"><a href="#sec-front">Front Page</a>'
@@ -510,11 +573,48 @@ def render_edition(
     )
     top = _topbar(f'<span class="muted">{_e(label)} \u00b7 {_e(ed["date"])}</span>')
     body = (
-        top + stale + head + dateline + cards + pills + front
+        top + stale + head + dateline + f'<div class="lead-wrap">{front}{cards}</div>' + pills
         + f'<div class="grid">{"".join(h for _, _, h in blocks)}</div>'
         + _edition_nav(key, root) + snap
     )
     return _page(f"{PAPER_NAME} \u00b7 {label} \u00b7 {ed['date']}", body, active="latest", self_path=self_path)
+
+
+# Blocks that always take the full row of the two-column desktop grid.
+_FULL_ROW = ("todo", "mac")
+_WIDE_CLS = "sec sec-wide"
+
+
+def stranded_blocks(ids: list[str]) -> set[int]:
+    """Indexes of half-width blocks that would sit alone in a desktop row.
+
+    The desktop grid has two columns and To-Do / Mac tasks span both. A section
+    right before a full-row block, or last on the page, with no partner beside
+    it, leaves the other column empty. Those sections span the row instead.
+    Publisher order is kept. Phones use one column, so nothing changes there.
+    """
+    out: set[int] = set()
+    pending: int | None = None
+    for i, sid in enumerate(ids):
+        if sid in _FULL_ROW:
+            if pending is not None:
+                out.add(pending)
+            pending = None
+        elif pending is None:
+            pending = i
+        else:
+            pending = None
+    if pending is not None:
+        out.add(pending)
+    return out
+
+
+def _span_stranded(blocks: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    wide = stranded_blocks([b[0] for b in blocks])
+    return [
+        (sid, t, h.replace('<section class="sec"', f'<section class="{_WIDE_CLS}"', 1) if i in wide else h)
+        for i, (sid, t, h) in enumerate(blocks)
+    ]
 
 
 def render_archive(root: Path | None = None) -> str:

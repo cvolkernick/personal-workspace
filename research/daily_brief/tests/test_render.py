@@ -447,6 +447,88 @@ class TestQuoteOfTheDay(unittest.TestCase):
         self.assertNotIn(_NO_QUOTE, page)
 
 
+class TestImages(unittest.TestCase):
+    """Pictures when the edition has an http(s) image; no empty frame."""
+
+    def test_http_images_render_and_are_escaped(self):
+        ed = sample("sample-am")
+        ed["date"] = "2026-10-15"
+        ed["front_page"] = dict(ed["front_page"])
+        ed["front_page"]["image"] = "https://example.com/front.jpg?q=a&b=1"
+        day = dict(ed["sections"][0])
+        day["image"] = "https://example.com/day.jpg"
+        day["items"] = list(day["items"]) + [
+            {"text": "SAMPLE: pier light", "image": "https://example.com/pier.jpg"},
+            {"text": "SAMPLE: a loopback frame", "image": "http://127.0.0.1:8795/secret.jpg"},
+            {"text": "SAMPLE: a tailnet frame", "image": "https://prism-gateway.example.ts.net/pic.jpg"},
+            {"text": "SAMPLE: a local path frame", "image": "https://example.com/financial-command/pic.jpg"},
+            {"text": "SAMPLE: not a url", "image": "not-a-url"},
+            {"text": "SAMPLE: a file path", "image": "/tmp/local-frame.jpg"},
+        ]
+        ed["sections"] = [day] + list(ed["sections"][1:])
+        page = render.render_edition(ed)
+        for src in (
+            "https://example.com/front.jpg?q=a&amp;b=1",
+            "https://example.com/day.jpg",
+            "https://example.com/pier.jpg",
+            "http://127.0.0.1:8795/secret.jpg",
+            "https://prism-gateway.example.ts.net/pic.jpg",
+            "https://example.com/financial-command/pic.jpg",
+        ):
+            self.assertIn(f'src="{src}"', page, src)
+        self.assertNotIn("not-a-url", page)
+        self.assertNotIn("/tmp/local-frame.jpg", page)
+        self.assertNotIn("<figure></figure>", page)
+        self.assertIn("<h4>Local weather</h4>", page)
+        self.assertIn(html.escape(ed["front_page"]["headline"]), page)
+
+    def test_no_image_leaves_no_empty_figure(self):
+        page = render.render_edition(sample("sample-am"))
+        self.assertNotIn("<figure", page)
+        self.assertNotIn("<img", page)
+
+
+class TestDesktopRows(unittest.TestCase):
+    """A section with no partner in its desktop row spans the row."""
+
+    def test_stranded_indexes(self):
+        f = render.stranded_blocks
+        self.assertEqual(f(["day-ahead", "todo", "mac", "a", "b", "c"]), {0, 5})
+        self.assertEqual(f(["todo", "mac", "a", "b"]), set())
+        self.assertEqual(f(["a", "todo", "mac", "b", "c", "d", "e"]), {0})
+        self.assertEqual(f(["a", "b", "c", "todo", "mac"]), {2})
+        self.assertEqual(f(["todo", "mac"]), set())
+        self.assertEqual(f([]), set())
+
+    def _wide_ids(self, page):
+        return set(re.findall(r'<section class="sec sec-wide" id="sec-([a-z0-9-]+)"', page))
+
+    def test_day_ahead_spans_on_the_morning_sample(self):
+        page = render.render_edition(sample("sample-am"))
+        # day-ahead, To-Do, Mac tasks, then seven sections: day-ahead and the last one span.
+        self.assertEqual(self._wide_ids(page), {"day-ahead", "drafted-replies"})
+        self.assertIn(".sec-wide{grid-column:1 / -1}", page.replace("#sec-todo,#sec-mac,", ""))
+
+    def test_every_sample_has_no_lone_half_row(self):
+        for n in ("sample-am", "sample-pm", "sample-empty-todos"):
+            page = render.render_edition(sample(n))
+            ids = re.findall(r'<section class="sec[^"]*" id="sec-([a-z0-9-]+)"', page)
+            wide = self._wide_ids(page) | {"todo", "mac"}
+            col = 0
+            for sid in ids:
+                if sid in wide:
+                    self.assertEqual(col, 0, f"{n}: {sid} starts a row after a lone half section")
+                else:
+                    col ^= 1
+            self.assertEqual(col, 0, f"{n}: last row has a lone half section")
+
+    def test_wide_rule_only_at_desktop_width(self):
+        css = render._CSS
+        phone, desktop = css.split("@media (min-width:960px){", 1)
+        self.assertNotIn("sec-wide", phone)
+        self.assertIn(".sec-wide{grid-column:1 / -1}", desktop.replace("#sec-todo,#sec-mac,", ""))
+
+
 class TestNoQuotePlaceholder(RenderBase):
     def test_placeholder_absent_from_every_sample_page(self):
         pages = (

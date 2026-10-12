@@ -127,6 +127,17 @@ The To-Do block is inserted after `day-ahead` /
 `tomorrow` (or where a section with id `todo` sits). Links must be http(s)
 and are rendered as given.
 
+Pictures (`front_page.image`, `sections[].image`, `sections[].items[].image`)
+are checked at publish with one rule: https only; a public host (no localhost,
+private, loopback, link-local or tailnet address, no `*.ts.net` or `.local`-style
+name, no bare IP); no `user:pass@`; and a path ending in `.jpg`, `.jpeg`, `.png`,
+`.gif`, `.webp` or `.avif`, or a host on `IMAGE_CDN_HOSTS` in `store.py`. A
+refused picture is dropped with a warning (stderr, and `warnings` in the
+`publish` / `validate` JSON). It never fails the publish.
+
+On a desktop the sections sit in two columns. A section that would be alone in
+its row (just before To-Do, or last) spans the row instead. Phones are one column.
+
 ### `todos[]` (Notion Todo List snapshot)
 
 Source: Notion **Todo List**, data source

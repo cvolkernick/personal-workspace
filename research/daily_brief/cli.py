@@ -26,13 +26,14 @@ import prism_public  # noqa: E402
 from research.daily_brief.store import (  # noqa: E402
     MAC_TASKS_URL,
     BriefError,
+    drop_bad_images,
     edition_url,
     list_editions,
     load_json_arg,
     mac_tasks_from_markdown,
     normalize,
     parse_filename,
-    publish,
+    publish_report,
     store_dir,
     validate,
 )
@@ -72,16 +73,19 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.cmd == "publish":
-            dest = publish(load_json_arg(args.file))
+            dest, warnings = publish_report(load_json_arg(args.file))
+            for w in warnings:
+                print(f"daily-brief: warning: {w}", file=sys.stderr)
             d, e = parse_filename(dest.name) or ("", "")
             url = edition_url((d, e))
             print(json.dumps({"ok": True, "path": str(dest), "url": url, "public_url": public_url(url),
-                              "date": d, "edition": e}))
+                              "date": d, "edition": e, "warnings": warnings}))
             return 0
         if args.cmd == "validate":
-            ed = normalize(load_json_arg(args.file))
+            ed, warnings = drop_bad_images(normalize(load_json_arg(args.file)))
             problems = validate(ed)
-            print(json.dumps({"ok": not problems, "problems": problems, "date": ed.get("date"), "edition": ed.get("edition")}))
+            print(json.dumps({"ok": not problems, "problems": problems, "warnings": warnings,
+                              "date": ed.get("date"), "edition": ed.get("edition")}))
             return 0 if not problems else 2
         if args.cmd == "list":
             for d, e in list_editions():
