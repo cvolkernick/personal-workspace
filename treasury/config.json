@@ -149,9 +149,8 @@
       "one_card_latest.json",
       "rh_checking_latest.json",
       "x_money_latest.json",
-      "solana_latest.json",
       "expenses_latest.json"
     ],
-    "notes": "#518 RH + #689 Braiins + #695 Coinbase price SoT is prism/Pi (not in push_files). Mac may still push YNAB/Sheet/Solana. Liquid CB balances still Mac CLI (out of #695). max_age_hours=6; mcp_timeout_s=240. ssh defaults to prism-agent@prism-gateway (tailnet MagicDNS short name); TREASURY_PI_SSH is an optional override. Override: TREASURY_RH_ROLE, TREASURY_RH_PUSH=1 / TREASURY_BRAIINS_PUSH=1 / TREASURY_COINBASE_PUSH=1 (emergency only), TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
+    "notes": "#518 RH + #689 Braiins + #695 Coinbase price + Solana SoT is prism/Pi (not in push_files). Solana: prism solana-refresh.timer (user unit, 15min, treasury/deploy/SOLANA_PRODUCER.md); Mac no longer pushes solana_latest.json. Mac may still push YNAB/Sheet. Liquid CB balances still Mac CLI (out of #695). max_age_hours=6; mcp_timeout_s=240. ssh defaults to prism-agent@prism-gateway (tailnet MagicDNS short name); TREASURY_PI_SSH is an optional override. Override: TREASURY_RH_ROLE, TREASURY_RH_PUSH=1 / TREASURY_BRAIINS_PUSH=1 / TREASURY_COINBASE_PUSH=1 / TREASURY_SOLANA_PUSH=1 (emergency only), TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }
