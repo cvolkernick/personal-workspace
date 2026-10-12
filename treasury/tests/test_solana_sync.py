@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -13,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from treasury import solana_sync as ss  # noqa: E402
 from treasury.policy import evaluate_treasury  # noqa: E402
 from treasury.solana_sync import (  # noqa: E402
     USDC_MINT,
@@ -316,6 +318,157 @@ class TestWhitelistUsdcAndSol(unittest.TestCase):
             sol = empty["snapshot"]["solana"]
             self.assertAlmostEqual(sol["sol"], 1.25)
             self.assertAlmostEqual(sol["usdc"], 42.0)
+
+
+class TestPrismCopyWins(unittest.TestCase):
+    """Zero-flicker: prism's own copy beats a Mac push (even pre-#1147 Mac code)."""
+
+    NOW = datetime(2026, 10, 12, 3, 0, tzinfo=timezone.utc)
+
+    def _book(self, minutes_ago, **extra):
+        d = {
+            "source": "live",
+            "as_of": (self.NOW - timedelta(minutes=minutes_ago)).isoformat(),
+            "sol": 0.004,
+            "usdc": 0.0,
+        }
+        d.update(extra)
+        return d
+
+    def test_rules(self):
+        prism = self._book(10, producer_host="prism")
+        self.assertTrue(ss.prism_copy_wins(prism, None, now=self.NOW))
+        self.assertTrue(ss.prism_copy_wins(prism, {"as_of": None}, now=self.NOW))
+        # older Mac copy -> dropped
+        self.assertTrue(ss.prism_copy_wins(prism, self._book(30), now=self.NOW))
+        # newer Mac copy, prism still fresh -> prism keeps winning (no flicker)
+        self.assertTrue(ss.prism_copy_wins(prism, self._book(1), now=self.NOW))
+        # newer prism-produced block (live merge on prism) -> keep that block
+        self.assertFalse(
+            ss.prism_copy_wins(prism, self._book(1, producer_host="prism"), now=self.NOW)
+        )
+        # prism producer dead past the stale window -> newer Mac copy may return
+        stale = self._book(7 * 60, producer_host="prism")
+        self.assertFalse(ss.prism_copy_wins(stale, self._book(5), now=self.NOW))
+        self.assertTrue(ss.prism_copy_wins(stale, self._book(8 * 60), now=self.NOW))
+        self.assertFalse(ss.prism_copy_wins({"as_of": "junk"}, None, now=self.NOW))
+        self.assertFalse(ss.prism_copy_wins(None, None, now=self.NOW))
+
+    def _dirs(self, td, prism=None, pushed=None):
+        d = Path(td)
+        if prism is not None:
+            (d / ss.PRISM_SNAPSHOT_NAME).write_text(json.dumps(prism), encoding="utf-8")
+        if pushed is not None:
+            (d / ss.SNAPSHOT_NAME).write_text(json.dumps(pushed), encoding="utf-8")
+        return d
+
+    def test_load_preferred_drops_mac_push(self):
+        mac = self._book(1, holdings=[{"symbol": "JR-strcUSX"}])
+        prism = self._book(10, producer_host="prism")
+        with tempfile.TemporaryDirectory() as td:
+            d = self._dirs(td, prism=prism, pushed=mac)
+            with mock.patch.object(ss, "SNAPSHOTS_DIR", d):
+                got = ss.load_preferred_solana(now=self.NOW)
+                self.assertEqual(got["as_of"], prism["as_of"])
+                r = ss.fetch_solana(prefer_live=False, config={})
+                self.assertEqual(r["as_of"], prism["as_of"])
+                self.assertNotIn("strcusx", json.dumps(r).lower())
+
+    def test_load_preferred_falls_back_without_prism_copy(self):
+        mac = self._book(1)
+        with tempfile.TemporaryDirectory() as td:
+            d = self._dirs(td, pushed=mac)
+            with mock.patch.object(ss, "SNAPSHOTS_DIR", d):
+                self.assertEqual(ss.load_preferred_solana(now=self.NOW)["as_of"], mac["as_of"])
+
+    def test_overlay_replaces_mac_pushed_block(self):
+        mac = self._book(1, holdings=[{"symbol": "JR-strcUSX"}])
+        prism = self._book(10, producer_host="prism")
+        with tempfile.TemporaryDirectory() as td:
+            d = self._dirs(td, prism=prism, pushed=mac)
+            with mock.patch.object(ss, "SNAPSHOTS_DIR", d):
+                tre = {"snapshot": {"solana": dict(mac)}}
+                ss.overlay_solana_snapshot(tre, now=self.NOW)
+                self.assertEqual(tre["snapshot"]["solana"]["as_of"], prism["as_of"])
+                self.assertEqual(tre["snapshot"]["meta"]["solana_producer"], "prism")
+                # newer prism-produced block is kept
+                newer = self._book(1, producer_host="prism")
+                keep = {"snapshot": {"solana": dict(newer)}}
+                ss.overlay_solana_snapshot(keep, now=self.NOW)
+                self.assertEqual(keep["snapshot"]["solana"]["as_of"], newer["as_of"])
+                # empty block fills from the prism copy, not the newer Mac push
+                empty = {"snapshot": {"solana": {}}}
+                ss.overlay_solana_snapshot(empty, now=self.NOW)
+                self.assertEqual(empty["snapshot"]["solana"]["as_of"], prism["as_of"])
+
+    def test_write_prism_copy_live_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / ss.PRISM_SNAPSHOT_NAME
+            self.assertIsNone(ss.write_prism_copy({"source": "snapshot", "as_of": "x"}, p))
+            self.assertFalse(p.exists())
+            self.assertEqual(ss.write_prism_copy(self._book(0), p), p)
+            self.assertEqual(json.loads(p.read_text())["producer_host"], "prism")
+
+    def test_main_prism_copy_flag_and_host_tag(self):
+        live = self._book(0)
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            with mock.patch.object(ss, "SNAPSHOTS_DIR", d), mock.patch.object(
+                ss, "fetch_solana_live", return_value=(dict(live), None)
+            ), mock.patch.object(ss, "solana_config", return_value={"counts_toward_working_usdc": False}), mock.patch.dict(
+                "os.environ", {"FCC_HOST_TAG": "mac"}
+            ), mock.patch("sys.stdout"):
+                self.assertEqual(ss.main([]), 0)
+                self.assertFalse((d / ss.PRISM_SNAPSHOT_NAME).exists())
+                self.assertEqual(ss.main(["--prism-copy"]), 0)
+                self.assertTrue((d / ss.PRISM_SNAPSHOT_NAME).exists())
+            (d / ss.PRISM_SNAPSHOT_NAME).unlink()
+            with mock.patch.object(ss, "SNAPSHOTS_DIR", d), mock.patch.object(
+                ss, "fetch_solana_live", return_value=(dict(live), None)
+            ), mock.patch.object(ss, "solana_config", return_value={"counts_toward_working_usdc": False}), mock.patch.dict(
+                "os.environ", {"FCC_HOST_TAG": "prism"}
+            ), mock.patch("sys.stdout"):
+                self.assertEqual(ss.main([]), 0)
+                pc = json.loads((d / ss.PRISM_SNAPSHOT_NAME).read_text())
+                self.assertEqual(pc["producer_host"], "prism")
+            # live failure must not re-stamp the prism copy from a fallback
+            (d / ss.PRISM_SNAPSHOT_NAME).unlink()
+            with mock.patch.object(ss, "SNAPSHOTS_DIR", d), mock.patch.object(
+                ss, "fetch_solana_live", return_value=(None, "rpc down")
+            ), mock.patch.object(ss, "solana_config", return_value={"counts_toward_working_usdc": False}), mock.patch.dict(
+                "os.environ", {"FCC_HOST_TAG": "prism"}
+            ), mock.patch("sys.stdout"):
+                ss.main(["--prism-copy"])
+                self.assertFalse((d / ss.PRISM_SNAPSHOT_NAME).exists())
+
+
+class TestRunTreasuryOfflineMerge(unittest.TestCase):
+    """solana-refresh ExecStartPost: offline re-merge makes no live calls."""
+
+    def test_offline_skip_coinbase_flags(self):
+        from treasury import run_treasury
+
+        seen = {}
+
+        class Stop(Exception):
+            pass
+
+        def fake_build(**kw):
+            seen.update(kw)
+            raise Stop()
+
+        with mock.patch.object(run_treasury, "build_snapshot", side_effect=fake_build):
+            with self.assertRaises(Stop):
+                run_treasury.main(["--offline", "--skip-coinbase"])
+        self.assertFalse(seen["prefer_live_coinbase"])
+        self.assertFalse(seen["prefer_live_ynab"])
+        self.assertFalse(seen["prefer_live_expenses"])
+        self.assertFalse(seen["prefer_live_solana"])
+
+    def test_run_treasury_has_no_push_or_order_path(self):
+        src = (ROOT / "treasury" / "run_treasury.py").read_text(encoding="utf-8")
+        for needle in ("rh_snapshot_sync", "push_snapshots_to_pi", "subprocess", "place_", "scp"):
+            self.assertNotIn(needle, src)
 
 
 if __name__ == "__main__":

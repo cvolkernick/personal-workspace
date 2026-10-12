@@ -7,6 +7,7 @@ JR-strcUSX retired 2026-10-10 (Solstice wound down).
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +25,15 @@ DEFAULT_WALLET = "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm"
 DEFAULT_RPC = "https://api.mainnet-beta.solana.com"
 DEFAULT_PRICE_URL = "https://lite-api.jup.ag/price/v3"
 SNAPSHOT_NAME = "solana_latest.json"
+# Prism-only copy. Mac -> Pi push (rh_snapshot_sync, even pre-#1147 Mac code)
+# only ever copies ``solana_latest.json``, so a pushed file can never land
+# here. FCC overlay and offline merges prefer this copy (see
+# ``prism_copy_wins``) so a stale Mac push cannot flicker the Solana block.
+PRISM_SNAPSHOT_NAME = "solana_latest.prism.json"
+PRISM_HOST_TAG = "prism"
+# Prism copy keeps winning over a newer pushed/merged block while it is this
+# fresh (FCC stale window). Past it, a newer non-prism copy may take over.
+PRISM_FRESH_HOURS = 6.0
 
 DEFAULT_WHITELIST: List[Dict[str, str]] = [
     {"symbol": "SOL", "mint": WSOL_MINT, "role": "gas"},
@@ -304,16 +314,99 @@ def write_solana_snapshot(data: Dict[str, Any], path: Optional[Path] = None) -> 
     return out
 
 
+def _parse_as_of(raw: Any) -> Optional[datetime]:
+    if not raw:
+        return None
+    try:
+        t = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t
+
+
+def is_prism_host() -> bool:
+    """Prism systemd units set FCC_HOST_TAG=prism; the Mac plist sets mac."""
+    return (os.environ.get("FCC_HOST_TAG") or "").strip().lower() == PRISM_HOST_TAG
+
+
+def prism_copy_wins(
+    prism: Optional[Dict[str, Any]],
+    other: Optional[Dict[str, Any]],
+    *,
+    now: Optional[datetime] = None,
+    fresh_hours: float = PRISM_FRESH_HOURS,
+) -> bool:
+    """Should prism's own Solana copy replace ``other`` (pushed file or merged block)?
+
+    - prism copy without a parseable as_of never wins.
+    - other missing / no as_of -> prism wins.
+    - prism as_of >= other as_of -> prism wins (drop the older Mac copy).
+    - other is newer: a newer *prism-produced* block (live merge on prism)
+      is kept; any other newer copy (a Mac push) loses while the prism copy is
+      inside ``fresh_hours``. Only a dead prism producer lets the Mac back in.
+    """
+    if not isinstance(prism, dict):
+        return False
+    p_at = _parse_as_of(prism.get("as_of"))
+    if p_at is None:
+        return False
+    o_at = _parse_as_of(other.get("as_of")) if isinstance(other, dict) else None
+    if o_at is None:
+        return True
+    if p_at >= o_at:
+        return True
+    if str(other.get("producer_host") or "").lower() == PRISM_HOST_TAG:
+        return False
+    now = now or datetime.now(timezone.utc)
+    age_h = max(0.0, (now - p_at).total_seconds() / 3600.0)
+    return age_h <= fresh_hours
+
+
+def load_preferred_solana(
+    *,
+    snapshot_path: Optional[Path] = None,
+    prism_path: Optional[Path] = None,
+    now: Optional[datetime] = None,
+) -> Optional[Dict[str, Any]]:
+    """prism copy when it wins over solana_latest.json, else solana_latest.json."""
+    pushed = load_json(snapshot_path or (SNAPSHOTS_DIR / SNAPSHOT_NAME))
+    prism = load_json(prism_path or (SNAPSHOTS_DIR / PRISM_SNAPSHOT_NAME))
+    if prism and prism_copy_wins(prism, pushed or None, now=now):
+        return prism
+    return pushed or prism or None
+
+
+def write_prism_copy(data: Dict[str, Any], path: Optional[Path] = None) -> Optional[Path]:
+    """Write the prism-only copy. Live reads only; never re-stamp a fallback."""
+    if not isinstance(data, dict) or data.get("source") != "live" or not data.get("as_of"):
+        return None
+    out = dict(data)
+    out["producer_host"] = PRISM_HOST_TAG
+    p = path or (SNAPSHOTS_DIR / PRISM_SNAPSHOT_NAME)
+    save_json(p, out)
+    return p
+
+
 def overlay_solana_snapshot(
     treasury: Dict[str, Any],
     *,
     snapshot_path: Optional[Path] = None,
+    prism_path: Optional[Path] = None,
+    now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """If snapshot.solana is missing/empty, fill from solana_latest.json.
+    """Fill or correct snapshot.solana before FCC serves / a merge writes it.
 
-    Refresh on a host whose build_snapshot does not know Solana used to rewrite
-    treasury_latest.json with snapshot.solana = {} and blank the SOL chip.
-    Never overwrites a present as_of block.
+    1. Missing/empty block: fill from the preferred file (prism copy when it
+       wins, else solana_latest.json). A refresh on a host whose
+       build_snapshot does not know Solana used to blank the SOL chip.
+    2. Present block: replaced only by prism's own copy, when
+       ``prism_copy_wins`` (e.g. the Mac pushed treasury_latest.json with its
+       own, older or stale-code Solana block). Otherwise never overwritten.
+
+    An explicit ``snapshot_path`` without ``prism_path`` keeps the legacy
+    single-file behavior (no prism lookup).
     """
     if not isinstance(treasury, dict):
         return treasury
@@ -323,15 +416,29 @@ def overlay_solana_snapshot(
         treasury["snapshot"] = snap
     sol = snap.get("solana")
     missing = not isinstance(sol, dict) or not sol or not sol.get("as_of")
-    if not missing:
-        return treasury
-    file_data = load_json(snapshot_path or (SNAPSHOTS_DIR / SNAPSHOT_NAME))
-    if file_data and file_data.get("as_of"):
-        snap["solana"] = file_data
+    use_prism = snapshot_path is None or prism_path is not None
+    prism = (
+        load_json(prism_path or (SNAPSHOTS_DIR / PRISM_SNAPSHOT_NAME)) if use_prism else None
+    )
+    chosen: Optional[Dict[str, Any]] = None
+    if missing:
+        if use_prism:
+            chosen = load_preferred_solana(
+                snapshot_path=snapshot_path, prism_path=prism_path, now=now
+            )
+        else:
+            chosen = load_json(snapshot_path)
+    elif prism and prism_copy_wins(prism, sol, now=now):
+        if prism.get("as_of") != sol.get("as_of") or sol.get("producer_host") != PRISM_HOST_TAG:
+            chosen = prism
+    if chosen and chosen.get("as_of"):
+        snap["solana"] = chosen
         meta = snap.get("meta") if isinstance(snap.get("meta"), dict) else {}
         snap["meta"] = meta
-        meta["solana_source"] = file_data.get("source")
+        meta["solana_source"] = chosen.get("source")
         meta["solana_sidecar"] = True
+        if chosen.get("producer_host") == PRISM_HOST_TAG:
+            meta["solana_producer"] = PRISM_HOST_TAG
     return treasury
 
 
@@ -351,9 +458,13 @@ def fetch_solana(
             live["counts_toward_hy"] = False
             live["counts_toward_ltv_defense"] = False
             live["counts_toward_working_usdc"] = bool(cfg["counts_toward_working_usdc"])
+            if snapshot_path is None and is_prism_host():
+                live["producer_host"] = PRISM_HOST_TAG
+                write_prism_copy(live)
             write_solana_snapshot(live, snap)
             return live
-    file_data = load_json(snap)
+    # Default path: prism copy beats a stale Mac-pushed solana_latest.json.
+    file_data = load_preferred_solana() if snapshot_path is None else load_json(snap)
     if file_data:
         out = dict(file_data)
         out["source"] = out.get("source") or "snapshot"
@@ -373,9 +484,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description="Refresh Solana book snapshot (public RPC)")
     p.add_argument("--offline", action="store_true", help="Read snapshot only")
     p.add_argument("--out", type=Path, default=None)
+    p.add_argument(
+        "--prism-copy",
+        action="store_true",
+        help=f"Also write {PRISM_SNAPSHOT_NAME} (prism producer; implied by FCC_HOST_TAG=prism)",
+    )
     args = p.parse_args(argv)
     book = fetch_solana(prefer_live=not args.offline)
     path = write_solana_snapshot(book, args.out)
+    prism_out = None
+    if args.out is None and (args.prism_copy or is_prism_host()):
+        prism_out = write_prism_copy(book)
     print(
         json.dumps(
             {
@@ -386,6 +505,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "sol": book.get("sol"),
                 "usdc": book.get("usdc"),
                 "out": str(path),
+                "prism_copy": str(prism_out) if prism_out else None,
                 "live_error": book.get("live_error"),
             },
             indent=2,
