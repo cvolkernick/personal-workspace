@@ -5,9 +5,16 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# A hung RPC/merge must not wedge the timer (oneshot has no default cap).
+TimeoutStartSec=5min
 # systemd *user* unit (prism-agent, linger on). Install: SOLANA_PRODUCER.md.
 WorkingDirectory=%h/personal-workspace
-ExecStart=/usr/bin/python3 -m treasury.solana_sync
+ExecStart=/usr/bin/python3 -m treasury.solana_sync --prism-copy
+# Re-merge from snapshot files so FCC serves this refresh (financial-command/
+# treasury_latest.json). Offline: no Coinbase CLI, no YNAB/Plaid/Sheet/RPC
+# calls, no push, no orders. Same step the braiins/coinbase-price/rh refresh
+# scripts already run on prism.
+ExecStartPost=/usr/bin/python3 -m treasury.run_treasury --offline --skip-coinbase
 Environment=FCC_HOST_TAG=prism
 Environment=TREASURY_SKIP_PUSH_PI=1
 Environment=PYTHONUNBUFFERED=1

@@ -461,6 +461,16 @@ class RhProducerRoleTests(unittest.TestCase):
         self.assertIn("WantedBy=default.target", svc)
         # user unit: no User=/Group= (those are system-unit only)
         self.assertNotRegex(svc, r"(?m)^(User|Group)=")
+        self.assertIn("TimeoutStartSec=5min", svc)
+        self.assertIn(
+            "ExecStartPost=/usr/bin/python3 -m treasury.run_treasury --offline --skip-coinbase",
+            svc,
+        )
+        self.assertIn("--prism-copy", svc)
+        for sib in ("braiins-refresh.service", "coinbase-price-refresh.service"):
+            txt = (deploy / sib).read_text(encoding="utf-8")
+            self.assertIn("Type=oneshot", txt, sib)
+            self.assertIn("TimeoutStartSec=5min", txt, sib)
         self.assertIn("Unit=solana-refresh.service", tmr)
         self.assertIn("OnUnitActiveSec=15min", tmr)
         self.assertIn("Persistent=true", tmr)
