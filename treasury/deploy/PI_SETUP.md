@@ -69,6 +69,13 @@ sudo systemctl enable --now fund-manager-bp-poll.timer
 systemctl list-timers | grep -E 'fund|rh-refresh|ynab-refresh|expenses-refresh|braiins|coinbase-price'
 ```
 
+Solana (`solana-refresh.timer`, every 15min) is a systemd **user** unit, not
+/etc/systemd/system. Install steps: `SOLANA_PRODUCER.md`.
+
+`braiins-refresh.service` / `coinbase-price-refresh.service` carry
+`TimeoutStartSec=5min`. Re-copy them to /etc/systemd/system and
+`sudo systemctl daemon-reload` after pulling for the cap to take effect.
+
 ### 4) Smoke on Pi (required before Mac disarm)
 ```bash
 which grok

@@ -367,51 +367,115 @@ class RhProducerRoleTests(unittest.TestCase):
         self.assertEqual(gate["reason"], "producer_failure")
 
     def test_strip_rh_push_default_no_dual_write(self) -> None:
-        files = ["robinhood_latest.json", "solana_latest.json"]
+        files = ["robinhood_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("TREASURY_RH_PUSH", None)
             out = rss._strip_rh_push(files)
         self.assertNotIn("robinhood_latest.json", out)
-        self.assertIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
 
     def test_strip_rh_push_explicit_override(self) -> None:
-        files = ["robinhood_latest.json", "solana_latest.json"]
+        files = ["robinhood_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {"TREASURY_RH_PUSH": "1"}):
             out = rss._strip_rh_push(files)
         self.assertIn("robinhood_latest.json", out)
 
     def test_strip_braiins_push_default_no_dual_write(self) -> None:
-        files = ["braiins_latest.json", "solana_latest.json"]
+        files = ["braiins_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("TREASURY_BRAIINS_PUSH", None)
             out = rss._strip_rh_push(files)
         self.assertNotIn("braiins_latest.json", out)
-        self.assertIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
 
     def test_strip_braiins_push_explicit_override(self) -> None:
-        files = ["braiins_latest.json", "solana_latest.json"]
+        files = ["braiins_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {"TREASURY_BRAIINS_PUSH": "1"}):
             out = rss._strip_rh_push(files)
         self.assertIn("braiins_latest.json", out)
 
     def test_strip_coinbase_push_default_no_dual_write(self) -> None:
-        files = ["coinbase_latest.json", "solana_latest.json"]
+        files = ["coinbase_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("TREASURY_COINBASE_PUSH", None)
             out = rss._strip_rh_push(files)
         self.assertNotIn("coinbase_latest.json", out)
-        self.assertIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
 
     def test_strip_coinbase_push_explicit_override(self) -> None:
-        files = ["coinbase_latest.json", "solana_latest.json"]
+        files = ["coinbase_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {"TREASURY_COINBASE_PUSH": "1"}):
             out = rss._strip_rh_push(files)
         self.assertIn("coinbase_latest.json", out)
+
+    def test_strip_solana_push_default_no_dual_write(self) -> None:
+        files = ["solana_latest.json", "x_money_latest.json"]
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("TREASURY_SOLANA_PUSH", None)
+            out = rss._strip_rh_push(files)
+        self.assertNotIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
+
+    def test_strip_solana_push_explicit_override(self) -> None:
+        files = ["solana_latest.json", "x_money_latest.json"]
+        with mock.patch.dict(os.environ, {"TREASURY_SOLANA_PUSH": "1"}):
+            out = rss._strip_rh_push(files)
+        self.assertIn("solana_latest.json", out)
 
     def test_default_push_files_omit_pi_sot(self) -> None:
         self.assertNotIn("robinhood_latest.json", rss.DEFAULT_PUSH_FILES)
         self.assertNotIn("braiins_latest.json", rss.DEFAULT_PUSH_FILES)
         self.assertNotIn("coinbase_latest.json", rss.DEFAULT_PUSH_FILES)
+        self.assertNotIn("solana_latest.json", rss.DEFAULT_PUSH_FILES)
+
+    def test_config_push_files_omit_solana(self) -> None:
+        cfg = json.loads((rss.ROOT / "treasury" / "config.json").read_text(encoding="utf-8"))
+        ps = cfg["pi_sync"]
+        self.assertNotIn("solana_latest.json", ps["push_files"])
+        self.assertIn("Solana", ps["notes"])
+        self.assertIn("solana-refresh.timer", ps["notes"])
+
+    def test_pi_settings_strip_solana_from_stale_config(self) -> None:
+        """A local config that still lists solana_latest.json must not push it."""
+        cfg = {
+            "pi_sync": {
+                "push_files": ["solana_latest.json", "x_money_latest.json"],
+            }
+        }
+        with mock.patch.object(rss, "load_config", return_value=cfg), mock.patch.dict(
+            os.environ, {}, clear=False
+        ):
+            os.environ.pop("TREASURY_SOLANA_PUSH", None)
+            settings = rss._pi_settings()
+        self.assertNotIn("solana_latest.json", settings["push_files"])
+        self.assertIn("x_money_latest.json", settings["push_files"])
+
+    def test_solana_refresh_user_units(self) -> None:
+        deploy = rss.ROOT / "treasury" / "deploy"
+        svc = (deploy / "solana-refresh.service").read_text(encoding="utf-8")
+        tmr = (deploy / "solana-refresh.timer").read_text(encoding="utf-8")
+        self.assertIn("Type=oneshot", svc)
+        self.assertIn("WorkingDirectory=%h/personal-workspace", svc)
+        self.assertIn("ExecStart=/usr/bin/python3 -m treasury.solana_sync", svc)
+        self.assertIn("TREASURY_SKIP_PUSH_PI=1", svc)
+        self.assertIn("WantedBy=default.target", svc)
+        # user unit: no User=/Group= (those are system-unit only)
+        self.assertNotRegex(svc, r"(?m)^(User|Group)=")
+        self.assertIn("TimeoutStartSec=5min", svc)
+        self.assertIn(
+            "ExecStartPost=/usr/bin/python3 -m treasury.run_treasury --offline --skip-coinbase",
+            svc,
+        )
+        self.assertIn("--prism-copy", svc)
+        for sib in ("braiins-refresh.service", "coinbase-price-refresh.service"):
+            txt = (deploy / sib).read_text(encoding="utf-8")
+            self.assertIn("Type=oneshot", txt, sib)
+            self.assertIn("TimeoutStartSec=5min", txt, sib)
+        self.assertIn("Unit=solana-refresh.service", tmr)
+        self.assertIn("OnUnitActiveSec=15min", tmr)
+        self.assertIn("Persistent=true", tmr)
+        doc = (deploy / "SOLANA_PRODUCER.md").read_text(encoding="utf-8")
+        self.assertIn("systemctl --user enable --now solana-refresh.timer", doc)
 
     def test_role_env_producer(self) -> None:
         with mock.patch.dict(os.environ, {"TREASURY_RH_ROLE": "producer"}):

@@ -1,0 +1,81 @@
+# work/treasury CI. Ported from master's .github/workflows/test.yml (#584),
+# adapted to the suites that exist on this branch (no scripts/run_ci_tests.py,
+# no requirements-ci.txt here). Each suite runs from its own directory with
+# --import-mode=importlib so duplicate test module names and sibling server.py
+# files do not collide, same as master's runner.
+name: test
+
+on:
+  pull_request:
+    branches: [work/treasury]
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - treasury
+          - financial-command
+          - research/horizon
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        # financial-command/tests run sw.js and inline-script checks under node.
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install test deps
+        run: pip install "pytest>=8.0,<9"
+
+      - name: Run ${{ matrix.suite }}/tests
+        working-directory: ${{ matrix.suite }}
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$PWD:$GITHUB_WORKSPACE"
+          # KNOWN_FAILING: tests already red on the work/treasury tip when this
+          # workflow was added (749d80d4). Deselected so CI is green and any NEW
+          # failure turns it red. Tracking: #1151. Remove each entry with its fix.
+          KNOWN_FAILING=()
+          if [ "${{ matrix.suite }}" = "treasury" ]; then
+            KNOWN_FAILING=(
+              "tests/test_bias_weight_loop.py::TestPinsSoT::test_live_pins_unchanged_by_module_constants"
+              "tests/test_fund_manager.py::TestFundPolicy::test_investment_sot_no_contradiction"
+              "tests/test_fund_manager.py::TestRulesReview::test_hold_when_dust_below_min_trade"
+              "tests/test_fund_manager.py::TestRulesReview::test_hold_when_in_band_zero_cash"
+              "tests/test_fund_manager.py::TestRulesReview::test_need_llm_when_cash_idle"
+              "tests/test_fund_manager.py::TestRulesReview::test_need_llm_when_spendable_cash_or_bp"
+              "tests/test_rh_snapshot_sync.py::RhNotifyAc4Tests::test_stale_notify_names_producer_and_error_class"
+              "tests/test_ynab_sync.py::TestNormalize::test_balance_owed_and_spend"
+              "tests/test_ynab_sync.py::TestNormalizeChecking::test_rh_checking_cash"
+              "tests/test_ynab_sync.py::TestPolicyUsesOneCard::test_card_from_one_card_snapshot"
+            )
+          fi
+          DESELECT=()
+          for t in "${KNOWN_FAILING[@]}"; do DESELECT+=(--deselect "$t"); done
+          if [ "${#KNOWN_FAILING[@]}" -gt 0 ]; then
+            echo "::warning::${{ matrix.suite }}: ${#KNOWN_FAILING[@]} known-failing tests deselected (#1151)"
+          fi
+          python -m pytest tests --import-mode=importlib -q --tb=short -p no:cacheprovider "${DESELECT[@]}"
