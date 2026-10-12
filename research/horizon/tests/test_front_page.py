@@ -146,6 +146,9 @@ class TestFrontPageWithEdition(_LiveServer):
             code, headers, body = self._get(path)
             self.assertEqual(code, want_code, path)
             self.assertEqual(headers.get("Content-Type"), want_ctype, path)
+            if want_code == 200 and want_ctype.startswith("text/html"):
+                # Only addition: the install-shell head tags (test_pwa.py).
+                want_body = server.with_pwa_head(want_body)
             self.assertEqual(body.decode("utf-8"), want_body, path)
         latest = json.loads(self._get("/daily-brief/api/latest")[2])
         self.assertTrue(latest["ok"])
