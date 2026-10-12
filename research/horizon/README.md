@@ -62,6 +62,11 @@ sudo tailscale serve --bg --yes --https=10000 http://127.0.0.1:8795
 # → https://<tailnet-magicdns-host>:10000/
 ```
 
+`serve --bg` config persists in tailscaled state across reboots. As a safety
+net, `financial-command/deploy/fcc-tailscale-serve.service` (user unit) re-applies
+443 and 10000 at boot via `deploy/tailscale-serve-apply.sh`, after waiting for
+tailscaled to be Running. 8443 is not touched.
+
 No base-path setting is needed: the server is root-native, the manifest's
 relative `start_url`/`scope` resolve to `/`, and `pwa.js` registers `sw.js`
 with scope `/`. Then point FCC's `/horizon/*` at it with a
