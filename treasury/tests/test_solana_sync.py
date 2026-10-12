@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -367,7 +368,20 @@ class TestPrismCopyWins(unittest.TestCase):
         prism = self._book(10, producer_host="prism")
         with tempfile.TemporaryDirectory() as td:
             d = self._dirs(td, prism=prism, pushed=mac)
-            with mock.patch.object(ss, "SNAPSHOTS_DIR", d):
+            now = self.NOW
+
+            class _FrozenDatetime(datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return now if tz is None else now.astimezone(tz)
+
+            # fetch_solana() calls load_preferred_solana() without ``now``; freeze
+            # the module clock so the prism copy stays inside PRISM_FRESH_HOURS
+            # regardless of the wall clock the suite runs at.
+            with mock.patch.object(ss, "SNAPSHOTS_DIR", d), mock.patch.object(
+                ss, "datetime", _FrozenDatetime
+            ), mock.patch.dict("os.environ", {}, clear=False):
+                os.environ.pop("FCC_HOST_TAG", None)
                 got = ss.load_preferred_solana(now=self.NOW)
                 self.assertEqual(got["as_of"], prism["as_of"])
                 r = ss.fetch_solana(prefer_live=False, config={})
