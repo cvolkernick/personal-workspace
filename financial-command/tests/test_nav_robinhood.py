@@ -29,8 +29,8 @@ class TestNavRobinhoodRemoved(unittest.TestCase):
 
     def test_sw_does_not_precache_nav_robinhood(self) -> None:
         self.assertNotIn("nav-robinhood", SW)
-        self.assertIn("fcc-shell-v7", SW)
-        self.assertNotIn("fcc-shell-v6", SW)
+        self.assertIn('CACHE_PREFIX + "v8"', SW)
+        self.assertNotIn("fcc-shell-v7", SW)
 
 
 if __name__ == "__main__":
