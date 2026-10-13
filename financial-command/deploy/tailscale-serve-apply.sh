@@ -3,6 +3,7 @@
 #
 #   443   -> http://127.0.0.1:8000  FCC
 #   10000 -> http://127.0.0.1:8795  Horizon on its own origin (#1153)
+#   10001 -> http://127.0.0.1:8787  FitDash (moved off Vercel; Google OAuth callback on this origin)
 #
 # `tailscale serve --bg` config persists in tailscaled state across reboots, so
 # this is a safety net (e.g. after `tailscale serve reset`), not the source of
@@ -33,5 +34,6 @@ fi
 # OperatorUser is unset on prism-gateway, so writing serve config needs root.
 sudo -n "$TS" serve --bg --yes --https=443 http://127.0.0.1:8000
 sudo -n "$TS" serve --bg --yes --https=10000 http://127.0.0.1:8795
+sudo -n "$TS" serve --bg --yes --https=10001 http://127.0.0.1:8787
 
 "$TS" serve status
