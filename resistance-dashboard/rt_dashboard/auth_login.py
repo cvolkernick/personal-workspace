@@ -142,10 +142,12 @@ def complete_login(code: str, state: str, store: Optional[UserStore] = None) -> 
     # markdown once so first login is not an empty dashboard.
     seeded = 0
     try:
+        from .turso_http import turso_enabled
         from .workout_repo import WorkoutRepository
 
         repo = WorkoutRepository(db_path=store.db_path, user_id=sub)
-        if repo.count() == 0:
+        # Turso is the source of truth when configured: never seed markdown.
+        if not turso_enabled() and repo.count() == 0:
             ws = (os.environ.get("LOCAL_WORKSPACE_DIR") or "").strip()
             if ws:
                 result = repo.ensure_seeded_from_workspace(ws)
