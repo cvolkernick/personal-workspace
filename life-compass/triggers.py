@@ -5,6 +5,7 @@ Canonical trigger list is GitHub issue #761. Changes need user approval.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -20,9 +21,13 @@ from domain import (
     parse_timestamp,
 )
 
-FITDASH_DEP = (
-    "FitDash read API / export on fitdash-cvolkernick.vercel.app (#761 dependency)"
-)
+def _fitdash_base() -> str:
+    """FitDash base URL from env (self-hosted or Vercel); never hardcoded."""
+    base = (os.environ.get("FITDASH_PUBLIC_URL") or "").strip().rstrip("/")
+    return base or "FITDASH_PUBLIC_URL (unset)"
+
+
+FITDASH_DEP = f"FitDash read API / export on {_fitdash_base()} (#761 dependency)"
 INVOICE_DEP = "Invoice-ready Turso table Helm writes per #747"
 HEALTHKIT_DEP = "Health Connect / HealthKit sync (user enable on Android)"
 

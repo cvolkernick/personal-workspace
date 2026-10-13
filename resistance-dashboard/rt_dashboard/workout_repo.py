@@ -367,8 +367,61 @@ class WorkoutRepository:
         return result
 
 
+class TursoWorkoutRepository:
+    """Turso-backed twin of WorkoutRepository (same methods server.py calls).
+
+    Used when TURSO_DATABASE_URL + TURSO_AUTH_TOKEN are set so a self-hosted
+    server reads/writes the same rows as the Vercel API. Never seeds from
+    markdown and never bulk-imports: Turso is the source of truth.
+    """
+
+    def __init__(self, user_id: Optional[str] = None):
+        self.user_id = (user_id or default_user_id()).strip() or DEFAULT_USER
+        self.db_path = "turso"
+
+    def count(self) -> int:
+        return len(self.list_sessions())
+
+    def list_sessions(self) -> List[Session]:
+        from . import turso_repo
+
+        return turso_repo.list_sessions(self.user_id)
+
+    def delete_session(self, date: str, session_type: str) -> bool:
+        from . import turso_repo
+
+        return turso_repo.delete_session(self.user_id, date, session_type)
+
+    def relocate_session(self, session: Session, from_date: str) -> Dict[str, Any]:
+        from . import turso_repo
+
+        return turso_repo.relocate_session(self.user_id, session, from_date)
+
+    def upsert_session(self, session: Session) -> Dict[str, Any]:
+        from . import turso_repo
+
+        return turso_repo.upsert_session(self.user_id, session)
+
+    def ensure_seeded_from_workspace(self, workspace_dir: str | Path) -> Dict[str, Any]:
+        return {"ok": True, "seeded": False, "count": self.count(), "path": "turso"}
+
+    def import_sessions(self, sessions: Sequence[Session], *, replace: bool = False) -> Dict[str, Any]:
+        return {"ok": False, "error": "bulk import disabled on Turso", "imported": 0}
+
+    def import_from_markdown_dir(
+        self, workspace_dir: str | Path, *, replace: bool = False
+    ) -> Dict[str, Any]:
+        return {"ok": False, "error": "markdown import disabled on Turso", "imported": 0}
+
+
 def get_repo(
     db_path: Optional[Path] = None,
     user_id: Optional[str] = None,
-) -> WorkoutRepository:
+):
+    """Turso when its env is set (and no explicit db_path), else SQLite."""
+    if db_path is None:
+        from .turso_http import turso_enabled
+
+        if turso_enabled():
+            return TursoWorkoutRepository(user_id=user_id)
     return WorkoutRepository(db_path=db_path, user_id=user_id)

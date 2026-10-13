@@ -62,8 +62,9 @@ def signing_secret() -> Optional[str]:
     return secret or None
 
 
-# Production alias — never a preview-branch host (fitdash-git-…).
-PROD_PUBLIC_URL = "https://fitdash-cvolkernick.vercel.app"
+# No hardcoded production host: FitDash may run on Vercel or on a self-hosted
+# box (tailnet HTTPS). Production must set FITDASH_PUBLIC_URL (or Vercel's
+# VERCEL_PROJECT_PRODUCTION_URL); otherwise OAuth reports it missing.
 
 
 def _with_https(host: str) -> str:
@@ -100,7 +101,7 @@ def public_base_url() -> str:
             return explicit
         if production and not _is_preview_host(production):
             return production
-        return PROD_PUBLIC_URL
+        return ""
 
     if explicit:
         return explicit
