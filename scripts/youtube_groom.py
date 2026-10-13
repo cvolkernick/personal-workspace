@@ -53,6 +53,9 @@ from typing import Iterable, Optional, Sequence
 #   Band is 235–250 (high side clamped to CAP; never exceed 250).
 #   STALE_HARD_DAYS 7 → 30 and FRESH_HOURS 168 → 720 so the inner
 #   fresh prune cannot immediately delete the list back to 7 days.
+#   REVERTED 2026-10-13: STALE_HARD_DAYS = 7 is a hard rule (Chris).
+#   Videos older than 7 days by PUBLISH date never stay on AI Curated.
+#   The 250 target is a ceiling; the list may sit below it.
 #   SEED_THROTTLE_WEIGHT_FLOOR 0.10 → 0.00 at baseline (not only as a
 #   below-band notch). WEIGHT_FLOOR 0.15 → 0.05.
 #   SEED_UPLOADS_PER_CHANNEL stays 50 (YouTube page max).
@@ -78,10 +81,13 @@ PREV_CAP = 200
 BAND_LOW = HOUSE_TARGET - HOUSE_TARGET_TOLERANCE  # 235
 BAND_HIGH = min(HOUSE_TARGET + HOUSE_TARGET_TOLERANCE, CAP)  # 250
 
-FRESH_HOURS = 720  # was 168; matches STALE_HARD_DAYS (30d)
-PREV_FRESH_HOURS = 168
-STALE_HARD_DAYS = 30  # was 7
-PREV_STALE_HARD_DAYS = 7
+# Hard rule: STALE_HARD_DAYS = 7, by video publish date. Never raise it.
+STALE_HARD_DAYS_MAX = 7
+FRESH_HOURS_MAX = STALE_HARD_DAYS_MAX * 24
+FRESH_HOURS = 168  # #957 had 720; reverted to the 7-day rule
+PREV_FRESH_HOURS = 720
+STALE_HARD_DAYS = 7  # #957 had 30; reverted, hard rule
+PREV_STALE_HARD_DAYS = 30
 MAX_DELETES_PER_TICK = 80
 KEEP_N = 10  # empty-playlist prune fallback on Pi (`keep_n`)
 

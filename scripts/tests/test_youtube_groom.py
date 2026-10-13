@@ -91,12 +91,12 @@ class TestNoPerTickInsertCeiling(unittest.TestCase):
 
 class TestHearted831Values(unittest.TestCase):
     def test_caps_match_hearted_values_except_inserts(self):
-        self.assertEqual(M.FRESH_HOURS, 720)
-        self.assertEqual(M.PREV_FRESH_HOURS, 168)
+        self.assertEqual(M.FRESH_HOURS, 168)
+        self.assertEqual(M.PREV_FRESH_HOURS, 720)
         self.assertEqual(M.CAP, 250)
         self.assertEqual(M.PREV_CAP, 200)
-        self.assertEqual(M.STALE_HARD_DAYS, 30)
-        self.assertEqual(M.PREV_STALE_HARD_DAYS, 7)
+        self.assertEqual(M.STALE_HARD_DAYS, 7)
+        self.assertEqual(M.PREV_STALE_HARD_DAYS, 30)
         self.assertEqual(M.MAX_DELETES_PER_TICK, 80)
         self.assertEqual(M.KEEP_N, 10)
         self.assertEqual(M.HOUSE_TARGET, 250)
@@ -124,9 +124,9 @@ class TestHearted831Values(unittest.TestCase):
         card = M.scorecard()
         self.assertEqual(card["old"]["MAX_INSERTS_PER_TICK"], 8)
         self.assertIsNone(card["new"]["MAX_INSERTS_PER_TICK"])
-        self.assertEqual(card["new"]["FRESH_HOURS"], 720)
+        self.assertEqual(card["new"]["FRESH_HOURS"], 168)
         self.assertEqual(card["new"]["CAP"], 250)
-        self.assertEqual(card["new"]["STALE_HARD_DAYS"], 30)
+        self.assertEqual(card["new"]["STALE_HARD_DAYS"], 7)
         self.assertEqual(card["old"]["MIN_FIT"], 1)
         self.assertEqual(card["new"]["MIN_FIT"], 0)
         self.assertEqual(card["old"]["SEED_THROTTLE_WEIGHT_FLOOR"], 0.25)
@@ -161,9 +161,13 @@ class TestHearted831Values(unittest.TestCase):
 
 
 class TestPruneFirstThenFill(unittest.TestCase):
-    def test_stale_is_thirty_days(self):
-        self.assertFalse(M.is_stale(NOW - timedelta(days=29, hours=23), now=NOW))
-        self.assertTrue(M.is_stale(NOW - timedelta(days=30), now=NOW))
+    def test_stale_is_seven_days_hard_rule(self):
+        # Hard rule: 7 days by video publish date. Never raise it.
+        self.assertEqual(M.STALE_HARD_DAYS, 7)
+        self.assertLessEqual(M.FRESH_HOURS, M.STALE_HARD_DAYS * 24)
+        self.assertFalse(M.is_stale(NOW - timedelta(days=6, hours=23), now=NOW))
+        self.assertTrue(M.is_stale(NOW - timedelta(days=7, hours=1), now=NOW))
+        self.assertTrue(M.is_stale(NOW - timedelta(days=29, hours=23), now=NOW))
 
     def test_plan_prunes_then_adds_past_old_eight(self):
         items = [

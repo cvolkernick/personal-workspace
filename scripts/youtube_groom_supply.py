@@ -36,8 +36,9 @@ CAP = 250
 HOUSE_TARGET_TOLERANCE = 15
 BAND_LOW = HOUSE_TARGET - HOUSE_TARGET_TOLERANCE  # 235
 BAND_HIGH = min(HOUSE_TARGET + HOUSE_TARGET_TOLERANCE, CAP)  # 250
-STALE_HARD_DAYS = 30
-FRESH_HOURS = 720
+# Hard rule (Chris): 7 days by video publish date. Never raise.
+STALE_HARD_DAYS = 7
+FRESH_HOURS = 168
 WEIGHT_FLOOR = 0.05
 PREV_WEIGHT_FLOOR = 0.15
 SEED_THROTTLE_WEIGHT_FLOOR = 0.0
@@ -882,6 +883,29 @@ def _replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+STALE_RULE_LINES = (
+    "STALE_HARD_DAYS = 7  # hard rule: 7d by publish date; never raise\n"
+    "FRESH_HOURS = 168  # = STALE_HARD_DAYS * 24\n"
+)
+_STALE_RE = re.compile(r"^STALE_HARD_DAYS = \d+[^\n]*\n", re.M)
+_FRESH_RE = re.compile(r"^FRESH_HOURS = \d+[^\n]*\n", re.M)
+
+
+def _enforce_stale_rule(text: str) -> str:
+    """Pin the writer to STALE_HARD_DAYS=7 / FRESH_HOURS=168.
+
+    #957 used to rewrite these to 30/720, which let 8–30 day old videos
+    stay on AI Curated. Rewrites any value back to the rule; idempotent.
+    """
+    if STALE_RULE_LINES in text:
+        return text
+    m_s, m_f = _STALE_RE.search(text), _FRESH_RE.search(text)
+    if not m_s or not m_f:
+        raise PatchError("missing anchor: stale-fresh")
+    text = _FRESH_RE.sub("", text, count=1)
+    return _STALE_RE.sub(lambda _m: STALE_RULE_LINES, text, count=1)
+
+
 def patch_writer_source(text: str, *, parse: bool = True) -> str:
     """Surgical #957 edit. Raises PatchError if the live writer drifted.
 
@@ -895,13 +919,7 @@ def patch_writer_source(text: str, *, parse: bool = True) -> str:
         "CAP = 250  # hard max; never exceed (#957). Was 200.\n",
         "house-cap",
     )
-    text = _replace_once(
-        text,
-        "STALE_HARD_DAYS = 7\nFRESH_HOURS = 168\n",
-        "STALE_HARD_DAYS = 30  # was 7. 30d can hold ~250 (#957).\n"
-        "FRESH_HOURS = 720  # was 168. Matches STALE_HARD_DAYS so the inner prune cannot collapse the list to 7d (#957).\n",
-        "stale-fresh",
-    )
+    text = _enforce_stale_rule(text)
     text = _replace_once(
         text,
         "SEED_THROTTLE_WEIGHT_FLOOR = 0.10  # skip SEED_THROTTLE only below this (was 0.25, #815)\n",

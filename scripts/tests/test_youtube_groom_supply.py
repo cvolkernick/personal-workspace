@@ -429,6 +429,21 @@ class TestLongform(unittest.TestCase):
 
 
 class TestWriterPatch(unittest.TestCase):
+    def test_patch_reverts_957_stale_30_to_7(self):
+        text = S.patch_writer_source(_anchor_excerpt(), parse=False)
+        drifted = text.replace(
+            S.STALE_RULE_LINES,
+            "STALE_HARD_DAYS = 30  # was 7. 30d can hold ~250 (#957).\n"
+            "FRESH_HOURS = 720  # was 168. (#957).\n",
+        )
+        self.assertNotEqual(drifted, text)
+        fixed = S.patch_writer_source(drifted, parse=False)
+        self.assertEqual(fixed, text)
+        self.assertEqual(fixed.count("STALE_HARD_DAYS ="), 1)
+        self.assertEqual(fixed.count("FRESH_HOURS ="), 1)
+        self.assertEqual(S.STALE_HARD_DAYS, 7)
+        self.assertEqual(S.FRESH_HOURS, 168)
+
     def test_patch_is_idempotent_on_the_anchors(self):
         text = _anchor_excerpt()
         once = S.patch_writer_source(text, parse=False)
@@ -436,8 +451,9 @@ class TestWriterPatch(unittest.TestCase):
         self.assertEqual(once, twice)
         self.assertIn("HOUSE_TARGET = 250", once)
         self.assertIn("CAP = 250", once)
-        self.assertIn("FRESH_HOURS = 720", once)
-        self.assertIn("STALE_HARD_DAYS = 30", once)
+        self.assertIn("FRESH_HOURS = 168", once)
+        self.assertIn("STALE_HARD_DAYS = 7  #", once)
+        self.assertNotIn("STALE_HARD_DAYS = 30", once)
         self.assertIn("SEED_THROTTLE_WEIGHT_FLOOR = 0.00", once)
         self.assertIn("WEIGHT_FLOOR = 0.05", once)
         self.assertIn("def search_videos", once)

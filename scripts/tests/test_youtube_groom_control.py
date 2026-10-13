@@ -620,3 +620,30 @@ class TestLanding(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStaleRuleClamp(unittest.TestCase):
+    """Hard rule: STALE_HARD_DAYS=7 (publish date). knobs.json cannot raise it."""
+
+    def test_knobs_cannot_raise_stale(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "knobs.json"
+            path.write_text(json.dumps({
+                "schema_version": C.SCHEMA_VERSION,
+                "STALE_HARD_DAYS": 30,
+                "FRESH_HOURS": 720,
+            }))
+            g = {"STALE_HARD_DAYS": 7, "FRESH_HOURS": 168}
+            C.apply_live_knobs(g, knobs_path=path)
+            self.assertEqual(g["STALE_HARD_DAYS"], 7)
+            self.assertEqual(g["FRESH_HOURS"], 168)
+
+    def test_drifted_writer_constant_is_clamped_without_knobs(self):
+        g = {"STALE_HARD_DAYS": 30, "FRESH_HOURS": 720}
+        C.apply_live_knobs(g, knobs_path=Path("/nonexistent/knobs.json"))
+        self.assertEqual(g["STALE_HARD_DAYS"], 7)
+        self.assertEqual(g["FRESH_HOURS"], 168)
+
+    def test_default_knobs_are_seven_days(self):
+        self.assertEqual(C.DEFAULT_KNOBS["STALE_HARD_DAYS"], 7)
+        self.assertEqual(C.DEFAULT_KNOBS["FRESH_HOURS"], 168)
