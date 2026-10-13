@@ -14,7 +14,7 @@ UNIT = DEPLOY / "fcc-tailscale-serve.service"
 
 
 class TestTailscaleServeDeploy(unittest.TestCase):
-    def test_script_maps_fcc_and_horizon_only(self) -> None:
+    def test_script_maps_fcc_horizon_and_fitdash_only(self) -> None:
         src = SCRIPT.read_text(encoding="utf-8")
         cmds = [ln.strip() for ln in src.splitlines() if re.match(r"\s*sudo -n", ln)]
         self.assertEqual(
@@ -22,6 +22,7 @@ class TestTailscaleServeDeploy(unittest.TestCase):
             [
                 'sudo -n "$TS" serve --bg --yes --https=443 http://127.0.0.1:8000',
                 'sudo -n "$TS" serve --bg --yes --https=10000 http://127.0.0.1:8795',
+                'sudo -n "$TS" serve --bg --yes --https=10001 http://127.0.0.1:8787',
             ],
         )
         code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
