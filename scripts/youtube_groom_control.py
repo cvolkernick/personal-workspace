@@ -55,8 +55,9 @@ BAND_HIGH = min(HOUSE_TARGET + HOUSE_TARGET_TOLERANCE, CAP)  # 250
 DAILY_SOFT_CAP = 8000
 YOUTUBE_DAILY_UNITS = 10000
 SCHEMA_VERSION = 2
-STALE_HARD_DAYS = 30
-FRESH_HOURS = 720
+# Hard rule (Chris): 7d by video publish date. knobs.json can never raise it.
+STALE_HARD_DAYS = 7
+FRESH_HOURS = 168
 WEIGHT_FLOOR = 0.05
 CLIMB_INSERTS_PER_DAY = 40
 COOLDOWN_TICKS = 2
@@ -863,8 +864,19 @@ def apply_timer_if_needed(
     return apply_timer(ticks_per_day, dropin=dropin, run=run)
 
 
+def _clamp_stale_rule(g: dict[str, Any]) -> dict[str, Any]:
+    """Enforce the 7d rule on the writer even if its own constant drifted."""
+    out: dict[str, Any] = {}
+    for key, ceil in (("STALE_HARD_DAYS", STALE_HARD_DAYS), ("FRESH_HOURS", FRESH_HOURS)):
+        if key in g and isinstance(g[key], (int, float)) and g[key] > ceil:
+            g[key] = ceil
+            out[key] = ceil
+    return out
+
+
 def apply_live_knobs(g: dict[str, Any], *, knobs_path: Optional[Path] = None) -> dict[str, Any]:
     """Mutate the live writer module globals from knobs.json. No YouTube I/O."""
+    _clamp_stale_rule(g)
     path = knobs_path or (Path(g["STATE_DIR"]) / "knobs.json" if "STATE_DIR" in g else KNOBS_PATH)
     if not path.is_file():
         return {}
@@ -886,7 +898,12 @@ def apply_live_knobs(g: dict[str, Any], *, knobs_path: Optional[Path] = None) ->
         "WEIGHT_FLOOR",
         "CLIMB_INSERTS_PER_DAY",
     }
-    ceilings = {"CAP": CAP, "HOUSE_TARGET": HOUSE_TARGET}
+    ceilings = {
+        "CAP": CAP,
+        "HOUSE_TARGET": HOUSE_TARGET,
+        "STALE_HARD_DAYS": STALE_HARD_DAYS,
+        "FRESH_HOURS": FRESH_HOURS,
+    }
     for key in (
         "MIN_FIT",
         "SEED_THROTTLE_WEIGHT_FLOOR",
@@ -909,6 +926,7 @@ def apply_live_knobs(g: dict[str, Any], *, knobs_path: Optional[Path] = None) ->
             value = min(int(value), ceilings[key])
         g[key] = value
         applied[key] = value
+    applied.update(_clamp_stale_rule(g))
     extra = migrate_seed_extra(knobs.get("SEED_EXTRA") or {})
     if extra and "SEED_KEEPERS" in g and isinstance(g["SEED_KEEPERS"], dict):
         g["SEED_KEEPERS"] = {**g["SEED_KEEPERS"], **extra}
