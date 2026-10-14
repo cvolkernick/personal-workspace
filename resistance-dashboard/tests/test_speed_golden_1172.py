@@ -296,6 +296,44 @@ class PayloadMemo(unittest.TestCase):
         self.assertEqual(len(calls), 2)
 
 
+class PayloadMemoWriteGeneration(unittest.TestCase):
+    def setUp(self):
+        import server
+
+        self.server = server
+        server.invalidate_dashboard_memo()
+
+    def test_build_racing_a_write_is_not_cached(self):
+        """A POST during an in-flight build must not leave that build cached."""
+        calls = []
+        started = threading.Event()
+        release = threading.Event()
+
+        def build(**k):
+            calls.append(1)
+            if len(calls) == 1:
+                started.set()
+                release.wait(2)
+                return {"v": "pre-write"}
+            return {"v": "post-write"}
+
+        with mock.patch.object(self.server, "_PAYLOAD_MEMO_ENABLED", True), \
+             mock.patch.object(self.server, "build_dashboard_data", build), \
+             mock.patch.object(self.server, "_health_cache_mtime", lambda: 1.0):
+            out = {}
+            t = threading.Thread(target=lambda: out.setdefault("a", self.server.load_dashboard_data(user_id="u")))
+            t.start()
+            self.assertTrue(started.wait(2))
+            self.server.invalidate_dashboard_memo()  # the write lands mid-build
+            release.set()
+            t.join()
+            self.assertEqual(out["a"]["v"], "pre-write")
+            self.assertEqual(self.server.load_dashboard_data(user_id="u")["v"], "post-write")
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(self.server.load_dashboard_data(user_id="u")["v"], "post-write")
+            self.assertEqual(len(calls), 2)
+
+
 class HealthCacheWriteOnlyIfChanged(unittest.TestCase):
     def test_unchanged_overlay_skips_write(self):
         from rt_dashboard import dashboard_cache as dc

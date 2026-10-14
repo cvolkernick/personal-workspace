@@ -506,6 +506,9 @@ _PAYLOAD_MEMO_ENABLED = False
 _PAYLOAD_MEMO: Dict[str, Tuple[float, Optional[float], Dict[str, Any]]] = {}
 _PAYLOAD_MEMO_LOCK = _threading.Lock()
 _PAYLOAD_BUILD_LOCKS: Dict[str, Any] = {}
+# Bumped by every invalidation (any POST). A build that started before a
+# write must not be stored or served afterwards: it may predate that write.
+_PAYLOAD_WRITE_GEN = 0
 
 
 def payload_memo_ttl_sec() -> float:
@@ -525,7 +528,9 @@ def _health_cache_mtime() -> Optional[float]:
 
 
 def invalidate_dashboard_memo() -> None:
+    global _PAYLOAD_WRITE_GEN
     with _PAYLOAD_MEMO_LOCK:
+        _PAYLOAD_WRITE_GEN += 1
         _PAYLOAD_MEMO.clear()
 
 
@@ -545,13 +550,22 @@ def load_dashboard_data(
         if not force_refresh:
             with _PAYLOAD_MEMO_LOCK:
                 hit = _PAYLOAD_MEMO.get(key)
+                gen_now = _PAYLOAD_WRITE_GEN
             if hit is not None:
-                built_at, mtime, data = hit
-                if time.time() - built_at < ttl and mtime == _health_cache_mtime():
+                built_at, mtime, gen, data = hit
+                if (
+                    gen == gen_now
+                    and time.time() - built_at < ttl
+                    and mtime == _health_cache_mtime()
+                ):
                     return _copy.deepcopy(data)
+        with _PAYLOAD_MEMO_LOCK:
+            gen_start = _PAYLOAD_WRITE_GEN
         data = build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
         with _PAYLOAD_MEMO_LOCK:
-            _PAYLOAD_MEMO[key] = (time.time(), _health_cache_mtime(), data)
+            # Store only if no write landed while we were building.
+            if _PAYLOAD_WRITE_GEN == gen_start:
+                _PAYLOAD_MEMO[key] = (time.time(), _health_cache_mtime(), gen_start, data)
         return _copy.deepcopy(data)
 
 
