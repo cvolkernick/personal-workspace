@@ -135,6 +135,6 @@ systemctl --user enable --now pi-heartbeat.timer pi-heartbeat-serve.service
 curl -s http://127.0.0.1:8797/api/heartbeat
 ```
 
-The finley watchlist covers `b2` (:8792), `openclaw-gateway`, and the
+The finley watchlist covers `b2` (:8792) and the
 `b2-puller` backup via freshness of `~/b2-pulls/prism/MANIFEST.json`
 (must be under 7800 s old and have `"ok": true`).

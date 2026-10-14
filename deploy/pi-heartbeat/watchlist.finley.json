@@ -1,7 +1,6 @@
 {
   "services": [
     {"name": "b2", "unit": "b2.service", "port": 8792, "health_path": "/api/health", "severity": "yellow"},
-    {"name": "openclaw-gateway", "unit": "openclaw-gateway.service", "severity": "yellow"},
     {"name": "b2-puller", "file": "~/b2-pulls/prism/MANIFEST.json", "max_age_s": 7800, "json_ok_key": "ok", "severity": "red"}
   ]
 }
