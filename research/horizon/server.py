@@ -362,7 +362,7 @@ DIRECTORY_DIR = Path(
     os.environ.get("HORIZON_DIRECTORY_DIR") or (HORIZON_DIR / "directory" / "_local")
 ).expanduser()
 DIRECTORY_PDF_NAME = "team-directory.pdf"
-SWARM_NODES_MD = Path(os.environ.get("HORIZON_NODES_MD") or (ROOT / "ops" / "NODES.md")).expanduser()
+SWARM_NODES_MD = ROOT / "ops" / "NODES.md"  # public; swarm.resolve_nodes_md prefers a private copy
 DIRECTORY_PDF_PATH = DIRECTORY_PATH + "/" + DIRECTORY_PDF_NAME
 _DIRECTORY_MISSING_HTML = (
     b"<!doctype html><h1>Directory not installed</h1>"
