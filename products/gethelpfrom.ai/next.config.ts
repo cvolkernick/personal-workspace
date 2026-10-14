@@ -12,6 +12,10 @@ function sha(name: string): string {
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: appRoot,
+  // Pre-launch: keep every route out of search indexes (meta tag is in layout.tsx).
+  async headers() {
+    return [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }]
+  },
   env: {
     GHF_CANON_SHA_QUESTIONS: sha("questions.json"),
     GHF_CANON_SHA_SCENARIOS: sha("scenarios.json"),
