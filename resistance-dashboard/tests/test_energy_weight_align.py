@@ -20,11 +20,11 @@ SW = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
 
 class EnergyWeightAlignMarkup(unittest.TestCase):
     def test_overlay_wired_before_app_js(self):
-        self.assertIn("/energy-weight-align.js?v=ewi-gaps-partial-1169", HTML)
+        self.assertIn("/energy-weight-align.js?v=ewi-rolling7-1171", HTML)
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
         self.assertIn("/app.js?v=trends-layout-1070-1", HTML)
         self.assertLess(
-            HTML.find("/energy-weight-align.js?v=ewi-gaps-partial-1169"),
+            HTML.find("/energy-weight-align.js?v=ewi-rolling7-1171"),
             HTML.find("/app.js?v=trends-layout-1070-1"),
         )
         self.assertIn("FitDashEnergyWeightAlign", APP_JS)
@@ -98,7 +98,7 @@ class EnergyWeightAlignCache(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v119", SW)
         self.assertNotIn("suggestions-956-1", HTML)
         self.assertNotIn("suggestions-956-1", SW)
-        self.assertIn("/energy-weight-align.js?v=ewi-gaps-partial-1169", HTML)
+        self.assertIn("/energy-weight-align.js?v=ewi-rolling7-1171", HTML)
         self.assertNotIn("ewi-cap-1", HTML)
         self.assertIn("/styles.css?v=brand-1027-1", HTML)
         self.assertIn("/styles.css?v=brand-1027-1", SW)

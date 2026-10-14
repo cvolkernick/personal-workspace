@@ -328,9 +328,8 @@
    */
   function actualSeries(labels, weightBy, firstLbs, actualLb) {
     var out = labels.map(function (day) {
-      // No weigh-in that day → gap. A trailing mean used to paint a
-      // continuous line across missing weigh-ins.
-      if (!has(weightBy, day)) return null;
+      // Rolling 7-day mean over the weigh-ins that exist. Carries across
+      // gaps shorter than the window; null only when the window is empty.
       var mean = trailingMean(weightBy, day);
       if (mean == null || firstLbs == null) return null;
       return mean - firstLbs;
@@ -476,6 +475,9 @@
       pairDays: paired.pairs,
       predicted: predicted,
       actual: actual,
+      weighIns: labels.map(function (day) {
+        return has(weightBy, day);
+      }),
       burnedSeries: burnedSeries,
       finalPredicted: finalPredicted,
       finalActual: finalActual,
@@ -658,6 +660,14 @@
     }
     if (actPath) {
       html += '<path d="' + actPath + '" fill="none" stroke="#f0c14d" stroke-width="2"></path>';
+    }
+    // Dot on each day with an actual weigh-in (the line is a rolling mean).
+    var weighIns = model.weighIns || [];
+    for (i = 0; i < n; i++) {
+      if (!weighIns[i] || act[i] == null || !Number.isFinite(act[i])) continue;
+      html +=
+        '<circle class="ewi-weighin" cx="' + xOf(i).toFixed(1) + '" cy="' + yOf(act[i]).toFixed(1) +
+        '" r="1.8" fill="#f0c14d"></circle>';
     }
     html += "</svg>";
     return html;
