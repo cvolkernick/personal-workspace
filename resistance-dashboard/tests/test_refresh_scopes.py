@@ -236,7 +236,7 @@ class CacheAndHobbyLock(unittest.TestCase):
         self.assertNotIn("azm-spark-1", HTML)
         self.assertNotIn("calorie-meta-bottom-1", HTML)
         self.assertNotIn("calorie-meta-bottom-1", SW)
-        self.assertIn("?v=ewi-scale-961-1", HTML)
+        self.assertIn("?v=ewi-gaps-partial-1169", HTML)
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
         self.assertIn("/app.js?v=trends-layout-1070-1", SW)
         self.assertIn("/app.js?v=trends-layout-1070-1", HTML)
