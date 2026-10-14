@@ -506,6 +506,9 @@ _PAYLOAD_MEMO_ENABLED = False
 _PAYLOAD_MEMO: Dict[str, Tuple[float, Optional[float], Dict[str, Any]]] = {}
 _PAYLOAD_MEMO_LOCK = _threading.Lock()
 _PAYLOAD_BUILD_LOCKS: Dict[str, Any] = {}
+# Bumped by every invalidation (any POST). A build that started before a
+# write must not be stored or served afterwards: it may predate that write.
+_PAYLOAD_WRITE_GEN = 0
 
 
 def payload_memo_ttl_sec() -> float:
@@ -525,7 +528,9 @@ def _health_cache_mtime() -> Optional[float]:
 
 
 def invalidate_dashboard_memo() -> None:
+    global _PAYLOAD_WRITE_GEN
     with _PAYLOAD_MEMO_LOCK:
+        _PAYLOAD_WRITE_GEN += 1
         _PAYLOAD_MEMO.clear()
 
 
@@ -545,13 +550,22 @@ def load_dashboard_data(
         if not force_refresh:
             with _PAYLOAD_MEMO_LOCK:
                 hit = _PAYLOAD_MEMO.get(key)
+                gen_now = _PAYLOAD_WRITE_GEN
             if hit is not None:
-                built_at, mtime, data = hit
-                if time.time() - built_at < ttl and mtime == _health_cache_mtime():
+                built_at, mtime, gen, data = hit
+                if (
+                    gen == gen_now
+                    and time.time() - built_at < ttl
+                    and mtime == _health_cache_mtime()
+                ):
                     return _copy.deepcopy(data)
+        with _PAYLOAD_MEMO_LOCK:
+            gen_start = _PAYLOAD_WRITE_GEN
         data = build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
         with _PAYLOAD_MEMO_LOCK:
-            _PAYLOAD_MEMO[key] = (time.time(), _health_cache_mtime(), data)
+            # Store only if no write landed while we were building.
+            if _PAYLOAD_WRITE_GEN == gen_start:
+                _PAYLOAD_MEMO[key] = (time.time(), _health_cache_mtime(), gen_start, data)
         return _copy.deepcopy(data)
 
 
@@ -2170,12 +2184,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 from rt_dashboard.turso_http import keepalive_scope
 
                 with keepalive_scope():
-                    result = ensure_daily_tasks(
-                        today,
-                        day=day,
-                        sleep_battery=bat if isinstance(bat, dict) else None,
-                        user_id=str(uid) if uid else None,
-                    )
+                    try:
+                        result = ensure_daily_tasks(
+                            today,
+                            day=day,
+                            sleep_battery=bat if isinstance(bat, dict) else None,
+                            user_id=str(uid) if uid else None,
+                        )
+                    finally:
+                        # ensure_daily_tasks writes; daily_tasks is in the payload.
+                        invalidate_dashboard_memo()
                 self._send_json({"ok": True, "daily_tasks": result})
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
@@ -2274,8 +2292,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
-        # Any write can change the payload; never serve a pre-write build.
+        # Any write can change the payload. Bump before (no pre-write memo
+        # hit) and again after the handler commits: a build that started
+        # between the first bump and the commit must not stay cached.
         invalidate_dashboard_memo()
+        try:
+            self._handle_post()
+        finally:
+            invalidate_dashboard_memo()
+
+    def _handle_post(self) -> None:
         if try_proxy_api is not None and try_proxy_api(
             self,
             _BACKEND_URL,
