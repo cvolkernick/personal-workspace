@@ -33,7 +33,10 @@ class IncrementalWarmTests(unittest.TestCase):
         def capture(**kwargs):
             spawned.append(kwargs)
 
-        with mock.patch.object(br, "_spawn_refresh", side_effect=capture):
+        # Incremental unless the daily full re-pull is due (test_data_integrity_1169).
+        with mock.patch.object(br, "_spawn_refresh", side_effect=capture), mock.patch.object(
+            br, "full_repull_due", return_value=False
+        ):
             ok = br.schedule_incremental_warm(
                 local_dir="/tmp",
                 token="gh",
@@ -55,7 +58,9 @@ class IncrementalWarmTests(unittest.TestCase):
     def test_warm_skips_inside_interval_unless_forced(self) -> None:
         os.environ["DASHBOARD_WARM_INTERVAL_SEC"] = "300"
         spawned: list = []
-        with mock.patch.object(br, "_spawn_refresh", side_effect=lambda **k: spawned.append(k)):
+        with mock.patch.object(
+            br, "_spawn_refresh", side_effect=lambda **k: spawned.append(k)
+        ), mock.patch.object(br, "full_repull_due", return_value=False):
             self.assertTrue(br.schedule_incremental_warm(force_schedule=False))
             self.assertFalse(br.schedule_incremental_warm(force_schedule=False))
             self.assertTrue(br.schedule_incremental_warm(force_schedule=True))

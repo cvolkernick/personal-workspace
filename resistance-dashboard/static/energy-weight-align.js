@@ -183,6 +183,8 @@
     var by = {};
     (rows || []).forEach(function (row) {
       if (!row || row.date == null) return;
+      // Open (partial) civil day: midnight → now only. Not a full day.
+      if (row.partial) return;
       var day = String(row.date).slice(0, 10);
       if (day.length < 10) return;
       var v = finiteNum(row[key]);
@@ -326,11 +328,22 @@
    */
   function actualSeries(labels, weightBy, firstLbs, actualLb) {
     var out = labels.map(function (day) {
+      // No weigh-in that day → gap. A trailing mean used to paint a
+      // continuous line across missing weigh-ins.
+      if (!has(weightBy, day)) return null;
       var mean = trailingMean(weightBy, day);
       if (mean == null || firstLbs == null) return null;
       return mean - firstLbs;
     });
-    if (actualLb != null && out.length) out[out.length - 1] = actualLb;
+    if (actualLb != null && out.length) {
+      // End on the On scale chip at the last weigh-in, not on a gap day.
+      for (var j = out.length - 1; j >= 0; j--) {
+        if (out[j] != null) {
+          out[j] = actualLb;
+          break;
+        }
+      }
+    }
     return out;
   }
 
@@ -431,7 +444,7 @@
       card ? card.actualLb : ends ? ends.actualLb : null
     );
     if (card && predicted.length) predicted[predicted.length - 1] = card.expectedLb;
-    if (card && actual.length) actual[actual.length - 1] = card.actualLb;
+    // actualSeries already ends on card.actualLb at the last weigh-in day.
     var finalPredicted = card
       ? card.expectedLb
       : predicted.length

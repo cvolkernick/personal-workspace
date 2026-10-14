@@ -225,8 +225,10 @@ def merge_sleep_interval_sources(
 
 
 def _latest_completed_sleep(
-    intervals: List[dict], now: datetime
+    intervals: List[dict], now: datetime, *, main_only: bool = False
 ) -> Optional[dict]:
+    if main_only:
+        from .sleep_quest import _is_overnight  # local: sleep_quest imports us
     best = None
     best_end: Optional[datetime] = None
     for row in normalize_intervals(intervals):
@@ -238,6 +240,10 @@ def _latest_completed_sleep(
         if en_local > now:
             continue
         st_l = st.astimezone(now.tzinfo)
+        if main_only and not _is_overnight(
+            st_l, en_local, (en_local - st_l).total_seconds() / 3600.0
+        ):
+            continue
         if best_end is None or en_local > best_end:
             best_end = en_local
             best = {
@@ -335,7 +341,13 @@ def compute_sleep_battery(
 
     intervals_n = normalize_intervals(intervals)
     active = _active_sleep(intervals_n, now)
-    last = _latest_completed_sleep(intervals_n, now)
+    # Only the main (overnight) sleep starts a new waking day. A nap must not
+    # move last_wake_at: hydration / calorie pacing windows start there, and
+    # an afternoon nap used to blank everything logged before it. Naps still
+    # recharge the battery via score_sleep's extra_hours.
+    last = _latest_completed_sleep(intervals_n, now, main_only=True) or _latest_completed_sleep(
+        intervals_n, now
+    )
 
     mode = "no_data"
     last_wake_at: Optional[datetime] = None

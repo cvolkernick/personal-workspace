@@ -180,12 +180,27 @@ class NutritionDaySpan:
     open: bool
     source: str
     backstop: Optional[str] = None
+    # Food logged during the sleep that ended at ``start`` (or within
+    # PRE_WAKE_GRACE before it) belongs to this day, not to nobody.
+    intake_start: Optional[datetime] = None
 
     def contains(self, dt: datetime) -> bool:
         if dt is None:
             return False
         local = _as_local(dt, self.start.tzinfo)
         return self.start <= local < self.end
+
+    @property
+    def intake_from(self) -> datetime:
+        if self.intake_start is not None and self.intake_start < self.start:
+            return self.intake_start
+        return self.start
+
+    def contains_intake(self, dt: datetime) -> bool:
+        if dt is None:
+            return False
+        local = _as_local(dt, self.start.tzinfo)
+        return self.intake_from <= local < self.end
 
     @property
     def burn_end(self) -> datetime:
@@ -213,6 +228,7 @@ class NutritionDaySpan:
                 if self.next_wake
                 else None
             ),
+            "intake_start": self.intake_from.isoformat(timespec="seconds"),
             "open": self.open,
             "source": self.source,
             "backstop": self.backstop,
@@ -366,6 +382,33 @@ def _merged_sleep_intervals(
     return merged
 
 
+PRE_WAKE_GRACE = timedelta(minutes=60)
+
+
+def _attach_intake_starts(
+    days: List[NutritionDaySpan], nights: Sequence[Tuple[datetime, datetime]]
+) -> None:
+    """Give each wake-started day the food logged in the sleep gap before it.
+
+    Days run wake → next overnight onset, so [onset, wake) belonged to no
+    day and food logged there (e.g. breakfast logged a few minutes before
+    the tracker's wake time) silently vanished. Assign it to the new day:
+    anything in the preceding sleep, or within PRE_WAKE_GRACE of wake,
+    never reaching back into the previous day's span.
+    """
+    onset_by_wake = {wake: onset for onset, wake in nights}
+    prev_end: Optional[datetime] = None
+    for span in days:
+        onset = onset_by_wake.get(span.start)
+        if onset is not None:
+            back = min(onset, span.start - PRE_WAKE_GRACE)
+            if prev_end is not None and back < prev_end:
+                back = prev_end
+            if back < span.start:
+                span.intake_start = back
+        prev_end = span.end
+
+
 def list_nutrition_days(
     *,
     now: Optional[datetime] = None,
@@ -448,6 +491,7 @@ def list_nutrition_days(
                         )
                         cursor = nxt
         if days:
+            _attach_intake_starts(days, nights)
             return days
 
     bat = sleep_battery if isinstance(sleep_battery, dict) else {}
@@ -553,7 +597,7 @@ def sum_intake_for_span(
         if dt is None:
             continue
         dt = dt.astimezone(tz)
-        if dt < span.start or dt >= cutoff:
+        if dt < span.intake_from or dt >= cutoff:
             continue
         d = food_log_as_dict(log) or {}
         try:
@@ -597,7 +641,7 @@ def food_logs_for_span(
         dt = food_log_event_time(log, default_tz=tz)  # type: ignore[arg-type]
         if dt is None:
             continue
-        if not span.contains(dt):
+        if not span.contains_intake(dt):
             continue
         d = food_log_as_dict(log)
         if d:
@@ -929,14 +973,19 @@ def civil_burn_series(
             }
         else:
             slot["calories"] += kcal
-    return [
-        {
+    today = clock.strftime("%Y-%m-%d")
+    out = []
+    for day in sorted(acc):
+        row = {
             "date": day,
             "calories": round(float(acc[day]["calories"]), 1),
             "source": acc[day]["source"],
         }
-        for day in sorted(acc)
-    ]
+        if day == today:
+            # Midnight → now only. Charts must not pair it as a full day.
+            row["partial"] = True
+        out.append(row)
+    return out
 
 
 def civil_burn_on(
@@ -1004,6 +1053,35 @@ def sum_intake_for_civil_day(
     }
 
 
+FOOD_LOG_INFLATION_RATIO = 1.10
+
+
+def flag_inflated_day(slot: Dict[str, Any], rollup: Optional[Dict[str, Any]]) -> bool:
+    """Food-log sum > 110% of Google's daily total → trust Google's total.
+
+    Keeps the log sum on ``food_log_calories`` and sets ``inflated``. Fixes
+    edited entries counted twice (Sep 30: 1 bowl + 5 cup = +6,500 kcal).
+    """
+    if not rollup:
+        return False
+    try:
+        logs = float(slot.get("calories") or 0)
+        google = float(rollup.get("calories"))
+    except (TypeError, ValueError):
+        return False
+    if google <= 0 or logs <= google * FOOD_LOG_INFLATION_RATIO:
+        return False
+    slot["inflated"] = True
+    slot["food_log_calories"] = round(logs, 1)
+    slot["google_calories"] = round(google, 1)
+    slot["calories"] = round(google, 1)
+    for key in ("protein_g", "carbs_g", "fat_g"):
+        if rollup.get(key) is not None:
+            slot[key] = rollup.get(key)
+    slot["source"] = "daily_rollup_inflation_guard"
+    return True
+
+
 def bucket_intake_by_civil_day(
     food_logs: Optional[Sequence[Any]],
     *,
@@ -1056,6 +1134,13 @@ def bucket_intake_by_civil_day(
             continue
         for key in ("calories", "protein_g", "carbs_g", "fat_g"):
             slot[key] = round(float(slot[key]), 1)
+    rollup_by: Dict[str, Dict[str, Any]] = {}
+    for row in nutrition_rollups or []:
+        d = _series_row_dict(row)
+        if d and len(str(d.get("date") or "")) >= 10:
+            rollup_by[str(d["date"])[:10]] = d
+    for day, slot in by_id.items():
+        flag_inflated_day(slot, rollup_by.get(day))
     if nutrition_rollups:
         for row in nutrition_rollups:
             d = _series_row_dict(row)
@@ -1077,6 +1162,9 @@ def bucket_intake_by_civil_day(
                     "source": d.get("source") or "daily_rollup",
                     "food_log_count": 0,
                 }
+    if today in by_id:
+        # Open civil day: intake so far only. Not a full day for charts.
+        by_id[today]["partial"] = True
     return [by_id[k] for k in sorted(by_id.keys())]
 
 

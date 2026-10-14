@@ -6538,14 +6538,20 @@
             `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
           );
         }
+        // Today's open civil day (partial) is never paired as a full day,
+        // and null kcal is missing, not 0 (Number(null) === 0).
+        const fullDayRows = (rows) =>
+          (rows || []).filter(
+            (row) => row && !row.partial && row.calories != null && row.calories !== ""
+          );
         const intakeBy = Object.fromEntries(
-          ((data.health && data.health.nutrition) || []).map((row) => [
+          fullDayRows(data.health && data.health.nutrition).map((row) => [
             String(row.date).slice(0, 10),
             Number(row.calories),
           ])
         );
         const burnedBy = Object.fromEntries(
-          ((data.health && data.health.calories_burned) || []).map((row) => [
+          fullDayRows(data.health && data.health.calories_burned).map((row) => [
             String(row.date).slice(0, 10),
             Number(row.calories),
           ])

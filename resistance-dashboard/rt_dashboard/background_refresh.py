@@ -52,6 +52,54 @@ def _incremental_days() -> int:
         return 14
 
 
+def full_repull_interval_sec() -> float:
+    """Seconds between full-history (90d) Health re-pulls from the warm loop.
+
+    Incremental warms only refresh the last ``HEALTH_INCREMENTAL_DAYS``, so a
+    stale or edited value older than that would otherwise live in the cache
+    forever. Default 24h. ``0`` disables.
+    """
+    raw = (os.environ.get("FITDASH_FULL_REPULL_HOURS") or "24").strip()
+    try:
+        return max(0.0, float(raw)) * 3600.0
+    except ValueError:
+        return 24 * 3600.0
+
+
+def _full_marker_path():
+    from .dashboard_cache import cache_dir
+
+    return cache_dir() / "health_full_pull.json"
+
+
+def last_full_pull_at() -> Optional[float]:
+    try:
+        import json
+
+        data = json.loads(_full_marker_path().read_text(encoding="utf-8"))
+        return float(data.get("fetched_at"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _mark_full_pull(now: Optional[float] = None) -> None:
+    import json
+
+    path = _full_marker_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"fetched_at": now or time.time()}), encoding="utf-8")
+
+
+def full_repull_due(now: Optional[float] = None) -> bool:
+    iv = full_repull_interval_sec()
+    if iv <= 0:
+        return False
+    last = last_full_pull_at()
+    if last is None:
+        return True
+    return ((now or time.time()) - last) >= iv
+
+
 def warm_interval_sec() -> float:
     """Seconds between Pi incremental warms. ``0`` disables the in-process loop."""
     raw = (os.environ.get("DASHBOARD_WARM_INTERVAL_SEC") or "300").strip()
@@ -123,7 +171,8 @@ def schedule_incremental_warm(
     _spawn_refresh(
         local_dir=local_dir,
         token=token,
-        incremental=True,
+        # Upgrade to a full-history re-pull once per FITDASH_FULL_REPULL_HOURS.
+        incremental=not full_repull_due(now),
         health_refresh_token=health_refresh_token,
     )
     return True
@@ -234,10 +283,13 @@ def _refresh_health(
         resolved = HealthSnapshot()
     # Hidrate Day totals win over GH hydration when credentials are set.
     resolved, _hidrate_meta = overlay_hidrate_hydration(resolved, days=days)
-    if incremental and cached is not None:
+    # Always merge: dates the fresh pull covers are replaced (food logs per
+    # date, dated series newest-wins); older history beyond 90d is kept.
+    if cached is not None:
         merged = merge_health_snapshots(cached, resolved)
     else:
         merged = resolved
+    full_ok = (not incremental) and client.credentials_present() and not resolved.error
     if (
         merged.weight
         or merged.sleep
@@ -248,6 +300,8 @@ def _refresh_health(
         or merged.resting_heart_rate
     ):
         save_health_cache(merged, error=merged.error)
+        if full_ok:
+            _mark_full_pull()
     else:
         save_health_cache(cached, error=resolved.error or "empty health refresh")
 

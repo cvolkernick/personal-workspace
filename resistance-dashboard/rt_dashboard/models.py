@@ -163,6 +163,9 @@ class FoodLogEntry:
     time: Optional[str] = None  # HH:MM civil local when available
     nutrients: Dict[str, float] = field(default_factory=dict)  # nutrient → grams
     source: str = "google_health"
+    # Google Health dataPoint resource name. Stable across edits, so an edited
+    # entry replaces its old version instead of being counted twice.
+    log_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
