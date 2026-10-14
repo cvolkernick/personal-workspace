@@ -251,7 +251,7 @@ def render_page(topo: dict[str, Any], source: str = "ops/NODES.md") -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Swarm · Horizon</title>
 <style>{CSS}</style></head><body>
 <header class="mast"><div class="kicker">Horizon · Infrastructure</div><h1>Swarm</h1>
-<p class="dek">Every node, what runs on it, and how data moves between them. Generated from <code>{html.escape(source)}</code> on each request.</p></header>
+<p class="dek">Every node, what runs on it, and how data moves between them. Generated from {html.escape(source)} on each request.</p></header>
 <main>
 <section class="sec" id="map"><div class="sechead"><span class="num">01</span><h2>Topology</h2></div>
 <p class="lede">Solid boxes and arrows are live. Dashed ones are planned. Numbered arrows match the Data flows list below. Everything inside the dashed frame is reachable only on the tailnet.</p>
@@ -264,9 +264,32 @@ def render_page(topo: dict[str, Any], source: str = "ops/NODES.md") -> str:
 </main></body></html>"""
 
 
-def swarm_html(nodes_md: Path) -> str | None:
+PRIVATE_NODES_MD = Path("~/.config/horizon/nodes.private.md")
+
+
+def resolve_nodes_md(public_md: Path, env: dict[str, str] | None = None) -> tuple[Path, str]:
+    """Pick the source: HORIZON_NODES_MD, then the untracked private copy, then public.
+
+    ops/NODES.md in git is public and high-level. On prism the detailed version
+    lives off-repo (mode 600) and is preferred when present, so the tailnet-only
+    page keeps full detail without it ever entering git.
+    """
+    import os
+
+    env = os.environ if env is None else env
+    override = (env.get("HORIZON_NODES_MD") or "").strip()
+    if override and Path(override).expanduser().is_file():
+        return Path(override).expanduser(), "private overlay"
+    private = PRIVATE_NODES_MD.expanduser()
+    if private.is_file():
+        return private, "private overlay"
+    return public_md, "ops/NODES.md"
+
+
+def swarm_html(nodes_md: Path, env: dict[str, str] | None = None) -> str | None:
+    path, label = resolve_nodes_md(nodes_md, env)
     try:
-        text = nodes_md.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return None
-    return render_page(parse_nodes_md(text))
+    return render_page(parse_nodes_md(text), source=label)
