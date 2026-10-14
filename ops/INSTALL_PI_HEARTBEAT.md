@@ -88,3 +88,52 @@ curl -sS http://127.0.0.1:8790/api/heartbeat | python3 -m json.tool | head
 ## Durable path
 
 `orchestra/data/heartbeat/` is runtime state. Prefer preserving it across `workspace-sync` the same way other `*_latest.json` paths are snapshotted.
+
+## Host vitals + threshold alerts (v0.2.0)
+
+`latest.json` now carries a `vitals` block (hostname, disk % for `/`, load per
+core 1m/5m/15m, mem %, SoC temp °C, `throttled` flag + raw hex, uptime) plus
+`status` (`green`/`amber`/`red`) and `alerts[]`.
+
+Thresholds (`orchestra/heartbeat_alerts.py`; override with env or a JSON file
+named by `HEARTBEAT_THRESHOLDS`):
+
+| Check | Default | Env |
+|-------|---------|-----|
+| Disk `/` | amber ≥80%, red ≥90% | `HEARTBEAT_DISK_WARN_PCT`, `HEARTBEAT_DISK_CRIT_PCT` |
+| Load per core | 15-min loadavg / cores > 1.5 (= sustained 15 min) | `HEARTBEAT_LOAD_PER_CORE` |
+| Temp | ≥75 °C | `HEARTBEAT_TEMP_C` |
+| Unit down | 2 consecutive checks | `HEARTBEAT_UNIT_DOWN_CHECKS` |
+
+**Transport (#704):** a comment on #701 only, silent to the owner, posted only
+when the alert set changes (new / level change / recovery). State lives in
+`orchestra/data/heartbeat/alerts_state.json`. The token comes from
+`GITHUB_TOKEN`/`GH_TOKEN` (env, or `HEARTBEAT_ENV_FILE`, default
+`~/.config/workflow-scheduler.env`; values never logged). Without a token the
+collector logs `posted=False no-github-token` and keeps going. A failed POST is
+retried on the next check. `HEARTBEAT_ALERTS=0` or `--no-alerts` disables it.
+
+## Second node (finley-gateway)
+
+finley has no Orchestra, so it uses a per-node watchlist plus a small
+read-only server for `/api/heartbeat`:
+
+```bash
+cd ~/personal-workspace
+cp deploy/units/pi-heartbeat.service deploy/units/pi-heartbeat.timer \
+   deploy/units/pi-heartbeat-serve.service ~/.config/systemd/user/
+mkdir -p ~/.config/systemd/user/pi-heartbeat.service.d
+cat > ~/.config/systemd/user/pi-heartbeat.service.d/finley.conf <<'CONF'
+[Service]
+Environment=HEARTBEAT_HOST=finley-gateway
+Environment=HEARTBEAT_HOST_ROLE=backup
+Environment=HEARTBEAT_WATCHLIST=%h/personal-workspace/deploy/pi-heartbeat/watchlist.finley.json
+CONF
+systemctl --user daemon-reload
+systemctl --user enable --now pi-heartbeat.timer pi-heartbeat-serve.service
+curl -s http://127.0.0.1:8797/api/heartbeat
+```
+
+The finley watchlist covers `b2` (:8792), `openclaw-gateway`, and the
+`b2-puller` backup via freshness of `~/b2-pulls/prism/MANIFEST.json`
+(must be under 7800 s old and have `"ok": true`).

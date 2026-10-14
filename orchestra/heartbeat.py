@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 COLLECTOR_NAME = "pi-heartbeat"
-COLLECTOR_VERSION = "0.1.0"
+COLLECTOR_VERSION = "0.2.0"
 SCHEMA_VERSION = 1
 
 # Relative to monorepo root (workspace)
@@ -82,6 +82,175 @@ WATCHLIST: list[dict[str, Any]] = [
         "optional_unit": True,
     },
 ]
+
+
+def load_watchlist(path: Optional[str] = None) -> list[dict[str, Any]]:
+    """Per-node watchlist. ``HEARTBEAT_WATCHLIST`` names a JSON file (a list
+    of specs, or ``{"services": [...]}``); otherwise the prism default.
+
+    Spec kinds:
+      * unit and/or port+health_path (as before)
+      * ``file`` + ``max_age_s`` (+ optional ``json_ok_key``): a freshness check
+        such as a backup MANIFEST written by a timer.
+    """
+    raw = path if path is not None else (os.environ.get("HEARTBEAT_WATCHLIST") or "").strip()
+    if not raw:
+        return WATCHLIST
+    try:
+        data = json.loads(Path(raw).expanduser().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return WATCHLIST
+    if isinstance(data, dict):
+        data = data.get("services")
+    if not isinstance(data, list) or not all(isinstance(x, dict) and x.get("name") for x in data):
+        return WATCHLIST
+    return data
+
+
+# --- Host vitals ------------------------------------------------------------
+
+
+def _read_text(path: Path) -> Optional[str]:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _cpu_count(proc_root: Path) -> int:
+    text = _read_text(proc_root / "cpuinfo") or ""
+    n = sum(1 for line in text.splitlines() if line.lower().startswith("processor"))
+    return n or (os.cpu_count() or 1)
+
+
+def _disk_pct(statvfs_fn: Any, mount: str) -> Optional[float]:
+    try:
+        st = statvfs_fn(mount)
+    except OSError:
+        return None
+    used = (st.f_blocks - st.f_bfree) * st.f_frsize
+    avail = st.f_bavail * st.f_frsize
+    denom = used + avail
+    if denom <= 0:
+        return None
+    return round(100.0 * used / denom, 1)  # df-style Use%
+
+
+def _read_throttled_default(sys_root: Path) -> Optional[int]:
+    text = _read_text(sys_root / "devices/platform/soc/soc:firmware/get_throttled")
+    if text and text.strip():
+        try:
+            return int(text.strip(), 16)
+        except ValueError:
+            pass
+    try:
+        proc = subprocess.run(
+            ["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2, check=False
+        )
+        out = (proc.stdout or "").strip()
+        if "=" in out:
+            return int(out.split("=", 1)[1], 16)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError, ValueError):
+        pass
+    return None
+
+
+def collect_vitals(
+    *,
+    proc_root: Path | str = "/proc",
+    sys_root: Path | str = "/sys",
+    statvfs_fn: Any = None,
+    mount: str = "/",
+    hostname: Optional[str] = None,
+    throttled_reader: Any = None,
+) -> dict[str, Any]:
+    """Host vitals from /proc and /sys. Missing sources become None."""
+    proc_root, sys_root = Path(proc_root), Path(sys_root)
+    cores = _cpu_count(proc_root)
+    load1 = load5 = load15 = None
+    la = (_read_text(proc_root / "loadavg") or "").split()
+    if len(la) >= 3:
+        try:
+            load1, load5, load15 = (float(x) for x in la[:3])
+        except ValueError:
+            pass
+    mem_pct = None
+    mem: dict[str, int] = {}
+    for line in (_read_text(proc_root / "meminfo") or "").splitlines():
+        k, _, v = line.partition(":")
+        parts = v.split()
+        if parts and parts[0].isdigit():
+            mem[k.strip()] = int(parts[0])
+    if mem.get("MemTotal"):
+        avail = mem.get("MemAvailable", mem.get("MemFree", 0))
+        mem_pct = round(100.0 * (1 - avail / mem["MemTotal"]), 1)
+    temp_c = None
+    t = (_read_text(sys_root / "class/thermal/thermal_zone0/temp") or "").strip()
+    if t:
+        try:
+            temp_c = round(int(t) / 1000.0, 1)
+        except ValueError:
+            pass
+    uptime_s = None
+    up = (_read_text(proc_root / "uptime") or "").split()
+    if up:
+        try:
+            uptime_s = int(float(up[0]))
+        except ValueError:
+            pass
+    reader = throttled_reader or (lambda: _read_throttled_default(sys_root))
+    raw_throttled = reader()
+    per = lambda x: round(x / cores, 2) if x is not None else None  # noqa: E731
+    return {
+        "hostname": hostname or socket.gethostname().split(".")[0],
+        "disk_pct": _disk_pct(statvfs_fn or os.statvfs, mount),
+        "disk_mount": mount,
+        "cpu_cores": cores,
+        "load_per_core": {"1m": per(load1), "5m": per(load5), "15m": per(load15)},
+        "mem_pct": mem_pct,
+        "temp_c": temp_c,
+        # Any bit set (now or since boot): under-voltage / freq cap / throttled.
+        "throttled": None if raw_throttled is None else bool(raw_throttled),
+        "throttled_raw": None if raw_throttled is None else hex(raw_throttled),
+        "uptime_s": uptime_s,
+    }
+
+
+def collect_file_check(spec: dict[str, Any], *, now: Optional[float] = None) -> dict[str, Any]:
+    """Freshness check for a file a timer writes (e.g. a backup MANIFEST)."""
+    path = Path(str(spec.get("file") or "")).expanduser()
+    max_age = float(spec.get("max_age_s") or 0)
+    ok_key = spec.get("json_ok_key")
+    now = time.time() if now is None else now
+    healthy: Optional[bool] = False
+    note = ""
+    age = None
+    try:
+        age = int(now - path.stat().st_mtime)
+        healthy = age <= max_age if max_age else True
+        if not healthy:
+            note = f"stale:{age}s>{int(max_age)}s"
+        if healthy and ok_key:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not (isinstance(data, dict) and data.get(ok_key) is True):
+                healthy, note = False, f"{ok_key}!=true"
+    except FileNotFoundError:
+        note = "missing"
+    except (OSError, json.JSONDecodeError) as e:
+        note = f"unreadable:{type(e).__name__}"
+    return {
+        "name": spec["name"],
+        "unit": str(spec.get("unit") or ""),
+        "active": bool(healthy),
+        "port": None,
+        "health_url": None,
+        "health_ok": healthy,
+        "latency_ms": None,
+        "note": note,
+        "age_s": age,
+        "severity": spec.get("severity") or "yellow",
+        "optional_unit": False,
+    }
 
 
 def utc_now_iso() -> str:
@@ -253,6 +422,8 @@ def detect_host() -> tuple[str, str]:
 
 
 def collect_service(spec: dict[str, Any]) -> dict[str, Any]:
+    if spec.get("file"):
+        return collect_file_check(spec)
     unit = str(spec.get("unit") or "")
     port = int(spec.get("port") or 0)
     health_path = str(spec.get("health_path") or "/api/health")
@@ -338,12 +509,13 @@ def collect_heartbeat(
     mesh: Optional[dict[str, Any]] = None,
     host: Optional[str] = None,
     host_role: Optional[str] = None,
+    vitals: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Run one collection pass and return the schema_version 1 document."""
     det_host, det_role = detect_host()
     host = host or det_host
     host_role = host_role or det_role
-    specs = watchlist if watchlist is not None else WATCHLIST
+    specs = watchlist if watchlist is not None else load_watchlist()
     services = [collect_service(s) for s in specs]
     # Strip internal-only fields before emit
     public_services = []
@@ -381,6 +553,7 @@ def collect_heartbeat(
         "mesh": mesh_info,
         "notes": notes,
         "degraded": degraded,
+        "vitals": vitals if vitals is not None else collect_vitals(),
     }
 
 

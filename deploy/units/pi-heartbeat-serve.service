@@ -1,0 +1,13 @@
+[Unit]
+Description=Read-only GET /api/heartbeat for nodes without Orchestra (finley)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/personal-workspace/orchestra/serve_heartbeat.py --workspace %h/personal-workspace --host 127.0.0.1 --port 8797
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
