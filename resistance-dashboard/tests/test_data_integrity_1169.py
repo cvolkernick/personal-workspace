@@ -266,36 +266,64 @@ class PartialToday(unittest.TestCase):
         self.assertTrue(intake[-1]["partial"])
 
 
-NODE_SNIPPET = r"""
+NODE_RUNNER = r"""
 const api = require(process.argv[1]);
+const spec = JSON.parse(process.argv[2]);
 const labels = [];
-for (let i = 0; i < 10; i++) labels.push(api.addDays("2099-01-01", i));
-const weights = [
-  {date: "2099-01-01", weight_lbs: 180}, {date: "2099-01-04", weight_lbs: 179.5},
-  {date: "2099-01-09", weight_lbs: 179},
-];
+for (let i = 0; i < spec.days; i++) labels.push(api.addDays("2099-01-01", i));
+const weights = spec.weighDays.map((i, k) => ({date: labels[i], weight_lbs: 180 - 0.1 * k}));
 const intakeRows = labels.map((d) => ({date: d, calories: 2000}));
 const burnedRows = labels.map((d) => ({date: d, calories: 2500}));
-intakeRows[9].partial = true; burnedRows[9] = {date: labels[9], calories: 900, partial: true};
-const out = api.energyScaleExtension({labels, intakeRows, burnedRows, weights, foodLogRows: []});
-console.log(JSON.stringify({actual: out.actual, burned: out.burnedSeries}));
+intakeRows[spec.days - 1].partial = true;
+burnedRows[spec.days - 1] = {date: labels[spec.days - 1], calories: 900, partial: true};
+const model = api.energyScaleExtension({labels, intakeRows, burnedRows, weights, foodLogRows: []});
+const html = api.extensionHtml(model);
+console.log(JSON.stringify({
+  actual: model.actual, burned: model.burnedSeries, open: model.open,
+  dots: (html.match(/class="ewi-weighin"/g) || []).length,
+  amberPaths: (html.match(/stroke="#f0c14d"/g) || []).length,
+  amberD: (html.match(/<path d="([^"]*)" fill="none" stroke="#f0c14d"/) || [null, ""])[1],
+}));
 """
 
 
+def _run_scale(days, weigh_days):
+    js = ROOT / "static" / "energy-weight-align.js"
+    res = subprocess.run(
+        ["node", "-e", NODE_RUNNER, str(js), json.dumps({"days": days, "weighDays": weigh_days})],
+        capture_output=True, text=True, timeout=30,
+    )
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout)
+
+
 class EnergyScaleChartJs(unittest.TestCase):
-    def test_partial_today_excluded_and_weighin_gaps(self):
-        js = ROOT / "static" / "energy-weight-align.js"
-        res = subprocess.run(
-            ["node", "-e", NODE_SNIPPET, str(js)], capture_output=True, text=True, timeout=30
-        )
-        self.assertEqual(res.returncode, 0, res.stderr)
-        out = json.loads(res.stdout)
+    def test_partial_today_excluded_and_short_gaps_carried(self):
+        out = _run_scale(10, [0, 3, 8])
         self.assertIsNone(out["burned"][9])  # partial day not paired
         actual = out["actual"]
-        if actual:  # line present when coverage gates open
-            self.assertIsNone(actual[1])  # 01-02 no weigh-in → gap
-            self.assertIsNotNone(actual[3])
-            self.assertIsNone(actual[9])
+        # 01-02 has no weigh-in but 01-01 is inside the 7-day window → value.
+        self.assertIsNotNone(actual[1])
+        self.assertIsNotNone(actual[9])
+        self.assertNotIn(None, actual)
+
+    def test_gap_of_7_plus_days_breaks_line(self):
+        # Weigh-ins on day 0 and day 12: days 7..11 have none in the window.
+        out = _run_scale(14, [0, 12])
+        actual = out["actual"]
+        self.assertIsNotNone(actual[6])
+        for i in range(7, 12):
+            self.assertIsNone(actual[i], i)
+        self.assertIsNotNone(actual[12])
+
+    def test_every_other_day_weighins_one_continuous_line_with_dots(self):
+        weigh = list(range(0, 30, 2))
+        out = _run_scale(30, weigh)
+        self.assertTrue(out["open"])
+        self.assertNotIn(None, out["actual"])
+        self.assertEqual(out["amberPaths"], 1)
+        self.assertEqual(out["amberD"].count("M"), 1)  # one segment
+        self.assertEqual(out["dots"], len(weigh))
 
     def test_app_js_filters_partial_rows(self):
         app = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
