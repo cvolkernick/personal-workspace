@@ -44,6 +44,7 @@ PAGES = {
     "/daily-brief/2026-10-09/am": "daily-brief",
     "/model": "model",
     "/directory": "directory",
+    "/swarm": "swarm",
 }
 EXPECT = {
     "home": "/",
@@ -51,6 +52,7 @@ EXPECT = {
     "archive": "/daily-brief/archive",
     "model": "/model",
     "directory": "/directory",
+    "swarm": "/swarm",
 }
 _NAV_RE = re.compile(r'<nav id="hz-site-nav"[^>]*>(.*?)</nav>', re.S)
 _LINK_RE = re.compile(r'<a href="([^"]*)" data-nav="([a-z-]+)"([^>]*)>')
@@ -125,7 +127,7 @@ class TestSiteNav(unittest.TestCase):
             self.assertEqual(code, 200, path)
             html = body.decode("utf-8")
             links = self._links(html)
-            self.assertEqual(list(links), ["home", "daily-brief", "archive", "model", "directory"], path)
+            self.assertEqual(list(links), ["home", "daily-brief", "archive", "model", "directory", "swarm"], path)
             for key, (_href, rest) in links.items():
                 self.assertEqual("aria-current" in rest, key == active, f"{path} {key}")
             # Nav sits right after <body ...>, before the page content.

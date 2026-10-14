@@ -36,6 +36,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from research.horizon.pipeline import run_pipeline  # noqa: E402
+from research.horizon.swarm import SWARM_PATH, swarm_html  # noqa: E402
 from research.horizon.store import (  # noqa: E402
     DEFAULT_DATA_DIR,
     brief_latest_paths,
@@ -286,6 +287,7 @@ SITE_NAV_LINKS = (
     ("archive", "Archive", "daily-brief/archive"),
     ("model", "Model", "model"),
     ("directory", "Directory", "directory"),
+    ("swarm", "Swarm", "swarm"),
 )
 _SITE_NAV_CSS = (
     "<style>#hz-site-nav{position:sticky;top:0;z-index:50;display:flex;gap:.35rem;"
@@ -306,6 +308,8 @@ def site_nav_active(path: str) -> str:
         return "model"
     if p == DIRECTORY_PATH or p.startswith(DIRECTORY_PATH + "/"):
         return "directory"
+    if p == SWARM_PATH:
+        return "swarm"
     if p == "/daily-brief/archive":
         return "archive"
     if p == "/daily-brief" or p.startswith("/daily-brief/"):
@@ -357,6 +361,7 @@ DIRECTORY_DIR = Path(
     os.environ.get("HORIZON_DIRECTORY_DIR") or (HORIZON_DIR / "directory" / "_local")
 ).expanduser()
 DIRECTORY_PDF_NAME = "team-directory.pdf"
+SWARM_NODES_MD = Path(os.environ.get("HORIZON_NODES_MD") or (ROOT / "ops" / "NODES.md")).expanduser()
 DIRECTORY_PDF_PATH = DIRECTORY_PATH + "/" + DIRECTORY_PDF_NAME
 _DIRECTORY_MISSING_HTML = (
     b"<!doctype html><h1>Directory not installed</h1>"
@@ -518,7 +523,26 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         self._send_html(200, with_site_nav(model, parsed.path, self._forwarded_prefix()).encode("utf-8"))
         return True
 
+    def _maybe_serve_swarm(self) -> bool:
+        parsed = urlparse(self.path)
+        if parsed.path == SWARM_PATH + "/":
+            self.send_response(302)
+            self.send_header("Location", SWARM_PATH)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        if parsed.path != SWARM_PATH:
+            return False
+        page = swarm_html(SWARM_NODES_MD)
+        if page is None:
+            self._send_html(404, b"<!doctype html><h1>Swarm unavailable</h1><p>ops/NODES.md not found.</p>")
+        else:
+            self._send_html(200, with_site_nav(with_pwa_head(page), parsed.path, self._forwarded_prefix()).encode("utf-8"))
+        return True
+
     def _maybe_serve_directory(self) -> bool:
+        if self._maybe_serve_swarm():
+            return True
         parsed = urlparse(self.path)
         res = directory_route(parsed.path, parsed.query)
         if res is None:
