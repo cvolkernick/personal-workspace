@@ -112,6 +112,9 @@ def _load_installed_client_from_disk() -> Tuple[str, str]:
     return "", ""
 
 
+# Runaway guard for cutoff-driven dataPoints paging (100 pts/page).
+PAGINATE_SAFETY_CAP = 120
+
 class GoogleHealthClient:
     def __init__(
         self,
@@ -257,6 +260,7 @@ class GoogleHealthClient:
         max_pages: int = 10,
         *,
         until_date: Optional[str] = None,
+        safety_cap: int = PAGINATE_SAFETY_CAP,
     ) -> dict:
         """Collect dataPoints pages. If until_date (YYYY-MM-DD), keep paging
         newest-first until a page older than that cutoff, not a tiny page cap.
@@ -272,7 +276,8 @@ class GoogleHealthClient:
         page_token: Optional[str] = None
         cap = min(max(int(max_pages or 10), 1), 40)
         if until_date:
-            cap = max(cap, 40)
+            # Page until the cutoff is reached; the cap is only a runaway guard.
+            cap = max(cap, int(safety_cap or PAGINATE_SAFETY_CAP))
         for _ in range(cap):
             q: Dict[str, str] = {"pageSize": "100"}
             if page_token:
@@ -474,21 +479,42 @@ class GoogleHealthClient:
         end = datetime.now().astimezone()
         remaining = days
         all_pts: List[dict] = []
-        while remaining > 0:
+        ok_chunks = 0
+        last_exc: Optional[GoogleHealthError] = None
+        # Walk every window back to the cutoff. One failing window is skipped
+        # (logged) instead of aborting the whole span; the loop bound is a
+        # runaway guard only (days / 1-day windows at worst).
+        for _ in range(days + 1):
+            if remaining <= 0:
+                break
             take = min(chunk_days, remaining)
+            data: Optional[dict] = None
             try:
                 data = self.daily_rollup(data_type, days=take, end_date=end)
-            except GoogleHealthError:
+            except GoogleHealthError as exc:
+                last_exc = exc
                 # Shrink chunk if API rejects larger windows
                 if take > 7:
                     take = 7
-                    data = self.daily_rollup(data_type, days=take, end_date=end)
-                else:
-                    raise
-            pts = data.get("rollupDataPoints") or []
-            all_pts.extend(pts)
+                    try:
+                        data = self.daily_rollup(data_type, days=take, end_date=end)
+                    except GoogleHealthError as exc2:
+                        last_exc = exc2
+                        data = None
+                if data is None:
+                    log.warning(
+                        "google health rollup %s window ending %s failed: %s",
+                        data_type,
+                        end.date().isoformat() if hasattr(end, "date") else end,
+                        last_exc,
+                    )
+            if data is not None:
+                ok_chunks += 1
+                all_pts.extend(data.get("rollupDataPoints") or [])
             remaining -= take
             end = end - timedelta(days=take)
+        if ok_chunks == 0 and last_exc is not None:
+            raise last_exc
         return {"rollupDataPoints": all_pts}
 
     def fetch_nutrition_bundle(
@@ -576,11 +602,11 @@ class GoogleHealthClient:
         """
         days = max(1, min(int(days), 90))
         cutoff = (datetime.now().astimezone().date() - timedelta(days=days - 1)).isoformat()
-        max_pages = 4 if days >= 60 else 3
         try:
+            # Keep paging until the 90-day cutoff (safety cap guards runaway).
             data = self._paginate_data_points(
                 "daily-resting-heart-rate",
-                max_pages=max_pages,
+                max_pages=40,
                 until_date=cutoff,
             )
             return parse_daily_resting_heart_rate_points(data, days=days)

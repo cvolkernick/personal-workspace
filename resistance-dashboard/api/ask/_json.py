@@ -20,6 +20,21 @@ def require_user(headers):
     return session_from_headers(headers), None
 
 
+def resolve_user(headers, user=None):
+    """Use a caller-supplied user (prism server.py session) or the Vercel cookie.
+
+    server.py authenticates with its own ``fitdash_session`` store and passes
+    the resolved user in, so the body functions work on both hosts.
+    """
+    if user:
+        uid = user.get("id") or user.get("user_id")
+        if uid:
+            out = dict(user)
+            out["id"] = str(uid)
+            return out, None
+    return require_user(headers)
+
+
 def write_json(handler, status: int, body: dict, extra_headers=None) -> None:
     raw = json_bytes(body)
     handler.send_response(status)

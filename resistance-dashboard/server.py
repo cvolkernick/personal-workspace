@@ -1465,12 +1465,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
-    def _send_json(self, obj: Any, status: int = 200) -> None:
+    def _send_json(
+        self, obj: Any, status: int = 200, extra_headers: Optional[list] = None
+    ) -> None:
         raw = json.dumps(obj, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
+        for k, v in extra_headers or []:
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(raw)
 
@@ -1510,6 +1514,96 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             )
             return None
         return user
+
+    # ------------------------------------------------------------------
+    # Former Vercel-only functions (api/ask/grok/*, api/ask/plan,
+    # /api/meal-plan, /api/labs). server.py authenticates with its own
+    # fitdash_session store and hands the resolved user to the shared body
+    # functions, the same way /api/agent/generate-plan delegates.
+    # ------------------------------------------------------------------
+    def _vercel_compat_user(self) -> Optional[Dict[str, Any]]:
+        user = getattr(self, "_request_user", None) or {}
+        uid = user.get("user_id") or user.get("id")
+        if not uid:
+            return None
+        return {"id": str(uid), "email": user.get("email") or ""}
+
+    def _handle_vercel_compat(self, path: str, method: str) -> bool:
+        """Serve former Vercel /api functions. Returns True when handled."""
+        routes = {
+            ("POST", "/api/ask/grok/start"),
+            ("GET", "/api/ask/grok/poll"),
+            ("POST", "/api/ask/grok/disconnect"),
+            ("POST", "/api/ask/plan"),
+            ("GET", "/api/meal-plan"),
+            ("POST", "/api/meal-plan"),
+            ("GET", "/api/labs"),
+        }
+        known = {p for _m, p in routes}
+        if path not in known:
+            return False
+        if (method, path) not in routes:
+            self._send_json({"ok": False, "error": "method_not_allowed"}, status=405)
+            return True
+        user = self._vercel_compat_user()
+        try:
+            if path == "/api/ask/grok/start":
+                from api.ask.grok.start import grok_start_body
+
+                status, body, extra = grok_start_body(self.headers, user=user)
+                self._send_json(body, status=status, extra_headers=extra)
+            elif path == "/api/ask/grok/poll":
+                from api.ask.grok.poll import grok_poll_body
+
+                status, body, extra = grok_poll_body(self.headers, user=user)
+                self._send_json(body, status=status, extra_headers=extra)
+            elif path == "/api/ask/grok/disconnect":
+                from api.ask.grok.disconnect import grok_disconnect_body
+
+                status, body = grok_disconnect_body(self.headers, user=user)
+                self._send_json(body, status=status)
+            elif path == "/api/ask/plan":
+                from api.ask.plan import ask_plan_body
+
+                payload = (
+                    self._read_json()
+                    if int(self.headers.get("Content-Length") or 0)
+                    else {}
+                )
+                dashboard = (
+                    load_dashboard_data(force_refresh=False, user_id=user["id"])
+                    if user
+                    else None
+                )
+                status, body = ask_plan_body(
+                    self.headers, payload, user=user, dashboard=dashboard
+                )
+                self._send_json(body, status=status)
+            elif path == "/api/meal-plan":
+                uid = user["id"] if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                nut = data.get("nutrition_store") or {}
+                src = nut.get("sources") or {}
+                self._send_json(
+                    {
+                        "ok": True,
+                        "plan": nut.get("meal_plan") or {},
+                        "action": "refresh_meal_plan",
+                        "sources": {
+                            "inventory": src.get("inventory"),
+                            "inventory_sot": src.get("inventory_sot"),
+                            "inventory_fallback": src.get("inventory_fallback"),
+                        },
+                    }
+                )
+            elif path == "/api/labs":
+                uid = user["id"] if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                nut = data.get("nutrition_store") or {}
+                self._send_json({"ok": True, "labs": nut.get("labs") or {}})
+        except Exception as e:  # noqa: BLE001
+            self._send_json({"ok": False, "error": str(e)}, status=500)
+        return True
 
     def do_GET(self) -> None:  # noqa: N802
         if try_proxy_api is not None and try_proxy_api(
@@ -1934,9 +2028,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if self._handle_vercel_compat(parsed.path, "GET"):
+            return
         if parsed.path == "/api/ask/status":
             try:
-                self._send_json(grok_auth_status())
+                compat = self._vercel_compat_user()
+                self._send_json(
+                    grok_auth_status(user_id=compat["id"] if compat else None)
+                )
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
@@ -2020,6 +2119,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json(payload, status=status)
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if self._handle_vercel_compat(parsed.path, "POST"):
             return
         if parsed.path == "/api/google-health/auth/start":
             try:
