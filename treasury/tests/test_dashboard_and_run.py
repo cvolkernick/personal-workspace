@@ -118,8 +118,27 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertNotIn("engine_target", lyft)
         asics = next(s for s in model["income_sources"] if s["id"] == "asics")
         self.assertEqual(asics.get("engine_target"), "digital_credit")
-        self.assertEqual(model["version"], 42)
-        self.assertEqual(model["as_of"], "2026-10-10")
+        self.assertEqual(model["version"], 43)
+        self.assertEqual(model["as_of"], "2026-10-13")
+        # #1133: TREAD gone from live views; Panamerica Auto wired to YNAB
+        ids = [s["id"] for s in model["income_sources"]]
+        self.assertNotIn("tread", ids)
+        inc = next(c for c in model["layout"]["columns"] if c["id"] == "income")
+        self.assertNotIn("tread", inc["ids"])
+        self.assertIn("panamerica_auto", inc["ids"])
+        live_view = {k: v for k, v in model.items() if k != "notes"}
+        self.assertNotIn("TREAD", json.dumps(live_view))
+        self.assertNotIn('"tread"', html)
+        self.assertNotIn("TREAD", html)
+        pa = next(s for s in model["income_sources"] if s["id"] == "panamerica_auto")
+        self.assertEqual(pa["label"], "Panamerica Auto")
+        self.assertNotIn("status", pa)
+        self.assertNotIn("stroke", pa)
+        self.assertEqual(
+            pa["ynab_category"], {"group": "Income", "name": "Panamerica Auto"}
+        )
+        self.assertIn(("panamerica_auto", "x_money"), [(e["from"], e["to"]) for e in model["edges"]])
+        self.assertIn("v43", model["notes"])
         self.assertNotIn("jr_strcusx", [c["id"] for c in model["channels"]])
         le = next(c for c in model["layout"]["columns"] if c["id"] == "liquidity_engine")
         self.assertNotIn("jr_strcusx", le["ids"])

@@ -344,7 +344,7 @@
           {
             id: "income",
             label: "Income",
-            ids: ["turo", "lyft", "x_creator", "tread", "asics"],
+            ids: ["turo", "lyft", "x_creator", "panamerica_auto", "asics"],
           },
           {
             id: "liquidity_engine",
@@ -557,6 +557,15 @@
       if (data.live && data.live.lyft_inflow_30d != null) {
         liveBits.push(
           `Lyft / GrubHub on X Money (recent txs / express) ≈ $${Number(data.live.lyft_inflow_30d).toFixed(2)}`
+        );
+      }
+      if (
+        data.live &&
+        data.live.income_by_card_30d &&
+        data.live.income_by_card_30d.panamerica_auto != null
+      ) {
+        liveBits.push(
+          `Panamerica Auto (YNAB Income › Panamerica Auto, 30d) ≈ $${Number(data.live.income_by_card_30d.panamerica_auto).toFixed(2)}`
         );
       }
       if (data.live && data.live.coinbase_funded_monthly_est != null) {
