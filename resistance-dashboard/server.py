@@ -2184,12 +2184,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 from rt_dashboard.turso_http import keepalive_scope
 
                 with keepalive_scope():
-                    result = ensure_daily_tasks(
-                        today,
-                        day=day,
-                        sleep_battery=bat if isinstance(bat, dict) else None,
-                        user_id=str(uid) if uid else None,
-                    )
+                    try:
+                        result = ensure_daily_tasks(
+                            today,
+                            day=day,
+                            sleep_battery=bat if isinstance(bat, dict) else None,
+                            user_id=str(uid) if uid else None,
+                        )
+                    finally:
+                        # ensure_daily_tasks writes; daily_tasks is in the payload.
+                        invalidate_dashboard_memo()
                 self._send_json({"ok": True, "daily_tasks": result})
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
@@ -2288,8 +2292,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
-        # Any write can change the payload; never serve a pre-write build.
+        # Any write can change the payload. Bump before (no pre-write memo
+        # hit) and again after the handler commits: a build that started
+        # between the first bump and the commit must not stay cached.
         invalidate_dashboard_memo()
+        try:
+            self._handle_post()
+        finally:
+            invalidate_dashboard_memo()
+
+    def _handle_post(self) -> None:
         if try_proxy_api is not None and try_proxy_api(
             self,
             _BACKEND_URL,

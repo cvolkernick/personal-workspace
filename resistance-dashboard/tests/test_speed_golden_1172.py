@@ -334,6 +334,64 @@ class PayloadMemoWriteGeneration(unittest.TestCase):
             self.assertEqual(len(calls), 2)
 
 
+class PayloadMemoPostCommitBump(unittest.TestCase):
+    def setUp(self):
+        import server
+
+        self.server = server
+        server.invalidate_dashboard_memo()
+
+    def test_build_started_after_pre_bump_but_before_commit_is_not_cached(self):
+        """Pre-bump -> build starts -> commit + post-bump -> build ends: not cached."""
+        db = {"total": 100}
+        calls = []
+        started = threading.Event()
+        release = threading.Event()
+
+        def build(**k):
+            calls.append(1)
+            snap = db["total"]  # build reads before the commit
+            if len(calls) == 1:
+                started.set()
+                release.wait(2)
+            return {"total": snap}
+
+        out = {}
+
+        class FakeHandler:
+            def _handle_post(fh):
+                # The POST handler is running: pre-bump already happened.
+                t = threading.Thread(
+                    target=lambda: out.setdefault("a", self.server.load_dashboard_data(user_id="u"))
+                )
+                t.start()
+                self.assertTrue(started.wait(2))
+                db["total"] = 250  # commit lands mid-build
+                fh.t = t
+
+        fh = FakeHandler()
+        with mock.patch.object(self.server, "_PAYLOAD_MEMO_ENABLED", True), \
+             mock.patch.object(self.server, "build_dashboard_data", build), \
+             mock.patch.object(self.server, "_health_cache_mtime", lambda: 1.0):
+            self.server.DashboardHandler.do_POST(fh)  # post-bump in finally
+            release.set()
+            fh.t.join()
+            self.assertEqual(out["a"]["total"], 100)
+            self.assertEqual(self.server.load_dashboard_data(user_id="u")["total"], 250)
+            self.assertEqual(len(calls), 2)
+
+    def test_post_bumps_even_when_handler_raises(self):
+        gen0 = self.server._PAYLOAD_WRITE_GEN
+
+        class Boom:
+            def _handle_post(self):
+                raise RuntimeError("x")
+
+        with self.assertRaises(RuntimeError):
+            self.server.DashboardHandler.do_POST(Boom())
+        self.assertEqual(self.server._PAYLOAD_WRITE_GEN, gen0 + 2)
+
+
 class HealthCacheWriteOnlyIfChanged(unittest.TestCase):
     def test_unchanged_overlay_skips_write(self):
         from rt_dashboard import dashboard_cache as dc
