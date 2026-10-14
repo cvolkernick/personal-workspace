@@ -516,9 +516,13 @@ def save_health_cache(
     *,
     error: Optional[str] = None,
     keep_previous_if_empty: bool = True,
+    only_if_changed: bool = False,
 ) -> dict:
     """
     Persist health snapshot and/or mark a fetch attempt.
+
+    ``only_if_changed`` (request-path overlays): skip the write, and keep the
+    previous ``fetched_at``, when the stored health data is identical.
 
     Always updates ``fetched_at`` so a failed/timeout pull still suppresses
     remote retries until TTL expires (uses last good data when available).
@@ -565,6 +569,21 @@ def save_health_cache(
             "steps": [],
             "error": error,
         }
+
+    if only_if_changed and prev_raw:
+        try:
+            same = json.loads(json.dumps(hdict)) == prev_health and (
+                prev_raw.get("last_error") == error
+            )
+        except (TypeError, ValueError):
+            same = False
+        if same:
+            return {
+                "saved": False,
+                "unchanged": True,
+                "fetched_at": prev_raw.get("fetched_at_iso"),
+                "path": str(cache_dir() / HEALTH_CACHE),
+            }
 
     payload = {
         "fetched_at": now,

@@ -84,7 +84,7 @@ class KitchenInventoryCollapse(unittest.TestCase):
         self.assertIn("/app.js?v=trends-layout-1070-1", SW)
         self.assertIn("/styles.css?v=brand-1027-1", HTML)
         self.assertIn("/styles.css?v=brand-1027-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v136"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v137"', SW)
         self.assertNotIn("fitdash-shell-v104", SW)
         self.assertNotIn("fitdash-shell-v103", SW)
         self.assertNotIn("fitdash-shell-v102", SW)

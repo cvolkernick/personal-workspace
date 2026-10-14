@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
+import ssl
+import threading
+import time
+from contextlib import contextmanager
+from urllib.parse import urlsplit
 import urllib.error
 import urllib.request
 from typing import Any, Iterable, List, Optional, Sequence
@@ -127,12 +133,18 @@ class TursoConnection:
                 "Accept": "application/json",
             },
         )
-        try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            e.read()
-            raise RuntimeError(f"turso HTTP {e.code}") from e
+        if _keepalive_active():
+            payload = _keepalive_post(
+                f"{self._url}/v2/pipeline", body, dict(req.header_items()),
+                timeout=self._timeout, sql=sql,
+            )
+        else:
+            try:
+                with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                e.read()
+                raise RuntimeError(f"turso HTTP {e.code}") from e
         results = payload.get("results") or []
         first = results[0] if results else {}
         if first.get("type") == "error":
@@ -189,3 +201,88 @@ def connect() -> TursoConnection:
     if not turso_enabled():
         raise RuntimeError("TURSO_DATABASE_URL / TURSO_AUTH_TOKEN missing")
     return TursoConnection(turso_url(), turso_token())
+
+
+# --- Keep-alive (speed fix #2) ---------------------------------------------
+# A dashboard build issues ~37 small Turso statements; each urlopen paid a
+# fresh TCP+TLS handshake (~70 ms on the Pi). Inside ``keepalive_scope`` the
+# calling thread reuses one HTTPS connection. Outside a scope (and on other
+# threads) behavior is unchanged.
+
+_TLS = threading.local()
+_IDLE_MAX_SEC = 20.0
+_READ_PREFIXES = ("select", "pragma", "with", "explain")
+
+
+def _keepalive_active() -> bool:
+    return int(getattr(_TLS, "depth", 0) or 0) > 0
+
+
+@contextmanager
+def keepalive_scope():
+    _TLS.depth = int(getattr(_TLS, "depth", 0) or 0) + 1
+    try:
+        yield
+    finally:
+        _TLS.depth -= 1
+        if _TLS.depth <= 0:
+            _drop_conn()
+
+
+def _drop_conn() -> None:
+    conn = getattr(_TLS, "conn", None)
+    _TLS.conn = None
+    _TLS.conn_key = None
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _get_conn(scheme: str, netloc: str, timeout: float):
+    key = (scheme, netloc)
+    conn = getattr(_TLS, "conn", None)
+    idle = time.time() - float(getattr(_TLS, "last_used", 0) or 0)
+    if conn is not None and (getattr(_TLS, "conn_key", None) != key or idle > _IDLE_MAX_SEC):
+        _drop_conn()
+        conn = None
+    if conn is None:
+        if scheme == "https":
+            conn = http.client.HTTPSConnection(
+                netloc, timeout=timeout, context=ssl.create_default_context()
+            )
+        else:
+            conn = http.client.HTTPConnection(netloc, timeout=timeout)
+        _TLS.conn = conn
+        _TLS.conn_key = key
+        return conn, False
+    return conn, True
+
+
+def _keepalive_post(url: str, body: bytes, headers: dict, *, timeout: float, sql: str) -> dict:
+    parts = urlsplit(url)
+    path = parts.path + (("?" + parts.query) if parts.query else "")
+    is_read = (sql or "").lstrip().lower().startswith(_READ_PREFIXES)
+    for attempt in (0, 1):
+        conn, reused = _get_conn(parts.scheme, parts.netloc, timeout)
+        sent = False
+        try:
+            conn.request("POST", path, body=body, headers=headers)
+            sent = True
+            resp = conn.getresponse()
+            raw = resp.read()
+        except (http.client.RemoteDisconnected, ConnectionError, http.client.BadStatusLine, OSError) as e:
+            _drop_conn()
+            # Retry only a stale reused socket, and only when the statement
+            # cannot have run twice: not yet sent, or a read.
+            if attempt == 0 and reused and (not sent or is_read):
+                continue
+            raise RuntimeError(f"turso connection: {type(e).__name__}") from e
+        _TLS.last_used = time.time()
+        if resp.getheader("Connection", "").lower() == "close":
+            _drop_conn()
+        if resp.status >= 400:
+            raise RuntimeError(f"turso HTTP {resp.status}")
+        return json.loads(raw.decode("utf-8"))
+    raise RuntimeError("turso connection: retry exhausted")
