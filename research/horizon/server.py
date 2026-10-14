@@ -35,6 +35,7 @@ ROOT = HORIZON_DIR.parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from research.horizon.nodes import build_nodes_payload  # noqa: E402
 from research.horizon.pipeline import run_pipeline  # noqa: E402
 from research.horizon.store import (  # noqa: E402
     DEFAULT_DATA_DIR,
@@ -595,6 +596,13 @@ class HorizonHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 self._json(200, {"ok": True, "brief": load_json(brief_path)})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/nodes":
+            try:
+                self._json(200, build_nodes_payload())
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
