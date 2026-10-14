@@ -408,6 +408,44 @@ def _btc_network_live() -> dict:
     return {"ok": False, "status": "error", "error": "invalid btc network payload"}
 
 
+def _capital_flows_ynab_fetch(since: str) -> dict:
+    """Live YNAB pull for Capital Flows card totals (patched in tests)."""
+    from treasury.cash_streams import fetch_ynab_window
+
+    return fetch_ynab_window(since)
+
+
+def _capital_flows_income_by_card(income_sources: list) -> dict | None:
+    """30d inflow per income card; None when no card maps a YNAB category or YNAB fails."""
+    from treasury.capital_flows_income import (
+        DEFAULT_WINDOW_DAYS,
+        category_map,
+        income_by_card,
+    )
+
+    from datetime import date, timedelta
+
+    if not category_map(income_sources):
+        return None
+    today = date.today()
+    since = (today - timedelta(days=DEFAULT_WINDOW_DAYS - 1)).isoformat()
+    try:
+        pulled = _capital_flows_ynab_fetch(since)
+    except Exception as e:  # noqa: BLE001 — never break the map on YNAB errors
+        sys.stderr.write(f"[fcc] capital-flows ynab warning: {e}\n")
+        return None
+    if not isinstance(pulled, dict) or not pulled.get("ok"):
+        return None
+    return income_by_card(
+        pulled.get("transactions") or [],
+        income_sources=income_sources,
+        category_groups=pulled.get("category_groups") or [],
+        on_budget_ids=pulled.get("on_budget_ids"),
+        tracking_outflow_ids=pulled.get("tracking_outflow_ids"),
+        today=today,
+    )
+
+
 def _capital_flows_payload() -> dict:
     """Load investment/capital_flows.json and lightly enrich from YNAB snapshots."""
     path = ROOT / "investment" / "capital_flows.json"
@@ -477,6 +515,11 @@ def _capital_flows_payload() -> dict:
                 )
         except (OSError, json.JSONDecodeError, TypeError):
             pass
+    # #1133: per-card YNAB inflows (cards with ynab_category, e.g. Panamerica Auto)
+    by_card = _capital_flows_income_by_card(data.get("income_sources") or [])
+    if by_card is not None:
+        live["income_by_card_30d"] = by_card.get("totals")
+        live["income_by_card_window"] = by_card.get("window")
     # Braiins Pool mining snapshot (treasury/braiins_sync.py)
     br = _braiins_live()
     live["braiins"] = br

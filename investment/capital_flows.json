@@ -1,8 +1,8 @@
 {
-  "version": 42,
-  "as_of": "2026-10-10",
+  "version": 43,
+  "as_of": "2026-10-13",
   "title": "Capital Flows — X Money · Digital Credit ↔ Margin",
-  "notes": "v42: Drop JR-strcUSX card from Liquidity Engine (owner/Nakatoshi 2026-10-10). Spine returns to X Money → Digital Credit → Margin. v41: Drop Lyft → Digital Credit. Lyft card is Lyft / GrubHub and lands X Money only (owner 2026-09-11). v40 history: JR-strcUSX was briefly at the bottom of LE, bidirectional with Margin; removed in v42. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "notes": "v43: Replace planned TREAD card with Panamerica Auto income card (#1133), wired to YNAB category Income > Panamerica Auto and drawn into X Money. TREAD had no flows or history; removed from live views (#64 untouched). v42: Drop JR-strcUSX card from Liquidity Engine (owner/Nakatoshi 2026-10-10). Spine returns to X Money → Digital Credit → Margin. v41: Drop Lyft → Digital Credit. Lyft card is Lyft / GrubHub and lands X Money only (owner 2026-09-11). v40 history: JR-strcUSX was briefly at the bottom of LE, bidirectional with Margin; removed in v42. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -13,7 +13,7 @@
       {
         "id": "income",
         "label": "Income",
-        "ids": ["turo", "lyft", "x_creator", "tread", "asics"]
+        "ids": ["turo", "lyft", "x_creator", "panamerica_auto", "asics"]
       },
       {
         "id": "liquidity_engine",
@@ -65,14 +65,14 @@
       "cadence": "biweekly"
     },
     {
-      "id": "tread",
-      "label": "TREAD",
+      "id": "panamerica_auto",
+      "label": "Panamerica Auto",
       "kind": "income",
-      "status": "planned",
-      "stroke": "planned-brown",
-      "confidence": "owner_stated",
-      "evidence": "Planned — not live.",
+      "confidence": "observed",
+      "evidence": "Panamerica Auto, LLC (car rental, Turo co-hosting, fleet management). Live inflow from YNAB category Income > Panamerica Auto. First payout posted 2026-09-29 as a direct deposit from the vehicle owner's rental business. Treated as a direct payout (dedicated category), not split out of the Turo host account.",
       "typical_landing": "x_money",
+      "landing_label": "X Money",
+      "ynab_category": {"group": "Income", "name": "Panamerica Auto"},
       "cadence": "monthly"
     },
     {
@@ -106,7 +106,7 @@
       "stroke": "liq-gray",
       "subtitle": "~6% · ops float",
       "confidence": "owner_stated",
-      "notes": "Ops cash sleeve (left of LE). Receives Turo + Lyft / GrubHub; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
+      "notes": "Ops cash sleeve (left of LE). Receives Turo + Lyft / GrubHub + Panamerica Auto; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
     },
     {
       "id": "digital_credit",
@@ -177,6 +177,13 @@
       "confidence": "owner_stated",
       "weight": 4,
       "notes": "Lyft / GrubHub payouts land X Money (ops)."
+    },
+    {
+      "from": "panamerica_auto",
+      "to": "x_money",
+      "confidence": "observed",
+      "weight": 3,
+      "notes": "Panamerica Auto payouts (YNAB Income > Panamerica Auto) into X Money ops cash."
     },
     {
       "from": "asics",
