@@ -1,0 +1,47 @@
+# ops/NODES.md is public: lint it for ports/IPs/paths/units/usernames, and make
+# sure master and work/treasury hold identical copies.
+name: nodes-md
+
+on:
+  pull_request:
+    branches: [master, work/treasury]
+    paths: ["ops/NODES.md", "ops/check_nodes_md.py", ".github/workflows/nodes-md.yml"]
+  push:
+    branches: [master, work/treasury]
+    paths: ["ops/NODES.md", "ops/check_nodes_md.py", ".github/workflows/nodes-md.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nodes-md:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint self-test (must reject sensitive lines)
+        run: |
+          for bad in 'serves on :8790' 'host 100.64.1.2' 'lives in ~/b2-pulls' 'runs b2.service' 'user prism-agent'; do
+            printf '%s\n' "$bad" > /tmp/bad.md
+            if python3 ops/check_nodes_md.py /tmp/bad.md; then echo "lint missed: $bad"; exit 1; fi
+          done
+      - name: Lint (public-safe)
+        run: python3 ops/check_nodes_md.py ops/NODES.md
+      - name: Identical on master and work/treasury
+        run: |
+          set -euo pipefail
+          base="${GITHUB_BASE_REF:-${GITHUB_REF_NAME}}"
+          if [ "$base" = "master" ]; then other=work/treasury; else other=master; fi
+          git fetch --depth=1 origin "$other"
+          if git cat-file -e FETCH_HEAD:ops/NODES.md 2>/dev/null; then
+            git show FETCH_HEAD:ops/NODES.md > /tmp/other_NODES.md
+          fi
+          # PRs only warn (the sibling branch's copy lands in its own PR); after
+          # merge (push) a mismatch fails, so the two copies can't drift silently.
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            python3 ops/check_nodes_md.py ops/NODES.md --compare /tmp/other_NODES.md \
+              || echo "::warning::ops/NODES.md differs from $other; merge the matching PR on $other"
+          else
+            python3 ops/check_nodes_md.py ops/NODES.md --compare /tmp/other_NODES.md
+          fi
