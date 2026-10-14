@@ -35,6 +35,7 @@ life-compass/data/.state.*.tmp
 
 # Orchestra heartbeat runtime (collector artifact; keep .gitkeep)
 orchestra/data/heartbeat/latest.json
+orchestra/data/heartbeat/alerts_state.json
 orchestra/data/heartbeat/.*.tmp.*
 
 # Workflow scheduler runtime. Ticks and dashboard loads write these locally
