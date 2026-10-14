@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler
 
-from api.ask._json import require_user, write_json
+from api.ask._json import resolve_user, write_json
 from api.auth.session_util import cookie_from_header
 
 
-def grok_poll_body(headers):
-    user, err = require_user(headers)
+def grok_poll_body(headers, user=None):
+    user, err = resolve_user(headers, user)
     if err:
         return err[0], err[1], []
     from rt_dashboard.grok_oauth import (

@@ -6,7 +6,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
-from api.ask._json import require_user, write_json
+from api.ask._json import resolve_user, write_json
 from api.dashboard import dashboard_body
 
 
@@ -25,8 +25,8 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def ask_plan_body(headers, payload=None):
-    user, err = require_user(headers)
+def ask_plan_body(headers, payload=None, *, user=None, dashboard=None):
+    user, err = resolve_user(headers, user)
     if err:
         return err
     from rt_dashboard.grok_planner import (
@@ -35,9 +35,10 @@ def ask_plan_body(headers, payload=None):
         honest_empty_workout,
     )
 
-    dash_status, dashboard = dashboard_body(headers)
-    if dash_status != 200:
-        return dash_status, dashboard
+    if dashboard is None:
+        dash_status, dashboard = dashboard_body(headers)
+        if dash_status != 200:
+            return dash_status, dashboard
     nut = dashboard.get("nutrition_store") or {}
     rec = dashboard.get("recovery") or {}
     sessions = dashboard.get("sessions") or []
