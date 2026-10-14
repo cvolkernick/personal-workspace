@@ -129,3 +129,36 @@ class BodyFunctionsAcceptUser(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlanRoutesDelegateToAskPlan(CompatRoutes):
+    """/api/workout-plan/generate and /api/agent/generate-plan use /api/ask/plan."""
+
+    def test_both_routes_delegate_with_user(self):
+        for path in ("/api/workout-plan/generate", "/api/agent/generate-plan"):
+            with mock.patch(
+                "api.ask.plan.ask_plan_body",
+                return_value=(200, {"ok": True, "workout": {"session_type": "pull"}}),
+            ) as fn, mock.patch.object(fitdash_server, "generate_workout_plan") as builtin:
+                status, body, _h = self._call("POST", path)
+            self.assertEqual(status, 200, path)
+            self.assertEqual(fn.call_args.kwargs["user"]["id"], USER["user_id"], path)
+            self.assertIs(fn.call_args.kwargs["dashboard"], DASH, path)
+            self.assertFalse(builtin.called, f"{path} still ran the built-in planner")
+            self.assertEqual(body["plan"], {"session_type": "pull"})
+
+    def test_successful_plan_is_persisted(self):
+        grok = {"ok": True, "workout": {"session_type": "pull", "exercises": [{"name": "Row"}]},
+                "meal": {"items": []}}
+        for path in ("/api/workout-plan/generate", "/api/agent/generate-plan"):
+            with mock.patch("api.ask.plan.dashboard_body") as vercel_dash, \
+                 mock.patch("rt_dashboard.grok_planner.generate_grok_plans", return_value=dict(grok)), \
+                 mock.patch("rt_dashboard.agent_plan.save_last_good_workout_plan",
+                            return_value={"ok": True, "store": "turso"}) as save:
+                status, body, _h = self._call("POST", path)
+            self.assertEqual(status, 200, path)
+            self.assertFalse(vercel_dash.called)
+            save.assert_called_once()
+            self.assertEqual(save.call_args.args[0], USER["user_id"])
+            self.assertEqual(save.call_args.args[2], grok["workout"])
+            self.assertEqual(body["persist"], {"ok": True, "store": "turso"})

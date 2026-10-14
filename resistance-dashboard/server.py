@@ -1528,6 +1528,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return None
         return {"id": str(uid), "email": user.get("email") or ""}
 
+    def _run_ask_plan(self, user: Optional[Dict[str, Any]], payload: Any):
+        """Run the /api/ask/plan handler (Grok plan + Turso workout_plan persist)."""
+        from api.ask.plan import ask_plan_body
+
+        dashboard = (
+            load_dashboard_data(force_refresh=False, user_id=user["id"])
+            if user
+            else None
+        )
+        return ask_plan_body(self.headers, payload or {}, user=user, dashboard=dashboard)
+
     def _handle_vercel_compat(self, path: str, method: str) -> bool:
         """Serve former Vercel /api functions. Returns True when handled."""
         routes = {
@@ -1563,21 +1574,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 status, body = grok_disconnect_body(self.headers, user=user)
                 self._send_json(body, status=status)
             elif path == "/api/ask/plan":
-                from api.ask.plan import ask_plan_body
-
                 payload = (
                     self._read_json()
                     if int(self.headers.get("Content-Length") or 0)
                     else {}
                 )
-                dashboard = (
-                    load_dashboard_data(force_refresh=False, user_id=user["id"])
-                    if user
-                    else None
-                )
-                status, body = ask_plan_body(
-                    self.headers, payload, user=user, dashboard=dashboard
-                )
+                status, body = self._run_ask_plan(user, payload)
                 self._send_json(body, status=status)
             elif path == "/api/meal-plan":
                 uid = user["id"] if user else None
@@ -2104,19 +2106,34 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     return
                 self._request_user = user  # type: ignore[attr-defined]
         if parsed.path == "/api/agent/generate-plan":
+            # Vercel rewrote this to /api/ask/plan?_r=agent_generate. Delegate
+            # to the same ask/plan handler: signed-in user, else the house
+            # tenant for service-token callers. Persists to Turso workout_plan.
             try:
-                body = (
+                payload = (
                     self._read_json()
                     if int(self.headers.get("Content-Length") or 0)
                     else {}
                 )
-                from api.workout._util import agent_generate_plan_body
+                user = self._vercel_compat_user()
+                if user is None:
+                    from rt_dashboard.agent_plan import house_plan_user_id
 
-                client_host = (self.client_address or ("", 0))[0]
-                status, payload = agent_generate_plan_body(
-                    self.headers, body, parsed.query, client_host=client_host
-                )
-                self._send_json(payload, status=status)
+                    user = {"id": str(house_plan_user_id()), "email": ""}
+                status, body = self._run_ask_plan(user, payload)
+                if status == 200 and isinstance(body, dict):
+                    workout = body.get("workout") or {}
+                    body = {
+                        "ok": bool(body.get("ok")),
+                        "generated": bool(body.get("ok")),
+                        "plan": workout,
+                        "workout": workout,
+                        "persist": body.get("persist"),
+                        "error": body.get("error"),
+                        "meal": body.get("meal"),
+                        **({"model": body["model"]} if body.get("model") else {}),
+                    }
+                self._send_json(body, status=status)
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
@@ -2937,35 +2954,26 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/workout-plan/generate":
+            # Vercel rewrote this to /api/ask/plan?_r=generate (SuperGrok plan,
+            # persisted to Turso workout_plan). Same here; no built-in planner.
             try:
-                body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
-                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
-                data = load_dashboard_data(force_refresh=False, user_id=uid)
-                wo = data.get("workout_store") or {}
-                rec = data.get("recovery") or {}
-                sessions_raw = data.get("sessions") or []
-                # Rebuild minimal Session objects from payload for planner
-                from rt_dashboard.dashboard_cache import sessions_from_dicts
-
-                sessions = sessions_from_dicts(sessions_raw)
-                session_type = body.get("session_type")
-                bat = data.get("sleep_battery") or rec.get("sleep_battery") or {}
-                plan = generate_workout_plan(
-                    wo.get("catalog") or {"exercises": []},
-                    wo.get("goals") or {},
-                    sessions,
-                    recovery_label=rec.get("label"),
-                    recovery_score=rec.get("score"),
-                    recovery_sparse=bool(rec.get("sparse")),
-                    recovery_rhr_under=bool(
-                        (rec.get("inputs") or {}).get("rhr_under_recovered")
-                    ),
-                    session_type=str(session_type).lower() if session_type else None,
-                    equipment=wo.get("equipment"),
-                    last_wake_at=(bat or {}).get("last_wake_at") if isinstance(bat, dict) else None,
+                payload = (
+                    self._read_json()
+                    if int(self.headers.get("Content-Length") or 0)
+                    else {}
                 )
-                self._send_json({"ok": True, "plan": plan})
-            except Exception as e:
+                status, body = self._run_ask_plan(self._vercel_compat_user(), payload)
+                if status == 200 and isinstance(body, dict):
+                    plan = body.get("workout")
+                    body = {
+                        "ok": True,
+                        "plan": plan if isinstance(plan, dict) else {},
+                        "error": body.get("error"),
+                        "meal": body.get("meal"),
+                        "persist": body.get("persist"),
+                    }
+                self._send_json(body, status=status)
+            except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/workout/goals":

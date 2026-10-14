@@ -40,7 +40,7 @@ class RhrPaging(unittest.TestCase):
                         side_effect=lambda data, days: data["dataPoints"]):
             out = c.fetch_resting_heart_rate(days=90)
         self.assertGreater(len(calls), 4)
-        self.assertEqual(len(calls), 9)  # page 9 contains day 89 → crosses cutoff
+        self.assertEqual(len(calls), 10)  # stops on the first page older than the cutoff, not page 12
         oldest = min(c._data_point_date(p) for p in out)
         self.assertLessEqual(oldest, (today - timedelta(days=89)).isoformat())
 
@@ -53,7 +53,7 @@ class RhrPaging(unittest.TestCase):
 
         c = _client()
         c._request = fake_request
-        c._paginate_data_points("x", until_date="2000-01-01", safety_cap=7)
+        c._paginate_data_points("x", max_pages=1, until_date="2000-01-01", safety_cap=7)
         self.assertEqual(n["i"], 7)
 
 
