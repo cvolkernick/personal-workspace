@@ -148,3 +148,18 @@ def test_comment_body_silent_and_no_token(monkeypatch):
     for k in ("GITHUB_TOKEN", "GH_TOKEN", "BUZZ_BOARD_GITHUB_TOKEN"):
         monkeypatch.delenv(k, raising=False)
     assert ha.post_ops_comment("t", "x")["skipped"] == "no-github-token"
+
+
+def test_mem_threshold_levels_and_override():
+    th = ha.load_thresholds({})
+    assert "mem" not in ha.evaluate(_doc(mem_pct=84.9), {}, th)[0]
+    assert ha.evaluate(_doc(mem_pct=85), {}, th)[0]["mem"]["level"] == "amber"
+    assert ha.evaluate(_doc(mem_pct=95.5), {}, th)[0]["mem"]["level"] == "red"
+    th2 = ha.load_thresholds({"HEARTBEAT_MEM_WARN_PCT": "70"})
+    assert ha.evaluate(_doc(mem_pct=72), {}, th2)[0]["mem"]["level"] == "amber"
+
+
+def test_prism_disk_defaults():
+    th = ha.load_thresholds({})
+    assert "disk" not in ha.evaluate(_doc(disk_pct=72), {}, th)[0]
+    assert ha.evaluate(_doc(disk_pct=80), {}, th)[0]["disk"]["level"] == "amber"

@@ -9,6 +9,7 @@ Thresholds (env overrides, or a JSON file named by HEARTBEAT_THRESHOLDS):
   load_per_core 1.5                        15-minute load average per core
                                            (the kernel's 15m mean = sustained 15 min)
   temp_c 75                                SoC temperature
+  mem_warn_pct 85, mem_crit_pct 95         memory used (MemAvailable-based)
   unit_down_checks 2                       consecutive failed checks before a
                                            service counts as down
 """
@@ -28,6 +29,8 @@ DEFAULTS: dict[str, float] = {
     "disk_crit_pct": 90.0,
     "load_per_core": 1.5,
     "temp_c": 75.0,
+    "mem_warn_pct": 85.0,
+    "mem_crit_pct": 95.0,
     "unit_down_checks": 2,
 }
 ENV_KEYS = {
@@ -35,6 +38,8 @@ ENV_KEYS = {
     "disk_crit_pct": "HEARTBEAT_DISK_CRIT_PCT",
     "load_per_core": "HEARTBEAT_LOAD_PER_CORE",
     "temp_c": "HEARTBEAT_TEMP_C",
+    "mem_warn_pct": "HEARTBEAT_MEM_WARN_PCT",
+    "mem_crit_pct": "HEARTBEAT_MEM_CRIT_PCT",
     "unit_down_checks": "HEARTBEAT_UNIT_DOWN_CHECKS",
 }
 OPS_REPO = "cvolkernick/personal-workspace"
@@ -101,6 +106,13 @@ def evaluate(
             "level": "amber",
             "text": f"load {load15}/core (15m) > {th['load_per_core']:g}",
         }
+
+    mem = v.get("mem_pct")
+    if isinstance(mem, (int, float)):
+        if mem >= th["mem_crit_pct"]:
+            alerts["mem"] = {"level": "red", "text": f"mem {mem}% ≥ {th['mem_crit_pct']:g}%"}
+        elif mem >= th["mem_warn_pct"]:
+            alerts["mem"] = {"level": "amber", "text": f"mem {mem}% ≥ {th['mem_warn_pct']:g}%"}
 
     temp = v.get("temp_c")
     if isinstance(temp, (int, float)) and temp >= th["temp_c"]:

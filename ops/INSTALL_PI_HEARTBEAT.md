@@ -103,6 +103,7 @@ named by `HEARTBEAT_THRESHOLDS`):
 | Disk `/` | amber ≥80%, red ≥90% | `HEARTBEAT_DISK_WARN_PCT`, `HEARTBEAT_DISK_CRIT_PCT` |
 | Load per core | 15-min loadavg / cores > 1.5 (= sustained 15 min) | `HEARTBEAT_LOAD_PER_CORE` |
 | Temp | ≥75 °C | `HEARTBEAT_TEMP_C` |
+| Memory used | amber ≥85%, red ≥95% | `HEARTBEAT_MEM_WARN_PCT`, `HEARTBEAT_MEM_CRIT_PCT` |
 | Unit down | 2 consecutive checks | `HEARTBEAT_UNIT_DOWN_CHECKS` |
 
 **Transport (#704):** a comment on #701 only, silent to the owner, posted only
