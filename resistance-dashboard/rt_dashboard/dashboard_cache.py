@@ -6,10 +6,12 @@ Default TTL: 1 hour. Local workout markdown and inventory are always read live.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .models import (
     ActiveZoneMinutesDay,
@@ -24,6 +26,8 @@ from .models import (
     StepSample,
     WeightSample,
 )
+
+log = logging.getLogger("resistance-dashboard.cache")
 
 DEFAULT_TTL_SEC = int(os.environ.get("DASHBOARD_CACHE_TTL_SEC", "3600"))
 # Failed/empty health pulls should retry sooner than a successful cache hit.
@@ -201,6 +205,7 @@ def health_from_dict(data: dict) -> HealthSnapshot:
             if isinstance(f.get("nutrients"), dict)
             else {},
             source=str(f.get("source") or "cache"),
+            log_id=(str(f["log_id"]) if f.get("log_id") else None),
         )
         for f in (data.get("food_logs") or [])
         if isinstance(f, dict) and f.get("date")
@@ -279,7 +284,7 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         nutrition=nutrition,
         food_logs=food_logs,
         hydration=hydration,
-        calories_burned=burned,
+        calories_burned=drop_suspect_burn(burned),
         active_zone_minutes=azm,
         resting_heart_rate=rhr,
         steps=steps,
@@ -342,6 +347,110 @@ def _merge_dated(old_list: list, new_list: list, *, key: str = "date") -> list:
     return [by[k] for k in sorted(by.keys())]
 
 
+def _as_row(item: Any) -> Optional[dict]:
+    if hasattr(item, "to_dict"):
+        return item.to_dict()
+    return item if isinstance(item, dict) else None
+
+
+def fresh_pull_dates(update: HealthSnapshot) -> set:
+    """Civil dates the fresh pull covered (first..last date it returned).
+
+    Food logs on these dates come only from the fresh pull, so an edited or
+    deleted Google entry cannot survive from the cache.
+    """
+    dates = set()
+    for seq in (update.food_logs or [], update.nutrition or []):
+        for item in seq:
+            d = _as_row(item)
+            if d and d.get("date"):
+                dates.add(str(d["date"])[:10])
+    if not dates:
+        return set()
+    lo = min(dates)
+    hi = max(dates)
+    out = set()
+    cur = datetime.strptime(lo, "%Y-%m-%d").date()
+    end = datetime.strptime(hi, "%Y-%m-%d").date()
+    while cur <= end:
+        out.add(cur.isoformat())
+        cur += timedelta(days=1)
+    return out
+
+
+def _food_key(d: dict) -> str:
+    lid = d.get("log_id")
+    if lid:
+        return "id:" + str(lid)
+    return "|".join(
+        str(d.get(k) or "") for k in ("date", "time", "name", "calories", "protein_g")
+    )
+
+
+def merge_food_logs(base: Sequence[Any], update: Sequence[Any], *, covered_dates: set) -> List[dict]:
+    """Union cache + fresh food logs without double-counting edits.
+
+    * Dates in ``covered_dates`` are replaced wholesale by the fresh pull.
+    * Elsewhere entries are keyed by Google log id (fallback: content key).
+    """
+    by: Dict[str, dict] = {}
+    for item in base or []:
+        d = _as_row(item)
+        if not d or str(d.get("date") or "")[:10] in covered_dates:
+            continue
+        by[_food_key(d)] = d
+    for item in update or []:
+        d = _as_row(item)
+        if not d:
+            continue
+        by[_food_key(d)] = d
+    return sorted(
+        by.values(),
+        key=lambda d: (str(d.get("date") or ""), str(d.get("time") or "99:99"), str(d.get("name") or "")),
+    )
+
+
+def merge_sleep_intervals(base: Sequence[Any], update: Sequence[Any]) -> List[dict]:
+    """Union sleep windows keyed by start time; the fresh pull wins."""
+    by: Dict[str, dict] = {}
+    for seq in (base or [], update or []):
+        for row in seq:
+            if isinstance(row, dict) and row.get("start"):
+                by[str(row["start"])] = dict(row)
+    return [by[k] for k in sorted(by.keys(), key=_iso_sort_key)]
+
+
+def _iso_sort_key(v: str) -> str:
+    try:
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
+    except ValueError:
+        return str(v)
+
+
+def drop_suspect_burn(rows: Sequence[Any]) -> List[Any]:
+    """Exclude implausible daily burned totals (> BURN_SANITY_CAP_KCAL)."""
+    out = []
+    for item in rows or []:
+        d = _as_row(item)
+        try:
+            cal = float((d or {}).get("calories"))
+        except (TypeError, ValueError):
+            out.append(item)
+            continue
+        if cal > burn_sanity_cap():
+            log.info("dropping suspect burned day %s (%.0f kcal)", (d or {}).get("date"), cal)
+            continue
+        out.append(item)
+    return out
+
+
+def burn_sanity_cap() -> float:
+    try:
+        return float(os.environ.get("FITDASH_BURN_SANITY_CAP_KCAL", "6000"))
+    except ValueError:
+        return 6000.0
+
+
 def merge_health_snapshots(
     base: Optional[HealthSnapshot],
     update: HealthSnapshot,
@@ -357,25 +466,13 @@ def merge_health_snapshots(
     azm = _merge_dated(base.active_zone_minutes, update.active_zone_minutes)
     rhr = _merge_dated(base.resting_heart_rate, update.resting_heart_rate)
     st = _merge_dated(base.steps, update.steps)
-    # Food logs: keep all unique entries (date+name+time+cals), prefer update window
-    fl_by: Dict[str, Any] = {}
-    for item in list(base.food_logs or []) + list(update.food_logs or []):
-        d = item.to_dict() if hasattr(item, "to_dict") else item
-        if not isinstance(d, dict):
-            continue
-        key = "|".join(
-            [
-                str(d.get("date") or ""),
-                str(d.get("time") or ""),
-                str(d.get("name") or ""),
-                str(d.get("calories") or ""),
-                str(d.get("protein_g") or ""),
-            ]
-        )
-        fl_by[key] = d
-    fl = [fl_by[k] for k in sorted(fl_by.keys())]
-    # Prefer newer intervals; fall back to base history
-    siv = list(update.sleep_intervals or []) or list(base.sleep_intervals or [])
+    b = drop_suspect_burn(b)
+    fl = merge_food_logs(
+        base.food_logs or [],
+        update.food_logs or [],
+        covered_dates=fresh_pull_dates(update),
+    )
+    siv = merge_sleep_intervals(base.sleep_intervals or [], update.sleep_intervals or [])
     # Latest pull's error wins. A successful update with data clears stale
     # auth errors left on the cached base (e.g. old HTTP 400 after re-auth).
     has_update = bool(

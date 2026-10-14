@@ -263,7 +263,7 @@ class TestSleepBattery(unittest.TestCase):
         self.assertIsNone(bat["planned_wake_at"])
 
     def test_multi_session_splits_last_cycle_from_charge(self):
-        """Overnight + nap: last cycle is the nap; start charge uses recovered."""
+        """Overnight + nap: the nap recharges but never starts a new day (#1169)."""
         overnight_start = datetime(2026, 9, 6, 2, 45, tzinfo=NY)
         overnight_end = datetime(2026, 9, 6, 8, 31, tzinfo=NY)
         nap_start = datetime(2026, 9, 6, 16, 28, tzinfo=NY)
@@ -283,19 +283,19 @@ class TestSleepBattery(unittest.TestCase):
         ]
         bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
         self.assertEqual(bat["mode"], "awake")
-        self.assertAlmostEqual(bat["last_sleep_hours"], 3.45, places=2)
+        self.assertAlmostEqual(bat["last_sleep_hours"], 5.77, places=2)
         self.assertAlmostEqual(bat["last_night_hours"], 5.77, places=2)
         self.assertAlmostEqual(bat["extra_hours"], 3.45, places=2)
         self.assertAlmostEqual(bat["charge_sleep_hours"], 9.22, places=2)
         self.assertEqual(bat["start_pct_charged"], 100.0)
-        self.assertEqual(datetime.fromisoformat(bat["last_wake_at"]), nap_end)
-        self.assertAlmostEqual(bat["hours_awake"], 13.0 / 60.0, places=2)
+        self.assertEqual(datetime.fromisoformat(bat["last_wake_at"]), overnight_end)
+        self.assertAlmostEqual(bat["hours_awake"], (now - overnight_end).total_seconds() / 3600.0, places=2)
         self.assertNotIn("3.5h sleep", bat["summary"])
         self.assertIn("recovered 9.2h", bat["summary"])
         self.assertIn("5.8 last night", bat["summary"])
         self.assertIn("3.5 nap", bat["summary"])
         empty = datetime.fromisoformat(bat["empty_at"])
-        self.assertEqual(empty, nap_end + timedelta(hours=15))
+        self.assertEqual(empty, overnight_end + timedelta(hours=bat["charge_budget_hours"]))
 
     def test_nap_only_charges_from_latest_interval_not_zero(self):
         nap_start = datetime(2026, 9, 6, 16, 28, tzinfo=NY)

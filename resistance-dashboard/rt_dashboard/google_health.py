@@ -1236,6 +1236,15 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
     return out
 
 
+def _food_log_id(pt: dict, nlog: dict) -> Optional[str]:
+    """Stable Google Health id for one food log (dataPoint resource name)."""
+    for src, key in ((pt, "name"), (pt, "dataPointId"), (pt, "id"), (nlog, "name"), (nlog, "id")):
+        val = src.get(key) if isinstance(src, dict) else None
+        if val:
+            return str(val)
+    return None
+
+
 def parse_food_log_entries(payload: dict, days: int = 14) -> List[FoodLogEntry]:
     """Parse meal-level nutrition-log dataPoints (keep food names + micros).
 
@@ -1305,6 +1314,7 @@ def parse_food_log_entries(payload: dict, days: int = 14) -> List[FoodLogEntry]:
                 time=time_hm,
                 nutrients=_all_nutrients_grams(nlog),
                 source="google_health",
+                log_id=_food_log_id(pt, nlog),
             )
         )
 
