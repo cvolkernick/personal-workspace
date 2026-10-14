@@ -461,6 +461,10 @@
     </nav>
 
     <section class="panel active" id="panel-overview">
+      <div class="card-block" id="nodes-card" style="margin-bottom:0.9rem">
+        <h3>Nodes <span class="hint">Pi heartbeats · stale = no fresh heartbeat</span></h3>
+        <div id="nodes-list"><div class="empty">Loading nodes…</div></div>
+      </div>
       <div class="card-block" id="regime-card" style="margin-bottom:0.9rem">
         <h3>Regime assessment <span class="hint">probability-weighted · from world-state nodes</span></h3>
         <div id="overview-regime"><div class="empty">No regime yet — run Refresh</div></div>
@@ -1083,6 +1087,37 @@
       renderGraph(payload);
       renderGfs(payload);
     }
+
+    function nodeFmt(v, suf) { return (v === null || v === undefined) ? "–" : v + suf; }
+    function nodeAge(s) {
+      if (s === null || s === undefined) return "never";
+      if (s < 90) return s + "s ago";
+      if (s < 5400) return Math.round(s / 60) + "m ago";
+      return Math.round(s / 3600) + "h ago";
+    }
+    async function loadNodes() {
+      const el = $("nodes-list");
+      try {
+        const res = await fetch("/api/nodes", { cache: "no-store" });
+        const data = await res.json();
+        const col = { green: "var(--green)", amber: "#f0b429", red: "var(--red)", stale: "var(--muted)" };
+        el.innerHTML = (data.nodes || []).map(n => {
+          const v = n.vitals || {}, l = v.load_per_core || {};
+          const down = n.services_down.length ? n.services_down.map(esc).join(", ") : "none";
+          const temp = nodeFmt(v.temp_c, "°C") + (v.throttled ? " ⚠ throttled" : "");
+          return `<div class="node-row" data-status="${n.status}" style="display:flex;gap:0.8rem;flex-wrap:wrap;align-items:baseline;padding:0.35rem 0;border-bottom:1px solid #1d2b3a">
+            <span style="color:${col[n.status] || col.stale};font-weight:600;min-width:9rem">● ${esc(n.name)} · ${n.status}</span>
+            <span>disk ${nodeFmt(v.disk_pct, "%")}</span><span>load/core ${nodeFmt(l["15m"], "")}</span>
+            <span>mem ${nodeFmt(v.mem_pct, "%")}</span><span>temp ${temp}</span>
+            <span>down: ${down}</span><span style="color:var(--muted)">seen ${nodeAge(n.age_s)}${n.reason ? " · " + esc(n.reason) : ""}</span>
+          </div>`;
+        }).join("") || '<div class="empty">No nodes configured</div>';
+      } catch (e) {
+        el.innerHTML = '<div class="empty">Nodes unavailable: ' + esc(e.message) + "</div>";
+      }
+    }
+    loadNodes();
+    setInterval(loadNodes, 60000);
 
     async function loadDashboard() {
       setError("");
