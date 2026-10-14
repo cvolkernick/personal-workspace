@@ -149,6 +149,10 @@ def list_worktrees() -> List[dict]:
             cur["branch"] = line[len("branch ") :].replace("refs/heads/", "")
         elif line == "detached":
             cur["detached"] = True
+        elif line == "locked" or line.startswith("locked "):
+            # `git worktree lock [--reason …]`: an operator pin. Never prune.
+            cur["locked"] = True
+            cur["lock_reason"] = line[len("locked ") :].strip() if line != "locked" else ""
     if cur:
         items.append(cur)
     return items
@@ -397,6 +401,8 @@ def classify_worktree(wt: dict) -> dict:
         "wrong_area_branch": wrong_area_branch,
         "stale_feature": stale_feature,
         "repair_area": repair_area,
+        "locked": bool(wt.get("locked")),
+        "lock_reason": wt.get("lock_reason") or "",
     }
 
 
@@ -418,6 +424,12 @@ def prune_stale(*, apply: bool = False, force: bool = False) -> dict:
 
         if c["is_main"]:
             action, reason = "keep", "main monorepo"
+        elif c["locked"]:
+            # Locked worktrees are deliberately pinned (e.g. prism's workflow-master
+            # serves live units, #1187). `git worktree remove` would refuse anyway
+            # and fail the whole job, so keep them even with force.
+            action = "keep"
+            reason = "locked" + (f": {c['lock_reason']}" if c["lock_reason"] else "")
         elif c["dirty"] and not force:
             action, reason = "skip_dirty", "has uncommitted changes"
         elif c["area"] and not c["wrong_area_branch"] and c["remote_ok"] is not False:
