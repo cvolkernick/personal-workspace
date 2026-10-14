@@ -647,3 +647,51 @@ class TestStaleRuleClamp(unittest.TestCase):
     def test_default_knobs_are_seven_days(self):
         self.assertEqual(C.DEFAULT_KNOBS["STALE_HARD_DAYS"], 7)
         self.assertEqual(C.DEFAULT_KNOBS["FRESH_HOURS"], 168)
+
+
+class TestSavedKnobsNeverExceedConstants(unittest.TestCase):
+    """control_state.json / knobs.json must never carry STALE_HARD_DAYS / FRESH_HOURS
+    above the code constants (a 30 d / 720 h state was being re-saved every tick)."""
+
+    STALE = {"STALE_HARD_DAYS": 30, "FRESH_HOURS": 720}
+
+    def _persist(self, td: Path, knobs: dict) -> tuple[dict, dict]:
+        state_p, knobs_p = td / "control_state.json", td / "knobs.json"
+        decision = {"knobs": {**C.DEFAULT_KNOBS, **knobs}, "adjustment": {"action": "hold"}}
+        C.persist_state(state_p, knobs_p, {"tick_at": "2026-10-14T12:00:00Z"}, decision, {"t": 1},
+                        dry_run=False, jsonl_path=td / "control.jsonl")
+        return json.loads(state_p.read_text()), json.loads(knobs_p.read_text())
+
+    def test_load_state_clamps_saved_stale_values(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "control_state.json"
+            p.write_text(json.dumps({"schema_version": C.SCHEMA_VERSION, "knobs": {**C.DEFAULT_KNOBS, **self.STALE}}))
+            k = C.load_state(p)["knobs"]
+            self.assertEqual((k["STALE_HARD_DAYS"], k["FRESH_HOURS"]), (7, 168))
+
+    def test_persist_writes_clamped_values_to_both_files(self):
+        with tempfile.TemporaryDirectory() as td:
+            state, knobs = self._persist(Path(td), self.STALE)
+            self.assertEqual((state["knobs"]["STALE_HARD_DAYS"], state["knobs"]["FRESH_HOURS"]), (7, 168))
+            self.assertEqual((knobs["STALE_HARD_DAYS"], knobs["FRESH_HOURS"]), (7, 168))
+
+    def test_round_trip_never_exceeds_constants(self):
+        for stale, fresh in ((7, 168), (3, 72), (30, 720), (None, "x"), (True, 10**6)):
+            with tempfile.TemporaryDirectory() as td:
+                state, knobs = self._persist(Path(td), {"STALE_HARD_DAYS": stale, "FRESH_HOURS": fresh})
+                for doc in (state["knobs"], knobs):
+                    self.assertLessEqual(doc["STALE_HARD_DAYS"], C.STALE_HARD_DAYS, (stale, fresh))
+                    self.assertLessEqual(doc["FRESH_HOURS"], C.FRESH_HOURS, (stale, fresh))
+        # Lower values are a valid stricter setting and are kept.
+        with tempfile.TemporaryDirectory() as td:
+            _, knobs = self._persist(Path(td), {"STALE_HARD_DAYS": 3, "FRESH_HOURS": 72})
+            self.assertEqual((knobs["STALE_HARD_DAYS"], knobs["FRESH_HOURS"]), (3, 72))
+
+    def test_constants_match_writer_and_rule(self):
+        writer = (ROOT / "youtube_groom.py").read_text(encoding="utf-8")
+        self.assertIn("STALE_HARD_DAYS = 7", writer)
+        self.assertIn("FRESH_HOURS = 168", writer)
+        self.assertEqual((C.STALE_HARD_DAYS, C.FRESH_HOURS), (7, 168))
+        self.assertEqual(C.FRESH_HOURS, C.STALE_HARD_DAYS * 24)
+        for key, ceil in C.KNOB_CEILINGS.items():
+            self.assertLessEqual(C.DEFAULT_KNOBS[key], ceil)

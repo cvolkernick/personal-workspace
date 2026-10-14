@@ -710,6 +710,25 @@ def _migrate_knobs(old: dict[str, Any]) -> dict[str, Any]:
     return knobs
 
 
+# Hard 7-day rule: these knobs may never be saved above the code constants.
+KNOB_CEILINGS: dict[str, int] = {"STALE_HARD_DAYS": STALE_HARD_DAYS, "FRESH_HOURS": FRESH_HOURS}
+
+
+def clamp_knob_ceilings(knobs: dict[str, Any]) -> dict[str, Any]:
+    """Return knobs with STALE_HARD_DAYS / FRESH_HOURS clamped to the constants.
+
+    A stale control_state.json (e.g. 30 d / 720 h from before the 7 d rule)
+    must not be carried forward and re-written into knobs.json every tick.
+    Missing or non-numeric values are reset to the constant.
+    """
+    out = dict(knobs)
+    for key, ceil in KNOB_CEILINGS.items():
+        val = out.get(key)
+        if not isinstance(val, (int, float)) or isinstance(val, bool) or val > ceil:
+            out[key] = ceil
+    return out
+
+
 def load_state(path: Path = STATE_PATH) -> dict[str, Any]:
     if not path.is_file():
         return _fresh_state()
@@ -727,7 +746,7 @@ def load_state(path: Path = STATE_PATH) -> dict[str, Any]:
         data["knobs"] = {**DEFAULT_KNOBS, **(data.get("knobs") or {})}
         data["schema_version"] = schema
     if isinstance(data.get("knobs"), dict):
-        data["knobs"] = _with_migrated_seeds(data["knobs"])
+        data["knobs"] = clamp_knob_ceilings(_with_migrated_seeds(data["knobs"]))
     return data
 
 
@@ -743,6 +762,7 @@ def persist_state(
 ) -> None:
     if dry_run:
         return
+    decision = {**decision, "knobs": clamp_knob_ceilings(decision["knobs"])}
     state = {
         "schema_version": SCHEMA_VERSION,
         "at": iso(),
