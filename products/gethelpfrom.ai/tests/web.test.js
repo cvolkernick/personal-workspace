@@ -345,3 +345,13 @@ test("canon versions come from the git files", () => {
   assert.equal(ui.includes("Money & bills"), false)
   assert.equal(ui.includes("Which areas feel heaviest"), false)
 })
+
+test("pre-launch noindex: X-Robots-Tag header, robots meta, robots.txt disallow", () => {
+  const cfg = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8")
+  assert.match(cfg, /X-Robots-Tag/)
+  assert.match(cfg, /noindex, nofollow/)
+  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8")
+  assert.match(layout, /index: false/)
+  const robots = readFileSync(new URL("../app/robots.ts", import.meta.url), "utf8")
+  assert.match(robots, /disallow: "\/"/)
+})
