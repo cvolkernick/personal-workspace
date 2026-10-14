@@ -585,6 +585,7 @@ class TestSkipChris(unittest.TestCase):
                     result,
                     workspace=Path(td),
                     state_path=Path(td) / "state.json",
+                    grace_minutes=0,
                 )
         self.assertTrue(out.get("notified"), out)
         self.assertFalse(out.get("page_owner"), out)
@@ -594,6 +595,66 @@ class TestSkipChris(unittest.TestCase):
         self.assertIn("Silent to owner", markdown)
         self.assertTrue(any("issues/701/comments" in u for u in urls), urls)
         self.assertIn("page_owner=False", out.get("text") or "")
+
+
+class TestDriftGrace(unittest.TestCase):
+    """HEAD lagging origin right after a merge/sync is ignored for ~10 min."""
+
+    LAG = {
+        "ok": False,
+        "kind": "drift",
+        "mismatches": ["HEAD fbbbc460d002 != origin/work/treasury be6670c0da6f"],
+        "expected_branch": "work/treasury",
+        "attached": "work/treasury",
+        "head": "fbbbc460d002",
+        "origin_sha": "be6670c0da6f",
+        "current_branch_txt": "work/treasury",
+    }
+
+    def _seed(self, state: Path, minutes_ago: float) -> None:
+        first = (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).replace(
+            microsecond=0
+        ).isoformat().replace("+00:00", "Z")
+        state.write_text(json.dumps({"first_violation_at": first}) + "\n", encoding="utf-8")
+
+    def test_first_sighting_is_graced_and_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "s.json"
+            with mock.patch.object(M, "post_ops_github") as post:
+                out = M.alert_mismatch(dict(self.LAG), workspace=Path(td), state_path=state)
+            self.assertEqual(out.get("skipped"), "grace")
+            post.assert_not_called()
+            self.assertTrue(json.loads(state.read_text())["first_violation_at"])
+
+    def test_second_check_after_grace_alerts(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "s.json"
+            self._seed(state, 15)  # previous 15-min timer tick saw the same drift
+            out = M.alert_mismatch(dict(self.LAG), workspace=Path(td), state_path=state, dry_run=True)
+            self.assertEqual(out.get("skipped"), "dry-run")
+            self.assertIn("tip drift", out.get("title") or "")
+
+    def test_recovery_inside_grace_clears(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "s.json"
+            self._seed(state, 3)
+            M.alert_mismatch({"ok": True, "mismatches": []}, workspace=Path(td), state_path=state)
+            self.assertNotIn("first_violation_at", json.loads(state.read_text()))
+
+    def test_env_override_and_detached_never_graced(self) -> None:
+        with mock.patch.dict(os.environ, {"FCC_TIP_DRIFT_GRACE_MINUTES": "25"}):
+            self.assertEqual(M.drift_grace_minutes(), 25.0)
+        with tempfile.TemporaryDirectory() as td:
+            detached = {**self.LAG, "attached": "detached", "mismatches": ["attached=detached expected=work/treasury"]}
+            out = M.alert_mismatch(detached, workspace=Path(td), state_path=Path(td) / "s.json", dry_run=True)
+            self.assertEqual(out.get("skipped"), "dry-run")
+
+    def test_main_exit_0_inside_grace(self) -> None:
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            M, "inspect", return_value=dict(self.LAG)
+        ):
+            code = M.main(["--workspace", td, "--no-fetch", "--state", str(Path(td) / "s.json")])
+        self.assertEqual(code, 0)
 
 
 class TestCli(unittest.TestCase):

@@ -47,6 +47,19 @@ OPS_REPO = "cvolkernick/personal-workspace"
 OWNER_GITHUB_LOGIN = "cvolkernick"
 SCHEDULER_ENV = Path.home() / ".config" / "workflow-scheduler.env"
 STATE_NAME = "fcc_tip_health_state.json"
+# Grace for kind=drift: a merge/sync briefly leaves HEAD behind origin until
+# workspace-sync pulls (every 5 min). Ignore drift younger than this; with the
+# 15-min timer that means two consecutive drift checks before any alert.
+DEFAULT_DRIFT_GRACE_MINUTES = 10.0
+DRIFT_GRACE_ENV = "FCC_TIP_DRIFT_GRACE_MINUTES"
+
+
+def drift_grace_minutes() -> float:
+    raw = (os.environ.get(DRIFT_GRACE_ENV) or "").strip()
+    try:
+        return max(0.0, float(raw)) if raw else DEFAULT_DRIFT_GRACE_MINUTES
+    except ValueError:
+        return DEFAULT_DRIFT_GRACE_MINUTES
 _GIT_ENV_BLOCK = (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -570,6 +583,22 @@ def _alert_title(kind: str, *, sustained: bool, age_h: float, kill: bool) -> str
     return f"FCC · {label} · prism-gateway"
 
 
+def _is_sha_lag(result: dict[str, Any], kind: str, outcome: str) -> bool:
+    """True when the only problem is HEAD behind/ahead of origin on the right branch.
+
+    That is the expected window between a merge and the next workspace-sync
+    pull. Detached HEAD, wrong branch or a bad stamp are never graced.
+    """
+    mism = [str(m) for m in (result.get("mismatches") or [])]
+    return (
+        kind == "drift"
+        and outcome == "violation"
+        and bool(mism)
+        and all(m.startswith("HEAD ") and "!= origin/" in m for m in mism)
+        and result.get("attached") == result.get("expected_branch")
+    )
+
+
 def alert_mismatch(
     result: dict[str, Any],
     *,
@@ -579,6 +608,7 @@ def alert_mismatch(
     sustained_hours: float = DEFAULT_SUSTAINED_HOURS,
     sustained_cooldown_hours: float = DEFAULT_SUSTAINED_COOLDOWN_HOURS,
     dry_run: bool = False,
+    grace_minutes: Optional[float] = None,
 ) -> dict[str, Any]:
     _warn_retired_ntfy(topic=_leftover_ntfy_topic(workspace))
     outcome = _outcome(result)
@@ -596,6 +626,17 @@ def alert_mismatch(
         _record_violation_seen(state_path, result)
         prev = _load_state(state_path)
     age_h = _violation_age_hours(prev)
+    grace = drift_grace_minutes() if grace_minutes is None else float(grace_minutes)
+    if _is_sha_lag(result, kind, outcome) and age_h * 60.0 < grace:
+        # First sighting (or still inside grace): remember it, don't alert.
+        return {
+            "ok": True,
+            "notified": False,
+            "skipped": "grace",
+            "grace_minutes": grace,
+            "age_minutes": round(age_h * 60.0, 1),
+            "sustained": False,
+        }
     sustained = age_h >= float(sustained_hours)
     result = {
         **result,
@@ -757,6 +798,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     # Non-zero so the timer unit shows failed, but comments are cooldown-gated.
     # 1 = verified violation (drift). 2 = check could not determine state.
     if outcome == "ok":
+        return 0
+    if alert.get("skipped") == "grace":
+        # Drift younger than the grace window is expected right after a merge.
         return 0
     if outcome == "unknown":
         return 2
