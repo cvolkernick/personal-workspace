@@ -99,3 +99,7 @@ Read-only from workspace:
 - `strategy/intent.json`
 - `strategy/today.md`
 - `investment/positions.md`
+
+## Nodes card
+
+`GET /api/nodes` polls each Pi node's `/api/heartbeat` (list from the JSON file named by `HORIZON_NODES`; defaults: prism via orchestra `:8790`, finley via `finley-gateway:8797`). Green/amber/red from the heartbeat status, **stale** when a node is unreachable or its heartbeat is older than `stale_after_s` (300 s default).

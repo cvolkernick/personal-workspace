@@ -8,6 +8,7 @@
   GET  /api/dashboard    — combined payload for UI
   GET  /api/implications — L0 implication packet (alias: /api/packets/latest)
   GET  /api/gfs          — GFS pressure / valve packet
+  GET  /api/nodes        — Pi node heartbeats (Nodes card)
   POST /api/refresh      — re-run pipeline (body: {"offline": true})
 
 Usage (Mac dev):
@@ -34,6 +35,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from research.horizon.gfs import ensure_gfs_packet  # noqa: E402
+from research.horizon.nodes import build_nodes_payload  # noqa: E402
 from research.horizon.packets import validate_packet  # noqa: E402
 from research.horizon.pipeline import run_pipeline  # noqa: E402
 from research.horizon.store import (  # noqa: E402
@@ -238,6 +240,13 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             level = (qs.get("level") or ["L0"])[0]
             code, body = build_packet_response(DEFAULT_DATA_DIR, level=level)
             self._json(code, body)
+            return
+
+        if path == "/api/nodes":
+            try:
+                self._json(200, build_nodes_payload())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
             return
 
         if path == "/api/gfs":
