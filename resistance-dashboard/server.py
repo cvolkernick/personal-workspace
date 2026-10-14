@@ -27,6 +27,52 @@ from urllib.parse import parse_qs, quote, urlparse
 T = TypeVar("T")
 
 ROOT = Path(__file__).resolve().parent
+
+
+def normalize_workspace_env(environ=None) -> str:
+    """Expand ``$HOME`` / ``~`` in LOCAL_WORKSPACE_DIR.
+
+    systemd ``EnvironmentFile=`` does not expand variables, so a line like
+    ``LOCAL_WORKSPACE_DIR=$HOME/personal-workspace`` reached the process
+    literally and resolved relative to the working directory
+    (``apps/fitdash/$HOME/personal-workspace``). The exercise catalog was then
+    missing, the library fell back to the built-in default, and plans had no
+    lifts. Normalize once at import so every reader sees the real path.
+    """
+    env = os.environ if environ is None else environ
+    raw = (env.get("LOCAL_WORKSPACE_DIR") or "").strip()
+    if not raw:
+        return ""
+    expanded = os.path.expanduser(os.path.expandvars(raw))
+    if expanded != raw:
+        env["LOCAL_WORKSPACE_DIR"] = expanded
+    return expanded
+
+
+normalize_workspace_env()
+
+
+def with_stamped_next_session(dashboard):
+    """Give /api/ask/plan the letter Today stamped (e.g. LEGS).
+
+    Vercel's dashboard exposed ``workout_store.next_session_type``; prism's
+    ``load_dashboard_data`` only has ``workout_store.plan``. Without it Grok
+    picked its own split, so the saved plan disagreed with Today's letter.
+    """
+    if not isinstance(dashboard, dict):
+        return dashboard
+    store = dashboard.get("workout_store")
+    if not isinstance(store, dict) or store.get("next_session_type"):
+        return dashboard
+    plan = store.get("plan") if isinstance(store.get("plan"), dict) else {}
+    letter = str(plan.get("session_type") or "").strip().lower()
+    if not letter or letter == "rest" or plan.get("is_rest_day"):
+        letter = str(plan.get("next_session_type") or "").strip().lower()
+    if not letter or letter == "rest":
+        return dashboard
+    out = dict(dashboard)
+    out["workout_store"] = {**store, "next_session_type": letter}
+    return out
 WORKSPACE = ROOT.parent
 sys.path.insert(0, str(ROOT))
 if str(WORKSPACE) not in sys.path:
@@ -1537,6 +1583,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if user
             else None
         )
+        dashboard = with_stamped_next_session(dashboard)
         return ask_plan_body(self.headers, payload or {}, user=user, dashboard=dashboard)
 
     def _handle_vercel_compat(self, path: str, method: str) -> bool:
