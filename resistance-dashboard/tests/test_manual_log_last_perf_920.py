@@ -36,7 +36,7 @@ class ManualLogLastPerfContract(unittest.TestCase):
         self.assertNotIn("/app.js?v=partial-workout-999-1", HTML)
         self.assertNotIn("/app.js?v=calorie-7d-946-1", HTML)
         sw = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
-        self.assertIn('const CACHE = "fitdash-shell-v136"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v137"', sw)
         self.assertNotIn("fitdash-shell-v124", sw)
         self.assertNotIn("fitdash-shell-v116", sw)
         self.assertIn("/styles.css?v=brand-1027-1", HTML)

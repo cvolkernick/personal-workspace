@@ -493,7 +493,81 @@ def pull_merged_sessions(
     return sessions, source, error, meta_client
 
 
+# --- Built-payload memo (speed fix #2) -------------------------------------
+# /api/dashboard and /api/daily-tasks both fire at boot and used to build the
+# same payload twice. Serving mode keeps each user's last build for a short
+# TTL, collapses concurrent builds into one, and drops everything on any
+# write request or when health.json changes on disk. Disabled unless the
+# server is running (tests and scripts always build fresh).
+import copy as _copy  # noqa: E402
+import threading as _threading  # noqa: E402
+
+_PAYLOAD_MEMO_ENABLED = False
+_PAYLOAD_MEMO: Dict[str, Tuple[float, Optional[float], Dict[str, Any]]] = {}
+_PAYLOAD_MEMO_LOCK = _threading.Lock()
+_PAYLOAD_BUILD_LOCKS: Dict[str, Any] = {}
+
+
+def payload_memo_ttl_sec() -> float:
+    try:
+        return max(0.0, float(os.environ.get("FITDASH_PAYLOAD_TTL_SEC", "45")))
+    except ValueError:
+        return 45.0
+
+
+def _health_cache_mtime() -> Optional[float]:
+    from rt_dashboard.dashboard_cache import cache_dir
+
+    try:
+        return (cache_dir() / "health.json").stat().st_mtime
+    except OSError:
+        return None
+
+
+def invalidate_dashboard_memo() -> None:
+    with _PAYLOAD_MEMO_LOCK:
+        _PAYLOAD_MEMO.clear()
+
+
 def load_dashboard_data(
+    *,
+    force_refresh: bool = False,
+    user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Memoized front for ``build_dashboard_data`` (see payload memo above)."""
+    ttl = payload_memo_ttl_sec()
+    if not _PAYLOAD_MEMO_ENABLED or ttl <= 0:
+        return build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
+    key = (user_id or "").strip() or "__default__"
+    with _PAYLOAD_MEMO_LOCK:
+        build_lock = _PAYLOAD_BUILD_LOCKS.setdefault(key, _threading.Lock())
+    with build_lock:
+        if not force_refresh:
+            with _PAYLOAD_MEMO_LOCK:
+                hit = _PAYLOAD_MEMO.get(key)
+            if hit is not None:
+                built_at, mtime, data = hit
+                if time.time() - built_at < ttl and mtime == _health_cache_mtime():
+                    return _copy.deepcopy(data)
+        data = build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
+        with _PAYLOAD_MEMO_LOCK:
+            _PAYLOAD_MEMO[key] = (time.time(), _health_cache_mtime(), data)
+        return _copy.deepcopy(data)
+
+
+def build_dashboard_data(
+    *,
+    force_refresh: bool = False,
+    user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    from rt_dashboard.nutrition_day import nutrition_build_scope
+    from rt_dashboard.turso_http import keepalive_scope
+
+    with nutrition_build_scope(), keepalive_scope():
+        return _build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
+
+
+def _build_dashboard_data(
     *,
     force_refresh: bool = False,
     user_id: Optional[str] = None,
@@ -784,8 +858,9 @@ def load_dashboard_data(
             )
             cache_notes.setdefault("hidrate", {}).update(hidrate_meta)
             if hidrate_meta.get("applied") and not cache_notes["health"].get("refreshed"):
-                # Persist overlay so next cold read already has source=hidrate days.
-                save_health_cache(health, error=health.error)
+                # Persist overlay so next cold read already has source=hidrate
+                # days. Skip the rewrite when nothing changed (speed fix #2).
+                save_health_cache(health, error=health.error, only_if_changed=True)
         except Exception as e:  # noqa: BLE001
             cache_notes.setdefault("hidrate", {})["error"] = str(e)
 
@@ -1484,6 +1559,52 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
         return {"ok": False, "action": kind, "error": str(e)}
 
 
+_STATIC_COMPRESSIBLE = (".js", ".css", ".html", ".webmanifest", ".svg", ".json", ".txt", ".ico")
+_STATIC_ENTRIES: Dict[str, Dict[str, Any]] = {}
+_STATIC_LOCK = _threading.Lock()
+
+
+def _static_entry(fs_path: str) -> Dict[str, Any]:
+    """Bytes, gzip body and ETag for one static file, cached by mtime/size."""
+    import gzip
+    import hashlib
+
+    st = os.stat(fs_path)
+    sig = (st.st_mtime_ns, st.st_size)
+    with _STATIC_LOCK:
+        hit = _STATIC_ENTRIES.get(fs_path)
+    if hit is not None and hit["sig"] == sig:
+        return hit
+    with open(fs_path, "rb") as fh:
+        raw = fh.read()
+    gz = None
+    if fs_path.lower().endswith(_STATIC_COMPRESSIBLE) and len(raw) >= 512:
+        packed = gzip.compress(raw, compresslevel=9, mtime=0)
+        if len(packed) < len(raw):
+            gz = packed
+    entry = {
+        "sig": sig,
+        "mtime": st.st_mtime,
+        "raw": raw,
+        "gz": gz,
+        "etag": hashlib.sha1(raw).hexdigest()[:20],
+    }
+    with _STATIC_LOCK:
+        _STATIC_ENTRIES[fs_path] = entry
+    return entry
+
+
+def static_cache_control(path: str, query: str) -> str:
+    """Versioned (?v=) assets are immutable; the shell revalidates by ETag."""
+    if path in ("/", "/index.html"):
+        return "public, max-age=30, must-revalidate"
+    if path == "/sw.js":
+        return "no-cache"
+    if "v" in parse_qs(query or ""):
+        return "public, max-age=31536000, immutable"
+    return "no-cache"
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     # PWA manifest MIME (stdlib map often serves .webmanifest as octet-stream)
     extensions_map = {
@@ -1500,13 +1621,64 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
     def end_headers(self) -> None:
-        # Avoid stale app.js/index after auth deploys (browsers heuristic-cache static).
+        # Static files served by send_head below set their own validators.
+        # Anything else under these suffixes keeps the old no-store guard.
+        if getattr(self, "_static_headers_sent", False):
+            self._static_headers_sent = False
+            super().end_headers()
+            return
         path = urlparse(getattr(self, "path", "") or "").path
         if path in ("/", "/index.html") or path.endswith(
             (".js", ".css", ".html", ".webmanifest")
         ):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
+
+    def send_head(self):  # noqa: D401 - stdlib hook
+        """Static files with gzip, ETag and versioned immutable caching (speed fix #3)."""
+        self._static_headers_sent = False
+        parsed = urlparse(self.path)
+        fs_path = self.translate_path(self.path)
+        if os.path.isdir(fs_path):
+            if not parsed.path.endswith("/"):
+                return super().send_head()
+            fs_path = os.path.join(fs_path, "index.html")
+        if not os.path.isfile(fs_path):
+            return super().send_head()
+        try:
+            entry = _static_entry(fs_path)
+        except OSError:
+            return super().send_head()
+        cache_control = static_cache_control(parsed.path, parsed.query)
+        accept = (self.headers.get("Accept-Encoding") or "").lower()
+        use_gz = entry["gz"] is not None and "gzip" in accept
+        etag = '"%s%s"' % (entry["etag"], "-gz" if use_gz else "")
+        inm = self.headers.get("If-None-Match") or ""
+        tags = {t.strip().removeprefix("W/") for t in inm.split(",") if t.strip()}
+        if etag in tags or "*" in tags:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", cache_control)
+            self.send_header("Vary", "Accept-Encoding")
+            self._static_headers_sent = True
+            self.end_headers()
+            return None
+        body = entry["gz"] if use_gz else entry["raw"]
+        self.send_response(200)
+        self.send_header("Content-Type", self.guess_type(fs_path))
+        self.send_header("Content-Length", str(len(body)))
+        if use_gz:
+            self.send_header("Content-Encoding", "gzip")
+        if entry["gz"] is not None:
+            self.send_header("Vary", "Accept-Encoding")
+        self.send_header("ETag", etag)
+        self.send_header("Last-Modified", self.date_time_string(int(entry["mtime"])))
+        self.send_header("Cache-Control", cache_control)
+        self._static_headers_sent = True
+        self.end_headers()
+        import io as _io
+
+        return _io.BytesIO(body)
 
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -1995,12 +2167,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 bat = data.get("sleep_battery") or (data.get("recovery") or {}).get(
                     "sleep_battery"
                 )
-                result = ensure_daily_tasks(
-                    today,
-                    day=day,
-                    sleep_battery=bat if isinstance(bat, dict) else None,
-                    user_id=str(uid) if uid else None,
-                )
+                from rt_dashboard.turso_http import keepalive_scope
+
+                with keepalive_scope():
+                    result = ensure_daily_tasks(
+                        today,
+                        day=day,
+                        sleep_battery=bat if isinstance(bat, dict) else None,
+                        user_id=str(uid) if uid else None,
+                    )
                 self._send_json({"ok": True, "daily_tasks": result})
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
@@ -2099,6 +2274,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        # Any write can change the payload; never serve a pre-write build.
+        invalidate_dashboard_memo()
         if try_proxy_api is not None and try_proxy_api(
             self,
             _BACKEND_URL,
@@ -3235,6 +3412,8 @@ def main(argv: Optional[List[str]] = None) -> None:
     host = str(args.host or "127.0.0.1")
     # Ensure static exists
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
+    global _PAYLOAD_MEMO_ENABLED
+    _PAYLOAD_MEMO_ENABLED = True
     server = ThreadingHTTPServer((host, int(port)), DashboardHandler)
     display_host = "127.0.0.1" if host in ("0.0.0.0", "") else host
     print(f"FitDash listening on http://{display_host}:{port}/", flush=True)

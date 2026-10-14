@@ -55,6 +55,10 @@ The card does not add that partition on top of the civil total.
 
 from __future__ import annotations
 
+import bisect
+import contextvars
+import copy
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -570,16 +574,69 @@ def assign_event_day(
     return None
 
 
+class PreparedFoodLogs:
+    """Food logs converted and parsed once, sorted by local event time.
+
+    ``items`` holds ``(event_dt, input_index, as_dict, was_dict)``. Spans read
+    their slice with bisect instead of re-parsing every log per span.
+    """
+
+    __slots__ = ("tz", "items", "times")
+
+    def __init__(self, food_logs: Optional[Sequence[Any]], tz: Any):
+        self.tz = tz
+        items: List[Tuple[datetime, int, dict, bool]] = []
+        for idx, log in enumerate(food_logs or []):
+            d = food_log_as_dict(log)
+            if not d:
+                continue
+            dt = food_log_event_time(d, default_tz=tz)
+            if dt is None:
+                continue
+            items.append((dt.astimezone(tz), idx, d, isinstance(log, dict)))
+        items.sort(key=lambda t: (t[0], t[1]))
+        self.items = items
+        self.times = [t[0] for t in items]
+
+    def window(self, lo: datetime, hi: datetime) -> List[Tuple[datetime, int, dict, bool]]:
+        """Items with lo <= dt < hi, in original input order."""
+        if hi <= lo:
+            return []
+        a = bisect.bisect_left(self.times, lo)
+        b = bisect.bisect_left(self.times, hi)
+        got = self.items[a:b]
+        got.sort(key=lambda t: t[1])
+        return got
+
+
+def prepare_food_logs(
+    food_logs: Any, tz: Any
+) -> PreparedFoodLogs:
+    if isinstance(food_logs, PreparedFoodLogs) and food_logs.tz == tz:
+        return food_logs
+    if isinstance(food_logs, PreparedFoodLogs):
+        food_logs = [t[2] for t in sorted(food_logs.items, key=lambda t: t[1])]
+    return PreparedFoodLogs(food_logs, tz)
+
+
+def _row_copy(d: dict, was_dict: bool) -> dict:
+    # Dict inputs were returned as-is before; dataclass inputs got a fresh
+    # to_dict() per call. Keep both contracts.
+    return d if was_dict else copy.deepcopy(d)
+
+
 def sum_intake_for_span(
-    food_logs: Optional[Sequence[Any]],
+    food_logs: Any,
     span: NutritionDaySpan,
     *,
     now: Optional[datetime] = None,
+    with_rows: bool = True,
 ) -> Dict[str, Any]:
     """Sum macros for logs with event time in [span.start, span.end).
 
     Includes food outside the eating window. cutoff = min(now, span.end)
     so future-dated logs past now are excluded on an open day.
+    ``food_logs`` may be a ``PreparedFoodLogs`` (parsed once per build).
     """
     clock = now if now is not None else span.end
     if clock.tzinfo is None:
@@ -591,15 +648,8 @@ def sum_intake_for_span(
     count = 0
     nutrient_maps: List[Any] = []
     rows: List[dict] = []
-    tz = span.start.tzinfo
-    for log in food_logs or []:
-        dt = food_log_event_time(log, default_tz=tz)  # type: ignore[arg-type]
-        if dt is None:
-            continue
-        dt = dt.astimezone(tz)
-        if dt < span.intake_from or dt >= cutoff:
-            continue
-        d = food_log_as_dict(log) or {}
+    prepared = prepare_food_logs(food_logs, span.start.tzinfo)
+    for _dt, _idx, d, was_dict in prepared.window(span.intake_from, cutoff):
         try:
             totals["calories"] += float(d.get("calories") or 0)
             totals["protein_g"] += float(d.get("protein_g") or 0)
@@ -607,7 +657,8 @@ def sum_intake_for_span(
             totals["fat_g"] += float(d.get("fat_g") or 0)
             count += 1
             nutrient_maps.append(d.get("nutrients"))
-            rows.append(d)
+            if with_rows:
+                rows.append(_row_copy(d, was_dict))
         except (TypeError, ValueError):
             continue
     from .nutrition_micros import sum_micros
@@ -633,20 +684,13 @@ def sum_intake_for_span(
 
 
 def food_logs_for_span(
-    food_logs: Optional[Sequence[Any]], span: NutritionDaySpan
+    food_logs: Any, span: NutritionDaySpan
 ) -> List[dict]:
-    tz = span.start.tzinfo
-    out: List[dict] = []
-    for log in food_logs or []:
-        dt = food_log_event_time(log, default_tz=tz)  # type: ignore[arg-type]
-        if dt is None:
-            continue
-        if not span.contains_intake(dt):
-            continue
-        d = food_log_as_dict(log)
-        if d:
-            out.append(d)
-    return out
+    prepared = prepare_food_logs(food_logs, span.start.tzinfo)
+    return [
+        _row_copy(d, was_dict)
+        for _dt, _idx, d, was_dict in prepared.window(span.intake_from, span.end)
+    ]
 
 
 def _overlap_hours(a0: datetime, a1: datetime, b0: datetime, b1: datetime) -> float:
@@ -669,8 +713,10 @@ def bucket_intake_by_nutrition_day(
     no timed logs (cannot rebucket a midnight-midnight total).
     """
     by_id: Dict[str, Dict[str, Any]] = {}
+    tz0 = days[0].start.tzinfo if days else None
+    prepared = prepare_food_logs(food_logs, tz0) if days else food_logs
     for span in days:
-        got = sum_intake_for_span(food_logs, span, now=span.end)
+        got = sum_intake_for_span(prepared, span, now=span.end, with_rows=False)
         by_id[span.day_id] = {
             "date": span.day_id,
             "calories": got["calories"] if got["log_count"] else None,
@@ -1215,7 +1261,7 @@ def burned_for_span(
         return None
 
 
-def compose_nutrition_today(
+def _compose_nutrition_today_uncached(
     *,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
@@ -1249,6 +1295,7 @@ def compose_nutrition_today(
         sleep_battery=sleep_battery,
         daily_sleep=daily_sleep,
     )
+    food_logs = _memo_prepared(food_logs, span.start.tzinfo)
     intake = sum_intake_for_span(food_logs, span, now=now)
     logs_today = food_logs_for_span(food_logs, span)
     if intake["log_count"] <= 0 and nutrition_rollups:
@@ -1307,3 +1354,113 @@ def compose_nutrition_today(
         "trends_nutrition": trends_in,
         "trends_calories_burned": trends_out,
     }
+
+
+# ---------------------------------------------------------------------------
+# Per-build sharing (speed fix #1). One dashboard build calls
+# compose_nutrition_today from the server, planner, calorie bars and trends.
+# Inside ``nutrition_build_scope`` identical calls are computed once and the
+# food logs are parsed/sorted once. Outside a scope nothing is cached.
+# ---------------------------------------------------------------------------
+
+_BUILD_MEMO: "contextvars.ContextVar[Optional[dict]]" = contextvars.ContextVar(
+    "fitdash_nutrition_build_memo", default=None
+)
+
+
+@contextmanager
+def nutrition_build_scope():
+    if _BUILD_MEMO.get() is not None:
+        yield
+        return
+    token = _BUILD_MEMO.set({"compose": {}, "prepared": {}, "refs": []})
+    try:
+        yield
+    finally:
+        _BUILD_MEMO.reset(token)
+
+
+def _food_fp(seq: Any) -> Any:
+    if seq is None:
+        return None
+    if isinstance(seq, PreparedFoodLogs):
+        return ("prepared", id(seq))
+    out = []
+    for x in seq:
+        if isinstance(x, dict):
+            g = x.get
+        else:
+            g = lambda k, _x=x: getattr(_x, k, None)  # noqa: E731
+        out.append(
+            (
+                id(x), g("date"), g("time"), g("calories"), g("protein_g"),
+                g("carbs_g"), g("fat_g"), g("name"), id(g("nutrients")),
+            )
+        )
+    return tuple(out)
+
+
+def _generic_fp(obj: Any) -> Any:
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return repr(sorted(obj.items(), key=lambda kv: str(kv[0])))
+    if isinstance(obj, (list, tuple)):
+        return tuple(repr(x) for x in obj)
+    return repr(obj)
+
+
+def _memo_prepared(food_logs: Any, tz: Any) -> Any:
+    memo = _BUILD_MEMO.get()
+    if memo is None or isinstance(food_logs, PreparedFoodLogs):
+        return food_logs
+    key = (str(tz), _food_fp(food_logs))
+    hit = memo["prepared"].get(key)
+    if hit is None:
+        hit = PreparedFoodLogs(food_logs, tz)
+        memo["prepared"][key] = hit
+        memo["refs"].append(list(food_logs or []))
+    return hit
+
+
+def compose_nutrition_today(
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+    sleep_intervals: Optional[Sequence[dict]] = None,
+    sleep_battery: Optional[dict] = None,
+    daily_sleep: Optional[Sequence[Any]] = None,
+    food_logs: Optional[Sequence[Any]] = None,
+    nutrition_rollups: Optional[Sequence[Any]] = None,
+    calories_burned: Optional[Sequence[Any]] = None,
+) -> Dict[str, Any]:
+    """Single composition used by dashboard, planner, bars, and trends."""
+    kwargs = dict(
+        now=now,
+        tz_name=tz_name,
+        sleep_intervals=sleep_intervals,
+        sleep_battery=sleep_battery,
+        daily_sleep=daily_sleep,
+        food_logs=food_logs,
+        nutrition_rollups=nutrition_rollups,
+        calories_burned=calories_burned,
+    )
+    memo = _BUILD_MEMO.get()
+    if memo is None or now is None:
+        return _compose_nutrition_today_uncached(**kwargs)
+    key = (
+        repr(now), tz_name,
+        _generic_fp(sleep_intervals), _generic_fp(sleep_battery),
+        _generic_fp(daily_sleep), _food_fp(food_logs),
+        _generic_fp(nutrition_rollups), _generic_fp(calories_burned),
+    )
+    hit = memo["compose"].get(key)
+    if hit is None:
+        hit = _compose_nutrition_today_uncached(**kwargs)
+        memo["compose"][key] = hit
+        memo["refs"].append(
+            [sleep_intervals, sleep_battery, daily_sleep, food_logs,
+             nutrition_rollups, calories_burned]
+        )
+    # Callers may mutate what they get back; hand out a private copy.
+    return copy.deepcopy(hit)

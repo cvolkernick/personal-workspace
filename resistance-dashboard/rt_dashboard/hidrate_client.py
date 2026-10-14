@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -41,6 +42,36 @@ _BOTTLE_CACHE: Dict[str, Any] = {}  # {fetched_at, charge}
 _BOTTLE_TTL_SEC = 300.0
 _SIP_CACHE: Dict[str, Any] = {}  # {hours, fetched_at, samples}
 _SIP_TTL_SEC = 300.0
+# Past TTL, serve the last good value (up to this age) and refresh in the
+# background instead of blocking the dashboard on a live Parse round trip.
+_STALE_MAX_SEC = float(os.environ.get("HIDRATE_STALE_MAX_SEC", "1800"))
+_REFRESHING: set = set()
+_REFRESH_LOCK = threading.Lock()
+
+
+def _background_refresh(name: str, fn) -> None:
+    with _REFRESH_LOCK:
+        if name in _REFRESHING:
+            return
+        _REFRESHING.add(name)
+
+    def run() -> None:
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            log.warning("Hidrate background refresh %s failed: %s", name, e)
+        finally:
+            with _REFRESH_LOCK:
+                _REFRESHING.discard(name)
+
+    threading.Thread(target=run, name=f"hidrate-{name}", daemon=True).start()
+
+
+def _stale_ok(cached: Dict[str, Any], field: str) -> bool:
+    if cached.get(field) is None:
+        return False
+    age = time.time() - float(cached.get("fetched_at") or 0)
+    return age < _STALE_MAX_SEC
 
 # Parse Bottle charge keys verified from community clients / unofficial server schema:
 # - batteryLevel: hidrateapp-server Bottle model + hidratespark-mcp
@@ -212,6 +243,11 @@ class HidrateClient:
                 < _SERIES_TTL_SEC
             ):
                 return list(cached["series"])
+            if cached.get("days") == days and _stale_ok(cached, "series"):
+                _background_refresh(
+                    "days", lambda: self.fetch_hydration_days(days=days, use_cache=False)
+                )
+                return list(cached["series"])
 
         today = local_today_iso()
         start = (
@@ -277,6 +313,11 @@ class HidrateClient:
                 < _BOTTLE_TTL_SEC
             ):
                 return dict(cached["charge"])
+            if _stale_ok(cached, "charge"):
+                _background_refresh(
+                    "bottle", lambda: self.fetch_bottle_charge(use_cache=False)
+                )
+                return dict(cached["charge"])
 
         try:
             rows = self.fetch_bottle_rows()
@@ -336,6 +377,11 @@ class HidrateClient:
                 and (time.time() - float(cached.get("fetched_at") or 0))
                 < _SIP_TTL_SEC
             ):
+                return list(cached["samples"])
+            if cached.get("hours") == hours and _stale_ok(cached, "samples"):
+                _background_refresh(
+                    "sips", lambda: self.fetch_hydration_samples(hours=hours, use_cache=False)
+                )
                 return list(cached["samples"])
 
         now = datetime.now(timezone.utc)
