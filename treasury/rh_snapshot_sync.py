@@ -18,7 +18,11 @@ Env (optional):
   TREASURY_RH_PUSH=1           allow Mac→Pi robinhood_latest.json (off by default)
   TREASURY_BRAIINS_PUSH=1      allow Mac→Pi braiins_latest.json (off by default; #689)
   TREASURY_COINBASE_PUSH=1     allow Mac→Pi coinbase_latest.json (off by default; #695)
-  TREASURY_PI_SSH     e.g. prism-agent@192.168.100.98
+  TREASURY_SOLANA_PUSH=1       allow Mac→Pi solana_latest.json (off by default; Pi SoT)
+  TREASURY_PI_SSH     optional override for the prism SSH target, e.g.
+                      prism-agent@192.0.2.10. Default is prism-agent@prism-gateway
+                      (tailnet MagicDNS short name), which resolves on any host
+                      on the tailnet with MagicDNS on.
   TREASURY_PI_ROOT    e.g. /home/prism-agent/personal-workspace
   TREASURY_PI_CONNECT_TIMEOUT  (seconds, default 5)
   TREASURY_RH_MAX_AGE_HOURS    accept remote only if as_of younger than this (default 6)
@@ -54,8 +58,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.adapters import SNAPSHOTS_DIR, load_config, load_json, save_json  # noqa: E402
+from treasury.fund_manager_order_gate import grok_deny_args  # noqa: E402
 
-DEFAULT_SSH = "prism-agent@192.168.100.98"
+# prism over the tailnet by its MagicDNS short name. Never a LAN IP.
+# TREASURY_PI_SSH (or a local pi_sync.ssh) overrides it.
+DEFAULT_SSH = "prism-agent@prism-gateway"
 DEFAULT_REMOTE_ROOTS = (
     "/home/prism-agent/personal-workspace",
     "/home/pi/personal-workspace",
@@ -72,15 +79,15 @@ RH_PRODUCER_STATUS = "rh_producer_status.json"
 DEFAULT_SOT_HOST = "prism"
 BRAIINS_SNAP = "braiins_latest.json"
 COINBASE_SNAP = "coinbase_latest.json"
-# Mac may still push YNAB/Sheet/Solana. RH (#518), Braiins (#689), and
-# Coinbase price (#695) are Pi SoT.
+SOLANA_SNAP = "solana_latest.json"
+# Mac may still push YNAB/Sheet. RH (#518), Braiins (#689), Coinbase price
+# (#695) and Solana (solana-refresh.timer) are Pi SoT.
 DEFAULT_PUSH_FILES = (
     "fund_manager_latest.json",
     "treasury_latest.json",
     "one_card_latest.json",
     "rh_checking_latest.json",
     "x_money_latest.json",
-    "solana_latest.json",
     "expenses_latest.json",
 )
 
@@ -200,6 +207,7 @@ def _strip_rh_push(files: List[str]) -> List[str]:
     RH: omit unless TREASURY_RH_PUSH=1 (#518).
     Braiins: omit unless TREASURY_BRAIINS_PUSH=1 (#689).
     Coinbase: omit unless TREASURY_COINBASE_PUSH=1 (#695).
+    Solana: omit unless TREASURY_SOLANA_PUSH=1 (Pi solana-refresh.timer).
     """
     out = list(files)
     if os.environ.get("TREASURY_RH_PUSH") != "1":
@@ -208,6 +216,8 @@ def _strip_rh_push(files: List[str]) -> List[str]:
         out = [f for f in out if str(f) != BRAIINS_SNAP]
     if os.environ.get("TREASURY_COINBASE_PUSH") != "1":
         out = [f for f in out if str(f) != COINBASE_SNAP]
+    if os.environ.get("TREASURY_SOLANA_PUSH") != "1":
+        out = [f for f in out if str(f) != SOLANA_SNAP]
     return out
 
 
@@ -731,6 +741,19 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
         before_mtime = dest.stat().st_mtime
 
     prompt = prompt_path.read_text(encoding="utf-8")
+    # #1093: this run is read-only (get_accounts / get_portfolio /
+    # get_equity_positions). It still runs --yolo, so the Robinhood order-tool
+    # deny list from the order gate (single shared helper) is mandatory.
+    # Fail closed: no deny list => grok is not run.
+    try:
+        deny_args = list(grok_deny_args())
+    except Exception:  # pragma: no cover - defensive
+        deny_args = []
+    if len(deny_args) < 2 or deny_args[0] != "--deny":
+        out["error"] = "order_gate_deny_list_unavailable"
+        out["error_class"] = "mcp"
+        _attach_existing_as_of(out, SNAPSHOTS_DIR / RH_SNAP)
+        return out
     r = None
     try:
         r = subprocess.run(
@@ -741,6 +764,7 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
                 "--cwd",
                 str(ROOT),
                 "--yolo",
+                *deny_args,
                 "--output-format",
                 "plain",
             ],
@@ -820,6 +844,82 @@ def _attach_existing_as_of(out: Dict[str, Any], dest: Path) -> None:
         out["age_hours"] = round(_age_hours(as_of) or 0.0, 2)
 
 
+EXPENSES_SNAP = "expenses_latest.json"
+
+# Remote one-shot: print MISSING, NO_AS_OF, UNREADABLE, or the as_of string.
+# stdin is the program so the Pi file is never pulled to the Mac to compare.
+_REMOTE_AS_OF_PY = """
+import json, os, sys
+path = sys.argv[1]
+if not os.path.isfile(path):
+    print("MISSING")
+    raise SystemExit(0)
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    print("UNREADABLE")
+    raise SystemExit(0)
+if not isinstance(data, dict):
+    print("UNREADABLE")
+    raise SystemExit(0)
+raw = data.get("as_of")
+print(raw if raw else "NO_AS_OF")
+"""
+
+
+def read_remote_snapshot_as_of(
+    ssh_host: str,
+    remote_path: str,
+    timeout: float,
+) -> Tuple[str, Optional[datetime]]:
+    """Read only as_of from a remote snapshot. Status is missing|ok|unreadable."""
+    try:
+        r = subprocess.run(
+            _ssh_base(ssh_host, timeout) + ["python3", "-", remote_path],
+            input=_REMOTE_AS_OF_PY,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 15,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return "unreadable", None
+    if r.returncode != 0:
+        return "unreadable", None
+    text = (r.stdout or "").strip()
+    line = text.splitlines()[-1].strip() if text else ""
+    if line == "MISSING":
+        return "missing", None
+    if line in ("", "UNREADABLE", "NO_AS_OF"):
+        return "unreadable", None
+    parsed = _parse_as_of(line)
+    if parsed is None:
+        return "unreadable", None
+    return "ok", parsed
+
+
+def expenses_push_decision(
+    local_as_of: Optional[datetime],
+    remote_status: str,
+    remote_as_of: Optional[datetime],
+) -> str:
+    """Whether Mac may SCP expenses_latest.json onto the Pi (#1053).
+
+    Never replace a newer remote as_of with an older local one. An unreadable
+    remote clock fails closed (skip) so a parse error cannot clobber the Pi.
+    A missing remote file is the only case that pushes without a comparison.
+    """
+    if remote_status == "missing":
+        return "push"
+    if remote_status != "ok" or remote_as_of is None:
+        return "skip_remote_unreadable"
+    if local_as_of is None:
+        return "skip_local_as_of_missing"
+    if local_as_of > remote_as_of:
+        return "push"
+    return "skip_remote_newer_or_equal"
+
+
 def push_snapshots_to_pi(
     files: Optional[List[str]] = None,
     *,
@@ -882,6 +982,27 @@ def push_snapshots_to_pi(
         if not local.is_file():
             out["skipped"].append({"file": name, "reason": "missing_local"})
             continue
+        if name == EXPENSES_SNAP:
+            local_data = load_json(local) or {}
+            local_as = _parse_as_of(
+                local_data.get("as_of") if isinstance(local_data, dict) else None
+            )
+            remote_status, remote_as = read_remote_snapshot_as_of(
+                ssh_host,
+                f"{remote_snap}/{name}",
+                timeout,
+            )
+            decision = expenses_push_decision(local_as, remote_status, remote_as)
+            if decision != "push":
+                out["skipped"].append(
+                    {
+                        "file": name,
+                        "reason": decision,
+                        "local_as_of": local_as.isoformat() if local_as else None,
+                        "remote_as_of": remote_as.isoformat() if remote_as else None,
+                    }
+                )
+                continue
         remote = f"{ssh_host}:{remote_snap}/{name}"
         try:
             r = subprocess.run(

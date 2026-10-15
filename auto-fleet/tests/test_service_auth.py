@@ -61,7 +61,7 @@ class ServiceAuthTests(unittest.TestCase):
     def test_lan_and_tailscale_denied_without_token(self) -> None:
         self._set_env(token="", loopback="1")
         self.assertFalse(service_auth.service_auth_ok(_Headers(), "192.168.100.5"))
-        self.assertFalse(service_auth.service_auth_ok(_Headers(), "100.67.114.2"))
+        self.assertFalse(service_auth.service_auth_ok(_Headers(), "192.0.2.11"))
 
     def test_loopback_denied_when_disabled(self) -> None:
         self._set_env(token="", loopback="0")

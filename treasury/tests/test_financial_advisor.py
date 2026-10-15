@@ -28,8 +28,6 @@ class FinancialAdvisorContextTests(unittest.TestCase):
                     "source": "live",
                     "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
                     "book_usd": 7.8,
-                    "jr_strcusx": 3.3,
-                    "jr_strcusx_usd": 3.4,
                 },
             },
             "evaluation": {
@@ -38,7 +36,6 @@ class FinancialAdvisorContextTests(unittest.TestCase):
                     "working_usdc": 100.0,
                     "liquid_usdc": 0.0,
                     "solana_book_usd": 7.8,
-                    "solana_jr_strcusx": 3.3,
                 },
                 "actions": [
                     {

@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-09",
+  "edition": "am",
+  "vol": 1,
+  "no": 2,
+  "published_at": "2026-10-09T08:02:00-04:00",
+  "theme": "Ship the paper",
+  "quote": {"text": "The secret of getting ahead is getting started.", "author": "Mark Twain"},
+  "weather": {"summary": "Partly cloudy, afternoon storms", "high": 88, "low": 74, "icon": "⛅", "rain": "40% after 2 PM"},
+  "front_page": {
+    "headline": "SAMPLE: Daily Brief goes to press on FCC",
+    "subhead": "Morning and evening editions now land in one dated archive on prism.",
+    "body": "This is sample copy for the #1091 acceptance check. Grok publishes each edition as JSON over SSH and FCC renders it as a newspaper.\n\nThe To-Do section below is a frozen snapshot of the Notion Todo List at publish time, grouped by Eastern due date."
+  },
+  "sections": [
+    {"id": "day-ahead", "title": "The Day Ahead", "items": ["9:00 AM  Standup with Grok", {"text": "1:30 PM  Turo pickup, Model 3 (2022)", "link": "https://turo.com/"}, "6:00 PM  Gym"]},
+    {"id": "business", "title": "Business", "items": ["Fund: rebalance journal posted 10-08", "Burn rate on track vs. buffer target"]},
+    {"id": "fleet", "title": "Fleet", "items": ["2 pickups, 1 dropoff today", "Roadside: none open"]},
+    {"id": "shipped", "title": "Shipped", "items": [{"text": "#1091 Daily Brief on FCC", "link": "https://github.com/cvolkernick/personal-workspace/issues/1091"}]},
+    {"id": "drafted-replies", "title": "Drafted Replies", "items": []}
+  ],
+  "todos": [
+    {"title": "SAMPLE overdue: renew registration", "status": "Not started", "due": "2026-10-06", "owner": "Chris", "priority": "High", "notion_url": "https://www.notion.so/sample-overdue"},
+    {"title": "SAMPLE due today: call insurance", "status": "In progress", "due": "2026-10-09", "owner": "Grok", "priority": "Medium", "notion_url": "https://www.notion.so/sample-today"},
+    {"title": "SAMPLE this week: tire rotation", "status": "Not started", "due": "2026-10-13", "owner": "Chris", "priority": "Low", "notion_url": "https://www.notion.so/sample-week"},
+    {"title": "SAMPLE later: plan Q1 budget", "status": "Not started", "due": "2026-11-15", "owner": "Chris", "priority": null, "notion_url": "https://www.notion.so/sample-later"},
+    {"title": "SAMPLE no date: clean garage", "status": "Not started", "due": null, "owner": null, "priority": null, "notion_url": "https://www.notion.so/sample-nodate"}
+  ],
+  "mac_tasks": {
+    "source_url": "https://app.notion.com/p/3efcba2ad31b814aa4ece8389594cdc5",
+    "fetched_at": "2026-10-09T08:01:00-04:00",
+    "page_found": true,
+    "items": [
+      {"text": "SAMPLE: Set up SuperTake"},
+      {"text": "SAMPLE: Reconnect the MacBook so Byline can use it again"},
+      {"text": "SAMPLE: Check the Mac before Monday's pre-flight"}
+    ]
+  }
+}

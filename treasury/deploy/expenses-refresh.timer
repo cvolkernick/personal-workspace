@@ -1,0 +1,11 @@
+[Unit]
+Description=Expense sheet snapshot every 3h (FCC freshness, #1053)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=3h
+Persistent=true
+Unit=expenses-refresh.service
+
+[Install]
+WantedBy=timers.target

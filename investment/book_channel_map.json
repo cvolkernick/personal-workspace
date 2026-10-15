@@ -4,7 +4,7 @@
   "owner": "nakatoshi",
   "consumer": "meridian",
   "stale": false,
-  "confidence": 0.50,
+  "confidence": 0.5,
   "notes": "Eng-gated 2026-08-23 fixture/book-read nest for Meridian capital join. Kill rules: drop capital row if may_change=none OR as_of missing; empty capital list is honest; no FCC marks on Horizon.",
   "items": [
     {
@@ -15,7 +15,7 @@
       "does_not": "L0 cannot lift residual freeze; no invent cash; no trade",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "morpho_loan",
@@ -25,7 +25,7 @@
       "does_not": "no auto repay/borrow; no invent LTV",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "morpho_hy_usdc",
@@ -35,7 +35,7 @@
       "does_not": "do not treat seed as live APY",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "x_money",
@@ -45,7 +45,7 @@
       "does_not": "no invent balance",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "one_card",
@@ -55,17 +55,7 @@
       "does_not": "no invent balance",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
-    },
-    {
-      "id": "jr_strcusx",
-      "kind": "global",
-      "may_change": "none",
-      "book_channel": "strc_jr",
-      "does_not": "does not count toward HY/LTV; no mint; no invent notional",
-      "as_of": "2026-08-23T22:29:51Z",
-      "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "MSTR",
@@ -75,7 +65,7 @@
       "does_not": "no size/buy while red; no invent weight",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "MARA",
@@ -85,7 +75,7 @@
       "does_not": "no size/buy while red; no invent weight",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "BITA",
@@ -95,7 +85,7 @@
       "does_not": "no size/buy while red; no invent weight",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "IREN",
@@ -105,7 +95,7 @@
       "does_not": "no size/buy while red; no invent weight",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "CLSK",
@@ -115,7 +105,7 @@
       "does_not": "no size/buy while red; no invent weight",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "TSLA",
@@ -125,7 +115,7 @@
       "does_not": "no size/buy while red; no invent weight",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "SPCX",
@@ -135,7 +125,7 @@
       "does_not": "no size/buy while red; no invent weight",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "BE",
@@ -145,7 +135,7 @@
       "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "GOOGL",
@@ -155,7 +145,7 @@
       "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "AAPL",
@@ -165,7 +155,7 @@
       "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "NVDA",
@@ -175,7 +165,7 @@
       "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order; do not treat Horizon attention weight as a trade signal",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "PLTR",
@@ -185,7 +175,7 @@
       "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "AMZN",
@@ -195,7 +185,7 @@
       "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     },
     {
       "id": "EVGO",
@@ -205,7 +195,7 @@
       "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
       "as_of": "2026-08-23T22:29:51Z",
       "stale": false,
-      "confidence": 0.50
+      "confidence": 0.5
     }
   ]
 }

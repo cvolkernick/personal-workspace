@@ -2,7 +2,65 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+import prism_public  # noqa: E402
+
+# Loopback links when PRISM_PUBLIC_BASE is unset or invalid. Probes stay on
+# 127.0.0.1 as well (orchestra.collectors._default_probe_host).
+FINANCE_LOOPBACK_URL = "http://127.0.0.1:8000/financial-command/"
+FINANCE_LOOPBACK_HEALTH = "http://127.0.0.1:8000/api/health"
+HORIZON_LOOPBACK_URL = "http://127.0.0.1:8795/"
+HORIZON_LOOPBACK_HEALTH = "http://127.0.0.1:8795/api/health"
+
+
+def public_origin(environ: dict[str, str] | None = None) -> str:
+    """Validated https origin, or "" when unset or invalid."""
+    return prism_public.prism_public_origin(environ)
+
+
+def _service_key(name: str) -> str:
+    key = (name or "").strip().lower()
+    if key in ("finance", "financial-command", "fcc"):
+        return "finance"
+    if key in ("horizon", "horizon-dashboard"):
+        return "horizon"
+    raise KeyError(name)
+
+
+def service_url(name: str, environ: dict[str, str] | None = None) -> str:
+    """Browser link for Finance or Horizon.
+
+    A valid PRISM_PUBLIC_BASE uses the tailnet FCC origin. Otherwise the
+    link is loopback (the previous direct dashboard URL).
+    """
+    key = _service_key(name)
+    origin = public_origin(environ)
+    if not origin:
+        if key == "finance":
+            return FINANCE_LOOPBACK_URL
+        return HORIZON_LOOPBACK_URL
+    if key == "finance":
+        return origin + "/financial-command/"
+    return origin + "/horizon/"
+
+
+def health_url(name: str, environ: dict[str, str] | None = None) -> str:
+    key = _service_key(name)
+    origin = public_origin(environ)
+    if not origin:
+        if key == "finance":
+            return FINANCE_LOOPBACK_HEALTH
+        return HORIZON_LOOPBACK_HEALTH
+    if key == "finance":
+        return origin + "/api/health"
+    return origin + "/horizon/api/health"
 
 # Subordinate dashboards (ports match monorepo convention)
 DOMAIN_SPECS: list[dict[str, Any]] = [
@@ -32,7 +90,7 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "label": "Finance / Treasury",
         "description": "Dual-venue liquidity (Coinbase + Robinhood)",
         "port": 8000,
-        "url": "http://127.0.0.1:8000/financial-command/",
+        "url": FINANCE_LOOPBACK_URL,
         "launch": "python3 financial-command/server.py",
         "sources": [
             "treasury/",

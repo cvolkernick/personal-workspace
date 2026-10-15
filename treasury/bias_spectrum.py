@@ -505,6 +505,7 @@ def _pins_from(value: Any) -> Dict[str, float]:
         if str(key).strip().lower() in {
             "pins",
             "reallocate",
+            "reallocate_status",
             "exclude",
             "drop",
             "notes",

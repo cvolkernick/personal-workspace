@@ -1,0 +1,10 @@
+{
+  "schema": "daily_brief_fund_macro_v0",
+  "held": true,
+  "as_of": null,
+  "lines": [
+    {"topic": "btc_crypto", "text": "", "link": null, "as_of": null},
+    {"topic": "rates_fomc", "text": "", "link": null, "as_of": null},
+    {"topic": "ai_infra", "text": "", "link": null, "as_of": null}
+  ]
+}

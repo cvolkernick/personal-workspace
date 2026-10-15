@@ -22,8 +22,13 @@ Serves static UI + APIs:
   POST /api/ask           — {question} ask Grok about FCC/treasury domain
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
-  ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796, LAN-debug still :8796)
-  ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795, LAN-debug still :8795)
+  GET  /brief, /brief/YYYY-MM-DD/am|pm, /brief/archive — Daily Brief newspaper (#1091, brief.py)
+  ANY  /fleet/*        — reverse-proxy → Auto Fleet (127.0.0.1:8796)
+  ANY  /horizon/*      — reverse-proxy → Horizon Macro (127.0.0.1:8795). With
+                         HORIZON_PUBLIC_ORIGIN set, GET/HEAD redirect to Horizon's
+                         own origin (path + query kept); /horizon/api/* and
+                         non-GET still proxy
+                         Direct LAN :8795 needs HORIZON_BIND_HOST=0.0.0.0.
 
 Usage:
   python3 financial-command/server.py
@@ -43,11 +48,13 @@ import urllib.request
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+import prism_public  # noqa: E402
 
 
 def _ensure_tool_path() -> None:
@@ -81,6 +88,44 @@ def _ensure_tool_path() -> None:
 
 _ensure_tool_path()
 
+
+def _load_brief_module():
+    """Daily Brief newspaper (#1091): load brief.py beside this file, lazily.
+
+    Isolated so a broken brief module can never take the rest of FCC down.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "fcc_brief", Path(__file__).resolve().parent / "brief.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_BRIEF_MOD = None
+
+
+def brief_route(path: str):
+    """(status, content_type, body) for /brief* and /api/brief/*, else None."""
+    global _BRIEF_MOD
+    if not (path == "/brief" or path.startswith("/brief/") or path.startswith("/api/brief/")):
+        return None
+    try:
+        if _BRIEF_MOD is None:
+            _BRIEF_MOD = _load_brief_module()
+        return _BRIEF_MOD.route(path)
+    except Exception as exc:  # noqa: BLE001 - never 500 the whole FCC on a bad edition
+        sys.stderr.write(f"[fcc] brief route error: {exc!r}\n")
+        body = (
+            "<!doctype html><meta charset=utf-8><title>The Daily Brief</title>"
+            "<p>The Daily Brief could not be rendered. Check the FCC log.</p>"
+        )
+        return 500, "text/html; charset=utf-8", body
+
+
 from treasury.adapters import load_config, save_config  # noqa: E402
 from treasury.financial_advisor import (  # noqa: E402
     AdvisorError,
@@ -111,6 +156,8 @@ BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 BTC_NETWORK_SNAPSHOT = ROOT / "treasury" / "snapshots" / "btc_network_latest.json"
 _YNAB_REFRESH_COOLDOWN_S = 300.0  # don't hammer YNAB more than once / 5 min
 _last_ynab_refresh_ts = 0.0
+_EXPENSES_REFRESH_COOLDOWN_S = 300.0
+_last_expenses_refresh_ts = 0.0
 # Set in main() from --offline / --consumer. Used for initial boot + consumer detect.
 _SERVER_STARTED_OFFLINE = False
 _SERVER_CONSUMER = False
@@ -213,6 +260,57 @@ def _maybe_refresh_ynab_for_coach(*, force: bool = False) -> bool:
         return False
 
 
+def _expenses_snapshot_stale() -> bool:
+    """True when expenses_latest.json is missing or older than the sheet threshold.
+
+    The expense sheet is a public CSV. Prism can refresh it in --offline
+    consumer mode; this does not require a YNAB token.
+    """
+    from treasury.expenses_sync import expenses_freshness
+
+    path = ROOT / "treasury" / "snapshots" / "expenses_latest.json"
+    data = None
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = None
+    fresh = expenses_freshness(data if isinstance(data, dict) else None)
+    return bool(fresh.get("stale"))
+
+
+def _maybe_refresh_expenses_for_coach(*, force: bool = False) -> bool:
+    """Pull the expense sheet when the snapshot is stale. Returns True if sync ran.
+
+    FCC on Prism is started with --offline, so boot never reaches expenses_sync.
+    /api/coach is the read path. A stale file is refreshed here, and
+    expenses-refresh.timer covers the clock between visits (#1053).
+    """
+    global _last_expenses_refresh_ts
+
+    now = time.time()
+    if not force and now - _last_expenses_refresh_ts < _EXPENSES_REFRESH_COOLDOWN_S:
+        return False
+    if not force and not _expenses_snapshot_stale():
+        return False
+    try:
+        from treasury.expenses_sync import main as exp_main
+
+        rc = exp_main([])
+        _last_expenses_refresh_ts = time.time()
+        if rc not in (0, None):
+            sys.stderr.write(f"[fcc] coach expenses_sync failed rc={rc}\n")
+            return False
+        sys.stderr.write("[fcc] coach: expenses_sync refreshed expense sheet\n")
+        return True
+    except SystemExit:
+        _last_expenses_refresh_ts = time.time()
+        return True
+    except Exception as e:
+        sys.stderr.write(f"[fcc] coach expenses_sync warning: {e}\n")
+        return False
+
+
 def _braiins_live() -> dict:
     """Public Braiins summary for FCC main dash + capital-flows (no secrets)."""
     if not BRAIINS_SNAPSHOT.is_file():
@@ -310,6 +408,44 @@ def _btc_network_live() -> dict:
     return {"ok": False, "status": "error", "error": "invalid btc network payload"}
 
 
+def _capital_flows_ynab_fetch(since: str) -> dict:
+    """Live YNAB pull for Capital Flows card totals (patched in tests)."""
+    from treasury.cash_streams import fetch_ynab_window
+
+    return fetch_ynab_window(since)
+
+
+def _capital_flows_income_by_card(income_sources: list) -> dict | None:
+    """30d inflow per income card; None when no card maps a YNAB category or YNAB fails."""
+    from treasury.capital_flows_income import (
+        DEFAULT_WINDOW_DAYS,
+        category_map,
+        income_by_card,
+    )
+
+    from datetime import date, timedelta
+
+    if not category_map(income_sources):
+        return None
+    today = date.today()
+    since = (today - timedelta(days=DEFAULT_WINDOW_DAYS - 1)).isoformat()
+    try:
+        pulled = _capital_flows_ynab_fetch(since)
+    except Exception as e:  # noqa: BLE001 — never break the map on YNAB errors
+        sys.stderr.write(f"[fcc] capital-flows ynab warning: {e}\n")
+        return None
+    if not isinstance(pulled, dict) or not pulled.get("ok"):
+        return None
+    return income_by_card(
+        pulled.get("transactions") or [],
+        income_sources=income_sources,
+        category_groups=pulled.get("category_groups") or [],
+        on_budget_ids=pulled.get("on_budget_ids"),
+        tracking_outflow_ids=pulled.get("tracking_outflow_ids"),
+        today=today,
+    )
+
+
 def _capital_flows_payload() -> dict:
     """Load investment/capital_flows.json and lightly enrich from YNAB snapshots."""
     path = ROOT / "investment" / "capital_flows.json"
@@ -379,6 +515,11 @@ def _capital_flows_payload() -> dict:
                 )
         except (OSError, json.JSONDecodeError, TypeError):
             pass
+    # #1133: per-card YNAB inflows (cards with ynab_category, e.g. Panamerica Auto)
+    by_card = _capital_flows_income_by_card(data.get("income_sources") or [])
+    if by_card is not None:
+        live["income_by_card_30d"] = by_card.get("totals")
+        live["income_by_card_window"] = by_card.get("window")
     # Braiins Pool mining snapshot (treasury/braiins_sync.py)
     br = _braiins_live()
     live["braiins"] = br
@@ -423,7 +564,8 @@ def _root_fcc_file_remap(path: str) -> str | None:
     return None
 
 
-# Same-origin PWA lenses. Direct :8795 / :8796 stay LAN-debug fallbacks.
+# Same-origin PWA lenses. The proxy always dials loopback, including when
+# HORIZON_BIND_HOST=0.0.0.0 (that bind still accepts 127.0.0.1).
 # Fleet backend: auto-fleet/server.py on this work/treasury pin
 # (auto-fleet.service → 127.0.0.1:8796). Missing tree → /fleet/ 502.
 LENS_UPSTREAMS = {
@@ -448,6 +590,85 @@ _ROOT_ABS_REF = re.compile(
     rb'/(?!/)'
     rb'(?P<rest>[^"\')\s]*)'
 )
+
+
+# Horizon on its own origin (Tailscale Serve on its own HTTPS port). FCC's
+# manifest and root worker use scope "/", so while Horizon lives under
+# /horizon/ on this origin a browser treats it as part of FCC and only offers
+# "Open in FCC". With HORIZON_PUBLIC_ORIGIN set, FCC redirects there instead.
+# /horizon/api/* keeps proxying (health checks, orchestra), as do non-GET calls.
+_HORIZON_PREFIX = "/horizon"
+
+# Served at /horizon/sw.js once Horizon has moved: replaces the #1119 worker
+# registered at scope /horizon/ on this origin, clears its caches, and
+# unregisters itself so the old in-FCC install shell does not linger.
+HORIZON_RETIRE_SW = b"""/* Horizon moved to its own origin. Retire the old /horizon/ worker. */
+self.addEventListener("install", function () { self.skipWaiting(); });
+self.addEventListener("activate", function (event) {
+  event.waitUntil(
+    caches.keys()
+      .then(function (keys) {
+        return Promise.all(keys.filter(function (k) {
+          return k.indexOf("horizon-shell-") === 0;
+        }).map(function (k) { return caches.delete(k); }));
+      })
+      .then(function () { return self.registration.unregister(); })
+  );
+});
+"""
+
+
+def horizon_public_origin() -> str:
+    return prism_public.horizon_public_origin()
+
+
+def normalize_horizon_rest(rest: str) -> str:
+    """Normalize the path after /horizon before redirecting.
+
+    Collapses repeated slashes, drops "." segments and resolves ".." without
+    ever climbing above Horizon's root (also when percent-encoded as %2e).
+    Other segments keep their original encoding. A trailing slash is kept.
+    """
+    out: list[str] = []
+    for seg in (rest or "/").split("/"):
+        dec = unquote(seg).lower()
+        if dec in ("", "."):
+            continue
+        if dec == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(seg)
+    norm = "/" + "/".join(out)
+    if out and (rest or "").endswith("/"):
+        norm += "/"
+    return norm
+
+
+def horizon_redirect_target(raw_path: str, method: str, origin: str | None = None) -> str | None:
+    """Location on Horizon's own origin for an FCC /horizon/* request, else None.
+
+    /horizon                         -> {origin}/
+    /horizon/daily-brief/2026-10-11/pm?x=1 -> {origin}/daily-brief/2026-10-11/pm?x=1
+    //horizon//daily-brief/./x/../archive -> {origin}/daily-brief/archive (normalized)
+    None when HORIZON_PUBLIC_ORIGIN is unset, for non-GET/HEAD, for
+    /horizon/api/*, and for /horizon/sw.js (served as a retiring worker).
+    """
+    origin = horizon_public_origin() if origin is None else origin
+    if not origin or method not in ("GET", "HEAD"):
+        return None
+    parsed = urlparse(raw_path)
+    path = parsed.path
+    if not (path == _HORIZON_PREFIX or path.startswith(_HORIZON_PREFIX + "/")):
+        return None
+    rest = normalize_horizon_rest(path[len(_HORIZON_PREFIX):] or "/")
+    if rest == "/api" or rest.startswith("/api/") or rest == "/sw.js":
+        return None
+    target = origin + rest
+    if parsed.query:
+        target += "?" + parsed.query
+    # Strip anything that could split the header.
+    return "".join(ch for ch in target if ch >= " " and ch != "\x7f")
 
 
 def lens_proxy_spec(path: str) -> tuple[str, str, tuple[str, int]] | None:
@@ -517,8 +738,47 @@ def _root_fcc_js_remap(path: str) -> str | None:
     return _root_fcc_file_remap(path)
 
 
-CANONICAL_HTTPS_HOST = "prism-gateway.tailb1085a.ts.net"
+DEFAULT_BIND_HOST = "127.0.0.1"
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+_PWA_ORIGIN_TOKEN = b"__FCC_PUBLIC_ORIGIN__"
+
+
+def prism_public_origin() -> str:
+    """Validated PRISM_PUBLIC_BASE, or "" when unset or invalid.
+
+    On prism, set PRISM_PUBLIC_BASE in a financial-command.service drop-in
+    (see financial-command/README.md). An empty result must not redirect.
+    """
+    return prism_public.prism_public_origin()
+
+
+def canonical_https_host() -> str:
+    return prism_public.canonical_https_host()
+
+
+def pwa_js_body() -> bytes:
+    """Serve pwa.js with the origin token replaced from PRISM_PUBLIC_BASE.
+
+    Unset or invalid leaves the constant empty so the page does not redirect.
+    """
+    raw = (ROOT / "financial-command" / "pwa.js").read_bytes()
+    origin = prism_public_origin().encode("ascii")
+    return raw.replace(_PWA_ORIGIN_TOKEN, origin)
+
+
+def resolve_bind_host(
+    explicit: str | None = None,
+    environ: dict[str, str] | None = None,
+) -> str:
+    """Bind address. Explicit --host wins, else FCC_BIND_HOST, else 127.0.0.1.
+
+    FCC_BIND_HOST=0.0.0.0 restores the previous all-interfaces listen.
+    """
+    if explicit is not None and str(explicit).strip():
+        return str(explicit).strip()
+    env = os.environ if environ is None else environ
+    raw = (env.get("FCC_BIND_HOST") or "").strip()
+    return raw or DEFAULT_BIND_HOST
 _PWA_MANIFEST_PATHS = (
     "/manifest.webmanifest",
     "/financial-command/manifest.webmanifest",
@@ -548,12 +808,14 @@ def parse_host_header(host: str) -> tuple[str, int | None]:
 def is_pwa_install_origin(*, host: str = "", forwarded_proto: str = "") -> bool:
     """True when this request is the canonical HTTPS PWA origin or loopback.
 
-    Tailscale Serve terminates TLS and forwards HTTP to :8000. The browser
-    origin is https://prism-gateway.tailb1085a.ts.net — Host is the cert CN
-    (no :8000) and/or X-Forwarded-Proto: https. Plain-HTTP LAN (IP:8000,
-    MagicDNS:8000) stays browse-only so Chromium does not install an
-    insecure app (#749). Loopback stays installable: it is a secure context
-    and the unit tests bind 127.0.0.1.
+    Tailscale Serve terminates TLS and forwards HTTP to 127.0.0.1:8000.
+    The browser origin is PRISM_PUBLIC_BASE when that value is a valid https
+    origin. Host is the cert CN (no :8000) and/or X-Forwarded-Proto: https.
+    Plain-HTTP on a non-canonical host stays browse-only so Chromium does not
+    install an insecure app (#749). Direct LAN :8000 is closed unless
+    FCC_BIND_HOST=0.0.0.0. Loopback stays installable: it is a secure context
+    and the unit tests bind 127.0.0.1. An unset or invalid base yields no
+    canonical host, so a placeholder hostname is never treated as installable.
     """
     proto = (forwarded_proto or "").split(",")[0].strip().lower()
     if proto == "https":
@@ -561,7 +823,8 @@ def is_pwa_install_origin(*, host: str = "", forwarded_proto: str = "") -> bool:
     name, port = parse_host_header(host)
     if name in _LOOPBACK_HOSTS:
         return True
-    if name == CANONICAL_HTTPS_HOST and port in (None, 443):
+    canon = canonical_https_host()
+    if canon and name == canon and port in (None, 443):
         return True
     return False
 
@@ -632,7 +895,35 @@ class FCCHandler(SimpleHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
 
+    def _maybe_redirect_horizon(self) -> bool:
+        origin = horizon_public_origin()
+        if not origin:
+            return False
+        path = urlparse(self.path).path
+        is_hz = path == _HORIZON_PREFIX or path.startswith(_HORIZON_PREFIX + "/")
+        rest = normalize_horizon_rest(path[len(_HORIZON_PREFIX):]) if is_hz else ""
+        if rest == "/sw.js" and self.command in ("GET", "HEAD"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(HORIZON_RETIRE_SW)))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(HORIZON_RETIRE_SW)
+            return True
+        target = horizon_redirect_target(self.path, self.command, origin)
+        if target is None:
+            return False
+        self.send_response(302)
+        self.send_header("Location", target)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        return True
+
     def _maybe_proxy_lens(self) -> bool:
+        if self._maybe_redirect_horizon():
+            return True
         path = urlparse(self.path).path
         if path in LENS_UPSTREAMS:
             self.send_response(302)
@@ -717,8 +1008,24 @@ class FCCHandler(SimpleHTTPRequestHandler):
             if self.command != "HEAD":
                 self.wfile.write(html)
 
+    def _maybe_serve_brief(self) -> bool:
+        res = brief_route(urlparse(self.path).path)
+        if res is None:
+            return False
+        code, ctype, body = res
+        raw = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(raw)
+        return True
+
     def do_GET(self) -> None:  # noqa: N802
         if self._maybe_proxy_lens():
+            return
+        if self._maybe_serve_brief():
             return
         parsed = urlparse(self.path)
         path = parsed.path
@@ -940,6 +1247,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
                 # Auto-refresh YNAB cash feeds when stale (soft UI poll never hits YNAB)
                 refreshed = _maybe_refresh_ynab_for_coach(force=force)
+                # Public expense sheet. Runs in --offline consumer mode (#1053).
+                expenses_refreshed = _maybe_refresh_expenses_for_coach(force=force)
                 tre_fcc = ROOT / "financial-command" / "treasury_latest.json"
                 if refreshed:
                     try:
@@ -978,6 +1287,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 plan.setdefault("ok", True)
                 if refreshed:
                     plan["ynab_refreshed"] = True
+                if expenses_refreshed:
+                    plan["expenses_refreshed"] = True
                 # never invent cash: residuals must be non-negative
                 for v in (plan.get("residuals") or {}).values():
                     if isinstance(v, (int, float)) and v < -0.01:
@@ -996,6 +1307,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return
         if self._maybe_serve_pwa_manifest():
             return
+        if self._maybe_serve_pwa_js():
+            return
         self._remap_static_path()
         return super().do_GET()
 
@@ -1006,9 +1319,13 @@ class FCCHandler(SimpleHTTPRequestHandler):
         # because its document root actually has those files.
         if self._maybe_proxy_lens():
             return
+        if self._maybe_serve_brief():
+            return
         path = urlparse(self.path).path
         if not path.startswith("/api/"):
             if self._maybe_serve_pwa_manifest():
+                return
+            if self._maybe_serve_pwa_js():
                 return
             self._remap_static_path()
         return super().do_HEAD()
@@ -1029,6 +1346,19 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return True
         self.send_response(200)
         self.send_header("Content-Type", "application/manifest+json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+        return True
+
+    def _maybe_serve_pwa_js(self) -> bool:
+        path = urlparse(self.path).path
+        if path not in ("/pwa.js", "/financial-command/pwa.js"):
+            return False
+        body = pwa_js_body()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/javascript; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if self.command != "HEAD":
@@ -1438,8 +1768,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Financial Command Center server")
     parser.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Bind address (use 0.0.0.0 for LAN/Tailscale on Pi)",
+        default=None,
+        help=(
+            "Bind address. Default 127.0.0.1, or FCC_BIND_HOST when set. "
+            "FCC_BIND_HOST=0.0.0.0 listens on all interfaces (previous behavior). "
+            "An explicit --host wins over the env var."
+        ),
     )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
@@ -1459,6 +1793,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Snapshot consumer (Pi/phone): Refresh re-reads files only, never live YNAB/CB",
     )
     args = parser.parse_args(argv)
+    prism_public.guard_prism_public_base()
 
     global _SERVER_STARTED_OFFLINE, _SERVER_CONSUMER
     _SERVER_STARTED_OFFLINE = bool(args.offline)
@@ -1498,7 +1833,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as e:
         print(f"initial treasury refresh warning: {e}", file=sys.stderr)
 
-    bind_host = (args.host or "127.0.0.1").strip() or "127.0.0.1"
+    bind_host = resolve_bind_host(args.host)
     url = f"http://127.0.0.1:{args.port}/financial-command/index.html"
     wl = f"http://127.0.0.1:{args.port}/financial-command/watchlist.html"
     print(f"Financial Command Center → {url}")

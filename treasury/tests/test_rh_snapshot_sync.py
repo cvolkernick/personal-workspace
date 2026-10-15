@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import re
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -258,7 +261,7 @@ class RhProducerRoleTests(unittest.TestCase):
             if k not in ("TREASURY_RH_ROLE", "TREASURY_RH_PRODUCER", "TREASURY_RH_BACKUP")
         }
         with mock.patch.dict(os.environ, cleared, clear=True), mock.patch.object(
-            rss, "_this_host", return_value="prism-gateway"
+            rss, "_this_host", return_value="gateway.example"
         ), mock.patch.object(rss, "_sot_host", return_value="prism"):
             self.assertEqual(rss._rh_role(), "consumer")
 
@@ -266,7 +269,7 @@ class RhProducerRoleTests(unittest.TestCase):
         status = {
             "ok": False,
             "role": "producer",
-            "this_host": "prism-gateway",
+            "this_host": "gateway.example",
             "producer_host": "prism",
             "error": "no_refresh_path",
             "error_class": "skipped",
@@ -317,7 +320,7 @@ class RhProducerRoleTests(unittest.TestCase):
         status = {
             "ok": False,
             "role": "producer",
-            "this_host": "prism-gateway",
+            "this_host": "gateway.example",
             "producer_host": "prism",
             "error": "local_mcp_timeout:240s",
             "error_class": "timeout",
@@ -364,51 +367,115 @@ class RhProducerRoleTests(unittest.TestCase):
         self.assertEqual(gate["reason"], "producer_failure")
 
     def test_strip_rh_push_default_no_dual_write(self) -> None:
-        files = ["robinhood_latest.json", "solana_latest.json"]
+        files = ["robinhood_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("TREASURY_RH_PUSH", None)
             out = rss._strip_rh_push(files)
         self.assertNotIn("robinhood_latest.json", out)
-        self.assertIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
 
     def test_strip_rh_push_explicit_override(self) -> None:
-        files = ["robinhood_latest.json", "solana_latest.json"]
+        files = ["robinhood_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {"TREASURY_RH_PUSH": "1"}):
             out = rss._strip_rh_push(files)
         self.assertIn("robinhood_latest.json", out)
 
     def test_strip_braiins_push_default_no_dual_write(self) -> None:
-        files = ["braiins_latest.json", "solana_latest.json"]
+        files = ["braiins_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("TREASURY_BRAIINS_PUSH", None)
             out = rss._strip_rh_push(files)
         self.assertNotIn("braiins_latest.json", out)
-        self.assertIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
 
     def test_strip_braiins_push_explicit_override(self) -> None:
-        files = ["braiins_latest.json", "solana_latest.json"]
+        files = ["braiins_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {"TREASURY_BRAIINS_PUSH": "1"}):
             out = rss._strip_rh_push(files)
         self.assertIn("braiins_latest.json", out)
 
     def test_strip_coinbase_push_default_no_dual_write(self) -> None:
-        files = ["coinbase_latest.json", "solana_latest.json"]
+        files = ["coinbase_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("TREASURY_COINBASE_PUSH", None)
             out = rss._strip_rh_push(files)
         self.assertNotIn("coinbase_latest.json", out)
-        self.assertIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
 
     def test_strip_coinbase_push_explicit_override(self) -> None:
-        files = ["coinbase_latest.json", "solana_latest.json"]
+        files = ["coinbase_latest.json", "x_money_latest.json"]
         with mock.patch.dict(os.environ, {"TREASURY_COINBASE_PUSH": "1"}):
             out = rss._strip_rh_push(files)
         self.assertIn("coinbase_latest.json", out)
+
+    def test_strip_solana_push_default_no_dual_write(self) -> None:
+        files = ["solana_latest.json", "x_money_latest.json"]
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("TREASURY_SOLANA_PUSH", None)
+            out = rss._strip_rh_push(files)
+        self.assertNotIn("solana_latest.json", out)
+        self.assertIn("x_money_latest.json", out)
+
+    def test_strip_solana_push_explicit_override(self) -> None:
+        files = ["solana_latest.json", "x_money_latest.json"]
+        with mock.patch.dict(os.environ, {"TREASURY_SOLANA_PUSH": "1"}):
+            out = rss._strip_rh_push(files)
+        self.assertIn("solana_latest.json", out)
 
     def test_default_push_files_omit_pi_sot(self) -> None:
         self.assertNotIn("robinhood_latest.json", rss.DEFAULT_PUSH_FILES)
         self.assertNotIn("braiins_latest.json", rss.DEFAULT_PUSH_FILES)
         self.assertNotIn("coinbase_latest.json", rss.DEFAULT_PUSH_FILES)
+        self.assertNotIn("solana_latest.json", rss.DEFAULT_PUSH_FILES)
+
+    def test_config_push_files_omit_solana(self) -> None:
+        cfg = json.loads((rss.ROOT / "treasury" / "config.json").read_text(encoding="utf-8"))
+        ps = cfg["pi_sync"]
+        self.assertNotIn("solana_latest.json", ps["push_files"])
+        self.assertIn("Solana", ps["notes"])
+        self.assertIn("solana-refresh.timer", ps["notes"])
+
+    def test_pi_settings_strip_solana_from_stale_config(self) -> None:
+        """A local config that still lists solana_latest.json must not push it."""
+        cfg = {
+            "pi_sync": {
+                "push_files": ["solana_latest.json", "x_money_latest.json"],
+            }
+        }
+        with mock.patch.object(rss, "load_config", return_value=cfg), mock.patch.dict(
+            os.environ, {}, clear=False
+        ):
+            os.environ.pop("TREASURY_SOLANA_PUSH", None)
+            settings = rss._pi_settings()
+        self.assertNotIn("solana_latest.json", settings["push_files"])
+        self.assertIn("x_money_latest.json", settings["push_files"])
+
+    def test_solana_refresh_user_units(self) -> None:
+        deploy = rss.ROOT / "treasury" / "deploy"
+        svc = (deploy / "solana-refresh.service").read_text(encoding="utf-8")
+        tmr = (deploy / "solana-refresh.timer").read_text(encoding="utf-8")
+        self.assertIn("Type=oneshot", svc)
+        self.assertIn("WorkingDirectory=%h/personal-workspace", svc)
+        self.assertIn("ExecStart=/usr/bin/python3 -m treasury.solana_sync", svc)
+        self.assertIn("TREASURY_SKIP_PUSH_PI=1", svc)
+        self.assertIn("WantedBy=default.target", svc)
+        # user unit: no User=/Group= (those are system-unit only)
+        self.assertNotRegex(svc, r"(?m)^(User|Group)=")
+        self.assertIn("TimeoutStartSec=5min", svc)
+        self.assertIn(
+            "ExecStartPost=/usr/bin/python3 -m treasury.run_treasury --offline --skip-coinbase",
+            svc,
+        )
+        self.assertIn("--prism-copy", svc)
+        for sib in ("braiins-refresh.service", "coinbase-price-refresh.service"):
+            txt = (deploy / sib).read_text(encoding="utf-8")
+            self.assertIn("Type=oneshot", txt, sib)
+            self.assertIn("TimeoutStartSec=5min", txt, sib)
+        self.assertIn("Unit=solana-refresh.service", tmr)
+        self.assertIn("OnUnitActiveSec=15min", tmr)
+        self.assertIn("Persistent=true", tmr)
+        doc = (deploy / "SOLANA_PRODUCER.md").read_text(encoding="utf-8")
+        self.assertIn("systemctl --user enable --now solana-refresh.timer", doc)
 
     def test_role_env_producer(self) -> None:
         with mock.patch.dict(os.environ, {"TREASURY_RH_ROLE": "producer"}):
@@ -533,6 +600,71 @@ class RhProducerRoleTests(unittest.TestCase):
             self.assertNotEqual(out.get("as_of"), datetime.now(timezone.utc).isoformat())
 
 
+class RhSnapshotGrokDenyListTests(unittest.TestCase):
+    """#1093/#1196: the snapshot refresh runs `grok --yolo` with RH MCP, so it must
+    carry the Robinhood order-tool deny list from the shared order-gate helper."""
+
+    def test_grok_yolo_argv_contains_the_full_shared_deny_list(self) -> None:
+        from treasury import fund_manager_order_gate as gate
+
+        fake = mock.Mock(returncode=1, stdout="", stderr="")
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            rss, "SNAPSHOTS_DIR", Path(td)
+        ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+            rss.subprocess, "run", return_value=fake
+        ) as run:
+            rss.refresh_via_local_mcp(timeout_s=5)
+        self.assertEqual(run.call_count, 1)
+        argv = run.call_args[0][0]
+        self.assertIn("--yolo", argv)
+        deny = gate.grok_deny_args()
+        self.assertGreaterEqual(len(deny), 2)
+        i = argv.index("--yolo")
+        self.assertEqual(argv[i + 1 : i + 1 + len(deny)], deny, "deny list must follow --yolo verbatim")
+        denied_rules = argv[i + 2 : i + 1 + len(deny) : 2]
+        self.assertIn("MCPTool(robinhood-trading__place_*)", denied_rules)
+        self.assertIn("MCPTool(robinhood-trading__exercise_option)", denied_rules)
+        # read-only snapshot tools and cancels are not denied
+        for tool in ("get_accounts", "get_portfolio", "get_equity_positions", "cancel_equity_order"):
+            self.assertFalse(any(tool in r for r in denied_rules), tool)
+
+    def test_globs_changed_in_the_shared_helper_flow_through(self) -> None:
+        from treasury import fund_manager_order_gate as gate
+
+        fake = mock.Mock(returncode=1, stdout="", stderr="")
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            rss, "SNAPSHOTS_DIR", Path(td)
+        ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+            rss.subprocess, "run", return_value=fake
+        ) as run, mock.patch.object(gate, "RH_ORDER_TOOL_GLOBS", ("only_this_*",)):
+            rss.refresh_via_local_mcp(timeout_s=5)
+        self.assertEqual(
+            run.call_args[0][0].count("MCPTool(robinhood-trading__only_this_*)"), 1
+        )
+
+    def test_missing_deny_list_means_grok_is_not_run(self) -> None:
+        for bad in ([], ["--deny"], ["--allow", "x"]):
+            fake = mock.Mock(returncode=0, stdout="", stderr="")
+            with tempfile.TemporaryDirectory() as td, mock.patch.object(
+                rss, "SNAPSHOTS_DIR", Path(td)
+            ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+                rss.subprocess, "run", return_value=fake
+            ) as run, mock.patch.object(rss, "grok_deny_args", return_value=bad):
+                out = rss.refresh_via_local_mcp(timeout_s=5)
+            run.assert_not_called()
+            self.assertFalse(out["ok"])
+            self.assertEqual(out["error"], "order_gate_deny_list_unavailable")
+
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            rss, "SNAPSHOTS_DIR", Path(td)
+        ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+            rss.subprocess, "run"
+        ) as run, mock.patch.object(rss, "grok_deny_args", side_effect=RuntimeError("boom")):
+            out = rss.refresh_via_local_mcp(timeout_s=5)
+        run.assert_not_called()
+        self.assertEqual(out["error"], "order_gate_deny_list_unavailable")
+
+
 class RhNotifyAc4Tests(unittest.TestCase):
     def test_stale_notify_names_producer_and_error_class(self) -> None:
         from treasury.fund_manager import notify_if_needed
@@ -582,9 +714,134 @@ class RhNotifyAc4Tests(unittest.TestCase):
         self.assertNotIn("ntfy.sh", posted)
 
 
+class ExpensesPushGuardTests(unittest.TestCase):
+    def test_decision_never_replaces_newer_with_older(self) -> None:
+        older = datetime(2026, 9, 14, tzinfo=timezone.utc)
+        newer = datetime(2026, 10, 3, 20, 53, tzinfo=timezone.utc)
+        self.assertEqual(
+            rss.expenses_push_decision(older, "ok", newer),
+            "skip_remote_newer_or_equal",
+        )
+        self.assertEqual(rss.expenses_push_decision(newer, "ok", older), "push")
+        self.assertEqual(
+            rss.expenses_push_decision(newer, "ok", newer),
+            "skip_remote_newer_or_equal",
+        )
+        self.assertEqual(rss.expenses_push_decision(newer, "missing", None), "push")
+        self.assertEqual(
+            rss.expenses_push_decision(newer, "unreadable", None),
+            "skip_remote_unreadable",
+        )
+        self.assertEqual(
+            rss.expenses_push_decision(None, "ok", newer),
+            "skip_local_as_of_missing",
+        )
+
+    def test_push_older_snapshot_leaves_pi_copy_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            local_dir = root / "local"
+            local_dir.mkdir()
+            pi = root / "pi" / "expenses_latest.json"
+            pi.parent.mkdir()
+            pi_body = {
+                "as_of": "2026-10-03T20:53:00+00:00",
+                "source": "google_sheets",
+                "summary": {"upcoming_expense_monthly": 1},
+            }
+            pi.write_text(json.dumps(pi_body), encoding="utf-8")
+            before = pi.read_bytes()
+            before_mtime = pi.stat().st_mtime_ns
+            (local_dir / "expenses_latest.json").write_text(
+                json.dumps(
+                    {
+                        "as_of": "2026-09-14T16:00:00+00:00",
+                        "source": "google_sheets",
+                        "summary": {"upcoming_expense_monthly": 0},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            real_run = rss.subprocess.run
+
+            def fake_run(cmd, **kwargs):
+                cmd = list(cmd)
+                result = mock.Mock(returncode=0, stdout="", stderr="")
+                if cmd and cmd[0] == "scp":
+                    raise AssertionError(
+                        "older expenses snapshot must not be copied onto the Pi"
+                    )
+                if cmd and cmd[0] == "ssh" and "python3" in cmd:
+                    # patch.object replaces subprocess.run on the module, so
+                    # the Pi-side reader has to call the original.
+                    ran = real_run(
+                        [rss.sys.executable, "-", str(pi)],
+                        input=kwargs.get("input") or "",
+                        capture_output=True,
+                        text=True,
+                    )
+                    result.returncode = ran.returncode
+                    result.stdout = ran.stdout
+                    result.stderr = ran.stderr
+                    return result
+                return result
+
+            with mock.patch.object(rss, "SNAPSHOTS_DIR", local_dir), mock.patch.object(
+                rss, "_pi_settings", _fake_pi_settings
+            ), mock.patch.object(
+                rss.shutil, "which", return_value="/usr/bin/scp"
+            ), mock.patch.object(rss.subprocess, "run", side_effect=fake_run):
+                out = rss.push_snapshots_to_pi(files=["expenses_latest.json"])
+
+            self.assertNotIn("expenses_latest.json", out["pushed"])
+            self.assertEqual(out["skipped"][0]["reason"], "skip_remote_newer_or_equal")
+            self.assertEqual(out["skipped"][0]["remote_as_of"], "2026-10-03T20:53:00+00:00")
+            self.assertEqual(pi.read_bytes(), before)
+            self.assertEqual(pi.stat().st_mtime_ns, before_mtime)
+
+
+
+class PiSshTargetTests(unittest.TestCase):
+    """prism SSH target defaults to the MagicDNS short name; env overrides it."""
+
+    def test_default_ssh_is_magicdns_short_name(self) -> None:
+        self.assertEqual(rss.DEFAULT_SSH, "prism-agent@prism-gateway")
+
+    def test_env_overrides_config_and_default(self) -> None:
+        cfg = {"pi_sync": {"ssh": "prism-agent@prism-gateway"}}
+        with mock.patch.object(rss, "load_config", return_value=cfg), mock.patch.dict(
+            os.environ, {"TREASURY_PI_SSH": "prism-agent@192.0.2.10"}, clear=False
+        ):
+            self.assertEqual(rss._pi_settings()["ssh"], "prism-agent@192.0.2.10")
+
+    def test_unset_falls_back_to_magicdns_default(self) -> None:
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_PI_SSH"}
+        with mock.patch.object(rss, "load_config", return_value={}), mock.patch.dict(
+            os.environ, env, clear=True
+        ):
+            self.assertEqual(rss._pi_settings()["ssh"], "prism-agent@prism-gateway")
+
+    def test_no_placeholder_warning_on_default(self) -> None:
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_PI_SSH"}
+        err = io.StringIO()
+        with mock.patch.object(rss, "load_config", return_value={}), mock.patch.dict(
+            os.environ, env, clear=True
+        ), mock.patch.object(sys, "stderr", err):
+            rss._pi_settings()
+        self.assertNotIn("placeholder", err.getvalue())
+
+    def test_committed_config_uses_magicdns_not_an_ip(self) -> None:
+        cfg_path = Path(rss.__file__).resolve().parent / "config.json"
+        ssh = json.loads(cfg_path.read_text(encoding="utf-8"))["pi_sync"]["ssh"]
+        self.assertEqual(ssh, "prism-agent@prism-gateway")
+        host = ssh.rsplit("@", 1)[-1]
+        self.assertIsNone(re.fullmatch(r"[0-9.]+", host), ssh)
+
+
 def _fake_pi_settings() -> dict:
     return {
-        "ssh": "prism-agent@192.168.100.98",
+        "ssh": "prism-agent@192.0.2.10",
         "remote_root": "/home/prism-agent/personal-workspace",
         "connect_timeout_s": 5.0,
         "max_age_hours": 6.0,

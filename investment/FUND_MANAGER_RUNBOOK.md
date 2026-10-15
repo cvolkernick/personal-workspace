@@ -154,6 +154,47 @@ Cash risk budget = deposits (cash account today). Full allowlist is the menu eac
 
 **Owner prefs:**
 - **Digital credit (2026-08-04):** **Small bias within the ~40% stack** toward **STRC / SATA** — BTC-fundamental, high-yield, frequent-dividend positions (not cash). Yields ~2× typical USDC/USDG cash → prefer a real STRC/SATA seat over cash-like residual when deploying into the complex. Not MSTR-only by habit; not 40% all-credit. Skip only with a strong, logged Risk/Critic rebuttal (liquidity/structure/ticket-size/thesis).
-- **STRK (2026-08-30):** Strategy Strike 8% convertible preferred is **watchlist/consider-set**, not preferred_core. Name it each deploy; reject unless residual-after-floors (or BP ≥ min_trade) plus a logged RV case versus held STRC/SATA. Same issuer as MSTR+STRC — not a hedge. Not Jack Mallers Strike; not Starknet; not JR-strcUSX.
+- **STRK (2026-08-30):** Strategy Strike 8% convertible preferred is **watchlist/consider-set**, not preferred_core. Name it each deploy; reject unless residual-after-floors (or BP ≥ min_trade) plus a logged RV case versus held STRC/SATA. Same issuer as MSTR+STRC — not a hedge. Not Jack Mallers Strike; not Starknet.
 - **Energy / nuclear (2026-08-31):** Owner-add **CCJ + BWXT** (Chronometer/Smith option A). BE stays the equipment seat with a **fuel-cost overlay**: Bloom burns NG/biogas; HH $8–10 is customer TCO, not a BE tailwind; turbine-slot scarcity can cut the other way. Name BE/CCJ/BWXT each deploy; reject size unless residual-after-floors (or BP ≥ min_trade). Not a basket. Not core. EXE not named — pass. Lock: nest `RESEARCH/CCJ_BWXT_CONSIDER_SET_LOCK_2026_08_31.md`.
 - **Miners (2026-07-27):** Multi-miner diversification is intentional. Do not reject names for “miner overlap.” Diversify across MARA, IREN, CLSK, RIOT, WULF, etc.
+
+
+## No-sell-to-rebalance order gate (#1093)
+
+**Standing order (Chairman 2026-09-22/23):** the stocks book is held (TSLA/SPCX 50/50). The ~40% BTC + digital-credit
+target is restored **only with new cash, using buys**. We never sell to rebalance.
+
+Enforced in code, not just prompts:
+
+| Layer | Where | What |
+|-------|-------|------|
+| Decision | `treasury/fund_manager.py` `rules_based_review` | Drift with no deployable cash (`min(cash, BP) < min_trade`) is `hold` / `drift_no_cash`, `need_llm=False`. Never `kind=rebalance`. `weights_after_expected` = what cash can buy. |
+| Decision log | `append_decision` -> `guard_decision_entry` | Any sell-type/unclassifiable action row is rewritten `blocked_no_sell_guard`, record gets `blocked_sell` + marker, and a `blocked_sell` ops alert is posted to #701. A sell that already shows as executed is flagged `SELL EXECUTED PAST GUARD`. |
+| Order path | `treasury/fund_manager_order_gate.py` `execute_intents` | The only submit path. Rejects sell / sell_short / short / option / crypto sell, rebalance-worded sells (never overridable), sells with no explicit non-rebalance purpose, unknown/conflicting sides, unknown amounts, unknown cash, blocked symbols, and buys beyond `min(cash, BP)`. Policy unreadable or `guardrails.no_sell_to_rebalance != true` => places nothing (not even buys). `live:false` => nothing submitted. |
+| LLM run | `fund_manager_daily.sh`, `fund_manager_bp_poll.sh` | `grok --yolo` runs with `--deny MCPTool(robinhood-trading__place_*)` and friends (`grok_deny_args()`); deny rules still apply under `--yolo`. The LLM writes buy intents to `treasury/snapshots/fund_manager_intents.json`; the gate validates and submits. `cancel_*` stays allowed. No deny list => grok is not run. |
+| CI | `treasury/tests/test_fund_manager_order_gate.py` | Fails if a `grok --yolo` call lacks the deny list, or order-building code appears outside the gate. |
+
+**Sell override** (the only way a sell can ever pass): `investment/fund_manager_sell_override.json`, **committed by Chris**:
+
+```json
+{"overrides": [{"id": "2026-10-16-mara-risk-exit", "approver": "Chris", "symbols": ["MARA"],
+  "max_qty": 1.0, "max_notional_usd": 50.0, "reason": "why",
+  "approved_at": "2026-10-16T14:00:00Z", "expires_at": "2026-10-17T01:00:00Z"}],
+ "total_max_notional_usd": 50.0}
+```
+
+* **Authenticated by git.** The gate honors the file only if it is tracked, clean in the working tree, byte-identical to the blob at
+  git HEAD, and the last commit that touched it was **authored by Chris** (`cvolkern@gmail.com`; committer Chris or GitHub web).
+  Untracked, staged-only, edited-after-commit, wrong-author, or not-a-git-repo => rejected (fail closed). Optional extra:
+  `FM_OVERRIDE_TRUSTED_REF=origin/work/treasury` additionally requires the commit to be already pushed to that ref.
+* **Spend is cumulative.** Each override `id` (required, unique; never reuse one) has `max_qty` / `max_notional_usd` that apply across
+  ALL runs; spend is persisted in `treasury/snapshots/fund_manager_override_spend.json` (flock + atomic replace, charged before any
+  submit; a dry run never charges; a corrupt ledger blocks every override sell). A **total** notional ceiling across all overrides in any
+  rolling 24h window applies: min(`DEFAULT_TOTAL_CAP_USD`=100 in code, `total_max_notional_usd`, `guardrails.sell_override_total_cap_usd`).
+  Config and the file can only lower it. A bare single-override object (with `id`) is also accepted.
+* `expires_at` must be timezone-aware, in the future and <= 24h out. Covers non-rebalance purposes only (`risk_exit`, `stop_loss`,
+  `tax`, `withdrawal`, `chairman_manual`); shorts, options, crypto sells and anything worded as a rebalance are never overridable.
+* `rh_snapshot_sync.py` (the read-only snapshot refresh) also runs `grok --yolo` with the same deny list from `grok_deny_args()`.
+
+**Broker adapter:** no Robinhood submit code ships here. Approved orders go to the callable named by `FM_BROKER_ADAPTER=module:callable`
+(takes a `GatedOrder`). With none configured, the gate logs `not_submitted_no_broker_adapter` and places nothing.

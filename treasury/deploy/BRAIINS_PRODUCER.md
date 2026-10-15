@@ -1,6 +1,6 @@
 # Braiins snapshot producer — prism/Pi SoT (#689)
 
-**Source of truth host: `prism` (Pi, `prism-agent@192.168.100.98`).**
+**Source of truth host: `prism` (Pi, `prism-agent@192.0.2.10`).**
 Mac launchd `com.personalworkspace.braiins-refresh` is retired. Do not run two
 producers against `treasury/snapshots/braiins_latest.json`.
 
@@ -67,7 +67,7 @@ The live clock is the Pi file `treasury/snapshots/braiins_latest.json` `as_of`,
 not the copy committed in git. `pi_sync.push_files` omits that file, so the
 git blob can sit still while the timer keeps writing.
 
-Checked 2026-10-01 on `prism-agent@192.168.100.98`:
+Checked 2026-10-01 on `prism-agent@192.0.2.10`:
 
 - Unit: `/etc/systemd/system/braiins-refresh.timer` → `braiins-refresh.service`
   (enabled, 4h). Token: `~/.config/braiins/token` mode 600.

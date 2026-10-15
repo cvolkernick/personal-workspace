@@ -4,7 +4,7 @@ One shared 0% → ~30% axis. Yield chips above (gain); debt chips below (cost).
 Honest rates only: locked debt seeds, locked yield seeds (Chris 2026-08-23),
 and APR/APY already on books. Never invent yields. Equity/BTC
 assumed-return stays off-axis. Wells/20 Tesla stays off FCC.
-JR-strcUSX is a spectrum chip only (not HY/LTV). Coach is display-only
+JR-strcUSX spectrum chip retired 2026-10-10 (Solstice wound down). Coach is display-only
 on this ruler: a qualitative FCF nudge after essentials are current.
 No numeric threshold X.
 
@@ -76,16 +76,9 @@ RH margin interest precedence (live books > settings > seed):
      (or ``margin_apr``) when live is blank / 0
   3. Seed 5%
 
-Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
-  Not a locked seed. Live Solstice quote only if already on books
-  (``jr_strcusx_apy`` / ``solstice_apy`` / ``strcusx_apy``). Else ~20%
-  docs_target. Do not invent a live print. No wallet notional. No HTML scrape.
+JR-strcUSX Interest Spectrum chip retired 2026-10-10 (Solstice wound down strcUSX).
 
-Chris 2026-08-27 — poll app.solstice.finance/strcusx:
-  The app has no public JSON APY. It computes ``juniorApy`` from STRC-USX
-  on-chain AccountingState. FCC polls that account (public getAccountInfo)
-  on treasury refresh. Precedence: live on-chain > prior sidecar > ~20%
-  docs_target. Partner REST stays instruction-only. HTML scrape rejected.
+
 
 Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Bitcoin + Agentic Fund (#336):
   Two locked yield seeds only. Explicit est. CAGR exception — not cash
@@ -123,7 +116,6 @@ SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 MORPHO_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_hy_latest.json"
 USDG_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "usdg_hy_latest.json"
 MORPHO_BORROW_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_borrow_latest.json"
-SOLSTICE_JR_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solstice_jr_latest.json"
 FLEET_NOTES = ROOT / "auto-fleet" / "data" / "notes.json"
 FLEET_ROSTER = ROOT / "auto-fleet" / "data" / "roster.json"
 
@@ -470,35 +462,6 @@ MORPHO_HY_VAULT_REF_PATHS = (
     ("morpho_hy", "apy"),
 )
 
-# JR-strcUSX is not a locked seed. Live Solstice quote from STRC-USX
-# AccountingState juniorApy (app.solstice.finance/strcusx formula). Else
-# ~20% target (docs), spectrum chip only. Populate: treasury/solstice_jr_sync.py.
-JR_STRCUSX_ID = "jr_strcusx"
-JR_TARGET_PCT = 20.0
-JR_TARGET_LABEL = "~20% target"
-JR_DOCS_NOTES = (
-    "approx target · not a locked seed · docs.solstice.finance strcUSX · "
-    "solstice.finance/vaults/strcusx · does not count toward HY/LTV floors · "
-    "spectrum chip only"
-)
-JR_LIVE_APY_PATHS = (
-    ("evaluation", "inputs", "jr_strcusx_apy"),
-    ("evaluation", "inputs", "solstice_apy"),
-    ("evaluation", "inputs", "strcusx_apy"),
-    ("snapshot", "solstice_jr", "jr_strcusx_apy"),
-    ("snapshot", "solstice_jr", "apy"),
-    ("snapshot", "solstice_jr", "apy_est"),
-    ("snapshot", "solana", "jr_strcusx_apy"),
-    ("snapshot", "solana", "solstice_apy"),
-    ("snapshot", "solana", "strcusx_apy"),
-    ("snapshot", "solana", "vault_apy"),
-    ("solstice_jr", "jr_strcusx_apy"),
-    ("solstice_jr", "apy"),
-    ("solana", "jr_strcusx_apy"),
-    ("solana", "solstice_apy"),
-    ("solana", "strcusx_apy"),
-    ("solana", "vault_apy"),
-)
 
 # Live/books paths only — settings stay on LOCKED_SEEDS morpho_borrow.settings_paths.
 # snapshot.coinbase_manual.variable_apr is a settings overlay — not live.
@@ -554,7 +517,7 @@ WELLS_OFF_FCC_ID = "m3-2020"
 FCC_AUTO_UNIT_IDS = frozenset({"corolla-2024", "corolla-2022", "m3-2022", "r1s-2023"})
 SURE_PAYABLE_DEBT_IDS = frozenset({"one_card"}) | FCC_AUTO_UNIT_IDS
 LIQUID_YIELD_IDS = frozenset({"x_money", "morpho_hy", "usdg_earn"})
-PARK_FCF_NEVER_IDS = frozenset({JR_STRCUSX_ID, BITCOIN_ID, AGENTIC_FUND_ID})
+PARK_FCF_NEVER_IDS = frozenset({BITCOIN_ID, AGENTIC_FUND_ID})
 # Morpho LTV < 0.50 is current. 0.45 is a manage ping, not a fail of current.
 MORPHO_LTV_CURRENT_MAX = 0.50
 NUDGE_LABELS = {
@@ -658,7 +621,6 @@ def _books_ctx(
     morpho_hy: Optional[Dict[str, Any]] = None,
     usdg_hy: Optional[Dict[str, Any]] = None,
     morpho_borrow: Optional[Dict[str, Any]] = None,
-    solstice_jr: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
     snap = dict(snap)
@@ -680,11 +642,6 @@ def _books_ctx(
         mb = snap["morpho_borrow"]
     if mb and not isinstance(snap.get("morpho_borrow"), dict):
         snap["morpho_borrow"] = mb
-    sj = solstice_jr if isinstance(solstice_jr, dict) else {}
-    if not sj and isinstance(snap.get("solstice_jr"), dict):
-        sj = snap["solstice_jr"]
-    if sj and not isinstance(snap.get("solstice_jr"), dict):
-        snap["solstice_jr"] = sj
     return {
         "evaluation": treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {},
         "snapshot": snap,
@@ -694,7 +651,6 @@ def _books_ctx(
         "morpho_hy": mh,
         "usdg_hy": uh,
         "morpho_borrow": mb,
-        "solstice_jr": sj,
     }
 
 
@@ -761,34 +717,8 @@ def _value_is_source_blocked(value: Any) -> bool:
     return "source blocked" in lowered or lowered in ("source_blocked", "blocked")
 
 
-_JR_BLOCK_KEYS = (
-    "jr_strcusx_apy_error",
-    "solstice_apy_error",
-    "strcusx_apy_error",
-    "source_blocked",
-    "jr_strcusx_source_blocked",
-    "jr_strcusx_apy_source_blocked",
-)
-_JR_BLOCK_BUCKETS = (
-    ("snapshot", "solstice_jr"),
-    ("snapshot", "solana"),
-    ("solstice_jr",),
-    ("solana",),
-    ("evaluation", "inputs"),
-)
-
-
 def _live_is_source_blocked(ctx: Dict[str, Any], chip_id: str) -> bool:
-    """True when the live feed for this chip is explicitly source-blocked."""
-    if chip_id != JR_STRCUSX_ID:
-        return False
-    for bucket_path in _JR_BLOCK_BUCKETS:
-        bucket = _dig(ctx, bucket_path)
-        if not isinstance(bucket, dict):
-            continue
-        for key in _JR_BLOCK_KEYS:
-            if _value_is_source_blocked(bucket.get(key)):
-                return True
+    """Retired with JR-strcUSX — no chip uses source-blocked Solstice feeds."""
     return False
 
 
@@ -898,72 +828,6 @@ def _first_apy_hit(
     return None, None
 
 
-def _jr_row_has_apy(row: Any) -> bool:
-    """True when a Solstice sidecar / snapshot row already has a live fraction."""
-    if not isinstance(row, dict):
-        return False
-    for key in ("jr_strcusx_apy", "solstice_apy", "strcusx_apy", "apy", "apy_est"):
-        n = _as_float(row.get(key))
-        if n is not None and n >= 0:
-            return True
-    return False
-
-
-def _jr_live_rate_pct(ctx: Dict[str, Any]) -> tuple[Optional[float], Optional[str]]:
-    """JR books APY is always a 0+ fraction (epoch can exceed 100% → fraction > 1)."""
-    for path in JR_LIVE_APY_PATHS:
-        raw = _dig(ctx, path)
-        if raw is None or raw == "":
-            continue
-        n = _as_float(raw)
-        # 0 / empty live does not beat the ~20% docs_target (#360).
-        if n is None or n <= 0:
-            continue
-        return n * 100.0, ".".join(path)
-    return None, None
-
-
-def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    """Spectrum-only JR chip. Live Solstice APY if already on books; else ~20% target.
-
-    Never attaches wallet balances. Never counts toward HY / LTV floors.
-    """
-    chip: Dict[str, Any] = {
-        "id": JR_STRCUSX_ID,
-        "venue": "JR-strcUSX",
-        "label": "JR-strcUSX",
-        "kind": "yield",
-        "lane": "above",
-        "rate_kind": "APY",
-        "fcc_liability": False,
-        "counts_toward_hy": False,
-        "counts_toward_ltv_defense": False,
-        "deep_link": "index.html#panel-solana",
-        "placed": True,
-    }
-    live, hit = (None, None)
-    if not _live_is_source_blocked(ctx, JR_STRCUSX_ID):
-        live, hit = _jr_live_rate_pct(ctx)
-    if live is not None:
-        chip["rate_pct"] = live
-        chip["approx"] = False
-        chip["source"] = "books"
-        chip["notes"] = (
-            f"from {hit} · live epoch APY (app.solstice.finance/strcusx) · "
-            "does not count toward HY/LTV floors · spectrum chip only"
-            if hit
-            else (
-                "live Solstice on books · does not count toward HY/LTV floors · "
-                "spectrum chip only"
-            )
-        )
-        return chip
-    chip["rate_pct"] = JR_TARGET_PCT
-    chip["rate_label"] = JR_TARGET_LABEL
-    chip["approx"] = True
-    chip["source"] = "docs_target"
-    chip["notes"] = JR_DOCS_NOTES
-    return chip
 
 
 def _attach_morpho_hy_vault_ref(chip: Dict[str, Any], ctx: Dict[str, Any], spec: Dict[str, Any]) -> None:
@@ -1066,7 +930,6 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
                 chip["notional"] = notional
                 chip["notional_kind"] = "balance"
         chips.append(chip)
-    chips.append(_jr_strcusx_chip(ctx))
     return chips
 
 
@@ -1401,14 +1264,9 @@ def build_interest_spectrum(
     config: Optional[Dict[str, Any]] = None,
     x_money: Optional[Dict[str, Any]] = None,
     solana: Optional[Dict[str, Any]] = None,
-    solstice_jr: Optional[Dict[str, Any]] = None,
     stub: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble APR/APY chips on a shared 0→~30% two-lane axis."""
-    # Disk path (FCC /api/interest-spectrum) must read solstice_jr_latest.json.
-    # treasury_latest.json often omits snapshot.solstice_jr (offline FCC +
-    # work/treasury auto-save). Tests pass an explicit treasury dict and must
-    # not pick up a machine-local sidecar.
     treasury_from_disk = not isinstance(treasury, dict)
     treasury = treasury if isinstance(treasury, dict) else _load_json(
         TREASURY_FCC if TREASURY_FCC.is_file() else TREASURY_SNAP
@@ -1419,7 +1277,13 @@ def build_interest_spectrum(
         snap_xm = (treasury.get("snapshot") or {}).get("x_money")
         if isinstance(snap_xm, dict):
             x_money = snap_xm
-    solana = solana if isinstance(solana, dict) else _load_json(SOLANA_SNAPSHOT)
+    if not isinstance(solana, dict):
+        try:
+            from treasury.solana_sync import load_preferred_solana
+
+            solana = load_preferred_solana(snapshot_path=SOLANA_SNAPSHOT) or {}
+        except Exception:  # noqa: BLE001 — chip read must not fail the spectrum
+            solana = _load_json(SOLANA_SNAPSHOT)
     if not solana:
         snap_sol = (treasury.get("snapshot") or {}).get("solana")
         if isinstance(snap_sol, dict):
@@ -1430,13 +1294,6 @@ def build_interest_spectrum(
     usdg_hy = snap_uh if isinstance(snap_uh, dict) else {}
     snap_mb = (treasury.get("snapshot") or {}).get("morpho_borrow")
     morpho_borrow = snap_mb if isinstance(snap_mb, dict) else {}
-    if not isinstance(solstice_jr, dict):
-        snap_sj = (treasury.get("snapshot") or {}).get("solstice_jr")
-        solstice_jr = snap_sj if isinstance(snap_sj, dict) else {}
-        if treasury_from_disk and not _jr_row_has_apy(solstice_jr):
-            sidecar = _load_json(SOLSTICE_JR_SNAPSHOT)
-            if _jr_row_has_apy(sidecar):
-                solstice_jr = sidecar
     # stub is retained as a blank file only — no numeric threshold X.
     _ = stub if stub is not None else _load_json(FCC_STUB)
     snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
@@ -1461,7 +1318,6 @@ def build_interest_spectrum(
         morpho_hy,
         usdg_hy,
         morpho_borrow,
-        solstice_jr,
     )
     chips = _fleet_chips() + _seed_debt_chips(ctx) + _yield_chips(ctx)
     for chip in chips:
@@ -1576,13 +1432,8 @@ def rates_are_honest(payload: Dict[str, Any]) -> bool:
                 return False
             continue
         if source == "docs_target":
-            if chip_id != JR_STRCUSX_ID:
-                return False
-            if abs(float(rate) - JR_TARGET_PCT) > 1e-9:
-                return False
-            if chip.get("rate_label") != JR_TARGET_LABEL:
-                return False
-            continue
+            # JR-strcUSX docs_target retired 2026-10-10
+            return False
         if source != "books":
             return False
         if est_cagr:

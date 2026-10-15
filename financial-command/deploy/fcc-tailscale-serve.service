@@ -1,0 +1,24 @@
+# User unit: ~/.config/systemd/user/fcc-tailscale-serve.service
+# Install / update:
+#   cp ~/personal-workspace/financial-command/deploy/fcc-tailscale-serve.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user restart fcc-tailscale-serve.service
+[Unit]
+Description=Tailscale Serve HTTPS, tailnet-only (443 -> FCC :8000, 10000 -> Horizon :8795, 10001 -> FitDash :8787)
+# A user manager cannot order against system units (network-online.target,
+# tailscaled.service), so the script waits for tailscaled itself and the unit
+# retries on failure instead of failing once at boot.
+After=financial-command.service horizon-dashboard.service resistance-dashboard.service
+StartLimitIntervalSec=1800
+StartLimitBurst=20
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# bash, not the file directly: push tooling can drop the exec bit.
+ExecStart=/bin/bash %h/personal-workspace/financial-command/deploy/tailscale-serve-apply.sh
+TimeoutStartSec=180
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

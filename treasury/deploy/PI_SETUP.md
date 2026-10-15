@@ -54,18 +54,27 @@ Environment=TREASURY_RH_ROLE=producer
 sudo cp treasury/deploy/fund-manager.service treasury/deploy/fund-manager.timer /etc/systemd/system/
 sudo cp treasury/deploy/rh-refresh.service treasury/deploy/rh-refresh.timer /etc/systemd/system/
 sudo cp treasury/deploy/ynab-refresh.service treasury/deploy/ynab-refresh.timer /etc/systemd/system/
+sudo cp treasury/deploy/expenses-refresh.service treasury/deploy/expenses-refresh.timer /etc/systemd/system/
 sudo cp treasury/deploy/fund-manager-bp-poll.service treasury/deploy/fund-manager-bp-poll.timer /etc/systemd/system/
 sudo cp treasury/deploy/braiins-refresh.service treasury/deploy/braiins-refresh.timer /etc/systemd/system/
 sudo cp treasury/deploy/coinbase-price-refresh.service treasury/deploy/coinbase-price-refresh.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rh-refresh.timer
 sudo systemctl enable --now ynab-refresh.timer
+sudo systemctl enable --now expenses-refresh.timer
 sudo systemctl enable --now braiins-refresh.timer
 sudo systemctl enable --now coinbase-price-refresh.timer
 sudo systemctl enable --now fund-manager.timer
 sudo systemctl enable --now fund-manager-bp-poll.timer
-systemctl list-timers | grep -E 'fund|rh-refresh|ynab-refresh|braiins|coinbase-price'
+systemctl list-timers | grep -E 'fund|rh-refresh|ynab-refresh|expenses-refresh|braiins|coinbase-price'
 ```
+
+Solana (`solana-refresh.timer`, every 15min) is a systemd **user** unit, not
+/etc/systemd/system. Install steps: `SOLANA_PRODUCER.md`.
+
+`braiins-refresh.service` / `coinbase-price-refresh.service` carry
+`TimeoutStartSec=5min`. Re-copy them to /etc/systemd/system and
+`sudo systemctl daemon-reload` after pulling for the cap to take effect.
 
 ### 4) Smoke on Pi (required before Mac disarm)
 ```bash
@@ -109,6 +118,7 @@ app if it still shows historical noise.
 |-------|----------|--------|
 | `rh-refresh` | ~3h | MCP snapshot so FCC RH trade stays green |
 | `ynab-refresh` | ~3h | YNAB One Card / RH Checking / X Money snapshots (#668) |
+| `expenses-refresh` | ~3h | Personal Expense Sheet → `expenses_latest.json` (#1053). Does not push to the Mac. |
 | `braiins-refresh` | ~4h | Braiins pool snapshot (`payouts` list) so Cash Streams mining stays green (#689) |
 | `coinbase-price-refresh` | ~2h | Public BTC/USD spot so Cash Streams mining valuation stays green (#695) |
 | `fund-manager` | weekdays ~12:30 | Rules HOLD if 60/40 ok; else Grok team review |
@@ -127,7 +137,8 @@ Local Mac FCC does **not** share the Pi filesystem. To keep **RH trade** green o
 TREASURY_RH_ROLE=consumer TREASURY_SKIP_LOCAL_MCP=1 python3 -m treasury.rh_snapshot_sync --print
 ```
 
-Default SSH target: `prism-agent@192.168.100.98` → `/home/prism-agent/personal-workspace`.
+SSH target: defaults to `prism-agent@prism-gateway` (tailnet MagicDNS short name) → `/home/prism-agent/personal-workspace`.
+`TREASURY_PI_SSH` is an optional override (e.g. `prism-agent@192.0.2.10`).
 
 ## Notifications
 GitHub standing issue [#701](https://github.com/cvolkernick/personal-workspace/issues/701)

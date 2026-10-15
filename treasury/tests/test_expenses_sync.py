@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import sys
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -13,7 +15,9 @@ if str(ROOT) not in sys.path:
 from treasury.expenses_sync import (  # noqa: E402
     _upcoming_sorted,
     build_expenses_snapshot,
+    expenses_freshness,
     funded_unique_fleet_items,
+    main as expenses_main,
     parse_money,
     parse_personal_rows,
     parse_sheet_date,
@@ -309,6 +313,50 @@ class TestFundedUniqueFleetItems(unittest.TestCase):
         # Essential overlap + empty-From out. Intra-Fleet name variants are
         # not collapsed — only Essential names are the skip set.
         self.assertEqual(names, ["Santander", "  santander  "])
+
+
+class TestExpensesFreshness(unittest.TestCase):
+    def test_stale_label_includes_as_of_and_age(self):
+        now = datetime(2026, 10, 6, 21, 0, tzinfo=timezone.utc)
+        fresh = expenses_freshness(
+            {"as_of": "2026-09-14T16:00:00+00:00", "source": "google_sheets"},
+            now=now,
+        )
+        self.assertTrue(fresh["stale"])
+        self.assertEqual(fresh["as_of"], "2026-09-14T16:00:00+00:00")
+        self.assertAlmostEqual(fresh["age_hours"], 533.0, places=1)
+        self.assertIn("2026-09-14T16:00:00+00:00", fresh["label"])
+        self.assertIn("533.0h old", fresh["label"])
+        self.assertEqual(fresh["threshold_hours"], 12.0)
+
+    def test_fresh_snapshot_is_not_flagged(self):
+        now = datetime(2026, 10, 6, 21, 0, tzinfo=timezone.utc)
+        fresh = expenses_freshness(
+            {"as_of": "2026-10-06T20:00:00+00:00"},
+            now=now,
+        )
+        self.assertFalse(fresh["stale"])
+        self.assertIsNone(fresh["label"])
+        self.assertEqual(fresh["age_hours"], 1.0)
+
+    def test_missing_as_of_is_stale(self):
+        fresh = expenses_freshness({"source": "google_sheets"})
+        self.assertTrue(fresh["stale"])
+        self.assertIsNone(fresh["as_of"])
+        self.assertIn("as-of missing", fresh["label"])
+
+    def test_main_live_error_does_not_rewrite_snapshot(self):
+        with mock.patch(
+            "treasury.expenses_sync.sync_expenses",
+            return_value={
+                "source": "snapshot",
+                "as_of": "2026-10-03T20:00:00+00:00",
+                "live_error": "sheet down",
+            },
+        ), mock.patch("treasury.expenses_sync.write_expenses_snapshot") as write:
+            rc = expenses_main([])
+        self.assertEqual(rc, 1)
+        write.assert_not_called()
 
 
 if __name__ == "__main__":

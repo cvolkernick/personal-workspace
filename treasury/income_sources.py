@@ -1,4 +1,4 @@
-"""Canonical Lyft / Grubhub / Turo income matcher, plus Braiins mining income.
+"""Canonical income matcher, plus Braiins mining income.
 
 The Cash Streams rolling chart classifies external inflows with
 ``classify_income_source``. The Monday forecast income drift check must
@@ -11,12 +11,15 @@ YNAB or Plaid.
 Match is case-insensitive on payee and category. A needle hits only as a
 whole token (bounded by anything that is not a letter or digit), so
 "Lyft Inc" and "HW*GrubHub Holdings Inc." count and "Grubby" does not.
-Needles are lyft, grubhub or grub, and turo. Payee is tried first, then
-category. Within one field, first source wins: lyft, then grubhub, then turo.
+Needles are lyft, grubhub or grub, turo, then rewards, interest, refunds,
+and cash deposit. Payee is tried first, then category. Within one field,
+first source wins, so Lyft still beats a later rewards needle on the same
+payee.
 
 This function does not apply transfer, starting-balance, or reconcile
 exclusions. Callers that share the cash-streams filter apply those first,
-then classify the remaining inflows.
+then classify the remaining inflows. Anything that still returns None is
+an unidentified credit and must stay under its own payee name.
 """
 
 from __future__ import annotations
@@ -35,24 +38,53 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 # Colors are the chart contract: Lyft pink, Grubhub orange, Turo gray.
 # Gray is light enough to read on the Cash Streams dark panel.
+# warn_if_zero is only the original three. A quiet Rewards window is normal
+# and must not light the renamed-payee warning.
 INCOME_SOURCE_LINES: Tuple[Dict[str, object], ...] = (
     {
         "id": "lyft",
         "label": "Lyft",
         "color": "#ff69b4",
         "needles": ("lyft",),
+        "warn_if_zero": True,
     },
     {
         "id": "grubhub",
         "label": "Grubhub",
         "color": "#ff8c1a",
         "needles": ("grubhub", "grub"),
+        "warn_if_zero": True,
     },
     {
         "id": "turo",
         "label": "Turo",
         "color": "#b7c0c8",
         "needles": ("turo",),
+        "warn_if_zero": True,
+    },
+    {
+        "id": "rewards",
+        "label": "Rewards",
+        "color": "#1abc9c",
+        "needles": ("reward", "rewards", "cashback", "cash back"),
+    },
+    {
+        "id": "interest",
+        "label": "Interest",
+        "color": "#5dade2",
+        "needles": ("interest",),
+    },
+    {
+        "id": "refunds",
+        "label": "Refunds",
+        "color": "#c39bd3",
+        "needles": ("refund", "refunds"),
+    },
+    {
+        "id": "cash_deposits",
+        "label": "Cash deposits",
+        "color": "#d4ac0d",
+        "needles": ("cash deposit", "cash deposits"),
     },
 )
 
@@ -64,6 +96,13 @@ def _token(needle: str) -> re.Pattern[str]:
 
 def income_source_ids() -> Tuple[str, ...]:
     return tuple(str(row["id"]) for row in INCOME_SOURCE_LINES)
+
+
+def income_source_warn_ids() -> Tuple[str, ...]:
+    """Sources that should warn when they are $0 and inflow is not."""
+    return tuple(
+        str(row["id"]) for row in INCOME_SOURCE_LINES if row.get("warn_if_zero")
+    )
 
 
 def income_source_public() -> List[Dict[str, str]]:
@@ -94,7 +133,7 @@ def _match_field(blob: str) -> Optional[str]:
 
 
 def classify_income_source(payee: object = "", category: object = "") -> Optional[str]:
-    """Return lyft, grubhub, or turo when payee or category matches. Else None."""
+    """Return a named source id when payee or category matches. Else None."""
     for part in (payee, category):
         hit = _match_field(str(part or ""))
         if hit:
@@ -111,6 +150,8 @@ _MEMPOOL_CHAIN = "https://mempool.space/api/address/{address}/txs/chain/{txid}"
 _CANDLE_URL = "https://api.exchange.coinbase.com/products/BTC-USD/candles"
 _CACHE_NAME = "braiins_address_income.json"
 _PAGE_CAP = 40
+# Coinbase rejects a candle request wider than 300 points. Stay one under.
+_CANDLE_CHUNK_DAYS = 299
 _UA = "personal-workspace-treasury/bitcoin-mining-income"
 
 
@@ -171,6 +212,11 @@ def bitcoin_mining_income(
     good cache for this address. The cache stores tx ids, days, and amounts
     — not the address. An empty mempool body is retried once. ``fetched`` is
     false when the address is unset or the read failed and the cache missed.
+
+    Receipts older than ``bitcoin_history_start`` are dropped before pricing.
+    One output outside the Coinbase candle window must not fail the receipts
+    that the rolling chart can still show. Candle requests are split so a
+    wider window stays under the exchange cap.
     """
     end = today or date.today()
     resolved = _resolve_payout_address(address, config_path=config_path)
@@ -199,6 +245,7 @@ def bitcoin_mining_income(
         return _fallback_or_zero(cache_file, digest)
 
     raw = mining_deposits_from_txs(resolved, fetched)
+    raw = _deposits_in_price_window(raw, bitcoin_history_start(end))
     if prices is not None:
         priced = _price_deposits(raw, prices)
         price_ok = _prices_cover(raw, prices)
@@ -385,6 +432,22 @@ def _prices_cover(deposits: Sequence[Mapping[str, Any]], prices: Mapping[str, fl
     return all(_close_for_day(str(row["day"]), prices) is not None for row in deposits)
 
 
+def _deposits_in_price_window(
+    deposits: Sequence[Mapping[str, Any]],
+    start: date,
+) -> List[Dict[str, Any]]:
+    """Drop receipts the candle window is not asked to price."""
+    kept: List[Dict[str, Any]] = []
+    for row in deposits:
+        try:
+            day = date.fromisoformat(str(row.get("day") or ""))
+        except ValueError:
+            continue
+        if day >= start:
+            kept.append(dict(row))
+    return kept
+
+
 def _usd_by_day(deposits: Sequence[Mapping[str, Any]]) -> Dict[str, float]:
     out: Dict[str, float] = {}
     for row in deposits:
@@ -495,6 +558,28 @@ def _oldest_confirmed_day(page: Sequence[Any]) -> Optional[date]:
 
 
 def _fetch_daily_closes(
+    fetch_json: Callable[[str], Any],
+    start: date,
+    end: date,
+) -> Tuple[Dict[str, float], bool]:
+    """Daily BTC-USD closes. A range past the candle cap is requested in chunks."""
+    if end < start:
+        return {}, False
+    merged: Dict[str, float] = {}
+    cursor = start
+    while cursor <= end:
+        chunk_end = min(end, cursor + timedelta(days=_CANDLE_CHUNK_DAYS - 1))
+        part, ok = _fetch_closes_span(fetch_json, cursor, chunk_end)
+        if not ok:
+            return {}, False
+        merged.update(part)
+        cursor = chunk_end + timedelta(days=1)
+    if not merged:
+        return {}, False
+    return merged, True
+
+
+def _fetch_closes_span(
     fetch_json: Callable[[str], Any],
     start: date,
     end: date,

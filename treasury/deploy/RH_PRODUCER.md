@@ -1,6 +1,6 @@
 # Robinhood snapshot producer — prism/Pi SoT (#518)
 
-**Source of truth host: `prism` (Pi, `prism-agent@192.168.100.98`).**
+**Source of truth host: `prism` (Pi, `prism-agent@192.0.2.10`).**
 Box RH MCP is spare only — not primary. No live trades from this producer.
 
 **Do not merge this Issue until the eng-gate sequence below is green.**
@@ -56,7 +56,7 @@ Env: `TREASURY_RH_ROLE=producer|backup|consumer`. Pi unit sets `producer`.
 
 ## Step 1 — Pi install + OAuth (Mac tokens do not travel)
 
-On prism (`ssh prism-agent@192.168.100.98`):
+On prism (`ssh prism-agent@192.0.2.10`):
 
 ```bash
 cd /home/prism-agent/personal-workspace   # edit unit paths if the clone differs
@@ -137,7 +137,7 @@ launchctl print gui/$UID_N/com.personalworkspace.rh-refresh 2>&1 | head
 Confirm the unit is gone. Leaving it loaded after Pi SoT = dual-writer = wrong.
 
 Leave `com.personalworkspace.cb-solana-refresh` loaded if you still want Mac
-CB/Solana → Pi push. That push set **excludes** `robinhood_latest.json`
+CB balances → Pi push (Solana is Pi SoT; see `SOLANA_PRODUCER.md`). That push set **excludes** `robinhood_latest.json`
 unless `TREASURY_RH_PUSH=1` (emergency only).
 
 Do not load the Mac plist as `backup` during cutover. Backup is a later

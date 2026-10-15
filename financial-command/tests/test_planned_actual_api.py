@@ -69,12 +69,11 @@ class TestPlannedActualAndSendBookApi(unittest.TestCase):
         self.assertFalse(data.get("coach_wired"))
         self.assertFalse(data.get("spectrum_trigger"))
         standing = data.get("standing_sends") or []
-        self.assertEqual(len(standing), 3)
+        self.assertEqual(len(standing), 2)
         kinds = {s.get("kind") for s in standing}
-        self.assertEqual(kinds, {"thais", "rent", "jr_self_send"})
+        self.assertEqual(kinds, {"thais", "rent"})
         by_kind = {s["kind"]: s for s in standing}
         self.assertEqual(by_kind["thais"]["amount"], 900.0)
-        self.assertEqual(by_kind["jr_self_send"]["amount"], 35.0)
 
     def test_coinbase_sends_api_is_read_only_book(self) -> None:
         code, body = self._get("/api/coinbase_sends")

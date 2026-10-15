@@ -1,0 +1,5 @@
+# Repo-relative prefixes that count as FitDash for the Vercel FitDash project.
+# A changed path matching any prefix → build (exit 1). Otherwise skip (exit 0).
+# fitness/ is intentionally omitted: Pi restarts FitDash on workout logs;
+# Vercel should not burn a Hobby deploy for markdown the app reads at runtime.
+resistance-dashboard/

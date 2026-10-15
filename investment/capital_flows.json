@@ -1,8 +1,8 @@
 {
-  "version": 41,
-  "as_of": "2026-09-11",
-  "title": "Capital Flows — X Money · Digital Credit ↔ Margin ↔ JR-strcUSX",
-  "notes": "v41: Drop Lyft → Digital Credit. Lyft card is Lyft / GrubHub and lands X Money only (owner 2026-09-11). v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). v39 spine otherwise unchanged: X Money → Digital Credit → Margin. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "version": 43,
+  "as_of": "2026-10-13",
+  "title": "Capital Flows — X Money · Digital Credit ↔ Margin",
+  "notes": "v43: Replace planned TREAD card with Panamerica Auto income card (#1133), wired to YNAB category Income > Panamerica Auto and drawn into X Money. TREAD had no flows or history; removed from live views (#64 untouched). v42: Drop JR-strcUSX card from Liquidity Engine (owner/Nakatoshi 2026-10-10). Spine returns to X Money → Digital Credit → Margin. v41: Drop Lyft → Digital Credit. Lyft card is Lyft / GrubHub and lands X Money only (owner 2026-09-11). v40 history: JR-strcUSX was briefly at the bottom of LE, bidirectional with Margin; removed in v42. Turo → X Money only. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -13,12 +13,12 @@
       {
         "id": "income",
         "label": "Income",
-        "ids": ["turo", "lyft", "x_creator", "tread", "asics"]
+        "ids": ["turo", "lyft", "x_creator", "panamerica_auto", "asics"]
       },
       {
         "id": "liquidity_engine",
         "label": "Liquidity Engine",
-        "ids": ["x_money", "digital_credit", "margin", "jr_strcusx"]
+        "ids": ["x_money", "digital_credit", "margin"]
       },
       {
         "id": "deploy",
@@ -65,14 +65,14 @@
       "cadence": "biweekly"
     },
     {
-      "id": "tread",
-      "label": "TREAD",
+      "id": "panamerica_auto",
+      "label": "Panamerica Auto",
       "kind": "income",
-      "status": "planned",
-      "stroke": "planned-brown",
-      "confidence": "owner_stated",
-      "evidence": "Planned — not live.",
+      "confidence": "observed",
+      "evidence": "Panamerica Auto, LLC (car rental, Turo co-hosting, fleet management). Live inflow from YNAB category Income > Panamerica Auto. First payout posted 2026-09-29 as a direct deposit from the vehicle owner's rental business. Treated as a direct payout (dedicated category), not split out of the Turo host account.",
       "typical_landing": "x_money",
+      "landing_label": "X Money",
+      "ynab_category": {"group": "Income", "name": "Panamerica Auto"},
       "cadence": "monthly"
     },
     {
@@ -106,7 +106,7 @@
       "stroke": "liq-gray",
       "subtitle": "~6% · ops float",
       "confidence": "owner_stated",
-      "notes": "Ops cash sleeve (left of LE). Receives Turo + Lyft / GrubHub; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
+      "notes": "Ops cash sleeve (left of LE). Receives Turo + Lyft / GrubHub + Panamerica Auto; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
     },
     {
       "id": "digital_credit",
@@ -124,16 +124,7 @@
       "stroke": "liq-green",
       "subtitle": "Agentic · stocks · HY",
       "confidence": "owner_stated",
-      "notes": "RH equities engine: liquidity → stock spot; margin cool → HY LTV Buffer; heat → HY tops stock. Bidirectional with Digital Credit (not X Money) and with JR-strcUSX. Optional extract is not income. HY is generic high-yield defense (venue product incidental)."
-    },
-    {
-      "id": "jr_strcusx",
-      "label": "JR-strcUSX",
-      "kind": "leverage",
-      "stroke": "liq-amber",
-      "subtitle": "DC-credit parlay",
-      "confidence": "owner_stated",
-      "notes": "Bottom of LE. Bidirectional with Margin only. DC-credit parlay (Solana sleeve) — not HY / not LTV defense. Visibility of the live book; now-deploy lock stands (no mint)."
+      "notes": "RH equities engine: liquidity → stock spot; margin cool → HY LTV Buffer; heat → HY tops stock. Bidirectional with Digital Credit (not X Money). Optional extract is not income. HY is generic high-yield defense (venue product incidental)."
     },
     {
       "id": "bills_essential",
@@ -186,6 +177,13 @@
       "confidence": "owner_stated",
       "weight": 4,
       "notes": "Lyft / GrubHub payouts land X Money (ops)."
+    },
+    {
+      "from": "panamerica_auto",
+      "to": "x_money",
+      "confidence": "observed",
+      "weight": 3,
+      "notes": "Panamerica Auto payouts (YNAB Income > Panamerica Auto) into X Money ops cash."
     },
     {
       "from": "asics",
@@ -257,29 +255,12 @@
       "style": "risk",
       "label": "optional extract",
       "notes": "Optional loop back Digital Credit ← Margin — NOT income. Dual-engine risk."
-    },
-    {
-      "from": "margin",
-      "to": "jr_strcusx",
-      "confidence": "owner_stated",
-      "weight": 4,
-      "label": "→ JR-strcUSX",
-      "notes": "Margin seats / rebalances into JR-strcUSX. Same two-way LE spine as Digital Credit ↔ Margin. Visibility path — not a mint."
-    },
-    {
-      "from": "jr_strcusx",
-      "to": "margin",
-      "confidence": "owner_stated",
-      "weight": 4,
-      "label": "→ Margin",
-      "notes": "JR-strcUSX back into the Margin equities engine. Same two-way LE spine as the cards above."
     }
   ],
   "open_questions": [
     "Exact Morpho LTV target band (cool park-to-HY vs hot pull-to-BTC)",
     "Exact RH margin-use target band (cool park-to-USDG vs heat pull-to-stock)",
     "Cadence of Digital Credit → Margin vs former 1st-of-month X Money auto",
-    "When to allow margin extract vs dual-leverage hard block",
-    "JR-strcUSX ↔ Margin: residual seat vs Morpho override still owner-named (now-deploy: visibility only, no mint)"
+    "When to allow margin extract vs dual-leverage hard block"
   ]
 }

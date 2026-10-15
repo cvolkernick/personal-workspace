@@ -77,11 +77,28 @@ PROMPT_FILE="${ROOT}/treasury/fund_manager_daily_prompt.txt"
 if [[ "${RR}" -eq 2 ]]; then
   if command -v grok >/dev/null 2>&1 && [[ -f "${PROMPT_FILE}" ]]; then
     echo "Rules need_llm — running team/LLM headless review…"
-    grok -p "$(cat "${PROMPT_FILE}")" \
-      --cwd "${ROOT}" \
-      --yolo \
-      --output-format plain \
-      || echo "WARN: grok headless exited non-zero"
+    # #1093 no-sell-to-rebalance: grok runs with order-placing RH tools DENIED
+    # (deny rules still apply in always-approve mode). It writes buy intents to a file;
+    # treasury.fund_manager_order_gate validates (buys only, <= deployable cash,
+    # sells blocked+logged+alerted) and is the only submit path. Fail closed:
+    # no deny list => no grok run.
+    GROK_DENY=()
+    while IFS= read -r _l; do [[ -n "${_l}" ]] && GROK_DENY+=("${_l}"); done \
+      < <(python3 -m treasury.fund_manager_order_gate --print-grok-deny-args || true)
+    if [[ "${#GROK_DENY[@]}" -lt 2 ]]; then
+      echo "ERROR: order-gate deny list unavailable — NOT running grok (fail closed)"
+    else
+      INTENTS_FILE="${ROOT}/treasury/snapshots/fund_manager_intents.json"
+      rm -f "${INTENTS_FILE}"
+      grok -p "$(cat "${PROMPT_FILE}")" \
+        --cwd "${ROOT}" \
+        --yolo \
+        "${GROK_DENY[@]}" \
+        --output-format plain \
+        || echo "WARN: grok headless exited non-zero"
+      python3 -m treasury.fund_manager_order_gate --execute-intents "${INTENTS_FILE}" \
+        || echo "WARN: order gate blocked/failed (exit $?) — see #701 blocked_sell"
+    fi
     # Stale-RH / thin fallback only — full decision already on #701 via append_decision
     python3 - <<'PY' || true
 from treasury.fund_manager import notify_if_needed, load_decision_log

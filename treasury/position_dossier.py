@@ -58,7 +58,7 @@ def _now() -> str:
 
 
 def _word_pat(sym: str) -> re.Pattern[str]:
-    # Lookaround so STRC does not match STRCUSX / JR-strcUSX filenames-as-text.
+    # Lookaround so STRC does not match STRCUSX filenames-as-text.
     return re.compile(r"(?<![A-Za-z0-9])" + re.escape(sym) + r"(?![A-Za-z0-9])")
 
 

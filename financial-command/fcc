@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# FCC command wrapper (#1091). Usage: fcc brief publish <file.json|->
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+case "${1:-}" in
+  brief) shift; exec python3 "$here/brief.py" "$@" ;;
+  *) echo "usage: fcc brief {publish|validate|list|path} [file.json|-]" >&2; exit 64 ;;
+esac

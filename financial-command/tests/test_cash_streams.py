@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from treasury.income_sources import bitcoin_trailing_mean  # noqa: E402
 from treasury.cash_streams import (  # noqa: E402
     ALLOWED_DAYS,
     DEFAULT_DAYS,
@@ -28,6 +29,7 @@ from treasury.cash_streams import (  # noqa: E402
     ROLLING_SEED_DAYS,
     TOP_N_INCOME,
     OTHER_INCOME_BAND,
+    _eastern_calendar_day,
     build_cash_streams,
     build_rolling_cash_series,
     clamp_days,
@@ -279,15 +281,94 @@ class TestCashStreamsBuilder(unittest.TestCase):
         self.assertNotIn("Retained", [n["name"] for n in payload["nodes"]])
         self.assertTrue(any(lk["source"] == "deficit" and lk["target"] == "revenue" for lk in payload["links"]))
 
-    def test_other_income_roll_up(self) -> None:
+    def test_named_sources_stay_out_of_top_n_overflow(self) -> None:
         txs = [
             _tx(amount=(TOP_N_INCOME + 1 - i) * 1000, payee=f"P{i}")
             for i in range(TOP_N_INCOME + 2)
         ]
+        txs.append(_tx(amount=500, payee="HW*GrubHub Holdings Inc."))
         payload = build_cash_streams(days=90, today=TODAY, transactions=txs)
         names = _ids(payload, "inflow")
-        self.assertIn("Other income", names)
-        self.assertEqual(len([n for n in names if n != "Other income"]), TOP_N_INCOME)
+        self.assertNotIn("Other income", names)
+        self.assertIn("HW*GrubHub Holdings Inc.", names)
+        # P9 is a zero-amount row, so the countable set is the other nine plus Grubhub.
+        self.assertEqual(len(names), TOP_N_INCOME + 2)
+        unknown = {row["name"] for row in payload["unidentified_credits"]}
+        self.assertNotIn("HW*GrubHub Holdings Inc.", unknown)
+        self.assertEqual(unknown, {f"P{i}" for i in range(TOP_N_INCOME + 1)})
+
+    def test_transfer_text_is_excluded_and_totals_reconcile(self) -> None:
+        kept = [
+            _tx(amount=100_000, payee="Lyft", date_s="2026-08-01"),
+            _tx(amount=20_000, payee="Interest payment", date_s="2026-08-01"),
+            _tx(amount=8_000, payee="Employer payroll", date_s="2026-08-04"),
+            _tx(
+                amount=-40_000,
+                payee="Kroger",
+                category_id="c-groc",
+                category_name="Groceries",
+                date_s="2026-08-01",
+            ),
+            _tx(
+                amount=-12_000,
+                payee="Corner store",
+                category_name="Uncategorized",
+                date_s="2026-08-05",
+            ),
+        ]
+        unpaired_credit = [
+            _tx(amount=7_000, payee="CREDIT", date_s="2026-08-03"),
+        ]
+        transfers = [
+            _tx(amount=50_000, payee="CREDIT", date_s="2026-08-02"),
+            _tx(amount=-50_000, payee="DEBIT", date_s="2026-08-02"),
+            _tx(amount=-20_000, payee="Scheduled payment", category_name="Uncategorized"),
+            _tx(amount=-30_000, payee="Payment", category_name="Uncategorized"),
+            _tx(amount=15_000, payee="Zelle from checking"),
+            _tx(amount=-15_000, payee="A2A transfer"),
+            _tx(amount=1_000, payee="ACCTVERIFY"),
+            _tx(amount=-1_000, payee="ACCT VERIFY"),
+            _tx(amount=2_000, payee="Account Verify"),
+            _tx(amount=-11_000, payee="Card payment", category_name="Uncategorized"),
+            _tx(amount=-4_000, payee="Credit card payment", category_name="Uncategorized"),
+            _tx(amount=-9_000, payee="Payment thank you", category_name="Uncategorized"),
+        ]
+        mixed = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=kept + unpaired_credit + transfers,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        without_transfers = build_cash_streams(
+            days=90,
+            today=TODAY,
+            transactions=kept + unpaired_credit,
+            category_groups=GROUPS,
+            on_budget_ids={"onb"},
+        )
+        self.assertEqual(mixed["totals"], without_transfers["totals"])
+        self.assertEqual(mixed["totals"]["inflow"], 135.0)
+        self.assertEqual(mixed["totals"]["outflow"], 52.0)
+        names = set(_ids(mixed, "inflow"))
+        self.assertIn("Lyft", names)
+        self.assertIn("Interest payment", names)
+        self.assertIn("Employer payroll", names)
+        self.assertIn("CREDIT", names)
+        self.assertNotIn("Zelle from checking", names)
+        self.assertNotIn("ACCTVERIFY", names)
+        self.assertNotIn("Account Verify", names)
+        self.assertNotIn("Card payment", _ids(mixed, "category"))
+        self.assertNotIn("Credit card payment", _ids(mixed, "category"))
+        self.assertNotIn("Scheduled payment", _ids(mixed, "category"))
+        self.assertNotIn("Payment", _ids(mixed, "inflow"))
+        categories = set(_ids(mixed, "category"))
+        self.assertIn("Groceries", categories)
+        self.assertIn("Uncategorized", categories)
+        uncategorized = next(n for n in mixed["nodes"] if n["name"] == "Uncategorized")
+        self.assertEqual(uncategorized["amount"], 12.0)
+        unknown = {row["name"]: row["amount"] for row in mixed["unidentified_credits"]}
+        self.assertEqual(unknown, {"Employer payroll": 8.0, "CREDIT": 7.0})
 
     def test_splits_go_to_categories(self) -> None:
         txs = [
@@ -492,7 +573,7 @@ class TestCashStreamsBuilder(unittest.TestCase):
         )
         names = _ids(payload, "inflow")
         self.assertEqual(names[0], MINING_NODE_NAME)
-        self.assertIn("Other income", names)
+        self.assertNotIn("Other income", names)
         self.assertAlmostEqual(
             next(n["amount"] for n in payload["nodes"] if n["id"] == "in-mining"),
             12.34,
@@ -502,7 +583,8 @@ class TestCashStreamsBuilder(unittest.TestCase):
             for n in payload["nodes"]
             if n["layer"] == "inflow" and n["id"] not in {"in-mining", "deficit"}
         ]
-        self.assertEqual(len([n for n in ynab_in if n != "Other income"]), TOP_N_INCOME)
+        self.assertEqual(len(ynab_in), TOP_N_INCOME + 1)
+        self.assertEqual(set(ynab_in), {f"P{i}" for i in range(TOP_N_INCOME + 1)})
 
     def test_mining_unknown_does_not_add_zero_node(self) -> None:
         txs = [_tx(amount=10_000, payee="Lyft")]
@@ -934,16 +1016,23 @@ class TestRollingCashSeries(unittest.TestCase):
     """
 
     def _assert_band_stack(self, point: dict) -> None:
-        """Named YNAB bands plus other plus bitcoin meet the envelope."""
-        lyft = point["lyft"]
-        grubhub = point["grubhub"]
-        turo = point["turo"]
+        """Named YNAB bands plus unidentified plus bitcoin meet the envelope."""
+        named_ids = (
+            "lyft",
+            "grubhub",
+            "turo",
+            "rewards",
+            "interest",
+            "refunds",
+            "cash_deposits",
+        )
+        named_vals = [float(point.get(sid) or 0) for sid in named_ids]
         bitcoin = point["bitcoin"]
         other = point["other"]
-        named = round(lyft + grubhub + turo, 2)
+        named = round(sum(named_vals), 2)
         self.assertGreaterEqual(other, 0.0)
         self.assertGreaterEqual(bitcoin, 0.0)
-        self.assertEqual(other, income_band_other(point["inflow"], lyft, grubhub, turo))
+        self.assertEqual(other, income_band_other(point["inflow"], *named_vals))
         envelope = round(point["inflow"] + bitcoin, 2)
         self.assertEqual(point["envelope"], envelope)
         if named <= point["inflow"]:
@@ -986,8 +1075,15 @@ class TestRollingCashSeries(unittest.TestCase):
         for point in payload["points"]:
             self._assert_band_stack(point)
         self.assertEqual(payload["source_warnings"], [])
-        self.assertEqual([s["id"] for s in payload["sources"]], ["lyft", "grubhub", "turo"])
-        self.assertEqual(payload["other_band"], {"id": "other", "label": "Other", "color": "#6b7c8d"})
+        self.assertEqual(
+            [s["id"] for s in payload["sources"]],
+            ["lyft", "grubhub", "turo", "rewards", "interest", "refunds", "cash_deposits"],
+        )
+        self.assertEqual(
+            payload["other_band"],
+            {"id": "other", "label": "Unidentified credits", "color": "#6b7c8d"},
+        )
+        self.assertEqual(payload["unidentified_credits"], [])
         self.assertEqual(payload["bitcoin_mean_days"], 90)
         self.assertEqual(payload["bitcoin_band"], {"id": "bitcoin", "label": "Bitcoin", "color": "#f5c542"})
         self.assertEqual(payload["bitcoin_feed"], {"address_set": False, "from_cache": False})
@@ -1087,6 +1183,13 @@ class TestRollingCashSeries(unittest.TestCase):
         self.assertEqual(last["other"], 3.5)
         self.assertEqual(payload["source_warnings"], [])
         self.assertNotIn("other", payload["source_warnings"])
+        self.assertEqual(
+            payload["unidentified_credits"],
+            [
+                {"name": "Employer", "amount": 90.0},
+                {"name": "Grubby", "amount": 15.0},
+            ],
+        )
         self.assertEqual(last["lyft"] + last["grubhub"] + last["turo"] + last["other"], 16.5)
         self.assertEqual(last["bitcoin"], 0.0)
         self.assertEqual(last["envelope"], 16.5)
@@ -1227,30 +1330,329 @@ class TestRollingCashSeries(unittest.TestCase):
                 "as_of": AS_OF,
             }
 
-        with mock.patch(
-            "treasury.cash_streams.bitcoin_mining_income",
-            return_value=_bitcoin_income_unset(),
-        ):
-            payload = load_rolling_cash_series(
-                today=TODAY, fetch=fake_fetch, stale=False
-            )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                return_value=_bitcoin_income_unset(),
+            ):
+                payload = load_rolling_cash_series(
+                    today=TODAY, fetch=fake_fetch, stale=False, root=root
+                )
         self.assertEqual(seen["since"], "2026-05-14")
         self.assertTrue(payload["ok"])
         self.assertFalse(payload["ynab"]["stale"])
         self.assertEqual(payload["points"][-1]["inflow"], 1.0)
+        self.assertIn("bitcoin", payload["source_warnings"])
 
         def fail_fetch(since: str) -> dict:
             return {"ok": False, "error": "no YNAB token"}
 
-        with mock.patch(
-            "treasury.cash_streams.bitcoin_mining_income",
-            return_value=_bitcoin_income_unset(),
-        ):
-            err = load_rolling_cash_series(today=TODAY, fetch=fail_fetch)
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                return_value=_bitcoin_income_unset(),
+            ):
+                err = load_rolling_cash_series(
+                    today=TODAY, fetch=fail_fetch, root=Path(tmp)
+                )
         self.assertFalse(err["ok"])
         self.assertEqual(err["error"], "no YNAB token")
         self.assertEqual(err["points"], [])
         self.assertTrue(err["ynab"]["stale"])
+
+    def test_rolling_bitcoin_uses_stamped_braiins_payouts(self) -> None:
+        # Issue amounts: 7/25 $399.72, 8/5 $172.94, 9/1 $405.46, 9/29 $435.72.
+        # usd_at_payout wins over amount_btc * usd_price_at_payout.
+        chart_day = date(2026, 10, 3)
+        series = {
+            "2026-07-25": 399.72,
+            "2026-08-05": 172.94,
+            "2026-09-01": 405.46,
+            "2026-09-29": 435.72,
+        }
+        payouts = [
+            {
+                "status": "confirmed",
+                "amount_btc": 1.0,
+                "usd_price_at_payout": 1.0,
+                "usd_at_payout": usd,
+                "at": day + "T12:00:00+00:00",
+                "tx_id": "p-" + day,
+            }
+            for day, usd in series.items()
+        ]
+        payouts.append(
+            {
+                "status": "queued",
+                "amount_btc": 1.0,
+                "usd_at_payout": 99999.0,
+                "at": "2026-09-29T18:00:00+00:00",
+                "tx_id": "queued-not-counted",
+            }
+        )
+
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-10-03")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-10-03T12:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": "2026-10-03T12:00:00+00:00",
+                    "payouts": payouts,
+                },
+            )
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                side_effect=AssertionError("mempool"),
+            ):
+                payload = load_rolling_cash_series(
+                    today=chart_day, fetch=fake_fetch, stale=False, root=root
+                )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["includes_mining"])
+        sep1 = next(p for p in payload["points"] if p["date"] == "2026-09-01")
+        sep29 = next(p for p in payload["points"] if p["date"] == "2026-09-29")
+        self.assertGreater(sep1["bitcoin"], 0.0)
+        self.assertGreater(sep29["bitcoin"], 0.0)
+        self.assertEqual(sep1["bitcoin"], bitcoin_trailing_mean(date(2026, 9, 1), series))
+        self.assertEqual(
+            sep29["bitcoin"], bitcoin_trailing_mean(date(2026, 9, 29), series)
+        )
+        self.assertNotIn("bitcoin", payload["source_warnings"])
+        self.assertEqual(payload["bitcoin_feed"]["from_cache"], True)
+        blob = json.dumps(payload)
+        self.assertNotIn("queued-not-counted", blob)
+        self.assertNotIn("bc1", blob)
+
+    def test_rolling_bitcoin_buckets_evening_payouts_on_eastern_day(self) -> None:
+        # 00:52Z on 9/30 is 20:52 ET on 9/29. 02:40Z on 9/2 is 22:40 ET on 9/1.
+        # Midday UTC stays on that calendar day. 04:30Z in December is still
+        # the previous Eastern evening (EST); the same clock in July is EDT
+        # and stays on that day. 04:30Z on the fall-back morning is still EDT.
+        self.assertEqual(
+            _eastern_calendar_day("2026-09-30T00:52:03+00:00"), date(2026, 9, 29)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-09-02T02:40:25+00:00"), date(2026, 9, 1)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-09-15T16:00:00+00:00"), date(2026, 9, 15)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-12-15T04:30:00+00:00"), date(2026, 12, 14)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-07-15T04:30:00+00:00"), date(2026, 7, 15)
+        )
+        self.assertEqual(
+            _eastern_calendar_day("2026-11-01T04:30:00+00:00"), date(2026, 11, 1)
+        )
+        self.assertEqual(_eastern_calendar_day("2026-09-29"), date(2026, 9, 29))
+
+        series = {
+            "2026-09-01": 405.46,
+            "2026-09-15": 100.0,
+            "2026-09-29": 435.72,
+        }
+        payouts = [
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 405.46,
+                "at": "2026-09-02T02:40:25+00:00",
+                "tx_id": "sep1-et",
+            },
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 100.0,
+                "at": "2026-09-15T16:00:00+00:00",
+                "tx_id": "midday-utc",
+            },
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 435.72,
+                "at": "2026-09-30T00:52:03+00:00",
+                "tx_id": "sep29-et",
+            },
+        ]
+
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-10-03")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-10-03T12:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": "2026-10-03T12:00:00+00:00",
+                    "payouts": payouts,
+                },
+            )
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                side_effect=AssertionError("mempool"),
+            ):
+                payload = load_rolling_cash_series(
+                    today=date(2026, 10, 3),
+                    fetch=fake_fetch,
+                    stale=False,
+                    root=root,
+                )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["includes_mining"])
+        self.assertNotIn("bitcoin", payload["source_warnings"])
+        points = {p["date"]: p for p in payload["points"]}
+        sep1 = points["2026-09-01"]["bitcoin"]
+        sep2 = points["2026-09-02"]["bitcoin"]
+        sep14 = points["2026-09-14"]["bitcoin"]
+        sep15 = points["2026-09-15"]["bitcoin"]
+        sep28 = points["2026-09-28"]["bitcoin"]
+        sep29 = points["2026-09-29"]["bitcoin"]
+        sep30 = points["2026-09-30"]["bitcoin"]
+        self.assertGreater(sep1, points["2026-08-31"]["bitcoin"])
+        self.assertEqual(sep2, sep1)
+        self.assertEqual(sep1, bitcoin_trailing_mean(date(2026, 9, 1), series))
+        self.assertGreater(sep15, sep14)
+        self.assertEqual(sep15, bitcoin_trailing_mean(date(2026, 9, 15), series))
+        self.assertGreater(sep29, sep28)
+        self.assertEqual(sep30, sep29)
+        self.assertEqual(sep29, bitcoin_trailing_mean(date(2026, 9, 29), series))
+        blob = json.dumps(payload)
+        self.assertNotIn("bc1", blob)
+
+    def test_rolling_bitcoin_dst_step_uses_offset_in_effect(self) -> None:
+        # 04:30Z on 12/15 is 23:30 EST on 12/14. A fixed EDT offset would
+        # step the band on 12/15 instead.
+        series = {"2026-12-14": 90.0}
+        payouts = [
+            {
+                "status": "confirmed",
+                "amount_btc": 0.01,
+                "usd_at_payout": 90.0,
+                "at": "2026-12-15T04:30:00+00:00",
+                "tx_id": "winter-evening",
+            }
+        ]
+
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-12-20")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": "2026-12-20T12:00:00+00:00",
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={
+                    "ok": True,
+                    "as_of": "2026-12-20T12:00:00+00:00",
+                    "payouts": payouts,
+                },
+            )
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                side_effect=AssertionError("mempool"),
+            ):
+                payload = load_rolling_cash_series(
+                    today=date(2026, 12, 20),
+                    fetch=fake_fetch,
+                    stale=False,
+                    root=root,
+                )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["includes_mining"])
+        self.assertNotIn("bitcoin", payload["source_warnings"])
+        points = {p["date"]: p for p in payload["points"]}
+        dec13 = points["2026-12-13"]["bitcoin"]
+        dec14 = points["2026-12-14"]["bitcoin"]
+        dec15 = points["2026-12-15"]["bitcoin"]
+        self.assertEqual(dec13, 0.0)
+        self.assertGreater(dec14, dec13)
+        self.assertEqual(dec15, dec14)
+        self.assertEqual(dec14, bitcoin_trailing_mean(date(2026, 12, 14), series))
+
+    def test_sankey_window_still_uses_utc_date(self) -> None:
+        # Same stamp the rolling band puts on 9/29. Sankey keeps the UTC day.
+        as_of = "2026-09-30T12:00:00+00:00"
+        now = datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc)
+        payout = {
+            "status": "confirmed",
+            "amount_btc": 1.0,
+            "usd_price_at_payout": 435.72,
+            "at": "2026-09-30T00:52:03+00:00",
+            "tx_id": "utc-day",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_snaps(
+                root,
+                braiins={"ok": True, "as_of": as_of, "payouts": [payout]},
+                coinbase={"as_of": as_of, "btc_usd_price": 1.0, "source": "live"},
+            )
+            on_utc_day = mining_from_snapshots(
+                start=date(2026, 9, 30),
+                end=date(2026, 9, 30),
+                root=root,
+                now=now,
+            )
+            on_eastern_day = mining_from_snapshots(
+                start=date(2026, 9, 29),
+                end=date(2026, 9, 29),
+                root=root,
+                now=now,
+            )
+        self.assertEqual(on_utc_day["status"], "ok")
+        self.assertEqual(on_utc_day["payout_count"], 1)
+        self.assertEqual(on_utc_day["usd"], 435.72)
+        self.assertEqual(on_eastern_day["status"], "ok")
+        self.assertEqual(on_eastern_day["payout_count"], 0)
+        self.assertEqual(on_eastern_day["usd"], 0.0)
+
+    def test_empty_bitcoin_feed_warns_instead_of_silent_zero(self) -> None:
+        def fake_fetch(since: str) -> dict:
+            return {
+                "ok": True,
+                "transactions": [_tx(amount=30_000, payee="Lyft", date_s="2026-09-11")],
+                "category_groups": GROUPS,
+                "on_budget_ids": ["onb"],
+                "as_of": AS_OF,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch(
+                "treasury.cash_streams.bitcoin_mining_income",
+                return_value=_bitcoin_income_unset(),
+            ):
+                payload = load_rolling_cash_series(
+                    today=TODAY, fetch=fake_fetch, stale=False, root=Path(tmp)
+                )
+        self.assertTrue(payload["ok"])
+        self.assertTrue(all(point["bitcoin"] == 0.0 for point in payload["points"]))
+        self.assertIn("bitcoin", payload["source_warnings"])
+        self.assertFalse(payload["includes_mining"])
 
     def test_sankey_days_120_still_clamps(self) -> None:
         seen: dict[str, str] = {}
@@ -1319,6 +1721,10 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn(".band-lyft", html)
         self.assertIn(".band-grubhub", html)
         self.assertIn(".band-turo", html)
+        self.assertIn(".band-rewards", html)
+        self.assertIn(".band-interest", html)
+        self.assertIn(".band-refunds", html)
+        self.assertIn(".band-cash-deposits", html)
         self.assertIn(".band-bitcoin", html)
         self.assertIn(".band-other", html)
         self.assertIn("fill-opacity: 0.6", html)
@@ -1331,19 +1737,28 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn("> Lyft</span>", html)
         self.assertIn("> Grubhub</span>", html)
         self.assertIn("> Turo</span>", html)
+        self.assertIn("> Rewards</span>", html)
+        self.assertIn("> Interest</span>", html)
+        self.assertIn("> Refunds</span>", html)
+        self.assertIn("> Cash deposits</span>", html)
         self.assertIn("> Bitcoin</span>", html)
-        self.assertIn("> Other</span>", html)
+        self.assertIn("> Unidentified</span>", html)
+        self.assertIn("not pooled into Other", html)
         self.assertIn("> Inflow + BTC</span>", html)
         self.assertIn('key: "lyft"', html)
-        band_lyft = html.index('key: "lyft"')
-        band_grubhub = html.index('key: "grubhub"')
-        band_turo = html.index('key: "turo"')
-        band_bitcoin = html.index('key: "bitcoin"')
-        band_other = html.index('key: "other"')
-        self.assertLess(band_lyft, band_grubhub)
-        self.assertLess(band_grubhub, band_turo)
-        self.assertLess(band_turo, band_bitcoin)
-        self.assertLess(band_bitcoin, band_other)
+        band_keys = (
+            "lyft",
+            "grubhub",
+            "turo",
+            "rewards",
+            "interest",
+            "refunds",
+            "cash_deposits",
+            "bitcoin",
+            "other",
+        )
+        band_at = [html.index(f'key: "{key}"') for key in band_keys]
+        self.assertEqual(band_at, sorted(band_at))
         self.assertIn('key: "envelope"', html)
         self.assertIn("of envelope", html)
         self.assertNotIn("of inflow", html)
@@ -1358,6 +1773,8 @@ class TestCashStreamsPage(unittest.TestCase):
             html.index("curve: d3.curveMonotoneX"),
         )
         self.assertIn("drop that band to zero", html)
+        self.assertIn("Bitcoin feed is missing", html)
+        self.assertIn("stamped USD price", html)
         self.assertIn("external inflows only", html)
         self.assertIn("@media (max-width: 720px)", html)
         self.assertIn('$/day', html)
@@ -1461,7 +1878,10 @@ class TestCashStreamsApi(unittest.TestCase):
         self.assertEqual(data["other_band"]["id"], "other")
         self.assertEqual(data["bitcoin_band"]["id"], "bitcoin")
         self.assertEqual(data["bitcoin_mean_days"], 90)
-        self.assertEqual([row["id"] for row in data["sources"]], ["lyft", "grubhub", "turo"])
+        self.assertEqual(
+            [row["id"] for row in data["sources"]],
+            ["lyft", "grubhub", "turo", "rewards", "interest", "refunds", "cash_deposits"],
+        )
         self.assertNotIn("nodes", data)
         self.assertNotIn("totals", data)
 
