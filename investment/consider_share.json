@@ -9,13 +9,14 @@
   "not_an_order": false,
   "not_for_autopilot": false,
   "not_for_monday_residual": false,
-  "not_a_forced_rebalance": false,
+  "not_a_forced_rebalance": true,
   "authoritative_for_bias_pins": true,
-  "notes": "Chairman standing order 2026-09-22: Agentic STOCKS sleeve only = 50% SPCX / 50% TSLA by market value. Exit every other equity name. Ongoing stocks capital deploys 50/50 SPCX+TSLA only — no other equity names. Crypto/cash sleeves unchanged unless Chairman says otherwise. Monday $25 flatten-only / theme-gap cadence still applies, but stock deploys follow this 50/50 rule (do not theme-gap into other equities). Live rebalance executed 2026-09-22 on Agentic 674601752. Pins are the stocks-sleeve target (sum 100 of stocks consider list). Supersedes prior TSLA15/SPCX15 residual-float pins and BITA/STRC/MARA/NVDA pin history.",
+  "notes": "Chairman standing order 2026-09-22: Agentic STOCKS sleeve only = 50% SPCX / 50% TSLA by market value. (Historical: the 2026-09-22 exit of every other equity name was executed once; it is NOT a standing instruction and never authorizes a sell — #1093 no-sell-to-rebalance.) Ongoing stocks capital deploys 50/50 SPCX+TSLA only — no other equity names. Crypto/cash sleeves unchanged unless Chairman says otherwise. Monday $25 flatten-only / theme-gap cadence still applies, but stock deploys follow this 50/50 rule (do not theme-gap into other equities). Live rebalance executed 2026-09-22 on Agentic 674601752. Pins are the stocks-sleeve target (sum 100 of stocks consider list). Supersedes prior TSLA15/SPCX15 residual-float pins and BITA/STRC/MARA/NVDA pin history.",
   "pins": {
     "TSLA": 50.0,
     "SPCX": 50.0
   },
+  "reallocate_status": "HISTORICAL: executed 2026-09-22. Never a standing instruction; never authorizes a sell (#1093).",
   "reallocate": {
     "BE": [
       "TSLA",

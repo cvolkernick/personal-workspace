@@ -31,6 +31,12 @@ from treasury.pi_ops_alert import (  # noqa: E402
     warn_retired_ntfy,
 )
 
+from treasury.fund_manager_order_gate import (  # noqa: E402
+    BLOCK_STATUS as GATE_BLOCK_STATUS,
+    guard_decision_entry,
+    load_override as _load_sell_override,
+)
+
 POLICY_PATH = ROOT / "investment" / "fund_manager.json"
 WATCHLIST_PATH = ROOT / "investment" / "watchlist.json"
 PRIVATE_WATCHLIST_PATH = ROOT / "investment" / "private_watchlist.json"
@@ -56,7 +62,11 @@ DECISION_RECORD_KEYS = (
     "schema_version",
     "account_scope",
     "host",
+    "blocked_sell",
+    "guard",
+    "reason",
 )
+BLOCKED_SELL_MARKER = "<!-- blocked_sell -->"
 
 
 def _now() -> str:
@@ -87,7 +97,8 @@ def allocate_new_cash(
     """Split NEW cash into buy-only intents per ``new_money_weights``.
 
     Pure helper for the btc_digital_credit (and similar) sleeve config.
-    Emits buys only — never sells or trims. Executor wiring lands with #1093.
+    Emits buys only — never sells or trims. Every intent must still pass
+    ``treasury.fund_manager_order_gate`` (#1093) before any order exists.
     Floating residual is one buy intent with ``symbol="floating"`` and the
     configured ``floating_universe`` tickers listed for downstream sizing.
     """
@@ -123,8 +134,9 @@ def allocate_new_cash(
                 "universe": universe,
             }
         )
-    # Guard: never emit sells from this path
-    assert all(i.get("side") == "buy" for i in intents)
+    # Guard: never emit sells from this path (explicit raise: survives python -O)
+    if any(i.get("side") != "buy" for i in intents):
+        raise RuntimeError("allocate_new_cash produced a non-buy intent (no-sell guard #1093)")
     return intents
 
 
@@ -614,6 +626,14 @@ def format_decision_github_body(entry: Dict[str, Any]) -> str:
     payload = decision_record_payload(entry)
     lines = [
         DECISION_GITHUB_MARKER,
+    ]
+    if entry.get("blocked_sell"):
+        lines.append(BLOCKED_SELL_MARKER)
+        lines.append(
+            f"**blocked_sell:** `{GATE_BLOCK_STATUS}` — a sell/short was proposed and blocked "
+            "by the no-sell-to-rebalance gate (#1093). Grok: review."
+        )
+    lines += [
         f"**kind:** `{entry.get('kind') or 'decision'}`",
         f"**summary:** {entry.get('summary') or rat.get('summary') or '—'}",
         f"**NAV:** ${entry.get('nav_usd', '—')} · **BP:** ${entry.get('buying_power_usd', '—')}",
@@ -814,6 +834,14 @@ def append_decision(
     entry.setdefault("schema_version", 1)
     entry.setdefault("account_scope", "agentic_only")
 
+    # #1093: decision-level no-sell guard. Marks/blocks sell-type actions in any
+    # record (LLM-written or executor-written). Never raises; never drops the row.
+    try:
+        override, _oerr = _load_sell_override()
+    except Exception:
+        override = None
+    entry = guard_decision_entry(entry, override=override)
+
     if also_github:
         entry["_github"] = _github_public(publish_decision_record(entry))
 
@@ -825,7 +853,41 @@ def append_decision(
     with p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    if entry.get("blocked_sell"):
+        entry["_alert"] = _alert_blocked_sell(entry)
+
     return entry
+
+
+def _alert_blocked_sell(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Ops alert on #701 (Grok watches it) for every blocked sell (#1093).
+
+    Separate from the decision record so it is visible even if the decision
+    comment was deduped/skipped. Tests mock ``post_ops_github``; under pytest
+    nothing is posted unless FM_DECISION_GITHUB_IN_TEST=1.
+    """
+    if _skip_decision_github_in_pytest():
+        return {"ok": True, "posted": False, "skipped": "pytest"}
+    if not _decision_github_enabled():
+        return {"ok": True, "posted": False, "skipped": "disabled"}
+    g = entry.get("guard") or {}
+    rows = [
+        f"- {a.get('side', '?')} {a.get('symbol', '?')} [{a.get('reason_code', '?')}] "
+        f"status={a.get('status')}"
+        for a in (entry.get("actions") or [])
+        if isinstance(a, dict) and a.get("reason_code")
+    ]
+    executed = any(v.get("executed") for v in (g.get("violations") or []))
+    title = "FCC · fund-manager " + (
+        "SELL EXECUTED PAST GUARD" if executed else "blocked_sell"
+    )
+    text = (
+        f"{BLOCKED_SELL_MARKER}\n"
+        f"The no-sell-to-rebalance gate ({GATE_BLOCK_STATUS}, #1093) stopped a sell/short "
+        "in the fund-manager path.\n\n" + "\n".join(rows)
+    )
+    res = post_ops_github(title, text, as_markdown=True)
+    return _github_public(res)
 
 
 def _append_journal_markdown(entry: Dict[str, Any]) -> None:
@@ -927,6 +989,35 @@ def evaluate_fund_manager(
     }
 
 
+def expected_weights_buy_only(
+    btc: Optional[float],
+    stocks: Optional[float],
+    *,
+    deployed_usd: float,
+    cash_usd: float,
+    btc_target: float,
+) -> Dict[str, Optional[float]]:
+    """Deployed-mix weights after spending ``cash_usd`` on BUYS ONLY (#1093).
+
+    Never assumes a sell. New cash goes to the BTC complex first, only up to the
+    target; any remainder goes to stocks. With no cash this is the current mix.
+    """
+    if btc is None or stocks is None:
+        return {"btc_digital_credit": btc, "stocks_growth": stocks}
+    cash = max(0.0, cash_usd)
+    dep = max(0.0, deployed_usd)
+    if cash <= 0 or dep <= 0:
+        return {"btc_digital_credit": btc, "stocks_growth": stocks}
+    btc_val = btc * dep
+    total = dep + cash
+    btc_buy = min(cash, max(0.0, btc_target * total - btc_val))
+    new_btc = (btc_val + btc_buy) / total
+    return {
+        "btc_digital_credit": round(new_btc, 4),
+        "stocks_growth": round(1.0 - new_btc, 4),
+    }
+
+
 def rules_based_review(
     *,
     rh_snapshot: Optional[Dict[str, Any]] = None,
@@ -936,7 +1027,9 @@ def rules_based_review(
     """Daily review without LLM when possible.
 
     - In-band deployed mix + no meaningful idle cash → HOLD (log + optional notify skip)
-    - Idle cash or drift → NEED_LLM (caller may run team debate / grok)
+    - Idle cash (>= min_trade) → NEED_LLM (buys only; caller may run team debate / grok)
+    - Drift with no deployable cash → HOLD ``drift_no_cash`` (#1093). Drift alone
+      never wakes the LLM and never implies a sell: rebalance = new cash only.
     - live:false → OBSERVE only
     """
     policy = policy or load_fund_policy()
@@ -954,7 +1047,8 @@ def rules_based_review(
     min_trade = _f((policy.get("limits") or {}).get("min_trade_notional_usd"), 1.0)
     # Material free capital only — dust below min_trade cannot fill a ticket, so stay quiet.
     # No %NAV gate (owner: deploy whenever spendable capital is free).
-    deployable = max(cash, bp)
+    # min(cash, BP): no margin, no sell-to-fund (#1093 AC2). Same cap the order gate applies.
+    deployable = max(0.0, min(cash, bp))
     idle_capital = deployable >= min_trade
     dust_capital = 0 < deployable < min_trade
 
@@ -965,6 +1059,7 @@ def rules_based_review(
         and abs(stocks - _f(targets.get("stocks_growth_pct"), 0.6)) <= band
     )
     no_deployed = btc is None or stocks is None or (btc == 0 and stocks == 0)
+    reason = None
 
     if not live:
         outcome = "observe"
@@ -996,7 +1091,7 @@ def rules_based_review(
         kind = "deploy"
         summary = (
             f"Rules → need team/LLM: idle capital cash ${cash:.2f} BP ${bp:.2f} "
-            f"(deployable ${deployable:.2f} ≥ min_trade ${min_trade:.2f}) toward 60/40"
+            f"(deployable ${deployable:.2f} ≥ min_trade ${min_trade:.2f}); buys only, no sells"
         )
         need_llm = True
     elif idle_capital:
@@ -1007,19 +1102,26 @@ def rules_based_review(
             f"(deployable ${deployable:.2f} ≥ min_trade ${min_trade:.2f})"
         )
         need_llm = True
-    elif not in_band and btc is not None:
-        outcome = "need_llm"
-        kind = "rebalance"
-        summary = (
-            f"Rules → need team/LLM: drift BTC-complex={btc:.0%} stocks={stocks:.0%} "
-            f"(targets 60/40 ±{band:.0%})"
-        )
-        need_llm = True
     else:
-        outcome = "need_llm"
-        kind = "review"
-        summary = "Rules → need team/LLM: ambiguous state"
-        need_llm = True
+        # No deployable cash (below min_trade). Drift, an empty/ambiguous book, or
+        # a missing sleeve weight cannot be fixed without selling, and we never
+        # sell to rebalance (#1093). Hold; do not invoke the LLM for a rebalance.
+        outcome = "hold"
+        kind = "hold"
+        reason = "drift_no_cash" if (not in_band and btc is not None) else "no_deployable_cash"
+        if btc is not None and stocks is not None:
+            summary = (
+                f"Rules HOLD ({reason}): BTC-complex {btc:.0%} / stocks {stocks:.0%} "
+                f"(target {_f(targets.get('btc_digital_credit_pct'), 0.4):.0%} ±{band:.0%}); "
+                f"deployable ${deployable:.2f} < min_trade ${min_trade:.2f}. "
+                "No sells to rebalance — restored with new cash only."
+            )
+        else:
+            summary = (
+                f"Rules HOLD ({reason}): no sleeve weights and deployable ${deployable:.2f} "
+                f"< min_trade ${min_trade:.2f}; nothing to buy, no sells."
+            )
+        need_llm = False
 
     decision = {
         "kind": kind,
@@ -1033,10 +1135,19 @@ def rules_based_review(
             "btc_digital_credit": btc,
             "stocks_growth": stocks,
         },
-        "weights_after_expected": {
-            "btc_digital_credit": btc if kind == "hold" else _f(targets.get("btc_digital_credit_pct"), 0.4),
-            "stocks_growth": stocks if kind == "hold" else _f(targets.get("stocks_growth_pct"), 0.6),
-        },
+        # What spendable cash can actually buy (buys only) — never the 40/60 target.
+        "weights_after_expected": (
+            {"btc_digital_credit": btc, "stocks_growth": stocks}
+            if kind == "hold"
+            else expected_weights_buy_only(
+                btc,
+                stocks,
+                deployed_usd=_f(analysis.get("equity_market_value_usd")),
+                cash_usd=deployable,
+                btc_target=_f(targets.get("btc_digital_credit_pct"), 0.4),
+            )
+        ),
+        "reason": reason,
         "rationale": {
             "summary": summary,
             "why_now": (
@@ -1044,7 +1155,8 @@ def rules_based_review(
             ),
             "why_not_alternatives": (
                 "In-band + low cash → skip LLM cost/latency. "
-                "Drift or deploy needs thesis/risk/critic debate before Executor trades."
+                "Deploy needs thesis/risk/critic debate before the gated Executor buys. "
+                "Drift without cash is a hold (no sell to rebalance)."
                 if not need_llm
                 else "Quorum team should debate size/names; Executor only places after OK."
             ),
@@ -1056,7 +1168,7 @@ def rules_based_review(
                 "note": f"NAV ${nav:.2f} BP ${bp:.2f} cash ${cash:.2f}",
             },
             "thesis": {
-                "vote": "ok" if (in_band or not live) else "rebalance",
+                "vote": "ok" if (in_band or not live or kind == "hold") else "deploy_new_cash",
                 "note": f"deployed BTC {btc} stocks {stocks}",
             },
             "risk": {
@@ -1108,6 +1220,7 @@ def rules_based_review(
         "outcome": outcome,
         "kind": kind,
         "need_llm": need_llm,
+        "reason": reason,
         "summary": summary,
         "in_band": in_band,
         "idle_capital": idle_capital,

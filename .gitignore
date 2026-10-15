@@ -50,3 +50,7 @@ Backups/
 
 # Auto Fleet local inbox dumps / runtime (never commit)
 auto-fleet/data/runtime/
+
+# #1093 order-gate intents handed from the fund-manager LLM run to the gate (transient)
+treasury/snapshots/fund_manager_intents.json
+treasury/snapshots/fund_manager_intents.consumed.json
