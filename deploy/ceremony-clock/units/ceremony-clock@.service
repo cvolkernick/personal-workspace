@@ -1,0 +1,15 @@
+[Unit]
+Description=Buzz ceremony clock kick (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/buzz-clock.env
+ExecStart=%h/.local/lib/ceremony-clock/venv/bin/python %h/.local/lib/ceremony-clock/ceremony_clock.py %i
+ExecStartPost=%h/.local/lib/ceremony-clock/venv/bin/python %h/.local/lib/ceremony-clock/ceremony_consume.py %i
+ExecStartPost=%h/.local/lib/ceremony-clock/venv/bin/python %h/.local/lib/ceremony-clock/ceremony_eng_gate_dispatch.py %i
+Nice=10
+
+[Install]
+WantedBy=default.target

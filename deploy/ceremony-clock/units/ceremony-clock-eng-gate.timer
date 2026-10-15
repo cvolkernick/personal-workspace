@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 15 minutes: trigger eng-gate-sweep
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=false
+Unit=ceremony-clock@eng-gate-sweep.service
+
+[Install]
+WantedBy=timers.target
