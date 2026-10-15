@@ -369,7 +369,8 @@ def _fund_notes_banner(n: Any) -> str:
         other = [x for x in n.get("problems") or [] if isinstance(x, str)]
         if other:
             flag += f'<p class="fund-meta fund-flag">Format notes: {_e("; ".join(other))}.</p>'
-        return (f'<div class="fund-banner" data-notes-state="filed"><p class="fund-meta">Naka\u2019s fund notes \u00b7 {" \u00b7 ".join(bits)}. '
+        joined = " \u00b7 ".join(bits)
+        return (f'<div class="fund-banner" data-notes-state="filed"><p class="fund-meta">Naka\u2019s fund notes \u00b7 {joined}. '
                 f'Written by Naka, shown as filed.</p>{flag}</div>')
     note = n.get("note") or f"Naka\u2019s fund notes not yet filed for {n.get('edition_date') or 'this edition'}."
     extra = f' <span class="fund-meta">Most recent file on disk: {_e(str(n["latest_on_disk"]))} (not shown).</span>' if n.get("latest_on_disk") else ""
