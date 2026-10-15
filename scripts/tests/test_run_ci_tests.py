@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -95,3 +96,39 @@ class QuarantineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CleanTreeGuardTests(unittest.TestCase):
+    """Suites must not rewrite tracked files (a worker once committed regenerated snapshots with `commit -a`)."""
+
+    def _repo(self, td: str) -> Path:
+        root = Path(td)
+        for cmd in (["init", "-q"], ["config", "user.email", "t@example.invalid"], ["config", "user.name", "t"]):
+            subprocess.run(["git", *cmd], cwd=root, check=True)
+        (root / "tracked.json").write_text("{}\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
+        return root
+
+    def test_modified_tracked_file_and_new_untracked_file_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo(td)
+            before = RUNNER.tree_state(root)
+            self.assertEqual(before, {})
+            (root / "tracked.json").write_text('{"x": 1}\n', encoding="utf-8")
+            (root / "new_latest.json").write_text("{}\n", encoding="utf-8")
+            self.assertEqual(RUNNER.tree_changes(before, RUNNER.tree_state(root)), ["new_latest.json", "tracked.json"])
+
+    def test_clean_run_and_preexisting_dirt_are_not_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = self._repo(td)
+            (root / "tracked.json").write_text('{"dev": 1}\n', encoding="utf-8")  # developer's own edit
+            before = RUNNER.tree_state(root)
+            self.assertEqual(RUNNER.tree_changes(before, RUNNER.tree_state(root)), [])
+            (root / "tracked.json").write_text('{"dev": 2}\n', encoding="utf-8")  # a test rewrote it again
+            self.assertEqual(RUNNER.tree_changes(before, RUNNER.tree_state(root)), ["tracked.json"])
+
+    def test_not_a_git_checkout_skips_the_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            self.assertIsNone(RUNNER.tree_state(Path(td)))
+            self.assertEqual(RUNNER.tree_changes(None, {"a": "b"}), [])

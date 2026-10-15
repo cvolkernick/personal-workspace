@@ -12,6 +12,7 @@ JS: existing standalone `node resistance-dashboard/tests/*.js` scripts.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
@@ -27,6 +28,45 @@ SKIP_DIR_NAMES = {
     "personal-workspace-worktrees",
 }
 EXTRA_PY_REL = ("research/test_coinbase_feasibility_doc.py",)
+
+
+def tree_state(root: Path = ROOT) -> dict[str, str] | None:
+    """Fingerprint of every modified/untracked (non-ignored) path: ``path -> status:sha256``.
+
+    Returns None when ``root`` is not a git checkout (guard is skipped)."""
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--porcelain=v1", "-z", "-uall"],
+            cwd=str(root),
+            capture_output=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    state: dict[str, str] = {}
+    entries = proc.stdout.decode("utf-8", "surrogateescape").split("\0")
+    i = 0
+    while i < len(entries):
+        entry = entries[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        code, rel = entry[:2], entry[3:]
+        if code[0] in "RC":  # rename/copy: next field is the original path
+            i += 1
+        path = root / rel
+        digest = ""
+        if path.is_file():
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        state[rel] = f"{code}:{digest}"
+    return state
+
+
+def tree_changes(before: dict[str, str] | None, after: dict[str, str] | None) -> list[str]:
+    """Paths whose git state or content differs between two ``tree_state`` snapshots."""
+    if before is None or after is None:
+        return []
+    return sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
 
 
 def discover_python_suites(root: Path = ROOT) -> list[Path]:
@@ -139,6 +179,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--python-only", action="store_true")
     p.add_argument("--js-only", action="store_true")
     p.add_argument("--list", action="store_true", help="print discovered suites and exit")
+    p.add_argument(
+        "--no-clean-check",
+        action="store_true",
+        help="do not fail when the suites modify tracked files or leave new untracked ones",
+    )
     p.add_argument("pytest_args", nargs="*", help="extra args forwarded to pytest")
     args = p.parse_args(argv)
 
@@ -165,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     results: list[tuple[str, int]] = []
+    before = None if args.no_clean_check else tree_state()
     if not args.js_only:
         for tests_dir in suites:
             label = str(tests_dir.relative_to(ROOT))
@@ -178,6 +224,15 @@ def main(argv: list[str] | None = None) -> int:
             results.append((label, run_js(path)))
         results.append(("products/gethelpfrom.ai/tests/web.test.js", run_gethelpfrom_node()))
         results.append(("projects-dashboard/eng-kanban", run_kanban_node()))
+
+    if not args.no_clean_check:
+        changed = tree_changes(before, tree_state())
+        if changed:
+            print()
+            print("tests modified the working tree (tests must write to a tmp dir, never to tracked paths):")
+            for rel in changed:
+                print(f"  {rel}")
+        results.append(("working tree unchanged by tests", 1 if changed else 0))
 
     print()
     print("| Suite | Result |")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -177,27 +178,38 @@ class TestDashboardArtifact(unittest.TestCase):
 
 class TestRunTreasuryEntry(unittest.TestCase):
     def test_run_offline_writes_evaluation(self):
-        out = ROOT / "treasury" / "snapshots" / "treasury_test_out.json"
-        proc = subprocess.run(
-            [sys.executable, str(ROOT / "treasury" / "run_treasury.py"), "--offline", "--out", str(out)],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
-        self.assertTrue(out.is_file())
-        data = json.loads(out.read_text(encoding="utf-8"))
-        self.assertIn("evaluation", data)
-        self.assertIn("snapshot", data)
-        self.assertIn("stress", data["evaluation"])
-        self.assertIn("actions", data["evaluation"])
-        self.assertIn("overall", data["evaluation"]["stress"])
-        # Dashboard copy
-        dash = ROOT / "financial-command" / "treasury_latest.json"
-        self.assertTrue(dash.is_file())
-        dash_data = json.loads(dash.read_text(encoding="utf-8"))
-        self.assertTrue(dash_data["evaluation"]["actions"] is not None)
+        # Write only under a tmp dir: the default outputs are tracked snapshot files and
+        # running this test must never modify them.
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "treasury_test_out.json"
+            dash = Path(td) / "treasury_dashboard_copy.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "treasury" / "run_treasury.py"),
+                    "--offline",
+                    "--out",
+                    str(out),
+                    "--dashboard-out",
+                    str(dash),
+                ],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+            self.assertTrue(out.is_file())
+            data = json.loads(out.read_text(encoding="utf-8"))
+            self.assertIn("evaluation", data)
+            self.assertIn("snapshot", data)
+            self.assertIn("stress", data["evaluation"])
+            self.assertIn("actions", data["evaluation"])
+            self.assertIn("overall", data["evaluation"]["stress"])
+            # Dashboard copy
+            self.assertTrue(dash.is_file())
+            dash_data = json.loads(dash.read_text(encoding="utf-8"))
+            self.assertTrue(dash_data["evaluation"]["actions"] is not None)
 
 
 class TestFccSidecarAttach(unittest.TestCase):

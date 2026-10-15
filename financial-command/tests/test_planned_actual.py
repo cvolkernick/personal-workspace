@@ -81,6 +81,9 @@ class TestPlannedActualApi(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.mod = _load_fcc_server()
+        # GET /api/coach would otherwise run ynab_sync + run_treasury and rewrite the
+        # tracked treasury/snapshots/* and financial-command/treasury_latest.json.
+        cls.mod._maybe_refresh_ynab_for_coach = lambda **_kw: False
         cls.port = _free_port()
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", cls.port), cls.mod.FCCHandler)
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
