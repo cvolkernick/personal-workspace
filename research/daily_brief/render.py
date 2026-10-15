@@ -30,6 +30,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from research.daily_brief.fund import CONTEXT_NOTE, FUND_TITLE, MACRO_LABEL
 from research.daily_brief.quotes import QUOTES, quote_attribution, quote_for, quote_text
 from research.daily_brief.redact import scrub_edition
 from research.daily_brief.store import (
@@ -267,6 +268,261 @@ def render_mac_tasks(mt: Any) -> str:
     return head + f'<ul class="mac-list" aria-label="Unchecked Mac tasks">{rows}</ul></section>'
 
 
+def _fmt_et_stamp(raw: Any) -> str:
+    dt = _parse_ts(raw)
+    if dt is None:
+        return ""
+    t = dt.astimezone(ET)
+    return f"{t.strftime('%b')} {t.day}, " + t.strftime("%I:%M %p").lstrip("0") + " ET"
+
+
+_URL_RE = re.compile(r"https?://[^\s<>\"')\]]+")
+
+
+def _safe_text_html(text: str) -> str:
+    """Untrusted agent text: escaped, bullets and paragraphs kept, bare http(s) URLs linked. Never raw HTML."""
+    out: list[str] = []
+    in_list = False
+    para: list[str] = []
+
+    def inline(line: str) -> str:
+        res, pos = [], 0
+        for m in _URL_RE.finditer(line):
+            res.append(_e(line[pos:m.start()]))
+            res.append(_link(m.group(0), m.group(0)))
+            pos = m.end()
+        res.append(_e(line[pos:]))
+        return "".join(res)
+
+    def flush() -> None:
+        if para:
+            out.append("<p>" + "<br>".join(inline(x) for x in para) + "</p>")
+            para.clear()
+
+    for line in (text or "").split("\n"):
+        st = line.strip()
+        if st[:2] in ("- ", "* "):
+            flush()
+            if not in_list:
+                out.append("<ul>")
+                in_list = True
+            out.append(f"<li>{inline(st[2:].strip())}</li>")
+            continue
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+        if not st:
+            flush()
+        else:
+            para.append(st)
+    flush()
+    if in_list:
+        out.append("</ul>")
+    return "".join(out)
+
+
+def _fund_dev_html(d: dict) -> str:
+    url = d.get("url")
+    src = _link("source", url, "fund-src") if _is_http(url) else '<span class="fund-meta">no source link</span>'
+    return f'<li class="fund-dev">{_e(d.get("text", ""))} {src}</li>'
+
+
+def _fund_row_html(row: dict) -> str:
+    sym = str(row.get("symbol", ""))
+    pinned = row.get("relevance") == "pinned"
+    chip = f'<span class="chip {"chip-prog" if pinned else ""} fund-rel">{"pinned" if pinned else "watch only"}</span>'
+    devs = [d for d in row.get("developments") or [] if isinstance(d, dict)]
+    dev_html = "<ul>" + "".join(_fund_dev_html(d) for d in devs) + "</ul>" if devs else '<p class="empty fund-gap">Not covered in Naka\u2019s file for this edition.</p>'
+    dis = row.get("file_relevance_disagrees")
+    dis_html = f'<p class="fund-meta fund-flag">Naka\u2019s file says \u201c{_e(str(dis))}\u201d; consider_share.json decides.</p>' if dis else ""
+    return (
+        f'<div class="fund-row" id="fund-{_e(sym)}" data-symbol="{_e(sym)}" data-relevance="{"pinned" if pinned else "watch"}">'
+        f'<h3><span class="fund-sym">{_e(sym)}</span> {chip}</h3>'
+        f'<p class="fund-relevance">{_e(row.get("relevance_line") or "")}</p>{dev_html}{dis_html}</div>'
+    )
+
+
+def _fund_other_html(o: dict) -> str:
+    sym = str(o.get("symbol", ""))
+    w = o.get("file_relevance")
+    chip = f'<span class="chip fund-rel">{_e(str(w))}</span>' if w else ""
+    devs = "<ul>" + "".join(_fund_dev_html(d) for d in o.get("developments") or [] if isinstance(d, dict)) + "</ul>"
+    return (f'<div class="fund-row" data-symbol="{_e(sym)}" data-relevance="other"><h3><span class="fund-sym">{_e(sym)}</span> {chip}</h3>'
+            f'<p class="fund-relevance">Not in consider_share.json; from Naka\u2019s file.</p>{devs}</div>')
+
+
+def _fund_notes_banner(n: Any) -> str:
+    n = n if isinstance(n, dict) else {}
+    state = n.get("state") if n.get("state") in ("filed", "missing", "mismatch", "invalid") else "missing"
+    if state == "filed":
+        bits = [f"File date {_e(str(n.get('date') or n.get('edition_date') or ''))}"]
+        if n.get("filed_at"):
+            bits.append(f"filed {_e(_fmt_et_stamp(n['filed_at']))}")
+        if n.get("commit_time"):
+            bits.append(f"committed {_e(_fmt_et_stamp(n['commit_time']))}")
+        if n.get("mtime"):
+            bits.append(f"on prism {_e(_fmt_et_stamp(n['mtime']))}")
+        miss = [x for x in n.get("missing_sections") or [] if isinstance(x, str)]
+        flag = ""
+        if miss:
+            flag += f'<p class="fund-meta fund-flag">Missing required section(s): {_e(", ".join(miss))}.</p>'
+        other = [x for x in n.get("problems") or [] if isinstance(x, str)]
+        if other:
+            flag += f'<p class="fund-meta fund-flag">Format notes: {_e("; ".join(other))}.</p>'
+        return (f'<div class="fund-banner" data-notes-state="filed"><p class="fund-meta">Naka\u2019s fund notes \u00b7 {" \u00b7 ".join(bits)}. '
+                f'Written by Naka, shown as filed.</p>{flag}</div>')
+    note = n.get("note") or f"Naka\u2019s fund notes not yet filed for {n.get('edition_date') or 'this edition'}."
+    extra = f' <span class="fund-meta">Most recent file on disk: {_e(str(n["latest_on_disk"]))} (not shown).</span>' if n.get("latest_on_disk") else ""
+    mt = f' <span class="fund-meta">File on prism modified {_e(_fmt_et_stamp(n["mtime"]))}.</span>' if state in ("mismatch", "invalid") and n.get("mtime") else ""
+    return f'<div class="fund-banner fund-notfiled" data-notes-state="{state}"><p class="empty">{_e(note)}{extra}{mt}</p></div>'
+
+
+def _fund_text_block(title: str, key: str, n: Any, cls: str) -> str:
+    n = n if isinstance(n, dict) else {}
+    if n.get("state") != "filed":
+        return ""
+    txt = n.get(key)
+    head = f'<h3 class="fund-sub">{_e(title)}</h3>'
+    if not txt:
+        return f'<div class="{cls}" data-present="false">{head}<p class="empty">Section not in Naka\u2019s file.</p></div>'
+    return f'<div class="{cls}" data-present="true">{head}<div class="fund-text">{_safe_text_html(txt)}</div></div>'
+
+
+def _fund_unknown_html(n: Any) -> str:
+    n = n if isinstance(n, dict) else {}
+    parts = []
+    for u in n.get("unknown_sections") or []:
+        if isinstance(u, dict):
+            parts.append(f'<details class="fund-unknown"><summary>{_e(str(u.get("heading", "")))} <span class="fund-meta">(extra section)</span></summary>{_safe_text_html(str(u.get("text", "")))}</details>')
+    unp = [x for x in n.get("unparsed") or [] if isinstance(x, str)]
+    if unp:
+        parts.append('<details class="fund-unknown"><summary>Lines that did not match the format</summary>' + _safe_text_html("\n".join("- " + x for x in unp)) + "</details>")
+    return "".join(parts)
+
+
+def _fund_macro_html(macro: Any) -> str:
+    m = macro if isinstance(macro, dict) else {}
+    lines = [ln for ln in m.get("lines") or [] if isinstance(ln, dict)]
+    held = '<span class="chip fund-held">held fixture</span>' if m.get("held", True) else ""
+    state = "items" if any(ln.get("text") for ln in lines) else "placeholder"
+    head = f'<h3 class="fund-sub">Macro \u00b7 {_e(m.get("label") or MACRO_LABEL)} {held}</h3>'
+    if state == "placeholder":
+        body = f'<p class="empty fund-macro-empty">{_e(m.get("placeholder") or "")}</p>'
+        topics = "".join(f'<li class="fund-macro-topic"><b>{_e(ln.get("label", ""))}</b> <span class="muted">placeholder, no line supplied</span></li>' for ln in lines)
+        body += f"<ul>{topics}</ul>"
+    else:
+        rows = []
+        for ln in lines:
+            if ln.get("text"):
+                when = f' <span class="fund-meta">{_e(_fmt_et_stamp(ln.get("as_of")) or str(ln.get("as_of") or ""))}</span>' if ln.get("as_of") else ""
+                rows.append(f'<li class="fund-macro-topic"><b>{_e(ln.get("label", ""))}</b> {_link(ln["text"], ln.get("link"))}{when}</li>')
+            else:
+                rows.append(f'<li class="fund-macro-topic"><b>{_e(ln.get("label", ""))}</b> <span class="muted">placeholder, no line supplied</span></li>')
+        body = "<ul>" + "".join(rows) + "</ul>"
+    return f'<div class="fund-macro" data-macro-state="{state}">{head}{body}</div>'
+
+
+def _fmt_pct(x: Any) -> str:
+    return DASH if x is None else f"{x:.1f}%"
+
+
+def _fmt_pp(x: Any) -> str:
+    return DASH if x is None else f"{x:+.1f} pp"
+
+
+def _fund_holdings_html(h: Any) -> str:
+    h = h if isinstance(h, dict) else {}
+    head = '<h3 class="fund-sub">Holdings and drift vs the 50/50 pins</h3>'
+    if h.get("state") != "ok":
+        asof = f' <span class="fund-meta">Snapshot as_of {_e(_fmt_et_stamp(h.get("as_of")))}.</span>' if h.get("as_of") else ""
+        return (f'<div class="fund-holdings" data-holdings-state="no_data">{head}'
+                f'<p class="empty">{_e(h.get("note") or "No data: holdings not supplied.")}{asof}</p></div>')
+    rows = []
+    for r in h.get("rows") or []:
+        drift = r.get("drift_pp")
+        cls = ' class="num fund-drift-neg"' if isinstance(drift, (int, float)) and abs(drift) >= 5 else ' class="num"'
+        rows.append(
+            f'<tr data-symbol="{_e(str(r.get("symbol", "")))}"><td><b>{_e(str(r.get("symbol", "")))}</b></td>'
+            f'<td>{"pinned" if r.get("pinned") else "watch only"}</td><td>{_e(str(r.get("sleeve") or DASH))}</td>'
+            f'<td class="num">{_fmt_pct(r.get("weight_nav_pct"))}</td><td class="num">{_fmt_pct(r.get("stocks_sleeve_weight_pct"))}</td>'
+            f'<td class="num">{_fmt_pct(r.get("target_pct"))}</td><td{cls}>{_fmt_pp(drift)}</td></tr>'
+        )
+    if h.get("cash_weight_pct") is not None:
+        rows.append(f'<tr><td><b>cash</b></td><td>{DASH}</td><td>{DASH}</td><td class="num">{_fmt_pct(h["cash_weight_pct"])}</td><td></td><td></td><td></td></tr>')
+    sl = "".join(
+        f'<li>{_e(s.get("label", ""))}: {_fmt_pct(s.get("weight_deployed_pct"))} of deployed vs {_fmt_pct(s.get("target_pct"))} target '
+        f'({_fmt_pp(s.get("drift_pp"))}, {"in band" if s.get("in_band") else "outside band" if s.get("in_band") is False else "band unknown"})</li>'
+        for s in h.get("sleeves") or []
+    )
+    note = f'<p class="fund-meta">{_e(h["note"])}</p>' if h.get("note") else ""
+    return (
+        f'<div class="fund-holdings" data-holdings-state="ok">{head}'
+        f'<p class="fund-meta">Robinhood agentic snapshot as_of {_e(_fmt_et_stamp(h.get("as_of")))} ({_e(str(h.get("age_hours")))}h old, stale after '
+        f'{_e(str(h.get("stale_after_hours")))}h). Basis: {_e(str(h.get("basis")))}. Drift is in percentage points of the stocks sleeve; weights only, no balances.</p>'
+        f'{note}<table class="fund-table"><thead><tr><th>Symbol</th><th>Relevance</th><th>Sleeve</th><th>NAV</th><th>Stocks sleeve</th><th>Target</th><th>Drift</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table><ul>{sl}</ul></div>'
+    )
+
+
+def _fund_status_html(st: Any) -> str:
+    head = '<h3 class="fund-sub">Status (context only, not permission)</h3>'
+    if not isinstance(st, dict):
+        return f'<div class="fund-status" data-status-state="no_data">{head}<p class="empty">No data: status not supplied.</p></div>'
+    fm = st.get("fund_manager") or {}
+    live = {True: "true", False: "false"}.get(fm.get("live"), "unknown")
+    iss = st.get("issue") or {}
+    state = iss.get("state")
+    iss_txt = state if state in ("open", "closed") else "no data (GitHub not reachable)"
+    title = f" \u2014 {iss.get('title')}" if iss.get("title") else ""
+    link = _link(f"#{iss.get('number')}", iss.get("url"))
+    return (
+        f'<div class="fund-status" data-status-state="ok">{head}<ul>'
+        f'<li>fund_manager.live: <b data-live="{live}">{_e(live)}</b> <span class="fund-meta">(status {_e(str(fm.get("status") or "unknown"))}, {_e(str(fm.get("source") or ""))})</span></li>'
+        f'<li>{link}: <b data-issue-state="{_e(str(state))}">{_e(iss_txt)}</b>{_e(title)}</li></ul>'
+        f'<p class="fund-meta">{_e(st.get("note") or "")}</p></div>'
+    )
+
+
+def _fund_naka_html(nk: Any) -> str:
+    nk = nk if isinstance(nk, dict) else {}
+    head = '<h3 class="fund-sub">Naka: latest actions taken</h3>'
+    if nk.get("state") == "entry":
+        return (f'<div class="fund-naka-block" data-naka-state="entry">{head}<p class="fund-meta">Entry dated {_e(str(nk.get("date")))} '
+                f'(investment/naka-actions.md, append-only)</p><div class="fund-naka fund-text">{_safe_text_html(nk.get("text") or "")}</div></div>')
+    return (f'<div class="fund-naka-block" data-naka-state="none">{head}'
+            f'<p class="empty">{_e(nk.get("note") or "No Naka entry on file yet.")}</p></div>')
+
+
+def render_fund(fund: Any) -> str:
+    """Fund watch section. Absent block renders nothing (editions before this field)."""
+    if not isinstance(fund, dict):
+        return ""
+    rows = [r for r in fund.get("monitored") or [] if isinstance(r, dict)]
+    others = [o for o in fund.get("other_tickers") or [] if isinstance(o, dict)]
+    notes = fund.get("notes") if isinstance(fund.get("notes"), dict) else {}
+    stamp = _fmt_et_stamp(fund.get("generated_at"))
+    asof = f" Monitored set from consider_share.json (as of {_e(str(fund.get('consider_share_as_of')))})." if fund.get("consider_share_as_of") else " Monitored set from consider_share.json."
+    intro = (
+        f'<p class="fund-note"><b>{_e(fund.get("note") or CONTEXT_NOTE)}</b>{asof}'
+        f'{" Built " + _e(stamp) + "." if stamp else ""}</p>'
+    )
+    body = "".join(_fund_row_html(r) for r in rows) if rows else '<p class="empty">No monitored symbols (consider_share.json not readable).</p>'
+    other_html = (
+        '<h3 class="fund-sub">Other tickers in Naka\u2019s file</h3><div class="fund-rows">' + "".join(_fund_other_html(o) for o in others) + "</div>"
+        if others else ""
+    )
+    return (
+        f'<section class="sec sec-fund" id="sec-fund"><h2 class="sec-h">{_e(FUND_TITLE)}'
+        f'<span class="sec-count">{len(rows)} monitored</span></h2>{intro}{_fund_notes_banner(notes)}'
+        f'{_fund_status_html(fund.get("status"))}{_fund_holdings_html(fund.get("holdings"))}'
+        f'<h3 class="fund-sub">Monitored set and developments (last ~48h, from Naka\u2019s file)</h3><div class="fund-rows">{body}</div>{other_html}'
+        f'{_fund_text_block("Naka: direction (advisory)", "direction", notes, "fund-direction")}'
+        f'{_fund_text_block("Naka: actions taken (this file)", "actions", notes, "fund-actions")}'
+        f'{_fund_naka_html(fund.get("naka"))}{_fund_unknown_html(notes)}'
+        f'{_fund_macro_html(fund.get("macro"))}</section>'
+    )
+
+
 def _reminders_card(todos: list[dict], today: date, mac_count: int = 0) -> str:
     g = bucket_todos(todos, today)
     urgent = g["overdue"] + g["today"]
@@ -357,6 +613,19 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .mac-text{min-width:0;overflow-wrap:anywhere}
 .mac-src{font-size:.7rem;margin-left:.35rem}
 .card .mac-count{font-size:.72rem;margin-top:.1rem}.card .mac-count a{color:var(--text);border-bottom:1px dotted var(--muted)}
+.sec-fund{grid-column:1/-1}
+.fund-note{font-size:.8rem;color:var(--muted);margin:.1rem 0 .4rem}.fund-note b{color:var(--text)}
+.fund-rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+.fund-row{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:.5rem .65rem;min-width:0}
+.fund-row h3,.fund-sub{font:700 .95rem var(--sans);margin:0 0 .15rem;display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.fund-sub{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:.8rem}
+.fund-relevance{margin:0 0 .25rem;font-size:.78rem;color:var(--muted)}
+.fund-row ul{padding-left:.2rem!important;list-style:none}.fund-dev{margin:.25rem 0}
+.fund-meta{font-size:.7rem;color:var(--dim)}.fund-kind{text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.fund-gap{margin:.2rem 0;font-size:.78rem}
+.fund-held{border-color:var(--cyan);color:var(--cyan)}
+.fund-drift-neg{color:var(--red)}.fund-table{width:100%;border-collapse:collapse;font-size:.8rem}.fund-table th{font:600 .62rem var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;border-bottom:1px solid var(--border2);padding:.2rem .3rem}.fund-table td{padding:.2rem .3rem;border-bottom:1px dotted var(--border)}.fund-table td.num{text-align:right;font-variant-numeric:tabular-nums}.fund-status li{margin:.2rem 0}.fund-naka{font-size:.85rem;margin:.2rem 0}
+.fund-macro li{margin:.2rem 0}.fund-banner{margin:.3rem 0}.fund-notfiled{border:1px dashed var(--border2);border-radius:var(--radius);padding:.45rem .65rem;background:var(--panel)}.fund-flag{color:var(--red)}.fund-text p{margin:.2rem 0}.fund-text ul{padding-left:1.1rem}.fund-unknown{margin:.3rem 0;font-size:.82rem}.fund-src{font-size:.72rem;margin-left:.2rem}
 .edition-nav{display:flex;justify-content:space-between;gap:.5rem;margin:1.2rem 0 .5rem;font-size:.85rem}
 .edition-nav a,.edition-nav span{border:1px solid var(--border);border-radius:999px;padding:.3rem .8rem;color:var(--text);background:var(--panel)}
 .edition-nav span{opacity:.4}
@@ -366,7 +635,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.mu
 .tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-around;background:rgba(6,10,16,.92);border-top:1px solid var(--border);padding:.35rem 0 calc(.35rem + env(safe-area-inset-bottom));z-index:5}
 .tabbar a{color:var(--muted);font-size:.7rem;display:flex;flex-direction:column;align-items:center;min-width:3.4rem}
 .tabbar a.active{color:var(--text);font-weight:700}.tabbar .i{font-size:1rem}
-@media (max-width:760px){.head{grid-template-columns:1fr 1fr}.masthead{grid-column:1/-1;order:-1}.cards{grid-template-columns:minmax(0,1fr)}.grid{grid-template-columns:minmax(0,1fr)}.front .body{columns:1}}
+@media (max-width:760px){.fund-rows{grid-template-columns:minmax(0,1fr)}.head{grid-template-columns:1fr 1fr}.masthead{grid-column:1/-1;order:-1}.cards{grid-template-columns:minmax(0,1fr)}.grid{grid-template-columns:minmax(0,1fr)}.front .body{columns:1}}
 """
 
 HTML = "text/html; charset=utf-8"
@@ -489,6 +758,7 @@ def render_edition(
     secs = [s for s in ed.get("sections") or [] if isinstance(s, dict)]
     todo_html = render_todos(todos, today, edition=ed["edition"])
     mac_html = render_mac_tasks(ed.get("mac_tasks"))
+    fund_html = render_fund(ed.get("fund"))
     blocks: list[tuple[str, str, str]] = []
     placed = False
     for s in secs:
@@ -516,6 +786,10 @@ def render_edition(
         blocks.insert(0, ("todo", "To-Do", todo_html))
     ti = next(i for i, b in enumerate(blocks) if b[0] == "todo")
     blocks.insert(ti + 1, ("mac", MAC_TASKS_TITLE, mac_html))
+    if fund_html:
+        # Fund watch sits after Business; with no Business section, right after Mac tasks.
+        bi = next((i for i, b in enumerate(blocks) if b[0] == "business"), ti + 1)
+        blocks.insert(bi + 1, ("fund", FUND_TITLE, fund_html))
 
     pills = (
         '<nav class="pills" aria-label="Sections"><a href="#sec-front">Front Page</a>'

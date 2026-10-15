@@ -1,0 +1,26 @@
+# Naka: actions taken (append-only log)
+
+One entry per day, including days with no action. Newest entry is shown in the Daily Brief's Fund watch section.
+Direction is advisory. Nothing here authorizes or triggers a trade.
+
+## Format
+
+Append at the end of the file. Never edit or delete an earlier entry. The heading is exactly
+`## Naka: actions taken — YYYY-MM-DD` (em dash, ET date), followed by the same text as the
+`## Naka: actions taken` section of that day's `investment/brief/YYYY-MM-DD.md`. `none` is a valid entry.
+
+```
+## Naka: actions taken — 2026-01-02
+
+none
+```
+
+Weighting changes read like this (one bullet per change, with the reason):
+
+```
+## Naka: actions taken — 2026-01-03
+
+- No weighting change to X. Reason in one line.
+```
+
+<!-- Entries start below this line. Do not add placeholder entries. -->

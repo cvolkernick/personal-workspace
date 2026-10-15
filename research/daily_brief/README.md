@@ -36,7 +36,8 @@ research/daily_brief/
   redact.py    passes the stored edition through unchanged (internal-only; no money filter)
   render.py    /daily-brief pages + routes (Horizon base palette and type)
   cli.py       publish CLI (also: python3 -m research.daily_brief ...)
-  fixtures/    sample editions + Notion Mac tasks page
+  fund.py, fund_notes.py, fund_status.py   Fund watch block (see below)
+  fixtures/    sample editions + Notion Mac tasks page + Fund watch fixtures
   tests/       unittest; run: python3 -m unittest discover -s research/daily_brief/tests -t .
 financial-command/brief.py   thin shim: same CLI, same store (existing invocations keep working)
 financial-command/server.py  /brief* -> 302 to BRIEF_BASE_URL
@@ -229,6 +230,63 @@ Put the output into the edition JSON as `mac_tasks`. If the fetch fails,
 publish with `page_found: false` (or omit the block); never block the paper on
 Notion. Fixture: `fixtures/notion-mac-tasks-page.md` (structure mirrors the
 live page; text is sample copy, plus a checked and a nested box for coverage).
+
+## Fund watch (#718)
+
+Optional `fund` block in an edition, rendered as the **Fund watch** section right after Business (after Mac tasks
+when there is no Business section). Editions without the block render exactly as before.
+
+Naka writes the content. The Brief never generates news, relevance judgments or direction, never fills in a day he
+has not filed, and shows no up/down reads and no "directed to" text. Everything is context, never a trade signal.
+
+| Part | Source | Missing / stale |
+|---|---|---|
+| Monitored set, pinned vs watch only | `investment/consider_share.json` (symbols it names; only `pins` read "pinned": SPCX, TSLA) | "No monitored symbols" |
+| Developments (~48h, source links), direction, actions taken | Naka's `investment/brief/YYYY-MM-DD.md`, format in `investment/brief/FORMAT.md` | "Naka's fund notes not yet filed for DATE" (never another day's file); date mismatch or bad format says so |
+| Newest actions entry | `investment/naka-actions.md` (append-only) | "No Naka entry on file yet." |
+| Holdings, live weights, drift vs the 50/50 pins | `treasury/snapshots/robinhood_latest.json` (the #518 producer's snapshot on prism), sleeve math = `treasury.fund_manager.analyze_agentic_book` | `no_data` with the snapshot's as_of when older than `automation.rh_stale_warn_hours` (6h) or missing. Weights are percentages only; they are a cost-basis estimate while the snapshot carries no per-position prices |
+| `fund_manager.live`, #1093 open/closed | `investment/fund_manager.json`; GitHub public issue API | "no data" if GitHub is unreachable. Labeled "context only, not permission" |
+| Macro, labeled **Horizon read**, held fixture | Meridian's file (below) | Labeled placeholder; nothing is invented |
+
+The file's text is untrusted (another agent's box): size-capped, control characters removed, always HTML-escaped,
+only http(s) links are linked. The page shows the file's date, `filed_at`, the git commit time (when the checkout
+has history) and the file's modification time on prism.
+
+Publishing run: add `--with-fund` to the publish call. The block is built on prism, from its checkout, at publish time:
+
+```bash
+ssh prism-gateway 'cd ~/personal-workspace && python3 -m research.daily_brief publish - --with-fund' < edition.json
+ssh prism-gateway 'cd ~/personal-workspace && python3 -m research.daily_brief fund-build'   # print the block, write nothing
+python3 -m research.daily_brief fund-check investment/brief/YYYY-MM-DD.md                  # check a notes file
+```
+
+An edition that already carries a `fund` block keeps it. Re-publishing the same date and edition overwrites it, so a
+late file is picked up by re-running publish with `--with-fund`.
+
+### What Meridian supplies (macro)
+
+File `fund-macro.json` (schema `daily_brief_fund_macro_v0`). Lookup order: `DAILY_BRIEF_FUND_MACRO` env path, then
+`<store dir>/fund-macro.json` (`~/.local/share/fcc/brief-editions/fund-macro.json` on prism, alongside the editions),
+then the held empty fixture `research/daily_brief/fixtures/fund-macro.json`. It is snapshotted into each edition.
+
+```json
+{"schema": "daily_brief_fund_macro_v0", "held": true, "as_of": "2026-10-16T06:00:00-04:00",
+ "lines": [
+   {"topic": "btc_crypto", "text": "one line", "link": "https://...", "as_of": "2026-10-16T05:55:00-04:00"},
+   {"topic": "rates_fomc", "text": "", "link": null, "as_of": null},
+   {"topic": "ai_infra",   "text": "", "link": null, "as_of": null}
+ ]}
+```
+
+Topics are exactly `btc_crypto`, `rates_fomc`, `ai_infra`, always shown in that order. `text` is one line (300 characters max).
+Empty text shows "placeholder, no line supplied". `held: true` shows a "held fixture" chip; set `false` once Meridian's
+lines are live.
+
+### How the notes file reaches the page
+
+Naka commits to `work/treasury`; prism's `workspace-sync.timer` fetches `origin/work/treasury` about every 5 minutes
+(5m20s observed) and hard-resets the live checkout, so the file arrives as tracked content. The renderer is in the Horizon
+process: after the merge that adds this section, restart `horizon-dashboard.service` once (see Deploy above).
 
 ## Degrades without Grok
 

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from research.daily_brief.fund import validate_fund
 from research.daily_brief.quotes import quote_for, quote_text
 
 BASE_PATH = "/daily-brief"
@@ -309,6 +310,7 @@ def validate(edition: dict) -> list[str]:
             ):
                 p.append(f"{w0}.notion_url: https URL")
     p.extend(validate_mac_tasks(edition.get("mac_tasks")))
+    p.extend(validate_fund(edition.get("fund")))
     return p
 
 
