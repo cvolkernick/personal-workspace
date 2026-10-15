@@ -629,8 +629,8 @@ def consumer_health(
     if age > window:
         return True, "owner's last message is older than the health window"
     if HARNESS_ERROR_RE.search(str(newest.get("content") or "")):
-        m = re.search(r"code (-?\d+)\)?[^)]*", str(newest.get("content") or ""))
-        code = m.group(0)[:60] if m else "harness error"
+        m = re.search(r"code (-?\d+)\)?:?\s*([^).]{0,60})", str(newest.get("content") or ""))
+        code = f"code {m.group(1)}: {m.group(2).strip()}" if m else "harness error"
         return False, f"{owner} harness replied with an error {age.total_seconds() / 3600:.1f}h ago ({code})"
     return True, "owner's last message is not a harness error"
 
