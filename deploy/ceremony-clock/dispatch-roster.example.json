@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.config/ceremony-clock/dispatch-roster.json on the Pi and fill in. Real identities are never committed.",
+  "_comment": "Copy to ~/.config/ceremony-clock/dispatch-roster.json on the Pi and fill in. Real identities are never committed. claim_authors is optional: when non-empty only [pi-dispatch] started comments by those GitHub logins count as pi-dispatch claims.",
   "workflow_channel_id": "00000000-0000-0000-0000-000000000000",
   "agents": {
     "Forge": {"pubkey": "<64-hex>"},
@@ -7,5 +7,6 @@
     "Nakatoshi": {"pubkey": "<64-hex>"},
     "Cadence": {"pubkey": "<64-hex>"}
   },
-  "staffable": ["Forge", "Frankenfit", "Nakatoshi"]
+  "staffable": ["Forge", "Frankenfit", "Nakatoshi"],
+  "claim_authors": []
 }
