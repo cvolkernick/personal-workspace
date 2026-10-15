@@ -51,6 +51,12 @@ def main(argv: list[str] | None = None) -> int:
         default=SNAPSHOTS_DIR / "treasury_latest.json",
         help="Output path for full evaluation JSON",
     )
+    parser.add_argument(
+        "--dashboard-out",
+        type=Path,
+        default=ROOT / "financial-command" / "treasury_latest.json",
+        help="Output path for the financial-command dashboard copy (tests point this at a tmp dir)",
+    )
     args = parser.parse_args(argv)
 
     cfg = load_config()
@@ -72,8 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     result = out.get("evaluation") or result
     save_json(args.out, out)
     # Also publish to financial-command UI path
-    dash_out = ROOT / "financial-command" / "treasury_latest.json"
-    save_json(dash_out, out)
+    save_json(args.dashboard_out, out)
 
     stress = result["stress"]["overall"]
     n = len(result["actions"])
