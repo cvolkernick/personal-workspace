@@ -4,8 +4,8 @@
 Runs after the Path B eng-gate-sweep kick (``ceremony-clock@eng-gate-sweep``,
 ``ExecStartPost``). Not an LLM. Each run:
 
-1. **Release sweep** - a ``status:in-progress`` claim that pi-dispatch made and
-   that shows no branch, PR or holder comment for ``--stale-hours`` (24h) is
+1. **Release sweep** - a ``status:in-progress`` claim that shows no branch, PR or
+   holder comment for ``--stale-hours`` (24h) is
    returned to ``status:ready`` with a comment naming the previous holder. A dead
    claim therefore cannot hold WIP (#1195).
 2. **Pick** - at most one ``status:ready`` issue, flips it to
@@ -14,15 +14,23 @@ Runs after the Path B eng-gate-sweep kick (``ceremony-clock@eng-gate-sweep``,
 Pick rules (#1195):
 
 * The issue's ``**Worker:**`` line is authoritative. ``Buzz/GrokBuild`` (or any
-  in-chat / direct-handoff / unknown worker) is **not** staffed here. A worker that
+  in-chat / direct-handoff / malformed / unknown worker) is **not** staffed here. A worker that
   names Forge/Frankenfit/Nakatoshi routes to that bot. No Worker line keeps the
   legacy title/label routing.
 * No re-claim within ``--cooldown-hours`` (24h) of a Grok eng-gate re-staff
   comment (``Re-staffed (Grok eng-gate``) or of a pi-dispatch release.
 * WIP is still one issue per owner, but only **live** claims count: a stale
   claim no longer blocks the owner's queue.
-* The kick is posted before the claim is recorded. A rejected kick leaves the
-  issue ``status:ready`` and writes no "started" comment.
+* Claim order (exactly what the code does): add ``status:in-progress``, remove
+  ``status:ready`` (add first, so a failed call can never leave the issue without a
+  status label), send the kick, and only then post ``[pi-dispatch] started``. A
+  rejected or failed kick swaps the labels back (again add first) and posts nothing.
+* A failed release comment is not retried every sweep: the issue gets a local
+  cooldown (``release-cooldowns.json`` in the state dir) for ``--cooldown-hours``.
+* The claim clock starts at the LATEST of the ``started`` marker, the last release
+  comment and the latest ``labeled status:in-progress`` event, so a re-label
+  restarts it.
+* ``Buzz/GrokBuild`` issues are never staffed here (no flag, no roster entry).
 * Consumer health gate: when the owner's newest message in #workflow inside the
   last 24h is the harness error ("I couldn't process the last request ..."), the
   owner is not staffed. The harness that turns a kick into a session is outside
@@ -61,6 +69,8 @@ ALIAS = "eng-gate-sweep"
 REPO = "cvolkernick/personal-workspace"
 API = f"https://api.github.com/repos/{REPO}"
 
+PAGE_SIZE = 100
+MAX_PAGES = 200  # hard stop (20,000 items); exceeding it is an error, never a silent cut-off
 DEFAULT_STALE_HOURS = 24.0
 DEFAULT_COOLDOWN_HOURS = 24.0
 HEALTH_WINDOW_HOURS = 24.0
@@ -91,6 +101,9 @@ FCC_PRODUCT_TITLE = re.compile(r"^\s*\[?\s*FCC\b", re.I)
 FITDASH_TITLE = re.compile(r"^\s*(?:\[\s*fitdash\b[^\]]*\]|fitdash\b)", re.I)
 NAKA_TITLE = re.compile(r"\bnakatoshi\b|\bnaka\b", re.I)
 
+# Fallback for malformed Worker/Owner lines (``Worker - Buzz``, ``**Owner:** Buzz/GrokBuild``,
+# bare ``Worker:``): never fall through to label/title routing.
+LOOSE_WORKER_RE = re.compile(r"^[ \t>*_`#\-]*(?P<key>worker|owner)\b(?P<rest>[^\n]*)$", re.I | re.M)
 WORKER_LINE_RE = re.compile(
     r"^[ \t>]*(?:\*\*)?Worker(?::\*\*|\*\*:|:)[ \t]*(?P<value>.+?)[ \t]*$", re.I | re.M
 )
@@ -103,6 +116,9 @@ IN_CHAT_RE = re.compile(
 
 PRIORITY_RANK = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 DEFAULT_STAFFABLE = ("Forge", "Frankenfit", "Nakatoshi")
+# Buzz/GrokBuild is staffed by a human/Buzz harness, never by pi-dispatch. These names are
+# refused even if a roster lists them.
+NEVER_STAFF = {"grokbuild", "buzz"}
 
 SCHEDULER_ENV = Path.home() / ".config" / "workflow-scheduler.env"
 STATE_DIR = Path(os.environ.get("CEREMONY_STATE_DIR") or Path.home() / ".local" / "state" / "ceremony-clock")
@@ -174,7 +190,6 @@ class Roster:
     channel_id: str
     agents: dict[str, str]  # name -> pubkey
     staffable: tuple[str, ...] = DEFAULT_STAFFABLE
-    grokbuild_pubkey: str | None = None
 
     def pubkey(self, name: str) -> str:
         return self.agents.get(name, "")
@@ -192,13 +207,10 @@ def load_roster(path: Path | None = None) -> Roster:
         raise SystemExit(f"roster missing: {path} (see dispatch-roster.example.json)")
     data = json.loads(path.read_text())
     agents = {str(k): str(v.get("pubkey") if isinstance(v, dict) else v) for k, v in data["agents"].items()}
-    gb = data.get("grokbuild")
-    gb_key = (gb.get("pubkey") if isinstance(gb, dict) else gb) or None
     return Roster(
         channel_id=str(data["workflow_channel_id"]),
         agents=agents,
         staffable=tuple(data.get("staffable") or DEFAULT_STAFFABLE),
-        grokbuild_pubkey=gb_key,
     )
 
 
@@ -207,7 +219,7 @@ def load_roster(path: Path | None = None) -> Roster:
 
 @dataclass
 class Worker:
-    kind: str  # agent | grokbuild | in-chat | unknown | none
+    kind: str  # agent | grokbuild | in-chat | unknown | none  (grokbuild is never staffed)
     name: str | None = None
     raw: str | None = None
 
@@ -217,6 +229,13 @@ def parse_worker(body: str | None) -> Worker:
     body = body or ""
     m = WORKER_LINE_RE.search(body)
     if not m:
+        for loose in LOOSE_WORKER_RE.finditer(body):
+            rest = loose.group("rest").strip()
+            raw = f"{loose.group('key')}{(' ' + rest) if rest else ''}"
+            if "grokbuild" in rest.lower() or re.search(r"\bbuzz\b", rest, re.I):
+                return Worker("grokbuild", raw=raw)
+            if loose.group("key").lower() == "worker":
+                return Worker("unknown", raw=raw)
         return Worker("none")
     raw = m.group("value").strip()
     low = raw.lower()
@@ -275,35 +294,43 @@ def resolve_owner(issue: dict, roster: Roster) -> tuple[str | None, str | None]:
     worker = parse_worker(issue.get("body"))
     if worker.kind == "none":
         legacy = roster.canonical(legacy_owner_name(issue))
-        if legacy and legacy in roster.staffable:
+        if legacy and legacy in roster.staffable and legacy.lower() not in NEVER_STAFF:
             return legacy, None
         return None, f"no Worker line and {legacy_owner_name(issue)} is not in the roster"
     if worker.kind == "grokbuild":
-        if roster.grokbuild_pubkey:
-            return "GrokBuild", None
-        return None, f"Worker: {worker.raw} - not staffed by pi-dispatch"
+        return None, f"Worker: {worker.raw} - Buzz/GrokBuild is never staffed by pi-dispatch"
+    if worker.kind == "unknown":
+        return None, f"Worker: {worker.raw} - malformed Worker line, not staffed by pi-dispatch"
     if worker.kind == "in-chat":
         return None, f"Worker: {worker.raw} - in-chat, not staffed by pi-dispatch"
     canon = roster.canonical(worker.name or "")
-    if canon and canon in roster.staffable:
+    if canon and canon in roster.staffable and canon.lower() not in NEVER_STAFF:
         return canon, None
     return None, f"Worker: {worker.raw} - unknown worker, not staffed by pi-dispatch"
 
 
 def owner_pubkey(roster: Roster, owner: str) -> str:
-    if owner == "GrokBuild":
-        return roster.grokbuild_pubkey or ""
     return roster.pubkey(owner)
 
 
 # ── GitHub client ────────────────────────────────────────────────────────────
 
 
+def next_link(header: str | None) -> str | None:
+    """URL of ``rel="next"`` from a GitHub ``Link`` header, if any."""
+    for part in (header or "").split(","):
+        m = re.match(r'\s*<([^>]+)>\s*;\s*rel="?next"?', part)
+        if m:
+            return m.group(1)
+    return None
+
+
 class GitHub:
     def __init__(self, token: str):
         self.token = token
 
-    def call(self, method: str, path: str, body: dict | None = None) -> object:
+    def _request(self, method: str, path: str, body: dict | None = None) -> tuple[object, dict]:
+        """One HTTP call. Returns (parsed JSON, response headers with lower-case keys)."""
         url = path if path.startswith("https://") else f"{API}{path}"
         data = None if body is None else json.dumps(body).encode("utf-8")
         req = urllib.request.Request(
@@ -322,32 +349,49 @@ class GitHub:
         try:
             with urllib.request.urlopen(req, timeout=20) as resp:
                 raw = resp.read().decode("utf-8")
-                return json.loads(raw) if raw else {}
+                headers = {k.lower(): v for k, v in resp.headers.items()}
+                return (json.loads(raw) if raw else {}), headers
         except urllib.error.HTTPError as e:
             err = e.read().decode("utf-8", errors="replace")[:400]
             raise RuntimeError(f"GitHub HTTP {e.code} {method} {path}: {err}") from e
 
+    def call(self, method: str, path: str, body: dict | None = None) -> object:
+        return self._request(method, path, body)[0]
+
+    def paginate(self, path: str, *, max_pages: int = MAX_PAGES) -> list:
+        """Every item of a list endpoint: follow ``Link rel=next``; when the response has no
+        Link header at all, keep requesting the next page while pages come back full.
+        Exceeding ``max_pages`` raises (callers treat an error as "do not release")."""
+        sep = "&" if "?" in path else "?"
+        base = f"{path}{sep}per_page={PAGE_SIZE}"
+        url = base
+        out: list = []
+        for _ in range(max_pages):
+            data, headers = self._request("GET", url)
+            if not isinstance(data, list):
+                raise RuntimeError(f"expected a list from GET {path}, got {type(data).__name__}")
+            out.extend(data)
+            nxt = next_link(headers.get("link"))
+            if nxt:
+                url = nxt
+            elif "link" not in headers and len(data) >= PAGE_SIZE:
+                m = re.search(r"[?&]page=(\d+)", url)
+                page = (int(m.group(1)) if m else 1) + 1
+                url = f"{base}&page={page}"
+            else:
+                return out
+        raise RuntimeError(f"pagination for {path} exceeded {max_pages} pages")
+
     def list_labeled(self, label: str) -> list[dict]:
-        q = urllib.parse.urlencode({"state": "open", "labels": label, "per_page": 100})
-        data = self.call("GET", f"/issues?{q}")
-        if not isinstance(data, list):
-            raise RuntimeError(f"expected list for {label}, got {type(data)}")
+        q = urllib.parse.urlencode({"state": "open", "labels": label})
+        data = self.paginate(f"/issues?{q}")
         return [i for i in data if "pull_request" not in i]  # PRs share /issues
 
     def comments(self, number: int) -> list[dict]:
-        out: list[dict] = []
-        for page in range(1, 6):
-            data = self.call("GET", f"/issues/{number}/comments?per_page=100&page={page}")
-            if not isinstance(data, list) or not data:
-                break
-            out.extend(data)
-            if len(data) < 100:
-                break
-        return out
+        return self.paginate(f"/issues/{number}/comments")
 
     def label_events(self, number: int) -> list[dict]:
-        data = self.call("GET", f"/issues/{number}/events?per_page=100")
-        return data if isinstance(data, list) else []
+        return self.paginate(f"/issues/{number}/events")
 
     def related_prs(self, number: int) -> list[dict]:
         q = urllib.parse.quote(f"repo:{REPO} type:pr {number} in:title,body")
@@ -357,15 +401,8 @@ class GitHub:
         return [p for p in items if pat.search(f"{p.get('title') or ''}\n{p.get('body') or ''}")]
 
     def branches(self) -> list[str]:
-        names: list[str] = []
-        for page in range(1, 6):
-            data = self.call("GET", f"/branches?per_page=100&page={page}")
-            if not isinstance(data, list) or not data:
-                break
-            names.extend(str(b.get("name")) for b in data)
-            if len(data) < 100:
-                break
-        return names
+        """All branch names (the repo has 500+; one page of 100 is never enough)."""
+        return [str(b.get("name")) for b in self.paginate("/branches")]
 
     def branch_commit_time(self, name: str) -> datetime | None:
         data = self.call("GET", f"/branches/{urllib.parse.quote(name, safe='')}")
@@ -374,14 +411,50 @@ class GitHub:
             return parse_ts((commit.get("committer") or {}).get("date"))
         return None
 
+    def remove_label(self, number: int, label: str) -> None:
+        self.call("DELETE", f"/issues/{number}/labels/{urllib.parse.quote(label, safe='')}")
+
     def set_status(self, number: int, *, remove: str, add: str) -> None:
-        encoded = urllib.parse.quote(remove, safe="")
-        self.call("DELETE", f"/issues/{number}/labels/{encoded}")
+        """Swap status labels, add first. If the add fails nothing changed and the old label
+        stays; if only the remove fails the issue briefly carries both (raises), never none."""
         self.call("POST", f"/issues/{number}/labels", {"labels": [add]})
+        self.remove_label(number, remove)
 
     def comment(self, number: int, body: str) -> dict:
         data = self.call("POST", f"/issues/{number}/comments", {"body": body})
         return data if isinstance(data, dict) else {}
+
+
+class CooldownStore:
+    """Local per-issue cooldowns that survive between sweeps (``release-cooldowns.json``).
+
+    Used when a release comment fails: without the comment there is no on-issue marker, so
+    the issue would be re-staffed on the very next sweep."""
+
+    def __init__(self, path: Path | None = None):
+        self.path = path or STATE_DIR / "release-cooldowns.json"
+
+    def _load(self) -> dict[str, str]:
+        try:
+            data = json.loads(self.path.read_text())
+            return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def until(self, number: int) -> datetime | None:
+        return parse_ts(self._load().get(str(number)))
+
+    def set(self, number: int, until: datetime) -> bool:
+        data = self._load()
+        data[str(number)] = until.strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(timezone.utc)
+        data = {k: v for k, v in data.items() if (parse_ts(v) or now) > now - timedelta(days=7)}
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(data, indent=2) + "\n")
+            return True
+        except OSError:
+            return False
 
 
 # ── claim assessment ─────────────────────────────────────────────────────────
@@ -406,6 +479,49 @@ def latest_claim_marker(comments: list[dict]) -> tuple[dict | None, str | None]:
         if m:
             found, holder = c, m.group("owner").strip()
     return found, holder
+
+
+def latest_release_comment(comments: list[dict]) -> datetime | None:
+    best: datetime | None = None
+    for c in comments:
+        if str(c.get("body") or "").lstrip().startswith(RELEASE_MARK):
+            ts = parse_ts(c.get("created_at"))
+            if ts and (best is None or ts > best):
+                best = ts
+    return best
+
+
+def latest_claim_label(events: list[dict]) -> datetime | None:
+    """Newest ``labeled status:in-progress`` event (a re-label counts as a new claim)."""
+    best: datetime | None = None
+    for ev in events:
+        if ev.get("event") == "labeled" and (ev.get("label") or {}).get("name") == "status:in-progress":
+            ts = parse_ts(ev.get("created_at"))
+            if ts and (best is None or ts > best):
+                best = ts
+    return best
+
+
+# pi-dispatch posts its marker seconds after it flips the label; allow this much slack
+# before a newer label event is treated as a different claim than the marker's.
+MARKER_SLACK = timedelta(minutes=10)
+
+
+def claim_start(
+    comments: list[dict], events: list[dict], issue: dict, now: datetime
+) -> tuple[datetime, str | None]:
+    """(start of the current claim, holder named by its marker or None).
+
+    The start is the LATEST of the ``started`` marker, the last release comment and the
+    latest ``labeled status:in-progress`` event, so re-labelling an issue restarts the
+    clock instead of inheriting the age of an old marker."""
+    marker, holder = latest_claim_marker(comments)
+    marker_ts = parse_ts(marker.get("created_at")) if marker else None
+    times = [t for t in (marker_ts, latest_release_comment(comments), latest_claim_label(events)) if t]
+    start = max(times) if times else (parse_ts(issue.get("updated_at")) or now)
+    if holder and marker_ts and start - marker_ts > MARKER_SLACK:
+        holder = None  # re-claimed later by someone else; the old marker names a previous holder
+    return start, holder
 
 
 def holder_activity(comments: list[dict], since: datetime) -> datetime | None:
@@ -435,17 +551,19 @@ def assess_claim(
     branch_cache: dict,
 ) -> Claim:
     n = int(issue["number"])
-    comments = gh.comments(n)
-    marker, holder = latest_claim_marker(comments)
-    claimed_at = parse_ts(marker.get("created_at")) if marker else None
-    if claimed_at is None:
-        for ev in gh.label_events(n):
-            if ev.get("event") == "labeled" and (ev.get("label") or {}).get("name") == "status:in-progress":
-                ts = parse_ts(ev.get("created_at"))
-                if ts and (claimed_at is None or ts > claimed_at):
-                    claimed_at = ts
-    claimed_at = claimed_at or parse_ts(issue.get("updated_at")) or now
     owner, _ = resolve_owner(issue, roster)
+    try:
+        comments = gh.comments(n)
+        events = gh.label_events(n)
+    except Exception as e:  # fail safe: never release on an API error
+        return Claim(
+            number=n,
+            holder=None,
+            claimed_at=now,
+            owner_for_wip=owner or legacy_owner_name(issue),
+            reason=f"live: could not read claim history ({e})"[:200],
+        )
+    claimed_at, holder = claim_start(comments, events, issue, now)
     claim = Claim(
         number=n,
         holder=holder,
@@ -674,8 +792,10 @@ def run_dispatch(
     now: datetime | None = None,
     send: Callable[..., dict] | None = None,
     health: Callable[[str], tuple[bool, str]] | None = None,
+    cooldowns: CooldownStore | None = None,
 ) -> dict:
     now = now or datetime.now(timezone.utc)
+    cooldowns = cooldowns or CooldownStore()
     generated_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     stale_after = timedelta(hours=opts.stale_hours)
     cooldown = timedelta(hours=opts.cooldown_hours)
@@ -694,24 +814,56 @@ def run_dispatch(
         if only and c.number not in only:
             continue
         entry = {"issue": c.number, "holder": c.holder or c.owner_for_wip, "reason": c.reason}
-        if not opts.dry_run:
-            gh.set_status(c.number, remove="status:in-progress", add="status:ready")
-            gh.comment(c.number, release_comment(c, opts.stale_hours, opts.cooldown_hours))
-        entry["released"] = not opts.dry_run
         released.append(entry)
+        if opts.dry_run:
+            entry["released"] = False
+            continue
+        try:  # add ready first, then remove in-progress
+            gh.set_status(c.number, remove="status:in-progress", add="status:ready")
+        except Exception as e:
+            entry.update({"released": False, "error": f"label swap failed: {type(e).__name__}"})
+            continue
+        entry["released"] = True
+        try:
+            gh.comment(c.number, release_comment(c, opts.stale_hours, opts.cooldown_hours))
+        except Exception as e:
+            # No on-issue release marker now, so remember the cooldown locally; otherwise the
+            # issue would be re-staffed on the very next sweep.
+            until = now + cooldown
+            entry.update({"comment_failed": f"{type(e).__name__}", "cooldown_until": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                          "cooldown_saved": cooldowns.set(c.number, until)})
 
     live = [c for c in claims if c.state == "live"]
     busy_owners = {c.owner_for_wip for c in live}
     stale_nums = {c.number for c in claims if c.state == "stale"}
+    in_progress_nums = {int(i["number"]) for i in in_progress}
+
+    # A swap that failed half-way can leave an issue with both status labels. It is a claim
+    # (in-progress wins): never pick it, and drop the leftover ready label.
+    healed: list[int] = []
+    for i in ready:
+        n = int(i["number"])
+        if n in in_progress_nums and n not in stale_nums and not opts.dry_run and (not only or n in only):
+            try:
+                gh.remove_label(n, "status:ready")
+                healed.append(n)
+            except Exception:
+                pass
 
     # 2. pick.
-    pool = [i for i in ready if not only or int(i["number"]) in only]
+    pool = [
+        i for i in ready
+        if int(i["number"]) not in in_progress_nums and (not only or int(i["number"]) in only)
+    ]
     comment_cache: dict[int, list[dict]] = {}
     health_cache: dict[str, tuple[bool, str]] = {}
     health_fn = health or (lambda o: consumer_health(o, roster, now))
 
     def blocked(issue: dict, owner: str) -> str | None:
         n = int(issue["number"])
+        until = cooldowns.until(n)
+        if until and until > now:
+            return f"release comment failed earlier; local cooldown until {until.strftime('%Y-%m-%dT%H:%M:%SZ')}"
         comment_cache[n] = comment_cache.get(n) or gh.comments(n)
         why = claim_block_reason(comment_cache[n], now, cooldown)
         if why:
@@ -733,6 +885,7 @@ def run_dispatch(
         "stale_claims": sorted(f"#{n}" for n in stale_nums),
         "busy_owners": sorted(busy_owners),
         "released": released,
+        "healed_dual_labels": healed,
         "skip_note": skip_note,
         "generated_at": generated_at,
         "dry_run": bool(opts.dry_run),
@@ -749,8 +902,27 @@ def run_dispatch(
         result["content_preview"] = content
         return result
 
-    # 3. claim: flip, kick, record. A rejected kick rolls the label back.
-    gh.set_status(number, remove="status:ready", add="status:in-progress")
+    # 3. claim: add in-progress, remove ready, kick, then record. A rejected or failed kick
+    #    swaps the labels back (add first again) and posts nothing.
+    try:
+        gh.set_status(number, remove="status:ready", add="status:in-progress")
+    except Exception as e:
+        # Add-first: if the add failed nothing changed; if only the remove failed, undo the add.
+        try:
+            gh.remove_label(number, "status:in-progress")
+        except Exception:
+            pass
+        result.update({"labels_flipped": False, "channel_accepted": False,
+                       "error": f"label swap failed, no kick sent: {type(e).__name__}"})
+        return result
+
+    def roll_back(why: str) -> None:
+        result.update({"labels_flipped": False, "channel_accepted": False, "error": why})
+        try:
+            gh.set_status(number, remove="status:in-progress", add="status:ready")
+        except Exception as e:
+            result["rollback_failed"] = type(e).__name__  # claim stays; the 24h release will clear it
+
     try:
         sender = send
         if sender is None:
@@ -761,22 +933,22 @@ def run_dispatch(
                       extra_tags=[t for t in extra if t[1]])
         accepted = bool(kick.get("accepted"))
     except BaseException as e:
-        gh.set_status(number, remove="status:in-progress", add="status:ready")
-        result.update({"labels_flipped": False, "channel_accepted": False,
-                       "error": f"kick failed, label rolled back: {type(e).__name__}"})
+        roll_back(f"kick failed, label rolled back: {type(e).__name__}")
         return result
     if not accepted:
-        gh.set_status(number, remove="status:in-progress", add="status:ready")
-        result.update({"labels_flipped": False, "channel_accepted": False,
-                       "error": "kick not accepted, label rolled back"})
+        roll_back("kick not accepted, label rolled back")
         return result
-    comment = gh.comment(
-        number,
-        f"{CLAIM_MARK} \u2014 staffed to {owner} in #workflow. WIP=1. Do not self-merge.",
-    )
-    result.update({"labels_flipped": True, "comment_id": comment.get("id"),
-                   "channel_accepted": True,
+    result.update({"labels_flipped": True, "channel_accepted": True,
                    "event_id": kick.get("id") or kick.get("event_id")})
+    try:
+        comment = gh.comment(
+            number,
+            f"{CLAIM_MARK} \u2014 staffed to {owner} in #workflow. WIP=1. Do not self-merge.",
+        )
+        result["comment_id"] = comment.get("id")
+    except Exception as e:
+        # The kick is out, so the claim stands. The labeled event starts the 24h clock.
+        result["claim_comment_failed"] = type(e).__name__
     return result
 
 

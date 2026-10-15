@@ -9,8 +9,12 @@ unchanged and stay Pi-local; they carry relay workflow ids and are not in this r
 ## What a pass does
 
 1. **Release sweep.** A `status:in-progress` claim with no branch, PR, or holder comment
-   for 24h goes back to `status:ready` with a `[pi-dispatch] released ...` comment that
-   names the previous holder. Grok eng-gate bookkeeping comments (`Status check`,
+   for 24h goes back to `status:ready` (new label added first, then the old one removed)
+   with a `[pi-dispatch] released ...` comment that names the previous holder. The 24h
+   clock starts at the **latest** of the `[pi-dispatch] started` marker, the last release
+   comment and the latest `labeled status:in-progress` event, so re-labelling an issue
+   restarts it. Branches, comments and label events are read with full pagination (the
+   repo has 500+ branches); a pagination or API error means *no release*. Grok eng-gate bookkeeping comments (`Status check`,
    `Deadline check`, `Re-staffed (Grok eng-gate ...`) are not holder activity, except that
    one saying ``label stays `status:in-progress` `` (or `pi-dispatch:keep`) renews the
    24h clock. An open PR that mentions `#N` keeps the claim live. Any API error while
@@ -23,12 +27,15 @@ unchanged and stay Pi-local; they carry relay workflow ids and are not in this r
 
 | Rule | Behaviour |
 |------|-----------|
-| `**Worker:**` line | Authoritative. `Buzz/GrokBuild`, in-chat, direct handoff, human, or an unknown name: **not staffed** here. `Forge`, `Frankenfit`, `Nakatoshi`: routed to that bot. No Worker line: legacy label/title routing. |
+| `**Worker:**` line | Authoritative. `Buzz/GrokBuild`, in-chat, direct handoff, human, a malformed Worker line, or an unknown name: **not staffed** here. `Forge`, `Frankenfit`, `Nakatoshi`: routed to that bot. No Worker line: legacy label/title routing. |
+| Buzz/GrokBuild | **Never staffed by pi-dispatch.** There is no flag and no roster entry for it; a roster that lists `GrokBuild`/`Buzz` is ignored. |
 | Body says `Do not let pi-dispatch staff this one` | Never staffed. |
 | Re-staff cooldown | No claim within 24h of a comment containing `Re-staffed (Grok eng-gate`, or of a pi-dispatch release. |
 | Repeat releases | After 2 releases with no work the issue needs human re-triage. |
 | Consumer health | If the owner's newest #workflow message in the last 24h is the harness error (`I couldn't process the last request ...`), the owner is not staffed. Fails open if the relay cannot be read. |
-| Claim order | Flip label, send the kick, then post `[pi-dispatch] started ...`. A rejected kick rolls the label back and posts nothing. |
+| Claim order | 1. add `status:in-progress`, 2. remove `status:ready` (add first, so a failed call never leaves the issue without a status label; if only the remove fails the add is undone and nothing is sent), 3. send the kick to #workflow, 4. post `[pi-dispatch] started ...`. A rejected or failed kick swaps the labels back (add first again) and posts nothing. If the `started` comment itself fails the claim stands (the kick is out); the `labeled` event starts the 24h clock. |
+| Failed release comment | The labels are already swapped, so the issue gets a local 24h cooldown (`release-cooldowns.json` in the state dir) and is not re-staffed every sweep. |
+| Half-failed swap | An issue that ends up with both `status:ready` and `status:in-progress` is treated as a claim, never picked, and loses the leftover `status:ready`. |
 
 Skipped: `process`, `human-only`, `idea`, `parked`, `capital-parked`, dangerous-path
 titles, and the numbered holds in `SKIP_ISSUES`.
@@ -66,7 +73,7 @@ python3 ceremony_eng_gate_dispatch.py eng-gate-sweep --dry-run
 
 Flags: `--stale-hours 24`, `--cooldown-hours 24`, `--no-health-check`,
 `--only N[,N]` (limit the sweep and pick to those issues, for proofs).
-Env: `CEREMONY_DISPATCH_ROSTER`, `CEREMONY_STATE_DIR`.
+Env: `CEREMONY_DISPATCH_ROSTER`, `CEREMONY_STATE_DIR` (lock, last-dispatch, release cooldowns).
 
 ## Tests
 

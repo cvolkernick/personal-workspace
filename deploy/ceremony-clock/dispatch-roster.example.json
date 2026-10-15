@@ -7,6 +7,5 @@
     "Nakatoshi": {"pubkey": "<64-hex>"},
     "Cadence": {"pubkey": "<64-hex>"}
   },
-  "staffable": ["Forge", "Frankenfit", "Nakatoshi"],
-  "grokbuild": null
+  "staffable": ["Forge", "Frankenfit", "Nakatoshi"]
 }
