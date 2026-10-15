@@ -174,16 +174,27 @@ Enforced in code, not just prompts:
 | LLM run | `fund_manager_daily.sh`, `fund_manager_bp_poll.sh` | `grok --yolo` runs with `--deny MCPTool(robinhood-trading__place_*)` and friends (`grok_deny_args()`); deny rules still apply under `--yolo`. The LLM writes buy intents to `treasury/snapshots/fund_manager_intents.json`; the gate validates and submits. `cancel_*` stays allowed. No deny list => grok is not run. |
 | CI | `treasury/tests/test_fund_manager_order_gate.py` | Fails if a `grok --yolo` call lacks the deny list, or order-building code appears outside the gate. |
 
-**Sell override** (the only way a sell can ever pass): `investment/fund_manager_sell_override.json`, written by Chris:
+**Sell override** (the only way a sell can ever pass): `investment/fund_manager_sell_override.json`, **committed by Chris**:
 
 ```json
-{"approver": "Chris", "symbols": ["MARA"], "max_qty": 1.0, "max_notional_usd": 50.0,
- "reason": "why", "approved_at": "2026-10-16T14:00:00Z", "expires_at": "2026-10-17T01:00:00Z"}
+{"overrides": [{"id": "2026-10-16-mara-risk-exit", "approver": "Chris", "symbols": ["MARA"],
+  "max_qty": 1.0, "max_notional_usd": 50.0, "reason": "why",
+  "approved_at": "2026-10-16T14:00:00Z", "expires_at": "2026-10-17T01:00:00Z"}],
+ "total_max_notional_usd": 50.0}
 ```
 
-`expires_at` must be timezone-aware, in the future and <= 24h out. Missing/expired/malformed => block. Covers non-rebalance
-purposes only (`risk_exit`, `stop_loss`, `tax`, `withdrawal`, `chairman_manual`); shorts, options, crypto sells and anything
-worded as a rebalance are never overridable.
+* **Authenticated by git.** The gate honors the file only if it is tracked, clean in the working tree, byte-identical to the blob at
+  git HEAD, and the last commit that touched it was **authored by Chris** (`cvolkern@gmail.com`; committer Chris or GitHub web).
+  Untracked, staged-only, edited-after-commit, wrong-author, or not-a-git-repo => rejected (fail closed). Optional extra:
+  `FM_OVERRIDE_TRUSTED_REF=origin/work/treasury` additionally requires the commit to be already pushed to that ref.
+* **Spend is cumulative.** Each override `id` (required, unique; never reuse one) has `max_qty` / `max_notional_usd` that apply across
+  ALL runs; spend is persisted in `treasury/snapshots/fund_manager_override_spend.json` (flock + atomic replace, charged before any
+  submit; a dry run never charges; a corrupt ledger blocks every override sell). A **total** notional ceiling across all overrides in any
+  rolling 24h window applies: min(`DEFAULT_TOTAL_CAP_USD`=100 in code, `total_max_notional_usd`, `guardrails.sell_override_total_cap_usd`).
+  Config and the file can only lower it. A bare single-override object (with `id`) is also accepted.
+* `expires_at` must be timezone-aware, in the future and <= 24h out. Covers non-rebalance purposes only (`risk_exit`, `stop_loss`,
+  `tax`, `withdrawal`, `chairman_manual`); shorts, options, crypto sells and anything worded as a rebalance are never overridable.
+* `rh_snapshot_sync.py` (the read-only snapshot refresh) also runs `grok --yolo` with the same deny list from `grok_deny_args()`.
 
 **Broker adapter:** no Robinhood submit code ships here. Approved orders go to the callable named by `FM_BROKER_ADAPTER=module:callable`
 (takes a `GatedOrder`). With none configured, the gate logs `not_submitted_no_broker_adapter` and places nothing.

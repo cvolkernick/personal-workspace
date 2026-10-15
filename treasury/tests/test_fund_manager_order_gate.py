@@ -33,6 +33,7 @@ def _iso(dt: datetime) -> str:
 
 def good_override(**kw):
     o = {
+        "id": "ovr-1",
         "approver": "Chris",
         "symbols": ["MARA"],
         "max_qty": 1.0,
@@ -43,6 +44,17 @@ def good_override(**kw):
     }
     o.update(kw)
     return o
+
+
+def authed(ov=None, **kw):
+    """An AuthedOverride WITHOUT git (unit tests of caps/expiry). The git
+    authentication itself is covered by TestOverrideAuthentication."""
+    return gate._mint_authed_override(good_override() if ov is None else ov, **kw)
+
+
+def led(**used):
+    """In-memory spend ledger (never touches disk)."""
+    return gate.SpendLedger(Path("/nonexistent/spend.json"), persist=False)
 
 
 def pol(live=False, allowed=("buy",), blocked=("BE",), guard=True):
@@ -114,8 +126,8 @@ class TestSellToRebalanceBlocked(unittest.TestCase):
             {"symbol": "MARA", "side": "sell", "quantity": 0.5, "purpose": "tidy up drift"},
         ]
         for c in cases:
-            for ov in (None, good_override(symbols=["MARA", "TSLA"])):
-                v = gate.evaluate_intent(c, policy=pol(), override=ov, now=NOW)
+            for ov in (None, authed(good_override(symbols=["MARA", "TSLA"]))):
+                v = gate.evaluate_intent(c, policy=pol(), override=ov, now=NOW, ledger=led())
                 self.assertFalse(v.allowed, c)
                 self.assertEqual(v.code, gate.R_REBALANCE_SELL, c)
                 self.assertEqual(v.status, "blocked_no_sell_guard")
@@ -132,7 +144,7 @@ class TestSellToRebalanceBlocked(unittest.TestCase):
             sell(sym="BTC", asset_class="crypto"),
         ]
         for c in cases:
-            v = gate.evaluate_intent(c, policy=pol(), override=good_override(symbols=["MARA", "BTC"]), now=NOW)
+            v = gate.evaluate_intent(c, policy=pol(), override=authed(good_override(symbols=["MARA", "BTC"])), now=NOW, ledger=led())
             self.assertFalse(v.allowed, c)
 
 
@@ -145,7 +157,7 @@ class TestAllowedNonRebalanceSell(unittest.TestCase):
         self.assertEqual(v.code, gate.R_SELL_NO_OVERRIDE)
 
     def test_valid_override_allows_exactly_that_sell(self):
-        v = gate.evaluate_intent(sell(), policy=pol(), override=good_override(), now=NOW)
+        v = gate.evaluate_intent(sell(), policy=pol(), override=authed(), now=NOW, ledger=led())
         self.assertTrue(v.allowed, v)
         self.assertTrue(v.override_used)
 
@@ -161,25 +173,39 @@ class TestAllowedNonRebalanceSell(unittest.TestCase):
             "no_reason": good_override(reason=""),
             "no_caps": {k: v for k, v in good_override().items() if k not in ("max_qty", "max_notional_usd")},
             "empty_symbols": good_override(symbols=[]),
+            "no_id": {k: v for k, v in good_override().items() if k != "id"},
             "not_a_dict": ["Chris"],
         }
         for name, ov in bad.items():
-            v = gate.evaluate_intent(sell(), policy=pol(), override=ov, now=NOW)
+            wrapped = authed(ov) if isinstance(ov, dict) else ov
+            v = gate.evaluate_intent(sell(), policy=pol(), override=wrapped, now=NOW, ledger=led())
             self.assertFalse(v.allowed, name)
 
+    def test_plain_dict_override_never_authorises_a_sell(self):
+        # the old "type approver: Chris into a JSON file" path: a raw dict is not authenticated
+        v = gate.evaluate_intent(sell(), policy=pol(), override=good_override(), now=NOW, ledger=led())
+        self.assertFalse(v.allowed)
+        self.assertEqual(v.code, gate.R_OVERRIDE_UNAUTH)
+        with self.assertRaises(TypeError):
+            gate.AuthedOverride([good_override()], 100.0, "x")
+
     def test_different_symbol_or_larger_qty_or_notional_rejected(self):
-        ov = good_override()
-        self.assertFalse(gate.evaluate_intent(sell(sym="TSLA"), policy=pol(), override=ov, now=NOW).allowed)
-        self.assertFalse(gate.evaluate_intent(sell(quantity=1.01), policy=pol(), override=ov, now=NOW).allowed)
-        self.assertFalse(gate.evaluate_intent(sell(notional_usd=50.01), policy=pol(), override=ov, now=NOW).allowed)
+        ov = authed()
+
+        def ev(i):
+            return gate.evaluate_intent(i, policy=pol(), override=ov, now=NOW, ledger=led())
+
+        self.assertFalse(ev(sell(sym="TSLA")).allowed)
+        self.assertFalse(ev(sell(quantity=1.01)).allowed)
+        self.assertFalse(ev(sell(notional_usd=50.01)).allowed)
         # qty cap present but intent carries no qty: cannot verify => blocked
         no_qty = {"symbol": "MARA", "side": "sell", "notional_usd": 10.0, "purpose": "risk_exit"}
-        self.assertFalse(gate.evaluate_intent(no_qty, policy=pol(), override=ov, now=NOW).allowed)
+        self.assertFalse(ev(no_qty).allowed)
 
     def test_batch_budget_counts_all_sells_against_override(self):
         res = gate.gate_orders(
             [sell(quantity=0.6, notional_usd=10), sell(quantity=0.6, notional_usd=10)],
-            deployable_cash=0.0, policy=pol(), override=good_override(), now=NOW,
+            deployable_cash=0.0, policy=pol(), override=authed(), now=NOW, ledger=led(),
         )
         self.assertEqual(len(res.allowed), 1)
         self.assertEqual(len(res.blocked), 1)
@@ -192,6 +218,372 @@ class TestAllowedNonRebalanceSell(unittest.TestCase):
             data, err = gate.load_override(bad)
             self.assertIsNone(data)
             self.assertTrue(err)
+
+
+CHRIS = ("Chris Volkernick", "cvolkern@gmail.com")
+BOT = ("GrokBot-BTC", "GrokBot-BTC@users.noreply.github.com")
+GITHUB = ("GitHub", "noreply@github.com")
+
+
+class GitRepoCase(unittest.TestCase):
+    """Real throwaway git repos: override authentication is tested against git itself."""
+
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self.addCleanup(self._td.cleanup)
+        self.repo = Path(self._td.name) / "repo"
+        self.repo.mkdir()
+        self.git("init", "-q")
+        self.git("config", "commit.gpgsign", "false")
+        (self.repo / "README.md").write_text("x\n")
+        self.commit("README.md", author=CHRIS, msg="init")
+        (self.repo / "investment").mkdir()
+        self.ov = self.repo / "investment" / "fund_manager_sell_override.json"
+        self.ledger = Path(self._td.name) / "spend.json"
+        self.env = mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}, clear=True)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+
+    def git(self, *args, env=None):
+        import subprocess
+
+        e = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        e.update(env or {})
+        r = subprocess.run(["git", "-C", str(self.repo), *args], capture_output=True, text=True, env=e)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout.strip()
+
+    def commit(self, rel, *, author=CHRIS, committer=None, msg="c"):
+        committer = committer or author
+        self.git("add", "--", rel)
+        self.git(
+            "commit", "-q", "-m", msg,
+            env={
+                "GIT_AUTHOR_NAME": author[0], "GIT_AUTHOR_EMAIL": author[1],
+                "GIT_COMMITTER_NAME": committer[0], "GIT_COMMITTER_EMAIL": committer[1],
+            },
+        )
+
+    def write_override(self, data=None):
+        self.ov.write_text(json.dumps(data if data is not None else live_override()), encoding="utf-8")
+
+    def load(self, policy=None):
+        return gate.load_override(self.ov, repo_root=self.repo, policy=policy)
+
+
+def live_override(**kw):
+    """Override valid at the REAL current time (the CLI path uses the wall clock)."""
+    now = datetime.now(timezone.utc)
+    o = good_override(
+        approved_at=_iso(now - timedelta(minutes=5)), expires_at=_iso(now + timedelta(hours=6))
+    )
+    o.update(kw)
+    return o
+
+
+class TestOverrideAuthentication(GitRepoCase):
+    def assertRejected(self, needle):
+        ov, err = self.load()
+        self.assertIsNone(ov)
+        self.assertIn(needle, err)
+
+    def test_missing_file_is_simply_no_override(self):
+        self.assertEqual(self.load(), (None, ""))
+
+    def test_uncommitted_file_is_rejected(self):
+        self.write_override()  # untracked
+        self.assertRejected("not committed")
+
+    def test_staged_but_uncommitted_file_is_rejected(self):
+        self.write_override()
+        self.git("add", "--", "investment/fund_manager_sell_override.json")
+        self.assertRejected("uncommitted changes")
+
+    def test_modified_after_commit_is_rejected(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        self.assertIsNotNone(self.load()[0])
+        # LLM/anything raises the cap in the working tree after Chris committed
+        self.write_override(live_override(max_notional_usd=5000.0))
+        self.assertRejected("uncommitted changes")
+
+    def test_modified_but_hidden_from_status_is_still_rejected(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        self.git("update-index", "--assume-unchanged", "investment/fund_manager_sell_override.json")
+        self.write_override(live_override(max_notional_usd=5000.0))
+        self.assertRejected("differs from git HEAD")
+
+    def test_wrong_author_is_rejected(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=BOT)
+        self.assertRejected("author is not Chris")
+
+    def test_chris_author_with_untrusted_committer_is_rejected(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS, committer=BOT)
+        self.assertRejected("committer")
+
+    def test_chris_commit_via_github_web_is_accepted(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS, committer=GITHUB)
+        ov, err = self.load()
+        self.assertEqual(err, "")
+        self.assertIsInstance(ov, gate.AuthedOverride)
+
+    def test_not_a_git_repo_fails_closed(self):
+        loose = Path(self._td.name) / "loose"
+        loose.mkdir()
+        f = loose / "o.json"
+        f.write_text(json.dumps(live_override()))
+        ov, err = gate.load_override(f, repo_root=loose)
+        self.assertIsNone(ov)
+        self.assertIn("not a git repository", err)
+
+    def test_valid_committed_override_loads(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        ov, err = self.load()
+        self.assertEqual(err, "")
+        self.assertEqual(ov.overrides[0]["id"], "ovr-1")
+        self.assertEqual(ov.total_cap_usd, gate.DEFAULT_TOTAL_CAP_USD)
+        self.assertEqual(len(ov.commit), 40)
+
+    def test_committed_but_malformed_json_is_rejected(self):
+        self.ov.write_text("{oops")
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        self.assertRejected("malformed")
+
+    def test_last_commit_touching_file_decides_not_head(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        (self.repo / "other.txt").write_text("bot change\n")
+        self.commit("other.txt", author=BOT)  # HEAD is a bot commit, file untouched
+        self.assertIsNotNone(self.load()[0])
+        self.write_override(live_override(max_notional_usd=60.0))
+        self.commit("investment/fund_manager_sell_override.json", author=BOT)  # bot re-commits it
+        self.assertRejected("author is not Chris")
+
+    def test_trusted_ref_requires_commit_to_be_pushed(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        head = self.git("rev-parse", "HEAD")
+        self.git("branch", "pushed", "HEAD~1")  # a ref that does NOT contain the override commit
+        with mock.patch.dict(os.environ, {gate.OVERRIDE_TRUSTED_REF_ENV: "pushed"}):
+            self.assertRejected("not contained")
+        self.git("branch", "pushed2", head)
+        with mock.patch.dict(os.environ, {gate.OVERRIDE_TRUSTED_REF_ENV: "pushed2"}):
+            self.assertIsNotNone(self.load()[0])
+
+    def test_total_cap_in_file_and_policy_can_only_lower_ceiling(self):
+        self.write_override({"overrides": [live_override()], "total_max_notional_usd": 40.0})
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        self.assertEqual(self.load()[0].total_cap_usd, 40.0)
+        self.assertEqual(self.load(policy=pol_cap(25.0))[0].total_cap_usd, 25.0)
+        self.assertEqual(self.load(policy=pol_cap(900.0))[0].total_cap_usd, 40.0)
+        self.write_override({"overrides": [live_override()], "total_max_notional_usd": 5000.0})
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        self.assertEqual(self.load()[0].total_cap_usd, gate.DEFAULT_TOTAL_CAP_USD)
+
+
+def pol_cap(cap):
+    p = pol()
+    p.override_total_cap_usd = cap
+    return p
+
+
+def run_gate(intents, override, ledger_path, *, now=NOW, live=True, policy=None, **kw):
+    return gate.execute_intents(
+        intents, deployable_cash=0.0, submit=mock.Mock(return_value={"status": "submitted"}),
+        policy=policy or pol(live=live), override=override, now=now, record=False,
+        ledger_path=ledger_path, **kw,
+    )
+
+
+class TestOverrideSpendAndCaps(unittest.TestCase):
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self.addCleanup(self._td.cleanup)
+        self.lp = Path(self._td.name) / "spend.json"
+
+    def spent(self, oid="ovr-1"):
+        return gate.SpendLedger(self.lp, gate.SpendLedger._load(self.lp)).used(oid)
+
+    def test_valid_override_passes_exactly_within_caps_then_nothing_more(self):
+        ov = authed()  # max_qty 1.0, max_notional 50.0, total ceiling 100
+        out = run_gate([sell(quantity=1.0, notional_usd=50.0)], ov, self.lp)
+        self.assertEqual(len(out["placed"]), 1, out)
+        self.assertEqual(out["broker_calls"], 1)
+        self.assertEqual(self.spent(), (1.0, 50.0))
+        out2 = run_gate([sell(quantity=0.0001, notional_usd=0.01)], ov, self.lp)
+        self.assertEqual(out2["placed"], [])
+        self.assertEqual(out2["broker_calls"], 0)
+        self.assertEqual(self.spent(), (1.0, 50.0), "blocked sells are never charged")
+
+    def test_cumulative_spend_exceeding_per_override_cap_across_two_runs(self):
+        ov = authed()
+        r1 = run_gate([sell(quantity=0.6, notional_usd=30.0)], ov, self.lp)
+        self.assertEqual(len(r1["placed"]), 1)
+        # a fresh run (the next 15-minute poll) gets NO fresh cap
+        r2 = run_gate([sell(quantity=0.6, notional_usd=30.0)], ov, self.lp)
+        self.assertEqual(r2["placed"], [])
+        self.assertEqual(r2["broker_calls"], 0)
+        self.assertEqual(r2["blocked"][0]["reason_code"], gate.R_SELL_NO_OVERRIDE)
+        self.assertIn("max_qty", r2["blocked"][0]["reason"])
+        # what is left still works: 0.4 qty / $20
+        r3 = run_gate([sell(quantity=0.4, notional_usd=20.0)], ov, self.lp)
+        self.assertEqual(len(r3["placed"]), 1)
+        self.assertEqual(self.spent(), (1.0, 50.0))
+
+    def test_notional_only_override_cumulative_cap(self):
+        ov = authed(good_override(max_qty=None, max_notional_usd=50.0))
+        self.assertEqual(len(run_gate([sell(quantity=5, notional_usd=30.0)], ov, self.lp)["placed"]), 1)
+        r2 = run_gate([sell(quantity=5, notional_usd=30.0)], ov, self.lp)
+        self.assertEqual(r2["placed"], [])
+        self.assertIn("max_notional_usd", r2["blocked"][0]["reason"])
+
+    def test_total_cap_across_all_overrides_exceeded(self):
+        data = {
+            "overrides": [
+                good_override(id="a", max_qty=None, max_notional_usd=80.0),
+                good_override(id="b", max_qty=None, max_notional_usd=80.0),
+            ],
+            "total_max_notional_usd": 100.0,
+        }
+        ov = authed(data, total_cap_usd=None)
+        self.assertEqual(ov.total_cap_usd, 100.0)
+        r1 = run_gate([sell(quantity=1, notional_usd=70.0)], ov, self.lp)
+        self.assertEqual(len(r1["placed"]), 1)
+        self.assertEqual(self.spent("a")[1], 70.0)
+        # 'a' has 10 left, 'b' has 80 left, but the TOTAL has only 30 left
+        r2 = run_gate([sell(quantity=1, notional_usd=40.0)], ov, self.lp)
+        self.assertEqual(r2["placed"], [])
+        self.assertIn("total override cap exceeded", r2["blocked"][0]["reason"])
+        r3 = run_gate([sell(quantity=1, notional_usd=30.0)], ov, self.lp)  # exactly the remainder, via 'b'
+        self.assertEqual(len(r3["placed"]), 1)
+        self.assertEqual(self.spent("b")[1], 30.0)
+        r4 = run_gate([sell(quantity=0.001, notional_usd=0.5)], ov, self.lp)
+        self.assertEqual(r4["placed"], [])
+
+    def test_default_ceiling_and_policy_cap_bound_a_huge_override(self):
+        big = good_override(max_qty=None, max_notional_usd=10_000.0)
+        out = run_gate([sell(quantity=1, notional_usd=150.0)], authed(big), self.lp)
+        self.assertEqual(out["placed"], [])
+        self.assertIn("total override cap exceeded", out["blocked"][0]["reason"])
+        out2 = run_gate([sell(quantity=1, notional_usd=30.0)], authed(big), self.lp, policy=pol_cap_live(20.0))
+        self.assertEqual(out2["placed"], [])
+
+    def test_total_cap_window_rolls_after_24h(self):
+        ov = authed(good_override(max_qty=None, max_notional_usd=500.0, id="a"), total_cap_usd=60.0)
+        self.assertEqual(len(run_gate([sell(quantity=1, notional_usd=60.0)], ov, self.lp)["placed"]), 1)
+        self.assertEqual(run_gate([sell(quantity=1, notional_usd=1.0)], ov, self.lp)["placed"], [])
+        later = NOW + timedelta(hours=25)
+        ov2 = authed(
+            good_override(max_qty=None, max_notional_usd=500.0, id="c", expires_at=_iso(later + timedelta(hours=2)),
+                          approved_at=_iso(later - timedelta(hours=1))),
+            total_cap_usd=60.0,
+        )
+        self.assertEqual(len(run_gate([sell(quantity=1, notional_usd=60.0)], ov2, self.lp, now=later)["placed"]), 1)
+
+    def test_expired_override_is_rejected_and_not_charged(self):
+        ov = authed(good_override(expires_at=_iso(NOW - timedelta(seconds=1))))
+        out = run_gate([sell()], ov, self.lp)
+        self.assertEqual(out["placed"], [])
+        self.assertEqual(out["broker_calls"], 0)
+        self.assertIn("expired", out["blocked"][0]["reason"])
+        self.assertFalse(self.lp.exists() and gate.SpendLedger._load(self.lp)["overrides"])
+
+    def test_sell_without_known_notional_cannot_be_counted_so_is_blocked(self):
+        ov = authed(good_override(max_qty=1.0, max_notional_usd=None))
+        out = run_gate([{"symbol": "MARA", "side": "sell", "quantity": 0.5, "purpose": "risk_exit"}], ov, self.lp)
+        self.assertEqual(out["placed"], [])
+
+    def test_rebalance_sells_stay_blocked_even_with_authenticated_override_and_budget(self):
+        out = run_gate([sell(purpose="rebalance")], authed(), self.lp)
+        self.assertEqual(out["placed"], [])
+        self.assertEqual(out["blocked"][0]["reason_code"], gate.R_REBALANCE_SELL)
+
+    def test_dry_run_reads_but_never_writes_the_ledger(self):
+        out = run_gate([sell()], authed(), self.lp, live=False)
+        self.assertEqual(len(out["would_place"]), 1)
+        self.assertFalse(self.lp.exists())
+
+    def test_corrupt_ledger_fails_closed(self):
+        self.lp.write_text("{not json")
+        out = run_gate([sell()], authed(), self.lp)
+        self.assertEqual(out["placed"], [])
+        self.assertEqual(out["broker_calls"], 0)
+        self.assertIn("ledger", out["ledger_error"])
+        self.lp.write_text(json.dumps({"overrides": {"ovr-1": "oops"}}))
+        self.assertEqual(run_gate([sell()], authed(), self.lp)["placed"], [])
+
+    def test_ledger_writes_are_atomic_and_leave_no_temp_files(self):
+        run_gate([sell()], authed(), self.lp)
+        names = sorted(p.name for p in self.lp.parent.iterdir())
+        self.assertEqual(names, ["spend.json", "spend.json.lock"])
+        json.loads(self.lp.read_text())
+
+    def test_concurrent_runs_cannot_double_spend(self):
+        import threading
+
+        ov = authed()
+        results = []
+
+        def one():
+            results.append(len(run_gate([sell(quantity=0.6, notional_usd=30.0)], ov, self.lp)["placed"]))
+
+        ts = [threading.Thread(target=one) for _ in range(6)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        self.assertEqual(sum(results), 1, results)
+        self.assertEqual(self.spent(), (0.6, 30.0))
+
+    def test_batch_charges_each_sell_in_the_same_run(self):
+        out = run_gate([sell(quantity=0.6, notional_usd=30.0), sell(quantity=0.6, notional_usd=30.0)], authed(), self.lp)
+        self.assertEqual(len(out["placed"]), 1)
+        self.assertEqual(len(out["blocked"]), 1)
+
+
+def pol_cap_live(cap):
+    p = pol(live=True)
+    p.override_total_cap_usd = cap
+    return p
+
+
+class TestCliOverrideEndToEnd(GitRepoCase):
+    """`python -m treasury.fund_manager_order_gate --execute-intents` against a real repo."""
+
+    def _run(self, intents):
+        f = Path(self._td.name) / "fund_manager_intents.json"
+        f.write_text(json.dumps({"orders": intents}))
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with mock.patch.object(gate, "ROOT", self.repo), mock.patch.object(
+            gate, "OVERRIDE_PATH", self.ov
+        ), mock.patch.object(gate, "SPEND_LEDGER_PATH", self.ledger), mock.patch.object(
+            gate, "_deployable_cash_from_snapshot", return_value=0.18
+        ), mock.patch.object(gate, "load_broker_adapter", return_value=None), redirect_stdout(buf):
+            rc = gate.main(["--execute-intents", str(f), "--no-record"])
+        return rc, json.loads(buf.getvalue())
+
+    def test_committed_override_allows_one_sell_within_cap(self):
+        self.write_override()
+        self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
+        rc, out = self._run([sell(quantity=0.5, notional_usd=10.0)])
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(len(out["would_place"]), 1)
+        self.assertEqual(out["blocked"], [])
+        self.assertEqual(out["broker_calls"], 0)
+
+    def test_uncommitted_override_is_rejected(self):
+        self.write_override()
+        rc, out = self._run([sell(quantity=0.5, notional_usd=10.0)])
+        self.assertEqual(rc, 3)
+        self.assertEqual(out["would_place"], [])
+        self.assertIn("not committed", out["override_error"])
+        self.assertEqual(out["blocked"][0]["reason_code"], gate.R_SELL_NO_OVERRIDE)
 
 
 class TestUnclassifiableFailsClosed(unittest.TestCase):
@@ -319,7 +711,8 @@ class TestExecutor(unittest.TestCase):
         submit = mock.Mock(return_value={"status": "submitted"})
         gate.execute_intents(
             [sell("MARA"), sell("RIOT")], deployable_cash=0.0, submit=submit,
-            policy=pol(live=True), override=good_override(), now=NOW, record_fn=lambda e: None,
+            policy=pol(live=True), override=authed(), now=NOW, record_fn=lambda e: None,
+            ledger_path=Path(tempfile.mkdtemp()) / "spend.json",
         )
         self.assertEqual(submit.call_count, 1)
         self.assertEqual(submit.call_args[0][0].as_dict()["symbol"], "MARA")
@@ -427,8 +820,11 @@ class TestDecisionLevelGuard(unittest.TestCase):
 
     def test_override_approved_sell_in_log_is_not_flagged(self):
         d = {"kind": "deploy", "summary": "x", "actions": [dict(sell("MARA"), status="filled")]}
-        out = gate.guard_decision_entry(d, override=good_override(), now=NOW)
+        out = gate.guard_decision_entry(d, override=authed(), now=NOW)
         self.assertFalse(out.get("blocked_sell"))
+        # a raw (unauthenticated) override dict does not launder an executed sell
+        raw = gate.guard_decision_entry(d, override=good_override(), now=NOW)
+        self.assertTrue(raw.get("blocked_sell"))
 
     def test_guard_never_raises_and_keeps_record(self):
         out = gate.guard_decision_entry({"summary": "keep me", "actions": 5})
@@ -556,10 +952,9 @@ class TestRunnersAndLint(unittest.TestCase):
     """CI check: every path that can turn analysis into an order goes through the gate."""
 
     RUNNERS = ("fund_manager_daily.sh", "fund_manager_bp_poll.sh")
-    # Read-only RH snapshot refresh: prompt says "Do not place orders", but it still
-    # runs `grok --yolo` with RH MCP and has no deny list yet. Tracked as a #1093
-    # follow-up; adding a NEW entry here requires eng-gate sign-off.
-    YOLO_ALLOWLIST = {"treasury/rh_snapshot_sync.py"}
+    # No exceptions: rh_snapshot_sync.py now passes the deny list too (#1196 review).
+    # Adding an entry here requires eng-gate sign-off.
+    YOLO_ALLOWLIST: set = set()
     ORDER_MARKERS = re.compile(
         r"place_[a-z_]*order|submit_order|create_order|order_build|\"side\"\s*:\s*\"sell\"|side\s*=\s*[\"']sell[\"']",
         re.IGNORECASE,
@@ -590,15 +985,88 @@ class TestRunnersAndLint(unittest.TestCase):
             self.assertIn("fail closed", text, name)
             self.assertNotIn("--dangerously", text)
 
+    @staticmethod
+    def yolo_calls_without_deny(source: str, filename: str = "<src>"):
+        """Line numbers of argv lists containing "--yolo" that lack ``*grok_deny_args()``.
+
+        Python files are checked structurally (a comment or an unused import of
+        grok_deny_args does not count). Shell files must pass ``"${GROK_DENY[@]}"``.
+        """
+        import ast
+
+        if filename.endswith(".sh"):
+            return [] if ("--yolo" not in source or '"${GROK_DENY[@]}"' in source) else [0]
+        tree = ast.parse(source)
+
+        def calls_helper(n) -> bool:
+            return any(
+                isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == "grok_deny_args"
+                for c in ast.walk(n)
+            )
+
+        # names bound from the helper, e.g. ``deny_args = list(grok_deny_args())``
+        helper_names = {
+            t.id
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Assign) and calls_helper(n.value)
+            for t in n.targets
+            if isinstance(t, ast.Name)
+        }
+        bad = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.List, ast.Tuple)) and any(
+                isinstance(e, ast.Constant) and e.value == "--yolo" for e in node.elts
+            ):
+                ok = any(
+                    isinstance(e, ast.Starred)
+                    and (calls_helper(e.value) or (isinstance(e.value, ast.Name) and e.value.id in helper_names))
+                    for e in node.elts
+                )
+                if not ok:
+                    bad.append(node.lineno)
+        return bad
+
     def test_every_yolo_grok_call_in_treasury_is_gated_or_allowlisted(self):
         offenders = []
         for p, rel in self._tracked(["*.sh", "*.py"]):
             if rel in self.YOLO_ALLOWLIST or rel.startswith("treasury/tests/"):
                 continue
             text = p.read_text(encoding="utf-8", errors="ignore")
-            if "--yolo" in text and "GROK_DENY" not in text and "grok_deny_args" not in text:
+            if "--yolo" in text and self.yolo_calls_without_deny(text, rel):
                 offenders.append(rel)
         self.assertEqual(offenders, [], "grok --yolo without the order-gate deny list")
+
+    def test_yolo_lint_catches_a_missing_or_decorative_deny_list(self):
+        lint = self.yolo_calls_without_deny
+        bare = 'import subprocess\nsubprocess.run(["grok", "-p", p, "--yolo", "--output-format", "plain"])\n'
+        self.assertTrue(lint(bare))
+        decorative = "# grok_deny_args()\nfrom x import grok_deny_args\n" + bare
+        self.assertTrue(lint(decorative), "a comment/import is not a deny list")
+        unused = 'from x import grok_deny_args\nd = []\nsubprocess.run(["grok", "--yolo", *d])\n'
+        self.assertTrue(lint(unused))
+        direct = 'subprocess.run(["grok", "--yolo", *grok_deny_args()])\n'
+        self.assertEqual(lint(direct), [])
+        via_name = 'd = list(grok_deny_args())\nsubprocess.run(["grok", "--yolo", *d])\n'
+        self.assertEqual(lint(via_name), [])
+        self.assertTrue(lint("grok --yolo\n", "x.sh"))
+        self.assertEqual(lint('grok --yolo "${GROK_DENY[@]}"\n', "x.sh"), [])
+
+    def test_rh_snapshot_sync_is_linted_with_no_allowlist(self):
+        self.assertEqual(self.YOLO_ALLOWLIST, set())
+        rel = "treasury/rh_snapshot_sync.py"
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        self.assertIn("--yolo", text)
+        self.assertEqual(self.yolo_calls_without_deny(text, rel), [])
+
+    def test_snapshot_prompt_read_tools_stay_allowed(self):
+        """rh_refresh_prompt.txt only needs read tools; the deny globs must not catch them."""
+        prompt = (ROOT / "treasury" / "rh_refresh_prompt.txt").read_text(encoding="utf-8")
+        used = set(re.findall(r"\b(get_[a-z_]+)\b", prompt))
+        self.assertTrue(used, "prompt names no RH read tools?")
+        self.assertLessEqual(used, set(gate.RH_READ_TOOLS))
+        for tool in gate.RH_READ_TOOLS:
+            self.assertFalse(gate.is_tool_denied(tool), tool)
+        self.assertNotRegex(prompt, r"place_|replace_|modify_|submit_|exercise_")
 
     def test_no_order_building_code_outside_the_gate(self):
         offenders = []
@@ -615,17 +1083,16 @@ class TestRunnersAndLint(unittest.TestCase):
         self.assertTrue(args[0::2] == ["--deny"] * (len(args) // 2))
         rules = args[1::2]
         joined = " ".join(rules)
-        for must in ("place_*", "replace_*", "modify_*", "*sell*", "*short*"):
+        for must in ("place_*", "replace_*", "modify_*", "*sell*", "*short*", "exercise_option"):
             self.assertIn(f"robinhood-trading__{must}", joined)
-        for tool in ("cancel_equity_order", "get_accounts", "get_portfolio", "get_equity_positions"):
-            for r in rules:
-                pat = re.escape(r[len("MCPTool(robinhood-trading__"):-1]).replace(r"\*", ".*")
-                self.assertIsNone(re.fullmatch(pat, tool), f"{tool} must stay allowed ({r})")
-        for tool in ("place_equity_order", "place_option_order", "place_crypto_order", "sell_equity"):
-            self.assertTrue(
-                any(re.fullmatch(re.escape(r[len("MCPTool(robinhood-trading__"):-1]).replace(r"\*", ".*"), tool) for r in rules),
-                tool,
-            )
+        allowed = (
+            "cancel_equity_order", "cancel_option_order", "cancel_crypto_order",
+            "cancel_option_exercise", *gate.RH_READ_TOOLS,
+        )
+        for tool in allowed:
+            self.assertFalse(gate.is_tool_denied(tool), f"{tool} must stay allowed")
+        for tool in ("place_equity_order", "place_option_order", "place_crypto_order", "sell_equity", "exercise_option"):
+            self.assertTrue(gate.is_tool_denied(tool), tool)
 
     def test_cli_prints_deny_args(self):
         import io

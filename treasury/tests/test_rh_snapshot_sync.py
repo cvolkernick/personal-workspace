@@ -600,6 +600,71 @@ class RhProducerRoleTests(unittest.TestCase):
             self.assertNotEqual(out.get("as_of"), datetime.now(timezone.utc).isoformat())
 
 
+class RhSnapshotGrokDenyListTests(unittest.TestCase):
+    """#1093/#1196: the snapshot refresh runs `grok --yolo` with RH MCP, so it must
+    carry the Robinhood order-tool deny list from the shared order-gate helper."""
+
+    def test_grok_yolo_argv_contains_the_full_shared_deny_list(self) -> None:
+        from treasury import fund_manager_order_gate as gate
+
+        fake = mock.Mock(returncode=1, stdout="", stderr="")
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            rss, "SNAPSHOTS_DIR", Path(td)
+        ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+            rss.subprocess, "run", return_value=fake
+        ) as run:
+            rss.refresh_via_local_mcp(timeout_s=5)
+        self.assertEqual(run.call_count, 1)
+        argv = run.call_args[0][0]
+        self.assertIn("--yolo", argv)
+        deny = gate.grok_deny_args()
+        self.assertGreaterEqual(len(deny), 2)
+        i = argv.index("--yolo")
+        self.assertEqual(argv[i + 1 : i + 1 + len(deny)], deny, "deny list must follow --yolo verbatim")
+        denied_rules = argv[i + 2 : i + 1 + len(deny) : 2]
+        self.assertIn("MCPTool(robinhood-trading__place_*)", denied_rules)
+        self.assertIn("MCPTool(robinhood-trading__exercise_option)", denied_rules)
+        # read-only snapshot tools and cancels are not denied
+        for tool in ("get_accounts", "get_portfolio", "get_equity_positions", "cancel_equity_order"):
+            self.assertFalse(any(tool in r for r in denied_rules), tool)
+
+    def test_globs_changed_in_the_shared_helper_flow_through(self) -> None:
+        from treasury import fund_manager_order_gate as gate
+
+        fake = mock.Mock(returncode=1, stdout="", stderr="")
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            rss, "SNAPSHOTS_DIR", Path(td)
+        ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+            rss.subprocess, "run", return_value=fake
+        ) as run, mock.patch.object(gate, "RH_ORDER_TOOL_GLOBS", ("only_this_*",)):
+            rss.refresh_via_local_mcp(timeout_s=5)
+        self.assertEqual(
+            run.call_args[0][0].count("MCPTool(robinhood-trading__only_this_*)"), 1
+        )
+
+    def test_missing_deny_list_means_grok_is_not_run(self) -> None:
+        for bad in ([], ["--deny"], ["--allow", "x"]):
+            fake = mock.Mock(returncode=0, stdout="", stderr="")
+            with tempfile.TemporaryDirectory() as td, mock.patch.object(
+                rss, "SNAPSHOTS_DIR", Path(td)
+            ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+                rss.subprocess, "run", return_value=fake
+            ) as run, mock.patch.object(rss, "grok_deny_args", return_value=bad):
+                out = rss.refresh_via_local_mcp(timeout_s=5)
+            run.assert_not_called()
+            self.assertFalse(out["ok"])
+            self.assertEqual(out["error"], "order_gate_deny_list_unavailable")
+
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(
+            rss, "SNAPSHOTS_DIR", Path(td)
+        ), mock.patch.object(rss.shutil, "which", return_value="/usr/bin/grok"), mock.patch.object(
+            rss.subprocess, "run"
+        ) as run, mock.patch.object(rss, "grok_deny_args", side_effect=RuntimeError("boom")):
+            out = rss.refresh_via_local_mcp(timeout_s=5)
+        run.assert_not_called()
+        self.assertEqual(out["error"], "order_gate_deny_list_unavailable")
+
+
 class RhNotifyAc4Tests(unittest.TestCase):
     def test_stale_notify_names_producer_and_error_class(self) -> None:
         from treasury.fund_manager import notify_if_needed

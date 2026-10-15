@@ -58,6 +58,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.adapters import SNAPSHOTS_DIR, load_config, load_json, save_json  # noqa: E402
+from treasury.fund_manager_order_gate import grok_deny_args  # noqa: E402
 
 # prism over the tailnet by its MagicDNS short name. Never a LAN IP.
 # TREASURY_PI_SSH (or a local pi_sync.ssh) overrides it.
@@ -740,6 +741,19 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
         before_mtime = dest.stat().st_mtime
 
     prompt = prompt_path.read_text(encoding="utf-8")
+    # #1093: this run is read-only (get_accounts / get_portfolio /
+    # get_equity_positions). It still runs --yolo, so the Robinhood order-tool
+    # deny list from the order gate (single shared helper) is mandatory.
+    # Fail closed: no deny list => grok is not run.
+    try:
+        deny_args = list(grok_deny_args())
+    except Exception:  # pragma: no cover - defensive
+        deny_args = []
+    if len(deny_args) < 2 or deny_args[0] != "--deny":
+        out["error"] = "order_gate_deny_list_unavailable"
+        out["error_class"] = "mcp"
+        _attach_existing_as_of(out, SNAPSHOTS_DIR / RH_SNAP)
+        return out
     r = None
     try:
         r = subprocess.run(
@@ -750,6 +764,7 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
                 "--cwd",
                 str(ROOT),
                 "--yolo",
+                *deny_args,
                 "--output-format",
                 "plain",
             ],
