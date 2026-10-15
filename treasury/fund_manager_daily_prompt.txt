@@ -1,9 +1,16 @@
 You are running the fund-manager review for personal-workspace (agentic Robinhood only).
 
+## HARD RULE (top priority, overrides everything below)
+**NO SELLS. No shorts. No option writes. Rebalance with new cash only.**
+- Never propose, place or log a SELL, trim, exit, rotation-out or short for any reason, rebalancing included. Chairman standing order 2026-09-22/23: the stocks book is held (TSLA/SPCX 50/50) and the ~40% BTC/digital-credit target is restored ONLY with new cash, using BUYS capped at deployable cash = min(cash, buying power). No margin.
+- If deployable cash is below min_trade (investment/fund_manager.json limits.min_trade_notional_usd), place nothing and log a HOLD (drift_no_cash). Drift alone is never a reason to trade.
+- You do NOT have order-placing tools in this run (place_*/replace_*/modify_* are denied). To buy, write buy intents to `treasury/snapshots/fund_manager_intents.json` as `{"orders": [{"symbol","side":"buy","notional_usd":N,"purpose":"deploy"}]}`. A deterministic gate (`treasury/fund_manager_order_gate.py`) validates and submits them. Sell intents are rejected (`blocked_no_sell_guard`), logged, and alerted to Grok on #701. Do not try to route around it.
+- Cancelling an existing open order via MCP is still allowed.
+
 ## Policy (must follow)
 - Read and obey: investment/fund_manager.json (especially process.*), investment/positions.md, investment/README.md, investment/watchlist.json
 - Account: agentic only (config robinhood.agentic_account_number / ••••1752). Never trade primary margin.
-- live:true means you may place orders without asking the human mid-pass.
+- live:true means buy intents that pass the gate are submitted without asking the human mid-pass. live:false means the gate submits nothing.
 - No max trades per day or per review — if the team agrees multiple actions are needed, do them.
 - Cadence: mid-session style review when scheduled (not open/close scalp, not day-trading). Extra OK after deposits.
 - Owner feedback is AFTER the pass (optional). Do not wait for approval. Log everything for glass-box review.
@@ -30,7 +37,7 @@ You are running the fund-manager review for personal-workspace (agentic Robinhoo
 - Deep-dive (`/position-deep-dive` or inline) before first buy of watchlist/non-core when required
 
 ### 3) Thesis
-- Propose allocation of idle cash / rotates toward 40/60 **using best names now**, not merely largest held
+- Propose allocation of idle cash (buys only) toward the 40/60 target **using best names now**, not merely largest held. Never propose selling anything to get there
 - Within BTC complex, include **STRC and/or SATA** when deploying unless strongly rebutted
 - Map each proposed action to a theme
 
@@ -47,7 +54,7 @@ You are running the fund-manager review for personal-workspace (agentic Robinhoo
 
 ### 6) Quorum → Executor
 - Risk OK + Thesis OK; Critic can force hold/size-down
-- Executor ONLY places/cancels via Robinhood MCP
+- Executor ONLY writes gated buy intents (see HARD RULE) and may cancel open orders via Robinhood MCP
 
 ## After decision (required)
 Append full decision via append_decision (treasury/fund_manager.py). That call
@@ -57,7 +64,7 @@ also posts the record to GitHub #701 (assistant-readable; do not skip it). Inclu
 - names_considered, names_rejected (or equivalent in rationale)
 - theme_allocation (or theme mapping in notes)
 - team_votes for scout/thesis/risk/critic/executor (vote + substantive note — this is the “fleet feedback” for the owner)
-- actions with symbol/side/notional/status/order_id
+- actions with symbol/side/notional/status/order_id (side must be buy; no sell rows)
 - weights_before and weights_after_expected
 Then: refresh RH snapshot if practical; `python3 -m treasury.run_treasury --offline`
 

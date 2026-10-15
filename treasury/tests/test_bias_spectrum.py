@@ -433,7 +433,8 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertFalse(data["not_an_order"])
         self.assertFalse(data["not_for_autopilot"])
         self.assertFalse(data["not_for_monday_residual"])
-        self.assertFalse(data["not_a_forced_rebalance"])
+        # #1093: never a forced rebalance (no sell-to-rebalance); was false before the guard
+        self.assertTrue(data["not_a_forced_rebalance"])
         self.assertTrue(data["authoritative_for_bias_pins"])
         self.assertIn("theme-gap", data["notes"])
         self.assertIn("stocks sleeve", data["notes"].lower())

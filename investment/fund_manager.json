@@ -94,7 +94,7 @@
       },
       "thesis": {
         "writes_orders": false,
-        "job": "Research/rotate: map themes to best capital allocation now across held + unheld allowlist (not held-only). Propose buys/holds/trims with theme fit. May propose watchlist adds."
+        "job": "Research/rotate: map themes to best capital allocation now across held + unheld allowlist (not held-only). Propose buys/holds with theme fit (new cash only; NO sells, trims or shorts). May propose watchlist adds."
       },
       "risk": {
         "writes_orders": false,
@@ -382,6 +382,9 @@
     "notes": "strict=false: core preferred for routine rebalance; ready watchlist names MUST be in the consider set every deploy (owner 2026-08-04). Strong theme bias. Within BTC complex, small bias to STRC/SATA (yield > cash; do not underweight by habit); multi-miner holds are OK."
   },
   "guardrails": {
+    "no_sell_to_rebalance": true,
+    "allowed_sides": ["buy"],
+    "sell_override_file": "investment/fund_manager_sell_override.json",
     "block_if_agentic_bp_zero": true,
     "respect_fcc_liquidity_stress": false,
     "notes": "v1: agentic funding is the risk budget. FCC card/loan stress does not block agentic trades (separate capital). | 2026-09-08: BE in blocked_symbols \u2014 owner exit 2026-09-03; never auto-buy / never Monday theme-gap.",
