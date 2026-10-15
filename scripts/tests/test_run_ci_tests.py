@@ -94,10 +94,6 @@ class QuarantineTests(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class CleanTreeGuardTests(unittest.TestCase):
     """Suites must not rewrite tracked files (a worker once committed regenerated snapshots with `commit -a`)."""
 
@@ -132,3 +128,7 @@ class CleanTreeGuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             self.assertIsNone(RUNNER.tree_state(Path(td)))
             self.assertEqual(RUNNER.tree_changes(None, {"a": "b"}), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
