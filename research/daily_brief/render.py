@@ -327,12 +327,12 @@ def _fund_dev_html(d: dict) -> str:
     return f'<li class="fund-dev">{_e(d.get("text", ""))} {src}</li>'
 
 
-def _fund_row_html(row: dict) -> str:
+def _fund_row_html(row: dict, filed: bool = True) -> str:
     sym = str(row.get("symbol", ""))
     pinned = row.get("relevance") == "pinned"
     chip = f'<span class="chip {"chip-prog" if pinned else ""} fund-rel">{"pinned" if pinned else "watch only"}</span>'
     devs = [d for d in row.get("developments") or [] if isinstance(d, dict)]
-    dev_html = "<ul>" + "".join(_fund_dev_html(d) for d in devs) + "</ul>" if devs else '<p class="empty fund-gap">Not covered in Naka\u2019s file for this edition.</p>'
+    dev_html = "<ul>" + "".join(_fund_dev_html(d) for d in devs) + "</ul>" if devs else '<p class="empty fund-gap">' + ("Not covered in Naka\u2019s file for this edition." if filed else "Waiting on Naka\u2019s file.") + "</p>"
     dis = row.get("file_relevance_disagrees")
     dis_html = f'<p class="fund-meta fund-flag">Naka\u2019s file says \u201c{_e(str(dis))}\u201d; consider_share.json decides.</p>' if dis else ""
     return (
@@ -506,7 +506,7 @@ def render_fund(fund: Any) -> str:
         f'<p class="fund-note"><b>{_e(fund.get("note") or CONTEXT_NOTE)}</b>{asof}'
         f'{" Built " + _e(stamp) + "." if stamp else ""}</p>'
     )
-    body = "".join(_fund_row_html(r) for r in rows) if rows else '<p class="empty">No monitored symbols (consider_share.json not readable).</p>'
+    body = "".join(_fund_row_html(r, notes.get("state") == "filed") for r in rows) if rows else '<p class="empty">No monitored symbols (consider_share.json not readable).</p>'
     other_html = (
         '<h3 class="fund-sub">Other tickers in Naka\u2019s file</h3><div class="fund-rows">' + "".join(_fund_other_html(o) for o in others) + "</div>"
         if others else ""

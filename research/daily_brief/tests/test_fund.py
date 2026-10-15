@@ -103,6 +103,8 @@ class TestNotesFile(unittest.TestCase):
         self.assertIn(f"not yet filed for {DATE}", html)
         self.assertIn('data-notes-state="missing"', html)
         self.assertNotIn("SAMPLE", html)
+        self.assertIn("Waiting on Naka", html)
+        self.assertNotIn("Not covered in Naka", html)
 
     def test_previous_day_file_is_never_passed_off_as_today(self) -> None:
         tmp = _root_with({"investment/brief/2026-10-15.md": EXAMPLE.replace(DATE, "2026-10-15")})
