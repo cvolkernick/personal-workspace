@@ -309,7 +309,9 @@ def test_gateway_request_shape(monkeypatch):
     assert seen["url"] == "https://api.sms-gate.app/3rdparty/v1/messages"
     assert seen["timeout"] == 15
     assert seen["auth"].startswith("Basic ")
-    assert seen["body"] == {"phoneNumbers": [TO], "textMessage": {"text": "hello"}}
+    assert seen["body"] == {
+        "phoneNumbers": [TO], "textMessage": {"text": "hello"}, "withDeliveryReport": True,
+    }
 
 
 def test_gateway_url_keeps_an_explicit_message_path(monkeypatch):
