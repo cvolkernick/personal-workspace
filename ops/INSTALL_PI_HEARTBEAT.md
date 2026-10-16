@@ -17,7 +17,7 @@ created: 2026-08-06
 
 Every **60s** on prod Pi (`prism-gateway`):
 
-1. `systemctl --user is-active` for each watched unit  
+1. `systemctl --user is-active` for each watched user unit. `iot-dashboard` is `scope: system` (`systemctl is-active`, no `--user`) because the listener is the machine unit, not the disabled user unit of the same name.  
 2. Loopback HTTP health probe (`/api/health` or FitDash `/api/healthz`)  
 3. Atomic write of schema v1 JSON to `orchestra/data/heartbeat/latest.json`  
 4. Orchestra serves the file at `GET /api/heartbeat`
@@ -71,7 +71,7 @@ Recorded while implementing #50:
 | resistance-dashboard.service | active |
 | financial-command.service | active |
 | holistic-dashboard.service | active (not on v0 critical set) |
-| iot-dashboard.service | **inactive** (yellow; health may still answer if process elsewhere) |
+| iot-dashboard.service | **user unit disabled** (2026-10-16, #1181). The machine unit is the listener. Heartbeat uses `scope: system`, so an inactive user unit is not a yellow by itself. |
 | b2.service | **not installed** (optional yellow) |
 | panamerica-auto.service | **retired** (legacy site archived; live site is Vercel Next.js app) |
 | workflow-scheduler.service | failed (not on v0 set) |

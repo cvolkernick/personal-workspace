@@ -68,7 +68,10 @@ WATCHLIST: list[dict[str, Any]] = [
     },
     {
         "name": "iot-dashboard",
+        # Machine unit from the iot-workspace checkout. The same-named user
+        # unit in the monorepo checkout is disabled and is not the listener.
         "unit": "iot-dashboard.service",
+        "scope": "system",
         "port": 8780,
         "health_path": "/api/health",
         "severity": "yellow",
@@ -89,7 +92,8 @@ def load_watchlist(path: Optional[str] = None) -> list[dict[str, Any]]:
     of specs, or ``{"services": [...]}``); otherwise the prism default.
 
     Spec kinds:
-      * unit and/or port+health_path (as before)
+      * unit and/or port+health_path (as before). ``scope`` is ``user``
+        (``systemctl --user``, the default) or ``system`` (machine unit).
       * ``file`` + ``max_age_s`` (+ optional ``json_ok_key``): a freshness check
         such as a backup MANIFEST written by a timer.
     """
@@ -281,13 +285,25 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
                 pass
 
 
-def unit_is_active(unit: str, *, timeout: float = 3.0) -> tuple[bool, str]:
-    """Return (active, raw_state). Uses systemctl --user (Pi prod pattern)."""
+def unit_is_active(
+    unit: str, *, timeout: float = 3.0, scope: str = "user"
+) -> tuple[bool, str]:
+    """Return (active, raw_state).
+
+    ``scope="user"`` is ``systemctl --user`` (Pi prod pattern for dashboard
+    units). ``scope="system"`` is the machine unit, for a service that is
+    not the per-user checkout.
+    """
     if not unit:
         return False, "no-unit"
+    if scope not in ("user", "system"):
+        return False, f"bad-scope:{scope}"
+    cmd = ["systemctl", "is-active", unit]
+    if scope == "user":
+        cmd.insert(1, "--user")
     try:
         proc = subprocess.run(
-            ["systemctl", "--user", "is-active", unit],
+            cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -427,7 +443,8 @@ def collect_service(spec: dict[str, Any]) -> dict[str, Any]:
     unit = str(spec.get("unit") or "")
     port = int(spec.get("port") or 0)
     health_path = str(spec.get("health_path") or "/api/health")
-    active, unit_state = unit_is_active(unit)
+    scope = str(spec.get("scope") or "user")
+    active, unit_state = unit_is_active(unit, scope=scope)
     health_url = f"http://127.0.0.1:{port}{health_path}" if port else ""
     health_ok: Optional[bool] = None
     latency_ms: Optional[int] = None
