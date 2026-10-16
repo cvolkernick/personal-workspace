@@ -152,10 +152,12 @@ def brief_sessions(sessions: Sequence[Any], limit: int = 5) -> List[dict]:
         d = s.to_dict() if hasattr(s, "to_dict") else (s if isinstance(s, dict) else None)
         if not isinstance(d, dict):
             continue
+        from .models import is_zero_volume_status_log
+
         exercises = [
             flatten_logged_exercise(ex)
             for ex in (d.get("exercises") or [])[:12]
-            if isinstance(ex, dict)
+            if isinstance(ex, dict) and not is_zero_volume_status_log(ex)
         ]
         out.append(
             {

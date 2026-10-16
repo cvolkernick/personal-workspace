@@ -12,7 +12,7 @@ import re
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from .models import ExerciseEntry, Session, SetEntry
+from .models import ExerciseEntry, Session, SetEntry, is_planner_status_exercise_name
 from .timeutil import local_today_iso
 
 SESSION_TYPES = ("push", "pull", "legs")
@@ -24,7 +24,7 @@ NON_LIFT_GROUPS = frozenset(
 
 # Session-level / rest / non-exercise training actions.
 _SKIP_TITLE = re.compile(
-    r"^(complete today|rest day|protect |cover remaining|eat through|eat:|"
+    r"^(already trained today|complete today|rest day|protect |cover remaining|eat through|eat:|"
     r"cardio|walk · zone 2|hydration —|hydration -|"
     r"sleep —|sleep -|sleep battery)",
     re.I,
@@ -400,6 +400,10 @@ def apply_quest_to_session(
         name = str(planned.get("name") or name).strip()
     if not name:
         info["reason"] = "no_exercise_name"
+        return None, info
+    if is_planner_status_exercise_name(name):
+        info["action"] = "ignore"
+        info["reason"] = "status_message"
         return None, info
 
     st = resolve_session_type(

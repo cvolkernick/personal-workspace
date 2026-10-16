@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
+
+# Planner status copy. A closed day used to store this string as a lift (#1110).
+_STATUS_LOG_NAME_RE = re.compile(r"^Already trained today\b", re.IGNORECASE)
 
 
 def _fmt_weight_lbs(w: float) -> str:
@@ -80,6 +84,76 @@ class ExerciseEntry:
         }
 
 
+def is_planner_status_exercise_name(name: str) -> bool:
+    """True when ``name`` is planner status copy, not a lift (#1110)."""
+    return bool(_STATUS_LOG_NAME_RE.match(str(name or "").strip()))
+
+
+def _status_row_volume(ex: Any) -> float:
+    """Working volume for a log row. Missing sets count as zero."""
+    if isinstance(ex, ExerciseEntry):
+        return float(ex.volume)
+    if isinstance(ex, dict):
+        raw_sets = ex.get("sets")
+        if isinstance(raw_sets, list):
+            total = 0.0
+            saw = False
+            for st in raw_sets:
+                if not isinstance(st, dict):
+                    continue
+                try:
+                    total += (
+                        float(st.get("weight_lbs") or 0)
+                        * int(st.get("sets") or 0)
+                        * int(st.get("reps") or 0)
+                    )
+                    saw = True
+                except (TypeError, ValueError):
+                    continue
+            if saw or raw_sets == []:
+                return total
+        try:
+            weight = ex.get("weight_lbs")
+            count = ex.get("sets")
+            reps = ex.get("reps")
+            if (
+                weight is not None
+                and reps is not None
+                and count is not None
+                and not isinstance(count, list)
+            ):
+                return float(weight) * int(count) * int(reps)
+        except (TypeError, ValueError):
+            pass
+        if ex.get("volume") is not None:
+            try:
+                return float(ex.get("volume") or 0)
+            except (TypeError, ValueError):
+                return 0.0
+        return 0.0
+    try:
+        return float(getattr(ex, "volume", 0) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def is_zero_volume_status_log(ex: Any) -> bool:
+    """Read-time filter: ``^Already trained today`` with no working volume.
+
+    The stored row is left in place (#1110). A same-named row that actually
+    has load stays visible.
+    """
+    if isinstance(ex, ExerciseEntry):
+        name = ex.name
+    elif isinstance(ex, dict):
+        name = str(ex.get("name") or ex.get("exercise") or "")
+    else:
+        name = str(getattr(ex, "name", "") or "")
+    if not is_planner_status_exercise_name(name):
+        return False
+    return _status_row_volume(ex) <= 0
+
+
 @dataclass
 class Session:
     date: str  # ISO YYYY-MM-DD
@@ -97,7 +171,11 @@ class Session:
         out: Dict[str, Any] = {
             "date": self.date,
             "session_type": self.session_type,
-            "exercises": [e.to_dict() for e in self.exercises],
+            "exercises": [
+                e.to_dict()
+                for e in self.exercises
+                if not is_zero_volume_status_log(e)
+            ],
             "notes": self.notes,
             "source_file": self.source_file,
             "volume": self.volume,

@@ -2729,7 +2729,7 @@
         : (e) => `${e.name} (${Math.round(e.volume)} lb tonnage)`;
     (sessions || []).slice(0, 40).forEach((s) => {
       const li = document.createElement("li");
-      const exercises = s.exercises || [];
+      const exercises = (s.exercises || []).filter((e) => !isZeroVolumeStatusLog(e));
       const rows = exercises.map((e) => fmtEx(e));
       const exHtml = rows.length
         ? rows.map((r) => `<div class="ex-row">${r}</div>`).join("")
@@ -6849,7 +6849,7 @@
     ) {
       return false;
     }
-    if (/^(complete today|rest day|protect |cover remaining|eat through|eat:)/i.test(titleS)) {
+    if (/^(already trained today|complete today|rest day|protect |cover remaining|eat through|eat:)/i.test(titleS)) {
       return false;
     }
     if (slugL.startsWith("ex-")) return true;
@@ -7344,6 +7344,30 @@
     el.value = letter || "";
   }
 
+  /** `^Already trained today` with no working volume. Stored rows stay; the log hides them (#1110). */
+  function isZeroVolumeStatusLog(ex) {
+    const name = String((ex && (ex.name || ex.exercise)) || "").trim();
+    if (!/^Already trained today\b/i.test(name)) return false;
+    const sets = ex && ex.sets;
+    if (Array.isArray(sets)) {
+      for (let i = 0; i < sets.length; i++) {
+        const st = sets[i] || {};
+        const w = Number(st.weight_lbs);
+        const n = Number(st.sets);
+        const r = Number(st.reps);
+        if (w > 0 && n > 0 && r > 0) return false;
+      }
+      return true;
+    }
+    const w = Number(ex && ex.weight_lbs);
+    const n = Number(ex && ex.sets);
+    const r = Number(ex && ex.reps);
+    if (w > 0 && n > 0 && r > 0) return false;
+    const vol = ex && ex.volume;
+    if (vol != null && vol !== "" && Number(vol) > 0) return false;
+    return true;
+  }
+
   function loggedExercisesForDay(sessions, day) {
     const d = String(day || "").slice(0, 10);
     const out = [];
@@ -7352,7 +7376,7 @@
       const sDay = String(sess.date || "").slice(0, 10);
       if (d && sDay && sDay !== d) return;
       (sess.exercises || []).forEach((ex) => {
-        if (ex && String(ex.name || "").trim()) {
+        if (ex && String(ex.name || "").trim() && !isZeroVolumeStatusLog(ex)) {
           out.push(ex);
         }
       });
@@ -7365,7 +7389,7 @@
     if (!log || (log.action !== "upsert" && log.action !== "dedupe")) return list;
     const exercise = log.exercise && typeof log.exercise === "object" ? log.exercise : null;
     const name = String((exercise && exercise.name) || log.name || "").trim();
-    if (!name) return list;
+    if (!name || isZeroVolumeStatusLog(exercise || { name })) return list;
     const day = String(today || "").slice(0, 10);
     const st = String(log.session_type || "").trim().toLowerCase();
     const row = exercise || {

@@ -33,6 +33,10 @@ def _civil_day(value: Any) -> str:
 
 
 def _exercise_row(ex: Any) -> Optional[Dict[str, Any]]:
+    from .models import is_zero_volume_status_log
+
+    if is_zero_volume_status_log(ex):
+        return None
     if hasattr(ex, "to_dict"):
         try:
             ex = ex.to_dict()
@@ -179,6 +183,7 @@ def _ppl_letter(value: Any) -> Optional[str]:
 
 
 def _has_real_exercises(row: Dict[str, Any]) -> bool:
+    from .models import is_zero_volume_status_log
     from .test_noise import is_test_exercise_name
 
     for ex in row.get("exercises") or []:
@@ -187,8 +192,11 @@ def _has_real_exercises(row: Dict[str, Any]) -> bool:
             name = str(ex.get("name") or "")
         else:
             name = str(getattr(ex, "name", "") or "")
-        if name.strip() and not is_test_exercise_name(name):
-            return True
+        if not name.strip() or is_test_exercise_name(name):
+            continue
+        if is_zero_volume_status_log(ex):
+            continue
+        return True
     return False
 
 

@@ -18,7 +18,7 @@ import re
 from datetime import datetime
 from typing import Any, Dict, Optional, Sequence
 
-from .models import ExerciseEntry, Session, SetEntry
+from .models import ExerciseEntry, Session, SetEntry, is_planner_status_exercise_name
 
 
 def _norm_name(name: str) -> str:
@@ -229,6 +229,9 @@ def parse_log_body(data: dict, *, now=None) -> Session:
         name = str(ex.get("name", "")).strip()
         if not name:
             raise ValueError("exercise name required")
+        # Planner status is not a lift. Drop it instead of storing a 0-volume row (#1110).
+        if is_planner_status_exercise_name(name):
+            continue
         # Flat form: {name, weight_lbs, sets, reps}
         # Nested form: {name, sets: [{weight_lbs, sets, reps}, ...]}
         raw_sets = ex.get("sets")
@@ -275,6 +278,8 @@ def parse_log_body(data: dict, *, now=None) -> Session:
                 raw=str(ex.get("raw") or ""),
             )
         )
+    if not exercises:
+        raise ValueError("exercises required")
     notes = str(payload.get("notes") or "")
     closed = str(payload.get("closed_at") or "").strip() or local_now_iso()
     return Session(
