@@ -17,13 +17,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from heartbeat import (  # noqa: E402
+    WATCHLIST,
     build_degraded,
     collect_heartbeat,
+    collect_service,
     heartbeat_api_payload,
     latest_path,
     load_heartbeat,
     overall_ok,
     service_healthy,
+    unit_is_active,
     write_heartbeat,
 )
 
@@ -218,6 +221,66 @@ class CollectMockTests(unittest.TestCase):
             doc = collect_heartbeat(watchlist=watch)
         self.assertFalse(doc["ok"])
         self.assertEqual(doc["degraded"][0]["severity"], "red")
+
+
+class SystemScopeTests(unittest.TestCase):
+    def test_iot_watchlist_checks_the_machine_unit(self) -> None:
+        iot = next(s for s in WATCHLIST if s["name"] == "iot-dashboard")
+        self.assertEqual(iot["scope"], "system")
+        self.assertEqual(iot["unit"], "iot-dashboard.service")
+        self.assertEqual(iot["port"], 8780)
+        others = [s for s in WATCHLIST if s["name"] != "iot-dashboard"]
+        self.assertTrue(all(s.get("scope", "user") == "user" for s in others))
+
+    def test_system_scope_omits_user_flag(self) -> None:
+        with mock.patch("heartbeat.subprocess.run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout="active\n", stderr="")
+            ok, raw = unit_is_active("iot-dashboard.service", scope="system")
+        self.assertTrue(ok)
+        self.assertEqual(raw, "active")
+        self.assertEqual(
+            run.call_args.args[0],
+            ["systemctl", "is-active", "iot-dashboard.service"],
+        )
+
+    def test_user_scope_keeps_user_flag(self) -> None:
+        with mock.patch("heartbeat.subprocess.run") as run:
+            run.return_value = mock.Mock(returncode=3, stdout="inactive\n", stderr="")
+            ok, raw = unit_is_active("iot-dashboard.service")
+        self.assertFalse(ok)
+        self.assertEqual(raw, "inactive")
+        self.assertEqual(
+            run.call_args.args[0],
+            ["systemctl", "--user", "is-active", "iot-dashboard.service"],
+        )
+
+    def test_bad_scope_does_not_call_systemctl(self) -> None:
+        with mock.patch("heartbeat.subprocess.run") as run:
+            ok, raw = unit_is_active("iot-dashboard.service", scope="host")
+        self.assertFalse(ok)
+        self.assertEqual(raw, "bad-scope:host")
+        run.assert_not_called()
+
+    def test_collect_system_scope_active_clears_inactive_note(self) -> None:
+        spec = {
+            "name": "iot-dashboard",
+            "unit": "iot-dashboard.service",
+            "scope": "system",
+            "port": 8780,
+            "health_path": "/api/health",
+            "severity": "yellow",
+        }
+        with mock.patch(
+            "heartbeat.unit_is_active", return_value=(True, "active")
+        ) as ua, mock.patch(
+            "heartbeat.probe_health", return_value=(True, 3, "")
+        ):
+            row = collect_service(spec)
+        self.assertEqual(ua.call_args.kwargs["scope"], "system")
+        self.assertTrue(row["active"])
+        self.assertTrue(row["health_ok"])
+        self.assertEqual(row["note"], "")
+        self.assertEqual(build_degraded([row]), [])
 
 
 class ServerRouteSmoke(unittest.TestCase):
