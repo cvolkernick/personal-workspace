@@ -20,7 +20,8 @@ ENV_KEYS = (
     "FWD_TOKEN", "FWD_PATH", "SEND_TOKEN", "SEND_PATH", "SMSGW_URL", "SMSGW_USER", "SMSGW_PASS",
     "SMSGW_HOOK_PATH", "SMSGW_SIGNING_KEY", "RCS_HOOK_PATH", "RCS_HOOK_TOKEN", "RCS_NAME_MAP",
     "SMS_SEND_DISABLED", "FC_PATH", "FC_APPROVE_TOKEN_SHA256", "FC_APPROVERS", "FC_AGENT_SEATS",
-    "FC_APPROVER_NUMBERS", "FC_DAILY_MAX", "FC_TTL_DAYS", "FC_MAX_SENDS_BEFORE_REPLY", "FC_DISABLED",
+    "FC_APPROVER_NUMBERS", "FC_CHAT_APPROVER", "FC_DAILY_MAX", "FC_TTL_DAYS",
+    "FC_MAX_SENDS_BEFORE_REPLY", "FC_DISABLED",
     "FC_AUDIT_PATH", "CRM_INGEST_MODE", "CRM_OUTBOX_PATH", "FC_REQUIRE_APPROVAL",
 )
 
@@ -41,6 +42,7 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("FC_PATH", FC.lstrip("/"))
     monkeypatch.setenv("FC_APPROVE_TOKEN_SHA256", hashlib.sha256(APPROVE_TOK.encode()).hexdigest())
     monkeypatch.setenv("FC_APPROVER_NUMBERS", f"chris={CHRIS}")
+    monkeypatch.setenv("FC_CHAT_APPROVER", "chris")
     # The approval-gate tests below run with the gate on; the no-approval tests
     # (default FC_REQUIRE_APPROVAL=0) are at the end and use the `no_approval` fixture.
     monkeypatch.setenv("FC_REQUIRE_APPROVAL", "1")
@@ -199,6 +201,7 @@ def test_no_self_or_agent_approval(http, approver):
 
 def test_requester_cannot_approve_even_if_listed(http, monkeypatch):
     monkeypatch.setenv("FC_APPROVERS", "chris,dana")
+    monkeypatch.setenv("FC_CHAT_APPROVER", "dana")
     code, req = post(http, FC, request_body(requested_by="dana"))
     code, res = post(http, FC, approve_body(req["code"], approver="dana"), APPROVE_TOK)
     assert code == 403 and res["error"] == "approver_not_allowed"
@@ -229,14 +232,16 @@ def test_sms_yes_code_from_approver_number_approves(http, gateway, tmp_path):
     assert send(http)[0] == 200
 
 
-def test_sms_yes_from_other_number_or_rcs_name_map_does_not_approve(http, gateway, tmp_path):
+def test_sms_yes_from_other_number_or_rcs_title_does_not_approve(http, gateway, tmp_path):
     code, req = post(http, FC, request_body())
     bland_relay.note_inbound("+19045550999", f"YES {req['code']}", via="smsgate")
-    bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via="rcs-name_map")
+    bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via="rcs-title")
     bland_relay.note_inbound(CHRIS, "YES 000000", via="smsgate")
     assert send(http)[0] == 403
-    reasons = [r.get("reason") for r in audit(tmp_path) if r["event"] == "deny"]
+    denies = [r for r in audit(tmp_path) if r["event"] == "deny"]
+    reasons = [r.get("reason") for r in denies]
     assert "via_not_allowed" in reasons and "no_matching_pending" in reasons
+    assert any(r.get("via") == "rcs-title" and r.get("reason") == "via_not_allowed" for r in denies)
 
 
 def test_approver_number_must_be_a_human_approver(monkeypatch):
@@ -513,7 +518,7 @@ def test_scrub_covers_new_secrets(monkeypatch):
 
 # --- CLI wrapper -----------------------------------------------------------------
 
-def _cli(http, tmp_path, args, stdin="", extra_env=None):
+def _cli(http, tmp_path, args, stdin="", extra_env=None, script="send-904-fc", timeout=20):
     import os
     import subprocess
     import sys
@@ -521,13 +526,13 @@ def _cli(http, tmp_path, args, stdin="", extra_env=None):
     home = tmp_path / "home"
     (home / ".config" / "bland-relay").mkdir(parents=True, exist_ok=True)
     (home / ".config" / "bland-relay" / "env").write_text(
-        f"SEND_TOKEN={SEND_TOK}\nFC_PATH={FC.lstrip('/')}\n")
+        f"SEND_TOKEN={SEND_TOK}\nSEND_PATH={SEND.lstrip('/')}\nFC_PATH={FC.lstrip('/')}\n")
     envv = {"HOME": str(home), "SEND904_BASE": http, "PATH": os.environ.get("PATH", ""),
             "NO_PROXY": "*", "no_proxy": "*"}
     envv.update(extra_env or {})
-    cli = Path(bland_relay.__file__).with_name("send-904-fc")
+    cli = Path(bland_relay.__file__).with_name(script)
     p = subprocess.run([sys.executable, str(cli)] + args, input=stdin, capture_output=True,
-                       text=True, env=envv, timeout=20)
+                       text=True, env=envv, timeout=timeout)
     return p.returncode, p.stdout, p.stderr
 
 
@@ -589,6 +594,167 @@ def test_gated_cap_rechecked_at_approve_when_entry_lapsed(monkeypatch):
     assert bland_relay.fc_approve(approve_body(rb["code"], to=b), now=t + day + 1)[0] == 200
     c, r = bland_relay.fc_approve(approve_body(ra["code"], to=a), now=t + day + 2)  # a has expired
     assert c == 429 and r["error"] == "daily_cap"
+
+
+def test_gated_sms_approve_rechecks_daily_cap(monkeypatch, tmp_path):
+    monkeypatch.setenv("FC_DAILY_MAX", "1")
+    monkeypatch.setenv("FC_TTL_DAYS", "1")
+    day = bland_relay.FC_DAY_S
+    t = 7_400_000
+    a, b = "+19045550101", "+19045550102"
+    _, req = bland_relay.fc_request(request_body(to=a), now=t)
+    bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via="smsgate", now=t)
+    _, lst = bland_relay.fc_list({"status": "active"}, now=t)
+    assert [e["to"] for e in lst["entries"]] == [a]
+    _, ra = bland_relay.fc_request(request_body(to=a), now=t + day - 5)  # still active: exempt
+    _, rb = bland_relay.fc_request(request_body(to=b), now=t + day + 1)
+    bland_relay.note_inbound(CHRIS, f"YES {rb['code']}", via="sms", now=t + day + 1)
+    bland_relay.note_inbound(CHRIS, f"YES {ra['code']}", via="forwarder", now=t + day + 2)
+    _, active = bland_relay.fc_list({"status": "active"}, now=t + day + 2)
+    _, expired = bland_relay.fc_list({"status": "expired"}, now=t + day + 2)
+    _, pending = bland_relay.fc_list({"status": "pending"}, now=t + day + 2)
+    assert [e["to"] for e in active["entries"]] == [b]
+    assert [e["to"] for e in expired["entries"]] == [a]
+    assert [e["to"] for e in pending["entries"]] == [a]  # cap refusal does not consume the code
+    assert any(r.get("reason") == "daily_cap" and r.get("via") == "forwarder" for r in audit(tmp_path))
+
+
+# --- #1102 (b): chat token is bound to one approver seat -------------------------
+
+def test_chat_token_without_binding_is_refused(http, monkeypatch, tmp_path):
+    monkeypatch.delenv("FC_CHAT_APPROVER")
+    assert bland_relay.fc_chat_approver() is None
+    monkeypatch.setenv("FC_CHAT_APPROVER", "chris,dana")
+    assert bland_relay.fc_chat_approver() is None
+    monkeypatch.setenv("FC_CHAT_APPROVER", "grok")
+    assert bland_relay.fc_chat_approver() is None
+    monkeypatch.delenv("FC_CHAT_APPROVER")
+    _, req = post(http, FC, request_body())
+    c, r = post(http, FC, approve_body(req["code"]), APPROVE_TOK)
+    assert c == 403 and r["error"] == "chat_approval_unbound"
+    assert send(http)[0] == 403
+    assert any(row.get("reason") == "chat_approval_unbound" for row in audit(tmp_path))
+
+
+def test_chat_token_cannot_approve_for_another_name(http, monkeypatch):
+    monkeypatch.setenv("FC_APPROVERS", "chris,dana")
+    monkeypatch.setenv("FC_CHAT_APPROVER", "chris")
+    _, req = post(http, FC, request_body())
+    c, r = post(http, FC, approve_body(req["code"], approver="dana"), APPROVE_TOK)
+    assert c == 403 and r["error"] == "approver_not_allowed"
+    monkeypatch.setenv("FC_CHAT_APPROVER", "dana")
+    c, r = post(http, FC, approve_body(req["code"], approver="chris"), APPROVE_TOK)
+    assert c == 403 and r["error"] == "approver_not_allowed"
+    c, r = post(http, FC, approve_body(req["code"], approver="dana"), APPROVE_TOK)
+    assert c == 200 and r["entry"]["approved_by"] == "dana"
+
+
+def test_chat_approval_warns_when_enabled_and_stays_off_without_hash(caplog, monkeypatch):
+    import logging
+    monkeypatch.setenv("FC_PATH", "fcpath")
+    monkeypatch.setenv("FC_REQUIRE_APPROVAL", "1")
+    monkeypatch.delenv("FC_APPROVE_TOKEN_SHA256", raising=False)
+    caplog.set_level(logging.WARNING, logger="bland-relay")
+    bland_relay.warn_fc_config()
+    assert any("chat approvals off" in rec.message for rec in caplog.records)
+    caplog.clear()
+    monkeypatch.setenv("FC_APPROVE_TOKEN_SHA256", "ab" * 32)
+    monkeypatch.setenv("FC_CHAT_APPROVER", "chris")
+    monkeypatch.setenv("FC_APPROVER_NUMBERS", f"chris={CHRIS}")
+    bland_relay.warn_fc_config()
+    assert any("chat approval is enabled" in rec.message and "Grok" in rec.message
+               for rec in caplog.records)
+    caplog.clear()
+    monkeypatch.delenv("FC_CHAT_APPROVER")
+    bland_relay.warn_fc_config()
+    assert any("without one FC_CHAT_APPROVER" in rec.message for rec in caplog.records)
+
+
+# --- #1102 (c): RCS approvals trust a number field or RCS_NAME_MAP, never a title -
+
+def test_rcs_title_does_not_approve_mapped_name_does(http, monkeypatch, tmp_path):
+    monkeypatch.setenv("RCS_HOOK_PATH", "rcs-secret")
+    monkeypatch.setenv("RCS_HOOK_TOKEN", "rcs-tok")
+    monkeypatch.setenv("RCS_DEDUPE_WAIT_S", "0")
+    monkeypatch.setenv("RCS_NAME_MAP", f"Chris={CHRIS}")
+    monkeypatch.setattr(bland_relay, "forward", lambda body: (200, "", 1))
+    bland_relay._recent_msgs.clear()
+    _, req = post(http, FC, request_body())
+    title_as_number = {
+        "package": "com.google.android.apps.messaging",
+        "title": "(207) 555-0100",
+        "text": f"YES {req['code']}",
+    }
+    assert post(http, "/rcs-secret", title_as_number, "rcs-tok") == (200, {"ok": True})
+    assert send(http)[0] == 403
+    assert any(r.get("event") == "deny" and r.get("reason") == "via_not_allowed" and r.get("via") == "rcs-title"
+               for r in audit(tmp_path))
+    bland_relay._recent_msgs.clear()
+    mapped = {
+        "package": "com.google.android.apps.messaging",
+        "title": "Chris",
+        "text": f"YES {req['code']}",
+    }
+    assert post(http, "/rcs-secret", mapped, "rcs-tok") == (200, {"ok": True})
+    _, lst = post(http, FC, {"action": "list", "status": "active"})
+    assert lst["entries"][0]["approved_by"] == "chris"
+    assert lst["entries"][0]["approved_via"] == "sms:rcs-name_map"
+
+
+def test_rcs_verified_number_field_can_approve(http):
+    _, req = post(http, FC, request_body(to="+19045550124"))
+    bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via="rcs-number")
+    _, lst = post(http, FC, {"action": "list", "status": "active"})
+    [row] = lst["entries"]
+    assert row["to"] == "+19045550124" and row["approved_via"] == "sms:rcs-number"
+
+
+# --- #1102 (d): SEND904_BASE cannot redirect the token --------------------------
+
+def test_send904_base_non_local_rejected_before_request(tmp_path):
+    poisoned = f"http://user:{SEND_TOK}:{APPROVE_TOK}@203.0.113.9:8799/steal"
+    cases = (
+        ("send-904", ["+19045550123"], "hello\n"),
+        ("send-904-fc", ["list"], ""),
+        ("send-904-fc", ["approve", "--to", LEAD, "--code", "123456", "--approver", "chris",
+                         "--text", "yes 123456", "--ref", "r"], ""),
+    )
+    for script, args, stdin in cases:
+        rc, out, err = _cli(
+            "http://127.0.0.1:9", tmp_path, args, stdin=stdin, script=script, timeout=5,
+            extra_env={"SEND904_BASE": poisoned, "FC_APPROVE_TOKEN": APPROVE_TOK},
+        )
+        blob = out + err
+        assert rc == 3, (script, rc, blob)
+        assert "SEND904_BASE must be http://127.0.0.1:<port>" in err
+        assert "request to relay failed" not in blob
+        for secret in (SEND_TOK, APPROVE_TOK, "203.0.113.9", poisoned):
+            assert secret not in blob
+
+
+def _load_cli(name):
+    from pathlib import Path
+    path = Path(bland_relay.__file__).with_name(name)
+    ns = {"__name__": name.replace("-", "_"), "__file__": str(path)}
+    exec(compile(path.read_text(), str(path), "exec"), ns)
+    return ns
+
+
+def test_send904_base_accepts_only_loopback(monkeypatch):
+    clis = [_load_cli(name) for name in ("send-904", "send-904-fc")]
+    good = ("http://127.0.0.1:8799", "http://localhost:9/", "HTTP://LocalHost:80")
+    bad = ("http://203.0.113.9:8799", "https://127.0.0.1:8799", "http://127.0.0.1",
+           "http://127.0.0.1:8799/fc", "http://user:tok@127.0.0.1:8799", "")
+    for ns in clis:
+        check = ns["local_relay_base"]
+        for raw in good:
+            monkeypatch.setenv("SEND904_BASE", raw)
+            assert check() is not None, (ns["__name__"], raw)
+        monkeypatch.delenv("SEND904_BASE", raising=False)
+        assert check() == "http://127.0.0.1:8799"
+        for raw in bad:
+            monkeypatch.setenv("SEND904_BASE", raw)
+            assert check() is None, (ns["__name__"], raw)
 
 
 # --- FC_REQUIRE_APPROVAL=0 (default): no per-number approval ----------------------
@@ -754,7 +920,7 @@ def test_no_approval_sms_yes_from_approver_does_nothing(http, gateway, no_approv
     monkeypatch.setenv("FC_REQUIRE_APPROVAL", "1")
     _, req = post(http, FC, request_body())
     monkeypatch.delenv("FC_REQUIRE_APPROVAL")
-    for via in ("smsgate", "sms", "forwarder", "rcs-number", "rcs-title"):
+    for via in ("smsgate", "sms", "forwarder", "rcs-number", "rcs-name_map", "rcs-title"):
         bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via=via)
     assert send(http)[1]["error"] == "not_allowlisted"
     _, lst = post(http, FC, {"action": "list"})

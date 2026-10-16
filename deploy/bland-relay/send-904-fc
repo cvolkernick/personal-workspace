@@ -31,10 +31,45 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 ENV_FILE = os.path.expanduser("~/.config/bland-relay/env")
-BASE = os.environ.get("SEND904_BASE", "http://127.0.0.1:8799").rstrip("/")
+
+
+def local_relay_base():
+    """SEND904_BASE may only be loopback HTTP (#1102 d).
+
+    Anything else is refused before a request, so a poisoned environment cannot
+    receive SEND_TOKEN or the approver token. The error never echoes the value.
+    Same rule as send-904.
+    """
+    raw = os.environ.get("SEND904_BASE", "http://127.0.0.1:8799").strip()
+    try:
+        parts = urllib.parse.urlsplit(raw)
+        port = parts.port
+    except ValueError:
+        parts, port = None, None
+    host = (parts.hostname or "").lower() if parts else ""
+    ok = (
+        parts is not None
+        and parts.scheme == "http"
+        and host in ("127.0.0.1", "localhost")
+        and not parts.username
+        and not parts.password
+        and parts.path in ("", "/")
+        and not parts.query
+        and not parts.fragment
+        and port is not None
+        and 1 <= port <= 65535
+    )
+    if not ok:
+        print(
+            "error: SEND904_BASE must be http://127.0.0.1:<port> or http://localhost:<port>",
+            file=sys.stderr,
+        )
+        return None
+    return "http://%s:%d" % (host, port)
 
 
 def load_env(path):
@@ -98,6 +133,9 @@ def body_for(ns):
 
 def main(argv=None):
     ns = parse(sys.argv[1:] if argv is None else argv)
+    base = local_relay_base()
+    if base is None:
+        return 3
     try:
         envf = load_env(ENV_FILE)
     except OSError as e:
@@ -115,7 +153,7 @@ def main(argv=None):
         print("error: FC_PATH or token missing", file=sys.stderr)
         return 3
     req = urllib.request.Request(
-        BASE + "/" + path, data=json.dumps(body_for(ns)).encode("utf-8"), method="POST",
+        base + "/" + path, data=json.dumps(body_for(ns)).encode("utf-8"), method="POST",
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + token},
     )
     try:

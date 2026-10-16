@@ -537,9 +537,12 @@ def reserve_send_ex(to, now=None):
 #
 # FC_REQUIRE_APPROVAL=1: a number that never texted 904 can be sent to only
 # after Chris approves it: an agent `request`s it, gets a one-time code, and
-# Chris types yes with that code, either as an SMS "YES <code>" to 904 from a
-# number in FC_APPROVER_NUMBERS or in chat, relayed by the seat holding
-# FC_APPROVE_TOKEN (the relay keeps only its SHA-256).
+# Chris types yes with that code. The preferred path is an SMS "YES <code>" to
+# 904 from a number in FC_APPROVER_NUMBERS. Chat approval stays off unless
+# FC_APPROVE_TOKEN_SHA256 is set. The token itself lives only in the Grok seat;
+# the relay keeps the SHA-256 and binds it to the single human seat in
+# FC_CHAT_APPROVER. A token with no binding, or a request naming a different
+# approver, is refused (#1102 b).
 #
 # Either way opt-out always wins, and only a currently active entry is a
 # renewal exempt from FC_DAILY_MAX; re-adding a revoked, expired, converted or
@@ -560,9 +563,10 @@ FC_SMS_APPROVE_RE = re.compile(r"^\s*YES\s+(\d{6})\s*[.!]?\s*$", re.IGNORECASE)
 FC_YES_RE = re.compile(r"^\s*(yes|y|yep|yeah|approved?|ok|okay)\b", re.IGNORECASE)
 FC_SEAT_RE = re.compile(r"[a-z0-9][a-z0-9_.-]{0,31}")
 FC_REFUSALS = ("first_contact_disabled", "first_contact_expired", "first_contact_send_cap")
-# Inbound paths allowed to carry an SMS approval. RCS name-map resolution is a
-# guess from a contact title, so it never approves anything.
-FC_APPROVAL_VIAS = ("sms", "forwarder", "smsgate", "rcs-number", "rcs-title")
+# Inbound paths allowed to carry an SMS approval (#1102 c). rcs-number is an
+# explicit number field. rcs-name_map is an RCS_NAME_MAP hit. A raw title,
+# including a title parsed as a phone number (rcs-title), is not in this list.
+FC_APPROVAL_VIAS = ("sms", "forwarder", "smsgate", "rcs-number", "rcs-name_map")
 CRM_SCHEMA = "panamerica.crm.interaction.v1"
 CRM_PARTY_TYPES = {"lead": ("lead", ["904-first-contact"]),
                    "renter": ("customer", ["turo-guest", "904-first-contact"]),
@@ -633,6 +637,22 @@ def fc_approver_numbers():
         if num and name and name in fc_approvers() and name not in fc_agent_seats():
             out[num] = name
     return out
+
+
+def fc_chat_approver():
+    """The one human seat the chat approver token is bound to (#1102 b).
+
+    Unset, a list, an agent seat, or a name outside FC_APPROVERS -> None.
+    Chat approve is refused until this is a single allowed human seat.
+    """
+    raw = env("FC_CHAT_APPROVER").strip().lower()
+    if not raw or any(sep in raw for sep in ",;"):
+        return None
+    if not FC_SEAT_RE.fullmatch(raw):
+        return None
+    if raw not in fc_approvers() or raw in fc_agent_seats():
+        return None
+    return raw
 
 
 def _sha256(s):
@@ -1034,6 +1054,16 @@ def fc_approve(data, now=None):
         return 400, {"ok": False, "error": "approval_ref required"}
     if len(text) > FC_TEXT_MAX or not FC_YES_RE.match(text) or code not in text:
         return 400, {"ok": False, "error": "approval_text must be the user's typed yes including the code"}
+    bound = fc_chat_approver()
+    if bound is None:
+        fc_audit("deny", now, to=to, approver=approver or None, reason="chat_approval_unbound",
+                 action="approve")
+        log.warning("first-contact chat approve refused: token is not bound to one approver")
+        return 403, {"ok": False, "error": "chat_approval_unbound"}
+    if approver != bound:
+        fc_audit("deny", now, to=to, approver=approver or None, reason="approver_not_allowed",
+                 action="approve")
+        return 403, {"ok": False, "error": "approver_not_allowed"}
     with _sms_lock:
         st = _load_json(_sms_state_path())
         _, pending = _fc_maps(st)
@@ -2706,6 +2736,44 @@ def _warn_paths():
         seen[val] = name
 
 
+def warn_fc_config():
+    """Startup notes for first-contact. Chat approval warns when the hash is set (#1102 b)."""
+    if not fc_path():
+        return
+    if not fc_require_approval():
+        log.warning("first-contact: FC_REQUIRE_APPROVAL=0 - numbers are allowed as soon as they are added")
+        if env("FC_APPROVER_NUMBERS") or env("FC_APPROVE_TOKEN_SHA256"):
+            log.info("first-contact: approver numbers/token ignored while approval is off")
+    else:
+        token_hash = env("FC_APPROVE_TOKEN_SHA256").lower()
+        send = env("SEND_TOKEN")
+        if not token_hash:
+            log.warning("FC_PATH set without FC_APPROVE_TOKEN_SHA256: chat approvals off (SMS approvals only)")
+        elif send and _sha256(send) == token_hash:
+            log.error("!!! FC_APPROVE_TOKEN equals SEND_TOKEN - chat approvals refused !!!")
+        else:
+            bound = fc_chat_approver()
+            if bound:
+                log.warning(
+                    "first-contact: chat approval is enabled and bound to %s. "
+                    "SMS YES from FC_APPROVER_NUMBERS is the preferred path. "
+                    "The approver token belongs only in the Grok seat",
+                    bound,
+                )
+            else:
+                log.warning(
+                    "FC_APPROVE_TOKEN_SHA256 is set without one FC_CHAT_APPROVER: "
+                    "chat approvals refused until the token is bound to one approver"
+                )
+        if not fc_approver_numbers():
+            log.warning("FC_APPROVER_NUMBERS empty: SMS approvals off")
+    log.info(
+        "first-contact: require_approval=%s daily_max=%d ttl_days=%d max_sends_before_reply=%d "
+        "disabled=%s", fc_require_approval(), fc_daily_max(), fc_ttl_s() // FC_DAY_S,
+        fc_max_sends(), fc_disabled(),
+    )
+
+
 def main():
     if not env("BLAND_WEBHOOK_SECRET"):
         log.error("!!! BLAND_WEBHOOK_SECRET is UNSET - all webhooks will get 503 until set !!!")
@@ -2735,21 +2803,7 @@ def main():
              bool(env("HELM_TURO_WEBHOOK_URL")),
              bool(env("ALEXANDRA_ALERT_URL")) and env("TURO_ALEX_PUSH_DISABLED") != "1")
     turo_prune_inbox(force=True)
-    if fc_path() and not fc_require_approval():
-        log.warning("first-contact: FC_REQUIRE_APPROVAL=0 - numbers are allowed as soon as they are added")
-        if env("FC_APPROVER_NUMBERS") or env("FC_APPROVE_TOKEN_SHA256"):
-            log.info("first-contact: approver numbers/token ignored while approval is off")
-    elif fc_path():
-        if not env("FC_APPROVE_TOKEN_SHA256"):
-            log.warning("FC_PATH set without FC_APPROVE_TOKEN_SHA256: chat approvals off (SMS approvals only)")
-        elif env("SEND_TOKEN") and _sha256(env("SEND_TOKEN")) == env("FC_APPROVE_TOKEN_SHA256").lower():
-            log.error("!!! FC_APPROVE_TOKEN equals SEND_TOKEN - chat approvals refused !!!")
-        if not fc_approver_numbers():
-            log.warning("FC_APPROVER_NUMBERS empty: SMS approvals off")
-    if fc_path():
-        log.info("first-contact: require_approval=%s daily_max=%d ttl_days=%d max_sends_before_reply=%d "
-                 "disabled=%s", fc_require_approval(), fc_daily_max(), fc_ttl_s() // FC_DAY_S,
-                 fc_max_sends(), fc_disabled())
+    warn_fc_config()
     _warn_paths()
     start_turo_email_listener()
     srv = ThreadingHTTPServer((HOST, PORT), H)

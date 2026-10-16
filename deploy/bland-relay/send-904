@@ -8,11 +8,45 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 ENV_FILE = os.path.expanduser("~/.config/bland-relay/env")
-BASE = "http://127.0.0.1:8799"
 USAGE = "usage: send-904 <to +1XXXXXXXXXX> [in_reply_to] < message"
+
+
+def local_relay_base():
+    """SEND904_BASE may only be loopback HTTP (#1102 d).
+
+    Anything else is refused before a request, so a poisoned environment cannot
+    receive SEND_TOKEN. The error never echoes the value.
+    """
+    raw = os.environ.get("SEND904_BASE", "http://127.0.0.1:8799").strip()
+    try:
+        parts = urllib.parse.urlsplit(raw)
+        port = parts.port
+    except ValueError:
+        parts, port = None, None
+    host = (parts.hostname or "").lower() if parts else ""
+    ok = (
+        parts is not None
+        and parts.scheme == "http"
+        and host in ("127.0.0.1", "localhost")
+        and not parts.username
+        and not parts.password
+        and parts.path in ("", "/")
+        and not parts.query
+        and not parts.fragment
+        and port is not None
+        and 1 <= port <= 65535
+    )
+    if not ok:
+        print(
+            "error: SEND904_BASE must be http://127.0.0.1:<port> or http://localhost:<port>",
+            file=sys.stderr,
+        )
+        return None
+    return "http://%s:%d" % (host, port)
 
 
 def load_env(path):
@@ -50,6 +84,10 @@ def main():
         print(USAGE, file=sys.stderr)
         return 2
 
+    base = local_relay_base()
+    if base is None:
+        return 3
+
     try:
         env = load_env(ENV_FILE)
     except OSError as e:
@@ -66,7 +104,7 @@ def main():
         body["in_reply_to"] = in_reply_to
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
-        BASE + "/" + path,
+        base + "/" + path,
         data=data,
         method="POST",
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + token},
