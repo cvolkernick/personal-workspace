@@ -236,6 +236,9 @@ class TestSleepWakeDateKey(unittest.TestCase):
                     }
                 ]
             },
+            # parse_health_api_sleep drops days before ``start`` (default:
+            # now - 14d). Pin it so the fixture does not age out of the window.
+            start=datetime(2026, 9, 1, tzinfo=timezone.utc),
             tz_name="America/New_York",
         )
         self.assertEqual(gh[0].date, "2026-10-01")
