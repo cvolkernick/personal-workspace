@@ -22,8 +22,9 @@ byte-for-byte on `master` and `work/treasury`.
 ## prism-gateway
 
 Production node. Runs the personal dashboards, the scheduler and the agent
-runtime. Reachable only on the private tailnet, except one public endpoint
-exposed through Tailscale Funnel.
+runtime. The lights dashboard is a machine service from its own workspace,
+not the monorepo user unit. Reachable only on the private tailnet, except
+one public endpoint exposed through Tailscale Funnel.
 
 ## finley-gateway
 
