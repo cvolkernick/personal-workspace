@@ -413,6 +413,24 @@ def attach_plaid_x_money(
     return shape_plaid_x_money(payload, pins, now=clock, stale_after_hours=hours)
 
 
+def _plaid_block(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Pull a Plaid row out of an evaluation doc or a bare block.
+
+    A YNAB ``x_money_latest.json`` has ``source`` other than ``plaid`` and no
+    ``plaid_x_money`` key, so it cannot become a Glance row (#996).
+    """
+    snap = data.get("snapshot") if isinstance(data.get("snapshot"), dict) else None
+    host = snap if snap is not None else data
+    block = host.get("plaid_x_money") if isinstance(host, dict) else None
+    if isinstance(block, dict):
+        return block
+    if data.get("source") == "plaid" and (
+        "accounts" in data or "ok" in data or "stale" in data
+    ):
+        return data
+    return None
+
+
 def read_prior_plaid_x_money(*paths: Path) -> Optional[Dict[str, Any]]:
     for path in paths:
         try:
@@ -423,10 +441,7 @@ def read_prior_plaid_x_money(*paths: Path) -> Optional[Dict[str, Any]]:
             continue
         if not isinstance(data, dict):
             continue
-        snap = data.get("snapshot") if isinstance(data.get("snapshot"), dict) else data
-        if not isinstance(snap, dict):
-            continue
-        block = snap.get("plaid_x_money")
+        block = _plaid_block(data)
         if isinstance(block, dict):
             return block
     return None

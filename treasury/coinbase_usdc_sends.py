@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from zoneinfo import ZoneInfo
 
-from treasury.adapters import SNAPSHOTS_DIR
+from treasury.adapters import SNAPSHOTS_DIR, save_json
 
 SEND_TYPE = "send"
 IGNORE_TYPES = frozenset(
@@ -638,6 +638,5 @@ def write_send_book(payload: Any, dest: Path) -> Dict[str, Any]:
             ),
         }
     )
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(book, indent=2) + "\n", encoding="utf-8")
+    save_json(dest, book)
     return book

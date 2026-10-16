@@ -74,6 +74,12 @@ def main(argv: list[str] | None = None) -> int:
     # does not keep the previous balances; --offline keeps the prior block.
     try:
         prior_plaid = read_prior_plaid_x_money(args.out, dash_out)
+        # Torn or pre-Plaid treasury_latest files have no source=plaid block.
+        # x_money_latest.json counts only when it already is that block (#1013).
+        if not (isinstance(prior_plaid, dict) and prior_plaid.get("source") == "plaid"):
+            alt = read_prior_plaid_x_money(SNAPSHOTS_DIR / "x_money_latest.json")
+            if isinstance(alt, dict) and alt.get("source") == "plaid":
+                prior_plaid = alt
         snap["plaid_x_money"] = attach_plaid_x_money(
             config=cfg,
             prefer_live=live,

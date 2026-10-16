@@ -83,8 +83,9 @@ def load_json(path: Path) -> Dict[str, Any]:
 
 
 def save_json(path: Path, data: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    from treasury.adapters import save_json as atomic_save_json
+
+    atomic_save_json(path, data)
 
 
 def pins_from(share: Dict[str, Any]) -> Dict[str, float]:

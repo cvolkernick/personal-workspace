@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -22,13 +23,26 @@ CONFIG_PATH = TREASURY_DIR / "config.json"
 BTC_USD_SPOT_URL = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
 
 def _resolve_coinbase_bin() -> Optional[str]:
-    """Locate coinbase CLI even when PATH is stripped (launchd / ensure script)."""
+    """Locate coinbase CLI even when PATH is stripped (systemd / launchd).
+
+    Pi has no Homebrew. Node is ``/usr/bin/node``. Install the same CLI the
+    Mac uses and register the existing non-send CDP key (never print the key)::
+
+        npm install -g --prefix "$HOME/.local" @coinbase/coinbase-cli@0.0.4
+        coinbase env live --key-file "$HOME/.config/coinbase/cdp-api-key.json" \\
+            --allow-plaintext-secrets
+
+    Linux has no keychain, so the plaintext flag writes
+    ``~/.config/coinbase/config.json`` mode 0600. ``coinbase balance`` uses
+    the active env. Do not point this at ``cdp-api-key-send.json``.
+    """
     found = shutil.which("coinbase")
     if found:
         return found
     home = Path.home()
     for cand in (
         home / ".local" / "bin" / "coinbase",
+        home / ".npm-global" / "bin" / "coinbase",
         Path("/opt/homebrew/bin/coinbase"),
         Path("/usr/local/bin/coinbase"),
     ):
@@ -51,6 +65,7 @@ def _subprocess_env() -> Dict[str, str]:
         "/opt/homebrew/bin",
         "/opt/homebrew/sbin",
         str(Path.home() / ".local" / "bin"),
+        str(Path.home() / ".npm-global" / "bin"),
         "/usr/local/bin",
     )
     path_parts = [p for p in (env.get("PATH") or "").split(":") if p]
@@ -77,8 +92,26 @@ def load_json(path: Path) -> Optional[Dict[str, Any]]:
 
 
 def save_json(path: Path, data: Dict[str, Any]) -> None:
+    """Atomically replace JSON so overlapping writers cannot leave a partial file.
+
+    The temp file sits in the same directory so ``os.replace`` does not cross
+    devices. fsync before replace (#1013). A reader sees the previous complete
+    file or the new one, never a torn write.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    payload = json.dumps(data, indent=2) + "\n"
+    tmp = path.parent / f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    try:
+        with tmp.open("w", encoding="utf-8") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
 
 
 def load_config(path: Optional[Path] = None) -> Dict[str, Any]:
