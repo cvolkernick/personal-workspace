@@ -3,6 +3,7 @@
 | Tool | Purpose |
 |------|---------|
 | `run_ci_tests.py` | Unified Python + JS CI runner (#584). Canonical: `ops/github-workflows/test.yml` |
+| `check_workaround_comments.py` | Fails on unexplained `TODO`/`FIXME`/`HACK`/`XXX`/`workaround` comments in live code unless they cite an issue `#N` (#1184). Runs in the CI suite via `scripts/tests`. |
 | `buzz-board` | Buzz Board (GitHub Project #1) CLI — `list`, `get`, `set-status N Done`, … |
 | `eng_gate_post_merge.py` | After eng-gate merge: mark board Done / residual / sweep (#58) |
 | `forge_daily_brief.py` | Daily outcomes brief from live GitHub labels and merged PRs (#983). Pi lines stay `last known <date>`. |
