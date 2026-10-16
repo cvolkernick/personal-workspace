@@ -928,15 +928,22 @@ def session_close_civil_day(session: Any) -> str:
     return closed.astimezone(gym_tz()).strftime("%Y-%m-%d")
 
 
-def civil_closed_letter(sessions: Optional[Sequence[Any]], day: str) -> Optional[str]:
-    """PPL letter whose close falls on civil ``day``, ignoring last_wake (#1064)."""
+def civil_closed_letter(
+    sessions: Optional[Sequence[Any]],
+    day: str,
+    *,
+    training_objective: Any = None,
+) -> Optional[str]:
+    """PPL letter whose close falls on civil ``day``, ignoring last_wake (#1064).
+
+    A frozen target that is not delta-dry does not count (#1109).
+    """
     target = str(day or "")[:10]
     if not target:
         return None
-    best_at = None
-    best: Optional[str] = None
-    from .training_day import session_close_dt
+    from .training_day import _gate_close_hits, session_close_dt
 
+    hits = []
     for session in sessions or []:
         letter = _session_letter(session)
         if letter not in ("push", "pull", "legs"):
@@ -944,10 +951,14 @@ def civil_closed_letter(sessions: Optional[Sequence[Any]], day: str) -> Optional
         if session_close_civil_day(session) != target:
             continue
         closed = session_close_dt(session, tz_name=GYM_TZ_NAME)
-        if best_at is None or (closed is not None and closed >= best_at):
-            best_at = closed
-            best = letter
-    return best
+        hits.append(
+            (closed or datetime.min.replace(tzinfo=timezone.utc), letter, session)
+        )
+    hits = _gate_close_hits(hits, training_objective)
+    if not hits:
+        return None
+    hits.sort(key=lambda item: item[0])
+    return hits[-1][1]
 
 
 def civil_partial_letter(sessions: Optional[Sequence[Any]], day: str) -> Optional[str]:
@@ -978,7 +989,11 @@ def apply_civil_booking_flags(
     """Stamp booking flags from civil-day logs. Does not roll the next letter."""
     if not isinstance(workout, dict):
         return workout
-    if civil_closed_letter(sessions, day):
+    objective = workout.get("training_objective")
+    ctx = workout.get("context") if isinstance(workout.get("context"), dict) else {}
+    if objective is None:
+        objective = ctx.get("training_objective")
+    if civil_closed_letter(sessions, day, training_objective=objective):
         workout["session_closed_today"] = True
         return workout
     partial = civil_partial_letter(sessions, day)
@@ -1088,6 +1103,7 @@ def gym_day_from_workout(
         or plan.get("already_trained_today")
         or ctx.get("already_trained_today")
     )
+    objective = plan.get("training_objective") or ctx.get("training_objective")
     if not closed and isinstance(plan.get("sessions"), list):
         from .training_day import closed_ppl_for_planning
 
@@ -1098,12 +1114,15 @@ def gym_day_from_workout(
                 as_of=str(day)[:10],
                 last_wake_at=wake,
                 now=now,
+                training_objective=objective,
             )
         )
     if isinstance(plan.get("sessions"), list):
         # Close instant on civil D counts even when last_wake is stale (#1064).
         sessions = plan.get("sessions") or []
-        if civil_closed_letter(sessions, str(day)[:10]):
+        if civil_closed_letter(
+            sessions, str(day)[:10], training_objective=objective
+        ):
             closed = True
             logged = True
         elif not logged and civil_partial_letter(sessions, str(day)[:10]):

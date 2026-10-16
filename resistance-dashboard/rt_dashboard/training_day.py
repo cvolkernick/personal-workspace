@@ -9,8 +9,11 @@ fall back to civil today — same honesty as calorie/hydration wake windows.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
+
+_LIFT_SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
 def parse_dt(value: Any) -> Optional[datetime]:
@@ -138,6 +141,7 @@ def day_complete_for_planning(
     as_of: Optional[str] = None,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
+    below_substantive_bar: bool = False,
 ) -> bool:
     """``already_trained_today`` SoT for planner + stamp.
 
@@ -145,7 +149,13 @@ def day_complete_for_planning(
     When last_wake is current: parent complete alone must not pin — a PPL
     session has to have closed in that wake. After-midnight quest complete
     that still sits on the civil GT parent must not block the next letter.
+
+    ``below_substantive_bar`` is the #1109 audit: real work that does not
+    cover the frozen target is not a finished day, even if the Training
+    parent is checked. Callers measure that against the frozen objective.
     """
+    if below_substantive_bar:
+        return False
     if not train_parent_completed:
         return False
     if wake_is_current(last_wake_at, as_of, now=now, tz_name=tz_name):
@@ -358,6 +368,182 @@ def session_is_quest_seed_only(session: Any) -> bool:
     return True
 
 
+def lift_leaf_key(name: str) -> str:
+    """Quest leaf slug for a lift name. Matches ``daily_plan_tasks`` ``ex-`` keys."""
+    slug = _LIFT_SLUG_RE.sub("-", (name or "").lower()).strip("-")
+    return "ex-" + ((slug or "item")[:48])
+
+
+def objective_leaf_keys(objective: Any) -> list:
+    """Frozen ``training_objective`` leaves, in saved order. Empty if unset."""
+    if not isinstance(objective, dict):
+        return []
+    keys = []
+    seen = set()
+    for raw in objective.get("leaves") or []:
+        if not isinstance(raw, dict):
+            continue
+        slug = str(raw.get("slug") or "").strip().lower()
+        if not slug.startswith("ex-"):
+            title = str(raw.get("title") or "")
+            name = title.split(" (", 1)[0].strip()
+            slug = lift_leaf_key(name)
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        keys.append(slug)
+    return keys
+
+
+def _exercise_rows(session: Any) -> list:
+    if isinstance(session, dict):
+        return list(session.get("exercises") or [])
+    return list(getattr(session, "exercises", None) or [])
+
+
+def exercise_is_real_work(ex: Any) -> bool:
+    """True for one real logged set. Quest seeds and status copy are not work."""
+    from .models import is_planner_status_exercise_name
+
+    if isinstance(ex, dict):
+        name = str(ex.get("name") or "")
+        if ex.get("quest_seeded") or ex.get("movement_only"):
+            return False
+        raw = str(ex.get("raw") or "")
+        sets = ex.get("sets") or []
+    else:
+        name = str(getattr(ex, "name", "") or "")
+        if getattr(ex, "quest_seeded", False):
+            return False
+        raw = str(getattr(ex, "raw", "") or "")
+        sets = getattr(ex, "sets", None) or []
+    if is_planner_status_exercise_name(name) or not str(name).strip():
+        return False
+    if raw.startswith("quest-seeded:"):
+        return False
+    for st in sets:
+        if isinstance(st, dict):
+            try:
+                reps = int(st.get("reps") or 0)
+                count = int(st.get("sets") or 0)
+            except (TypeError, ValueError):
+                continue
+        else:
+            try:
+                reps = int(getattr(st, "reps", 0) or 0)
+                count = int(getattr(st, "sets", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+        if reps > 0 and count > 0:
+            return True
+    return False
+
+
+def session_real_lift_keys(session: Any) -> set:
+    keys = set()
+    for ex in _exercise_rows(session):
+        if not exercise_is_real_work(ex):
+            continue
+        if isinstance(ex, dict):
+            name = str(ex.get("name") or "")
+        else:
+            name = str(getattr(ex, "name", "") or "")
+        keys.add(lift_leaf_key(name))
+    return keys
+
+
+def objective_delta_dry(sessions: Sequence[Any], objective: Any) -> bool:
+    """True when every frozen leaf has a real set, or there is no frozen target.
+
+    No leaves means this caller has no bar. A persisted real row still
+    closes the way #951 did. A 5-leaf target with 2 real lifts is not dry.
+    """
+    leaves = objective_leaf_keys(objective)
+    if not leaves:
+        return True
+    have: set = set()
+    for session in sessions or []:
+        have |= session_real_lift_keys(session)
+    return all(key in have for key in leaves)
+
+
+def substantive_bar_open(sessions: Sequence[Any], objective: Any) -> bool:
+    """True when in-window real work overlaps the frozen target and is not dry."""
+    leaves = set(objective_leaf_keys(objective))
+    if not leaves:
+        return False
+    overlapping = [
+        session
+        for session in sessions or []
+        if session_real_lift_keys(session) & leaves
+    ]
+    if not overlapping:
+        return False
+    return not objective_delta_dry(overlapping, objective)
+
+
+def planning_window_sessions(
+    sessions: Sequence[Any],
+    *,
+    as_of: Optional[str] = None,
+    last_wake_at: Any = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> list:
+    """PPL rows in the same window ``closed_ppl_for_planning`` uses.
+
+    Quest-seed-only rows are omitted. A partial log with no close stamp
+    still counts so the bar can see it.
+    """
+    from .timeutil import local_now
+
+    clock = local_now(tz_name, now=now)
+    use_wake = wake_is_current(last_wake_at, as_of, now=clock, tz_name=tz_name)
+    civil = str(as_of or "")[:10]
+    out = []
+    for session in sessions or []:
+        if _session_type(session) not in ("push", "pull", "legs"):
+            continue
+        if session_is_quest_seed_only(session):
+            continue
+        if use_wake:
+            if not session_in_wake(
+                session, last_wake_at=last_wake_at, now=clock, tz_name=tz_name
+            ):
+                continue
+        else:
+            if isinstance(session, dict):
+                day = str(session.get("date") or "")[:10]
+            else:
+                day = str(getattr(session, "date", "") or "")[:10]
+            if day != civil:
+                continue
+        out.append(session)
+    return out
+
+
+def _gate_close_hits(hits: list, objective: Any) -> list:
+    """Drop close rows whose real work overlaps the frozen target but is not dry.
+
+    A row that shares no leaf with the target keeps the #951 persist close.
+    That is a different letter, or a day with no frozen target in play.
+    """
+    leaves = set(objective_leaf_keys(objective))
+    if not leaves or not hits:
+        return hits
+    gated = []
+    other = []
+    for item in hits:
+        session = item[2]
+        if session_real_lift_keys(session) & leaves:
+            gated.append(item)
+        else:
+            other.append(item)
+    if gated and objective_delta_dry([item[2] for item in gated], objective):
+        return other + gated
+    return other
+
+
 def closed_ppl_for_planning(
     sessions: Sequence[Any],
     *,
@@ -365,6 +551,7 @@ def closed_ppl_for_planning(
     last_wake_at: Any = None,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
+    training_objective: Any = None,
 ) -> Optional[str]:
     """Latest PPL letter with a persisted close in the planning window (#951).
 
@@ -372,6 +559,10 @@ def closed_ppl_for_planning(
     (no close stamp) does not roll the next letter. When more than one
     letter closed in the window, the latest close wins. An overnight
     close before 05:00 still belongs to that training day.
+
+    When ``training_objective`` has leaves, a persisted row closes only
+    if real sets cover every frozen lift (#1109). Two lifts against a
+    five-lift target stay open. Quest-seed-only rows still never close.
     """
     from .timeutil import local_now
 
@@ -400,7 +591,10 @@ def closed_ppl_for_planning(
             if day != civil:
                 continue
         closed = session_close_dt(session, tz_name=tz_name)
-        hits.append((closed or datetime.min.replace(tzinfo=timezone.utc), letter))
+        hits.append(
+            (closed or datetime.min.replace(tzinfo=timezone.utc), letter, session)
+        )
+    hits = _gate_close_hits(hits, training_objective)
     if not hits:
         return None
     hits.sort(key=lambda item: item[0])

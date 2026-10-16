@@ -1972,6 +1972,55 @@ def clamp_llm_plan_loads(
     return workout
 
 
+def _attach_training_objective(plan: dict, objective: Optional[dict]) -> dict:
+    """Copy a frozen target onto the plan so later close checks see the same bar."""
+    from .training_day import objective_leaf_keys
+
+    if objective_leaf_keys(objective):
+        plan["training_objective"] = objective
+        ctx = plan.get("context")
+        if isinstance(ctx, dict):
+            ctx["training_objective"] = objective
+    return plan
+
+
+def _remaining_frozen_choices(
+    objective: Optional[dict],
+    sessions: Sequence[Any],
+    pool: Sequence[dict],
+) -> Optional[List[dict]]:
+    """Unlogged frozen lifts, in leaf order. None when there is no frozen target.
+
+    An empty list means the target is set and nothing remains to prescribe.
+    Callers must not fill that hole with a new ranking.
+    """
+    from .training_day import (
+        lift_leaf_key,
+        objective_leaf_keys,
+        session_real_lift_keys,
+    )
+
+    leaves = objective_leaf_keys(objective)
+    if not leaves:
+        return None
+    have: Set[str] = set()
+    for session in sessions or []:
+        have |= session_real_lift_keys(session)
+    by_key: Dict[str, dict] = {}
+    for ex in pool or []:
+        key = lift_leaf_key(str(ex.get("name") or ""))
+        if key and key not in by_key:
+            by_key[key] = ex
+    out: List[dict] = []
+    for key in leaves:
+        if key in have:
+            continue
+        match = by_key.get(key)
+        if match is not None:
+            out.append(match)
+    return out
+
+
 def generate_workout_plan(
     catalog: dict,
     goals: dict,
@@ -1988,6 +2037,7 @@ def generate_workout_plan(
     train_parent_completed: bool = False,
     last_wake_at: Optional[str] = None,
     now: Optional[datetime] = None,
+    training_objective: Optional[dict] = None,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -2074,7 +2124,10 @@ def generate_workout_plan(
     from .training_day import (
         closed_ppl_for_planning,
         day_complete_for_planning,
+        objective_leaf_keys,
+        planning_window_sessions,
         ppl_logged_for_planning,
+        substantive_bar_open,
     )
 
     logged_today = ppl_logged_for_planning(
@@ -2088,14 +2141,23 @@ def generate_workout_plan(
         as_of=day,
         last_wake_at=last_wake_at,
         now=now,
+        training_objective=training_objective,
     )
     force_letter = explicit in ("push", "pull", "legs")
+    window_sessions = planning_window_sessions(
+        sessions,
+        as_of=day,
+        last_wake_at=last_wake_at,
+        now=now,
+    )
+    below_bar = substantive_bar_open(window_sessions, training_objective)
     day_complete = day_complete_for_planning(
         train_parent_completed,
         ppl_logged_today=logged_today,
         last_wake_at=last_wake_at,
         as_of=day,
         now=now,
+        below_substantive_bar=below_bar,
     )
     # A persisted close rolls the plan onto the next letter (#951).
     # Parent-complete without a close stamp still returns the empty
@@ -2116,7 +2178,7 @@ def generate_workout_plan(
             "reason": focus_res.get("reason"),
         }
         st_done = pin if pin in ("push", "pull", "legs") else logged_today or "session"
-        return {
+        return _attach_training_objective({
             "date": day,
             "session_type": st_done,
             "is_rest_day": False,
@@ -2143,7 +2205,7 @@ def generate_workout_plan(
                 "already_trained_today": True,
                 "ppl_logged_today": logged_today,
             },
-        }
+        }, training_objective)
 
     pin_open_session = bool(logged_today) and not force_letter and not plan_next
     if (
@@ -2162,7 +2224,7 @@ def generate_workout_plan(
             "source": focus_res.get("source"),
             "reason": focus_res.get("reason"),
         }
-        return {
+        return _attach_training_objective({
             "date": day,
             "session_type": "rest",
             "is_rest_day": True,
@@ -2183,7 +2245,7 @@ def generate_workout_plan(
                 "weekly_sets": tally,
                 "focus": balance["focus"],
             },
-        }
+        }, training_objective)
 
     if plan_next:
         st = next_letter_after(closed_letter, goals)
@@ -2277,30 +2339,39 @@ def generate_workout_plan(
             return True
         return _norm_name(str(e.get("name") or "")) in today_logged_names
 
+    frozen_left = None
+    if not plan_next:
+        frozen_left = _remaining_frozen_choices(
+            training_objective, today_sessions, pool
+        )
     chosen: List[dict] = []
-    # Seed with top compound if compounds preferred
-    if n and goals.get("prefer_compounds_first", True):
+    if frozen_left is not None:
+        # Remaining delta of the frozen target. Do not rank a new set (#1109).
+        chosen = list(frozen_left)
+    else:
+        # Seed with top compound if compounds preferred
+        if n and goals.get("prefer_compounds_first", True):
+            for e in pool_scored:
+                if _already_logged_today(e):
+                    continue
+                if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
+                    chosen.append(e)
+                    break
         for e in pool_scored:
+            if len(chosen) >= n:
+                break
             if _already_logged_today(e):
                 continue
-            if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
-                chosen.append(e)
-                break
-    for e in pool_scored:
-        if len(chosen) >= n:
-            break
-        if _already_logged_today(e):
-            continue
-        if e["id"] in {c["id"] for c in chosen}:
-            continue
-        if _family_slot_taken(e, chosen):
-            continue
-        # Skip isolations whose primaries are already over weekly max
-        prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
-        if e.get("movement") != "compound" and prim:
-            if all(float(done.get(m) or 0) >= float((bands.get(m) or {}).get("max") or 8) for m in prim):
+            if e["id"] in {c["id"] for c in chosen}:
                 continue
-        chosen.append(e)
+            if _family_slot_taken(e, chosen):
+                continue
+            # Skip isolations whose primaries are already over weekly max
+            prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
+            if e.get("movement") != "compound" and prim:
+                if all(float(done.get(m) or 0) >= float((bands.get(m) or {}).get("max") or 8) for m in prim):
+                    continue
+            chosen.append(e)
 
     plan_ex: List[dict] = []
     planned_credits: Dict[str, float] = {}
@@ -2554,7 +2625,9 @@ def generate_workout_plan(
         out["generate_error"] = empty_plan_error
         out["message"] = empty_plan_error
         out["context"]["generate_error"] = empty_plan_error
-    return out
+    return _attach_training_objective(
+        out, None if plan_next else training_objective
+    )
 
 
 def update_goals(raw: dict) -> dict:
