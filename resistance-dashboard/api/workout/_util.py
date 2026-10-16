@@ -38,6 +38,7 @@ _ROUTES = (
     "agent_today",
     "agent_generate",
     "trends_export",
+    "training_log_pdf",
     "labs",
     "labs_upload",
     "labs_delete",
@@ -131,6 +132,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "agent_generate"
     if "/api/trends/export" in blob or "/trends/export" in blob:
         return "trends_export"
+    if "/api/training-log.pdf" in blob or "/training-log.pdf" in blob:
+        return "training_log_pdf"
     if "/api/agent/today" in blob:
         return "agent_today"
     if "/api/labs/upload" in blob:
@@ -211,6 +214,19 @@ def available_body(headers):
         },
         "write": {"ok": False, "readonly": False},
     }
+
+
+def training_log_pdf_body(headers, query: str = ""):
+    """Signed-in weekly lifts PDF. Same Turso sessions as the dashboard."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    from api.dashboard import _load_sessions
+    from rt_dashboard.training_log_pdf import training_log_from_store
+
+    sessions, errors, _source = _load_sessions(str(user.get("id") or "default"))
+    store_error = "; ".join(str(item) for item in (errors or []) if str(item).strip())
+    return training_log_from_store(sessions, query, store_error=store_error)
 
 
 def workouts_body(headers):
@@ -1724,6 +1740,10 @@ def dispatch_client_route(
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return trends_export_body(headers, query, client_host=client_host)
+    if route == "training_log_pdf":
+        if method != "GET":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return training_log_pdf_body(headers, query)
     if route == "labs":
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}

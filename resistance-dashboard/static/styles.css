@@ -5039,3 +5039,20 @@ body.m-shell #alerts {
     padding: 0.65rem 0.65rem 0.55rem;
   }
 }
+#training-log-pdf-row {
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+#training-log-pdf {
+  min-height: 44px;
+}
+@media (max-width: 720px) {
+  #training-log-pdf-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #training-log-pdf {
+    width: 100%;
+    min-height: 48px;
+  }
+}

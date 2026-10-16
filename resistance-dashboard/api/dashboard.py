@@ -819,6 +819,16 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
 
 def _write_dashboard(handler, status: int, body: dict) -> None:
+    pdf = body.get("pdf") if isinstance(body, dict) else None
+    if status == 200 and isinstance(pdf, (bytes, bytearray)):
+        from rt_dashboard.training_log_pdf import write_pdf_response
+
+        write_pdf_response(
+            handler,
+            bytes(pdf),
+            str(body.get("filename") or "fitdash-training-log.pdf"),
+        )
+        return
     raw = json_bytes(body)
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json")
