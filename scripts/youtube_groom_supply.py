@@ -29,8 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
-# Match the nest scorecard. Do not import youtube_groom — on the Pi that
-# name is the live writer.
+# Match the nest scorecard.
 HOUSE_TARGET = 250
 CAP = 250
 HOUSE_TARGET_TOLERANCE = 15

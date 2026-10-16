@@ -10,8 +10,7 @@ criteria notch per tick. Writes:
   * merges a ``control`` block into ``tick_report.json``
 
 Never calls the YouTube Data API. Never copies over the live writer at
-``~/.local/lib/youtube-groom/youtube_groom.py``. Do not import
-``youtube_groom`` on Pi — that filename is the writer (google API).
+``~/.local/lib/youtube-groom/youtube_groom.py``.
 
 Live-writer hook (surgical in-place, not a nest-copy)::
 
@@ -45,7 +44,7 @@ JSONL_PATH = STATE_DIR / "control.jsonl"
 PI_WRITER_PATH = Path.home() / ".local" / "lib" / "youtube-groom" / "youtube_groom.py"
 TIMER_DROPIN = Path.home() / ".config" / "systemd" / "user" / "youtube-groom.timer.d" / "control.conf"
 
-# Match nest policy scorecard. Do not import youtube_groom.py on Pi.
+# Match nest policy scorecard.
 # #957 rebased the #852 loop: target 250, hard cap 250, band 235–250.
 HOUSE_TARGET = 250
 HOUSE_TARGET_TOLERANCE = 15

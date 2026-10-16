@@ -40,8 +40,7 @@ REPORT_PATH = STATE_DIR / "tick_report.json"
 JSONL_PATH = STATE_DIR / "ticks.jsonl"
 PI_WRITER_PATH = Path.home() / ".local" / "lib" / "youtube-groom" / "youtube_groom.py"
 
-# Match live Pi writer + nest policy scorecard. Do not import youtube_groom.py
-# on Pi — that file is the writer (google API), not this log reader.
+# Match live Pi writer + nest policy scorecard.
 HOUSE_TARGET = 250
 DAILY_SOFT_CAP = 8000
 YOUTUBE_DAILY_UNITS = 10000
@@ -559,7 +558,7 @@ def run_report(
     payload["report_path"] = str(report_path)
     payload["dry_run"] = dry_run
     # #852 control loop: idempotent per last_tick.at. Lives alongside this
-    # reader (same dir on Pi). Never import youtube_groom — that's the writer.
+    # reader (same dir on Pi).
     try:
         here = Path(__file__).resolve().parent
         if str(here) not in sys.path:
