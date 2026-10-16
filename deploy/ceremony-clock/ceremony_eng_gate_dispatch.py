@@ -507,6 +507,32 @@ def next_link(header: str | None) -> str | None:
     return None
 
 
+# A PR counts as work on issue #N only when it TARGETS it: a closing/reference keyword right
+# before the number ("Fixes #N", "Refs #N", "Part of #N", "owner/repo#N"), the number as the
+# title's own "(#N)" suffix, or a title that starts with it. A PR that merely mentions "#N"
+# in prose ("dead claims (#1077, #1093)", "stale #1077") is not work in flight: the merged
+# #1200 (the dispatcher fix itself) kept #1077 live forever that way.
+PR_TARGET_KEYWORDS = (
+    r"fix(?:e[sd])?|close[sd]?|resolve[sd]?|refs?|references?|part[ \t]+of|toward[s]?|"
+    r"addresses|implements?|follow[- ]?up[ \t]+(?:to|of|for)|continues"
+)
+
+
+def pr_targets_issue(pr: dict, number: int) -> bool:
+    n = int(number)
+    title = str(pr.get("title") or "")
+    body = HTML_COMMENT_RE.sub("", str(pr.get("body") or ""))
+    ref = rf"(?:[\w.-]+/[\w.-]+)?#{n}(?!\d)"
+    kw = re.compile(rf"(?<![\w])(?:{PR_TARGET_KEYWORDS})[ \t]*:?[ \t]*(?:\[?[ \t]*)?(?:https?://github\.com/[\w.-]+/[\w.-]+/issues/{n}(?!\d)|{ref})", re.I)
+    if kw.search(title) or kw.search(body):
+        return True
+    # "(#N)" as the title's own trailing marker, or a title that starts with "#N" / "[#N]".
+    return bool(
+        re.search(rf"\(#{n}\)\s*$", title)
+        or re.match(rf"\s*\[?#{n}(?!\d)", title)
+    )
+
+
 class GitHub:
     def __init__(self, token: str):
         self.token = token
@@ -579,8 +605,7 @@ class GitHub:
         q = urllib.parse.quote(f"repo:{REPO} type:pr {number} in:title,body")
         data = self.call("GET", f"https://api.github.com/search/issues?q={q}&per_page=30")
         items = data.get("items", []) if isinstance(data, dict) else []
-        pat = re.compile(rf"(?<![\w/])#{number}(?!\d)|/issues/{number}(?!\d)")
-        return [p for p in items if pat.search(f"{p.get('title') or ''}\n{p.get('body') or ''}")]
+        return [p for p in items if pr_targets_issue(p, number)]
 
     def branches(self) -> list[str]:
         """All branch names (the repo has 500+; one page of 100 is never enough)."""

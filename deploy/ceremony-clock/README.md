@@ -23,8 +23,10 @@ unchanged and stay Pi-local; they carry relay workflow ids and are not in this r
    pagination (the repo has 500+ branches); a pagination or API error means *no release*.
    Grok eng-gate bookkeeping comments (`Status check`, `Deadline check`,
    `Re-staffed (Grok eng-gate ...`) are not holder activity, except that one saying
-   ``label stays `status:in-progress` `` (or `pi-dispatch:keep`) renews the 24h clock. An open PR
-   that mentions `#N` keeps the claim live. Any API error while checking activity means *no
+   ``label stays `status:in-progress` `` (or `pi-dispatch:keep`) renews the 24h clock. A PR
+   that *targets* `#N` (`Fixes/Closes/Resolves/Refs/Part of #N`, a trailing `(#N)` in its title, or a
+   title starting with `#N`; open, or updated after the claim) keeps the claim live. A PR that only
+   mentions `#N` in prose does not. Any API error while checking activity means *no
    release*.
 2. **Pick.** One `status:ready` issue, flipped to `status:in-progress`, kick posted to
    #workflow. Per-owner WIP is still 1, but only *live claims pi-dispatch made itself*
