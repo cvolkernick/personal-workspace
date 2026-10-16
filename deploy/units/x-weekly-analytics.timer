@@ -1,0 +1,13 @@
+[Unit]
+Description=X weekly analytics: Mondays 10:00 America/New_York
+
+[Timer]
+# Same schedule as the retired OpenClaw cron job (0 10 * * 1, tz America/New_York).
+OnCalendar=Mon *-*-* 10:00:00 America/New_York
+# Run once on next boot/login if the host was off at 10:00.
+Persistent=true
+AccuracySec=1min
+Unit=x-weekly-analytics.service
+
+[Install]
+WantedBy=timers.target
