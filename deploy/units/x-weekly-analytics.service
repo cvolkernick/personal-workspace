@@ -1,0 +1,17 @@
+[Unit]
+Description=X weekly analytics for @ChrisVolkernick (replaces the OpenClaw x-weekly-analytics cron job)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PYTHONUNBUFFERED=1
+# Snapshots + text reports land here (script default; override with --output-dir).
+Environment=X_ANALYTICS_OUTPUT_DIR=%h/x-analytics-output
+# Credentials are NOT set here: the script reads ~/.secrets/x-api.env itself.
+# Copy scripts/x-analytics/twitter_metrics.py to ~/.local/lib/x-analytics/ (see README);
+# like youtube-groom, prism runs it from there, not from the checkout.
+ExecStart=/usr/bin/python3 %h/.local/lib/x-analytics/twitter_metrics.py
+TimeoutStartSec=300
+NoNewPrivileges=yes
+Nice=10

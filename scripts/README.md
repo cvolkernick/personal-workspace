@@ -10,6 +10,7 @@
 | `youtube_groom.py` | AI Curated house-cap policy (not the Pi writer; do not copy over `~/.local/lib/youtube-groom/youtube_groom.py`) |
 | `youtube_groom_health.py` | Tick health from `groom.log` — #workflow alert to Grok + `health.json`. Copy **this** file to Pi alongside the writer, never over it. |
 | `youtube_groom_tick_report.py` | Per-tick listed/add/skip/quota + 24h rollup (#838, not #759). Copy **alongside** the writer, never over it. |
+| `x-analytics/twitter_metrics.py` | Weekly X metrics for @ChrisVolkernick (replaces the OpenClaw `x-weekly-analytics` cron; no LLM). Runbook: `scripts/x-analytics/README.md`; units: `deploy/units/x-weekly-analytics.*`. Copy to `~/.local/lib/x-analytics/` on prism. |
 
 ```bash
 ./scripts/buzz-board whoami
