@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .models import Session
+from .models import Session, is_zero_volume_status_log
 
 
 def session_volume(session: Session) -> float:
@@ -262,7 +262,7 @@ def strength_trend(
         groups: List[List[Tuple[float, int, int]]] = []
         for ex in _session_exercises(session):
             logged = _exercise_name(ex)
-            if not logged or is_test_exercise_name(logged):
+            if not logged or is_test_exercise_name(logged) or is_zero_volume_status_log(ex):
                 continue
             if _norm_lift(canonical_lift_name(logged, table)) != want_key:
                 continue
@@ -329,7 +329,7 @@ def ordered_lift_names(
     for session in sessions or []:
         for ex in _session_exercises(session):
             logged = _exercise_name(ex)
-            if not logged or is_test_exercise_name(logged):
+            if not logged or is_test_exercise_name(logged) or is_zero_volume_status_log(ex):
                 continue
             canon = canonical_lift_name(logged, table)
             key = _norm_lift(canon)
@@ -431,6 +431,8 @@ def top_exercises(sessions: Sequence[Session], limit: int = 30) -> List[str]:
     counts: Dict[str, int] = defaultdict(int)
     for s in sessions:
         for e in s.exercises:
+            if is_zero_volume_status_log(e):
+                continue
             counts[e.name] += 1
     ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     return [name for name, _ in ranked[:limit]]

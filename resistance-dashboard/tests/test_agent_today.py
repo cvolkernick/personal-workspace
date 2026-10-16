@@ -20,6 +20,8 @@ if str(ROOT) not in sys.path:
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.workout._util import agent_today_body, dispatch_client_route
 from rt_dashboard.agent_today import export_agent_today
+from rt_dashboard.analytics import ordered_lift_names
+from rt_dashboard.models import is_zero_volume_status_log
 from rt_dashboard.google_health import GoogleHealthClient, GoogleHealthError
 from rt_dashboard.models import (
     ActiveZoneMinutesDay,
@@ -1555,6 +1557,112 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertEqual(body["week"]["start"], "2026-08-17")
         self.assertEqual(body["week"]["end"], "2026-08-23")
         self._assert_no_secrets(body)
+
+
+class AlreadyTrainedStatusLog(unittest.TestCase):
+    """#1110: planner status copy is not a logged exercise."""
+
+    def test_closed_day_status_message_is_not_a_logged_exercise(self):
+        message = "Already trained today (LEGS). Next session: PUSH."
+        fake = {
+            "name": message,
+            "sets": [],
+            "volume": 0,
+            "quest_seeded": True,
+        }
+        real = {
+            "name": "Leg Press",
+            "sets": [{"weight_lbs": 280, "sets": 3, "reps": 9}],
+            "volume": 7560,
+        }
+        loaded = ExerciseEntry(
+            name=message,
+            sets=[],
+            quest_seeded=True,
+        )
+        kept = ExerciseEntry(
+            name="Leg Press",
+            sets=[SetEntry(weight_lbs=280, sets=3, reps=9)],
+        )
+        stored = Session(
+            date="2026-10-10",
+            session_type="legs",
+            exercises=[kept, loaded],
+            closed_at="2026-10-10T04:11:00-04:00",
+        )
+        # Read filter only. The in-memory row is still there.
+        self.assertEqual(len(stored.exercises), 2)
+        self.assertTrue(is_zero_volume_status_log(loaded))
+        self.assertEqual(
+            [ex["name"] for ex in stored.to_dict()["exercises"]],
+            ["Leg Press"],
+        )
+        worked = ExerciseEntry(
+            name="Already trained today (LEGS)",
+            sets=[SetEntry(weight_lbs=100, sets=1, reps=5)],
+        )
+        self.assertFalse(is_zero_volume_status_log(worked))
+        self.assertEqual(worked.to_dict()["name"], "Already trained today (LEGS)")
+
+        body = export_agent_today(
+            {
+                "meta": {"local_today": "2026-10-10"},
+                "coach": {
+                    "today": {
+                        "date": "2026-10-10",
+                        "workout": {
+                            "message": message,
+                            "session_type": "legs",
+                            "already_trained_today": True,
+                            "session_closed_today": True,
+                            "exercises": [],
+                        },
+                    }
+                },
+                "workout": {
+                    "message": message,
+                    "session_type": "legs",
+                    "already_trained_today": True,
+                    "session_closed_today": True,
+                    "exercises": [],
+                },
+                "sessions": [
+                    {
+                        "date": "2026-10-10",
+                        "session_type": "legs",
+                        "closed_at": "2026-10-10T04:11:00-04:00",
+                        "exercises": [real, fake],
+                    }
+                ],
+            }
+        )
+        wo = body["today"]["workout"]
+        self.assertIn("Already trained today", wo["message"])
+        logged_names = [ex["name"] for ex in wo["logged_exercises"]]
+        self.assertEqual(logged_names, ["Leg Press"])
+        self.assertNotIn(message, logged_names)
+        recent_names = [
+            ex["name"]
+            for sess in wo["recent_sessions"]
+            for ex in sess["exercises"]
+        ]
+        self.assertEqual(recent_names, ["Leg Press"])
+        week_names = [
+            ex["name"]
+            for sess in body["week"]["logged_sessions"]
+            for ex in sess["exercises"]
+        ]
+        self.assertEqual(week_names, ["Leg Press"])
+        ranked = ordered_lift_names(
+            [
+                Session(
+                    date="2026-10-10",
+                    session_type="legs",
+                    exercises=[kept, loaded],
+                )
+            ]
+        )
+        self.assertEqual(ranked, ["Leg Press"])
 
 
 if __name__ == "__main__":

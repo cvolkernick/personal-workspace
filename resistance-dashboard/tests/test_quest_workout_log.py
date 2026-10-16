@@ -116,6 +116,80 @@ class LiftDetection(unittest.TestCase):
             )
         )
 
+    def test_already_trained_status_is_not_a_logged_exercise(self):
+        title = "Already trained today (LEGS). Next session: PUSH tomorrow."
+        self.assertFalse(
+            looks_like_lift_quest(
+                group="training",
+                title=title,
+                slug="train-session",
+            )
+        )
+        session, info = apply_quest_to_session(
+            completed=True,
+            group="training",
+            title=title,
+            slug="train-session",
+            session_type="legs",
+            today="2026-10-10",
+            today_workout={
+                "session_type": "legs",
+                "message": title,
+                "already_trained_today": True,
+                "exercises": [],
+            },
+            sessions=[
+                Session(
+                    date="2026-10-10",
+                    session_type="legs",
+                    exercises=[
+                        ExerciseEntry(
+                            name="Leg Press",
+                            sets=[SetEntry(weight_lbs=280, sets=3, reps=9)],
+                        )
+                    ],
+                    closed_at="2026-10-10T04:11:00-04:00",
+                )
+            ],
+        )
+        self.assertIsNone(session)
+        self.assertEqual(info["reason"], "not_lift")
+        self.assertFalse(info["wrote"])
+
+    def test_log_post_drops_status_name_and_keeps_the_lift(self):
+        logged = parse_log_body(
+            {
+                "session_type": "legs",
+                "date": "2026-10-10",
+                "exercises": [
+                    {
+                        "name": "Already trained today (LEGS). Next session: PUSH.",
+                        "quest_seeded": True,
+                    },
+                    {
+                        "name": "Leg Press",
+                        "weight_lbs": 280,
+                        "sets": 3,
+                        "reps": 9,
+                    },
+                ],
+            }
+        )
+        self.assertEqual([ex.name for ex in logged.exercises], ["Leg Press"])
+        with self.assertRaises(ValueError):
+            parse_log_body(
+                {
+                    "session_type": "legs",
+                    "date": "2026-10-10",
+                    "exercises": [
+                        {
+                            "name": "Already trained today (LEGS). Next session: PUSH.",
+                            "quest_seeded": True,
+                        }
+                    ],
+                }
+            )
+
 
 class TrainingLogHit(unittest.TestCase):
     def test_quest_seed_only_is_not_a_hit(self):
@@ -931,6 +1005,11 @@ class Wiring(unittest.TestCase):
         self.assertIn('done ? " is-done"', render)
         self.assertIn("Uncheck", render)
         self.assertIn("function looksLikeLiftQuest", JS)
+        lift_fn = JS.split("function looksLikeLiftQuest", 1)[1].split(
+            "function buildDailyQuestBodyHtml", 1
+        )[0]
+        self.assertIn("already trained today", lift_fn)
+        self.assertIn("function isZeroVolumeStatusLog", JS)
         body = JS.split("function buildDailyQuestBodyHtml", 1)[1].split(
             "function applyQuestsCollapseDom", 1
         )[0]

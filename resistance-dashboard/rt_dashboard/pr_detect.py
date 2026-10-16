@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Dict, Optional, Sequence, Tuple
 
-from .models import ExerciseEntry, Session
+from .models import ExerciseEntry, Session, is_zero_volume_status_log
 from .test_noise import is_test_exercise_name
 
 
@@ -27,7 +27,7 @@ def historical_bests(
         if before_date and s.date >= before_date:
             continue
         for ex in s.exercises:
-            if is_test_exercise_name(ex.name):
+            if is_test_exercise_name(ex.name) or is_zero_volume_status_log(ex):
                 continue
             key = _norm(ex.name)
             if not key:
@@ -56,7 +56,7 @@ def is_exercise_pr(
     - Best working weight higher than any prior → PR
     - Best estimated 1RM higher than any prior (same weight, more reps) → PR
     """
-    if is_test_exercise_name(entry.name):
+    if is_test_exercise_name(entry.name) or is_zero_volume_status_log(entry):
         return False
     key = _norm(entry.name)
     if not key or not entry.sets:

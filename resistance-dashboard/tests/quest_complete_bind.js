@@ -156,6 +156,7 @@ global.document = {
 };
 
 global.looksLikeLiftQuest = loadFn("looksLikeLiftQuest");
+global.isZeroVolumeStatusLog = loadFn("isZeroVolumeStatusLog");
 global.applyQuestUncheckToSessions = loadFn("applyQuestUncheckToSessions");
 global.applyQuestUpsertToSessions = loadFn("applyQuestUpsertToSessions");
 global.pplSessionTypeFromState = loadFn("pplSessionTypeFromState");
@@ -225,6 +226,22 @@ async function click(btn) {
   assert(looksLikeLiftQuest("nutrition", "Next meal: Chicken · 210g", "meal-0-chicken-0") === false, "meal is not a lift");
   assert(looksLikeLiftQuest("other", "Drink 3L water", "action-hydration-0") === false, "hydration is not a lift");
   assert(looksLikeLiftQuest("training", "Complete today's PUSH session", "train-session") === false, "session title is not a lift");
+  assert(
+    looksLikeLiftQuest("training", "Already trained today (LEGS). Next session: PUSH.", "train-session") === false,
+    "status message is not a lift"
+  );
+  assert(
+    global.isZeroVolumeStatusLog({
+      name: "Already trained today (LEGS). Next session: PUSH.",
+      sets: [],
+      volume: 0,
+    }) === true,
+    "0-volume status row is hidden"
+  );
+  assert(
+    global.isZeroVolumeStatusLog({ name: "DB Flat Press", sets: [{ weight_lbs: 50, sets: 3, reps: 10 }] }) === false,
+    "a logged lift is not a status row"
+  );
 
   const ready = makeBtn({
     taskId: "t1",
