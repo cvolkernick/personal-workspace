@@ -461,6 +461,56 @@ def test_fixture_crm_and_fallback(monkeypatch):
     assert "outdoor vehicle storage lease" in fell["caller_context"]
 
 
+def test_crm_base_accepts_only_loopback():
+    good = {
+        "http://127.0.0.1:8799": "http://127.0.0.1:8799",
+        "http://localhost:9/": "http://localhost:9",
+        "HTTP://LocalHost:80": "http://localhost:80",
+    }
+    bad = (
+        "http://203.0.113.9:8799",
+        "https://127.0.0.1:8799",
+        "http://127.0.0.1",
+        "http://127.0.0.1:8799/v1",
+        "http://user:crm-secret-token@127.0.0.1:8799",
+        "http://127.0.0.1:8799?pn=1",
+        "http://[::1]:8799",
+        "http://127.0.0.1:8799#token",
+        "",
+    )
+    for raw, want in good.items():
+        assert caller_context.loopback_http_base(raw) == want
+    for raw in bad:
+        assert caller_context.loopback_http_base(raw) is None
+
+
+def test_crm_base_non_local_uses_index_without_request(monkeypatch):
+    store = index()
+    caller_context.ingest_polled_call(store, load("call_c5959d5f.json"))
+    store.close()
+    token = "crm-secret-token"
+    poisoned = f"http://user:{token}@203.0.113.9:8799/steal"
+    monkeypatch.setenv("CRM_API_BASE", poisoned)
+    monkeypatch.setenv("CRM_API_TOKEN", token)
+    seen = []
+
+    class Opener:
+        def open(self, req, timeout=None):
+            seen.append(getattr(req, "full_url", ""))
+            raise AssertionError("request on a rejected CRM base")
+
+    body = caller_context.lookup_caller(CHRIS, AT_1021, opener=Opener())
+    status, view = caller_context.crm_lookup(poisoned, token, CHRIS, opener=Opener())
+    assert seen == []
+    assert status == "down" and view is None
+    assert body["backend"] == "index"
+    assert "voicemail" in body["caller_context"]
+    blob = json.dumps(body)
+    assert token not in blob
+    assert "203.0.113.9" not in blob
+    assert poisoned not in blob
+
+
 def test_crm_timeout_stays_inside_budget(monkeypatch):
     store = index()
     caller_context.ingest_polled_call(store, load("call_c5959d5f.json"))

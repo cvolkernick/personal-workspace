@@ -1,8 +1,9 @@
 """Read-only caller context for the Bland inbound line (#1096).
 
 The CRM is the system of record once #1097 exposes
-GET /v1/contacts/by-phone. This module reads that route and, only when it is
-unset, times out, or returns 5xx, answers from a local SQLite index.
+GET /v1/contacts/by-phone. This module reads that route only when CRM_API_BASE
+is http://127.0.0.1:<port> or http://localhost:<port>. An unset base, a
+rejected base, a timeout, or a 5xx answers from a local SQLite index.
 
 Production ingest (webhooks, the Bland poller, SMSGate, Gmail) belongs to
 #1097. The ingest and poll helpers here exist so the fallback index can load
@@ -626,9 +627,45 @@ def view_from_crm(doc):
     }
 
 
+def loopback_http_base(raw):
+    """http://127.0.0.1:<port> or http://localhost:<port>, else None.
+
+    Same allowlist as SEND904_BASE. A rejected value must not be logged: the
+    userinfo can carry CRM_API_TOKEN.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        parts = urllib.parse.urlsplit(text)
+        port = parts.port
+    except ValueError:
+        return None
+    host = (parts.hostname or "").lower()
+    if (
+        parts.scheme != "http"
+        or host not in ("127.0.0.1", "localhost")
+        or parts.username
+        or parts.password
+        or parts.path not in ("", "/")
+        or parts.query
+        or parts.fragment
+        or port is None
+        or not 1 <= port <= 65535
+    ):
+        return None
+    return "http://%s:%d" % (host, port)
+
+
 def crm_lookup(base, token, phone, timeout=CRM_TIMEOUT_S, opener=None):
-    """Return ('hit', view), ('miss', None), or ('down', None). Never raises."""
-    url = base.rstrip("/") + "/v1/contacts/by-phone?" + urllib.parse.urlencode({"pn": phone})
+    """Return ('hit', view), ('miss', None), or ('down', None). Never raises.
+
+    A base outside the loopback allowlist is 'down' and opens no request.
+    """
+    base = loopback_http_base(base)
+    if not base or not str(token or "").strip():
+        return "down", None
+    url = base + "/v1/contacts/by-phone?" + urllib.parse.urlencode({"pn": phone})
     req = urllib.request.Request(
         url,
         headers={
@@ -743,12 +780,12 @@ def render(view, now, backend):
 
 
 def lookup_caller(phone, now=None, index=None, opener=None):
-    """CRM first (250 ms). On timeout or 5xx, the local index. Never raises."""
+    """CRM first (250 ms) on a loopback base. Otherwise the local index. Never raises."""
     now = now or datetime.now(timezone.utc)
     number = normalize_e164(phone)
     if not number:
         return empty_context("empty")
-    base = env("CRM_API_BASE")
+    base = loopback_http_base(env("CRM_API_BASE"))
     token = env("CRM_API_TOKEN")
     if base and token:
         status, view = crm_lookup(base, token, number, opener=opener)
