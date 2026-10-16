@@ -7,7 +7,7 @@
     if (el) el.textContent = text || "";
   }
   const UNOFFICIAL =
-    "Unofficial Grok-CLI client (not an xAI-published FitDash app). Needs SuperGrok or X Premium+. If inference returns 403 after a good login, that is xAI entitlement gating, not a FitDash bug.";
+    "Unofficial Grok-CLI client (not an xAI-published FitDash app). Needs SuperGrok or X Premium+. A credits or spending-limit block is AI plan unavailable (xAI credits). A 403 without that wording is xAI entitlement gating, not a FitDash bug.";
 
   let pollTimer = null;
   let pollDeadline = 0;
@@ -129,22 +129,37 @@
     }
   }
 
-  async function generatePlans() {
+  async function generatePlansForce() {
+    return generatePlans(true);
+  }
+
+  async function generatePlans(force) {
     const meal = $("today-meal");
     const lift = $("today-workout");
     const status = $("supergrok-status");
     if (status) status.textContent = "Generating today's meal/workout via SuperGrok…";
     try {
-      const res = await fetch("/api/ask/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const planUrl = force ? "/api/ask/plan?force=1" : "/api/ask/plan";
+      const res = await fetch(planUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const data = await res.json();
-      if (data.meal && meal) {
-        meal.textContent = data.meal.message || "";
+      const mealMsg = (data.meal && data.meal.message) || "";
+      const quotaMeal = data.meal && (data.meal.source === "xai_quota" || mealMsg.indexOf("AI plan unavailable (xAI credits)") !== -1);
+      if (data.meal && meal && !quotaMeal) {
+        meal.textContent = mealMsg;
       }
       if (data.workout && lift) {
-        lift.textContent = data.workout.message || "";
+        if (window.renderTodayWorkoutCard) window.renderTodayWorkoutCard(lift, data.workout);
+        else lift.textContent = data.workout.message || "";
       }
       if (!data.ok) {
-        if (status) status.textContent = data.error || "Connect SuperGrok to generate today's meal/workout plan.";
+        const err = data.error || "";
+        if (status) {
+          if (err.indexOf("AI plan unavailable (xAI credits)") !== -1) {
+            status.textContent = err.indexOf("{") === -1 ? err : "AI plan unavailable (xAI credits)";
+          } else {
+            status.textContent = err || "Connect SuperGrok to generate today's meal/workout plan.";
+          }
+        }
         return;
       }
       if (status) status.textContent = "Plans generated via SuperGrok.";
@@ -160,12 +175,18 @@
     if (help) {
       help.textContent =
         "Unofficial Grok-CLI client. Connect SuperGrok in More (tokens stay sealed in Turso). " +
-        "Needs SuperGrok or X Premium+. 403 after a good login is xAI entitlement gating, not a FitDash bug.";
+        "Needs SuperGrok or X Premium+. A credits or spending-limit block is AI plan unavailable (xAI credits). A 403 without that wording is xAI entitlement gating, not a FitDash bug.";
     }
     const btn = $("btn-connect-supergrok");
     if (btn) btn.addEventListener("click", startConnect);
     const disc = $("btn-disconnect-supergrok");
     if (disc) disc.addEventListener("click", disconnect);
+    const retry = $("btn-retry-ai-plan");
+    if (retry) {
+      retry.addEventListener("click", function () {
+        generatePlansForce();
+      });
+    }
     const gen = $("btn-generate-workout");
     if (gen) {
       gen.addEventListener(

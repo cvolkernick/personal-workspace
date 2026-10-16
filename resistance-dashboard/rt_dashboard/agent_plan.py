@@ -17,6 +17,7 @@ from .workout_plan_store import (
     flatten_plan_exercises,
     is_good_workout_plan,
     load_last_good_workout_plan,
+    load_most_recent_good_workout_plan,
     persist_key,
     save_last_good_workout_plan,
 )
@@ -197,6 +198,92 @@ def _library_for_plan(ctx: dict) -> tuple:
 
         equipment, _src = load_workspace_equipment()
     return catalog or {"exercises": []}, equipment
+
+
+def _catalog_template_workout(ctx: dict, letter: Optional[str]) -> dict:
+    """PPL names already in the catalog. No invented lifts."""
+    catalog = ctx.get("catalog") if isinstance(ctx.get("catalog"), dict) else {}
+    goals = ctx.get("goals") if isinstance(ctx.get("goals"), dict) else {}
+    want = _letter(letter)
+    try:
+        cap = max(1, int(goals.get("exercises_per_session") or 5))
+    except (TypeError, ValueError):
+        cap = 5
+    try:
+        hard = max(1, int(goals.get("default_hard_sets") or 2))
+    except (TypeError, ValueError):
+        hard = 2
+    exercises = []
+    for raw in catalog.get("exercises") or []:
+        if not isinstance(raw, dict):
+            continue
+        if raw.get("available") is False:
+            continue
+        name = str(raw.get("name") or raw.get("exercise") or "").strip()
+        if not name:
+            continue
+        types = [str(item).strip().lower() for item in (raw.get("session_types") or [])]
+        if want and types and want not in types:
+            continue
+        exercises.append(
+            {
+                "name": name,
+                "prescription": {
+                    "sets": hard,
+                    "reps": raw.get("default_reps") or raw.get("reps") or "8-12",
+                },
+                "primary_muscles": raw.get("primary_muscles") or [],
+            }
+        )
+        if len(exercises) >= cap:
+            break
+    return {
+        "session_type": want,
+        "is_rest_day": False,
+        "exercises": exercises,
+        "empty": not exercises,
+        "source": "fallback_template",
+        "message": "",
+    }
+
+
+def fallback_workout(
+    ctx: dict,
+    letter: Optional[str],
+    error: str,
+    user_id: str,
+    day: str,
+) -> dict:
+    """Last good plan for this letter, else a library template. Never persists."""
+    prior = load_most_recent_good_workout_plan(user_id, day, letter=letter)
+    if is_good_workout_plan(prior):
+        out = dict(prior or {})
+        out["exercises"] = flatten_plan_exercises(out.get("exercises"))
+        out["session_type"] = _letter(letter) or out.get("session_type")
+        out["is_rest_day"] = False
+        out["empty"] = False
+        out["source"] = "fallback_last"
+        out["generate_error"] = error
+        out["message"] = error
+        return out
+    workout: dict = {}
+    if isinstance(ctx.get("equipment"), dict):
+        try:
+            workout = _deterministic_workout(ctx, session_type=letter)
+        except Exception:
+            workout = {}
+    if not is_good_workout_plan(workout):
+        workout = _catalog_template_workout(ctx, letter)
+    if not is_good_workout_plan(workout):
+        return {}
+    out = dict(workout)
+    out["session_type"] = _letter(letter) or out.get("session_type")
+    out["is_rest_day"] = False
+    out["empty"] = False
+    out["source"] = "fallback_template"
+    out["generate_error"] = error
+    out["message"] = error
+    return out
 
 
 def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> dict:
@@ -424,6 +511,10 @@ def ensure_today_grok_plan(
     lifts or leaving an empty list under a normal message.
     """
     uid = (user_id or "").strip() or house_plan_user_id()
+    from .ai_planner import force_requested
+
+    if force_requested(query):
+        force = True
     from rt_dashboard.timeutil import local_today_iso
 
     probe_day = str(day or "")[:10] or local_today_iso()
@@ -558,6 +649,7 @@ def ensure_today_grok_plan(
             "inventory": ctx.get("inventory"),
             "equipment": ctx.get("equipment"),
             "as_of": local_today,
+            "force": force,
         }
         result = generate_grok_plans(uid, **grok_kwargs)
         # Pi/Mac cookie-less: Turso grok_sessions may miss; ~/.grok/auth.json is the local SuperGrok path.
@@ -569,13 +661,30 @@ def ensure_today_grok_plan(
             result = generate_grok_plans("", **grok_kwargs)
         workout = result.get("workout") if isinstance(result.get("workout"), dict) else empty
         if not result.get("ok"):
+            err = result.get("error") or "SuperGrok generate failed"
+            if "Connect SuperGrok" not in str(err):
+                fallback = fallback_workout(ctx, letter, str(err), uid, local_today)
+                if is_good_workout_plan(fallback):
+                    return _gym(
+                        {
+                            "ok": True,
+                            "skipped": None,
+                            "generated": False,
+                            "workout": fallback,
+                            "persist": {"ok": False, "error": "fallback not persisted"},
+                            "error": err,
+                            "meal": result.get("meal"),
+                        },
+                        fallback,
+                        local_today,
+                    )
             return {
                 "ok": False,
                 "skipped": None,
                 "generated": False,
                 "workout": workout,
                 "persist": {"ok": False, "error": result.get("error")},
-                "error": result.get("error") or "SuperGrok generate failed",
+                "error": err,
             }
         persist = persist_grok_result(uid, local_today, result)
         if not persist.get("ok") or not is_good_workout_plan(workout):

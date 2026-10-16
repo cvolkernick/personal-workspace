@@ -1770,7 +1770,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             else None
         )
         dashboard = with_stamped_next_session(dashboard)
-        return ask_plan_body(self.headers, payload or {}, user=user, dashboard=dashboard)
+        from urllib.parse import urlparse
+
+        raw_path = getattr(self, "path", "") or ""
+        return ask_plan_body(
+            self.headers,
+            payload or {},
+            user=user,
+            dashboard=dashboard,
+            query=urlparse(raw_path).query,
+        )
 
     def _handle_vercel_compat(self, path: str, method: str) -> bool:
         """Serve former Vercel /api functions. Returns True when handled."""
@@ -1852,6 +1861,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         if parsed.path in ("/api/healthz", "/api/health"):
+            from rt_dashboard.ai_planner import public_snapshot
+
             self._send_json(
                 {
                     "ok": True,
@@ -1859,6 +1870,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     "proxy": False,
                     "backend": None,
                     "auth_required": _auth_required(),
+                    "ai_planner": public_snapshot(),
                     **agent_read_health_fields(),
                 }
             )
@@ -2991,9 +3003,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     dashboard,
                     history=history,
                     model=str(model).strip() if model else None,
+                    user_id=uid,
                 )
                 self._send_json({"ok": True, **result})
             except GrokAskError as e:
+                from rt_dashboard.ai_planner import quota_client_error
+
+                quota = quota_client_error(e)
+                if quota:
+                    self._send_json(quota["body"], status=int(quota["status"]))
+                    return
                 if e.status in (400, 401, 403, 404):
                     status = e.status
                 else:

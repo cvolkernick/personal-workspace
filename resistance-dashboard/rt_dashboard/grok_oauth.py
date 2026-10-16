@@ -52,8 +52,9 @@ DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 DEVICE_COOKIE = "fitdash_grok_dc"
 CONNECT_ERROR = "Connect SuperGrok to generate today's meal/workout plan."
 ENTITLEMENT_NOTE = (
-    "If inference returns 403 after a good login, that is xAI entitlement "
-    "gating (SuperGrok or X Premium+), not a FitDash bug."
+    "A credits or spending-limit block is AI plan unavailable (xAI credits), "
+    "not entitlement. Entitlement gating (SuperGrok or X Premium+) applies "
+    "only when a 401/403 body has no credit or spending wording."
 )
 
 

@@ -142,6 +142,49 @@ def dashboard_plan_slots(
         fill_rest=True,
         train_parent_completed=bool(train_parent_completed),
     )
+    from .ai_planner import active_block
+
+    block = active_block(user_id)
+    if block and not workout.get("is_rest_day"):
+        from .agent_plan import fallback_workout
+
+        letter = str(workout.get("session_type") or "").strip().lower() or None
+        catalog: dict = {}
+        equipment = None
+        try:
+            from .workout_store import load_workspace_catalog
+
+            loaded, _src = load_workspace_catalog()
+            if isinstance(loaded, dict):
+                catalog = loaded
+        except Exception:
+            catalog = {}
+        try:
+            from .equipment_store import load_workspace_equipment
+
+            loaded_eq, _src = load_workspace_equipment()
+            if isinstance(loaded_eq, dict):
+                equipment = loaded_eq
+        except Exception:
+            equipment = None
+        fallback = fallback_workout(
+            {
+                "day": str(as_of or "")[:10],
+                "sessions": sessions or [],
+                "goals": goals or {},
+                "recovery": recovery or {},
+                "catalog": catalog,
+                "equipment": equipment,
+            },
+            letter,
+            str(block.get("message") or ""),
+            user_id,
+            str(as_of or "")[:10],
+        )
+        if fallback:
+            fallback["next_session_type"] = workout.get("next_session_type")
+            fallback["training_continuity"] = workout.get("training_continuity")
+            workout = fallback
     return meal, workout
 
 
@@ -183,6 +226,7 @@ def generate_grok_plans(
     inventory: Optional[dict] = None,
     equipment: Optional[dict] = None,
     as_of: Optional[str] = None,
+    force: bool = False,
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. In-stock pantry only. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
@@ -379,6 +423,29 @@ def generate_grok_plans(
         "- If you cannot generate, return empty arrays and say why in message.\n"
         "- Never include secrets or tokens."
     )
+    def _fail(msg: str, *, kind: str) -> Dict[str, Any]:
+        meal_source = "xai_quota" if kind == "xai_quota" else "error"
+        return {
+            "ok": False,
+            "error": msg,
+            "error_kind": kind,
+            "meal": honest_empty_meal(msg, source=meal_source),
+            "workout": stamp_today_session(
+                honest_empty_workout(msg, source="error"),
+                sessions_brief or [],
+                goals or {},
+                recovery or {},
+                fill_rest=True,
+                next_st_override=next_session_type,
+            ),
+        }
+
+    from .ai_planner import active_block, format_quota_message, note_quota, parse_reset
+
+    if not force:
+        block = active_block(user_id)
+        if block:
+            return _fail(str(block.get("message") or ""), kind="xai_quota")
     try:
         result = chat_completions(
             [
@@ -393,27 +460,35 @@ def generate_grok_plans(
             user_id=user_id,
             max_tokens=1600,
             temperature=0.3,
+            force=force,
         )
     except GrokAskError as exc:
+        kind = str(getattr(exc, "kind", "") or "")
         msg = str(exc)
-        if getattr(exc, "status", 0) == 403:
+        if kind == "xai_quota" or "xai_quota" in msg:
+            source = str(getattr(exc, "source", "") or creds.get("source") or "none")
+            if not msg.startswith("AI plan unavailable"):
+                msg = format_quota_message(
+                    source=source,
+                    code=str(getattr(exc, "xai_code", "") or ""),
+                    reset_label=str(getattr(exc, "reset_label", "") or ""),
+                )
+            if active_block(user_id) is None:
+                _label, reset_at = parse_reset(str(getattr(exc, "reset_label", "") or ""))
+                note_quota(
+                    user_id,
+                    source=source if source in ("supergrok_session", "xai_api_key", "none") else "none",
+                    code=str(getattr(exc, "xai_code", "") or ""),
+                    message=msg,
+                    reset_at=reset_at,
+                )
+            return _fail(msg, kind="xai_quota")
+        if getattr(exc, "status", 0) == 403 and kind != "xai_quota":
             msg = (
                 "xAI entitlement gating (SuperGrok or X Premium+) — not a FitDash bug. "
                 + msg
             )
-        return {
-            "ok": False,
-            "error": msg,
-            "meal": honest_empty_meal(msg, source="error"),
-            "workout": stamp_today_session(
-                honest_empty_workout(msg, source="error"),
-                sessions_brief or [],
-                goals or {},
-                recovery or {},
-                fill_rest=True,
-                next_st_override=next_session_type,
-            ),
-        }
+        return _fail(msg, kind=kind or "error")
 
     parsed = _safe_json(str(result.get("answer") or ""))
     if not parsed:

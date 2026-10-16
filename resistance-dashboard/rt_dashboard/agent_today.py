@@ -408,6 +408,9 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     gen_err = slot.get("generate_error") or plan.get("generate_error")
     if gen_err:
         out["generate_error"] = str(gen_err)
+    source = slot.get("source") or plan.get("source")
+    if source:
+        out["source"] = str(source)
     return out
 
 
@@ -1089,8 +1092,12 @@ def export_agent_today(
     targets = _targets(data)
     week_start, week_end = _iso_week_bounds(day)
 
+    from .ai_planner import public_snapshot
+
+    planner = data.get("ai_planner") if isinstance(data.get("ai_planner"), dict) else None
     today = {
         "date": day or None,
+        "ai_planner": planner or public_snapshot(),
         "workout": _workout_today(data, today_board, day),
         "hydration_wake": _hydration_wake(data),
         "bottle": _bottle(data),

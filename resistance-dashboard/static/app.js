@@ -8368,6 +8368,47 @@
       }
     }
 
+    function todayAiNote(workout) {
+      const msg = String((workout && (workout.generate_error || workout.message)) || "");
+      const src = String((workout && workout.source) || "");
+      const quota = src === "fallback_last" || src === "fallback_template" || msg.indexOf("AI plan unavailable (xAI credits)") !== -1;
+      if (!quota) return "";
+      if (msg.indexOf("AI plan unavailable (xAI credits)") === 0 && msg.indexOf("{") === -1) return msg;
+      return "AI plan unavailable (xAI credits)";
+    }
+
+    function renderTodayWorkoutCard(el, workout) {
+      if (!el) return;
+      el.querySelectorAll(".ai-plan-fallback").forEach((node) => node.remove());
+      const note = todayAiNote(workout);
+      const retry = document.getElementById("btn-retry-ai-plan");
+      if (retry) retry.hidden = !note;
+      if (!note) return;
+      const hold = document.createElement("div");
+      hold.className = "ai-plan-fallback";
+      const p = document.createElement("p");
+      p.className = "ai-plan-unavailable";
+      p.textContent = note;
+      hold.appendChild(p);
+      const names = [];
+      const rows = (workout && (workout.exercises || workout.plan_exercises)) || [];
+      rows.forEach((ex) => {
+        if (ex && ex.name) names.push(String(ex.name));
+      });
+      if (names.length) {
+        const ul = document.createElement("ul");
+        ul.className = "session-list";
+        names.forEach((name) => {
+          const li = document.createElement("li");
+          li.textContent = name;
+          ul.appendChild(li);
+        });
+        hold.appendChild(ul);
+      }
+      el.appendChild(hold);
+    }
+    window.renderTodayWorkoutCard = renderTodayWorkoutCard;
+
     // Lead only — full exercise list lives in #workout-plan-result (single source)
     if ($("today-workout")) {
       const w =
@@ -8405,6 +8446,7 @@
           ${focusLine}
         `;
       }
+      renderTodayWorkoutCard($("today-workout"), w);
     }
     if (typeof renderTodayLoggedLifts === "function") renderTodayLoggedLifts(data);
     const loggedFoods = renderTodayLoggedFoods(data);

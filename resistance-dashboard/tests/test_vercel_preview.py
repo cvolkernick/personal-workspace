@@ -35,7 +35,7 @@ class VercelPreviewHealthz(unittest.TestCase):
         self.assertEqual(body["gitSha"], env["VERCEL_GIT_COMMIT_SHA"])
         self.assertEqual(
             set(body),
-            {"ok", "service", "role", "gitSha", "agent_read", "alert"},
+            {"ok", "service", "role", "gitSha", "ai_planner", "agent_read", "alert"},
         )
         self.assertEqual(body["agent_read"], "unconfigured")
         self.assertEqual(body["alert"], "fitdash_agent_read_unconfigured")
@@ -89,7 +89,7 @@ class VercelPreviewHealthz(unittest.TestCase):
         self.assertIsNone(body["gitSha"])
         self.assertEqual(
             set(body),
-            {"ok", "service", "role", "gitSha", "agent_read", "alert"},
+            {"ok", "service", "role", "gitSha", "ai_planner", "agent_read", "alert"},
         )
         self.assertEqual(body["agent_read"], "unconfigured")
 
