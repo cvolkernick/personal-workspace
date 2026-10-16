@@ -25,7 +25,7 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def ask_plan_body(headers, payload=None, *, user=None, dashboard=None):
+def ask_plan_body(headers, payload=None, *, user=None, dashboard=None, query: str = ""):
     user, err = resolve_user(headers, user)
     if err:
         return err
@@ -67,6 +67,9 @@ def ask_plan_body(headers, payload=None, *, user=None, dashboard=None):
     }
     if rec.get("rhr_under_recovered") or inputs.get("rhr_under_recovered"):
         recovery["rhr_under_recovered"] = True
+    from rt_dashboard.ai_planner import force_requested, public_snapshot
+
+    letter = wo.get("next_session_type") or pack.get("next_session_type")
     result = generate_grok_plans(
         str(user["id"]),
         targets=nut.get("targets") or {},
@@ -77,22 +80,46 @@ def ask_plan_body(headers, payload=None, *, user=None, dashboard=None):
         sessions=sessions,
         goals=wo.get("goals") or {},
         catalog=wo.get("catalog") or {},
-        next_session_type=wo.get("next_session_type") or pack.get("next_session_type"),
+        next_session_type=letter,
         inventory=nut.get("inventory"),
         equipment=wo.get("equipment"),
         as_of=str(day)[:10],
+        force=force_requested(query, payload),
     )
     from rt_dashboard.agent_plan import persist_grok_result
     persist = persist_grok_result(str(user["id"]), str(day)[:10], result)
     result = dict(result)
     result["persist"] = persist
+    result["ai_planner"] = public_snapshot(str(user["id"]))
     if not result.get("ok"):
+        err = str(result.get("error") or "")
+        workout = result.get("workout") if isinstance(result.get("workout"), dict) else None
+        if "Connect SuperGrok" not in err:
+            from rt_dashboard.agent_plan import fallback_workout
+
+            fallback = fallback_workout(
+                {
+                    "day": str(day)[:10],
+                    "sessions": sessions,
+                    "goals": wo.get("goals") or {},
+                    "recovery": recovery,
+                    "catalog": wo.get("catalog") or {},
+                    "equipment": wo.get("equipment") if isinstance(wo.get("equipment"), dict) else None,
+                },
+                str(letter or "").strip().lower() or None,
+                err,
+                str(user["id"]),
+                str(day)[:10],
+            )
+            if fallback:
+                workout = fallback
         return 200, {
             "ok": False,
             "error": result.get("error"),
             "meal": result.get("meal") or honest_empty_meal(),
-            "workout": result.get("workout") or honest_empty_workout(),
+            "workout": workout or honest_empty_workout(),
             "persist": persist,
+            "ai_planner": result["ai_planner"],
         }
     return 200, result
 
@@ -114,7 +141,7 @@ class handler(BaseHTTPRequestHandler):
         if routed is not None:
             status, body = routed
         else:
-            status, body = ask_plan_body(self.headers, payload)
+            status, body = ask_plan_body(self.headers, payload, query=parsed.query)
         write_json(self, status, body)
 
     def do_GET(self) -> None:

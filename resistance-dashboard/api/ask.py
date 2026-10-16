@@ -57,6 +57,11 @@ def ask_body(headers, payload: dict) -> tuple[int, dict]:
     try:
         result = ask_about_dashboard(question, dashboard, history=history, user_id=uid)
     except GrokAskError as exc:
+        from rt_dashboard.ai_planner import quota_client_error
+
+        quota = quota_client_error(exc)
+        if quota:
+            return int(quota["status"]), quota["body"]
         code = exc.status if exc.status and 400 <= int(exc.status) < 600 else 502
         return int(code), {"ok": False, "error": str(exc)}
     except Exception as exc:  # noqa: BLE001
@@ -98,6 +103,7 @@ _PHRASES = {
     405: "Method Not Allowed",
     500: "Internal Server Error",
     502: "Bad Gateway",
+    503: "Service Unavailable",
 }
 
 

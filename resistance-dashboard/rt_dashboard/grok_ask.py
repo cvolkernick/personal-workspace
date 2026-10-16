@@ -59,10 +59,23 @@ Rules:
 
 
 class GrokAskError(Exception):
-    def __init__(self, message: str, status: int = 0, body: str = ""):
+    def __init__(
+        self,
+        message: str,
+        status: int = 0,
+        body: str = "",
+        kind: str = "",
+        xai_code: str = "",
+        reset_label: str = "",
+        source: str = "",
+    ):
         super().__init__(message)
         self.status = status
         self.body = body
+        self.kind = kind or ""
+        self.xai_code = xai_code or ""
+        self.reset_label = reset_label or ""
+        self.source = source or ""
 
 
 def _parse_expires_at(raw: Optional[str]) -> Optional[datetime]:
@@ -221,8 +234,9 @@ def auth_status(user_id: Optional[str] = None) -> Dict[str, Any]:
         "error": creds.get("error"),
         "unofficial": True,
         "entitlement_note": (
-            "If inference returns 403 after a good login, that is xAI entitlement "
-            "gating (SuperGrok or X Premium+), not a FitDash bug."
+            "A credits or spending-limit block is AI plan unavailable (xAI credits), "
+            "not entitlement. Entitlement gating (SuperGrok or X Premium+) applies "
+            "only when a 401/403 body has no credit or spending wording."
         ),
     }
     if not user_id and not (os.environ.get("VERCEL") or "").strip():
@@ -605,7 +619,17 @@ def _shrink_context(context: dict, max_chars: int = MAX_CONTEXT_CHARS) -> Tuple[
     return ctx, True
 
 
+def _is_quota_body(exc: GrokAskError) -> bool:
+    from .ai_planner import classify_http
+
+    if getattr(exc, "kind", "") == "xai_quota":
+        return True
+    return classify_http(int(exc.status or 0), exc.body or "") == "xai_quota"
+
+
 def _is_capacity_error(exc: GrokAskError) -> bool:
+    if getattr(exc, "kind", "") == "xai_quota":
+        return False
     if int(exc.status or 0) == 429:
         return True
     blob = f"{exc} {exc.body or ''}".lower()
@@ -613,15 +637,41 @@ def _is_capacity_error(exc: GrokAskError) -> bool:
 
 
 def _http_ask_error(code: int, err_body: str) -> GrokAskError:
-    """Map xAI HTTP failures to a user-facing error. Never dump capacity JSON."""
+    """Map xAI HTTP failures to a user-facing error. Never dump quota or capacity JSON."""
+    from .ai_planner import classify_http, format_quota_message, parse_reset, xai_error_code
+
     body = err_body or ""
-    lowered = body.lower()
-    if int(code) == 429 or "resource-exhausted" in lowered or "currently at capacity" in lowered:
-        return GrokAskError(CAPACITY_USER_MSG, status=int(code) or 429, body=body)
+    kind = classify_http(int(code or 0), body)
+    if kind == "xai_quota":
+        code_str = xai_error_code(body)
+        reset_label, _reset_at = parse_reset(body)
+        return GrokAskError(
+            format_quota_message(source="none", code=code_str, reset_label=reset_label),
+            status=int(code) or 403,
+            body=body,
+            kind="xai_quota",
+            xai_code=code_str,
+            reset_label=reset_label,
+        )
+    if kind == "capacity":
+        return GrokAskError(
+            CAPACITY_USER_MSG,
+            status=int(code) or 429,
+            body=body,
+            kind="capacity",
+        )
+    if kind == "entitlement":
+        return GrokAskError(
+            f"xAI API error HTTP {code}: {body[:400]}",
+            status=int(code),
+            body=body,
+            kind="entitlement",
+        )
     return GrokAskError(
         f"xAI API error HTTP {code}: {body[:400]}",
         status=code,
         body=body,
+        kind="other",
     )
 
 
@@ -664,6 +714,32 @@ def _post_chat(token: str, body: dict) -> Dict[str, Any]:
         raise _http_ask_error(e.code, err_body) from e
 
 
+def _quota_from_exc(exc: GrokAskError, source: str, user_id: Optional[str]) -> GrokAskError:
+    from .ai_planner import format_quota_message, note_quota, parse_reset
+
+    label, reset_at = parse_reset(exc.body or "")
+    reset_label = exc.reset_label or label
+    code = exc.xai_code or ""
+    safe_source = source if source in ("supergrok_session", "xai_api_key", "none") else "none"
+    message = format_quota_message(source=safe_source, code=code, reset_label=reset_label)
+    note_quota(
+        user_id,
+        source=safe_source,
+        code=code,
+        message=message,
+        reset_at=reset_at,
+    )
+    return GrokAskError(
+        message,
+        status=int(exc.status or 403),
+        body="",
+        kind="xai_quota",
+        xai_code=code,
+        reset_label=reset_label,
+        source=source,
+    )
+
+
 def chat_completions(
     messages: List[dict],
     *,
@@ -671,13 +747,27 @@ def chat_completions(
     max_tokens: int = 1200,
     temperature: float = 0.3,
     user_id: Optional[str] = None,
+    force: bool = False,
 ) -> Dict[str, Any]:
+    from .ai_planner import active_block, note_other
+
     creds = resolve_xai_credentials(user_id=user_id)
     token = creds.get("token")
     if not token:
-        raise GrokAskError(creds.get("error") or CONNECT_ERROR, status=401)
+        raise GrokAskError(creds.get("error") or CONNECT_ERROR, status=401, kind="not_connected")
     if creds.get("expired"):
-        raise GrokAskError(creds.get("error") or "Session expired", status=401)
+        raise GrokAskError(creds.get("error") or "Session expired", status=401, kind="entitlement")
+
+    if not force:
+        block = active_block(user_id)
+        if block:
+            raise GrokAskError(
+                str(block.get("message") or ""),
+                status=403,
+                kind="xai_quota",
+                xai_code=str(block.get("last_error_code") or ""),
+                source=str(block.get("source") or ""),
+            )
 
     primary = model or DEFAULT_MODEL
     fallback = (FALLBACK_MODEL or "").strip()
@@ -720,18 +810,59 @@ def chat_completions(
             raise
 
     used = primary
+    source = str(creds.get("source") or "none")
     try:
         data = _post_maybe_refresh(primary)
     except GrokAskError as e:
-        if _is_capacity_error(e) and fallback and fallback != primary:
-            data = _post_maybe_refresh(fallback)
-            used = fallback
+        if getattr(e, "kind", "") == "xai_quota" or _is_quota_body(e):
+            alt = None
+            if source == "supergrok_session":
+                alt = _env_api_key_creds()
+            alt_token = (alt or {}).get("token")
+            if alt_token and alt_token != token:
+                try:
+                    data = _post(primary, str(alt_token))
+                    source = "xai_api_key"
+                    creds = {**creds, "source": source, "token": alt_token}
+                    token = str(alt_token)
+                except GrokAskError as alt_exc:
+                    if getattr(alt_exc, "kind", "") == "xai_quota" or _is_quota_body(alt_exc):
+                        raise _quota_from_exc(alt_exc, "xai_api_key", user_id) from alt_exc
+                    raise
+            else:
+                raise _quota_from_exc(e, source, user_id) from e
+        elif _is_capacity_error(e) and fallback and fallback != primary:
+            try:
+                data = _post_maybe_refresh(fallback)
+                used = fallback
+            except GrokAskError as fallback_exc:
+                if getattr(fallback_exc, "kind", "") == "xai_quota":
+                    raise _quota_from_exc(fallback_exc, source, user_id) from fallback_exc
+                if _is_capacity_error(fallback_exc):
+                    note_other(
+                        user_id,
+                        status="capacity",
+                        source=source if source in ("supergrok_session", "xai_api_key", "none") else "none",
+                    )
+                raise
         else:
+            if _is_capacity_error(e):
+                note_other(
+                    user_id,
+                    status="capacity",
+                    source=source if source in ("supergrok_session", "xai_api_key", "none") else "none",
+                )
             raise
     except urllib.error.URLError as e:
         raise GrokAskError(f"xAI network error: {e.reason}") from e
     except json.JSONDecodeError as e:
         raise GrokAskError(f"Invalid JSON from xAI: {e}") from e
+
+    note_other(
+        user_id,
+        status="ok",
+        source=source if source in ("supergrok_session", "xai_api_key", "none") else "none",
+    )
 
     try:
         content = data["choices"][0]["message"]["content"]

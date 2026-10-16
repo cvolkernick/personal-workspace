@@ -140,8 +140,9 @@
         <div class="collapsible-body" id="more-ask-body" data-collapse-body="more-ask" hidden>
         <p class="muted desktop-help" id="ask-grok-help" style="margin-top: 0; font-size: 0.85rem">
           Unofficial Grok-CLI client. Connect SuperGrok in More (tokens stay sealed in Turso).
-          Needs SuperGrok or X Premium+. 403 after a good login is xAI entitlement gating,
-          not a FitDash bug. Answers use a compact snapshot of this dashboard.
+          Needs SuperGrok or X Premium+. A credits or spending-limit block says
+          AI plan unavailable (xAI credits). A 403 without that wording is xAI
+          entitlement gating, not a FitDash bug. Answers use a compact snapshot of this dashboard.
         </p>
         <p class="muted mobile-help" hidden>
           Ask about lifts, recovery, or macros. Config commands work too (e.g. “set protein to 220”).
@@ -254,6 +255,7 @@
                 Refreshing workout plan…
               </p>
               <div id="today-workout" style="font-size: 0.88rem; margin-top: 0.45rem"></div>
+              <button type="button" id="btn-retry-ai-plan" hidden>Retry AI plan</button>
               <div id="workout-plan-result" class="today-plan-result" style="margin-top: 0.4rem"></div>
               <div id="today-logged-lifts" class="today-logged-lifts" style="margin-top: 0.5rem; font-size: 0.85rem"></div>
               <p class="muted" style="margin: 0.45rem 0 0; font-size: 0.78rem">
