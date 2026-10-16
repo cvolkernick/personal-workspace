@@ -1781,6 +1781,20 @@ class TestCashStreamsPage(unittest.TestCase):
         self.assertIn("Payees containing \"reconcile\"", html)
         self.assertIn("No CDN", html)
         self.assertLess(html.index("id=\"sankey\""), html.index("id=\"rolling\""))
+        self.assertLess(html.index('id="rolling-wrap"'), html.index('id="rolling-breakdown"'))
+        card = html.split('id="rolling-card"', 1)[1].split("</section>", 1)[0]
+        self.assertIn('id="rolling-breakdown"', card)
+        self.assertIn('id="rolling-income"', card)
+        self.assertIn('id="rolling-expenses"', card)
+        self.assertIn("function bandAverages", html)
+        self.assertIn("function expenseAverages", html)
+        self.assertIn("function visibleChartPoints", html)
+        self.assertIn("renderBreakdown(lastStreams, lastRolling)", html)
+        self.assertIn('node.layer !== "group"', html)
+        self.assertIn('label: "Other"', html)
+        self.assertEqual(html.count('key: "lyft"'), 1)
+        self.assertIn(".breakdown-cols { display: grid; grid-template-columns: 1fr 1fr;", html)
+        self.assertIn(".breakdown-cols { grid-template-columns: 1fr; }", html)
 
     def test_index_links_cash_streams(self) -> None:
         html = INDEX.read_text(encoding="utf-8")

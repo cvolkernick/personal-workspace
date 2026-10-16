@@ -98,6 +98,19 @@
     }
     svg.sankey { display: block; width: 100%; height: auto; min-width: 640px; }
     .legend { display: flex; flex-wrap: wrap; gap: 0.7rem; font-size: 0.78rem; color: var(--muted); margin: 0 0 0.5rem; }
+    .breakdown { margin-top: 0.75rem; }
+    .breakdown h3 { margin: 0 0 0.35rem; font-size: 0.88rem; font-weight: 650; }
+    .breakdown h4 { margin: 0 0 0.35rem; font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+    .breakdown-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem 1.25rem; }
+    .breakdown ul { list-style: none; margin: 0; padding: 0; }
+    .breakdown li {
+      display: flex; justify-content: space-between; gap: 0.75rem;
+      padding: 0.28rem 0; border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .breakdown li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .breakdown li.breakdown-total { font-weight: 700; }
+    .breakdown li.muted { color: var(--muted); }
     .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
     .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
     .rolling-wrap { min-height: 260px; overflow-x: hidden; }
@@ -160,6 +173,7 @@
         display: none;
       }
       .kpis { grid-template-columns: 1fr; }
+      .breakdown-cols { grid-template-columns: 1fr; }
       .rolling-wrap { min-height: 220px; }
       #rolling-legend { gap: 0.35rem 0.55rem; font-size: 0.72rem; }
       .tooltip { max-width: 13rem; font-size: 0.75rem; }
@@ -253,6 +267,20 @@
       <div class="chart-wrap rolling-wrap" id="rolling-wrap">
         <svg class="rolling" id="rolling" role="img" aria-label="90-day chart of 30-day rolling average inflow and outflow, with named sources, Bitcoin, and unidentified credits stacked under the inflow-plus-BTC envelope, dollars per day"></svg>
       </div>
+      <div class="breakdown" id="rolling-breakdown">
+        <h3>Period averages</h3>
+        <p class="hint" id="rolling-breakdown-hint">Averages for the selected period appear with the chart.</p>
+        <div class="breakdown-cols">
+          <div>
+            <h4>Income</h4>
+            <ul id="rolling-income"></ul>
+          </div>
+          <div>
+            <h4>Expenses</h4>
+            <ul id="rolling-expenses"></ul>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -272,6 +300,7 @@
   <script>
     let currentDays = 90;
     let lastRolling = null;
+    let lastStreams = null;
 
     function esc(s) {
       return String(s ?? "")
@@ -440,6 +469,8 @@
             (data.error || "Cash Streams failed") +
               ". Live YNAB required (treasury/ynab_sync token). Not a silent empty chart."
           );
+          lastStreams = null;
+          renderBreakdown(lastStreams, lastRolling);
           return;
         }
         if (!Array.isArray(data.nodes) || !Array.isArray(data.links) || !data.totals) {
@@ -473,6 +504,9 @@
           return;
         }
         renderSankey(data);
+        lastStreams = data;
+        if (lastRolling) renderRolling(lastRolling);
+        renderBreakdown(lastStreams, lastRolling);
       } catch (e) {
         showError("Could not load Cash Streams (" + e.message + "). Start FCC: python3 financial-command/server.py");
       } finally {
@@ -482,15 +516,15 @@
 
     // Bottom to top. Unidentified is the remainder, not a classified source.
     const ROLLING_BANDS = [
-      { key: "lyft", cls: "band-lyft" },
-      { key: "grubhub", cls: "band-grubhub" },
-      { key: "turo", cls: "band-turo" },
-      { key: "rewards", cls: "band-rewards" },
-      { key: "interest", cls: "band-interest" },
-      { key: "refunds", cls: "band-refunds" },
-      { key: "cash_deposits", cls: "band-cash-deposits" },
-      { key: "bitcoin", cls: "band-bitcoin" },
-      { key: "other", cls: "band-other" },
+      { key: "lyft", cls: "band-lyft", label: "Lyft" },
+      { key: "grubhub", cls: "band-grubhub", label: "Grubhub" },
+      { key: "turo", cls: "band-turo", label: "Turo" },
+      { key: "rewards", cls: "band-rewards", label: "Rewards" },
+      { key: "interest", cls: "band-interest", label: "Interest" },
+      { key: "refunds", cls: "band-refunds", label: "Refunds" },
+      { key: "cash_deposits", cls: "band-cash-deposits", label: "Cash deposits" },
+      { key: "bitcoin", cls: "band-bitcoin", label: "Bitcoin" },
+      { key: "other", cls: "band-other", label: "Other" },
     ];
     const NAMED_YNAB_BANDS = ["lyft", "grubhub", "turo", "rewards", "interest", "refunds", "cash_deposits"];
 
@@ -508,10 +542,8 @@
       return ((Number(amount) || 0) / total * 100).toFixed(1) + "%";
     }
 
-    function renderRolling(data) {
-      const svg = d3.select("#rolling");
-      svg.selectAll("*").remove();
-      const points = (data.points || []).map((d) => {
+    function chartPoints(data) {
+      return (data.points || []).map((d) => {
         const row = {
           ...d,
           dateObj: parseDay(d.date),
@@ -530,6 +562,116 @@
           : row.inflow + row.bitcoin;
         return row;
       });
+    }
+
+    function visibleChartPoints(points) {
+      const days = Number(currentDays) || points.length;
+      if (!points.length || points.length <= days) return points;
+      return points.slice(points.length - days);
+    }
+
+    function bandAverages(points) {
+      const n = points.length;
+      if (!n) return [];
+      return ROLLING_BANDS.map((band) => {
+        let total = 0;
+        for (const row of points) total += Number(row[band.key]) || 0;
+        return { key: band.key, label: band.label, perDay: total / n };
+      });
+    }
+
+    function expenseAverages(streams) {
+      const days = Number((streams && streams.window && streams.window.days) || currentDays);
+      const safeDays = days > 0 ? days : 0;
+      const rows = [];
+      if (streams && safeDays) {
+        for (const node of streams.nodes || []) {
+          if (node.layer !== "group") continue;
+          rows.push({
+            name: node.name,
+            perDay: (Number(node.amount) || 0) / safeDays,
+          });
+        }
+      }
+      const outflow = streams && streams.totals ? Number(streams.totals.outflow) || 0 : 0;
+      return {
+        days: safeDays,
+        rows: rows,
+        outflowPerDay: safeDays ? outflow / safeDays : null,
+      };
+    }
+
+    function renderBreakdown(streams, rolling) {
+      const income = document.getElementById("rolling-income");
+      const expenses = document.getElementById("rolling-expenses");
+      const hint = document.getElementById("rolling-breakdown-hint");
+      income.replaceChildren();
+      expenses.replaceChildren();
+      const points = rolling && Array.isArray(rolling.points)
+        ? visibleChartPoints(chartPoints(rolling))
+        : [];
+      const chartDays = points.length;
+      const selected = Number(currentDays) || chartDays;
+      if (!chartDays) {
+        hint.textContent = "Period averages appear when the rolling chart loads.";
+      } else if (chartDays !== selected) {
+        hint.textContent =
+          "Income averages are the mean $/day of the " + chartDays +
+          " chart days. The rolling series is shorter than the selected " + selected +
+          "d. Expenses use the selected " + selected +
+          "d. Other is the chart remainder, floored at 0.";
+      } else {
+        hint.textContent =
+          "Mean $/day over the selected " + selected +
+          "d. Income bands match the chart, including Other floored at 0. " +
+          "Expense groups match the Sankey and sum to outflow / " + selected + ".";
+      }
+      for (const row of bandAverages(points)) {
+        const li = document.createElement("li");
+        li.innerHTML = "<span>" + esc(row.label) + "</span><span>" +
+          moneyCents(row.perDay) + "/day</span>";
+        income.appendChild(li);
+      }
+      const exp = expenseAverages(streams);
+      if (!exp.rows.length) {
+        const li = document.createElement("li");
+        li.className = "muted";
+        li.textContent = "No expense groups in this period.";
+        expenses.appendChild(li);
+      } else {
+        let sum = 0;
+        for (const row of exp.rows) {
+          sum += row.perDay;
+          const li = document.createElement("li");
+          li.innerHTML = "<span>" + esc(row.name) + "</span><span>" +
+            moneyCents(row.perDay) + "/day</span>";
+          expenses.appendChild(li);
+        }
+        const total = document.createElement("li");
+        total.className = "breakdown-total";
+        total.innerHTML = "<span>Outflow</span><span>" +
+          moneyCents(exp.outflowPerDay) + "/day</span>";
+        expenses.appendChild(total);
+        if (exp.outflowPerDay != null && Math.abs(sum - exp.outflowPerDay) > 0.02) {
+          hint.textContent += " Expense groups differ from outflow / days by " +
+            moneyCents(sum - exp.outflowPerDay) + ".";
+        }
+      }
+    }
+
+    function renderRolling(data) {
+      const svg = d3.select("#rolling");
+      svg.selectAll("*").remove();
+      const points = visibleChartPoints(chartPoints(data));
+      const hint = document.getElementById("rolling-hint");
+      if (hint && points.length) {
+        if (!hint.dataset.base) hint.dataset.base = hint.textContent;
+        const estimated = !!(data.ynab && data.ynab.stale);
+        hint.textContent = hint.dataset.base +
+          " Showing " + points[0].date + " → " + points[points.length - 1].date +
+          " (" + points.length + "d)." +
+          (estimated ? " Estimated — live YNAB pull is stale." : "");
+      }
       const wrap = document.getElementById("rolling-wrap");
       const width = Math.max(280, Math.floor(wrap.clientWidth || 320) - 2);
       const height = width < 640 ? 240 : 320;
@@ -630,15 +772,7 @@
           "Inflow + BTC " + moneyCents(row.envelope) + "/day<br>" +
           "YNAB inflow " + moneyCents(row.inflow) + "/day<br>" +
           "Outflow " + moneyCents(row.outflow) + "/day<br>" +
-          bandTip("Lyft", row.lyft, row.envelope) + "<br>" +
-          bandTip("Grubhub", row.grubhub, row.envelope) + "<br>" +
-          bandTip("Turo", row.turo, row.envelope) + "<br>" +
-          bandTip("Rewards", row.rewards, row.envelope) + "<br>" +
-          bandTip("Interest", row.interest, row.envelope) + "<br>" +
-          bandTip("Refunds", row.refunds, row.envelope) + "<br>" +
-          bandTip("Cash deposits", row.cash_deposits, row.envelope) + "<br>" +
-          bandTip("Bitcoin", row.bitcoin, row.envelope) + "<br>" +
-          bandTip("Unidentified", row.other, row.envelope);
+          ROLLING_BANDS.map((band) => bandTip(band.label, row[band.key], row.envelope)).join("<br>");
         const src = event.touches && event.touches[0] ? event.touches[0] : event;
         const left = Math.max(8, Math.min(src.clientX + 12, window.innerWidth - 220));
         const top = Math.max(8, Math.min(src.clientY + 12, window.innerHeight - 248));
@@ -680,7 +814,6 @@
           err.textContent = "Vendored D3 failed to load (financial-command/vendor). No CDN fallback.";
           return;
         }
-        const estimated = !!(data.ynab && data.ynab.stale);
         const warn = document.getElementById("rolling-source-warn");
         const warned = Array.isArray(data.source_warnings) ? data.source_warnings : [];
         const labels = {};
@@ -711,14 +844,9 @@
           warn.classList.add("hidden");
           warn.textContent = "";
         }
-        const win = data.window || {};
-        const hint = document.getElementById("rolling-hint");
-        if (!hint.dataset.base) hint.dataset.base = hint.textContent;
-        hint.textContent = hint.dataset.base +
-          (win.start ? " Window " + win.start + " → " + win.end + "." : "") +
-          (estimated ? " Estimated — live YNAB pull is stale." : "");
         lastRolling = data;
         renderRolling(data);
+        renderBreakdown(lastStreams, lastRolling);
       } catch (e) {
         err.classList.remove("hidden");
         err.textContent = "Could not load rolling chart (" + e.message + ").";
