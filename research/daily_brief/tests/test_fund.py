@@ -190,8 +190,23 @@ class TestNotesFile(unittest.TestCase):
 
 class TestNakaActionsLog(unittest.TestCase):
     def test_seed_file_has_no_entries(self) -> None:
-        seed = (ROOT / "investment" / "naka-actions.md").read_text(encoding="utf-8")
+        # investment/naka-actions.md is a live append-only log (Naka adds one entry per day), so
+        # only its seed (header + format docs, everything above the marker) must parse as "none".
+        # Never assert on the live entries: that goes red the first time Naka files a brief.
+        live = (ROOT / "investment" / "naka-actions.md").read_text(encoding="utf-8")
+        marker = "<!-- Entries start below this line."
+        self.assertIn(marker, live)
+        seed = live.split(marker, 1)[0]
         self.assertEqual(fund_status.parse_naka_actions(seed)["state"], "none")
+
+    def test_live_log_appended_entries_are_parsed(self) -> None:
+        # A dated entry appended below the marker (what Naka's daily commit does) is an "entry".
+        live = (ROOT / "investment" / "naka-actions.md").read_text(encoding="utf-8")
+        marker = "<!-- Entries start below this line."
+        head = live.split(marker, 1)[0]
+        grown = head + marker + " -->\n\n## Naka: actions taken \u2014 2026-10-16\n\nnone\n"
+        r = fund_status.parse_naka_actions(grown)
+        self.assertEqual((r["state"], r["date"], r["text"]), ("entry", "2026-10-16", "none"))
 
     def test_empty_and_missing_log(self) -> None:
         for text in ("", "# header only\n", None):
