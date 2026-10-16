@@ -893,6 +893,9 @@ def build_today_board(
             or (wp.get("context") or {}).get("next_session_type"),
             "training_continuity": wp.get("training_continuity")
             or (wp.get("context") or {}).get("training_continuity"),
+            "training_objective": wp.get("training_objective")
+            or (wp.get("context") or {}).get("training_objective"),
+            "session_closed_today": bool(wp.get("session_closed_today")),
         },
         "meal": meal_block,
         "purchases": purchases,

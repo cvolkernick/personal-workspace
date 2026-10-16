@@ -293,6 +293,8 @@ def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> 
     rec = ctx.get("recovery") if isinstance(ctx.get("recovery"), dict) else {}
     day = str(ctx.get("day") or ctx.get("training_day") or "")[:10] or None
     catalog, equipment = _library_for_plan(ctx)
+    from .daily_plan_tasks import cached_training_objective
+
     return generate_workout_plan(
         catalog,
         ctx.get("goals") or {},
@@ -305,6 +307,8 @@ def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> 
         equipment=equipment,
         last_wake_at=_wake_from_context(ctx),
         now=ctx.get("now"),
+        training_objective=cached_training_objective(day)
+        or cached_training_objective(ctx.get("training_day")),
     )
 
 
@@ -461,7 +465,10 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
 
     wake = last_wake_from(recovery=recovery)
     train_day = training_day_iso(now=now, last_wake_at=wake, tz_name=tz_name)
+    from .daily_plan_tasks import cached_training_objective
+
     nxt = None
+    objective = cached_training_objective(today) or cached_training_objective(train_day)
     stamped = stamp_today_session(
         {"session_type": None, "is_rest_day": False, "exercises": [], "empty": True},
         sessions,
@@ -471,6 +478,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
         fill_rest=True,
         last_wake_at=wake,
         now=now,
+        training_objective=objective,
     )
     nxt = stamped.get("next_session_type") or stamped.get("session_type")
     return {
@@ -516,6 +524,7 @@ def ensure_today_grok_plan(
     if force_requested(query):
         force = True
     from rt_dashboard.timeutil import local_today_iso
+    from .daily_plan_tasks import cached_training_objective
 
     probe_day = str(day or "")[:10] or local_today_iso()
     ctx = context if isinstance(context, dict) else None
@@ -537,6 +546,9 @@ def ensure_today_grok_plan(
             as_of=str(ctx.get("day") or local_today or None),
             fill_rest=True,
             last_wake_at=ctx.get("last_wake_at"),
+            training_objective=cached_training_objective(
+                ctx.get("day") or ctx.get("training_day") or local_today
+            ),
         )
     is_rest = bool(stamped.get("is_rest_day"))
     letter = _letter(stamped.get("session_type"))
@@ -604,6 +616,9 @@ def ensure_today_grok_plan(
         as_of=local_today or None,
         fill_rest=True,
         next_st_override=ctx.get("next_session_type"),
+        training_objective=cached_training_objective(
+            local_today or ctx.get("training_day")
+        ),
     )
     if is_rest or letter == "rest":
         rest_workout = dict(empty)

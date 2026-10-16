@@ -269,6 +269,7 @@ def preview_workout_plan(
     train_parent_completed=False,
     last_wake_at=None,
     now=None,
+    training_objective=None,
 ) -> dict:
     """Same local planner as Pi ``generate_workout_plan``. Fail is explicit."""
     from rt_dashboard.workout_planner import generate_workout_plan
@@ -286,6 +287,7 @@ def preview_workout_plan(
         train_parent_completed=bool(train_parent_completed),
         last_wake_at=last_wake_at,
         now=now,
+        training_objective=training_objective,
     )
 
 
@@ -615,6 +617,11 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         )
     except Exception:
         train_parent_done = False
+    from rt_dashboard.daily_plan_tasks import cached_training_objective
+
+    training_objective = cached_training_objective(today) or cached_training_objective(
+        train_day
+    )
     try:
         workout_plan = preview_workout_plan(
             catalog,
@@ -631,6 +638,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             train_parent_completed=train_parent_done,
             last_wake_at=last_wake,
             now=now,
+            training_objective=training_objective,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"workout_plan: {type(exc).__name__}")
@@ -673,6 +681,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         train_parent_completed=train_parent_done,
         last_wake_at=last_wake,
         now=now,
+        training_objective=training_objective,
     )
     pack = build_training_pack(
         effective_goals, catalog, sessions, next_brief=nxt, limit=5

@@ -267,6 +267,8 @@ def _stamp_today_letter(
     if not isinstance(goals.get("rotation"), list) or not goals.get("rotation"):
         return None
     recovery = payload.get("recovery")
+    from .daily_plan_tasks import cached_training_objective
+
     stamped = stamp_today_session(
         {"session_type": None, "is_rest_day": False, "exercises": [], "empty": True},
         list(planning),
@@ -274,6 +276,7 @@ def _stamp_today_letter(
         recovery if isinstance(recovery, dict) else {},
         as_of=day or None,
         fill_rest=True,
+        training_objective=cached_training_objective(day),
     )
     next_st = _ppl_letter(stamped.get("next_session_type"))
     letter = _ppl_letter(stamped.get("session_type")) or next_st
@@ -389,7 +392,16 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
 
     slot_ctx = _as_dict(slot.get("context"))
     plan_ctx = _as_dict(plan.get("context"))
-    closed_letter = civil_closed_letter(planning, day)
+    objective = (
+        plan.get("training_objective")
+        or plan_ctx.get("training_objective")
+        or coach_wo.get("training_objective")
+        or slot.get("training_objective")
+        or slot_ctx.get("training_objective")
+    )
+    closed_letter = civil_closed_letter(
+        planning, day, training_objective=objective
+    )
     if closed_letter:
         # Stale last_wake must not hide the letter that actually closed today.
         session_type = closed_letter

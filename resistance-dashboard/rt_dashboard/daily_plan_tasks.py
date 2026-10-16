@@ -183,6 +183,21 @@ def _cache_path() -> Path:
     return base / "daily_quest_cache.json"
 
 
+def cached_training_objective(day: Optional[str]) -> Optional[dict]:
+    """Frozen session target for ``day``, or None when the cache has no leaves."""
+    key = str(day or "")[:10]
+    if len(key) < 10:
+        return None
+    cache = _load_cache()
+    row = cache.get(key) if isinstance(cache, dict) else None
+    if not isinstance(row, dict):
+        return None
+    objective = row.get("training_objective")
+    if not isinstance(objective, dict) or not objective.get("leaves"):
+        return None
+    return objective
+
+
 def _load_cache() -> dict:
     path = _cache_path()
     if not path.is_file():
