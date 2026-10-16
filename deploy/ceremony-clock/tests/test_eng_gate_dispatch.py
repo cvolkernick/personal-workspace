@@ -1498,3 +1498,78 @@ def test_corrupt_claim_ledger_also_stops_the_sweep(tmp_path):
     p.write_text('{"version": 2, "claims": {"5": "oops"}}')
     with pytest.raises(d.StateFileError):
         sweep(FakeGH([issue(81)]), d.CooldownStore(p), NOW, lambda **k: {"accepted": True})
+
+
+# ── related_prs precision (#1195 live finding): a PR that only mentions #N is not work on #N ──
+
+
+@pytest.mark.parametrize("title,body", [
+    ("fix thing", "Fixes #50"),
+    ("fix thing", "closes #50\n\nmore"),
+    ("fix thing", "Resolved: #50"),
+    ("fix thing", "Refs #50 (not Fixes: blocked)"),
+    ("fix thing", "References #50"),
+    ("fix thing", "Part of #50"),
+    ("fix thing", "Follow-up to #50"),
+    ("fix thing", "Fixes owner/repo#50"),
+    ("fix thing", "Fixes https://github.com/cvolkernick/personal-workspace/issues/50"),
+    ("Fixes #50: thing", ""),
+    ("thing (#50)", None),
+    ("#50 thing", ""),
+    ("[#50] thing", ""),
+])
+def test_pr_targets_issue_positive(title, body):
+    assert d.pr_targets_issue({"title": title, "body": body}, 50)
+
+
+@pytest.mark.parametrize("title,body", [
+    ("pi-dispatch: honor Worker line (#1195)", "dead claims (#50, #51) pinned Forge"),
+    ("fix thing", "Release stale #50 on the first pass"),
+    ("fix thing", "pi-dispatch kick for #50 was accepted"),
+    ("fix thing", "Fixes #500"),
+    ("fix thing", "Fixes #5"),
+    ("fix thing", "see #50"),
+    ("fix thing", "<!-- Fixes #50 -->"),
+    ("fix thing", "prefixes #50"),
+    ("fix thing", "and #50"),
+    ("thing (#500)", ""),
+    ("thing", None),
+])
+def test_pr_targets_issue_negative(title, body):
+    assert not d.pr_targets_issue({"title": title, "body": body}, 50)
+
+
+def test_github_related_prs_drops_prose_mentions(monkeypatch):
+    items = [
+        {"number": 1200, "state": "closed", "title": "dispatcher fix (#1195)",
+         "body": "dead claims (#50, #51). Refs #1195", "updated_at": iso(ago(hours=2))},
+        {"number": 1196, "state": "closed", "title": "guard (#51)", "body": "x", "updated_at": iso(ago(hours=2))},
+        {"number": 1210, "state": "open", "title": "work", "body": "Fixes #50", "updated_at": iso(ago(hours=2))},
+    ]
+    gh = d.GitHub("tok")
+    monkeypatch.setattr(gh, "_request", lambda method, path, body=None: ({"items": items}, {}))
+    assert [p["number"] for p in gh.related_prs(50)] == [1210]
+    assert [p["number"] for p in gh.related_prs(51)] == [1196]
+
+
+def test_stale_claim_released_when_only_a_closed_pr_mentions_it_in_prose(monkeypatch):
+    """Live case: merged #1200 mentions #1077 in prose and kept the dead claim live for ever."""
+    gh = real_gh(monkeypatch, FakeHTTP(0))
+    prose = {"number": 1200, "state": "closed", "title": "dispatcher fix (#1195)",
+             "body": "dead claims (#50, #1093) pinned the queue. Refs #1195", "updated_at": iso(ago(hours=2))}
+    monkeypatch.setattr(gh, "_request", lambda method, path, body=None: ({"items": [prose]}, {}) if "search/issues" in path else FakeHTTP(0)(method, path, body))
+    monkeypatch.setattr(gh, "comments", lambda n: [claim_comment("Frankenfit", ago(hours=40))])
+    monkeypatch.setattr(gh, "label_events", lambda n: [])
+    claim = d.assess_claim(gh, issue(50, labels=("status:in-progress",)), ROSTER, NOW, timedelta(hours=24), {})
+    assert claim.state == "stale" and claim.holder == "Frankenfit"
+
+
+def test_claim_stays_live_when_a_pr_really_targets_it(monkeypatch):
+    gh = real_gh(monkeypatch, FakeHTTP(0))
+    real = {"number": 1196, "state": "closed", "title": "guard (#50)", "body": "Refs #50",
+            "updated_at": iso(ago(hours=2))}
+    monkeypatch.setattr(gh, "_request", lambda method, path, body=None: ({"items": [real]}, {}) if "search/issues" in path else FakeHTTP(0)(method, path, body))
+    monkeypatch.setattr(gh, "comments", lambda n: [claim_comment("Forge", ago(hours=40))])
+    monkeypatch.setattr(gh, "label_events", lambda n: [])
+    claim = d.assess_claim(gh, issue(50, labels=("status:in-progress",)), ROSTER, NOW, timedelta(hours=24), {})
+    assert claim.state == "live" and "PR #1196" in claim.reason
