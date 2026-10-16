@@ -6,6 +6,7 @@ see `research/daily_brief/README.md`).
 
 What FCC still has:
 
+- No Daily Brief button in the header and no Brief tab on the mobile tab bar (#1139). `nav-horizon.js` wires the Horizon link only. Putting the newspaper back on this chrome is a new spec, not a leftover to uncomment.
 - `/brief`, `/brief/*`, `/api/brief/*` answer **302** to `BRIEF_BASE_URL`
   (default `/horizon/daily-brief`). The tailnet URL is that path on
   `PRISM_PUBLIC_BASE` once the env is a valid https origin. The logic is in
