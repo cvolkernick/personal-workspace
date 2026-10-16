@@ -27,7 +27,7 @@ python3 projects-dashboard/git_workflow.py protect "fix(area): short reason"   #
 - **Never** push `master` via protect (blocked).
 - Never commit secrets (`.env`, OAuth tokens, `~/.config/**`, credentials).
 - **Always check `git branch --show-current` before commit.** Do not land finance work on `work/iot` or `work/orchestra`.
-- **CI:** `ops/github-workflows/test.yml` is the canonical test definition (#584); install copy lives under `.github/workflows/` once a `workflow`-scoped PAT can push it. Local: `python3 scripts/run_ci_tests.py`. Red CI does not merge. Marker comments (`TODO`/`FIXME`/`HACK`/`XXX`/`workaround`) in live code must cite an issue (`#N`) or be removed; `scripts/check_workaround_comments.py` enforces it inside the suite (#1184).
+- **CI:** `ops/github-workflows/test.yml` is the canonical test definition (#584); install copy lives under `.github/workflows/` once a `workflow`-scoped PAT can push it. Local: `python3 scripts/run_ci_tests.py`. Red CI does not merge. Marker comments (`TODO`/`FIXME`/`HACK`/`XXX`/`workaround`) in live code must cite an issue (`#N`) or be removed; `scripts/check_workaround_comments.py` enforces it inside the suite (#1184). Groom sidecars must not import `youtube_groom`; `scripts/workaround_comments.py` enforces that with an AST check.
 
 ## Product → branch (Pi live / PR base)
 
