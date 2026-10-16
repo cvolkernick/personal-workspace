@@ -24,3 +24,7 @@ Weighting changes read like this (one bullet per change, with the reason):
 ```
 
 <!-- Entries start below this line. Do not add placeholder entries. -->
+
+## Naka: actions taken — 2026-10-16
+
+none
