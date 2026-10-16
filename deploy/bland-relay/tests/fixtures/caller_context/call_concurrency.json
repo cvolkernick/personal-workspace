@@ -1,0 +1,11 @@
+{
+  "call_id": "busy-20261009-1018",
+  "from": "+19062406221",
+  "to": "+12395550101",
+  "inbound": false,
+  "status": "error",
+  "answered_by": null,
+  "error_message": "concurrency limit reached",
+  "metadata": {"purpose": "fleet prospect follow-up"},
+  "created_at": "2026-10-09T14:18:00Z"
+}

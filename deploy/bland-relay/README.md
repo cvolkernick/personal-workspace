@@ -12,6 +12,8 @@ Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.
 | `POST /<RCS_HOOK_PATH>` | Secret path, plus `RCS_HOOK_TOKEN` (required) as `Authorization: Bearer` or `X-Relay-Token` | Google Messages notifications from the 904 phone (#1056), so RCS chats arrive too. Same allowlist, STOP, and payload. Deduped against SMSGate. Kill switch `RCS_HOOK_DISABLED=1`. Turo app notifications on the same route go to the Turo relay (#1104, below). |
 | `POST /<SEND_PATH>` | `SEND_TOKEN`, same headers | Alexandra sends one SMS. |
 | `POST /<FC_PATH>` | `SEND_TOKEN` (add/request/list/revoke) or the approver token (approve, only with `FC_REQUIRE_APPROVAL=1`) | First-contact numbers (#1100). See below. |
+| `GET /bland/caller-context?pn=` | `CALLER_CONTEXT_TOKEN` as `Authorization: Bearer` or `X-Caller-Context-Token` | Read-only caller history for Bland `dynamic_data` (#1096). See below. |
+| `DELETE /bland/caller-context?pn=` | `CALLER_FORGET_TOKEN` (Grok seat only) | Forget one number in the local fallback index. |
 
 Send body:
 
@@ -395,12 +397,78 @@ printf %s "$VALUE" | ~/bin/bland-relay-setkey HELM_TURO_WEBHOOK_KEY
 
 Phone setup, before any live send: install the app, turn Cloud Server on, tap Online, grant SMS, and set battery to Unrestricted. Keep **RCS on** in Google Messages. With RCS off, SMSGate outbound sends stall at Processed (#1023). RCS chats never fire `sms:received`, so they come in through the RCS notification route (see the #1056 section above).
 
+## Caller context (#1096)
+
+`GET /bland/caller-context?pn=<E.164>` is the Bland `dynamic_data` source. It does not call Bland, and it does not read or write the live inbound number. That config change is applied later, from a fresh GET of the current inbound config, by Grok.
+
+**Active backend.** `CRM_API_BASE` plus `CRM_API_TOKEN` turns on the CRM read: `GET /v1/contacts/by-phone?pn=` with `Authorization: Bearer` and `X-CRM-Scope: caller-context`, timeout 250 ms. A 200 is rendered from that record. A 404 is an unknown caller (`backend: crm`) and does not consult the index, so leave `CRM_API_BASE` unset until #1097 actually serves that route. A timeout, connection error, or 5xx falls through to the local index. With the CRM env unset, the index is the active backend (`backend: index`). The index file is `CALLER_INDEX_PATH` or `$BLAND_RELAY_STATE_DIR/caller_index.sqlite` or `~/.local/state/bland-relay/caller_index.sqlite` (mode 0600).
+
+#1097 owns production ingest (Bland webhooks, the live poller, SMSGate, Gmail, purpose logging). This tree's ingest helpers and `poll_once` load the same fixtures into the fallback index. `poll_once` issues GET only, stops the tick on HTTP 429, and records a 5xx without raising. The service does not start it. `BlandReadClient` has no POST method and refuses an empty base URL, so it cannot default to the Bland API.
+
+The read token is not the Bland API key. A missing or wrong token is 401. More than `CALLER_CONTEXT_RPM` requests per minute from one IP (default 60) is 429. Any internal error returns 200 and the empty shape, so the greeting is not blocked. `caller_context` is plain English, at most 600 characters, last 3 interactions newest first, times in ET. Plates, street addresses, emails, and card numbers are stripped. A linked Turo booking adds one sentence and no trip details.
+
+`DELETE` with `CALLER_FORGET_TOKEN` removes that number from the fallback index only. The read token cannot delete. Install the forget token only on the Grok seat. CRM erasure stays with #1097. Rows older than 180 days are purged on read.
+
+Response:
+
+```json
+{"known": true, "caller_context": "Today 10:20 AM: we called you from this line; it went to voicemail (purpose: not recorded)", "last_contact_at": "2026-10-09 10:20 AM ET", "open_followups": [], "caller_type": "unknown", "backend": "index"}
+```
+
+Unknown number: `{"known": false, "caller_context": "No previous contact on file.", ...}`.
+
+`dynamic_data` to add later (not in this PR). `response_data[].context` is the sentence Bland shows the model next to the variable:
+
+```json
+"dynamic_data": [
+  {
+    "url": "https://<funnel-host>/bland/caller-context",
+    "method": "GET",
+    "headers": {"Authorization": "Bearer <CALLER_CONTEXT_TOKEN>"},
+    "query": {"pn": "{{phone_number}}"},
+    "cache": true,
+    "timeout": 1500,
+    "response_data": [
+      {
+        "name": "caller_context",
+        "data": "$.caller_context",
+        "context": "Earlier contact with this caller, from our own records."
+      }
+    ]
+  }
+]
+```
+
+Prompt block to append immediately after the `### PANAMERICA KB vN ###` block. It must not repeat the live RETURNED CALLS or HONESTY paragraphs:
+
+```text
+CALLER HISTORY: {{caller_context}}. If it shows earlier contact, greet them as a returning caller and pick up the open item (for example, 'I see we tried to reach you this morning'). Never deny that we called. A matching number is not proof of identity: discuss booking specifics only after the caller gives a name and trip number that match. If there's no history, continue normally.
+```
+
+Rollback is `"dynamic_data": null` on the inbound update, preserving every other field.
+
+Dry run, standing in for Bland `POST /v1/dynamic_data/test`. No live call. Loopback only:
+
+```bash
+curl -sS -H "Authorization: Bearer $CALLER_CONTEXT_TOKEN" \
+  "http://127.0.0.1:8799/bland/caller-context?pn=%2B12075550100"
+```
+
+Tokens:
+
+```bash
+python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey CALLER_CONTEXT_TOKEN
+python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey CALLER_FORGET_TOKEN
+```
+
+`bland-relay-setkey` restarts the unit. Do not run it from a review. A future copy onto prism must include `caller_context.py` next to `bland_relay.py`.
+
 ## Deploy
 
 Not done by the PR. After merge, on prism:
 
 ```bash
-cp deploy/bland-relay/bland_relay.py deploy/bland-relay/bland-relay.py deploy/bland-relay/turo_email.py ~/bin/
+cp deploy/bland-relay/bland_relay.py deploy/bland-relay/bland-relay.py deploy/bland-relay/caller_context.py deploy/bland-relay/turo_email.py ~/bin/
 cp deploy/bland-relay/bland-relay-setkey deploy/bland-relay/send-904 deploy/bland-relay/send-904-fc ~/bin/
 chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/send-904-fc
 # unit file already matches ~/.config/systemd/user/bland-relay.service
@@ -416,6 +484,8 @@ From this directory, with pytest on the path:
 ```bash
 python3 -m pytest tests -q
 ```
+
+`tests/test_caller_context.py` (#1096, no Bland or CRM network) covers index ingest for an inbound call webhook, a polled voicemail, a concurrency rejection, Bland SMS, and SMSGate; provider-id dedupe; `(239) 555-0101` == `+12395550101`; endpoint 401, unknown, last-3 ET order, sensitive-pattern stripping, and internal-error empty 200; a fixture CRM record (purpose, follow-up, booking sentence) and CRM timeout/5xx falling back to the index inside 250 ms; both 2026-10-09 callback replays; a GET-only poller that stops on 429 and survives 5xx; 180-day purge; Grok-seat forget; token scrubbing; and p95 under 300 ms on 10k local rows.
 
 `tests/test_first_contact.py` (#1100, SMSGate mocked, no network) covers, with `FC_REQUIRE_APPROVAL=1`: approval required, chat and SMS approval, no agent/self approval, code/text/ref checks, opt-out at request/approve/send and START, daily and sends-before-reply caps, existing rate limits, expiry/renewal/conversion, both kill switches, list/revoke, audit and CRM outbox records (no body, no secrets, 0600), log redaction, and the `send-904-fc` CLI; the #1102 (a) daily-cap rule for revoked/expired re-requests at request and at chat and SMS approve; #1102 (b) chat approval bound to `FC_CHAT_APPROVER` (unbound token and a different approver name are 403, and enabling the hash logs a warning); #1102 (c) an RCS title that is the approver's number does not approve (`deny`) while an `RCS_NAME_MAP` name does; #1102 (d) a non-local `SEND904_BASE` is refused by both CLIs before any request and the token is not printed; and, with approval off (default): immediate add, validation, STOP blocking add/send until START, the daily cap counting re-adds, TTL, no cap reset on re-add, existing rate limits, both kill switches, audit/CRM records, the approve route and SMS `YES <code>` being inert, and `send-904-fc add`.
 
