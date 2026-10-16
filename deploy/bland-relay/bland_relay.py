@@ -21,6 +21,8 @@ templated 904 SMS to TURO_OWNER_ALERT_TO (the only recipient) plus a "turo_urgen
 ALEXANDRA_ALERT_URL. Turo guest-message emails (Gmail push, #1142) arrive from
 gmail_turo_watch.py on a loopback-only listener (TURO_EMAIL_PORT) and run
 through the same normalizer and turo_ingest() path, deduped across sources.
+GET /bland/caller-context returns a short caller history for Bland dynamic_data
+(#1096). DELETE on that path forgets one number in the local fallback index.
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
 comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
@@ -39,8 +41,11 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
+
+import caller_context
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="[bland-relay] %(levelname)s %(message)s")
@@ -92,6 +97,9 @@ SECRET_ENV_KEYS = (
     "HELM_TURO_WEBHOOK_URL",
     "HELM_TURO_WEBHOOK_KEY",
     "TURO_EMAIL_TOKEN",
+    "CALLER_CONTEXT_TOKEN",
+    "CALLER_FORGET_TOKEN",
+    "CRM_API_TOKEN",
 )
 
 _alert_lock = threading.Lock()
@@ -2307,7 +2315,7 @@ class H(BaseHTTPRequestHandler):
     def _nf(self):
         self._send(404, {"ok": False, "error": "not found"})
 
-    do_GET = do_PUT = do_DELETE = do_PATCH = do_HEAD = _nf
+    do_PUT = do_PATCH = do_HEAD = _nf
 
     def _read_body(self):
         try:
@@ -2317,6 +2325,52 @@ class H(BaseHTTPRequestHandler):
         if n < 0 or n > MAX_BODY:
             return None
         return self.rfile.read(n)
+
+    def _caller_query(self):
+        parsed = urllib.parse.urlsplit(self.path)
+        query = urllib.parse.parse_qs(parsed.query)
+        return parsed.path, (query.get("pn") or [""])[0]
+
+    def _caller_context(self):
+        path, pn = self._caller_query()
+        if path != "/bland/caller-context":
+            return self._nf()
+        ip = self.client_address[0] if self.client_address else ""
+        if not caller_context.allow_ip(ip, time.time()):
+            return self._send(429, {"ok": False, "error": "rate_limited"})
+        got = (self.headers.get("X-Caller-Context-Token") or "").strip() or token_from_headers(self.headers)
+        if not token_ok(got, env("CALLER_CONTEXT_TOKEN")):
+            log.warning("caller-context: bad/missing token (len %d)", len(got))
+            return self._send(401, {"ok": False, "error": "unauthorized"})
+        try:
+            return self._send(200, caller_context.lookup_caller(pn))
+        except Exception as exc:  # noqa: BLE001 — Bland must still get a 200
+            log.error("caller-context failed: %s", type(exc).__name__)
+            return self._send(200, caller_context.empty_context())
+
+    def _caller_forget(self):
+        path, pn = self._caller_query()
+        if path != "/bland/caller-context":
+            return self._nf()
+        ip = self.client_address[0] if self.client_address else ""
+        if not caller_context.allow_ip(ip, time.time()):
+            return self._send(429, {"ok": False, "error": "rate_limited"})
+        got = (self.headers.get("X-Caller-Forget-Token") or "").strip() or token_from_headers(self.headers)
+        if not token_ok(got, env("CALLER_FORGET_TOKEN")):
+            log.warning("caller-context forget: bad/missing token (len %d)", len(got))
+            return self._send(401, {"ok": False, "error": "unauthorized"})
+        try:
+            deleted = caller_context.CallerIndex().forget(pn)
+        except Exception as exc:  # noqa: BLE001
+            log.error("caller-context forget failed: %s", type(exc).__name__)
+            return self._send(200, {"ok": False, "deleted": 0})
+        return self._send(200, {"ok": True, "deleted": deleted})
+
+    def do_GET(self):
+        return self._caller_context()
+
+    def do_DELETE(self):
+        return self._caller_forget()
 
     def _fwd_904(self):
         tok = env("FWD_TOKEN")

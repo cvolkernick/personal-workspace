@@ -1,0 +1,9 @@
+{
+  "call_id": "in-webhook-1",
+  "from": "(239) 555-0101",
+  "to": "+19062406221",
+  "inbound": true,
+  "status": "completed",
+  "metadata": {"purpose": "asked about a truck"},
+  "created_at": "2026-10-09T15:30:00Z"
+}

@@ -1,0 +1,12 @@
+{
+  "call_id": "c5959d5f",
+  "from": "+19062406221",
+  "to": "+12075550100",
+  "inbound": false,
+  "status": "completed",
+  "answered_by": "voicemail",
+  "error_message": null,
+  "metadata": {},
+  "summary": "Left a voicemail.",
+  "created_at": "2026-10-09T14:20:00Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "sg-evt-1",
+  "event": "sms:received",
+  "payload": {
+    "messageId": "sg-msg-1",
+    "message": "call me back",
+    "sender": "(239) 555-0101",
+    "recipient": "+19043343975",
+    "receivedAt": "2026-10-09T15:05:00Z"
+  }
+}
