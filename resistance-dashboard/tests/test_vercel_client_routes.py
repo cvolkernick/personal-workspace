@@ -52,6 +52,8 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("/api/workouts", raw)
         self.assertIn("/api/dashboard?_r=workouts", raw)
         self.assertIn("/api/workouts/date", raw)
+        self.assertIn("/api/training-log.pdf", raw)
+        self.assertIn("/api/dashboard?_r=training_log_pdf", raw)
         self.assertIn("/api/dashboard?_r=workouts_date", raw)
         self.assertIn("/api/meal-plan/generate", raw)
         self.assertIn("/api/dashboard?_r=meal_generate", raw)
@@ -192,6 +194,7 @@ class CookieLessClientRoutes(unittest.TestCase):
                 "labs",
                 "hsa",
                 "restock",
+                "training_log_pdf",
             ):
                 status, body = dispatch_client_route({}, f"_r={route}", "GET")
                 self.assertEqual(status, 401, route)
@@ -214,6 +217,7 @@ class CookieLessClientRoutes(unittest.TestCase):
                 ("/api/labs", "labs"),
                 ("/api/hsa", "hsa"),
                 ("/api/restock", "restock"),
+                ("/api/training-log.pdf", "training_log_pdf"),
             )
             for path, route in pairs:
                 status, body = dispatch_client_route({}, "", "GET", path=path)

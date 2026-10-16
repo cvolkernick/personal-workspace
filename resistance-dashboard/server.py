@@ -2118,6 +2118,41 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/training-log.pdf":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            try:
+                uid = user.get("user_id") if user else None
+                sessions, _source, error, _client = pull_merged_sessions(user_id=uid)
+                from rt_dashboard.training_log_pdf import (
+                    training_log_from_store,
+                    write_pdf_response,
+                )
+
+                status, body = training_log_from_store(
+                    sessions,
+                    parsed.query or "",
+                    store_error=str(error or ""),
+                )
+                if status == 200 and isinstance(body.get("pdf"), (bytes, bytearray)):
+                    write_pdf_response(
+                        self,
+                        bytes(body["pdf"]),
+                        str(body.get("filename") or "fitdash-training-log.pdf"),
+                    )
+                else:
+                    self._send_json(body, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "training_log_pdf_failed",
+                        "message": str(e) or type(e).__name__,
+                    },
+                    status=500,
+                )
+            return
         if parsed.path == "/api/trends/export":
             # Read-only chart window. Same house token as /api/agent/today.
             # A presented token that does not match is 401 even on loopback.
@@ -2324,6 +2359,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         ):
             return
         parsed = urlparse(self.path)
+        if parsed.path == "/api/training-log.pdf":
+            self._send_json({"ok": False, "error": "method_not_allowed"}, status=405)
+            return
         # Gate all personal POST APIs. Inventory stock also accepts a
         # Chris-bound agent token (not the house FITDASH_SERVICE_TOKEN).
         if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:

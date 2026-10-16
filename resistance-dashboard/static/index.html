@@ -1175,6 +1175,29 @@
           Change the civil date of a logged session in place. Sets and loads stay
           the same. Moving a session off a day clears that day if nothing else remains.
         </p>
+        <div class="actions" id="training-log-pdf-row">
+          <a class="btn primary btn-touch" id="training-log-pdf" href="/api/training-log.pdf">Previous week PDF</a>
+          <label for="training-log-week">Any week
+            <input type="date" id="training-log-week" name="training-log-week" />
+          </label>
+        </div>
+        <p class="muted" id="training-log-pdf-note" style="margin: 0 0 0.75rem; font-size: 0.85rem">
+          Lifts only, previous Monday-Sunday (America/New_York). Pick a date to
+          download that week. Saved as fitdash-training-log-YYYY-MM-DD.pdf.
+        </p>
+        <script>
+          (function () {
+            var link = document.getElementById("training-log-pdf");
+            var input = document.getElementById("training-log-week");
+            if (!link || !input) return;
+            input.addEventListener("change", function () {
+              var day = input.value || "";
+              link.href = day
+                ? "/api/training-log.pdf?week=" + encodeURIComponent(day)
+                : "/api/training-log.pdf";
+            });
+          })();
+        </script>
         <ul class="session-list" id="session-list"></ul>
       </section>
 

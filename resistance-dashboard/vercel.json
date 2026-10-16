@@ -37,6 +37,10 @@
       "destination": "/api/dashboard?_r=trends_export"
     },
     {
+      "source": "/api/training-log.pdf",
+      "destination": "/api/dashboard?_r=training_log_pdf"
+    },
+    {
       "source": "/api/agent/generate-plan",
       "destination": "/api/ask/plan?_r=agent_generate"
     },
