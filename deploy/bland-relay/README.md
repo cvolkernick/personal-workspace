@@ -482,18 +482,34 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bl
 python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey CALLER_FORGET_TOKEN
 ```
 
-`bland-relay-setkey` restarts the unit. Do not run it from a review. A future copy onto prism must include `caller_context.py` and every `relay_*.py` part next to `bland_relay.py`.
+`bland-relay-setkey` restarts the unit. Do not run it from a review. Copy the whole set in Deploy, including `caller_context.py` and every `relay_*.py` part next to `bland_relay.py`.
+
+Until #1231 or #1097 writes the index, a deployed `GET /bland/caller-context` returns `known: false` for every caller. That is the expected result of this slice, not a failed smoke. `smoke.py` is the public check. It stays on the operator machine and is not copied to `~/bin`.
+
+Startup logs one line, with no token, phone number, or path: `caller-context: token=set|unset backend=crm|index index_rows=<n>`. `backend=crm` only when `CRM_API_BASE` is loopback and `CRM_API_TOKEN` is set. Leave `CRM_API_BASE` unset until #1097 serves the route, so the line should say `backend=index`.
 
 ## Deploy
 
-Not done by this PR. Do not copy these files onto prism, and do not restart the unit, from a review. After merge, copy the set together. `bland-relay.py` is the unit entry (`chmod 755`). `bland_relay.py` loads every `relay_*.py` part from the same directory (`chmod 644`), and that load imports `caller_context.py`. A partial copy crash-loops the unit.
+Not done by this PR. Do not copy these files onto prism, do not restart the unit, and do not run `install_remote.sh`, from a review. Ops runs this checklist after merge, off-peak, with no call in progress. `bland-relay.py` is the unit entry (`chmod 755`). `bland_relay.py` loads every `relay_*.py` part from the same directory (`chmod 644`), and that load imports `caller_context.py` and `turo_email.py`. A partial copy crash-loops the unit.
+
+`smoke.py` is a local read-only tool. It is not copied.
+
+Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`, `caller_context.py`, `turo_email.py`, `bland-relay-setkey`, `send-904`, `send-904-fc`.
+
+1. Back up the files already on prism. The `relay_*.py` parts are not on the unit yet, so a missing name is skipped. The earlier documented stamp `bak-pre1107` was not applied.
 
 ```bash
-# Back up the files already on prism. The relay_*.py parts are new, so they have no prior copy.
-stamp=bak-pre1107
-for f in bland_relay.py bland-relay.py caller_context.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
-  cp ~/bin/$f ~/bin/$f.$stamp
+stamp=bak-pre1229
+for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
+  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_http.py \
+  caller_context.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
+  if [ -f ~/bin/$f ]; then cp ~/bin/$f ~/bin/$f.$stamp; fi
 done
+```
+
+2. Copy that set together. Do not copy `smoke.py`.
+
+```bash
 cp deploy/bland-relay/bland-relay.py \
   deploy/bland-relay/bland_relay.py \
   deploy/bland-relay/relay_config.py \
@@ -512,11 +528,62 @@ chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/sen
 chmod 644 ~/bin/bland_relay.py ~/bin/relay_config.py ~/bin/relay_audit.py ~/bin/relay_sms.py \
   ~/bin/relay_fc.py ~/bin/relay_send.py ~/bin/relay_rcs.py ~/bin/relay_turo.py ~/bin/relay_http.py \
   ~/bin/caller_context.py ~/bin/turo_email.py
-# unit file already matches ~/.config/systemd/user/bland-relay.service
+```
+
+The unit file already matches `~/.config/systemd/user/bland-relay.service`. Its header lists the same Python files. `ExecStart` stays `%h/bin/bland-relay.py`.
+
+3. Mint the caller-context tokens if they are unset. `bland-relay-setkey` restarts the unit, so do this off-peak. The commands do not print the token.
+
+```bash
+python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey CALLER_CONTEXT_TOKEN
+python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey CALLER_FORGET_TOKEN
+```
+
+If both tokens were already set, restart once after the copy:
+
+```bash
 systemctl --user restart bland-relay.service
 ```
 
-Rollback restores the `$stamp` copies over `~/bin`, then deletes `~/bin/relay_*.py` so the restored `bland_relay.py` is the file the unit loads. Older backups remain `~/bin/*.bak-pre1104`, `~/bin/*.bak-1103`, `~/bin/*.bak-pre1100`, `~/bin/*.bak-pre1056`, `~/bin/*.bak-pre1054`, and `~/bin/bland-relay.py.bak-fwd904`. The kill switch is unchanged. The Bland route and the 904 inbound route stay on the same paths and tokens.
+4. Confirm the unit and the startup line. `active` is required. The line has no token, phone number, or path.
+
+```bash
+systemctl --user is-active bland-relay.service
+journalctl --user -u bland-relay.service -n 80 --no-pager
+```
+
+5. Funnel, read-only. Confirm `/bland/*` is proxied to `127.0.0.1:8799`. If the status shows one forward of `:8443` to that port, every path is already proxied. If Funnel maps by path and `/bland/` is absent, add that path. Do not change the Bland number. Paste `tailscale funnel status` into the issue with the host name redacted.
+
+```bash
+tailscale funnel status
+```
+
+6. From a checkout, not from `~/bin`, run the smoke harness against the public Funnel URL. It waits about a minute before the 61st-request burst so the earlier samples are outside the 60/minute window. Funnel may present every public caller as `127.0.0.1`, so that burst fills the limit for the relay. Run it with no call in progress, and wait a minute before running it again. Attach the JSON report to the issue. It has status codes and p50/p95/max milliseconds, and it has no token and no caller text. `known: false` on `pn=%2B10000000000` passes. End-to-end p95 over the Funnel must be under 1000 ms. The server-side 300 ms figure is the local #1096 test; this harness does not measure inside the process.
+
+```bash
+RELAY_PUBLIC_BASE=https://<funnel-host> \
+  python3 deploy/bland-relay/smoke.py --check caller-context --n 50
+```
+
+`CALLER_CONTEXT_TOKEN` is read from the environment. Do not put it in the command line.
+
+7. Do not apply `dynamic_data` here. That stays a separate Bland config change after Chris's go. No Bland API call and no live call.
+
+Rollback restores the `$stamp` copies over `~/bin`, then removes any `~/bin/relay_*.py` that has no `$stamp` backup, so a restored monolith is the file the unit loads. Restart the unit. Older backups remain `~/bin/*.bak-pre1104`, `~/bin/*.bak-1103`, `~/bin/*.bak-pre1100`, `~/bin/*.bak-pre1056`, `~/bin/*.bak-pre1054`, and `~/bin/bland-relay.py.bak-fwd904`. The kill switch is unchanged. The Bland route and the 904 inbound route stay on the same paths and tokens. The Bland number is untouched.
+
+```bash
+stamp=bak-pre1229
+for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
+  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_http.py \
+  caller_context.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
+  if [ -f ~/bin/$f.$stamp ]; then cp ~/bin/$f.$stamp ~/bin/$f; fi
+done
+for f in ~/bin/relay_*.py; do
+  base=$(basename "$f")
+  if [ ! -f ~/bin/$base.$stamp ]; then rm -f "$f"; fi
+done
+systemctl --user restart bland-relay.service
+```
 
 ## Tests
 
@@ -526,7 +593,9 @@ From this directory, with pytest on the path:
 python3 -m pytest tests -q
 ```
 
-`tests/test_module_split.py` (#1107) checks that each production source file is at most 40 KB and that the `relay_*.py` parts load into the `bland_relay` namespace.
+`tests/test_module_split.py` (#1107) checks that each production source file is at most 40 KB, that the `relay_*.py` parts load into the `bland_relay` namespace, and that the Deploy file list matches the `bland-relay.service` header (#1229). `smoke.py` is not in that list.
+
+`tests/test_smoke.py` (#1229, fixture server, no network) covers the read-only harness: a pass case, a 401 case, a slow server over the end-to-end p95 limit, malformed JSON, a response body that must not appear in the report, and the 61st request returning 429 after the window wait. It also checks the startup line has no token, phone number, or path.
 
 `tests/test_send_state.py` (#1140, gateway mocked, webhooks not registered on a device) covers signed and unsigned `sms:sent` / `sms:delivered` / `sms:failed` fixtures, a bad signature, a duplicate event id, an unknown `messageId`, one `send_failed` plus one #701 alert and the 15-minute cap, log redaction of the full number and the body, and a no-sender "not sent" notice that is not forwarded as inbound and is used only when no `sms:failed` was recorded.
 
