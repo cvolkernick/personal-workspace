@@ -13,6 +13,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -186,12 +187,35 @@ class TestServerRedirects(unittest.TestCase):
 
 
 class TestNavEntry(unittest.TestCase):
-    def test_brief_nav_still_points_at_brief(self):
-        # The FCC header link stays on /brief, which now redirects.
+    """#1139: Daily Brief lives on Horizon. FCC chrome must not grow a Brief control."""
+
+    def test_brief_chrome_is_not_injected(self):
         js = (FCC / "nav-horizon.js").read_text(encoding="utf-8")
-        self.assertIn('"/brief"', js)
-        self.assertIn('"nav-brief"', js)
+        for needle in (
+            "wireBriefNav",
+            "briefHref",
+            "fccBriefHref",
+            "nav-brief",
+            "tab-brief",
+            "data-nav-brief",
+            "Daily Brief",
+            '"/brief"',
+        ):
+            self.assertNotIn(needle, js, needle)
+        self.assertIn('"/horizon/"', js)
+        self.assertIn("wireHorizonNav", js)
+        self.assertIn("fccHorizonHref", js)
         self.assertNotIn("http://", js)
+
+        index = (FCC / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('id="nav-brief"', index)
+        self.assertNotIn('id="tab-brief"', index)
+        controls = index.split('class="controls"', 1)[1].split("</div>", 1)[0]
+        self.assertNotIn("Brief", controls)
+        self.assertLess(controls.find('id="nav-watchlist"'), controls.find('id="btn-refresh"'))
+        bar = index.split('id="mobile-tabbar"', 1)[1].split("</nav>", 1)[0]
+        labels = re.findall(r'class="tab-lbl">(.*?)</span>', bar)
+        self.assertEqual(labels, ["Glance", "Cash", "Bitcoin", "Coach", "More"])
 
 
 if __name__ == "__main__":
