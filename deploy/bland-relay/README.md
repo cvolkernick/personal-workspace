@@ -2,6 +2,8 @@
 
 Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.service`). Tailscale Funnel `:8443` is the existing public front. Secret paths stay unguessable. This tree is the source for `~/bin`. The unit keeps running the copy in `~/bin`, not this checkout.
 
+`bland_relay.py` is the import surface (`import bland_relay`, and the `bland-relay.py` wrapper). It loads these parts from the same directory: `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`. `caller_context.py` and `turo_email.py` stay beside them. Each of those source files stays under ~40 KB.
+
 ## Routes
 
 | Route | Auth | What it does |
@@ -300,7 +302,9 @@ No OAuth re-consent is needed: the existing Gmail token already has `gmail.reado
 Setup on prism (after the GCP steps in #1142):
 
 ```bash
-cp deploy/bland-relay/{bland_relay.py,turo_email.py,gmail_turo_watch.py} ~/bin/
+cp deploy/bland-relay/bland_relay.py deploy/bland-relay/relay_*.py \
+  deploy/bland-relay/caller_context.py deploy/bland-relay/turo_email.py \
+  deploy/bland-relay/gmail_turo_watch.py ~/bin/
 openssl rand -hex 32 | ~/bin/bland-relay-setkey TURO_EMAIL_TOKEN      # then copy the same value into the watcher env
 printf %s 8797 | ~/bin/bland-relay-setkey TURO_EMAIL_PORT
 printf %s 1 | ~/bin/bland-relay-setkey TURO_EMAIL_SHADOW              # first 48 h
@@ -478,21 +482,41 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bl
 python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey CALLER_FORGET_TOKEN
 ```
 
-`bland-relay-setkey` restarts the unit. Do not run it from a review. A future copy onto prism must include `caller_context.py` next to `bland_relay.py`.
+`bland-relay-setkey` restarts the unit. Do not run it from a review. A future copy onto prism must include `caller_context.py` and every `relay_*.py` part next to `bland_relay.py`.
 
 ## Deploy
 
-Not done by the PR. After merge, on prism:
+Not done by this PR. Do not copy these files onto prism, and do not restart the unit, from a review. After merge, copy the set together. `bland-relay.py` is the unit entry (`chmod 755`). `bland_relay.py` loads every `relay_*.py` part from the same directory (`chmod 644`), and that load imports `caller_context.py`. A partial copy crash-loops the unit.
 
 ```bash
-cp deploy/bland-relay/bland_relay.py deploy/bland-relay/bland-relay.py deploy/bland-relay/caller_context.py deploy/bland-relay/turo_email.py ~/bin/
+# Back up the files already on prism. The relay_*.py parts are new, so they have no prior copy.
+stamp=bak-pre1107
+for f in bland_relay.py bland-relay.py caller_context.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
+  cp ~/bin/$f ~/bin/$f.$stamp
+done
+cp deploy/bland-relay/bland-relay.py \
+  deploy/bland-relay/bland_relay.py \
+  deploy/bland-relay/relay_config.py \
+  deploy/bland-relay/relay_audit.py \
+  deploy/bland-relay/relay_sms.py \
+  deploy/bland-relay/relay_fc.py \
+  deploy/bland-relay/relay_send.py \
+  deploy/bland-relay/relay_rcs.py \
+  deploy/bland-relay/relay_turo.py \
+  deploy/bland-relay/relay_http.py \
+  deploy/bland-relay/caller_context.py \
+  deploy/bland-relay/turo_email.py \
+  ~/bin/
 cp deploy/bland-relay/bland-relay-setkey deploy/bland-relay/send-904 deploy/bland-relay/send-904-fc ~/bin/
 chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/send-904-fc
+chmod 644 ~/bin/bland_relay.py ~/bin/relay_config.py ~/bin/relay_audit.py ~/bin/relay_sms.py \
+  ~/bin/relay_fc.py ~/bin/relay_send.py ~/bin/relay_rcs.py ~/bin/relay_turo.py ~/bin/relay_http.py \
+  ~/bin/caller_context.py ~/bin/turo_email.py
 # unit file already matches ~/.config/systemd/user/bland-relay.service
 systemctl --user restart bland-relay.service
 ```
 
-Back up first (`for f in bland_relay.py bland-relay.py bland-relay-setkey send-904 send-904-fc; do cp ~/bin/$f ~/bin/$f.bak-pre1104; done`). Rollback is `~/bin/*.bak-pre1104` (latest), `~/bin/*.bak-1103`, `~/bin/*.bak-pre1100`, `~/bin/*.bak-pre1056`, `~/bin/*.bak-pre1054`, `~/bin/bland-relay.py.bak-fwd904`, or the kill switch. The Bland route and the 904 inbound route stay on the same paths and tokens.
+Rollback restores the `$stamp` copies over `~/bin`, then deletes `~/bin/relay_*.py` so the restored `bland_relay.py` is the file the unit loads. Older backups remain `~/bin/*.bak-pre1104`, `~/bin/*.bak-1103`, `~/bin/*.bak-pre1100`, `~/bin/*.bak-pre1056`, `~/bin/*.bak-pre1054`, and `~/bin/bland-relay.py.bak-fwd904`. The kill switch is unchanged. The Bland route and the 904 inbound route stay on the same paths and tokens.
 
 ## Tests
 
@@ -501,6 +525,8 @@ From this directory, with pytest on the path:
 ```bash
 python3 -m pytest tests -q
 ```
+
+`tests/test_module_split.py` (#1107) checks that each production source file is at most 40 KB and that the `relay_*.py` parts load into the `bland_relay` namespace.
 
 `tests/test_send_state.py` (#1140, gateway mocked, webhooks not registered on a device) covers signed and unsigned `sms:sent` / `sms:delivered` / `sms:failed` fixtures, a bad signature, a duplicate event id, an unknown `messageId`, one `send_failed` plus one #701 alert and the 15-minute cap, log redaction of the full number and the body, and a no-sender "not sent" notice that is not forwarded as inbound and is used only when no `sms:failed` was recorded.
 
