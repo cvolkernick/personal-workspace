@@ -50,7 +50,7 @@ App: [SMS Gateway for Android](https://sms-gate.app) (`me.capcom.smsgateway`). A
 
 `SMSGW_URL=https://api.sms-gate.app/3rdparty/v1`
 
-The relay POSTs `{phoneNumbers, textMessage}` to `{SMSGW_URL}/messages` with HTTP Basic auth (the app's cloud username and password). Cloud OpenAPI 1.49.0 lists `POST /3rdparty/v1/messages` only. The device local server still uses `/message`. If `SMSGW_URL` already ends in `/message` or `/messages`, that full URL is the endpoint, so local mode is `SMSGW_URL=http://<phone>:8080/message` once the phone is reachable. Inbound now comes from the SMSGate `sms:received` webhook (see below). The forwarder route stays available.
+The relay POSTs `{phoneNumbers, textMessage, withDeliveryReport: true}` to `{SMSGW_URL}/messages` with HTTP Basic auth (the app's cloud username and password). `withDeliveryReport` asks the gateway for `sms:delivered` (#1140). A `Pending` response is not a final delivery. Cloud OpenAPI 1.49.0 lists `POST /3rdparty/v1/messages` only. The device local server still uses `/message`. If `SMSGW_URL` already ends in `/message` or `/messages`, that full URL is the endpoint, so local mode is `SMSGW_URL=http://<phone>:8080/message` once the phone is reachable. Inbound now comes from the SMSGate `sms:received` webhook (see below). The forwarder route stays available.
 
 ## SMSGate inbound webhook (#1054)
 
@@ -62,7 +62,9 @@ The SMS Gateway app (`me.capcom.smsgateway`, cloud mode) posts `sms:received` ev
              "recipient": "+19043343975", "simNumber": 1, "receivedAt": "2026-10-03T23:00:00.000-04:00"}}
 ```
 
-The route maps `payload.sender` to `from`, `payload.message` to `body` and `payload.receivedAt` to `received_at`, in the same record the forwarder route builds (`source` stays `t-mobile-904-forwarder`; `raw` holds the SMSGate envelope). It records the sender in `sms_send_state.json` inbound (72-hour allowlist), applies STOP/START exactly like the forwarder, and forwards to `ALEXANDRA_ALERT_URL`. Other events get 200 `ignored`, so the phone does not retry them. A repeated event `id` that was already forwarded gets 200 `duplicate`. A forward failure returns 502, so the app retries with backoff, and raises the usual #701 alert.
+The route maps `payload.sender` to `from`, `payload.message` to `body` and `payload.receivedAt` to `received_at`, in the same record the forwarder route builds (`source` stays `t-mobile-904-forwarder`; `raw` holds the SMSGate envelope). It records the sender in `sms_send_state.json` inbound (72-hour allowlist), applies STOP/START exactly like the forwarder, and forwards to `ALEXANDRA_ALERT_URL`. A repeated event `id` that was already forwarded gets 200 `duplicate`. A forward failure returns 502, so the app retries with backoff, and raises the usual #701 alert.
+
+`sms:sent`, `sms:delivered`, and `sms:failed` use the same path, signature, and event-id dedupe (#1140). Each is keyed by `payload.messageId`. A known id appends `send_state` to the first-contact audit (state, `partsCount`, `reason`) and a `crm_outbox.jsonl` line with the same `provider_msg_id` so a later drain can update `outcome` and `error_code`. An unknown id is logged and ignored. `sms:failed` forwards one `kind=send_failed` event (`gateway_id`, `to_tail`, `reason`, `placed_by`) and posts one #701 alert, on the existing 15-minute cap. The log line and the alert do not include the message body or the full number. A repeated failure for the same id does not alert again. Other events still get 200 `ignored`.
 
 Auth:
 
@@ -85,11 +87,26 @@ POST https://api.sms-gate.app/3rdparty/v1/webhooks
 {"url": "<PRISM_PUBLIC_BASE>:8443/<SMSGW_HOOK_PATH>", "event": "sms:received", "device_id": "<optional>"}
 ```
 
-`GET /3rdparty/v1/webhooks` lists them, and `DELETE /3rdparty/v1/webhooks/<id>` removes one. The app also lists them under Settings → Webhooks → Registered webhooks.
+Register the same URL and signing key for `sms:sent`, `sms:delivered`, and `sms:failed` (one POST per event, no new secret). This tree does not register them. Do not run these commands from a review or a deploy:
+
+```
+POST https://api.sms-gate.app/3rdparty/v1/webhooks
+{"url": "<PRISM_PUBLIC_BASE>:8443/<SMSGW_HOOK_PATH>", "event": "sms:sent"}
+
+POST https://api.sms-gate.app/3rdparty/v1/webhooks
+{"url": "<PRISM_PUBLIC_BASE>:8443/<SMSGW_HOOK_PATH>", "event": "sms:delivered"}
+
+POST https://api.sms-gate.app/3rdparty/v1/webhooks
+{"url": "<PRISM_PUBLIC_BASE>:8443/<SMSGW_HOOK_PATH>", "event": "sms:failed"}
+```
+
+`GET /3rdparty/v1/webhooks` lists them, and `DELETE /3rdparty/v1/webhooks/<id>` removes one. The app also lists them under Settings → Webhooks → Registered webhooks. There is no delayed `GET /messages/{id}` in this tree, and a failed send is not resent.
 
 ## RCS inbound via Google Messages notifications (#1056)
 
 SMSGate only sees SMS/MMS. Its docs say "RCS messages don't trigger SMS webhooks," and no event type covers RCS. To catch RCS chats, a notification-listener app on the 904 Pixel posts each Google Messages notification (`com.google.android.apps.messaging`) to `POST /<RCS_HOOK_PATH>`.
+
+A Google Messages notification with no resolvable sender whose title or text matches `SEND_FAILURE_NOTICE_RE` (default `not sent`, case-insensitive) is not forwarded as an inbound text. It is logged as `send_failure_notice`. If a send is still `Pending` or `Processed`, or `Failed` without a recorded `send_failed` alert, that notice is the one fallback `send_failed`. It does not carry the notification text.
 
 **App: Notification Relay Webhook** (`com.notifrelay.app`, AGPL-3.0, [github.com/cobanov/notification-relay-webhook](https://github.com/cobanov/notification-relay-webhook), APK from [Releases](https://github.com/cobanov/notification-relay-webhook/releases/latest)). Why this app:
 
@@ -352,7 +369,7 @@ Route body for `POST /<FC_PATH>`: `{"action": "add"|"request"|"approve"|"list"|"
 
 ### Audit and CRM
 
-- `~/.local/state/bland-relay/first_contact_audit.jsonl` (0600, append-only; `FC_AUDIT_PATH` overrides): `add` (approval off, `approval_required: false`), `request`, `approve`, `deny`, `revoke`, `convert`, `opt_out`, `send`, `send_refused`. Full E.164 numbers and the approval text, never message bodies or secrets.
+- `~/.local/state/bland-relay/first_contact_audit.jsonl` (0600, append-only; `FC_AUDIT_PATH` overrides): `add` (approval off, `approval_required: false`), `request`, `approve`, `deny`, `revoke`, `convert`, `opt_out`, `send`, `send_refused`, `send_state`, `send_failed`. Full E.164 numbers and the approval text, never message bodies or secrets. `send_state` records the gateway state, `partsCount`, and `reason` for a known `gateway_id` (#1140). `send_failed` means the failure alert was handed to Alexandra.
 - `~/.local/state/bland-relay/crm_outbox.jsonl` (0600; `CRM_OUTBOX_PATH` overrides, `CRM_INGEST_MODE=off` disables): one record per send through the relay (first contact and replies), schema `panamerica.crm.interaction.v1` = the #1049 `interaction` columns (`channel`, `direction`, `provider`, `provider_msg_id`, `from_addr`, `to_addr`, `summary`, `outcome`, `error_code`, `occurred_at`, `logged_by`) plus `metadata` (`purpose`, `purpose_kind`, `placed_by`, `first_contact`, `approval_required`, `approval`; `approval.approved_via` is `auto` for no-approval adds) and `party_hint` (`phone`, `display_name`, `type`, `tags`, `source`) for #1097 auto-create. No `body`. crm-api is not deployed on prism yet (#1097 step 0); `CrmOutboxSink` is the adapter #1097 replaces with a `POST /v1/interactions` sink, draining this file idempotently on `provider_msg_id`.
 
 ### Setup on prism (after merge)
@@ -484,6 +501,8 @@ From this directory, with pytest on the path:
 ```bash
 python3 -m pytest tests -q
 ```
+
+`tests/test_send_state.py` (#1140, gateway mocked, webhooks not registered on a device) covers signed and unsigned `sms:sent` / `sms:delivered` / `sms:failed` fixtures, a bad signature, a duplicate event id, an unknown `messageId`, one `send_failed` plus one #701 alert and the 15-minute cap, log redaction of the full number and the body, and a no-sender "not sent" notice that is not forwarded as inbound and is used only when no `sms:failed` was recorded.
 
 `tests/test_caller_context.py` (#1096, no Bland or CRM network) covers index ingest for an inbound call webhook, a polled voicemail, a concurrency rejection, Bland SMS, and SMSGate; provider-id dedupe; `(239) 555-0101` == `+12395550101`; endpoint 401, unknown, last-3 ET order, sensitive-pattern stripping, and internal-error empty 200; a fixture CRM record (purpose, follow-up, booking sentence) and CRM timeout/5xx falling back to the index inside 250 ms; a non-loopback `CRM_API_BASE` using the index with no request and without echoing the token; both 2026-10-09 callback replays; a GET-only poller that stops on 429 and survives 5xx; 180-day purge; Grok-seat forget; token scrubbing; and p95 under 300 ms on 10k local rows.
 

@@ -6,7 +6,9 @@ body, optional "sha256=" prefix) and forwards the raw body to
 ALEXANDRA_ALERT_URL. POST /<FWD_PATH> accepts the 904 phone forwarder and
 forwards a normalized SMS payload to the same alert URL. POST /<SMSGW_HOOK_PATH>
 accepts the SMS Gateway for Android (SMSGate) cloud `sms:received` webhook and
-feeds it through the same inbound path (#1054). POST /<RCS_HOOK_PATH>
+feeds it through the same inbound path (#1054). The same hook accepts
+`sms:sent`, `sms:delivered`, and `sms:failed` and records send state (#1140).
+POST /<RCS_HOOK_PATH>
 accepts Google Messages notifications from a notification-listener app on the
 904 phone so RCS chats reach the same inbound path, deduped against SMSGate
 (#1056). POST /<SEND_PATH> lets Alexandra send one plain SMS back through SMS
@@ -111,6 +113,9 @@ _recent_lock = threading.Lock()
 # Entries are claimed before forwarding and dropped again if the forward fails.
 _recent_msgs = []
 ALERT_COOLDOWN_S = 15 * 60
+SEND_STATE_EVENTS = {"sms:sent": "Sent", "sms:delivered": "Delivered", "sms:failed": "Failed"}
+_DEFAULT_FAILURE_NOTICE_RE = re.compile(r"not\s+sent", re.I)
+_PHONE_RE = re.compile(r"\+?\d[\d\s().-]{8,}\d")
 TREASURY_DIR = Path.home() / "personal-workspace"
 
 
@@ -759,6 +764,9 @@ def crm_interaction_record(to, grant, result, err, now, purpose=None, placed_by=
         hint = {"phone": to, "display_name": None, "type": None, "tags": [], "source": "904-sms"}
     meta = {"purpose": purpose, "purpose_kind": kind, "placed_by": placed_by or "send-route",
             "first_contact": first, "grant": (grant or {}).get("kind")}
+    gateway_state = (result or {}).get("state")
+    if isinstance(gateway_state, str) and gateway_state:
+        meta["gateway_state"] = gateway_state[:32]
     if first:
         meta["approval_required"] = entry.get("approved_via") != "auto"
         meta["approval"] = {"approved_by": entry.get("approved_by"), "approval_ref": entry.get("approval_ref"),
@@ -1193,6 +1201,7 @@ def gateway_send(to, message, opener=None):
     payload = json.dumps({
         "phoneNumbers": [to],
         "textMessage": {"text": message},
+        "withDeliveryReport": True,
     }).encode()
     basic = base64.b64encode(f"{user}:{password}".encode()).decode()
     req = urllib.request.Request(
@@ -1234,6 +1243,217 @@ def gateway_send(to, message, opener=None):
 def _tail4(to):
     digits = re.sub(r"\D", "", to or "")
     return digits[-4:] if len(digits) >= 4 else "----"
+
+
+def _safe_id(raw):
+    return re.sub(r"[^A-Za-z0-9_.:-]", "", str(raw or ""))[:64]
+
+
+def _parts_count(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    if value < 0 or value > 100:
+        return None
+    return value
+
+
+def _clean_reason(raw):
+    text = " ".join(str(raw or "").split())
+    text = _PHONE_RE.sub("***", text)
+    text = _scrub(text)
+    return text[:120]
+
+
+def _outbox_path():
+    override = env("CRM_OUTBOX_PATH")
+    return Path(override) if override else _state_dir() / "crm_outbox.jsonl"
+
+
+def _jsonl_rows(path):
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    rows = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _send_index():
+    """gateway id -> to, placed_by, latest state, whether sms:failed was alerted."""
+    sends = {}
+
+    def touch(gid):
+        return sends.setdefault(gid, {
+            "to": None, "placed_by": None, "state": "", "alerted": False, "at": "", "base": None,
+        })
+
+    for row in _jsonl_rows(_audit_path()):
+        gid = _safe_id(row.get("gateway_id"))
+        if not gid:
+            continue
+        rec = touch(gid)
+        if row.get("to"):
+            rec["to"] = row.get("to")
+        if row.get("placed_by"):
+            rec["placed_by"] = row.get("placed_by")
+        if row.get("event") == "send":
+            rec["state"] = row.get("gateway_state") or rec["state"]
+            rec["at"] = row.get("at") or rec["at"]
+        elif row.get("event") == "send_state":
+            rec["state"] = row.get("state") or rec["state"]
+            rec["at"] = row.get("at") or rec["at"]
+        elif row.get("event") == "send_failed":
+            rec["alerted"] = True
+    for row in _jsonl_rows(_outbox_path()):
+        pid = str(row.get("provider_msg_id") or "")
+        if not pid.startswith("smsgate:"):
+            continue
+        gid = _safe_id(pid[len("smsgate:"):])
+        if not gid:
+            continue
+        rec = touch(gid)
+        rec["base"] = row
+        if not rec["to"]:
+            rec["to"] = row.get("to_addr")
+        meta = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+        if not rec["placed_by"]:
+            rec["placed_by"] = meta.get("placed_by")
+        if not rec["state"]:
+            rec["state"] = meta.get("gateway_state") or ""
+        if not rec["at"]:
+            rec["at"] = row.get("occurred_at") or ""
+    return sends
+
+
+def send_record(gateway_id):
+    gid = _safe_id(gateway_id)
+    if not gid:
+        return None
+    rec = _send_index().get(gid)
+    if not rec or (not rec.get("to") and rec.get("base") is None):
+        return None
+    out = dict(rec)
+    out["gateway_id"] = gid
+    return out
+
+
+def latest_open_send():
+    """Newest send with no send_failed alert yet.
+
+    Pending and Processed are the normal case. Failed is included so a notice
+    whose Alexandra forward returned 502 can be retried; an alerted id is not.
+    """
+    best = None
+    for gid, rec in _send_index().items():
+        if rec.get("alerted") or rec.get("state") not in ("Pending", "Processed", "Failed"):
+            continue
+        if best is None or (rec.get("at") or "") >= (best.get("at") or ""):
+            best = dict(rec)
+            best["gateway_id"] = gid
+    return best
+
+
+def apply_send_state(gateway_id, state, parts_count=None, reason=None, now=None):
+    """Append audit send_state and a CRM outbox update. -> 'updated' or 'unknown'."""
+    now = time.time() if now is None else now
+    rec = send_record(gateway_id)
+    if rec is None:
+        return "unknown"
+    clean = _clean_reason(reason) if reason else ""
+    parts = _parts_count(parts_count)
+    fc_audit(
+        "send_state", now, gateway_id=rec["gateway_id"], state=state,
+        parts_count=parts, reason=clean or None, to=rec.get("to"), placed_by=rec.get("placed_by"),
+    )
+    base = rec.get("base")
+    if isinstance(base, dict):
+        updated = json.loads(json.dumps(base))
+        updated.pop("body", None)
+        updated["outcome"] = {"Sent": "sent", "Delivered": "delivered", "Failed": "failed"}.get(state, "sent")
+        updated["error_code"] = clean if state == "Failed" else ""
+        updated["occurred_at"] = _iso(now)
+        meta = updated.get("metadata") if isinstance(updated.get("metadata"), dict) else {}
+        meta = dict(meta)
+        meta["gateway_state"] = state
+        if parts is not None:
+            meta["parts_count"] = parts
+        if clean:
+            meta["reason"] = clean
+        updated["metadata"] = meta
+        emit_interaction(updated)
+    return "updated"
+
+
+def notify_send_failed(rec, reason):
+    """One Alexandra send_failed plus one #701 alert. No full number, no body."""
+    tail = _tail4(rec.get("to") or "")
+    clean = _clean_reason(reason) or "sms failed"
+    placed = str(rec.get("placed_by") or "")[:32]
+    obj = {
+        "kind": "send_failed",
+        "gateway_id": rec["gateway_id"],
+        "to_tail": tail,
+        "reason": clean,
+        "placed_by": placed,
+    }
+    status, err, attempts = forward(json.dumps(obj, ensure_ascii=False).encode("utf-8"))
+    alert_failure(
+        rec["gateway_id"], clean, 1, "904 SMS send failed",
+        "Gateway id", "State events", "prism bland-relay.service sms:failed",
+    )
+    if status is None:
+        log.error("send_failed forward failed id=%s error=%s", rec["gateway_id"], _scrub(err))
+    else:
+        log.info("send_failed forwarded id=%s to=***%s -> %d", rec["gateway_id"], tail, status)
+    return status, err, attempts
+
+
+def send_failure_notice_re():
+    raw = env("SEND_FAILURE_NOTICE_RE")
+    if not raw:
+        return _DEFAULT_FAILURE_NOTICE_RE
+    try:
+        return re.compile(raw, re.I)
+    except re.error:
+        return _DEFAULT_FAILURE_NOTICE_RE
+
+
+def send_failure_notice(parsed):
+    if not isinstance(parsed, dict):
+        return False
+    blob = " ".join(str(parsed.get(k) or "") for k in ("title", "text"))
+    if not blob.strip():
+        return False
+    return send_failure_notice_re().search(blob) is not None
+
+
+def handle_send_failure_notice(text_len=0, now=None):
+    """Log a no-sender failure notice. Alert only when no sms:failed was recorded."""
+    now = time.time() if now is None else now
+    log.info("rcs webhook: send_failure_notice len=%d", int(text_len or 0))
+    rec = latest_open_send()
+    if rec is None:
+        log.info("rcs webhook: send_failure_notice no open send")
+        return 200, {"ok": True, "ignored": "send_failure_notice"}
+    apply_send_state(rec["gateway_id"], "Failed", reason="send_failure_notice", now=now)
+    status, err, _attempts = notify_send_failed(rec, "send_failure_notice")
+    if status is None:
+        return 502, {"ok": False, "error": "forward failed"}
+    fc_audit(
+        "send_failed", now, gateway_id=rec["gateway_id"], to_tail=_tail4(rec.get("to") or ""),
+        placed_by=rec.get("placed_by"), reason="send_failure_notice",
+    )
+    log.info("rcs webhook: send_failure_notice fallback id=%s", rec["gateway_id"])
+    return 200, {"ok": True, "ignored": "send_failure_notice"}
 
 
 def smsgate_signature_ok(key, body, ts, sig, now=None):
@@ -2418,6 +2638,8 @@ class H(BaseHTTPRequestHandler):
             log.warning("smsgate webhook: bad json (%d bytes)", len(body))
             return self._send(400, {"ok": False, "error": "bad json"})
         event = data.get("event")
+        if event in SEND_STATE_EVENTS:
+            return self._smsgate_state(data, event)
         if event != "sms:received":
             # 2xx so the phone does not retry an event this route does not handle.
             log.info("smsgate webhook: ignored event=%s", re.sub(r"[^a-z:_-]", "", str(event))[:32] or "-")
@@ -2454,6 +2676,45 @@ class H(BaseHTTPRequestHandler):
         _spawn(alert_failure, ("904-smsgate-webhook", err, attempts))
         return self._send(502, {"ok": False, "error": "forward failed"})
 
+    def _smsgate_state(self, data, event):
+        payload = data.get("payload") if isinstance(data.get("payload"), dict) else {}
+        event_id = _safe_id(data.get("id"))
+        gid = _safe_id(payload.get("messageId"))
+        state = SEND_STATE_EVENTS[event]
+        if event_id and _seen_event(event_id):
+            log.info("smsgate webhook: duplicate event id=%s", event_id)
+            return self._send(200, {"ok": True, "duplicate": True})
+        if not gid:
+            log.info("smsgate webhook: %s without message id", event)
+            if event_id:
+                _mark_event(event_id)
+            return self._send(200, {"ok": True, "ignored": True})
+        rec = send_record(gid)
+        if rec is None:
+            log.info("smsgate webhook: unknown message id=%s event=%s", gid, event)
+            if event_id:
+                _mark_event(event_id)
+            return self._send(200, {"ok": True, "ignored": True})
+        parts = _parts_count(payload.get("partsCount"))
+        reason = payload.get("reason") if isinstance(payload.get("reason"), str) else ""
+        apply_send_state(gid, state, parts, reason)
+        tail = _tail4(rec.get("to") or "")
+        log.info(
+            "smsgate webhook: send_state id=%s state=%s to=***%s parts=%s",
+            gid, state, tail, "-" if parts is None else parts,
+        )
+        if state == "Failed" and not rec.get("alerted"):
+            status, err, _attempts = notify_send_failed(rec, reason)
+            if status is None:
+                return self._send(502, {"ok": False, "error": "forward failed"})
+            fc_audit(
+                "send_failed", time.time(), gateway_id=gid, to_tail=tail,
+                placed_by=rec.get("placed_by"), reason=_clean_reason(reason) or "sms failed",
+            )
+        if event_id:
+            _mark_event(event_id)
+        return self._send(200, {"ok": True, "state": state})
+
     def _rcs_inbound(self):
         if env("RCS_HOOK_DISABLED") == "1":
             log.warning("rcs inbound disabled (RCS_HOOK_DISABLED=1)")
@@ -2488,6 +2749,8 @@ class H(BaseHTTPRequestHandler):
         if _placeholder(parsed.get("title")):
             parsed["title"] = None
         num, name, how = resolve_rcs_sender(parsed)
+        if not num and send_failure_notice(parsed):
+            return self._send(*handle_send_failure_notice(len(text or "")))
         if not num and not name:
             log.warning("rcs webhook: no sender")
             return self._send(400, {"ok": False, "error": "bad payload"})
@@ -2579,7 +2842,8 @@ class H(BaseHTTPRequestHandler):
         if grant and grant.get("kind") == "first_contact":
             fc_audit("send", now, to=to, outcome="sent" if result is not None else "failed",
                      length=len(message), sends=(grant.get("entry") or {}).get("sends"),
-                     placed_by=placed_by, gateway_id=(result or {}).get("id"))
+                     placed_by=placed_by, gateway_id=(result or {}).get("id"),
+                     gateway_state=(result or {}).get("state"))
         if result is None:
             log.error("sms send gateway failed to=***%s len=%d error=%s", tail, len(message), _scrub(err))
             _spawn(alert_failure, (f"sms-****{tail}", err, 1, "904 SMS send failed"))
