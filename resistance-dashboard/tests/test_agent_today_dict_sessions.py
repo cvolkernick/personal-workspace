@@ -1,4 +1,4 @@
-"""``GET /api/agent/today`` 500: ``'dict' object has no attribute 'exercises'`` (#1240).
+"""``GET /api/agent/today`` 500: ``'dict' object has no attribute 'exercises'`` (#1242).
 
 ``load_dashboard_data`` carries ``sessions`` as ``to_dict()`` payloads. When a
 session is closed today the fill takes the deterministic planner path, which
@@ -131,7 +131,7 @@ class ClosedTodayFillShapes(unittest.TestCase):
                         return_value={"ok": True, "skipped": True},
                     ):
                         filled = fill_stamped_workout(
-                            f"sub-1240-{shape}",
+                            f"sub-1242-{shape}",
                             day=DAY,
                             workout=stamped,
                             sessions=sessions,

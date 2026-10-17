@@ -41,7 +41,7 @@ def coerce_sessions(sessions: Iterable[Any] | None) -> List[Session]:
 def filter_sessions(sessions: Sequence[Session]) -> List[Session]:
     """Drop sessions that only contain test/canary exercises; strip test lifts otherwise.
 
-    Accepts ``Session`` objects or their ``to_dict()`` payloads (#1240).
+    Accepts ``Session`` objects or their ``to_dict()`` payloads (#1242).
     """
     out: List[Session] = []
     for s in coerce_sessions(sessions):

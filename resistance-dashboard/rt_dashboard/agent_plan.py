@@ -298,7 +298,7 @@ def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> 
         catalog,
         ctx.get("goals") or {},
         # ``load_dashboard_data`` hands sessions over as to_dict() payloads; the
-        # planner reads ``.exercises`` (#1240).
+        # planner reads ``.exercises`` (#1242).
         coerce_sessions(ctx.get("sessions")),
         recovery_label=rec.get("label"),
         recovery_score=_recovery_score(rec),
@@ -530,7 +530,7 @@ def ensure_today_grok_plan(
             loaded.update({k: v for k, v in ctx.items() if v is not None})
         ctx = loaded
     # Cookie-less Today passes ``load_dashboard_data`` sessions (dicts); the
-    # closed-today and fallback planners need Session objects (#1240).
+    # closed-today and fallback planners need Session objects (#1242).
     from .test_noise import coerce_sessions
 
     ctx = {**ctx, "sessions": coerce_sessions(ctx.get("sessions"))}
