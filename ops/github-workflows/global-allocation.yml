@@ -1,0 +1,94 @@
+# Global allocation snapshots (#1251).
+# Install: mkdir -p .github/workflows && cp ops/github-workflows/global-allocation.yml .github/workflows/
+# That copy needs a token with workflow scope. Until it is installed, this file does nothing.
+# The live runner is the box fallback in research/global_allocation/RUNBOOK.md.
+name: global-allocation
+
+"on":
+  schedule:
+    # Friday 22:15 UTC, after the US equity and metals close in both EDT and EST.
+    - cron: "15 22 * * 5"
+    # First of the month, 12:00 UTC.
+    - cron: "0 12 1 * *"
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: monthly or weekly
+        required: true
+        type: choice
+        default: weekly
+        options:
+          - weekly
+          - monthly
+
+permissions:
+  contents: write
+
+concurrency:
+  group: global-allocation
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: github.repository == 'cvolkernick/personal-workspace'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pinned dependencies
+        run: pip install "requests>=2.31,<3"
+
+      - name: Refresh and validate
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            kind="${{ github.event.inputs.kind }}"
+          elif [ "${{ github.event.schedule }}" = "15 22 * * 5" ]; then
+            kind=weekly
+          elif [ "${{ github.event.schedule }}" = "0 12 1 * *" ]; then
+            kind=monthly
+          else
+            echo "refusing unknown trigger"
+            exit 1
+          fi
+          case "$kind" in
+            weekly|monthly) ;;
+            *)
+              echo "refusing kind"
+              exit 1
+              ;;
+          esac
+          date_et="$(python3 -c 'from research.global_allocation.refresh import run_date_default; print(run_date_default())')"
+          python3 -m research.global_allocation.refresh --kind "$kind" --date "$date_et"
+          python3 -m research.global_allocation.validate_snapshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- research/global_allocation/snapshots/index.jsonl
+          find research/global_allocation/snapshots -name '*.json' -type f -print | while read -r snapshot; do
+            if ! git ls-files --error-unmatch -- "$snapshot" >/dev/null 2>&1; then
+              git add -- "$snapshot"
+            fi
+          done
+          if git diff --cached --quiet; then
+            echo "no snapshot change"
+            exit 0
+          fi
+          git commit -m "chore(global-allocation): ${kind} snapshot ${date_et} [skip ci]"
+          branch="${GITHUB_REF_NAME}"
+          if git push origin "HEAD:${branch}"; then
+            exit 0
+          fi
+          side="global-allocation-snapshot-${kind}-${date_et}"
+          git switch -c "$side"
+          git push -u origin "$side"
+          echo "default-branch push refused; pushed ${side} for a pull request"

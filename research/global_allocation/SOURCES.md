@@ -18,7 +18,7 @@ The HTTP client sends `User-Agent: personal-workspace-global-allocation/1.0`. It
 | M2 Index broad-money CSV | CC BY 4.0, stated in robots.txt. Attribute "M2 Index, m2index.com" and quote the observation date. | Fetched. `Allow: /`. The file asks agents to use the CSV instead of crawling country pages. | None | One CSV per monthly run | Broad money carried forward. |
 | Alpha Vantage VT | Unchecked. The product is a keyed API. `https://www.alphavantage.co/robots.txt` returned HTTP 404. | No robots file. | `ALPHAVANTAGE_API_KEY` in the environment. Missing key returns unavailable and does not send a request. | Vendor documents 25 requests/day on the free tier. Not re-verified here. | Listed equities carried forward. |
 
-Twelve Data is the #1249 equity fallback and is **not an adapter**. `https://api.twelvedata.com/robots.txt` is `User-agent: *` / `Disallow: /`.
+Twelve Data is the #1249 equity fallback and is **not an adapter**. `https://api.twelvedata.com/robots.txt` is `User-agent: *` / `Disallow: /`. #1251 does not add it. A weekly run with no Alpha Vantage key, or a failed Alpha Vantage response, carries listed equities forward with `price_stale` true.
 
 Manual anchors (no automated fetch): Savills real estate, SIFMA debt and the equity level, PitchBook private markets (the 2026-10-17 page timed out; confidence `low`), Deloitte art projection, World Gold Council tonnes, and the CoinMarketCap snapshot 0 figures for bitcoin and other crypto. PitchBook, Savills, SIFMA, Deloitte, and WGC pages are not scraped.
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Global allocation monthly snapshot refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/.local/lib/global-allocation/refresh.sh monthly
+TimeoutStartSec=300
+NoNewPrivileges=yes
+Nice=10

@@ -364,6 +364,145 @@ def assemble(
     return doc, [], extra_caveats
 
 
+# Weekly recomputes these three. Every other class is copied off the latest
+# monthly snapshot, or the seed when no monthly exists.
+WEEKLY_PRICE_IDS = ("listed_equities", "gold", "bitcoin")
+
+
+def _weekly_hold(previous: dict[str, Any]) -> dict[str, Any]:
+    """Copy a non-price class. Value and as_of stay. ``value_kind`` becomes carried_forward."""
+    return {
+        "as_of": previous["as_of"],
+        "confidence": previous["confidence"],
+        "method_note": previous["method_note"],
+        "method_version": previous["method_version"],
+        "methodology_break": previous.get("methodology_break"),
+        "source_name": previous["source_name"],
+        "source_url": previous["source_url"],
+        "stale": bool(previous["stale"]),
+        "stale_days": int(previous["stale_days"]),
+        "value": Decimal(str(previous["value_usd_tn"])),
+        "value_kind": "carried_forward",
+        "verified": bool(previous["verified"]),
+    }
+
+
+def _carried_fx(prior: dict[str, Any]) -> dict[str, Any]:
+    fx = prior.get("fx_basis") if isinstance(prior.get("fx_basis"), dict) else {}
+    return {
+        "as_of": fx.get("as_of"),
+        "rates": dict(fx.get("rates") or {}),
+        "source_name": fx.get("source_name") or "Frankfurter (ECB reference)",
+        "source_url": fx.get("source_url") or "https://api.frankfurter.dev/v1/latest",
+        "unavailable": fx.get("unavailable"),
+    }
+
+
+def assemble_weekly(
+    *,
+    run_date: str,
+    run_at_utc: str,
+    kind: str,
+    snapshot_id: str,
+    supersedes: str | None,
+    revision_reason: str | None,
+    anchors: dict[str, dict[str, Any]],
+    quantities: dict[str, dict[str, Any]],
+    sources: dict[str, SourceRecord],
+    prior: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, list[str], list[str]]:
+    """Price-only snapshot. ``stats_eligible`` is always false (D7).
+
+    Gold, bitcoin, and listed equities are recomputed. The other classes keep
+    the source snapshot's value and as_of. A missing equity price carries the
+    class forward with ``price_stale`` true. Gold keeps the primary spot when
+    PAXG diverges by more than 2 percent.
+    """
+    if prior is None:
+        return None, list(CLASS_IDS), ["no monthly or seed snapshot"]
+
+    built: dict[str, dict[str, Any]] = {}
+    failures: list[str] = []
+    extra_caveats: list[str] = []
+    for class_id in CLASS_IDS:
+        if class_id in WEEKLY_PRICE_IDS:
+            continue
+        previous = _prior_class(prior, class_id)
+        if previous is None:
+            failures.append(class_id)
+            continue
+        built[class_id] = _weekly_hold(previous)
+
+    _equities(built, failures, extra_caveats, anchors, sources, prior, run_date)
+    gold_inputs = _gold(built, failures, extra_caveats, quantities, sources, prior, run_date)
+    btc_inputs = _bitcoin(built, failures, extra_caveats, sources, prior, run_date)
+    if len(built) != len(CLASS_IDS):
+        return None, failures, extra_caveats
+
+    equities = built["listed_equities"]
+    equities["price_stale"] = equities.get("value_kind") != "scaled_anchor"
+
+    values = {key: built[key]["value"] for key in CLASS_IDS}
+    gross = sum(values.values(), Decimal(0))
+    shares = share_map(values, gross)
+    classes = []
+    for key in CLASS_IDS:
+        item = built[key]
+        record = class_record(
+            key,
+            item["value"],
+            shares[key],
+            item["as_of"],
+            item["value_kind"],
+            item["stale"],
+            item["stale_days"],
+            item["source_name"],
+            item["source_url"],
+            item["method_note"],
+            item["method_version"],
+            item["methodology_break"],
+            item["confidence"],
+            item["verified"],
+        )
+        if key == "listed_equities":
+            record["price_stale"] = bool(item["price_stale"])
+        if key == "gold" and item.get("price_check"):
+            record["price_check"] = item["price_check"]
+        classes.append(record)
+
+    prior_inputs = prior.get("inputs") if isinstance(prior.get("inputs"), dict) else {}
+    equity = sources.get("equity_proxy")
+    equity_anchor = anchors.get("listed_equities") or {}
+    doc = {
+        "anchor_review": anchor_review(anchors, quantities, run_date),
+        "caveats": [CAVEAT, "Not net wealth. Advisory only.", *extra_caveats],
+        "classes": classes,
+        "fx_basis": _carried_fx(prior),
+        "inputs": {
+            "btc_height": btc_inputs["height"],
+            "btc_supply": btc_inputs["supply"],
+            "equity_proxy_price_at_anchor": equity_anchor.get("proxy_price_at_anchor"),
+            "equity_proxy_price_now": equity.payload["price"] if equity and equity.ok else None,
+            "equity_proxy_symbol": equity_anchor.get("proxy_symbol") or "VT",
+            "gold_tonnes": gold_inputs["tonnes"],
+            "gold_tonnes_as_of": gold_inputs["as_of"],
+            "real_yield_10y": prior_inputs.get("real_yield_10y"),
+            "real_yield_as_of": prior_inputs.get("real_yield_as_of"),
+        },
+        "kind": kind,
+        "revision_reason": revision_reason,
+        "run_at_utc": run_at_utc,
+        "run_date_et": run_date,
+        "schema_version": 1,
+        "snapshot_id": snapshot_id,
+        "stats_eligible": False,
+        "supersedes": supersedes,
+        "totals": {"gross_usd_tn": gross, "shares_pct": shares},
+        "unit": "usd_tn",
+    }
+    return doc, [], extra_caveats
+
+
 def _equities(built, failures, caveats, anchors, sources, prior, run_date) -> None:
     entry = anchors.get("listed_equities")
     proxy = sources.get("equity_proxy")
@@ -478,6 +617,7 @@ def _gold(built, failures, caveats, quantities, sources, prior, run_date) -> dic
         check = "diverged" if gap > Decimal("0.02") else "ok"
         check_txt = f"PAXG-USD {other} price_check {check}. Primary spot is used."
     else:
+        check = "unchecked"
         check_txt = f"PAXG-USD unavailable ({paxg.unavailable if paxg else 'missing'}); price_check unchecked. Primary spot is used."
     due, days = stale_days(tonnes_entry["as_of"], run_date, tonnes_entry.get("review_after"))
     built["gold"] = {
@@ -489,6 +629,7 @@ def _gold(built, failures, caveats, quantities, sources, prior, run_date) -> dic
         ),
         "method_version": "tonnes-x-spot-v1",
         "methodology_break": "Price source changed from the London fix used in snapshot 0 to the spot feed.",
+        "price_check": check,
         "source_name": spot.source_name,
         "source_url": spot.source_url,
         "stale": due,

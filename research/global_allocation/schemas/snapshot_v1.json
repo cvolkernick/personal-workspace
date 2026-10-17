@@ -170,7 +170,9 @@
         "overlap_flag": {"type": "boolean"},
         "overlap_with": {"type": "array", "items": {"type": "string"}},
         "confidence": {"enum": ["high", "medium", "low"]},
-        "verified": {"type": "boolean"}
+        "verified": {"type": "boolean"},
+        "price_stale": {"type": "boolean"},
+        "price_check": {"enum": ["ok", "diverged", "unchecked"]}
       }
     },
     "totals": {

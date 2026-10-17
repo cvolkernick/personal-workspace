@@ -1,0 +1,12 @@
+[Unit]
+Description=Global allocation monthly snapshot refresh
+
+[Timer]
+# 12:00 UTC on the first of the month.
+OnCalendar=*-*-01 12:00:00 UTC
+Persistent=true
+AccuracySec=1min
+Unit=global-allocation-monthly.service
+
+[Install]
+WantedBy=timers.target
