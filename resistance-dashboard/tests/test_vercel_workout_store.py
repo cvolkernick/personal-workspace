@@ -273,13 +273,24 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
             if isinstance(e, dict)
         }
         self.assertTrue(raw_sets)
-        self.assertTrue(all(v == 3 for v in raw_sets.values()), raw_sets)
+        # #1129 stores 2 on the row. Every other shipped row still stores 3,
+        # and the goals cap rewrites that 3 to 2.
+        self.assertEqual(raw_sets.get("Behind-the-Neck Smith Press"), 2)
+        stored_three = {
+            name: sets
+            for name, sets in raw_sets.items()
+            if name != "Behind-the-Neck Smith Press"
+        }
+        self.assertTrue(all(v == 3 for v in stored_three.values()), stored_three)
         capped = apply_goals_volume_caps(catalog, goals)
         for ex in capped.get("exercises") or []:
             self.assertEqual(ex.get("default_sets"), 2, ex.get("name"))
             self.assertEqual(ex.get("volume_from"), "goals")
-        # SoT file itself is unchanged
-        self.assertTrue(all(v == 3 for v in raw_sets.values()))
+        # Source snapshot stays put. #1129 is the one row filed at 2.
+        self.assertEqual(raw_sets.get("Behind-the-Neck Smith Press"), 2)
+        self.assertTrue(
+            all(v == 3 for name, v in raw_sets.items() if name != "Behind-the-Neck Smith Press")
+        )
 
 
 class RestGateFromGoals(unittest.TestCase):
