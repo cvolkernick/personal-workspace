@@ -115,6 +115,7 @@ def test_source_failure_carries_that_class_forward(tmp_path, capsys):
     assert bitcoin["value_usd_tn"] == 1.64
     assert bitcoin["value_kind"] == "carried_forward"
     assert bitcoin["stale"] is True
+    assert doc["stats_eligible"] is True
     assert any("Coinbase" in line for line in doc["caveats"])
     assert (root / "snapshots" / "index.jsonl").read_bytes().startswith(seed_index)
     assert "anchor review:" in capsys.readouterr().out
@@ -168,3 +169,86 @@ def test_dry_run_writes_nothing(tmp_path):
 
 def test_weekly_is_out_of_slice(tmp_path):
     assert main(["--kind", "weekly", "--root", str(tmp_path)]) == 1
+
+
+def _root_with_package_anchors(tmp_path: Path) -> Path:
+    root = tmp_path / "root"
+    inputs = root / "inputs"
+    inputs.mkdir(parents=True)
+    shutil.copy(PACKAGE / "inputs" / "anchors.json", inputs / "anchors.json")
+    shutil.copy(PACKAGE / "inputs" / "quantities.json", inputs / "quantities.json")
+    return root
+
+
+def test_carried_listed_equities_are_not_stats_eligible(tmp_path):
+    root = _root_with_package_anchors(tmp_path)
+    assert import_seed(root) == 0
+    code = main(
+        [
+            "--kind",
+            "monthly",
+            "--date",
+            "2026-10-17",
+            "--offline-fixtures",
+            str(FIXTURES),
+            "--root",
+            str(root),
+        ]
+    )
+    assert code == 0
+    doc = json.loads((root / "snapshots" / "2026-10-17_monthly.json").read_text(encoding="utf-8"))
+    equities = next(item for item in doc["classes"] if item["id"] == "listed_equities")
+    assert equities["value_kind"] == "carried_forward"
+    assert equities["value_usd_tn"] == 157.8
+    assert doc["inputs"]["equity_proxy_price_at_anchor"] is None
+    assert doc["stats_eligible"] is False
+
+
+def test_revise_is_eligible_once_anchor_close_is_recorded(tmp_path):
+    root = _root_with_package_anchors(tmp_path)
+    assert import_seed(root) == 0
+    assert (
+        main(
+            [
+                "--kind",
+                "monthly",
+                "--date",
+                "2026-10-17",
+                "--offline-fixtures",
+                str(FIXTURES),
+                "--root",
+                str(root),
+            ]
+        )
+        == 0
+    )
+    original = root / "snapshots" / "2026-10-17_monthly.json"
+    before = original.read_bytes()
+    anchors_path = root / "inputs" / "anchors.json"
+    anchors = json.loads(anchors_path.read_text(encoding="utf-8"))
+    for entry in anchors["entries"]:
+        if entry["class_id"] == "listed_equities":
+            entry["proxy_price_at_anchor"] = 100
+    anchors_path.write_text(json.dumps(anchors, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    code = main(
+        [
+            "--kind",
+            "monthly",
+            "--date",
+            "2026-10-17",
+            "--offline-fixtures",
+            str(FIXTURES),
+            "--revise",
+            "record the VT close on the anchor date",
+            "--root",
+            str(root),
+        ]
+    )
+    assert code == 0
+    assert original.read_bytes() == before
+    assert json.loads(before)["stats_eligible"] is False
+    revised = json.loads((root / "snapshots" / "2026-10-17_monthly_r1.json").read_text(encoding="utf-8"))
+    equities = next(item for item in revised["classes"] if item["id"] == "listed_equities")
+    assert equities["value_kind"] == "scaled_anchor"
+    assert revised["inputs"]["equity_proxy_price_at_anchor"] == 100
+    assert revised["stats_eligible"] is True

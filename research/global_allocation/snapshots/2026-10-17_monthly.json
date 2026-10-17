@@ -267,9 +267,9 @@
   "run_at_utc": "2026-10-17T22:08:22Z",
   "run_date_et": "2026-10-17",
   "schema_version": 1,
-  "sha256": "ec47c058e9355ec7a9bcd9146f6a2c60fae54c9e7caa105bb6b0ae8396c57860",
+  "sha256": "d48b8b72e5006817f3067fe9c8340396176d0e5283f2aef84e1530d5ed54430a",
   "snapshot_id": "2026-10-17_monthly",
-  "stats_eligible": true,
+  "stats_eligible": false,
   "supersedes": null,
   "totals": {
     "gross_usd_tn": 912.55,

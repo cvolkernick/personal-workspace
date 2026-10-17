@@ -115,7 +115,6 @@ def execute(
         snapshot_id=snapshot_id,
         supersedes=supersedes,
         revision_reason=reason,
-        stats_eligible=True,
         anchors=anchors,
         quantities=quantities,
         sources=records,

@@ -229,6 +229,24 @@ def _from_anchor(entry: dict[str, Any], run_date: str) -> dict[str, Any]:
     }
 
 
+def listed_equities_stats_eligible(
+    equities: dict[str, Any] | None,
+    equity_anchor: dict[str, Any] | None,
+) -> bool:
+    """A statistical point needs a scaled listed-equity stock.
+
+    Carrying the SIFMA level forward leaves an unscaled reported stock.
+    That snapshot is ineligible, the same rule as snapshot 0. A later run
+    or ``--revise`` is eligible only after ``inputs/anchors.json`` holds a
+    VT close for the anchor date and this run's class is ``scaled_anchor``.
+    The price stays null until that close is recorded.
+    """
+    if not equities or equities.get("value_kind") != "scaled_anchor":
+        return False
+    price = (equity_anchor or {}).get("proxy_price_at_anchor")
+    return price is not None
+
+
 def assemble(
     *,
     run_date: str,
@@ -237,7 +255,6 @@ def assemble(
     snapshot_id: str,
     supersedes: str | None,
     revision_reason: str | None,
-    stats_eligible: bool,
     anchors: dict[str, dict[str, Any]],
     quantities: dict[str, dict[str, Any]],
     sources: dict[str, SourceRecord],
@@ -247,6 +264,8 @@ def assemble(
 
     ``doc`` is None when any class could not be filled. The caller exits 2
     when every class is unfilled and 1 when only some are.
+    ``stats_eligible`` is derived from the listed-equity class. A caller
+    cannot mark an unscaled carry eligible.
     """
     built: dict[str, dict[str, Any]] = {}
     failures: list[str] = []
@@ -314,6 +333,7 @@ def assemble(
 
     equity = sources.get("equity_proxy")
     equity_anchor = anchors.get("listed_equities") or {}
+    stats_eligible = listed_equities_stats_eligible(built.get("listed_equities"), equity_anchor)
     doc = {
         "anchor_review": anchor_review(anchors, quantities, run_date),
         "caveats": [CAVEAT, "Not net wealth. Advisory only.", *extra_caveats],
