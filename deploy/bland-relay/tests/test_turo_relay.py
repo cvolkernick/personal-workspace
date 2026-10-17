@@ -23,6 +23,7 @@ ENV_KEYS = (
     "SMSGW_PASS", "SMS_SEND_DISABLED", "SMSGW_HOOK_PATH", "SMSGW_SIGNING_KEY",
     "RCS_HOOK_PATH", "RCS_HOOK_TOKEN", "RCS_NAME_MAP", "RCS_HOOK_DISABLED", "RCS_DEDUPE_WAIT_S",
     "TURO_HOOK_DISABLED", "TURO_OWNER_ALERT_TO", "TURO_OWNER_ALERT_DISABLED", "TURO_SUPPRESS_RE",
+    "TURO_VEHICLE_ALLOW_RE",
     "TURO_URGENT_NEG", "TURO_URGENT_RE_LOCKOUT", "TURO_URGENT_RE_NO_START",
     "TURO_URGENT_RE_ACCIDENT_DAMAGE", "TURO_URGENT_RE_CHARGING", "TURO_URGENT_RE_SAFETY",
     "TURO_DEDUPE_WINDOW_S", "TURO_ALERT_GUEST_WINDOW_S", "TURO_ALERT_GUEST_MAX", "TURO_ALERT_HOUR_MAX",
@@ -331,6 +332,103 @@ def test_suppress_env_regex(live, monkeypatch):
 def test_bad_suppress_regex_falls_back(live, monkeypatch):
     monkeypatch.setenv("TURO_SUPPRESS_RE", "(unclosed")
     assert handle(turo(title="Pat • Safe Wheels"))[1]["turo"] == "suppressed"
+
+
+# --- optional vehicle allowlist (#1108) -----------------------------------
+
+ALLOW = r"(rivian|corolla|tesla)"
+
+
+def test_allow_unset_tesla_model_3_2022_lockout_still_alerts(live):
+    body = handle(turo(text="I'm locked out", title="Sam • Tesla Model 3 2022"))[1]
+    assert body == {"ok": True, "turo": "accepted", "urgent": True}
+    assert live.helm[0]["obj"]["vehicle"] == "Tesla Model 3"
+    assert live.helm[0]["obj"]["urgent_class"] == "lockout"
+    assert len(live.sms) == 1 and live.sms[0][0] == OWNER
+    assert live.sms[0][1].startswith("URGENT Turo [lockout]: Sam:")
+    assert len(live.alex) == 1
+
+
+def test_allow_unset_non_fleet_vehicle_still_alerts(live):
+    body = handle(turo(text="I'm locked out", title="Pat • Kia Telluride", key="tell"))[1]
+    assert body == {"ok": True, "turo": "accepted", "urgent": True}
+    assert live.helm[0]["obj"]["vehicle"] == "Kia Telluride"
+    assert len(live.sms) == 1 and live.helm and live.alex
+
+
+def test_allow_keeps_fleet_vehicle(live, monkeypatch):
+    monkeypatch.setenv("TURO_VEHICLE_ALLOW_RE", ALLOW)
+    body = handle(turo(text="Pickup at 3pm", title="Jordan · Rivian R1S"))[1]
+    assert body == {"ok": True, "turo": "accepted", "urgent": False}
+    assert live.sms == [] and live.alex == [] and len(live.helm) == 1
+    assert live.helm[0]["obj"]["vehicle"] == "Rivian R1S"
+    assert inbox()[0]["suppressed"] is False
+
+
+def test_allow_tesla_model_3_2022_lockout_alerts(live, monkeypatch):
+    monkeypatch.setenv("TURO_VEHICLE_ALLOW_RE", ALLOW)
+    body = handle(turo(text="I'm locked out", title="Sam • Tesla Model 3 2022", key="m3"))[1]
+    assert body == {"ok": True, "turo": "accepted", "urgent": True}
+    assert live.helm[0]["obj"]["vehicle"] == "Tesla Model 3"
+    assert live.helm[0]["obj"]["urgent_class"] == "lockout"
+    to, msg = live.sms[0]
+    assert to == OWNER and msg.startswith("URGENT Turo [lockout]: Sam:")
+    assert live.alex[0]["obj"]["kind"] == "turo_urgent"
+
+
+def test_allow_suppresses_non_fleet_vehicle_text(live, monkeypatch):
+    monkeypatch.setenv("TURO_VEHICLE_ALLOW_RE", ALLOW)
+    body = handle(turo(text="I'm locked out", title="Pat • Kia Telluride", key="kia"))[1]
+    assert body == {"ok": True, "turo": "suppressed"}
+    assert live.sms == [] and live.helm == [] and live.alex == []
+    assert inbox()[0]["suppressed"] is True and inbox()[0]["vehicle"] == "Kia Telluride"
+    body = handle(turo(text="The car won't start", title="Pat • Nissan Sentra", key="nis"))[1]
+    assert body == {"ok": True, "turo": "suppressed"}
+    assert live.sms == [] and live.helm == [] and live.alex == []
+
+
+def test_allow_no_vehicle_text_passes(live, monkeypatch):
+    monkeypatch.setenv("TURO_VEHICLE_ALLOW_RE", ALLOW)
+    body = handle(turo(text="I'm locked out", title="Sam", key="nov"))[1]
+    assert body == {"ok": True, "turo": "accepted", "urgent": True}
+    assert live.helm[0]["obj"]["vehicle"] is None
+    assert len(live.sms) == 1 and len(live.alex) == 1
+
+
+def test_suppress_re_still_applies_on_top_of_allow(live, monkeypatch):
+    monkeypatch.setenv("TURO_VEHICLE_ALLOW_RE", ALLOW)
+    monkeypatch.setenv("TURO_SUPPRESS_RE", r"corolla")
+    body = handle(turo(text="I'm locked out", title="Sam • 2022 Toyota Corolla", key="cor"))[1]
+    assert body == {"ok": True, "turo": "suppressed"}
+    assert live.sms == [] and live.helm == [] and live.alex == []
+    assert inbox()[0]["vehicle"] == "Toyota Corolla" and inbox()[0]["suppressed"] is True
+    body = handle(turo(text="I'm locked out of the car", title="Sam • Tesla Model 3 2022", key="m3b"))[1]
+    assert body == {"ok": True, "turo": "accepted", "urgent": True}
+    assert len(live.sms) == 1 and live.helm[0]["obj"]["vehicle"] == "Tesla Model 3"
+
+
+def test_allow_bad_regex_does_not_filter(live, monkeypatch, caplog):
+    monkeypatch.setenv("TURO_VEHICLE_ALLOW_RE", "(unclosed")
+    with caplog.at_level(logging.WARNING, logger="bland-relay"):
+        body = handle(turo(text="I'm locked out", title="Pat • Kia Telluride", key="bad"))[1]
+    assert body == {"ok": True, "turo": "accepted", "urgent": True}
+    assert "vehicle allowlist is off" in caplog.text
+    assert len(live.sms) == 1
+
+
+def test_allow_email_vehicle_and_shadow(live, monkeypatch):
+    monkeypatch.setenv("TURO_VEHICLE_ALLOW_RE", ALLOW)
+    fields = {"guest": "Casey", "text": "I'm locked out", "vehicle": "Kia Telluride",
+              "reservation_id": "10000099",
+              "subject": "Casey has sent you a message about your Kia Telluride"}
+    assert bland_relay.turo_email_handle(fields)[1]["turo"] == "suppressed"
+    assert live.sms == [] and live.helm == [] and live.alex == []
+    monkeypatch.setenv("TURO_EMAIL_SHADOW", "1")
+    code, body = bland_relay.turo_email_handle(
+        dict(fields, guest="Avery", vehicle="Tesla Model 3", reservation_id="10000098",
+             subject="Avery has sent you a message about your Tesla Model 3 2022"))
+    assert code == 200 and body["turo"] == "shadow" and body["suppressed"] is False
+    assert inbox()[-1]["suppressed"] is True and live.sms == []
 
 
 # --- urgent classes -------------------------------------------------------

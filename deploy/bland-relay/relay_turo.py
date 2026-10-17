@@ -10,7 +10,8 @@ if __name__ not in ("bland_relay", "__main__"):
 # the RCS route also posts Turo app notifications (package
 # com.relayrides.android.relayrides). The RCS route hands those to
 # turo_handle(): normalize (prefer big_text), dedupe, append to a JSONL inbox,
-# drop suppressed (not-our-fleet) vehicles, classify urgency with regexes only,
+# drop events suppressed by TURO_SUPPRESS_RE or an optional
+# TURO_VEHICLE_ALLOW_RE, classify urgency with regexes only,
 # then in the background: owner_alert SMS (urgent only, one fixed number),
 # Helm webhook (every non-suppressed event) and the Alexandra forward (urgent
 # only, kind "turo_urgent"). Each background task is isolated, so a webhook
@@ -163,6 +164,45 @@ def turo_suppressed(*fields):
         return False
     hay = " \n".join(str(f) for f in fields if f)
     return bool(hay and rx.search(hay))
+
+
+def turo_vehicle_allow_rx():
+    """Compiled TURO_VEHICLE_ALLOW_RE, or None when unset, blank, or invalid.
+
+    An invalid pattern is the same as unset: log and do not filter.
+    """
+    raw = env("TURO_VEHICLE_ALLOW_RE")
+    if not raw:
+        return None
+    key = ("TURO_VEHICLE_ALLOW_RE", raw)
+    if key in _turo_regex_cache:
+        return _turo_regex_cache[key]
+    try:
+        rx = re.compile(raw, re.IGNORECASE)
+    except re.error:
+        log.warning("TURO_VEHICLE_ALLOW_RE is not a valid regex; vehicle allowlist is off")
+        rx = None
+    _turo_regex_cache[key] = rx
+    return rx
+
+
+def turo_vehicle_allow_suppressed(ev):
+    """True when the optional allowlist is set and the parsed vehicle misses it.
+
+    No parsed vehicle passes through, so Helm can match the guest to a trip.
+    """
+    rx = turo_vehicle_allow_rx()
+    if rx is None:
+        return False
+    vehicle = ev.get("vehicle") if isinstance(ev, dict) else None
+    if not vehicle:
+        return False
+    return rx.search(str(vehicle)) is None
+
+
+def turo_is_suppressed(ev, *fields):
+    """TURO_SUPPRESS_RE, then the optional vehicle allowlist. Either one drops the event."""
+    return turo_suppressed(*fields) or turo_vehicle_allow_suppressed(ev)
 
 
 def parse_turo_reservation(*fields):
@@ -684,14 +724,14 @@ def turo_ingest(ev, now, suppress_fields, shadow=False):
     -> (http status, response body). shadow=True logs the verdict and does nothing."""
     if shadow:
         verdict = turo_peek(ev, now)
-        sup = turo_suppressed(*suppress_fields)
+        sup = turo_is_suppressed(ev, *suppress_fields)
         log.info("turo shadow src=%s event=%s verdict=%s suppressed=%s urgent=%s class=%s",
                  ev.get("src"), ev["event_id"], verdict, sup, ev["urgent"], ev["urgent_class"] or "-")
         return 200, {"ok": True, "turo": "shadow", "verdict": verdict, "suppressed": sup}
     if not turo_claim(ev, now):
         log.info("turo duplicate event=%s", ev["event_id"])
         return 200, {"ok": True, "turo": "duplicate"}
-    if turo_suppressed(*suppress_fields):
+    if turo_is_suppressed(ev, *suppress_fields):
         turo_append_inbox(ev, True, now)
         log.info("turo suppressed (not our fleet) event=%s", ev["event_id"])
         return 200, {"ok": True, "turo": "suppressed"}
