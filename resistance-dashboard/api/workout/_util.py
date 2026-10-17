@@ -216,6 +216,27 @@ def available_body(headers):
     }
 
 
+def _loaded_weighins():
+    """Weigh-ins when Health loaded. ``None`` means the pull failed — do not guess."""
+    from api.dashboard import _load_health
+
+    try:
+        health, _errors = _load_health()
+    except Exception:  # noqa: BLE001
+        return None
+    if getattr(health, "error", None):
+        return None
+    return list(getattr(health, "weight", None) or [])
+
+
+def _annotate_assisted(sessions, weighins) -> None:
+    if sessions is None or weighins is None:
+        return
+    from rt_dashboard.assisted_load import apply_assisted_effective_loads
+
+    apply_assisted_effective_loads(sessions, weighins)
+
+
 def training_log_pdf_body(headers, query: str = ""):
     """Signed-in weekly lifts PDF. Same Turso sessions as the dashboard."""
     user, err = require_user(headers)
@@ -225,6 +246,7 @@ def training_log_pdf_body(headers, query: str = ""):
     from rt_dashboard.training_log_pdf import training_log_from_store
 
     sessions, errors, _source = _load_sessions(str(user.get("id") or "default"))
+    _annotate_assisted(sessions, _loaded_weighins())
     store_error = "; ".join(str(item) for item in (errors or []) if str(item).strip())
     return training_log_from_store(sessions, query, store_error=store_error)
 
@@ -237,6 +259,7 @@ def workouts_body(headers):
     from rt_dashboard.turso_http import turso_enabled
 
     sessions, errors, source = _load_sessions(str(user.get("id") or "default"))
+    _annotate_assisted(sessions, _loaded_weighins())
     out = []
     for s in sessions or []:
         if hasattr(s, "to_dict"):
@@ -393,6 +416,7 @@ def workouts_write(headers, payload=None):
         session = parse_log_body(payload)
         history, _hist_err, _hist_src = _load_sessions(uid)
         session = merge_log_with_history(session, history)
+        _annotate_assisted([session, *list(history or [])], _loaded_weighins())
         apply_auto_prs(session, history)
         result = save_preview_session(uid, session)
         sessions, errors, source = _load_sessions(uid)
@@ -1235,6 +1259,8 @@ def trends_export_body(headers, query: str = "", client_host=None):
     try:
         sessions, _sess_err, _source = _load_sessions(uid or "default", fallback_house=True)
         goals, _src = load_workspace_goals()
+        if not getattr(health, "error", None):
+            _annotate_assisted(sessions, list(getattr(health, "weight", None) or []))
     except Exception:  # noqa: BLE001
         # Calorie rows still export. Skip lift series rather than show
         # an empty main-lift list that was never read.

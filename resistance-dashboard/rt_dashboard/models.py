@@ -22,24 +22,55 @@ class SetEntry:
     sets: int
     reps: int
 
+    def _math_weight(self) -> Optional[float]:
+        """Load used for tonnage and e1RM.
+
+        Assisted sets store the pin on ``weight_lbs``. Read-time overlay puts
+        bodyweight minus pin on ``tonnage_weight_lbs``. A missing weigh-in
+        sets ``exclude_from_load_math`` and contributes nothing (#1156).
+        """
+        if getattr(self, "exclude_from_load_math", False):
+            return None
+        override = getattr(self, "tonnage_weight_lbs", None)
+        if override is not None:
+            return float(override)
+        return float(self.weight_lbs)
+
     @property
     def volume(self) -> float:
-        return float(self.weight_lbs) * int(self.sets) * int(self.reps)
+        weight = self._math_weight()
+        if weight is None:
+            return 0.0
+        return weight * int(self.sets) * int(self.reps)
 
     def epley_1rm(self) -> float:
         """Estimated 1RM (Epley). For reps=1 returns the weight itself."""
-        if self.reps <= 0:
+        weight = self._math_weight()
+        if weight is None or self.reps <= 0:
             return 0.0
         if self.reps == 1:
-            return float(self.weight_lbs)
-        return float(self.weight_lbs) * (1.0 + self.reps / 30.0)
+            return float(weight)
+        return float(weight) * (1.0 + self.reps / 30.0)
 
     def label(self) -> str:
-        """Log-shaped triple: ``225 lbs x 3 x 8``."""
+        """Log-shaped triple: ``225 lbs x 3 x 8``. This stays the logged pin."""
         return f"{_fmt_weight_lbs(self.weight_lbs)} lbs x {int(self.sets)} x {int(self.reps)}"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        out = asdict(self)
+        source = getattr(self, "effective_load_source", None)
+        if not source:
+            return out
+        out["assistance_lbs"] = float(self.weight_lbs)
+        out["effective_load_source"] = source
+        days = getattr(self, "weighin_days_away", None)
+        if days is not None:
+            out["weighin_days_away"] = int(days)
+        if source == "nearest_weighin":
+            eff = getattr(self, "tonnage_weight_lbs", None)
+            if eff is not None:
+                out["effective_load_lbs"] = float(eff)
+        return out
 
 
 @dataclass
@@ -64,14 +95,18 @@ class ExerciseEntry:
     def best_working_weight(self) -> float:
         if not self.sets:
             return 0.0
-        return max(s.weight_lbs for s in self.sets)
+        weights = [s._math_weight() for s in self.sets]
+        present = [w for w in weights if w is not None]
+        if not present:
+            return 0.0
+        return max(present)
 
     @property
     def sets_label(self) -> str:
         return ", ".join(s.label() for s in self.sets)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        out = {
             "name": self.name,
             "sets": [s.to_dict() for s in self.sets],
             "is_pr": self.is_pr,
@@ -82,6 +117,17 @@ class ExerciseEntry:
             "best_working_weight": self.best_working_weight,
             "sets_label": self.sets_label,
         }
+        source = getattr(self, "effective_load_source", None)
+        if source:
+            out["effective_load_source"] = source
+            if getattr(self, "assistance_lbs", None) is not None:
+                out["assistance_lbs"] = float(self.assistance_lbs)
+            days = getattr(self, "weighin_days_away", None)
+            if days is not None:
+                out["weighin_days_away"] = int(days)
+            if source == "nearest_weighin" and getattr(self, "effective_load_lbs", None) is not None:
+                out["effective_load_lbs"] = float(self.effective_load_lbs)
+        return out
 
 
 def is_planner_status_exercise_name(name: str) -> bool:

@@ -117,13 +117,20 @@ def flatten_logged_exercise(ex: dict) -> dict:
         for st in raw_sets[:8]:
             if not isinstance(st, dict):
                 continue
-            slim.append(
-                {
-                    "weight_lbs": st.get("weight_lbs"),
-                    "sets": st.get("sets"),
-                    "reps": st.get("reps"),
-                }
-            )
+            item = {
+                "weight_lbs": st.get("weight_lbs"),
+                "sets": st.get("sets"),
+                "reps": st.get("reps"),
+            }
+            for key in (
+                "assistance_lbs",
+                "effective_load_lbs",
+                "effective_load_source",
+                "weighin_days_away",
+            ):
+                if st.get(key) is not None:
+                    item[key] = st[key]
+            slim.append(item)
     weight = ex.get("weight_lbs") or ex.get("best_working_weight")
     reps = ex.get("reps")
     nsets = raw_sets if not isinstance(raw_sets, list) else None
@@ -137,13 +144,22 @@ def flatten_logged_exercise(ex: dict) -> dict:
                 nsets = sum(int(st.get("sets") or 1) for st in slim)
             except (TypeError, ValueError):
                 nsets = len(slim)
-    return {
+    out = {
         "name": ex.get("name"),
         "weight_lbs": weight,
         "sets": slim or nsets,
         "reps": reps,
         "volume": ex.get("volume"),
     }
+    for key in (
+        "assistance_lbs",
+        "effective_load_lbs",
+        "effective_load_source",
+        "weighin_days_away",
+    ):
+        if ex.get(key) is not None:
+            out[key] = ex[key]
+    return out
 
 
 def brief_sessions(sessions: Sequence[Any], limit: int = 5) -> List[dict]:

@@ -68,8 +68,65 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_DERIVED_LOAD_KEYS = (
+    "assistance_lbs",
+    "effective_load_lbs",
+    "effective_load_source",
+    "weighin_days_away",
+)
+
+
+def _epley_pin(weight: float, reps: int) -> float:
+    if reps <= 0:
+        return 0.0
+    if reps == 1:
+        return float(weight)
+    return float(weight) * (1.0 + reps / 30.0)
+
+
+def _persist_exercise(entry: ExerciseEntry) -> dict:
+    """Store the logged pin. Read-time effective load is not durable."""
+    payload = entry.to_dict()
+    assisted = bool(payload.get("effective_load_source")) or any(
+        isinstance(st, dict) and st.get("effective_load_source")
+        for st in (payload.get("sets") or [])
+    )
+    for key in _DERIVED_LOAD_KEYS:
+        payload.pop(key, None)
+    sets = payload.get("sets")
+    if isinstance(sets, list):
+        for st in sets:
+            if isinstance(st, dict):
+                for key in _DERIVED_LOAD_KEYS:
+                    st.pop(key, None)
+    if not assisted or not isinstance(sets, list):
+        return payload
+    volume = 0.0
+    best_e = 0.0
+    best_w = 0.0
+    for st in sets:
+        if not isinstance(st, dict):
+            continue
+        try:
+            weight = float(st.get("weight_lbs") or 0)
+            count = int(st.get("sets") or 0)
+            reps = int(st.get("reps") or 0)
+        except (TypeError, ValueError):
+            continue
+        volume += weight * count * reps
+        best_e = max(best_e, _epley_pin(weight, reps))
+        best_w = max(best_w, weight)
+    payload["volume"] = volume
+    payload["best_e1rm"] = best_e
+    payload["best_working_weight"] = best_w
+    return payload
+
+
 def _exercises_to_json(exercises: Sequence[ExerciseEntry]) -> str:
-    return json.dumps([e.to_dict() for e in exercises], separators=(",", ":"))
+    return json.dumps(
+        [_persist_exercise(e) for e in exercises],
+        separators=(",", ":"),
+    )
 
 
 def _exercises_from_json(raw: str) -> List[ExerciseEntry]:

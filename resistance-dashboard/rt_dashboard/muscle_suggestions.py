@@ -565,6 +565,7 @@ def prescribed_row(
     recovery_score: Optional[float] = None,
     rhr_under: bool = False,
     deload: bool = False,
+    weighins: Optional[Sequence[Any]] = None,
 ) -> dict:
     """Same double-progression fields the planner writes onto a plan lift."""
     goals = goals or {}
@@ -588,6 +589,8 @@ def prescribed_row(
         equipment=equipment,
         load_cap=load_cap,
         deload=bool(deload),
+        weighins=weighins,
+        as_of=as_of,
     )
     hard = int(rx.get("sets") or default_hard)
     credits = credit_sets_for_exercise(
@@ -596,7 +599,9 @@ def prescribed_row(
         hard,
         secondary_fraction=float(goals.get("secondary_set_fraction") or 0.5),
     )
-    return {
+    from .workout_planner import _copy_assisted_keys
+
+    row = {
         "id": ex["id"],
         "name": ex["name"],
         "primary_muscles": ex.get("primary_muscles") or [],
@@ -622,6 +627,8 @@ def prescribed_row(
         "last": rx.get("last"),
         "suggestion_add": True,
     }
+    _copy_assisted_keys(rx, row, row["prescription"])
+    return row
 
 
 def _can_swap(plan: Optional[dict], session_type: str) -> bool:
@@ -673,6 +680,7 @@ def apply_pins(
     as_of: Optional[str] = None,
     recovery_score: Optional[float] = None,
     rhr_under: bool = False,
+    weighins: Optional[Sequence[Any]] = None,
 ) -> Tuple[dict, Optional[dict]]:
     """Swap pinned lifts into this session. Length stays the same."""
     if not isinstance(plan, dict):
@@ -708,6 +716,7 @@ def apply_pins(
             recovery_score=recovery_score,
             rhr_under=rhr_under,
             deload=False,
+            weighins=weighins,
         )
         out[idx] = added
         _shift_plan_volume(plan, victim if isinstance(victim, dict) else {}, added)
@@ -1006,6 +1015,7 @@ def install_suggestions(
     recovery_score: Optional[float] = None,
     recovery_sparse: bool = False,
     rhr_under: bool = False,
+    weighins: Optional[Sequence[Any]] = None,
 ) -> dict:
     """Apply stored pins when allowed, then attach the More-tab report."""
     if not isinstance(workout_store, dict):
@@ -1035,6 +1045,7 @@ def install_suggestions(
                 as_of=day.isoformat(),
                 recovery_score=recovery_score,
                 rhr_under=rhr_under,
+                weighins=weighins,
             )
             workout_store["plan"] = plan
         report = build_report(

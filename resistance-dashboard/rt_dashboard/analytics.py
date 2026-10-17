@@ -186,12 +186,26 @@ def canonical_lift_name(name: str, table: Optional[Dict[str, str]] = None) -> st
 
 
 def _coerce_set(st: Any) -> Optional[Tuple[float, int, int]]:
+    """Working set for trends. Assisted rows use effective load, not the pin."""
     if isinstance(st, bool):
         return None
     if isinstance(st, dict):
-        weight, count, reps = st.get("weight_lbs"), st.get("sets"), st.get("reps")
+        source = st.get("effective_load_source")
+        if source == "none" or st.get("exclude_from_load_math") is True:
+            return None
+        if source == "nearest_weighin" and st.get("effective_load_lbs") is not None:
+            weight = st.get("effective_load_lbs")
+        else:
+            weight = st.get("weight_lbs")
+        count, reps = st.get("sets"), st.get("reps")
     else:
-        weight = getattr(st, "weight_lbs", None)
+        math_weight = getattr(st, "_math_weight", None)
+        if callable(math_weight):
+            weight = math_weight()
+            if weight is None:
+                return None
+        else:
+            weight = getattr(st, "weight_lbs", None)
         count = getattr(st, "sets", None)
         reps = getattr(st, "reps", None)
     if isinstance(weight, bool) or isinstance(count, bool) or isinstance(reps, bool):

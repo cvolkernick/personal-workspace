@@ -269,6 +269,7 @@ def preview_workout_plan(
     train_parent_completed=False,
     last_wake_at=None,
     now=None,
+    weighins=None,
 ) -> dict:
     """Same local planner as Pi ``generate_workout_plan``. Fail is explicit."""
     from rt_dashboard.workout_planner import generate_workout_plan
@@ -286,6 +287,7 @@ def preview_workout_plan(
         train_parent_completed=bool(train_parent_completed),
         last_wake_at=last_wake_at,
         now=now,
+        weighins=weighins,
     )
 
 
@@ -631,6 +633,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             train_parent_completed=train_parent_done,
             last_wake_at=last_wake,
             now=now,
+            weighins=list(health.weight or []),
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"workout_plan: {type(exc).__name__}")
@@ -711,6 +714,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             rhr_under=bool(
                 (recovery_dict.get("inputs") or {}).get("rhr_under_recovered")
             ),
+            weighins=list(health.weight or []),
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"muscle_suggestions: {type(exc).__name__}")

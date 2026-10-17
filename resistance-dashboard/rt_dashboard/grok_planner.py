@@ -227,6 +227,7 @@ def generate_grok_plans(
     equipment: Optional[dict] = None,
     as_of: Optional[str] = None,
     force: bool = False,
+    weighins: Optional[list] = None,
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. In-stock pantry only. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
@@ -577,6 +578,7 @@ def generate_grok_plans(
         recovery=recovery,
         equipment=equipment if isinstance(equipment, dict) else None,
         as_of=as_of,
+        weighins=weighins,
     )
     workout_out = stamp_today_session(
         workout_out,
