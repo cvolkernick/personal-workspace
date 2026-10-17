@@ -651,6 +651,26 @@ def warn_fc_config():
     )
 
 
+def caller_context_startup_line():
+    """One startup line (#1229). No token, phone number, or path."""
+    token_state = "set" if env("CALLER_CONTEXT_TOKEN") else "unset"
+    backend = "index"
+    if caller_context.loopback_http_base(env("CRM_API_BASE")) and env("CRM_API_TOKEN"):
+        backend = "crm"
+    rows = 0
+    try:
+        store = caller_context.CallerIndex()
+        try:
+            rows = store.count()
+        finally:
+            store.close()
+    except Exception:  # noqa: BLE001 — do not log the index path
+        rows = 0
+    if not isinstance(rows, int) or isinstance(rows, bool) or rows < 0:
+        rows = 0
+    return "caller-context: token=%s backend=%s index_rows=%d" % (token_state, backend, rows)
+
+
 def main():
     if not env("BLAND_WEBHOOK_SECRET"):
         log.error("!!! BLAND_WEBHOOK_SECRET is UNSET - all webhooks will get 503 until set !!!")
@@ -683,6 +703,7 @@ def main():
     warn_fc_config()
     _warn_paths()
     start_turo_email_listener()
+    log.info("%s", caller_context_startup_line())
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)
     srv.serve_forever()
