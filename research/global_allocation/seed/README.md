@@ -1,6 +1,6 @@
 # Global asset allocation: first snapshot (seed)
 
-Source material for snapshot 0 of the global asset allocation tracker (track umbrella #TBD). Docs-only. Compiled 2026-10-17 from public sources.
+Source material for snapshot 0 of the global asset allocation tracker (track umbrella #1249). Docs-only. Compiled 2026-10-17 from public sources.
 
 | File | What it is |
 |---|---|
