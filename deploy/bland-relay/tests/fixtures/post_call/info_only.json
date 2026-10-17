@@ -1,0 +1,16 @@
+{
+  "call_id": "call-info-1",
+  "from": "+12395550117",
+  "to": "+19062406221",
+  "inbound": true,
+  "status": "completed",
+  "completed": true,
+  "answered_by": "human",
+  "call_length": 2.2,
+  "summary": "Asked what trucks are available next month.",
+  "transcripts": [
+    {"user": "user", "text": "What trucks are free next month?"}
+  ],
+  "metadata": {"purpose": "availability", "placed_by": "caller", "caller_type": "vendor"},
+  "created_at": "2026-10-18T16:00:00Z"
+}

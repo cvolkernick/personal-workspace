@@ -1,0 +1,13 @@
+{
+  "call_id": "call-vm-1",
+  "from": "+19062406221",
+  "to": "+12395550115",
+  "inbound": false,
+  "status": "completed",
+  "completed": true,
+  "answered_by": "voicemail",
+  "call_length": 0.4,
+  "summary": "Left a voicemail asking to confirm the meeting.",
+  "metadata": {"purpose": "outbound", "placed_by": "alexandra"},
+  "created_at": "2026-10-09T14:20:00Z"
+}

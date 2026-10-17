@@ -51,6 +51,7 @@ DEPLOY_PY = (
     "caller_context.py",
     "turo_email.py",
     "meeting_check.py",
+    "post_call.py",
 )
 DEPLOY_SCRIPTS = ("bland-relay-setkey", "send-904", "send-904-fc")
 

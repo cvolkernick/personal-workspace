@@ -515,6 +515,7 @@ class H(BaseHTTPRequestHandler):
                 sorted(k.lower() for k in self.headers.keys()),
             )
             return self._send(401, {"ok": False, "error": "bad signature"})
+        _spawn(post_call.handle, (body,))
         status, err, attempts = forward(body)
         if status is not None:
             log.info("forwarded %d bytes -> %d", len(body), status)
@@ -719,6 +720,11 @@ def main():
     meeting_check.ALERT_SINK = lambda title, detail: _spawn(
         alert_failure, ("meeting-check", detail, 1, title, "Component", "Attempts", "prism `bland-relay.service` meeting-check"))
     log.info("%s", meeting_check.startup_line())
+    log.info(
+        "post-call: ingest=%s push=%s",
+        "off" if env("POST_CALL_INGEST").lower() == "off" else "on",
+        "off" if env("POST_CALL_PUSH_DISABLED") == "1" else "on",
+    )
     meeting_check.start_sync()
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)

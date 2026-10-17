@@ -1,0 +1,17 @@
+{
+  "call_id": "call-sensitive-1",
+  "from": "+12395550119",
+  "to": "+19062406221",
+  "inbound": true,
+  "status": "completed",
+  "completed": true,
+  "answered_by": "human",
+  "summary": "Asked about storage. Email ada@example.com at 12 Oak Street plate ABC1234 card 4111 1111 1111 1111.",
+  "transcripts": [
+    {"user": "user", "text": "TRANSCRIPT_ONLY_SECRET about the trucks"},
+    {"user": "assistant", "text": "ASSISTANT_ONLY_SECRET"}
+  ],
+  "variables": {"leak": "VARIABLE_ONLY_SECRET"},
+  "metadata": {"purpose": "storage question", "placed_by": "caller"},
+  "created_at": "2026-10-18T17:00:00Z"
+}
