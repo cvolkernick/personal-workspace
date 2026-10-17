@@ -81,6 +81,8 @@ class FormatTests(unittest.TestCase):
                     ]
                 },
                 900,
+                # Before the fixture trip. Past trips still drop when now is later.
+                now="2026-08-20T15:00:00+00:00",
             ),
             "booked · Alex Rivera · 2026-09-01 → 2026-09-04",
         )

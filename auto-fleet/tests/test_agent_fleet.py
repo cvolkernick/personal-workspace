@@ -71,7 +71,12 @@ class AgentFleetExportTests(unittest.TestCase):
         self.assertEqual(agent_fleet.secret_leaks(packet), [])
 
     def test_dump_derived_bookings_no_invented_trips(self) -> None:
-        packet = agent_fleet.export_agent_fleet(inbox_path=MIKES)
+        # Fixture trip is 2026-09-04. Pin now so past-trip filtering does not
+        # follow the wall clock. Production still drops trips after their end.
+        packet = agent_fleet.export_agent_fleet(
+            inbox_path=MIKES,
+            now="2026-08-20T15:00:00+00:00",
+        )
         self.assertTrue(packet["ok"])
         by_id = {u["id"]: u for u in packet["units"]}
         m3 = by_id["m3-2022"]
