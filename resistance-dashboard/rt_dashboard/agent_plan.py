@@ -288,6 +288,7 @@ def fallback_workout(
 
 def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> dict:
     """Library plan for the stamped letter. No invented lifts."""
+    from .test_noise import coerce_sessions
     from .workout_planner import generate_workout_plan
 
     rec = ctx.get("recovery") if isinstance(ctx.get("recovery"), dict) else {}
@@ -296,7 +297,9 @@ def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> 
     return generate_workout_plan(
         catalog,
         ctx.get("goals") or {},
-        ctx.get("sessions") or [],
+        # ``load_dashboard_data`` hands sessions over as to_dict() payloads; the
+        # planner reads ``.exercises`` (#1242).
+        coerce_sessions(ctx.get("sessions")),
         recovery_label=rec.get("label"),
         recovery_score=_recovery_score(rec),
         recovery_sparse=bool(rec.get("sparse")),
@@ -526,6 +529,11 @@ def ensure_today_grok_plan(
         if ctx:
             loaded.update({k: v for k, v in ctx.items() if v is not None})
         ctx = loaded
+    # Cookie-less Today passes ``load_dashboard_data`` sessions (dicts); the
+    # closed-today and fallback planners need Session objects (#1242).
+    from .test_noise import coerce_sessions
+
+    ctx = {**ctx, "sessions": coerce_sessions(ctx.get("sessions"))}
     local_today = str(
         ctx.get("training_day") or day or ctx.get("day") or probe_day or ""
     )[:10]
