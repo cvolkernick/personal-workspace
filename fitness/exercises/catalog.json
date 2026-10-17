@@ -660,6 +660,21 @@
       "priority": 4,
       "available": false,
       "notes": "Suggestion unlock for grip."
+    },
+    {
+      "id": "smith-btn-press",
+      "name": "Behind-the-Neck Smith Press",
+      "session_types": ["push"],
+      "primary_muscles": ["shoulders"],
+      "secondary_muscles": ["triceps", "traps"],
+      "movement": "compound",
+      "equipment": ["smith_machine"],
+      "default_sets": 2,
+      "default_reps": 12,
+      "rep_range": [10, 15],
+      "priority": 5,
+      "available": true,
+      "notes": "Seated; lower bar behind head to ~ear level. Warm up first; moderate load, 10-15 reps; stop short of any shoulder pinch. Source: @CoachFHM."
     }
   ]
 }
