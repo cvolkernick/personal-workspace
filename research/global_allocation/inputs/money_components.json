@@ -1,0 +1,93 @@
+{
+  "blocs": [
+    {
+      "id": "us",
+      "label": "US",
+      "value_usd_tn": 23.34,
+      "as_of": "Aug 2026",
+      "source_name": "FRED M2SL",
+      "source_url": "https://fred.stlouisfed.org/series/M2SL",
+      "kind": "anchor",
+      "primary": "fed_h6"
+    },
+    {
+      "id": "euro_area",
+      "label": "euro area",
+      "value_usd_tn": 19.9,
+      "as_of": "Aug 2026",
+      "source_name": "ECB",
+      "source_url": "https://www.ecb.europa.eu/press/stats/md/html/ecb.md2608~406f8d243d.en.html",
+      "kind": "anchor",
+      "primary": "ecb_m3"
+    },
+    {
+      "id": "china",
+      "label": "China",
+      "value_usd_tn": 53.8,
+      "as_of": "end-Sep 2026",
+      "source_name": "PBoC",
+      "source_url": "https://english.www.gov.cn/archive/statistics/202610/14/content_WS6acf8766c6d00ca5f9a0db17.html",
+      "kind": "anchor"
+    },
+    {
+      "id": "japan",
+      "label": "Japan",
+      "value_usd_tn": 8.2,
+      "as_of": "Sep 2026 prelim.",
+      "source_name": "Bank of Japan",
+      "source_url": "https://www.boj.or.jp/en/statistics/money/ms/ms2609.pdf",
+      "kind": "anchor"
+    },
+    {
+      "id": "uk",
+      "label": "UK",
+      "value_usd_tn": 4.4,
+      "as_of": "Aug 2026",
+      "source_name": "Bank of England",
+      "source_url": "https://www.bankofengland.co.uk/statistics/money-and-credit/2026/august-2026",
+      "kind": "anchor"
+    }
+  ],
+  "central_bank_assets": [
+    {
+      "id": "fed",
+      "label": "Fed",
+      "value_usd_tn": 6.75,
+      "as_of": "7 Oct 2026",
+      "source_name": "FinObservatory",
+      "source_url": "https://finobservatory.org/central-banks"
+    },
+    {
+      "id": "eurosystem",
+      "label": "Eurosystem",
+      "value_usd_tn": 6.7,
+      "as_of": "2 Oct 2026",
+      "source_name": "FinObservatory",
+      "source_url": "https://finobservatory.org/central-banks"
+    },
+    {
+      "id": "boj",
+      "label": "BoJ",
+      "value_usd_tn": 4.0,
+      "as_of": "30 Sep 2026",
+      "source_name": "FinObservatory",
+      "source_url": "https://finobservatory.org/central-banks"
+    },
+    {
+      "id": "boe",
+      "label": "BoE",
+      "value_usd_tn": 1.14,
+      "as_of": "30 Jun 2025",
+      "source_name": "FinObservatory",
+      "source_url": "https://finobservatory.org/central-banks"
+    },
+    {
+      "id": "pboc",
+      "label": "PBoC",
+      "value_usd_tn": 7.42,
+      "as_of": "Aug 2026",
+      "source_name": "MacroMicro",
+      "source_url": "https://en.macromicro.me/charts/56133/global-cbs-total-assets"
+    }
+  ]
+}
