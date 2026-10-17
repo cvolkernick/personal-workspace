@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "snapshot_v1",
+  "title": "Global allocation snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "kind",
+    "run_at_utc",
+    "run_date_et",
+    "supersedes",
+    "revision_reason",
+    "stats_eligible",
+    "unit",
+    "fx_basis",
+    "inputs",
+    "classes",
+    "totals",
+    "caveats",
+    "anchor_review",
+    "sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "kind": {"enum": ["seed", "monthly", "weekly"]},
+    "run_at_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "run_date_et": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "supersedes": {"type": ["string", "null"]},
+    "revision_reason": {"type": ["string", "null"]},
+    "stats_eligible": {"type": "boolean"},
+    "unit": {"const": "usd_tn"},
+    "fx_basis": {"$ref": "#/$defs/fx_basis"},
+    "inputs": {"$ref": "#/$defs/inputs"},
+    "classes": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {"$ref": "#/$defs/class"},
+      "x-contains": null
+    },
+    "totals": {"$ref": "#/$defs/totals"},
+    "caveats": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "x-contains": "gross, overlapping, mixed dates"
+    },
+    "anchor_review": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/anchor_review_item"}
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "x-share-sum": {"total": 100, "tolerance": 0.01},
+  "x-class-ids": [
+    "real_estate",
+    "debt_securities",
+    "listed_equities",
+    "broad_money",
+    "gold",
+    "private_markets",
+    "art_collectibles",
+    "bitcoin",
+    "other_crypto"
+  ],
+  "$defs": {
+    "fx_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_name", "source_url", "as_of", "rates", "unavailable"],
+      "properties": {
+        "source_name": {"type": "string", "minLength": 1},
+        "source_url": {"type": "string", "minLength": 1},
+        "as_of": {"type": ["string", "null"]},
+        "rates": {
+          "type": "object",
+          "additionalProperties": {"type": "number"}
+        },
+        "unavailable": {"type": ["string", "null"]}
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gold_tonnes",
+        "gold_tonnes_as_of",
+        "btc_height",
+        "btc_supply",
+        "equity_proxy_symbol",
+        "equity_proxy_price_at_anchor",
+        "equity_proxy_price_now",
+        "real_yield_10y",
+        "real_yield_as_of"
+      ],
+      "properties": {
+        "gold_tonnes": {"type": ["number", "null"]},
+        "gold_tonnes_as_of": {"type": ["string", "null"]},
+        "btc_height": {"type": ["integer", "null"]},
+        "btc_supply": {"type": ["number", "null"]},
+        "equity_proxy_symbol": {"type": ["string", "null"]},
+        "equity_proxy_price_at_anchor": {"type": ["number", "null"]},
+        "equity_proxy_price_now": {"type": ["number", "null"]},
+        "real_yield_10y": {"type": ["number", "null"]},
+        "real_yield_as_of": {"type": ["string", "null"]}
+      }
+    },
+    "class": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "value_usd_tn",
+        "share_pct",
+        "as_of",
+        "value_kind",
+        "stale",
+        "stale_days",
+        "source_name",
+        "source_url",
+        "method_note",
+        "method_version",
+        "methodology_break",
+        "overlap_flag",
+        "overlap_with",
+        "confidence",
+        "verified"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "real_estate",
+            "debt_securities",
+            "listed_equities",
+            "broad_money",
+            "gold",
+            "private_markets",
+            "art_collectibles",
+            "bitcoin",
+            "other_crypto"
+          ]
+        },
+        "label": {"type": "string", "minLength": 1},
+        "value_usd_tn": {"type": "number"},
+        "share_pct": {"type": "number"},
+        "as_of": {"type": "string", "minLength": 1},
+        "value_kind": {
+          "enum": [
+            "reported",
+            "computed_price_x_qty",
+            "scaled_anchor",
+            "carried_forward",
+            "projection"
+          ]
+        },
+        "stale": {"type": "boolean"},
+        "stale_days": {"type": "integer", "minimum": 0},
+        "source_name": {"type": "string", "minLength": 1},
+        "source_url": {"type": "string", "minLength": 1},
+        "method_note": {"type": "string", "minLength": 1},
+        "method_version": {"type": "string", "minLength": 1},
+        "methodology_break": {"type": ["string", "null"]},
+        "overlap_flag": {"type": "boolean"},
+        "overlap_with": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"enum": ["high", "medium", "low"]},
+        "verified": {"type": "boolean"}
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gross_usd_tn", "shares_pct"],
+      "properties": {
+        "gross_usd_tn": {"type": "number"},
+        "shares_pct": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "real_estate",
+            "debt_securities",
+            "listed_equities",
+            "broad_money",
+            "gold",
+            "private_markets",
+            "art_collectibles",
+            "bitcoin",
+            "other_crypto"
+          ],
+          "properties": {
+            "real_estate": {"type": "number"},
+            "debt_securities": {"type": "number"},
+            "listed_equities": {"type": "number"},
+            "broad_money": {"type": "number"},
+            "gold": {"type": "number"},
+            "private_markets": {"type": "number"},
+            "art_collectibles": {"type": "number"},
+            "bitcoin": {"type": "number"},
+            "other_crypto": {"type": "number"}
+          }
+        }
+      }
+    },
+    "anchor_review_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class_id", "as_of", "window", "due", "stale_days"],
+      "properties": {
+        "class_id": {"type": "string", "minLength": 1},
+        "as_of": {"type": "string", "minLength": 1},
+        "window": {"type": "string", "minLength": 1},
+        "due": {"const": true},
+        "stale_days": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

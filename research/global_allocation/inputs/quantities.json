@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "as_of": "2026-06-30",
+      "class_id": "gold",
+      "confidence": "high",
+      "entered_on": "2026-10-17",
+      "id": "gold_above_ground_tonnes",
+      "method_note": "World Gold Council above-ground stock, end-Q2 2026. WGC's own USD figure was $29.0T.",
+      "review_after": {
+        "amount": 130,
+        "unit": "days"
+      },
+      "source_name": "World Gold Council",
+      "source_url": "https://www.gold.org/goldhub/data/how-much-gold",
+      "value": 222600
+    }
+  ]
+}

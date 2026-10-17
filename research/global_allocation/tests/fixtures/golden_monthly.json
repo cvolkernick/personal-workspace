@@ -1,0 +1,263 @@
+{
+  "anchor_review": [
+    {
+      "as_of": "2024-12-31",
+      "class_id": "real_estate",
+      "due": true,
+      "stale_days": 200,
+      "window": "15 months"
+    },
+    {
+      "as_of": "2022-12-31",
+      "class_id": "art_collectibles",
+      "due": true,
+      "stale_days": 290,
+      "window": "36 months"
+    }
+  ],
+  "caveats": [
+    "gross, overlapping, mixed dates",
+    "Not net wealth. Advisory only."
+  ],
+  "classes": [
+    {
+      "as_of": "start-2025 (end-2024); published 29 Sep 2025. No 2026 edition found",
+      "confidence": "medium",
+      "id": "real_estate",
+      "label": "Real estate",
+      "method_note": "Savills modelled world real estate (residential, commercial, farmland). Start-2025 value for end-2024. No 2026 edition found. Manual anchor. Not extrapolated.",
+      "method_version": "anchor-v1",
+      "methodology_break": null,
+      "overlap_flag": true,
+      "overlap_with": [
+        "debt_securities",
+        "listed_equities",
+        "private_markets"
+      ],
+      "share_pct": 49.34,
+      "source_name": "Savills",
+      "source_url": "https://www.savills.com/insight-and-opinion/savills-news/381209/world-s-real-estate-worth-%24393.3-trillion-and-is-the-world-s-largest-store-of-wealth",
+      "stale": true,
+      "stale_days": 200,
+      "value_kind": "reported",
+      "value_usd_tn": 393.3,
+      "verified": true
+    },
+    {
+      "as_of": "2025",
+      "confidence": "high",
+      "id": "debt_securities",
+      "label": "Debt securities",
+      "method_note": "SIFMA Capital Markets Fact Book 2026, global fixed income outstanding for 2025. Manual anchor.",
+      "method_version": "anchor-v1",
+      "methodology_break": null,
+      "overlap_flag": true,
+      "overlap_with": [
+        "real_estate",
+        "broad_money"
+      ],
+      "share_pct": 20.16,
+      "source_name": "SIFMA",
+      "source_url": "https://www.sifma.org/research/statistics/fact-book",
+      "stale": false,
+      "stale_days": 0,
+      "value_kind": "reported",
+      "value_usd_tn": 160.7,
+      "verified": true
+    },
+    {
+      "as_of": "2025",
+      "confidence": "medium",
+      "id": "listed_equities",
+      "label": "Listed equities",
+      "method_note": "Anchor 157.8 as of 2025-12-31 scaled by VT 110.0 / 100 on 2026-10-16. Share-count change is ignored (about 1% a year). SIFMA fact book listed-equity market cap for 2025. WFE cross-check was $151.94T at end-2025. Share-count change between anchors is ignored when a proxy price is applied.",
+      "method_version": "scaled-anchor-v1",
+      "methodology_break": "Scaled from the reported SIFMA anchor. Snapshot 0 is the unscaled reported figure.",
+      "overlap_flag": true,
+      "overlap_with": [
+        "real_estate",
+        "private_markets",
+        "bitcoin",
+        "other_crypto"
+      ],
+      "share_pct": 21.78,
+      "source_name": "SIFMA",
+      "source_url": "https://www.sifma.org/research/statistics/fact-book",
+      "stale": false,
+      "stale_days": 0,
+      "value_kind": "scaled_anchor",
+      "value_usd_tn": 173.6,
+      "verified": false
+    },
+    {
+      "as_of": "2026-08",
+      "confidence": "medium",
+      "id": "broad_money",
+      "label": "Broad money",
+      "method_note": "Sum of m2index value_usd across economies with a USD conversion. Attribute M2 Index, m2index.com, with the observation date. Rows used 2, blank USD skipped 1, oldest period 2026-06. Fed H.6 M2 23342.8 billion USD as of 2026-08 ECB M3 17646463 UNIT_MULT 6 EUR as of 2026-08 World Bank equity cap cross-check 141297217290000 USD as of 2025",
+      "method_version": "m2index-sum-v1",
+      "methodology_break": "Headline is the summed CSV, not the hand-compiled 144.4 figure in snapshot 0.",
+      "overlap_flag": true,
+      "overlap_with": [
+        "debt_securities",
+        "other_crypto"
+      ],
+      "share_pct": 1.88,
+      "source_name": "M2 Index",
+      "source_url": "https://m2index.com/data/broad-money.csv",
+      "stale": false,
+      "stale_days": 0,
+      "value_kind": "reported",
+      "value_usd_tn": 15,
+      "verified": true
+    },
+    {
+      "as_of": "2026-10-16T21:00:00Z",
+      "confidence": "medium",
+      "id": "gold",
+      "label": "Gold",
+      "method_note": "tonnes 222600 as of 2026-06-30 × 32150.7466 oz/t × spot 4000.0. PAXG-USD 4010.0 price_check ok. Primary spot is used. World Gold Council above-ground stock, end-Q2 2026. WGC's own USD figure was $29.0T.",
+      "method_version": "tonnes-x-spot-v1",
+      "methodology_break": "Price source changed from the London fix used in snapshot 0 to the spot feed.",
+      "overlap_flag": false,
+      "overlap_with": [],
+      "share_pct": 3.59,
+      "source_name": "gold-api",
+      "source_url": "https://api.gold-api.com/price/XAU",
+      "stale": false,
+      "stale_days": 0,
+      "value_kind": "computed_price_x_qty",
+      "value_usd_tn": 28.6,
+      "verified": true
+    },
+    {
+      "as_of": "May 2026",
+      "confidence": "low",
+      "id": "private_markets",
+      "label": "Private markets",
+      "method_note": "PitchBook private-market AUM forecast, May 2026, $20.3T. Page timed out on 2026-10-17; figure is the snapshot 0 anchor. Range cross-checks: CFA Institute about $18T (Sep 2025), Preqin $19.3T. Manual anchor.",
+      "method_version": "anchor-v1",
+      "methodology_break": null,
+      "overlap_flag": true,
+      "overlap_with": [
+        "real_estate",
+        "listed_equities"
+      ],
+      "share_pct": 2.55,
+      "source_name": "PitchBook",
+      "source_url": "https://pitchbook.com/news/articles/private-market-forecast-aum-2030",
+      "stale": false,
+      "stale_days": 0,
+      "value_kind": "reported",
+      "value_usd_tn": 20.3,
+      "verified": false
+    },
+    {
+      "as_of": "2026 *projection* (from 2022 base $2.17T)",
+      "confidence": "low",
+      "id": "art_collectibles",
+      "label": "Art and collectibles",
+      "method_note": "Deloitte Art & Finance Report 2023. $2.17T in 2022, $2.86T as a 2026 projection. Ultra-HNW holdings only. Manual anchor. Not extrapolated beyond the published projection.",
+      "method_version": "anchor-v1",
+      "methodology_break": "ultra-HNW holdings only; 2026 figure is a projection from a 2022 base",
+      "overlap_flag": false,
+      "overlap_with": [],
+      "share_pct": 0.36,
+      "source_name": "Deloitte Art & Finance Report 2023",
+      "source_url": "https://www.deloitte.com/ch/en/services/deloitte-private/research/art-and-finance-report.html",
+      "stale": true,
+      "stale_days": 290,
+      "value_kind": "projection",
+      "value_usd_tn": 2.86,
+      "verified": true
+    },
+    {
+      "as_of": "2026-10-17",
+      "confidence": "high",
+      "id": "bitcoin",
+      "label": "Bitcoin",
+      "method_note": "spot 80000.0 × issued supply 20099709.375 from tip height 971907. Supply sums the first `height` block subsidies (heights 0 through height-1) and does not include the subsidy of the block at `height`. Lost coins are not deducted. Bitcoin ETF holdings are a small overlap with listed equities and are not removed.",
+      "method_version": "height-supply-v1",
+      "methodology_break": "Snapshot 0 used a CoinMarketCap price and a rounded 20.10M supply, not this height rule.",
+      "overlap_flag": false,
+      "overlap_with": [],
+      "share_pct": 0.2,
+      "source_name": "Coinbase",
+      "source_url": "https://api.coinbase.com/v2/prices/BTC-USD/spot",
+      "stale": false,
+      "stale_days": 0,
+      "value_kind": "computed_price_x_qty",
+      "value_usd_tn": 1.6,
+      "verified": true
+    },
+    {
+      "as_of": "16 Oct 2026",
+      "confidence": "medium",
+      "id": "other_crypto",
+      "label": "Other crypto",
+      "method_note": "Snapshot 0 other crypto is CoinMarketCap total minus BTC on 16 Oct 2026, including about $183B USDT and $73B USDC. CoinGecko live pull is demoted because robots.txt disallows /api/v3. Manual anchor. Live CoinGecko pull is off: robots.txt Disallow /api/v3 for User-agent *; demoted to manual anchor.",
+      "method_version": "anchor-v1",
+      "methodology_break": null,
+      "overlap_flag": true,
+      "overlap_with": [
+        "broad_money",
+        "listed_equities"
+      ],
+      "share_pct": 0.14,
+      "source_name": "CoinMarketCap",
+      "source_url": "https://coinmarketcap.com/historical/20261016/",
+      "stale": false,
+      "stale_days": 0,
+      "value_kind": "reported",
+      "value_usd_tn": 1.09,
+      "verified": true
+    }
+  ],
+  "fx_basis": {
+    "as_of": "2026-10-16",
+    "rates": {
+      "CNY": 6.6862,
+      "EUR": 0.88865,
+      "GBP": 0.74989,
+      "JPY": 158.02
+    },
+    "source_name": "Frankfurter (ECB reference)",
+    "source_url": "https://api.frankfurter.dev/v1/latest",
+    "unavailable": null
+  },
+  "inputs": {
+    "btc_height": 971907,
+    "btc_supply": 20099709.375,
+    "equity_proxy_price_at_anchor": 100,
+    "equity_proxy_price_now": 110.0,
+    "equity_proxy_symbol": "VT",
+    "gold_tonnes": 222600,
+    "gold_tonnes_as_of": "2026-06-30",
+    "real_yield_10y": 2.74,
+    "real_yield_as_of": "2026-10-16"
+  },
+  "kind": "monthly",
+  "revision_reason": null,
+  "run_at_utc": "2026-10-17T16:00:00Z",
+  "run_date_et": "2026-10-17",
+  "schema_version": 1,
+  "sha256": "ef4adcd00210d1a2899b4a50dd9f6ace143ce0b476f087387ac100fa1b82167c",
+  "snapshot_id": "2026-10-17_monthly",
+  "stats_eligible": true,
+  "supersedes": null,
+  "totals": {
+    "gross_usd_tn": 797.05,
+    "shares_pct": {
+      "art_collectibles": 0.36,
+      "bitcoin": 0.2,
+      "broad_money": 1.88,
+      "debt_securities": 20.16,
+      "gold": 3.59,
+      "listed_equities": 21.78,
+      "other_crypto": 0.14,
+      "private_markets": 2.55,
+      "real_estate": 49.34
+    }
+  },
+  "unit": "usd_tn"
+}
