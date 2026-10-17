@@ -65,6 +65,12 @@ def note_inbound(sender, text, now=None, via="sms"):
             log.error("sms state write failed: %s", type(e).__name__)
 
 
+def is_operator_number(to):
+    """True when `to` is the operator cell (TURO_OWNER_ALERT_TO), compared after NANP normalization."""
+    op = normalize_nanp(env("TURO_OWNER_ALERT_TO"))
+    return bool(op) and normalize_nanp(to) == op
+
+
 def reserve_send(to, now=None):
     """Allowlist + rate limit. Returns None when the send may proceed, else a reason."""
     return reserve_send_ex(to, now)[0]
@@ -77,7 +83,7 @@ def reserve_send_ex(to, now=None):
     Returns (reason, grant). reason is None when the send may proceed, otherwise
     not_allowlisted, opt_out, rate_limited, or a first_contact_* refusal. Opt-out
     wins even after the 72-hour window and over any first-contact approval.
-    grant is {"kind": "inbound"|"first_contact", "entry": <entry copy or None>}.
+    grant is {"kind": "inbound"|"operator"|"first_contact", "entry": <entry copy or None>}.
     """
     now = time.time() if now is None else now
     with _sms_lock:
@@ -89,6 +95,9 @@ def reserve_send_ex(to, now=None):
         last = float(rec.get("last_seen") or 0) if rec else 0.0
         if rec and now - last <= ALLOWLIST_S:
             kind = "inbound"
+        elif is_operator_number(to):
+            # Operator (Chris) always passes the allowlist; opt-out and rate limits still apply.
+            kind = "operator"
         else:
             fc_reason = _fc_grant_reason(st, to, now)
             if fc_reason:
