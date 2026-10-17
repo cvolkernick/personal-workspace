@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-25",
+  "updated_at": "2026-10-16",
   "notes": "Movement universe. available=true is the programmed library Today reads. available=false stays off the plan until coach suggests and you apply. Equipment inventory is access, not an auto-unlock.",
   "exercises": [
     {
@@ -98,7 +98,38 @@
       "default_reps": 12,
       "rep_range": [10, 15],
       "priority": 7,
-      "available": true
+      "available": false,
+      "notes": "Trend group for rope and T-bar. Not a log target. Historical Tricep Pushdowns stay on this name."
+    },
+    {
+      "id": "tricep-pushdowns-rope",
+      "name": "Tricep Pushdowns (Rope)",
+      "session_types": ["push"],
+      "primary_muscles": ["triceps"],
+      "secondary_muscles": [],
+      "movement": "isolation",
+      "equipment": ["cable"],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [10, 15],
+      "priority": 7,
+      "available": true,
+      "notes": "Rope attachment. Same trend and PR line as Tricep Pushdowns."
+    },
+    {
+      "id": "tricep-pushdowns-t-bar",
+      "name": "Tricep Pushdowns (T-Bar)",
+      "session_types": ["push"],
+      "primary_muscles": ["triceps"],
+      "secondary_muscles": [],
+      "movement": "isolation",
+      "equipment": ["cable"],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [10, 15],
+      "priority": 7,
+      "available": true,
+      "notes": "Straight-bar attachment. Same trend and PR line as Tricep Pushdowns."
     },
     {
       "id": "seated-cable-row",

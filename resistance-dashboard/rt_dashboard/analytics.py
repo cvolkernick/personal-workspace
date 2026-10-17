@@ -144,16 +144,36 @@ def _display_lift(name: str) -> str:
     return re.sub(r"\s+", " ", str(name or "").strip())
 
 
+# Variants and the singular historical spelling share one chart title (#1134).
+# Caller keys override these.
+BUILTIN_LIFT_ALIASES: Dict[str, str] = {
+    "tricep pushdown": "Tricep Pushdowns",
+    "tricep pushdowns (rope)": "Tricep Pushdowns",
+    "tricep pushdowns (t-bar)": "Tricep Pushdowns",
+    "tricep pushdowns (t bar)": "Tricep Pushdowns",
+    "tricep pulldowns rope": "Tricep Pushdowns",
+    "tricep pulldowns (rope)": "Tricep Pushdowns",
+    "tricep pulldown rope": "Tricep Pushdowns",
+    "tricep pulldowns t bar": "Tricep Pushdowns",
+    "tricep pulldowns (t-bar)": "Tricep Pushdowns",
+    "tricep pulldowns (t bar)": "Tricep Pushdowns",
+    "tricep pulldown t bar": "Tricep Pushdowns",
+    "tricep pulldown t-bar": "Tricep Pushdowns",
+}
+
+
 def lift_alias_table(raw: Optional[Dict[str, Any]]) -> Dict[str, str]:
-    """Case-insensitive alias → canonical display name. Empty input is no map."""
-    table: Dict[str, str] = {}
-    if not isinstance(raw, dict):
-        return table
-    for key, val in raw.items():
-        norm = _norm_lift(str(key))
-        display = _display_lift(str(val))
-        if norm and display:
-            table[norm] = display
+    """Alias → canonical display name.
+
+    Built-in trend groups always apply. Keys in ``raw`` override them.
+    """
+    table = dict(BUILTIN_LIFT_ALIASES)
+    if isinstance(raw, dict):
+        for key, val in raw.items():
+            norm = _norm_lift(str(key))
+            display = _display_lift(str(val))
+            if norm and display:
+                table[norm] = display
     return table
 
 

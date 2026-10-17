@@ -189,6 +189,17 @@ NAME_ALIASES = {
     "lateral raise": "lateral-raises",
     "tricep pushdowns": "tricep-pushdowns",
     "tricep pushdown": "tricep-pushdowns",
+    "tricep pushdowns (rope)": "tricep-pushdowns-rope",
+    "tricep pushdowns (t-bar)": "tricep-pushdowns-t-bar",
+    "tricep pushdowns (t bar)": "tricep-pushdowns-t-bar",
+    "tricep pulldowns rope": "tricep-pushdowns-rope",
+    "tricep pulldowns (rope)": "tricep-pushdowns-rope",
+    "tricep pulldown rope": "tricep-pushdowns-rope",
+    "tricep pulldowns t bar": "tricep-pushdowns-t-bar",
+    "tricep pulldowns (t-bar)": "tricep-pushdowns-t-bar",
+    "tricep pulldowns (t bar)": "tricep-pushdowns-t-bar",
+    "tricep pulldown t bar": "tricep-pushdowns-t-bar",
+    "tricep pulldown t-bar": "tricep-pushdowns-t-bar",
     "seated cable row": "seated-cable-row",
     "pulldowns": "pulldowns",
     "pull downs": "pulldowns",
@@ -248,6 +259,16 @@ HORIZONTAL_ROW_FAMILY = "horizontal_row"
 KNEE_DOMINANT_FAMILY = "knee_dominant"
 HAMSTRING_CURL_FAMILY = "hamstring_curl"
 CALF_FAMILY = "calf"
+TRICEP_PUSHDOWN_FAMILY = "tricep_pushdown"
+TRICEP_PUSHDOWN_GROUP = "tricep-pushdowns"
+
+# Catalog ids that share one trend/PR line. The group id is the historical
+# bare name, not a picker row (#1134).
+TREND_GROUP_BY_ID: Dict[str, str] = {
+    "tricep-pushdowns": TRICEP_PUSHDOWN_GROUP,
+    "tricep-pushdowns-rope": TRICEP_PUSHDOWN_GROUP,
+    "tricep-pushdowns-t-bar": TRICEP_PUSHDOWN_GROUP,
+}
 
 PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-flat-press": HORIZONTAL_PRESS_FAMILY,
@@ -267,6 +288,8 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "lying-leg-curls": HAMSTRING_CURL_FAMILY,
     "calf-raises": CALF_FAMILY,
     "db-calf-raises": CALF_FAMILY,
+    "tricep-pushdowns-rope": TRICEP_PUSHDOWN_FAMILY,
+    "tricep-pushdowns-t-bar": TRICEP_PUSHDOWN_FAMILY,
 }
 
 PATTERN_FAMILY_SESSION_CAP = 1
@@ -1102,45 +1125,76 @@ def match_catalog_id(exercise_name: str, catalog_by_id: Dict[str, dict]) -> Opti
     return _canonical_exercise_id(exercise_name, catalog_by_id)
 
 
+def _logged_catalog_id(
+    exercise_name: str,
+    catalog_by_id: Optional[Dict[str, dict]] = None,
+) -> Optional[str]:
+    """Catalog id, including an alias whose target is off the picker."""
+    cid = _canonical_exercise_id(exercise_name, catalog_by_id)
+    if cid:
+        return cid
+    return NAME_ALIASES.get(_norm_name(exercise_name))
+
+
+def _performance_row(session: Session, ex: Any) -> dict:
+    best_w = max(st.weight_lbs for st in ex.sets)
+    # Judge progression on the first working set. Later sets that
+    # fall off do not change the load (#954).
+    first = ex.sets[0]
+    top = max(ex.sets, key=lambda st: (st.weight_lbs, st.reps, st.sets))
+    total_sets = sum(st.sets for st in ex.sets)
+    return {
+        "date": session.date,
+        "session_type": session.session_type,
+        "weight_lbs": float(first.weight_lbs),
+        "sets": int(total_sets) if total_sets else int(first.sets),
+        "reps": int(first.reps),
+        "first_weight_lbs": float(first.weight_lbs),
+        "first_reps": int(first.reps),
+        "best_working_weight": float(best_w),
+        "top_weight_lbs": float(top.weight_lbs),
+        "top_reps": int(top.reps),
+        "volume": float(ex.volume),
+        "is_pr": bool(ex.is_pr),
+    }
+
+
 def last_performance(
     sessions: Sequence[Session],
     exercise_name: str,
     catalog_by_id: Optional[Dict[str, dict]] = None,
 ) -> Optional[dict]:
-    """Most recent logged sets for an exercise (catalog id, exact name, or alias)."""
+    """Most recent logged sets for an exercise (catalog id, exact name, or alias).
+
+    A variant with no logs of its own seeds from the shared trend-group
+    anchor (historical ``Tricep Pushdowns``). A sibling variant does not.
+    """
     target = _norm_name(exercise_name)
-    target_id = _canonical_exercise_id(exercise_name, catalog_by_id)
+    target_id = _logged_catalog_id(exercise_name, catalog_by_id)
     ordered = sorted(sessions, key=lambda s: s.date, reverse=True)
-    for s in ordered:
-        for ex in s.exercises:
-            logged = _norm_name(ex.name)
-            if logged != target:
-                logged_id = _canonical_exercise_id(ex.name, catalog_by_id)
-                if not target_id or not logged_id or logged_id != target_id:
+
+    def _scan(match) -> Optional[dict]:
+        for session in ordered:
+            for ex in session.exercises:
+                logged = _norm_name(ex.name)
+                if not logged or not ex.sets:
                     continue
-            if not ex.sets:
-                continue
-            best_w = max(st.weight_lbs for st in ex.sets)
-            # Judge progression on the first working set. Later sets that
-            # fall off do not change the load (#954).
-            first = ex.sets[0]
-            top = max(ex.sets, key=lambda st: (st.weight_lbs, st.reps, st.sets))
-            total_sets = sum(st.sets for st in ex.sets)
-            return {
-                "date": s.date,
-                "session_type": s.session_type,
-                "weight_lbs": float(first.weight_lbs),
-                "sets": int(total_sets) if total_sets else int(first.sets),
-                "reps": int(first.reps),
-                "first_weight_lbs": float(first.weight_lbs),
-                "first_reps": int(first.reps),
-                "best_working_weight": float(best_w),
-                "top_weight_lbs": float(top.weight_lbs),
-                "top_reps": int(top.reps),
-                "volume": float(ex.volume),
-                "is_pr": bool(ex.is_pr),
-            }
-    return None
+                logged_id = _logged_catalog_id(ex.name, catalog_by_id)
+                if not match(logged, logged_id):
+                    continue
+                return _performance_row(session, ex)
+        return None
+
+    own = _scan(
+        lambda logged, logged_id: logged == target
+        or bool(target_id and logged_id and logged_id == target_id)
+    )
+    if own:
+        return own
+    group = TREND_GROUP_BY_ID.get(target_id or "")
+    if not group or group == target_id:
+        return None
+    return _scan(lambda _logged, logged_id: logged_id == group)
 
 
 def session_type_of(session: Any) -> str:

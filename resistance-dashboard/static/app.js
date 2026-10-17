@@ -579,6 +579,17 @@
     "lateral raise": "lateral-raises",
     "tricep pushdowns": "tricep-pushdowns",
     "tricep pushdown": "tricep-pushdowns",
+    "tricep pushdowns (rope)": "tricep-pushdowns-rope",
+    "tricep pushdowns (t-bar)": "tricep-pushdowns-t-bar",
+    "tricep pushdowns (t bar)": "tricep-pushdowns-t-bar",
+    "tricep pulldowns rope": "tricep-pushdowns-rope",
+    "tricep pulldowns (rope)": "tricep-pushdowns-rope",
+    "tricep pulldown rope": "tricep-pushdowns-rope",
+    "tricep pulldowns t bar": "tricep-pushdowns-t-bar",
+    "tricep pulldowns (t-bar)": "tricep-pushdowns-t-bar",
+    "tricep pulldowns (t bar)": "tricep-pushdowns-t-bar",
+    "tricep pulldown t bar": "tricep-pushdowns-t-bar",
+    "tricep pulldown t-bar": "tricep-pushdowns-t-bar",
     "seated cable row": "seated-cable-row",
     "pulldowns": "pulldowns",
     "pull downs": "pulldowns",
@@ -626,6 +637,14 @@
     "one arm row": "db-row",
     "goblet squat": "goblet-squat",
     "db goblet squat": "goblet-squat",
+  };
+
+  // Same groups as workout_planner.TREND_GROUP_BY_ID. Anchor id is the
+  // historical bare name, not a sibling variant (#1134).
+  const TREND_GROUP_BY_ID = {
+    "tricep-pushdowns": "tricep-pushdowns",
+    "tricep-pushdowns-rope": "tricep-pushdowns",
+    "tricep-pushdowns-t-bar": "tricep-pushdowns",
   };
 
   function normExerciseName(name) {
@@ -686,27 +705,35 @@
       if (da === db) return 0;
       return da < db ? 1 : -1;
     });
-    for (const s of ordered) {
-      for (const ex of (s && s.exercises) || []) {
-        const logged = normExerciseName(ex && ex.name);
-        if (!logged) continue;
-        if (logged !== target) {
+    function scan(match) {
+      for (const s of ordered) {
+        for (const ex of (s && s.exercises) || []) {
+          const logged = normExerciseName(ex && ex.name);
+          if (!logged) continue;
           const loggedId = canonicalExerciseId(ex.name, catalog);
-          if (!targetId || !loggedId || loggedId !== targetId) continue;
+          if (!match(logged, loggedId)) continue;
+          const sets = Array.isArray(ex.sets) ? ex.sets.filter((st) => st && st.weight_lbs != null && st.weight_lbs !== "") : [];
+          if (!sets.length) continue;
+          const first = sets[0];
+          const totalSets = sets.reduce((sum, st) => sum + (Number(st.sets) || 0), 0);
+          return {
+            date: String(s.date || "").slice(0, 10),
+            weight_lbs: Number(first.weight_lbs),
+            sets: totalSets || Number(first.sets) || 1,
+            reps: Number(first.reps) || 0,
+          };
         }
-        const sets = Array.isArray(ex.sets) ? ex.sets.filter((st) => st && st.weight_lbs != null && st.weight_lbs !== "") : [];
-        if (!sets.length) continue;
-        const first = sets[0];
-        const totalSets = sets.reduce((sum, st) => sum + (Number(st.sets) || 0), 0);
-        return {
-          date: String(s.date || "").slice(0, 10),
-          weight_lbs: Number(first.weight_lbs),
-          sets: totalSets || Number(first.sets) || 1,
-          reps: Number(first.reps) || 0,
-        };
       }
+      return null;
     }
-    return null;
+    const own = scan((logged, loggedId) => {
+      if (logged === target) return true;
+      return !!(targetId && loggedId && loggedId === targetId);
+    });
+    if (own) return own;
+    const group = targetId && TREND_GROUP_BY_ID[targetId];
+    if (!group || group === targetId) return null;
+    return scan((_logged, loggedId) => loggedId === group);
   }
 
   function catalogForLogMatch() {

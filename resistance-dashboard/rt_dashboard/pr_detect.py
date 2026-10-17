@@ -13,6 +13,13 @@ def _norm(name: str) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
 
 
+def _pr_name_key(name: str) -> str:
+    """Trend-group key. Rope, T-bar, and bare pushdowns share one PR line."""
+    from .analytics import canonical_lift_name, lift_alias_table
+
+    return _norm(canonical_lift_name(name, lift_alias_table(None)))
+
+
 def historical_bests(
     sessions: Sequence[Session],
     *,
@@ -29,7 +36,7 @@ def historical_bests(
         for ex in s.exercises:
             if is_test_exercise_name(ex.name) or is_zero_volume_status_log(ex):
                 continue
-            key = _norm(ex.name)
+            key = _pr_name_key(ex.name)
             if not key:
                 continue
             w = float(ex.best_working_weight or 0.0)
@@ -58,7 +65,7 @@ def is_exercise_pr(
     """
     if is_test_exercise_name(entry.name) or is_zero_volume_status_log(entry):
         return False
-    key = _norm(entry.name)
+    key = _pr_name_key(entry.name)
     if not key or not entry.sets:
         return False
     w = float(entry.best_working_weight or 0.0)

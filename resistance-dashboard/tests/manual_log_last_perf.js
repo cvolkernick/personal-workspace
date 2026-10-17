@@ -289,6 +289,45 @@ assert(
   "extensions still match Calf Raises"
 );
 
+assert(
+  api.canonicalExerciseId("tricep pushdowns", catalog) === "tricep-pushdowns",
+  "bare pushdowns stay on the trend group"
+);
+assert(
+  api.canonicalExerciseId("Tricep Pushdowns (Rope)", catalog) === "tricep-pushdowns-rope",
+  "rope is its own catalog id"
+);
+assert(
+  api.canonicalExerciseId("tricep pulldowns t bar", catalog) === "tricep-pushdowns-t-bar",
+  "chairman t-bar wording resolves"
+);
+const pushdowns = [
+  {
+    date: "2026-08-01",
+    exercises: [{ name: "Tricep Pushdowns", sets: [{ weight_lbs: 47.5, sets: 3, reps: 12 }] }],
+  },
+  {
+    date: "2026-08-08",
+    exercises: [{ name: "Tricep Pushdowns (T-Bar)", sets: [{ weight_lbs: 30, sets: 2, reps: 10 }] }],
+  },
+];
+const ropeSeed = api.lastPerformanceForLog(pushdowns, "Tricep Pushdowns (Rope)", catalog);
+assert(
+  ropeSeed && ropeSeed.date === "2026-08-01" && ropeSeed.weight_lbs === 47.5,
+  "rope seeds from historical pushdowns, not the t-bar log " + JSON.stringify(ropeSeed)
+);
+const ropeOwn = api.lastPerformanceForLog(
+  pushdowns.concat([
+    {
+      date: "2026-08-15",
+      exercises: [{ name: "Tricep Pushdowns (Rope)", sets: [{ weight_lbs: 40, sets: 3, reps: 12 }] }],
+    },
+  ]),
+  "Tricep Pushdowns (Rope)",
+  catalog
+);
+assert(ropeOwn && ropeOwn.weight_lbs === 40, "rope's own log wins");
+
 const rows = new El("div");
 rows.id = "exercise-rows";
 byId["exercise-rows"] = rows;
