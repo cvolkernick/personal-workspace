@@ -4,7 +4,7 @@
 - **Advisory only.** Nothing here authorizes or triggers a trade.
 - **Role:** this file is the source of the daily monitored set for Naka's fund monitoring.
 - **Pins:** target pins remain defined **only** by [`consider_share.json`](./consider_share.json). Listing a ticker here does not pin, size or approve it.
-- **Last refreshed:** 2026-10-15. Tickers only: no quantities, balances or prices.
+- **Last refreshed:** 2026-10-17. Tickers only: no quantities, balances or prices.
 - A name marked `unverified` has not been confirmed against a primary source; verify before relying on it.
 
 ## A. Core (copied from `consider_share.json`)
@@ -15,7 +15,7 @@
 | TSLA | pinned | Stocks-sleeve pin (growth equity, autonomy). |
 | BE | watch only | Not pinned; exited by owner 2026-09-03 and blocked for new seats. Listed only to watch the energy-equipment read-across. |
 
-## B. Current holdings (read live 2026-10-15 from the agentic fund account and Chris's Robinhood portfolio)
+## B. Current holdings (read live 2026-10-17 from the agentic fund account and Chris's Robinhood portfolio; unchanged from the 2026-10-15 read)
 
 | Ticker | Why |
 |---|---|
@@ -65,7 +65,7 @@ Open item: add any other nuclear names Chris listed on 10/3-10/4 once confirmed 
 ## E. Macro and the 11/11 review add-on
 
 - Macro items are covered by Meridian's daily file at `investment/brief/macro/YYYY-MM-DD.md`; this file does not duplicate them.
-- **SATS** (Strive 15% Series A perpetual preferred): on the 11/11 review list. `unverified`: announced by Strive on 2026-10-13 as a proposed IPO and not yet listed, so confirm the trading ticker once it lists (the symbol SATS has been used by another issuer).
+- **SATS** (Strive 15% Series A perpetual preferred): on the 11/11 review list. Strive priced the upsized IPO on 2026-10-15 (settlement scheduled 2026-10-20; daily dividends from 2026-11-09), per its release: https://www.globenewswire.com/news-release/2026/10/16/3382236/0/en/strive-announces-pricing-of-upsized-initial-public-offering-of-sats-stock.html. `unverified`: the release does not state the exchange ticker, so confirm the trading symbol once it lists (the symbol SATS has been used by another issuer).
 
 ## F. Other names carried in the monitored set
 
