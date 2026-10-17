@@ -8897,7 +8897,15 @@
   let blockingLoadInFlight = false;
   let dashboardLoadGen = 0;
   let lastLiveFingerprint = "";
-  const QUIET_POLL_MS = 3 * 60 * 1000;
+  // Each quiet poll is a full /api/dashboard call (server CPU). Keep it rare:
+  // background poll every 30 min, refresh-on-focus at most every 10 min.
+  const QUIET_POLL_MS = 30 * 60 * 1000;
+  const FOCUS_REFRESH_MIN_MS = 10 * 60 * 1000;
+  let lastQuietPollAt = 0;
+
+  function shouldQuietRefresh(nowMs, lastMs, minGapMs) {
+    return !lastMs || nowMs - lastMs >= minGapMs;
+  }
 
   async function loadDashboard(forceRefresh = false, opts) {
     // Guard: if used as a raw click handler, first arg is an Event (truthy).
@@ -8999,13 +9007,17 @@
   function startQuietPoll() {
     if (window.__fitdashQuietPoll) return;
     window.__fitdashQuietPoll = true;
-    const tick = () => {
+    lastQuietPollAt = Date.now();
+    const tick = (minGapMs) => {
       if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (!shouldQuietRefresh(now, lastQuietPollAt, minGapMs)) return;
+      lastQuietPollAt = now;
       loadDashboard(false, { quiet: true });
     };
-    setInterval(tick, QUIET_POLL_MS);
+    setInterval(() => tick(0), QUIET_POLL_MS);
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") tick();
+      if (document.visibilityState === "visible") tick(FOCUS_REFRESH_MIN_MS);
     });
   }
 
