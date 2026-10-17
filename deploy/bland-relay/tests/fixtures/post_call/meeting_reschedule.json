@@ -1,0 +1,16 @@
+{
+  "call_id": "8ac8fe59-shape",
+  "from": "+12395550113",
+  "to": "+19062406221",
+  "inbound": true,
+  "status": "completed",
+  "completed": true,
+  "answered_by": "human",
+  "call_length": 3.0,
+  "summary": "Caller wants to reschedule the appointment.",
+  "transcripts": [
+    {"user": "user", "text": "Can we push the call to next week?"}
+  ],
+  "metadata": {"purpose": "schedule change", "placed_by": "caller"},
+  "created_at": "2026-10-12T22:50:00Z"
+}

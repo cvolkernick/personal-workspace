@@ -1,0 +1,16 @@
+{
+  "call_id": "call-callback-1",
+  "from": "+12395550114",
+  "to": "+19062406221",
+  "inbound": true,
+  "status": "completed",
+  "completed": true,
+  "answered_by": "human",
+  "call_length": 1.5,
+  "summary": "Caller asked for a call back.",
+  "transcripts": [
+    {"user": "user", "text": "Can you ask Chris to call me back?"}
+  ],
+  "metadata": {"purpose": "callback", "placed_by": "caller"},
+  "created_at": "2026-10-16T15:00:00Z"
+}

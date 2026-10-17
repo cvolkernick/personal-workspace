@@ -1,0 +1,17 @@
+{
+  "call_id": "call-match-1",
+  "from": "+12395550111",
+  "to": "+19062406221",
+  "inbound": true,
+  "status": "completed",
+  "completed": true,
+  "answered_by": "human",
+  "call_length": 3.5,
+  "summary": "Caller said thanks and hung up.",
+  "transcripts": [
+    {"user": "assistant", "text": "How can I help?"},
+    {"user": "user", "text": "Thanks, that is all. My name is Jordan Quinn."}
+  ],
+  "metadata": {"purpose": "inbound call", "placed_by": "caller"},
+  "created_at": "2026-10-19T12:00:00Z"
+}

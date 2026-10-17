@@ -1,0 +1,18 @@
+{
+  "call_id": "3730e695-shape",
+  "from": "(239) 555-0101",
+  "to": "+19062406221",
+  "inbound": true,
+  "status": "completed",
+  "completed": true,
+  "answered_by": "human",
+  "call_length": 4.2,
+  "summary": "Caller asked to confirm a meeting on Monday. Took a name and a number.",
+  "transcripts": [
+    {"user": "assistant", "text": "Panamerica, how can I help?"},
+    {"user": "user", "text": "I want to confirm the meeting for Monday."}
+  ],
+  "variables": {"note": "confirm the meeting"},
+  "metadata": {"purpose": "meeting confirmation", "placed_by": "caller"},
+  "created_at": "2026-10-16T22:39:00Z"
+}

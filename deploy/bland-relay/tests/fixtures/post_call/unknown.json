@@ -1,0 +1,12 @@
+{
+  "call_id": "call-unknown-1",
+  "c_id": "ignored-when-call-id-set",
+  "from": "+12395550118",
+  "to": "+19062406221",
+  "inbound": true,
+  "completed": "n/a",
+  "answered_by": null,
+  "summary": "Hello there.",
+  "metadata": {"purpose": "unclear", "placed_by": "caller"},
+  "created_at": "2026-10-18T16:10:00Z"
+}
