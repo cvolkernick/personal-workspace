@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, Sequence
+from typing import Any, Iterable, List, Sequence
 
 from .models import Session
 
@@ -18,10 +18,33 @@ def is_test_exercise_name(name: str) -> bool:
     return bool(_TEST_NAME_RE.search(name or ""))
 
 
-def filter_sessions(sessions: Sequence[Session]) -> List[Session]:
-    """Drop sessions that only contain test/canary exercises; strip test lifts otherwise."""
+def coerce_sessions(sessions: Iterable[Any] | None) -> List[Session]:
+    """Return ``Session`` objects for a mixed list of objects and ``to_dict()`` payloads.
+
+    ``load_dashboard_data`` carries ``sessions`` as dicts (``sessions_to_dicts``),
+    while the planners read ``.exercises``. Objects pass through untouched;
+    dicts are rebuilt with ``sessions_from_dicts``; anything else is dropped.
+    """
+    from .dashboard_cache import sessions_from_dicts
+
     out: List[Session] = []
-    for s in sessions:
+    for item in sessions or []:
+        if isinstance(item, Session):
+            out.append(item)
+        elif isinstance(item, dict):
+            out.extend(sessions_from_dicts([item]))
+        elif hasattr(item, "exercises"):
+            out.append(item)  # duck-typed session object
+    return out
+
+
+def filter_sessions(sessions: Sequence[Session]) -> List[Session]:
+    """Drop sessions that only contain test/canary exercises; strip test lifts otherwise.
+
+    Accepts ``Session`` objects or their ``to_dict()`` payloads (#1240).
+    """
+    out: List[Session] = []
+    for s in coerce_sessions(sessions):
         real = [e for e in s.exercises if not is_test_exercise_name(e.name)]
         if not real:
             continue
