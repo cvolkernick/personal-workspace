@@ -28,3 +28,7 @@ Weighting changes read like this (one bullet per change, with the reason):
 ## Naka: actions taken — 2026-10-16
 
 none
+
+## Naka: actions taken — 2026-10-17
+
+- Refreshed investment/naka-watchlist.md: holdings re-read live 2026-10-17 (no change from 2026-10-15), and the SATS line notes Strive priced the SATS preferred IPO on 2026-10-15 (settles 2026-10-20). Its trading ticker is still unverified. No weighting change; advisory only.
