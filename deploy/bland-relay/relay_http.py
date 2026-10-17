@@ -145,6 +145,16 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"ok": False, "deleted": 0})
         return self._send(200, {"ok": True, "deleted": deleted})
 
+    def _meeting_check(self):
+        ip = self.client_address[0] if self.client_address else ""
+        got = (self.headers.get("X-Meeting-Check-Token") or "").strip() or token_from_headers(self.headers)
+
+        def body():
+            n = int(self.headers.get("Content-Length") or 0)
+            return self.rfile.read(n) if 0 < n <= meeting_check.MAX_BODY else None
+
+        return self._send(*meeting_check.handle(got, body, ip))
+
     def do_GET(self):
         return self._caller_context()
 
@@ -460,6 +470,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if path == meeting_check.ROUTE:
+            return self._meeting_check()
         if path_is(path, send_path()):
             return self._send_sms()
         if path_is(path, fc_path()):
@@ -704,6 +716,10 @@ def main():
     _warn_paths()
     start_turo_email_listener()
     log.info("%s", caller_context_startup_line())
+    meeting_check.ALERT_SINK = lambda title, detail: _spawn(
+        alert_failure, ("meeting-check", detail, 1, title, "Component", "Attempts", "prism `bland-relay.service` meeting-check"))
+    log.info("%s", meeting_check.startup_line())
+    meeting_check.start_sync()
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)
     srv.serve_forever()

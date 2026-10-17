@@ -25,6 +25,8 @@ gmail_turo_watch.py on a loopback-only listener (TURO_EMAIL_PORT) and run
 through the same normalizer and turo_ingest() path, deduped across sources.
 GET /bland/caller-context returns a short caller history for Bland dynamic_data
 (#1096). DELETE on that path forgets one number in the local fallback index.
+POST /bland/meeting-check (#1230) answers match or no-match for a caller's stated
+meeting; it needs MEETING_CHECK_TOKEN and stays no-match without calendar keys.
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
 comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
