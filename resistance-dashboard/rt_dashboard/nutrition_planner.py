@@ -4992,6 +4992,15 @@ DIET_HIT_FRAC = 0.85
 DIET_FAT_HIT_FRAC = 0.70
 DIET_FIBER_KNOWN_MIN_DAYS = 3
 DIET_SHAKE_SHARE = 0.40
+# Pantry macro profile (#1135). A mix is measured only when enough in-stock
+# rows have explicit protein, carb, and fat. Missing macros stay out —
+# they are unknown, not zero. 12 points off the target split is an imbalance.
+PANTRY_PROFILE_MIN_ITEMS = 3
+PANTRY_PROFILE_MIN_SHARE = 0.50
+PANTRY_MACRO_BAND = 0.12
+PANTRY_FIBER_POOR_FRAC = 0.60
+PANTRY_COUNTER_GAP = 0.10
+NOVEL_SUGGESTION_FLOOR = 2
 
 
 def staple_purpose_roles(ing: dict) -> List[str]:
@@ -5183,18 +5192,338 @@ def _find_inventory_match(inventory: dict, name: str, iid: str = "") -> Optional
     return None
 
 
+def _explicit_float(raw: dict, key: str) -> Optional[float]:
+    """Float only when the key is present. Missing stays unknown, not 0."""
+    if not isinstance(raw, dict) or key not in raw or raw.get(key) is None:
+        return None
+    val = raw.get(key)
+    if isinstance(val, str) and not str(val).strip():
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _target_macro_split(targets: dict) -> Optional[tuple]:
+    """Calorie share of the macro targets. Incomplete targets stay unknown."""
+    try:
+        p = float(targets.get("protein_g") or 0)
+        c = float(targets.get("carbs_g") or 0)
+        f = float(targets.get("fat_g") or 0)
+    except (TypeError, ValueError):
+        return None
+    pk, ck, fk = p * 4.0, c * 4.0, f * 9.0
+    tot = pk + ck + fk
+    if tot <= 0 or p <= 0 or c <= 0 or f <= 0:
+        return None
+    return pk / tot, ck / tot, fk / tot
+
+
+def _item_macro_split(raw: dict) -> Optional[dict]:
+    """Per-item calorie shares. Any missing protein/carb/fat drops the row."""
+    p = _explicit_float(raw, "protein_g")
+    c = _explicit_float(raw, "carbs_g")
+    f = _explicit_float(raw, "fat_g")
+    if p is None or c is None or f is None:
+        return None
+    pk, ck, fk = p * 4.0, c * 4.0, f * 9.0
+    at = pk + ck + fk
+    if at <= 0:
+        return None
+    cal = _explicit_float(raw, "calories")
+    weight = cal if cal is not None and cal > 0 else at
+    fiber = _explicit_float(raw, "fiber_g")
+    fiber_density = None
+    if fiber is not None and weight > 0:
+        fiber_density = fiber / weight * 1000.0
+    return {
+        "p": pk / at,
+        "c": ck / at,
+        "f": fk / at,
+        "weight": weight,
+        "fiber_g": fiber,
+        "fiber_density": fiber_density,
+    }
+
+
+def pantry_macro_profile(
+    ingredients: Sequence[dict],
+    targets: Optional[dict] = None,
+    *,
+    fiber_target_g: Optional[float] = None,
+) -> dict:
+    """Aggregate in-stock pantry calorie mix (#1135).
+
+    Reads raw rows. ``normalize_ingredient`` turns a missing macro into 0,
+    which would fake a lean or fat-free pantry, so this does not use it.
+    Out-of-stock rows are excluded. Low stock still counts as in the kitchen.
+    """
+    targets = targets or {}
+    stocked = [i for i in (ingredients or []) if isinstance(i, dict) and is_in_stock(i)]
+    profiled: List[dict] = []
+    for raw in stocked:
+        split = _item_macro_split(raw)
+        if split is None:
+            continue
+        profiled.append({"raw": raw, **split})
+
+    flags = {
+        "measured": False,
+        "n": len(profiled),
+        "n_stocked": len(stocked),
+        "protein_pct": None,
+        "carb_pct": None,
+        "fat_pct": None,
+        "target_protein_pct": None,
+        "target_carb_pct": None,
+        "target_fat_pct": None,
+        "protein_low": False,
+        "protein_high": False,
+        "carb_low": False,
+        "carb_high": False,
+        "fat_low": False,
+        "fat_high": False,
+        "fiber_measured": False,
+        "fiber_per_1000": None,
+        "fiber_target_per_1000": None,
+        "fiber_poor": False,
+        "slow_carb_n": 0,
+        "slow_carb_missing": False,
+    }
+    n_stocked = len(stocked)
+    n = len(profiled)
+    if (
+        n < PANTRY_PROFILE_MIN_ITEMS
+        or n_stocked <= 0
+        or (n / n_stocked) < PANTRY_PROFILE_MIN_SHARE
+    ):
+        return flags
+
+    p_kcal = sum(row["p"] * row["weight"] for row in profiled)
+    c_kcal = sum(row["c"] * row["weight"] for row in profiled)
+    f_kcal = sum(row["f"] * row["weight"] for row in profiled)
+    tot = p_kcal + c_kcal + f_kcal
+    if tot <= 0:
+        return flags
+    flags["measured"] = True
+    flags["protein_pct"] = p_kcal / tot
+    flags["carb_pct"] = c_kcal / tot
+    flags["fat_pct"] = f_kcal / tot
+
+    tgt = _target_macro_split(targets)
+    if tgt is not None:
+        tp, tc, tf = tgt
+        flags["target_protein_pct"] = tp
+        flags["target_carb_pct"] = tc
+        flags["target_fat_pct"] = tf
+        band = PANTRY_MACRO_BAND
+        flags["protein_low"] = flags["protein_pct"] <= tp - band
+        flags["protein_high"] = flags["protein_pct"] >= tp + band
+        flags["carb_low"] = flags["carb_pct"] <= tc - band
+        flags["carb_high"] = flags["carb_pct"] >= tc + band
+        flags["fat_low"] = flags["fat_pct"] <= tf - band
+        flags["fat_high"] = flags["fat_pct"] >= tf + band
+
+    fiber_rows = [row for row in profiled if row["fiber_g"] is not None]
+    if (
+        len(fiber_rows) >= PANTRY_PROFILE_MIN_ITEMS
+        and (len(fiber_rows) / n) >= PANTRY_PROFILE_MIN_SHARE
+    ):
+        fw = sum(row["weight"] for row in fiber_rows)
+        if fw > 0:
+            flags["fiber_measured"] = True
+            flags["fiber_per_1000"] = (
+                sum(float(row["fiber_g"]) for row in fiber_rows) / fw * 1000.0
+            )
+    try:
+        cal_tgt = float(targets.get("calories") or 0)
+    except (TypeError, ValueError):
+        cal_tgt = 0.0
+    if cal_tgt <= 0 and tgt is not None:
+        cal_tgt = (
+            float(targets.get("protein_g") or 0) * 4.0
+            + float(targets.get("carbs_g") or 0) * 4.0
+            + float(targets.get("fat_g") or 0) * 9.0
+        )
+    ft = fiber_target_g
+    if ft is None and cal_tgt > 0:
+        ft = SOFT_FIBER_TARGET_G
+    if flags["fiber_measured"] and ft and cal_tgt > 0 and flags["fiber_per_1000"] is not None:
+        target_density = float(ft) / cal_tgt * 1000.0
+        flags["fiber_target_per_1000"] = target_density
+        flags["fiber_poor"] = flags["fiber_per_1000"] < target_density * PANTRY_FIBER_POOR_FRAC
+
+    slow = 0
+    for row in profiled:
+        if "slow_carb" in staple_purpose_roles(row["raw"]):
+            slow += 1
+    flags["slow_carb_n"] = slow
+    flags["slow_carb_missing"] = slow == 0
+    return flags
+
+
+def _pct_points(share: Optional[float]) -> int:
+    if share is None:
+        return 0
+    return int(round(float(share) * 100))
+
+
+def _pantry_balance_reasons(staple: dict, pantry: dict) -> tuple[List[str], List[str], float]:
+    """Reasons a novel staple counters a measured pantry imbalance (#1135).
+
+    Intake gaps are a different signal. This only fires when the in-stock
+    mix itself is off, and the item moves that mix back toward target.
+    """
+    if not pantry or not pantry.get("measured"):
+        return [], [], 0.0
+    split = _item_macro_split(staple)
+    reasons: List[str] = []
+    purposes: List[str] = []
+    score = 0.0
+
+    def _add(reason: str, purpose: str, pts: float) -> None:
+        nonlocal score
+        if reason not in reasons:
+            reasons.append(reason)
+        purposes.append(purpose)
+        score += pts
+
+    if split is not None:
+        p, c, f = split["p"], split["c"], split["f"]
+        gap = PANTRY_COUNTER_GAP
+        if (
+            pantry.get("fat_high")
+            and f <= float(pantry.get("target_fat_pct") or 1)
+            and f <= float(pantry.get("fat_pct") or 0) - gap
+        ):
+            if c >= 0.45:
+                kind = "lean carb"
+            elif p >= 0.45:
+                kind = "lean protein"
+            else:
+                kind = "leaner staple"
+            _add(
+                (
+                    f"Pantry runs ~{_pct_points(pantry.get('fat_pct'))}% fat calories"
+                    f" vs ~{_pct_points(pantry.get('target_fat_pct'))}% target;"
+                    f" this {kind} pulls the mix back."
+                ),
+                "pantry_fat_high",
+                36,
+            )
+        if (
+            pantry.get("fat_low")
+            and f >= float(pantry.get("target_fat_pct") or 0)
+            and f >= float(pantry.get("fat_pct") or 0) + gap
+        ):
+            _add(
+                (
+                    f"Pantry runs ~{_pct_points(pantry.get('fat_pct'))}% fat calories"
+                    f" vs ~{_pct_points(pantry.get('target_fat_pct'))}% target;"
+                    f" this higher-fat staple pulls the mix back."
+                ),
+                "pantry_fat_low",
+                28,
+            )
+        if (
+            pantry.get("protein_low")
+            and p >= float(pantry.get("target_protein_pct") or 0) - 0.02
+            and p >= float(pantry.get("protein_pct") or 0) + 0.08
+            and not (pantry.get("fat_high") and f > float(pantry.get("target_fat_pct") or 1))
+        ):
+            _add(
+                (
+                    f"Pantry runs ~{_pct_points(pantry.get('protein_pct'))}% protein calories"
+                    f" vs ~{_pct_points(pantry.get('target_protein_pct'))}% target;"
+                    f" this protein pulls the mix back."
+                ),
+                "pantry_protein_low",
+                34,
+            )
+        if (
+            pantry.get("protein_high")
+            and p <= float(pantry.get("target_protein_pct") or 1)
+            and float(pantry.get("protein_pct") or 0) - p >= gap
+        ):
+            _add(
+                (
+                    f"Pantry runs ~{_pct_points(pantry.get('protein_pct'))}% protein calories"
+                    f" vs ~{_pct_points(pantry.get('target_protein_pct'))}% target;"
+                    f" this lower-protein staple pulls the mix back."
+                ),
+                "pantry_protein_high",
+                28,
+            )
+        if (
+            pantry.get("carb_low")
+            and c >= float(pantry.get("target_carb_pct") or 0) - 0.02
+            and c >= float(pantry.get("carb_pct") or 0) + 0.08
+            and not (pantry.get("fat_high") and f > float(pantry.get("target_fat_pct") or 1))
+        ):
+            _add(
+                (
+                    f"Pantry runs ~{_pct_points(pantry.get('carb_pct'))}% carb calories"
+                    f" vs ~{_pct_points(pantry.get('target_carb_pct'))}% target;"
+                    f" this carb pulls the mix back."
+                ),
+                "pantry_carb_low",
+                32,
+            )
+        if (
+            pantry.get("carb_high")
+            and c <= float(pantry.get("target_carb_pct") or 1)
+            and float(pantry.get("carb_pct") or 0) - c >= gap
+        ):
+            _add(
+                (
+                    f"Pantry runs ~{_pct_points(pantry.get('carb_pct'))}% carb calories"
+                    f" vs ~{_pct_points(pantry.get('target_carb_pct'))}% target;"
+                    f" this lower-carb staple pulls the mix back."
+                ),
+                "pantry_carb_high",
+                28,
+            )
+        if pantry.get("fiber_poor") and split.get("fiber_density") is not None:
+            dens = float(split["fiber_density"])
+            cur = float(pantry.get("fiber_per_1000") or 0)
+            tgt = pantry.get("fiber_target_per_1000")
+            if tgt and dens >= float(tgt) and dens >= cur + 8:
+                _add(
+                    (
+                        f"Pantry fiber is ~{int(round(cur))}g/1000 kcal"
+                        f" vs ~{int(round(float(tgt)))}g/1000 kcal target;"
+                        f" this brings ~{int(round(dens))}g/1000 kcal."
+                    ),
+                    "pantry_fiber_poor",
+                    40,
+                )
+    if pantry.get("slow_carb_missing") and "slow_carb" in staple_purpose_roles(staple):
+        _add(
+            (
+                f"0 slow-carb staples in {int(pantry.get('n') or 0)} profiled items;"
+                f" this fiber-containing carb fills that hole."
+            ),
+            "pantry_slow_carb",
+            30,
+        )
+    return reasons, purposes, score
+
+
 def _novel_gap_score(
     staple: dict,
     diet: dict,
     targets: dict,
     fiber_tgt: Optional[float],
     missing_roles: Sequence[str],
+    pantry: Optional[dict] = None,
 ) -> tuple[List[str], List[str], float]:
-    """Score a never-logged / never-stocked staple against real gaps (#858).
+    """Score a never-logged / never-stocked staple against real gaps (#858, #1135).
 
     Diet-window shortfalls fire even when the matching pantry role is already
-    filled — the rotation is not closing intake. Remaining macros today are
-    not a shopping hole (#709). No purpose → no card.
+    filled — the rotation is not closing intake. A separate pantry-profile
+    signal scores items that counter a measured in-stock surplus or shortfall.
+    Remaining macros today are not a shopping hole (#709). No purpose → no card.
     """
     dens = _protein_density(staple)
     shake = is_shake_or_powder(staple)
@@ -5262,7 +5591,10 @@ def _novel_gap_score(
             purposes.append(role)
             score += 18
             break
-    return reasons, purposes, score
+    pantry_reasons, pantry_purposes, pantry_score = _pantry_balance_reasons(
+        staple, pantry or {}
+    )
+    return pantry_reasons + reasons, pantry_purposes + purposes, score + pantry_score
 
 
 def suggest_inventory_staples(
@@ -5279,8 +5611,11 @@ def suggest_inventory_staples(
     Ranking: restocks first, then catalog adds that close a stated purpose —
     remaining macros, diet-window shortfalls, shake-as-filler risk, or a
     missing pantry role (fiber booster / produce / whole protein / quality
-    fat / slow carb). Then a disjoint novel-ingredient source (#858): items
-    never logged and never stocked, ranked only by gap-closing power.
+    fat / slow carb). Then a disjoint novel-ingredient source (#858 / #1135):
+    items never logged and never stocked, ranked by diet gaps and by whether
+    they counter a measured in-stock macro imbalance (deficit or surplus).
+    At least two novel slots stay in the top-N when that many qualify, so
+    restocks cannot fill the list alone.
     Log-frequency is **not** a positive signal. Missing catalog SKUs with no
     purpose are novelty and are skipped. Candidates come from ``catalog`` /
     ``STAPLE_CATALOG`` plus ``NOVEL_STAPLE_CATALOG``, not “foods Chris logged.”
@@ -5412,6 +5747,11 @@ def suggest_inventory_staples(
     fiber_gap = veg_n < 1 or fiber_stocked < float(fiber_tgt or SOFT_FIBER_TARGET_G)
     shake_heavy = shake_n > 0 and protein_role_open
     diet = diet_purpose_gaps(targets, logs)
+    pantry = pantry_macro_profile(
+        inventory.get("ingredients") or [],
+        targets,
+        fiber_target_g=fiber_tgt,
+    )
     stocked_roles: set = set()
     for i in stocked:
         stocked_roles.update(staple_purpose_roles(i))
@@ -5604,7 +5944,7 @@ def suggest_inventory_staples(
         if skip_catalog_dup:
             continue
         reasons, purposes, score = _novel_gap_score(
-            staple, diet, targets, fiber_tgt, missing_roles
+            staple, diet, targets, fiber_tgt, missing_roles, pantry
         )
         if not reasons:
             continue
@@ -5631,11 +5971,25 @@ def suggest_inventory_staples(
     suggestions.sort(key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
     limit = max(1, int(max_suggestions))
     restocks = [s for s in suggestions if s.get("action") == "restock"]
-    adds = [s for s in suggestions if s.get("action") != "restock"]
-    top: List[dict] = []
-    top.extend(restocks[:limit])
-    if len(top) < limit:
-        top.extend(adds[: limit - len(top)])
+    novels = [s for s in suggestions if s.get("source") == "novel"]
+    others = [
+        s
+        for s in suggestions
+        if s.get("action") != "restock" and s.get("source") != "novel"
+    ]
+    # Restocks keep priority. Novelty keeps a floor so they cannot fill
+    # every slot (#1135). Leftover slots go to the next-best add or novel.
+    floor_n = min(NOVEL_SUGGESTION_FLOOR, len(novels), limit)
+    reserved = novels[:floor_n]
+    picked_restocks = restocks[: max(0, limit - len(reserved))]
+    held = {id(s) for s in picked_restocks}
+    held.update(id(s) for s in reserved)
+    pool = [s for s in others + novels if id(s) not in held]
+    pool.sort(key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
+    extra = pool[: max(0, limit - len(picked_restocks) - len(reserved))]
+    tail = extra + reserved
+    tail.sort(key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
+    top: List[dict] = picked_restocks + tail
 
     restock_n = sum(1 for s in top if s.get("action") == "restock")
     add_n = sum(1 for s in top if s.get("action") == "add")
@@ -5661,9 +6015,19 @@ def suggest_inventory_staples(
             }
         )
     else:
+        balance = any(
+            str(p).startswith("pantry_")
+            for s in top
+            for p in (s.get("purpose") or [])
+        )
+        via = (
+            "diet gaps, pantry-role holes, pantry balance, and novel gap-closers"
+            if balance
+            else "diet gaps, pantry-role holes, and novel gap-closers"
+        )
         summary = (
             f"{len(top)} purpose-based suggestions ({', '.join(bits)}) from restocks, "
-            f"diet gaps, pantry-role holes, and novel gap-closers. Every add answers why. "
+            f"{via}. Every add answers why. "
             f"Log frequency is not a positive rank signal. Proposals only until you accept."
         )
     return {
