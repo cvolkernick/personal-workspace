@@ -167,8 +167,11 @@ def test_dry_run_writes_nothing(tmp_path):
     assert not (root / "snapshots").exists()
 
 
-def test_weekly_is_out_of_slice(tmp_path):
-    assert main(["--kind", "weekly", "--root", str(tmp_path)]) == 1
+def test_weekly_without_a_base_writes_nothing(tmp_path, capsys):
+    code = main(["--kind", "weekly", "--root", str(tmp_path)])
+    assert code == 1
+    assert "monthly or seed" in capsys.readouterr().out
+    assert not (tmp_path / "snapshots").exists()
 
 
 def _root_with_package_anchors(tmp_path: Path) -> Path:

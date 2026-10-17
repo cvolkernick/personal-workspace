@@ -37,6 +37,33 @@ def test_equity_proxy_missing_key_makes_no_request(monkeypatch):
     assert "ALPHAVANTAGE_API_KEY" in record.unavailable
 
 
+def test_call_reports_429_timeout_and_malformed_without_the_query(monkeypatch):
+    from research.global_allocation.sources.equity_proxy import parse
+    from research.global_allocation.sources.http import call
+
+    url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&apikey=SECRET"
+
+    monkeypatch.setattr("research.global_allocation.sources.http.fetch", lambda *_args, **_kwargs: (429, b""))
+    limited = call("equity_proxy", "Alpha Vantage", url, parse)
+    assert limited.unavailable == "HTTP 429"
+    assert "SECRET" not in limited.source_url
+    assert "SECRET" not in (limited.unavailable or "")
+
+    def time_out(*_args, **_kwargs):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr("research.global_allocation.sources.http.fetch", time_out)
+    timed = call("equity_proxy", "Alpha Vantage", url, parse)
+    assert timed.unavailable == "TimeoutError"
+    assert "SECRET" not in timed.source_url
+
+    monkeypatch.setattr("research.global_allocation.sources.http.fetch", lambda *_args, **_kwargs: (200, b"{"))
+    broken = call("equity_proxy", "Alpha Vantage", url, parse)
+    assert broken.unavailable.startswith("parse ")
+    assert "SECRET" not in broken.source_url
+    assert "SECRET" not in broken.unavailable
+
+
 def test_twelve_data_is_not_called():
     from pathlib import Path
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Global allocation weekly price refresh
+
+[Timer]
+# 22:15 UTC Friday. After the US equity and metals close in both EDT and EST.
+OnCalendar=Fri *-*-* 22:15:00 UTC
+Persistent=true
+AccuracySec=1min
+Unit=global-allocation-weekly.service
+
+[Install]
+WantedBy=timers.target

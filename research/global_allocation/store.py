@@ -85,6 +85,25 @@ class Store:
             return None
         return self.read_snapshot(self.snap_dir / alive[-1]["file"])
 
+    def latest_of_kind(self, kind: str) -> dict[str, Any] | None:
+        lines = self.index_lines()
+        superseded = {ln.get("supersedes") for ln in lines if ln.get("supersedes")}
+        alive = [
+            ln
+            for ln in lines
+            if ln.get("snapshot_id") not in superseded and ln.get("kind") == kind
+        ]
+        if not alive:
+            return None
+        return self.read_snapshot(self.snap_dir / alive[-1]["file"])
+
+    def latest_basis(self) -> dict[str, Any] | None:
+        """Latest monthly snapshot, or the seed when no monthly exists."""
+        monthly = self.latest_of_kind("monthly")
+        if monthly is not None:
+            return monthly
+        return self.latest_of_kind("seed")
+
     def _create_snapshot(self, path: Path, payload: bytes) -> bool:
         try:
             fd = os.open(path, _SNAPSHOT_CREATE_FLAGS, 0o644)

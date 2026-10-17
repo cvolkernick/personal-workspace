@@ -52,21 +52,42 @@ LIVE = (
     ("m2index", fetch_m2),
 )
 
+# Weekly price refresh. No broad-money, FX, yield, or CoinGecko call.
+WEEKLY_SOURCE_IDS = (
+    "gold_spot",
+    "coinbase_paxg",
+    "coinbase_btc",
+    "mempool_height",
+    "equity_proxy",
+)
 
-def collect(offline_dir=None) -> dict[str, SourceRecord]:
+
+def _offline_record(directory, source_id: str) -> SourceRecord:
     from pathlib import Path
 
+    directory = Path(directory)
+    filename, parser = OFFLINE_FILES[source_id]
+    path = directory / filename
+    if not path.is_file():
+        return SourceRecord(
+            source_id, source_id, "", None, None, None, f"offline fixture missing: {filename}"
+        )
+    return parser(path.read_bytes())
+
+
+def collect(offline_dir=None) -> dict[str, SourceRecord]:
     if offline_dir is not None:
-        directory = Path(offline_dir)
         out: dict[str, SourceRecord] = {}
-        for source_id, (filename, parser) in OFFLINE_FILES.items():
-            path = directory / filename
-            if not path.is_file():
-                out[source_id] = SourceRecord(
-                    source_id, source_id, "", None, None, None, f"offline fixture missing: {filename}"
-                )
-                continue
-            out[source_id] = parser(path.read_bytes())
+        for source_id in OFFLINE_FILES:
+            out[source_id] = _offline_record(offline_dir, source_id)
         out["coingecko"] = fetch_coingecko()
         return out
     return {source_id: fetch() for source_id, fetch in LIVE}
+
+
+def collect_weekly(offline_dir=None) -> dict[str, SourceRecord]:
+    """Gold, PAXG, bitcoin, height, and the equity proxy. Nothing else."""
+    if offline_dir is not None:
+        return {source_id: _offline_record(offline_dir, source_id) for source_id in WEEKLY_SOURCE_IDS}
+    live = dict(LIVE)
+    return {source_id: live[source_id]() for source_id in WEEKLY_SOURCE_IDS}
