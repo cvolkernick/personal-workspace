@@ -1,0 +1,1142 @@
+{
+ "kind": "calendar#events",
+ "items": [
+  {
+   "id": "busy00",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T08:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T08:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-00 Confidential Natarajan deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "priya.natarajan@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Priya Natarajan"
+    },
+    {
+     "email": "extra00@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person00"
+    }
+   ],
+   "location": "SECRET-LOCATION-00, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0100 or see https://notes.example.test/priv-00",
+   "hangoutLink": "https://meet.example.test/priv-00-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv00",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-00"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy01",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T09:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T09:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-01 Confidential Brandvold deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "tomas.brandvold@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Tomas Brandvold"
+    },
+    {
+     "email": "extra01@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person01"
+    }
+   ],
+   "location": "SECRET-LOCATION-01, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0101 or see https://notes.example.test/priv-01",
+   "hangoutLink": "https://meet.example.test/priv-01-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv01",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-01"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy02",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T10:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T10:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-02 Confidential Castellanos deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "ingrid.castellanos@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Ingrid Castellanos"
+    },
+    {
+     "email": "extra02@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person02"
+    }
+   ],
+   "location": "SECRET-LOCATION-02, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0102 or see https://notes.example.test/priv-02",
+   "hangoutLink": "https://meet.example.test/priv-02-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv02",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-02"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy03",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T11:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T11:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-03 Confidential Mensah deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "kwame.mensah@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Kwame Mensah"
+    },
+    {
+     "email": "extra03@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person03"
+    }
+   ],
+   "location": "SECRET-LOCATION-03, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0103 or see https://notes.example.test/priv-03",
+   "hangoutLink": "https://meet.example.test/priv-03-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv03",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-03"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy04",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T12:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T12:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-04 Confidential Takeda deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "lucia.takeda@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Lucia Takeda"
+    },
+    {
+     "email": "extra04@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person04"
+    }
+   ],
+   "location": "SECRET-LOCATION-04, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0104 or see https://notes.example.test/priv-04",
+   "hangoutLink": "https://meet.example.test/priv-04-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv04",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-04"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy05",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T13:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T13:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-05 Confidential Rosenfeld deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "hiro.rosenfeld@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Hiro Rosenfeld"
+    },
+    {
+     "email": "extra05@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person05"
+    }
+   ],
+   "location": "SECRET-LOCATION-05, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0105 or see https://notes.example.test/priv-05",
+   "hangoutLink": "https://meet.example.test/priv-05-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv05",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-05"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy06",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T14:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T14:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-06 Confidential Abara deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "nadia.abara@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Nadia Abara"
+    },
+    {
+     "email": "extra06@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person06"
+    }
+   ],
+   "location": "SECRET-LOCATION-06, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0106 or see https://notes.example.test/priv-06",
+   "hangoutLink": "https://meet.example.test/priv-06-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv06",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-06"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy07",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T15:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T15:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-07 Confidential Lindgren deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "oskar.lindgren@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Oskar Lindgren"
+    },
+    {
+     "email": "extra07@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person07"
+    }
+   ],
+   "location": "SECRET-LOCATION-07, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0107 or see https://notes.example.test/priv-07",
+   "hangoutLink": "https://meet.example.test/priv-07-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv07",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-07"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy08",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-26T16:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-26T16:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-08 Confidential Quigley deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "mei.quigley@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Mei Quigley"
+    },
+    {
+     "email": "extra08@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person08"
+    }
+   ],
+   "location": "SECRET-LOCATION-08, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0108 or see https://notes.example.test/priv-08",
+   "hangoutLink": "https://meet.example.test/priv-08-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv08",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-08"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy09",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T08:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T08:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-09 Confidential Haddad deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "rafael.haddad@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Rafael Haddad"
+    },
+    {
+     "email": "extra09@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person09"
+    }
+   ],
+   "location": "SECRET-LOCATION-09, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0109 or see https://notes.example.test/priv-09",
+   "hangoutLink": "https://meet.example.test/priv-09-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv09",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-09"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy10",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T09:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T09:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-10 Confidential Vasquez deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "sana.vasquez@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Sana Vasquez"
+    },
+    {
+     "email": "extra10@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person10"
+    }
+   ],
+   "location": "SECRET-LOCATION-10, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0110 or see https://notes.example.test/priv-10",
+   "hangoutLink": "https://meet.example.test/priv-10-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv10",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-10"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy11",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T10:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T10:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-11 Confidential Oyelaran deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "bjorn.oyelaran@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Bjorn Oyelaran"
+    },
+    {
+     "email": "extra11@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person11"
+    }
+   ],
+   "location": "SECRET-LOCATION-11, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0111 or see https://notes.example.test/priv-11",
+   "hangoutLink": "https://meet.example.test/priv-11-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv11",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-11"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy12",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T11:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T11:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-12 Confidential Petrov deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "amara.petrov@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Amara Petrov"
+    },
+    {
+     "email": "extra12@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person12"
+    }
+   ],
+   "location": "SECRET-LOCATION-12, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0112 or see https://notes.example.test/priv-12",
+   "hangoutLink": "https://meet.example.test/priv-12-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv12",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-12"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy13",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T12:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T12:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-13 Confidential Dubois deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "dmitri.dubois@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Dmitri Dubois"
+    },
+    {
+     "email": "extra13@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person13"
+    }
+   ],
+   "location": "SECRET-LOCATION-13, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0113 or see https://notes.example.test/priv-13",
+   "hangoutLink": "https://meet.example.test/priv-13-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv13",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-13"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy14",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T13:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T13:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-14 Confidential Karimi deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "chloe.karimi@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Chloe Karimi"
+    },
+    {
+     "email": "extra14@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person14"
+    }
+   ],
+   "location": "SECRET-LOCATION-14, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0114 or see https://notes.example.test/priv-14",
+   "hangoutLink": "https://meet.example.test/priv-14-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv14",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-14"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy15",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T14:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T14:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-15 Confidential Sorensen deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "yusuf.sorensen@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Yusuf Sorensen"
+    },
+    {
+     "email": "extra15@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person15"
+    }
+   ],
+   "location": "SECRET-LOCATION-15, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0115 or see https://notes.example.test/priv-15",
+   "hangoutLink": "https://meet.example.test/priv-15-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv15",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-15"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy16",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T15:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T15:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-16 Confidential Achterberg deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "elena.achterberg@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Elena Achterberg"
+    },
+    {
+     "email": "extra16@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person16"
+    }
+   ],
+   "location": "SECRET-LOCATION-16, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0116 or see https://notes.example.test/priv-16",
+   "hangoutLink": "https://meet.example.test/priv-16-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv16",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-16"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy17",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T16:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T16:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-17 Confidential Whitlock deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "mateo.whitlock@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Mateo Whitlock"
+    },
+    {
+     "email": "extra17@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person17"
+    }
+   ],
+   "location": "SECRET-LOCATION-17, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0117 or see https://notes.example.test/priv-17",
+   "hangoutLink": "https://meet.example.test/priv-17-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv17",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-17"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy18",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-28T08:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-28T08:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-18 Confidential Moreau deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "freya.moreau@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Freya Moreau"
+    },
+    {
+     "email": "extra18@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person18"
+    }
+   ],
+   "location": "SECRET-LOCATION-18, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0118 or see https://notes.example.test/priv-18",
+   "hangoutLink": "https://meet.example.test/priv-18-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv18",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-18"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy19",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-28T09:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-28T09:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-19 Confidential Zielinski deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "idris.zielinski@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Idris Zielinski"
+    },
+    {
+     "email": "extra19@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person19"
+    }
+   ],
+   "location": "SECRET-LOCATION-19, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0119 or see https://notes.example.test/priv-19",
+   "hangoutLink": "https://meet.example.test/priv-19-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv19",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-19"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy20",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-28T10:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-28T10:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-20 Confidential Faraday deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "noor.faraday@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Noor Faraday"
+    },
+    {
+     "email": "extra20@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person20"
+    }
+   ],
+   "location": "SECRET-LOCATION-20, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0120 or see https://notes.example.test/priv-20",
+   "hangoutLink": "https://meet.example.test/priv-20-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv20",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-20"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy21",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-28T11:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-28T11:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-21 Confidential Kowalczyk deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "pavel.kowalczyk@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Pavel Kowalczyk"
+    },
+    {
+     "email": "extra21@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person21"
+    }
+   ],
+   "location": "SECRET-LOCATION-21, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0121 or see https://notes.example.test/priv-21",
+   "hangoutLink": "https://meet.example.test/priv-21-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv21",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-21"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy22",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-28T12:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-28T12:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-22 Confidential Ndiaye deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "greta.ndiaye@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Greta Ndiaye"
+    },
+    {
+     "email": "extra22@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person22"
+    }
+   ],
+   "location": "SECRET-LOCATION-22, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0122 or see https://notes.example.test/priv-22",
+   "hangoutLink": "https://meet.example.test/priv-22-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv22",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-22"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy23",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-28T13:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-28T13:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-23 Confidential Thorsen deal",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "jamal.thorsen@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Jamal Thorsen"
+    },
+    {
+     "email": "extra23@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Extra Person23"
+    }
+   ],
+   "location": "SECRET-LOCATION-23, 12 Hidden Lane",
+   "description": "Dial +1 555 010 0123 or see https://notes.example.test/priv-23",
+   "hangoutLink": "https://meet.example.test/priv-23-abc",
+   "htmlLink": "https://calendar.example.test/event?eid=priv23",
+   "conferenceData": {
+    "entryPoints": [
+     {
+      "uri": "https://meet.example.test/conf-23"
+     }
+    ]
+   }
+  },
+  {
+   "id": "busy24",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-27T11:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-27T11:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "PRIVATE-TITLE-24 Board prep",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "lena.fischer@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Lena Fischer"
+    }
+   ],
+   "location": "SECRET-LOCATION-24",
+   "description": "Dial +1 555 010 0124",
+   "hangoutLink": "https://meet.example.test/priv-24"
+  }
+ ]
+}

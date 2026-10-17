@@ -1,0 +1,285 @@
+{
+ "kind": "calendar#events",
+ "items": [
+  {
+   "id": "bp1",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-19T15:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-19T15:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Wheelbase intro call",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "jordyn.marsh@example.test",
+     "responseStatus": "accepted"
+    }
+   ]
+  },
+  {
+   "id": "bp2",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-19T16:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-19T16:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Fleet intro",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "sam.ortega@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Sam Ortega"
+    }
+   ]
+  },
+  {
+   "id": "bp3",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-20T10:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-20T10:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Booking page",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "jmarsh@example.test",
+     "responseStatus": "accepted"
+    }
+   ]
+  },
+  {
+   "id": "sum1",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-21T09:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-21T09:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Quillfeather site visit",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "guest8841@example.test",
+     "responseStatus": "accepted"
+    }
+   ]
+  },
+  {
+   "id": "tz1",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-22T15:00:00-04:00",
+    "timeZone": "America/Chicago"
+   },
+   "end": {
+    "dateTime": "2026-10-22T15:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Partner sync",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "r.okafor@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Riley Okafor"
+    }
+   ]
+  },
+  {
+   "id": "can1",
+   "status": "cancelled",
+   "start": {
+    "dateTime": "2026-10-23T11:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-23T11:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Dana call",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "dana.whitfield@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Dana Whitfield"
+    }
+   ]
+  },
+  {
+   "id": "all1",
+   "status": "confirmed",
+   "summary": "Offsite Whitfield",
+   "start": {
+    "date": "2026-10-23"
+   },
+   "end": {
+    "date": "2026-10-24"
+   },
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    },
+    {
+     "email": "avery.lindqvist@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Avery Lindqvist"
+    }
+   ],
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   }
+  },
+  {
+   "id": "dec1",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-24T13:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-24T13:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Teller review",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "declined"
+    },
+    {
+     "email": "morgan.teller@example.test",
+     "responseStatus": "accepted",
+     "displayName": "Morgan Teller"
+    }
+   ]
+  },
+  {
+   "id": "own1",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-24T16:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-24T16:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Focus time"
+  },
+  {
+   "id": "own2",
+   "status": "confirmed",
+   "start": {
+    "dateTime": "2026-10-25T10:00:00-04:00"
+   },
+   "end": {
+    "dateTime": "2026-10-25T10:00:30-04:00"
+   },
+   "creator": {
+    "email": "owner@example.test"
+   },
+   "organizer": {
+    "email": "owner@example.test"
+   },
+   "summary": "Owner planning",
+   "attendees": [
+    {
+     "email": "owner@example.test",
+     "displayName": "Casey Owner",
+     "self": true,
+     "responseStatus": "accepted"
+    }
+   ]
+  }
+ ]
+}
