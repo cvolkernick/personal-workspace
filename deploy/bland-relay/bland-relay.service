@@ -2,7 +2,7 @@
 # and rollback are in deploy/bland-relay/README.md (Deploy).
 #   bland-relay.py  bland_relay.py  relay_config.py  relay_audit.py
 #   relay_sms.py  relay_fc.py  relay_send.py  relay_rcs.py  relay_turo.py
-#   relay_http.py  caller_context.py  turo_email.py
+#   relay_http.py  caller_context.py  meeting_check.py  turo_email.py
 [Unit]
 Description=Bland post-call webhook relay -> Alexandra alert endpoint
 After=network-online.target

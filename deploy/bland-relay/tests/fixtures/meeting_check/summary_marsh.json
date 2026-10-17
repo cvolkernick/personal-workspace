@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "evt-summary",
+      "status": "confirmed",
+      "summary": "Intro Marsh",
+      "start": {"dateTime": "2026-10-19T15:00:00-04:00", "timeZone": "America/New_York"},
+      "end": {"dateTime": "2026-10-19T15:30:00-04:00", "timeZone": "America/New_York"},
+      "creator": {"email": "owner@example.test"},
+      "organizer": {"email": "owner@example.test"},
+      "attendees": [
+        {"email": "owner@example.test", "self": true, "responseStatus": "accepted"}
+      ]
+    }
+  ]
+}

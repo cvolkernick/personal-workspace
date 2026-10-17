@@ -2,7 +2,7 @@
 
 Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.service`). Tailscale Funnel `:8443` is the existing public front. Secret paths stay unguessable. This tree is the source for `~/bin`. The unit keeps running the copy in `~/bin`, not this checkout.
 
-`bland_relay.py` is the import surface (`import bland_relay`, and the `bland-relay.py` wrapper). It loads these parts from the same directory: `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`. `caller_context.py` and `turo_email.py` stay beside them. Each of those source files stays under ~40 KB.
+`bland_relay.py` is the import surface (`import bland_relay`, and the `bland-relay.py` wrapper). It loads these parts from the same directory: `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`. `caller_context.py`, `meeting_check.py`, and `turo_email.py` stay beside them. Each of those source files stays under ~40 KB.
 
 ## Routes
 
@@ -16,6 +16,7 @@ Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.
 | `POST /<FC_PATH>` | `SEND_TOKEN` (add/request/list/revoke) or the approver token (approve, only with `FC_REQUIRE_APPROVAL=1`) | First-contact numbers (#1100). See below. |
 | `GET /bland/caller-context?pn=` | `CALLER_CONTEXT_TOKEN` as `Authorization: Bearer` or `X-Caller-Context-Token` | Read-only caller history for Bland `dynamic_data` (#1096). See below. |
 | `DELETE /bland/caller-context?pn=` | `CALLER_FORGET_TOKEN` (Grok seat only) | Forget one number in the local fallback index. |
+| `POST /bland/meeting-check` | `MEETING_CHECK_TOKEN` as `Authorization: Bearer` or `X-Meeting-Check-Token` | Match or no-match for one stated meeting (#1230). See below. |
 
 Send body:
 
@@ -309,8 +310,8 @@ Setup on prism (after the GCP steps in #1142):
 
 ```bash
 cp deploy/bland-relay/bland_relay.py deploy/bland-relay/relay_*.py \
-  deploy/bland-relay/caller_context.py deploy/bland-relay/turo_email.py \
-  deploy/bland-relay/gmail_turo_watch.py ~/bin/
+  deploy/bland-relay/caller_context.py deploy/bland-relay/meeting_check.py \
+  deploy/bland-relay/turo_email.py deploy/bland-relay/gmail_turo_watch.py ~/bin/
 openssl rand -hex 32 | ~/bin/bland-relay-setkey TURO_EMAIL_TOKEN      # then copy the same value into the watcher env
 printf %s 8797 | ~/bin/bland-relay-setkey TURO_EMAIL_PORT
 printf %s 1 | ~/bin/bland-relay-setkey TURO_EMAIL_SHADOW              # first 48 h
@@ -488,19 +489,52 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bl
 python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey CALLER_FORGET_TOKEN
 ```
 
-`bland-relay-setkey` restarts the unit. Do not run it from a review. Copy the whole set in Deploy, including `caller_context.py` and every `relay_*.py` part next to `bland_relay.py`.
+`bland-relay-setkey` restarts the unit. Do not run it from a review. Copy the whole set in Deploy, including `caller_context.py`, `meeting_check.py`, and every `relay_*.py` part next to `bland_relay.py`.
 
 Until #1231 or #1097 writes the index, a deployed `GET /bland/caller-context` returns `known: false` for every caller. That is the expected result of this slice, not a failed smoke. `smoke.py` is the public check. It stays on the operator machine and is not copied to `~/bin`.
 
 Startup logs one line, with no token, phone number, or path: `caller-context: token=set|unset backend=crm|index index_rows=<n>`. `backend=crm` only when `CRM_API_BASE` is loopback and `CRM_API_TOKEN` is set. Leave `CRM_API_BASE` unset until #1097 serves the route, so the line should say `backend=index`.
 
+## Meeting check
+
+`POST /bland/meeting-check` answers one question: does the stated name and time match an event. After auth, every failure is HTTP 200 `{"match": false}`. A match is `{"match": true, "meeting_time": "Monday, October 19 at 3:00 PM ET"}`. No other keys. The time text is the event start in ET, taken from the `dateTime` offset.
+
+Env keys (names only; values stay in the relay env on prism):
+
+- `MEETING_CHECK_TOKEN` — Bearer or `X-Meeting-Check-Token`. Not `CALLER_CONTEXT_TOKEN`.
+- `MEETING_CHECK_DISABLED` — `1` answers `{"match": false}` and does not read the calendar.
+- `MEETING_SYNC_S` — snapshot interval in seconds. Default 120. Not a secret.
+- `MEETING_SELF_EMAILS` — comma or space separated owner addresses, so those attendees are not a "guest".
+- `MEETING_GCAL_CLIENT_ID`, `MEETING_GCAL_CLIENT_SECRET`, `MEETING_GCAL_REFRESH_TOKEN`, `MEETING_GCAL_CALENDAR_ID` — read-only Google calendar credential. Scope is `calendar.events.readonly`. The field mask does not request description, location, or conference links.
+
+`MEETING_CHECK_DISABLED` and `MEETING_SYNC_S` are not secrets. A value of `1` must not be fed through `_scrub()`.
+
+One-time consent, before any live check (not done in this change):
+
+1. Chris approves a read-only credential on the Panamerica Google account.
+2. The OAuth client publishing status is not "Testing".
+3. The consent screen shows only "View events on all your calendars".
+4. Put the four `MEETING_GCAL_*` values in the relay env with `bland-relay-setkey`. Do not mint that token from a review, and do not put it on Vercel or the Funnel host.
+
+Rotate the check token (restarts the unit; do not run from a review):
+
+```bash
+python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey MEETING_CHECK_TOKEN
+```
+
+Startup logs `meeting-check: token=set|unset` and nothing else from this route. No calendar id, no token, no name.
+
+Bland config is not in this change. No tool is added to the inbound number here. Grok applies that after merge, deploy, and the read-only calendar token. Do not call the Bland API from this slice.
+
+Rollback: `printf %s 1 | ~/bin/bland-relay-setkey MEETING_CHECK_DISABLED` so the route answers `{"match": false}`. To remove the code, restore the `~/bin` backups and delete `~/bin/meeting_check.py`. Revoke the Google app on the Panamerica account and delete the `MEETING_GCAL_*` keys when the credential itself should die.
+
 ## Deploy
 
-Not done by this PR. Do not copy these files onto prism, do not restart the unit, and do not run `install_remote.sh`, from a review. Ops runs this checklist after merge, off-peak, with no call in progress. `bland-relay.py` is the unit entry (`chmod 755`). `bland_relay.py` loads every `relay_*.py` part from the same directory (`chmod 644`), and that load imports `caller_context.py` and `turo_email.py`. A partial copy crash-loops the unit.
+Not done by this PR. Do not copy these files onto prism, do not restart the unit, and do not run `install_remote.sh`, from a review. Ops runs this checklist after merge, off-peak, with no call in progress. `bland-relay.py` is the unit entry (`chmod 755`). `bland_relay.py` loads every `relay_*.py` part from the same directory (`chmod 644`), and that load imports `caller_context.py`, `meeting_check.py`, and `turo_email.py`. A partial copy crash-loops the unit.
 
 `smoke.py` is a local read-only tool. It is not copied.
 
-Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`, `caller_context.py`, `turo_email.py`, `bland-relay-setkey`, `send-904`, `send-904-fc`.
+Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`, `caller_context.py`, `meeting_check.py`, `turo_email.py`, `bland-relay-setkey`, `send-904`, `send-904-fc`.
 
 1. Back up the files already on prism. The `relay_*.py` parts are not on the unit yet, so a missing name is skipped. The earlier documented stamp `bak-pre1107` was not applied.
 
@@ -508,7 +542,7 @@ Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audi
 stamp=bak-pre1229
 for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
   relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_http.py \
-  caller_context.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
+  caller_context.py meeting_check.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
   if [ -f ~/bin/$f ]; then cp ~/bin/$f ~/bin/$f.$stamp; fi
 done
 ```
@@ -527,13 +561,14 @@ cp deploy/bland-relay/bland-relay.py \
   deploy/bland-relay/relay_turo.py \
   deploy/bland-relay/relay_http.py \
   deploy/bland-relay/caller_context.py \
+  deploy/bland-relay/meeting_check.py \
   deploy/bland-relay/turo_email.py \
   ~/bin/
 cp deploy/bland-relay/bland-relay-setkey deploy/bland-relay/send-904 deploy/bland-relay/send-904-fc ~/bin/
 chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/send-904-fc
 chmod 644 ~/bin/bland_relay.py ~/bin/relay_config.py ~/bin/relay_audit.py ~/bin/relay_sms.py \
   ~/bin/relay_fc.py ~/bin/relay_send.py ~/bin/relay_rcs.py ~/bin/relay_turo.py ~/bin/relay_http.py \
-  ~/bin/caller_context.py ~/bin/turo_email.py
+  ~/bin/caller_context.py ~/bin/meeting_check.py ~/bin/turo_email.py
 ```
 
 The unit file already matches `~/.config/systemd/user/bland-relay.service`. Its header lists the same Python files. `ExecStart` stays `%h/bin/bland-relay.py`.
@@ -581,9 +616,10 @@ Rollback restores the `$stamp` copies over `~/bin`, then removes any `~/bin/rela
 stamp=bak-pre1229
 for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
   relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_http.py \
-  caller_context.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
+  caller_context.py meeting_check.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
   if [ -f ~/bin/$f.$stamp ]; then cp ~/bin/$f.$stamp ~/bin/$f; fi
 done
+if [ ! -f ~/bin/meeting_check.py.$stamp ]; then rm -f ~/bin/meeting_check.py; fi
 for f in ~/bin/relay_*.py; do
   base=$(basename "$f")
   if [ ! -f ~/bin/$base.$stamp ]; then rm -f "$f"; fi
@@ -606,6 +642,8 @@ python3 -m pytest tests -q
 `tests/test_send_state.py` (#1140, gateway mocked, webhooks not registered on a device) covers signed and unsigned `sms:sent` / `sms:delivered` / `sms:failed` fixtures, a bad signature, a duplicate event id, an unknown `messageId`, one `send_failed` plus one #701 alert and the 15-minute cap, log redaction of the full number and the body, and a no-sender "not sent" notice that is not forwarded as inbound and is used only when no `sms:failed` was recorded.
 
 `tests/test_caller_context.py` (#1096, no Bland or CRM network) covers index ingest for an inbound call webhook, a polled voicemail, a concurrency rejection, Bland SMS, and SMSGate; provider-id dedupe; `(239) 555-0101` == `+12395550101`; endpoint 401, unknown, last-3 ET order, sensitive-pattern stripping, and internal-error empty 200; a fixture CRM record (purpose, follow-up, booking sentence) and CRM timeout/5xx falling back to the index inside 250 ms; a non-loopback `CRM_API_BASE` using the index with no request and without echoing the token; both 2026-10-09 callback replays; a GET-only poller that stops on 429 and survives 5xx; 180-day purge; Grok-seat forget; token scrubbing; and p95 under 300 ms on 10k local rows.
+
+`tests/test_meeting_check.py` (#1230, fake Google client, no network) covers the response key set, the booking-page and initial-plus-last fixtures, a summary last-name match, ET conversion from the offset, the no-match cases, spoofed numbers, auth and the per-IP limit, the kill switch, privacy against 25 fixture events, the anti-guess caps, a fresh snapshot with zero calendar calls, one 500 ms live read when the snapshot is stale, the field mask, attempt-log mode 0600 and the 48 h purge, and in-process p95 under 50 ms on 2000 cached events.
 
 `tests/test_first_contact.py` (#1100, SMSGate mocked, no network) covers, with `FC_REQUIRE_APPROVAL=1`: approval required, chat and SMS approval, no agent/self approval, code/text/ref checks, opt-out at request/approve/send and START, daily and sends-before-reply caps, existing rate limits, expiry/renewal/conversion, both kill switches, list/revoke, audit and CRM outbox records (no body, no secrets, 0600), log redaction, and the `send-904-fc` CLI; the #1102 (a) daily-cap rule for revoked/expired re-requests at request and at chat and SMS approve; #1102 (b) chat approval bound to `FC_CHAT_APPROVER` (unbound token and a different approver name are 403, and enabling the hash logs a warning); #1102 (c) an RCS title that is the approver's number does not approve (`deny`) while an `RCS_NAME_MAP` name does; #1102 (d) a non-local `SEND904_BASE` is refused by both CLIs before any request and the token is not printed; and, with approval off (default): immediate add, validation, STOP blocking add/send until START, the daily cap counting re-adds, TTL, no cap reset on re-add, existing rate limits, both kill switches, audit/CRM records, the approve route and SMS `YES <code>` being inert, and `send-904-fc add`.
 

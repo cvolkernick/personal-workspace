@@ -49,6 +49,7 @@ DEPLOY_PY = (
     "relay_turo.py",
     "relay_http.py",
     "caller_context.py",
+    "meeting_check.py",
     "turo_email.py",
 )
 DEPLOY_SCRIPTS = ("bland-relay-setkey", "send-904", "send-904-fc")

@@ -145,6 +145,19 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"ok": False, "deleted": 0})
         return self._send(200, {"ok": True, "deleted": deleted})
 
+    def _meeting_check(self):
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if n < 0 or n > MAX_BODY:
+            body = None
+        else:
+            body = self.rfile.read(n)
+        ip = self.client_address[0] if self.client_address else ""
+        status, payload = meeting_check.http_response(self.headers, body, ip, time.time())
+        return self._send(status, payload)
+
     def do_GET(self):
         return self._caller_context()
 
@@ -460,6 +473,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if path == "/bland/meeting-check":
+            return self._meeting_check()
         if path_is(path, send_path()):
             return self._send_sms()
         if path_is(path, fc_path()):
@@ -651,6 +666,16 @@ def warn_fc_config():
     )
 
 
+def _meeting_alert():
+    """One #701 alert. The caller's call id stays out of the comment."""
+    alert_failure(
+        "meeting-check",
+        "calendar auth failing",
+        1,
+        title="meeting-check: calendar auth failing",
+    )
+
+
 def caller_context_startup_line():
     """One startup line (#1229). No token, phone number, or path."""
     token_state = "set" if env("CALLER_CONTEXT_TOKEN") else "unset"
@@ -703,6 +728,9 @@ def main():
     warn_fc_config()
     _warn_paths()
     start_turo_email_listener()
+    meeting_check.set_alert(_meeting_alert)
+    meeting_check.start_background()
+    log.info("%s", meeting_check.startup_line())
     log.info("%s", caller_context_startup_line())
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)

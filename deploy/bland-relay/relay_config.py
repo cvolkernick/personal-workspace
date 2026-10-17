@@ -21,6 +21,7 @@ import urllib.request
 from pathlib import Path
 
 import caller_context
+import meeting_check
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="[bland-relay] %(levelname)s %(message)s")
@@ -75,6 +76,12 @@ SECRET_ENV_KEYS = (
     "CALLER_CONTEXT_TOKEN",
     "CALLER_FORGET_TOKEN",
     "CRM_API_TOKEN",
+    "MEETING_CHECK_TOKEN",
+    "MEETING_GCAL_CLIENT_ID",
+    "MEETING_GCAL_CLIENT_SECRET",
+    "MEETING_GCAL_REFRESH_TOKEN",
+    "MEETING_GCAL_CALENDAR_ID",
+    "MEETING_SELF_EMAILS",
 )
 
 _alert_lock = threading.Lock()
