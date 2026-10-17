@@ -317,12 +317,19 @@ def compute_recovery_status(
     """
     Produce an explicit recovery-status suggestion from health + training context.
 
+    Assisted logs are overlaid first so 7-day tonnage uses bodyweight minus
+    the pin. The stored ``weight_lbs`` is not rewritten (#1156).
+
     Labels (score bands):
       - Ready (75-100)
       - Moderate (50-74)
       - Caution (30-49)
       - Needs Rest (0-29)
     """
+    from .assisted_load import apply_assisted_effective_loads
+
+    apply_assisted_effective_loads(sessions, weight)
+
     # Default to local civil today so "last 7d volume" matches the host timezone
     # (not UTC midnight, and not the most recent historical log date).
     if as_of is None:

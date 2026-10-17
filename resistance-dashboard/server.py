@@ -1145,6 +1145,7 @@ def _build_dashboard_data(
             train_parent_completed=train_parent_done,
             last_wake_at=last_wake,
             now=now,
+            weighins=list(health.weight or []),
         )
         # Effective goals include autonomous focus_muscles from plan gen
         effective_goals = dict(wo["goals"] or {})
@@ -1187,6 +1188,7 @@ def _build_dashboard_data(
             rhr_under=bool((recovery.inputs or {}).get("rhr_under_recovered"))
             if recovery
             else False,
+            weighins=list(health.weight or []),
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"workout_plan: {e}")
@@ -1566,6 +1568,9 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 ),
                 session_type=action.get("session_type"),
                 last_wake_at=(bat or {}).get("last_wake_at") if isinstance(bat, dict) else None,
+                weighins=list((data.get("health") or {}).get("weight") or [])
+                if isinstance(data.get("health"), dict)
+                else list(getattr(data.get("health"), "weight", None) or []),
             )
             return {"ok": True, "action": kind, "plan": plan}
         return {"ok": False, "action": kind, "error": f"unknown action {kind}"}
@@ -2530,6 +2535,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 # Auto-tag PRs from history (prior sessions only), then write.
                 history, _, _, _ = pull_merged_sessions(user_id=uid)
                 session = merge_log_with_history(session, history)
+                weighins = None
+                try:
+                    snap = GoogleHealthClient().fetch_health(days=90)
+                    if not getattr(snap, "error", None):
+                        weighins = list(getattr(snap, "weight", None) or [])
+                except Exception:  # noqa: BLE001
+                    weighins = None
+                if weighins is not None:
+                    from rt_dashboard.assisted_load import apply_assisted_effective_loads
+
+                    apply_assisted_effective_loads(
+                        [session, *list(history or [])], weighins
+                    )
                 apply_auto_prs(session, history)
                 pr_names = [e.name for e in session.exercises if e.is_pr]
                 if workout_use_sqlite():

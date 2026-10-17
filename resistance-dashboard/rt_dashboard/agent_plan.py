@@ -305,6 +305,7 @@ def _deterministic_workout(ctx: dict, *, session_type: Optional[str] = None) -> 
         equipment=equipment,
         last_wake_at=_wake_from_context(ctx),
         now=ctx.get("now"),
+        weighins=ctx.get("weighins"),
     )
 
 
@@ -487,6 +488,7 @@ def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[s
         "consumed": consumed,
         "food_logs_today": food_logs,
         "recovery": recovery,
+        "weighins": list(getattr(health, "weight", None) or []),
         "next_session_type": nxt,
         "stamped": stamped,
     }
@@ -650,6 +652,7 @@ def ensure_today_grok_plan(
             "equipment": ctx.get("equipment"),
             "as_of": local_today,
             "force": force,
+            "weighins": ctx.get("weighins"),
         }
         result = generate_grok_plans(uid, **grok_kwargs)
         # Pi/Mac cookie-less: Turso grok_sessions may miss; ~/.grok/auth.json is the local SuperGrok path.

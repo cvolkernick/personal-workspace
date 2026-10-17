@@ -57,6 +57,10 @@ def flatten_plan_exercises(exercises) -> list:
             "progression_reason",
             "load_source",
             "load_reason",
+            "assistance_lbs",
+            "effective_load_lbs",
+            "effective_load_source",
+            "weighin_days_away",
         ):
             if row.get(key) is None and rx.get(key) is not None:
                 row[key] = rx[key]

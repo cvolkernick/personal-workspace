@@ -167,6 +167,7 @@
       "secondary_muscles": ["biceps"],
       "movement": "compound",
       "equipment": ["assisted_pullup"],
+      "assisted": true,
       "default_sets": 3,
       "default_reps": 8,
       "rep_range": [6, 12],

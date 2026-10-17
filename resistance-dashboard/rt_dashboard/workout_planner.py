@@ -19,6 +19,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from .assisted_load import (
+    _reduce_assistance,
+    assisted_plan_fields,
+    catalog_is_assisted,
+)
 from .models import ExerciseEntry, Session, SetEntry
 
 CATALOG_PATH = "fitness/exercises/catalog.json"
@@ -1529,6 +1534,8 @@ def prescribe(
     equipment: Optional[dict] = None,
     load_cap: Optional[float] = None,
     deload: bool = False,
+    weighins: Optional[Sequence[Any]] = None,
+    as_of: Optional[str] = None,
 ) -> dict:
     """Double progression from the first working set of the last log.
 
@@ -1541,6 +1548,7 @@ def prescribe(
     """
     lo, hi = progression_band(catalog_ex)
     label = rep_range_label((lo, hi))
+    assisted = catalog_is_assisted(catalog_ex)
     if load_cap is None:
         load_cap = resolve_load_cap(catalog_ex, equipment)
     if default_hard_sets is not None:
@@ -1571,7 +1579,13 @@ def prescribe(
         sets = max(1, min(4, sets))
         if not allow_prog:
             continuity_cut = True
-            weight = round(anchor * load_m, 1)
+            # A lighter bar is easier. On an assisted machine, easier is more pin.
+            if assisted and load_m < 1:
+                weight = round(anchor * (2.0 - load_m), 1)
+            else:
+                weight = round(anchor * load_m, 1)
+            if assisted and load_cap is not None and weight > float(load_cap) + 1e-9:
+                weight = round(float(load_cap), 1)
             target_reps = lo
             reps = lo
             reason = "deload_override"
@@ -1582,68 +1596,110 @@ def prescribe(
             cut = int(cont.get("load_cut_pct") or round((1.0 - load_m) * 100))
             days = cont.get("days_since")
             days_txt = f"{days}d since last log" if days is not None else "no recent logs"
-            rationale = (
-                f"{cont.get('label') or 'Return'} ({days_txt}): "
-                f"{anchor:g} lb last on {last['date']} → {weight:g} lb "
-                f"(−{cut}%), {sets}×{reps} to re-establish before progressing."
-            )
+            if assisted:
+                rationale = (
+                    f"{cont.get('label') or 'Return'} ({days_txt}): "
+                    f"{anchor:g} lb assist last on {last['date']} → {weight:g} lb assist "
+                    f"(+{cut}% assistance), {sets}×{reps} to re-establish before progressing."
+                )
+            else:
+                rationale = (
+                    f"{cont.get('label') or 'Return'} ({days_txt}): "
+                    f"{anchor:g} lb last on {last['date']} → {weight:g} lb "
+                    f"(−{cut}%), {sets}×{reps} to re-establish before progressing."
+                )
         elif judged_reps < lo:
             step = load_step_lbs(catalog_ex, anchor, equipment)
-            weight = _shift_load(anchor, step, up=False)
-            target_reps = lo
-            reason = "drop_load"
+            if assisted:
+                nxt = _shift_load(anchor, step, up=True)
+                if load_cap is not None and nxt > float(load_cap) + 1e-9:
+                    weight = round(float(load_cap), 1)
+                    target_reps = _target_held_at_cap(judged_reps, hi)
+                    reason = "hold_plus1"
+                else:
+                    weight = nxt
+                    target_reps = lo
+                    reason = "add_assistance"
+            else:
+                weight = _shift_load(anchor, step, up=False)
+                target_reps = lo
+                reason = "drop_load"
         elif judged_reps >= hi:
             step = load_step_lbs(catalog_ex, anchor, equipment)
-            nxt = _shift_load(anchor, step, up=True)
-            if load_cap is not None and nxt > float(load_cap) + 1e-9:
-                weight = round(float(load_cap), 1)
-                target_reps = _target_held_at_cap(judged_reps, hi)
-                reason = "hold_plus1"
+            if assisted:
+                nxt = _reduce_assistance(anchor, step)
+                if nxt < anchor - 1e-9:
+                    weight = nxt
+                    target_reps = lo
+                    reason = "reduce_assistance"
+                else:
+                    weight = anchor
+                    target_reps = _target_held_at_cap(judged_reps, hi)
+                    reason = "hold_plus1"
             else:
-                weight = nxt
-                target_reps = lo
-                reason = "add_load"
+                nxt = _shift_load(anchor, step, up=True)
+                if load_cap is not None and nxt > float(load_cap) + 1e-9:
+                    weight = round(float(load_cap), 1)
+                    target_reps = _target_held_at_cap(judged_reps, hi)
+                    reason = "hold_plus1"
+                else:
+                    weight = nxt
+                    target_reps = lo
+                    reason = "add_load"
         else:
             weight = anchor
             target_reps = judged_reps + 1
             reason = "hold_plus1"
         reps = target_reps
 
-    # Recovery under 50, an RHR flag, or an explicit deload blocks add_load.
-    # Below 40 is inside that window. The 10% cut is the deload prescription.
+    # Recovery under 50, an RHR flag, or an explicit deload blocks a harder
+    # step. A normal lift does not add load. An assisted lift does not drop
+    # the pin. The cut then makes the set easier: −10% load, or +10% assist.
     wants_cut = bool(deload) or bool(rhr_under_recovered) or (
         recovery_score is not None and float(recovery_score) < 50
     )
     if wants_cut and last and not continuity_cut:
-        if (
-            weight is not None
-            and anchor is not None
-            and weight > anchor + 1e-9
-        ):
-            weight = anchor
-            target_reps = lo
-            reps = lo
+        if weight is not None and anchor is not None:
+            harder = (
+                weight < anchor - 1e-9 if assisted else weight > anchor + 1e-9
+            )
+            if harder:
+                weight = anchor
+                target_reps = lo
+                reps = lo
         reason = "deload_override"
     if wants_cut and weight is not None:
         before = weight
-        weight = round(float(weight) * 0.9, 1)
+        if assisted:
+            weight = round(float(weight) * 1.1, 1)
+            if load_cap is not None and weight > float(load_cap) + 1e-9:
+                weight = round(float(load_cap), 1)
+        else:
+            weight = round(float(weight) * 0.9, 1)
         # Continuity keeps the ramp sentence written above. Other paths
         # rebuild the rationale after this cut.
-        if continuity_cut and weight < before - 1e-9:
+        moved = (
+            weight > before + 1e-9 if assisted else weight < before - 1e-9
+        )
+        if continuity_cut and moved:
+            if assisted:
+                tail = " ~10% more assistance."
+            else:
+                tail = " ~10% load deload."
             if rhr_under_recovered:
-                rationale += " RHR under-recovered → ~10% load deload."
+                rationale += " RHR under-recovered →" + tail
             elif deload and (
                 recovery_score is None or float(recovery_score) >= 50
             ):
-                rationale += " Deload flag → ~10% load deload."
+                rationale += " Deload flag →" + tail
             else:
-                rationale += " Recovery moderate/low → ~10% load deload."
+                rationale += " Recovery moderate/low →" + tail
 
     capped_to_max = False
     if load_cap is not None and weight is not None and weight > float(load_cap) + 1e-9:
         weight = round(float(load_cap), 1)
         capped_to_max = True
-        if reason == "add_load":
+        if reason in ("add_load", "add_assistance"):
             reason = "hold_plus1"
             judged = int(judged_reps if judged_reps is not None else hi)
             target_reps = _target_held_at_cap(judged, hi)
@@ -1657,6 +1713,16 @@ def prescribe(
             rationale = (
                 f"First working set {judged_reps} at the top of {label} "
                 f"on {when} @ {shown} lb → {got} lb, target {target_reps}."
+            )
+        elif reason == "reduce_assistance":
+            rationale = (
+                f"First working set {judged_reps} at the top of {label} "
+                f"on {when} @ {shown} lb assist → {got} lb assist, target {target_reps}."
+            )
+        elif reason == "add_assistance":
+            rationale = (
+                f"First working set {judged_reps} under {label} "
+                f"on {when} @ {shown} lb assist → {got} lb assist, target {target_reps}."
             )
         elif reason == "drop_load":
             rationale = (
@@ -1675,23 +1741,34 @@ def prescribe(
                     f"on {when} @ {shown} lb → {got} lb, target {target_reps}."
                 )
         elif reason == "deload_override":
-            rationale = (
-                f"Deload override on {when} @ {shown} lb → {got} lb, "
-                f"target {target_reps}. No load increase."
-            )
+            if assisted:
+                rationale = (
+                    f"Deload override on {when} @ {shown} lb assist → {got} lb assist, "
+                    f"target {target_reps}. No assistance decrease."
+                )
+                tail = " ~10% more assistance."
+            else:
+                rationale = (
+                    f"Deload override on {when} @ {shown} lb → {got} lb, "
+                    f"target {target_reps}. No load increase."
+                )
+                tail = " ~10% load deload."
             if rhr_under_recovered:
-                rationale += " RHR under-recovered → ~10% load deload."
+                rationale += " RHR under-recovered →" + tail
             elif deload and (
                 recovery_score is None or float(recovery_score) >= 50
             ):
-                rationale += " Deload flag → ~10% load deload."
+                rationale += " Deload flag →" + tail
             elif recovery_score is not None and float(recovery_score) < 50:
-                rationale += " Recovery moderate/low → ~10% load deload."
+                rationale += " Recovery moderate/low →" + tail
 
     if capped_to_max and weight is not None:
-        rationale += f" Load held at {weight:g} lb (equipment max)."
+        if assisted:
+            rationale += f" Assistance held at {weight:g} lb (equipment max)."
+        else:
+            rationale += f" Load held at {weight:g} lb (equipment max)."
 
-    return {
+    result = {
         "weight_lbs": weight,
         "load": weight,
         "sets": sets,
@@ -1704,6 +1781,7 @@ def prescribe(
         "last": last,
         "continuity_phase": cont.get("phase"),
     }
+    return _attach_assisted_plan(result, catalog_ex, as_of=as_of, weighins=weighins)
 
 
 def _session_is_deload(session: Any) -> bool:
@@ -1889,12 +1967,57 @@ def _history_load_reason(rx: dict) -> str:
         "hold_plus1": "hold",
         "add_load": "add to",
         "drop_load": "drop to",
+        "reduce_assistance": "assistance reduced",
+        "add_assistance": "assistance increased",
         "deload_override": "deload",
     }.get(str(rx.get("progression_reason") or ""), "set")
     return (
         f"{_fmt_load(float(anchor))}×{int(judged)} last first set → "
         f"{verb} {_fmt_load(float(weight))}, aim {int(reps)}"
     )
+
+
+_ASSISTED_PLAN_KEYS = (
+    "load_reason",
+    "assistance_lbs",
+    "effective_load_lbs",
+    "effective_load_source",
+    "weighin_days_away",
+)
+
+
+def _attach_assisted_plan(
+    rx: dict,
+    catalog_ex: Optional[dict],
+    *,
+    as_of: Optional[str],
+    weighins: Optional[Sequence[Any]],
+) -> dict:
+    """Add assisted fields only. Other lifts stay key-identical."""
+    if not catalog_is_assisted(catalog_ex):
+        return rx
+    weight = rx.get("weight_lbs")
+    if weight is None:
+        return rx
+    for key in (
+        "assistance_lbs",
+        "effective_load_lbs",
+        "effective_load_source",
+        "weighin_days_away",
+    ):
+        rx.pop(key, None)
+    rx.update(assisted_plan_fields(float(weight), as_of, weighins))
+    if rx.get("last"):
+        rx["load_reason"] = _history_load_reason(rx)
+    return rx
+
+
+def _copy_assisted_keys(src: dict, *dests: dict) -> None:
+    for key in _ASSISTED_PLAN_KEYS:
+        if src.get(key) is None:
+            continue
+        for dest in dests:
+            dest[key] = src[key]
 
 
 def _plan_day(as_of: Optional[str]) -> Optional[str]:
@@ -1913,6 +2036,7 @@ def clamp_llm_plan_loads(
     recovery: Optional[dict] = None,
     equipment: Optional[dict] = None,
     as_of: Optional[str] = None,
+    weighins: Optional[Sequence[Any]] = None,
 ) -> dict:
     """Overwrite LLM load and reps with the SOP target when a log exists.
 
@@ -1964,6 +2088,8 @@ def clamp_llm_plan_loads(
             rhr_under_recovered=rhr,
             equipment=equip,
             deload=deload,
+            weighins=weighins,
+            as_of=as_of,
         )
         if last and rx.get("weight_lbs") is not None:
             source = (
@@ -2020,6 +2146,17 @@ def clamp_llm_plan_loads(
         rx_in["reps"] = reps
         rx_in["load_source"] = source
         rx_in["load_reason"] = load_reason
+        if catalog_is_assisted(cat):
+            had_last = "last" in row
+            row["weight_lbs"] = weight
+            row["last"] = last
+            row["progression_reason"] = rx.get("progression_reason") or row.get(
+                "progression_reason"
+            )
+            _attach_assisted_plan(row, cat, as_of=as_of, weighins=weighins)
+            if not had_last:
+                row.pop("last", None)
+            _copy_assisted_keys(row, rx_in)
         row["prescription"] = rx_in
         clamped.append(row)
     workout["exercises"] = clamped
@@ -2042,6 +2179,7 @@ def generate_workout_plan(
     train_parent_completed: bool = False,
     last_wake_at: Optional[str] = None,
     now: Optional[datetime] = None,
+    weighins: Optional[Sequence[Any]] = None,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -2385,6 +2523,8 @@ def generate_workout_plan(
             equipment=equip_for_rx,
             load_cap=load_cap,
             deload=bool(deload),
+            weighins=weighins,
+            as_of=as_of,
         )
         capped_w, _inv_cap, was_capped = cap_weight_to_inventory(
             rx.get("weight_lbs"), ex, equip_for_rx
@@ -2392,19 +2532,24 @@ def generate_workout_plan(
         if was_capped:
             rx["weight_lbs"] = capped_w
             rx["load"] = capped_w
-            if rx.get("progression_reason") == "add_load":
+            if rx.get("progression_reason") in ("add_load", "add_assistance"):
                 _lo, _hi = rx.get("rep_range") or progression_band(ex)
                 judged = int((rx.get("last") or {}).get("reps") or _hi)
                 rx["target_reps"] = _target_held_at_cap(judged, int(_hi))
                 rx["reps"] = rx["target_reps"]
                 rx["progression_reason"] = "hold_plus1"
+            noun = "Assistance" if catalog_is_assisted(ex) else "Load"
             rx["rationale"] = (
-                f"{rx['rationale']} Load capped at {capped_w:g} lb "
+                f"{rx['rationale']} {noun} capped at {capped_w:g} lb "
                 f"(owned max)."
             )
+            _attach_assisted_plan(rx, ex, as_of=as_of, weighins=weighins)
         elif capped_w is not None:
+            changed = capped_w != rx.get("weight_lbs")
             rx["weight_lbs"] = capped_w
             rx["load"] = capped_w
+            if changed and catalog_is_assisted(ex):
+                _attach_assisted_plan(rx, ex, as_of=as_of, weighins=weighins)
         hard = int(rx["sets"] or default_hard)
         hard = _cap_sets_for_muscles(
             hard,
@@ -2439,33 +2584,34 @@ def generate_workout_plan(
             planned_credits[m] = planned_credits.get(m, 0.0) + c
         session_sets += hard
 
-        plan_ex.append(
-            {
-                "id": ex["id"],
-                "name": ex["name"],
-                "primary_muscles": ex["primary_muscles"],
-                "secondary_muscles": ex["secondary_muscles"],
-                "movement": ex["movement"],
-                "equipment": ex["equipment"],
-                "load": rx.get("load"),
-                "rep_range": rx.get("rep_range_label"),
-                "target_reps": rx.get("target_reps"),
-                "progression_reason": rx.get("progression_reason"),
-                "prescription": {
-                    "weight_lbs": rx["weight_lbs"],
-                    "load": rx.get("load"),
-                    "sets": rx["sets"],
-                    "reps": rx["reps"],
-                    "rep_range": rx["rep_range"],
-                    "rep_range_label": rx.get("rep_range_label"),
-                    "target_reps": rx.get("target_reps"),
-                    "progression_reason": rx.get("progression_reason"),
-                },
-                "set_credits": {k: round(v, 2) for k, v in credits.items()},
-                "rationale": rx["rationale"],
-                "last": rx["last"],
-            }
-        )
+        prescription = {
+            "weight_lbs": rx["weight_lbs"],
+            "load": rx.get("load"),
+            "sets": rx["sets"],
+            "reps": rx["reps"],
+            "rep_range": rx["rep_range"],
+            "rep_range_label": rx.get("rep_range_label"),
+            "target_reps": rx.get("target_reps"),
+            "progression_reason": rx.get("progression_reason"),
+        }
+        plan_row = {
+            "id": ex["id"],
+            "name": ex["name"],
+            "primary_muscles": ex["primary_muscles"],
+            "secondary_muscles": ex["secondary_muscles"],
+            "movement": ex["movement"],
+            "equipment": ex["equipment"],
+            "load": rx.get("load"),
+            "rep_range": rx.get("rep_range_label"),
+            "target_reps": rx.get("target_reps"),
+            "progression_reason": rx.get("progression_reason"),
+            "prescription": prescription,
+            "set_credits": {k: round(v, 2) for k, v in credits.items()},
+            "rationale": rx["rationale"],
+            "last": rx["last"],
+        }
+        _copy_assisted_keys(rx, plan_row, prescription)
+        plan_ex.append(plan_row)
 
     # Report volume against long-term bands, but annotate ramped planning bands
     balance = volume_balance_report(tally, goals, planned_credits=planned_credits)

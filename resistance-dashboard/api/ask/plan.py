@@ -85,6 +85,9 @@ def ask_plan_body(headers, payload=None, *, user=None, dashboard=None, query: st
         equipment=wo.get("equipment"),
         as_of=str(day)[:10],
         force=force_requested(query, payload),
+        weighins=list((dashboard.get("health") or {}).get("weight") or [])
+        if isinstance(dashboard.get("health"), dict)
+        else None,
     )
     from rt_dashboard.agent_plan import persist_grok_result
     persist = persist_grok_result(str(user["id"]), str(day)[:10], result)
