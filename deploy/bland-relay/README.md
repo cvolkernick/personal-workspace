@@ -40,6 +40,8 @@ Success is `{"ok": true, "id": "...", "state": "Pending"}`. The id and state com
 | More than 5 sends to one number in 10 minutes, or 30 sends in an hour | 429 `rate_limited` |
 | Gateway error | 502 `gateway failed`, plus the existing #701 alert (15-minute dedupe shared with Bland) |
 
+The one number in `TURO_OWNER_ALERT_TO` (the operator cell, compared after NANP normalization) skips the 72-hour allowlist and first-contact checks (grant kind `operator`). Opt-out and rate limits still apply to it. Unset or invalid `TURO_OWNER_ALERT_TO` means no bypass.
+
 Opt-out matches the whole inbound text, punctuation ignored. A later normal text does not clear it. `START`, `UNSTOP`, or `YES` does. Opt-out still blocks after 72 hours. The gateway is called once. A retry would risk a second SMS, so a failed attempt still uses a rate-limit slot.
 
 Logs show the last 4 digits and the message length. They do not show the body, the secret paths, or the gateway password. State lives in `~/.local/state/bland-relay/sms_send_state.json` (mode 0600) and stores numbers and timestamps only.
