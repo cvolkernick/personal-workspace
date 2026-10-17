@@ -70,6 +70,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     serving_grams_required,
     suggested_qty_for_item,
     update_ingredient,
+    pantry_macro_profile,
     suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
@@ -3304,6 +3305,196 @@ class TestStaplesNovel858(unittest.TestCase):
         js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn('s.source === "novel"', js)
         self.assertIn(">new</span>", js)
+
+
+def _profile_ing(iid, name, **kwargs):
+    row = {
+        "id": iid,
+        "name": name,
+        "in_stock": True,
+        "stock": "in",
+        "serving_label": "100g",
+        "serving_g": 100,
+    }
+    row.update(kwargs)
+    return row
+
+
+class TestStaplesPantryNovel1135(unittest.TestCase):
+    """#1135: novel staples counter a measured pantry surplus or shortfall."""
+
+    def _out(self, ingredients, **kwargs):
+        kwargs.setdefault("targets", FULL_TARGETS)
+        kwargs.setdefault("food_logs", [])
+        kwargs.setdefault("consumed", _HIT_CONSUMED)
+        kwargs.setdefault("max_suggestions", 8)
+        return suggest_inventory_staples({"ingredients": ingredients}, **kwargs)
+
+    def test_fat_heavy_pantry_names_a_lean_counter(self):
+        rows = [
+            _profile_ing("oil", "Olive oil", category="fat", calories=880, protein_g=0, carbs_g=0, fat_g=100, fiber_g=0),
+            _profile_ing("pb", "Peanut butter", category="fat", calories=588, protein_g=25, carbs_g=20, fat_g=50, fiber_g=6),
+            _profile_ing("cheese", "Cheddar", category="fat", calories=400, protein_g=25, carbs_g=1, fat_g=33, fiber_g=0),
+            _profile_ing("thigh", "Chicken thigh", category="protein", calories=250, protein_g=22, carbs_g=0, fat_g=18, fiber_g=0),
+            _profile_ing("bacon", "Bacon", category="protein", calories=450, protein_g=30, carbs_g=1, fat_g=35, fiber_g=0),
+            _profile_ing("spin", "Spinach", category="veg", calories=40, protein_g=4, carbs_g=6, fat_g=0.5, fiber_g=4),
+            _profile_ing("chia", "Chia seeds", category="carb", calories=138, protein_g=5, carbs_g=12, fat_g=9, fiber_g=10),
+            _profile_ing("oats", "Oats", category="carb", calories=150, protein_g=5, carbs_g=27, fat_g=3, fiber_g=4),
+        ]
+        profile = pantry_macro_profile(rows, FULL_TARGETS, fiber_target_g=25)
+        self.assertTrue(profile["measured"])
+        self.assertTrue(profile["fat_high"])
+        out = self._out(rows)
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        lean = [
+            s
+            for s in novels
+            if "lean carb" in (s.get("need") or "").lower()
+            and "fat calories" in (s.get("need") or "").lower()
+        ]
+        self.assertTrue(lean, msg=[(s.get("name"), s.get("need")) for s in novels])
+        need = lean[0]["need"]
+        self.assertRegex(need, r"~\d+% fat calories vs ~\d+% target")
+        self.assertLess(len(need), 140)
+        names = [s["name"].lower() for s in novels]
+        self.assertFalse(any("walnut" in n or "sardine" in n for n in names), msg=names)
+        for s in novels:
+            blob = f"{s.get('need') or ''} {s.get('reason') or ''}".lower()
+            self.assertNotIn("try something new", blob)
+            self.assertNotIn("something new", blob)
+
+    def test_fiber_poor_pantry_names_the_density_gap(self):
+        rows = [
+            _profile_ing("chicken", "Chicken breast", category="protein", calories=560, protein_g=104, carbs_g=0, fat_g=12, fiber_g=0),
+            _profile_ing("yogurt", "Greek yogurt", category="protein", calories=200, protein_g=30, carbs_g=12, fat_g=0, fiber_g=0),
+            _profile_ing("rice", "White rice", category="carb", calories=430, protein_g=8, carbs_g=90, fat_g=2, fiber_g=1),
+            _profile_ing("potato", "Potato", category="carb", calories=160, protein_g=4, carbs_g=36, fat_g=0, fiber_g=2),
+            _profile_ing("oil", "Olive oil", category="fat", calories=240, protein_g=0, carbs_g=0, fat_g=28, fiber_g=0),
+            _profile_ing("spin", "Spinach", category="veg", calories=40, protein_g=4, carbs_g=6, fat_g=0.4, fiber_g=1),
+        ]
+        profile = pantry_macro_profile(rows, FULL_TARGETS, fiber_target_g=25)
+        self.assertTrue(profile["fiber_poor"])
+        self.assertFalse(profile["fat_high"])
+        out = self._out(rows)
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        hits = [
+            s
+            for s in novels
+            if "fiber" in (s.get("need") or "").lower() and "g/1000 kcal" in (s.get("need") or "")
+        ]
+        self.assertTrue(hits, msg=[(s.get("name"), s.get("need")) for s in novels])
+        self.assertRegex(hits[0]["need"], r"~\d+g/1000 kcal vs ~\d+g/1000 kcal target")
+        self.assertNotIn("try something new", hits[0]["need"].lower())
+
+    def test_no_measured_imbalance_adds_no_novel_card(self):
+        rows = [
+            _profile_ing("chicken", "Chicken breast", category="protein", calories=560, protein_g=104, carbs_g=0, fat_g=12, fiber_g=0),
+            _profile_ing("yogurt", "Greek yogurt", category="protein", calories=200, protein_g=30, carbs_g=12, fat_g=0, fiber_g=0),
+            _profile_ing("rice", "White rice", category="carb", calories=215, protein_g=5, carbs_g=45, fat_g=2, fiber_g=1),
+            _profile_ing("oats", "Oats", category="carb", calories=300, protein_g=10, carbs_g=54, fat_g=6, fiber_g=8),
+            _profile_ing("oil", "Olive oil", category="fat", calories=240, protein_g=0, carbs_g=0, fat_g=28, fiber_g=0),
+            _profile_ing("spin", "Spinach", category="veg", calories=40, protein_g=4, carbs_g=6, fat_g=0.4, fiber_g=3),
+            _profile_ing("chia", "Chia seeds", category="carb", calories=138, protein_g=5, carbs_g=12, fat_g=9, fiber_g=10),
+            _profile_ing("berry", "Mixed berries", category="carb", calories=70, protein_g=1, carbs_g=17, fat_g=0.5, fiber_g=4),
+        ]
+        profile = pantry_macro_profile(rows, FULL_TARGETS, fiber_target_g=25)
+        self.assertTrue(profile["measured"])
+        self.assertFalse(profile["fat_high"] or profile["fat_low"])
+        self.assertFalse(profile["protein_low"] or profile["protein_high"])
+        self.assertFalse(profile["carb_low"] or profile["carb_high"])
+        self.assertFalse(profile["fiber_poor"])
+        self.assertFalse(profile["slow_carb_missing"])
+        out = self._out(rows)
+        self.assertEqual(out["suggestions"], [])
+
+    def test_novel_floor_survives_a_full_restock_list(self):
+        stocked = [
+            _profile_ing("oil", "Olive oil", category="fat", calories=880, protein_g=0, carbs_g=0, fat_g=100, fiber_g=0),
+            _profile_ing("pb", "Peanut butter", category="fat", calories=588, protein_g=25, carbs_g=20, fat_g=50, fiber_g=6),
+            _profile_ing("cheese", "Cheddar", category="fat", calories=400, protein_g=25, carbs_g=1, fat_g=33, fiber_g=0),
+            _profile_ing("thigh", "Chicken thigh", category="protein", calories=250, protein_g=22, carbs_g=0, fat_g=18, fiber_g=0),
+            _profile_ing("bacon", "Bacon", category="protein", calories=450, protein_g=30, carbs_g=1, fat_g=35, fiber_g=0),
+            _profile_ing("spin", "Spinach", category="veg", calories=40, protein_g=4, carbs_g=6, fat_g=0.5, fiber_g=4),
+            _profile_ing("chia", "Chia seeds", category="carb", calories=138, protein_g=5, carbs_g=12, fat_g=9, fiber_g=10),
+            _profile_ing("oats", "Oats", category="carb", calories=150, protein_g=5, carbs_g=27, fat_g=3, fiber_g=4),
+        ]
+        outs = []
+        for name in (
+            "Frozen mango",
+            "Canned corn",
+            "Bagel",
+            "Tortilla",
+            "Pretzels",
+            "Granola bar",
+            "Apple juice",
+            "White bread",
+        ):
+            outs.append(
+                _profile_ing(
+                    name.lower().replace(" ", "-"),
+                    name,
+                    category="carb",
+                    calories=120,
+                    protein_g=3,
+                    carbs_g=24,
+                    fat_g=1,
+                    fiber_g=1,
+                    in_stock=False,
+                    stock="out",
+                )
+            )
+        out = self._out(stocked + outs, max_suggestions=8)
+        self.assertEqual(len(out["suggestions"]), 8)
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        restocks = [s for s in out["suggestions"] if s.get("action") == "restock"]
+        self.assertGreaterEqual(len(novels), 2, msg=[s.get("name") for s in out["suggestions"]])
+        self.assertGreaterEqual(len(restocks), 1)
+        self.assertLess(len(restocks), 8)
+
+    def test_missing_macros_stay_out_of_the_aggregate(self):
+        complete = [
+            _profile_ing("oil", "Olive oil", category="fat", calories=880, protein_g=0, carbs_g=0, fat_g=100, fiber_g=0),
+            _profile_ing("cheese", "Cheddar", category="fat", calories=400, protein_g=25, carbs_g=1, fat_g=33, fiber_g=0),
+            _profile_ing("bacon", "Bacon", category="protein", calories=450, protein_g=30, carbs_g=1, fat_g=35, fiber_g=0),
+            _profile_ing("pb", "Peanut butter", category="fat", calories=588, protein_g=25, carbs_g=20, fat_g=50, fiber_g=2),
+        ]
+        incomplete = [
+            {"id": "chicken", "name": "Chicken breast", "calories": 800, "protein_g": 160, "in_stock": True, "category": "protein"},
+            {"id": "yogurt", "name": "Yogurt", "calories": 400, "protein_g": 60, "carbs_g": 20, "in_stock": True, "category": "protein"},
+        ]
+        profile = pantry_macro_profile(complete + incomplete, FULL_TARGETS, fiber_target_g=25)
+        self.assertTrue(profile["measured"])
+        self.assertEqual(profile["n"], 4)
+        self.assertEqual(profile["n_stocked"], 6)
+        self.assertTrue(profile["fat_high"])
+        sparse = complete[:2] + [
+            {"id": f"x{i}", "name": f"Mystery {i}", "calories": 100, "in_stock": True}
+            for i in range(8)
+        ]
+        thin = pantry_macro_profile(sparse, FULL_TARGETS, fiber_target_g=25)
+        self.assertFalse(thin["measured"])
+        self.assertFalse(thin["fat_high"])
+
+    def test_missing_slow_carb_is_a_measured_gap(self):
+        rows = [
+            _profile_ing("chicken", "Chicken breast", category="protein", calories=560, protein_g=104, carbs_g=0, fat_g=12, fiber_g=0),
+            _profile_ing("yogurt", "Greek yogurt", category="protein", calories=200, protein_g=30, carbs_g=12, fat_g=0, fiber_g=0),
+            _profile_ing("rice", "White rice", category="carb", calories=215, protein_g=5, carbs_g=45, fat_g=2, fiber_g=0),
+            _profile_ing("potato", "Potato", category="carb", calories=220, protein_g=4, carbs_g=50, fat_g=0, fiber_g=0),
+            _profile_ing("oil", "Olive oil", category="fat", calories=240, protein_g=0, carbs_g=0, fat_g=28, fiber_g=0),
+            _profile_ing("spin", "Spinach", category="veg", calories=60, protein_g=5, carbs_g=8, fat_g=0.5, fiber_g=4),
+            _profile_ing("psyllium", "Psyllium husk", category="other", calories=80, protein_g=2, carbs_g=16, fat_g=0, fiber_g=16),
+        ]
+        profile = pantry_macro_profile(rows, FULL_TARGETS, fiber_target_g=25)
+        self.assertTrue(profile["slow_carb_missing"])
+        self.assertFalse(profile["fiber_poor"])
+        self.assertFalse(profile["fat_high"])
+        out = self._out(rows)
+        novels = [s for s in out["suggestions"] if s.get("source") == "novel"]
+        hits = [s for s in novels if "slow-carb" in (s.get("need") or "").lower()]
+        self.assertTrue(hits, msg=[(s.get("name"), s.get("need")) for s in novels])
+        self.assertIn("0 slow-carb", hits[0]["need"])
+        self.assertRegex(hits[0]["need"], r"\d+ profiled items")
 
 
 class TestMealDayBoundary809(unittest.TestCase):
