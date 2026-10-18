@@ -564,6 +564,18 @@ Future wiring (after G2, not part of this change; each `setkey` restarts the uni
 3. `python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' | ~/bin/bland-relay-setkey MEETING_CHECK_TOKEN`, then check the journal for `meeting-check: token=set calendar=set disabled=0`.
 4. Run the live checks from #1230 (Grok seat). Applying the Bland tool and prompt block is a separate Bland config change that needs Chris's approval (G4). It is not part of this repo change.
 
+Live QA (Grok seat, after G2, merge and deploy). Decisions on the #1230 steps (Grok, 2026-10-18):
+
+- Step 2 (replay of the 10/16 case): the QA event needs **one guest added**, not zero. The rule is unchanged: an event matches only when it has a participant other than the owner, so an owner-only event answers `{"match": false}`. Add one guest (a throwaway address you control), then delete the event at the end of the run.
+- Step 8 (latency over the public Funnel): run **30 sequential requests**, not 50. The relay allows 40 checks an hour overall, and the run also needs the other live steps inside that hour.
+
+Smoke harness (#1230 follow-up). `smoke.py --check meeting-check` covers live steps 1, 5 and the no-match half of 7 and 8 with no calendar assumption. It sends fixed non-matching probes (synthetic `call_id` and `+1000555xxxx` number, date 2030-01-01), so it passes whether or not the `MEETING_GCAL_*` keys are set (with them unset the relay answers `{"match": false}`). Cases: `no_token` and `wrong_token` return 401; `non_match`, `garbage_body` and `empty_body` return 200 with the body exactly `{"match": false}`; `latency` sends `--n` more probes (default 30, at most 35, so one run uses at most 38 of the 40 hourly checks) and needs p95 under `--limit-ms` (default 1000). It does not test a positive match (steps 2 to 4 and 6 stay manual). `MEETING_CHECK_TOKEN` is read from the environment, never the command line; unset it fails with `token_unset` (exit 2) and sends nothing. Wait for the hourly window before re-running or before the manual steps.
+
+```bash
+RELAY_PUBLIC_BASE=https://<funnel-host> \
+  python3 deploy/bland-relay/smoke.py --check meeting-check
+```
+
 Rotate `MEETING_CHECK_TOKEN`: mint a new value with the same `setkey` command, then update the Bland tool header to match in the same change window. The old value stops working at the restart. Rotate the calendar credential by revoking the app's access on the Panamerica account, minting a new refresh token, and setting `MEETING_GCAL_REFRESH_TOKEN` again.
 
 Rollback: `printf 1 | ~/bin/bland-relay-setkey MEETING_CHECK_DISABLED` (endpoint answers `{"match": false}`). Bland side: restore the saved backup or POST `"tools": null` preserving every other field. Relay side: restore `~/bin/*.bak-pre1230` and delete `~/bin/meeting_check.py` (the Deploy rollback does both). Google side: revoke the app's access on the Panamerica account and delete the `MEETING_GCAL_*` keys.
@@ -719,6 +731,8 @@ python3 -m pytest tests -q
 `tests/test_module_split.py` (#1107) checks that each production source file is at most 40 KB, that the `relay_*.py` parts load into the `bland_relay` namespace, and that the Deploy file list matches the `bland-relay.service` header (#1229). `smoke.py` is not in that list.
 
 `tests/test_smoke.py` (#1229, fixture server, no network) covers the read-only harness: a pass case, a 401 case, a slow server over the end-to-end p95 limit, malformed JSON, a response body that must not appear in the report, and the 61st request returning 429 after the window wait. It also checks the startup line has no token, phone number, or path.
+
+`tests/test_smoke_meeting.py` (#1230 follow-up, fixture server and a local relay handler with the calendar keys unset, no network) covers `smoke.py --check meeting-check`: the pass case, 401 without and with a wrong token, the exact `{"match": false}` shape for the probe, a garbage body and an empty body, a `match: true`, an extra key, a malformed body or a 500 failing without echoing the body, a slow server over the p95 limit, unique synthetic probes under the hourly cap, an unset or rejected token or `--n` sending nothing, and the token never in the report.
 
 `tests/test_send_state.py` (#1140, gateway mocked, webhooks not registered on a device) covers signed and unsigned `sms:sent` / `sms:delivered` / `sms:failed` fixtures, a bad signature, a duplicate event id, an unknown `messageId`, one `send_failed` plus one #701 alert and the 15-minute cap, log redaction of the full number and the body, and a no-sender "not sent" notice that is not forwarded as inbound and is used only when no `sms:failed` was recorded.
 
