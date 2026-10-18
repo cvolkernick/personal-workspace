@@ -23,8 +23,9 @@
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=tonnage-1025-1" defer></script>
+    <script src="/muscle-sets.js?v=muscle-sets-1193-1" defer></script>
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
-    <script src="/app.js?v=tricep-pushdown-1134-1" defer></script>
+    <script src="/app.js?v=muscle-sets-1193-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -489,6 +490,21 @@
           4-week baselines · updated after each logged session
         </p>
         <div class="guardrail-grid" id="guardrail-grid"></div>
+      </section>
+
+      <!-- Weekly proper sets per muscle group + priority budget (#1193). -->
+      <section
+        class="card"
+        style="margin-top: 1rem"
+        id="muscle-sets-card"
+        data-m-panel="trends"
+        aria-label="Weekly proper sets"
+      >
+        <h2>Weekly proper sets</h2>
+        <p class="muted" id="muscle-sets-sub" style="margin-top: 0; font-size: 0.85rem">
+          Monday to Sunday · reps in band at working load · primary 1, secondary 0.5
+        </p>
+        <div id="muscle-sets-body"></div>
       </section>
 
       <!-- Weekly review: 7d recap on Trends, under Guardrails. -->

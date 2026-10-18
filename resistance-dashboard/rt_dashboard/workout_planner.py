@@ -386,6 +386,9 @@ def normalize_goals(raw: Optional[dict]) -> dict:
         g["auto_focus_muscles"] = bool(raw["auto_focus_muscles"])
     if raw.get("updated_at"):
         g["updated_at"] = str(raw["updated_at"])
+    # Weekly proper-set budget (#1193). Validated where it is read.
+    if isinstance(raw.get("set_budget"), dict):
+        g["set_budget"] = deepcopy(raw["set_budget"])
     # Trends menu only. Does not change planner progression (#1024).
     if isinstance(raw.get("main_lifts"), list):
         lifts: List[str] = []
@@ -935,6 +938,20 @@ def normalize_exercise(raw: dict) -> dict:
         "priority": int(raw.get("priority") or 5),
         "available": bool(raw.get("available", True)),
         "notes": str(raw.get("notes") or ""),
+        **_muscle_credit_passthrough(raw),
+    }
+
+
+def _muscle_credit_passthrough(raw: dict) -> dict:
+    """Keep the #1193 credit tags when a catalog row is re-saved."""
+    credit = raw.get("muscle_credit")
+    if not isinstance(credit, dict):
+        return {}
+    return {
+        "muscle_credit": {
+            "primary": [str(m).lower() for m in credit.get("primary") or []],
+            "secondary": [str(m).lower() for m in credit.get("secondary") or []],
+        }
     }
 
 
@@ -2163,6 +2180,30 @@ def clamp_llm_plan_loads(
     return workout
 
 
+def _budget_need(ex: dict, budget: Optional[dict]) -> float:
+    if not budget:
+        return 0.0
+    from .muscle_sets import selection_need
+
+    return selection_need(ex, budget)
+
+
+def _budget_adjust_sets(
+    hard: int,
+    ex: dict,
+    budget: dict,
+    planned: Dict[str, float],
+    *,
+    room: int,
+    prior_sets: Optional[int],
+) -> Tuple[int, Optional[str]]:
+    from .muscle_sets import adjust_accessory_sets
+
+    return adjust_accessory_sets(
+        hard, ex, budget, planned, room=room, prior_sets=prior_sets
+    )
+
+
 def generate_workout_plan(
     catalog: dict,
     goals: dict,
@@ -2180,6 +2221,7 @@ def generate_workout_plan(
     last_wake_at: Optional[str] = None,
     now: Optional[datetime] = None,
     weighins: Optional[Sequence[Any]] = None,
+    set_budget: Any = "auto",
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -2261,6 +2303,21 @@ def generate_workout_plan(
         "auto": focus_res.get("auto"),
         "reason": focus_res.get("reason"),
     }
+
+    # Weekly proper-set budget (#1193). Tiebreak only: it never replaces the
+    # volume score above, and main lifts keep their prescribed sets.
+    budget = None
+    if isinstance(set_budget, dict):
+        budget = set_budget
+    elif set_budget == "auto":
+        try:
+            from .muscle_sets import planner_budget
+
+            budget = planner_budget(sessions, catalog, goals, day)
+        except Exception:  # noqa: BLE001
+            budget = None
+    main_lift_keys = {_norm_name(str(n)) for n in (goals.get("main_lifts") or [])}
+    planned_budget: Dict[str, float] = {}
 
     explicit = str(session_type or "").strip().lower()
     from .training_day import (
@@ -2440,6 +2497,7 @@ def generate_workout_plan(
         key=lambda e: (
             _repeat_penalty(e),
             -_score_exercise_for_volume(e, done, bands, focus=focus),
+            -_budget_need(e, budget),
             0 if e.get("movement") == "compound" else 1,
             -int(e.get("priority") or 0),
             e.get("name") or "",
@@ -2574,6 +2632,25 @@ def generate_workout_plan(
             )
             rx["rationale"] = f"{rx['rationale']} {framework_note}".strip()
 
+        budget_note = None
+        if budget and _norm_name(str(ex.get("name") or "")) not in main_lift_keys:
+            hard, budget_note = _budget_adjust_sets(
+                hard,
+                ex,
+                budget,
+                planned_budget,
+                room=session_cap - session_sets,
+                prior_sets=int(prior_sets) if prior_sets else None,
+            )
+            if budget_note:
+                rx["sets"] = hard
+                rx["rationale"] = f"{rx['rationale']} {budget_note}".strip()
+        if budget:
+            from .muscle_sets import catalog_credit
+
+            for grp, weight in catalog_credit(ex).items():
+                planned_budget[grp] = planned_budget.get(grp, 0.0) + weight * hard
+
         credits = credit_sets_for_exercise(
             ex.get("primary_muscles") or [],
             ex.get("secondary_muscles") or [],
@@ -2611,6 +2688,8 @@ def generate_workout_plan(
             "last": rx["last"],
         }
         _copy_assisted_keys(rx, plan_row, prescription)
+        if budget_note:
+            plan_row["set_budget_note"] = budget_note
         plan_ex.append(plan_row)
 
     # Report volume against long-term bands, but annotate ramped planning bands

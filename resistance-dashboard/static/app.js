@@ -6783,6 +6783,7 @@
     }
     renderTodayHub(data);
     renderGuardrails(data);
+    renderMuscleSets(data);
   }
 
   /** Civil day of the last successful /api/daily-tasks sync in this page. */
@@ -8051,6 +8052,14 @@
     } catch (e) {
       showAlert(`Phase barometer: ${e.message}`, "err");
     }
+  }
+
+  function renderMuscleSets(data) {
+    const root = $("muscle-sets-body");
+    if (!root) return;
+    const lib = typeof window !== "undefined" ? window.FitDashMuscleSets : null;
+    if (!lib || typeof lib.tileHtml !== "function") return;
+    root.innerHTML = lib.tileHtml(data && data.muscle_sets_week);
   }
 
   function renderGuardrails(data) {

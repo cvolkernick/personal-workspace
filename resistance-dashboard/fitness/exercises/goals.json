@@ -19,6 +19,17 @@
   "session_working_set_cap": 14,
   "secondary_set_fraction": 0.5,
   "default_hard_sets": 2,
+  "set_budget": {
+    "priority_groups": ["side_delts", "lats_upper_back", "chest"],
+    "middle_groups": ["hamstrings", "rear_delts", "biceps", "triceps"],
+    "deprioritized_groups": null,
+    "priority_target": [8, 10],
+    "middle_target": [4, 7],
+    "maintenance_floor": 4,
+    "max_weekly_change_pct": 10,
+    "review_every_weeks": 6,
+    "cap_override": null
+  },
   "main_lifts": [
     "RDL",
     "Leg Press",

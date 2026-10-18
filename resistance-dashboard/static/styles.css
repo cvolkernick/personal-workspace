@@ -5056,3 +5056,30 @@ body.m-shell #alerts {
     min-height: 48px;
   }
 }
+
+/* Weekly proper sets (#1193) */
+.muscle-set-grid { display: grid; gap: 0.35rem; margin-top: 0.6rem; }
+.muscle-set-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) 2.2rem;
+  grid-template-areas: "name bar value" "meta meta meta";
+  align-items: center;
+  column-gap: 0.5rem;
+}
+.muscle-set-name { grid-area: name; font-size: 0.82rem; }
+.muscle-set-bar {
+  grid-area: bar;
+  height: 0.5rem;
+  background: var(--border);
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+.muscle-set-fill { display: block; height: 100%; }
+.muscle-set-fill.red { background: var(--danger); }
+.muscle-set-fill.green { background: var(--accent-2); }
+.muscle-set-fill.blue { background: var(--accent); }
+.muscle-set-value { grid-area: value; text-align: right; font-weight: 650; font-size: 0.85rem; }
+.muscle-set-meta { grid-area: meta; color: var(--muted); font-size: 0.68rem; margin-bottom: 0.15rem; }
+.muscle-set-budget { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.75rem; }
+.muscle-set-warn { margin: 0.4rem 0 0; color: var(--warn); font-size: 0.78rem; line-height: 1.35; }
+.muscle-set-coach ul { margin: 0.25rem 0 0; padding-left: 1.1rem; font-size: 0.78rem; line-height: 1.4; }

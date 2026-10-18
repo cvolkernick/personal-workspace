@@ -1156,7 +1156,44 @@ def export_agent_today(
             "tiles": [],
             "flag": {"status": "insufficient", "sentence": "Not enough data."},
         }
+    _attach_muscle_sets(
+        data,
+        week,
+        day,
+        plan_rows=_as_dict(today.get("workout")).get("plan_exercises"),
+        guardrails=out.get("guardrails"),
+    )
     return out
+
+
+def _attach_muscle_sets(
+    data: Dict[str, Any],
+    week: Dict[str, Any],
+    day: str,
+    *,
+    plan_rows: Any,
+    guardrails: Any,
+) -> None:
+    """Additive week fields for the proper-set tracker (#1193). Never raises."""
+    week.setdefault("muscle_sets", {})
+    week.setdefault("muscle_sets_meta", None)
+    week.setdefault("muscle_budget", None)
+    week.setdefault("muscle_coach", None)
+    if not day or not week.get("start"):
+        return
+    try:
+        from .muscle_sets import build_muscle_sets
+
+        built = build_muscle_sets(
+            data,
+            day,
+            plan_rows=plan_rows if isinstance(plan_rows, list) else None,
+            guardrails=guardrails if isinstance(guardrails, dict) else None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        week["muscle_sets_meta"] = {"error": f"{type(exc).__name__}: {exc}"}
+        return
+    week.update(built)
 
 
 def _main_lift_series(data: Dict[str, Any], day: str) -> Dict[str, Any]:

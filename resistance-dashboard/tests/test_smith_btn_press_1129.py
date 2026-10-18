@@ -54,7 +54,10 @@ class SmithBtnPress1129(unittest.TestCase):
         self.assertEqual(ids.count("smith-btn-press"), 1)
         self.assertEqual(ids[-1], "smith-btn-press")
         self.assertEqual(len(ids), 46)
-        self.assertEqual(exercises[-1], ROW)
+        # #1193 adds ``muscle_credit`` to every catalog row. The row is otherwise unchanged.
+        self.assertEqual(
+            {k: v for k, v in exercises[-1].items() if k != "muscle_credit"}, ROW
+        )
         names = [ex["name"] for ex in exercises]
         self.assertEqual(names.count(ROW["name"]), 1)
         shoulder = next(ex for ex in exercises if ex["id"] == "db-shoulder-press")
