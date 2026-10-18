@@ -3,7 +3,8 @@
 Worker line, 24h re-staff cooldown, stale-claim release (latest-of claim clock),
 live-only WIP, claim/kick ordering, add-first label swaps, release-comment cooldown,
 Buzz/GrokBuild never staffed, full pagination, the consumer health gate, crash-safe state files
-that fail loudly when corrupt, strict Worker parsing, failed-kick back-off and own-claims-only WIP.
+that fail loudly when corrupt, strict Worker parsing, failed-kick back-off, and foreign
+in-progress claims counting toward a resolved owner's WIP.
 No network: a fake GitHub client (and a mocked HTTP layer for the real ``GitHub``
 class) plus an injected kick sender / relay query are used throughout.
 """
@@ -505,7 +506,8 @@ def test_relabel_by_someone_else_is_not_a_pi_dispatch_claim_and_is_never_release
     )
     res, _ = run(gh)
     assert res["released"] == [] and res["foreign_claims"] == ["#50"] and res["live_claims"] == []
-    assert res["busy_owners"] == [] and gh.log == []
+    # The marker named Frankenfit, but the body has no Worker line, so the current owner is Forge.
+    assert res["busy_owners"] == ["Forge"] and gh.log == []
     # ...and it stays foreign (never released) however old the re-label gets.
     gh = FakeGH(
         [issue(50, labels=("status:in-progress",))],
@@ -1341,7 +1343,8 @@ def test_kick_back_off_that_cannot_be_saved_is_loud(tmp_path, monkeypatch, capsy
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Must-fix 4: only pi-dispatch's own claims count as WIP or get released
+# Must-fix 4: only pi-dispatch's own claims get released.
+# A foreign in-progress claim still occupies WIP when its owner resolves (#1225).
 # ═════════════════════════════════════════════════════════════════════════════
 
 BUZZ_BODY = "**Worker:** Buzz/GrokBuild\n\n## Why\nneeds the harness"
@@ -1362,15 +1365,24 @@ def test_buzz_grokbuild_in_progress_issue_is_neither_counted_nor_released(tmp_pa
     assert {x["name"] for x in gh.issues[60]["labels"]} == {"status:in-progress"}
 
 
-@pytest.mark.parametrize("body", ["Some description.", "", BUZZ_BODY, "**Worker:** Forge", "**Worker:** Frankenfit"])
-def test_claims_without_a_pi_dispatch_marker_are_foreign_whatever_the_worker_line(body):
+@pytest.mark.parametrize(
+    "body,busy",
+    [
+        ("Some description.", ["Forge"]),
+        ("", []),
+        (BUZZ_BODY, []),
+        ("**Worker:** Forge", ["Forge"]),
+        ("**Worker:** Frankenfit", ["Frankenfit"]),
+    ],
+)
+def test_claims_without_a_pi_dispatch_marker_are_foreign_whatever_the_worker_line(body, busy):
     """Grok, a human or Buzz moved it to in-progress: even a Forge/Frankenfit Worker line does not
-    make it pi-dispatch's."""
+    make it pi-dispatch's. A resolved owner still occupies WIP. An unresolved owner does not."""
     i = issue(60, body=body, labels=("status:in-progress",))
     gh = FakeGH([i], {60: [comment("Re-staffed (Grok eng-gate, 2026-10-14). label stays `status:in-progress`.", ago(hours=100))]},
                 events={60: [labeled(ago(hours=100), "status:in-progress")]})
     res, _ = run(gh)
-    assert res["foreign_claims"] == ["#60"] and res["busy_owners"] == [] and res["released"] == [] and gh.log == []
+    assert res["foreign_claims"] == ["#60"] and res["busy_owners"] == busy and res["released"] == [] and gh.log == []
 
 
 def test_forged_or_malformed_markers_are_not_pi_dispatch_claims():
@@ -1386,7 +1398,7 @@ def test_forged_or_malformed_markers_are_not_pi_dispatch_claims():
     for body in forged:
         gh = FakeGH([issue(60, labels=("status:in-progress",))], {60: [comment(body, ago(hours=90))]})
         res, _ = run(gh)
-        assert res["foreign_claims"] == ["#60"] and res["released"] == [] and res["busy_owners"] == [], body
+        assert res["foreign_claims"] == ["#60"] and res["released"] == [] and res["busy_owners"] == ["Forge"], body
 
 
 def test_roster_claim_authors_restricts_who_can_write_a_marker():
@@ -1441,6 +1453,39 @@ def test_unreadable_history_of_a_buzz_issue_pins_nobody_and_releases_nothing():
     assert res["busy_owners"] == ["Forge"] and res["released"] == [] and res["skipped"]
 
 
+def test_foreign_in_progress_claim_blocks_another_ready_issue_for_the_same_owner():
+    """#1225: a manual eng-gate claim occupies WIP=1 and the sweep does not staff that owner again."""
+    held = issue(
+        1110,
+        title="FitDash: session chip",
+        body="**Worker:** Frankenfit\n\nStaffed by hand.",
+        labels=("status:in-progress", "fitdash"),
+    )
+    ready = issue(
+        1109,
+        title="FitDash: close bar",
+        body="**Worker:** Frankenfit\n\nNext card.",
+        labels=("status:ready", "fitdash"),
+    )
+    cmts = {1110: [comment("[eng-gate] staffed to Frankenfit. label stays `status:in-progress`.", ago(hours=2))]}
+    gh = FakeGH([held, ready], cmts, events={1110: [labeled(ago(hours=2))]})
+    res, sent = run(gh)
+    assert res["foreign_claims"] == ["#1110"] and res["live_claims"] == []
+    assert res["busy_owners"] == ["Frankenfit"] and res["released"] == []
+    assert res["skipped"] is True and "issue" not in res and not sent
+    assert "Frankenfit WIP=1" in (res["skip_note"] or "")
+    assert gh.log == []
+
+
+def test_foreign_claim_blocks_only_the_resolved_owner():
+    held = issue(70, body="**Worker:** Forge", labels=("status:in-progress",))
+    ready = issue(71, title="FitDash: next", body="**Worker:** Frankenfit", labels=("status:ready", "fitdash"))
+    gh = FakeGH([held, ready], {70: [comment("manual staff", ago(hours=1))]})
+    res, sent = run(gh)
+    assert res["foreign_claims"] == ["#70"] and res["busy_owners"] == ["Forge"]
+    assert res["issue"] == 71 and res["owner"] == "Frankenfit" and len(sent) == 1
+
+
 def test_foreign_dual_labeled_issue_is_not_touched():
     both = issue(83, body=BUZZ_BODY, labels=("status:ready", "status:in-progress"))
     gh = FakeGH([both], {83: [comment("on it", ago(hours=1), "buzz-bot")]})
@@ -1474,7 +1519,7 @@ def test_successful_claim_is_recorded_and_a_later_foreign_relabel_ignores_the_re
     gh2 = FakeGH([issue(82, labels=("status:in-progress",))], {82: gh.cmts[82]},
                  events={82: [labeled(NOW), labeled(NOW + timedelta(hours=1))]})
     res = sweep(gh2, store, NOW + timedelta(hours=30), lambda **k: pytest.fail("kick"))
-    assert res["foreign_claims"] == ["#82"] and res["released"] == []
+    assert res["foreign_claims"] == ["#82"] and res["released"] == [] and res["busy_owners"] == ["Forge"]
 
 
 def test_failed_rollback_records_the_claim_so_the_24h_release_can_clear_it(tmp_path):

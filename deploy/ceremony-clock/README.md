@@ -29,8 +29,10 @@ unchanged and stay Pi-local; they carry relay workflow ids and are not in this r
    mentions `#N` in prose does not. Any API error while checking activity means *no
    release*.
 2. **Pick.** One `status:ready` issue, flipped to `status:in-progress`, kick posted to
-   #workflow. Per-owner WIP is still 1, but only *live claims pi-dispatch made itself*
-   count, so a dead claim, or a Buzz/GrokBuild, Grok or human claim, cannot block the queue.
+   #workflow. Per-owner WIP is still 1. A live claim pi-dispatch made itself counts. A
+   foreign `status:in-progress` claim also counts when its owner resolves to a staffable
+   agent, including one staffed by a manual `[eng-gate]` comment. Buzz/GrokBuild, empty,
+   unknown, and in-chat claims pin nobody. A stale own claim does not count; it is released.
 
 ### Which in-progress claims are pi-dispatch's own
 
@@ -40,8 +42,9 @@ nothing else in the comment, owner a staffable roster agent and never Buzz/GrokB
 local claim record pi-dispatch writes right after an accepted kick (covers a failed `started`
 comment, and a failed rollback). The marker must not be followed by a release comment or by a
 later `labeled status:in-progress` event (more than 10 minutes after it), which means someone
-else re-labelled the issue. Everything else is **foreign**: it is listed as `foreign_claims`,
-never counted as WIP for anyone and never released. The GitHub login is deliberately not the
+else re-labelled the issue. Everything else is **foreign**: it is listed as `foreign_claims`
+and never released. If `resolve_owner` names a staffable agent, that owner is at WIP=1.
+If the owner cannot be resolved, the claim pins nobody. The GitHub login is deliberately not the
 identity: the dispatcher's token was `cvolkernick` until 10/14 and `GrokBot-BTC` after, and
 Grok and humans comment under those same logins. If you want a login check anyway, set
 `claim_authors` in the roster and only markers by those logins count.
