@@ -386,6 +386,14 @@ def normalize_goals(raw: Optional[dict]) -> dict:
         g["auto_focus_muscles"] = bool(raw["auto_focus_muscles"])
     if raw.get("updated_at"):
         g["updated_at"] = str(raw["updated_at"])
+    # Manual weekly proper-set cap (#1193). Stays absent unless it is a finite
+    # number from 1 to MAX_CAP_OVERRIDE (1000 proper sets), so the rolling cap
+    # runs by default and a bad hand-edited value never breaks goals loading.
+    from .muscle_sets import clean_cap_override
+
+    override = clean_cap_override(raw.get("muscle_set_cap_override"))
+    if override is not None:
+        g["muscle_set_cap_override"] = override
     # Trends menu only. Does not change planner progression (#1024).
     if isinstance(raw.get("main_lifts"), list):
         lifts: List[str] = []
