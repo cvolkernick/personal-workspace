@@ -61,7 +61,7 @@ def _day(monday, offset):
 
 
 def _balanced_week(monday, *, full=True):
-    """A balanced PPL week: 63 proper sets, 91 credited."""
+    """A balanced PPL week: 63 proper sets, 92.5 credited."""
     sessions = [
         _session(
             _day(monday, 0), "push",
@@ -392,7 +392,7 @@ class WarningUnits(unittest.TestCase):
         )
         budget = report["budget"]
         self.assertEqual(budget["cap"], 63)  # cap units are unchanged: proper sets
-        self.assertEqual(budget["credited_avg_4w"], 91.0)
+        self.assertEqual(budget["credited_avg_4w"], 92.5)
         self.assertEqual(budget["demand_min"], 68)
         self.assertFalse(budget["overrun"])
         self.assertIsNone(budget["warning"])
