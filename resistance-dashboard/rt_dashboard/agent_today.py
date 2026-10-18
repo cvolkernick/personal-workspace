@@ -11,10 +11,13 @@ intake, weekly volume, or sleep. Missing → honest empty
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .workout_store import flatten_logged_exercise
+
+_LOG = logging.getLogger(__name__)
 
 # Published books / DEFAULT_TARGETS. Not invented intake.
 _BOOK_TARGETS = {"calories": 2100.0, "protein_g": 210.0}
@@ -1130,12 +1133,18 @@ def export_agent_today(
         }
     )
     if week_start:
-        from .muscle_sets import build_muscle_set_report
+        try:
+            from .muscle_sets import build_muscle_set_report
 
-        muscle = build_muscle_set_report(data, as_of=day or None)
-        week["muscle_sets"] = muscle["muscle_sets"]
-        week["muscle_set_budget"] = muscle["budget"]
-        week["muscle_set_coach"] = muscle["coach"]
+            muscle = build_muscle_set_report(data, as_of=day or None)
+            week["muscle_sets"] = muscle["muscle_sets"]
+            week["muscle_set_budget"] = muscle["budget"]
+            week["muscle_set_coach"] = muscle["coach"]
+        except Exception as exc:  # noqa: BLE001 - the feed must still answer (#1267)
+            # Class name only: the message can carry logged values.
+            _LOG.warning("muscle_sets unavailable: %s", type(exc).__name__)
+            week["muscle_sets"] = {}
+            week["muscle_set_budget"] = {"error": f"muscle_sets unavailable ({type(exc).__name__})"}
     if week.get("start") is None:
         week["nutrition"]["targets"] = dict(targets)
     out: Dict[str, Any] = {"ok": True, "today": today, "week": week}

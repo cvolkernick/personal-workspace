@@ -74,6 +74,9 @@ MIDDLE_MAX = 7
 FLOOR_MIN = 4
 LOAD_FRACTION = 0.85
 REP_SLACK = 1
+# Sessions older than this many weeks before the open Monday are not read.
+# Four weeks feed the average and the rest is the cap's ±10% walk (#1267).
+HISTORY_WEEKS = 10
 
 # Catalog tags that are not one of the 14 groups. Forearms and adductors
 # stay off the tracker. ``back`` on a hinge is lower back only when the
@@ -877,16 +880,82 @@ def drop_suggestion(credits: Mapping[str, float]) -> str:
     return best
 
 
-def budget_warning(cap: Optional[int], suggestion: str) -> Optional[str]:
+def budget_warning(
+    cap: Optional[int],
+    suggestion: str,
+    *,
+    credit_cap: Optional[float] = None,
+) -> Optional[str]:
+    """Warn when the targets need more set-credits than the cap allows.
+
+    ``cap`` counts proper sets. ``demand_min`` counts set-credits, so the cap
+    is compared in credits: ``credit_cap`` is the cap at the recent
+    credits-per-set ratio. Without one the cap is compared as given.
+    """
     need = demand_min()
-    if cap is None or need <= cap:
+    if cap is None:
+        return None
+    limit = float(cap) if credit_cap is None else float(credit_cap)
+    if need <= limit + 1e-9:
         return None
     label = GROUP_LABELS.get(suggestion, suggestion)
+    if credit_cap is None:
+        room = f"the weekly cap is {cap} proper sets"
+    else:
+        room = (
+            f"the weekly cap is {cap} proper sets, about "
+            f"{float(credit_cap):.0f} set-credits at your recent mix"
+        )
     return (
         f"Priority targets plus maintenance floors are {need} set-credits "
-        f"and the weekly cap is {cap} proper sets. "
+        f"and {room}. "
         f"Drop {label} from the 8–10 list."
     )
+
+
+def _credited_average(
+    history: Mapping[str, Mapping[str, float]],
+    monday: date,
+) -> Optional[float]:
+    """Mean credited total of up to four completed weeks before ``monday``.
+
+    Same window rule as ``_completed_average``: a week inside the logged span
+    with no entry counts as zero, and weeks before the first logged week are
+    left out.
+    """
+    known = []
+    for key in history:
+        try:
+            known.append(date.fromisoformat(str(key)[:10]))
+        except ValueError:
+            continue
+    known = [day for day in known if day < monday]
+    if not known:
+        return None
+    earliest = min(known)
+    window = [monday - timedelta(days=7 * i) for i in range(1, 5)]
+    present = [day for day in window if day >= earliest]
+    if not present:
+        return None
+    total = 0.0
+    for day in present:
+        slot = history.get(day.isoformat()) or {}
+        total += sum(float(v or 0) for v in slot.values())
+    return total / float(len(present))
+
+
+def _trim_history(sessions: Sequence[Any], monday: str) -> List[Any]:
+    """Keep sessions from ``HISTORY_WEEKS`` weeks before ``monday`` onward."""
+    try:
+        start = date.fromisoformat(monday) - timedelta(weeks=int(HISTORY_WEEKS))
+    except ValueError:
+        return list(sessions or [])
+    kept: List[Any] = []
+    for session in sessions or []:
+        day = et_civil_date(_session_date(session))
+        if day is not None and day >= start:
+            kept.append(session)
+    return kept
 
 
 def _trend(
@@ -993,6 +1062,8 @@ def _blocked_mondays(
     *,
     as_of: str,
     counts: Mapping[str, int],
+    tonnage: Optional[str] = None,
+    deload_called: Optional[bool] = None,
 ) -> List[str]:
     monday_s, sunday_s = et_week_bounds(as_of)
     blocked: List[str] = []
@@ -1013,7 +1084,11 @@ def _blocked_mondays(
                 hit = True
                 break
         if str(key)[:10] == monday_s and isinstance(payload, Mapping):
-            if _tonnage_status(payload, as_of) == "red" or _deload_called(payload, as_of):
+            if tonnage is None:
+                tonnage = _tonnage_status(payload, as_of)
+            if deload_called is None:
+                deload_called = _deload_called(payload, as_of)
+            if tonnage == "red" or deload_called:
                 hit = True
         if hit:
             blocked.append(monday.isoformat())
@@ -1049,6 +1124,8 @@ def build_muscle_set_report(
             except Exception:  # noqa: BLE001
                 catalog = {"exercises": []}
     sessions = data.get("sessions") if isinstance(data.get("sessions"), list) else []
+    if monday:
+        sessions = _trim_history(sessions, monday)
     aliases = _alias_map(data)
     planned = _planned_load_index(data)
     goals = _goals(data)
@@ -1086,15 +1163,24 @@ def build_muscle_set_report(
     )
     # The open week is not an input to the average. Keep it out of the cap walk.
     completed = {key: value for key, value in totals.items() if key < monday}
-    blocked = _blocked_mondays(data, sessions, as_of=day, counts=completed)
+    # Guardrail reads go to the whole payload and run once per report.
+    tonnage = _tonnage_status(data, day)
+    deload_called = _deload_called(data, day)
+    blocked = _blocked_mondays(
+        data,
+        sessions,
+        as_of=day,
+        counts=completed,
+        tonnage=tonnage,
+        deload_called=deload_called,
+    )
     cap_info = resolve_weekly_cap(
         completed,
         as_of=day,
         blocked_mondays=blocked,
         override=override,
     )
-    tonnage = _tonnage_status(data, day)
-    deload = _deload_called(data, day) or any(
+    deload = deload_called or any(
         _is_deload_session(session)
         and (lambda d: d is not None and monday <= d.isoformat() <= sunday)(
             et_civil_date(_session_date(session))
@@ -1125,7 +1211,16 @@ def build_muscle_set_report(
             "trend_4w": trends.get(group),
         }
     suggestion = drop_suggestion(credits)
-    warning = budget_warning(cap if isinstance(cap, int) else None, suggestion)
+    cap_sets = cap if isinstance(cap, int) else None
+    credited_avg = _credited_average(history, date.fromisoformat(monday))
+    sets_avg = _completed_average(completed, date.fromisoformat(monday))
+    credit_cap: Optional[float] = None
+    if cap_sets is not None:
+        ratio = 1.0
+        if credited_avg is not None and sets_avg:
+            ratio = credited_avg / float(sets_avg)
+        credit_cap = cap_sets * ratio
+    warning = budget_warning(cap_sets, suggestion, credit_cap=credit_cap)
     overrun = warning is not None
     coach = thursday_flags(as_of=day, credits=credits, trends=trends)
     return {
@@ -1138,6 +1233,8 @@ def build_muscle_set_report(
             "cap_override": cap_info.get("cap_override"),
             "cap_source": cap_info.get("cap_source"),
             "demand_min": demand_min(),
+            "credited_avg_4w": None if credited_avg is None else _round_sets(credited_avg),
+            "credit_cap": None if credit_cap is None else round(credit_cap, 1),
             "overrun": overrun,
             "drop_suggestion": suggestion if overrun else None,
             "warning": warning,
