@@ -7961,6 +7961,7 @@
       }
     }
     renderWeeklyReview(data);
+    renderMuscleSets(data);
   }
 
   function weeklyReviewRows(review) {
@@ -7995,6 +7996,61 @@
     }
     html += observations.map((row) => `<li>${phaseBaroEsc(weeklyReviewText(row))}</li>`).join("");
     root.innerHTML = html;
+  }
+
+  function renderMuscleSets(data) {
+    const list = $("muscle-sets-list");
+    const sub = $("muscle-sets-sub");
+    const warning = $("muscle-sets-warning");
+    if (!list) return;
+    const report = data && data.muscle_sets;
+    const muscles = report && report.muscle_sets;
+    const budget = (report && report.budget) || {};
+    const coach = (report && report.coach) || {};
+    if (!muscles || !Object.keys(muscles).length) {
+      list.innerHTML = "";
+      if (warning) warning.textContent = "";
+      return;
+    }
+    const labels = {
+      chest: "chest",
+      front_delts: "front delts",
+      side_delts: "side delts",
+      rear_delts: "rear delts",
+      lats_upper_back: "lats/upper back",
+      traps: "traps",
+      biceps: "biceps",
+      triceps: "triceps",
+      quads: "quads",
+      hamstrings: "hamstrings",
+      glutes: "glutes",
+      calves: "calves",
+      abs: "abs",
+      lower_back: "lower back",
+    };
+    const tierColor = { red: "var(--danger)", green: "var(--accent-2)", blue: "#3b82f6" };
+    const order = Object.keys(labels).filter((id) => muscles[id]);
+    list.innerHTML = order
+      .map((id) => {
+        const row = muscles[id] || {};
+        const tier = row.tier || "red";
+        const color = tierColor[tier] || "var(--muted)";
+        const trend = row.trend_4w == null ? "" : ` · 4w ${row.trend_4w}`;
+        return `<li><span class="guardrail-dot ${phaseBaroEsc(tier)}" style="position:static;display:inline-block;background:${color}" aria-label="${phaseBaroEsc(tier)}"></span> ${phaseBaroEsc(labels[id] || id)} · ${phaseBaroEsc(String(row.proper_sets))} · target ${phaseBaroEsc(String(row.target || ""))}${phaseBaroEsc(trend)}</li>`;
+      })
+      .join("");
+    if (sub) {
+      const cap = budget.cap == null ? "no cap yet" : `cap ${budget.cap}`;
+      sub.textContent = `Monday–Sunday ET · proper sets · ${cap}`;
+    }
+    const lines = [];
+    if (budget.warning) lines.push(budget.warning);
+    if (coach.active && Array.isArray(coach.flags)) {
+      coach.flags.forEach((flag) => {
+        if (flag && flag.suggestion) lines.push(flag.suggestion);
+      });
+    }
+    if (warning) warning.textContent = lines.join(" ");
   }
 
   async function phaseBaroAct(action, phase) {

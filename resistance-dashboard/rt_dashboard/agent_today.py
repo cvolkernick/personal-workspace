@@ -1129,6 +1129,13 @@ def export_agent_today(
             "sleep": _sleep_week(data, week_start, week_end),
         }
     )
+    if week_start:
+        from .muscle_sets import build_muscle_set_report
+
+        muscle = build_muscle_set_report(data, as_of=day or None)
+        week["muscle_sets"] = muscle["muscle_sets"]
+        week["muscle_set_budget"] = muscle["budget"]
+        week["muscle_set_coach"] = muscle["coach"]
     if week.get("start") is None:
         week["nutrition"]["targets"] = dict(targets)
     out: Dict[str, Any] = {"ok": True, "today": today, "week": week}

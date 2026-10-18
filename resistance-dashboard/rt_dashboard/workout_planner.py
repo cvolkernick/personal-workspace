@@ -920,7 +920,7 @@ def normalize_exercise(raw: dict) -> dict:
     rep_range = raw.get("rep_range") or [8, 12]
     if not isinstance(rep_range, list) or len(rep_range) < 2:
         rep_range = [8, 12]
-    return {
+    out = {
         "id": eid,
         "name": name,
         "session_types": [str(s).lower() for s in session_types] or ["other"],
@@ -936,6 +936,11 @@ def normalize_exercise(raw: dict) -> dict:
         "available": bool(raw.get("available", True)),
         "notes": str(raw.get("notes") or ""),
     }
+    if isinstance(raw.get("volume_primary"), list):
+        out["volume_primary"] = [str(m).lower() for m in raw["volume_primary"]]
+    if isinstance(raw.get("volume_secondary"), list):
+        out["volume_secondary"] = [str(m).lower() for m in raw["volume_secondary"]]
+    return out
 
 
 def available_exercises(catalog: dict) -> List[dict]:
@@ -2434,7 +2439,45 @@ def generate_workout_plan(
             return 0
         return 1
 
-    # Rank pool by volume need (under-target muscles) + compound efficiency
+    # #1193: accessory tiebreak only. Main-lift order and progression stay put.
+    muscle_report = None
+    try:
+        from .muscle_sets import (
+            accessory_sets_allowed,
+            accessory_tiebreak,
+            build_muscle_set_report,
+            is_plan_accessory,
+        )
+
+        history = []
+        for session in sessions:
+            if hasattr(session, "to_dict"):
+                history.append(session.to_dict())
+            elif isinstance(session, dict):
+                history.append(session)
+        report_goals = dict(goals)
+        if deload:
+            report_goals["deload"] = True
+        muscle_report = build_muscle_set_report(
+            {
+                "sessions": history,
+                "workout_store": {"goals": report_goals, "catalog": catalog},
+            },
+            as_of=day,
+        )
+    except Exception:  # noqa: BLE001
+        muscle_report = None
+        accessory_sets_allowed = None  # type: ignore
+        accessory_tiebreak = None  # type: ignore
+        is_plan_accessory = None  # type: ignore
+
+    def _accessory_tiebreak(ex: dict) -> float:
+        if muscle_report is None or accessory_tiebreak is None:
+            return 0.0
+        return float(accessory_tiebreak(ex, muscle_report, goals))
+
+    # Rank pool by volume need (under-target muscles) + compound efficiency.
+    # The last-but-one key breaks accessory ties toward an under-target group.
     pool_scored = sorted(
         pool,
         key=lambda e: (
@@ -2442,6 +2485,7 @@ def generate_workout_plan(
             -_score_exercise_for_volume(e, done, bands, focus=focus),
             0 if e.get("movement") == "compound" else 1,
             -int(e.get("priority") or 0),
+            -_accessory_tiebreak(e),
             e.get("name") or "",
         ),
     )
@@ -2497,6 +2541,12 @@ def generate_workout_plan(
     plan_ex: List[dict] = []
     planned_credits: Dict[str, float] = {}
     session_sets = 0
+    cap_left = None
+    if muscle_report and isinstance(muscle_report.get("budget"), dict):
+        cap_value = muscle_report["budget"].get("cap")
+        logged_proper = int(muscle_report["budget"].get("week_proper_sets") or 0)
+        if isinstance(cap_value, int):
+            cap_left = cap_value - logged_proper
 
     for ex in chosen:
         if session_sets >= session_cap:
@@ -2561,6 +2611,25 @@ def generate_workout_plan(
         )
         # Also respect remaining session budget
         hard = max(1, min(hard, session_cap - session_sets))
+        # Accessories only: do not schedule sets past the weekly proper-set cap.
+        # Main-lift set counts stay on the existing progression path.
+        if (
+            cap_left is not None
+            and muscle_report is not None
+            and is_plan_accessory is not None
+            and is_plan_accessory(ex, goals)
+        ):
+            allowed = accessory_sets_allowed(hard, cap_left)
+            if allowed < 1:
+                continue
+            if allowed < hard:
+                rx["rationale"] = (
+                    f"{rx['rationale']} Weekly proper-set cap leaves room for "
+                    f"{allowed} accessory sets."
+                ).strip()
+            hard = allowed
+        if cap_left is not None:
+            cap_left -= hard
         rx["sets"] = hard
         prior_sets = (last or {}).get("sets")
         if prior_sets is None:

@@ -791,6 +791,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"guardrails: {type(exc).__name__}")
     try:
+        from rt_dashboard.muscle_sets import attach_muscle_sets
+
+        attach_muscle_sets(payload, as_of=today)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"muscle_sets: {type(exc).__name__}")
+    try:
         from rt_dashboard.hsa import attach_hsa
 
         attach_hsa(

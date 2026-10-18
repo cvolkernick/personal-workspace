@@ -1238,6 +1238,12 @@ def _build_dashboard_data(
     except Exception as e:  # noqa: BLE001
         errors.append(f"guardrails: {e}")
     try:
+        from rt_dashboard.muscle_sets import attach_muscle_sets
+
+        attach_muscle_sets(payload, as_of=local_today)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"muscle_sets: {e}")
+    try:
         attach_hsa(payload, user_id=uid, health=health, as_of=local_today)
     except Exception as e:  # noqa: BLE001
         errors.append(f"hsa: {e}")
