@@ -210,7 +210,7 @@ def test_cli_rejects_a_base_that_carries_the_token(capsys, monkeypatch):
 
 def test_cli_unknown_check_and_missing_token(capsys, monkeypatch):
     monkeypatch.delenv(smoke.TOKEN_ENV, raising=False)
-    code = smoke.main(["--check", "meeting-check", "--base", "http://127.0.0.1:9"])
+    code = smoke.main(["--check", "no-such-check", "--base", "http://127.0.0.1:9"])
     assert code == 2
     assert json.loads(capsys.readouterr().out)["error"] == "unknown_check"
     code = smoke.main(["--check", "caller-context", "--base", "http://127.0.0.1:9"])
