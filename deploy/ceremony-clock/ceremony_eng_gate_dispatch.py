@@ -10,7 +10,8 @@ Runs after the Path B eng-gate-sweep kick (``ceremony-clock@eng-gate-sweep``,
 1. **Release sweep** - a ``status:in-progress`` claim *that pi-dispatch made itself* and that
    shows no branch, PR or holder comment for ``--stale-hours`` (24h) is returned to
    ``status:ready`` with a comment naming the previous holder. Claims made by Buzz/GrokBuild,
-   Grok or a human are never counted as WIP and never released.
+   Grok or a human are never released. A foreign claim still occupies WIP=1 when its owner
+   resolves to a staffable agent. An unresolved owner pins nobody.
 2. **Pick** - at most one ``status:ready`` issue, flips it to
    ``status:in-progress`` and posts a staffing kick in #workflow.
 
@@ -24,10 +25,12 @@ Pick rules (#1195):
   with no Worker line keeps the legacy title/label routing.
 * No re-claim within ``--cooldown-hours`` (24h) of a Grok eng-gate re-staff
   comment (``Re-staffed (Grok eng-gate``) or of a pi-dispatch release.
-* WIP is still one issue per owner, but only **live claims pi-dispatch made itself** count
-  (identified by its exact ``[pi-dispatch] started ... staffed to <owner>`` marker, or the local
-  claim record for a claim whose marker comment failed). A stale claim, or a Buzz/GrokBuild,
-  Grok or human claim, no longer blocks the owner's queue.
+* WIP is still one issue per owner. Live claims pi-dispatch made itself count (its exact
+  ``[pi-dispatch] started ... staffed to <owner>`` marker, or the local claim record when that
+  comment failed). A foreign ``status:in-progress`` claim also counts when ``resolve_owner``
+  names a staffable agent, including a manual ``[eng-gate]`` staffing. Buzz/GrokBuild, empty,
+  unknown, and in-chat claims pin nobody. Stale own claims do not count; they are released.
+  Foreign claims are never released.
 * Claim order (exactly what the code does): the sender is built first, then add
   ``status:in-progress``, remove ``status:ready`` (add first, so a failed call can never
   leave the issue without a status label), send the kick, and only then post
@@ -795,7 +798,7 @@ class Claim:
     last_activity: datetime | None = None
     state: str = "live"  # live | stale | foreign
     reason: str = ""
-    owner_for_wip: str = ""  # only ever set for a claim pi-dispatch made itself
+    owner_for_wip: str = ""  # staffable owner this in-progress issue occupies; empty if unresolved
     own: bool = False  # made by pi-dispatch (started marker / local claim ledger)
 
 
@@ -926,8 +929,10 @@ def assess_claim(
 ) -> Claim:
     """Classify one ``status:in-progress`` issue.
 
-    ``foreign`` = not made by pi-dispatch (Buzz/GrokBuild, Grok, a human): not counted as WIP
-    for anyone and never released. Only pi-dispatch's own claims are ``live`` or ``stale``."""
+    ``foreign`` = not made by pi-dispatch (Buzz/GrokBuild, Grok, a human, or a re-label).
+    Foreign claims are never released. When ``resolve_owner`` names a staffable agent, that
+    owner is at WIP=1. An unresolved owner pins nobody. Only pi-dispatch's own claims are
+    ``live`` or ``stale``."""
     n = int(issue["number"])
     owner, _ = resolve_owner(issue, roster)
     try:
@@ -946,7 +951,11 @@ def assess_claim(
     claim = Claim(number=n, holder=holder, claimed_at=claimed_at, own=holder is not None, owner_for_wip=holder or "")
     if holder is None:
         claim.state = "foreign"
-        claim.reason = "not a pi-dispatch claim (no matching started marker): not counted as WIP, never released"
+        claim.owner_for_wip = owner or ""
+        if owner:
+            claim.reason = f"not a pi-dispatch claim: {owner} stays at WIP=1, never released"
+        else:
+            claim.reason = "not a pi-dispatch claim (owner unresolved): not counted as WIP, never released"
         return claim
     activity = holder_activity(comments, claimed_at)
     claim.last_activity = activity
@@ -1200,7 +1209,8 @@ def run_dispatch(
     only = opts.only
 
     # 1. assess every claim; release the dead ones. Only claims pi-dispatch made itself can be
-    #    stale: Buzz/GrokBuild, Grok and human claims are never counted and never released.
+    #    stale. Foreign claims are never released. A foreign claim whose owner resolves still
+    #    counts toward that owner's WIP.
     branch_cache: dict = {}
     claims = [assess_claim(gh, i, roster, now, stale_after, branch_cache, cooldowns) for i in in_progress]
     released: list[dict] = []
@@ -1241,7 +1251,9 @@ def run_dispatch(
 
     live = [c for c in claims if c.state == "live"]
     foreign = [c for c in claims if c.state == "foreign"]
-    busy_owners = {c.owner_for_wip for c in live if c.owner_for_wip}
+    busy_owners = {
+        c.owner_for_wip for c in claims if c.owner_for_wip and c.state in ("live", "foreign")
+    }
     stale_nums = {c.number for c in claims if c.state == "stale"}
     own_nums = {c.number for c in claims if c.own}
     in_progress_nums = {int(i["number"]) for i in in_progress}
