@@ -6,6 +6,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -837,6 +838,375 @@ class PiSshTargetTests(unittest.TestCase):
         self.assertEqual(ssh, "prism-agent@prism-gateway")
         host = ssh.rsplit("@", 1)[-1]
         self.assertIsNone(re.fullmatch(r"[0-9.]+", host), ssh)
+
+
+def _snap_payload(as_of: datetime, *, agentic: bool = True) -> dict:
+    """Synthetic snapshot (made-up values only; never real portfolio data)."""
+    d: dict = {
+        "as_of": as_of.isoformat(),
+        "source": "live",
+        "primary": {"buying_power": 1.0},
+    }
+    if agentic:
+        d["agentic"] = {"nav_usd": 100}
+    return d
+
+
+class RhRefreshTimeoutAndAuthTests(unittest.TestCase):
+    """#1266: timeout-after-write is ok; the 401 classifier needs status context.
+
+    Every test mocks ``subprocess.run`` and uses a temp snapshot dir: no grok,
+    no Robinhood MCP and no real snapshot file is ever touched.
+    """
+
+    def setUp(self) -> None:
+        self._td = tempfile.TemporaryDirectory()
+        self.addCleanup(self._td.cleanup)
+        self.snap_dir = Path(self._td.name)
+        self.dest = self.snap_dir / rss.RH_SNAP
+        # guard: nothing may spawn a real process
+        p = mock.patch.object(
+            rss.subprocess, "Popen", side_effect=AssertionError("real subprocess")
+        )
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _seed_old(self, *, hours_old: float = 2.0, agentic: bool = True) -> dict:
+        """Pre-run snapshot: as_of and mtime both ``hours_old`` in the past."""
+        old = datetime.now(timezone.utc) - timedelta(hours=hours_old)
+        payload = _snap_payload(old, agentic=agentic)
+        self.dest.write_text(json.dumps(payload), encoding="utf-8")
+        t = old.timestamp()
+        os.utime(self.dest, (t, t))
+        return payload
+
+    def _run(self, side_effect, *, timeout_s: float = 5):
+        """Run refresh_via_local_mcp with subprocess.run mocked by side_effect."""
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_SKIP_LOCAL_MCP"}
+        with mock.patch.object(rss, "SNAPSHOTS_DIR", self.snap_dir), mock.patch.object(
+            rss.shutil, "which", return_value="/usr/bin/grok"
+        ), mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            rss.subprocess, "run", side_effect=side_effect
+        ) as run:
+            out = rss.refresh_via_local_mcp(timeout_s=timeout_s)
+        self.assertEqual(run.call_count, 1)
+        return out
+
+    @staticmethod
+    def _timeout(argv, **kw):
+        return subprocess.TimeoutExpired(cmd=argv, timeout=kw["timeout"])
+
+    def _writes_then_times_out(self, text: str):
+        def fx(argv, **kw):
+            self.dest.write_text(text, encoding="utf-8")
+            raise self._timeout(argv, **kw)
+
+        return fx
+
+    def _writes_then_exits(self, text: str, *, rc: int, stdout: str, stderr: str = ""):
+        def fx(argv, **kw):
+            if text:
+                self.dest.write_text(text, encoding="utf-8")
+            return mock.Mock(returncode=rc, stdout=stdout, stderr=stderr)
+
+        return fx
+
+    # ---- (1) timeout handling -------------------------------------------
+
+    def test_timeout_with_fresh_snapshot_is_ok(self) -> None:
+        self._seed_old()
+        new = _snap_payload(datetime.now(timezone.utc))
+        out = self._run(self._writes_then_times_out(json.dumps(new)))
+        self.assertTrue(out["ok"])
+        self.assertIsNone(out["error"])
+        self.assertIsNone(out["error_class"])
+        self.assertEqual(out["note"], "snapshot_updated_before_timeout")
+        self.assertEqual(out["as_of"], new["as_of"])
+        self.assertEqual(out["timeout_s"], 5)
+        self.assertLess(out["age_hours"], 0.1)
+
+    def test_timeout_with_fresh_snapshot_no_prior_file_is_ok(self) -> None:
+        new = _snap_payload(datetime.now(timezone.utc))
+        out = self._run(self._writes_then_times_out(json.dumps(new)))
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["note"], "snapshot_updated_before_timeout")
+
+    def test_timeout_with_stale_snapshot_keeps_failure(self) -> None:
+        before = self._seed_old()
+        raw_before = self.dest.read_bytes()
+        mt_before = self.dest.stat().st_mtime
+        out = self._run(lambda argv, **kw: (_ for _ in ()).throw(self._timeout(argv, **kw)))
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error_class"], "timeout")
+        self.assertEqual(out["error"], "local_mcp_timeout:5s")
+        self.assertNotIn("note", out)
+        self.assertEqual(out["as_of"], before["as_of"])  # honest stale, not moved
+        self.assertEqual(self.dest.read_bytes(), raw_before)
+        self.assertEqual(self.dest.stat().st_mtime, mt_before)
+
+    def test_timeout_with_missing_snapshot_keeps_failure(self) -> None:
+        out = self._run(lambda argv, **kw: (_ for _ in ()).throw(self._timeout(argv, **kw)))
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error_class"], "timeout")
+        self.assertNotIn("as_of", out)
+
+    def test_timeout_rewritten_but_as_of_not_newer_keeps_failure(self) -> None:
+        before = self._seed_old()
+        # mtime moves (file rewritten) but as_of is the same: nothing was refreshed
+        out = self._run(self._writes_then_times_out(json.dumps(before)))
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error_class"], "timeout")
+        self.assertNotIn("note", out)
+
+    def test_timeout_with_invalid_or_partial_snapshot_keeps_failure(self) -> None:
+        now = datetime.now(timezone.utc)
+        good = json.dumps(_snap_payload(now))
+        bad_cases = {
+            "truncated_json": good[: len(good) // 2],
+            "empty_file": "",
+            "not_a_dict_json": "[]",
+            "missing_as_of_key": json.dumps({"source": "live", "buying_power": 1.0}),
+            "unparseable_as_of": json.dumps({"as_of": "not-a-date", "source": "live"}),
+            "unexpected_shape": json.dumps({"as_of": now.isoformat(), "foo": 1}),
+        }
+        for name, text in bad_cases.items():
+            with self.subTest(name):
+                before = self._seed_old()
+                out = self._run(self._writes_then_times_out(text))
+                self.assertFalse(out["ok"], name)
+                self.assertEqual(out["error_class"], "timeout", name)
+                self.assertEqual(out["error"], "local_mcp_timeout:5s", name)
+                self.assertNotIn("note", out)
+                self.assertNotEqual(out.get("as_of"), now.isoformat(), name)
+
+    def test_timeout_primary_only_rewrite_over_agentic_keeps_failure(self) -> None:
+        self._seed_old(agentic=True)
+        new = _snap_payload(datetime.now(timezone.utc), agentic=False)
+        out = self._run(self._writes_then_times_out(json.dumps(new)))
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error_class"], "timeout")
+
+    def test_timeout_ok_is_recorded_in_status_and_does_not_page(self) -> None:
+        self._seed_old()
+        new = _snap_payload(datetime.now(timezone.utc))
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_SKIP_LOCAL_MCP"}
+        env["TREASURY_RH_ROLE"] = "producer"
+        with mock.patch.object(rss, "SNAPSHOTS_DIR", self.snap_dir), mock.patch.object(
+            rss.shutil, "which", return_value="/usr/bin/grok"
+        ), mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            rss.subprocess, "run", side_effect=self._writes_then_times_out(json.dumps(new))
+        ), mock.patch.object(rss, "reevaluate_offline"), mock.patch.object(
+            rss, "notify_rh_producer_failure"
+        ) as notify:
+            out = rss.sync_rh_snapshot(reevaluate=True, push_to_pi=False, notify=True)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["source"], "local_mcp")
+        self.assertEqual(out["note"], "snapshot_updated_before_timeout")
+        self.assertIsNone(out["error"])
+        notify.assert_not_called()
+        self.assertNotIn("notify", out)
+        status = json.loads((self.snap_dir / rss.RH_PRODUCER_STATUS).read_text("utf-8"))
+        self.assertTrue(status["ok"])
+        self.assertEqual(status["note"], "snapshot_updated_before_timeout")
+        self.assertIsNone(status["error"])
+        # (the sidecar writes "unknown" for an empty error_class on any ok run)
+        self.assertIn(status["error_class"], (None, "unknown"))
+        # main() exits 0 for an ok status
+        with mock.patch.object(rss, "sync_rh_snapshot", return_value=out), mock.patch(
+            "sys.stdout", new_callable=io.StringIO
+        ):
+            self.assertEqual(rss.main(["--local-only"]), 0)
+
+    def test_timeout_stale_still_fails_the_run_through_sync(self) -> None:
+        self._seed_old(hours_old=7.0)
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_SKIP_LOCAL_MCP"}
+        env["TREASURY_RH_ROLE"] = "producer"
+        with mock.patch.object(rss, "SNAPSHOTS_DIR", self.snap_dir), mock.patch.object(
+            rss.shutil, "which", return_value="/usr/bin/grok"
+        ), mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            rss.subprocess,
+            "run",
+            side_effect=lambda argv, **kw: (_ for _ in ()).throw(self._timeout(argv, **kw)),
+        ), mock.patch.object(rss, "reevaluate_offline"), mock.patch.object(
+            rss, "notify_rh_producer_failure", return_value={"ok": True}
+        ):
+            out = rss.sync_rh_snapshot(reevaluate=False, push_to_pi=False, notify=True)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error_class"], "timeout")
+        with mock.patch.object(rss, "sync_rh_snapshot", return_value=out), mock.patch(
+            "sys.stdout", new_callable=io.StringIO
+        ):
+            self.assertEqual(rss.main(["--local-only"]), 1)
+
+    # ---- (2) timeout default ---------------------------------------------
+
+    def test_default_timeout_is_420_and_consistent_with_timer_and_max_age(self) -> None:
+        self.assertEqual(rss.DEFAULT_MCP_TIMEOUT_S, 420.0)
+        cfg_path = Path(rss.__file__).resolve().parent / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        self.assertEqual(cfg["pi_sync"]["mcp_timeout_s"], rss.DEFAULT_MCP_TIMEOUT_S)
+        self.assertEqual(cfg["pi_sync"]["max_age_hours"], rss.DEFAULT_MAX_AGE_H)
+        self.assertEqual(rss.DEFAULT_MAX_AGE_H, 6.0)
+        timer = (cfg_path.parent / "deploy" / "rh-refresh.timer").read_text("utf-8")
+        m = re.search(r"^OnUnitActiveSec=(\d+)h\s*$", timer, re.M)
+        self.assertIsNotNone(m)
+        interval_h = float(m.group(1))
+        self.assertEqual(interval_h, 3.0)
+        # a run (timeout included) fits well inside one timer interval
+        self.assertLess(rss.DEFAULT_MCP_TIMEOUT_S / 3600.0, interval_h / 10)
+        # one missed run (2 intervals) is still inside the freshness window
+        self.assertGreaterEqual(rss.DEFAULT_MAX_AGE_H, 2 * interval_h)
+
+    def test_timeout_env_override_still_wins(self) -> None:
+        with mock.patch.dict(os.environ, {"TREASURY_RH_MCP_TIMEOUT_S": "123"}):
+            self.assertEqual(rss._pi_settings()["mcp_timeout_s"], 123.0)
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_RH_MCP_TIMEOUT_S"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(rss._pi_settings()["mcp_timeout_s"], 420.0)
+
+    def test_timeout_passed_to_subprocess_is_the_default(self) -> None:
+        seen = {}
+
+        def fx(argv, **kw):
+            seen["timeout"] = kw["timeout"]
+            return mock.Mock(returncode=1, stdout="", stderr="")
+
+        env = {k: v for k, v in os.environ.items() if k != "TREASURY_RH_MCP_TIMEOUT_S"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch.object(rss, "SNAPSHOTS_DIR", self.snap_dir), mock.patch.object(
+                rss.shutil, "which", return_value="/usr/bin/grok"
+            ), mock.patch.object(rss.subprocess, "run", side_effect=fx):
+                rss.refresh_via_local_mcp()
+        self.assertEqual(seen["timeout"], 420.0)
+
+    # ---- (3) auth classifier ---------------------------------------------
+
+    def test_microsecond_401_never_classified_auth_fail(self) -> None:
+        import random
+
+        rng = random.Random(1266)
+        for i in range(3000):
+            digits = [str(rng.randrange(10)) for _ in range(6)]
+            pos = rng.randrange(0, 4)
+            digits[pos : pos + 3] = list("401")  # microseconds always contain 401
+            micro = "".join(digits)
+            self.assertIn("401", micro)
+            tz = rng.choice(["+00:00", "Z", "-04:00"])
+            stamp = (
+                f"2026-{rng.randrange(1, 13):02d}-{rng.randrange(1, 29):02d}"
+                f"T{rng.randrange(24):02d}:{rng.randrange(60):02d}:{rng.randrange(60):02d}"
+                f".{micro}{tz}"
+            )
+            msg = rng.choice(
+                [
+                    f"RH refreshed as_of={stamp} accounts=2",
+                    f"RH refreshed as_of={stamp}",
+                    f"wrote snapshot at {stamp} (took {rng.randrange(100, 300)}.{micro}s)",
+                    f"as_of={stamp} age=0.{micro}h",
+                ]
+            )
+            self.assertNotEqual(rss.classify_rh_error(msg), "auth_fail", (i, msg))
+            self.assertNotEqual(rss.classify_rh_error(msg.upper()), "auth_fail", (i, msg))
+
+    def test_bare_or_embedded_401_is_not_auth(self) -> None:
+        for msg in (
+            "401",
+            "wrote 401 rows",
+            "port 8401 ready",
+            "https://example.test/401",
+            "http 4010",
+            "id=a401b",
+            "RH refreshed as_of=2026-10-14T02:47:12.163401+00:00",
+        ):
+            with self.subTest(msg):
+                self.assertNotEqual(rss.classify_rh_error(msg), "auth_fail")
+
+    def test_real_401_status_still_auth_fail(self) -> None:
+        for msg in (
+            "HTTP 401: Bad credentials",
+            "http 401",
+            "HTTP/1.1 401 Unauthorized",
+            "HTTP/2 401",
+            "http_401",
+            "Request failed: HTTP:401",
+            "401 Unauthorized",
+            "got a 401 UNAUTHORIZED from the MCP",
+            "status 401",
+            "Status Code: 401",
+            "status=401",
+            "auth_fail",
+            "MCP OAuth revoked",
+        ):
+            with self.subTest(msg):
+                self.assertEqual(rss.classify_rh_error(msg), "auth_fail")
+        # a real status next to a noisy timestamp still counts
+        stamp = "2026-10-14T02:47:12.163401+00:00"
+        self.assertEqual(
+            rss.classify_rh_error(f"as_of={stamp} then HTTP 401 Unauthorized"), "auth_fail"
+        )
+
+    def test_other_classes_unchanged(self) -> None:
+        self.assertEqual(rss.classify_rh_error("local_mcp_timeout:420.0s"), "timeout")
+        self.assertEqual(rss.classify_rh_error("grok_exit_1"), "grok")
+        self.assertEqual(rss.classify_rh_error("snapshot_missing_after_mcp"), "mcp")
+
+    # ---- (3b) exit 0 + updated snapshot never auth_fail --------------------
+
+    def test_exit0_updated_snapshot_noisy_stdout_is_ok(self) -> None:
+        self._seed_old()
+        new = _snap_payload(datetime.now(timezone.utc))
+        noisy = (
+            "RH refreshed as_of=2026-10-14T02:47:12.163401+00:00 accounts=2\n"
+            "tool get_portfolio ok 401 ms; retry count 401\n"
+        )
+        out = self._run(self._writes_then_exits(json.dumps(new), rc=0, stdout=noisy))
+        self.assertTrue(out["ok"])
+        self.assertIsNone(out["error"])
+        self.assertIsNone(out["error_class"])
+        self.assertNotEqual(out.get("note"), "left_existing_snapshot")
+        self.assertEqual(out["as_of"], new["as_of"])
+
+    def test_exit0_updated_snapshot_auth_looking_stdout_is_ignored(self) -> None:
+        self._seed_old()
+        new = _snap_payload(datetime.now(timezone.utc))
+        noisy = "log: oauth consent ok; token expired earlier but refreshed; HTTP 401 retry succeeded"
+        self.assertEqual(rss.classify_rh_error(noisy), "auth_fail")  # sanity
+        out = self._run(
+            self._writes_then_exits(json.dumps(new), rc=0, stdout=noisy, stderr=noisy)
+        )
+        self.assertTrue(out["ok"])
+        self.assertIsNone(out["error_class"])
+        self.assertEqual(out["note"], "auth_like_output_ignored_snapshot_updated")
+
+    def test_exit0_not_updated_with_real_401_is_still_auth_fail(self) -> None:
+        before = self._seed_old()
+        out = self._run(
+            self._writes_then_exits("", rc=0, stdout="MCP error: HTTP 401 Unauthorized")
+        )
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error_class"], "auth_fail")
+        self.assertEqual(out["note"], "left_existing_snapshot")
+        self.assertEqual(out["as_of"], before["as_of"])
+
+    def test_exit0_not_updated_with_timestamp_noise_is_not_auth_fail(self) -> None:
+        self._seed_old(hours_old=7.0)
+        out = self._run(
+            self._writes_then_exits(
+                "", rc=0, stdout="RH refreshed as_of=2026-10-14T02:47:12.163401+00:00"
+            )
+        )
+        self.assertFalse(out["ok"])  # snapshot really was not updated
+        self.assertNotEqual(out["error_class"], "auth_fail")
+        self.assertTrue(str(out["error"]).startswith("snapshot_not_updated"))
+
+    def test_nonzero_exit_with_real_401_stays_failure_even_if_file_updated(self) -> None:
+        self._seed_old()
+        new = _snap_payload(datetime.now(timezone.utc))
+        out = self._run(
+            self._writes_then_exits(json.dumps(new), rc=1, stdout="HTTP 401 Unauthorized")
+        )
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error_class"], "auth_fail")
 
 
 def _fake_pi_settings() -> dict:

@@ -17,7 +17,8 @@
 #                    prism-agent@prism-gateway via tailnet MagicDNS)
 #   TREASURY_PI_ROOT=/home/prism-agent/personal-workspace
 #   TREASURY_SKIP_PI=1 / TREASURY_SKIP_LOCAL_MCP=1 / TREASURY_SKIP_PUSH_PI=1
-#   TREASURY_RH_MCP_TIMEOUT_S=240
+#   TREASURY_RH_MCP_TIMEOUT_S=420   (code/config default since #1266; the prism
+#                    systemd unit may still pin 240 until its sudo ops step)
 #   TREASURY_RH_MAX_AGE_HOURS=6
 #
 set -euo pipefail
