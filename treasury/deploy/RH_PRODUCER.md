@@ -185,8 +185,31 @@ feeding FCC. After step 2 + step 3:
 
 - Freshness window: **6h** (`TREASURY_RH_MAX_AGE_HOURS`, FCC stale threshold)
 - Producer timer: **3h** (`rh-refresh.timer`)
+- Local MCP wall timeout: **420s** default (`TREASURY_RH_MCP_TIMEOUT_S` /
+  `pi_sync.mcp_timeout_s`, #1266; was 240s). 7 min is far under the 3h timer, and
+  6h max age is two timer intervals, so one missed run never goes stale.
 - Status sidecar: `treasury/snapshots/rh_producer_status.json`
 - Error classes: `auth_fail`, `timeout`, `grok`, `mcp`, `stale`, `unreachable`, `skipped`, …
+
+## #1266 — timeout after the snapshot was already written
+
+grok sometimes finishes the `robinhood_latest.json` write and then runs past the
+wall timeout. On `TimeoutExpired`, `refresh_via_local_mcp()` now checks the file:
+if it parses, has an `as_of`, its mtime and `as_of` are newer than before the
+run, and an existing agentic block was not dropped, the run is **ok** with
+`note=snapshot_updated_before_timeout` (exit 0, no failure page; the note is
+recorded in `rh_producer_status.json`). Otherwise the `timeout` failure is
+unchanged. The auth classifier no longer matches a bare `401` (timestamps such as
+`.163401` gave a false `auth_fail`); it needs `HTTP 401`, `status 401` or
+`401 Unauthorized`, and never classifies from stdout when grok exited 0 and the
+snapshot was updated.
+
+**Ops step (not part of the code PR, needs sudo on prism):** the unit pins
+`TREASURY_RH_MCP_TIMEOUT_S=240`, and the env var wins over code/config. To get the
+420s budget, change that line in `/etc/systemd/system/rh-refresh.service` to
+`420`, then `sudo systemctl daemon-reload`. The repo copy
+`treasury/deploy/rh-refresh.service` (and the Mac plist) is left at 240 until that
+step is done so repo and prism stay in step. The timeout fix above works at 240 too.
 
 ## #555 — do not page expected skip / leftover Mac / timeout-while-fresh
 

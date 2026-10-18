@@ -26,7 +26,9 @@ Env (optional):
   TREASURY_PI_ROOT    e.g. /home/prism-agent/personal-workspace
   TREASURY_PI_CONNECT_TIMEOUT  (seconds, default 5)
   TREASURY_RH_MAX_AGE_HOURS    accept remote only if as_of younger than this (default 6)
-  TREASURY_RH_MCP_TIMEOUT_S    local Grok/MCP wall timeout (default 240)
+  TREASURY_RH_MCP_TIMEOUT_S    local Grok/MCP wall timeout (default 420; #1266).
+                      Overrides ``pi_sync.mcp_timeout_s`` in config.json. The prism
+                      unit still pins 240 until its ops step (sudo) lands.
   TREASURY_SKIP_PI=1           do not pull from Pi (producer systemd sets this)
   TREASURY_SKIP_LOCAL_MCP=1    do not run grok/MCP (Mac consumer launchd)
   TREASURY_SKIP_PUSH_PI=1      do not push non-RH snapshots to Pi
@@ -45,6 +47,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -72,7 +75,11 @@ DEFAULT_CONNECT_S = 5
 # accepted "ok" pulls while the dashboard still painted RH red/stale.
 DEFAULT_MAX_AGE_H = 6.0
 # Grok + Robinhood MCP multi-step refresh often exceeds 90s (primary fail mode).
-DEFAULT_MCP_TIMEOUT_S = 240.0
+# #1266: healthy prism runs measured median ~161s, max 236s; 240s clipped the
+# tail after the snapshot was already written. 420s (7 min) is far below the 3h
+# rh-refresh.timer interval and the 6h max snapshot age (two missed runs).
+# Keep in step with ``pi_sync.mcp_timeout_s`` in config.json. Env override wins.
+DEFAULT_MCP_TIMEOUT_S = 420.0
 RH_SNAP = "robinhood_latest.json"
 FM_SNAP = "fund_manager_latest.json"
 RH_PRODUCER_STATUS = "rh_producer_status.json"
@@ -114,6 +121,17 @@ def _age_hours(as_of: Optional[datetime]) -> Optional[float]:
     return max(0.0, (_now() - as_of).total_seconds() / 3600.0)
 
 
+# #1266: a bare "401" substring matched timestamp digits (e.g. microseconds
+# ".163401") in grok stdout and produced a false auth_fail. Require a status
+# context: "HTTP 401", "HTTP/1.1 401", "status 401" / "status code: 401",
+# "401 Unauthorized". Matched on the lower-cased text; all word-bounded.
+_AUTH_401_RE = re.compile(
+    r"\bhttp(?:/\d(?:\.\d)?)?[\s_:/=-]*401\b"
+    r"|\b401\s+unauthorized\b"
+    r"|\bstatus(?:[\s_]?code)?[\s_:=]*401\b"
+)
+
+
 def classify_rh_error(err: Optional[str]) -> str:
     """Map a refresh error string to a stable error class (AC4)."""
     e = (err or "").lower()
@@ -124,7 +142,6 @@ def classify_rh_error(err: Optional[str]) -> str:
         "oauth",
         "revok",
         "unauthorized",
-        "401",
         "login required",
         "re-auth",
         "reauth",
@@ -134,7 +151,7 @@ def classify_rh_error(err: Optional[str]) -> str:
         "mcp auth",
         "consent",
     )
-    if any(n in e for n in auth_needles):
+    if any(n in e for n in auth_needles) or _AUTH_401_RE.search(e):
         return "auth_fail"
     if "timeout" in e:
         return "timeout"
@@ -234,6 +251,7 @@ def write_producer_status(status: Dict[str, Any]) -> Optional[Path]:
         "error": status.get("error"),
         "error_class": status.get("error_class")
         or classify_rh_error(str(status.get("error") or "")),
+        "note": status.get("note"),
         "written_at": _now().isoformat(),
     }
     try:
@@ -711,6 +729,34 @@ def pull_from_pi(
     return out
 
 
+def _snapshot_updated_since(
+    dest: Path,
+    before_mtime: Optional[float],
+    before_as_of: Optional[datetime],
+    before_had_agentic: bool,
+) -> Tuple[bool, Optional[datetime], str]:
+    """True when ``dest`` is a valid snapshot that this run really rewrote (#1266).
+
+    Needs an explicit ``as_of`` (no mtime fallback), an mtime newer than the
+    pre-run mtime, an ``as_of`` newer than the pre-run ``as_of`` (when there was
+    one), and no loss of the agentic block. Never invents or edits anything.
+    """
+    ok, as_of, why = _valid_rh_snapshot(dest, allow_mtime_as_of=False)
+    if not ok or as_of is None:
+        return False, as_of, why
+    try:
+        mtime = dest.stat().st_mtime
+    except OSError:
+        return False, as_of, "missing"
+    if before_mtime is not None and mtime <= before_mtime + 0.5:
+        return False, as_of, "mtime_not_newer"
+    if before_as_of is not None and as_of <= before_as_of:
+        return False, as_of, "as_of_not_newer"
+    if before_had_agentic and not _snapshot_has_agentic(load_json(dest)):
+        return False, as_of, "agentic_dropped"
+    return True, as_of, "updated"
+
+
 def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any]:
     """Invoke grok headless with rh_refresh_prompt (local Robinhood MCP)."""
     if timeout_s is None:
@@ -736,9 +782,13 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
         return out
 
     before_mtime = None
+    before_as_of = None
+    before_had_agentic = False
     dest = SNAPSHOTS_DIR / RH_SNAP
     if dest.is_file():
         before_mtime = dest.stat().st_mtime
+        _, before_as_of, _ = _valid_rh_snapshot(dest, allow_mtime_as_of=False)
+        before_had_agentic = _snapshot_has_agentic(load_json(dest))
 
     prompt = prompt_path.read_text(encoding="utf-8")
     # #1093: this run is read-only (get_accounts / get_portfolio /
@@ -778,6 +828,20 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
         out["stdout_tail"] = (r.stdout or "")[-500:]
         out["stderr_tail"] = (r.stderr or "")[-300:]
     except subprocess.TimeoutExpired:
+        # #1266: grok often finishes the write and then runs past the wall
+        # clock. If the file this run was asked to produce is valid and newer
+        # than before the run, the refresh succeeded; otherwise unchanged.
+        updated, new_as_of, _why = _snapshot_updated_since(
+            dest, before_mtime, before_as_of, before_had_agentic
+        )
+        if updated and new_as_of is not None:
+            out["ok"] = True
+            out["error"] = None
+            out["error_class"] = None
+            out["note"] = "snapshot_updated_before_timeout"
+            out["as_of"] = new_as_of.isoformat()
+            out["age_hours"] = round(_age_hours(new_as_of) or 0.0, 2)
+            return out
         out["error"] = f"local_mcp_timeout:{timeout_s}s"
         out["error_class"] = "timeout"
         _attach_existing_as_of(out, dest)
@@ -797,6 +861,16 @@ def refresh_via_local_mcp(*, timeout_s: Optional[float] = None) -> Dict[str, Any
     )
     err_class = classify_rh_error(blob)
     grok_failed = r is not None and r.returncode != 0
+    if not grok_failed and err_class == "auth_fail":
+        # #1266: grok exited 0 and really rewrote a valid snapshot, so the
+        # auth-looking text in free-form stdout/stderr is noise (e.g. a
+        # timestamp or an echoed log line). Do not classify from it.
+        updated, _a, _w = _snapshot_updated_since(
+            dest, before_mtime, before_as_of, before_had_agentic
+        )
+        if updated:
+            err_class = ""
+            out["note"] = "auth_like_output_ignored_snapshot_updated"
     if grok_failed or err_class == "auth_fail":
         if err_class == "auth_fail":
             out["error"] = "auth_fail"
@@ -1187,6 +1261,8 @@ def sync_rh_snapshot(
             result["as_of"] = local.get("as_of")
             result["age_hours"] = local.get("age_hours")
             result["path"] = local.get("path")
+            if local.get("note"):
+                result["note"] = local["note"]
             if reevaluate:
                 reevaluate_offline()
             if push_to_pi:
