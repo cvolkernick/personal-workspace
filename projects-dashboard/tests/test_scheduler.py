@@ -478,7 +478,8 @@ class TestScheduler(unittest.TestCase):
         sch.write_report(report)
         result = sch.tick(force=True)
         blob = json.dumps(result)
-        self.assertNotIn("401", blob)
+        # Not a bare "401": groom.groomed_at is a timestamp whose microseconds can contain it.
+        self.assertNotIn("HTTP 401", blob)
         self.assertNotIn("Bad credentials", blob)
         self.assertNotIn(old_id, blob)
         self.assertEqual(sch.load_jobs()["jobs"], [])
