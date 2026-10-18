@@ -46,5 +46,29 @@ def parse(body: bytes) -> SourceRecord:
     return ok_record(SOURCE_ID, NAME, URL, payload["as_of"], payload, body)
 
 
+def parse_series(body: bytes) -> list[tuple[str, Decimal]]:
+    """Every M2.M observation, oldest first. Values stay in billions of USD."""
+    from decimal import Decimal
+
+    rows = list(csv.reader(io.StringIO(body.decode("utf-8-sig"))))
+    header_i = None
+    for i, row in enumerate(rows):
+        if row and row[0].strip() == "Time Period":
+            header_i = i
+            break
+    if header_i is None:
+        return []
+    try:
+        col = rows[header_i].index("M2.M")
+    except ValueError:
+        return []
+    points: list[tuple[str, Decimal]] = []
+    for row in rows[header_i + 1 :]:
+        if len(row) > col and row[0].strip() and row[col].strip():
+            points.append((row[0].strip(), Decimal(row[col].strip())))
+    points.sort(key=lambda item: item[0])
+    return points
+
+
 def fetch() -> SourceRecord:
     return call(SOURCE_ID, NAME, URL, parse)

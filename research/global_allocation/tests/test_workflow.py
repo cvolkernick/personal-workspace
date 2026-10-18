@@ -39,6 +39,40 @@ def test_workflow_crons_permissions_and_concurrency():
         assert parsed["jobs"]["refresh"]["if"] == "github.repository == 'cvolkernick/personal-workspace'"
 
 
+def test_monthly_step_draws_charts_and_writes_the_report():
+    text = _workflow_text()
+    blocks = _monthly_blocks(text)
+    assert len(blocks) == 2
+    joined = "\n".join(blocks)
+    assert "python3 -m research.global_allocation.charts" in joined
+    assert 'python3 -m research.global_allocation.report --month "${date_et:0:7}"' in joined
+    assert "git add -- research/global_allocation/charts research/global_allocation/reports" in joined
+    assert "matplotlib==3.9.4" in joined
+    outside = text
+    for block in blocks:
+        outside = outside.replace(block, "", 1)
+    assert "research.global_allocation.charts" not in outside
+    assert "research.global_allocation.report" not in outside
+    assert "kind=weekly" in text
+
+
+def _monthly_blocks(text: str) -> list[str]:
+    lines = text.splitlines()
+    blocks = []
+    index = 0
+    while index < len(lines):
+        if 'if [ "$kind" = monthly ]; then' not in lines[index]:
+            index += 1
+            continue
+        start = index
+        index += 1
+        while index < len(lines) and lines[index].strip() != "fi":
+            index += 1
+        blocks.append("\n".join(lines[start : index + 1]))
+        index += 1
+    return blocks
+
+
 def test_workflow_never_echoes_a_secret():
     for line in _workflow_text().splitlines():
         if "echo" not in line:

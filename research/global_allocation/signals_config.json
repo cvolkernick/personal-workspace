@@ -1,0 +1,62 @@
+{
+  "window": {
+    "value": 36,
+    "rationale": "Trailing window length. About three years of monthly snapshots."
+  },
+  "min_history": {
+    "value": 12,
+    "rationale": "Fewer than 12 prior months is not a distribution. The line prints insufficient history."
+  },
+  "z_high": {
+    "value": 2.0,
+    "rationale": "About 2 sigma is the usual unusual-reading line."
+  },
+  "percentile_high": {
+    "value": 95,
+    "rationale": "Share sits at or above the 95th percentile of its own window."
+  },
+  "percentile_low": {
+    "value": 5,
+    "rationale": "Share sits at or below the 5th percentile of its own window."
+  },
+  "watch_z": {
+    "value": 1.5,
+    "rationale": "A milder band below the 2 sigma line."
+  },
+  "flat_std_pp": {
+    "value": 0.05,
+    "rationale": "A sample standard deviation under 0.05 percentage points is flat, so z is not computed."
+  },
+  "money_gap_high_pp": {
+    "value": 10,
+    "rationale": "Money growth exceeds hard-asset growth by 10 percentage points. Gold and bitcoin move more than money, so the default is wide."
+  },
+  "money_gap_low_pp": {
+    "value": 25,
+    "rationale": "Hard assets exceed money growth by 25 percentage points. The wider line reflects their higher volatility."
+  },
+  "money_growth_min_pct": {
+    "value": 4,
+    "rationale": "Money's own 12-month log growth is at least 4 percent, so the gap is not only a falling-money story."
+  },
+  "signal2_points": {
+    "value": 13,
+    "rationale": "Twelve monthly steps need the current point and the point 12 steps back."
+  },
+  "equity_z": {
+    "value": 1.5,
+    "rationale": "Equity share is elevated or depressed versus its own history, a milder line than signal 1."
+  },
+  "real_yield_percentile_high": {
+    "value": 75,
+    "rationale": "The 10Y real yield sits in the top quartile of the trailing 36 months of daily prints."
+  },
+  "real_yield_percentile_low": {
+    "value": 25,
+    "rationale": "The 10Y real yield sits in the bottom quartile of the trailing 36 months of daily prints."
+  },
+  "yield_window_months": {
+    "value": 36,
+    "rationale": "The real-yield percentile uses the trailing 36 months of daily Treasury data, which exists on day one."
+  }
+}

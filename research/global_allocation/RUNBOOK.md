@@ -55,6 +55,19 @@ python3 -m research.global_allocation.validate_snapshots
 
 No key, or a failed equity response: the run still exits 0. Listed equities keep the source value and as_of, `value_kind` is `carried_forward`, `price_stale` is true, and a caveat line names the failure. Twelve Data is not called.
 
+## Charts and the monthly report
+
+Monthly runs also write the charts and the advisory report. Weekly runs do not. The canonical workflow's monthly branch installs `matplotlib==3.9.4` and Pillow, then runs the two commands below. The box script runs those two commands after a monthly refresh. It does not install packages, so the box needs that matplotlib pin and Pillow on its own. If the chart or report step fails, the script exits non-zero and the snapshot already written stays. The next monthly run leaves that snapshot in place and retries the charts. The workflow file is still not installed.
+
+```sh
+python3 -m research.global_allocation.charts
+python3 -m research.global_allocation.report --month YYYY-MM
+```
+
+`charts/latest/` is the current picture. `charts/YYYY-MM/` and `reports/YYYY-MM_advisory.md` are written once. A second run for that month leaves those files untouched. Every PNG footer is `Gross, overlapping, mixed dates. Not net wealth. Advisory only.` plus the per-class as-of line. The report header is `ADVISORY`. Until the regime hook lands, the report says `regime context: not wired`.
+
+A daily Treasury CSV (`--yield-csv`) supplies the 36-month real-yield percentile. A Fed H.6 CSV (`--m2-csv`) supplies the US M2 YoY proxy when fewer than 13 eligible monthly snapshots exist. Without those files the report still prints the snapshot yield when it has one, and says the percentile or the proxy is unavailable. It does not fetch.
+
 ## Live check still open
 
 This file does not record a live weekly snapshot. The check runs on the box routine, or on `workflow_dispatch` with `kind=weekly` after the workflow is installed. It does not run on a laptop. Confirm:

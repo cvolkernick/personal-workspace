@@ -3,5 +3,6 @@ pytest>=8.0,<9
 google-auth>=2.0
 pypdf>=5.0
 Pillow>=10.0.0
+matplotlib==3.9.4
 requests>=2.31,<3
 requests-oauthlib>=1.3

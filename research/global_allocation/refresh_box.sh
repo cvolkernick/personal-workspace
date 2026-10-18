@@ -14,4 +14,14 @@ case "$kind" in
 esac
 root="${GLOBAL_ALLOCATION_ROOT:-$HOME/personal-workspace}"
 cd "$root"
-exec /usr/bin/python3 -m research.global_allocation.refresh --kind "$kind"
+/usr/bin/python3 -m research.global_allocation.refresh --kind "$kind"
+status=$?
+if [ "$status" -ne 0 ]; then
+  exit "$status"
+fi
+if [ "$kind" != monthly ]; then
+  exit 0
+fi
+/usr/bin/python3 -m research.global_allocation.charts
+month=$(/usr/bin/python3 -c 'from research.global_allocation.refresh import run_date_default; print(run_date_default()[:7])')
+exec /usr/bin/python3 -m research.global_allocation.report --month "$month"

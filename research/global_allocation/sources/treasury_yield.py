@@ -40,6 +40,32 @@ def parse(body: bytes) -> SourceRecord:
     return unavailable(SOURCE_ID, NAME, URL, "no 10 YR observation")
 
 
+def parse_series(body: bytes) -> list[tuple[str, Decimal]]:
+    """Every 10 YR print, oldest first. Empty when the file has no usable rows."""
+    from decimal import Decimal
+
+    rows = list(csv.reader(io.StringIO(body.decode("utf-8-sig"))))
+    if not rows:
+        return []
+    header = [cell.strip().strip('"') for cell in rows[0]]
+    try:
+        col = header.index("10 YR")
+    except ValueError:
+        return []
+    points: list[tuple[str, Decimal]] = []
+    for row in rows[1:]:
+        if len(row) <= col or not row[0].strip() or not row[col].strip():
+            continue
+        raw_date = row[0].strip()
+        try:
+            as_of = datetime.strptime(raw_date, "%m/%d/%Y").date().isoformat()
+        except ValueError:
+            as_of = raw_date
+        points.append((as_of, Decimal(row[col].strip())))
+    points.sort(key=lambda item: item[0])
+    return points
+
+
 def fetch(year: int | None = None) -> SourceRecord:
     from datetime import date
 
