@@ -77,6 +77,9 @@ REP_SLACK = 1
 # Sessions older than this many weeks before the open Monday are not read.
 # Four weeks feed the average and the rest is the cap's ±10% walk (#1267).
 HISTORY_WEEKS = 10
+# Largest manual weekly cap (proper sets) that is read. A real week is far
+# below this, and anything above it is treated as a typo and ignored (#1267).
+MAX_CAP_OVERRIDE = 1000
 
 # Catalog tags that are not one of the 14 groups. Forearms and adductors
 # stay off the tracker. ``back`` on a hinge is lower back only when the
@@ -116,6 +119,25 @@ _TAG_TO_GROUP = {
 
 def _round_half_up(value: float) -> int:
     return int(math.floor(float(value) + 0.5))
+
+
+def clean_cap_override(raw: Any) -> Optional[int]:
+    """A manual weekly cap as a whole number, or None.
+
+    Only a finite number from 1 to ``MAX_CAP_OVERRIDE`` is read. Booleans,
+    text that is not a number, NaN, infinities, zero, negatives, and values
+    above the ceiling are dropped without raising.
+    """
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(value) or value <= 0 or value > MAX_CAP_OVERRIDE:
+        return None
+    whole = int(value + 0.5)
+    return whole if whole >= 1 else None
 
 
 def _round_sets(value: float) -> float:
@@ -301,7 +323,7 @@ def _set_rows(ex: Any) -> List[dict]:
     if weight is not None and reps is not None and not isinstance(count, list):
         try:
             n = int(count or 1)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             n = 1
         return [{"weight_lbs": weight, "sets": n, "reps": reps}]
     return []
@@ -310,14 +332,14 @@ def _set_rows(ex: Any) -> List[dict]:
 def _row_count(st: dict) -> int:
     try:
         return max(0, int(st.get("sets") or 0))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 
 def _row_reps(st: dict) -> Optional[int]:
     try:
         return int(st.get("reps"))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -509,7 +531,7 @@ def _planned_load_index(payload: Mapping[str, Any]) -> Dict[str, float]:
             value = float(load)
         except (TypeError, ValueError):
             continue
-        if value > 0:
+        if math.isfinite(value) and value > 0:
             out[name] = value
     return out
 
@@ -537,25 +559,20 @@ def _goals(payload: Mapping[str, Any]) -> dict:
 
 
 def _override_value(goals: Mapping[str, Any]) -> Optional[int]:
-    raw = goals.get("muscle_set_cap_override")
-    if raw is None or raw == "":
-        return None
-    try:
-        value = float(raw)
-    except (TypeError, ValueError):
-        return None
-    if value <= 0:
-        return None
-    return _round_half_up(value)
+    return clean_cap_override(goals.get("muscle_set_cap_override"))
 
 
 def _skip_exercise(ex: Any) -> bool:
     from .models import is_zero_volume_status_log
     from .quest_workout_log import exercise_is_real_log
 
-    if is_zero_volume_status_log(ex):
-        return True
-    if not exercise_is_real_log(ex):
+    try:
+        if is_zero_volume_status_log(ex):
+            return True
+        if not exercise_is_real_log(ex):
+            return True
+    except (TypeError, ValueError, OverflowError):
+        # A row with a non-finite or unreadable count is not a countable log.
         return True
     return False
 

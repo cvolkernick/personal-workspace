@@ -92,6 +92,17 @@ def _balanced_week(monday, *, full=True):
     return sessions if full else sessions[:2]
 
 
+INVALID_OVERRIDES = (
+    None, "", 0, -3, "abc", True, False, float("nan"),
+    float("inf"), float("-inf"), "inf", "-inf", "1e400", "1e308", 1e308, 10 ** 400,
+    [1], {"a": 1},
+)
+
+
+def _by_name_row(name):
+    return next(r for r in CATALOG["exercises"] if r["name"] == name)
+
+
 FOUR_WEEKS = ("2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05")
 
 
@@ -256,13 +267,95 @@ class CapOverridePassThrough(unittest.TestCase):
         self.assertEqual(normalize_goals({"muscle_set_cap_override": "55"})["muscle_set_cap_override"], 55)
 
     def test_empty_and_invalid_values_stay_absent(self):
-        for raw in (None, "", 0, -3, "abc", True, float("nan")):
+        for raw in INVALID_OVERRIDES:
             with self.subTest(raw=raw):
                 self.assertNotIn(
                     "muscle_set_cap_override", normalize_goals({"muscle_set_cap_override": raw})
                 )
         self.assertNotIn("muscle_set_cap_override", normalize_goals({}))
         self.assertNotIn("muscle_set_cap_override", normalize_goals(None))
+
+    def test_valid_values_and_the_ceiling_round_trip(self):
+        self.assertEqual(ms.MAX_CAP_OVERRIDE, 1000)
+        for raw, want in (
+            (42, 42), ("42", 42), (42.4, 42), (42.5, 43), (1, 1), (0.6, 1),
+            (999.4, 999), (999.9, 1000), (1000, 1000), ("1000", 1000), (1000.0, 1000),
+        ):
+            with self.subTest(raw=raw):
+                got = normalize_goals({"muscle_set_cap_override": raw})["muscle_set_cap_override"]
+                self.assertEqual(got, want)
+                self.assertEqual(
+                    normalize_goals({"muscle_set_cap_override": got})["muscle_set_cap_override"], want
+                )
+        for raw in (1000.5, 1001, "1001", 10_000, 0.4):
+            with self.subTest(raw=raw):
+                self.assertNotIn(
+                    "muscle_set_cap_override", normalize_goals({"muscle_set_cap_override": raw})
+                )
+
+    def test_bad_values_never_raise_on_any_goals_path(self):
+        from rt_dashboard.analytics import dashboard_payload
+
+        history = [
+            Session(date="2026-10-13", session_type="push",
+                    exercises=[ExerciseEntry(name="DB Flat Press", sets=[SetEntry(50, 3, 8)])])
+        ]
+        for raw in INVALID_OVERRIDES:
+            with self.subTest(raw=raw):
+                goals = {**copy.deepcopy(GOALS), "muscle_set_cap_override": raw}
+                self.assertNotIn("muscle_set_cap_override", normalize_goals(goals))
+                # planner path
+                plan = generate_workout_plan(
+                    CATALOG, goals, history, recovery_score=80, session_type="pull",
+                    as_of="2026-10-14",
+                )
+                self.assertTrue(plan["exercises"])
+                # analytics path
+                dashboard_payload(history, goals=goals)
+                # report path with the raw value placed straight into the payload
+                payload = _payload(DAY, _balanced_history())
+                payload["workout_store"]["goals"]["muscle_set_cap_override"] = raw
+                budget = ms.build_muscle_set_report(payload, as_of=DAY)["budget"]
+                self.assertEqual(budget["cap"], 63)
+                self.assertIsNone(budget["cap_override"])
+                self.assertEqual(budget["cap_source"], "rolling")
+                # feed path
+                self.assertTrue(export_agent_today(payload)["ok"])
+
+    def test_hand_edited_goals_file_with_infinity_loads(self):
+        # json.loads accepts Infinity, NaN and 1e400, so a hand edit can carry them.
+        for literal in ("Infinity", "-Infinity", "NaN", "1e400", "1e308", '"inf"'):
+            with self.subTest(literal=literal), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "goals.json"
+                body = json.dumps(GOALS)[:-1] + ', "muscle_set_cap_override": ' + literal + "}"
+                path.write_text(body, encoding="utf-8")
+                with mock.patch("rt_dashboard.workout_store.GOALS_PATH", path), mock.patch(
+                    "rt_dashboard.workout_store._workspace_file_candidates",
+                    return_value=[path],
+                ):
+                    goals, source = load_workspace_goals()
+                self.assertNotEqual(source, "default")
+                self.assertNotIn("muscle_set_cap_override", goals)
+
+    def test_clean_cap_override_helper(self):
+        self.assertIsNone(ms.clean_cap_override(None))
+        self.assertIsNone(ms.clean_cap_override([1]))
+        self.assertIsNone(ms.clean_cap_override({"a": 1}))
+        self.assertIsNone(ms.clean_cap_override(10 ** 400))
+        self.assertEqual(ms.clean_cap_override(" 55 "), 55)
+
+    def test_other_non_finite_inputs_do_not_raise(self):
+        # Logged rows and planned loads that carry inf/nan are skipped, not fatal.
+        inf = float("inf")
+        row = _by_name_row("DB Flat Press")
+        for sets, reps in ((inf, 8), (3, inf), (float("nan"), 8), (3, float("nan"))):
+            with self.subTest(sets=sets, reps=reps):
+                ex = {"name": "DB Flat Press", "sets": [{"weight_lbs": 50, "sets": sets, "reps": reps}]}
+                self.assertEqual(ms.exercise_proper_sets(ex, row, planned_load=None), 0)
+        payload = _payload(DAY, [_session("2026-10-13", "push", _ex("DB Flat Press", (50, 3, 8)))])
+        payload["workout_store"]["plan"] = {"exercises": [{"name": "DB Flat Press", "weight_lbs": inf}]}
+        report = ms.build_muscle_set_report(payload, as_of=DAY)
+        self.assertEqual(report["muscle_sets"]["chest"]["proper_sets"], 3.0)
 
     def test_production_goals_loader_keeps_it(self):
         with tempfile.TemporaryDirectory() as tmp:
