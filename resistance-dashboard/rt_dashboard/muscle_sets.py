@@ -774,7 +774,13 @@ def resolve_weekly_cap(
     blocked_mondays: Optional[Iterable[str]] = None,
     override: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Monday cap from the 4-week average, clamped ±10%, with an empty override."""
+    """Monday cap from the 4-week average, stepped at most ±10%, empty override.
+
+    The cap is the rounded average of the last four completed weeks. Once a
+    full four-week average exists for the previous Monday, it may not move
+    more than 10% from that average, and it does not rise above it while the
+    week is blocked (red tonnage, a called deload, or a deload session).
+    """
     monday_s, _sunday = et_week_bounds(as_of)
     blocked = {str(day)[:10] for day in (blocked_mondays or [])}
     raw_avg = None
@@ -801,49 +807,44 @@ def resolve_weekly_cap(
             "cap_source": "none",
         }
     current = date.fromisoformat(monday_s)
+    cap_f = float(raw_avg)
+    base = _step_base(counts, current)
+    if base is not None:
+        # Step limit: ±10% of the average this cap was set from a week ago.
+        cap_f = max(base * 0.9, min(base * 1.1, cap_f))
+        if current.isoformat() in blocked:
+            cap_f = min(cap_f, base)
+    return {
+        "cap": _round_half_up(cap_f),
+        "cap_raw": raw,
+        "cap_override": None,
+        "cap_source": "rolling",
+    }
+
+
+def _step_base(counts: Mapping[str, int], current: date) -> Optional[float]:
+    """Average the previous Monday's cap was set from, or None.
+
+    The step limit needs a real 4-week average to compare against. Until one
+    exists (fewer than four completed weeks behind the previous Monday) the
+    cap is the plain average and nothing is clamped or frozen. The base is
+    kept unrounded so a small cap can still move: the old walk clamped the
+    rounded cap, and for a cap of 4 or less ``round(cap × 1.1)`` is the cap
+    itself, so a small seed never moved (#1270).
+    """
+    previous = current - timedelta(days=7)
     known = []
     for key in counts:
         try:
             known.append(date.fromisoformat(str(key)[:10]))
         except ValueError:
             continue
+    known = [day for day in known if day < previous]
     if not known:
-        return {
-            "cap": None,
-            "cap_raw": raw,
-            "cap_override": None,
-            "cap_source": "none",
-        }
-    first_data = min(known)
-    # First Monday that has at least one completed week behind it.
-    cursor = first_data + timedelta(days=7)
-    cursor = cursor - timedelta(days=cursor.weekday())
-    prev: Optional[int] = None
-    cap = raw
-    while cursor <= current:
-        avg = _completed_average(counts, cursor)
-        if avg is None:
-            cursor += timedelta(days=7)
-            continue
-        step = _round_half_up(avg)
-        if prev is None:
-            cap = step
-        else:
-            lo = _round_half_up(prev * 0.9)
-            hi = _round_half_up(prev * 1.1)
-            if lo > hi:
-                lo, hi = hi, lo
-            cap = max(lo, min(hi, step))
-            if cursor.isoformat() in blocked:
-                cap = min(cap, prev)
-        prev = cap
-        cursor += timedelta(days=7)
-    return {
-        "cap": cap,
-        "cap_raw": raw,
-        "cap_override": None,
-        "cap_source": "rolling",
-    }
+        return None
+    if min(known) > previous - timedelta(days=28):
+        return None
+    return _completed_average(counts, previous)
 
 
 def _role(group: str) -> str:
@@ -902,12 +903,16 @@ def budget_warning(
     suggestion: str,
     *,
     credit_cap: Optional[float] = None,
+    drop_closes_gap: Optional[bool] = None,
 ) -> Optional[str]:
     """Warn when the targets need more set-credits than the cap allows.
 
     ``cap`` counts proper sets. ``demand_min`` counts set-credits, so the cap
     is compared in credits: ``credit_cap`` is the cap at the recent
     credits-per-set ratio. Without one the cap is compared as given.
+    ``drop_closes_gap=False`` means taking every priority group down to the
+    floor would still not fit, so the targets sit well above recent volume
+    and the message says so instead of implying the list is the problem.
     """
     need = demand_min()
     if cap is None:
@@ -923,11 +928,23 @@ def budget_warning(
             f"the weekly cap is {cap} proper sets, about "
             f"{float(credit_cap):.0f} set-credits at your recent mix"
         )
+    if drop_closes_gap is False:
+        return (
+            f"Priority targets plus maintenance floors are {need} set-credits "
+            f"and {room}. "
+            f"Dropping {label} from the 8–10 list would not close the gap: "
+            "the targets sit well above recent volume."
+        )
     return (
         f"Priority targets plus maintenance floors are {need} set-credits "
         f"and {room}. "
         f"Drop {label} from the 8–10 list."
     )
+
+
+def demand_after_priority_drops() -> int:
+    """Demand if every priority group fell back to the maintenance floor."""
+    return demand_min() - len(PRIORITY_GROUPS) * (PRIORITY_MIN - FLOOR_MIN)
 
 
 def _credited_average(
@@ -1237,7 +1254,12 @@ def build_muscle_set_report(
         if credited_avg is not None and sets_avg:
             ratio = credited_avg / float(sets_avg)
         credit_cap = cap_sets * ratio
-    warning = budget_warning(cap_sets, suggestion, credit_cap=credit_cap)
+    drop_closes_gap: Optional[bool] = None
+    if credit_cap is not None:
+        drop_closes_gap = demand_after_priority_drops() <= credit_cap + 1e-9
+    warning = budget_warning(
+        cap_sets, suggestion, credit_cap=credit_cap, drop_closes_gap=drop_closes_gap
+    )
     overrun = warning is not None
     coach = thursday_flags(as_of=day, credits=credits, trends=trends)
     return {
@@ -1252,6 +1274,7 @@ def build_muscle_set_report(
             "demand_min": demand_min(),
             "credited_avg_4w": None if credited_avg is None else _round_sets(credited_avg),
             "credit_cap": None if credit_cap is None else round(credit_cap, 1),
+            "drop_closes_gap": drop_closes_gap if warning else None,
             "overrun": overrun,
             "drop_suggestion": suggestion if overrun else None,
             "warning": warning,

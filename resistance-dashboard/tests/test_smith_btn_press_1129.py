@@ -23,7 +23,7 @@ ROW = {
     "primary_muscles": ["shoulders"],
     "secondary_muscles": ["triceps", "traps"],
     "volume_primary": ["side_delts"],
-    "volume_secondary": ["triceps", "traps"],
+    "volume_secondary": ["front_delts", "triceps", "traps"],
     "movement": "compound",
     "equipment": ["smith_machine"],
     "default_sets": 2,
