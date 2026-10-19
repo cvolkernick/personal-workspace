@@ -703,10 +703,20 @@ def _targets(payload: Dict[str, Any]) -> Dict[str, Any]:
     protein = _float_or_none(raw.get("protein_g"))
     if calories is None and protein is None:
         return dict(_BOOK_TARGETS)
-    return {
+    out = {
         "calories": calories if calories is not None else _BOOK_TARGETS["calories"],
         "protein_g": protein if protein is not None else _BOOK_TARGETS["protein_g"],
     }
+    # Full applied Coach targets (carbs / fat / fiber floor / sugar max / phase).
+    for key in ("carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg"):
+        val = _float_or_none(raw.get(key))
+        if val is not None:
+            out[key] = val
+    if raw.get("phase"):
+        out["phase"] = str(raw.get("phase"))
+    if raw.get("updated_at"):
+        out["updated_at"] = str(raw.get("updated_at"))
+    return out
 
 
 def _item_to_dict(item: Any) -> Optional[Dict[str, Any]]:

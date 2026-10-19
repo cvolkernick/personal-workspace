@@ -199,6 +199,21 @@ def read_agent_inventory_record() -> Dict[str, Any]:
     return read_inventory_record(agent_inventory_uid())
 
 
+def agent_targets_uid() -> str:
+    """Targets row the agent API reads: the Chris-bound tenant the Coach page
+    writes (``FITDASH_USER_ID``, else ``FITDASH_INVENTORY_AGENT_USER_ID``).
+    "" (legacy ``default`` row) only when neither is a real user id."""
+    for key in ("FITDASH_USER_ID", "FITDASH_INVENTORY_AGENT_USER_ID"):
+        uid = (os.environ.get(key) or "").strip()
+        if uid and uid.lower() != "default":
+            return uid
+    return ""
+
+
+def read_agent_targets_record() -> Dict[str, Any]:
+    return read_targets_record(agent_targets_uid())
+
+
 # ---------------------------------------------------------------- section builders
 def build_targets(rec: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
     p = _d(rec.get("payload"))
@@ -437,7 +452,7 @@ class Loaders:
     def __init__(
         self,
         dashboard: Callable[[], Dict[str, Any]],
-        targets: Callable[[], Dict[str, Any]] = read_targets_record,
+        targets: Callable[[], Dict[str, Any]] = read_agent_targets_record,
         inventory: Callable[[], Dict[str, Any]] = read_agent_inventory_record,
         health_fetched_at: Callable[[], Optional[float]] = lambda: None,
     ) -> None:
