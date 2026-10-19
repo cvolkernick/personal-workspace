@@ -31,7 +31,7 @@ SECTIONS = ("targets", "inventory", "logs", "plan", "training", "recovery")
 MAX_LOG_DAYS = 92
 DEFAULT_LOG_DAYS = 7
 MACRO_KEYS = ("protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg")
-_QTY_KEYS = ("qty", "quantity", "count", "servings", "stock")
+_QTY_KEYS = ("qty", "quantity", "count", "servings")
 
 
 # ---------------------------------------------------------------- auth
@@ -236,8 +236,9 @@ def build_inventory(
         nm = str(ing.get("name") or "").strip()
         qty = None
         for k in _QTY_KEYS:
-            if ing.get(k) is not None and not isinstance(ing.get(k), bool):
-                qty = ing.get(k)
+            v = ing.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                qty = v
                 break
         key = nm.lower()
         used = [ts for (n, ts) in names if key and ts and key in n]
