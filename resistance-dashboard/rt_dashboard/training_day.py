@@ -9,8 +9,14 @@ fall back to civil today — same honesty as calorie/hydration wake windows.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
+
+_LIFT_SLUG_RE = re.compile(r"[^a-z0-9]+")
+_TITLE_DETAIL_RE = re.compile(r"^(?P<name>.+?)\s+\((?P<detail>[^)]*)\)\s*$")
+_WEIGHT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*lb", re.I)
+_SETS_REPS_RE = re.compile(r"(\d+)\s*[×xX]\s*(\d+)")
 
 
 def parse_dt(value: Any) -> Optional[datetime]:
@@ -138,6 +144,7 @@ def day_complete_for_planning(
     as_of: Optional[str] = None,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
+    remainder_open: bool = False,
 ) -> bool:
     """``already_trained_today`` SoT for planner + stamp.
 
@@ -145,7 +152,13 @@ def day_complete_for_planning(
     When last_wake is current: parent complete alone must not pin — a PPL
     session has to have closed in that wake. After-midnight quest complete
     that still sits on the civil GT parent must not block the next letter.
+
+    ``remainder_open`` is the #1109 gate: a frozen plan that still has
+    lifts or volume left is not a finished day, even if the Training
+    parent is checked. An empty frozen plan is open too.
     """
+    if remainder_open:
+        return False
     if not train_parent_completed:
         return False
     if wake_is_current(last_wake_at, as_of, now=now, tz_name=tz_name):
@@ -358,6 +371,329 @@ def session_is_quest_seed_only(session: Any) -> bool:
     return True
 
 
+def lift_leaf_key(name: str) -> str:
+    """Quest leaf slug for a lift name. Matches ``daily_plan_tasks`` ``ex-`` keys."""
+    slug = _LIFT_SLUG_RE.sub("-", (name or "").lower()).strip("-")
+    return "ex-" + ((slug or "item")[:48])
+
+
+def _optional_number(value: Any, cast):
+    if value is None or value == "":
+        return None
+    try:
+        return cast(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def leaf_target(raw: Any) -> Optional[dict]:
+    """Planned sets and tonnage for one frozen leaf.
+
+    Explicit ``sets`` / ``reps`` / ``weight_lbs`` / ``volume`` win. Otherwise
+    the quest title ``Name (100 lb 3×8)`` is the prescription. A leaf with
+    neither sets nor volume is not a target.
+    """
+    if not isinstance(raw, dict):
+        return None
+    title = str(raw.get("title") or "").strip()
+    name = title.split(" (", 1)[0].strip()
+    detail = ""
+    match = _TITLE_DETAIL_RE.match(title)
+    if match:
+        name = match.group("name").strip()
+        detail = match.group("detail")
+    slug = str(raw.get("slug") or "").strip().lower()
+    if not slug.startswith("ex-"):
+        if not name:
+            return None
+        slug = lift_leaf_key(name)
+    sets = _optional_number(raw.get("sets"), int)
+    reps = _optional_number(raw.get("reps"), int)
+    weight = _optional_number(raw.get("weight_lbs"), float)
+    if sets is None or reps is None:
+        found = _SETS_REPS_RE.search(detail or title)
+        if found:
+            sets = int(found.group(1))
+            reps = int(found.group(2))
+    if weight is None:
+        found = _WEIGHT_RE.search(detail or title)
+        if found:
+            weight = float(found.group(1))
+    sets_n = max(0, int(sets or 0))
+    reps_n = max(0, int(reps or 0))
+    weight_n = float(weight or 0)
+    volume = _optional_number(raw.get("volume"), float)
+    if volume is None:
+        volume = weight_n * sets_n * reps_n
+    volume_n = max(0.0, float(volume))
+    if sets_n <= 0 and volume_n <= 1e-9:
+        return None
+    if not name:
+        name = slug[3:].replace("-", " ").title()
+    return {
+        "slug": slug,
+        "name": name,
+        "sets": sets_n,
+        "reps": reps_n,
+        "weight_lbs": weight_n,
+        "volume": volume_n,
+        "notes_extra": str(raw.get("notes_extra") or ""),
+    }
+
+
+def frozen_prescription_fields(raw: Any) -> dict:
+    """Numeric prescription to store on a frozen leaf. Empty when unparseable."""
+    target = leaf_target(raw if isinstance(raw, dict) else {})
+    if target is None:
+        return {}
+    return {
+        "sets": target["sets"],
+        "reps": target["reps"],
+        "weight_lbs": target["weight_lbs"],
+        "volume": target["volume"],
+    }
+
+
+def objective_targets(objective: Any) -> Optional[list]:
+    """Frozen lift targets, or ``[]`` for an explicit empty plan.
+
+    ``None`` means no frozen plan is in play and callers keep the #951 close.
+    """
+    if not isinstance(objective, dict):
+        return None
+    leaves = [
+        raw
+        for raw in (objective.get("leaves") or [])
+        if isinstance(raw, dict)
+        and str(raw.get("slug") or "").lower().startswith("ex-")
+    ]
+    targets = []
+    for raw in leaves:
+        target = leaf_target(raw)
+        if target is not None:
+            targets.append(target)
+    if targets:
+        return targets
+    if objective.get("frozen") is True:
+        return []
+    return None
+
+
+def _exercise_rows(session: Any) -> list:
+    if isinstance(session, dict):
+        return list(session.get("exercises") or [])
+    return list(getattr(session, "exercises", None) or [])
+
+
+def _session_day(session: Any) -> str:
+    if isinstance(session, dict):
+        return str(session.get("date") or "")[:10]
+    return str(getattr(session, "date", "") or "")[:10]
+
+
+def exercise_logged_work(ex: Any) -> Optional[tuple]:
+    """``(name, sets, volume)`` for one real logged exercise.
+
+    Quest seeds, movement-only rows, and planner status copy contribute
+    nothing (#999). Volume is tonnage (load × sets × reps).
+    """
+    from .models import is_planner_status_exercise_name, is_zero_volume_status_log
+    from .quest_workout_log import exercise_is_real_log
+
+    if is_zero_volume_status_log(ex) or not exercise_is_real_log(ex):
+        return None
+    if isinstance(ex, dict):
+        if ex.get("quest_seeded") or ex.get("movement_only"):
+            return None
+        name = str(ex.get("name") or "")
+        raw = str(ex.get("raw") or "")
+        raw_sets = ex.get("sets") or []
+    else:
+        if getattr(ex, "quest_seeded", False):
+            return None
+        name = str(getattr(ex, "name", "") or "")
+        raw = str(getattr(ex, "raw", "") or "")
+        raw_sets = getattr(ex, "sets", None) or []
+    if is_planner_status_exercise_name(name) or not str(name).strip():
+        return None
+    if raw.startswith("quest-seeded:"):
+        return None
+    sets_n = 0
+    volume = 0.0
+    if not isinstance(raw_sets, list):
+        return None
+    for st in raw_sets:
+        if isinstance(st, dict):
+            try:
+                count = int(st.get("sets") or 0)
+                reps = int(st.get("reps") or 0)
+            except (TypeError, ValueError):
+                continue
+            if st.get("exclude_from_load_math"):
+                weight = None
+            elif st.get("tonnage_weight_lbs") is not None:
+                weight = _optional_number(st.get("tonnage_weight_lbs"), float)
+            else:
+                weight = _optional_number(st.get("weight_lbs"), float) or 0.0
+        else:
+            try:
+                count = int(getattr(st, "sets", 0) or 0)
+                reps = int(getattr(st, "reps", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if getattr(st, "exclude_from_load_math", False):
+                weight = None
+            else:
+                override = getattr(st, "tonnage_weight_lbs", None)
+                weight = (
+                    float(override)
+                    if override is not None
+                    else float(getattr(st, "weight_lbs", 0) or 0)
+                )
+        if count <= 0 or reps <= 0 or weight is None:
+            continue
+        sets_n += count
+        volume += float(weight) * count * reps
+    if sets_n <= 0 and volume <= 1e-9:
+        return None
+    return name, sets_n, volume
+
+
+def logged_work_by_lift(sessions: Sequence[Any]) -> dict:
+    """Sum real sets and tonnage per lift slug. Quest-seed-only rows are skipped."""
+    totals: dict = {}
+    for session in sessions or []:
+        if session_is_quest_seed_only(session):
+            continue
+        for ex in _exercise_rows(session):
+            work = exercise_logged_work(ex)
+            if work is None:
+                continue
+            name, sets_n, volume = work
+            key = lift_leaf_key(name)
+            row = totals.setdefault(key, {"sets": 0, "volume": 0.0})
+            row["sets"] += int(sets_n)
+            row["volume"] += float(volume)
+    return totals
+
+
+def frozen_plan_remainder(objective: Any, sessions: Sequence[Any]) -> Optional[dict]:
+    """Frozen plan minus real logged work, per lift, in sets and tonnage.
+
+    ``None`` when no frozen plan is in play. An explicit empty plan
+    (frozen, no lifts) stays open and has no remainder lifts. A lift
+    drops out only when both remaining sets and remaining volume are
+    zero. The session is done only then, and only when the plan had work.
+    """
+    targets = objective_targets(objective)
+    if targets is None:
+        return None
+    if not targets:
+        return {
+            "empty_plan": True,
+            "done": False,
+            "volume": 0.0,
+            "lifts": [],
+        }
+    logged = logged_work_by_lift(sessions)
+    lifts = []
+    total = 0.0
+    for target in targets:
+        got = logged.get(target["slug"]) or {"sets": 0, "volume": 0.0}
+        rem_sets = max(0, int(target["sets"]) - int(got["sets"]))
+        rem_volume = float(target["volume"]) - float(got["volume"])
+        if rem_volume <= 1e-6:
+            rem_volume = 0.0
+        else:
+            rem_volume = max(0.0, rem_volume)
+        if rem_sets <= 0 and rem_volume <= 0:
+            continue
+        total += rem_volume
+        lifts.append(
+            {
+                "slug": target["slug"],
+                "name": target["name"],
+                "sets": rem_sets,
+                "reps": target["reps"],
+                "weight_lbs": target["weight_lbs"],
+                "volume": rem_volume,
+                "planned_sets": target["sets"],
+                "planned_reps": target["reps"],
+                "planned_weight_lbs": target["weight_lbs"],
+                "planned_volume": target["volume"],
+                "notes_extra": target["notes_extra"],
+            }
+        )
+    return {
+        "empty_plan": False,
+        "done": not lifts and total <= 0,
+        "volume": total,
+        "lifts": lifts,
+    }
+
+
+def remainder_public(remainder: Optional[dict]) -> Optional[dict]:
+    """JSON-safe remainder stamped onto a plan."""
+    if not isinstance(remainder, dict):
+        return None
+    lifts = []
+    for lift in remainder.get("lifts") or []:
+        if not isinstance(lift, dict):
+            continue
+        lifts.append(
+            {
+                "slug": lift.get("slug"),
+                "name": lift.get("name"),
+                "sets": lift.get("sets"),
+                "reps": lift.get("reps"),
+                "weight_lbs": lift.get("weight_lbs"),
+                "volume": lift.get("volume"),
+                "planned_sets": lift.get("planned_sets"),
+                "planned_volume": lift.get("planned_volume"),
+            }
+        )
+    return {
+        "done": bool(remainder.get("done")),
+        "empty_plan": bool(remainder.get("empty_plan")),
+        "volume": float(remainder.get("volume") or 0),
+        "lifts": lifts,
+    }
+
+
+def planning_window_sessions(
+    sessions: Sequence[Any],
+    *,
+    as_of: Optional[str] = None,
+    last_wake_at: Any = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> list:
+    """PPL rows in the same window ``closed_ppl_for_planning`` uses.
+
+    A partial log with no close stamp still counts so the remainder can
+    see it. Quest-seed-only rows stay in the list; their exercises are
+    not logged work.
+    """
+    from .timeutil import local_now
+
+    clock = local_now(tz_name, now=now)
+    use_wake = wake_is_current(last_wake_at, as_of, now=clock, tz_name=tz_name)
+    civil = str(as_of or "")[:10]
+    out = []
+    for session in sessions or []:
+        if _session_type(session) not in ("push", "pull", "legs"):
+            continue
+        if use_wake:
+            if not session_in_wake(
+                session, last_wake_at=last_wake_at, now=clock, tz_name=tz_name
+            ):
+                continue
+        elif _session_day(session) != civil:
+            continue
+        out.append(session)
+    return out
+
+
 def closed_ppl_for_planning(
     sessions: Sequence[Any],
     *,
@@ -365,6 +701,7 @@ def closed_ppl_for_planning(
     last_wake_at: Any = None,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
+    training_objective: Any = None,
 ) -> Optional[str]:
     """Latest PPL letter with a persisted close in the planning window (#951).
 
@@ -372,6 +709,11 @@ def closed_ppl_for_planning(
     (no close stamp) does not roll the next letter. When more than one
     letter closed in the window, the latest close wins. An overnight
     close before 05:00 still belongs to that training day.
+
+    When a frozen plan is in play, the letter closes only if the remainder
+    has no lifts and no volume left (#1109). One real set does not cover
+    a lift. An empty frozen plan never closes. Quest-seed-only rows still
+    never close. No frozen plan keeps the persist close.
     """
     from .timeutil import local_now
 
@@ -392,15 +734,22 @@ def closed_ppl_for_planning(
                 session, last_wake_at=last_wake_at, now=clock, tz_name=tz_name
             ):
                 continue
-        else:
-            if isinstance(session, dict):
-                day = str(session.get("date") or "")[:10]
-            else:
-                day = str(getattr(session, "date", "") or "")[:10]
-            if day != civil:
-                continue
+        elif _session_day(session) != civil:
+            continue
         closed = session_close_dt(session, tz_name=tz_name)
         hits.append((closed or datetime.min.replace(tzinfo=timezone.utc), letter))
+    remainder = frozen_plan_remainder(
+        training_objective,
+        planning_window_sessions(
+            sessions,
+            as_of=as_of,
+            last_wake_at=last_wake_at,
+            now=clock,
+            tz_name=tz_name,
+        ),
+    )
+    if remainder is not None and not remainder["done"]:
+        return None
     if not hits:
         return None
     hits.sort(key=lambda item: item[0])
