@@ -4,7 +4,9 @@ House pantry-write model: Chris-bound FITDASH_INVENTORY_AGENT_TOKEN
 (+ FITDASH_INVENTORY_AGENT_USER_ID). Read token / house token / loopback do
 not write; the write token does not read. Only in_stock + qty on existing
 items of Chris's own row. stock stays consistent with in_stock (low is kept).
-Audit is recorded before / atomically with the save.
+Audit is recorded before / atomically with the save. The default load
+SELECTs the user's row and does not seed an empty Turso pantry. Non-finite
+qty is rejected.
 """
 
 from __future__ import annotations
@@ -169,6 +171,9 @@ class Validation(Base):
         "qty bool": {**GOOD, "items": [{"id": "oats", "qty": True}]},
         "qty str": {**GOOD, "items": [{"id": "oats", "qty": "3"}]},
         "qty negative": {**GOOD, "items": [{"id": "oats", "qty": -1}]},
+        "qty inf": {**GOOD, "items": [{"id": "oats", "qty": float("inf")}]},
+        "qty -inf": {**GOOD, "items": [{"id": "oats", "qty": float("-inf")}]},
+        "qty nan": {**GOOD, "items": [{"id": "oats", "qty": float("nan")}]},
         "no change fields": {**GOOD, "items": [{"id": "oats"}]},
         "duplicate id": {**GOOD, "items": [{"id": "oats", "qty": 1}, {"id": "OATS", "qty": 2}]},
         "item not object": {**GOOD, "items": ["oats"]},
@@ -187,6 +192,14 @@ class Validation(Base):
     def test_100_items_ok_and_null_qty_ok(self):
         status, _ = self.call({**GOOD, "items": [{"id": "oats", "qty": None}]}, _w(WRITE))
         self.assertEqual(status, 200)
+
+    def test_json_1e309_qty_is_rejected(self):
+        body = json.loads('{"items":[{"id":"oats","qty":1e309}],"updated_by":"nourish"}')
+        status, out = self.call(body, _w(WRITE))
+        self.assertEqual(status, 400, out)
+        self.assertIn("finite", out["message"])
+        self.assertEqual(self.mem.persists, 0)
+        self.assertEqual(self.mem.inv, _pantry())
 
 
 class Success(Base):
@@ -382,6 +395,113 @@ class AuditBeforeSave(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", side_effect=fail_urlopen):
             with self.assertRaises(RuntimeError):
                 conn.execute_transaction([("INSERT INTO a VALUES (?)", (1,)), ("INSERT INTO b VALUES (?)", (2,))])
+
+
+class SelectLoad(unittest.TestCase):
+    """Default load is SELECT-only. An empty Turso row is not seeded."""
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {
+            "FITDASH_AGENT_TOKEN": READ, "FITDASH_INVENTORY_AGENT_TOKEN": WRITE,
+            "FITDASH_INVENTORY_AGENT_USER_ID": CHRIS, "FITDASH_SERVICE_TOKEN": "house-dummy",
+        })
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def _conn(self, row):
+        sqls = []
+
+        class Conn:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def execute(self, sql, params=()):
+                sqls.append((sql.strip(), params))
+
+                class R:
+                    def fetchone(self_inner):
+                        return row
+                return R()
+
+        return sqls, Conn
+
+    def _select(self, row, fn):
+        sqls, Conn = self._conn(row)
+        with mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), \
+             mock.patch("rt_dashboard.turso_http.connect", return_value=Conn()), \
+             mock.patch("rt_dashboard.inventory_store.load_preview_inventory", side_effect=AssertionError("seed")), \
+             mock.patch("rt_dashboard.inventory_store._turso_put_inventory", side_effect=AssertionError("put")):
+            result = fn()
+        self.assertEqual(sqls, [("SELECT payload FROM nutrition_inventory WHERE user_id = ?", (CHRIS,))])
+        return result
+
+    def test_empty_turso_row_is_select_only(self):
+        inv = self._select(None, lambda: agent_write._default_load(CHRIS))
+        self.assertEqual(inv, {"ingredients": []})
+
+    def test_invalid_payload_does_not_seed(self):
+        inv = self._select({"payload": "not-json"}, lambda: agent_write._default_load(CHRIS))
+        self.assertEqual(inv, {"ingredients": []})
+
+    def test_existing_row_returns_payload(self):
+        blob = json.dumps(_pantry())
+        inv = self._select({"payload": blob}, lambda: agent_write._default_load(CHRIS))
+        self.assertEqual([i["id"] for i in inv["ingredients"]], ["oats", "tilapia", "rice"])
+
+    def test_tuple_row(self):
+        inv = self._select((json.dumps(_pantry()),), lambda: agent_write._default_load(CHRIS))
+        self.assertEqual(inv["ingredients"][0]["id"], "oats")
+
+    def test_turso_dark_reads_file_and_does_not_connect(self):
+        with mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=False), \
+             mock.patch("rt_dashboard.turso_http.connect", side_effect=AssertionError("connect")), \
+             mock.patch("rt_dashboard.inventory_store.load_workspace_inventory", return_value=(deepcopy(_pantry()), "file")), \
+             mock.patch("rt_dashboard.inventory_store.load_preview_inventory", side_effect=AssertionError("seed")):
+            inv = agent_write._default_load(CHRIS)
+        self.assertEqual(inv["ingredients"][0]["id"], "oats")
+
+    def test_400_on_empty_row_does_not_commit(self):
+        commits = []
+        store = Store(commit=lambda uid, inv, lines: commits.append(uid) or inv)
+
+        def run():
+            return respond_agent_stock_write(_w(WRITE), GOOD, store, now=NOW)
+
+        status, out = self._select(None, run)
+        self.assertEqual(status, 400, out)
+        self.assertIn("not a known item", out["message"])
+        self.assertEqual(commits, [])
+
+    def test_existing_row_write_commits_without_seed(self):
+        commits = []
+        store = Store(commit=lambda uid, inv, lines: commits.append(uid) or deepcopy(inv))
+        body = {"items": [{"id": "oats", "qty": 4}], "updated_by": "nourish"}
+
+        def run():
+            return respond_agent_stock_write(_w(WRITE), body, store, now=NOW)
+
+        status, out = self._select({"payload": json.dumps(_pantry())}, run)
+        self.assertEqual(status, 200, out)
+        self.assertEqual(commits, [CHRIS])
+        self.assertEqual(out["items"][0]["qty"], 4)
+
+    def test_inf_qty_on_existing_row_does_not_commit(self):
+        commits = []
+        store = Store(commit=lambda uid, inv, lines: commits.append(uid) or inv)
+        body = {"items": [{"id": "oats", "qty": float("inf")}], "updated_by": "nourish"}
+
+        def run():
+            return respond_agent_stock_write(_w(WRITE), body, store, now=NOW)
+
+        status, out = self._select({"payload": json.dumps(_pantry())}, run)
+        self.assertEqual(status, 400, out)
+        self.assertIn("finite", out["message"])
+        self.assertEqual(commits, [])
 
 
 class HttpRoute(unittest.TestCase):

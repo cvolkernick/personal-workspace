@@ -8,6 +8,9 @@ Auth reuses the house pantry-write model (``service_auth``): a Chris-bound
 read token (``FITDASH_AGENT_TOKEN``), the house ``FITDASH_SERVICE_TOKEN``,
 loopback and browser sessions do not authorize it. Writes land on that
 user's own pantry row (``inventory_principal_uid``, never ``default``).
+The load is a SELECT of that row. It does not call ``load_preview_inventory``,
+so an empty Turso row is not seeded from the bundled pantry and heal writes
+do not run. When Turso is dark the file is read and not written until commit.
 
 Only ``in_stock`` and ``qty`` on existing items may change. No create, no
 delete, no other field. ``stock`` (in|low|out) is kept consistent with the
@@ -26,6 +29,7 @@ save; if the save then fails a ``status: aborted`` line with the same
 from __future__ import annotations
 
 import json
+import math
 import os
 import uuid
 from datetime import datetime, timezone
@@ -151,8 +155,9 @@ def validate_stock_body(body: Any, inventory: Dict[str, Any]) -> Tuple[List[Dict
             q = it["qty"]
             if q is not None and (isinstance(q, bool) or not isinstance(q, (int, float))):
                 raise _bad(f"items[{n}].qty must be a number or null")
-            if isinstance(q, float) and q != q:  # NaN
-                raise _bad(f"items[{n}].qty must be a number or null")
+            # NaN and inf are floats. json.loads("1e309") is inf. Reject both.
+            if isinstance(q, float) and not math.isfinite(q):
+                raise _bad(f"items[{n}].qty must be a finite number or null")
             if q is not None and q < 0:
                 raise _bad(f"items[{n}].qty must be >= 0")
         out.append({k: it[k] for k in ("in_stock", "qty") if k in it} | {"key": key})
@@ -313,11 +318,44 @@ class Store:
         self.commit = commit or (lambda uid, inv, lines: _default_commit(uid, inv, lines, file_client_factory))
 
 
-def _default_load(user_id: str) -> Dict[str, Any]:
-    from .inventory_store import inventory_principal_uid, load_preview_inventory
+def _payload_from_row(row: Any) -> Optional[dict]:
+    if not row:
+        return None
+    raw = row["payload"] if isinstance(row, dict) else row[0]
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if isinstance(data, dict) and isinstance(data.get("ingredients"), list):
+        return data
+    return None
 
-    inv, _src = load_preview_inventory(inventory_principal_uid(user_id))
-    return inv
+
+def _default_load(user_id: str) -> Dict[str, Any]:
+    """SELECT the user's pantry. Never insert the bundled seed.
+
+    ``load_preview_inventory`` writes the file into an empty Turso row and
+    runs heal updates. A later 400 would leave that seed. This load only
+    SELECTs. A missing, empty, or invalid row stays ``{"ingredients": []}``
+    and is not created here. File SoT is read only when Turso is dark.
+    """
+    from .inventory_store import inventory_principal_uid, load_workspace_inventory
+    from .turso_http import connect, turso_enabled
+
+    uid = inventory_principal_uid(user_id)
+    if not turso_enabled():
+        payload, _src = load_workspace_inventory()
+        if isinstance(payload, dict) and isinstance(payload.get("ingredients"), list):
+            return payload
+        return {"ingredients": []}
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT payload FROM nutrition_inventory WHERE user_id = ?",
+            (uid,),
+        ).fetchone()
+    return _payload_from_row(row) or {"ingredients": []}
 
 
 def _default_commit(user_id, inv, lines, file_client_factory=None) -> Dict[str, Any]:
