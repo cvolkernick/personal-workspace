@@ -2412,8 +2412,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         # Chris-bound agent token (not the house FITDASH_SERVICE_TOKEN).
         if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
             if parsed.path == "/api/agent/inventory/stock":
-                # Token-only (FITDASH_AGENT_WRITE_TOKEN), checked in the
-                # handler below. No session, loopback or house-token bypass.
+                # Token-only: Chris-bound FITDASH_INVENTORY_AGENT_TOKEN, checked
+                # in the handler below. No session, loopback or house-token bypass.
                 self._request_user = None  # type: ignore[attr-defined]
             elif parsed.path == "/api/agent/generate-plan":
                 user = _session_user_from_headers(self.headers)
@@ -2826,8 +2826,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/agent/inventory/stock":
-            # Narrow agent pantry write. Own token; only in_stock / qty on
-            # existing items. Same storage path as /api/inventory/stock.
+            # Narrow agent pantry write. Chris-bound inventory-agent token;
+            # only in_stock / qty on existing items of that user's row.
             from rt_dashboard.agent_write import Store, agent_write_gate, respond_agent_stock_write
 
             denied = agent_write_gate(self.headers)

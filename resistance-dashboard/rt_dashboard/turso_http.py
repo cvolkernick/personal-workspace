@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from urllib.parse import urlsplit
 import urllib.error
 import urllib.request
-from typing import Any, Iterable, List, Optional, Sequence
+from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 
 def turso_url() -> str:
@@ -160,6 +160,40 @@ class TursoConnection:
 
     def execute(self, sql: str, params: Sequence[Any] = ()) -> TursoCursor:
         return self._pipeline(sql, params)
+
+    def execute_transaction(self, statements: Sequence[Tuple[str, Sequence[Any]]]) -> None:
+        """Run statements atomically in one Hrana batch: BEGIN, each step only
+        if the previous succeeded, COMMIT, else ROLLBACK. Raises on failure."""
+        steps: List[dict] = [{"stmt": {"sql": "BEGIN"}}]
+        for sql, params in statements:
+            stmt: dict = {"sql": sql}
+            if params:
+                stmt["args"] = [_arg(p) for p in params]
+            steps.append({"stmt": stmt, "condition": {"type": "ok", "step": len(steps) - 1}})
+        commit_i = len(steps)
+        steps.append({"stmt": {"sql": "COMMIT"}, "condition": {"type": "ok", "step": commit_i - 1}})
+        steps.append({"stmt": {"sql": "ROLLBACK"},
+                      "condition": {"type": "not", "cond": {"type": "ok", "step": commit_i}}})
+        body = json.dumps({"requests": [{"type": "batch", "batch": {"steps": steps}}, {"type": "close"}]}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self._url}/v2/pipeline", data=body, method="POST",
+            headers={"Authorization": f"Bearer {self._token}", "Content-Type": "application/json",
+                     "Accept": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            e.read()
+            raise RuntimeError(f"turso HTTP {e.code}") from e
+        first = (payload.get("results") or [{}])[0]
+        if first.get("type") == "error":
+            raise RuntimeError("turso transaction failed")
+        result = ((first.get("response") or {}).get("result")) or {}
+        step_results = result.get("step_results") or []
+        errors = result.get("step_errors") or []
+        if any(errors[:commit_i + 1]) or len(step_results) <= commit_i or step_results[commit_i] is None:
+            raise RuntimeError("turso transaction rolled back")
 
     def executescript(self, script: str) -> TursoCursor:
         last = TursoCursor([], [])
