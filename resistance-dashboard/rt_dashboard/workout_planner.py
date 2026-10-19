@@ -2176,6 +2176,60 @@ def clamp_llm_plan_loads(
     return workout
 
 
+def _remainder_exercise_rows(catalog: dict, lifts: Sequence[dict]) -> List[dict]:
+    """Planner rows for the sets and volume still left on the frozen target."""
+    by_slug = {}
+    for ex in (catalog or {}).get("exercises") or []:
+        if not isinstance(ex, dict):
+            continue
+        name = str(ex.get("name") or "").strip()
+        if not name:
+            continue
+        from .training_day import lift_leaf_key
+
+        by_slug[lift_leaf_key(name)] = ex
+    rows = []
+    for lift in lifts or []:
+        if not isinstance(lift, dict):
+            continue
+        cat = by_slug.get(str(lift.get("slug") or "")) or {}
+        sets = int(lift.get("sets") or 0)
+        reps = int(lift.get("reps") or 0)
+        weight = lift.get("weight_lbs")
+        volume = lift.get("volume") or 0.0
+        prescription = {
+            "weight_lbs": weight,
+            "sets": sets,
+            "reps": reps,
+            "volume": volume,
+        }
+        rows.append(
+            {
+                "id": cat.get("id") or str(lift.get("slug") or "")[3:],
+                "name": lift.get("name"),
+                "primary_muscles": cat.get("primary_muscles") or [],
+                "secondary_muscles": cat.get("secondary_muscles") or [],
+                "movement": cat.get("movement"),
+                "equipment": cat.get("equipment") or [],
+                "sets": sets,
+                "reps": reps,
+                "weight_lbs": weight,
+                "load": weight,
+                "volume": volume,
+                "sets_remaining": lift.get("sets_remaining"),
+                "volume_remaining": lift.get("volume_remaining"),
+                "planned_sets": lift.get("planned_sets"),
+                "planned_volume": lift.get("planned_volume"),
+                "prescription": prescription,
+                "rationale": (
+                    f"Remainder: {sets} sets and {volume:g} lb volume left "
+                    f"of {lift.get('planned_sets')}×{reps}."
+                ),
+            }
+        )
+    return rows
+
+
 def generate_workout_plan(
     catalog: dict,
     goals: dict,
@@ -2193,6 +2247,7 @@ def generate_workout_plan(
     last_wake_at: Optional[str] = None,
     now: Optional[datetime] = None,
     weighins: Optional[Sequence[Any]] = None,
+    training_objective: Optional[dict] = None,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -2213,6 +2268,11 @@ def generate_workout_plan(
     on the civil fallback. When last_wake is current it also requires a
     PPL session in that wake — parent complete alone must not pin the
     next letter. A partial session row is a pin, not a finished day.
+
+    When ``training_objective`` applies (#1109), today's exercises are the
+    frozen target minus logged real work. The session closes only when
+    that remainder has no lifts and no volume. An empty frozen target
+    does not close and does not invent a prescription.
     """
     goals = normalize_goals(goals)
     if as_of is None:
@@ -2279,7 +2339,9 @@ def generate_workout_plan(
     from .training_day import (
         closed_ppl_for_planning,
         day_complete_for_planning,
+        planning_window_sessions,
         ppl_logged_for_planning,
+        session_remainder,
     )
 
     logged_today = ppl_logged_for_planning(
@@ -2288,11 +2350,23 @@ def generate_workout_plan(
         last_wake_at=last_wake_at,
         now=now,
     )
+    objective_window = planning_window_sessions(
+        sessions,
+        as_of=day,
+        last_wake_at=last_wake_at,
+        now=now,
+    )
+    rem = session_remainder(training_objective, objective_window)
+    remainder_open = bool(
+        rem.get("applies") and not rem.get("done") and not rem.get("empty_plan")
+    )
+    empty_frozen = bool(rem.get("empty_plan"))
     closed_letter = closed_ppl_for_planning(
         sessions,
         as_of=day,
         last_wake_at=last_wake_at,
         now=now,
+        training_objective=training_objective,
     )
     force_letter = explicit in ("push", "pull", "legs")
     day_complete = day_complete_for_planning(
@@ -2301,6 +2375,7 @@ def generate_workout_plan(
         last_wake_at=last_wake_at,
         as_of=day,
         now=now,
+        below_substantive_bar=bool(rem.get("applies") and not rem.get("done")),
     )
     # A persisted close rolls the plan onto the next letter (#951).
     # Parent-complete without a close stamp still returns the empty
@@ -2354,6 +2429,7 @@ def generate_workout_plan(
     if (
         not pin_open_session
         and not plan_next
+        and not remainder_open
         and recovery_score is not None
         and recovery_score < rest_threshold
         and not recovery_sparse
@@ -2690,6 +2766,15 @@ def generate_workout_plan(
         _copy_assisted_keys(rx, plan_row, prescription)
         plan_ex.append(plan_row)
 
+    if remainder_open or empty_frozen:
+        plan_ex = (
+            _remainder_exercise_rows(catalog, rem.get("lifts") or [])
+            if remainder_open
+            else []
+        )
+        planned_credits = {}
+        session_sets = sum(int(row.get("sets") or 0) for row in plan_ex)
+
     # Report volume against long-term bands, but annotate ramped planning bands
     balance = volume_balance_report(tally, goals, planned_credits=planned_credits)
     balance["planning_bands"] = {
@@ -2717,7 +2802,16 @@ def generate_workout_plan(
 
     last_st = last_session_type(sessions)
     empty_plan_error = None
-    if not plan_ex:
+    if remainder_open:
+        msg_parts = [
+            (
+                f"Remainder {str(st).upper()} "
+                f"({len(plan_ex)} lifts, {rem.get('volume')} lb still open)."
+            )
+        ]
+    elif empty_frozen:
+        msg_parts = ["Frozen target has no lifts. No remainder to prescribe."]
+    elif not plan_ex:
         if equipment_on:
             empty_plan_error = (
                 f"No accessible equipment can load a {st.upper()} lift from the library. "
@@ -2765,7 +2859,13 @@ def generate_workout_plan(
             f"Framework: ≈4–8 long-term · this week planning band ~{scale_pct}% ramp"
         )
 
-    if plan_next:
+    if remainder_open or empty_frozen:
+        display_session = logged_today if logged_today in ("push", "pull", "legs") else st
+        nxt_open = display_session
+        trained = False
+        session_closed = False
+        logged_out = logged_today
+    elif plan_next:
         display_session = closed_letter
         nxt_open = st
         trained = True
@@ -2831,6 +2931,14 @@ def generate_workout_plan(
         out["generate_error"] = empty_plan_error
         out["message"] = empty_plan_error
         out["context"]["generate_error"] = empty_plan_error
+    if rem.get("applies"):
+        from .training_day import remainder_view
+
+        view = remainder_view(rem)
+        out["remainder"] = view
+        out["training_objective"] = training_objective
+        out["context"]["remainder"] = view
+        out["context"]["training_objective"] = training_objective
     return out
 
 

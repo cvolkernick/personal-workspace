@@ -125,6 +125,9 @@ def dashboard_plan_slots(
 
     if goals is None:
         goals, _ = load_workspace_goals()
+    from .daily_plan_tasks import cached_training_objective
+
+    objective = cached_training_objective(as_of)
     if sessions is None:
         sessions = []
         try:
@@ -141,6 +144,7 @@ def dashboard_plan_slots(
         as_of=as_of,
         fill_rest=True,
         train_parent_completed=bool(train_parent_completed),
+        training_objective=objective,
     )
     from .ai_planner import active_block
 
@@ -237,6 +241,9 @@ def generate_grok_plans(
         file_goals, _ = load_workspace_goals()
         goals = {**file_goals, **(goals if isinstance(goals, dict) else {})}
 
+    from .daily_plan_tasks import cached_training_objective
+
+    objective = cached_training_objective(as_of)
     creds = resolve_xai_credentials(user_id=user_id)
     if not creds.get("token") or creds.get("expired"):
         empty = honest_empty_workout()
@@ -251,6 +258,8 @@ def generate_grok_plans(
                 recovery or {},
                 fill_rest=True,
                 next_st_override=next_session_type,
+                as_of=as_of,
+                training_objective=objective,
             ),
         }
 
@@ -438,6 +447,8 @@ def generate_grok_plans(
                 recovery or {},
                 fill_rest=True,
                 next_st_override=next_session_type,
+                as_of=as_of,
+                training_objective=objective,
             ),
         }
 
@@ -505,6 +516,8 @@ def generate_grok_plans(
                 recovery or {},
                 fill_rest=True,
                 next_st_override=next_session_type,
+                as_of=as_of,
+                training_objective=objective,
             ),
         }
 
@@ -587,6 +600,8 @@ def generate_grok_plans(
         recovery or {},
         fill_rest=not capped,
         next_st_override=next_session_type,
+        as_of=as_of,
+        training_objective=objective,
     )
     return {
         "ok": True,

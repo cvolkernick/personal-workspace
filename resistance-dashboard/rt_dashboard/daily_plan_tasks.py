@@ -183,6 +183,33 @@ def _cache_path() -> Path:
     return base / "daily_quest_cache.json"
 
 
+def cached_training_objective(day: Optional[str]) -> Optional[dict]:
+    """Frozen session target for ``day``.
+
+    An explicit frozen target with no leaves is returned so an empty plan
+    cannot be treated as a finished workout (#1109). A missing or unfrozen
+    empty cache row stays None and keeps the persist-close path.
+    """
+    key = str(day or "")[:10]
+    if len(key) < 10:
+        return None
+    cache = _load_cache()
+    row = cache.get(key) if isinstance(cache, dict) else None
+    if not isinstance(row, dict):
+        return None
+    objective = row.get("training_objective")
+    if not isinstance(objective, dict):
+        return None
+    leaves = [
+        x
+        for x in (objective.get("leaves") or [])
+        if isinstance(x, dict) and str(x.get("slug") or "").startswith("ex-")
+    ]
+    if leaves or objective.get("frozen"):
+        return objective
+    return None
+
+
 def _load_cache() -> dict:
     path = _cache_path()
     if not path.is_file():

@@ -9,8 +9,12 @@ fall back to civil today — same honesty as calorie/hydration wake windows.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
+
+_LIFT_SLUG_RE = re.compile(r"[^a-z0-9]+")
+_VOLUME_EPS = 1e-6
 
 
 def parse_dt(value: Any) -> Optional[datetime]:
@@ -138,6 +142,7 @@ def day_complete_for_planning(
     as_of: Optional[str] = None,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
+    below_substantive_bar: bool = False,
 ) -> bool:
     """``already_trained_today`` SoT for planner + stamp.
 
@@ -145,7 +150,13 @@ def day_complete_for_planning(
     When last_wake is current: parent complete alone must not pin — a PPL
     session has to have closed in that wake. After-midnight quest complete
     that still sits on the civil GT parent must not block the next letter.
+
+    ``below_substantive_bar`` is the #1109 gate: a checked Training parent
+    is not a finished day while the frozen target still has sets or volume
+    left, or while that target is an empty plan.
     """
+    if below_substantive_bar:
+        return False
     if not train_parent_completed:
         return False
     if wake_is_current(last_wake_at, as_of, now=now, tz_name=tz_name):
@@ -358,33 +369,277 @@ def session_is_quest_seed_only(session: Any) -> bool:
     return True
 
 
-def closed_ppl_for_planning(
+def lift_leaf_key(name: str) -> str:
+    """Quest leaf slug for a lift name. Matches ``daily_plan_tasks`` ``ex-`` keys."""
+    slug = _LIFT_SLUG_RE.sub("-", (name or "").lower()).strip("-")
+    return "ex-" + ((slug or "item")[:48])
+
+
+def _exercise_rows(session: Any) -> list:
+    if isinstance(session, dict):
+        return list(session.get("exercises") or [])
+    return list(getattr(session, "exercises", None) or [])
+
+
+def exercise_is_real_work(ex: Any) -> bool:
+    """True for logged sets. Quest seeds and status copy are not work (#999, #1110)."""
+    from .models import is_planner_status_exercise_name, is_zero_volume_status_log
+    from .quest_workout_log import exercise_is_real_log
+
+    if is_zero_volume_status_log(ex):
+        return False
+    if isinstance(ex, dict):
+        name = str(ex.get("name") or "")
+    else:
+        name = str(getattr(ex, "name", "") or "")
+    if is_planner_status_exercise_name(name) or not name.strip():
+        return False
+    return exercise_is_real_log(ex)
+
+
+def _entry_sets_volume(ex: Any) -> tuple:
+    from .quest_workout_log import _as_exercise_entry
+
+    entry = _as_exercise_entry(ex)
+    if entry is None:
+        return 0, 0.0
+    sets = 0
+    volume = 0.0
+    for st in entry.sets or []:
+        try:
+            count = int(st.sets)
+            reps = int(st.reps)
+        except (TypeError, ValueError):
+            continue
+        if count <= 0 or reps <= 0:
+            continue
+        sets += count
+        volume += float(st.volume)
+    return sets, volume
+
+
+def logged_work_by_leaf(sessions: Sequence[Any]) -> dict:
+    """Real sets and volume in this window, keyed by lift leaf. Seeds add nothing."""
+    totals: dict = {}
+    for session in sessions or []:
+        if session_is_quest_seed_only(session):
+            continue
+        for ex in _exercise_rows(session):
+            if not exercise_is_real_work(ex):
+                continue
+            if isinstance(ex, dict):
+                name = str(ex.get("name") or "")
+            else:
+                name = str(getattr(ex, "name", "") or "")
+            sets, volume = _entry_sets_volume(ex)
+            if sets <= 0 and volume <= _VOLUME_EPS:
+                continue
+            bucket = totals.setdefault(lift_leaf_key(name), {"sets": 0, "volume": 0.0})
+            bucket["sets"] += sets
+            bucket["volume"] += volume
+    return totals
+
+
+def _leaf_number(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def leaf_prescription(raw: dict) -> dict:
+    """Planned sets and volume for one frozen leaf.
+
+    Title form is ``Name (40 lb 3×8)`` from the quest board. Explicit
+    ``sets`` / ``reps`` / ``weight_lbs`` / ``volume`` on the leaf win.
+    A leaf with no sets and no volume is not measurable, so one logged
+    set does not finish it (#1109).
+    """
+    from .quest_workout_log import parse_quest_title
+
+    title = str(raw.get("title") or "")
+    parsed = parse_quest_title(title)
+    name = str(raw.get("name") or parsed.get("name") or "").strip() or title.strip()
+    slug = str(raw.get("slug") or "").strip().lower()
+    if not slug.startswith("ex-"):
+        slug = lift_leaf_key(name)
+    sets_src = raw.get("sets") if raw.get("sets") is not None else parsed.get("sets")
+    reps_src = raw.get("reps") if raw.get("reps") is not None else parsed.get("reps")
+    weight_src = (
+        raw.get("weight_lbs")
+        if raw.get("weight_lbs") is not None
+        else parsed.get("weight_lbs")
+    )
+    try:
+        sets_i = int(sets_src) if sets_src is not None else 0
+    except (TypeError, ValueError):
+        sets_i = 0
+    try:
+        reps_i = int(reps_src) if reps_src is not None else 0
+    except (TypeError, ValueError):
+        reps_i = 0
+    weight = _leaf_number(weight_src)
+    explicit_volume = _leaf_number(raw.get("volume"))
+    if explicit_volume is None:
+        planned_volume = 0.0 if weight is None else float(weight) * sets_i * reps_i
+    else:
+        planned_volume = float(explicit_volume)
+    measurable = sets_src is not None or explicit_volume is not None
+    return {
+        "slug": slug,
+        "name": name or slug,
+        "sets": sets_i,
+        "reps": reps_i,
+        "weight_lbs": weight,
+        "volume": planned_volume,
+        "measurable": measurable,
+    }
+
+
+def objective_leaves(objective: Any) -> list:
+    if not isinstance(objective, dict):
+        return []
+    leaves = []
+    seen = set()
+    for raw in objective.get("leaves") or []:
+        if not isinstance(raw, dict):
+            continue
+        rx = leaf_prescription(raw)
+        if not rx["slug"] or rx["slug"] in seen:
+            continue
+        seen.add(rx["slug"])
+        leaves.append(rx)
+    return leaves
+
+
+def session_remainder(objective: Any, sessions: Sequence[Any]) -> dict:
+    """Frozen target minus logged real work, per lift, in sets and volume.
+
+    ``applies`` is false when there is no objective, so #951 persist-close
+    stays for a day that never froze a target. An explicit frozen target
+    with no leaves is an empty plan: not done, and nothing to prescribe.
+    A session is done only when every measurable leaf has zero sets and
+    zero volume left. No one-set rule and no volume percent (#1109).
+    """
+    if not isinstance(objective, dict):
+        return {
+            "known": False,
+            "applies": False,
+            "empty_plan": False,
+            "lifts": [],
+            "volume": 0.0,
+            "empty": True,
+            "done": False,
+        }
+    leaves = objective_leaves(objective)
+    if not leaves:
+        frozen = bool(objective.get("frozen"))
+        return {
+            "known": True,
+            "applies": frozen,
+            "empty_plan": frozen,
+            "lifts": [],
+            "volume": 0.0,
+            "empty": True,
+            "done": False,
+        }
+    logged = logged_work_by_leaf(sessions)
+    lifts = []
+    total = 0.0
+    for leaf in leaves:
+        got = logged.get(leaf["slug"]) or {"sets": 0, "volume": 0.0}
+        if not leaf["measurable"]:
+            lifts.append(
+                {
+                    "slug": leaf["slug"],
+                    "name": leaf["name"],
+                    "sets": leaf["sets"],
+                    "reps": leaf["reps"],
+                    "weight_lbs": leaf["weight_lbs"],
+                    "volume": leaf["volume"],
+                    "planned_sets": leaf["sets"],
+                    "planned_reps": leaf["reps"],
+                    "planned_weight_lbs": leaf["weight_lbs"],
+                    "planned_volume": leaf["volume"],
+                    "logged_sets": int(got["sets"]),
+                    "logged_volume": float(got["volume"]),
+                    "sets_remaining": leaf["sets"],
+                    "volume_remaining": leaf["volume"],
+                    "measurable": False,
+                }
+            )
+            total += float(leaf["volume"])
+            continue
+        rem_sets = max(0, int(leaf["sets"]) - int(got["sets"]))
+        rem_vol = max(0.0, float(leaf["volume"]) - float(got["volume"]))
+        if rem_vol <= _VOLUME_EPS:
+            rem_vol = 0.0
+        if rem_sets == 0 and rem_vol == 0.0:
+            continue
+        total += rem_vol
+        lifts.append(
+            {
+                "slug": leaf["slug"],
+                "name": leaf["name"],
+                "sets": rem_sets,
+                "reps": leaf["reps"],
+                "weight_lbs": leaf["weight_lbs"],
+                "volume": rem_vol,
+                "planned_sets": leaf["sets"],
+                "planned_reps": leaf["reps"],
+                "planned_weight_lbs": leaf["weight_lbs"],
+                "planned_volume": leaf["volume"],
+                "logged_sets": int(got["sets"]),
+                "logged_volume": float(got["volume"]),
+                "sets_remaining": rem_sets,
+                "volume_remaining": rem_vol,
+                "measurable": True,
+            }
+        )
+    return {
+        "known": True,
+        "applies": True,
+        "empty_plan": False,
+        "lifts": lifts,
+        "volume": total,
+        "empty": not lifts,
+        "done": not lifts,
+    }
+
+
+def remainder_view(rem: dict) -> dict:
+    lifts = list(rem.get("lifts") or [])
+    return {
+        "lifts": lifts,
+        "volume": rem.get("volume") or 0.0,
+        "empty": not lifts,
+        "done": bool(rem.get("done")),
+        "empty_plan": bool(rem.get("empty_plan")),
+    }
+
+
+def planning_window_sessions(
     sessions: Sequence[Any],
     *,
     as_of: Optional[str] = None,
     last_wake_at: Any = None,
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
-) -> Optional[str]:
-    """Latest PPL letter with a persisted close in the planning window (#951).
+) -> list:
+    """Sessions in the same window ``closed_ppl_for_planning`` uses.
 
-    Same 5 AM wake window as ``ppl_logged_for_planning``. A partial row
-    (no close stamp) does not roll the next letter. When more than one
-    letter closed in the window, the latest close wins. An overnight
-    close before 05:00 still belongs to that training day.
+    Quest-seed-only rows are omitted. A partial log with no close stamp
+    still counts so the remainder can see it.
     """
     from .timeutil import local_now
 
     clock = local_now(tz_name, now=now)
     use_wake = wake_is_current(last_wake_at, as_of, now=clock, tz_name=tz_name)
     civil = str(as_of or "")[:10]
-    hits = []
+    out = []
     for session in sessions or []:
-        letter = _session_type(session)
-        if letter not in ("push", "pull", "legs"):
-            continue
-        if not session_has_close_stamp(session):
-            continue
         if session_is_quest_seed_only(session):
             continue
         if use_wake:
@@ -399,6 +654,48 @@ def closed_ppl_for_planning(
                 day = str(getattr(session, "date", "") or "")[:10]
             if day != civil:
                 continue
+        out.append(session)
+    return out
+
+
+def closed_ppl_for_planning(
+    sessions: Sequence[Any],
+    *,
+    as_of: Optional[str] = None,
+    last_wake_at: Any = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+    training_objective: Any = None,
+) -> Optional[str]:
+    """Latest PPL letter with a persisted close in the planning window (#951).
+
+    Same 5 AM wake window as ``ppl_logged_for_planning``. A partial row
+    (no close stamp) does not roll the next letter. When more than one
+    letter closed in the window, the latest close wins. An overnight
+    close before 05:00 still belongs to that training day.
+
+    When ``training_objective`` applies (#1109), the letter closes only
+    if the regenerated remainder has no lifts and no volume left. Two
+    lifts against a five-lift target stay open. An empty frozen target
+    does not close. Quest-seed-only rows still never close.
+    """
+    window = planning_window_sessions(
+        sessions,
+        as_of=as_of,
+        last_wake_at=last_wake_at,
+        now=now,
+        tz_name=tz_name,
+    )
+    rem = session_remainder(training_objective, window)
+    if rem.get("applies") and not rem.get("done"):
+        return None
+    hits = []
+    for session in window:
+        letter = _session_type(session)
+        if letter not in ("push", "pull", "legs"):
+            continue
+        if not session_has_close_stamp(session):
+            continue
         closed = session_close_dt(session, tz_name=tz_name)
         hits.append((closed or datetime.min.replace(tzinfo=timezone.utc), letter))
     if not hits:

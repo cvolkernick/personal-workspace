@@ -258,6 +258,7 @@ def stamp_today_session(
     train_parent_completed: bool = False,
     last_wake_at: Optional[str] = None,
     now: Optional[Any] = None,
+    training_objective: Optional[dict] = None,
 ) -> dict:
     """Hybrid Today fill: session_type + continuity. Never invent exercises.
 
@@ -279,7 +280,10 @@ def stamp_today_session(
         closed_ppl_for_planning,
         day_complete_for_planning,
         last_wake_from,
+        planning_window_sessions,
         ppl_logged_for_planning,
+        remainder_view,
+        session_remainder,
     )
     from .workout_planner import (
         next_letter_after,
@@ -306,14 +310,30 @@ def stamp_today_session(
         as_of=day,
         last_wake_at=wake,
         now=now,
+        training_objective=training_objective,
     )
+    window = planning_window_sessions(
+        sessions or [],
+        as_of=day,
+        last_wake_at=wake,
+        now=now,
+    )
+    rem = session_remainder(training_objective, window)
+    below_bar = bool(rem.get("applies") and not rem.get("done"))
     day_complete = day_complete_for_planning(
         train_parent_completed,
         ppl_logged_today=logged,
         last_wake_at=wake,
         as_of=day,
         now=now,
+        below_substantive_bar=below_bar,
     )
+    if rem.get("applies"):
+        view = remainder_view(rem)
+        plan["remainder"] = view
+        plan["training_objective"] = training_objective
+        ctx["remainder"] = view
+        ctx["training_objective"] = training_objective
     norms = normalize_goals(goals) if _rotation_set(goals) else {}
     rollover = bool(closed) or day_complete
 
