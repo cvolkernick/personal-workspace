@@ -130,7 +130,7 @@ class SameReadPath(unittest.TestCase):
     def test_empty_turso_row_seeds_live_file(self):
         puts = []
 
-        def put(uid, targets):
+        def put(uid, targets, updated_by=None):
             puts.append((uid, dict(targets)))
 
         with mock.patch(
@@ -164,7 +164,7 @@ class SameReadPath(unittest.TestCase):
     def test_persist_turso_does_not_write_github(self):
         puts = []
 
-        def put(uid, targets):
+        def put(uid, targets, updated_by=None):
             puts.append((uid, dict(targets)))
 
         with mock.patch(
