@@ -187,6 +187,18 @@ def read_inventory_record(user_id: str = "") -> Dict[str, Any]:
     return {"payload": payload, "updated_at": _d(payload).get("updated_at"), "source": src}
 
 
+def agent_inventory_uid() -> str:
+    """Pantry row the agent API reads: the Chris-bound inventory-agent tenant
+    (``FITDASH_INVENTORY_AGENT_USER_ID``) when set and not ``default`` — the same
+    row ``POST /api/agent/inventory/stock`` writes. Else "" (legacy default row)."""
+    uid = (os.environ.get("FITDASH_INVENTORY_AGENT_USER_ID") or "").strip()
+    return "" if uid.lower() in ("", "default") else uid
+
+
+def read_agent_inventory_record() -> Dict[str, Any]:
+    return read_inventory_record(agent_inventory_uid())
+
+
 # ---------------------------------------------------------------- section builders
 def build_targets(rec: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
     p = _d(rec.get("payload"))
@@ -426,7 +438,7 @@ class Loaders:
         self,
         dashboard: Callable[[], Dict[str, Any]],
         targets: Callable[[], Dict[str, Any]] = read_targets_record,
-        inventory: Callable[[], Dict[str, Any]] = read_inventory_record,
+        inventory: Callable[[], Dict[str, Any]] = read_agent_inventory_record,
         health_fetched_at: Callable[[], Optional[float]] = lambda: None,
     ) -> None:
         self.dashboard = dashboard

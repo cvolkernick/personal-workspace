@@ -2411,7 +2411,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         # Gate all personal POST APIs. Inventory stock also accepts a
         # Chris-bound agent token (not the house FITDASH_SERVICE_TOKEN).
         if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
-            if parsed.path == "/api/agent/generate-plan":
+            if parsed.path == "/api/agent/inventory/stock":
+                # Token-only: Chris-bound FITDASH_INVENTORY_AGENT_TOKEN, checked
+                # in the handler below. No session, loopback or house-token bypass.
+                self._request_user = None  # type: ignore[attr-defined]
+            elif parsed.path == "/api/agent/generate-plan":
                 user = _session_user_from_headers(self.headers)
                 client_host = (self.client_address or ("", 0))[0]
                 if user:
@@ -2820,6 +2824,33 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/agent/inventory/stock":
+            # Narrow agent pantry write. Chris-bound inventory-agent token;
+            # only in_stock / qty on existing items of that user's row.
+            from rt_dashboard.agent_write import Store, agent_write_gate, respond_agent_stock_write
+
+            denied = agent_write_gate(self.headers)
+            if denied:
+                self._send_json(denied, status=401)
+                return
+            try:
+                body = self._read_json()
+            except (ValueError, json.JSONDecodeError):
+                self._send_json({"ok": False, "error": "bad_request", "message": "invalid JSON"}, status=400)
+                return
+            try:
+                status, out = respond_agent_stock_write(
+                    self.headers,
+                    body,
+                    Store(file_client_factory=lambda: build_github_client(for_write=True)),
+                )
+                self._send_json(out, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json(
+                    {"ok": False, "error": "agent_write_failed", "message": type(e).__name__},
+                    status=500,
+                )
             return
         if parsed.path == "/api/inventory/stock":
             try:

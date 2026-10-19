@@ -262,6 +262,50 @@ class ReadOnlyDbReads(unittest.TestCase):
         self.assertTrue(all(s.strip().upper().startswith("SELECT") for s in sqls), sqls)
 
 
+class InventoryRow(unittest.TestCase):
+    """GET /api/agent/inventory reads the same row the agent write targets."""
+
+    def _uid_read(self, env):
+        seen = []
+        with mock.patch.dict(os.environ, env), \
+             mock.patch.object(agent_read, "read_inventory_record", side_effect=lambda u="": seen.append(u) or {}):
+            agent_read.Loaders(dashboard=dict).inventory()
+        return seen
+
+    def test_bound_user_row(self):
+        self.assertEqual(self._uid_read({"FITDASH_INVENTORY_AGENT_USER_ID": "chris-sub"}), ["chris-sub"])
+
+    def test_fallback_default(self):
+        for v in ("", "default", " DEFAULT "):
+            with self.subTest(v=v):
+                self.assertEqual(self._uid_read({"FITDASH_INVENTORY_AGENT_USER_ID": v}), [""])
+
+    def test_turso_query_uses_bound_uid(self):
+        params = []
+
+        class Conn:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def execute(self, sql, p=()):
+                params.append(p)
+
+                class R:
+                    def fetchone(self_inner):
+                        return None
+                return R()
+
+        with mock.patch.dict(os.environ, {"FITDASH_INVENTORY_AGENT_USER_ID": "chris-sub"}), \
+             mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), \
+             mock.patch("rt_dashboard.turso_http.connect", return_value=Conn()), \
+             mock.patch("rt_dashboard.inventory_store.load_workspace_inventory", return_value=({"ingredients": []}, "f")):
+            agent_read.read_agent_inventory_record()
+        self.assertEqual(params, [("chris-sub",)])
+
+
 class HttpRoute(unittest.TestCase):
     """End-to-end through DashboardHandler; loopback must NOT bypass the token."""
 
