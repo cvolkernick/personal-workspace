@@ -146,7 +146,17 @@ def _turso_get_targets(user_id: str) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
-def _turso_put_targets(user_id: str, targets: dict) -> None:
+def _ensure_targets_updated_by(conn) -> None:
+    """Agent read API change tracking: nullable ``updated_by`` column."""
+    try:
+        conn.execute("ALTER TABLE nutrition_targets ADD COLUMN updated_by TEXT")
+    except Exception:  # noqa: BLE001 - already there
+        pass
+
+
+def _turso_put_targets(
+    user_id: str, targets: dict, updated_by: Optional[str] = None
+) -> None:
     from .turso_http import connect, turso_enabled
 
     if not turso_enabled():
@@ -156,26 +166,30 @@ def _turso_put_targets(user_id: str, targets: dict) -> None:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     with connect() as conn:
         conn.execute(ENSURE_TARGETS_SQL)
+        _ensure_targets_updated_by(conn)
         conn.execute(
             """
-            INSERT INTO nutrition_targets(user_id, payload, updated_at)
-            VALUES (?, ?, ?)
+            INSERT INTO nutrition_targets(user_id, payload, updated_at, updated_by)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
               payload = excluded.payload,
-              updated_at = excluded.updated_at
+              updated_at = excluded.updated_at,
+              updated_by = excluded.updated_by
             """,
-            (uid, blob, now),
+            (uid, blob, now, updated_by),
         )
 
 
-def save_preview_targets(targets: dict, user_id: str = "") -> dict:
+def save_preview_targets(
+    targets: dict, user_id: str = "", *, updated_by: Optional[str] = None
+) -> dict:
     """Persist applied targets to Turso. Fail honest if the write cannot land."""
     from .turso_http import turso_enabled
 
     if not turso_enabled():
         raise RuntimeError("turso env missing")
     t = normalize_targets(targets)
-    _turso_put_targets(user_id, t)
+    _turso_put_targets(user_id, t, updated_by)
     existing = _turso_get_targets(user_id)
     if _turso_row_empty(existing):
         raise RuntimeError("turso write not visible on readback")
@@ -234,7 +248,7 @@ def persist_targets(
 
     t = normalize_targets(targets)
     if turso_enabled():
-        saved = save_preview_targets(t, user_id)
+        saved = save_preview_targets(t, user_id, updated_by=message)
         return {
             "ok": True,
             "source": SOT_TURSO,

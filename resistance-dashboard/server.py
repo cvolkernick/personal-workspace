@@ -155,6 +155,7 @@ from rt_dashboard.hsa_store import (  # noqa: E402
 )
 from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_action  # noqa: E402
 from rt_dashboard.agent_today import export_agent_today  # noqa: E402
+from rt_dashboard.agent_read import SECTIONS as AGENT_READ_SECTIONS  # noqa: E402
 from rt_dashboard.day_constraints import (  # noqa: E402
     export_day_constraints_from_dashboard,
 )
@@ -2057,6 +2058,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": True, "day_constraints": pkt})
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path.startswith("/api/agent/") and parsed.path[len("/api/agent/"):].strip("/") in AGENT_READ_SECTIONS:
+            # Token-locked read-only agent API (slice 1). FITDASH_AGENT_TOKEN
+            # only: no loopback or session bypass. Never writes or generates.
+            from rt_dashboard.agent_read import Loaders, respond_agent_read
+            from rt_dashboard.dashboard_cache import load_health_cache
+
+            section = parsed.path[len("/api/agent/"):].strip("/")
+            try:
+                status, body = respond_agent_read(
+                    section,
+                    self.headers,
+                    parsed.query or "",
+                    Loaders(
+                        dashboard=lambda: load_dashboard_data(force_refresh=False, user_id=None),
+                        health_fetched_at=lambda: load_health_cache()[1],
+                    ),
+                )
+                self._send_json(body, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json(
+                    {"ok": False, "error": "agent_read_failed", "message": type(e).__name__},
+                    status=500,
+                )
             return
         if parsed.path == "/api/agent/today":
             # Machine-friendly Today + week brief. Same loopback / service-token
