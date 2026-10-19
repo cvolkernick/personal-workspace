@@ -204,12 +204,13 @@ unchanged. The auth classifier no longer matches a bare `401` (timestamps such a
 `401 Unauthorized`, and never classifies from stdout when grok exited 0 and the
 snapshot was updated.
 
-**Ops step (not part of the code PR, needs sudo on prism):** the unit pins
-`TREASURY_RH_MCP_TIMEOUT_S=240`, and the env var wins over code/config. To get the
-420s budget, change that line in `/etc/systemd/system/rh-refresh.service` to
-`420`, then `sudo systemctl daemon-reload`. The repo copy
-`treasury/deploy/rh-refresh.service` (and the Mac plist) is left at 240 until that
-step is done so repo and prism stay in step. The timeout fix above works at 240 too.
+**Ops step (done on prism, #1272):** the unit's `TREASURY_RH_MCP_TIMEOUT_S` outranks
+code/config, so it must say `420` for the 420s budget. prism's
+`/etc/systemd/system/rh-refresh.service` was set to `420` (then `sudo systemctl
+daemon-reload`) on 2026-10-18, and the repo copy `treasury/deploy/rh-refresh.service`
+now matches, so a reinstall from the repo keeps 420. The Mac plist is consumer-only
+(`TREASURY_SKIP_LOCAL_MCP=1`) and does not run the MCP producer. The timeout fix
+above works at 240 too.
 
 ## #555 — do not page expected skip / leftover Mac / timeout-while-fresh
 
