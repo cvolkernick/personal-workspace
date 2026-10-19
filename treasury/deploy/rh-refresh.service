@@ -15,7 +15,7 @@ Environment=TREASURY_RH_ROLE=producer
 Environment=TREASURY_RH_SOT_HOST=prism
 Environment=TREASURY_SKIP_PI=1
 Environment=TREASURY_SKIP_PUSH_PI=1
-Environment=TREASURY_RH_MCP_TIMEOUT_S=240
+Environment=TREASURY_RH_MCP_TIMEOUT_S=420
 Environment=TREASURY_RH_MAX_AGE_HOURS=6
 Environment=PATH=/home/prism-agent/.grok/bin:/home/prism-agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 # Read-only snapshot. Do not place RH orders from this unit.
