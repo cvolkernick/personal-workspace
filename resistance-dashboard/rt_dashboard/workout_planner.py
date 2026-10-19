@@ -2176,6 +2176,68 @@ def clamp_llm_plan_loads(
     return workout
 
 
+def _remainder_plan_rows(lifts: Sequence[dict], pool: Sequence[dict]) -> List[dict]:
+    """Plan rows for the frozen remainder. Sets and tonnage stay as subtracted."""
+    from .training_day import lift_leaf_key
+
+    by_key: Dict[str, dict] = {}
+    for ex in pool or []:
+        key = lift_leaf_key(str(ex.get("name") or ""))
+        if key and key not in by_key:
+            by_key[key] = ex
+    rows: List[dict] = []
+    for lift in lifts or []:
+        match = by_key.get(str(lift.get("slug") or "")) or {}
+        sets = int(lift.get("sets") or 0)
+        reps = int(lift.get("reps") or 0)
+        weight = lift.get("weight_lbs")
+        volume = float(lift.get("volume") or 0)
+        prescription = {
+            "weight_lbs": weight,
+            "load": weight,
+            "sets": sets,
+            "reps": reps,
+            "volume": volume,
+            "planned_sets": lift.get("planned_sets"),
+            "planned_volume": lift.get("planned_volume"),
+        }
+        rows.append(
+            {
+                "id": match.get("id") or str(lift.get("slug") or "")[3:],
+                "name": lift.get("name") or match.get("name"),
+                "primary_muscles": list(match.get("primary_muscles") or []),
+                "secondary_muscles": list(match.get("secondary_muscles") or []),
+                "movement": match.get("movement"),
+                "equipment": match.get("equipment"),
+                "load": weight,
+                "weight_lbs": weight,
+                "sets": sets,
+                "reps": reps,
+                "volume": volume,
+                "prescription": prescription,
+                "set_credits": {},
+                "rationale": "Remaining sets and volume from the frozen session.",
+                "last": None,
+            }
+        )
+    return rows
+
+
+def _stamp_plan_remainder(plan: dict, remainder: Optional[dict], objective: Any) -> dict:
+    from .training_day import remainder_public
+
+    public = remainder_public(remainder)
+    if public is None:
+        return plan
+    plan["remainder"] = public
+    plan["training_objective"] = objective
+    ctx = plan.get("context")
+    if isinstance(ctx, dict):
+        ctx["remainder"] = public
+        ctx["training_objective"] = objective
+    return plan
+
+
 def generate_workout_plan(
     catalog: dict,
     goals: dict,
@@ -2193,6 +2255,7 @@ def generate_workout_plan(
     last_wake_at: Optional[str] = None,
     now: Optional[datetime] = None,
     weighins: Optional[Sequence[Any]] = None,
+    training_objective: Optional[dict] = None,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -2213,6 +2276,11 @@ def generate_workout_plan(
     on the civil fallback. When last_wake is current it also requires a
     PPL session in that wake — parent complete alone must not pin the
     next letter. A partial session row is a pin, not a finished day.
+
+    When ``training_objective`` is a frozen plan, the exercise list is
+    that plan minus real logged sets and tonnage (#1109). The session
+    closes only when that remainder is empty. An empty frozen plan stays
+    open and does not invent lifts.
     """
     goals = normalize_goals(goals)
     if as_of is None:
@@ -2279,7 +2347,10 @@ def generate_workout_plan(
     from .training_day import (
         closed_ppl_for_planning,
         day_complete_for_planning,
+        frozen_plan_remainder,
+        planning_window_sessions,
         ppl_logged_for_planning,
+        remainder_public,
     )
 
     logged_today = ppl_logged_for_planning(
@@ -2288,11 +2359,19 @@ def generate_workout_plan(
         last_wake_at=last_wake_at,
         now=now,
     )
+    window_sessions = planning_window_sessions(
+        sessions,
+        as_of=day,
+        last_wake_at=last_wake_at,
+        now=now,
+    )
+    remainder = frozen_plan_remainder(training_objective, window_sessions)
     closed_letter = closed_ppl_for_planning(
         sessions,
         as_of=day,
         last_wake_at=last_wake_at,
         now=now,
+        training_objective=training_objective,
     )
     force_letter = explicit in ("push", "pull", "legs")
     day_complete = day_complete_for_planning(
@@ -2301,7 +2380,44 @@ def generate_workout_plan(
         last_wake_at=last_wake_at,
         as_of=day,
         now=now,
+        remainder_open=bool(remainder is not None and not remainder["done"]),
     )
+    if (
+        remainder is not None
+        and remainder["empty_plan"]
+        and not force_letter
+    ):
+        pin = logged_today if logged_today in ("push", "pull", "legs") else None
+        if pin is None:
+            pin = next_session_type(sessions, goals)
+        public = remainder_public(remainder)
+        return {
+            "date": day,
+            "session_type": pin,
+            "is_rest_day": False,
+            "already_trained_today": False,
+            "session_closed_today": False,
+            "ppl_logged_today": logged_today,
+            "next_session_type": pin,
+            "exercises": [],
+            "remainder": public,
+            "training_objective": training_objective,
+            "message": "Frozen plan has no lifts. Nothing to prescribe.",
+            "goals": goals,
+            "context": {
+                "recovery_label": recovery_label,
+                "recovery_score": recovery_score,
+                "last_session_type": last_session_type(sessions),
+                "next_session_type": pin,
+                "already_trained_today": False,
+                "session_closed_today": False,
+                "ppl_logged_today": logged_today,
+                "days_since_last": days,
+                "training_continuity": continuity,
+                "remainder": public,
+                "training_objective": training_objective,
+            },
+        }
     # A persisted close rolls the plan onto the next letter (#951).
     # Parent-complete without a close stamp still returns the empty
     # "already trained" shell. An explicit session_type still generates
@@ -2321,7 +2437,7 @@ def generate_workout_plan(
             "reason": focus_res.get("reason"),
         }
         st_done = pin if pin in ("push", "pull", "legs") else logged_today or "session"
-        return {
+        return _stamp_plan_remainder({
             "date": day,
             "session_type": st_done,
             "is_rest_day": False,
@@ -2348,7 +2464,7 @@ def generate_workout_plan(
                 "already_trained_today": True,
                 "ppl_logged_today": logged_today,
             },
-        }
+        }, remainder, training_objective)
 
     pin_open_session = bool(logged_today) and not force_letter and not plan_next
     if (
@@ -2367,7 +2483,7 @@ def generate_workout_plan(
             "source": focus_res.get("source"),
             "reason": focus_res.get("reason"),
         }
-        return {
+        return _stamp_plan_remainder({
             "date": day,
             "session_type": "rest",
             "is_rest_day": True,
@@ -2388,7 +2504,7 @@ def generate_workout_plan(
                 "weekly_sets": tally,
                 "focus": balance["focus"],
             },
-        }
+        }, remainder, training_objective)
 
     if plan_next:
         st = next_letter_after(closed_letter, goals)
@@ -2515,6 +2631,14 @@ def generate_workout_plan(
     elif continuity.get("phase") == "return":
         default_hard = min(default_hard, 2)
 
+    use_remainder = (
+        remainder is not None
+        and not remainder.get("empty_plan")
+        and not remainder.get("done")
+        and not force_letter
+        and not plan_next
+    )
+
     def _already_logged_today(e: dict) -> bool:
         eid = str(e.get("id") or "")
         if eid and eid in today_logged_ids:
@@ -2555,6 +2679,9 @@ def generate_workout_plan(
         logged_proper = int(muscle_report["budget"].get("week_proper_sets") or 0)
         if isinstance(cap_value, int):
             cap_left = cap_value - logged_proper
+
+    if use_remainder:
+        chosen = []
 
     for ex in chosen:
         if session_sets >= session_cap:
@@ -2690,6 +2817,11 @@ def generate_workout_plan(
         _copy_assisted_keys(rx, plan_row, prescription)
         plan_ex.append(plan_row)
 
+    if use_remainder:
+        plan_ex = _remainder_plan_rows(remainder["lifts"], pool)
+        session_sets = sum(max(0, int(row.get("sets") or 0)) for row in plan_ex)
+        planned_credits = {}
+
     # Report volume against long-term bands, but annotate ramped planning bands
     balance = volume_balance_report(tally, goals, planned_credits=planned_credits)
     balance["planning_bands"] = {
@@ -2729,9 +2861,18 @@ def generate_workout_plan(
             )
         msg_parts = [empty_plan_error]
     else:
-        msg_parts = [
-            f"Suggested {st.upper()} session ({len(plan_ex)} exercises, {session_sets} hard sets)."
-        ]
+        if use_remainder:
+            msg_parts = [
+                (
+                    f"Remaining {st.upper()} work "
+                    f"({len(plan_ex)} lifts, {session_sets} sets, "
+                    f"{float(remainder.get('volume') or 0):g} lb)."
+                )
+            ]
+        else:
+            msg_parts = [
+                f"Suggested {st.upper()} session ({len(plan_ex)} exercises, {session_sets} hard sets)."
+            ]
     if continuity.get("phase") != "normal":
         msg_parts.insert(0, continuity.get("summary") or continuity.get("label") or "Return phase")
     if last_st:
@@ -2827,11 +2968,11 @@ def generate_workout_plan(
             "weekly_sets": tally,
         },
     }
-    if empty_plan_error:
+    if empty_plan_error and not use_remainder:
         out["generate_error"] = empty_plan_error
         out["message"] = empty_plan_error
         out["context"]["generate_error"] = empty_plan_error
-    return out
+    return _stamp_plan_remainder(out, remainder, training_objective)
 
 
 def update_goals(raw: dict) -> dict:

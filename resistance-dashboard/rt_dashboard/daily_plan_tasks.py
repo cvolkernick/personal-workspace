@@ -999,11 +999,42 @@ def _ex_leaf(item: PlannedItem) -> bool:
 
 
 def _leaf_record(item: PlannedItem) -> dict:
-    return {
+    from .training_day import frozen_prescription_fields
+
+    record = {
         "slug": str(item.slug),
         "title": str(item.title or "")[:200],
         "notes_extra": str(item.notes_extra or "")[:400],
     }
+    record.update(frozen_prescription_fields(record))
+    return record
+
+
+def cached_training_objective(day: Optional[str]) -> Optional[dict]:
+    """Frozen session target for ``day``.
+
+    Returns the cached objective when it is frozen or has lift leaves.
+    Missing cache and an unfrozen empty day stay ``None`` so the first
+    plan can still be ranked.
+    """
+    key = str(day or "")[:10]
+    if len(key) < 10:
+        return None
+    cache = _load_cache()
+    row = cache.get(key) if isinstance(cache, dict) else None
+    if not isinstance(row, dict):
+        return None
+    objective = row.get("training_objective")
+    if not isinstance(objective, dict):
+        return None
+    leaves = objective.get("leaves") or []
+    has_lifts = any(
+        isinstance(raw, dict) and str(raw.get("slug") or "").startswith("ex-")
+        for raw in leaves
+    )
+    if objective.get("frozen") is True or has_lifts:
+        return objective
+    return None
 
 
 def _item_from_leaf(raw: dict) -> PlannedItem:
@@ -1044,19 +1075,33 @@ def apply_training_objective(
     current_by_slug = {item.slug: item for item in current}
 
     if saved_by_slug:
+        from .training_day import frozen_prescription_fields
+
         leaves = []
         for slug, raw in saved_by_slug.items():
+            saved = {
+                "slug": slug,
+                "title": str(raw.get("title") or slug)[:200],
+                "notes_extra": str(raw.get("notes_extra") or "")[:400],
+            }
+            for key in ("sets", "reps", "weight_lbs", "volume"):
+                if raw.get(key) is not None:
+                    saved[key] = raw.get(key)
+            saved.update(frozen_prescription_fields(saved))
             fresh = current_by_slug.get(slug)
+            # A shorter remainder must not move the frozen bar. A same-size
+            # replan (weight change) still refreshes the quest title.
             if fresh is not None:
-                leaves.append(_leaf_record(fresh))
+                fresh_record = _leaf_record(fresh)
+                saved_sets = int(saved.get("sets") or 0)
+                fresh_sets = int(fresh_record.get("sets") or 0)
+                if fresh_sets >= saved_sets:
+                    record = fresh_record
+                else:
+                    record = saved
             else:
-                leaves.append(
-                    {
-                        "slug": slug,
-                        "title": str(raw.get("title") or slug)[:200],
-                        "notes_extra": str(raw.get("notes_extra") or "")[:400],
-                    }
-                )
+                record = saved
+            leaves.append(record)
         target_n = max(int(saved.get("target_n") or 0), len(saved_by_slug))
         frozen = True
     else:

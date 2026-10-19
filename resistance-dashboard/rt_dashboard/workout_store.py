@@ -258,6 +258,7 @@ def stamp_today_session(
     train_parent_completed: bool = False,
     last_wake_at: Optional[str] = None,
     now: Optional[Any] = None,
+    training_objective: Optional[dict] = None,
 ) -> dict:
     """Hybrid Today fill: session_type + continuity. Never invent exercises.
 
@@ -278,8 +279,11 @@ def stamp_today_session(
     from .training_day import (
         closed_ppl_for_planning,
         day_complete_for_planning,
+        frozen_plan_remainder,
         last_wake_from,
+        planning_window_sessions,
         ppl_logged_for_planning,
+        remainder_public,
     )
     from .workout_planner import (
         next_letter_after,
@@ -295,17 +299,30 @@ def stamp_today_session(
     ctx["days_since_last"] = continuity.get("days_since")
     day = str(as_of or local_today_iso())[:10]
     wake = last_wake_from(recovery=recovery, last_wake_at=last_wake_at)
+    if not isinstance(training_objective, dict):
+        saved_objective = plan.get("training_objective")
+        if not isinstance(saved_objective, dict):
+            saved_objective = ctx.get("training_objective")
+        training_objective = saved_objective if isinstance(saved_objective, dict) else None
     logged = ppl_logged_for_planning(
         sessions or [],
         as_of=day,
         last_wake_at=wake,
         now=now,
     )
+    window = planning_window_sessions(
+        sessions or [],
+        as_of=day,
+        last_wake_at=wake,
+        now=now,
+    )
+    remainder = frozen_plan_remainder(training_objective, window)
     closed = closed_ppl_for_planning(
         sessions or [],
         as_of=day,
         last_wake_at=wake,
         now=now,
+        training_objective=training_objective,
     )
     day_complete = day_complete_for_planning(
         train_parent_completed,
@@ -313,7 +330,14 @@ def stamp_today_session(
         last_wake_at=wake,
         as_of=day,
         now=now,
+        remainder_open=bool(remainder is not None and not remainder["done"]),
     )
+    public = remainder_public(remainder)
+    if public is not None:
+        plan["remainder"] = public
+        plan["training_objective"] = training_objective
+        ctx["remainder"] = public
+        ctx["training_objective"] = training_objective
     norms = normalize_goals(goals) if _rotation_set(goals) else {}
     rollover = bool(closed) or day_complete
 

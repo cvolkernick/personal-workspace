@@ -1127,6 +1127,11 @@ def _build_dashboard_data(
             )
         except Exception:
             train_parent_done = False
+        from rt_dashboard.daily_plan_tasks import cached_training_objective
+
+        training_objective = cached_training_objective(
+            local_today
+        ) or cached_training_objective(train_day)
         workout_plan = generate_workout_plan(
             catalog,
             wo["goals"],
@@ -1146,6 +1151,7 @@ def _build_dashboard_data(
             last_wake_at=last_wake,
             now=now,
             weighins=list(health.weight or []),
+            training_objective=training_objective,
         )
         # Effective goals include autonomous focus_muscles from plan gen
         effective_goals = dict(wo["goals"] or {})
@@ -1562,6 +1568,9 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
 
             sessions = sessions_from_dicts(data.get("sessions") or [])
             bat = data.get("sleep_battery") or rec.get("sleep_battery") or {}
+            from rt_dashboard.daily_plan_tasks import cached_training_objective
+            from rt_dashboard.timeutil import local_today_iso as _today_iso
+
             plan = generate_workout_plan(
                 wo.get("catalog") or {"exercises": []},
                 wo.get("goals") or {},
@@ -1574,6 +1583,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 ),
                 session_type=action.get("session_type"),
                 last_wake_at=(bat or {}).get("last_wake_at") if isinstance(bat, dict) else None,
+                training_objective=cached_training_objective(_today_iso()),
                 weighins=list((data.get("health") or {}).get("weight") or [])
                 if isinstance(data.get("health"), dict)
                 else list(getattr(data.get("health"), "weight", None) or []),
