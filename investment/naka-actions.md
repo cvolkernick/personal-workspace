@@ -36,3 +36,7 @@ none
 ## Naka: actions taken — 2026-10-18
 
 none
+
+## Naka: actions taken — 2026-10-19
+
+- Refreshed investment/naka-watchlist.md: holdings re-read live 2026-10-19 (no change from 2026-10-17), and the SATS line now cites Strive's SEC free-writing prospectus, which says it has applied to list the preferred on the Nasdaq Global Market under the symbol "SATS" (settles 2026-10-20; trading expected within 30 days if approved). The listing is not yet approved, so the symbol stays marked pending. No weighting change; advisory only.
