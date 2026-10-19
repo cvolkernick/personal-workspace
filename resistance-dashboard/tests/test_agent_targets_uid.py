@@ -111,3 +111,86 @@ class TodayTargetsFull(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _Store:
+    """Stateful fake Turso for nutrition_targets (SELECT / INSERT upsert)."""
+
+    def __init__(self):
+        self.rows = {"default": dict(ROWS["default"], payload=json.dumps(ROWS["default"]["payload"]))}
+
+    def __call__(self):
+        store = self
+
+        class C:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def execute(self, sql, params=()):
+                up = sql.strip().upper()
+                res = None
+                if up.startswith("INSERT"):
+                    uid, blob, now, by = params
+                    store.rows[uid] = {"payload": blob, "updated_at": now, "updated_by": by}
+                elif up.startswith("SELECT"):
+                    r = store.rows.get(params[0])
+                    res = dict(r) if r else None
+
+                class R:
+                    def fetchone(self_inner):
+                        return res
+                return R()
+        return C()
+
+
+class CoachApplyEqualsAgent(unittest.TestCase):
+    APPLIED = {"calories": 2150, "protein_g": 170, "carbs_g": 230, "fat_g": 60,
+               "fiber_g": 30, "sugar_g": 55, "sodium_mg": 2300, "phase": "cut"}
+    RECOMMENDED = {"calories": 2200, "protein_g": 170, "carbs_g": 245, "fat_g": 60}
+
+    def test_agent_targets_equal_dashboard_targets_after_coach_apply(self):
+        from rt_dashboard.agent_today import _targets as today_targets
+        from rt_dashboard.nutrition_store import applied_targets_write, load_preview_targets
+
+        store = _Store()
+        env = {"FITDASH_USER_ID": CHRIS, "FITDASH_INVENTORY_AGENT_USER_ID": CHRIS}
+        with mock.patch.dict(os.environ, env), \
+             mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), \
+             mock.patch("rt_dashboard.turso_http.connect", side_effect=store):
+            # Coach apply under Chris's session uid.
+            stuck, err, _w, _p = applied_targets_write(dict(self.APPLIED), CHRIS, message="coach apply")
+            self.assertTrue(stuck, err)
+            dash_targets, src = load_preview_targets(CHRIS)  # what the dashboard renders
+            dash = {"nutrition_store": {"targets": dash_targets},
+                    "coach": {"nutrition_targets": {"phase": "cut", "recommended": self.RECOMMENDED}}}
+            rec = agent_read.Loaders(dashboard=lambda: dash).targets()
+            data, _ = agent_read.build_targets(rec, agent_read._recommended(dash))
+            today = today_targets(dash)
+            # cookie-less read is redirected to the Coach row (no default drift)
+            redirected, _ = load_preview_targets("")
+        self.assertEqual(src, "turso")
+        self.assertEqual(data["kcal"], dash_targets["calories"])
+        for k in ("protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg"):
+            self.assertEqual(data["macros"][k], float(dash_targets[k]), k)
+            self.assertEqual(today[k], float(dash_targets[k]), k)
+        self.assertEqual((data["kcal"], data["macros"]["protein_g"], data["macros"]["carbs_g"],
+                          data["macros"]["fat_g"], data["macros"]["fiber_g"], data["macros"]["sugar_g"],
+                          data["macros"]["sodium_mg"]),
+                         (2150.0, 170.0, 230.0, 60.0, 30.0, 55.0, 2300.0))
+        self.assertEqual(data["phase"], "cut")
+        self.assertEqual(today["phase"], "cut")
+        applied_at = store.rows[CHRIS]["updated_at"]
+        self.assertRegex(applied_at, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertEqual(data["updated_at"], applied_at)
+        self.assertEqual(data["applied_at"], applied_at)
+        self.assertEqual(today["updated_at"], applied_at)
+        self.assertEqual(data["recommended"]["calories"], 2200.0)
+        self.assertEqual(data["recommended"]["carbs_g"], 245.0)
+        self.assertEqual(data["recommended"]["phase"], "cut")
+        self.assertEqual(today["recommended"]["calories"], 2200.0)
+        self.assertEqual(redirected["calories"], 2150.0)
+        # stale default row untouched and unread
+        self.assertEqual(json.loads(store.rows["default"]["payload"])["calories"], 2100.0)

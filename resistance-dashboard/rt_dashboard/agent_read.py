@@ -109,7 +109,9 @@ def _row_get(row: Any, key: str, idx: int) -> Any:
 
 
 def _row_uid(user_id: str) -> str:
-    return (user_id or "").strip() or "default"
+    from .nutrition_store import _targets_uid
+
+    return _targets_uid(user_id)
 
 
 # ---------------------------------------------------------------- pure DB reads
@@ -215,7 +217,19 @@ def read_agent_targets_record() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------- section builders
-def build_targets(rec: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
+def _recommended(dashboard: Any) -> Optional[Dict[str, Any]]:
+    nt = _d(_d(_d(dashboard).get("coach")).get("nutrition_targets"))
+    rec = _d(nt.get("recommended"))
+    if not rec:
+        return None
+    out = {k: _num(v) for k, v in rec.items() if k == "calories" or k in MACRO_KEYS}
+    out["phase"] = nt.get("phase") or rec.get("phase")
+    return out
+
+
+def build_targets(
+    rec: Dict[str, Any], recommended: Optional[Dict[str, Any]] = None
+) -> Tuple[Dict[str, Any], Optional[str]]:
     p = _d(rec.get("payload"))
     notes: List[str] = []
     updated_by = rec.get("updated_by")
@@ -234,6 +248,8 @@ def build_targets(rec: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
         "kcal": _num(p.get("calories")),
         "macros": {k: _num(p.get(k)) for k in MACRO_KEYS},
         "updated_at": rec.get("updated_at") or None,
+        "applied_at": p.get("applied_at") or rec.get("updated_at") or None,
+        "recommended": recommended,
         "updated_by": updated_by or None,
         "source": rec.get("source"),
         "note": "; ".join(notes) or None,
@@ -483,7 +499,11 @@ def respond_agent_read(
     health_as_of = epoch_to_iso(loaders.health_fetched_at())
 
     if section == "targets":
-        body, as_of = build_targets(loaders.targets())
+        try:
+            recommended = _recommended(loaders.dashboard())
+        except Exception:  # noqa: BLE001 - recommendation is best-effort
+            recommended = None
+        body, as_of = build_targets(loaders.targets(), recommended)
     elif section == "inventory":
         data = loaders.dashboard()
         body, as_of = build_inventory(loaders.inventory(), _food_logs(data))

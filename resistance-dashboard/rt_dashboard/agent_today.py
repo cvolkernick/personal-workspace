@@ -714,8 +714,15 @@ def _targets(payload: Dict[str, Any]) -> Dict[str, Any]:
             out[key] = val
     if raw.get("phase"):
         out["phase"] = str(raw.get("phase"))
-    if raw.get("updated_at"):
-        out["updated_at"] = str(raw.get("updated_at"))
+    if raw.get("applied_at") or raw.get("updated_at"):
+        out["updated_at"] = str(raw.get("applied_at") or raw.get("updated_at"))
+    nt = _as_dict(_as_dict(payload.get("coach")).get("nutrition_targets"))
+    rec = _as_dict(nt.get("recommended"))
+    if rec:
+        out["recommended"] = {
+            k: _float_or_none(v) for k, v in rec.items() if isinstance(v, (int, float))
+        }
+        out["recommended"]["phase"] = nt.get("phase") or rec.get("phase")
     return out
 
 
