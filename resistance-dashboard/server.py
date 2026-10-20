@@ -2063,6 +2063,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             # Token-locked read-only agent API (slice 1). FITDASH_AGENT_TOKEN
             # only: no loopback or session bypass. Never writes or generates.
             from rt_dashboard.agent_read import Loaders, respond_agent_read
+            from rt_dashboard.agent_read import agent_targets_uid as _agent_targets_uid
             from rt_dashboard.dashboard_cache import load_health_cache
 
             section = parsed.path[len("/api/agent/"):].strip("/")
@@ -2072,7 +2073,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self.headers,
                     parsed.query or "",
                     Loaders(
-                        dashboard=lambda: load_dashboard_data(force_refresh=False, user_id=None),
+                        dashboard=lambda: load_dashboard_data(
+                            force_refresh=False, user_id=_agent_targets_uid() or None
+                        ),
                         health_fetched_at=lambda: load_health_cache()[1],
                     ),
                 )
@@ -2097,7 +2100,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json(service_auth_denied("agents"), status=401)
                 return
             try:
-                uid = user.get("user_id") if user else None
+                from rt_dashboard.agent_read import agent_targets_uid
+
+                # Cookie-less agents read Chris's tenant (same row Coach writes),
+                # not the legacy ``default`` row.
+                uid = (user.get("user_id") if user else None) or agent_targets_uid() or None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
                 from rt_dashboard.agent_plan import (
                     house_plan_user_id,

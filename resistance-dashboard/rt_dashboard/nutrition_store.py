@@ -110,6 +110,12 @@ def _targets_uid(user_id: str = "", *, allow_default: bool = True) -> str:
         return uid
     if not allow_default:
         raise ValueError("targets user_id required")
+    # One store: cookie-less reads/writes go to the bound Coach tenant, so the
+    # legacy ``default`` row can no longer be read or written (and drift).
+    for key in ("FITDASH_USER_ID", "FITDASH_INVENTORY_AGENT_USER_ID"):
+        bound = (os.environ.get(key) or "").strip()
+        if bound and bound.lower() != TARGETS_ROW_DEFAULT:
+            return bound
     return TARGETS_ROW_DEFAULT
 
 
@@ -162,8 +168,10 @@ def _turso_put_targets(
     if not turso_enabled():
         raise RuntimeError("turso env missing")
     uid = _targets_uid(user_id)
-    blob = json.dumps(normalize_targets(targets), separators=(",", ":"))
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamped = dict(normalize_targets(targets))
+    stamped["applied_at"] = now  # real apply time for agent reads
+    blob = json.dumps(stamped, separators=(",", ":"))
     with connect() as conn:
         conn.execute(ENSURE_TARGETS_SQL)
         _ensure_targets_updated_by(conn)
@@ -214,7 +222,10 @@ def load_preview_targets(user_id: str = "") -> Tuple[dict, str]:
     except Exception:
         return file_t, file_src
     if not _turso_row_empty(existing):
-        return normalize_targets(existing), SOT_TURSO
+        out = normalize_targets(existing)
+        if existing.get("applied_at"):
+            out["applied_at"] = existing["applied_at"]  # real apply time
+        return out, SOT_TURSO
     try:
         _turso_put_targets(user_id, file_t)
     except Exception:
