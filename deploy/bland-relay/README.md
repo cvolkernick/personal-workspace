@@ -621,7 +621,7 @@ Team-inbox mail is a Grok seat step outside this repo (#1228 G6). This hook does
 | `POST_CALL_PUSH_DISABLED` | `1` skips the `call_followup` push. The outbox and the index still update. |
 | `CRM_INGEST_MODE` | `off` skips the outbox line. The index and the push still run. |
 
-If the outbox write or the Alexandra push fails, the hook retries in its own thread after 30 seconds, 2 minutes, and 10 minutes. It then appends one line to `post_call_deadletter.jsonl` in the relay state directory (file mode 0600). The line is the outbox record (`done: false`) and has no body and no transcript. The log line is `post-call: dead-letter call_id=<id>`. The HTTP status Bland already received does not change.
+If the outbox write or the Alexandra push fails, the hook retries in its own thread after 30 seconds, 2 minutes, and 10 minutes. It then appends one line to `post_call_deadletter.jsonl` in the relay state directory (file mode 0600). The line stores the outbox record under `record` (`done: false`). That record has no body, no transcript, and no private fields. `stated_meeting` sits beside `record`, not inside it. Replay copies `metadata.qa` back to the QA skip and copies `stated_meeting` back before the index write and the push. The log line is `post-call: dead-letter call_id=<id>`. The HTTP status Bland already received does not change.
 
 Replay is idempotent on `call_id`. It does not delete lines. A line that goes through is marked `done: true`. From the directory that holds the module (`~/bin` on prism):
 

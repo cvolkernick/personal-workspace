@@ -693,10 +693,12 @@ def _write_bytes(path, blob, append):
 
 
 def _dead_letter(record):
+    # stated_meeting stays beside the CRM row. _public_record drops every _field.
     line = {
         "call_id": record["provider_msg_id"],
         "done": False,
         "record": _public_record(record),
+        "stated_meeting": record.get("_stated_meeting"),
     }
     blob = (json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
     _write_bytes(_deadletter_path(), blob, append=True)
@@ -731,8 +733,11 @@ def replay_dead_letters(path=None):
         if not isinstance(record, dict) or not record.get("provider_msg_id"):
             continue
         record = dict(record)
+        meta = record.get("metadata") if isinstance(record.get("metadata"), dict) else {}
+        record["_qa"] = meta.get("qa") is True
         record.setdefault("_index_followup", "")
-        record.setdefault("_qa", False)
+        if "stated_meeting" in item:
+            record["_stated_meeting"] = item.get("stated_meeting")
         try:
             _write_index({}, record)
         except Exception as exc:  # noqa: BLE001 — class only

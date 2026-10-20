@@ -644,3 +644,90 @@ def test_dead_letter_replay_is_idempotent(alex, monkeypatch):
     assert after[0]["done"] is True
     assert "TRANSCRIPT_ONLY_SECRET" not in path.read_text()
     assert len(outbox()) == 1 and len(index_rows()) == 1 and len(alex) == 1
+
+
+def _failing_outbox(monkeypatch, fail):
+    real = bland_relay.crm_sink
+
+    def sink():
+        inner = real()
+
+        class Wrap:
+            def emit(self, record):
+                if fail["on"]:
+                    raise OSError("disk")
+                inner.emit(record)
+
+        return Wrap()
+
+    monkeypatch.setattr(bland_relay, "crm_sink", sink)
+
+
+def _dead_lines():
+    path = Path(os.environ["BLAND_RELAY_STATE_DIR"]) / "post_call_deadletter.jsonl"
+    return path, [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def _assert_public_row(record):
+    assert "body" not in record and "transcript" not in record and "transcripts" not in record
+    assert all(not str(key).startswith("_") for key in record)
+
+
+def test_qa_outbox_failure_replay_does_not_push(alex, monkeypatch):
+    fail = {"on": True}
+    _failing_outbox(monkeypatch, fail)
+    payload = load("callback.json")
+    payload["metadata"] = dict(payload["metadata"], qa=True)
+    payload["transcripts"] = [{"user": "user", "text": "TRANSCRIPT_ONLY_SECRET call me back"}]
+    post_call.handle(json.dumps(payload).encode(), now=datetime(2026, 10, 19, 8, 0, tzinfo=ET))
+    assert alex == []
+    path, lines = _dead_lines()
+    [line] = lines
+    assert line["done"] is False
+    assert line["record"]["metadata"]["qa"] is True
+    assert "_qa" not in line["record"]
+    _assert_public_row(line["record"])
+    assert "TRANSCRIPT_ONLY_SECRET" not in path.read_text()
+    fail["on"] = False
+    assert post_call.replay_dead_letters() == 1
+    assert alex == []
+    [row] = outbox()
+    assert row["metadata"]["qa"] is True
+    assert "followup" not in row
+    _assert_public_row(row)
+    assert "TRANSCRIPT_ONLY_SECRET" not in json.dumps(row)
+    [stored] = index_rows()
+    assert stored["qa"] == 1
+    done = [json.loads(item) for item in path.read_text().splitlines() if item.strip()]
+    assert done[0]["done"] is True
+
+
+def test_replay_restores_stated_meeting_from_outside_the_record(alex, monkeypatch):
+    fail = {"on": True}
+    _failing_outbox(monkeypatch, fail)
+    seed_attempt("call-match-1", "Alex Rivera", "2026-10-19T19:00:00Z", True, 2)
+    payload = load("meeting_confirm_match.json")
+    payload["transcripts"] = list(payload["transcripts"]) + [
+        {"user": "user", "text": "TRANSCRIPT_ONLY_SECRET"}
+    ]
+    post_call.handle(json.dumps(payload).encode(), now=datetime(2026, 10, 19, 8, 0, tzinfo=ET))
+    assert alex == []
+    path, lines = _dead_lines()
+    [line] = lines
+    assert line["stated_meeting"] == "2026-10-19T15:00:00-04:00"
+    assert "stated_meeting" not in line["record"]
+    assert "_stated_meeting" not in line["record"]
+    _assert_public_row(line["record"])
+    assert "TRANSCRIPT_ONLY_SECRET" not in path.read_text()
+    assert "Jordan Quinn" not in path.read_text()
+    fail["on"] = False
+    assert post_call.replay_dead_letters() == 1
+    assert len(alex) == 1
+    assert alex[0]["kind"] == "call_followup"
+    assert alex[0]["stated_meeting"] == "2026-10-19T15:00:00-04:00"
+    assert alex[0]["phone"] == "+12395550111"
+    [row] = outbox()
+    assert "stated_meeting" not in row and "_stated_meeting" not in row
+    _assert_public_row(row)
+    assert "TRANSCRIPT_ONLY_SECRET" not in json.dumps(row)
+    assert "Jordan Quinn" not in json.dumps(row)
