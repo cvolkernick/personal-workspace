@@ -172,7 +172,7 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
             body["nutrition_store"]["sources"]["inventory"],
             ("fitness/nutrition/inventory.json", "turso"),
         )
-        self.assertEqual(len(body["nutrition_store"]["inventory"]["ingredients"]), 15)
+        self.assertEqual(len(body["nutrition_store"]["inventory"]["ingredients"]), 26)
         self.assertEqual(len(body["sessions"]), 1)
         self.assertEqual(body["sessions"][0]["exercises"][0]["name"], "DB Flat Press")
         ctx = build_fitness_context(body)

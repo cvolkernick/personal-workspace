@@ -987,6 +987,7 @@ def _build_dashboard_data(
         recommended_targets=(rec_nt or {}).get("recommended"),
         food_logs=health.food_logs or [],
         sleep_intervals=_sleep_iv,
+        user_id=str(uid or "") or None,
     )
     from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
@@ -1014,6 +1015,7 @@ def _build_dashboard_data(
         targets=nut.get("targets") or {},
         food_logs=health.food_logs or [],
         consumed=consumed,
+        recipe_unlocks=(auto_plan or {}).get("restock_suggestions"),
     )
     inv_removals = suggest_inventory_removals(
         inv_base,
@@ -1041,6 +1043,7 @@ def _build_dashboard_data(
         "recipes": recipe_overlay.get("recipes") or [],
         "recipes_sot": recipe_overlay.get("recipes_sot"),
         "recipe_shopping": recipe_overlay.get("recipe_shopping") or [],
+        "grocery_week": recipe_overlay.get("grocery_week") or [],
         "recipe_logs_today": recipe_overlay.get("recipe_logs_today") or [],
     }
 
@@ -1541,6 +1544,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 sleep_battery=bat if isinstance(bat, dict) else None,
                 recommended_targets=rec,
                 food_logs=health_dict.get("food_logs") or [],
+                user_id=str(uid or "") or None,
             )
             from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
 
@@ -2957,6 +2961,92 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/recipes/batch":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                from rt_dashboard.recipe_planner import cooked_batch
+                from rt_dashboard.recipe_store import get_recipe
+
+                inventory, _src = load_preview_inventory(str(uid))
+                recipe = get_recipe(str(uid), str(body.get("recipe_id") or body.get("id") or ""), inventory)
+                if not recipe:
+                    self._send_json({"ok": False, "error": "recipe not found"}, status=404)
+                    return
+                updated = cooked_batch(inventory, recipe, float(body.get("servings") or 1))
+                from rt_dashboard.inventory_store import persist_inventory_result
+
+                write = persist_inventory_result(
+                    updated, str(uid), message="nutrition: cooked batch"
+                )
+                if not write.get("ok"):
+                    self._send_json(
+                        {
+                            "ok": False,
+                            "error": write.get("error") or "inventory persist failed",
+                            "recipe_id": recipe.get("id"),
+                        },
+                        status=500,
+                    )
+                    return
+                self._send_json(
+                    {
+                        "ok": True,
+                        "inventory": write.get("inventory") or updated,
+                        "recipe_id": recipe.get("id"),
+                    }
+                )
+            except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/meal-plan/swap":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                from rt_dashboard.recipe_planner import swap_recipe_slot
+                from rt_dashboard.recipe_store import list_recipes, seed_nourish_recipes
+
+                inventory, _src = load_preview_inventory(str(uid))
+                try:
+                    seed_nourish_recipes(str(uid), inventory)
+                except Exception:
+                    pass
+                recipes, _sot = list_recipes(str(uid), inventory)
+                meals = body.get("meals") or []
+                plan = swap_recipe_slot(
+                    inventory,
+                    body.get("targets") or {},
+                    body.get("consumed") or {},
+                    recipes,
+                    meals,
+                    int(body.get("slot") if body.get("slot") is not None else body.get("slot_index") or 0),
+                    now=local_now(),
+                    tz_name=local_tz_name(),
+                    workout_window=body.get("workout_window"),
+                )
+                if not plan:
+                    self._send_json({"ok": False, "error": "no alternate recipe"}, status=409)
+                    return
+                self._send_json({"ok": True, "plan": plan})
+            except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/meal-plan/grocery":
+            try:
+                body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                from rt_dashboard.grocery_list import grocery_http
+
+                result = grocery_http(str(uid), body)
+                status = 200 if result.get("ok") else 500
+                self._send_json(result, status=status)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/hsa":
             try:
                 body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
@@ -3328,6 +3418,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     recommended_targets=rec,
                     food_logs=food_entries,
                     sleep_intervals=health.get("sleep_intervals") or [],
+                    user_id=str(uid or "") or None,
+                    workout_window=body.get("workout_window"),
                 )
                 from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
                 from rt_dashboard.timeutil import local_today_iso as _local_today_iso

@@ -189,10 +189,14 @@ class DriftAndShopping(unittest.TestCase):
         lines = shopping_from_plans([plan], _inv(CHICKEN, RICE), [rec])
         ids = [x["id"] for x in lines]
         self.assertIn("rice", ids)
-        self.assertNotIn("chicken", ids)
+        self.assertIn("chicken", ids)
         rice = next(x for x in lines if x["id"] == "rice")
-        self.assertEqual(rice["grams"], 300)
-        self.assertEqual(rice["action"], "restock")
+        chicken = next(x for x in lines if x["id"] == "chicken")
+        self.assertEqual(rice["action"], "buy")
+        self.assertEqual(rice["grams"], 120)
+        self.assertIn("dry", rice["reason"])
+        self.assertEqual(chicken["action"], "check")
+        self.assertEqual(chicken["reason"], "have (qty unknown), check")
 
 
 class LogsAndAttach(unittest.TestCase):

@@ -613,6 +613,8 @@ def build_today_board(
             if str(p.get("id") or "").strip()
         }
         for line in shopping_from_plans([mp], inventory):
+            if line.get("action") not in ("buy", "restock"):
+                continue
             iid = str(line.get("id") or "").strip()
             if iid and iid in seen:
                 continue

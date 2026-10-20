@@ -484,9 +484,19 @@ def drop_hold_items(items: Iterable[dict]) -> dict:
     return save_hold({"items": kept, "note_title": KEEP_NOTE_TITLE, "keep": current.get("keep")})
 
 
-def restock_list(purchases: Optional[Iterable[dict]]) -> dict:
-    """AC1: venue-tagged restock SoT. No Google Tasks."""
-    lines = [restock_line(x) for x in (purchases or []) if isinstance(x, dict) and (x.get("name") or x.get("id"))]
+def restock_list(
+    purchases: Optional[Iterable[dict]],
+    *,
+    recipe_unlocks: Optional[Iterable[dict]] = None,
+) -> dict:
+    """AC1: venue-tagged restock SoT. No Google Tasks.
+
+    ``recipe_unlocks`` are prepended ("Tilapia → unlocks Lemon-Garlic Tilapia").
+    """
+    lines = [restock_line(x) for x in (recipe_unlocks or []) if isinstance(x, dict) and (x.get("name") or x.get("id"))]
+    lines.extend(
+        restock_line(x) for x in (purchases or []) if isinstance(x, dict) and (x.get("name") or x.get("id"))
+    )
     grouped = group_by_venue(lines)
     return {
         "ok": True,

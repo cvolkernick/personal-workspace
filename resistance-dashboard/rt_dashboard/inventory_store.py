@@ -401,3 +401,28 @@ def persist_inventory(
     write["source"] = SOT_FILE
     write["inventory"] = inv
     return write
+
+
+def persist_inventory_result(
+    inventory: dict,
+    user_id: str = "",
+    *,
+    file_client=None,
+    message: str = "nutrition: pantry write",
+) -> dict:
+    """persist_inventory, with a failure dict instead of a raised error."""
+    try:
+        write = persist_inventory(
+            inventory,
+            user_id,
+            file_client=file_client,
+            message=message,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc) or type(exc).__name__}
+    if isinstance(write, dict) and write.get("ok") is True:
+        return write
+    error = ""
+    if isinstance(write, dict):
+        error = str(write.get("error") or "")
+    return {"ok": False, "error": error or "inventory persist failed"}

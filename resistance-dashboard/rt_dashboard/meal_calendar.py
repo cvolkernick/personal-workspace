@@ -94,6 +94,21 @@ def _grams_cue(portion_g: Any) -> str:
     return f"{int(round(grams))}g"
 
 
+def meal_display_name(meal: Any) -> str:
+    """Recipe name when the slot is a dish. Otherwise the first ingredient."""
+    if not isinstance(meal, dict):
+        return ""
+    recipe = str(meal.get("recipe_name") or "").strip()
+    if recipe:
+        return recipe
+    for item in meal.get("items") or []:
+        if isinstance(item, dict):
+            name = str(item.get("name") or "").strip()
+            if name:
+                return name
+    return ""
+
+
 def calendar_event_title(
     label: str, name: str, portion_g: Any = None
 ) -> str:

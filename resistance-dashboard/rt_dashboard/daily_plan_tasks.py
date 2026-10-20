@@ -1837,6 +1837,22 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                     clock = ""
             if clock:
                 label = f"{label} · {clock}"
+            recipe_name = str(bucket.get("recipe_name") or "").strip()
+            if recipe_name:
+                _g("nutrition").items.append(
+                    PlannedItem(
+                        group="nutrition",
+                        slug=f"meal-{mi}-{_slug(recipe_name)}",
+                        title=f"{label}: {recipe_name}"[:200],
+                        meal_label=label,
+                        eat_at=str(bucket.get("eat_at") or "").strip(),
+                        meal_slot=f"meal-{mi}",
+                        cal_label=bucket_label,
+                        item_name=recipe_name,
+                        portion_g=None,
+                    )
+                )
+                continue
             items = list(bucket.get("items") or [])
             if not items:
                 continue

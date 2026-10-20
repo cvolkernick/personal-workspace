@@ -63,9 +63,9 @@ class TrendsRhrMarkup(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=muscle-sets-1193-1", HTML)
-        self.assertIn("/app.js?v=muscle-sets-1193-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v139"', SW)
+        self.assertIn("/app.js?v=recipe-planner-1288-2", HTML)
+        self.assertIn("/app.js?v=recipe-planner-1288-2", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v141"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)

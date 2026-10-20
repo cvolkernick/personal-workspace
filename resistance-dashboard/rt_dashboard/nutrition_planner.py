@@ -175,6 +175,39 @@ def normalize_targets(raw: Optional[dict]) -> dict:
         t["weight_goal_lbs"] = None
     if "phase" not in t:
         t["phase"] = None
+    # Explicit null fat/carb is not the default 55/180. Fat is 0.3 g/lb when
+    # bodyweight is known; carbs are the kcal remainder. Missing bodyweight
+    # leaves the defaults — do not invent a weight.
+    if isinstance(raw, dict):
+        fat_missing = "fat_g" in raw and raw.get("fat_g") is None
+        carb_missing = "carbs_g" in raw and raw.get("carbs_g") is None
+        bw = raw.get("bodyweight_lb")
+        if bw is not None and (fat_missing or carb_missing):
+            try:
+                bw_f = float(bw)
+            except (TypeError, ValueError):
+                bw_f = 0.0
+            if bw_f > 0:
+                if fat_missing:
+                    t["fat_g"] = round(0.3 * bw_f, 1)
+                if carb_missing or fat_missing:
+                    kcal = float(t["calories"])
+                    protein = float(t["protein_g"])
+                    fat = float(t["fat_g"])
+                    t["carbs_g"] = round(max(0.0, (kcal - protein * 4.0 - fat * 9.0) / 4.0), 1)
+                t["fat_g"] = max(0.0, min(300.0, float(t["fat_g"])))
+                t["carbs_g"] = max(0.0, min(800.0, float(t["carbs_g"])))
+                t["bodyweight_lb"] = bw_f
+        if raw.get("carb_shift_g") is not None:
+            try:
+                t["carb_shift_g"] = float(raw["carb_shift_g"])
+            except (TypeError, ValueError):
+                pass
+        elif raw.get("bodyweight_lb") is not None and "bodyweight_lb" not in t:
+            try:
+                t["bodyweight_lb"] = float(raw["bodyweight_lb"])
+            except (TypeError, ValueError):
+                pass
     return t
 
 
@@ -1774,6 +1807,14 @@ def generate_meal_plan(
     food_logs: Optional[Sequence[Any]] = None,
     sleep_intervals: Optional[Sequence[Any]] = None,
     sleep_blocks: Optional[Sequence[Any]] = None,
+    recipes: Optional[Sequence[dict]] = None,
+    user_id: Optional[str] = None,
+    recipe_history: Optional[Sequence[dict]] = None,
+    workout_window: Any = None,
+    previous_meals: Optional[Sequence[dict]] = None,
+    locked_slots: Optional[dict] = None,
+    banned_slots: Optional[dict] = None,
+    training_day: Optional[bool] = None,
 ) -> dict:
     """
     Greedy remaining-day plan from stocked ingredients.
@@ -1894,6 +1935,14 @@ def generate_meal_plan(
     sodium_target = resolve_micro_target(targets, recommended_targets, "sodium_mg")
     # Meal plan MUST only use actively in-stock inventory (never out-of-stock).
     stocked = stocked_ingredients(inventory)
+    stocked = [
+        row
+        for row in stocked
+        if not (
+            isinstance(row, dict)
+            and (row.get("recipe_batch") or str(row.get("id") or "").startswith("prepared-"))
+        )
+    ]
     stocked_ids = {str(i.get("id") or "") for i in stocked}
     stocked_names = {str(i.get("name") or "").strip().lower() for i in stocked}
     plan_items: List[dict] = []
@@ -1985,7 +2034,80 @@ def generate_meal_plan(
             ],
             "nutrition_day": nutrition_day,
             "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
+            "mode": "ingredient_fallback",
         }
+
+    recipe_rows = list(recipes) if recipes is not None else None
+    recipe_gaps: Dict[str, Any] = {}
+    if recipe_rows is None and user_id:
+        try:
+            from .recipe_store import list_recipes, recent_recipe_history, seed_nourish_recipes
+
+            seed_nourish_recipes(str(user_id), inventory)
+            recipe_rows, _src = list_recipes(str(user_id), inventory)
+            if recipe_history is None:
+                day_key = str((nutrition_day or {}).get("day_id") or "")
+                recipe_history = recent_recipe_history(str(user_id), day_key) if day_key else []
+        except Exception:
+            recipe_rows = []
+    if recipe_rows is None:
+        recipe_rows = []
+    if recipe_rows:
+        try:
+            from .recipe_planner import collect_recipe_gaps
+
+            recipe_gaps = collect_recipe_gaps(
+                recipe_rows,
+                inventory,
+                now=now,
+                food_logs=list(food_logs or food_logs_today or []),
+            )
+        except Exception:
+            recipe_gaps = {}
+    if recipe_rows and not kitchen_closed:
+        try:
+            from .recipe_planner import generate_recipe_plan
+
+            if previous_meals is None and user_id:
+                try:
+                    from .meal_plan_store import load_last_good_meal_plan
+
+                    day_key = str((nutrition_day or {}).get("day_id") or "")
+                    saved = load_last_good_meal_plan(str(user_id), day_key) if day_key else None
+                    if isinstance(saved, dict):
+                        previous_meals = saved.get("meals")
+                except Exception:
+                    previous_meals = None
+            planned = generate_recipe_plan(
+                inventory,
+                targets,
+                consumed,
+                recipe_rows,
+                now=now,
+                tz_name=resolved_tz,
+                window_start=window_start,
+                window_end=window_end,
+                eat_slots=eat_slots,
+                sleep_battery=sleep_battery,
+                food_logs_today=food_logs_today,
+                food_logs=food_logs,
+                sleep_intervals=sleep_intervals,
+                sleep_blocks=sleep_blocks,
+                recipe_history=recipe_history,
+                workout_window=workout_window,
+                previous_meals=previous_meals,
+                locked_slots=locked_slots,
+                banned_slots=banned_slots,
+                training_day=training_day,
+            )
+        except Exception:
+            planned = None
+        if planned:
+            if recipe_gaps.get("unlocks") and not planned.get("restock_suggestions"):
+                planned["restock_suggestions"] = recipe_gaps["unlocks"]
+            if recipe_gaps.get("prompts") and not planned.get("pantry_prompts"):
+                planned["pantry_prompts"] = recipe_gaps["prompts"]
+            return planned
 
     pick_counts: Dict[str, int] = {}
     shake_cap_applied = False
@@ -2606,7 +2728,7 @@ def generate_meal_plan(
         )
     honesty.extend(egg_honesty)
 
-    return {
+    result = {
         "meals": meals,
         "items": plan_items,
         "planned_totals": {
@@ -2629,7 +2751,13 @@ def generate_meal_plan(
         "honesty": honesty,
         "nutrition_day": nutrition_day,
         "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
+        "mode": "ingredient_fallback",
     }
+    if recipe_gaps.get("unlocks"):
+        result["restock_suggestions"] = recipe_gaps["unlocks"]
+    if recipe_gaps.get("prompts"):
+        result["pantry_prompts"] = recipe_gaps["prompts"]
+    return result
 
 def _plan_item_from_ingredient(
     ing: dict,
@@ -5605,6 +5733,7 @@ def suggest_inventory_staples(
     max_suggestions: int = 8,
     catalog: Optional[Sequence[dict]] = None,
     novel_catalog: Optional[Sequence[dict]] = None,
+    recipe_unlocks: Optional[Sequence[dict]] = None,
 ) -> dict:
     """Purpose-based restock / add proposals (#502 + #707 + #858).
 
@@ -6029,6 +6158,14 @@ def suggest_inventory_staples(
             f"{len(top)} purpose-based suggestions ({', '.join(bits)}) from restocks, "
             f"{via}. Every add answers why. "
             f"Log frequency is not a positive rank signal. Proposals only until you accept."
+        )
+    if recipe_unlocks:
+        hints = [row for row in recipe_unlocks if isinstance(row, dict)]
+        top = hints + [row for row in top if row not in hints]
+        summary = (
+            f"{len(hints)} recipe unlock{'s' if len(hints) != 1 else ''} plus {summary[:1].lower()}{summary[1:]}"
+            if summary
+            else f"{len(hints)} recipe unlocks."
         )
     return {
         "suggestions": top,
