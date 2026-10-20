@@ -1,6 +1,7 @@
 """Caller-context endpoint (#1096). Fixtures only: no Bland API, no live inbound number."""
 import inspect
 import json
+import logging
 import re
 import threading
 import time
@@ -579,3 +580,31 @@ def test_scrub_removes_tokens(monkeypatch):
     assert "forget-secret-token" not in text
     assert "crm-secret-token" not in text
     assert "<redacted>" in text
+
+
+def test_client_disconnect_mid_response_is_swallowed(http, monkeypatch, caplog):
+    orig = bland_relay.H._send
+    state = {"n": 0}
+
+    def wrapped(self, code, obj):
+        state["n"] += 1
+        if state["n"] == 1:
+            def boom(_blob):
+                raise BrokenPipeError()
+
+            self.wfile.write = boom
+        return orig(self, code, obj)
+
+    monkeypatch.setattr(bland_relay.H, "_send", wrapped)
+    with caplog.at_level(logging.DEBUG, logger="bland-relay"):
+        try:
+            get(http, CHRIS)
+        except (urllib.error.URLError, ConnectionError, OSError):
+            pass
+    assert state["n"] >= 1
+    assert not any(rec.levelno >= logging.ERROR for rec in caplog.records)
+    assert "Traceback" not in caplog.text
+    assert "client disconnect: BrokenPipeError" in caplog.text
+    status, body = get(http, "+19045550999")
+    assert status == 200
+    assert body["known"] is False

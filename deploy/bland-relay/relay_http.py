@@ -85,11 +85,16 @@ class H(BaseHTTPRequestHandler):
 
     def _send(self, code, obj):
         b = json.dumps(obj).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(b)))
-        self.end_headers()
-        self.wfile.write(b)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+        except (BrokenPipeError, ConnectionResetError) as exc:
+            # Class only. A gone client must not traceback or take the process down.
+            log.info("client disconnect: %s", type(exc).__name__)
+            self.close_connection = True
 
     def _nf(self):
         self._send(404, {"ok": False, "error": "not found"})

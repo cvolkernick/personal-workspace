@@ -5,6 +5,7 @@ import os
 import threading
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -794,3 +795,23 @@ def test_turo_route_missing_token_401(http, live):
     code, _ = post(http, turo(text="I'm locked out"), tok=None)
     assert code == 401
     assert live.sms == [] and live.helm == [] and inbox() == []
+
+
+def test_meeting_block_does_not_route_turo_callers():
+    """Prompt fixture only. The meeting block is meeting-intent. The Turo name-plus-trip rule stays the README sentence."""
+    root = Path(__file__).resolve().parent.parent
+    readme = (root / "README.md").read_text()
+    rule = "discuss booking specifics only after the caller gives a name and trip number that match."
+    history = next(line for line in readme.splitlines() if line.startswith("CALLER HISTORY:"))
+    assert rule in history
+    fixture = (Path(__file__).resolve().parent / "fixtures" / "prompts" / "inbound_blocks.txt").read_text()
+    caller, meeting = fixture.split("MEETING CONFIRMATION:", 1)
+    assert history in caller
+    assert rule in caller
+    meeting = meeting.strip()
+    assert meeting.startswith("If a caller says they are confirming or checking a meeting with Chris,")
+    assert "use Check Meeting" in meeting
+    lowered = meeting.lower()
+    assert "turo" not in lowered
+    assert "trip" not in lowered
+    assert "booking" not in lowered

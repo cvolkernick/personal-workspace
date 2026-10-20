@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -36,6 +37,16 @@ FOLLOWUP_CLASSES = (
     "meeting-reschedule-requested",
     "callback-requested",
 )
+# Callback follow-up, but not an Alexandra push (#1301 D3).
+CONCURRENCY_CLASS = "concurrency-rejected"
+# Callback follow-up and one Alexandra event (#1301 D4).
+PUSH_ALSO = ("agent-error", "transferred")
+# Bland's call_length is minutes. Hang-up before greeting is under 5 seconds.
+SHORT_S = 5.0
+# Hook-thread retries after an outbox or push failure, then one dead-letter line.
+RETRY_DELAYS = (30, 120, 600)
+_SLEEP = time.sleep
+_CLOCK = time.monotonic
 _NEAR = 8
 _CONFIRM_ACTIONS = frozenset({
     "confirm", "confirms", "confirmed", "confirming", "confirmation",
@@ -130,6 +141,71 @@ def _error_set(payload):
     return bool(str(err).strip())
 
 
+def _concurrency(payload):
+    blob = " ".join(
+        str(payload.get(key) or "") for key in ("error_message", "status", "queue_status")
+    ).lower()
+    return "concurren" in blob or "busy" in blob
+
+
+def _transferred(payload):
+    flag = payload.get("transferred")
+    if flag is True or (isinstance(flag, str) and flag.strip().lower() in ("true", "yes", "1")):
+        return True
+    dest = payload.get("transferred_to")
+    if isinstance(dest, str) and dest.strip():
+        return True
+    for key in ("status", "answered_by", "call_ended_by", "disposition_tag"):
+        if "transfer" in str(payload.get(key) or "").lower():
+            return True
+    return False
+
+
+def _call_seconds(payload):
+    """Bland ``call_length`` is minutes. None when the field is absent."""
+    raw = payload.get("call_length")
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        minutes = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if minutes < 0:
+        return None
+    return minutes * 60.0
+
+
+def _caller_turns(payload):
+    """Caller speech only. Summary and assistant lines are not turns."""
+    parts = []
+    for key in ("transcripts", "transcript"):
+        val = payload.get(key)
+        if not isinstance(val, list):
+            continue
+        for turn in val[:20]:
+            if not isinstance(turn, dict):
+                continue
+            role = str(turn.get("user") or turn.get("role") or turn.get("speaker") or "").lower()
+            if role not in ("user", "human", "caller", "customer"):
+                continue
+            text = str(turn.get("text") or turn.get("content") or "").strip()
+            if text:
+                parts.append(text)
+    raw = payload.get("concatenated_transcript")
+    if isinstance(raw, str):
+        for line in raw.splitlines()[:40]:
+            if re.match(r"\s*(user|caller|human)\s*:", line, re.I):
+                spoken = line.split(":", 1)[1].strip()
+                if spoken:
+                    parts.append(spoken)
+    return parts
+
+
+def _short_call(payload):
+    seconds = _call_seconds(payload)
+    return seconds is not None and seconds < SHORT_S and not _caller_turns(payload)
+
+
 def _caller_blob(payload):
     """Caller turns, summary, and string variables. Not retained."""
     parts = []
@@ -174,8 +250,16 @@ def classify(payload, has_attempt):
     answered = str(payload.get("answered_by") or "").lower()
     if "voicemail" in answered or "voice_mail" in answered:
         return "voicemail"
+    if _concurrency(payload):
+        return CONCURRENCY_CLASS
+    if _transferred(payload):
+        return "transferred"
+    if _error_set(payload):
+        return "agent-error"
+    if _short_call(payload):
+        return "short"
     done = _completed(payload)
-    if done is False or _error_set(payload):
+    if done is False:
         return "no-answer"
     if done is None:
         return "unknown"
@@ -271,12 +355,13 @@ def _parties(payload):
         number = caller_context.normalize_e164(payload.get(key))
         if number in caller_context.OUR_LINES and number not in ours:
             ours.append(number)
-    if not ours or not phone:
+    if not ours:
         return None
     our_line = ours[0]
+    other = phone or ""
     if direction == "in":
-        return direction, phone, phone, our_line
-    return direction, phone, our_line, phone
+        return direction, phone, other, our_line
+    return direction, phone, our_line, other
 
 
 def _occurred(payload, now):
@@ -287,6 +372,27 @@ def _occurred(payload, now):
 def _qa(payload):
     meta = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
     return meta.get("qa") is True
+
+
+def _wants_followup(kind, phone, qa):
+    """Callback follow-up. Concurrency only when the other party is valid E.164."""
+    if qa:
+        return False
+    if kind in FOLLOWUP_CLASSES or kind in PUSH_ALSO:
+        return True
+    if kind == CONCURRENCY_CLASS:
+        return bool(phone)
+    return False
+
+
+def _wants_push(record):
+    if record.get("_qa") or record["outcome"] == CONCURRENCY_CLASS:
+        return False
+    if record["outcome"] not in FOLLOWUP_CLASSES and record["outcome"] not in PUSH_ALSO:
+        return False
+    if _env("POST_CALL_PUSH_DISABLED") == "1" or not _env("ALEXANDRA_ALERT_URL"):
+        return False
+    return True
 
 
 def _meta_text(payload, key):
@@ -343,18 +449,24 @@ def build_record(payload, now=None, attempt=None):
     }
     if qa:
         record["metadata"]["qa"] = True
-    if kind in FOLLOWUP_CLASSES and not qa:
+    title_kind = kind if kind in ("meeting-confirmation-requested", "meeting-reschedule-requested") else "callback-requested"
+    wants = _wants_followup(kind, phone, qa)
+    if wants:
         check = "not-run"
         if attempt is not None:
             check = "match" if attempt.get("match") else "no-match"
         record["followup"] = {
-            "title": _title(kind, stated_name, when),
+            "title": _title(title_kind, stated_name, when),
             "due_at": _et_iso(followup_due(now, stated_start)),
             "assignee_seat": "grok",
             "kind": kind,
             "calendar_check": check,
         }
-    record["_index_followup"] = _sentence(kind, when) if kind in FOLLOWUP_CLASSES else ""
+    # QA skips the outbox follow-up, but the index still stores the sentence
+    # for the three original classes (same as before #1301).
+    record["_index_followup"] = (
+        _sentence(title_kind, when) if kind in FOLLOWUP_CLASSES or wants else ""
+    )
     record["_stated_meeting"] = _et_iso(stated_start) if stated_start is not None else None
     record["_calendar_check"] = (
         record["followup"]["calendar_check"] if "followup" in record else (
@@ -385,26 +497,36 @@ def _marked(db, call_id, column):
     return bool(row and row[0])
 
 
+def _public_record(record):
+    skip = {"body", "transcript", "transcripts", "concatenated_transcript"}
+    return {k: v for k, v in record.items() if not str(k).startswith("_") and k not in skip}
+
+
 def _write_outbox(call_id, record):
+    """True when the line is written, already stored, or the sink is off. False on failure."""
     import bland_relay
 
     sink = bland_relay.crm_sink()
     if sink is None:
-        return False
-    with _lock:
-        db = _open_seen()
-        try:
-            db.execute("INSERT OR IGNORE INTO seen(call_id) VALUES (?)", (call_id,))
-            if _marked(db, call_id, "outbox"):
+        return True
+    public = _public_record(record)
+    try:
+        with _lock:
+            db = _open_seen()
+            try:
+                db.execute("INSERT OR IGNORE INTO seen(call_id) VALUES (?)", (call_id,))
+                if _marked(db, call_id, "outbox"):
+                    db.commit()
+                    return True
+                sink.emit(public)
+                db.execute("UPDATE seen SET outbox = 1 WHERE call_id = ?", (call_id,))
                 db.commit()
-                return False
-            public = {k: v for k, v in record.items() if not k.startswith("_")}
-            sink.emit(public)
-            db.execute("UPDATE seen SET outbox = 1 WHERE call_id = ?", (call_id,))
-            db.commit()
-            return True
-        finally:
-            db.close()
+                return True
+            finally:
+                db.close()
+    except Exception as exc:  # noqa: BLE001 — class only, never the row
+        log.error("post-call: failed: %s", type(exc).__name__)
+        return False
 
 
 def _claim_push(call_id):
@@ -443,11 +565,33 @@ def _index_payload(payload, record):
     elif kind == "no-answer":
         body["status"] = "error"
         err = payload.get("error_message")
-        if isinstance(err, str) and err.strip():
+        if isinstance(err, str) and err.strip() and "concurren" not in err.lower() and "busy" not in err.lower():
             body["error_message"] = err.strip()[:120]
+    elif kind in ("short", CONCURRENCY_CLASS, "agent-error", "transferred"):
+        body["status"] = kind
     else:
         body["status"] = "completed"
     return body
+
+
+def _index_tuple(record):
+    party = record["party_hint"]["type"]
+    if party not in caller_context.CALLER_TYPES:
+        party = "unknown"
+    purpose = (record.get("metadata") or {}).get("purpose") or ""
+    return (
+        "bland",
+        "call:" + record["provider_msg_id"],
+        record["party_hint"].get("phone") or "",
+        "call",
+        record["direction"],
+        record["outcome"],
+        caller_context.scrub_text(purpose)[:160],
+        caller_context.scrub_text(record.get("_index_followup") or "")[:160],
+        party,
+        0,
+        record["occurred_at"],
+    )
 
 
 def _tag_qa(index, call_id):
@@ -465,7 +609,11 @@ def _tag_qa(index, call_id):
 def _write_index(payload, record):
     index = caller_context.CallerIndex()
     try:
-        caller_context.ingest_call_webhook(index, _index_payload(payload, record))
+        wrote = False
+        if record["party_hint"].get("phone"):
+            wrote = caller_context.ingest_call_webhook(index, _index_payload(payload, record))
+        if not wrote:
+            index.upsert(_index_tuple(record))
         if record.get("_qa"):
             _tag_qa(index, record["provider_msg_id"])
     finally:
@@ -489,18 +637,121 @@ def _event(record):
     }
 
 
-def _push(record):
-    if record["outcome"] not in FOLLOWUP_CLASSES or record.get("_qa"):
-        return
-    if _env("POST_CALL_PUSH_DISABLED") == "1":
-        return
-    if not _env("ALEXANDRA_ALERT_URL"):
-        return
-    if not _claim_push(record["provider_msg_id"]):
-        return
-    import bland_relay
+def _release_push(call_id):
+    with _lock:
+        db = _open_seen()
+        try:
+            db.execute("UPDATE seen SET push = 0 WHERE call_id = ?", (call_id,))
+            db.commit()
+        finally:
+            db.close()
 
-    bland_relay.forward(json.dumps(_event(record), ensure_ascii=False).encode("utf-8"))
+
+def _push(record):
+    """True when there is nothing to send, it was already sent, or this attempt succeeded."""
+    if not _wants_push(record):
+        return True
+    call_id = record["provider_msg_id"]
+    if not _claim_push(call_id):
+        return True
+    try:
+        import bland_relay
+
+        status, _err, _attempts = bland_relay.forward(
+            json.dumps(_event(record), ensure_ascii=False).encode("utf-8")
+        )
+    except Exception as exc:  # noqa: BLE001 — class only
+        _release_push(call_id)
+        log.error("post-call: failed: %s", type(exc).__name__)
+        return False
+    if isinstance(status, int) and 200 <= status < 300:
+        return True
+    _release_push(call_id)
+    log.error("post-call: failed: push")
+    return False
+
+
+def _deliver(record):
+    if not _write_outbox(record["provider_msg_id"], record):
+        return False
+    return _push(record)
+
+
+def _deadletter_path():
+    return _state_dir() / "post_call_deadletter.jsonl"
+
+
+def _write_bytes(path, blob, append):
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if append else os.O_TRUNC)
+    fd = os.open(str(path), flags, 0o600)
+    try:
+        os.write(fd, blob)
+    finally:
+        os.close(fd)
+    os.chmod(path, 0o600)
+
+
+def _dead_letter(record):
+    line = {
+        "call_id": record["provider_msg_id"],
+        "done": False,
+        "record": _public_record(record),
+    }
+    blob = (json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
+    _write_bytes(_deadletter_path(), blob, append=True)
+    log.info("post-call: dead-letter call_id=%s", record["provider_msg_id"])
+
+
+def _deliver_with_retry(record):
+    if _deliver(record):
+        return
+    for delay in RETRY_DELAYS:
+        _CLOCK()
+        _SLEEP(delay)
+        if _deliver(record):
+            return
+    _dead_letter(record)
+
+
+def replay_dead_letters(path=None):
+    """Re-drive each not-done line once. Lines stay in the file and gain ``done``."""
+    path = Path(path) if path else _deadletter_path()
+    if not path.is_file():
+        return 0
+    items = []
+    for line in path.read_text().splitlines():
+        if line.strip():
+            items.append(json.loads(line))
+    done = 0
+    for item in items:
+        if item.get("done") is True:
+            continue
+        record = item.get("record")
+        if not isinstance(record, dict) or not record.get("provider_msg_id"):
+            continue
+        record = dict(record)
+        record.setdefault("_index_followup", "")
+        record.setdefault("_qa", False)
+        try:
+            _write_index({}, record)
+        except Exception as exc:  # noqa: BLE001 — class only
+            log.error("post-call: failed: %s", type(exc).__name__)
+            continue
+        if _deliver(record):
+            item["done"] = True
+            done += 1
+    blob = "".join(json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n" for item in items)
+    _write_bytes(path, blob.encode("utf-8"), append=False)
+    return done
+
+
+def main(argv=None):
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args == ["--replay-dead-letters"]:
+        replay_dead_letters()
+        return 0
+    return 2
 
 
 def _run(body, now):
@@ -513,8 +764,7 @@ def _run(body, now):
     record = build_record(payload, now=now, attempt=attempt)
     if record is not None:
         _write_index(payload if isinstance(payload, dict) else {}, record)
-        _write_outbox(record["provider_msg_id"], record)
-        _push(record)
+        _deliver_with_retry(record)
     return call_id or "-", kind
 
 
@@ -532,3 +782,7 @@ def handle(body, now=None):
         log.info("post-call: call_id=%s class=%s ms=%d", call_id, kind, int((time.perf_counter() - started) * 1000))
     except Exception as exc:  # noqa: BLE001 — class only, never the payload
         log.error("post-call: failed: %s", type(exc).__name__)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

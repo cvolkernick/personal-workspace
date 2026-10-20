@@ -31,7 +31,7 @@ CLASSES = (
     ("meeting_reschedule.json", "meeting-reschedule-requested"),
     ("callback.json", "callback-requested"),
     ("voicemail.json", "voicemail"),
-    ("concurrency.json", "no-answer"),
+    ("concurrency.json", "concurrency-rejected"),
     ("info_only.json", "info-only"),
     ("unknown.json", "unknown"),
     ("sensitive.json", "info-only"),
@@ -40,6 +40,7 @@ FOLLOWUP = {
     "meeting-confirmation-requested",
     "meeting-reschedule-requested",
     "callback-requested",
+    "concurrency-rejected",
 }
 
 
@@ -93,6 +94,7 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("BLAND_RELAY_STATE_DIR", str(tmp_path))
     monkeypatch.setattr(bland_relay, "_spawn", lambda target, args=(): target(*args))
     monkeypatch.setattr(bland_relay.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(post_call, "_SLEEP", lambda _s: None)
 
 
 @pytest.fixture
@@ -434,8 +436,211 @@ def test_docs_and_source_do_not_call_bland():
     for needle in (
         "post_call.handle", "panamerica.call.followup.v1", "POST_CALL_INGEST",
         "POST_CALL_PUSH_DISABLED", "call_followup", "see call summary",
+        "post_call_deadletter.jsonl", "--replay-dead-letters", "concurrency-rejected",
     ):
         assert needle in readme
     setkey = (ROOT / "bland-relay-setkey").read_text()
     assert "POST_CALL_INGEST" in setkey and "POST_CALL_PUSH_DISABLED" in setkey
     assert "build_record" in src
+
+
+def _clock_and_sleep():
+    now = {"t": 1000.0}
+    slept = []
+
+    def clock():
+        return now["t"]
+
+    def sleep(seconds):
+        slept.append(seconds)
+        now["t"] += seconds
+
+    return now, slept, clock, sleep
+
+
+def test_concurrency_followup_only_for_valid_e164(alex):
+    now = datetime(2026, 10, 19, 8, 0, tzinfo=ET)
+    valid = load("concurrency.json")
+    invalid = dict(valid, call_id="call-busy-bad", to="not-a-number")
+    post_call.handle(json.dumps(valid).encode(), now=now)
+    post_call.handle(json.dumps(invalid).encode(), now=now)
+    rows = {row["provider_msg_id"]: row for row in outbox()}
+    assert set(rows) == {"call-busy-1", "call-busy-bad"}
+    assert rows["call-busy-1"]["outcome"] == "concurrency-rejected"
+    assert rows["call-busy-1"]["followup"]["kind"] == "concurrency-rejected"
+    assert rows["call-busy-1"]["followup"]["title"].startswith("Call")
+    assert "followup" not in rows["call-busy-bad"]
+    assert rows["call-busy-bad"]["party_hint"]["phone"] is None
+    stored = {row["provider_msg_id"]: row for row in index_rows()}
+    assert set(stored) == {"call:call-busy-1", "call:call-busy-bad"}
+    assert stored["call:call-busy-1"]["outcome"] == "concurrency-rejected"
+    assert stored["call:call-busy-bad"]["outcome"] == "concurrency-rejected"
+    assert alex == []
+
+
+def test_hangup_before_greeting_writes_no_followup(alex):
+    now = datetime(2026, 10, 19, 8, 0, tzinfo=ET)
+    payload = {
+        "call_id": "call-short-1",
+        "from": "+12395550131",
+        "to": "+19062406221",
+        "inbound": True,
+        "completed": True,
+        "status": "completed",
+        "answered_by": "human",
+        "call_length": 0.05,
+        "summary": "Caller hung up.",
+        "transcripts": [{"user": "assistant", "text": "Hello, Panamerica."}],
+        "created_at": "2026-10-18T16:00:00Z",
+        "metadata": {"purpose": "inbound", "placed_by": "caller"},
+    }
+    post_call.handle(json.dumps(payload).encode(), now=now)
+    [row] = outbox()
+    assert row["outcome"] == "short"
+    assert "followup" not in row
+    [stored] = index_rows()
+    assert stored["outcome"] == "short"
+    assert stored["followup"] == ""
+    assert alex == []
+    longer = dict(payload, call_id="call-short-2", call_length=0.2)
+    post_call.handle(json.dumps(longer).encode(), now=now)
+    spoke = dict(payload, call_id="call-short-3", transcripts=[{"user": "user", "text": "Hi"}])
+    post_call.handle(json.dumps(spoke).encode(), now=now)
+    kinds = {row["provider_msg_id"]: row["outcome"] for row in outbox()}
+    assert kinds["call-short-2"] == "info-only"
+    assert kinds["call-short-3"] == "info-only"
+    assert len(alex) == 0
+
+
+def test_agent_error_and_transfer_classify_with_callback(alex):
+    now = datetime(2026, 10, 19, 8, 0, tzinfo=ET)
+    base = {
+        "from": "+12395550121",
+        "to": "+19062406221",
+        "inbound": True,
+        "completed": False,
+        "created_at": "2026-10-18T16:00:00Z",
+        "summary": "Line dropped.",
+        "metadata": {"purpose": "fleet", "placed_by": "caller"},
+    }
+    err = dict(base, call_id="call-agent-1", error_message="model timeout", status="error")
+    transferred = dict(base, call_id="call-xfer-1", completed=True, status="completed", transferred_to="+19045550199")
+    post_call.handle(json.dumps(err).encode(), now=now)
+    post_call.handle(json.dumps(transferred).encode(), now=now)
+    rows = {row["provider_msg_id"]: row for row in outbox()}
+    assert rows["call-agent-1"]["outcome"] == "agent-error"
+    assert rows["call-xfer-1"]["outcome"] == "transferred"
+    for row in rows.values():
+        assert row["followup"]["kind"] == row["outcome"]
+        assert row["followup"]["title"].startswith("Call")
+        assert row["followup"]["assignee_seat"] == "grok"
+    assert len(index_rows()) == 2
+    assert {event["class"] for event in alex} == {"agent-error", "transferred"}
+    assert len(alex) == 2
+    assert "+19045550199" not in json.dumps(rows)
+
+
+def test_push_failure_retries_then_dead_letters(monkeypatch, caplog):
+    _now, slept, clock, sleep = _clock_and_sleep()
+    monkeypatch.setattr(post_call, "_CLOCK", clock)
+    monkeypatch.setattr(post_call, "_SLEEP", sleep)
+    monkeypatch.setenv("ALEXANDRA_ALERT_URL", "http://127.0.0.1:9/hook")
+    pushes = {"n": 0}
+
+    def forward(body, timeout=10, call_id=None):
+        doc = json.loads(body)
+        if isinstance(doc, dict) and doc.get("kind") == "call_followup":
+            pushes["n"] += 1
+            return None, "down", 1
+        return 200, "", 1
+
+    monkeypatch.setattr(bland_relay, "forward", forward)
+    payload = load("callback.json")
+    payload["transcripts"] = [{"user": "user", "text": "TRANSCRIPT_ONLY_SECRET call me back"}]
+    with caplog.at_level(logging.INFO, logger="bland-relay"):
+        post_call.handle(json.dumps(payload).encode(), now=datetime(2026, 10, 19, 8, 0, tzinfo=ET))
+    assert slept == [30, 120, 600]
+    assert pushes["n"] == 4
+    path = Path(os.environ["BLAND_RELAY_STATE_DIR"]) / "post_call_deadletter.jsonl"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    text = path.read_text()
+    [line] = [json.loads(item) for item in text.splitlines() if item.strip()]
+    assert line["done"] is False
+    assert line["call_id"] == "call-callback-1"
+    assert "body" not in line["record"] and "transcript" not in line["record"]
+    assert "TRANSCRIPT_ONLY_SECRET" not in text
+    assert "post-call: dead-letter call_id=call-callback-1" in caplog.text
+    assert "TRANSCRIPT_ONLY_SECRET" not in caplog.text
+    assert "+12395550114" not in caplog.text
+
+
+def test_outbox_write_failure_dead_letters_and_status_unchanged(http, monkeypatch):
+    monkeypatch.setenv("RELAY_PATH", "bland-secret-path")
+    monkeypatch.setenv("BLAND_WEBHOOK_SECRET", "bland-secret")
+    real = bland_relay.crm_sink
+
+    def sink():
+        inner = real()
+
+        class Wrap:
+            def emit(self, record):
+                raise OSError("disk")
+
+        return Wrap()
+
+    monkeypatch.setattr(bland_relay, "crm_sink", sink)
+    monkeypatch.setattr(bland_relay, "forward", lambda body, timeout=10, call_id=None: (200, "", 1))
+    raw = json.dumps(load("info_only.json")).encode()
+    started = time.perf_counter()
+    code, body = post(http, "/bland-secret-path", raw, {"X-Webhook-Signature": _sign("bland-secret", raw)})
+    assert code == 200 and body == {"ok": True}
+    assert time.perf_counter() - started < 0.5
+    path = Path(os.environ["BLAND_RELAY_STATE_DIR"]) / "post_call_deadletter.jsonl"
+    assert path.is_file()
+    assert "transcript" not in path.read_text()
+    assert len(index_rows()) == 1
+    assert outbox() == []
+
+
+def test_dead_letter_replay_is_idempotent(alex, monkeypatch):
+    state = {"fail": True}
+    real_sink = bland_relay.crm_sink
+    real_forward = bland_relay.forward
+
+    def sink():
+        inner = real_sink()
+
+        class Wrap:
+            def emit(self, record):
+                if state["fail"]:
+                    raise OSError("disk")
+                inner.emit(record)
+
+        return Wrap()
+
+    def forward(body, timeout=10, call_id=None):
+        doc = json.loads(body)
+        if isinstance(doc, dict) and doc.get("kind") == "call_followup" and state["fail"]:
+            return None, "down", 1
+        return real_forward(body, timeout=timeout, call_id=call_id)
+
+    monkeypatch.setattr(bland_relay, "crm_sink", sink)
+    monkeypatch.setattr(bland_relay, "forward", forward)
+    payload = load("callback.json")
+    payload["transcripts"] = [{"user": "user", "text": "TRANSCRIPT_ONLY_SECRET"}]
+    post_call.handle(json.dumps(payload).encode(), now=datetime(2026, 10, 19, 8, 0, tzinfo=ET))
+    path = Path(os.environ["BLAND_RELAY_STATE_DIR"]) / "post_call_deadletter.jsonl"
+    before = path.read_text().splitlines()
+    assert len(before) == 1 and json.loads(before[0])["done"] is False
+    assert outbox() == [] and alex == []
+    state["fail"] = False
+    assert post_call.main(["--replay-dead-letters"]) == 0
+    assert len(outbox()) == 1
+    assert len(index_rows()) == 1
+    assert len(alex) == 1 and alex[0]["class"] == "callback-requested"
+    assert post_call.replay_dead_letters() == 0
+    after = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    assert len(after) == 1
+    assert after[0]["done"] is True
+    assert "TRANSCRIPT_ONLY_SECRET" not in path.read_text()
+    assert len(outbox()) == 1 and len(index_rows()) == 1 and len(alex) == 1
