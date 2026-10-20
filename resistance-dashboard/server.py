@@ -165,6 +165,7 @@ from rt_dashboard.service_auth import (  # noqa: E402
     inventory_agent_denied,
     inventory_agent_principal,
     inventory_session_uid,
+    agent_today_principal,
     service_auth_denied,
     service_auth_ok as _service_auth_ok,
     service_token_from_headers as _service_token_from_headers,
@@ -2091,16 +2092,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
             return
         if parsed.path == "/api/agent/today":
-            # Machine-friendly Today + week brief. Same loopback / service-token
-            # path as /api/sleep_battery (see _service_auth_ok). Auto-generates a
-            # SuperGrok plan when the letter stamps, it is not rest, and the
-            # store is empty — no invented ml / loads / sessions / AZM / intake /
-            # sleep / lifts.
+            # Machine-friendly Today + week brief. Loopback and
+            # FITDASH_SERVICE_TOKEN may auto-generate a SuperGrok plan when
+            # the letter stamps, it is not rest, and the store is empty.
+            # FITDASH_AGENT_TOKEN (#1295) is 200 from a non-loopback host and
+            # overlays the stored plan. It does not generate or persist.
+            # No invented ml / loads / sessions / AZM / intake / sleep / lifts.
             client_host = (self.client_address or ("", 0))[0]
             user = _session_user_from_headers(self.headers)
-            if _auth_required() and not user and not _service_auth_ok(
-                self.headers, client_host
-            ):
+            principal = agent_today_principal(
+                self.headers, client_host, session_user=user
+            )
+            if _auth_required() and principal == "deny":
                 self._send_json(service_auth_denied("agents"), status=401)
                 return
             try:
@@ -2145,6 +2148,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     else {},
                     headers=self.headers,
                     query=parsed.query or "",
+                    read_only=(principal == "agent"),
                 )
                 data = overlay_workout_on_payload(data, filled)
                 self._send_json(export_agent_today(data))

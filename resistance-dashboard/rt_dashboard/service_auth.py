@@ -4,6 +4,13 @@ Same gate already used by ``/api/day_constraints``, ``/api/sleep_battery``,
 ``/api/warm``, ``/api/agent/today``, ``GET /api/trends/export``, and
 ``POST /api/agent/generate-plan``. Do not invent a second scheme.
 
+``GET /api/agent/today`` also accepts ``FITDASH_AGENT_TOKEN`` when
+``service_auth_ok`` is false. That check is ``agent_read_gate`` (constant-time
+compare). The principal overlays a stored plan and does not call
+``ensure_today_grok_plan``. Loopback and ``FITDASH_SERVICE_TOKEN`` keep the
+current fill. The agent token does not open generate-plan or other service
+routes.
+
 ``/api/trends/export`` rejects a presented token that does not match,
 including on loopback. Other routes still treat loopback as enough when
 no token is sent. The token does not expire with the browser session.
@@ -12,6 +19,8 @@ Env:
   FITDASH_SERVICE_TOKEN — required for non-loopback machine access
   FITDASH_SERVICE_LOOPBACK — when 1 (default), 127.0.0.1/::1 may call
     service routes without a browser session
+  FITDASH_AGENT_TOKEN — read-only principal for ``GET /api/agent/today``
+    from a non-loopback host. Not a write credential.
   FITDASH_INVENTORY_AGENT_TOKEN — least-privilege pantry stock-write credential
   FITDASH_INVENTORY_AGENT_USER_ID — Google ``user_id`` / ``sub`` the agent
     token is bound to (Chris). Required with the token; never ``default``.
@@ -37,6 +46,33 @@ def service_token_from_headers(headers) -> str:
     if auth.lower().startswith("bearer "):
         return auth[7:].strip()
     return (headers.get("X-FitDash-Service-Token") or "").strip()
+
+
+def agent_today_principal(
+    headers, client_host: Optional[str] = None, *, session_user=None
+) -> str:
+    """Who may call ``GET /api/agent/today``.
+
+    ``session`` — signed-in browser. Existing fill.
+    ``service`` — ``service_auth_ok`` (loopback or ``FITDASH_SERVICE_TOKEN``).
+    Existing fill. This stays ahead of the agent token so loopback does not
+    become read-only when that header is also present.
+    ``agent`` — ``agent_read_gate`` accepted ``FITDASH_AGENT_TOKEN``.
+    Read-only overlay. No SuperGrok and no persist.
+    ``deny`` — no token off loopback, or a token that matches neither.
+
+    A house token that equals the agent token stays ``service``. A wrong
+    token on loopback stays ``service``.
+    """
+    if session_user:
+        return "session"
+    if service_auth_ok(headers, client_host):
+        return "service"
+    from .agent_read import agent_read_gate
+
+    if agent_read_gate(headers) is None:
+        return "agent"
+    return "deny"
 
 
 def service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
