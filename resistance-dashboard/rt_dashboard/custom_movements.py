@@ -116,7 +116,11 @@ def upsert_custom_exercise(
     cat = add_or_update_exercise(
         custom if isinstance(custom, dict) else {"exercises": []}, ex
     )
-    return _as_custom(cat)
+    # The stamp is a payload key. A user edit must not drop it, or the next
+    # load treats the row as legacy and writes the canonical tags back.
+    from .deadlift_muscle_migrate import ensure_deadlift_stamp
+
+    return ensure_deadlift_stamp(_as_custom(cat))
 
 
 def missing_inventory_tags(ex: dict, equipment: Optional[dict]) -> List[str]:
@@ -144,6 +148,50 @@ def require_equipment_access(ex: dict, equipment: Optional[dict]) -> None:
         raise ValueError(
             "required equipment tag missing from inventory: " + ", ".join(missing)
         )
+
+
+def _muscle_tokens(raw) -> List[str]:
+    if isinstance(raw, str):
+        raw = [raw]
+    out: List[str] = []
+    for item in raw or []:
+        token = str(item or "").strip().lower().replace("-", "_").replace(" ", "_")
+        if token and token not in out:
+            out.append(token)
+    return out
+
+
+def reject_overlapping_muscles(ex: dict) -> None:
+    """Primary is required. The same tag cannot be primary and secondary.
+
+    Read paths do not call this. An older overlapping row still loads.
+    """
+    primary = _muscle_tokens(ex.get("primary_muscles"))
+    secondary = _muscle_tokens(ex.get("secondary_muscles"))
+    if not primary:
+        raise ValueError("primary_muscles required")
+    overlap = [tag for tag in secondary if tag in set(primary)]
+    if overlap:
+        raise ValueError(
+            "primary and secondary muscles overlap: " + ", ".join(overlap)
+        )
+
+
+def derive_volume_tags(ex: dict) -> dict:
+    """Persist volume groups from the muscle tags. Client volume lists are dropped.
+
+    Forearms and adductors are not tracked groups, so they stay on
+    ``secondary_muscles`` and fall out of ``volume_secondary``.
+    """
+    from .muscle_sets import volume_groups
+
+    probe = dict(ex)
+    probe.pop("volume_primary", None)
+    probe.pop("volume_secondary", None)
+    primary, secondary = volume_groups(probe)
+    ex["volume_primary"] = primary
+    ex["volume_secondary"] = secondary
+    return ex
 
 
 def _turso_get(user_id: str) -> Optional[dict]:
@@ -204,7 +252,19 @@ def load_custom_movements(user_id: str = "") -> Tuple[dict, str]:
         return empty, "default"
     if not isinstance(existing, dict):
         return empty, "default"
-    return _as_custom(existing), "turso"
+    # First load stamps the payload and retags legacy deadlift rows. A stamped
+    # payload is not written again, so a later edit stays put (#1299).
+    # Logged sets are not here.
+    from .deadlift_muscle_migrate import retag_custom_movements
+
+    updated, changed = retag_custom_movements(existing)
+    if not changed:
+        return _as_custom(existing), "turso"
+    try:
+        _turso_put(user_id, updated)
+    except Exception:
+        return _as_custom(updated), "turso"
+    return _as_custom(updated), "turso"
 
 
 def save_custom_movements(custom: dict, user_id: str = "") -> dict:
@@ -212,7 +272,9 @@ def save_custom_movements(custom: dict, user_id: str = "") -> dict:
 
     if not turso_enabled():
         raise RuntimeError("turso env missing")
-    payload = _as_custom(custom)
+    from .deadlift_muscle_migrate import ensure_deadlift_stamp
+
+    payload = ensure_deadlift_stamp(_as_custom(custom))
     _turso_put(user_id, payload)
     existing = _turso_get(user_id)
     if not isinstance(existing, dict):
@@ -248,6 +310,8 @@ def add_library_movement(user_id: str, raw: dict) -> dict:
     payload = dict(raw or {})
     payload["id"] = resolve_universe_id(payload, universe)
     ex = normalize_exercise(payload)
+    reject_overlapping_muscles(ex)
+    derive_volume_tags(ex)
     ex["available"] = True
     equipment, equipment_src = load_preview_equipment(user_id)
     require_equipment_access(ex, equipment)

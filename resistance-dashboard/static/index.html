@@ -24,7 +24,7 @@
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/history-sets.js?v=tonnage-1025-1" defer></script>
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
-    <script src="/app.js?v=muscle-sets-rolling-1297-1" defer></script>
+    <script src="/app.js?v=compound-muscles-1299-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -1102,8 +1102,8 @@
                 </select>
               </label>
               <label>
-                Primary muscle
-                <select id="lib-add-muscle" required>
+                Primary muscles
+                <select id="lib-add-muscle" multiple required size="5">
                   <option value="chest">chest</option>
                   <option value="mid_upper_back">mid/upper back</option>
                   <option value="lats">lats</option>
@@ -1117,10 +1117,32 @@
                   <option value="adductors">adductors</option>
                   <option value="abs">abs</option>
                   <option value="traps">traps</option>
+                  <option value="lower_back">lower back</option>
+                  <option value="forearms">forearms</option>
                 </select>
               </label>
             </div>
             <div class="row cols-3">
+              <label>
+                Secondary muscles
+                <select id="lib-add-secondary" multiple size="5">
+                  <option value="chest">chest</option>
+                  <option value="mid_upper_back">mid/upper back</option>
+                  <option value="lats">lats</option>
+                  <option value="delts">delts</option>
+                  <option value="biceps">biceps</option>
+                  <option value="triceps">triceps</option>
+                  <option value="quads">quads</option>
+                  <option value="hamstrings">hamstrings</option>
+                  <option value="calves">calves</option>
+                  <option value="glutes">glutes</option>
+                  <option value="adductors">adductors</option>
+                  <option value="abs">abs</option>
+                  <option value="traps">traps</option>
+                  <option value="lower_back">lower back</option>
+                  <option value="forearms">forearms</option>
+                </select>
+              </label>
               <label>
                 Movement
                 <select id="lib-add-movement" required>
@@ -1144,8 +1166,9 @@
                 </select>
               </label>
             </div>
+            <input type="hidden" id="lib-add-id" value="" />
             <div class="actions">
-              <button type="submit" class="primary">Add movement</button>
+              <button type="submit" class="primary" id="lib-add-submit">Add movement</button>
             </div>
             <p class="muted" id="lib-add-status" style="margin: 0"></p>
           </form>

@@ -278,9 +278,9 @@ class TestMarkupAndRoutes(unittest.TestCase):
 
     def test_cache_bump(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=muscle-sets-rolling-1297-1", HTML)
-        self.assertIn("/app.js?v=muscle-sets-rolling-1297-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v142"', SW)
+        self.assertIn("/app.js?v=compound-muscles-1299-1", HTML)
+        self.assertIn("/app.js?v=compound-muscles-1299-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v143"', SW)
         self.assertNotIn("nutrition-day-828-1", HTML)
         self.assertNotIn("fitdash-shell-v110", SW)
 

@@ -55,7 +55,7 @@ class SmithBtnPress1129(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(ids.count("smith-btn-press"), 1)
         self.assertEqual(ids[-1], "smith-btn-press")
-        self.assertEqual(len(ids), 46)
+        self.assertEqual(len(ids), 48)
         self.assertEqual(exercises[-1], ROW)
         names = [ex["name"] for ex in exercises]
         self.assertEqual(names.count(ROW["name"]), 1)

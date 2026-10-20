@@ -281,13 +281,13 @@ class CatalogCredits(unittest.TestCase):
     def _rows(self):
         return json.loads(self.BUNDLED.read_text(encoding="utf-8"))["exercises"]
 
-    def test_copies_are_identical_and_all_46_rows_validate(self):
+    def test_copies_are_identical_and_all_48_rows_validate(self):
         self.assertEqual(
             self.ROOT_CATALOG.read_text(encoding="utf-8"), self.BUNDLED.read_text(encoding="utf-8")
         )
         rows = self._rows()
-        self.assertEqual(len(rows), 46)
-        self.assertEqual(len({r["id"] for r in rows}), 46)
+        self.assertEqual(len(rows), 48)
+        self.assertEqual(len({r["id"] for r in rows}), 48)
         for row in rows:
             primary = row.get("volume_primary")
             secondary = row.get("volume_secondary")
