@@ -4,7 +4,7 @@
 - **Advisory only.** Nothing here authorizes or triggers a trade.
 - **Role:** this file is the source of the daily monitored set for Naka's fund monitoring.
 - **Pins:** target pins remain defined **only** by [`consider_share.json`](./consider_share.json). Listing a ticker here does not pin, size or approve it.
-- **Last refreshed:** 2026-10-19. Tickers only: no quantities, balances or prices.
+- **Last refreshed:** 2026-10-20. Tickers only: no quantities, balances or prices.
 - A name marked `unverified` has not been confirmed against a primary source; verify before relying on it.
 
 ## A. Core (copied from `consider_share.json`)
@@ -15,7 +15,7 @@
 | TSLA | pinned | Stocks-sleeve pin (growth equity, autonomy). |
 | BE | watch only | Not pinned; exited by owner 2026-09-03 and blocked for new seats. Listed only to watch the energy-equipment read-across. |
 
-## B. Current holdings (read live 2026-10-19 from the agentic fund account and Chris's Robinhood portfolio; unchanged from the 2026-10-17 read)
+## B. Current holdings (read live 2026-10-20 from the agentic fund account and Chris's Robinhood portfolio; unchanged from the 2026-10-19 read)
 
 | Ticker | Why |
 |---|---|
@@ -65,7 +65,7 @@ Open item: add any other nuclear names Chris listed on 10/3-10/4 once confirmed 
 ## E. Macro and the 11/11 review add-on
 
 - Macro items are covered by Meridian's daily file at `investment/brief/macro/YYYY-MM-DD.md`; this file does not duplicate them.
-- **SATS** (Strive 15% Series A perpetual preferred): on the 11/11 review list. Strive priced the upsized IPO on 2026-10-15 (settlement scheduled 2026-10-20; daily dividends from 2026-11-09), per its release: https://www.globenewswire.com/news-release/2026/10/16/3382236/0/en/strive-announces-pricing-of-upsized-initial-public-offering-of-sats-stock.html. Strive's SEC free-writing prospectus says it has applied to list the preferred on the Nasdaq Global Market under the symbol "SATS", with trading expected within 30 days after settlement if approved: https://www.sec.gov/Archives/edgar/data/1920406/000095010326015687/dp255080_fwp.htm. `pending`: the symbol is applied for, not yet approved or trading; confirm once it lists (the symbol SATS has been used by another issuer).
+- **SATS** (Strive 15% Series A perpetual preferred): on the 11/11 review list. Strive priced the upsized IPO on 2026-10-15 (settlement scheduled 2026-10-20; daily dividends from 2026-11-09), per its release: https://www.globenewswire.com/news-release/2026/10/16/3382236/0/en/strive-announces-pricing-of-upsized-initial-public-offering-of-sats-stock.html. Strive's SEC free-writing prospectus says it has applied to list the preferred on the Nasdaq Global Market under the symbol "SATS", with trading expected within 30 days after settlement if approved: https://www.sec.gov/Archives/edgar/data/1920406/000095010326015687/dp255080_fwp.htm. Nasdaq certified to the SEC on 2026-10-19 that the 15.00% Series A Perpetual SATS Preferred is approved for listing upon official notice of issuance: https://www.sec.gov/Archives/edgar/data/1920406/000135445726000997/SATS_8A_Cert.pdf. `approved, not yet trading`: confirm the live symbol once it lists (the symbol SATS has been used by another issuer).
 
 ## F. Other names carried in the monitored set
 
