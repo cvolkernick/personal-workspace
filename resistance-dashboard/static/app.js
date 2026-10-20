@@ -3642,24 +3642,43 @@
         ${invMacroStrip(macros, true)}
       </button>`;
     });
-    const shop = (store && store.recipe_shopping) || [];
+    const shop =
+      (store && store.grocery_week) ||
+      (store && store.recipe_shopping) ||
+      (store && store.meal_plan && store.meal_plan.grocery_week) ||
+      [];
     if (shop.length) {
-      html += `<div class="muted" style="margin-top:0.5rem;font-size:0.82rem">Shopping from planned recipes</div>`;
-      shop.forEach((line) => {
-        html += `<div class="recipe-card-meta">${line.name || line.id}: ${line.grams}g · ${line.reason || "restock"}</div>`;
+      html += `<div class="muted" style="margin-top:0.5rem;font-size:0.82rem">Weekly grocery</div>`;
+      ["buy", "check", "staples"].forEach((section) => {
+        const rows = shop.filter((line) => (line.section || "buy") === section);
+        if (!rows.length) return;
+        const title =
+          section === "buy"
+            ? "Buy"
+            : section === "check"
+              ? "Have (qty unknown), check"
+              : "Check staples";
+        html += `<div class="recipe-card-meta" style="margin-top:0.35rem">${title}</div>`;
+        rows.forEach((line) => {
+          const detail = line.purchase_label || line.reason || `${line.grams || 0}g`;
+          html += `<div class="recipe-card-meta">${line.name || line.id}: ${detail}</div>`;
+        });
       });
+      if (shop.some((line) => line.section === "buy" || line.action === "buy")) {
+        html += `<button type="button" data-action="recipe-grocery-tasks">Add buy lines to shopping tasks</button>`;
+      }
     }
     const prep = $("recipe-week-prep");
-    const grocery =
-      (store && store.meal_plan && store.meal_plan.grocery_week) ||
-      (store && store.grocery_week) ||
-      [];
+    const grocery = shop;
     if (prep) {
       if (grocery.length) {
         prep.textContent =
           "Weekly prep: " +
           grocery
-            .map((line) => `${line.name || line.ingredient_id} ${line.grams}g`)
+            .map((line) => {
+              const detail = line.purchase_label || line.reason || `${line.grams || 0}g`;
+              return `${line.name || line.ingredient_id} ${detail}`;
+            })
             .join(" · ");
       } else {
         prep.textContent = "";
@@ -4109,6 +4128,24 @@
           if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
           if (data.inventory) applyInventoryUpdate(data.inventory);
           showAlert("Cooked a batch", "ok");
+          return;
+        }
+        if (action === "recipe-grocery-tasks") {
+          const store = state && state.nutrition_store;
+          const plan = (store && store.meal_plan) || {};
+          const res = await fetch("/api/meal-plan/grocery", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              create_tasks: true,
+              meals: plan.meals || [],
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok || !data.tasks_saved) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+          showAlert("Shopping tasks saved", "ok");
           return;
         }
       } catch (err) {

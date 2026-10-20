@@ -778,62 +778,10 @@ def shopping_from_plans(
     inventory: Optional[dict],
     recipes: Optional[Sequence[dict]] = None,
 ) -> List[dict]:
-    """Aggregate recipe demand vs pantry stock flags. No invented pantry grams."""
-    by_id = _inventory_by_id(inventory)
-    by_recipe = {
-        str(r.get("id") or ""): r
-        for r in (recipes or [])
-        if isinstance(r, dict) and str(r.get("id") or "").strip()
-    }
-    demand: Dict[str, float] = {}
-    names: Dict[str, str] = {}
-    for plan in plans or []:
-        if not isinstance(plan, dict):
-            continue
-        for meal in plan.get("meals") or []:
-            if not isinstance(meal, dict):
-                continue
-            rec = meal.get("recipe") if isinstance(meal.get("recipe"), dict) else None
-            if rec is None:
-                rec = by_recipe.get(str(meal.get("recipe_id") or "").strip())
-            servings = _as_float(meal.get("servings"), 1.0)
-            yld = 1.0
-            lines: Sequence[dict] = []
-            if rec:
-                yld = _as_float(rec.get("yield_servings"), 1.0) or 1.0
-                lines = rec.get("ingredients") or []
-            else:
-                continue
-            factor = servings / yld
-            for line in lines:
-                if not isinstance(line, dict):
-                    continue
-                iid = str(line.get("ingredient_id") or "").strip()
-                grams = _as_float(line.get("grams_batch"), 0.0)
-                if not iid or grams <= 0:
-                    continue
-                demand[iid] = demand.get(iid, 0.0) + grams * factor
-                names[iid] = str(line.get("name") or (by_id.get(iid) or {}).get("name") or iid)
-    out: List[dict] = []
-    for iid, grams in sorted(demand.items(), key=lambda kv: names.get(kv[0], kv[0]).lower()):
-        ing = by_id.get(iid) or {}
-        stock = str(ing.get("stock") or ("in" if ing.get("in_stock") else "out")).strip().lower()
-        if stock not in ("in", "low", "out"):
-            stock = "out" if not ing else "in"
-        if stock == "in":
-            continue
-        out.append(
-            {
-                "action": "restock",
-                "id": iid,
-                "name": names.get(iid) or iid,
-                "grams": round(grams, 1),
-                "stock": stock,
-                "reason": f"{round(grams):g}g needed for planned recipes",
-                "source": "recipe_plan",
-            }
-        )
-    return out
+    """Recipe demand minus pantry qty. In-stock rows stay. Does not write stock."""
+    from .grocery_list import lines_from_plans
+
+    return lines_from_plans(plans, inventory, recipes)
 
 
 def _turso():
@@ -1285,7 +1233,11 @@ def overlay_recipes_on_nutrition(
     week_plans = [plan]
     if uid and civil:
         week_plans = _week_plans(uid, civil, plan)
-    shopping = shopping_from_plans(week_plans, inventory, recipes)
+    from .grocery_list import assemble_week
+
+    week_list = assemble_week(week_plans, inventory, recipes)
+    shopping = week_list["grocery_week"]
+    plan["grocery_week"] = shopping
     return {
         "meal_plan": plan,
         "recipes": recipes,
@@ -1294,6 +1246,7 @@ def overlay_recipes_on_nutrition(
         "food_logs_today": food_rows,
         "today_consumed": consumed_out,
         "recipe_shopping": shopping,
+        "grocery_week": shopping,
     }
 
 

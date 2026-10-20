@@ -511,6 +511,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "recipes": recipe_overlay.get("recipes") or [],
         "recipes_sot": recipe_overlay.get("recipes_sot"),
         "recipe_shopping": recipe_overlay.get("recipe_shopping") or [],
+        "grocery_week": recipe_overlay.get("grocery_week") or [],
         "recipe_logs_today": recipe_overlay.get("recipe_logs_today") or [],
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,

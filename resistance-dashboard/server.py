@@ -1043,6 +1043,7 @@ def _build_dashboard_data(
         "recipes": recipe_overlay.get("recipes") or [],
         "recipes_sot": recipe_overlay.get("recipes_sot"),
         "recipe_shopping": recipe_overlay.get("recipe_shopping") or [],
+        "grocery_week": recipe_overlay.get("grocery_week") or [],
         "recipe_logs_today": recipe_overlay.get("recipe_logs_today") or [],
     }
 
@@ -2935,11 +2936,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self._send_json({"ok": False, "error": "recipe not found"}, status=404)
                     return
                 updated = cooked_batch(inventory, recipe, float(body.get("servings") or 1))
-                try:
-                    persist_inventory(updated, str(uid), message="nutrition: cooked batch")
-                except Exception:
-                    pass
-                self._send_json({"ok": True, "inventory": updated, "recipe_id": recipe.get("id")})
+                from rt_dashboard.inventory_store import persist_inventory_result
+
+                write = persist_inventory_result(
+                    updated, str(uid), message="nutrition: cooked batch"
+                )
+                if not write.get("ok"):
+                    self._send_json(
+                        {
+                            "ok": False,
+                            "error": write.get("error") or "inventory persist failed",
+                            "recipe_id": recipe.get("id"),
+                        },
+                        status=500,
+                    )
+                    return
+                self._send_json(
+                    {
+                        "ok": True,
+                        "inventory": write.get("inventory") or updated,
+                        "recipe_id": recipe.get("id"),
+                    }
+                )
             except ValueError as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
@@ -2983,14 +3001,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             try:
                 body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
                 uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
-                from rt_dashboard.recipe_planner import price_grocery_lines, rollup_ingredient_grams
+                from rt_dashboard.grocery_list import grocery_http
 
-                meals = body.get("meals") or []
-                lines = rollup_ingredient_grams(meals)
-                offers = body.get("offers") if isinstance(body.get("offers"), dict) else None
-                if offers:
-                    lines = price_grocery_lines(lines, offers)
-                self._send_json({"ok": True, "grocery_week": lines})
+                result = grocery_http(str(uid), body)
+                status = 200 if result.get("ok") else 500
+                self._send_json(result, status=status)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return

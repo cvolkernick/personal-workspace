@@ -765,45 +765,6 @@ def _apply_role_labels(meals: List[dict]) -> None:
         meal["label"] = ROLE_LABELS.get(meal.get("slot_role") or "", meal.get("label") or "Meal")
 
 
-def rollup_ingredient_grams(meals: Sequence[dict]) -> List[dict]:
-    """Sum scaled ingredient grams. One row per id, name kept from the first line."""
-    totals: Dict[str, dict] = {}
-    for meal in meals or []:
-        if not isinstance(meal, dict):
-            continue
-        for item in meal.get("items") or []:
-            if not isinstance(item, dict):
-                continue
-            iid = str(item.get("id") or item.get("ingredient_id") or "").strip()
-            if not iid:
-                continue
-            try:
-                grams = float(item.get("portion_g") or 0)
-            except (TypeError, ValueError):
-                grams = 0.0
-            row = totals.setdefault(iid, {"ingredient_id": iid, "name": str(item.get("name") or iid), "grams": 0.0})
-            row["grams"] = round(row["grams"] + grams, 1)
-    return [totals[key] for key in sorted(totals)]
-
-
-def price_grocery_lines(lines: Sequence[dict], offers_by_id: Optional[dict] = None) -> List[dict]:
-    """Attach the cheapest Walmart/Costco offer when the caller passes candidates."""
-    from .restock_cart import _pick_cheapest
-
-    priced: List[dict] = []
-    offers = offers_by_id or {}
-    for line in lines or []:
-        row = dict(line)
-        candidates = offers.get(row.get("ingredient_id")) or offers.get(row.get("id")) or []
-        picked = _pick_cheapest(list(candidates)) if candidates else None
-        if picked:
-            row["offer_id"] = picked.get("offer_id")
-            row["unit_price"] = picked.get("price")
-            row["offer_name"] = picked.get("name")
-        priced.append(row)
-    return priced
-
-
 def cooked_batch(inventory: Optional[dict], recipe: dict, servings: float = 1.0) -> dict:
     """Mark a prepared dish in stock. Greedy planning skips recipe_batch rows."""
     from copy import deepcopy
@@ -1108,7 +1069,11 @@ def generate_recipe_plan(
         restock_confirms=restock_confirms,
         stale_days=stale_days,
     )
-    grocery = rollup_ingredient_grams(meals)
+    from .grocery_list import assemble_week
+
+    grocery = assemble_week([{"meals": meals}], inventory, list(recipes or []))[
+        "grocery_week"
+    ]
     nutrition_day = _nutrition_day_payload(
         now=now,
         start=start,

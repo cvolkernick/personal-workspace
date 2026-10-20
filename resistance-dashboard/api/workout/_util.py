@@ -1676,7 +1676,7 @@ def recipes_batch_body(headers, payload=None):
         return err
     uid = str(user.get("id") or "")
     body = payload if isinstance(payload, dict) else {}
-    from rt_dashboard.inventory_store import load_preview_inventory, persist_inventory
+    from rt_dashboard.inventory_store import load_preview_inventory, persist_inventory_result
     from rt_dashboard.recipe_planner import cooked_batch
     from rt_dashboard.recipe_store import get_recipe
 
@@ -1694,11 +1694,18 @@ def recipes_batch_body(headers, payload=None):
         updated = cooked_batch(inventory, recipe, servings)
     except ValueError as exc:
         return 400, {"ok": False, "error": str(exc)}
-    try:
-        persist_inventory(updated, uid, message="nutrition: cooked batch")
-    except Exception:
-        pass
-    return 200, {"ok": True, "inventory": updated, "recipe_id": recipe.get("id")}
+    write = persist_inventory_result(updated, uid, message="nutrition: cooked batch")
+    if not write.get("ok"):
+        return 500, {
+            "ok": False,
+            "error": write.get("error") or "inventory persist failed",
+            "recipe_id": recipe.get("id"),
+        }
+    return 200, {
+        "ok": True,
+        "inventory": write.get("inventory") or updated,
+        "recipe_id": recipe.get("id"),
+    }
 
 
 def meal_swap_body(headers, payload=None):
@@ -1747,18 +1754,18 @@ def meal_swap_body(headers, payload=None):
 
 
 def meal_grocery_body(headers, payload=None):
-    """POST /api/meal-plan/grocery — gram rollup, priced when offers are sent."""
+    """POST /api/meal-plan/grocery — 7-day list minus pantry qty. Does not write stock."""
     user, err = require_user(headers)
     if err:
         return err
+    uid = str(user.get("id") or "")
     body = payload if isinstance(payload, dict) else {}
-    from rt_dashboard.recipe_planner import price_grocery_lines, rollup_ingredient_grams
+    from rt_dashboard.grocery_list import grocery_http
 
-    lines = rollup_ingredient_grams(body.get("meals") or [])
-    offers = body.get("offers") if isinstance(body.get("offers"), dict) else None
-    if offers:
-        lines = price_grocery_lines(lines, offers)
-    return 200, {"ok": True, "grocery_week": lines}
+    result = grocery_http(uid, body)
+    if not result.get("ok"):
+        return 500, result
+    return 200, result
 
 
 def suggestions_write(headers, payload=None):
