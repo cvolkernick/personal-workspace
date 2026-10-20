@@ -779,12 +779,16 @@ def stamp_and_fill_workout(
     recovery=None,
     headers=None,
     query: str = "",
+    read_only: bool = False,
 ) -> dict:
     """Stamp today's letter, then SuperGrok-fill when empty.
 
     Shared by Pi GET ``/api/agent/today`` and the Vercel cookie-less Today path.
     ``load_dashboard_data`` has no top-level ``workout``; the letter comes from
     ``dashboard_plan_slots``, not from the payload.
+
+    ``read_only`` (the ``FITDASH_AGENT_TOKEN`` principal, #1295) returns the
+    saved plan or the stamp. It does not generate or persist.
     """
     from .grok_planner import dashboard_plan_slots
 
@@ -804,6 +808,7 @@ def stamp_and_fill_workout(
         recovery=recovery,
         headers=headers,
         query=query,
+        read_only=read_only,
     )
 
 
@@ -817,6 +822,7 @@ def fill_stamped_workout(
     recovery=None,
     headers=None,
     query: str = "",
+    read_only: bool = False,
 ) -> dict:
     """Saved plan, else SuperGrok once when letter stamps + not rest + empty.
 
@@ -827,6 +833,9 @@ def fill_stamped_workout(
     letter. Returning it skips the roll and the gym sync. When the stamp
     says the day is already closed, fall through so the next letter
     replaces that store and the unlocked chip is deleted (#951).
+
+    ``read_only`` stops before that fall-through. A closed day returns the
+    stamp. An open day returns the saved plan or the stamp. No SuperGrok.
     """
     from .workout_store import brief_sessions
 
@@ -836,6 +845,8 @@ def fill_stamped_workout(
     saved = load_last_good_workout_plan(plan_uid, local_day)
     if is_good_workout_plan(saved) and not _session_closed(slot):
         return saved
+    if read_only:
+        return slot
     letter = _letter(slot.get("session_type"))
     if not letter or slot.get("is_rest_day") or letter == "rest":
         return slot

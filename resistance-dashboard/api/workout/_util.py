@@ -1296,13 +1296,14 @@ def trends_export_body(headers, query: str = "", client_host=None):
 
 
 def agent_today_body(headers, query: str = "", client_host=None):
-    """Read-only Today brief. Service token / loopback or a signed-in session."""
+    """Today brief. Service token / loopback may fill. Agent read token is read-only."""
     from api.auth.session_util import session_from_headers
     from rt_dashboard.agent_today import export_agent_today
-    from rt_dashboard.service_auth import service_auth_denied, service_auth_ok
+    from rt_dashboard.service_auth import agent_today_principal, service_auth_denied
 
     user = session_from_headers(headers)
-    if not user and not service_auth_ok(headers, client_host):
+    principal = agent_today_principal(headers, client_host, session_user=user)
+    if principal == "deny":
         return 401, service_auth_denied("agents")
     if user:
         from api.dashboard import dashboard_body
@@ -1311,10 +1312,12 @@ def agent_today_body(headers, query: str = "", client_host=None):
         if status != 200:
             return status, payload
         return 200, export_agent_today(payload)
-    return _agent_today_from_stores(headers, query)
+    return _agent_today_from_stores(
+        headers, query, read_only=(principal == "agent")
+    )
 
 
-def _agent_today_from_stores(headers, query: str = ""):
+def _agent_today_from_stores(headers, query: str = "", *, read_only: bool = False):
     """Cookie-less service path: Turso + Hidrate + optional Health. No invented ml."""
     import os
 
@@ -1436,6 +1439,7 @@ def _agent_today_from_stores(headers, query: str = ""):
         recovery=recovery_dict,
         headers=headers,
         query=query,
+        read_only=read_only,
     )
 
     nutrition_store: dict = {}
