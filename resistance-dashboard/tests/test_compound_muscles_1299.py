@@ -19,7 +19,10 @@ from rt_dashboard.custom_movements import (
     merge_custom_universe,
 )
 from rt_dashboard.deadlift_muscle_migrate import (
+    STAMP_KEY,
+    STAMP_VALUE,
     deadlift_kind,
+    ensure_deadlift_stamp,
     retag_custom_movements,
 )
 from rt_dashboard.muscle_sets import (
@@ -169,9 +172,16 @@ class CustomDeadliftBackfill(unittest.TestCase):
         self.assertEqual(hex_row["primary_muscles"], TRAP_PRIMARY)
         self.assertEqual(hex_row["volume_primary"], TRAP_PRIMARY)
         self.assertEqual(by_id["rdl"]["secondary_muscles"], ["lower_back"])
-        again, changed_again = retag_custom_movements(updated)
+        self.assertEqual(updated[STAMP_KEY], STAMP_VALUE)
+        edited = dict(updated)
+        edited["exercises"] = [dict(barbell), *updated["exercises"][1:]]
+        edited["exercises"][0]["primary_muscles"] = ["glutes"]
+        edited["exercises"][0]["secondary_muscles"] = ["hamstrings"]
+        again, changed_again = retag_custom_movements(edited)
         self.assertFalse(changed_again)
-        self.assertIs(again, updated)
+        self.assertIs(again, edited)
+        self.assertEqual(again["exercises"][0]["primary_muscles"], ["glutes"])
+        self.assertEqual(again["exercises"][0]["secondary_muscles"], ["hamstrings"])
 
     def test_rdl_and_stiff_leg_names_are_not_deadlifts(self):
         self.assertIsNone(deadlift_kind("RDL"))
@@ -190,8 +200,12 @@ class CustomDeadliftBackfill(unittest.TestCase):
             ]
         }
         updated, changed = retag_custom_movements(payload)
-        self.assertFalse(changed)
+        self.assertTrue(changed)
+        self.assertEqual(updated[STAMP_KEY], STAMP_VALUE)
         self.assertEqual(updated["exercises"][0]["secondary_muscles"], ["back"])
+        again, changed_again = retag_custom_movements(updated)
+        self.assertFalse(changed_again)
+        self.assertIs(again, updated)
 
     def test_custom_name_wins_until_the_backfill(self):
         catalog, _src = load_workspace_catalog()
@@ -271,6 +285,17 @@ class CustomDeadliftBackfill(unittest.TestCase):
         )
         self.assertEqual(json.dumps(logged), before)
         self.assertNotIn("sessions", store["sub-1"])
+        self.assertEqual(store["sub-1"][STAMP_KEY], STAMP_VALUE)
+        store["sub-1"]["exercises"][0]["primary_muscles"] = ["glutes"]
+        store["sub-1"]["exercises"][0]["secondary_muscles"] = ["hamstrings"]
+        with mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), mock.patch(
+            "rt_dashboard.custom_movements._turso_get", side_effect=get
+        ), mock.patch("rt_dashboard.custom_movements._turso_put", side_effect=put):
+            held, _src = load_custom_movements("sub-1")
+        self.assertEqual(len(puts), 1)
+        held_row = {row["id"]: row for row in held["exercises"]}["custom-barbell-deadlift"]
+        self.assertEqual(held_row["primary_muscles"], ["glutes"])
+        self.assertEqual(held_row["secondary_muscles"], ["hamstrings"])
 
 
 class ExerciseWriteMuscles(unittest.TestCase):
@@ -369,6 +394,103 @@ class ExerciseWriteMuscles(unittest.TestCase):
         self.assertEqual(rows[0]["primary_muscles"], BARBELL_PRIMARY)
         self.assertEqual(rows[0]["secondary_muscles"], BARBELL_SECONDARY)
         self.assertEqual(rows[0]["volume_secondary"], BARBELL_VOLUME_SECONDARY)
+        self.assertEqual(custom_store["sub-1"][STAMP_KEY], STAMP_VALUE)
+
+    def test_legal_deadlift_edit_survives_the_load(self):
+        custom_store, custom_get, custom_put = self._turso_pair()
+        _overlay_store, overlay_get, overlay_put = self._turso_pair()
+        puts = []
+
+        def counting_put(uid, payload):
+            puts.append(json.loads(json.dumps(payload)))
+            custom_put(uid, payload)
+
+        custom_store["sub-1"] = {
+            "exercises": [
+                {
+                    "id": "custom-barbell-deadlift",
+                    "name": "Barbell Deadlift",
+                    "session_types": ["legs"],
+                    "primary_muscles": list(BARBELL_PRIMARY),
+                    "secondary_muscles": list(BARBELL_SECONDARY),
+                    "volume_primary": list(BARBELL_PRIMARY),
+                    "volume_secondary": list(BARBELL_VOLUME_SECONDARY),
+                    "movement": "compound",
+                    "equipment": ["barbell"],
+                    "available": True,
+                },
+                {
+                    "id": "nordic-curl",
+                    "name": "Nordic Curl",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["hamstrings", "glutes"],
+                    "secondary_muscles": ["calves"],
+                    "movement": "isolation",
+                    "equipment": [],
+                    "available": True,
+                },
+            ]
+        }
+        logged = _logged_deadlift()
+        before_logged = json.dumps(logged)
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        stacks = self._patches(custom_get, counting_put, overlay_get, overlay_put)
+        with mock.patch.dict(os.environ, env, clear=True):
+            with stacks[0], stacks[1], stacks[2], stacks[3], stacks[4], stacks[5]:
+                status, body = exercise_write(
+                    self._headers(),
+                    {
+                        "id": "custom-barbell-deadlift",
+                        "name": "Barbell Deadlift",
+                        "session_types": ["legs"],
+                        "primary_muscles": ["glutes"],
+                        "secondary_muscles": ["hamstrings"],
+                        "movement": "compound",
+                        "equipment": ["barbell"],
+                    },
+                )
+                loaded, _src = load_custom_movements("sub-1")
+        self.assertEqual(status, 200, body)
+        self.assertEqual(len(puts), 2)
+        saved = body["exercise"]
+        stored_rows = custom_store["sub-1"]["exercises"]
+        stored = next(row for row in stored_rows if row["id"] == saved["id"])
+        nordic = next(row for row in stored_rows if row["name"] == "Nordic Curl")
+        catalog_row = next(
+            row
+            for row in body["catalog"]["exercises"]
+            if row.get("name") == "Barbell Deadlift"
+        )
+        self.assertEqual(saved["primary_muscles"], ["glutes"])
+        self.assertEqual(saved["secondary_muscles"], ["hamstrings"])
+        self.assertEqual(stored["primary_muscles"], saved["primary_muscles"])
+        self.assertEqual(stored["secondary_muscles"], saved["secondary_muscles"])
+        self.assertEqual(stored["volume_primary"], saved["volume_primary"])
+        self.assertEqual(stored["volume_secondary"], saved["volume_secondary"])
+        self.assertEqual(catalog_row["primary_muscles"], ["glutes"])
+        self.assertEqual(catalog_row["secondary_muscles"], ["hamstrings"])
+        self.assertEqual(nordic["primary_muscles"], ["hamstrings", "glutes"])
+        self.assertEqual(nordic["secondary_muscles"], ["calves"])
+        self.assertEqual(custom_store["sub-1"][STAMP_KEY], STAMP_VALUE)
+        self.assertEqual(
+            {row["id"]: row["primary_muscles"] for row in loaded["exercises"]},
+            {row["id"]: row["primary_muscles"] for row in stored_rows},
+        )
+        self.assertEqual(json.dumps(logged), before_logged)
+        self.assertNotIn("sessions", custom_store["sub-1"])
+        plain = {
+            "exercises": [
+                {
+                    "id": "custom-barbell-deadlift",
+                    "name": "Barbell Deadlift",
+                    "primary_muscles": ["glutes"],
+                    "secondary_muscles": ["hamstrings"],
+                }
+            ]
+        }
+        stamped = ensure_deadlift_stamp(plain)
+        self.assertEqual(stamped["exercises"][0]["primary_muscles"], ["glutes"])
+        self.assertEqual(stamped[STAMP_KEY], STAMP_VALUE)
 
     def test_overlap_and_empty_primary_are_rejected(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}

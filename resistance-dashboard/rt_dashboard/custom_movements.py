@@ -116,7 +116,11 @@ def upsert_custom_exercise(
     cat = add_or_update_exercise(
         custom if isinstance(custom, dict) else {"exercises": []}, ex
     )
-    return _as_custom(cat)
+    # The stamp is a payload key. A user edit must not drop it, or the next
+    # load treats the row as legacy and writes the canonical tags back.
+    from .deadlift_muscle_migrate import ensure_deadlift_stamp
+
+    return ensure_deadlift_stamp(_as_custom(cat))
 
 
 def missing_inventory_tags(ex: dict, equipment: Optional[dict]) -> List[str]:
@@ -248,8 +252,9 @@ def load_custom_movements(user_id: str = "") -> Tuple[dict, str]:
         return empty, "default"
     if not isinstance(existing, dict):
         return empty, "default"
-    # Next catalog load retags a glutes-only custom deadlift. No deploy, and
-    # no write when the tags already match (#1299). Logged sets are not here.
+    # First load stamps the payload and retags legacy deadlift rows. A stamped
+    # payload is not written again, so a later edit stays put (#1299).
+    # Logged sets are not here.
     from .deadlift_muscle_migrate import retag_custom_movements
 
     updated, changed = retag_custom_movements(existing)
@@ -267,7 +272,9 @@ def save_custom_movements(custom: dict, user_id: str = "") -> dict:
 
     if not turso_enabled():
         raise RuntimeError("turso env missing")
-    payload = _as_custom(custom)
+    from .deadlift_muscle_migrate import ensure_deadlift_stamp
+
+    payload = ensure_deadlift_stamp(_as_custom(custom))
     _turso_put(user_id, payload)
     existing = _turso_get(user_id)
     if not isinstance(existing, dict):

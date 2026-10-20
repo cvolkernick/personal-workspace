@@ -1,10 +1,11 @@
-"""Retag custom deadlift rows. Logged sets are not read or written.
+"""Retag custom deadlift rows once. Logged sets are not read or written.
 
 A custom movement with the same id or normalized name wins over catalog.json
 at merge time. The live "Barbell Deadlift" row was stored as glutes-only, so
-a catalog row alone does not change that session's credits. This pass rewrites
-the custom payload's muscle tags and nothing else. A second run finds the tags
-already in place and does not write.
+a catalog row alone does not change that session's credits. The first load
+rewrites matching rows that are not already at the target tags, stamps the
+payload, and writes once. Later loads see the stamp and do not write, so a
+legal edit of those muscles stays stored.
 """
 
 from __future__ import annotations
@@ -43,6 +44,10 @@ _TRAP_NAMES = {
     "trap bar deadlift",
     "hex bar deadlift",
 }
+# Payload key, not an exercise field. normalize_exercise drops unknown
+# exercise keys. _as_custom copies every other key on the custom payload.
+STAMP_KEY = "deadlift_muscles_1299"
+STAMP_VALUE = "1"
 
 
 def _norm_move(name: str) -> str:
@@ -92,19 +97,28 @@ def _tags_match(row: dict, spec: Dict[str, List[str]]) -> bool:
     return all(_tokens(row.get(key)) == list(spec[key]) for key in _TAG_KEYS)
 
 
+def ensure_deadlift_stamp(payload: dict) -> dict:
+    """Keep the one-shot marker on a user write. Do not retag here."""
+    if STAMP_KEY not in payload:
+        payload[STAMP_KEY] = STAMP_VALUE
+    return payload
+
+
 def retag_custom_movements(custom: Optional[dict]) -> Tuple[dict, bool]:
     """Return ``(payload, changed)``. Sessions and set rows are not touched.
 
-    ``changed`` is false when every matching row already has the target tags,
-    including a payload that was just written. Callers skip the Turso put in
-    that case so ``updated_at`` stays put.
+    ``changed`` is true only on the unstamped pass. That pass retags matching
+    rows that are not already at the target tags, sets ``STAMP_KEY``, and
+    asks the caller to write once. A later load, including one whose deadlift
+    tags no longer match, returns the same payload and does not write.
     """
     if not isinstance(custom, dict):
         return {"exercises": []}, False
+    if STAMP_KEY in custom:
+        return custom, False
     items = custom.get("exercises")
     if not isinstance(items, list):
         return custom, False
-    changed = False
     new_items = []
     for row in items:
         if not isinstance(row, dict):
@@ -122,9 +136,7 @@ def retag_custom_movements(custom: Optional[dict]) -> Tuple[dict, bool]:
         for key in _TAG_KEYS:
             nxt[key] = list(spec[key])
         new_items.append(nxt)
-        changed = True
-    if not changed:
-        return custom, False
     out = dict(custom)
     out["exercises"] = new_items
+    out[STAMP_KEY] = STAMP_VALUE
     return out, True
