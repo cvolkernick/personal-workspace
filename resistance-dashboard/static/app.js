@@ -5972,7 +5972,10 @@
     );
     items.forEach((ex) => {
       const li = document.createElement("li");
-      const muscles = (ex.primary_muscles || []).join(", ") || "—";
+      const secondary = (ex.secondary_muscles || []).filter(Boolean);
+      const muscles = secondary.length
+        ? `${(ex.primary_muscles || []).join(", ") || "—"} · ${secondary.join(", ")}`
+        : (ex.primary_muscles || []).join(", ") || "—";
       const sessions = (ex.session_types || []).join("/");
       const req = (ex.equipment || []).filter(Boolean);
       const any = (ex.equipment_any || []).filter(Boolean);
@@ -5986,6 +5989,10 @@
       const badge = inLib ? "in library" : "not in library";
       const action = inLib ? "remove" : "add";
       const label = inLib ? "Remove" : "Add";
+      const editBtn =
+        String(ex.universe || "") === "custom"
+          ? `<button type="button" class="btn-edit" data-library-edit="${eid}">Edit muscles</button>`
+          : "";
       li.innerHTML = `
         <div class="title">${ex.name}
           <span class="inv-action-badge inv-action-${inLib ? "restock" : "add"}">${badge}</span>
@@ -5993,6 +6000,7 @@
         <div class="meta">${sessions || "?"} · ${ex.movement || "compound"} · ${muscles}
           · ${gear}</div>
         <div class="actions inv-card-actions compact">
+          ${editBtn}
           <button type="button" class="${inLib ? "btn-suggest-remove" : "primary btn-suggest-apply"}"
             data-library-action="${action}" data-id="${eid}" ${!inLib && !feasible ? "disabled" : ""}>
             ${label}
@@ -6023,7 +6031,11 @@
         <div class="inv-card-name">${s.name || "Movement"}
           <span class="inv-action-badge inv-action-add">add</span>
         </div>
-        <div class="inv-card-meta muted">${(s.session_types || []).join("/") || "?"} · ${(s.primary_muscles || []).join(", ") || "—"}</div>
+        <div class="inv-card-meta muted">${(s.session_types || []).join("/") || "?"} · ${(s.primary_muscles || []).join(", ") || "—"}${
+          (s.secondary_muscles || []).filter(Boolean).length
+            ? ` · ${(s.secondary_muscles || []).filter(Boolean).join(", ")}`
+            : ""
+        }</div>
         ${reason ? `<div class="inv-reason compact">${reason}</div>` : ""}
         <div class="actions inv-card-actions compact">
           <button type="button" class="primary btn-suggest-apply" data-library-action="add" data-id="${eid}">Add to library</button>
@@ -6078,13 +6090,64 @@
     </div>`;
   }
 
+  function selectedMuscleValues(id) {
+    const el = $(id);
+    if (!el) return [];
+    return Array.from(el.selectedOptions || [])
+      .map((opt) => String(opt.value || "").trim())
+      .filter(Boolean);
+  }
+
+  function setSelectedMuscles(id, values) {
+    const el = $(id);
+    if (!el) return;
+    const want = new Set(values || []);
+    Array.from(el.options || []).forEach((opt) => {
+      opt.selected = want.has(opt.value);
+    });
+  }
+
+  function resetLibraryAddForm() {
+    if ($("lib-add-name")) $("lib-add-name").value = "";
+    if ($("lib-add-id")) $("lib-add-id").value = "";
+    ["lib-add-muscle", "lib-add-secondary", "lib-add-equipment"].forEach((id) => {
+      setSelectedMuscles(id, []);
+    });
+    const btn = $("lib-add-submit");
+    if (btn) btn.textContent = "Add movement";
+  }
+
+  function beginLibraryEdit(exerciseId) {
+    const store = state && state.workout_store;
+    const items = (store && store.catalog && store.catalog.exercises) || [];
+    const ex = items.find((row) => String((row && row.id) || "") === exerciseId);
+    if (!ex || String(ex.universe || "") !== "custom") return;
+    if ($("lib-add-id")) $("lib-add-id").value = exerciseId;
+    if ($("lib-add-name")) $("lib-add-name").value = ex.name || "";
+    const session = (ex.session_types || [])[0] || "legs";
+    if ($("lib-add-session")) $("lib-add-session").value = session;
+    if ($("lib-add-movement")) $("lib-add-movement").value = ex.movement || "compound";
+    setSelectedMuscles("lib-add-muscle", ex.primary_muscles || []);
+    setSelectedMuscles("lib-add-secondary", ex.secondary_muscles || []);
+    setSelectedMuscles("lib-add-equipment", ex.equipment || []);
+    const btn = $("lib-add-submit");
+    if (btn) btn.textContent = "Save movement";
+    const status = $("lib-add-status");
+    if (status) status.textContent = "Editing custom movement";
+  }
+
   async function submitLibraryAdd(ev) {
     ev.preventDefault();
     const status = $("lib-add-status");
     const name = $("lib-add-name") && $("lib-add-name").value.trim();
     const session = $("lib-add-session") && $("lib-add-session").value;
-    const muscle = $("lib-add-muscle") && $("lib-add-muscle").value;
+    const primary = selectedMuscleValues("lib-add-muscle");
+    const primarySet = new Set(primary);
+    const secondary = selectedMuscleValues("lib-add-secondary").filter(
+      (muscle) => !primarySet.has(muscle)
+    );
     const movement = $("lib-add-movement") && $("lib-add-movement").value;
+    const editId = ($("lib-add-id") && $("lib-add-id").value.trim()) || "";
     const tagSel = $("lib-add-equipment");
     const equipment = tagSel
       ? Array.from(tagSel.selectedOptions || [])
@@ -6094,11 +6157,13 @@
     const body = {
       name,
       session_types: session ? [session] : [],
-      primary_muscles: muscle ? [muscle] : [],
+      primary_muscles: primary,
+      secondary_muscles: secondary,
       movement: movement || "compound",
       equipment,
       available: true,
     };
+    if (editId) body.id = editId;
     try {
       const res = await fetch("/api/workout/exercise", {
         method: "POST",
@@ -6108,9 +6173,9 @@
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || res.status);
-      if (status) status.textContent = "Added to library";
-      showAlert(`Movement added: ${name}`, "ok");
-      if ($("lib-add-name")) $("lib-add-name").value = "";
+      if (status) status.textContent = editId ? "Updated movement" : "Added to library";
+      showAlert(editId ? `Movement updated: ${name}` : `Movement added: ${name}`, "ok");
+      resetLibraryAddForm();
       if (data.catalog && state && state.workout_store) {
         state.workout_store.catalog = data.catalog;
         renderExerciseCatalog(state.workout_store);
@@ -10030,6 +10095,16 @@
           btn.disabled = false;
           showAlert(e.message || "Suggestion update failed", "err");
         }
+      });
+    }
+    if (!document.body.dataset.libraryEditBound) {
+      document.body.dataset.libraryEditBound = "1";
+      document.body.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("button[data-library-edit]");
+        if (!btn) return;
+        const id = (btn.getAttribute("data-library-edit") || "").trim();
+        if (!id) return;
+        beginLibraryEdit(id);
       });
     }
     if (!document.body.dataset.libraryBound) {
