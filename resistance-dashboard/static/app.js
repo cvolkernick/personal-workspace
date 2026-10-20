@@ -3594,10 +3594,34 @@
       list.innerHTML = `<p class="muted" style="margin:0">No dishes yet. Save a recipe with a method (smoothie, soup, stir-fry). Loose pantry items stay on the meal plan.</p>`;
       return;
     }
+    const slotFilter = ($("recipe-filter-slot") && $("recipe-filter-slot").value) || "";
+    const cuisineFilter = ($("recipe-filter-cuisine") && $("recipe-filter-cuisine").value) || "";
+    const cuisineSelect = $("recipe-filter-cuisine");
+    if (cuisineSelect && cuisineSelect.options.length <= 1) {
+      const seen = {};
+      recipes.forEach((rec) => {
+        const cuisine = String((rec && rec.cuisine) || "").trim();
+        if (!cuisine || seen[cuisine]) return;
+        seen[cuisine] = true;
+        const opt = document.createElement("option");
+        opt.value = cuisine;
+        opt.textContent = cuisine;
+        cuisineSelect.appendChild(opt);
+      });
+    }
+    const visible = recipes.filter((rec) => {
+      if (slotFilter) {
+        const slots = rec.slots || [];
+        if (slots.length && slots.indexOf(slotFilter) < 0) return false;
+      }
+      if (cuisineFilter && String(rec.cuisine || "") !== cuisineFilter) return false;
+      return true;
+    });
     let html = "";
-    recipes.forEach((rec) => {
+    visible.forEach((rec) => {
       const macros = rec.macros_per_serving || {};
       const dish = isDish(rec);
+      const nourish = rec.source === "nourish" ? ` <span class="recipe-source-tag">Nourish</span>` : "";
       const stale = rec.stale
         ? ` <span class="recipe-stale-badge">stale ingredient</span>`
         : "";
@@ -3613,7 +3637,7 @@
           Number(rec.yield_servings) === 1 ? "" : "s"
         } of ${rec.name || "this dish"}`;
       html += `<button type="button" class="recipe-card${rec.stale || !dish ? " is-stale" : ""}" data-action="recipe-open" data-id="${invEscapeAttr(rec.id || "")}">
-        <div class="recipe-card-name">${rec.name || "Dish"}${stale}${methodStale}${needsMethod}</div>
+        <div class="recipe-card-name">${rec.name || "Dish"}${nourish}${stale}${methodStale}${needsMethod}</div>
         <div class="recipe-card-meta muted">${yieldCopy} · per serving</div>
         ${invMacroStrip(macros, true)}
       </button>`;
@@ -3624,6 +3648,22 @@
       shop.forEach((line) => {
         html += `<div class="recipe-card-meta">${line.name || line.id}: ${line.grams}g · ${line.reason || "restock"}</div>`;
       });
+    }
+    const prep = $("recipe-week-prep");
+    const grocery =
+      (store && store.meal_plan && store.meal_plan.grocery_week) ||
+      (store && store.grocery_week) ||
+      [];
+    if (prep) {
+      if (grocery.length) {
+        prep.textContent =
+          "Weekly prep: " +
+          grocery
+            .map((line) => `${line.name || line.ingredient_id} ${line.grams}g`)
+            .join(" · ");
+      } else {
+        prep.textContent = "";
+      }
     }
     list.innerHTML = html;
   }
@@ -4017,7 +4057,8 @@
         }
         if (action === "recipe-log") {
           const nEl = $("recipe-log-n");
-          const servings = Number((nEl && nEl.value) || 1);
+          const fromBtn = btn.getAttribute("data-servings");
+          const servings = Number(fromBtn || (nEl && nEl.value) || 1);
           const res = await fetch("/api/recipes/log", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -4033,6 +4074,42 @@
           } catch (_) {
             /* optional */
           }
+          return;
+        }
+        if (action === "recipe-swap") {
+          const store = state && state.nutrition_store;
+          const plan = (store && store.meal_plan) || {};
+          const slot = Number(btn.getAttribute("data-slot") || 0);
+          const res = await fetch("/api/meal-plan/swap", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slot,
+              recipe_id: id,
+              meals: plan.meals || [],
+              targets: (store && store.targets) || {},
+              consumed: (store && store.today_consumed) || {},
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          if (store) store.meal_plan = data.plan;
+          renderMealPlan(data.plan);
+          showAlert("Swapped meal", "ok");
+          return;
+        }
+        if (action === "recipe-batch") {
+          const servings = Number(btn.getAttribute("data-servings") || 1);
+          const res = await fetch("/api/recipes/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipe_id: id, servings }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          if (data.inventory) applyInventoryUpdate(data.inventory);
+          showAlert("Cooked a batch", "ok");
+          return;
         }
       } catch (err) {
         showAlert(err.message || String(err), "err");
@@ -4091,6 +4168,15 @@
     if ($("recipe-source")) {
       $("recipe-source").addEventListener("change", syncRecipeMethodRequired);
     }
+    ["recipe-filter-slot", "recipe-filter-cuisine"].forEach((fid) => {
+      const el = $(fid);
+      if (!el || el.dataset.bound === "1") return;
+      el.dataset.bound = "1";
+      el.addEventListener("change", () => {
+        const store = state && state.nutrition_store;
+        if (store) renderRecipes(store);
+      });
+    });
     syncRecipeMethodRequired();
   }
 
@@ -6268,6 +6354,13 @@
     const notes = plan.notes || {};
     let html = `<div class="meal-plan-panel">`;
     html += `<p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">${plan.message || ""}</p>`;
+    if (plan.mode === "ingredient_fallback" && meals.length) {
+      html += `<p class="meal-fallback-flag">Ingredient fallback — mixed pantry plate, not a library recipe.</p>`;
+    }
+    (plan.pantry_prompts || []).forEach((prompt) => {
+      const name = (prompt && (prompt.name || prompt.id)) || "Item";
+      html += `<p class="meal-pantry-prompt">Still have this? ${name}</p>`;
+    });
     if (plan.serving_grams_nudge) {
       html += `<p class="meal-grams-nudge">${plan.serving_grams_nudge}</p>`;
     }
@@ -6360,11 +6453,13 @@
           ? ` · <span class="meal-bucket-time">${clock}</span>`
           : "";
         const rec = m.recipe && isDish(m.recipe) ? m.recipe : null;
-        const recipeId = rec ? rec.id || m.recipe_id || "" : "";
-        const recipeName = rec ? rec.name || m.recipe_name || "" : "";
+        const recipeId = rec ? rec.id || m.recipe_id || "" : m.recipe_id || "";
+        const recipeName = rec ? rec.name || m.recipe_name || "" : m.recipe_name || "";
         const dishServings = Number(m.servings) || 1;
         let bodyHtml;
-        if (rec && recipeName) {
+        if ((recipeName || recipeId) && typeof window.recipeMealCardHtml === "function") {
+          bodyHtml = window.recipeMealCardHtml(Object.assign({ slot_index: mi }, m, rec ? { recipe: rec } : {}));
+        } else if (rec && recipeName) {
           const dishMacros = rec.macros_per_serving || m.totals || {};
           const serveLabel =
             dishServings === 1 ? "1 serving" : `${dishServings} servings`;

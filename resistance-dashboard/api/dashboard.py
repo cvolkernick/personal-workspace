@@ -188,6 +188,8 @@ def preview_meal_plan(
     recommended_targets=None,
     food_logs=None,
     sleep_intervals=None,
+    user_id=None,
+    workout_window=None,
 ) -> dict:
     """Same remaining-day planner as Pi ``generate_meal_plan``. In-stock pantry only."""
     from rt_dashboard.nutrition_planner import generate_meal_plan
@@ -206,6 +208,8 @@ def preview_meal_plan(
         recommended_targets=recommended_targets,
         food_logs=food_logs if food_logs is not None else food_logs_today or [],
         sleep_intervals=sleep_intervals,
+        user_id=str(user_id or "") or None,
+        workout_window=workout_window,
     )
 
 
@@ -452,6 +456,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         recommended_targets=(rec_nt or {}).get("recommended"),
         food_logs=health.food_logs or [],
         sleep_intervals=_sleep_iv,
+        user_id=uid or None,
     )
     meal_plan = resolve_dashboard_meal_plan(
         str(user.get("id") or ""),

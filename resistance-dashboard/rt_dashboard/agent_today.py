@@ -828,6 +828,9 @@ def _meal_slots(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         slot: Dict[str, Any] = {"label": label, "items": items}
         if meal.get("eat_at"):
             slot["eat_at"] = meal.get("eat_at")
+        for key in ("recipe_id", "recipe_name", "slot_role", "steps", "servings"):
+            if meal.get(key) is not None:
+                slot[key] = meal.get(key)
         out.append(slot)
     return out
 

@@ -29,11 +29,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BundledInventoryFile(unittest.TestCase):
-    def test_repo_file_has_15_real_ingredients(self):
+    def test_repo_file_has_nourish_library_ingredients(self):
         raw = json.loads(REPO_INV.read_text(encoding="utf-8"))
         self.assertEqual(raw["updated_at"], "2026-09-06")
         ings = raw["ingredients"]
-        self.assertEqual(len(ings), 15)
+        self.assertEqual(len(ings), 26)
         names = [i["name"] for i in ings]
         self.assertIn("Tilapia", names)
         self.assertIn("Egg whites", names)
@@ -48,7 +48,7 @@ class BundledInventoryFile(unittest.TestCase):
         inv, source = load_workspace_inventory()
         raw = json.loads(REPO_INV.read_text(encoding="utf-8"))
         self.assertEqual(source, INVENTORY_PATH)
-        self.assertEqual(len(inv["ingredients"]), 15)
+        self.assertEqual(len(inv["ingredients"]), 26)
         self.assertEqual(inv["updated_at"], raw["updated_at"])
         self.assertEqual(
             [i["name"] for i in inv["ingredients"]],
@@ -61,7 +61,7 @@ class BundledInventoryFile(unittest.TestCase):
         with mock.patch.object(ins, "_inventory_file_candidates", return_value=[BUNDLE_INV]):
             inv, source = ins.load_workspace_inventory()
         self.assertEqual(source, INVENTORY_PATH)
-        self.assertEqual(len(inv["ingredients"]), 15)
+        self.assertEqual(len(inv["ingredients"]), 26)
 
     def test_dashboard_empty_inventory_stub_gone(self):
         text = DASHBOARD_PY.read_text(encoding="utf-8")
@@ -108,10 +108,10 @@ class EmptyTursoSeedsFromFile(unittest.TestCase):
             inv, src = load_preview_inventory("sub-1")
         self.assertEqual(src, "turso")
         self.assertNotEqual(src, "unset")
-        self.assertEqual(len(inv["ingredients"]), 15)
+        self.assertEqual(len(inv["ingredients"]), 26)
         self.assertEqual(len(puts), 1)
         self.assertEqual(puts[0][0], "sub-1")
-        self.assertEqual(len(puts[0][1]["ingredients"]), 15)
+        self.assertEqual(len(puts[0][1]["ingredients"]), 26)
 
     def test_existing_turso_row_is_sot_not_reseeded(self):
         stored = {
@@ -557,7 +557,7 @@ class DashboardInventoryPayload(unittest.TestCase):
         self.assertEqual(nut["sources"]["inventory_sot"], INVENTORY_PATH)
         self.assertEqual(nut["sources"]["inventory_fallback"], "turso_dark")
         self.assertNotEqual(nut["sources"]["inventory"], "unset")
-        self.assertEqual(len(nut["inventory"]["ingredients"]), 15)
+        self.assertEqual(len(nut["inventory"]["ingredients"]), 26)
 
 
 class MealPlanInStockOnly(unittest.TestCase):

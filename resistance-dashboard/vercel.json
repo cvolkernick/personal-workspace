@@ -49,6 +49,14 @@
       "destination": "/api/dashboard?_r=meal_generate"
     },
     {
+      "source": "/api/meal-plan/swap",
+      "destination": "/api/dashboard?_r=meal_swap"
+    },
+    {
+      "source": "/api/meal-plan/grocery",
+      "destination": "/api/dashboard?_r=meal_grocery"
+    },
+    {
       "source": "/api/meal-plan",
       "destination": "/api/dashboard?_r=meal_plan"
     },
@@ -167,6 +175,10 @@
     {
       "source": "/api/recipes/log",
       "destination": "/api/dashboard?_r=recipes_log"
+    },
+    {
+      "source": "/api/recipes/batch",
+      "destination": "/api/dashboard?_r=recipes_batch"
     },
     {
       "source": "/api/recipes",

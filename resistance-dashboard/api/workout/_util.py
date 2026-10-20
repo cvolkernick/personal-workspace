@@ -32,6 +32,8 @@ _ROUTES = (
     "eq_update",
     "meal_plan",
     "meal_generate",
+    "meal_swap",
+    "meal_grocery",
     "refresh",
     "daily_tasks",
     "daily_tasks_complete",
@@ -52,6 +54,7 @@ _ROUTES = (
     "recipes",
     "recipes_delete",
     "recipes_log",
+    "recipes_batch",
     "suggestions",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
@@ -120,6 +123,10 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "eq_remove"
     if "/api/meal-plan/generate" in blob:
         return "meal_generate"
+    if "/api/meal-plan/swap" in blob:
+        return "meal_swap"
+    if "/api/meal-plan/grocery" in blob:
+        return "meal_grocery"
     if "/api/meal-plan" in blob:
         return "meal_plan"
     if "/api/refresh" in blob:
@@ -160,6 +167,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "recipes_delete"
     if "/api/recipes/log" in blob:
         return "recipes_log"
+    if "/api/recipes/batch" in blob:
+        return "recipes_batch"
     if "/api/recipes" in blob:
         return "recipes"
     if "/api/muscle-suggestions" in blob:
@@ -1660,6 +1669,98 @@ def recipes_log_body(headers, payload=None):
     return 200, {"ok": True, "log": entry}
 
 
+def recipes_batch_body(headers, payload=None):
+    """POST /api/recipes/batch — cooked batch becomes a prepared pantry row."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    uid = str(user.get("id") or "")
+    body = payload if isinstance(payload, dict) else {}
+    from rt_dashboard.inventory_store import load_preview_inventory, persist_inventory
+    from rt_dashboard.recipe_planner import cooked_batch
+    from rt_dashboard.recipe_store import get_recipe
+
+    inventory, _src = load_preview_inventory(uid)
+    recipe = get_recipe(
+        uid, str(body.get("recipe_id") or body.get("id") or ""), inventory
+    )
+    if not recipe:
+        return 404, {"ok": False, "error": "recipe not found"}
+    try:
+        servings = float(body.get("servings") or 1)
+    except (TypeError, ValueError):
+        return 400, {"ok": False, "error": "servings must be > 0"}
+    try:
+        updated = cooked_batch(inventory, recipe, servings)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    try:
+        persist_inventory(updated, uid, message="nutrition: cooked batch")
+    except Exception:
+        pass
+    return 200, {"ok": True, "inventory": updated, "recipe_id": recipe.get("id")}
+
+
+def meal_swap_body(headers, payload=None):
+    """POST /api/meal-plan/swap — next legal library recipe for one slot."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    uid = str(user.get("id") or "")
+    body = payload if isinstance(payload, dict) else {}
+    from rt_dashboard.inventory_store import load_preview_inventory
+    from rt_dashboard.recipe_planner import swap_recipe_slot
+    from rt_dashboard.recipe_store import list_recipes, seed_nourish_recipes
+    from rt_dashboard.timeutil import local_now, local_tz_name
+
+    inventory, _src = load_preview_inventory(uid)
+    try:
+        seed_nourish_recipes(uid, inventory)
+    except Exception:
+        pass
+    try:
+        recipes, _sot = list_recipes(uid, inventory)
+    except Exception:
+        recipes = []
+    try:
+        slot = int(
+            body.get("slot")
+            if body.get("slot") is not None
+            else body.get("slot_index") or 0
+        )
+    except (TypeError, ValueError):
+        return 400, {"ok": False, "error": "slot must be an index"}
+    plan = swap_recipe_slot(
+        inventory,
+        body.get("targets") or {},
+        body.get("consumed") or {},
+        recipes,
+        body.get("meals") or [],
+        slot,
+        now=local_now(),
+        tz_name=local_tz_name(),
+        workout_window=body.get("workout_window"),
+    )
+    if not plan:
+        return 409, {"ok": False, "error": "no alternate recipe"}
+    return 200, {"ok": True, "plan": plan}
+
+
+def meal_grocery_body(headers, payload=None):
+    """POST /api/meal-plan/grocery — gram rollup, priced when offers are sent."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    body = payload if isinstance(payload, dict) else {}
+    from rt_dashboard.recipe_planner import price_grocery_lines, rollup_ingredient_grams
+
+    lines = rollup_ingredient_grams(body.get("meals") or [])
+    offers = body.get("offers") if isinstance(body.get("offers"), dict) else None
+    if offers:
+        lines = price_grocery_lines(lines, offers)
+    return 200, {"ok": True, "grocery_week": lines}
+
+
 def suggestions_write(headers, payload=None):
     """Add, dismiss, or answer an equipment prompt. Cookie-less 401."""
     user, err = require_user(headers)
@@ -1818,6 +1919,18 @@ def dispatch_client_route(
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return recipes_log_body(headers, payload or {})
+    if route == "recipes_batch":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return recipes_batch_body(headers, payload or {})
+    if route == "meal_swap":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return meal_swap_body(headers, payload or {})
+    if route == "meal_grocery":
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return meal_grocery_body(headers, payload or {})
     if route == "suggestions":
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}

@@ -16,6 +16,16 @@ from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
 KITCHEN_OPEN = datetime(2026, 8, 22, 11, 0, tzinfo=ET)
+# Early enough that a noon session's pre-workout (10:00) is still upcoming.
+MORNING = datetime(2026, 8, 22, 8, 0, tzinfo=ET)
+GYM_NOON = (
+    datetime(2026, 8, 22, 12, 0, tzinfo=ET),
+    datetime(2026, 8, 22, 13, 30, tzinfo=ET),
+)
+GYM_EVENING = (
+    datetime(2026, 8, 22, 17, 0, tzinfo=ET),
+    datetime(2026, 8, 22, 18, 30, tzinfo=ET),
+)
 
 
 def frozen_local_now(preferred=None, *, now=None):

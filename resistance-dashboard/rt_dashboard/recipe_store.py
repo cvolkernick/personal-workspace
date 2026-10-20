@@ -4,11 +4,11 @@ A recipe is ingredients transformed by a method into one dish. Yield is
 servings of that finished dish. Loose pantry items eaten as themselves
 are not recipes — they stay on the meal-plan quick-add path.
 
-Turso is SoT. There is no seed library; recipes appear when a user (or
-coach) saves a dish with preparation steps. A coach-composed recipe
-gets those steps at creation from the ingredient set already on the
-draft — names and quantities only, nothing added or resized. File JSON
-must never overwrite a Turso row.
+Turso is SoT. A user or coach saves a dish with preparation steps. The
+nourish library seeds missing ids only — file JSON never overwrites a
+Turso row. A coach-composed recipe gets steps at creation from the
+ingredient set already on the draft — names and quantities only,
+nothing added or resized.
 
 Servings: yield_servings is the batch size of the finished dish.
 Ingredient grams_batch are totals for that yield. Per-serving =
@@ -29,13 +29,14 @@ import json
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .timeutil import local_today_iso
 
 SOT_TURSO = "turso"
 FALLBACK_TURSO_DARK = "turso_dark"
-SOURCES = ("coach", "user")
+SOURCES = ("coach", "user", "nourish")
 MACRO_KEYS = ("calories", "protein_g", "carbs_g", "fat_g")
 MICRO_KEYS = ("fiber_g", "sugar_g", "sodium_mg")
 
@@ -475,6 +476,29 @@ def present_recipe(recipe: Optional[dict]) -> Optional[dict]:
     return out
 
 
+def _reject_bad_recipe_lines(lines: Sequence[dict]) -> None:
+    """Whole eggs and egg whites travel together. Jar salsa is not an ingredient."""
+    from .nutrition_planner import egg_role
+
+    roles = set()
+    for line in lines or []:
+        if not isinstance(line, dict):
+            continue
+        iid = str(line.get("ingredient_id") or "").strip()
+        name = str(line.get("name") or "")
+        role = egg_role({"id": iid, "name": name})
+        if role:
+            roles.add(role)
+        token = iid.lower()
+        if token in {"pico-de-gallo", "rotel"} or "pico" in token or token == "rotel":
+            continue
+        blob = f"{token} {name.lower()}"
+        if "salsa" in blob:
+            raise ValueError("salsa ingredients must be pico-de-gallo or rotel")
+    if len(roles) == 1:
+        raise ValueError("whole eggs and egg whites must be in the same recipe")
+
+
 def normalize_recipe(raw: dict, *, existing: Optional[dict] = None) -> dict:
     base = dict(existing) if isinstance(existing, dict) else {}
     data = dict(raw) if isinstance(raw, dict) else {}
@@ -497,6 +521,8 @@ def normalize_recipe(raw: dict, *, existing: Optional[dict] = None) -> dict:
         if not iid:
             continue
         grams = _as_float(line.get("grams_batch"), 0.0)
+        if grams <= 0:
+            grams = _as_float(line.get("grams"), 0.0)
         servings = _as_float(line.get("servings_batch"), 0.0)
         row: Dict[str, Any] = {"ingredient_id": iid}
         if grams > 0:
@@ -505,8 +531,15 @@ def normalize_recipe(raw: dict, *, existing: Optional[dict] = None) -> dict:
             row["servings_batch"] = servings
         if "grams_batch" not in row and "servings_batch" not in row:
             continue
+        if line.get("role"):
+            row["role"] = str(line.get("role")).strip()
+        if line.get("name"):
+            row["name"] = str(line.get("name")).strip()
         lines.append(row)
+    _reject_bad_recipe_lines(lines)
     raw_steps = data.get("instructions")
+    if not isinstance(raw_steps, list):
+        raw_steps = data.get("steps")
     if not isinstance(raw_steps, list):
         raw_steps = base.get("instructions") if isinstance(base.get("instructions"), list) else []
     steps = [str(s).strip() for s in raw_steps if str(s).strip()]
@@ -517,7 +550,7 @@ def normalize_recipe(raw: dict, *, existing: Optional[dict] = None) -> dict:
         for x in (data.get("stale_ingredient_ids") or base.get("stale_ingredient_ids") or [])
         if str(x).strip()
     ]
-    return {
+    out = {
         "id": rid,
         "name": name[:80],
         "yield_servings": yld,
@@ -535,6 +568,20 @@ def normalize_recipe(raw: dict, *, existing: Optional[dict] = None) -> dict:
             else base.get("instructions_stale")
         ),
     }
+    for key in (
+        "slots",
+        "cuisine",
+        "prep_min",
+        "batch_friendly",
+        "fridge_days",
+        "primary_protein",
+        "scalable",
+    ):
+        if key in data:
+            out[key] = data.get(key)
+        elif key in base:
+            out[key] = base.get(key)
+    return out
 
 
 def _apply_method(
@@ -867,10 +914,13 @@ def list_recipes(user_id: str, inventory: Optional[dict] = None) -> Tuple[List[d
                 kept.append(data)
     except Exception:
         return [], FALLBACK_TURSO_DARK
-    return (
-        [compute_recipe_macros(normalize_recipe(data), inventory) for data in kept],
-        SOT_TURSO,
-    )
+    out: List[dict] = []
+    for data in kept:
+        try:
+            out.append(compute_recipe_macros(normalize_recipe(data), inventory))
+        except ValueError:
+            continue
+    return out, SOT_TURSO
 
 
 def get_recipe(user_id: str, recipe_id: str, inventory: Optional[dict] = None) -> Optional[dict]:
@@ -1261,3 +1311,198 @@ def _week_plans(user_id: str, day: str, today_plan: dict) -> List[dict]:
         if loaded:
             plans.append(loaded)
     return plans
+
+
+def nourish_library_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "nourish" / "meal-system" / "meals.json"
+
+
+def _seed_payload(raw: dict) -> dict:
+    lines = []
+    for line in raw.get("ingredients") or []:
+        if not isinstance(line, dict):
+            continue
+        iid = str(line.get("ingredient_id") or line.get("id") or "").strip()
+        if not iid:
+            continue
+        row: Dict[str, Any] = {"ingredient_id": iid}
+        grams = line.get("grams_batch")
+        if grams in (None, "", 0):
+            grams = line.get("grams")
+        if grams not in (None, ""):
+            row["grams_batch"] = grams
+        if line.get("servings_batch"):
+            row["servings_batch"] = line.get("servings_batch")
+        if line.get("role"):
+            row["role"] = line.get("role")
+        lines.append(row)
+    steps = raw.get("instructions") if isinstance(raw.get("instructions"), list) else raw.get("steps") or []
+    out: Dict[str, Any] = {
+        "id": raw.get("id"),
+        "name": raw.get("name"),
+        "source": raw.get("source") or "nourish",
+        "yield_servings": raw.get("yield_servings") or 1,
+        "ingredients": lines,
+        "instructions": list(steps),
+    }
+    for key in (
+        "slots",
+        "cuisine",
+        "prep_min",
+        "batch_friendly",
+        "fridge_days",
+        "primary_protein",
+        "scalable",
+    ):
+        if key in raw:
+            out[key] = raw[key]
+    return out
+
+
+def load_nourish_doc() -> dict:
+    path = nourish_library_path()
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_nourish_recipes(inventory: Optional[dict] = None) -> List[dict]:
+    """Library dishes computed against inventory. Does not write Turso."""
+    data = load_nourish_doc()
+    out: List[dict] = []
+    for raw in data.get("recipes") or []:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            out.append(compute_recipe_macros(normalize_recipe(_seed_payload(raw)), inventory))
+        except ValueError:
+            continue
+    return out
+
+
+def merge_nourish_ingredients(inventory: Optional[dict], foods: Optional[Sequence[dict]] = None) -> List[str]:
+    """Add missing library foods out of stock. Never overwrite macros already on a row.
+
+    Chicken breast gains serving_g 236 when that field is absent so a logged
+    serving stays 389 kcal. The burrito bowl gains serving_g 1 for the same reason.
+    """
+    if not isinstance(inventory, dict):
+        return []
+    if foods is None:
+        foods = load_nourish_doc().get("foods") or []
+    ingredients = inventory.setdefault("ingredients", [])
+    by_id = {
+        str(row.get("id") or ""): row
+        for row in ingredients
+        if isinstance(row, dict) and row.get("id")
+    }
+    added: List[str] = []
+    for food in foods or []:
+        if not isinstance(food, dict):
+            continue
+        iid = str(food.get("id") or "").strip()
+        if not iid:
+            continue
+        if iid in by_id:
+            row = by_id[iid]
+            if iid == "boneless-skinless-chicken-breast" and not row.get("serving_g"):
+                row["serving_g"] = 236
+            elif iid == "chicken-burrito-bowl" and not row.get("serving_g"):
+                row["serving_g"] = 1
+            continue
+        row = dict(food)
+        row["in_stock"] = False
+        row["stock"] = "out"
+        ingredients.append(row)
+        by_id[iid] = row
+        added.append(iid)
+    return added
+
+
+def _existing_recipe_ids(user_id: str) -> Optional[set]:
+    """Raw ids. None when Turso is dark so a seed cannot guess and overwrite."""
+    connect, turso_enabled = _turso()
+    uid = str(user_id or "").strip()
+    if not uid or not turso_enabled():
+        return None
+    try:
+        with connect() as conn:
+            conn.execute(ENSURE_RECIPES_SQL)
+            rows = conn.execute(
+                "SELECT id FROM nutrition_recipes WHERE user_id = ?",
+                (uid,),
+            ).fetchall()
+    except Exception:
+        return None
+    found = set()
+    for row in rows or []:
+        if isinstance(row, dict):
+            rid = str(row.get("id") or "").strip()
+        else:
+            try:
+                rid = str(row[0] or "").strip()
+            except (IndexError, TypeError):
+                rid = ""
+        if rid:
+            found.add(rid)
+    return found
+
+
+def seed_nourish_recipes(user_id: str, inventory: Optional[dict] = None) -> dict:
+    """Insert library recipes whose ids are missing. Never update an existing row."""
+    added_ings = merge_nourish_ingredients(inventory)
+    existing = _existing_recipe_ids(user_id)
+    if existing is None:
+        return {"seeded": [], "ingredients_added": added_ings, "sot": FALLBACK_TURSO_DARK}
+    seeded: List[str] = []
+    for raw in load_nourish_doc().get("recipes") or []:
+        if not isinstance(raw, dict):
+            continue
+        rid = str(raw.get("id") or "").strip()
+        if not rid or rid in existing:
+            continue
+        try:
+            upsert_recipe(user_id, _seed_payload(raw), inventory=inventory)
+        except Exception:
+            continue
+        existing.add(rid)
+        seeded.append(rid)
+    return {"seeded": seeded, "ingredients_added": added_ings, "sot": SOT_TURSO}
+
+
+def recent_recipe_history(user_id: str, day: str, *, lookback: int = 3) -> List[dict]:
+    """Recipe ids from the previous few nutrition days. Same day is not included."""
+    from .meal_plan_store import load_last_good_meal_plan
+
+    try:
+        start = datetime.strptime(str(day or "")[:10], "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return []
+    out: List[dict] = []
+    for offset in range(1, max(1, lookback) + 1):
+        other = (start - timedelta(days=offset)).strftime("%Y-%m-%d")
+        try:
+            loaded = load_last_good_meal_plan(user_id, other)
+        except Exception:
+            loaded = None
+        if not isinstance(loaded, dict):
+            continue
+        for meal in loaded.get("meals") or []:
+            if not isinstance(meal, dict):
+                continue
+            rid = str(meal.get("recipe_id") or "").strip()
+            if not rid:
+                continue
+            out.append(
+                {
+                    "date": other,
+                    "recipe_id": rid,
+                    "primary_protein": meal.get("primary_protein"),
+                    "cuisine": meal.get("cuisine"),
+                }
+            )
+    return out

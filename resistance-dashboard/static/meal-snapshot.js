@@ -326,6 +326,82 @@
       return res;
     });
   };
+  function escMeal(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+  function recipeMealCardHtml(meal) {
+    const row = meal || {};
+    const rec = row.recipe || {};
+    const name = row.recipe_name || rec.name || "Recipe";
+    const role = row.slot_role || "";
+    const clock = row.eat_at_label || "";
+    const chip = [role, clock].filter(Boolean).join(" · ");
+    const servings = Number(row.servings);
+    const serve = Number.isFinite(servings) ? "×" + String(servings) : "";
+    const totals = row.totals || rec.macros_per_serving || {};
+    const steps = row.steps || rec.instructions || rec.steps || [];
+    const items = row.items || [];
+    const slot = row.slot_index != null ? String(row.slot_index) : "";
+    const rid = row.recipe_id || rec.id || "";
+    const batch = row.batch_friendly || row.batch_prep || rec.batch_friendly;
+    let html = '<div class="meal-recipe-card">';
+    html += '<div class="meal-item-name">' + escMeal(name) + "</div>";
+    if (chip || serve) {
+      html += '<div class="meal-item-meta muted">' + escMeal(chip);
+      if (serve) html += (chip ? " · " : "") + escMeal(serve);
+      html += "</div>";
+    }
+    if (batch) html += '<div class="recipe-batch-badge">Batch prep</div>';
+    html +=
+      '<div class="meal-item-meta muted">' +
+      escMeal(Math.round(Number(totals.calories) || 0)) +
+      " kcal · P" +
+      escMeal(Math.round(Number(totals.protein_g) || 0)) +
+      " C" +
+      escMeal(Math.round(Number(totals.carbs_g) || 0)) +
+      " F" +
+      escMeal(Math.round(Number(totals.fat_g) || 0)) +
+      "</div>";
+    if (items.length) {
+      html += "<details class=\"meal-recipe-ings\"><summary>Ingredients</summary><ul>";
+      items.forEach(function (it) {
+        const grams = it && it.portion_g != null ? it.portion_g + "g" : "";
+        html += "<li>" + escMeal((it && it.name) || "Item") + (grams ? " · " + escMeal(grams) : "") + "</li>";
+      });
+      html += "</ul></details>";
+    }
+    if (steps.length) {
+      html += '<ol class="meal-recipe-steps">';
+      steps.forEach(function (step) {
+        html += "<li>" + escMeal(step) + "</li>";
+      });
+      html += "</ol>";
+    }
+    html += '<div class="actions">';
+    html +=
+      '<button type="button" data-action="recipe-swap" data-slot="' +
+      escMeal(slot) +
+      '" data-id="' +
+      escMeal(rid) +
+      '">Swap</button>';
+    html +=
+      '<button type="button" data-action="recipe-log" data-servings="' +
+      escMeal(Number.isFinite(servings) ? servings : 1) +
+      '" data-id="' +
+      escMeal(rid) +
+      '">Log meal</button>';
+    html +=
+      '<button type="button" data-action="recipe-batch" data-servings="' +
+      escMeal(Number.isFinite(servings) ? servings : 1) +
+      '" data-id="' +
+      escMeal(rid) +
+      '">Cooked a batch</button>';
+    html += "</div></div>";
+    return html;
+  }
+  window.recipeMealCardHtml = recipeMealCardHtml;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", bindGenerateMeal);
   } else {
