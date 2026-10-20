@@ -197,6 +197,40 @@ def test_spoofed_number_is_not_a_factor():
     assert ask(checker, phone="+12075550100", name="Jordan Smith", call_id="c") == {"match": False}
 
 
+def _guest(eid, start, email, name, summary):
+    return {
+        "id": eid,
+        "status": "confirmed",
+        "start": {"dateTime": start},
+        "end": {"dateTime": start[:19] + start[19:]},
+        "summary": summary,
+        "attendees": [
+            {"email": "owner@example.test", "displayName": "Casey Owner", "self": True, "responseStatus": "accepted"},
+            {"email": email, "displayName": name, "responseStatus": "accepted"},
+        ],
+    }
+
+
+def test_multiple_candidates_pick_nearest_then_earliest():
+    doc = {"items": [
+        _guest("near-early", "2026-10-19T14:50:00-04:00", "jordan.marsh@example.test", "Jordan Marsh", "Early"),
+        _guest("near-late", "2026-10-19T15:10:00-04:00", "jordan.marsh@example.test", "Jordan Marsh", "Late"),
+        _guest("closer", "2026-10-19T15:00:00-04:00", "jordan.marsh@example.test", "Jordan Marsh", "On time"),
+        _guest("sam", "2026-10-19T15:00:00-04:00", "sam.ortega@example.test", "Sam Ortega", "Sam"),
+        _guest("riley", "2026-10-19T15:00:00-04:00", "riley.okafor@example.test", "Riley Okafor", "Riley"),
+    ]}
+    tie, _ = make({"items": [doc["items"][0], doc["items"][1]]})
+    assert ask(tie, name="Jordan Marsh", time_="3:00 PM") == {
+        "match": True, "meeting_time": "Monday, October 19 at 2:50 PM ET",
+    }
+    nearest, _ = make({"items": [doc["items"][1], doc["items"][2]]})
+    assert ask(nearest, name="Jordan Marsh", time_="3:08 PM") == {
+        "match": True, "meeting_time": "Monday, October 19 at 3:10 PM ET",
+    }
+    none, _ = make({"items": [doc["items"][3], doc["items"][4]]})
+    assert ask(none, name="Pat Nobody", time_="3:00 PM") == {"match": False}
+
+
 # ------------------------------------------------------------------ http / auth
 
 @pytest.fixture
@@ -270,6 +304,38 @@ def test_http_alternate_header_and_unset_token_fails_closed(http, monkeypatch):
     assert post(http, body())[0] == 401
     monkeypatch.setenv("MEETING_CHECK_TOKEN", "")
     assert post(http, body(), token="")[0] == 401
+
+
+def test_client_disconnect_during_check_is_swallowed_and_row_kept(http, monkeypatch, caplog):
+    checker, _ = make(load("booking_page.json"))
+    install(monkeypatch, checker)
+    orig = bland_relay.H._send
+    state = {"n": 0}
+
+    def wrapped(self, code, obj):
+        state["n"] += 1
+        if state["n"] == 1:
+            def boom(_blob):
+                raise ConnectionResetError()
+
+            self.wfile.write = boom
+        return orig(self, code, obj)
+
+    monkeypatch.setattr(bland_relay.H, "_send", wrapped)
+    with caplog.at_level(logging.DEBUG, logger="bland-relay"):
+        try:
+            post(http, body(call_id="drop-1"))
+        except (urllib.error.URLError, ConnectionError, OSError):
+            pass
+    assert not any(rec.levelno >= logging.ERROR for rec in caplog.records)
+    assert "Traceback" not in caplog.text
+    assert "client disconnect: ConnectionResetError" in caplog.text
+    path = Path(os.environ["BLAND_RELAY_STATE_DIR"]) / "meeting_attempts.sqlite"
+    rows = sqlite3.connect(path).execute("SELECT call_id, result FROM attempts").fetchall()
+    assert ("drop-1", 1) in rows
+    status, doc = post(http, body(call_id="drop-2"))
+    assert_wire(status, doc)
+    assert doc["match"] is True
 
 
 def test_http_other_path_and_get_are_404(http):

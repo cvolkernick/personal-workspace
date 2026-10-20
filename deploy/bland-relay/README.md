@@ -433,7 +433,7 @@ Phone setup, before any live send: install the app, turn Cloud Server on, tap On
 
 #1097 owns production ingest (Bland webhooks, the live poller, SMSGate, Gmail, purpose logging). This tree's ingest helpers and `poll_once` load the same fixtures into the fallback index. `poll_once` issues GET only, stops the tick on HTTP 429, and records a 5xx without raising. The service does not start it. `BlandReadClient` has no POST method and refuses an empty base URL, so it cannot default to the Bland API.
 
-The read token is not the Bland API key. A missing or wrong token is 401. More than `CALLER_CONTEXT_RPM` requests per minute from one IP (default 60) is 429. Any internal error returns 200 and the empty shape, so the greeting is not blocked. `caller_context` is plain English, at most 600 characters, last 3 interactions newest first, times in ET. Plates, street addresses, emails, and card numbers are stripped. A linked Turo booking adds one sentence and no trip details.
+The read token is not the Bland API key. A missing or wrong token is 401. More than `CALLER_CONTEXT_RPM` requests per minute from one IP (default 60) is 429. Any internal error returns 200 and the empty shape, so the greeting is not blocked. A client disconnect (`BrokenPipeError` or `ConnectionResetError`) while the response is being written is logged as `client disconnect: <exception class>` and the process keeps serving. `caller_context` is plain English, at most 600 characters, last 3 interactions newest first, times in ET. Plates, street addresses, emails, and card numbers are stripped. A linked Turo booking adds one sentence and no trip details.
 
 `DELETE` with `CALLER_FORGET_TOKEN` removes that number from the fallback index only. The read token cannot delete. Install the forget token only on the Grok seat. CRM erasure stays with #1097. Rows older than 180 days are purged on read.
 
@@ -543,7 +543,7 @@ A snapshot thread loads now-1 h to now+45 d every `MEETING_SYNC_S` seconds and k
 
 Attempt record for #1231: `meeting_attempts.sqlite` in the relay state dir (file 0600, dir 0700). One row per check with `call_id`, `ts`, the stated name clipped to 60 characters, the stated start (ISO, UTC) and `result`. Rows older than 48 h are purged on each write. The logger never reads it.
 
-Logging: `meeting-check: call_id=<id> result=true|false ms=<n>`. No name, number, stated time, email or token. Errors log the exception class. Startup logs `meeting-check: token=set|unset calendar=set|unset disabled=0|1`.
+Logging: `meeting-check: call_id=<id> result=true|false ms=<n>`. No name, number, stated time, email or token. Errors log the exception class. A client disconnect during the response is swallowed the same way as caller-context (`client disconnect: <exception class>` only). The attempt row is written before that response. Startup logs `meeting-check: token=set|unset calendar=set|unset disabled=0|1`.
 
 Env keys (names only; values go in `~/.config/bland-relay/env` through `bland-relay-setkey`, never in git or chat):
 
@@ -586,7 +586,9 @@ A signed Bland post-call webhook (`POST /<RELAY_PATH>`, HMAC already checked) sc
 
 The transcript is used in memory to classify the call, then dropped. Stored or forwarded: the caller's phone, the stated name and stated meeting time from the #1230 attempt row (otherwise null), one scrubbed summary line, the outcome, and `metadata.purpose` / `placed_by`. Logs are `post-call: call_id=<id> class=<class> ms=<n>`.
 
-Classification is first match: `voicemail`, `no-answer` (not completed, or `error_message` set), `meeting-confirmation-requested` (any `meeting_attempts` row for the `call_id`, or confirm/check near "meeting"), `meeting-reschedule-requested`, `callback-requested`, `info-only` (completed and none of the above), `unknown`.
+Classification is first match: `voicemail`; `concurrency-rejected` (`error_message`, `status`, or `queue_status` contains concurrency or busy); `transferred` (`transferred`, `transferred_to`, or a transfer status); `agent-error` (any other `error_message`); `short` (Bland `call_length`, which is minutes, under 5 seconds, and no caller turns); `no-answer` (not completed); `meeting-confirmation-requested` (any `meeting_attempts` row for the `call_id`, or confirm/check near "meeting"); `meeting-reschedule-requested`; `callback-requested`; `info-only` (completed and none of the above); `unknown`.
+
+`concurrency-rejected` writes one outbox line and one index row, and adds a callback follow-up only when the other party's number is valid E.164. It does not push to Alexandra. `agent-error` and `transferred` add a callback follow-up and one Alexandra event. `short` writes one index row tagged `short`, with no follow-up and no push. `no-answer` still has no follow-up.
 
 Writes, once per `call_id`:
 
@@ -619,7 +621,17 @@ Team-inbox mail is a Grok seat step outside this repo (#1228 G6). This hook does
 | `POST_CALL_PUSH_DISABLED` | `1` skips the `call_followup` push. The outbox and the index still update. |
 | `CRM_INGEST_MODE` | `off` skips the outbox line. The index and the push still run. |
 
-Rollback: `printf %s off | ~/bin/bland-relay-setkey POST_CALL_INGEST` and `printf 1 | ~/bin/bland-relay-setkey POST_CALL_PUSH_DISABLED`. Or restore `~/bin/*.bak-pre1231` and delete `~/bin/post_call.py`. Outbox lines and index rows stay until the forget route or the 180-day purge. No Bland config change belongs in this slice.
+If the outbox write or the Alexandra push fails, the hook retries in its own thread after 30 seconds, 2 minutes, and 10 minutes. It then appends one line to `post_call_deadletter.jsonl` in the relay state directory (file mode 0600). The line stores the outbox record under `record` (`done: false`). That record has no body, no transcript, and no private fields. `stated_meeting` sits beside `record`, not inside it. Replay copies `metadata.qa` back to the QA skip and copies `stated_meeting` back before the index write and the push. The log line is `post-call: dead-letter call_id=<id>`. The HTTP status Bland already received does not change.
+
+Replay is idempotent on `call_id`. It does not delete lines. A line that goes through is marked `done: true`. From the directory that holds the module (`~/bin` on prism):
+
+```bash
+python3 post_call.py --replay-dead-letters
+```
+
+The command uses `BLAND_RELAY_STATE_DIR` when that is set, otherwise `~/.local/state/bland-relay`.
+
+Rollback: `printf %s off | ~/bin/bland-relay-setkey POST_CALL_INGEST` and `printf 1 | ~/bin/bland-relay-setkey POST_CALL_PUSH_DISABLED`. Or restore `~/bin/*.bak-pre1231` and delete `~/bin/post_call.py`. Outbox lines, index rows, and `post_call_deadletter.jsonl` stay. The dead-letter file can stay across a restore. No Bland config change belongs in this slice.
 
 ## Deploy
 
