@@ -6,7 +6,11 @@ seeds, and ``Already trained today`` rows do not count. Assisted lifts use
 effective load (#1156) and still count on reps when that load is missing.
 
 Credit is 1.0 to each primary group and 0.5 to each secondary. It is not
-split across primaries. The week is Monday–Sunday America/New_York.
+split across primaries. The tile and the agent feed count a rolling 7
+ET civil days (today and the six days before it, #1297). The cap, the
+Thursday flags, and the planner still use Monday–Sunday America/New_York.
+``et_week_bounds`` stays the calendar-week helper for those and for
+tonnage.
 
 Priority groups (8–10): side delts, lats/upper back, chest.
 Middle (4–7): hamstrings, rear delts, biceps, triceps.
@@ -183,6 +187,31 @@ def et_week_bounds(moment: Any) -> Tuple[Optional[str], Optional[str]]:
     monday = day - timedelta(days=day.weekday())
     sunday = monday + timedelta(days=6)
     return monday.isoformat(), sunday.isoformat()
+
+
+def rolling_7d_bounds(moment: Any) -> Tuple[Optional[str], Optional[str]]:
+    """Today and the six America/New_York civil days before it, inclusive.
+
+    ``end`` is the ET civil date of ``moment``. A UTC timestamp that is
+    already the next calendar day still belongs to the previous ET date
+    until 00:00 ET.
+    """
+    day = et_civil_date(moment)
+    if day is None:
+        return None, None
+    start = day - timedelta(days=6)
+    return start.isoformat(), day.isoformat()
+
+
+def rolling_7d_window(moment: Any) -> Dict[str, Any]:
+    """Window object for the tile and ``/api/agent/*``."""
+    start, end = rolling_7d_bounds(moment)
+    return {
+        "type": "rolling_7d",
+        "start": start,
+        "end": end,
+        "label": "rolling 7 days",
+    }
 
 
 def tier_for(proper_sets: float) -> str:
@@ -425,10 +454,21 @@ def _norm_name(name: str) -> str:
     return " ".join(str(name or "").strip().lower().split())
 
 
-def _session_date(session: Any) -> str:
+def _session_date(session: Any) -> Any:
+    """Session date as stored.
+
+    A civil ``YYYY-MM-DD`` stays a civil date. A timestamp is left intact so
+    ``et_civil_date`` can place a UTC instant that is already the next
+    calendar day on the America/New_York date (#1297). Slicing to 10
+    characters would keep the UTC day.
+    """
     if isinstance(session, dict):
-        return str(session.get("date") or "")[:10]
-    return str(getattr(session, "date", "") or "")[:10]
+        raw = session.get("date")
+    else:
+        raw = getattr(session, "date", None)
+    if isinstance(raw, (date, datetime)):
+        return raw
+    return str(raw or "")
 
 
 def _session_type(session: Any) -> str:
@@ -1168,6 +1208,7 @@ def build_muscle_set_report(
         return {
             "week_start": None,
             "week_end": None,
+            "window": rolling_7d_window(day),
             "muscle_sets": {},
             "budget": {
                 "cap": None,
@@ -1188,6 +1229,16 @@ def build_muscle_set_report(
         sessions,
         catalog,
         week_start=monday,
+        planned_loads=planned,
+        aliases=aliases,
+        as_of=day,
+    )
+    # Display counts. The Monday totals above stay the weekly plan.
+    roll_start, _roll_end = rolling_7d_bounds(day)
+    rolling_credits, _rolling_proper = week_group_credits(
+        sessions,
+        catalog,
+        week_start=roll_start or monday,
         planned_loads=planned,
         aliases=aliases,
         as_of=day,
@@ -1237,7 +1288,7 @@ def build_muscle_set_report(
     }
     muscle_sets = {}
     for group in VOLUME_GROUPS:
-        done = _round_sets(credits.get(group) or 0)
+        done = _round_sets(rolling_credits.get(group) or 0)
         muscle_sets[group] = {
             "proper_sets": done,
             "tier": tier_for(done),
@@ -1265,6 +1316,12 @@ def build_muscle_set_report(
     return {
         "week_start": monday,
         "week_end": sunday,
+        "window": rolling_7d_window(day),
+        # Monday-week credits. The planner tiebreak reads these so a
+        # rolling display count does not change the weekly plan (#1297).
+        "calendar_credits": {
+            group: _round_sets(credits.get(group) or 0) for group in VOLUME_GROUPS
+        },
         "muscle_sets": muscle_sets,
         "budget": {
             "cap": cap,
@@ -1334,11 +1391,16 @@ def accessory_tiebreak(
     primary, _secondary = volume_groups(ex)
     if not primary:
         return 0.0
+    calendar = report.get("calendar_credits")
+    calendar = calendar if isinstance(calendar, dict) else None
     muscles = report.get("muscle_sets") if isinstance(report.get("muscle_sets"), dict) else {}
     score = 0.0
     for group in primary:
-        row = muscles.get(group) if isinstance(muscles.get(group), dict) else {}
-        done = float(row.get("proper_sets") or 0)
+        if calendar is not None:
+            done = float(calendar.get(group) or 0)
+        else:
+            row = muscles.get(group) if isinstance(muscles.get(group), dict) else {}
+            done = float(row.get("proper_sets") or 0)
         minimum = _target_min(group)
         if done >= minimum:
             continue

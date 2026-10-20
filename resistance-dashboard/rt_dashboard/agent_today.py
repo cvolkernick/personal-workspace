@@ -1172,6 +1172,12 @@ def export_agent_today(
             week["muscle_sets"] = muscle["muscle_sets"]
             week["muscle_set_budget"] = muscle["budget"]
             week["muscle_set_coach"] = muscle["coach"]
+            week["muscle_set_window"] = muscle.get("window") or {
+                "type": "rolling_7d",
+                "start": None,
+                "end": None,
+                "label": "rolling 7 days",
+            }
         except Exception as exc:  # noqa: BLE001 - the feed must still answer (#1267)
             # Class name only: the message can carry logged values.
             _LOG.warning("muscle_sets unavailable: %s", type(exc).__name__)

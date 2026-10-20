@@ -8173,7 +8173,11 @@
       .join("");
     if (sub) {
       const cap = budget.cap == null ? "no cap yet" : `cap ${budget.cap}`;
-      sub.textContent = `Monday–Sunday ET · proper sets · ${cap}`;
+      const win = report && report.window;
+      const start = win && win.start;
+      const end = win && win.end;
+      const dates = start && end ? `${start}–${end} ET · ` : "";
+      sub.textContent = `rolling 7 days · ${dates}proper sets · ${cap}`;
     }
     const lines = [];
     if (budget.warning) lines.push(budget.warning);

@@ -213,7 +213,7 @@ class FeedUnchanged(unittest.TestCase):
             _session("2026-10-15", "pull", _ex("Pulldowns", (100, 3, 8))),
         ]
 
-    ADDED = {"muscle_sets", "muscle_set_budget", "muscle_set_coach"}
+    ADDED = {"muscle_sets", "muscle_set_budget", "muscle_set_coach", "muscle_set_window"}
 
     def test_only_the_three_additive_week_keys_are_new(self):
         out = export_agent_today(_payload(DAY, self._sessions()))

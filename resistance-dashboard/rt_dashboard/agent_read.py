@@ -372,10 +372,20 @@ def build_logs(
 def build_training(agent_today: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
     out = dict(agent_today or {})
     week = _d(out.get("week"))
+    window = week.get("muscle_set_window")
+    if not isinstance(window, dict):
+        window = {
+            "type": "rolling_7d",
+            "start": None,
+            "end": None,
+            "label": "rolling 7 days",
+        }
     out["muscle_sets"] = {
         "sets": week.get("muscle_sets"),
         "budget": week.get("muscle_set_budget"),
         "coach": week.get("muscle_set_coach"),
+        "window": window,
+        "period": "rolling 7 days",
     }
     out.setdefault("guardrails", None)
     as_of = _d(out.get("today")).get("date") or _d(out.get("guardrails")).get("as_of")
