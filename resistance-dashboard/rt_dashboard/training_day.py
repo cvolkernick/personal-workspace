@@ -10,7 +10,7 @@ fall back to civil today — same honesty as calorie/hydration wake windows.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Optional, Sequence
 
 _LIFT_SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -76,11 +76,65 @@ def _days_apart(a: str, b: str) -> Optional[int]:
     return abs((da - db).days)
 
 
+# Training-day boundary (#1304). Lift logs and session closes after civil
+# midnight but before this local clock time count toward the previous
+# training day for split rotation, quests and the plan. Change it here only.
+# The zone is the viewer zone (``timeutil.resolve_tz_name``), which falls back
+# to America/New_York.
+TRAINING_DAY_CUTOFF = time(4, 0)
+
+
+def training_day_for(
+    value: Any, *, tz_name: Optional[str] = None
+) -> Optional[str]:
+    """Training day (YYYY-MM-DD) of one instant, using ``TRAINING_DAY_CUTOFF``.
+
+    00:30 local belongs to the previous day. 04:00 and later is the new day.
+    A naive datetime is treated as UTC, the same as ``parse_dt``.
+    """
+    from .timeutil import local_tz
+
+    dt = parse_dt(value)
+    if dt is None:
+        return None
+    local = dt.astimezone(local_tz(tz_name))
+    day = local.date()
+    if local.time() < TRAINING_DAY_CUTOFF:
+        day = day - timedelta(days=1)
+    return day.isoformat()
+
+
+def session_training_day(session: Any, *, tz_name: Optional[str] = None) -> str:
+    """Training day a session counts toward.
+
+    A close stamp (``closed_at`` / ``created_at``) before the cutoff moves the
+    row to the previous day. A date-only row keeps its ``date``. A stamp on a
+    different civil date from ``date`` (a back-dated picker log) keeps ``date``.
+    """
+    if isinstance(session, dict):
+        raw = session.get("closed_at") or session.get("created_at")
+        day = str(session.get("date") or "")[:10]
+    else:
+        raw = getattr(session, "closed_at", None) or getattr(session, "created_at", None)
+        day = str(getattr(session, "date", "") or "")[:10]
+    if not raw:
+        return day
+    from .timeutil import local_tz
+
+    dt = parse_dt(raw)
+    if dt is None:
+        return day
+    civil = dt.astimezone(local_tz(tz_name)).date().isoformat()
+    if day and civil != day:
+        return day
+    return training_day_for(dt, tz_name=tz_name) or day
+
+
 # Civil morning with yesterday's wake still advertised (sleep battery lag)
 # must not keep last night's close in the planning window (#914). After
 # midnight before dawn, delta 1 still counts so a 00:30 finish stays on
 # the prior training day.
-_AFTER_MIDNIGHT_END_HOUR = 5
+_AFTER_MIDNIGHT_END_HOUR = TRAINING_DAY_CUTOFF.hour
 
 
 def wake_covers_as_of(
@@ -93,7 +147,7 @@ def wake_covers_as_of(
     """True when last_wake is this wake, or yesterday only before dawn.
 
     A last_wake weeks ago (stale sleep battery) must not pin today's letter
-    to that old session. After-midnight finish (delta 1, hour < 5) still
+    to that old session. After-midnight finish (delta 1, before TRAINING_DAY_CUTOFF) still
     counts. A civil morning (~07:51 gym book) with yesterday's wake no
     longer covers — fall back to civil day so last night's log does not
     mirror into today (#914).
@@ -112,7 +166,7 @@ def wake_covers_as_of(
     from .timeutil import local_now
 
     clock = local_now(tz_name, now=now)
-    return clock.hour < _AFTER_MIDNIGHT_END_HOUR
+    return clock.time() < TRAINING_DAY_CUTOFF
 
 
 def wake_is_current(
@@ -181,12 +235,12 @@ def training_day_iso(
 
     clock = local_now(tz_name, now=now)
     wake = parse_dt(last_wake_at)
-    if wake is None:
-        return local_today_iso(tz_name, now=clock)
-    wake_local = wake.astimezone(clock.tzinfo)
-    if wake_local > clock:
-        return local_today_iso(tz_name, now=clock)
-    return wake_local.strftime("%Y-%m-%d")
+    if wake is None or wake.astimezone(clock.tzinfo) > clock:
+        # No usable wake: before the cutoff is still yesterday (#1304).
+        return training_day_for(clock, tz_name=tz_name) or local_today_iso(
+            tz_name, now=clock
+        )
+    return wake.astimezone(clock.tzinfo).strftime("%Y-%m-%d")
 
 
 def resolve_log_date(
@@ -486,9 +540,8 @@ def _exercise_rows(session: Any) -> list:
 
 
 def _session_day(session: Any) -> str:
-    if isinstance(session, dict):
-        return str(session.get("date") or "")[:10]
-    return str(getattr(session, "date", "") or "")[:10]
+    """Training day of the row (``TRAINING_DAY_CUTOFF``), else its date."""
+    return session_training_day(session)
 
 
 def exercise_logged_work(ex: Any) -> Optional[tuple]:
@@ -705,10 +758,10 @@ def closed_ppl_for_planning(
 ) -> Optional[str]:
     """Latest PPL letter with a persisted close in the planning window (#951).
 
-    Same 5 AM wake window as ``ppl_logged_for_planning``. A partial row
+    Same TRAINING_DAY_CUTOFF (04:00) window as ``ppl_logged_for_planning``. A partial row
     (no close stamp) does not roll the next letter. When more than one
     letter closed in the window, the latest close wins. An overnight
-    close before 05:00 still belongs to that training day.
+    close before TRAINING_DAY_CUTOFF still belongs to that training day.
 
     When a frozen plan is in play, the letter closes only if the remainder
     has no lifts and no volume left (#1109). One real set does not cover

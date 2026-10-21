@@ -1843,6 +1843,64 @@ class PlannedGroup:
     items: List[PlannedItem] = field(default_factory=list)
 
 
+_COMPLETE_SESSION_RE = re.compile(
+    r"^Complete today's (?P<st>\S+) session \((?P<n>\d+) lifts(?P<tail>[^)]*)\)(?P<end>.*)$",
+    re.I,
+)
+
+
+def session_header_from_lifts(
+    names: List[str], fallback_letter: str = ""
+) -> Tuple[str, int]:
+    """(LETTER, count) from the lifts actually in the plan (#1304).
+
+    The letter is the PPL slot every known lift shares (most votes wins).
+    Lifts the catalog does not know do not vote. With no votes, fall back
+    to the plan's own ``session_type``.
+    """
+    from .workout_planner import session_types_for_lift_name
+
+    votes: Dict[str, int] = {}
+    for name in names:
+        try:
+            types = session_types_for_lift_name(name) if name else ()
+        except Exception:  # noqa: BLE001
+            types = ()
+        for t in types or ():
+            t = str(t).lower()
+            if t in ("push", "pull", "legs"):
+                votes[t] = votes.get(t, 0) + 1
+    fallback = str(fallback_letter or "").strip().lower()
+    if votes:
+        best = max(votes.values())
+        tops = [t for t, v in votes.items() if v == best]
+        letter = fallback if fallback in tops else sorted(tops)[0]
+    else:
+        letter = fallback
+    return (letter.upper() if letter else "SESSION", len(names))
+
+
+def _retitle_train_session_header(group, workout: dict) -> None:
+    """Keep 'Complete today's X session (N lifts …)' in step with the ex-* rows."""
+    if group is None:
+        return
+    lifts = [it for it in group.items if str(it.slug or "").startswith("ex-")]
+    names = [lift_name_from_title(it.title) or it.title for it in lifts]
+    for it in group.items:
+        if str(it.slug or "") != TRAIN_SESSION_SLUG:
+            continue
+        m = _COMPLETE_SESSION_RE.match(it.title or "")
+        if not m or not lifts:
+            continue
+        letter, count = session_header_from_lifts(
+            names, str((workout or {}).get("session_type") or m.group("st"))
+        )
+        it.title = (
+            f"Complete today's {letter} session ({count} lifts{m.group('tail')})"
+            f"{m.group('end')}"
+        )[:200]
+
+
 def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[PlannedGroup]:
     """Build desired group → leaf items from coach.today board."""
     day = day or str((today or {}).get("date") or local_today_iso())
@@ -1917,6 +1975,8 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                     notes_extra=str(ex.get("rationale") or "")[:400],
                 )
             )
+
+    _retitle_train_session_header(groups.get("training"), workout)
 
     # Nutrition: meal-plan buckets (Next meal / Later / Evening) — not flat day dump
     meal = (today or {}).get("meal") or {}

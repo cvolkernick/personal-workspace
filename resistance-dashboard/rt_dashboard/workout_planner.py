@@ -1229,10 +1229,19 @@ def session_date_of(session: Any) -> str:
     return str(getattr(session, "date", "") or "")[:10]
 
 
+def _rotation_key(session: Any) -> Tuple[str, str]:
+    """Training day (after-midnight cutoff, #1304), then close stamp."""
+    from .training_day import session_close_dt, session_training_day
+
+    closed = session_close_dt(session)
+    stamp = closed.astimezone(timezone.utc).isoformat() if closed else ""
+    return (session_training_day(session) or session_date_of(session), stamp)
+
+
 def last_session_type(sessions: Sequence[Any]) -> Optional[str]:
     ordered = sorted(
         [s for s in sessions if session_type_of(s) in ("push", "pull", "legs")],
-        key=session_date_of,
+        key=_rotation_key,
         reverse=True,
     )
     if not ordered:
@@ -1250,8 +1259,10 @@ def ppl_logged_on_day(sessions: Sequence[Any], day: Optional[str]) -> Optional[s
     target = str(day or "")[:10]
     if not target:
         return None
+    from .training_day import session_training_day
+
     for s in sessions or []:
-        if session_date_of(s) != target:
+        if session_training_day(s) != target:
             continue
         st = session_type_of(s)
         if st in ("push", "pull", "legs"):

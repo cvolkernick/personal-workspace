@@ -108,7 +108,7 @@ def _logged_exercises_for_day(
     day = _civil_day(day)
     if not day:
         return []
-    from .training_day import session_in_wake
+    from .training_day import session_in_wake, session_training_day
 
     out: List[Dict[str, Any]] = []
     for session in sessions or []:
@@ -124,7 +124,7 @@ def _logged_exercises_for_day(
         if last_wake_at:
             if not session_in_wake(raw, last_wake_at=last_wake_at):
                 continue
-        elif _civil_day(raw.get("date")) != day:
+        elif _civil_day(session_training_day(raw) or raw.get("date")) != day:
             continue
         for ex in raw.get("exercises") or []:
             row = _exercise_row(ex)
@@ -342,7 +342,12 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         if row:
             plan_exercises.append(row)
 
-    from .training_day import last_wake_from, session_in_wake, wake_covers_as_of
+    from .training_day import (
+        last_wake_from,
+        session_in_wake,
+        session_training_day,
+        wake_covers_as_of,
+    )
 
     wake = last_wake_from(payload=payload)
     if wake and not wake_covers_as_of(wake, day):
@@ -370,7 +375,8 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         today_logged = [
             r
             for r in planning
-            if _civil_day(r.get("date")) == day and _ppl_letter(r.get("session_type"))
+            if _ppl_letter(r.get("session_type"))
+            and (_civil_day(session_training_day(r)) or _civil_day(r.get("date"))) == day
         ]
     if today_logged:
         # Already training/logged today — letter is that session, not the next slot.

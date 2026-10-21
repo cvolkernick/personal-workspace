@@ -846,6 +846,13 @@ def fill_stamped_workout(
     if is_good_workout_plan(saved) and not _session_closed(slot):
         return saved
     if read_only:
+        # Token path (#1304): a valid saved plan is the answer. A closed day
+        # still returns it when it is the same letter, so plan_exercises is
+        # not []. A saved plan on another letter is not today's plan.
+        if is_good_workout_plan(saved) and _covers_today(
+            saved, slot.get("session_type")
+        ):
+            return saved
         return slot
     letter = _letter(slot.get("session_type"))
     if not letter or slot.get("is_rest_day") or letter == "rest":
