@@ -319,12 +319,30 @@ def save_json_file(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
+def _bundled_path(rel: str) -> Path:
+    """Repo-root file first, then the app-bundled copy (#1304).
+
+    In the monorepo ``parents[2]`` is the repo root. A standalone overlay
+    (prism ``~/apps/fitdash``) has no repo root, so ``parents[2]`` is
+    ``~/apps`` and the catalog silently loaded 0 exercises. The app ships
+    its own copy under ``parents[1]``.
+    """
+    here = Path(__file__).resolve()
+    root = here.parents[2] / rel
+    if root.is_file():
+        return root
+    bundled = here.parents[1] / rel
+    if bundled.is_file():
+        return bundled
+    return root
+
+
 def default_catalog_path() -> Path:
-    return Path(__file__).resolve().parents[2] / CATALOG_PATH
+    return _bundled_path(CATALOG_PATH)
 
 
 def default_goals_path() -> Path:
-    return Path(__file__).resolve().parents[2] / GOALS_PATH
+    return _bundled_path(GOALS_PATH)
 
 
 def default_catalog() -> dict:
