@@ -1849,27 +1849,76 @@ _COMPLETE_SESSION_RE = re.compile(
 )
 
 
+_PPL = ("push", "pull", "legs")
+
+# Name fallback when neither the plan row nor the catalog says (#1304).
+# Ordered, first match wins. Covers prism's real titles such as
+# "Assisted Pullups", "Machine Row", "Tricep Pushdowns (Rope)".
+_NAME_LETTER_RULES = (
+    ("legs", r"squat|leg press|leg curl|leg ext|lunge|split squat|calf|hamstring|"
+             r"quad|glute|hip thrust|rdl|romanian|deadlift|step[- ]?up|adductor|abductor"),
+    ("push", r"pushdown|push[- ]?down|tricep|dip|bench|chest press|incline|decline|"
+             r"fly|flye|pec|shoulder press|overhead press|ohp|military|lateral raise|"
+             r"front raise|push[- ]?up|skull"),
+    ("pull", r"pull[- ]?up|pullup|chin[- ]?up|pulldown|pull[- ]?down|row|curl|"
+             r"face pull|rear delt|reverse fly|shrug|lat\b|lats\b|bicep"),
+)
+_NAME_LETTER_RES = tuple((l, re.compile(rx, re.I)) for l, rx in _NAME_LETTER_RULES)
+
+
+def letter_for_lift_name(name: str) -> str:
+    """push / pull / legs from the lift name alone, or ''. No catalog needed."""
+    text = str(name or "").strip()
+    if not text:
+        return ""
+    for letter, rx in _NAME_LETTER_RES:
+        if rx.search(text):
+            return letter
+    return ""
+
+
+def _lift_letters(lift: Any) -> Tuple[str, ...]:
+    """PPL slots for one lift: plan row metadata, then catalog, then name."""
+    meta: Tuple[str, ...] = ()
+    name = ""
+    if isinstance(lift, dict):
+        name = str(lift.get("name") or lift.get("exercise") or "")
+        raw = lift.get("session_types") or lift.get("session_type") or lift.get("slot")
+        if isinstance(raw, str):
+            raw = [raw]
+        if isinstance(raw, (list, tuple)):
+            meta = tuple(str(t).lower() for t in raw if str(t).lower() in _PPL)
+    else:
+        name = str(lift or "")
+    if meta:
+        return meta
+    try:
+        from .workout_planner import session_types_for_lift_name
+
+        types = tuple(
+            str(t).lower() for t in (session_types_for_lift_name(name) or ()) if str(t).lower() in _PPL
+        )
+    except Exception:  # noqa: BLE001
+        types = ()
+    if types:
+        return types
+    guess = letter_for_lift_name(name)
+    return (guess,) if guess else ()
+
+
 def session_header_from_lifts(
-    names: List[str], fallback_letter: str = ""
+    lifts: List[Any], fallback_letter: str = ""
 ) -> Tuple[str, int]:
     """(LETTER, count) from the lifts actually in the plan (#1304).
 
-    The letter is the PPL slot every known lift shares (most votes wins).
-    Lifts the catalog does not know do not vote. With no votes, fall back
-    to the plan's own ``session_type``.
+    Each lift votes with its plan metadata, else catalog slots, else a
+    name rule, so an empty catalog cannot fall back to a stale letter.
+    Most votes wins; the plan letter only breaks ties or covers no votes.
     """
-    from .workout_planner import session_types_for_lift_name
-
     votes: Dict[str, int] = {}
-    for name in names:
-        try:
-            types = session_types_for_lift_name(name) if name else ()
-        except Exception:  # noqa: BLE001
-            types = ()
-        for t in types or ():
-            t = str(t).lower()
-            if t in ("push", "pull", "legs"):
-                votes[t] = votes.get(t, 0) + 1
+    for lift in lifts:
+        for t in _lift_letters(lift):
+            votes[t] = votes.get(t, 0) + 1
     fallback = str(fallback_letter or "").strip().lower()
     if votes:
         best = max(votes.values())
@@ -1877,7 +1926,7 @@ def session_header_from_lifts(
         letter = fallback if fallback in tops else sorted(tops)[0]
     else:
         letter = fallback
-    return (letter.upper() if letter else "SESSION", len(names))
+    return (letter.upper() if letter else "SESSION", len(lifts))
 
 
 def _retitle_train_session_header(group, workout: dict) -> None:
@@ -1885,7 +1934,14 @@ def _retitle_train_session_header(group, workout: dict) -> None:
     if group is None:
         return
     lifts = [it for it in group.items if str(it.slug or "").startswith("ex-")]
-    names = [lift_name_from_title(it.title) or it.title for it in lifts]
+    by_slug = {}
+    for ex in (workout or {}).get("exercises") or []:
+        if isinstance(ex, dict) and str(ex.get("name") or "").strip():
+            by_slug[f"ex-{_slug(str(ex.get('name')).strip())}"] = ex
+    names = [
+        by_slug.get(str(it.slug)) or (lift_name_from_title(it.title) or it.title)
+        for it in lifts
+    ]
     for it in group.items:
         if str(it.slug or "") != TRAIN_SESSION_SLUG:
             continue
