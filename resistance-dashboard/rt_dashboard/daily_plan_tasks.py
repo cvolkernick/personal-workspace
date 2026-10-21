@@ -1051,9 +1051,12 @@ def _objective_session_type(workout: Optional[dict]) -> str:
     wo = workout if isinstance(workout, dict) else {}
     if wo.get("is_rest_day") or wo.get("already_trained_today"):
         return ""
-    if wo.get("ppl_logged_today"):
-        return ""
     st = str(wo.get("session_type") or "").lower()
+    logged = str(wo.get("ppl_logged_today") or "").lower()
+    # A letter logged today closes only that letter. An open next-letter
+    # plan (e.g. Pull after a closed Push) is still today's objective (#1304).
+    if logged and (logged == st or st not in ("push", "pull", "legs")):
+        return ""
     return st if st in ("push", "pull", "legs") else ""
 
 
