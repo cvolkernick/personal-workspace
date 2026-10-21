@@ -104,3 +104,11 @@ class ReadOnlyClosedDayTests(unittest.TestCase):
         with mock.patch.object(ap, "load_last_good_workout_plan", return_value=stub):
             out = ap.fill_stamped_workout("u", day="2026-10-21", workout=slot, read_only=True)
         self.assertIs(out.get("session_type"), "push")
+
+
+class ObjectiveLetterTests(unittest.TestCase):
+    def test_logged_other_letter_keeps_open_plan_objective(self):
+        from rt_dashboard.daily_plan_tasks import _objective_session_type
+
+        self.assertEqual(_objective_session_type({"session_type": "pull", "ppl_logged_today": "push"}), "pull")
+        self.assertEqual(_objective_session_type({"session_type": "push", "ppl_logged_today": "push"}), "")
