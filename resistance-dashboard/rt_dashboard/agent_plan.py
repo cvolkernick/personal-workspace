@@ -365,13 +365,21 @@ def _is_remainder_plan(plan: dict) -> bool:
 
 
 def _sets_of(ex: dict) -> int:
+    """Hard sets of a plan row: flat ``sets`` or library ``prescription.sets``."""
+    raw = ex.get("sets")
+    if raw is None and isinstance(ex.get("prescription"), dict):
+        raw = ex["prescription"].get("sets")
     try:
-        return max(0, int(ex.get("sets") or 0))
+        return max(0, int(raw or 0))
     except (TypeError, ValueError):
         return 0
 
 
-def saved_plan_problem(saved: Optional[dict], letter: Optional[str] = None) -> Optional[str]:
+def saved_plan_problem(
+    saved: Optional[dict],
+    letter: Optional[str] = None,
+    required: Optional[list] = None,
+) -> Optional[str]:
     """Why a saved plan must not be served (None when it is fine) (#1304).
 
     Rejects: not a good plan; a closed-day stub (already trained / session
@@ -397,20 +405,120 @@ def saved_plan_problem(saved: Optional[dict], letter: Optional[str] = None) -> O
     if want and have != want:
         return f"other letter: saved {have}, today {want}"
     if not _is_remainder_plan(saved):
-        sets = 0
-        for ex in exercises:
-            try:
-                sets += max(0, int(ex.get("sets") or 0))
-            except (TypeError, ValueError):
-                pass
+        sets = sum(_sets_of(ex) for ex in exercises)
         thin = all(_sets_of(ex) < MIN_SETS_PER_LIFT for ex in exercises)
         if len(exercises) < MIN_PLAN_LIFTS and thin:
             return f"degenerate: {len(exercises)} lifts, {sets} sets"
+        if required:
+            # A plan that drops a pinned (or library-required) lift is
+            # regenerated, not served (#1316).
+            from .workout_planner import missing_required_lifts
+
+            miss = missing_required_lifts(saved, required)
+            if miss:
+                return "missing required lift(s): " + ", ".join(miss)
     return None
 
 
-def _covers_today(saved: Optional[dict], letter: Optional[str]) -> bool:
-    return saved_plan_problem(saved, letter) is None
+def _covers_today(
+    saved: Optional[dict], letter: Optional[str], required: Optional[list] = None
+) -> bool:
+    return saved_plan_problem(saved, letter, required) is None
+
+
+def _pins_for(ctx: dict, letter: Optional[str]) -> list:
+    """Pinned lifts the library can program for ``letter`` (#1316)."""
+    want = _letter(letter)
+    if want not in ("push", "pull", "legs"):
+        return []
+    try:
+        from .workout_planner import normalize_goals, required_pinned_lifts
+
+        goals = normalize_goals(ctx.get("goals") if isinstance(ctx.get("goals"), dict) else {})
+        catalog, equipment = _library_for_plan(ctx)
+        return required_pinned_lifts(goals, want, catalog, equipment)
+    except Exception:
+        return []
+
+
+def _library_mains(rolled: Optional[dict], pins: list, goals: Optional[dict]) -> tuple:
+    """(ids, rows) SuperGrok must keep after the library plan is rejected.
+
+    Pins first, then the library's main lifts in its order. Rows carry the
+    library's SOP prescription, with sets floored at the main-lift floor.
+    """
+    from .muscle_sets import is_plan_accessory
+    from .workout_planner import MAIN_LIFT_MIN_SETS, lift_key
+
+    rows = [e for e in ((rolled or {}).get("exercises") or []) if isinstance(e, dict)]
+    by_key = {lift_key(e): e for e in rows}
+    ids = list(pins)
+    for e in rows:
+        k = lift_key(e)
+        if k not in ids and not is_plan_accessory(e, goals or {}):
+            ids.append(k)
+    out = []
+    for k in ids:
+        e = by_key.get(k) or {}
+        rx = e.get("prescription") if isinstance(e.get("prescription"), dict) else e
+        try:
+            sets = max(MAIN_LIFT_MIN_SETS, int(rx.get("sets") or 0))
+        except (TypeError, ValueError):
+            sets = MAIN_LIFT_MIN_SETS
+        out.append(
+            {
+                "id": k,
+                "name": e.get("name") or k,
+                "min_sets": sets,
+                "reps": rx.get("reps"),
+                "weight_lbs": rx.get("weight_lbs"),
+            }
+        )
+    return ids, out
+
+
+def _same_letter_history(uid: str, day: str, letter: str, ctx: dict) -> dict:
+    """Last plan and last log for ``letter``, beyond the 5-session brief (#1316)."""
+    from datetime import date, timedelta
+
+    out: Dict[str, Any] = {"last_plan": None, "last_log": None}
+    try:
+        prev = (date.fromisoformat(str(day)[:10]) - timedelta(days=1)).isoformat()
+        plan = load_most_recent_good_workout_plan(uid, prev, letter=letter)
+    except Exception:
+        plan = None
+    if isinstance(plan, dict):
+        out["last_plan"] = {
+            "date": plan.get("date"),
+            "session_type": plan.get("session_type"),
+            "exercises": [
+                {
+                    "name": e.get("name"),
+                    "sets": (e.get("prescription") or e).get("sets"),
+                    "reps": (e.get("prescription") or e).get("reps"),
+                    "weight_lbs": (e.get("prescription") or e).get("weight_lbs"),
+                }
+                for e in flatten_plan_exercises(plan.get("exercises"))
+                if isinstance(e, dict)
+            ],
+        }
+    best = None
+    for sess in ctx.get("sessions") or []:
+        d = sess.to_dict() if hasattr(sess, "to_dict") else sess
+        if not isinstance(d, dict) or _letter(d.get("session_type")) != letter:
+            continue
+        if best is None or str(d.get("date") or "") > str(best.get("date") or ""):
+            best = d
+    if best is not None:
+        out["last_log"] = {
+            "date": best.get("date"),
+            "exercises": [
+                {"name": e.get("name"), "sets": e.get("sets")}
+                for e in best.get("exercises") or []
+                if isinstance(e, dict)
+            ],
+        }
+    return out
 
 
 def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[str, Any]:
@@ -651,9 +759,18 @@ def ensure_today_grok_plan(
         rolled = _deterministic_workout(
             ctx, session_type=nxt if nxt in ("push", "pull", "legs") else None
         )
-        if nxt in ("push", "pull", "legs") and saved_plan_problem(rolled, nxt):
+        nxt_pins = _pins_for(ctx, nxt)
+        if nxt in ("push", "pull", "legs") and saved_plan_problem(rolled, nxt, nxt_pins):
             # The library cannot build a real plan for the next letter. Plan
-            # it like any open day (saved plan or SuperGrok) instead.
+            # it like any open day (saved plan or SuperGrok) instead, keeping
+            # the library's main lifts and history in front of SuperGrok (#1316).
+            req_ids, req_rows = _library_mains(rolled, nxt_pins, ctx.get("goals"))
+            ctx = {
+                **ctx,
+                "required_lifts": req_ids,
+                "required_rows": req_rows,
+                "same_letter_history": _same_letter_history(uid, local_today, nxt, ctx),
+            }
             rolled = None
             letter = nxt
             stamped = {
@@ -737,7 +854,11 @@ def ensure_today_grok_plan(
         )
     with _GEN_LOCK:
         saved = None if force else load_last_good_workout_plan(uid, local_today)
-        if _covers_today(saved, letter):
+        required = list(ctx.get("required_lifts") or _pins_for(ctx, letter))
+        required_rows = ctx.get("required_rows") or [
+            {"id": r, "name": r, "min_sets": 2} for r in required
+        ]
+        if _covers_today(saved, letter, required):
             return _gym(
                 {
                     "ok": True,
@@ -766,6 +887,10 @@ def ensure_today_grok_plan(
             "force": force,
             "weighins": ctx.get("weighins"),
         }
+        if required:
+            grok_kwargs["required_lifts"] = required_rows
+        if ctx.get("same_letter_history"):
+            grok_kwargs["same_letter_history"] = ctx.get("same_letter_history")
         result = generate_grok_plans(uid, **grok_kwargs)
         # Pi/Mac cookie-less: Turso grok_sessions may miss; ~/.grok/auth.json is the local SuperGrok path.
         if (
@@ -774,6 +899,18 @@ def ensure_today_grok_plan(
             and "Connect SuperGrok" in str(result.get("error") or "")
         ):
             result = generate_grok_plans("", **grok_kwargs)
+        if result.get("ok") and required:
+            from .workout_planner import missing_required_lifts
+
+            miss = missing_required_lifts(result.get("workout"), required, ordered=True)
+            if miss:
+                # SuperGrok dropped (or reordered) a pinned or library-required
+                # lift: reject the result, never save it (#1316).
+                result = {
+                    **result,
+                    "ok": False,
+                    "error": "SuperGrok plan dropped required lift(s): " + ", ".join(miss),
+                }
         workout = result.get("workout") if isinstance(result.get("workout"), dict) else empty
         if not result.get("ok"):
             err = result.get("error") or "SuperGrok generate failed"
@@ -942,18 +1079,20 @@ def fill_stamped_workout(
     local_day = str(day or "")[:10]
     slot = dict(workout) if isinstance(workout, dict) else {}
     saved = load_last_good_workout_plan(plan_uid, local_day)
-    if saved_plan_problem(saved) is None and not _session_closed(slot):
+    pin_ctx = {"goals": goals or {}}
+    saved_pins = _pins_for(pin_ctx, (saved or {}).get("session_type")) if saved else []
+    if saved_plan_problem(saved, None, saved_pins) is None and not _session_closed(slot):
         return saved
     if read_only:
         # Token path (#1304): a valid saved plan is the answer. A closed day
         # still returns it when it is the same letter, so plan_exercises is
         # not []. A saved plan on another letter is not today's plan.
-        if _covers_today(saved, slot.get("session_type")):
+        if _covers_today(saved, slot.get("session_type"), saved_pins):
             return saved
         # A closed day's valid plan is the next letter's (#1304), e.g. the
         # Push stamp closed and the saved 10/21 plan is a full Pull day.
         nxt = _letter(slot.get("next_session_type"))
-        if nxt and _session_closed(slot) and _covers_today(saved, nxt):
+        if nxt and _session_closed(slot) and _covers_today(saved, nxt, saved_pins):
             return saved
         return slot
     letter = _letter(slot.get("session_type"))

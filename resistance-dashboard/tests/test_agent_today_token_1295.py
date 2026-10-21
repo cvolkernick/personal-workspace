@@ -37,6 +37,8 @@ SAVED = {
     "session_type": "pull",
     "is_rest_day": False,
     "exercises": [
+        # Pull opens with the pinned Assisted Pullups (#1316).
+        {"name": "Assisted Pullups", "sets": 2, "reps": 7, "weight_lbs": 70},
         {"name": "Chest-Supported Row", "sets": 3, "reps": 8},
         {"name": "Lat Pulldown", "sets": 3, "reps": 10},
         {"name": "Hammer Curl", "sets": 2, "reps": 12},
@@ -155,7 +157,7 @@ class ReadOnlyFillTests(_Env):
                 "u", day="2026-10-20", workout=slot, read_only=True
             )
         generate.assert_not_called()
-        self.assertEqual(out["exercises"][0]["name"], "Chest-Supported Row")
+        self.assertEqual(out["exercises"][0]["name"], "Assisted Pullups")
 
     def test_read_only_does_not_persist(self) -> None:
         slot = {"session_type": "push", "is_rest_day": False, "exercises": []}
