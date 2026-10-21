@@ -54,9 +54,18 @@ class TrainingDayIso(unittest.TestCase):
         )
         self.assertEqual(day, "2026-09-09")
 
-    def test_missing_wake_falls_back_to_civil(self):
+    def test_missing_wake_before_cutoff_is_previous_day(self):
+        # #1304: 00:30 with no wake is still the prior training day.
         day = training_day_iso(
             now=datetime(2026, 9, 9, 0, 30, tzinfo=ET),
+            last_wake_at=None,
+            tz_name="America/New_York",
+        )
+        self.assertEqual(day, "2026-09-08")
+
+    def test_missing_wake_after_cutoff_falls_back_to_civil(self):
+        day = training_day_iso(
+            now=datetime(2026, 9, 9, 4, 30, tzinfo=ET),
             last_wake_at=None,
             tz_name="America/New_York",
         )
