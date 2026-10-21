@@ -536,6 +536,53 @@ def invalidate_dashboard_memo() -> None:
         _PAYLOAD_MEMO.clear()
 
 
+def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False):
+    """Today's workout plan exactly as GET /api/agent/today serves it.
+
+    /api/daily-tasks uses the same call so quest lifts equal plan_exercises
+    (#1304); the local planner's coach.today.workout is replaced.
+    """
+    from rt_dashboard.agent_plan import (
+        house_plan_user_id,
+        overlay_workout_on_payload,
+        stamp_and_fill_workout,
+    )
+    from rt_dashboard.timeutil import local_today_iso
+
+    plan_uid = str(uid or house_plan_user_id())
+    day = (
+        ((data.get("coach") or {}).get("today") or {}).get("date")
+        or (data.get("meta") or {}).get("local_today")
+        or local_today_iso()
+    )
+    store = (
+        data.get("workout_store")
+        if isinstance(data.get("workout_store"), dict)
+        else {}
+    )
+    goals = store.get("goals")
+    if not isinstance(goals, dict):
+        goals = (
+            data.get("goals")
+            if isinstance(data.get("goals"), dict)
+            else None
+        )
+    filled = stamp_and_fill_workout(
+        plan_uid,
+        day=str(day)[:10],
+        sessions=data.get("sessions") or [],
+        goals=goals,
+        recovery=data.get("recovery")
+        if isinstance(data.get("recovery"), dict)
+        else {},
+        headers=headers,
+        query=query,
+        read_only=read_only,
+    )
+    data = overlay_workout_on_payload(data, filled)
+    return data
+
+
 def load_dashboard_data(
     *,
     force_refresh: bool = False,
@@ -2113,44 +2160,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 # not the legacy ``default`` row.
                 uid = (user.get("user_id") if user else None) or agent_targets_uid() or None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
-                from rt_dashboard.agent_plan import (
-                    house_plan_user_id,
-                    overlay_workout_on_payload,
-                    stamp_and_fill_workout,
-                )
-                from rt_dashboard.timeutil import local_today_iso
-
-                plan_uid = str(uid or house_plan_user_id())
-                day = (
-                    ((data.get("coach") or {}).get("today") or {}).get("date")
-                    or (data.get("meta") or {}).get("local_today")
-                    or local_today_iso()
-                )
-                store = (
-                    data.get("workout_store")
-                    if isinstance(data.get("workout_store"), dict)
-                    else {}
-                )
-                goals = store.get("goals")
-                if not isinstance(goals, dict):
-                    goals = (
-                        data.get("goals")
-                        if isinstance(data.get("goals"), dict)
-                        else None
-                    )
-                filled = stamp_and_fill_workout(
-                    plan_uid,
-                    day=str(day)[:10],
-                    sessions=data.get("sessions") or [],
-                    goals=goals,
-                    recovery=data.get("recovery")
-                    if isinstance(data.get("recovery"), dict)
-                    else {},
+                data = _overlay_agent_workout(
+                    data,
+                    uid,
                     headers=self.headers,
                     query=parsed.query or "",
                     read_only=(principal == "agent"),
                 )
-                data = overlay_workout_on_payload(data, filled)
                 self._send_json(export_agent_today(data))
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
@@ -2281,6 +2297,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             try:
                 uid = user.get("user_id") if user else None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
+                # Same plan source as /api/agent/today plan_exercises (#1304).
+                data = _overlay_agent_workout(
+                    data, uid, headers=self.headers, query=parsed.query or ""
+                )
                 today = ((data.get("coach") or {}).get("today")) or {}
                 from rt_dashboard.daily_plan_tasks import ensure_daily_tasks
                 from rt_dashboard.timeutil import local_today_iso

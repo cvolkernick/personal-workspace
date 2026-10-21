@@ -1158,8 +1158,15 @@ def apply_training_objective(
             if _ex_leaf(item):
                 current.append(item)
     current_by_slug = {item.slug: item for item in current}
-    if saved and not progressed and _saved_objective_is_stale(
-        saved, session_type, set(current_by_slug)
+    # Untouched target that no longer equals today's plan is rebuilt: the
+    # plan (agent plan_exercises) is the source of truth (#1304).
+    # A plan that only shrank (lifts done / remainder) keeps the target (#999).
+    drifted = bool(session_type) and bool(
+        set(current_by_slug) - set(saved_by_slug)
+    )
+    if saved and not progressed and (
+        drifted
+        or _saved_objective_is_stale(saved, session_type, set(current_by_slug))
     ):
         saved = {}
         saved_by_slug = {}
