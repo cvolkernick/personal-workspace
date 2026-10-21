@@ -1139,6 +1139,7 @@ def apply_training_objective(
     session_type = str(session_type or "").lower()
     # Work already done on the frozen target keeps it (#999); an untouched
     # target from another letter is stale and is rebuilt from today (#1304).
+    saved_letter = str(saved.get("session_type") or "").lower()
     progressed = any(
         isinstance(raw, dict) and str(raw.get("slug") or "") in (done_slugs or set())
         for raw in (saved.get("leaves") or [])
@@ -1157,11 +1158,20 @@ def apply_training_objective(
             if _ex_leaf(item):
                 current.append(item)
     current_by_slug = {item.slug: item for item in current}
-    if saved and not progressed and _saved_objective_is_stale(
-        saved, session_type, set(current_by_slug)
+    # Untouched target that no longer equals today's plan is rebuilt: the
+    # plan (agent plan_exercises) is the source of truth (#1304).
+    # A plan that only shrank (lifts done / remainder) keeps the target (#999).
+    drifted = bool(session_type) and bool(
+        set(current_by_slug) - set(saved_by_slug)
+    )
+    if saved and not progressed and (
+        drifted
+        or _saved_objective_is_stale(saved, session_type, set(current_by_slug))
     ):
         saved = {}
         saved_by_slug = {}
+        saved_letter = ""
+    kept_target = bool(saved_by_slug)
 
     if saved_by_slug:
         from .training_day import frozen_prescription_fields
@@ -1199,7 +1209,9 @@ def apply_training_objective(
         frozen = bool(leaves)
 
     objective = {"frozen": frozen, "target_n": target_n, "leaves": leaves}
-    st_keep = session_type or str(saved.get("session_type") or "").lower()
+    # Never stamp today's letter onto kept leaves: a legacy target without a
+    # letter would then pass as today's split forever (#1304).
+    st_keep = saved_letter if kept_target else session_type
     if st_keep in ("push", "pull", "legs"):
         objective["session_type"] = st_keep
     leaf_items = [_item_from_leaf(raw) for raw in leaves]

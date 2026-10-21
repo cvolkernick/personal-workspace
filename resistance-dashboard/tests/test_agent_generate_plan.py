@@ -835,6 +835,8 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         today_idx = text.find('parsed.path == "/api/agent/today"')
         self.assertGreater(today_idx, 0)
         chunk = text[today_idx : today_idx + 2400]
-        self.assertIn("stamp_and_fill_workout", chunk)
+        self.assertIn("_overlay_agent_workout", chunk)
+        helper = text[text.find("def _overlay_agent_workout") :]
+        self.assertIn("stamp_and_fill_workout", helper[:2400])
         self.assertNotIn('data.get("workout")', chunk)
         self.assertNotIn("load_last_good_workout_plan", chunk)

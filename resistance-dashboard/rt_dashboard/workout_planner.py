@@ -2365,6 +2365,21 @@ def generate_workout_plan(
         last_wake_at=last_wake_at,
         now=now,
     )
+    # A frozen target from another PPL letter must not become today's
+    # plan (#1304): the quest builder would then see it as today's lifts.
+    obj_letter = (
+        str(training_objective.get("session_type") or "").lower()
+        if isinstance(training_objective, dict)
+        else ""
+    )
+    if obj_letter in ("push", "pull", "legs"):
+        want = explicit if explicit in ("push", "pull", "legs") else (
+            logged_today
+            if logged_today in ("push", "pull", "legs")
+            else next_session_type(sessions, goals)
+        )
+        if want in ("push", "pull", "legs") and want != obj_letter:
+            training_objective = None
     remainder = frozen_plan_remainder(training_objective, window_sessions)
     closed_letter = closed_ppl_for_planning(
         sessions,
