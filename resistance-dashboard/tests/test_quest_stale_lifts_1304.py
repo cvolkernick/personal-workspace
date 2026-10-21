@@ -100,6 +100,19 @@ class StaleLegsOnPushDay(unittest.TestCase):
         self.assertTrue(all(t.split(" (")[0] in ("Bench Press", "Overhead Press", "Tricep Pushdown") for t in titles), titles)
         self.assertFalse(any("RDL" in t or "Leg" in t for t in titles), titles)
 
+    def test_uncatalogued_legacy_legs_rebuilt_when_disjoint(self):
+        """prism's catalog can't resolve every lift; the legacy row must still rebuild."""
+        from unittest import mock
+        saved = {"frozen": True, "target_n": 2, "leaves": [
+            {"slug": "ex-rdl", "title": "RDL (50.0 lb 1×5)"},
+            {"slug": "ex-calf-raises", "title": "Calf Raises (120.0 lb 1×9)"},
+        ]}
+        push = [("ex-barbell-flat-bench-press", "Barbell Flat Bench Press (95.0 lb 2×6)"),
+                ("ex-db-incline-press", "DB Incline Press (45.0 lb 3×5)")]
+        with mock.patch("rt_dashboard.workout_planner.session_types_for_lift_name", return_value=()):
+            planned, _ = apply_training_objective(_plan(push), saved, session_type="push")
+        self.assertEqual(_titles(planned), [t for _, t in push])
+
 
 if __name__ == "__main__":
     unittest.main()

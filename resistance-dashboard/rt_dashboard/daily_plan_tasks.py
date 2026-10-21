@@ -1057,7 +1057,9 @@ def _objective_session_type(workout: Optional[dict]) -> str:
     return st if st in ("push", "pull", "legs") else ""
 
 
-def _saved_objective_is_stale(saved: dict, session_type: str) -> bool:
+def _saved_objective_is_stale(
+    saved: dict, session_type: str, current_slugs: Optional[set] = None
+) -> bool:
     """A frozen target from another PPL letter must not survive (#1304).
 
     E.g. a Legs session closed after midnight froze Legs lifts on the new
@@ -1068,7 +1070,17 @@ def _saved_objective_is_stale(saved: dict, session_type: str) -> bool:
     saved_st = str(saved.get("session_type") or "").lower()
     if saved_st in ("push", "pull", "legs"):
         return saved_st != session_type
-    # Legacy cache rows carry no letter: check lifts against the catalog.
+    # Legacy cache rows carry no letter. If none of the saved lifts are in
+    # today's plan, it is another session's target (catalogs may not know
+    # every lift name, e.g. prism's).
+    saved_slugs = {
+        str(raw.get("slug") or "")
+        for raw in (saved.get("leaves") or [])
+        if isinstance(raw, dict) and str(raw.get("slug") or "").startswith("ex-")
+    }
+    if current_slugs and saved_slugs and not (saved_slugs & set(current_slugs)):
+        return True
+    # Otherwise check lifts against the catalog.
     from .workout_planner import session_types_for_lift_name
 
     for raw in saved.get("leaves") or []:
@@ -1131,8 +1143,6 @@ def apply_training_objective(
         isinstance(raw, dict) and str(raw.get("slug") or "") in (done_slugs or set())
         for raw in (saved.get("leaves") or [])
     )
-    if saved and not progressed and _saved_objective_is_stale(saved, session_type):
-        saved = {}
     saved_leaves = [
         x
         for x in (saved.get("leaves") or [])
@@ -1147,6 +1157,11 @@ def apply_training_objective(
             if _ex_leaf(item):
                 current.append(item)
     current_by_slug = {item.slug: item for item in current}
+    if saved and not progressed and _saved_objective_is_stale(
+        saved, session_type, set(current_by_slug)
+    ):
+        saved = {}
+        saved_by_slug = {}
 
     if saved_by_slug:
         from .training_day import frozen_prescription_fields
