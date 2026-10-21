@@ -651,8 +651,10 @@ def frozen_plan_remainder(objective: Any, sessions: Sequence[Any]) -> Optional[d
     logged = logged_work_by_lift(sessions)
     lifts = []
     total = 0.0
+    logged_sets = 0
     for target in targets:
         got = logged.get(target["slug"]) or {"sets": 0, "volume": 0.0}
+        logged_sets += max(0, int(got["sets"] or 0))
         rem_sets = max(0, int(target["sets"]) - int(got["sets"]))
         rem_volume = float(target["volume"]) - float(got["volume"])
         if rem_volume <= 1e-6:
@@ -682,7 +684,46 @@ def frozen_plan_remainder(objective: Any, sessions: Sequence[Any]) -> Optional[d
         "done": not lifts and total <= 0,
         "volume": total,
         "lifts": lifts,
+        # #1316: sets logged against the frozen targets. A remainder only
+        # counts as a started session once this is > 0 (or a lift is done).
+        "logged_sets": logged_sets,
+        "target_lifts": len(targets),
     }
+
+
+def remainder_started(remainder: Any) -> bool:
+    """True once the frozen session has real logged work (#1316).
+
+    An untouched frozen target (every lift at its planned sets, nothing
+    logged) is not a remainder; it is just a saved plan.
+    """
+    if not isinstance(remainder, dict) or remainder.get("empty_plan"):
+        return False
+    if remainder.get("done"):
+        return True
+    try:
+        if int(remainder.get("logged_sets") or 0) > 0:
+            return True
+    except (TypeError, ValueError):
+        pass
+    lifts = [l for l in remainder.get("lifts") or [] if isinstance(l, dict)]
+    try:
+        n_targets = int(remainder.get("target_lifts") or 0)
+    except (TypeError, ValueError):
+        n_targets = 0
+    if n_targets and len(lifts) < n_targets:
+        return True  # a lift finished and dropped out
+    for lift in lifts:
+        try:
+            planned = lift.get("planned_sets")
+            if planned is not None and int(lift.get("sets") or 0) < int(planned):
+                return True
+            pv = lift.get("planned_volume")
+            if pv is not None and float(lift.get("volume") or 0) < float(pv) - 1e-6:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
 
 
 def remainder_public(remainder: Optional[dict]) -> Optional[dict]:
@@ -710,6 +751,8 @@ def remainder_public(remainder: Optional[dict]) -> Optional[dict]:
         "empty_plan": bool(remainder.get("empty_plan")),
         "volume": float(remainder.get("volume") or 0),
         "lifts": lifts,
+        "logged_sets": int(remainder.get("logged_sets") or 0),
+        "target_lifts": int(remainder.get("target_lifts") or 0),
     }
 
 

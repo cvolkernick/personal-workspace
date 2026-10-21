@@ -30,7 +30,8 @@ class SavedPlanProblemTests(unittest.TestCase):
         self.assertIn("degenerate", saved_plan_problem(p, "pull"))
 
     def test_remainder_not_degenerate(self):
-        p = {"session_type": "pull", "remainder": {"done": False},
+        # #1316: only a started remainder (logged sets) is exempt.
+        p = {"session_type": "pull", "remainder": {"done": False, "logged_sets": 2},
              "exercises": [_ex("Barbell Row", 1)]}
         self.assertIsNone(saved_plan_problem(p, "pull"))
 
