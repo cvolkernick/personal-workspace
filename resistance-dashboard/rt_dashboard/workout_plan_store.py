@@ -8,8 +8,19 @@ generate → Today works on Mac preview when Turso is dark.
 from __future__ import annotations
 
 import json
+import logging
+import os
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Iterator, Optional, Tuple
+
+_LOG = logging.getLogger("fitdash.plan_write_guard")
+
+# Smoke / parity / dev guard (#1304). When any of these env vars is truthy,
+# workout_plan saves are refused for every day except the current training
+# day (``training_day.TRAINING_DAY_CUTOFF``, 04:00 local). Refusals are logged.
+PLAN_WRITE_GUARD_ENVS = ("FITDASH_PLAN_WRITE_GUARD", "FITDASH_SMOKE", "FITDASH_PARITY")
+_TRUTHY = ("1", "true", "yes", "on")
 
 ENSURE_WORKOUT_PLAN_SQL = """
 CREATE TABLE IF NOT EXISTS workout_plan (
@@ -133,6 +144,10 @@ def _turso_get_workout_plan(user_id: str, local_today: str) -> Optional[dict]:
 
 
 def _turso_put_workout_plan(user_id: str, local_today: str, plan: dict) -> None:
+    refusal = plan_write_refusal(local_today)
+    if refusal:  # defence in depth for callers that skip the public save
+        _LOG.warning("%s user=%s (turso put)", refusal, (user_id or "").strip())
+        raise PermissionError(refusal)
     from .turso_http import connect, turso_enabled
 
     if not turso_enabled():
@@ -159,10 +174,56 @@ def _turso_put_workout_plan(user_id: str, local_today: str, plan: dict) -> None:
         )
 
 
+def plan_write_guard_active() -> bool:
+    return any(
+        (os.environ.get(name) or "").strip().lower() in _TRUTHY
+        for name in PLAN_WRITE_GUARD_ENVS
+    )
+
+
+def current_training_day(now: Optional[datetime] = None) -> str:
+    """Today's training day by the 04:00 cutoff (no wake signal used)."""
+    from .training_day import training_day_for
+    from .timeutil import local_now
+
+    return training_day_for(local_now(now=now)) or ""
+
+
+def plan_write_refusal(local_today: str, *, now: Optional[datetime] = None) -> Optional[str]:
+    """None when the save may proceed. A reason string when the guard refuses."""
+    if not plan_write_guard_active():
+        return None
+    day = civil_day(local_today)
+    current = current_training_day(now)
+    if day and day == current:
+        return None
+    return f"plan_write_guard: refused workout_plan write for {day or '?'} (current training day {current})"
+
+
+@contextmanager
+def plan_write_guard() -> Iterator[None]:
+    """Turn the guard on for a block (parity / smoke harnesses)."""
+    prev = os.environ.get("FITDASH_PLAN_WRITE_GUARD")
+    os.environ["FITDASH_PLAN_WRITE_GUARD"] = "1"
+    try:
+        yield
+    finally:
+        if prev is None:
+            os.environ.pop("FITDASH_PLAN_WRITE_GUARD", None)
+        else:
+            os.environ["FITDASH_PLAN_WRITE_GUARD"] = prev
+
+
 def save_last_good_workout_plan(user_id: str, local_today: str, plan: dict) -> dict:
     """Persist a good SuperGrok plan. Empty/rest is not a good plan."""
     key = persist_key(user_id, local_today)
     out: Dict[str, Any] = {"ok": False, "store": "turso", "key": key, "error": None}
+    refusal = plan_write_refusal(key["local_today"])
+    if refusal:
+        _LOG.warning("%s user=%s", refusal, key["user_id"])
+        out["store"] = "guard_refused"
+        out["error"] = refusal
+        return out
     if not key["user_id"]:
         out["error"] = "user_id required"
         return out
