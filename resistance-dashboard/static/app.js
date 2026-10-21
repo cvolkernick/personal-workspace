@@ -6988,6 +6988,10 @@
   let lastSyncedDailyTasks = null;
   /** Food-log fingerprint last written onto meal-plan GT items this page. */
   let lastSyncedFoodLogsFp = "";
+  /** ms of the last successful /api/daily-tasks sync. A home-screen PWA stays
+   * alive for hours, so a same-day payload must not stick forever (#1304). */
+  let lastQuestSyncAt = 0;
+  const QUEST_RESYNC_MS = 5 * 60 * 1000;
 
   function escQuest(value) {
     return String(value == null ? "" : value)
@@ -8493,6 +8497,14 @@
     const incoming = today.daily_tasks || data.daily_tasks || null;
     const day = civilDay((data.meta && data.meta.local_today) || today.date || "");
     const alreadySyncedToday = !!(lastQuestSyncedDay && day && lastQuestSyncedDay === day);
+    // Same day but stale: re-pull so a server plan fix (#1304) reaches a page
+    // that stayed open. Paint the last payload meanwhile; no GT rollover risk
+    // (ensure_daily_tasks is idempotent for the day).
+    const questSyncStale = !!(
+      alreadySyncedToday &&
+      lastQuestSyncAt &&
+      Date.now() - lastQuestSyncAt > QUEST_RESYNC_MS
+    );
     const foodFp = String(((today.nutrition || {}).food_logs_fp) || "");
     const foodLogsForceMealRegen = !!(
       alreadySyncedToday &&
@@ -8511,9 +8523,11 @@
     if (
       (!alreadySyncedToday &&
         (!daily || daily.needs_sync || daily.source !== "google_tasks")) ||
-      foodLogsForceMealRegen
+      foodLogsForceMealRegen ||
+      questSyncStale
     ) {
       syncDailyTasksFromServer().then((ok) => {
+        if (ok) lastQuestSyncAt = Date.now();
         if (ok && day) lastQuestSyncedDay = day;
         if (ok && foodFp) lastSyncedFoodLogsFp = foodFp;
       });
