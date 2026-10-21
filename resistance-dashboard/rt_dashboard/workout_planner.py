@@ -180,6 +180,9 @@ DEFAULT_GOALS = {
     "session_working_set_cap": 14,
     "secondary_set_fraction": 0.5,
     "default_hard_sets": 2,  # preferred hard sets when history is thin
+    # Lifts that open a session type, in order (#1316). Loads and reps still
+    # come from SOP progression off the last log; only the slot is pinned.
+    "pinned_lifts": {"pull": ["assisted-pullups"]},
     "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
 }
 
@@ -394,6 +397,14 @@ def normalize_goals(raw: Optional[dict]) -> dict:
         g["volume_framework"] = str(raw["volume_framework"])
     if "prefer_compounds_first" in raw:
         g["prefer_compounds_first"] = bool(raw["prefer_compounds_first"])
+    if isinstance(raw.get("pinned_lifts"), dict):
+        pins: Dict[str, List[str]] = {}
+        for letter, ids in raw["pinned_lifts"].items():
+            key = str(letter or "").strip().lower()
+            if key not in ("push", "pull", "legs") or not isinstance(ids, list):
+                continue
+            pins[key] = [str(i).strip() for i in ids if str(i or "").strip()]
+        g["pinned_lifts"] = pins
     if raw.get("progression"):
         g["progression"] = str(raw["progression"])
     if raw.get("notes") is not None:
@@ -1134,6 +1145,84 @@ def clamp_workout_to_equipment(
 
 def _norm_name(name: str) -> str:
     return re.sub(r"\s+", " ", name.strip().lower())
+
+
+# Main lifts never drop below this many hard sets unless a deload (#1316).
+MAIN_LIFT_MIN_SETS = 2
+
+
+def pinned_lift_ids(goals: Optional[dict], letter: Optional[str]) -> List[str]:
+    """Catalog ids pinned to open ``letter``, in order (#1316)."""
+    pins = (goals or {}).get("pinned_lifts")
+    if not isinstance(pins, dict):
+        return []
+    ids = pins.get(str(letter or "").strip().lower()) or []
+    return [str(i) for i in ids if str(i or "").strip()]
+
+
+def lift_key(item: Any, catalog_by_id: Optional[Dict[str, dict]] = None) -> str:
+    """Stable id for a plan row, log row or name (id, else alias, else slug)."""
+    if isinstance(item, dict):
+        eid = str(item.get("id") or "").strip()
+        if eid:
+            return eid
+        item = item.get("name") or ""
+    name = str(item or "")
+    return (
+        _canonical_exercise_id(name, catalog_by_id)
+        or NAME_ALIASES.get(_norm_name(name))
+        or _slug(name)
+    )
+
+
+def required_pinned_lifts(
+    goals: Optional[dict],
+    letter: Optional[str],
+    catalog: Optional[dict],
+    equipment: Optional[dict] = None,
+) -> List[str]:
+    """Pinned ids the library can actually program for ``letter`` today.
+
+    A pin whose gear is missing or that is not in the library is not
+    required, so a plan without it is not rejected forever.
+    """
+    pins = pinned_lift_ids(goals, letter)
+    if not pins or not isinstance(catalog, dict):
+        return []
+    feasible = (
+        filter_catalog_by_equipment(catalog, equipment)
+        if isinstance(equipment, dict)
+        else catalog
+    )
+    want = str(letter or "").strip().lower()
+    ok = set()
+    for ex in feasible.get("exercises") or []:
+        if not isinstance(ex, dict) or ex.get("available") is False:
+            continue
+        types = ex.get("session_types") or []
+        if isinstance(types, str):
+            types = [types]
+        if want in [str(t).lower() for t in types]:
+            ok.add(str(ex.get("id") or _slug(str(ex.get("name") or ""))))
+    return [p for p in pins if p in ok]
+
+
+def missing_required_lifts(
+    plan: Optional[dict], required: Sequence[str], *, ordered: bool = False
+) -> List[str]:
+    """Required ids absent from ``plan`` (or ["order"] when out of order)."""
+    if not required:
+        return []
+    rows = [e for e in ((plan or {}).get("exercises") or []) if isinstance(e, dict)]
+    keys = [lift_key(e) for e in rows]
+    missing = [r for r in required if r not in keys]
+    if missing:
+        return missing
+    if ordered:
+        pos = [keys.index(r) for r in required]
+        if pos != sorted(pos):
+            return ["order"]
+    return []
 
 
 def _canonical_exercise_id(
@@ -2695,6 +2784,15 @@ def generate_workout_plan(
         return _norm_name(str(e.get("name") or "")) in today_logged_names
 
     chosen: List[dict] = []
+    # Pinned lifts open the session, in order (#1316). They take their
+    # pattern-family slot, so e.g. Pulldowns cannot also stack.
+    pool_by_id = {str(e.get("id")): e for e in pool}
+    pin_ids = [
+        p for p in pinned_lift_ids(goals, st)
+        if p in pool_by_id and not _already_logged_today(pool_by_id[p])
+    ]
+    for p in pin_ids:
+        chosen.append(pool_by_id[p])
     # Seed with top compound if compounds preferred
     if n and goals.get("prefer_compounds_first", True):
         for e in pool_scored:
@@ -2732,8 +2830,23 @@ def generate_workout_plan(
     if use_remainder:
         chosen = []
 
+    def _is_main(e: dict) -> bool:
+        if str(e.get("id")) in pin_ids:
+            return True
+        if is_plan_accessory is not None:
+            return not is_plan_accessory(e, goals)
+        return e.get("movement") == "compound"
+
+    # Budget order (#1316): pins, then main lifts, then accessories, so the
+    # weekly and session caps trim accessories first.
+    chosen = (
+        [e for e in chosen if str(e.get("id")) in pin_ids]
+        + [e for e in chosen if str(e.get("id")) not in pin_ids and _is_main(e)]
+        + [e for e in chosen if not _is_main(e)]
+    )
+
     for ex in chosen:
-        if session_sets >= session_cap:
+        if session_sets >= session_cap and not _is_main(ex):
             break
         last = last_performance(sessions, ex["name"], by_id)
         if not last:
@@ -2795,6 +2908,10 @@ def generate_workout_plan(
         )
         # Also respect remaining session budget
         hard = max(1, min(hard, session_cap - session_sets))
+        if _is_main(ex) and not deload:
+            # A single-set log or a spent budget never squeezes a main or
+            # pinned lift below the floor (#1316). Accessories are trimmed.
+            hard = max(hard, MAIN_LIFT_MIN_SETS)
         # Accessories only: do not schedule sets past the weekly proper-set cap.
         # Main-lift set counts stay on the existing progression path.
         if (

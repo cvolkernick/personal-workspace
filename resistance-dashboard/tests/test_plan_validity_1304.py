@@ -9,7 +9,7 @@ def _ex(name, sets=3):
     return {"name": name, "sets": sets, "reps": "8-10"}
 
 
-PULL = [_ex("Barbell Row"), _ex("Lat Pulldown"), _ex("Dumbbell Curl"), _ex("Face Pull")]
+PULL = [_ex("Assisted Pullups"), _ex("Barbell Row"), _ex("Lat Pulldown"), _ex("Dumbbell Curl"), _ex("Face Pull")]
 PUSH = [_ex("Bench Press"), _ex("Overhead Press"), _ex("Triceps Pushdown")]
 
 
@@ -77,7 +77,7 @@ class OverlayAndHeaderTests(unittest.TestCase):
                               title=e["name"]) for e in PULL]
         g = PlannedGroup(group="training", title="Training", emoji="x", items=items)
         _retitle_train_session_header(g, {"session_type": "pull", "exercises": PULL})
-        self.assertEqual(items[0].title, "Complete today's PULL session (4 lifts)")
+        self.assertEqual(items[0].title, "Complete today's PULL session (5 lifts)")
 
 
 class ReadOnlyClosedDayTests(unittest.TestCase):
@@ -91,7 +91,7 @@ class ReadOnlyClosedDayTests(unittest.TestCase):
         with mock.patch.object(ap, "load_last_good_workout_plan", return_value=saved):
             out = ap.fill_stamped_workout("u", day="2026-10-21", workout=slot, read_only=True)
         self.assertEqual(out["session_type"], "pull")
-        self.assertEqual(len(out["exercises"]), 4)
+        self.assertEqual(len(out["exercises"]), 5)
 
     def test_token_feed_rejects_stub_on_closed_day(self):
         from unittest import mock

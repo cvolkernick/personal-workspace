@@ -232,6 +232,8 @@ def generate_grok_plans(
     as_of: Optional[str] = None,
     force: bool = False,
     weighins: Optional[list] = None,
+    required_lifts: Optional[list] = None,
+    same_letter_history: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. In-stock pantry only. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
@@ -299,6 +301,10 @@ def generate_grok_plans(
         "inventory": None,
         "equipment": None,
         "next_session_type": next_session_type,
+        # #1316: pinned / library main lifts SuperGrok must keep, in order,
+        # and the last plan + log of this letter beyond recent_sessions.
+        "required_lifts": list(required_lifts or []),
+        "same_letter_history": same_letter_history or None,
         "rest_if_recovery_below": (goals or {}).get("rest_if_recovery_below") or 40,
         "rest_gate": gate,
         "volume_caps": {
@@ -429,6 +435,13 @@ def generate_grok_plans(
         "not an omitted slot). Still set session_type (rest or next PPL). "
         "Never omit the workout object. Keep next_session_type for rotation. "
         "Sparse sleep must not rest.\n"
+        "- required_lifts (when non-empty) MUST all appear, by exact name, in "
+        "the given order, as the first exercises, with at least min_sets sets "
+        "and the given reps/weight_lbs unless recovery says otherwise. Main "
+        "lifts never get fewer than 2 sets. When volume caps bind, trim "
+        "accessories first; never squeeze the session to 1 set per lift.\n"
+        "- same_letter_history is the last plan and last log for this "
+        "session type; use it for continuity and progression.\n"
         "- No canned plan. No fake inventory.\n"
         "- If you cannot generate, return empty arrays and say why in message.\n"
         "- Never include secrets or tokens."

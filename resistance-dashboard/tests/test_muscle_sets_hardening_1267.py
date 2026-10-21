@@ -482,12 +482,14 @@ class PlannerCapUnchanged(unittest.TestCase):
         ]
         self.assertEqual(
             self._plan(low + cur, "pull", "2026-10-14"),
-            [("Assisted Pullups", 1), ("Machine Row", 1)],
+            # #1316: the spent weekly budget trims accessories; main and
+            # pinned lifts keep the 2-set floor (was 1 set each).
+            [("Assisted Pullups", 2), ("Machine Row", 2)],
         )
         self.assertEqual(
             self._plan(low + cur, "push", "2026-10-15"),
-            [("Smith Flat Bench", 1), ("Tricep Pushdowns (Rope)", 1),
-             ("Smith Incline Bench", 1), ("Behind-the-Neck Smith Press", 1)],
+            [("Smith Flat Bench", 2), ("Tricep Pushdowns (Rope)", 2),
+             ("Smith Incline Bench", 2), ("Behind-the-Neck Smith Press", 2)],
         )
         hi = []
         for m in FOUR_WEEKS:
@@ -497,7 +499,8 @@ class PlannerCapUnchanged(unittest.TestCase):
         self.assertEqual(
             self._plan(hi, "push", "2026-10-13"),
             [("DB Incline Press", 2), ("Smith Flat Bench", 2), ("Behind-the-Neck Smith Press", 2),
-             ("Tricep Pushdowns (Rope)", 1), ("Lateral Raises", 1)],
+             # Pushdowns (Rope) is a pattern-family main lift: 2-set floor (#1316).
+             ("Tricep Pushdowns (Rope)", 2), ("Lateral Raises", 1)],
         )
 
 
