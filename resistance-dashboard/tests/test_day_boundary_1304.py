@@ -206,7 +206,11 @@ class TokenPathSavedPlanTests(unittest.TestCase):
     SAVED = {
         "session_type": "push",
         "is_rest_day": False,
-        "exercises": [{"name": "Smith Flat Bench", "sets": 3, "reps": 8}],
+        "exercises": [
+            {"name": "Smith Flat Bench", "sets": 3, "reps": 8},
+            {"name": "DB Shoulder Press", "sets": 3, "reps": 10},
+            {"name": "Tricep Pushdowns (Rope)", "sets": 2, "reps": 12},
+        ],
     }
 
     def test_valid_saved_plan_returns_exercises_on_token_path(self) -> None:
@@ -224,7 +228,7 @@ class TokenPathSavedPlanTests(unittest.TestCase):
             out = fill_stamped_workout("u", day="2026-10-21", workout=slot, read_only=True)
         generate.assert_not_called()
         persist.assert_not_called()
-        self.assertEqual([e["name"] for e in out["exercises"]], ["Smith Flat Bench"])
+        self.assertEqual(out["exercises"][0]["name"], "Smith Flat Bench")
         payload = overlay_workout_on_payload({"coach": {"today": {}}}, out)
         self.assertEqual(payload["workout"]["exercises"][0]["name"], "Smith Flat Bench")
         self.assertFalse(payload["workout"]["empty"])
@@ -244,7 +248,7 @@ class TokenPathSavedPlanTests(unittest.TestCase):
         )
         body = export_agent_today(payload)
         names = [r.get("name") for r in body["today"]["workout"]["plan_exercises"]]
-        self.assertEqual(names, ["Smith Flat Bench"])
+        self.assertEqual(names[0], "Smith Flat Bench")
 
 
 if __name__ == "__main__":

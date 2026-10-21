@@ -36,7 +36,11 @@ HOUSE = "house-service-secret"
 SAVED = {
     "session_type": "pull",
     "is_rest_day": False,
-    "exercises": [{"name": "Chest-Supported Row", "sets": 3, "reps": 8}],
+    "exercises": [
+        {"name": "Chest-Supported Row", "sets": 3, "reps": 8},
+        {"name": "Lat Pulldown", "sets": 3, "reps": 10},
+        {"name": "Hammer Curl", "sets": 2, "reps": 12},
+    ],
 }
 
 
@@ -434,7 +438,7 @@ class PiTailnetOverlayTests(_Env):
             row.get("name")
             for row in body["today"]["workout"].get("plan_exercises") or []
         ]
-        self.assertEqual(names, ["Chest-Supported Row"])
+        self.assertEqual(names, [e["name"] for e in SAVED["exercises"]])
         self.assertNotIn(AGENT, json.dumps(body))
         generate.assert_not_called()
         persist.assert_not_called()

@@ -283,6 +283,7 @@ def stamp_today_session(
         last_wake_from,
         planning_window_sessions,
         ppl_logged_for_planning,
+        remainder_is_history,
         remainder_public,
     )
     from .workout_planner import (
@@ -317,6 +318,12 @@ def stamp_today_session(
         now=now,
     )
     remainder = frozen_plan_remainder(training_objective, window)
+    if remainder_is_history(window, day, remainder):
+        # #1304: the window is last night's session, closed before civil
+        # midnight of the plan day. Its frozen remainder is history and must
+        # not keep the letter open: the plan day rolls to the next letter.
+        remainder = None
+        training_objective = None
     closed = closed_ppl_for_planning(
         sessions or [],
         as_of=day,

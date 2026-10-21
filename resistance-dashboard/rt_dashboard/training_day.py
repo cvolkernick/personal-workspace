@@ -713,6 +713,31 @@ def remainder_public(remainder: Optional[dict]) -> Optional[dict]:
     }
 
 
+def remainder_is_history(window: Sequence[Any], as_of: Any, remainder: Any) -> bool:
+    """True when an open frozen remainder comes only from sessions that
+    closed on an earlier civil date than the plan day ``as_of`` (#1304).
+
+    After midnight but before ``TRAINING_DAY_CUTOFF`` the planning window is
+    still last night's wake. A session that closed before midnight is done:
+    its leftover frozen targets must not keep that letter open for the new
+    plan day, so the plan rolls to the next letter.
+    """
+    if not isinstance(remainder, dict) or remainder.get("done"):
+        return False
+    day = str(as_of or "")[:10]
+    if not day or not window:
+        return False
+    from .timeutil import local_tz
+
+    for session in window:
+        if not session_has_close_stamp(session):
+            return False
+        closed = session_close_dt(session)
+        if closed is None or closed.astimezone(local_tz()).date().isoformat() >= day:
+            return False
+    return True
+
+
 def planning_window_sessions(
     sessions: Sequence[Any],
     *,
@@ -791,16 +816,16 @@ def closed_ppl_for_planning(
             continue
         closed = session_close_dt(session, tz_name=tz_name)
         hits.append((closed or datetime.min.replace(tzinfo=timezone.utc), letter))
-    remainder = frozen_plan_remainder(
-        training_objective,
-        planning_window_sessions(
-            sessions,
-            as_of=as_of,
-            last_wake_at=last_wake_at,
-            now=clock,
-            tz_name=tz_name,
-        ),
+    window = planning_window_sessions(
+        sessions,
+        as_of=as_of,
+        last_wake_at=last_wake_at,
+        now=clock,
+        tz_name=tz_name,
     )
+    remainder = frozen_plan_remainder(training_objective, window)
+    if remainder_is_history(window, as_of, remainder):
+        remainder = None
     if remainder is not None and not remainder["done"]:
         return None
     if not hits:

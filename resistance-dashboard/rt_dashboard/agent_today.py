@@ -419,6 +419,24 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         # Stale last_wake must not hide the letter that actually closed today.
         session_type = closed_letter
         is_rest = False
+    # #1304: an open plan for the next letter (the logged/closed session is
+    # done) names today's session. Its lifts, not the closed letter, win so
+    # session_type agrees with plan_exercises, TRAINING and the header.
+    plan_letter = _ppl_letter(slot.get("session_type") or plan.get("session_type"))
+    if (
+        plan_exercises
+        and plan_letter
+        and session_type != plan_letter
+        and not slot.get("session_closed_today")
+        and not slot.get("already_trained_today")
+    ):
+        from .daily_plan_tasks import session_header_from_lifts
+
+        derived, _n = session_header_from_lifts(plan_src, plan_letter)
+        if derived.lower() == plan_letter:
+            session_type = plan_letter
+            is_rest = False
+            closed_letter = None
     session_closed = bool(
         slot.get("session_closed_today")
         or plan.get("session_closed_today")

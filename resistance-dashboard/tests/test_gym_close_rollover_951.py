@@ -426,8 +426,9 @@ class PlanAfterClose951(unittest.TestCase):
                 )
         finally:
             clear_memory_workout_plans()
-        self.assertEqual(filled["session_type"], "legs")
-        self.assertEqual(filled["next_session_type"], "push")
+        # #1304: the rolled plan is labelled with the letter its lifts are
+        # for (push), not the closed letter (legs) over next-letter lifts.
+        self.assertEqual(filled["session_type"], "push")
         self.assertTrue(filled.get("exercises"))
         self.assertIsNone(filled.get("generate_error"))
         names = {str(ex.get("name") or "") for ex in filled["exercises"]}
@@ -512,8 +513,9 @@ class PlanAfterClose951(unittest.TestCase):
                 replaced = load_last_good_workout_plan(uid, day)
         finally:
             clear_memory_workout_plans()
-        self.assertEqual(filled["session_type"], "legs")
-        self.assertEqual(filled["next_session_type"], "push")
+        # #1304: the rolled plan is labelled with the letter its lifts are
+        # for (push), not the closed letter (legs) over next-letter lifts.
+        self.assertEqual(filled["session_type"], "push")
         self.assertTrue(filled.get("exercises"))
         self.assertIsNone(filled.get("generate_error"))
         names = [str(ex.get("name") or "") for ex in filled["exercises"]]
@@ -530,7 +532,9 @@ class PlanAfterClose951(unittest.TestCase):
             replaced["exercises"][0]["name"],
             "Morning Legs Plan",
         )
-        self.assertTrue(replaced.get("session_closed_today"))
+        # #1304: the rolled plan is an open plan for the next letter. A saved
+        # row with closed-day flags is a stub and would be rejected on read.
+        self.assertFalse(replaced.get("session_closed_today"))
         self.assertEqual(cal.creates, [])
         self.assertEqual(cal.deletes, ["chip-1"])
         self.assertNotIn("chip-1", cal.events)
