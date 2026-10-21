@@ -449,6 +449,14 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     )
     if open_next_plan:
         session_closed = False
+    if open_next_plan and session_type in ("push", "pull", "legs"):
+        # #1317: after a closed letter rolls to an open plan, next is the
+        # session after that plan, not the plan itself. The stamp computed
+        # it relative to the closed letter. Open days keep the existing
+        # contract (next_session_type is today's upcoming letter).
+        from .workout_planner import next_letter_after
+
+        next_st = next_letter_after(session_type, _goals_for_letter(payload))
     out = {
         "session_type": session_type,
         "is_rest_day": is_rest,
