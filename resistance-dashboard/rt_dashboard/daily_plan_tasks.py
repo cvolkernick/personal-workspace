@@ -1046,9 +1046,86 @@ def _item_from_leaf(raw: dict) -> PlannedItem:
     )
 
 
+def _objective_session_type(workout: Optional[dict]) -> str:
+    """Today's open PPL letter, or "" once trained / rest (#1304)."""
+    wo = workout if isinstance(workout, dict) else {}
+    if wo.get("is_rest_day") or wo.get("already_trained_today"):
+        return ""
+    if wo.get("ppl_logged_today"):
+        return ""
+    st = str(wo.get("session_type") or "").lower()
+    return st if st in ("push", "pull", "legs") else ""
+
+
+def _saved_objective_is_stale(
+    saved: dict, session_type: str, current_slugs: Optional[set] = None
+) -> bool:
+    """A frozen target from another PPL letter must not survive (#1304).
+
+    E.g. a Legs session closed after midnight froze Legs lifts on the new
+    civil day; today's plan is Push, so those leaves must be rebuilt.
+    """
+    if session_type not in ("push", "pull", "legs"):
+        return False
+    saved_st = str(saved.get("session_type") or "").lower()
+    if saved_st in ("push", "pull", "legs"):
+        return saved_st != session_type
+    # Legacy cache rows carry no letter. If none of the saved lifts are in
+    # today's plan, it is another session's target (catalogs may not know
+    # every lift name, e.g. prism's).
+    saved_slugs = {
+        str(raw.get("slug") or "")
+        for raw in (saved.get("leaves") or [])
+        if isinstance(raw, dict) and str(raw.get("slug") or "").startswith("ex-")
+    }
+    if current_slugs and saved_slugs and not (saved_slugs & set(current_slugs)):
+        return True
+    # Otherwise check lifts against the catalog.
+    from .workout_planner import session_types_for_lift_name
+
+    for raw in saved.get("leaves") or []:
+        if not isinstance(raw, dict):
+            continue
+        if not str(raw.get("slug") or "").startswith("ex-"):
+            continue
+        name = lift_name_from_title(str(raw.get("title") or ""))
+        try:
+            types = session_types_for_lift_name(name) if name else ()
+        except Exception:  # noqa: BLE001
+            types = ()
+        if types and session_type not in types:
+            return True
+    return False
+
+
+def _done_lift_slugs(
+    local_completed: Optional[dict],
+    listed_tasks: Sequence[dict] = (),
+    day: str = "",
+) -> set:
+    """ex-* slugs already completed today (local or GT)."""
+    out = set()
+    for key, val in dict(local_completed or {}).items():
+        k = str(key)
+        if val and k.startswith("training|ex-"):
+            out.add(k.split("|", 1)[1])
+    for task in listed_tasks or []:
+        if not isinstance(task, dict) or not _task_is_completed(task):
+            continue
+        if day and not _task_on_civil_day(task, day):
+            continue
+        name = lift_name_from_title(str(task.get("title") or ""))
+        if name:
+            out.add(f"ex-{_slug(name)}")
+    return out
+
+
 def apply_training_objective(
     planned: Sequence[PlannedGroup],
     saved: Optional[dict],
+    *,
+    session_type: str = "",
+    done_slugs: Optional[set] = None,
 ) -> Tuple[List[PlannedGroup], dict]:
     """Keep today's lift list stable across reload and regen (#999).
 
@@ -1059,6 +1136,13 @@ def apply_training_objective(
     New suggestions are not appended past the frozen target.
     """
     saved = saved if isinstance(saved, dict) else {}
+    session_type = str(session_type or "").lower()
+    # Work already done on the frozen target keeps it (#999); an untouched
+    # target from another letter is stale and is rebuilt from today (#1304).
+    progressed = any(
+        isinstance(raw, dict) and str(raw.get("slug") or "") in (done_slugs or set())
+        for raw in (saved.get("leaves") or [])
+    )
     saved_leaves = [
         x
         for x in (saved.get("leaves") or [])
@@ -1073,6 +1157,11 @@ def apply_training_objective(
             if _ex_leaf(item):
                 current.append(item)
     current_by_slug = {item.slug: item for item in current}
+    if saved and not progressed and _saved_objective_is_stale(
+        saved, session_type, set(current_by_slug)
+    ):
+        saved = {}
+        saved_by_slug = {}
 
     if saved_by_slug:
         from .training_day import frozen_prescription_fields
@@ -1110,6 +1199,9 @@ def apply_training_objective(
         frozen = bool(leaves)
 
     objective = {"frozen": frozen, "target_n": target_n, "leaves": leaves}
+    st_keep = session_type or str(saved.get("session_type") or "").lower()
+    if st_keep in ("push", "pull", "legs"):
+        objective["session_type"] = st_keep
     leaf_items = [_item_from_leaf(raw) for raw in leaves]
     out: List[PlannedGroup] = []
     replaced = False
@@ -2751,6 +2843,8 @@ def ensure_daily_tasks(
             day_cache.get("training_objective")
             if isinstance(day_cache, dict)
             else None,
+            session_type=_objective_session_type(workout_board),
+            done_slugs=_done_lift_slugs(local_completed, listed_tasks, day),
         )
         if train_day_complete and _planned_training_lifts_all_complete(
             planned, listed_tasks, day
@@ -3240,6 +3334,8 @@ def _local_payload(
     planned, _objective = apply_training_objective(
         planned,
         saved_objective if isinstance(saved_objective, dict) else None,
+        session_type=_objective_session_type(board.get("workout")),
+        done_slugs=_done_lift_slugs(local_completed),
     )
     del _objective  # preview and creds-fail must not persist the snapshot
     groups_out = []
