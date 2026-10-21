@@ -18,7 +18,9 @@ no token is sent. The token does not expire with the browser session.
 Env:
   FITDASH_SERVICE_TOKEN — required for non-loopback machine access
   FITDASH_SERVICE_LOOPBACK — when 1 (default), 127.0.0.1/::1 may call
-    service routes without a browser session
+    service routes without a browser session. A loopback request carrying
+    Tailscale Serve / proxy headers (Tailscale-User-Login, X-Forwarded-*)
+    is treated as remote and gets no loopback bypass (#1304).
   FITDASH_AGENT_TOKEN — read-only principal for ``GET /api/agent/today``
     from a non-loopback host. Not a write credential.
   FITDASH_INVENTORY_AGENT_TOKEN — least-privilege pantry stock-write credential
@@ -75,6 +77,40 @@ def agent_today_principal(
     return "deny"
 
 
+# Tailscale Serve (and any local reverse proxy) connects from loopback, so the
+# socket peer is 127.0.0.1 for every tailnet device. A loopback request that
+# carries one of these headers was proxied and is treated as remote.
+PROXY_HEADERS = (
+    "Tailscale-User-Login",
+    "Tailscale-User-Name",
+    "Tailscale-Headers-Info",
+    "X-Forwarded-For",
+    "X-Forwarded-Proto",
+    "X-Forwarded-Host",
+    "X-Real-IP",
+    "Forwarded",
+)
+
+
+def is_proxied(headers) -> bool:
+    """True when the request came through Tailscale Serve or another proxy."""
+    if not headers:
+        return False
+    for name in PROXY_HEADERS:
+        try:
+            val = headers.get(name)
+        except Exception:  # noqa: BLE001
+            val = None
+        if val is not None and str(val).strip() != "":
+            return True
+    return False
+
+
+def is_direct_loopback(headers, client_host: Optional[str]) -> bool:
+    """Loopback peer with no proxy headers: a real local caller."""
+    return client_host in ("127.0.0.1", "::1", "localhost") and not is_proxied(headers)
+
+
 def service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
     """Allow service clients via shared token, or loopback if enabled."""
     expected = (os.environ.get("FITDASH_SERVICE_TOKEN") or "").strip()
@@ -87,7 +123,7 @@ def service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
         "no",
         "off",
     )
-    if loopback_ok and client_host in ("127.0.0.1", "::1", "localhost"):
+    if loopback_ok and is_direct_loopback(headers, client_host):
         return True
     return False
 
