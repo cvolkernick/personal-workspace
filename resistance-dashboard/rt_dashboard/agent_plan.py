@@ -715,6 +715,18 @@ def ensure_today_grok_plan(
                 "error": err,
             }
         persist = persist_grok_result(uid, local_today, result)
+        if persist.get("store") == "guard_refused" and is_good_workout_plan(workout):
+            # Smoke / parity guard (#1304): serve the plan, write nothing.
+            return {
+                "ok": True,
+                "skipped": None,
+                "generated": True,
+                "workout": workout,
+                "persist": persist,
+                "error": None,
+                "meal": result.get("meal"),
+                "model": result.get("model"),
+            }
         if not persist.get("ok") or not is_good_workout_plan(workout):
             # Library fallback only when equipment is in context. A name-only
             # catalog with no gear filter is not a plan (#951).
