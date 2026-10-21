@@ -773,11 +773,15 @@ def ensure_today_grok_plan(
             }
             rolled = None
             letter = nxt
+            from .workout_planner import next_letter_after
+
             stamped = {
                 **stamped,
                 "session_type": nxt,
                 "session_closed_today": False,
                 "already_trained_today": False,
+                # #1317: the session after the rolled-to letter.
+                "next_session_type": next_letter_after(nxt, ctx.get("goals") or {}),
             }
             ctx = {**ctx, "next_session_type": nxt}
     if stamped.get("session_closed_today"):
