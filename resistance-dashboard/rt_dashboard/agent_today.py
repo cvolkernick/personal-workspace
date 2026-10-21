@@ -422,6 +422,7 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     # #1304: an open plan for the next letter (the logged/closed session is
     # done) names today's session. Its lifts, not the closed letter, win so
     # session_type agrees with plan_exercises, TRAINING and the header.
+    open_next_plan = False
     plan_letter = _ppl_letter(slot.get("session_type") or plan.get("session_type"))
     if (
         plan_exercises
@@ -437,6 +438,7 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
             session_type = plan_letter
             is_rest = False
             closed_letter = None
+            open_next_plan = True
     session_closed = bool(
         slot.get("session_closed_today")
         or plan.get("session_closed_today")
@@ -445,6 +447,8 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         or plan_ctx.get("session_closed_today")
         or closed_letter
     )
+    if open_next_plan:
+        session_closed = False
     out = {
         "session_type": session_type,
         "is_rest_day": is_rest,

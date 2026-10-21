@@ -950,6 +950,11 @@ def fill_stamped_workout(
         # not []. A saved plan on another letter is not today's plan.
         if _covers_today(saved, slot.get("session_type")):
             return saved
+        # A closed day's valid plan is the next letter's (#1304), e.g. the
+        # Push stamp closed and the saved 10/21 plan is a full Pull day.
+        nxt = _letter(slot.get("next_session_type"))
+        if nxt and _session_closed(slot) and _covers_today(saved, nxt):
+            return saved
         return slot
     letter = _letter(slot.get("session_type"))
     if not letter or slot.get("is_rest_day") or letter == "rest":

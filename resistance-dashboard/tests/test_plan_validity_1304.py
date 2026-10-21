@@ -78,3 +78,29 @@ class OverlayAndHeaderTests(unittest.TestCase):
         g = PlannedGroup(group="training", title="Training", emoji="x", items=items)
         _retitle_train_session_header(g, {"session_type": "pull", "exercises": PULL})
         self.assertEqual(items[0].title, "Complete today's PULL session (4 lifts)")
+
+
+class ReadOnlyClosedDayTests(unittest.TestCase):
+    def test_token_feed_serves_next_letter_plan_on_closed_day(self):
+        from unittest import mock
+        import rt_dashboard.agent_plan as ap
+
+        saved = {"session_type": "pull", "exercises": PULL}
+        slot = {"session_type": "push", "already_trained_today": True,
+                "session_closed_today": True, "next_session_type": "pull", "exercises": []}
+        with mock.patch.object(ap, "load_last_good_workout_plan", return_value=saved):
+            out = ap.fill_stamped_workout("u", day="2026-10-21", workout=slot, read_only=True)
+        self.assertEqual(out["session_type"], "pull")
+        self.assertEqual(len(out["exercises"]), 4)
+
+    def test_token_feed_rejects_stub_on_closed_day(self):
+        from unittest import mock
+        import rt_dashboard.agent_plan as ap
+
+        stub = {"session_type": "pull", "already_trained_today": True,
+                "exercises": [_ex("Barbell Row", 1), _ex("Lat Pulldown", 1)]}
+        slot = {"session_type": "push", "session_closed_today": True,
+                "next_session_type": "pull", "exercises": []}
+        with mock.patch.object(ap, "load_last_good_workout_plan", return_value=stub):
+            out = ap.fill_stamped_workout("u", day="2026-10-21", workout=slot, read_only=True)
+        self.assertIs(out.get("session_type"), "push")
