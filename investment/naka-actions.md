@@ -44,3 +44,7 @@ none
 ## Naka: actions taken — 2026-10-20
 
 - Refreshed investment/naka-watchlist.md: holdings re-read live 2026-10-20 (no change from 2026-10-19), and the SATS line now cites Nasdaq's 2026-10-19 SEC certification approving the SATS preferred for listing upon official notice of issuance, so it moves from pending to approved, not yet trading. No weighting change; advisory only.
+
+## Naka: actions taken — 2026-10-21
+
+none
