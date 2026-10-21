@@ -28,6 +28,36 @@ MSG_PANTRY_UNAVAILABLE = "Pantry unavailable"
 MSG_NO_IN_STOCK = "No in-stock items"
 
 _VOLATILE_KEYS = ("persist", "persist_key")
+# Fields a rebuild refreshes on every load. Under the parity/smoke/dev guard
+# a plan that differs only here is "unchanged" and is not written (#1316).
+MEAL_REFRESH_KEYS = ("generated_at", "nutrition_day", "consumed", "notes")
+
+
+def _material(plan: Optional[dict]) -> dict:
+    return {
+        k: v
+        for k, v in (plan or {}).items()
+        if k not in _VOLATILE_KEYS and k not in MEAL_REFRESH_KEYS
+    }
+
+
+def meal_write_refusal(local_today: str, plan: dict) -> Optional[str]:
+    """None when a meal-plan save may proceed (#1316).
+
+    Same flags and current-day rule as the workout_plan guard (#1312): with
+    FITDASH_PLAN_WRITE_GUARD / FITDASH_SMOKE / FITDASH_PARITY on, only the
+    current training day may be written, and only when something other
+    than the refresh fields changed.
+    """
+    from .workout_plan_store import current_training_day, plan_write_guard_active
+
+    if not plan_write_guard_active():
+        return None
+    day = civil_day(local_today)
+    current = current_training_day()
+    if not day or day != current:
+        return f"plan_write_guard: refused nutrition_meal_plan write for {day or '?'} (current training day {current})"
+    return None
 
 
 def civil_day(value) -> str:
@@ -172,11 +202,29 @@ def save_last_good_meal_plan(user_id: str, local_today: str, plan: dict) -> dict
     if not is_good_meal_plan(plan):
         out["error"] = "not a good meal_plan"
         return out
+    refusal = meal_write_refusal(key["local_today"], plan)
+    if refusal:
+        out["store"] = "guard_refused"
+        out["error"] = refusal
+        return out
     from .turso_http import turso_enabled
 
     if not turso_enabled():
         out["error"] = "turso env missing"
         return out
+    from .workout_plan_store import plan_write_guard_active
+
+    if plan_write_guard_active():
+        try:
+            prior = _turso_get_meal_plan(key["user_id"], key["local_today"])
+        except Exception:  # noqa: BLE001
+            prior = None
+        if is_good_meal_plan(prior) and _material(prior) == _material(plan):
+            # Guarded run, nothing changed: write nothing, not even the
+            # refresh fields (#1316).
+            out["ok"] = True
+            out["store"] = "guard_unchanged"
+            return out
     try:
         _turso_put_meal_plan(key["user_id"], key["local_today"], plan)
         existing = _turso_get_meal_plan(key["user_id"], key["local_today"])

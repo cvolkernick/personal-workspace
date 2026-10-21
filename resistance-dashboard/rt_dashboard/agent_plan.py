@@ -355,13 +355,29 @@ MIN_SETS_PER_LIFT = 2
 
 
 def _is_remainder_plan(plan: dict) -> bool:
-    if plan.get("remainder") or (plan.get("context") or {}).get("remainder"):
-        return True
-    return any(
-        str((ex or {}).get("rationale") or "").startswith("Remaining sets")
-        for ex in plan.get("exercises") or []
-        if isinstance(ex, dict)
-    )
+    """A started frozen session (#1316).
+
+    Only once a lift has logged sets or is marked done. An unstarted saved
+    row that merely carries the frozen target goes through the normal
+    validity and pin checks, so a stale plan is regenerated.
+    """
+    from .training_day import remainder_started
+
+    for rem in (plan.get("remainder"), (plan.get("context") or {}).get("remainder")):
+        if remainder_started(rem):
+            return True
+    rows = [ex for ex in plan.get("exercises") or [] if isinstance(ex, dict)]
+    for ex in rows:
+        if ex.get("done") or ex.get("completed"):
+            return True
+        rx = ex.get("prescription") if isinstance(ex.get("prescription"), dict) else ex
+        try:
+            planned = rx.get("planned_sets")
+            if planned is not None and int(rx.get("sets") or 0) < int(planned):
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
 
 
 def _sets_of(ex: dict) -> int:
