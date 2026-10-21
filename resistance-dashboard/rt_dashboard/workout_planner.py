@@ -2379,6 +2379,7 @@ def generate_workout_plan(
         frozen_plan_remainder,
         planning_window_sessions,
         ppl_logged_for_planning,
+        remainder_is_history,
         remainder_public,
     )
 
@@ -2410,6 +2411,10 @@ def generate_workout_plan(
         if want in ("push", "pull", "legs") and want != obj_letter:
             training_objective = None
     remainder = frozen_plan_remainder(training_objective, window_sessions)
+    if remainder_is_history(window_sessions, day, remainder):
+        # Last night's closed session; its leftovers are history (#1304).
+        remainder = None
+        training_objective = None
     closed_letter = closed_ppl_for_planning(
         sessions,
         as_of=day,

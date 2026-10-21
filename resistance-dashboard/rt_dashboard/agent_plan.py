@@ -118,6 +118,13 @@ def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
     if plan.get("next_session_type"):
         slot["next_session_type"] = plan.get("next_session_type")
     slot["source"] = plan.get("source") or "grok"
+    # #1304: closed-day flags follow the plan. An open next-letter plan must
+    # not inherit the stamp's "already trained" flags (stale header/letter).
+    for key in ("already_trained_today", "session_closed_today", "ppl_logged_today"):
+        if key in plan:
+            slot[key] = plan.get(key)
+        elif exercises and not slot["is_rest_day"]:
+            slot.pop(key, None)
     if plan.get("generate_error"):
         slot["generate_error"] = plan.get("generate_error")
     else:
@@ -341,14 +348,69 @@ def _session_closed(slot: Optional[dict]) -> bool:
     return bool(isinstance(ctx, dict) and ctx.get("session_closed_today"))
 
 
-def _covers_today(saved: Optional[dict], letter: Optional[str]) -> bool:
-    if not is_good_workout_plan(saved):
-        return False
-    want = _letter(letter)
-    have = _letter(saved.get("session_type"))
-    if not want:
+# A saved plan below this is a stub, not a training day (#1304). A frozen
+# remainder ("Remaining sets …") is exempt: it is meant to be short.
+MIN_PLAN_LIFTS = 3
+MIN_SETS_PER_LIFT = 2
+
+
+def _is_remainder_plan(plan: dict) -> bool:
+    if plan.get("remainder") or (plan.get("context") or {}).get("remainder"):
         return True
-    return have == want
+    return any(
+        str((ex or {}).get("rationale") or "").startswith("Remaining sets")
+        for ex in plan.get("exercises") or []
+        if isinstance(ex, dict)
+    )
+
+
+def _sets_of(ex: dict) -> int:
+    try:
+        return max(0, int(ex.get("sets") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def saved_plan_problem(saved: Optional[dict], letter: Optional[str] = None) -> Optional[str]:
+    """Why a saved plan must not be served (None when it is fine) (#1304).
+
+    Rejects: not a good plan; a closed-day stub (already trained / session
+    closed flags); lifts whose push/pull/legs disagree with the plan's own
+    ``session_type``; a different letter than today's stamp; and a
+    degenerate plan (fewer than ``MIN_PLAN_LIFTS`` lifts or fewer than
+    ``MIN_SETS_PER_LIFT`` sets per lift on average) that is not a frozen
+    remainder.
+    """
+    if not is_good_workout_plan(saved):
+        return "not a good workout_plan"
+    if saved.get("already_trained_today") or saved.get("session_closed_today"):
+        return "closed-day stub"
+    have = _letter(saved.get("session_type"))
+    exercises = [e for e in saved.get("exercises") or [] if isinstance(e, dict)]
+    from .daily_plan_tasks import session_header_from_lifts
+
+    derived, _n = session_header_from_lifts(exercises, "")
+    derived = derived.lower() if derived != "SESSION" else ""
+    if have in ("push", "pull", "legs") and derived and derived != have:
+        return f"mislabelled: session_type {have} but lifts are {derived}"
+    want = _letter(letter)
+    if want and have != want:
+        return f"other letter: saved {have}, today {want}"
+    if not _is_remainder_plan(saved):
+        sets = 0
+        for ex in exercises:
+            try:
+                sets += max(0, int(ex.get("sets") or 0))
+            except (TypeError, ValueError):
+                pass
+        thin = all(_sets_of(ex) < MIN_SETS_PER_LIFT for ex in exercises)
+        if len(exercises) < MIN_PLAN_LIFTS and thin:
+            return f"degenerate: {len(exercises)} lifts, {sets} sets"
+    return None
+
+
+def _covers_today(saved: Optional[dict], letter: Optional[str]) -> bool:
+    return saved_plan_problem(saved, letter) is None
 
 
 def _load_generate_kwargs(user_id: str, headers=None, query: str = "") -> Dict[str, Any]:
@@ -542,8 +604,11 @@ def ensure_today_grok_plan(
     from .test_noise import coerce_sessions
 
     ctx = {**ctx, "sessions": coerce_sessions(ctx.get("sessions"))}
+    # The plan row is keyed by the plan day the feed reads (``day``), not
+    # the training day. Before the 04:00 cutoff those differ, and keying by
+    # ``training_day`` wrote yesterday's row while Today read today's (#1304).
     local_today = str(
-        ctx.get("training_day") or day or ctx.get("day") or probe_day or ""
+        day or ctx.get("day") or ctx.get("training_day") or probe_day or ""
     )[:10]
     from .daily_plan_tasks import cached_training_objective
 
@@ -576,8 +641,30 @@ def ensure_today_grok_plan(
             last_wake_at=_ctx_last_wake(ctx),
         )
 
+    nxt = _letter(stamped.get("next_session_type"))
+    rolled = None
     if stamped.get("session_closed_today"):
-        workout = _deterministic_workout(ctx)
+        # A persisted close rolls the plan onto the next letter (#951), and
+        # the letter is now passed explicitly (#1304). Without it the planner
+        # returned an "Already trained today (PUSH)" stub carrying a 1-set
+        # preview of the next letter, which was saved and served.
+        rolled = _deterministic_workout(
+            ctx, session_type=nxt if nxt in ("push", "pull", "legs") else None
+        )
+        if nxt in ("push", "pull", "legs") and saved_plan_problem(rolled, nxt):
+            # The library cannot build a real plan for the next letter. Plan
+            # it like any open day (saved plan or SuperGrok) instead.
+            rolled = None
+            letter = nxt
+            stamped = {
+                **stamped,
+                "session_type": nxt,
+                "session_closed_today": False,
+                "already_trained_today": False,
+            }
+            ctx = {**ctx, "next_session_type": nxt}
+    if stamped.get("session_closed_today"):
+        workout = rolled if rolled is not None else _deterministic_workout(ctx)
         good = is_good_workout_plan(workout)
         err = None
         persist = {"ok": False, "error": None}
@@ -855,15 +942,13 @@ def fill_stamped_workout(
     local_day = str(day or "")[:10]
     slot = dict(workout) if isinstance(workout, dict) else {}
     saved = load_last_good_workout_plan(plan_uid, local_day)
-    if is_good_workout_plan(saved) and not _session_closed(slot):
+    if saved_plan_problem(saved) is None and not _session_closed(slot):
         return saved
     if read_only:
         # Token path (#1304): a valid saved plan is the answer. A closed day
         # still returns it when it is the same letter, so plan_exercises is
         # not []. A saved plan on another letter is not today's plan.
-        if is_good_workout_plan(saved) and _covers_today(
-            saved, slot.get("session_type")
-        ):
+        if _covers_today(saved, slot.get("session_type")):
             return saved
         return slot
     letter = _letter(slot.get("session_type"))

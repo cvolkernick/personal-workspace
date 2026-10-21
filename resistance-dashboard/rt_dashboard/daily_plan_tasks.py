@@ -1946,6 +1946,19 @@ def _retitle_train_session_header(group, workout: dict) -> None:
         if str(it.slug or "") != TRAIN_SESSION_SLUG:
             continue
         m = _COMPLETE_SESSION_RE.match(it.title or "")
+        if (
+            not m
+            and lifts
+            and not (workout or {}).get("already_trained_today")
+            and str(it.title or "").lower().startswith("already trained today")
+        ):
+            # #1304: ex-* leaves are an open plan, so a stale closed-day
+            # title must not head them.
+            letter, count = session_header_from_lifts(
+                names, str((workout or {}).get("session_type") or "")
+            )
+            it.title = f"Complete today's {letter} session ({count} lifts)"[:200]
+            continue
         if not m or not lifts:
             continue
         letter, count = session_header_from_lifts(
