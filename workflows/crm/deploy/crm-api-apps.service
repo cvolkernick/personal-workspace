@@ -1,0 +1,22 @@
+# Standalone user unit for prism-gateway (#1097). Runs from a path-scoped copy
+# in ~/apps/crm-api, never from ~/personal-workspace. Loopback only; not behind
+# Funnel. The DB lives in ~/.local/share/panamerica-crm (dir 700, crm.db 600).
+# Seat tokens are issued into the DB (hashed); no secret lives in this file.
+# Install: see workflows/crm/README.md "Deploy (standalone, #1097)".
+
+[Unit]
+Description=Panamerica CRM API (standalone, ~/apps/crm-api)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/apps/crm-api
+Environment=PYTHONPATH=%h/apps/crm-api
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+ExecStart=/usr/bin/python3 -m workflows.crm.api --host 127.0.0.1 --port 8791 --db %h/.local/share/panamerica-crm/crm.db
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

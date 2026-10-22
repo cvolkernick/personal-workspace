@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from workflows.crm.auth import CrmError
+from workflows.crm.contacts import contact_by_phone
 from workflows.crm.core import CrmDB
 from workflows.crm.schema import default_db_path
 
@@ -103,6 +104,16 @@ def _route(
         elif "listing_id" in query:
             kind, value = "listing_id", query["listing_id"]
         found = db.by_identity(actor, kind=kind, value=value)
+        if found is None:
+            return 404, {"error": "not found"}
+        return 200, found
+    if route == "/v1/contacts/by-phone" and method == "GET":
+        found = contact_by_phone(
+            db,
+            actor,
+            query.get("pn") or query.get("phone") or "",
+            limit=query.get("limit") or "",
+        )
         if found is None:
             return 404, {"error": "not found"}
         return 200, found

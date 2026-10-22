@@ -35,6 +35,8 @@ SEAT_SCOPES: dict[str, tuple[str, ...]] = {
         "write:suppression",
     ),
     "chris": ("read:*", "write:*", "delete", "merge"),
+    # bland-relay caller-context (#1096/#1097): by-phone lookup only, read-only.
+    "caller-context": ("read:caller-context",),
 }
 
 
