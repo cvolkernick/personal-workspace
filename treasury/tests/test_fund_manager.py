@@ -235,9 +235,9 @@ class TestBtcDigitalCreditNewMoneyWeights(unittest.TestCase):
         self.assertAlmostEqual(float(w["STRK"]), 0.15)
         self.assertAlmostEqual(float(w["floating"]), 0.35)
 
-    def test_strk_core_not_watchlist_live_false(self):
+    def test_strk_core_not_watchlist_live_true(self):
         p = load_fund_policy()
-        self.assertIs(p.get("live"), False)
+        self.assertIs(p.get("live"), True)  # Chris 2026-10-24: auto-trading back on
         btc = p["sleeves"]["btc_digital_credit"]
         core = [s.upper() for s in (btc["sub_sleeves"]["digital_credit"].get("preferred_core") or [])]
         wl = [s.upper() for s in (btc.get("watchlist_symbols") or [])]

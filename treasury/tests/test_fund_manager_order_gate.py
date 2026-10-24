@@ -74,13 +74,16 @@ def sell(sym="MARA", **kw):
 
 
 class TestPolicyFailClosed(unittest.TestCase):
-    def test_repo_policy_loads_buy_only_and_live_false(self):
+    def test_repo_policy_loads_buy_only_and_live_true_with_adapter(self):
+        # Chris 2026-10-24: auto-trading back on (live:true) now that a buy-only
+        # broker adapter exists behind this gate (treasury/fund_manager_broker.py).
         p = gate.load_gate_policy(POLICY_FILE)
         self.assertTrue(p.ok, p.error)
         self.assertEqual(p.allowed_sides, ("buy",))
-        self.assertFalse(p.live, "live flag must stay false in this PR")
+        self.assertTrue(p.live)
         raw = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
-        self.assertIs(raw["live"], False)
+        self.assertIs(raw["live"], True)
+        self.assertEqual(raw["execution"]["broker_adapter"]["adapter"], "treasury.fund_manager_broker:submit")
         self.assertIs(raw["guardrails"]["no_sell_to_rebalance"], True)
         self.assertEqual(raw["guardrails"]["allowed_sides"], ["buy"])
 
@@ -573,7 +576,10 @@ class TestCliOverrideEndToEnd(GitRepoCase):
         self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
         rc, out = self._run([sell(quantity=0.5, notional_usd=10.0)])
         self.assertEqual(rc, 0, out)
-        self.assertEqual(len(out["would_place"]), 1)
+        # repo policy is live:true (2026-10-24); with no adapter the approved sell is not submitted
+        rows = out["would_place"] + out["placed"]
+        self.assertEqual(len(rows), 1)
+        self.assertIn(rows[0]["status"], ("would_place", "not_submitted_no_broker_adapter"))
         self.assertEqual(out["blocked"], [])
         self.assertEqual(out["broker_calls"], 0)
 
@@ -961,6 +967,9 @@ class TestRunnersAndLint(unittest.TestCase):
     )
     ORDER_MARKER_ALLOW = {
         "treasury/fund_manager_order_gate.py",  # the gate itself (deny globs)
+        # the buy-only broker adapter: the sanctioned submit target of the gate (FM_BROKER_ADAPTER)
+        "treasury/fund_manager_broker.py",
+        "treasury/tests/test_fund_manager_broker.py",
         "treasury/tests/test_fund_manager_order_gate.py",
     }
 
@@ -1093,6 +1102,14 @@ class TestRunnersAndLint(unittest.TestCase):
             self.assertFalse(gate.is_tool_denied(tool), f"{tool} must stay allowed")
         for tool in ("place_equity_order", "place_option_order", "place_crypto_order", "sell_equity", "exercise_option"):
             self.assertTrue(gate.is_tool_denied(tool), tool)
+
+    def test_deny_args_carve_out_only_place_equity_order(self):
+        rules = gate.grok_deny_args(allow_tools=("place_equity_order", "place_option_order", "sell_equity"))[1::2]
+        self.assertNotIn("MCPTool(robinhood-trading__place_*)", rules)
+        self.assertNotIn("MCPTool(robinhood-trading__place_equity_order)", rules)
+        for must in ("place_option_order", "place_crypto_order", "*sell*", "*short*", "replace_*", "modify_*", "exercise_option"):
+            self.assertIn(f"MCPTool(robinhood-trading__{must})", rules)
+        self.assertEqual(gate.grok_deny_args(allow_tools=("sell_equity",)), gate.grok_deny_args())
 
     def test_cli_prints_deny_args(self):
         import io

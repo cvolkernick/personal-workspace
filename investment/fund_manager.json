@@ -4,7 +4,7 @@
   "as_of": "2026-09-11",
   "mode": "active",
   "status": "live_autopilot",
-  "live": false,
+  "live": true,
   "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading \u2014 low-frequency active management. Process is size-invariant: same research/rotate standards at $10 or $10k.",
   "cadence": {
     "scheduled_reviews_per_day": 1,
@@ -401,7 +401,29 @@
     ],
     "default_market_hours": "regular_hours",
     "prefer_dollar_orders_for_small_book": true,
-    "review_before_place": false,
+    "review_before_place": true,
+    "broker_adapter": {
+      "enabled": true,
+      "adapter": "treasury.fund_manager_broker:submit",
+      "adapter_env": "FM_BROKER_ADAPTER",
+      "client": "",
+      "client_env": "FM_BROKER_CLIENT",
+      "symbol_allowlist": [
+        "STRC",
+        "SATA",
+        "STRK",
+        "IBIT"
+      ],
+      "order_type": "market",
+      "dollar_based": true,
+      "time_in_force": "gfd",
+      "market_hours": "regular_hours",
+      "min_order_notional_usd": 1.0,
+      "max_order_notional_usd": 75.0,
+      "max_daily_notional_usd": 150.0,
+      "dedupe_window_hours": 24,
+      "notes": "Buy-only adapter behind the #1093 order gate. Review-then-place: local allowlist/caps, idempotency ledger (treasury/snapshots/fund_manager_broker_ledger.json), broker open/recent-order check, live buying power, tradability, review_equity_order, then place_equity_order. client empty = no broker client (orders end not_submitted_no_broker_client) until prism sets FM_BROKER_CLIENT=grok_mcp. Allowlist/caps pending Nakatoshi confirmation (Chris 2026-10-24 approved auto-trading back on; Mon 10/26 STRC/SATA/STRK/IBIT buy)."
+    },
     "notes": "Dollar/fractional market only in regular_hours (queue if after hours). Outside regular hours use extended limit only when fractional allowed."
   },
   "bootstrap": {

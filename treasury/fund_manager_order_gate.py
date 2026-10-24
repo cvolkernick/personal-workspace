@@ -894,6 +894,7 @@ def gate_orders(
 # --------------------------------------------------------------------------
 
 Submit = Callable[[GatedOrder], Dict[str, Any]]
+_BROKER_ROW_KEYS = ("broker_reason", "order_id", "idempotency_key")
 
 
 def load_broker_adapter() -> Optional[Submit]:
@@ -981,6 +982,7 @@ def execute_intents(
         out["ledger_error"] = ledger_error
     actions: List[Dict[str, Any]] = []
     for gated in res.allowed:
+        broker: Dict[str, Any] = {}
         if dry_run:
             status = "would_place"
         elif submit is None:
@@ -990,9 +992,12 @@ def execute_intents(
                 result = submit(gated)
                 status = str((result or {}).get("status") or "submitted")
                 out["broker_calls"] += 1
+                if isinstance(result, dict):  # adapter detail for the run log / #701 (no secrets)
+                    broker = {k: result[k] for k in _BROKER_ROW_KEYS if result.get(k) not in (None, "")}
             except Exception as exc:
                 status = f"submit_error_{type(exc).__name__}"
         row = _action_row(gated.intent, gated.verdict, status)
+        row.update(broker)
         actions.append(row)
         out["would_place" if status == "would_place" else "placed"].append(row)
     for it, v in res.blocked:
@@ -1138,14 +1143,32 @@ def is_tool_denied(tool: str) -> bool:
     return any(fnmatch.fnmatchcase(tool, g) for g in RH_ORDER_TOOL_GLOBS)
 
 
-def grok_deny_args() -> List[str]:
+# The ONLY order tool that may ever be carved out of the deny list, and only by
+# the buy-only broker adapter's place step (treasury/fund_manager_broker.py),
+# which runs strictly after this gate approved the order.
+RH_CARVE_OUT_TOOLS = ("place_equity_order",)
+# Known siblings re-denied explicitly when a glob is carved open.
+RH_KNOWN_ORDER_TOOLS = ("place_equity_order", "place_option_order", "place_crypto_order")
+
+
+def grok_deny_args(allow_tools: Iterable[str] = ()) -> List[str]:
     """Flags for ``grok -p … --yolo``. Deny rules still apply under --yolo.
 
     The ONE shared helper: the fund-manager runners (via ``--print-grok-deny-args``)
     and ``rh_snapshot_sync.py`` (direct import) both take their deny list from here.
+
+    ``allow_tools`` may only name tools in ``RH_CARVE_OUT_TOOLS`` (anything else is
+    ignored). A glob matching a carved-out tool is replaced by explicit denies of
+    its known siblings; every other glob (``*sell*``, ``*short*``, ...) stays.
     """
+    carve = {t for t in allow_tools if t in RH_CARVE_OUT_TOOLS}
     args: List[str] = []
     for g in RH_ORDER_TOOL_GLOBS:
+        if any(fnmatch.fnmatchcase(t, g) for t in carve):
+            for t in RH_KNOWN_ORDER_TOOLS:
+                if t not in carve and fnmatch.fnmatchcase(t, g):
+                    args += ["--deny", f"MCPTool({RH_SERVER}__{t})"]
+            continue
         args += ["--deny", f"MCPTool({RH_SERVER}__{g})"]
     return args
 

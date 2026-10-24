@@ -196,5 +196,22 @@ Enforced in code, not just prompts:
   `tax`, `withdrawal`, `chairman_manual`); shorts, options, crypto sells and anything worded as a rebalance are never overridable.
 * `rh_snapshot_sync.py` (the read-only snapshot refresh) also runs `grok --yolo` with the same deny list from `grok_deny_args()`.
 
-**Broker adapter:** no Robinhood submit code ships here. Approved orders go to the callable named by `FM_BROKER_ADAPTER=module:callable`
-(takes a `GatedOrder`). With none configured, the gate logs `not_submitted_no_broker_adapter` and places nothing.
+**Broker adapter:** approved orders go to the callable named by `FM_BROKER_ADAPTER=module:callable` (takes a `GatedOrder`). With none
+configured, the gate logs `not_submitted_no_broker_adapter` and places nothing. The shipped adapter is
+`FM_BROKER_ADAPTER=treasury.fund_manager_broker:submit` (config `execution.broker_adapter` in `investment/fund_manager.json`):
+
+* **Buy-only, hard**, independent of the gate: non-`GatedOrder`, sell/short/option/crypto or any non-`buy` side field is rejected.
+* **Kill switches:** `FM_BROKER_DISABLE=1`; `live` must be `true`; `execution.broker_adapter.enabled` must be `true`.
+* **Review then place:** symbol on `symbol_allowlist` and not blocked; `min_order_notional_usd` <= dollars (rounded down to cents) <=
+  `max_order_notional_usd`; today's placed total <= `max_daily_notional_usd`; idempotency key (ET date + account + symbol + side + cents)
+  not already placing/placed in `treasury/snapshots/fund_manager_broker_ledger.json`; no open or matching recent broker buy for the
+  symbol (`dedupe_window_hours`); live buying power covers it; symbol tradable + fractional; broker `review_equity_order` ok; then
+  `place_equity_order`. The ledger row is written as `placing` before the place call, so a timeout/crash becomes
+  `place_error_outcome_unknown` and that key is never retried automatically (check the broker by hand).
+* **Terminal statuses:** `placed`, `rejected_non_buy_side`, `rejected_not_gated`, `not_submitted_live_false`,
+  `not_submitted_adapter_disabled`, `not_submitted_adapter_config`, `not_submitted_no_broker_client`, `not_submitted_review_failed`,
+  `not_submitted_broker_rejected`, `not_submitted_ledger_unavailable`, `skipped_duplicate_idempotency`,
+  `skipped_duplicate_broker_order`, `place_error_outcome_unknown`. Each carries `broker_reason` (+ `idempotency_key`, `order_id`).
+* **Client:** `FM_BROKER_CLIENT=grok_mcp` drives the producer host's existing `grok` + `robinhood-trading` MCP OAuth (no new
+  credentials), one headless call per step with a per-call allow/deny list (place call: only `place_equity_order` allowed). Unset =>
+  `not_submitted_no_broker_client`. `FM_BROKER_CLIENT=pkg.module:factory` injects another client (tests use mocks).
