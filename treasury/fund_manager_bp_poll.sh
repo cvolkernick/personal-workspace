@@ -115,10 +115,22 @@ RR=$?
 set -e
 echo "rules_review exit=${RR}"
 
+# 2026-10-24 (Nakatoshi): never buy just because cash > $0. A buy run starts only
+# when SETTLED cash >= execution.broker_adapter.min_investable_usd ($5), inside the
+# 10:00 ET+ window, and at most once per ET day (guard shared with the daily run
+# and counting same-day fills placed outside the adapter). No network here.
+set +e
+SB_OUT="$(python3 -m treasury.fund_manager_broker --should-buy)"
+SB=$?
+set -e
+echo "should_buy exit=${SB} ${SB_OUT}"
+
 PROMPT_FILE="${ROOT}/treasury/fund_manager_daily_prompt.txt"
-if [[ "${RR}" -eq 2 ]]; then
+if [[ "${RR}" -ne 1 && "${SB}" -ne 0 ]]; then
+  echo "No buy run: settled-cash / once-per-day guard says skip (${SB_OUT})"
+elif [[ "${RR}" -ne 1 && "${SB}" -eq 0 ]]; then
   if command -v grok >/dev/null 2>&1 && [[ -f "${PROMPT_FILE}" ]]; then
-    echo "Free capital detected — running full team/LLM review…"
+    echo "Settled cash detected — running ONE full team/LLM buy run…"
     # #1093 no-sell-to-rebalance: grok runs with order-placing RH tools DENIED
     # (deny rules still apply in always-approve mode). It writes buy intents to a file;
     # treasury.fund_manager_order_gate validates (buys only, <= deployable cash,
@@ -132,7 +144,9 @@ if [[ "${RR}" -eq 2 ]]; then
     else
       INTENTS_FILE="${ROOT}/treasury/snapshots/fund_manager_intents.json"
       rm -f "${INTENTS_FILE}"
-      grok -p "$(cat "${PROMPT_FILE}")" \
+      # AI step is time-boxed; if it errors/times out the gate still runs and the
+      # deterministic planner invests all settled cash (floating 35% -> IBIT).
+      timeout "${FM_GROK_TIMEOUT_S:-1800}" grok -p "$(cat "${PROMPT_FILE}")" \
         --cwd "${ROOT}" \
         --yolo \
         "${GROK_DENY[@]}" \
@@ -156,6 +170,10 @@ print(notify_if_needed(decision_or_review=dec, treasury_eval=tre.get("evaluation
 PY
   else
     echo "need_llm but grok missing — rules outcome only"
+    # AI step unavailable: deterministic planner still runs (floating 35% -> IBIT).
+    rm -f "${ROOT}/treasury/snapshots/fund_manager_intents.json"
+    python3 -m treasury.fund_manager_order_gate --execute-intents "${ROOT}/treasury/snapshots/fund_manager_intents.json" \
+      || echo "WARN: order gate blocked/failed (exit $?)"
   fi
 elif [[ "${RR}" -eq 0 ]]; then
   echo "Rules HOLD — no free capital / no action"

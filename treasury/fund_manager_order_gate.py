@@ -894,6 +894,7 @@ def gate_orders(
 # --------------------------------------------------------------------------
 
 Submit = Callable[[GatedOrder], Dict[str, Any]]
+_BROKER_ROW_KEYS = ("broker_reason", "order_id", "idempotency_key", "broker_state", "filled_quantity", "fill_price")
 
 
 def load_broker_adapter() -> Optional[Submit]:
@@ -940,8 +941,12 @@ def execute_intents(
     record: bool = True,
     record_fn: Optional[Callable[[Dict[str, Any]], Any]] = None,
     ledger_path: Optional[Path] = None,
+    plan: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gate, log, and (only for approved orders) submit.
+
+    ``plan`` is the broker run planner's info (``submit.plan``); placed orders
+    and planner repairs/rejections are posted as one decision entry (#701).
 
     ``submit`` is never called with anything but a ``GatedOrder``. With
     ``live:false`` in policy (or ``dry_run``) nothing is submitted; approved
@@ -981,6 +986,7 @@ def execute_intents(
         out["ledger_error"] = ledger_error
     actions: List[Dict[str, Any]] = []
     for gated in res.allowed:
+        broker: Dict[str, Any] = {}
         if dry_run:
             status = "would_place"
         elif submit is None:
@@ -990,9 +996,12 @@ def execute_intents(
                 result = submit(gated)
                 status = str((result or {}).get("status") or "submitted")
                 out["broker_calls"] += 1
+                if isinstance(result, dict):  # adapter detail for the run log / #701 (no secrets)
+                    broker = {k: result[k] for k in _BROKER_ROW_KEYS if result.get(k) not in (None, "")}
             except Exception as exc:
                 status = f"submit_error_{type(exc).__name__}"
         row = _action_row(gated.intent, gated.verdict, status)
+        row.update(broker)
         actions.append(row)
         out["would_place" if status == "would_place" else "placed"].append(row)
     for it, v in res.blocked:
@@ -1023,7 +1032,63 @@ def execute_intents(
             (record_fn or _default_record)(entry)
         except Exception as exc:  # logging must never turn into an order
             out["record_error"] = type(exc).__name__
+    if record and not dry_run:
+        entry = _execution_entry(out, plan)
+        if entry is not None:
+            try:
+                (record_fn or _default_record)(entry)
+            except Exception as exc:  # logging must never turn into an order
+                out["record_error"] = type(exc).__name__
     return out
+
+
+def _execution_entry(out: Dict[str, Any], plan: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Decision entry (#701) for placed orders + planner repairs/rejections.
+    None when there is nothing to report (no placement, no repair/drop)."""
+    placed = [r for r in out.get("placed") or [] if str(r.get("status")) in EXECUTED_STATUSES]
+    others = [r for r in out.get("placed") or [] if r not in placed]
+    plan = plan or {}
+    dropped = list(plan.get("dropped") or [])
+    repairs = list(plan.get("repairs") or [])
+    if not placed and not dropped and not repairs:
+        return None
+    total = sum(float(r.get("notional_usd") or 0) for r in placed)
+    legs = ", ".join(f"{r['symbol']} ${float(r.get('notional_usd') or 0):.2f}" for r in placed) or "none"
+    valuation = str(plan.get("valuation") or "")
+    summary = (
+        f"Run {plan.get('run_id') or '?'} [{plan.get('status') or 'unplanned'}]: placed {len(placed)} buy(s) "
+        f"${total:.2f} ({legs}); not placed {len(others)}; sleeve/weight drops {len(dropped)}"
+    )
+    if "cost_basis" in valuation:
+        summary += f"; 40% test valued at cost basis ({valuation})"
+    if str(plan.get("floating_source") or "").find("fallback") >= 0:
+        summary += f"; floating {plan.get('floating_source')}"
+    actions: List[Dict[str, Any]] = []
+    for r in placed + others:
+        a = {k: r.get(k) for k in ("symbol", "side", "notional_usd", "status", "order_id", "broker_reason")}
+        a["qty"] = r.get("filled_quantity")
+        a["fill_price"] = r.get("fill_price")
+        actions.append(a)
+    for d in dropped:
+        actions.append({"symbol": d.get("symbol"), "side": "buy", "notional_usd": d.get("notional_usd"),
+                        "status": d.get("status"), "broker_reason": d.get("reason")})
+    return {
+        "kind": "deploy" if placed else "deploy_not_placed",
+        "outcome": "placed" if placed else "not_placed",
+        "path": "order_gate+broker_adapter",
+        "need_llm": False,
+        "summary": summary,
+        "rationale": {
+            "why_now": "Gate-approved buys from the deterministic run plan (BTC + digital credit first to 40%, "
+                       "STRC 25 / SATA 25 / STRK 15 / floating 35, TSLA/SPCX 50/50 after).",
+            "why_not_alternatives": "Buy-only; any sell is a manual action Chris takes himself.",
+            "thesis_tags": ["broker_adapter", "run_plan", "no_sell_guard"],
+        },
+        "plan": {k: plan.get(k) for k in ("run_id", "status", "run_total_usd", "settled_cash", "btc_share_before",
+                                           "valuation", "floating_source", "ai_proposed_usd",
+                                           "repairs", "notes", "legs") if k in plan},
+        "actions": actions,
+    }
 
 
 def _log_blocked_line(row: Dict[str, Any]) -> None:
@@ -1138,14 +1203,32 @@ def is_tool_denied(tool: str) -> bool:
     return any(fnmatch.fnmatchcase(tool, g) for g in RH_ORDER_TOOL_GLOBS)
 
 
-def grok_deny_args() -> List[str]:
+# The ONLY order tool that may ever be carved out of the deny list, and only by
+# the buy-only broker adapter's place step (treasury/fund_manager_broker.py),
+# which runs strictly after this gate approved the order.
+RH_CARVE_OUT_TOOLS = ("place_equity_order",)
+# Known siblings re-denied explicitly when a glob is carved open.
+RH_KNOWN_ORDER_TOOLS = ("place_equity_order", "place_option_order", "place_crypto_order")
+
+
+def grok_deny_args(allow_tools: Iterable[str] = ()) -> List[str]:
     """Flags for ``grok -p … --yolo``. Deny rules still apply under --yolo.
 
     The ONE shared helper: the fund-manager runners (via ``--print-grok-deny-args``)
     and ``rh_snapshot_sync.py`` (direct import) both take their deny list from here.
+
+    ``allow_tools`` may only name tools in ``RH_CARVE_OUT_TOOLS`` (anything else is
+    ignored). A glob matching a carved-out tool is replaced by explicit denies of
+    its known siblings; every other glob (``*sell*``, ``*short*``, ...) stays.
     """
+    carve = {t for t in allow_tools if t in RH_CARVE_OUT_TOOLS}
     args: List[str] = []
     for g in RH_ORDER_TOOL_GLOBS:
+        if any(fnmatch.fnmatchcase(t, g) for t in carve):
+            for t in RH_KNOWN_ORDER_TOOLS:
+                if t not in carve and fnmatch.fnmatchcase(t, g):
+                    args += ["--deny", f"MCPTool({RH_SERVER}__{t})"]
+            continue
         args += ["--deny", f"MCPTool({RH_SERVER}__{g})"]
     return args
 
@@ -1182,30 +1265,53 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if args.execute_intents:
         p = Path(args.execute_intents)
+        submit = load_broker_adapter()
+        planner = getattr(submit, "plan", None) if submit is not None else None
+        ai_note = ""
         if not p.is_file():
-            print(json.dumps({"ok": True, "intents": 0, "note": "no intents file; nothing to do"}))
-            return 0
-        try:
-            payload = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(payload, dict) and "orders" in payload:
-                payload = payload["orders"]
-        except (OSError, ValueError):
-            payload = "unreadable"
+            if planner is None:
+                print(json.dumps({"ok": True, "intents": 0, "note": "no intents file; nothing to do"}))
+                return 0
+            # AI step errored / timed out / wrote nothing: the planner still runs
+            # (run size is deterministic; floating 35% -> IBIT).
+            payload, ai_note = [], "no AI intents file (AI step errored/timed out)"
+        else:
+            try:
+                payload = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(payload, dict) and "orders" in payload:
+                    payload = payload["orders"]
+            except (OSError, ValueError):
+                payload = "unreadable"
+                ai_note = "AI intents file unreadable"
         policy = load_gate_policy()
         override, oerr = load_override(policy=policy)
+        plan: Optional[Dict[str, Any]] = None
+        if planner is not None:
+            # Deterministic run planner (run size, sleeve gate, fixed weights, caps,
+            # window, calendar, once-per-ET-day). Sells pass through to be blocked.
+            try:
+                payload, plan = planner(payload, persist=not args.dry_run, ai_note=ai_note)
+            except Exception as exc:  # fail closed: drop every buy
+                plan = {"status": "plan_error", "reason": type(exc).__name__}
+                if isinstance(payload, list):
+                    payload = [it for it in payload if classify_side(it)[0] != "buy"]
         result = execute_intents(
             payload,
             deployable_cash=_deployable_cash_from_snapshot(),
-            submit=load_broker_adapter(),
+            submit=submit,
             policy=policy,
             override=override,
             dry_run=args.dry_run or None,
             record=not args.no_record,
+            plan=plan,
         )
-        try:  # consumed: never replay a stale intents file
-            p.rename(p.with_suffix(".consumed.json"))
-        except OSError:
-            pass
+        if plan is not None:
+            result["plan"] = plan
+        if p.is_file():
+            try:  # consumed: never replay a stale intents file
+                p.rename(p.with_suffix(".consumed.json"))
+            except OSError:
+                pass
         if oerr:
             result["override_error"] = oerr
         print(json.dumps(result, indent=2, default=str))
