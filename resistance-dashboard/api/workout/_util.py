@@ -44,6 +44,10 @@ _ROUTES = (
     "labs",
     "labs_upload",
     "labs_delete",
+    "biomarkers",
+    "biomarkers_import",
+    "biomarkers_context",
+    "biomarkers_delete",
     "hsa",
     "phase_barometer",
     "targets",
@@ -143,6 +147,14 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "training_log_pdf"
     if "/api/agent/today" in blob:
         return "agent_today"
+    if "/api/biomarkers/import" in blob:
+        return "biomarkers_import"
+    if "/api/biomarkers/context" in blob:
+        return "biomarkers_context"
+    if "/api/biomarkers/delete" in blob:
+        return "biomarkers_delete"
+    if "/api/biomarkers" in blob:
+        return "biomarkers"
     if "/api/labs/upload" in blob:
         return "labs_upload"
     if "/api/labs/delete" in blob:
@@ -886,6 +898,33 @@ def inventory_write(headers, route: str, payload=None):
         "write": {"ok": True, "source": "turso", "verified_on_readback": True},
         "user_id": uid,
     }
+
+
+def biomarkers_body(headers):
+    """GET /api/biomarkers — store view (no session context; the dashboard
+    payload carries the full view). Cookie-less 401."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    from rt_dashboard.biomarkers_view import load_view
+    from rt_dashboard.timeutil import local_today_iso
+
+    return 200, {"ok": True, "biomarkers": load_view(user_id=str(user.get("id") or ""),
+                                                      today=local_today_iso())}
+
+
+def biomarkers_write(headers, route: str, payload=None):
+    """POST /api/biomarkers/import|context|delete — shared with Pi server.py."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    from rt_dashboard.biomarkers_api import handle_post
+
+    try:
+        return handle_post(route, payload if isinstance(payload, dict) else {},
+                           user_id=str(user.get("id") or ""))
+    except Exception as e:  # noqa: BLE001
+        return 500, {"ok": False, "error": f"biomarkers: {type(e).__name__}"}
 
 
 def labs_body(headers):
@@ -1882,6 +1921,14 @@ def dispatch_client_route(
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return training_log_pdf_body(headers, query)
+    if route == "biomarkers":
+        if method != "GET":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return biomarkers_body(headers)
+    if route in ("biomarkers_import", "biomarkers_context", "biomarkers_delete"):
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return biomarkers_write(headers, route, payload or {})
     if route == "labs":
         if method != "GET":
             return 405, {"ok": False, "error": "method_not_allowed"}
@@ -1964,6 +2011,8 @@ __all__ = [
     "goals_body",
     "equipment_write",
     "inventory_write",
+    "biomarkers_body",
+    "biomarkers_write",
     "labs_body",
     "labs_write",
     "hsa_body",

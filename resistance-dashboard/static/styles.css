@@ -4066,7 +4066,8 @@ body.m-shell[data-m-active="today"] [data-m-panel="today"],
 body.m-shell[data-m-active="log"] [data-m-panel="log"],
 body.m-shell[data-m-active="trends"] [data-m-panel="trends"],
 body.m-shell[data-m-active="kitchen"] [data-m-panel="kitchen"],
-body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+body.m-shell[data-m-active="more"] [data-m-panel="more"],
+body.m-shell[data-m-active="biomarkers"] [data-m-panel="biomarkers"] {
   display: block !important;
 }
 
@@ -5055,4 +5056,48 @@ body.m-shell #alerts {
     width: 100%;
     min-height: 48px;
   }
+}
+
+/* ---- Blood-panel biomarkers (biomarkers.js) ---- */
+body.m-shell[data-m-active="today"] #biomarkers-today-card[hidden] { display: none !important; }
+.bm-sub, .bm-ctx { margin: 0.2rem 0; font-size: 0.82rem; }
+.bm-auto { font-size: 0.68rem; padding: 0 0.3rem; border-radius: 6px; background: var(--bg-elevated); color: var(--accent-2); }
+.bm-group { margin: 1rem 0 0.4rem; font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.bm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.6rem; }
+.bm-marker { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.7rem; }
+.bm-marker.bm-flagged { border-color: var(--warn); }
+.bm-marker-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.bm-name { font-weight: 600; font-size: 0.9rem; }
+.bm-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+.bm-val small { font-weight: 400; color: var(--muted); font-size: 0.72rem; }
+.bm-val.bm-low, .bm-val.bm-high { color: var(--warn); }
+.bm-cav-ico { color: var(--accent); cursor: help; font-size: 0.8rem; }
+.bm-range { position: relative; height: 8px; margin: 0.45rem 0 0.15rem; border-radius: 4px; background: rgba(240, 113, 120, 0.25); }
+.bm-range-none { background: none; height: auto; font-size: 0.72rem; color: var(--muted); }
+.bm-range-ok { position: absolute; top: 0; bottom: 0; background: rgba(92, 225, 168, 0.45); border-radius: 4px; }
+.bm-range-dot { position: absolute; top: -3px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--accent-2); border: 2px solid var(--bg-card); }
+.bm-range-dot.bm-low, .bm-range-dot.bm-high { background: var(--warn); }
+.bm-range-lbl { font-size: 0.7rem; }
+.bm-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin-top: 0.3rem; font-size: 0.78rem; flex-wrap: wrap; }
+.bm-spark { color: var(--accent); }
+.bm-up { color: var(--accent); } .bm-down { color: var(--accent); }
+.bm-lift { font-size: 0.72rem; }
+.bm-notes { list-style: none; margin: 0.4rem 0 0; padding: 0; font-size: 0.76rem; }
+.bm-flag { color: var(--warn); }
+.bm-caveat { color: var(--muted); }
+.bm-foot { font-size: 0.75rem; margin-top: 0.7rem; font-style: italic; }
+.bm-today h2 { margin: 0; font-size: 1rem; }
+.bm-today-list { margin: 0.2rem 0 0.5rem; padding-left: 1.1rem; font-size: 0.85rem; }
+.bm-entry .bm-form-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.bm-entry label { display: flex; flex-direction: column; font-size: 0.8rem; gap: 0.2rem; }
+.bm-entry .bm-wide { flex: 1 1 100%; }
+.bm-entry textarea { width: 100%; }
+.bm-ctx-fields { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.7rem; }
+.bm-ctx-fields legend { font-size: 0.8rem; }
+.bm-table-wrap { overflow-x: auto; }
+.bm-table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
+.bm-table td, .bm-table th { padding: 0.2rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; }
+.bm-table tr.bm-dup { opacity: 0.55; }
+@media (max-width: 720px) {
+  .bm-grid { grid-template-columns: 1fr; }
 }

@@ -65,7 +65,7 @@ class TrendsRhrMarkup(unittest.TestCase):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
         self.assertIn("/app.js?v=quest-resync-1304-1", HTML)
         self.assertIn("/app.js?v=quest-resync-1304-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v144"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v145"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)

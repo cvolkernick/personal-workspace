@@ -406,7 +406,7 @@ class ApplyCoachFrontend(unittest.TestCase):
         self.assertNotIn("/app.js?v=hsa-834-1", sw)
         self.assertIn("/app.js?v=quest-resync-1304-1", html)
         self.assertIn("/app.js?v=quest-resync-1304-1", sw)
-        self.assertIn('const CACHE = "fitdash-shell-v144"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v145"', sw)
         self.assertNotIn("/app.js?v=recipes-dish-1", html)
         self.assertNotIn("/app.js?v=recipes-dish-1", sw)
         self.assertNotIn("fitdash-shell-v100", sw)

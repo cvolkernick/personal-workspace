@@ -188,3 +188,22 @@ Compatible with existing PPL markdown:
 - DB Flat Press: 50 lbs x 1 x 12, 45 lbs x 1 x 12
 - Tricep Pushdowns: 47.5 lbs x 3 x 12 (PR!)
 ```
+
+## Blood panel biomarkers (Labs tab)
+
+Row-per-marker store (`biomarker_panels`, `biomarker_results`; additive
+`CREATE … IF NOT EXISTS` only) behind its own **Labs** tab, plus a Today card
+that appears only for a result from the last 7 days or a flagged marker.
+Pins, thresholds, caveats and the footnote live in
+`rt_dashboard/biomarkers_config.py`. Flags say "review", never diagnose;
+context caveats (creatine, fasting, alcohol, training, biotin, non-morning,
+illness) are annotations, not flags.
+
+- Add a panel in the UI: Labs tab → *Add a panel* → Rythm PDF or Manual/CSV
+  (`marker,value,unit,ref_low,ref_high`) or JSON → **Preview (dry run)** →
+  **Save panel**. Duplicates (marker + draw date + panel) are skipped.
+- API: `POST /api/biomarkers/import` (`commit:false` = preview),
+  `/api/biomarkers/context`, `/api/biomarkers/delete`; `GET /api/biomarkers`.
+- CLI (dry-run by default; local SQLite unless `--allow-turso`):
+  `python3 scripts/biomarkers_import.py import <file.pdf|.csv|.json> [--commit]`,
+  `… migrate`, `… snapshot`. Keep real panel files outside the repo.

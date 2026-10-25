@@ -129,6 +129,22 @@
       "destination": "/api/dashboard?_r=suggestions"
     },
     {
+      "source": "/api/biomarkers/import",
+      "destination": "/api/dashboard?_r=biomarkers_import"
+    },
+    {
+      "source": "/api/biomarkers/context",
+      "destination": "/api/dashboard?_r=biomarkers_context"
+    },
+    {
+      "source": "/api/biomarkers/delete",
+      "destination": "/api/dashboard?_r=biomarkers_delete"
+    },
+    {
+      "source": "/api/biomarkers",
+      "destination": "/api/dashboard?_r=biomarkers"
+    },
+    {
       "source": "/api/labs/upload",
       "destination": "/api/dashboard?_r=labs_upload"
     },
