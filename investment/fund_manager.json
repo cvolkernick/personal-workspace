@@ -139,11 +139,11 @@
     "runner": "treasury/fund_manager_daily.sh",
     "bp_poll_runner": "treasury/fund_manager_bp_poll.sh",
     "bp_poll_interval_seconds": 900,
-    "bp_poll_trigger": "any_cash_or_bp_gt_zero",
+    "bp_poll_trigger": "settled_cash_gte_min_investable_once_per_et_day",
     "rh_refresh_runner": "treasury/rh_refresh.sh",
     "rh_refresh_interval_hours": 3,
     "rh_stale_warn_hours": 6,
-    "notes": "Daily mid-session review + BP poll every ~15m (market hours). Any agentic cash>0 or BP>0 triggers full research/rotate team (no %NAV floor). RH snapshot ~3h via rh_refresh. launchd: com.personalworkspace.fund-manager-bp-poll + rh-refresh. Pi: fund-manager-bp-poll.timer."
+    "notes": "Daily mid-session review + BP poll every ~15m (market hours). Any agentic cash>0 or BP>0 triggers full research/rotate team (no %NAV floor). RH snapshot ~3h via rh_refresh. launchd: com.personalworkspace.fund-manager-bp-poll + rh-refresh. Pi: fund-manager-bp-poll.timer. | 2026-10-24: bp-poll no longer buys on any cash > $0; it starts ONE buy run only when settled cash >= $5 (python3 -m treasury.fund_manager_broker --should-buy), at most once per ET day, shared with the daily run."
   },
   "account": {
     "scope": "agentic_only",
@@ -183,6 +183,7 @@
         "STRC",
         "SATA",
         "STRK",
+        "IBIT",
         "ASST",
         "BITA",
         "MARA",
@@ -261,8 +262,9 @@
         "SATA": 0.25,
         "STRK": 0.15,
         "floating": 0.35,
+        "floating_default": "IBIT",
         "floating_universe": [
-          "BTC",
+          "IBIT",
           "MSTR",
           "ASST",
           "BITA",
@@ -273,7 +275,7 @@
           "IREN"
         ],
         "buy_only": true,
-        "notes": "Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only \u2014 never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093."
+        "notes": "Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only \u2014 never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093. | Nakatoshi 2026-10-24: IBIT replaces BTC in the floating universe as the native-BTC stand-in (the account cannot hold spot BTC) and is the default for the floating 35%; legs < $1 fold into IBIT. MSTR low preference through 2026-11-30 (execution.broker_adapter.low_preference). Hard-enforced by treasury/fund_manager_broker.plan_intents."
       }
     },
     "stocks_growth": {
@@ -369,6 +371,8 @@
       "MSTR",
       "STRC",
       "SATA",
+      "STRK",
+      "IBIT",
       "ASST",
       "BITA",
       "MARA",
@@ -383,7 +387,9 @@
   },
   "guardrails": {
     "no_sell_to_rebalance": true,
-    "allowed_sides": ["buy"],
+    "allowed_sides": [
+      "buy"
+    ],
     "sell_override_file": "investment/fund_manager_sell_override.json",
     "block_if_agentic_bp_zero": true,
     "respect_fcc_liquidity_stress": false,
@@ -412,17 +418,63 @@
         "STRC",
         "SATA",
         "STRK",
-        "IBIT"
+        "MSTR",
+        "ASST",
+        "BITA",
+        "IBIT",
+        "MARA",
+        "RIOT",
+        "CLSK",
+        "IREN",
+        "WULF",
+        "TSLA",
+        "SPCX"
       ],
       "order_type": "market",
       "dollar_based": true,
       "time_in_force": "gfd",
       "market_hours": "regular_hours",
+      "extended_hours": false,
+      "earliest_place_et": "10:00",
+      "latest_place_et": "15:50",
+      "market_holidays": [
+        "2026-11-26",
+        "2026-12-25",
+        "2027-01-01",
+        "2027-01-18",
+        "2027-02-15",
+        "2027-03-26",
+        "2027-05-31",
+        "2027-06-18",
+        "2027-07-05",
+        "2027-09-06",
+        "2027-11-25",
+        "2027-12-24"
+      ],
+      "early_close_days": {
+        "2026-11-27": "13:00",
+        "2026-12-24": "13:00",
+        "2027-11-26": "13:00"
+      },
       "min_order_notional_usd": 1.0,
       "max_order_notional_usd": 75.0,
       "max_daily_notional_usd": 150.0,
+      "max_run_notional_usd": 160.0,
+      "min_investable_usd": 5.0,
+      "one_buy_run_per_et_day": true,
+      "weight_tolerance_usd": 1.0,
+      "weight_tolerance_pct": 0.05,
+      "fold_below_usd": 1.0,
+      "fold_into": "IBIT",
       "dedupe_window_hours": 24,
-      "notes": "Buy-only adapter behind the #1093 order gate. Review-then-place: local allowlist/caps, idempotency ledger (treasury/snapshots/fund_manager_broker_ledger.json), broker open/recent-order check, live buying power, tradability, review_equity_order, then place_equity_order. client empty = no broker client (orders end not_submitted_no_broker_client) until prism sets FM_BROKER_CLIENT=grok_mcp. Allowlist/caps pending Nakatoshi confirmation (Chris 2026-10-24 approved auto-trading back on; Mon 10/26 STRC/SATA/STRK/IBIT buy)."
+      "snapshot_max_age_hours": 6,
+      "low_preference": {
+        "MSTR": {
+          "until": "2026-11-30",
+          "notes": "Nakatoshi 2026-10-24: keep MSTR on the floating list but prefer other floating names through this date (prompt-level; logged when chosen)."
+        }
+      },
+      "notes": "Nakatoshi 2026-10-24 (Grok-approved). Buy-only adapter + deterministic run planner behind the #1093 gate. Agentic ~60% stocks (TSLA/SPCX 50/50) / 40% BTC + digital credit; hold, never sell (any sell is a manual action Chris takes himself). New cash fills BTC + digital credit first until 40% of invested value; no TSLA/SPCX buy while under 40%. BTC sleeve per run: STRC 25 / SATA 25 / STRK 15 (tolerance max($1, 5% of run)), AI splits only the floating 35% (default IBIT, the native-BTC stand-in); legs < $1 fold into IBIT. Run cap min(settled cash, $160, daily cap left); skip under $5 investable. Market dollar DAY orders, regular hours, not before 10:00 ET, no queuing. One buy run per ET day shared by daily + bp-poll (same-day fills placed outside the adapter count). Placed orders post a decision entry to #701. client empty until prism sets FM_BROKER_CLIENT=grok_mcp."
     },
     "notes": "Dollar/fractional market only in regular_hours (queue if after hours). Outside regular hours use extended limit only when fractional allowed."
   },

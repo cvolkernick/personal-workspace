@@ -894,7 +894,7 @@ def gate_orders(
 # --------------------------------------------------------------------------
 
 Submit = Callable[[GatedOrder], Dict[str, Any]]
-_BROKER_ROW_KEYS = ("broker_reason", "order_id", "idempotency_key")
+_BROKER_ROW_KEYS = ("broker_reason", "order_id", "idempotency_key", "broker_state", "filled_quantity", "fill_price")
 
 
 def load_broker_adapter() -> Optional[Submit]:
@@ -941,8 +941,12 @@ def execute_intents(
     record: bool = True,
     record_fn: Optional[Callable[[Dict[str, Any]], Any]] = None,
     ledger_path: Optional[Path] = None,
+    plan: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gate, log, and (only for approved orders) submit.
+
+    ``plan`` is the broker run planner's info (``submit.plan``); placed orders
+    and planner repairs/rejections are posted as one decision entry (#701).
 
     ``submit`` is never called with anything but a ``GatedOrder``. With
     ``live:false`` in policy (or ``dry_run``) nothing is submitted; approved
@@ -1028,7 +1032,57 @@ def execute_intents(
             (record_fn or _default_record)(entry)
         except Exception as exc:  # logging must never turn into an order
             out["record_error"] = type(exc).__name__
+    if record and not dry_run:
+        entry = _execution_entry(out, plan)
+        if entry is not None:
+            try:
+                (record_fn or _default_record)(entry)
+            except Exception as exc:  # logging must never turn into an order
+                out["record_error"] = type(exc).__name__
     return out
+
+
+def _execution_entry(out: Dict[str, Any], plan: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Decision entry (#701) for placed orders + planner repairs/rejections.
+    None when there is nothing to report (no placement, no repair/drop)."""
+    placed = [r for r in out.get("placed") or [] if str(r.get("status")) in EXECUTED_STATUSES]
+    others = [r for r in out.get("placed") or [] if r not in placed]
+    plan = plan or {}
+    dropped = list(plan.get("dropped") or [])
+    repairs = list(plan.get("repairs") or [])
+    if not placed and not dropped and not repairs:
+        return None
+    total = sum(float(r.get("notional_usd") or 0) for r in placed)
+    legs = ", ".join(f"{r['symbol']} ${float(r.get('notional_usd') or 0):.2f}" for r in placed) or "none"
+    summary = (
+        f"Run {plan.get('run_id') or '?'} [{plan.get('status') or 'unplanned'}]: placed {len(placed)} buy(s) "
+        f"${total:.2f} ({legs}); not placed {len(others)}; sleeve/weight drops {len(dropped)}"
+    )
+    actions: List[Dict[str, Any]] = []
+    for r in placed + others:
+        a = {k: r.get(k) for k in ("symbol", "side", "notional_usd", "status", "order_id", "broker_reason")}
+        a["qty"] = r.get("filled_quantity")
+        a["fill_price"] = r.get("fill_price")
+        actions.append(a)
+    for d in dropped:
+        actions.append({"symbol": d.get("symbol"), "side": "buy", "notional_usd": d.get("notional_usd"),
+                        "status": d.get("status"), "broker_reason": d.get("reason")})
+    return {
+        "kind": "deploy" if placed else "deploy_not_placed",
+        "outcome": "placed" if placed else "not_placed",
+        "path": "order_gate+broker_adapter",
+        "need_llm": False,
+        "summary": summary,
+        "rationale": {
+            "why_now": "Gate-approved buys from the deterministic run plan (BTC + digital credit first to 40%, "
+                       "STRC 25 / SATA 25 / STRK 15 / floating 35, TSLA/SPCX 50/50 after).",
+            "why_not_alternatives": "Buy-only; any sell is a manual action Chris takes himself.",
+            "thesis_tags": ["broker_adapter", "run_plan", "no_sell_guard"],
+        },
+        "plan": {k: plan.get(k) for k in ("run_id", "status", "run_total_usd", "settled_cash", "btc_share_before",
+                                           "repairs", "notes", "legs") if k in plan},
+        "actions": actions,
+    }
 
 
 def _log_blocked_line(row: Dict[str, Any]) -> None:
@@ -1216,15 +1270,30 @@ def main(argv: Optional[List[str]] = None) -> int:
             payload = "unreadable"
         policy = load_gate_policy()
         override, oerr = load_override(policy=policy)
+        submit = load_broker_adapter()
+        plan: Optional[Dict[str, Any]] = None
+        planner = getattr(submit, "plan", None) if submit is not None else None
+        if planner is not None:
+            # Deterministic run planner (sleeve gate, fixed weights, caps, window,
+            # once-per-ET-day). It can only narrow: sells pass through to be blocked.
+            try:
+                payload, plan = planner(payload, persist=not args.dry_run)
+            except Exception as exc:  # fail closed: drop every buy
+                plan = {"status": "plan_error", "reason": type(exc).__name__}
+                if isinstance(payload, list):
+                    payload = [it for it in payload if classify_side(it)[0] != "buy"]
         result = execute_intents(
             payload,
             deployable_cash=_deployable_cash_from_snapshot(),
-            submit=load_broker_adapter(),
+            submit=submit,
             policy=policy,
             override=override,
             dry_run=args.dry_run or None,
             record=not args.no_record,
+            plan=plan,
         )
+        if plan is not None:
+            result["plan"] = plan
         try:  # consumed: never replay a stale intents file
             p.rename(p.with_suffix(".consumed.json"))
         except OSError:

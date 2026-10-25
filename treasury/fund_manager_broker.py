@@ -1,46 +1,53 @@
 #!/usr/bin/env python3
-"""Buy-only Robinhood broker adapter for the fund-manager order gate (#1093).
+"""Buy-only Robinhood broker adapter + deterministic run planner (#1093).
 
 Selected by the order gate via ``FM_BROKER_ADAPTER``::
 
     FM_BROKER_ADAPTER=treasury.fund_manager_broker:submit
 
-``fund_manager_order_gate.execute_intents`` is the ONLY caller: it hands
-``submit`` a ``GatedOrder`` the gate minted. This module adds defense in depth
-on top of the gate and never widens it:
+Two deterministic stages sit between the LLM's buy intents and an order:
 
-1. BUY-ONLY, hard. Anything that is not a plain buy (sell, short, option,
-   crypto, conflicting side fields, a non-``GatedOrder``) is rejected here
-   regardless of what the gate said.
-2. Kill switches: ``FM_BROKER_DISABLE=1``; policy ``live`` must be literally
-   ``true``; ``execution.broker_adapter.enabled`` must be ``true``.
-3. Local review: symbol on ``execution.broker_adapter.symbol_allowlist`` (and not
-   in ``guardrails.blocked_symbols``), notional > 0, >= min, <= per-order max,
-   today's placed total + this <= daily max, dollar amount rounded DOWN to cents.
-4. Duplicate check (two layers): an idempotency key per intended order
-   (ET run date + account + symbol + side + cents) persisted in
-   ``treasury/snapshots/fund_manager_broker_ledger.json`` under an flock, and the
-   broker's own open/recent orders for the agentic account.
-5. Broker review: live buying power and account number, tradability (fractional
-   for dollar orders), then the broker's ``review_equity_order`` preview.
-6. Place: the ledger row is persisted as ``placing`` BEFORE the place call, so a
-   crash or timeout can never be retried into a double buy
-   (``place_error_outcome_unknown`` keeps blocking that key).
+**Run planner** (``plan_intents``; the gate calls it through ``submit.plan``
+before gating). Policy (Nakatoshi 2026-10-24, Grok-approved): Agentic is ~60%
+stocks (TSLA/SPCX 50/50) and 40% BTC + digital credit; hold, never sell; new
+cash fills the BTC + digital-credit sleeve first until it reaches 40%.
 
-Every outcome is a terminal status string (see ``TERMINAL_STATUSES``) with a
-``broker_reason``. Nothing secret is logged: no tokens, no client output beyond
-order id/state.
+* window: ET weekday, not a market holiday, ``earliest_place_et`` (10:00) <=
+  now < ``latest_place_et`` (15:50, or 10 min before an early close). Else
+  ``not_submitted_before_window`` / ``not_submitted_outside_market_hours`` (no queuing).
+* one buy run per ET day (shared by the daily run and bp-poll; external
+  same-day fills count): else ``skipped_already_bought_today``.
+* run total = min(LLM-proposed allowlisted buys, settled cash,
+  ``max_run_notional_usd`` (160), daily cap left). Under ``min_investable_usd`` (5):
+  ``skipped_below_min_investable``.
+* sleeve gate: BTC sleeve under 40% of invested value => the whole run goes to
+  the BTC sleeve and TSLA/SPCX legs are dropped (``not_submitted_sleeve_gate``).
+  At/over 40%, BTC gets what keeps it at 40% after the run and stocks get the
+  rest, split to move TSLA/SPCX toward 50/50.
+* BTC-sleeve weights: STRC 25 / SATA 25 / STRK 15 of the BTC amount, each within
+  max($1, 5% of the run total) of the LLM's figure, else repaired to target
+  (``weights_repaired``). The LLM only chooses how the floating 35% splits among
+  the floating names (default: all IBIT). Legs > $75 spill into IBIT; legs < $1
+  fold into IBIT.
 
-The Robinhood client is injectable (``client=`` or ``FM_BROKER_CLIENT``). The
-repo's only Robinhood auth is the Grok CLI + ``robinhood-trading`` MCP OAuth on
-the producer host (prism); ``GrokMcpClient`` drives that same mechanism with a
-per-call tool allow/deny list. No new credentials are introduced.
+**submit** (per gate-approved order): buy-only hard reject, kill switches,
+planned-leg check (``not_submitted_unplanned`` for anything the planner did not
+emit), window, day guard, local review (allowlist, caps), idempotency ledger,
+broker review (account, live buying power / settled cash, same-day external
+fills -> day guard, open/recent duplicates, tradability, ``review_equity_order``),
+then place. The ledger row is ``placing`` before the place call, so a crash or
+timeout is ``place_error_outcome_unknown`` and never retried.
+
+Sells are never placed here; any sell is a manual action Chris takes himself.
+No secrets are logged. The Robinhood client is injectable (``client=`` or
+``FM_BROKER_CLIENT``); ``GrokMcpClient`` reuses prism's grok + robinhood-trading
+MCP OAuth (no new credentials).
 """
 
 from __future__ import annotations
 
+import argparse
 import contextlib
-import hashlib
 import importlib
 import json
 import os
@@ -48,7 +55,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time as dtime, timedelta, timezone
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
@@ -65,6 +72,8 @@ CLIENT_ENV = "FM_BROKER_CLIENT"  # "grok_mcp" | "pkg.module:factory"; unset => n
 DISABLE_ENV = "FM_BROKER_DISABLE"  # "1" => place nothing
 LEDGER_PATH = ROOT / "treasury" / "snapshots" / "fund_manager_broker_ledger.json"
 LEDGER_KEEP_DAYS = 45
+CENT = Decimal("0.01")
+ZERO = Decimal("0")
 
 # ---- terminal statuses ----------------------------------------------------
 S_PLACED = "placed"  # in gate.EXECUTED_STATUSES
@@ -80,12 +89,26 @@ S_DUP_KEY = "skipped_duplicate_idempotency"
 S_DUP_BROKER = "skipped_duplicate_broker_order"
 S_LEDGER = "not_submitted_ledger_unavailable"
 S_PLACE_UNKNOWN = "place_error_outcome_unknown"
+S_UNPLANNED = "not_submitted_unplanned"
+S_BEFORE_WINDOW = "not_submitted_before_window"
+S_OUTSIDE_HOURS = "not_submitted_outside_market_hours"
+S_DAY_DONE = "skipped_already_bought_today"
+S_SLEEVE_GATE = "not_submitted_sleeve_gate"
+S_BELOW_MIN = "skipped_below_min_investable"
+S_BOOK_UNKNOWN = "not_submitted_book_unknown"
+# plan statuses
+P_PLANNED = "planned"
+P_REPAIRED = "weights_repaired"
+P_NO_BUYS = "no_buy_intents"
 TERMINAL_STATUSES = frozenset(
     {
         S_PLACED, S_NOT_GATED, S_NON_BUY, S_DISABLED, S_LIVE_FALSE, S_CONFIG, S_NO_CLIENT,
         S_REVIEW_FAILED, S_BROKER_REJECTED, S_DUP_KEY, S_DUP_BROKER, S_LEDGER, S_PLACE_UNKNOWN,
+        S_UNPLANNED, S_BEFORE_WINDOW, S_OUTSIDE_HOURS, S_DAY_DONE, S_SLEEVE_GATE, S_BELOW_MIN,
+        S_BOOK_UNKNOWN,
     }
 )
+PLAN_SKIP_STATUSES = frozenset({S_CONFIG, S_BEFORE_WINDOW, S_OUTSIDE_HOURS, S_DAY_DONE, S_BELOW_MIN, S_BOOK_UNKNOWN, S_LEDGER})
 # Ledger states that block a re-submit of the same idempotency key.
 _BLOCKING_LEDGER_STATES = frozenset({"placing", S_PLACED, S_PLACE_UNKNOWN})
 # Broker order states that do NOT count as a live/duplicate order.
@@ -94,7 +117,7 @@ _OPEN_BROKER_STATES = frozenset(
     {"queued", "unconfirmed", "confirmed", "partially_filled", "pending", "new", "open", "accepted"}
 )
 
-try:  # ET run date for the idempotency key
+try:  # ET run date for the idempotency key and the trading window
     from zoneinfo import ZoneInfo
 
     _ET = ZoneInfo("America/New_York")
@@ -110,7 +133,7 @@ class RobinhoodClient(Protocol):
     """What the adapter needs from a broker client (all agentic-account scoped)."""
 
     def get_account(self, account_number: str) -> Dict[str, Any]:
-        """{"account_number": str, "buying_power": float, "cash": float?}"""
+        """{"account_number": str, "buying_power": float, "cash": float?, "settled_cash": float?}"""
 
     def get_recent_orders(self, account_number: str, since: datetime) -> List[Dict[str, Any]]:
         """[{"order_id","symbol","side","state","dollar_amount"|"notional_usd","created_at"}]"""
@@ -122,7 +145,7 @@ class RobinhoodClient(Protocol):
         """{"ok": bool, "reason": str, "warnings": [...]} -- no order is created."""
 
     def place_order(self, order: Dict[str, Any]) -> Dict[str, Any]:
-        """{"order_id": str, "state": str, "symbol", "side", "dollar_amount"}"""
+        """{"order_id", "state", "symbol", "side", "dollar_amount", "quantity"?, "average_price"?}"""
 
 
 # --------------------------------------------------------------------------
@@ -140,9 +163,21 @@ def _d(val: Any) -> Optional[Decimal]:
         return None
 
 
+def _hhmm(val: Any, default: str) -> Optional[dtime]:
+    try:
+        h, m = str(val or default).strip().split(":")
+        return dtime(int(h), int(m))
+    except (ValueError, TypeError):
+        return None
+
+
+def _upper_list(val: Any) -> List[str]:
+    return [str(s).strip().upper() for s in (val or []) if isinstance(s, str) and s.strip()]
+
+
 def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Dict[str, Any]], str]:
-    """(config, error). Reads ``live``, ``account``, ``guardrails`` and
-    ``execution.broker_adapter`` from fund_manager.json. Any problem => error."""
+    """(config, error). Reads ``live``, ``account``, ``guardrails``, ``targets``,
+    ``sleeves`` and ``execution.broker_adapter`` from fund_manager.json."""
     p = Path(policy_path or gate.POLICY_PATH)
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
@@ -154,43 +189,96 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
     ba = ex.get("broker_adapter")
     if not isinstance(ba, dict):
         return None, "execution.broker_adapter missing"
-    allow = ba.get("symbol_allowlist")
-    if not isinstance(allow, list) or not allow or not all(isinstance(s, str) and s.strip() for s in allow):
+    allow = _upper_list(ba.get("symbol_allowlist"))
+    if not allow:
         return None, "execution.broker_adapter.symbol_allowlist missing/empty"
     acct = str(((data.get("account") or {}).get("account_number")) or "").strip()
     if not acct:
         return None, "account.account_number missing"
     max_order = _d(ba.get("max_order_notional_usd"))
     max_daily = _d(ba.get("max_daily_notional_usd"))
+    max_run = _d(ba.get("max_run_notional_usd"))
     min_order = _d(ba.get("min_order_notional_usd"))
-    if max_order is None or max_order <= 0 or max_daily is None or max_daily <= 0:
-        return None, "max_order_notional_usd / max_daily_notional_usd must be positive numbers"
+    min_inv = _d(ba.get("min_investable_usd"))
+    for name, v in (("max_order_notional_usd", max_order), ("max_daily_notional_usd", max_daily),
+                    ("max_run_notional_usd", max_run), ("min_investable_usd", min_inv)):
+        if v is None or v <= 0:
+            return None, f"execution.broker_adapter.{name} must be a positive number"
     order_type = str(ba.get("order_type") or "market").strip().lower()
     if order_type != "market":
         return None, f"order_type {order_type!r} unsupported (market dollar orders only)"
     if ba.get("dollar_based", True) is not True:
         return None, "only dollar_based orders are supported"
+    if ba.get("extended_hours", False) is not False:
+        return None, "extended_hours must be false (regular hours only, no after-hours queuing)"
+    earliest = _hhmm(ba.get("earliest_place_et"), "10:00")
+    latest = _hhmm(ba.get("latest_place_et"), "15:50")
+    if earliest is None or latest is None or earliest >= latest:
+        return None, "earliest_place_et / latest_place_et malformed"
+    sleeves = data.get("sleeves") or {}
+    btc = sleeves.get("btc_digital_credit") or {}
+    nmw = btc.get("new_money_weights") or {}
+    fixed: Dict[str, Decimal] = {}
+    for sym in ("STRC", "SATA", "STRK"):
+        w = _d(nmw.get(sym))
+        if w is None or w < 0:
+            return None, f"sleeves.btc_digital_credit.new_money_weights.{sym} missing"
+        fixed[sym] = w
+    floating_w = _d(nmw.get("floating"))
+    floating = _upper_list(nmw.get("floating_universe"))
+    fold_into = str(ba.get("fold_into") or nmw.get("floating_default") or "IBIT").strip().upper()
+    if floating_w is None or abs(sum(fixed.values()) + floating_w - 1) > Decimal("0.0001"):
+        return None, "new_money_weights must sum to 1"
+    if fold_into not in floating:
+        return None, f"fold_into {fold_into} must be in floating_universe"
+    stocks = _upper_list((sleeves.get("stocks_growth") or {}).get("symbols"))
+    if len(stocks) != 2:
+        return None, "sleeves.stocks_growth.symbols must be exactly two names (50/50)"
+    missing = [s for s in list(fixed) + floating + stocks if s not in allow]
+    if missing:
+        return None, f"sleeve symbols not on symbol_allowlist: {missing}"
+    btc_target = _d((data.get("targets") or {}).get("btc_digital_credit_pct"))
+    if btc_target is None or not (0 < btc_target < 1):
+        return None, "targets.btc_digital_credit_pct malformed"
     blocked = ((data.get("guardrails") or {}).get("blocked_symbols")) or []
     cfg = {
         "live": data.get("live") is True,
         "enabled": ba.get("enabled") is True,
         "account_number": acct,
-        "allowlist": tuple(sorted({s.strip().upper() for s in allow})),
+        "allowlist": tuple(sorted(set(allow))),
         "blocked": tuple(str(s).strip().upper() for s in blocked if isinstance(s, str)),
         "min_order": min_order if (min_order is not None and min_order > 0) else Decimal("1"),
         "max_order": max_order,
         "max_daily": max_daily,
+        "max_run": max_run,
+        "min_investable": min_inv,
         "order_type": "market",
         "time_in_force": str(ba.get("time_in_force") or "gfd").strip().lower(),
-        "market_hours": str(ba.get("market_hours") or "regular_hours").strip().lower(),
+        "market_hours": "regular_hours",
+        "earliest": earliest,
+        "latest": latest,
+        "holidays": frozenset(str(x) for x in (ba.get("market_holidays") or [])),
+        "early_close": {str(k): v for k, v in (ba.get("early_close_days") or {}).items()},
         "dedupe_window_hours": float(gate._num(ba.get("dedupe_window_hours")) or 24.0),
+        "snapshot_max_age_hours": float(gate._num(ba.get("snapshot_max_age_hours")) or 6.0),
+        "tol_usd": _d(ba.get("weight_tolerance_usd")) or Decimal("1"),
+        "tol_pct": _d(ba.get("weight_tolerance_pct")) or Decimal("0.05"),
+        "fold_below": _d(ba.get("fold_below_usd")) or Decimal("1"),
+        "fold_into": fold_into,
+        "fixed_weights": fixed,
+        "floating_weight": floating_w,
+        "floating": tuple(floating),
+        "stocks": tuple(stocks),
+        "btc_target": btc_target,
+        "one_run_per_day": ba.get("one_buy_run_per_et_day", True) is not False,
+        "low_preference": ba.get("low_preference") if isinstance(ba.get("low_preference"), dict) else {},
         "client": str(ba.get("client") or "").strip(),
     }
     return cfg, ""
 
 
 # --------------------------------------------------------------------------
-# Ledger (idempotency + review/placement record)
+# Ledger (idempotency, plans, one-buy-run-per-ET-day guard)
 # --------------------------------------------------------------------------
 
 
@@ -202,10 +290,13 @@ class BrokerLedger:
     @staticmethod
     def _load(path: Path) -> Dict[str, Any]:
         if not path.exists():
-            return {"version": 1, "orders": {}}
+            return {"version": 2, "orders": {}, "runs": {}, "days": {}}
         data = json.loads(path.read_text(encoding="utf-8"))  # ValueError => caller fails closed
         if not isinstance(data, dict) or not isinstance(data.get("orders"), dict):
             raise ValueError("broker ledger malformed")
+        for k in ("runs", "days"):
+            if not isinstance(data.setdefault(k, {}), dict):
+                raise ValueError("broker ledger malformed")
         return data
 
     @classmethod
@@ -248,15 +339,31 @@ class BrokerLedger:
         self.save()
 
     def placed_total(self, run_date: str) -> Decimal:
-        tot = Decimal("0")
+        tot = ZERO
         for row in self.data["orders"].values():
             if row.get("run_date") == run_date and row.get("status") in _BLOCKING_LEDGER_STATES:
-                tot += _d(row.get("dollar_amount")) or Decimal("0")
+                tot += _d(row.get("dollar_amount")) or ZERO
         return tot
+
+    def run_order_ids(self, run_id: str) -> set:
+        return {
+            str(r.get("order_id")) for r in self.data["orders"].values()
+            if r.get("run_id") == run_id and r.get("order_id")
+        }
+
+    def day_claim(self, run_date: str) -> Optional[Dict[str, Any]]:
+        return self.data["days"].get(run_date)
+
+    def claim_day(self, run_date: str, by: str, reason: str, now: datetime) -> None:
+        if run_date not in self.data["days"]:
+            self.data["days"][run_date] = {"claimed_by": by, "reason": reason, "at": now.isoformat()}
+            self.save()
 
     def prune(self, now: datetime) -> None:
         cutoff = (now.astimezone(_ET) - timedelta(days=LEDGER_KEEP_DAYS)).date().isoformat()
         self.data["orders"] = {k: v for k, v in self.data["orders"].items() if str(v.get("run_date") or "9") >= cutoff}
+        self.data["runs"] = {k: v for k, v in self.data["runs"].items() if str(v.get("run_date") or "9") >= cutoff}
+        self.data["days"] = {k: v for k, v in self.data["days"].items() if k >= cutoff}
 
 
 def idempotency_key(run_date: str, account: str, symbol: str, side: str, cents: int) -> str:
@@ -266,6 +373,325 @@ def idempotency_key(run_date: str, account: str, symbol: str, side: str, cents: 
 def ref_id_for(key: str) -> str:
     """Deterministic client order ref (broker-side idempotency when supported)."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, "fund-manager-broker:" + key))
+
+
+# --------------------------------------------------------------------------
+# Trading window, settled cash, book
+# --------------------------------------------------------------------------
+
+
+def et_date(now: datetime) -> str:
+    return now.astimezone(_ET).date().isoformat()
+
+
+def market_window(now: datetime, cfg: Dict[str, Any]) -> Tuple[Optional[str], str]:
+    """(None, "") inside the placing window, else (status, reason). Never queues."""
+    et = now.astimezone(_ET)
+    day = et.date().isoformat()
+    if et.weekday() >= 5:
+        return S_OUTSIDE_HOURS, f"weekend ({day} ET); no queuing"
+    if day in cfg["holidays"]:
+        return S_OUTSIDE_HOURS, f"market holiday {day}; no queuing"
+    latest = cfg["latest"]
+    if day in cfg["early_close"]:
+        close = _hhmm(cfg["early_close"][day], "13:00") or dtime(13, 0)
+        latest = min(latest, (datetime.combine(et.date(), close) - timedelta(minutes=10)).time())
+    t = et.time()
+    if t < cfg["earliest"]:
+        return S_BEFORE_WINDOW, f"{t.strftime('%H:%M')} ET is before {cfg['earliest'].strftime('%H:%M')} ET; not queued"
+    if t >= latest:
+        return S_OUTSIDE_HOURS, f"{t.strftime('%H:%M')} ET is after {latest.strftime('%H:%M')} ET; no after-hours queuing"
+    return None, ""
+
+
+def settled_cash(account: Dict[str, Any]) -> Optional[Decimal]:
+    """Settled, spendable cash. Explicit settled fields win; else the most
+    conservative of cash / buying power / unleveraged buying power."""
+    for k in ("settled_cash", "cash_available_for_withdrawal", "withdrawable_cash"):
+        v = _d(account.get(k))
+        if v is not None:
+            return max(ZERO, v)
+    vals = [_d(account.get(k)) for k in ("cash", "buying_power", "unleveraged_buying_power")]
+    vals = [v for v in vals if v is not None]
+    if len(vals) < 2:  # need at least cash + buying power
+        return None
+    return max(ZERO, min(vals))
+
+
+def _snapshot_agentic(snapshot: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    ag = snapshot.get("agentic") if isinstance(snapshot.get("agentic"), dict) else None
+    if ag is None and snapshot.get("agentic_allowed") is True:
+        ag = snapshot
+    return ag
+
+
+def load_snapshot(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    try:
+        data = json.loads(Path(path or gate.RH_SNAPSHOT_PATH).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def book_values(snapshot: Dict[str, Any], cfg: Dict[str, Any]) -> Dict[str, Decimal]:
+    """Invested market value by sleeve + per stock symbol (last price if the
+    snapshot has one, else cost basis -- same rule as fund_manager.analyze)."""
+    ag = _snapshot_agentic(snapshot) or {}
+    btc_set = set(cfg["fixed_weights"]) | set(cfg["floating"])
+    out = {"btc": ZERO, "stocks": ZERO, "other": ZERO}
+    for s in cfg["stocks"]:
+        out["sym:" + s] = ZERO
+    for pos in ag.get("positions") or []:
+        if not isinstance(pos, dict):
+            continue
+        sym = str(pos.get("symbol") or "").strip().upper()
+        qty = _d(pos.get("quantity")) or ZERO
+        mv = _d(pos.get("market_value"))
+        if mv is None:
+            px = None
+            for k in ("last_price", "price", "mark_price", "average_buy_price"):
+                px = _d(pos.get(k))
+                if px is not None and px > 0:
+                    break
+            mv = qty * (px or ZERO)
+        if mv <= 0:
+            continue
+        if sym in btc_set:
+            out["btc"] += mv
+        elif sym in cfg["stocks"]:
+            out["stocks"] += mv
+            out["sym:" + sym] += mv
+        else:
+            out["other"] += mv
+    return out
+
+
+def _snapshot_age_hours(snapshot: Dict[str, Any], now: datetime) -> Optional[float]:
+    ag = _snapshot_agentic(snapshot) or {}
+    ts = gate._parse_ts(ag.get("as_of") or snapshot.get("as_of"))
+    if ts is None:
+        return None
+    return (now - ts).total_seconds() / 3600.0
+
+
+# --------------------------------------------------------------------------
+# Run planner
+# --------------------------------------------------------------------------
+
+
+def _clamp(v: Decimal, lo: Decimal, hi: Decimal) -> Decimal:
+    return max(lo, min(hi, v))
+
+
+def _cents(amount: Decimal) -> Decimal:
+    return amount.quantize(CENT, rounding=ROUND_DOWN)
+
+
+def plan_intents(
+    intents: Any,
+    *,
+    snapshot: Optional[Dict[str, Any]] = None,
+    policy_path: Optional[Path] = None,
+    ledger_path: Optional[Path] = None,
+    now: Optional[datetime] = None,
+    persist: bool = True,
+) -> Tuple[Any, Dict[str, Any]]:
+    """Rebuild the LLM's buy intents into the deterministic run plan.
+
+    Returns (intents for the gate, plan info). Non-buy intents are passed
+    through untouched so the gate still blocks/logs/alerts them. Never raises:
+    any planner error drops every buy (fail closed)."""
+    now = now or datetime.now(timezone.utc)
+    if not isinstance(intents, list):
+        return intents, {"status": "not_planned", "reason": "intents payload is not a list"}
+    buys = [it for it in intents if isinstance(it, dict) and gate.classify_side(it)[0] == "buy"]
+    others = [it for it in intents if not any(it is b for b in buys)]
+    try:
+        orders, info = _plan(buys, snapshot, policy_path, ledger_path, now, persist)
+    except Exception as exc:
+        orders, info = [], {"status": "plan_error", "reason": f"planner error {type(exc).__name__}; no buys"}
+    _log(f"plan {info.get('status')}: {info.get('reason') or info.get('summary') or ''}")
+    return others + orders, info
+
+
+def _plan(buys, snapshot, policy_path, ledger_path, now, persist):
+    run_date = et_date(now)
+    info: Dict[str, Any] = {"run_date": run_date, "dropped": [], "notes": []}
+
+    def done(status: str, reason: str):
+        info.update(status=status, reason=reason)
+        return [], info
+
+    cfg, err = load_adapter_config(policy_path)
+    if cfg is None:
+        return done(S_CONFIG, err)
+    if not buys:
+        return done(P_NO_BUYS, "no buy intents")
+    st, why = market_window(now, cfg)
+    if st:
+        return done(st, why)
+    snapshot = snapshot if snapshot is not None else load_snapshot()
+    ag = _snapshot_agentic(snapshot or {})
+    if not ag:
+        return done(S_BOOK_UNKNOWN, "no agentic block in robinhood snapshot")
+    age = _snapshot_age_hours(snapshot, now)
+    if age is None or age > cfg["snapshot_max_age_hours"]:
+        return done(S_BOOK_UNKNOWN, f"robinhood snapshot stale/undated (age {age if age is None else round(age, 1)}h)")
+    settled = settled_cash(ag)
+    if settled is None:
+        return done(S_BOOK_UNKNOWN, "settled cash unknown")
+
+    with BrokerLedger.transaction(ledger_path) as led:
+        claim = led.day_claim(run_date) if cfg["one_run_per_day"] else None
+        if claim:
+            return done(S_DAY_DONE, f"buy run already done today ({claim.get('claimed_by')}: {claim.get('reason')})")
+        daily_left = max(ZERO, cfg["max_daily"] - led.placed_total(run_date))
+
+        proposed: Dict[str, Decimal] = {}
+        for it in buys:
+            sym = gate.intent_symbol(it)
+            amt = _d(gate.intent_notional(it))
+            if sym not in cfg["allowlist"] or sym in cfg["blocked"]:
+                info["dropped"].append({"symbol": sym or "?", "notional_usd": float(amt or 0), "status": S_REVIEW_FAILED,
+                                        "reason": "not on broker_adapter.symbol_allowlist"})
+                continue
+            if amt is None or amt <= 0:
+                info["dropped"].append({"symbol": sym, "notional_usd": 0.0, "status": S_REVIEW_FAILED,
+                                        "reason": "no positive notional"})
+                continue
+            proposed[sym] = proposed.get(sym, ZERO) + amt
+        prop_total = sum(proposed.values(), ZERO)
+        investable = _cents(min(settled, cfg["max_run"], daily_left))
+        run_total = _cents(min(prop_total, investable))
+        info.update(settled_cash=float(settled), investable_usd=float(investable),
+                    proposed_usd=float(prop_total), run_total_usd=float(run_total))
+        if investable < cfg["min_investable"] or run_total < cfg["min_investable"]:
+            return done(S_BELOW_MIN, f"investable ${investable} / run ${run_total} below ${cfg['min_investable']} minimum")
+
+        bv = book_values(snapshot, cfg)
+        invested = bv["btc"] + bv["stocks"] + bv["other"]
+        share = (bv["btc"] / invested) if invested > 0 else ZERO
+        info["btc_share_before"] = float(round(share, 4))
+        tgt = cfg["btc_target"]
+        stocks = cfg["stocks"]
+        prop_stock = sum((proposed.get(s, ZERO) for s in stocks), ZERO)
+        repaired: List[str] = []
+        if share < tgt:
+            btc_amt, stock_amt = run_total, ZERO
+            for s in stocks:
+                if proposed.get(s):
+                    info["dropped"].append({"symbol": s, "notional_usd": float(proposed[s]), "status": S_SLEEVE_GATE,
+                                            "reason": f"BTC + digital credit sleeve {share:.1%} < {tgt:.0%}: no {'/'.join(stocks)} buys"})
+            if prop_stock > 0:
+                repaired.append("sleeve_gate: stock legs redirected to the BTC sleeve")
+        else:
+            btc_amt = _clamp(tgt * (invested + run_total) - bv["btc"], ZERO, run_total)
+            stock_amt = run_total - btc_amt
+
+        tol = max(cfg["tol_usd"], cfg["tol_pct"] * run_total)
+        legs: Dict[str, Decimal] = {}
+        # stocks: move TSLA/SPCX toward 50/50
+        if stock_amt > 0:
+            a, b = stocks
+            amt_a = _clamp((bv["sym:" + a] + bv["sym:" + b] + stock_amt) / 2 - bv["sym:" + a], ZERO, stock_amt)
+            legs[a], legs[b] = amt_a, stock_amt - amt_a
+            for s in stocks:
+                if abs(proposed.get(s, ZERO) - legs[s]) > tol:
+                    repaired.append(f"{s} ${proposed.get(s, ZERO):.2f} -> ${legs[s]:.2f} (50/50 stock rule)")
+        # BTC sleeve fixed legs
+        targets = {s: btc_amt * w for s, w in cfg["fixed_weights"].items()}
+        prop_btc = sum((v for s, v in proposed.items() if s not in stocks), ZERO)
+        within = abs(prop_btc - btc_amt) <= tol and all(abs(proposed.get(s, ZERO) - t) <= tol for s, t in targets.items())
+        if within:
+            fixed = {s: min(proposed.get(s, ZERO), btc_amt) for s in targets}
+        else:
+            fixed = dict(targets)
+            for s, t in targets.items():
+                if abs(proposed.get(s, ZERO) - t) > tol:
+                    repaired.append(f"{s} ${proposed.get(s, ZERO):.2f} -> ${t:.2f} (fixed weight)")
+        floating_amt = max(ZERO, btc_amt - sum(fixed.values(), ZERO))
+        ai_float = {s: proposed[s] for s in cfg["floating"] if proposed.get(s)}
+        ai_float_total = sum(ai_float.values(), ZERO)
+        legs.update(fixed)
+        if floating_amt > 0:
+            if ai_float_total > 0:
+                for s, v in ai_float.items():
+                    legs[s] = legs.get(s, ZERO) + floating_amt * v / ai_float_total
+            else:
+                legs[cfg["fold_into"]] = legs.get(cfg["fold_into"], ZERO) + floating_amt
+                info["notes"].append(f"no floating split proposed: floating ${floating_amt:.2f} -> {cfg['fold_into']}")
+        lowpref = _low_pref_active(cfg, now)
+        for s in lowpref:
+            if legs.get(s):
+                info["notes"].append(f"{s} has low preference until {cfg['low_preference'][s].get('until')} (AI chose ${legs[s]:.2f})")
+
+        legs = _finalize_legs(legs, run_total, cfg, info)
+        if not legs:
+            return done(S_BELOW_MIN, "no leg left after folding/caps")
+        run_id = f"{run_date}T{now.astimezone(_ET).strftime('%H%M%S')}-{uuid.uuid4().hex[:6]}"
+        status = P_REPAIRED if repaired else P_PLANNED
+        info.update(
+            status=status, run_id=run_id, repairs=repaired,
+            legs=[{"symbol": s, "notional_usd": float(v), "sleeve": "stocks_growth" if s in stocks else "btc_digital_credit"}
+                  for s, v in legs.items()],
+        )
+        info["summary"] = f"{status} run {run_id}: " + ", ".join(f"{s} ${v:.2f}" for s, v in legs.items())
+        if persist:
+            led.data["runs"][run_id] = {
+                "run_date": run_date, "status": status, "created_at": now.isoformat(),
+                "legs": {s: f"{v:.2f}" for s, v in legs.items()}, "repairs": repaired,
+            }
+            led.prune(now)
+            led.save()
+        orders = [
+            {"symbol": s, "side": "buy", "notional_usd": float(v), "purpose": "deploy", "run_id": run_id,
+             "sleeve": "stocks_growth" if s in stocks else "btc_digital_credit"}
+            for s, v in legs.items()
+        ]
+        return orders, info
+
+
+def _low_pref_active(cfg: Dict[str, Any], now: datetime) -> List[str]:
+    out = []
+    today = et_date(now)
+    for sym, spec in (cfg.get("low_preference") or {}).items():
+        until = str((spec or {}).get("until") or "") if isinstance(spec, dict) else ""
+        if until and today <= until:
+            out.append(sym.upper())
+    return out
+
+
+def _finalize_legs(legs: Dict[str, Decimal], run_total: Decimal, cfg: Dict[str, Any], info: Dict[str, Any]) -> Dict[str, Decimal]:
+    """Cents (round down), per-order cap spill, fold < $1 into IBIT; sum <= run_total."""
+    into = cfg["fold_into"]
+    legs = {s: _cents(v) for s, v in legs.items() if v > 0}
+    # per-order cap: spill excess into the fold target, then trim the fold target
+    for s in list(legs):
+        if s != into and legs[s] > cfg["max_order"]:
+            spill = legs[s] - cfg["max_order"]
+            legs[s] = cfg["max_order"]
+            legs[into] = legs.get(into, ZERO) + spill
+            info["notes"].append(f"{s} capped at ${cfg['max_order']}; ${spill:.2f} -> {into}")
+    if legs.get(into, ZERO) > cfg["max_order"]:
+        trim = legs[into] - cfg["max_order"]
+        legs[into] = cfg["max_order"]
+        info["notes"].append(f"{into} capped at ${cfg['max_order']}; ${trim:.2f} left uninvested")
+    # rounding remainder -> fold target
+    rem = run_total - sum(legs.values(), ZERO)
+    if ZERO < rem < Decimal("1") and legs.get(into, ZERO) + rem <= cfg["max_order"]:
+        legs[into] = legs.get(into, ZERO) + rem
+    # fold legs under $1 into the fold target
+    for s in list(legs):
+        if s != into and legs[s] < cfg["fold_below"]:
+            info["notes"].append(f"{s} ${legs[s]:.2f} < ${cfg['fold_below']} folded into {into}")
+            legs[into] = legs.get(into, ZERO) + legs.pop(s)
+    if into in legs and legs[into] < cfg["fold_below"]:
+        small = legs.pop(into)
+        if legs:
+            big = max(legs, key=lambda k: legs[k])
+            legs[big] += small
+            info["notes"].append(f"{into} ${small:.2f} < ${cfg['fold_below']} merged into {big}")
+    return {s: v for s, v in legs.items() if v > 0}
 
 
 # --------------------------------------------------------------------------
@@ -323,10 +749,6 @@ def _is_plain_buy(gated: Any) -> Tuple[bool, str]:
     return True, ""
 
 
-def _cents(amount: Decimal) -> Decimal:
-    return amount.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
-
-
 def _order_amount(o: Dict[str, Any]) -> Optional[Decimal]:
     for k in ("dollar_amount", "notional_usd", "amount_usd", "notional"):
         v = _d(o.get(k))
@@ -335,22 +757,40 @@ def _order_amount(o: Dict[str, Any]) -> Optional[Decimal]:
     return None
 
 
+def _live_buy(o: Any) -> bool:
+    return (
+        isinstance(o, dict)
+        and gate._norm_token(o.get("side") or "") == "buy"
+        and gate._norm_token(o.get("state") or o.get("status") or "") not in _DEAD_BROKER_STATES
+    )
+
+
+def _external_same_day(orders: List[Dict[str, Any]], run_date: str, own_ids: set) -> Optional[str]:
+    """A live (non-cancelled) buy created today ET that this run did not place,
+    e.g. Nakatoshi's manual buy. Undated orders count (fail closed)."""
+    for o in orders:
+        if not _live_buy(o):
+            continue
+        oid = str(o.get("order_id") or o.get("id") or "")
+        if oid and oid in own_ids:
+            continue
+        ts = gate._parse_ts(o.get("created_at") or o.get("updated_at"))
+        if ts is None or et_date(ts) == run_date:
+            sym = str(o.get("symbol") or "?").upper()
+            return f"same-day buy {sym} (order {oid or '?'}) placed outside this run"
+    return None
+
+
 def _broker_duplicate(orders: List[Dict[str, Any]], symbol: str, amount: Decimal) -> Optional[str]:
     for o in orders:
-        if not isinstance(o, dict):
-            continue
-        if str(o.get("symbol") or "").strip().upper() != symbol:
-            continue
-        if gate._norm_token(o.get("side") or "") != "buy":
+        if not _live_buy(o) or str(o.get("symbol") or "").strip().upper() != symbol:
             continue
         state = gate._norm_token(o.get("state") or o.get("status") or "")
-        if state in _DEAD_BROKER_STATES:
-            continue
         oid = str(o.get("order_id") or o.get("id") or "?")
         if state in _OPEN_BROKER_STATES:
             return f"open broker buy order for {symbol} exists (order {oid}, state {state})"
         amt = _order_amount(o)
-        if amt is not None and abs(amt - amount) <= Decimal("0.01"):
+        if amt is not None and abs(amt - amount) <= CENT:
             return f"recent broker buy {symbol} ${amt} matches (order {oid}, state {state or '?'})"
     return None
 
@@ -363,7 +803,7 @@ def submit(
     ledger_path: Optional[Path] = None,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """Review-then-place one gate-approved BUY. Never raises; returns a status dict."""
+    """Review-then-place one gate-approved, planner-emitted BUY. Never raises."""
     try:
         out = _submit(gated, client, policy_path, ledger_path, now)
     except Exception as exc:  # never turn an adapter bug into an order
@@ -388,21 +828,23 @@ def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
         return _result(S_LIVE_FALSE, "policy live is not true")
     if not cfg["enabled"]:
         return _result(S_CONFIG, "execution.broker_adapter.enabled is not true")
+    st, why = market_window(now, cfg)
+    if st:
+        return _result(st, why)
 
     it = gated.intent
     symbol = gate.intent_symbol(it)
     raw_amt = _d(gate.intent_notional(it))
     amount = _cents(raw_amt) if raw_amt is not None else None
-    run_date = now.astimezone(_ET).date().isoformat()
+    run_date = et_date(now)
     acct = cfg["account_number"]
-    cents = int((amount or Decimal("0")) * 100)
+    cents = int((amount or ZERO) * 100)
     key = idempotency_key(run_date, acct, symbol, "buy", cents)
     base = {"idempotency_key": key}
 
-    # ---- local review (no client needed) ----
     problem: Optional[str] = None
     if symbol not in cfg["allowlist"]:
-        problem = f"{symbol or '?'} not on broker_adapter.symbol_allowlist {list(cfg['allowlist'])}"
+        problem = f"{symbol or '?'} not on broker_adapter.symbol_allowlist"
     elif symbol in cfg["blocked"]:
         problem = f"{symbol} is in guardrails.blocked_symbols"
     elif amount is None or amount <= 0:
@@ -416,14 +858,21 @@ def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
 
     try:
         with BrokerLedger.transaction(ledger_path) as led:
-            return _review_and_place(led, gated, cfg, client, symbol, amount, run_date, key, now)
+            return _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now)
     except (OSError, ValueError) as exc:
         return _result(S_LEDGER, f"broker ledger unavailable ({type(exc).__name__}); failing closed", **base)
 
 
-def _review_and_place(led, gated, cfg, client, symbol, amount, run_date, key, now) -> Dict[str, Any]:
+def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) -> Dict[str, Any]:
     base = {"idempotency_key": key}
     acct = cfg["account_number"]
+    run_id = str(it.get("run_id") or "")
+    plan = led.data["runs"].get(run_id) if run_id else None
+    if not plan or plan.get("run_date") != run_date or (plan.get("legs") or {}).get(symbol) != f"{amount:.2f}":
+        return _result(S_UNPLANNED, "order is not a leg of today's recorded run plan (planner is mandatory)", **base)
+    claim = led.day_claim(run_date) if cfg["one_run_per_day"] else None
+    if claim and claim.get("claimed_by") != run_id:
+        return _result(S_DAY_DONE, f"buy run already done today ({claim.get('claimed_by')}: {claim.get('reason')})", **base)
     prev = led.get(key)
     if prev and prev.get("status") in _BLOCKING_LEDGER_STATES:
         return _result(
@@ -432,16 +881,16 @@ def _review_and_place(led, gated, cfg, client, symbol, amount, run_date, key, no
             + (f" (order {prev.get('order_id')})" if prev.get("order_id") else ""),
             **base,
         )
+
+    def rec(status, reason, **kw):
+        return _record(led, key, run_id, run_date, symbol, amount, status, reason, now, **kw)
+
     if led.placed_total(run_date) + amount > cfg["max_daily"]:
-        reason = f"daily cap: ${led.placed_total(run_date)} placed today + ${amount} > max_daily_notional_usd ${cfg['max_daily']}"
-        return _record(led, key, run_date, symbol, amount, S_REVIEW_FAILED, reason, now)
+        return rec(S_REVIEW_FAILED, f"daily cap: ${led.placed_total(run_date)} placed today + ${amount} > max_daily_notional_usd ${cfg['max_daily']}")
 
     client = client or resolve_client(cfg)
     if client is None:
-        return _record(
-            led, key, run_date, symbol, amount, S_NO_CLIENT,
-            f"no broker client ({CLIENT_ENV} unset and execution.broker_adapter.client empty)", now,
-        )
+        return rec(S_NO_CLIENT, f"no broker client ({CLIENT_ENV} unset and execution.broker_adapter.client empty)")
 
     order = {
         "account_number": acct,
@@ -450,94 +899,84 @@ def _review_and_place(led, gated, cfg, client, symbol, amount, run_date, key, no
         "type": cfg["order_type"],
         "dollar_amount": f"{amount:.2f}",
         "time_in_force": cfg["time_in_force"],
-        "market_hours": cfg["market_hours"],
+        "market_hours": "regular_hours",
+        "extended_hours": False,
         "ref_id": ref_id_for(key),
     }
 
-    # ---- broker review ----
     try:
         acc = client.get_account(acct) or {}
         if str(acc.get("account_number") or "").strip() != acct:
-            return _record(led, key, run_date, symbol, amount, S_REVIEW_FAILED, "broker account mismatch (agentic only)", now)
+            return rec(S_REVIEW_FAILED, "broker account mismatch (agentic only)")
         bp = _d(acc.get("buying_power"))
         if bp is None:
-            return _record(led, key, run_date, symbol, amount, S_REVIEW_FAILED, "buying power unknown", now)
+            return rec(S_REVIEW_FAILED, "buying power unknown")
         if amount > bp:
-            return _record(
-                led, key, run_date, symbol, amount, S_REVIEW_FAILED,
-                f"${amount} exceeds live buying power ${bp}", now,
-            )
+            return rec(S_REVIEW_FAILED, f"${amount} exceeds live buying power ${bp}")
+        sc = settled_cash(acc)
+        if sc is not None and amount > sc:
+            return rec(S_REVIEW_FAILED, f"${amount} exceeds settled cash ${sc}")
         since = now - timedelta(hours=cfg["dedupe_window_hours"])
         orders = client.get_recent_orders(acct, since)
         if not isinstance(orders, list):
-            return _record(led, key, run_date, symbol, amount, S_REVIEW_FAILED, "broker orders unavailable", now)
+            return rec(S_REVIEW_FAILED, "broker orders unavailable")
+        ext = _external_same_day(orders, run_date, led.run_order_ids(run_id))
+        if ext and cfg["one_run_per_day"] and not (claim and claim.get("claimed_by") == run_id):
+            led.claim_day(run_date, "external", ext, now)
+            return rec(S_DAY_DONE, f"{ext}; one buy run per ET day")
         dup = _broker_duplicate(orders, symbol, amount)
         if dup:
-            return _record(led, key, run_date, symbol, amount, S_DUP_BROKER, dup, now)
+            return rec(S_DUP_BROKER, dup)
         tr = client.get_tradability(symbol) or {}
         if tr.get("tradable") is not True:
-            return _record(led, key, run_date, symbol, amount, S_REVIEW_FAILED, f"{symbol} not tradable", now)
+            return rec(S_REVIEW_FAILED, f"{symbol} not tradable")
         if tr.get("fractional_tradable") is not True:  # every order here is a dollar (fractional) order
-            return _record(
-                led, key, run_date, symbol, amount, S_REVIEW_FAILED,
-                f"{symbol} not fractional/dollar tradable", now,
-            )
+            return rec(S_REVIEW_FAILED, f"{symbol} not fractional/dollar tradable")
         rv = client.review_order(dict(order)) or {}
     except BrokerError as exc:
-        return _record(led, key, run_date, symbol, amount, S_REVIEW_FAILED, f"broker review error: {exc}"[:200], now)
+        return rec(S_REVIEW_FAILED, f"broker review error: {exc}"[:200])
     except Exception as exc:
-        return _record(led, key, run_date, symbol, amount, S_REVIEW_FAILED, f"broker review error {type(exc).__name__}", now)
+        return rec(S_REVIEW_FAILED, f"broker review error {type(exc).__name__}")
     if rv.get("ok") is not True:
-        return _record(
-            led, key, run_date, symbol, amount, S_REVIEW_FAILED,
-            f"broker review rejected: {str(rv.get('reason') or 'no reason')[:160]}", now,
-        )
+        return rec(S_REVIEW_FAILED, f"broker review rejected: {str(rv.get('reason') or 'no reason')[:160]} (not retried)")
     review = {"buying_power": str(bp), "warnings": [str(w)[:120] for w in (rv.get("warnings") or [])][:5]}
-    _record(led, key, run_date, symbol, amount, "placing", "reviewed; placing", now, review=review)
+    rec("placing", "reviewed; placing", review=review)
+    if cfg["one_run_per_day"]:
+        led.claim_day(run_date, run_id, "adapter buy run", now)
 
-    # ---- place ----
     try:
         res = client.place_order(dict(order)) or {}
     except Exception as exc:
         msg = str(exc)[:160] if isinstance(exc, BrokerError) else type(exc).__name__
-        return _record(
-            led, key, run_date, symbol, amount, S_PLACE_UNKNOWN,
-            f"place call failed ({msg}); outcome unknown -- key stays blocked, check broker", now, review=review,
-        )
+        return rec(S_PLACE_UNKNOWN, f"place call failed ({msg}); outcome unknown -- key stays blocked, check broker", review=review)
     state = gate._norm_token(res.get("state") or res.get("status") or "")
     oid = str(res.get("order_id") or res.get("id") or "") or None
+    fill = {
+        "filled_quantity": gate._num(res.get("quantity") or res.get("filled_quantity")),
+        "fill_price": gate._num(res.get("average_price") or res.get("fill_price")),
+    }
     mism = []
     if res.get("symbol") is not None and str(res.get("symbol")).strip().upper() != symbol:
         mism.append("symbol")
     if res.get("side") is not None and gate._norm_token(res.get("side")) != "buy":
         mism.append("side")
     ramt = _order_amount(res)
-    if ramt is not None and abs(ramt - amount) > Decimal("0.01"):
+    if ramt is not None and abs(ramt - amount) > CENT:
         mism.append("amount")
     if mism:
-        return _record(
-            led, key, run_date, symbol, amount, S_PLACE_UNKNOWN,
-            f"broker response mismatch on {','.join(mism)} -- CHECK BROKER NOW", now, order_id=oid, review=review,
-        )
+        return rec(S_PLACE_UNKNOWN, f"broker response mismatch on {','.join(mism)} -- CHECK BROKER NOW", order_id=oid, review=review)
     if state in _DEAD_BROKER_STATES:
-        return _record(
-            led, key, run_date, symbol, amount, S_BROKER_REJECTED,
-            f"broker returned state {state}", now, order_id=oid, review=review,
-        )
+        return rec(S_BROKER_REJECTED, f"broker returned state {state} (not retried)", order_id=oid, review=review)
     if not oid:
-        return _record(
-            led, key, run_date, symbol, amount, S_PLACE_UNKNOWN,
-            "broker returned no order id; outcome unknown", now, review=review,
-        )
-    return _record(
-        led, key, run_date, symbol, amount, S_PLACED, f"placed (broker state {state or '?'})", now,
-        order_id=oid, review=review, broker_state=state or None,
-    )
+        return rec(S_PLACE_UNKNOWN, "broker returned no order id; outcome unknown", review=review)
+    return rec(S_PLACED, f"placed (broker state {state or '?'})", order_id=oid, review=review,
+               broker_state=state or None, **fill)
 
 
-def _record(led, key, run_date, symbol, amount, status, reason, now, *, order_id=None, review=None,
-            broker_state=None) -> Dict[str, Any]:
+def _record(led, key, run_id, run_date, symbol, amount, status, reason, now, *, order_id=None, review=None,
+            broker_state=None, filled_quantity=None, fill_price=None) -> Dict[str, Any]:
     row = {
+        "run_id": run_id,
         "run_date": run_date,
         "symbol": symbol,
         "side": "buy",
@@ -550,15 +989,52 @@ def _record(led, key, run_date, symbol, amount, status, reason, now, *, order_id
     row["created_at"] = prev.get("created_at") or now.isoformat()
     # one attempt per review pass; the placing -> final transition is the same attempt
     row["attempts"] = int(prev.get("attempts") or 0) + (0 if prev.get("status") == "placing" else 1)
-    if review is not None:
-        row["review"] = review
-    if order_id:
-        row["order_id"] = order_id
-    if broker_state:
-        row["broker_state"] = broker_state
+    for k, v in (("review", review), ("order_id", order_id), ("broker_state", broker_state),
+                 ("filled_quantity", filled_quantity), ("fill_price", fill_price)):
+        if v is not None:
+            row[k] = v
     led.prune(now)
     led.put(key, row)
-    return _result(status, reason, idempotency_key=key, order_id=order_id)
+    return _result(status, reason, idempotency_key=key, order_id=order_id, broker_state=broker_state,
+                   filled_quantity=filled_quantity, fill_price=fill_price)
+
+
+# --------------------------------------------------------------------------
+# should-buy (bp-poll / daily trigger; no network)
+# --------------------------------------------------------------------------
+
+
+def should_buy(
+    *, snapshot: Optional[Dict[str, Any]] = None, policy_path: Optional[Path] = None,
+    ledger_path: Optional[Path] = None, now: Optional[datetime] = None,
+) -> Tuple[bool, str]:
+    """True only when a buy run may start: live + enabled, inside the window,
+    no buy run yet this ET day, fresh snapshot, settled cash >= min_investable."""
+    now = now or datetime.now(timezone.utc)
+    cfg, err = load_adapter_config(policy_path)
+    if cfg is None:
+        return False, f"{S_CONFIG}: {err}"
+    if not cfg["live"] or not cfg["enabled"]:
+        return False, f"{S_LIVE_FALSE}: live/enabled not true"
+    st, why = market_window(now, cfg)
+    if st:
+        return False, f"{st}: {why}"
+    try:
+        with BrokerLedger.transaction(ledger_path) as led:
+            claim = led.day_claim(et_date(now)) if cfg["one_run_per_day"] else None
+    except (OSError, ValueError) as exc:
+        return False, f"{S_LEDGER}: {type(exc).__name__}"
+    if claim:
+        return False, f"{S_DAY_DONE}: {claim.get('claimed_by')} ({claim.get('reason')})"
+    snapshot = snapshot if snapshot is not None else load_snapshot()
+    ag = _snapshot_agentic(snapshot or {})
+    age = _snapshot_age_hours(snapshot or {}, now) if ag else None
+    if not ag or age is None or age > cfg["snapshot_max_age_hours"]:
+        return False, f"{S_BOOK_UNKNOWN}: snapshot missing/stale"
+    sc = settled_cash(ag)
+    if sc is None or sc < cfg["min_investable"]:
+        return False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}"
+    return True, f"settled cash ${sc} >= ${cfg['min_investable']}; buy run allowed"
 
 
 # --------------------------------------------------------------------------
@@ -635,10 +1111,11 @@ class GrokMcpClient:
     def get_account(self, account_number: str) -> Dict[str, Any]:
         return self._call(
             f"Call get_accounts. Return the account whose account number is {account_number} with its "
-            "buying_power and cash as numbers. If not found return account_number \"\".",
+            "buying_power, cash and settled (withdrawable) cash as numbers. If not found return account_number \"\".",
             {"type": "object", "required": ["account_number", "buying_power"],
              "properties": {"account_number": {"type": "string"}, "buying_power": {"type": ["number", "null"]},
-                            "cash": {"type": ["number", "null"]}}},
+                            "cash": {"type": ["number", "null"]},
+                            "settled_cash": {"type": ["number", "null"]}}},
             ("get_accounts",),
         )
 
@@ -677,16 +1154,34 @@ class GrokMcpClient:
             raise BrokerError("non-buy order refused by client")
         return self._call(
             "Call place_equity_order EXACTLY ONCE with exactly these arguments (a BUY; never sell): "
-            + json.dumps(order) + ". Return the created order's order_id, state, symbol, side and dollar_amount.",
+            + json.dumps(order) + ". Return the created order's order_id, state, symbol, side, dollar_amount, and quantity/average_price if filled.",
             {"type": "object", "required": ["order_id", "state"], "properties": {
                 "order_id": {"type": "string"}, "state": {"type": "string"}, "symbol": {"type": "string"},
-                "side": {"type": "string"}, "dollar_amount": {"type": ["number", "null"]}}},
+                "side": {"type": "string"}, "dollar_amount": {"type": ["number", "null"]},
+                "quantity": {"type": ["number", "null"]}, "average_price": {"type": ["number", "null"]}}},
             ("place_equity_order",), allow_place=True,
         )
 
 
-if __name__ == "__main__":  # pragma: no cover
+# The gate runs the planner before gating when the adapter exposes it.
+submit.plan = plan_intents  # type: ignore[attr-defined]
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="fund-manager broker adapter (no network)")
+    ap.add_argument("--should-buy", action="store_true",
+                    help="exit 0 if a buy run may start now (settled cash >= min, once per ET day), else 1")
+    args = ap.parse_args(argv)
+    if args.should_buy:
+        ok, why = should_buy()
+        print(json.dumps({"should_buy": ok, "reason": why}))
+        return 0 if ok else 1
     cfg, err = load_adapter_config()
     print(json.dumps({"adapter": ADAPTER_SPEC, "config_ok": cfg is not None, "error": err,
                       "live": (cfg or {}).get("live"), "enabled": (cfg or {}).get("enabled"),
                       "allowlist": list((cfg or {}).get("allowlist") or ())}, indent=2))
+    return 0 if cfg is not None else 1
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

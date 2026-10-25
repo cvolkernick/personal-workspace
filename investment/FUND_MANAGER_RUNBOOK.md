@@ -97,14 +97,17 @@ SoT: `investment/consider_share.json` (pins + `loop_adjustments`). Staged queue:
 rh_refresh (~3h) → snapshot only
 
 bp_poll (~15m, market hours, Pi):
-  rh_refresh → rules review
-    ├─ HOLD (cash=0 and BP=0, in band) → first of day → JSONL + #701 (no LLM)
-    └─ any cash>0 or BP>0 → full research_rotate + team → Executor → JSONL + #701
+  rh_refresh → rules review → should-buy (no network)
+    ├─ settled cash < $5, before 10:00 ET, or a buy run already happened this ET day → no buy run
+    └─ settled cash >= $5 (deposit settled) → ONE full research_rotate + team → gate → planner → adapter → JSONL + #701
 
-daily (~12:30 ET weekdays, Pi): same team path as before
+daily (~12:30 ET weekdays, Pi): same team path; may buy if settled cash >= $5 and no buy run yet today
 ```
 
-**Trigger rule:** free capital = **cash > 0 or BP > 0** (no %NAV floor).
+**Trigger rule (Nakatoshi 2026-10-24):** never buy just because cash > $0. A buy run needs **settled cash >= $5**
+(`execution.broker_adapter.min_investable_usd`) and happens **at most once per ET day**, a guard shared by the daily run and bp-poll
+(`python3 -m treasury.fund_manager_broker --should-buy`; ledger `days`). It keys off settled cash, not calendar dates: deposits
+($75 on the 1st and 15th) can take ~6 days to settle.
 
 ```bash
 python3 -m treasury.fund_manager --rules-review --notify
@@ -118,6 +121,7 @@ kept POSTing ntfy.sh after #704). Do not reload it.
 
 ## Kill switches
 
+- `FM_BROKER_DISABLE=1` on the fund-manager units (adapter places nothing)  
 - `"live": false` in `investment/fund_manager.json`  
 - Withdraw agentic capital  
 - Disable timer / disconnect MCP  
@@ -196,22 +200,67 @@ Enforced in code, not just prompts:
   `tax`, `withdrawal`, `chairman_manual`); shorts, options, crypto sells and anything worded as a rebalance are never overridable.
 * `rh_snapshot_sync.py` (the read-only snapshot refresh) also runs `grok --yolo` with the same deny list from `grok_deny_args()`.
 
+**Buy-only, by design.** The fund manager never sells. **Any sell is a manual action Chris takes himself** in the Robinhood app
+(the override file above only lets a sell pass the gate; the broker adapter rejects every non-buy, so nothing automated places it).
+
 **Broker adapter:** approved orders go to the callable named by `FM_BROKER_ADAPTER=module:callable` (takes a `GatedOrder`). With none
 configured, the gate logs `not_submitted_no_broker_adapter` and places nothing. The shipped adapter is
-`FM_BROKER_ADAPTER=treasury.fund_manager_broker:submit` (config `execution.broker_adapter` in `investment/fund_manager.json`):
+`FM_BROKER_ADAPTER=treasury.fund_manager_broker:submit` (config `execution.broker_adapter` + `sleeves` + `targets` in
+`investment/fund_manager.json`). Policy (Nakatoshi 2026-10-24, Grok-approved): Agentic is ~60% stocks (TSLA/SPCX 50/50) and 40%
+BTC + digital credit; hold, never sell; new cash fills the BTC + digital-credit sleeve first until it reaches 40%.
 
-* **Buy-only, hard**, independent of the gate: non-`GatedOrder`, sell/short/option/crypto or any non-`buy` side field is rejected.
-* **Kill switches:** `FM_BROKER_DISABLE=1`; `live` must be `true`; `execution.broker_adapter.enabled` must be `true`.
-* **Review then place:** symbol on `symbol_allowlist` and not blocked; `min_order_notional_usd` <= dollars (rounded down to cents) <=
-  `max_order_notional_usd`; today's placed total <= `max_daily_notional_usd`; idempotency key (ET date + account + symbol + side + cents)
-  not already placing/placed in `treasury/snapshots/fund_manager_broker_ledger.json`; no open or matching recent broker buy for the
-  symbol (`dedupe_window_hours`); live buying power covers it; symbol tradable + fractional; broker `review_equity_order` ok; then
-  `place_equity_order`. The ledger row is written as `placing` before the place call, so a timeout/crash becomes
-  `place_error_outcome_unknown` and that key is never retried automatically (check the broker by hand).
-* **Terminal statuses:** `placed`, `rejected_non_buy_side`, `rejected_not_gated`, `not_submitted_live_false`,
-  `not_submitted_adapter_disabled`, `not_submitted_adapter_config`, `not_submitted_no_broker_client`, `not_submitted_review_failed`,
-  `not_submitted_broker_rejected`, `not_submitted_ledger_unavailable`, `skipped_duplicate_idempotency`,
-  `skipped_duplicate_broker_order`, `place_error_outcome_unknown`. Each carries `broker_reason` (+ `idempotency_key`, `order_id`).
-* **Client:** `FM_BROKER_CLIENT=grok_mcp` drives the producer host's existing `grok` + `robinhood-trading` MCP OAuth (no new
-  credentials), one headless call per step with a per-call allow/deny list (place call: only `place_equity_order` allowed). Unset =>
-  `not_submitted_no_broker_client`. `FM_BROKER_CLIENT=pkg.module:factory` injects another client (tests use mocks).
+1. **Run planner** (`plan_intents`, exposed as `submit.plan`; the gate CLI runs it before gating; deterministic, no network):
+   * Window: ET weekday, not in `market_holidays`, `earliest_place_et` (10:00) <= now < `latest_place_et` (15:50; 10 min before an
+     `early_close_days` close). Else `not_submitted_before_window` / `not_submitted_outside_market_hours`. Nothing is queued.
+   * One buy run per ET day (shared with bp-poll/daily; same-day fills placed outside the adapter count): `skipped_already_bought_today`.
+   * Allowlist: BTC sleeve STRC, SATA, STRK + floating MSTR, ASST, BITA, IBIT, MARA, RIOT, CLSK, IREN, WULF; stocks TSLA, SPCX.
+     IBIT is the native-BTC stand-in (no spot BTC in this account) and the default for the floating 35%. MSTR has low preference
+     through `low_preference.MSTR.until` (2026-11-30): prompt-level, noted in the plan when chosen.
+   * Run total = min(LLM-proposed allowlisted buys, settled cash, `max_run_notional_usd` $160, daily cap left). Under
+     `min_investable_usd` ($5): `skipped_below_min_investable`. Settled cash = an explicit settled/withdrawable field if the snapshot or
+     broker has one, else min(cash, buying power, unleveraged buying power). Snapshot older than 6h: `not_submitted_book_unknown`.
+   * Sleeve gate: BTC + digital-credit share of invested value (snapshot positions at last price, else cost basis) under 40% => the
+     whole run goes to the BTC sleeve; TSLA/SPCX legs are dropped as `not_submitted_sleeve_gate` and their dollars redirected. At or
+     over 40%: BTC gets what keeps it at 40% after the run, stocks get the rest, split to move TSLA/SPCX toward 50/50.
+   * BTC sleeve: STRC 25 / SATA 25 / STRK 15 of the BTC amount, kept as proposed if each is within max($1, 5% of the run total), else
+     repaired to target (`weights_repaired`, listed in `repairs`). The LLM only splits the floating 35% (none proposed => all IBIT).
+     Legs over $75 spill into IBIT; legs under $1 fold into IBIT. The plan is recorded in the ledger (`runs`) with a `run_id`.
+2. **submit** (per gate-approved leg): buy-only hard reject (any non-`GatedOrder`, sell/short/option/crypto, non-`buy` side); kill
+   switches (`FM_BROKER_DISABLE=1`, `live`, `enabled`); the order must be a leg of today's recorded plan (`not_submitted_unplanned`);
+   window; day guard; allowlist / $1 min / $75 per order / $150 per ET day; idempotency key (ET date + account + symbol + side + cents)
+   not already placing/placed; broker: account match, live buying power and settled cash cover it, **any live buy created today ET that
+   this run did not place => claim the day as `external` and `skipped_already_bought_today`**, open buy in the symbol or a matching recent
+   buy => `skipped_duplicate_broker_order`, tradable + fractional, `review_equity_order` ok (a rejection is final for the run, not
+   retried), then `place_equity_order` (market, dollar-based, DAY/`gfd`, regular hours, `extended_hours=false`). The ledger row is
+   `placing` and the day is claimed before the place call; a timeout/crash is `place_error_outcome_unknown` and never retried.
+3. **#701:** when anything was placed (or the planner dropped/repaired legs), the gate posts one decision entry via `append_decision`
+   (kind `deploy` / `deploy_not_placed`): per-order symbol, $, qty, fill price (when the broker reports a fill), order id, status, plus a
+   one-line run summary and the plan (`repairs`, `notes`, `btc_share_before`).
+
+**Terminal statuses:** `placed`, `rejected_non_buy_side`, `rejected_not_gated`, `not_submitted_live_false`,
+`not_submitted_adapter_disabled`, `not_submitted_adapter_config`, `not_submitted_no_broker_client`, `not_submitted_review_failed`,
+`not_submitted_broker_rejected`, `not_submitted_ledger_unavailable`, `not_submitted_unplanned`, `not_submitted_before_window`,
+`not_submitted_outside_market_hours`, `not_submitted_sleeve_gate`, `not_submitted_book_unknown`, `skipped_below_min_investable`,
+`skipped_already_bought_today`, `skipped_duplicate_idempotency`, `skipped_duplicate_broker_order`, `place_error_outcome_unknown`.
+Plan statuses: `planned`, `weights_repaired`, `no_buy_intents`. Each order result carries `broker_reason` (+ `idempotency_key`, `order_id`).
+
+**Client:** `FM_BROKER_CLIENT=grok_mcp` drives the producer host's existing `grok` + `robinhood-trading` MCP OAuth (no new
+credentials), one headless call per step with a per-call allow/deny list (place call: only `place_equity_order` allowed). Unset =>
+`not_submitted_no_broker_client`. `FM_BROKER_CLIENT=pkg.module:factory` injects another client (tests use mocks).
+
+**Mon 2026-10-26 manual buy (Nakatoshi, ~10:15 ET, $7.62 into STRC/SATA/STRK/IBIT, outside the adapter).** If the adapter runs that
+day it will not duplicate it: the first broker check sees those same-day fills, claims the day as `external` and returns
+`skipped_already_bought_today` (later runs that day skip at plan time). Independently, settled cash after the manual buy is about
+$7.62 - $7.62 = ~$0.00, under the $5 minimum, so both bp-poll (`--should-buy`) and the planner skip (`skipped_below_min_investable`)
+until the next deposit settles (the 11/1 $75 deposit may take ~6 days to settle).
+
+**Ship steps (prism; after the GitHub restore and the merge to `work/treasury`; timers stay off until step 5):**
+1. Drop-in on both `fund-manager.service` and `fund-manager-bp-poll.service`
+   (`/etc/systemd/system/<unit>.service.d/20-broker-adapter.conf`):
+   `[Service]` + `Environment=FM_BROKER_ADAPTER=treasury.fund_manager_broker:submit`, `Environment=FM_BROKER_CLIENT=grok_mcp`,
+   `Environment=FM_BROKER_GROK_BIN=/home/prism-agent/.grok/bin/grok` (optional: `FM_BROKER_GROK_TIMEOUT_S`, kill switch `FM_BROKER_DISABLE=1`).
+2. Offline checks: `python3 -m treasury.fund_manager_broker` (config) and `python3 -m treasury.fund_manager_broker --should-buy`.
+3. With approval: read + review-only smoke of `GrokMcpClient` (`get_account`, `get_recent_orders`, `get_tradability`,
+   `review_order`; no place). If anything looks off, stop and report.
+4. If the Mon 10/26 manual buy happened, confirm the ledger/broker view: `--should-buy` should report under $5 settled cash.
+5. `sudo systemctl daemon-reload && sudo systemctl enable --now fund-manager.timer fund-manager-bp-poll.timer && systemctl list-timers | grep fund-manager`

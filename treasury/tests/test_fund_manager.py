@@ -250,8 +250,10 @@ class TestBtcDigitalCreditNewMoneyWeights(unittest.TestCase):
         uni = btc["new_money_weights"]["floating_universe"]
         for m in ("MARA", "RIOT", "CLSK", "WULF", "IREN"):
             self.assertIn(m, uni)
-        for t in ("BTC", "MSTR", "ASST", "BITA"):
+        # Nakatoshi 2026-10-24: IBIT is the native-BTC stand-in (no spot BTC in the account)
+        for t in ("IBIT", "MSTR", "ASST", "BITA"):
             self.assertIn(t, uni)
+        self.assertNotIn("BTC", uni)
 
     def test_allocate_new_cash_100_buy_only(self):
         p = load_fund_policy()
