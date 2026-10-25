@@ -298,6 +298,9 @@ def test_different_text_or_sender_not_deduped(http, fwd):
 
 
 def test_dedupe_window_expires(http, fwd, monkeypatch):
+    # The 120 s cross-path window alone; the 7-day content gate is covered in
+    # test_helm_inbound_sms.py and would (correctly) drop this repeat.
+    monkeypatch.setenv("INBOUND_CONTENT_DEDUPE", "0")
     post(http, SG, sg_event())
     real = bland_relay.time.time
     monkeypatch.setattr(bland_relay.time, "time", lambda: real() + bland_relay.RCS_DEDUPE_S + 5)

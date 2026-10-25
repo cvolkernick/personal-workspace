@@ -48,6 +48,7 @@ _PARTS = (
     "relay_send.py",
     "relay_rcs.py",
     "relay_turo.py",
+    "relay_helm_sms.py",
     "relay_http.py",
 )
 

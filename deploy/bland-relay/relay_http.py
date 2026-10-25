@@ -179,16 +179,21 @@ class H(BaseHTTPRequestHandler):
         if body is None:
             return self._send(413, {"ok": False, "error": "bad length"})
         out_obj = normalize_904(body, self.headers.get("Content-Type") or "")
+        dup, content_undo, checked = inbound_content_gate(out_obj)
+        if dup:
+            return self._send(200, {"ok": True, "duplicate": True})
         if not out_obj.get("test"):
             try:
                 note_inbound(out_obj.get("from"), out_obj.get("body"), via="forwarder")
             except Exception as e:  # noqa: BLE001
                 log.error("inbound note failed: %s", type(e).__name__)
+        helm_sms_spawn(out_obj, content_checked=checked)
         out = json.dumps(out_obj, ensure_ascii=False).encode("utf-8")
         status, err, attempts = forward(out)
         if status is not None:
             log.info("904 forwarder ok: %d bytes in, %d forwarded -> %d", len(body), len(out), status)
             return self._send(200, {"ok": True})
+        inbound_content_undo(content_undo)
         _spawn(alert_failure, ("904-sms-forwarder", err, attempts))
         return self._send(502, {"ok": False, "error": "forward failed"})
 
@@ -226,6 +231,10 @@ class H(BaseHTTPRequestHandler):
         if _seen_event(event_id):
             log.info("smsgate webhook: duplicate event id=%s", event_id)
             return self._send(200, {"ok": True, "duplicate": True})
+        dup, content_undo, checked = inbound_content_gate(out_obj)
+        if dup:
+            _mark_event(event_id)
+            return self._send(200, {"ok": True, "duplicate": True})
         try:
             note_inbound(out_obj.get("from"), out_obj.get("body"), via="smsgate")
         except Exception as e:  # noqa: BLE001
@@ -237,6 +246,9 @@ class H(BaseHTTPRequestHandler):
             _mark_event(event_id)
             log.info("smsgate inbound duplicate of rcs: from=***%s id=%s", tail, event_id or "-")
             return self._send(200, {"ok": True, "duplicate": True})
+        _sg_p = data.get("payload") if isinstance(data.get("payload"), dict) else {}
+        _sg_mid = _safe_id(_sg_p.get("messageId")) or event_id
+        helm_sms_spawn(out_obj, ("smsgate:" + _sg_mid) if _sg_mid else None, content_checked=checked)
         out = json.dumps(out_obj, ensure_ascii=False).encode("utf-8")
         status, err, attempts = forward(out)
         if status is not None:
@@ -247,6 +259,7 @@ class H(BaseHTTPRequestHandler):
             )
             return self._send(200, {"ok": True})
         _recent_drop(claim)
+        inbound_content_undo(content_undo)
         _spawn(alert_failure, ("904-smsgate-webhook", err, attempts))
         return self._send(502, {"ok": False, "error": "forward failed"})
 
@@ -350,12 +363,16 @@ class H(BaseHTTPRequestHandler):
         if claim is None:
             log.info("rcs inbound duplicate (late): from=***%s how=%s", tail, how)
             return self._send(200, {"ok": True, "duplicate": True})
+        out_obj = normalize_rcs(parsed, num, name)
+        dup, content_undo, checked = inbound_content_gate(out_obj)
+        if dup:
+            return self._send(200, {"ok": True, "duplicate": True})
         if num:
             try:
                 note_inbound(num, text, via="rcs-" + how)
             except Exception as e:  # noqa: BLE001
                 log.error("inbound note failed: %s", type(e).__name__)
-        out_obj = normalize_rcs(parsed, num, name)
+        helm_sms_spawn(out_obj, content_checked=checked)
         out = json.dumps(out_obj, ensure_ascii=False).encode("utf-8")
         status, err, attempts = forward(out)
         if status is not None:
@@ -365,6 +382,7 @@ class H(BaseHTTPRequestHandler):
             )
             return self._send(200, {"ok": True})
         _recent_drop(claim)
+        inbound_content_undo(content_undo)
         _spawn(alert_failure, ("904-rcs-notification", err, attempts))
         return self._send(502, {"ok": False, "error": "forward failed"})
 
