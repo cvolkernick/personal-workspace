@@ -49,7 +49,8 @@ def snap(cash=10.0, bp=None, positions=UNDER, now=NOW, **extra):
 
 class FakeClient:
     def __init__(self, bp=200.0, orders=None, tradable=True, fractional=True, review_ok=True,
-                 place_result=None, place_exc=None, account=ACCT):
+                 place_result=None, place_exc=None, account=ACCT, quotes=None, quote_exc=None):
+        self.quotes, self.quote_exc = quotes, quote_exc
         self.bp, self.orders, self.tradable, self.fractional = bp, list(orders or []), tradable, fractional
         self.review_ok, self.place_result, self.place_exc, self.account = review_ok, place_result, place_exc, account
         self.calls = []
@@ -66,6 +67,12 @@ class FakeClient:
     def get_tradability(self, symbol):
         self.calls.append(("get_tradability", symbol))
         return {"tradable": self.tradable, "fractional_tradable": self.fractional}
+
+    def get_quotes(self, symbols):
+        self.calls.append(("get_quotes", tuple(symbols)))
+        if self.quote_exc:
+            raise self.quote_exc
+        return dict(self.quotes or {})
 
     def review_order(self, order):
         self.calls.append(("review_order", order))
@@ -125,9 +132,9 @@ class Base(unittest.TestCase):
         p["execution"]["broker_adapter"].update(adapter)
         self.policy.write_text(json.dumps(p), encoding="utf-8")
 
-    def plan(self, intents, snapshot=None, now=NOW, persist=True):
+    def plan(self, intents, snapshot=None, now=NOW, persist=True, **kw):
         return broker.plan_intents(intents, snapshot=snapshot or snap(), policy_path=self.policy,
-                                   ledger_path=self.ledger, now=now, persist=persist)
+                                   ledger_path=self.ledger, now=now, persist=persist, **kw)
 
     def legs(self, info):
         return {l["symbol"]: l["notional_usd"] for l in info.get("legs") or []}
@@ -207,9 +214,9 @@ class TestSleeveGateAndWeights(Base):
         self.assertNotIn("TSLA", self.legs(info))
         self.assertEqual(info["dropped"][0]["status"], "not_submitted_sleeve_gate")
         legs = self.legs(info)
-        self.assertAlmostEqual(sum(legs.values()), 15.0, places=2)
-        self.assertAlmostEqual(legs["STRC"], 3.75, places=2)
-        self.assertAlmostEqual(legs["STRK"], 2.25, places=2)
+        self.assertAlmostEqual(sum(legs.values()), 20.0, places=2)  # all settled cash, BTC sleeve only
+        self.assertAlmostEqual(legs["STRC"], 5.0, places=2)
+        self.assertAlmostEqual(legs["STRK"], 3.0, places=2)
 
     def test_over_40pct_stocks_get_rest_toward_50_50(self):
         # BTC 100 / invested 150; run 30 -> BTC target 0.4*180-100 < 0 -> all to stocks
@@ -219,10 +226,10 @@ class TestSleeveGateAndWeights(Base):
         self.assertEqual(legs, {"TSLA": 10.0, "SPCX": 20.0})
         self.assertEqual(info["status"], "weights_repaired")
 
-    def test_weights_within_tolerance_kept(self):
+    def test_fixed_legs_exact_ai_amounts_within_tolerance_not_flagged(self):
         _, info = self.plan([buy("STRC", 3.2), buy("SATA", 2.0), buy("STRK", 1.5), buy("IBIT", 3.3)])
         self.assertEqual(info["status"], "planned")
-        self.assertEqual(self.legs(info)["STRC"], 3.2)
+        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "IBIT": 3.5})
 
     def test_weights_outside_tolerance_repaired(self):
         _, info = self.plan([buy("STRC", 8.0), buy("IBIT", 2.0)])
@@ -254,6 +261,176 @@ class TestSleeveGateAndWeights(Base):
         allowed, _ = self.gated(TEN)
         allowed[0].intent["notional_usd"] = 9.99
         self.assertEqual(self.submit(allowed[0], FakeClient())["status"], "not_submitted_unplanned")
+
+
+# ------------------------------------------------ 4b deterministic run size
+class TestDeterministicRunSize(Base):
+    def test_ai_error_falls_back_to_ibit_and_still_runs(self):
+        orders, info = self.plan("unreadable", ai_note="AI intents file unreadable")
+        self.assertEqual(info["status"], "planned")
+        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "IBIT": 3.5})
+        self.assertIn("IBIT_fallback", info["floating_source"])
+        self.assertIn("unreadable", info["floating_source"])
+        self.assertEqual(orders[0], "unreadable")  # malformed payload still reaches the gate to be blocked
+        res = gate.gate_orders(orders, deployable_cash=100, policy=gpol(), now=NOW)
+        self.assertEqual(len(res.allowed), 4)
+        self.assertEqual(len(res.blocked), 1)
+
+    def test_empty_proposal_is_fully_invested(self):
+        orders, info = self.plan([], snapshot=snap(cash=37.5))
+        legs = self.legs(info)
+        self.assertAlmostEqual(sum(legs.values()), 37.5, places=2)
+        self.assertAlmostEqual(legs["IBIT"], 13.14, places=2)  # 35% + rounding cents
+        self.assertIn("AI proposed nothing", info["floating_source"])
+        self.assertEqual(len(orders), 4)
+
+    def test_nothing_valid_proposed_still_fully_invested(self):
+        _, info = self.plan([buy("NVDA", 10.0), {"symbol": "TSLA", "side": "sell", "notional_usd": 3}])
+        self.assertAlmostEqual(sum(self.legs(info).values()), 10.0, places=2)
+        self.assertIn("no valid floating", info["floating_source"])
+
+    def test_ai_proposed_totals_ignored(self):
+        _, small = self.plan(TEN, snapshot=snap(cash=40))  # AI proposes $10 of $40
+        self.assertAlmostEqual(small["run_total_usd"], 40.0)
+        self.assertAlmostEqual(sum(self.legs(small).values()), 40.0, places=2)
+        self.assertTrue(any("ignored" in n for n in small["notes"]))
+        big = [buy("STRC", 75), buy("SATA", 75), buy("STRK", 45), buy("IBIT", 105)]
+        _, capped = broker.plan_intents(big, snapshot=snap(cash=12), policy_path=self.policy,
+                                        ledger_path=self.dir / "l4.json", now=NOW)
+        self.assertAlmostEqual(sum(self.legs(capped).values()), 12.0, places=2)
+
+    def test_per_order_cap_spills_to_ibit_when_fully_invested(self):
+        self.write_policy(max_daily_notional_usd=500)
+        _, info = self.plan([buy("MARA", 1.0)], snapshot=snap(cash=500))
+        legs = self.legs(info)
+        self.assertAlmostEqual(sum(legs.values()), 160.0, places=2)
+        self.assertTrue(all(v <= 75 for v in legs.values()))
+
+    def test_gate_cli_missing_intents_still_runs_planner(self):
+        planner = mock.Mock(return_value=([], {"status": "planned"}))
+        sub = mock.Mock()
+        sub.plan = planner
+        import io
+        from contextlib import redirect_stdout
+
+        with mock.patch.object(gate, "load_broker_adapter", return_value=sub), mock.patch.object(
+            gate, "_deployable_cash_from_snapshot", return_value=12.0
+        ), mock.patch.object(gate, "load_override", return_value=(None, "")), redirect_stdout(io.StringIO()):
+            rc = gate.main(["--execute-intents", str(self.dir / "missing.json"), "--no-record"])
+        self.assertEqual(rc, 0)
+        args, kw = planner.call_args
+        self.assertEqual(args[0], [])
+        self.assertIn("errored/timed out", kw["ai_note"])
+
+    def test_runners_time_box_ai_and_run_gate_without_grok(self):
+        for name in ("fund_manager_daily.sh", "fund_manager_bp_poll.sh"):
+            text = (ROOT / "treasury" / name).read_text(encoding="utf-8")
+            self.assertIn('timeout "${FM_GROK_TIMEOUT_S:-1800}" grok -p', text, name)
+            tail = text[text.index("grok missing"):]
+            self.assertIn("fund_manager_order_gate --execute-intents", tail.split("\nelif")[0], name)
+
+
+# ------------------------------------------- 2b valuing the 40% test (quotes)
+NOVALUE = [pos("TSLA", 1, 60), pos("SPCX", 1, 60), pos("STRC", 0.5, 100)]  # cost basis: BTC 29%
+
+
+class TestValuationQuotes(Base):
+    def test_live_quotes_used_when_snapshot_has_no_market_value(self):
+        c = FakeClient(quotes={"TSLA": 10, "SPCX": 10, "STRC": 200})  # BTC 100 / 120 = 83%
+        _, info = self.plan([buy("TSLA", 5)], snapshot=snap(cash=20, positions=NOVALUE), client=c)
+        self.assertEqual(info["valuation"], "live_quotes")
+        self.assertAlmostEqual(info["btc_share_before"], 0.8333, places=3)
+        self.assertIn("TSLA", self.legs(info))  # over 40% -> stocks allowed
+        self.assertEqual(c.calls, [("get_quotes", ("SPCX", "STRC", "TSLA"))])
+        self.assertFalse(any(n == "place_order" for n, *_ in c.calls))
+
+    def test_quote_failure_falls_back_to_cost_basis_and_is_logged(self):
+        c = FakeClient(quote_exc=broker.BrokerError("grok timeout"))
+        _, info = self.plan([buy("TSLA", 5)], snapshot=snap(cash=20, positions=NOVALUE), client=c)
+        self.assertTrue(info["valuation"].startswith("cost_basis_fallback"))
+        self.assertAlmostEqual(info["btc_share_before"], 0.2941, places=3)
+        self.assertNotIn("TSLA", self.legs(info))
+        self.assertTrue(any("cost_basis_fallback" in n for n in info["notes"]))
+        self.assertIn("cost_basis_fallback", info["summary"])
+        entry = gate._execution_entry({"placed": [{"symbol": "STRC", "notional_usd": 5.0, "status": "placed"}]}, info)
+        self.assertIn("40% test valued at cost basis", entry["summary"])
+        self.assertIn("cost_basis_fallback", entry["plan"]["valuation"])
+
+    def test_no_client_or_partial_quotes_fall_back(self):
+        _, info = self.plan([], snapshot=snap(cash=20, positions=NOVALUE))
+        self.assertIn("no broker client", info["valuation"])
+        c = FakeClient(quotes={"STRC": 200})
+        _, info2 = broker.plan_intents([], snapshot=snap(cash=20, positions=NOVALUE), policy_path=self.policy,
+                                       ledger_path=self.dir / "l5.json", now=NOW, client=c)
+        self.assertIn("live_quotes_partial", info2["valuation"])
+        self.assertIn("SPCX,TSLA", info2["valuation"])
+
+    def test_snapshot_market_value_needs_no_quotes(self):
+        mv = [dict(p, market_value=str(float(p["quantity"]) * float(p["average_buy_price"]))) for p in NOVALUE]
+        c = FakeClient(quotes={"TSLA": 1})
+        _, info = self.plan([], snapshot=snap(cash=20, positions=mv), client=c)
+        self.assertEqual(info["valuation"], "snapshot_market_value")
+        self.assertEqual(c.calls, [])
+
+    def test_grok_quote_call_is_read_only_place_denied(self):
+        seen = {}
+
+        def runner(cmd, **kw):
+            seen["cmd"] = cmd
+            return mock.Mock(returncode=0, stdout=json.dumps({"quotes": [{"symbol": "strc", "price": 99.5}]}))
+
+        cl = broker.GrokMcpClient(grok_bin="grok", runner=runner)
+        self.assertEqual(cl.get_quotes(["STRC"]), {"STRC": 99.5})
+        cmd = seen["cmd"]
+        allows = [cmd[i + 1] for i, a in enumerate(cmd) if a == "--allow"]
+        denies = [cmd[i + 1] for i, a in enumerate(cmd) if a == "--deny"]
+        self.assertEqual(allows, ["MCPTool(robinhood-trading__get_equity_quotes)"])
+        self.assertIn("MCPTool(robinhood-trading__place_*)", denies)
+        self.assertNotIn("place_equity_order", " ".join(allows))
+
+
+# ------------------------------------------------------ 8b market calendar
+class TestMarketCalendar(Base):
+    NAKATOSHI_CLOSED = {"2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26",
+                        "2027-05-31", "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24"}
+    NAKATOSHI_EARLY = {"2026-11-27", "2026-12-24", "2027-11-26"}
+
+    def test_repo_calendar_matches_nyse_and_nakatoshi(self):
+        cfg, err = broker.load_adapter_config()
+        cal = cfg["calendar"]
+        self.assertEqual(cal["years"], frozenset({2026, 2027}))
+        self.assertTrue(self.NAKATOSHI_CLOSED <= cal["holidays"])
+        self.assertEqual(set(cal["early_close"]), self.NAKATOSHI_EARLY)
+        self.assertNotIn("2027-12-31", cal["holidays"])
+        self.assertNotIn("2027-12-31", cal["early_close"])
+        self.assertIn("nyse.com", cal["source"])
+
+    def test_early_close_day_window_ends_1250(self):
+        cfg, _ = broker.load_adapter_config(self.policy)
+        at = datetime(2026, 11, 27, 17, 55, tzinfo=timezone.utc)  # 12:55 ET
+        self.assertEqual(broker.market_window(at, cfg)[0], "not_submitted_outside_market_hours")
+        self.assertIsNone(broker.market_window(datetime(2026, 11, 27, 16, 0, tzinfo=timezone.utc), cfg)[0])
+
+    def test_date_beyond_last_calendar_year_fails_closed(self):
+        when = datetime(2028, 1, 4, 16, 0, tzinfo=timezone.utc)  # Tue 11:00 ET, 2028 not configured
+        orders, info = self.plan(TEN, snapshot=snap(now=when), now=when)
+        self.assertEqual(info["status"], "not_submitted_calendar_unknown")
+        self.assertEqual(orders, [])
+        ok, why = broker.should_buy(snapshot=snap(now=when), policy_path=self.policy, ledger_path=self.ledger, now=when)
+        self.assertFalse(ok)
+        self.assertIn("calendar_unknown", why)
+
+    def test_calendar_missing_or_malformed_fails_closed(self):
+        allowed, _ = self.gated(TEN)
+        for bad in (None, {"years": [2026], "holidays": ["2026-13-01"], "early_close": {}},
+                    {"years": [2026], "holidays": ["2027-01-01"], "early_close": {}}, {"holidays": []}):
+            self.write_policy(market_calendar=bad)
+            _, info = broker.plan_intents(TEN, snapshot=snap(), policy_path=self.policy,
+                                          ledger_path=self.dir / "lc.json", now=NOW)
+            self.assertEqual(info["status"], "not_submitted_calendar_unknown", bad)
+            c = FakeClient()
+            self.assertEqual(self.submit(allowed[0], c)["status"], "not_submitted_calendar_unknown", bad)
+            self.assertEqual(c.calls, [])
 
 
 # ----------------------------------------------------------------- 3 caps

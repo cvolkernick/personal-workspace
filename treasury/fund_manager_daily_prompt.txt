@@ -13,9 +13,9 @@ You are running the fund-manager review for personal-workspace (agentic Robinhoo
 - New cash fills the BTC + digital credit sleeve first until it is 40% of invested value. While it is under 40%, propose NO TSLA/SPCX buys (they are dropped as not_submitted_sleeve_gate and the dollars go to the BTC sleeve). After 40%, stock buys keep TSLA/SPCX 50/50.
 - BTC sleeve per run is fixed: STRC 25% / SATA 25% / STRK 15% of the BTC amount. YOU ONLY choose how the floating 35% splits among the floating names. Default the floating 35% to IBIT: IBIT is the native-BTC stand-in (this account cannot hold spot BTC). Plans that break the fixed weights are repaired (weights_repaired) and logged.
 - MSTR: allowed, but LOW PREFERENCE through 2026-11-30 (execution.broker_adapter.low_preference). Prefer IBIT and the other floating names; pick MSTR only with an explicit logged reason.
-- Legs under $1 fold into IBIT. Per run: at most min(settled cash, $160); nothing if under $5 investable. $75 max per order, $150 per ET day.
+- Run size is NOT your call: the planner invests ALL investable cash (min of settled cash, $160 and what is left of the $150 daily cap) when it is $5 or more; your totals are ignored. Legs under $1 fold into IBIT; $75 max per order (excess spills to IBIT).
 - Market dollar DAY orders, regular hours only, never before 10:00 ET, never queued after hours. At most ONE buy run per ET day (shared by the daily run and the BP poll; a same-day buy placed outside the adapter counts).
-- Write intents as usual (`{"orders": [{"symbol","side":"buy","notional_usd":N,"purpose":"deploy"}]}`); sum them to the cash you want deployed.
+- Write intents as usual (`{"orders": [{"symbol","side":"buy","notional_usd":N,"purpose":"deploy"}]}`). Only the relative split of your floating-name intents matters; if you write nothing valid, the floating 35% goes to IBIT.
 
 ## Policy (must follow)
 - Read and obey: investment/fund_manager.json (especially process.*), investment/positions.md, investment/README.md, investment/watchlist.json

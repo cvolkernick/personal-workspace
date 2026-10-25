@@ -1054,10 +1054,15 @@ def _execution_entry(out: Dict[str, Any], plan: Optional[Dict[str, Any]]) -> Opt
         return None
     total = sum(float(r.get("notional_usd") or 0) for r in placed)
     legs = ", ".join(f"{r['symbol']} ${float(r.get('notional_usd') or 0):.2f}" for r in placed) or "none"
+    valuation = str(plan.get("valuation") or "")
     summary = (
         f"Run {plan.get('run_id') or '?'} [{plan.get('status') or 'unplanned'}]: placed {len(placed)} buy(s) "
         f"${total:.2f} ({legs}); not placed {len(others)}; sleeve/weight drops {len(dropped)}"
     )
+    if "cost_basis" in valuation:
+        summary += f"; 40% test valued at cost basis ({valuation})"
+    if str(plan.get("floating_source") or "").find("fallback") >= 0:
+        summary += f"; floating {plan.get('floating_source')}"
     actions: List[Dict[str, Any]] = []
     for r in placed + others:
         a = {k: r.get(k) for k in ("symbol", "side", "notional_usd", "status", "order_id", "broker_reason")}
@@ -1080,6 +1085,7 @@ def _execution_entry(out: Dict[str, Any], plan: Optional[Dict[str, Any]]) -> Opt
             "thesis_tags": ["broker_adapter", "run_plan", "no_sell_guard"],
         },
         "plan": {k: plan.get(k) for k in ("run_id", "status", "run_total_usd", "settled_cash", "btc_share_before",
+                                           "valuation", "floating_source", "ai_proposed_usd",
                                            "repairs", "notes", "legs") if k in plan},
         "actions": actions,
     }
@@ -1259,25 +1265,32 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     if args.execute_intents:
         p = Path(args.execute_intents)
+        submit = load_broker_adapter()
+        planner = getattr(submit, "plan", None) if submit is not None else None
+        ai_note = ""
         if not p.is_file():
-            print(json.dumps({"ok": True, "intents": 0, "note": "no intents file; nothing to do"}))
-            return 0
-        try:
-            payload = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(payload, dict) and "orders" in payload:
-                payload = payload["orders"]
-        except (OSError, ValueError):
-            payload = "unreadable"
+            if planner is None:
+                print(json.dumps({"ok": True, "intents": 0, "note": "no intents file; nothing to do"}))
+                return 0
+            # AI step errored / timed out / wrote nothing: the planner still runs
+            # (run size is deterministic; floating 35% -> IBIT).
+            payload, ai_note = [], "no AI intents file (AI step errored/timed out)"
+        else:
+            try:
+                payload = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(payload, dict) and "orders" in payload:
+                    payload = payload["orders"]
+            except (OSError, ValueError):
+                payload = "unreadable"
+                ai_note = "AI intents file unreadable"
         policy = load_gate_policy()
         override, oerr = load_override(policy=policy)
-        submit = load_broker_adapter()
         plan: Optional[Dict[str, Any]] = None
-        planner = getattr(submit, "plan", None) if submit is not None else None
         if planner is not None:
-            # Deterministic run planner (sleeve gate, fixed weights, caps, window,
-            # once-per-ET-day). It can only narrow: sells pass through to be blocked.
+            # Deterministic run planner (run size, sleeve gate, fixed weights, caps,
+            # window, calendar, once-per-ET-day). Sells pass through to be blocked.
             try:
-                payload, plan = planner(payload, persist=not args.dry_run)
+                payload, plan = planner(payload, persist=not args.dry_run, ai_note=ai_note)
             except Exception as exc:  # fail closed: drop every buy
                 plan = {"status": "plan_error", "reason": type(exc).__name__}
                 if isinstance(payload, list):
@@ -1294,10 +1307,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
         if plan is not None:
             result["plan"] = plan
-        try:  # consumed: never replay a stale intents file
-            p.rename(p.with_suffix(".consumed.json"))
-        except OSError:
-            pass
+        if p.is_file():
+            try:  # consumed: never replay a stale intents file
+                p.rename(p.with_suffix(".consumed.json"))
+            except OSError:
+                pass
         if oerr:
             result["override_error"] = oerr
         print(json.dumps(result, indent=2, default=str))

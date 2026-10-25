@@ -90,7 +90,9 @@ if [[ "${RR}" -eq 2 ]]; then
     else
       INTENTS_FILE="${ROOT}/treasury/snapshots/fund_manager_intents.json"
       rm -f "${INTENTS_FILE}"
-      grok -p "$(cat "${PROMPT_FILE}")" \
+      # AI step is time-boxed; if it errors/times out the gate still runs and the
+      # deterministic planner invests all settled cash (floating 35% -> IBIT).
+      timeout "${FM_GROK_TIMEOUT_S:-1800}" grok -p "$(cat "${PROMPT_FILE}")" \
         --cwd "${ROOT}" \
         --yolo \
         "${GROK_DENY[@]}" \
@@ -110,6 +112,10 @@ print(notify_if_needed(decision_or_review=dec, treasury_eval=tre.get("evaluation
 PY
   else
     echo "need_llm but grok missing — logged rules outcome only"
+    # AI step unavailable: deterministic planner still runs (floating 35% -> IBIT).
+    rm -f "${ROOT}/treasury/snapshots/fund_manager_intents.json"
+    python3 -m treasury.fund_manager_order_gate --execute-intents "${ROOT}/treasury/snapshots/fund_manager_intents.json" \
+      || echo "WARN: order gate blocked/failed (exit $?)"
   fi
 elif [[ "${RR}" -eq 0 ]]; then
   echo "Rules HOLD — no LLM (saves cost; glass box already logged if first hold today)"

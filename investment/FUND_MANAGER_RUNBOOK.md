@@ -210,20 +210,29 @@ configured, the gate logs `not_submitted_no_broker_adapter` and places nothing. 
 BTC + digital credit; hold, never sell; new cash fills the BTC + digital-credit sleeve first until it reaches 40%.
 
 1. **Run planner** (`plan_intents`, exposed as `submit.plan`; the gate CLI runs it before gating; deterministic, no network):
-   * Window: ET weekday, not in `market_holidays`, `earliest_place_et` (10:00) <= now < `latest_place_et` (15:50; 10 min before an
-     `early_close_days` close). Else `not_submitted_before_window` / `not_submitted_outside_market_hours`. Nothing is queued.
+   * Calendar: `market_calendar` (years 2026-2027, NYSE holidays + 1 PM early closes; source https://www.nyse.com/markets/hours-calendars,
+     checked 2026-10-24, matches Nakatoshi's list). A date outside `market_calendar.years`, or a missing/malformed calendar, fails
+     closed: `not_submitted_calendar_unknown` (plan, submit and `--should-buy`). **Add the next year's NYSE dates before Jan 1, 2028.**
+   * Window: ET weekday, not a calendar holiday, `earliest_place_et` (10:00) <= now < `latest_place_et` (15:50; 10 min before an
+     early close). Else `not_submitted_before_window` / `not_submitted_outside_market_hours`. Nothing is queued.
    * One buy run per ET day (shared with bp-poll/daily; same-day fills placed outside the adapter count): `skipped_already_bought_today`.
    * Allowlist: BTC sleeve STRC, SATA, STRK + floating MSTR, ASST, BITA, IBIT, MARA, RIOT, CLSK, IREN, WULF; stocks TSLA, SPCX.
      IBIT is the native-BTC stand-in (no spot BTC in this account) and the default for the floating 35%. MSTR has low preference
      through `low_preference.MSTR.until` (2026-11-30): prompt-level, noted in the plan when chosen.
-   * Run total = min(LLM-proposed allowlisted buys, settled cash, `max_run_notional_usd` $160, daily cap left). Under
-     `min_investable_usd` ($5): `skipped_below_min_investable`. Settled cash = an explicit settled/withdrawable field if the snapshot or
+   * Run size is deterministic, never the AI's call: run total = investable = min(settled cash, `max_run_notional_usd` $160, daily
+     cap left), and ALL of it is invested (AI-proposed totals are ignored and noted). Under `min_investable_usd` ($5):
+     `skipped_below_min_investable`. If the AI step errors, times out (`FM_GROK_TIMEOUT_S`, default 1800s), is missing, or proposes
+     nothing valid, the run still happens with the floating 35% in IBIT (`floating_source` = `IBIT_fallback: ...`). Settled cash = an explicit settled/withdrawable field if the snapshot or
      broker has one, else min(cash, buying power, unleveraged buying power). Snapshot older than 6h: `not_submitted_book_unknown`.
-   * Sleeve gate: BTC + digital-credit share of invested value (snapshot positions at last price, else cost basis) under 40% => the
+   * Valuing the 40% test: snapshot market value / last price; for held symbols without one, live quotes via the RH
+     `get_equity_quotes` tool (same `grok_mcp` client, read-only call, every `place_*` tool denied). Only if quotes fail: cost basis,
+     logged as `valuation: cost_basis_fallback: ...` in the plan notes, run summary and the #701 entry.
+   * Sleeve gate: BTC + digital-credit share of invested value under 40% => the
      whole run goes to the BTC sleeve; TSLA/SPCX legs are dropped as `not_submitted_sleeve_gate` and their dollars redirected. At or
      over 40%: BTC gets what keeps it at 40% after the run, stocks get the rest, split to move TSLA/SPCX toward 50/50.
-   * BTC sleeve: STRC 25 / SATA 25 / STRK 15 of the BTC amount, kept as proposed if each is within max($1, 5% of the run total), else
-     repaired to target (`weights_repaired`, listed in `repairs`). The LLM only splits the floating 35% (none proposed => all IBIT).
+   * BTC sleeve: STRC 25 / SATA 25 / STRK 15 of the BTC amount, always exactly (AI amounts for these are ignored; one off by more than
+     max($1, 5% of the run total) is logged as `weights_repaired` in `repairs`). The LLM only splits the floating 35%, pro rata to
+     its floating proposals (none valid => all IBIT).
      Legs over $75 spill into IBIT; legs under $1 fold into IBIT. The plan is recorded in the ledger (`runs`) with a `run_id`.
 2. **submit** (per gate-approved leg): buy-only hard reject (any non-`GatedOrder`, sell/short/option/crypto, non-`buy` side); kill
    switches (`FM_BROKER_DISABLE=1`, `live`, `enabled`); the order must be a leg of today's recorded plan (`not_submitted_unplanned`);
@@ -235,14 +244,15 @@ BTC + digital credit; hold, never sell; new cash fills the BTC + digital-credit 
    `placing` and the day is claimed before the place call; a timeout/crash is `place_error_outcome_unknown` and never retried.
 3. **#701:** when anything was placed (or the planner dropped/repaired legs), the gate posts one decision entry via `append_decision`
    (kind `deploy` / `deploy_not_placed`): per-order symbol, $, qty, fill price (when the broker reports a fill), order id, status, plus a
-   one-line run summary and the plan (`repairs`, `notes`, `btc_share_before`).
+   one-line run summary (incl. any cost-basis valuation or IBIT fallback) and the plan (`repairs`, `notes`, `btc_share_before`,
+   `valuation`, `floating_source`).
 
 **Terminal statuses:** `placed`, `rejected_non_buy_side`, `rejected_not_gated`, `not_submitted_live_false`,
 `not_submitted_adapter_disabled`, `not_submitted_adapter_config`, `not_submitted_no_broker_client`, `not_submitted_review_failed`,
 `not_submitted_broker_rejected`, `not_submitted_ledger_unavailable`, `not_submitted_unplanned`, `not_submitted_before_window`,
-`not_submitted_outside_market_hours`, `not_submitted_sleeve_gate`, `not_submitted_book_unknown`, `skipped_below_min_investable`,
+`not_submitted_outside_market_hours`, `not_submitted_calendar_unknown`, `not_submitted_sleeve_gate`, `not_submitted_book_unknown`, `skipped_below_min_investable`,
 `skipped_already_bought_today`, `skipped_duplicate_idempotency`, `skipped_duplicate_broker_order`, `place_error_outcome_unknown`.
-Plan statuses: `planned`, `weights_repaired`, `no_buy_intents`. Each order result carries `broker_reason` (+ `idempotency_key`, `order_id`).
+Plan statuses: `planned`, `weights_repaired`. Each order result carries `broker_reason` (+ `idempotency_key`, `order_id`).
 
 **Client:** `FM_BROKER_CLIENT=grok_mcp` drives the producer host's existing `grok` + `robinhood-trading` MCP OAuth (no new
 credentials), one headless call per step with a per-call allow/deny list (place call: only `place_equity_order` allowed). Unset =>
@@ -261,6 +271,6 @@ until the next deposit settles (the 11/1 $75 deposit may take ~6 days to settle)
    `Environment=FM_BROKER_GROK_BIN=/home/prism-agent/.grok/bin/grok` (optional: `FM_BROKER_GROK_TIMEOUT_S`, kill switch `FM_BROKER_DISABLE=1`).
 2. Offline checks: `python3 -m treasury.fund_manager_broker` (config) and `python3 -m treasury.fund_manager_broker --should-buy`.
 3. With approval: read + review-only smoke of `GrokMcpClient` (`get_account`, `get_recent_orders`, `get_tradability`,
-   `review_order`; no place). If anything looks off, stop and report.
+   `get_quotes`, `review_order`; no place). If anything looks off, stop and report.
 4. If the Mon 10/26 manual buy happened, confirm the ledger/broker view: `--should-buy` should report under $5 settled cash.
 5. `sudo systemctl daemon-reload && sudo systemctl enable --now fund-manager.timer fund-manager-bp-poll.timer && systemctl list-timers | grep fund-manager`
