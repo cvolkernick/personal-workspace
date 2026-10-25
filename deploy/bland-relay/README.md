@@ -2,7 +2,7 @@
 
 Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.service`). Tailscale Funnel `:8443` is the existing public front. Secret paths stay unguessable. This tree is the source for `~/bin`. The unit keeps running the copy in `~/bin`, not this checkout.
 
-`bland_relay.py` is the import surface (`import bland_relay`, and the `bland-relay.py` wrapper). It loads these parts from the same directory: `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`. `caller_context.py`, `meeting_check.py`, `post_call.py` and `turo_email.py` stay beside them. Each of those source files stays under ~40 KB.
+`bland_relay.py` is the import surface (`import bland_relay`, and the `bland-relay.py` wrapper). It loads these parts from the same directory: `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_helm_sms.py`, `relay_http.py`. `caller_context.py`, `meeting_check.py`, `post_call.py` and `turo_email.py` stay beside them. Each of those source files stays under ~40 KB.
 
 ## Routes
 
@@ -633,20 +633,33 @@ The command uses `BLAND_RELAY_STATE_DIR` when that is set, otherwise `~/.local/s
 
 Rollback: `printf %s off | ~/bin/bland-relay-setkey POST_CALL_INGEST` and `printf 1 | ~/bin/bland-relay-setkey POST_CALL_PUSH_DISABLED`. Or restore `~/bin/*.bak-pre1231` and delete `~/bin/post_call.py`. Outbox lines, index rows, and `post_call_deadletter.jsonl` stay. The dead-letter file can stay across a restore. No Bland config change belongs in this slice.
 
+## Inbound 904 SMS to Helm (relay_helm_sms.py)
+
+`relay_helm_sms.py` posts each inbound 904 text (forwarder, SMSGate `sms:received`, Messages notification) to Helm as `kind=inbound_sms`. It is off unless `HELM_INBOUND_SMS_FORWARD=1` and `HELM_TURO_WEBHOOK_URL` is set, runs in a background thread, and never changes the Alexandra forward or the HTTP response. Outbound sending is not touched.
+
+- Id dedupe: `smsgate:<messageId>` or a sha256 of sender, body and source time, kept 14 days in `<state>/helm_sms_seen.json`.
+- Content dedupe: the 904 phone can re-send old texts with new ids when it reconnects (new SMSGate messageId, fresh notification post time). Salted HMAC-SHA256 keys, never text, live in `<state>/helm_sms_content.json`. Keys with a stable carrier/source timestamp are kept `HELM_SMS_CONTENT_WINDOW_D` days (default and minimum 7). Sender + body keys with no stable timestamp (notifications) are kept `INBOUND_CONTENT_NOTS_WINDOW_H` hours (default 24, minimum 1: the 2026-10-25 reconnect re-sends came 2-3 h apart, and 1 h still covers a burst). Each key is pruned by its own window. Sender is `normalize_nanp(from)` or the case-folded name; body is `_text_key()`.
+  - Timestamped records that are not notifications (SMSGate `receivedAt` is the carrier time): a duplicate when sender + body + source second was seen, or when the same sender + body went through as a notification at or after the source time minus 300 s. A real repeat has a new carrier time and passes.
+  - Notifications, or records with no timestamp: the post time changes on every re-post, so sender + body decides. A duplicate when it was seen in the last `INBOUND_CONTENT_NOTS_WINDOW_H` hours and no outbound 904 send to that sender is recorded after that sighting. A reply in between lets the same words through as a new turn.
+  - One decision per text for both sinks: the forwarder, SMSGate and RCS handlers call `inbound_content_gate()` before the Alexandra forward, and a duplicate is dropped for Alexandra and Helm together (HTTP 200 `duplicate`). Helm then skips its own content check.
+  - Alexandra forward fails (502): the content keys roll back so the phone retry goes through; Helm's id store stops a second Helm wake for that retry. Helm post fails while Alexandra succeeded: the keys stay (a re-send would double Alexandra); only the Helm id is released, and the `helm inbound_sms FAILED` line records the miss.
+  - First-contact approvals (`YES <6 digits>`) are exempt so a retry still counts. Test records skip content dedupe. `INBOUND_CONTENT_DEDUPE=0` turns the handler gate off (Alexandra back to the 120 s window only; Helm keeps its own content check).
+- Lag telemetry: the `helm inbound_sms ok|FAILED` journal line carries `src_at` (source time, ET) and `lag_s`. The Pi's `relay-lag-alarm` timer reads it.
+
 ## Deploy
 
 Not done by this PR. Do not copy these files onto prism, do not restart the unit, and do not run `install_remote.sh`, from a review. Ops runs this checklist after merge, off-peak, with no call in progress. `bland-relay.py` is the unit entry (`chmod 755`). `bland_relay.py` loads every `relay_*.py` part from the same directory (`chmod 644`), and that load imports `caller_context.py`, `meeting_check.py`, `post_call.py` and `turo_email.py`. A partial copy crash-loops the unit.
 
 `smoke.py` is a local read-only tool. It is not copied.
 
-Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_http.py`, `caller_context.py`, `meeting_check.py`, `post_call.py`, `turo_email.py`, `bland-relay-setkey`, `send-904`, `send-904-fc`.
+Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_helm_sms.py`, `relay_http.py`, `caller_context.py`, `meeting_check.py`, `post_call.py`, `turo_email.py`, `bland-relay-setkey`, `send-904`, `send-904-fc`.
 
 1. Back up the files already on prism. A name that is not on prism yet (`post_call.py` on the first #1231 deploy) is skipped. `bak-pre1230` was the #1230 stamp; this slice uses `bak-pre1231`.
 
 ```bash
 stamp=bak-pre1231
 for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
-  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_http.py \
+  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_helm_sms.py relay_http.py \
   caller_context.py meeting_check.py post_call.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
   if [ -f ~/bin/$f ]; then cp ~/bin/$f ~/bin/$f.$stamp; fi
 done
@@ -664,6 +677,7 @@ cp deploy/bland-relay/bland-relay.py \
   deploy/bland-relay/relay_send.py \
   deploy/bland-relay/relay_rcs.py \
   deploy/bland-relay/relay_turo.py \
+  deploy/bland-relay/relay_helm_sms.py \
   deploy/bland-relay/relay_http.py \
   deploy/bland-relay/caller_context.py \
   deploy/bland-relay/meeting_check.py \
@@ -673,7 +687,7 @@ cp deploy/bland-relay/bland-relay.py \
 cp deploy/bland-relay/bland-relay-setkey deploy/bland-relay/send-904 deploy/bland-relay/send-904-fc ~/bin/
 chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/send-904-fc
 chmod 644 ~/bin/bland_relay.py ~/bin/relay_config.py ~/bin/relay_audit.py ~/bin/relay_sms.py \
-  ~/bin/relay_fc.py ~/bin/relay_send.py ~/bin/relay_rcs.py ~/bin/relay_turo.py ~/bin/relay_http.py \
+  ~/bin/relay_fc.py ~/bin/relay_send.py ~/bin/relay_rcs.py ~/bin/relay_turo.py ~/bin/relay_helm_sms.py ~/bin/relay_http.py \
   ~/bin/caller_context.py ~/bin/meeting_check.py ~/bin/post_call.py ~/bin/turo_email.py
 ```
 
@@ -721,7 +735,7 @@ Rollback restores the `$stamp` copies over `~/bin`, then removes any `~/bin/rela
 ```bash
 stamp=bak-pre1231
 for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
-  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_http.py \
+  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_helm_sms.py relay_http.py \
   caller_context.py meeting_check.py post_call.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
   if [ -f ~/bin/$f.$stamp ]; then cp ~/bin/$f.$stamp ~/bin/$f; fi
 done
