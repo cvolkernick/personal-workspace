@@ -1,0 +1,35 @@
+{
+  "text": "{\"account_number\":\"674601752\",\"buying_power\":null,\"cash\":null,\"unleveraged_buying_power\":null,\"settled_cash\":null}{\"account_number\":\"674601752\",\"buying_power\":null,\"cash\":null,\"unleveraged_buying_power\":null,\"settled_cash\":null}{\"account_number\":\"674601752\",\"buying_power\":null,\"cash\":null,\"unleveraged_buying_power\":null,\"settled_cash\":null}{\"account_number\":\"674601752\",\"buying_power\":7.62,\"cash\":7.62,\"unleveraged_buying_power\":7.62,\"settled_cash\":null}",
+  "stopReason": "end_turn",
+  "sessionId": "00000000-0000-0000-0000-000000000000",
+  "requestId": "00000000-0000-0000-0000-000000000000",
+  "thought": "<redacted model reasoning>",
+  "usage": {
+    "input_tokens": 7817,
+    "cache_read_input_tokens": 64768,
+    "cache_creation_input_tokens": 0,
+    "output_tokens": 1195,
+    "reasoning_tokens": 956,
+    "total_tokens": 73780
+  },
+  "num_turns": 4,
+  "total_cost_usd": 0.055188,
+  "total_cost_usd_ticks": 551880000,
+  "modelUsage": {
+    "grok-4.7-build": {
+      "inputTokens": 7817,
+      "outputTokens": 1195,
+      "cacheReadInputTokens": 64768,
+      "cacheCreationInputTokens": 0,
+      "modelCalls": 4,
+      "costUSD": 0.055188
+    }
+  },
+  "structuredOutput": {
+    "account_number": "674601752",
+    "buying_power": 7.62,
+    "cash": 7.62,
+    "unleveraged_buying_power": 7.62,
+    "settled_cash": null
+  }
+}

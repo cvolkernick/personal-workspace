@@ -971,6 +971,7 @@ class TestRunnersAndLint(unittest.TestCase):
         # the buy-only broker adapter: the sanctioned submit target of the gate (FM_BROKER_ADAPTER)
         "treasury/fund_manager_broker.py",
         "treasury/tests/test_fund_manager_broker.py",
+        "treasury/tests/test_fund_manager_broker_grok_client.py",  # asserts the place tool is never reached
         "treasury/tests/test_fund_manager_order_gate.py",
     }
 
