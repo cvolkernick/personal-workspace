@@ -29,10 +29,28 @@ ROSTER = d.Roster(
 )
 
 
+class _FrozenDatetime(datetime):
+    """``datetime`` whose ``now()`` is pinned to the fixture clock ``NOW``."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return NOW if tz is None else NOW.astimezone(tz)
+
+
 @pytest.fixture(autouse=True)
 def _isolated_state(tmp_path, monkeypatch):
     """Cooldowns/state never touch the real ~/.local/state."""
     monkeypatch.setattr(d, "STATE_DIR", tmp_path / "state")
+
+
+@pytest.fixture(autouse=True)
+def _frozen_clock():
+    """Pin the module's wall clock to ``NOW`` so date-relative logic (e.g. the 7-day prune in
+    ``CooldownStore._save``) sees the same time as the fixtures, whatever today's date is.
+    Uses its own MonkeyPatch so a test calling ``monkeypatch.undo()`` cannot unfreeze it."""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(d, "datetime", _FrozenDatetime)
+        yield
 
 
 def iso(dt: datetime) -> str:
