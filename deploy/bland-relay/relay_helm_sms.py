@@ -137,8 +137,13 @@ def helm_sms_unclaim(mid, now=None):
 # Content dedupe (2026-10-25). When the 904 phone reconnects it can re-send
 # old inbound texts with NEW ids (new SMSGate messageId, fresh Messages
 # notification post time), so the id check above misses them. Keys are salted
-# HMAC-SHA256 hashes, never text, in <state>/helm_sms_content.json, kept for
-# HELM_SMS_CONTENT_WINDOW_D days (default and minimum 7).
+# HMAC-SHA256 hashes, never text, in <state>/helm_sms_content.json. Windows:
+#   "e" keys (stable carrier/source timestamp): HELM_SMS_CONTENT_WINDOW_D days,
+#   default and minimum 7.
+#   "c" keys (sender + body only, no stable timestamp):
+#   INBOUND_CONTENT_NOTS_WINDOW_H hours, default 24, minimum 1 (reconnect
+#   re-sends seen on 2026-10-25 came 2-3 h apart; 1 h still covers a burst).
+# Each key is pruned by its own window ("c" entries carry "v", "e" do not).
 #   sender = normalize_nanp(from) or the case-folded name; body = _text_key().
 #   "e" key = sender + body + source timestamp (whole seconds)
 #   "c" key = sender + body, with last sighting time and path class
@@ -150,12 +155,12 @@ def helm_sms_unclaim(mid, now=None):
 #   repeat has a new carrier time and passes.
 #   notification, or no timestamp (post time changes on every re-post, so it
 #   cannot identify a message): duplicate if the "c" key was seen in the
-#   window and no outbound 904 send to that sender is recorded after that
+#   "c" window and no outbound 904 send to that sender is recorded after that
 #   sighting. A reply in between means the same words may be a new turn
 #   ("Yes" again) and the text passes.
 # First-contact approvals ("YES <6 digits>") are exempt so a retry after a
-# denied attempt still counts. Test records skip content dedupe. Outbound sending is never touched (sends
-# are only read to apply the reply exception).
+# denied attempt still counts. Test records skip content dedupe. Outbound
+# sending is never touched (sends are only read to apply the reply exception).
 HELM_SMS_CONTENT_MAX = 5000
 HELM_SMS_XPATH_TOL_S = 300
 
@@ -165,11 +170,30 @@ def _helm_sms_content_path():
 
 
 def _helm_sms_content_window_s():
+    """Window for "e" keys (stable timestamp)."""
     try:
         days = float(env("HELM_SMS_CONTENT_WINDOW_D") or 7)
     except ValueError:
         days = 7.0
     return max(7.0, days) * 86400
+
+
+HELM_SMS_NOTS_MIN_H = 1.0
+
+
+def _helm_sms_nots_window_s():
+    """Window for "c" keys (sender + body, no stable timestamp)."""
+    try:
+        hours = float(env("INBOUND_CONTENT_NOTS_WINDOW_H") or 24)
+    except ValueError:
+        hours = 24.0
+    if hours != hours:  # NaN
+        hours = 24.0
+    return max(HELM_SMS_NOTS_MIN_H, hours) * 3600
+
+
+def _helm_sms_key_window_s(entry, e_window, c_window):
+    return c_window if "v" in entry else e_window
 
 
 def _helm_sms_sender_key(frm):
@@ -214,7 +238,7 @@ def helm_sms_content_check(rec, now=None, claim=True):
     now = time.time() if now is None else now
     if FC_SMS_APPROVE_RE.match(str(rec.get("body") or "")):
         return "new", "exempt-approval", (lambda: None)  # a retried "YES <code>" must reach first-contact
-    window = _helm_sms_content_window_s()
+    c_window = _helm_sms_nots_window_s()
     num = normalize_nanp(rec.get("from"))
     last_send = _helm_sms_last_send(num)
     result = {}
@@ -229,7 +253,7 @@ def helm_sms_content_check(rec, now=None, claim=True):
                 verdict, rule = "duplicate", "exact"
             elif c and c.get("v") == "rcs" and c.get("t", 0) >= epoch - HELM_SMS_XPATH_TOL_S:
                 verdict, rule = "duplicate", "xpath-notification"
-        elif c and now - c.get("t", 0) <= window:
+        elif c and now - c.get("t", 0) <= c_window:
             if last_send is not None and last_send > c.get("t", 0):
                 rule = "content-after-reply"
             else:
@@ -242,7 +266,7 @@ def helm_sms_content_check(rec, now=None, claim=True):
                 keys[ckey] = {"t": now, "v": "rcs" if notif else "src"}
         result.update(verdict=verdict, rule=rule, prev=prev)
 
-    _helm_sms_content_mutate(fn, now, window)
+    _helm_sms_content_mutate(fn, now)
     prev = result["prev"]
 
     def undo():
@@ -253,11 +277,12 @@ def helm_sms_content_check(rec, now=None, claim=True):
                     keys.pop(k, None)
                 else:
                     keys[k] = v
-        _helm_sms_content_mutate(restore, time.time(), window)
+        _helm_sms_content_mutate(restore, time.time())
     return result["verdict"], result["rule"], (undo if claim else (lambda: None))
 
 
-def _helm_sms_content_mutate(fn, now, window):
+def _helm_sms_content_mutate(fn, now):
+    e_window, c_window = _helm_sms_content_window_s(), _helm_sms_nots_window_s()
     with _helm_sms_lock, _helm_sms_file_lock():
         path = _helm_sms_content_path()
         store = _load_json(path)
@@ -266,7 +291,8 @@ def _helm_sms_content_mutate(fn, now, window):
             store = {"v": 1, "salt": secrets.token_hex(16), "keys": {}}
         keys = store.get("keys") if isinstance(store.get("keys"), dict) else {}
         store["keys"] = {k: v for k, v in keys.items()
-                         if isinstance(v, dict) and isinstance(v.get("t"), (int, float)) and now - v["t"] <= window}
+                         if isinstance(v, dict) and isinstance(v.get("t"), (int, float))
+                         and now - v["t"] <= _helm_sms_key_window_s(v, e_window, c_window)}
         fn(store)
         if len(store["keys"]) > HELM_SMS_CONTENT_MAX:
             for k in sorted(store["keys"], key=lambda k: store["keys"][k]["t"])[:len(store["keys"]) - HELM_SMS_CONTENT_MAX]:

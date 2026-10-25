@@ -84,11 +84,41 @@ def test_same_words_after_our_reply_pass(posts, tmp_path):
     assert fwd(notif(CARLUX, "Yes", "2026-10-25T15:00:00Z"), ep("11:00:01")) == "ok"
 
 
-def test_window_is_at_least_seven_days(posts, monkeypatch):
+def test_notification_repeat_past_24h_passes(posts):
+    assert fwd(notif(CARLUX, "See you at 9", "2026-10-25T14:00:00Z"), ep("10:00:00")) == "ok"
+    assert fwd(notif(CARLUX, "See you at 9", "2026-10-26T14:01:00Z"), ep("10:00:00") + 24 * 3600 + 60) == "ok"
+
+
+def test_notification_repeat_within_24h_dropped(posts):
+    assert fwd(notif(CARLUX, "See you at 9", "2026-10-25T14:00:00Z"), ep("10:00:00")) == "ok"
+    assert fwd(notif(CARLUX, "See you at 9", "2026-10-26T13:00:00Z"), ep("10:00:00") + 23 * 3600) == "duplicate"
+
+
+def test_carrier_timestamp_key_at_3_days_dropped(posts):
+    assert fwd(sms(MOBI, "Mobi 7am", "07:00:00"), ep("07:00:05"), "smsgate:a") == "ok"
+    assert fwd(sms(MOBI, "Mobi 7am", "07:00:00"), ep("07:00:05") + 3 * 86400, "smsgate:b") == "duplicate"
+    assert fwd(sms(MOBI, "Mobi 7am", "07:00:00"), ep("07:00:05") + 7.1 * 86400, "smsgate:c") == "ok"
+
+
+def test_window_floors(posts, monkeypatch):
     monkeypatch.setenv("HELM_SMS_CONTENT_WINDOW_D", "1")
-    assert fwd(notif(CARLUX, "Hi", "2026-10-25T14:00:00Z"), ep("10:00:00")) == "ok"
-    assert fwd(notif(CARLUX, "Hi", "x"), ep("10:00:00") + 6.9 * 86400) == "duplicate"
-    assert fwd(notif(CARLUX, "Hi", "y"), ep("10:00:00") + 6.9 * 86400 + 7.1 * 86400) == "ok"
+    monkeypatch.setenv("INBOUND_CONTENT_NOTS_WINDOW_H", "0.01")
+    assert bland_relay._helm_sms_content_window_s() == 7 * 86400
+    assert bland_relay._helm_sms_nots_window_s() == 3600
+    monkeypatch.setenv("INBOUND_CONTENT_NOTS_WINDOW_H", "junk")
+    assert bland_relay._helm_sms_nots_window_s() == 24 * 3600
+    monkeypatch.setenv("INBOUND_CONTENT_NOTS_WINDOW_H", "48")
+    assert fwd(notif(CARLUX, "Hi", "a"), ep("10:00:00")) == "ok"
+    assert fwd(notif(CARLUX, "Hi", "b"), ep("10:00:00") + 40 * 3600) == "duplicate"
+
+
+def test_pruning_uses_each_keys_window(posts, tmp_path):
+    assert fwd(sms(MOBI, "Timed", "07:00:00"), ep("07:00:05"), "smsgate:a") == "ok"   # e + c(src)
+    assert fwd(notif(CARLUX, "Untimed", "x"), ep("07:00:06")) == "ok"                # c(rcs)
+    assert fwd(notif("+19045550002", "Later", "y"), ep("07:00:06") + 2 * 86400) == "ok"  # triggers a prune
+    keys = json.loads((tmp_path / "helm_sms_content.json").read_text())["keys"]
+    assert sum(1 for v in keys.values() if "v" not in v) == 1   # the 2-day-old "e" key survives
+    assert sum(1 for v in keys.values() if "v" in v) == 1       # only the fresh "c" key survives
 
 
 def test_store_is_hashed_and_survives_reload(posts, tmp_path):
