@@ -74,15 +74,16 @@ def sell(sym="MARA", **kw):
 
 
 class TestPolicyFailClosed(unittest.TestCase):
-    def test_repo_policy_loads_buy_only_and_live_true_with_adapter(self):
-        # Chris 2026-10-24: auto-trading back on (live:true) now that a buy-only
-        # broker adapter exists behind this gate (treasury/fund_manager_broker.py).
+    def test_repo_policy_loads_buy_only_and_live_false_paused_with_adapter(self):
+        # Chris 2026-10-25: live trading paused (live:false) until he resumes;
+        # the buy-only broker adapter stays wired behind this gate.
         p = gate.load_gate_policy(POLICY_FILE)
         self.assertTrue(p.ok, p.error)
         self.assertEqual(p.allowed_sides, ("buy",))
-        self.assertTrue(p.live)
+        self.assertFalse(p.live)
         raw = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
-        self.assertIs(raw["live"], True)
+        self.assertIs(raw["live"], False)
+        self.assertIs(raw["execution"]["review_before_place"], True)
         self.assertEqual(raw["execution"]["broker_adapter"]["adapter"], "treasury.fund_manager_broker:submit")
         self.assertIs(raw["guardrails"]["no_sell_to_rebalance"], True)
         self.assertEqual(raw["guardrails"]["allowed_sides"], ["buy"])
@@ -576,7 +577,7 @@ class TestCliOverrideEndToEnd(GitRepoCase):
         self.commit("investment/fund_manager_sell_override.json", author=CHRIS)
         rc, out = self._run([sell(quantity=0.5, notional_usd=10.0)])
         self.assertEqual(rc, 0, out)
-        # repo policy is live:true (2026-10-24); with no adapter the approved sell is not submitted
+        # repo policy is live:false (paused 2026-10-25) => would_place; either way nothing is submitted
         rows = out["would_place"] + out["placed"]
         self.assertEqual(len(rows), 1)
         self.assertIn(rows[0]["status"], ("would_place", "not_submitted_no_broker_adapter"))

@@ -1,6 +1,7 @@
 # Agentic fund manager — operating model
 
 **Status:** `live_autopilot`  
+**Live trading paused by Chris 2026-10-25** (`"live": false`; buys paused until he resumes; Nakatoshi gives the go). Timers stay disabled. To go live: set live:true via a PR, then enable timers.  
 **Schedule:** ~**1 automated review per trading day** (mid-session preferred)  
 **Trade cap:** **none** — a review may hold or place many orders  
 **Owner role:** **optional observer** — feedback **after** each pass when useful (not blocking)

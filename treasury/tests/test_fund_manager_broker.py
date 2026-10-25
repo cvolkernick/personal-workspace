@@ -160,7 +160,7 @@ class TestAllowlist(Base):
     def test_repo_config_allowlist_and_ibit_floating(self):
         cfg, err = broker.load_adapter_config()
         self.assertEqual(err, "")
-        self.assertTrue(cfg["live"])
+        self.assertFalse(cfg["live"])  # paused by Chris 2026-10-25
         self.assertEqual(set(cfg["allowlist"]), {"STRC", "SATA", "STRK", "MSTR", "ASST", "BITA", "IBIT", "MARA",
                                                  "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX"})
         self.assertEqual(cfg["floating"], ("IBIT", "MSTR", "ASST", "BITA", "MARA", "RIOT", "CLSK", "WULF", "IREN"))
@@ -755,6 +755,37 @@ class TestAdapterSelectionAndLive(Base):
         self.assertEqual(self.submit(allowed[0], c)["status"], "not_submitted_live_false")
         self.assertEqual(c.calls, [])
         self.assertFalse(broker.should_buy(snapshot=snap(), policy_path=self.policy, ledger_path=self.ledger, now=NOW)[0])
+
+    def test_committed_repo_policy_live_false_places_nothing(self):
+        # Chris paused buys 2026-10-25: the committed policy must refuse at every layer.
+        repo_policy = ROOT / "investment" / "fund_manager.json"
+        self.assertIs(json.loads(repo_policy.read_text(encoding="utf-8"))["live"], False)
+        self.assertFalse(gate.load_gate_policy(repo_policy).live)
+        # adapter (defense in depth): a planned, gate-approved leg is still refused with no broker call
+        allowed, _ = self.gated(TEN)  # planned against a live temp copy
+        c = FakeClient()
+        out = broker.submit(allowed[0], client=c, policy_path=repo_policy, ledger_path=self.ledger, now=NOW)
+        self.assertEqual(out["status"], "not_submitted_live_false")
+        self.assertEqual(c.calls, [])
+        self.assertFalse(broker.should_buy(snapshot=snap(), policy_path=repo_policy, ledger_path=self.ledger, now=NOW)[0])
+        # gate CLI with the committed policy: the adapter is never called
+        f = self.dir / "fund_manager_intents.json"
+        f.write_text(json.dumps({"orders": [buy("STRC", 2.5)]}))
+        sub = mock.Mock(return_value={"status": "placed"})
+        sub.plan = mock.Mock(side_effect=lambda payload, **kw: (payload, {"status": "planned"}))
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with mock.patch.object(gate, "load_broker_adapter", return_value=sub), mock.patch.object(
+            gate, "_deployable_cash_from_snapshot", return_value=12.0
+        ), mock.patch.object(gate, "load_override", return_value=(None, "")), redirect_stdout(buf):
+            gate.main(["--execute-intents", str(f), "--no-record"])
+        res = json.loads(buf.getvalue())
+        sub.assert_not_called()
+        self.assertEqual(res["placed"], [])
+        self.assertEqual(res["broker_calls"], 0)
+        self.assertEqual([r["status"] for r in res["would_place"]], ["would_place"])
 
     def test_live_false_gate_never_calls_adapter(self):
         sub = mock.Mock()

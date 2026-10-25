@@ -235,9 +235,9 @@ class TestBtcDigitalCreditNewMoneyWeights(unittest.TestCase):
         self.assertAlmostEqual(float(w["STRK"]), 0.15)
         self.assertAlmostEqual(float(w["floating"]), 0.35)
 
-    def test_strk_core_not_watchlist_live_true(self):
+    def test_strk_core_not_watchlist_live_false_paused(self):
         p = load_fund_policy()
-        self.assertIs(p.get("live"), True)  # Chris 2026-10-24: auto-trading back on
+        self.assertIs(p.get("live"), False)  # Chris 2026-10-25: live trading paused
         btc = p["sleeves"]["btc_digital_credit"]
         core = [s.upper() for s in (btc["sub_sleeves"]["digital_credit"].get("preferred_core") or [])]
         wl = [s.upper() for s in (btc.get("watchlist_symbols") or [])]
@@ -549,6 +549,14 @@ class TestDecisionLog(unittest.TestCase):
         self.assertEqual(len(posts), 1)
 
 
+def _live_policy():
+    # Rules-path tests exercise live behaviour; the committed flag is live:false
+    # (Chris paused buys 2026-10-25), so flip it in memory only.
+    p = json.loads(json.dumps(load_fund_policy()))
+    p["live"] = True
+    return p
+
+
 class TestRulesReview(unittest.TestCase):
     def test_hold_when_in_band_zero_cash(self):
         rh = {
@@ -564,7 +572,7 @@ class TestRulesReview(unittest.TestCase):
                 ],
             }
         }
-        fm = rules_based_review(rh_snapshot=rh, log=False)
+        fm = rules_based_review(rh_snapshot=rh, policy=_live_policy(), log=False)
         rr = fm["rules_review"]
         self.assertFalse(rr["need_llm"])
         self.assertEqual(rr["outcome"], "hold")
@@ -584,7 +592,7 @@ class TestRulesReview(unittest.TestCase):
                 ],
             }
         }
-        fm = rules_based_review(rh_snapshot=rh, log=False)
+        fm = rules_based_review(rh_snapshot=rh, policy=_live_policy(), log=False)
         rr = fm["rules_review"]
         self.assertFalse(rr["need_llm"])
         self.assertEqual(rr["outcome"], "hold")
@@ -606,7 +614,7 @@ class TestRulesReview(unittest.TestCase):
                 ],
             }
         }
-        fm = rules_based_review(rh_snapshot=rh, log=False)
+        fm = rules_based_review(rh_snapshot=rh, policy=_live_policy(), log=False)
         self.assertTrue(fm["rules_review"]["need_llm"])
         self.assertEqual(fm["rules_review"]["kind"], "deploy")
 
@@ -621,7 +629,7 @@ class TestRulesReview(unittest.TestCase):
                 "positions": [],
             }
         }
-        fm = rules_based_review(rh_snapshot=rh, log=False)
+        fm = rules_based_review(rh_snapshot=rh, policy=_live_policy(), log=False)
         self.assertTrue(fm["rules_review"]["need_llm"])
 
     def _in_band_rh(self):
