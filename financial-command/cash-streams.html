@@ -601,6 +601,18 @@
       };
     }
 
+    // Period averages list rows largest $/day first. Ties keep their input order.
+    function sortByPerDayDesc(rows) {
+      return (rows || [])
+        .map((row, i) => ({ row, i, v: Number(row && row.perDay) }))
+        .sort((a, b) => {
+          const av = Number.isFinite(a.v) ? a.v : 0;
+          const bv = Number.isFinite(b.v) ? b.v : 0;
+          return bv - av || a.i - b.i;
+        })
+        .map((entry) => entry.row);
+    }
+
     function renderBreakdown(streams, rolling) {
       const income = document.getElementById("rolling-income");
       const expenses = document.getElementById("rolling-expenses");
@@ -626,7 +638,7 @@
           "d. Income bands match the chart, including Other floored at 0. " +
           "Expense groups match the Sankey and sum to outflow / " + selected + ".";
       }
-      for (const row of bandAverages(points)) {
+      for (const row of sortByPerDayDesc(bandAverages(points))) {
         const li = document.createElement("li");
         li.innerHTML = "<span>" + esc(row.label) + "</span><span>" +
           moneyCents(row.perDay) + "/day</span>";
@@ -640,7 +652,7 @@
         expenses.appendChild(li);
       } else {
         let sum = 0;
-        for (const row of exp.rows) {
+        for (const row of sortByPerDayDesc(exp.rows)) {
           sum += row.perDay;
           const li = document.createElement("li");
           li.innerHTML = "<span>" + esc(row.name) + "</span><span>" +
