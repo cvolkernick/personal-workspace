@@ -1,0 +1,48 @@
+{
+  "text": "{\"quotes\":[]}{\"quotes\":[{\"symbol\":\"STRC\",\"price\":99.36},{\"symbol\":\"SATA\",\"price\":97.98},{\"symbol\":\"STRK\",\"price\":69.38},{\"symbol\":\"IBIT\",\"price\":45.945}]}",
+  "stopReason": "end_turn",
+  "sessionId": "00000000-0000-0000-0000-000000000000",
+  "requestId": "00000000-0000-0000-0000-000000000000",
+  "thought": "<redacted model reasoning>",
+  "usage": {
+    "input_tokens": 6511,
+    "cache_read_input_tokens": 45056,
+    "cache_creation_input_tokens": 0,
+    "output_tokens": 567,
+    "reasoning_tokens": 439,
+    "total_tokens": 52134
+  },
+  "num_turns": 3,
+  "total_cost_usd": 0.038952,
+  "total_cost_usd_ticks": 389520000,
+  "modelUsage": {
+    "grok-4.7-build": {
+      "inputTokens": 6511,
+      "outputTokens": 567,
+      "cacheReadInputTokens": 45056,
+      "cacheCreationInputTokens": 0,
+      "modelCalls": 3,
+      "costUSD": 0.038952
+    }
+  },
+  "structuredOutput": {
+    "quotes": [
+      {
+        "symbol": "STRC",
+        "price": 99.36
+      },
+      {
+        "symbol": "SATA",
+        "price": 97.98
+      },
+      {
+        "symbol": "STRK",
+        "price": 69.38
+      },
+      {
+        "symbol": "IBIT",
+        "price": 45.945
+      }
+    ]
+  }
+}

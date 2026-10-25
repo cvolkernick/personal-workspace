@@ -160,7 +160,7 @@ class TestAllowlist(Base):
     def test_repo_config_allowlist_and_ibit_floating(self):
         cfg, err = broker.load_adapter_config()
         self.assertEqual(err, "")
-        self.assertFalse(cfg["live"])  # paused by Chris 2026-10-25
+        self.assertTrue(cfg["live"])  # Chris resumed Agentic buys 2026-10-25 2:58 PM ET
         self.assertEqual(set(cfg["allowlist"]), {"STRC", "SATA", "STRK", "MSTR", "ASST", "BITA", "IBIT", "MARA",
                                                  "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX"})
         self.assertEqual(cfg["floating"], ("IBIT", "MSTR", "ASST", "BITA", "MARA", "RIOT", "CLSK", "WULF", "IREN"))
@@ -757,9 +757,14 @@ class TestAdapterSelectionAndLive(Base):
         self.assertFalse(broker.should_buy(snapshot=snap(), policy_path=self.policy, ledger_path=self.ledger, now=NOW)[0])
 
     def test_committed_repo_policy_live_false_places_nothing(self):
-        # Chris paused buys 2026-10-25: the committed policy must refuse at every layer.
-        repo_policy = ROOT / "investment" / "fund_manager.json"
-        self.assertIs(json.loads(repo_policy.read_text(encoding="utf-8"))["live"], False)
+        # Chris resumed buys 2026-10-25 (committed live:true). A pause is a one-line
+        # flip back to live:false, so the committed policy with only that flag
+        # flipped must still refuse at every layer.
+        committed = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+        self.assertIs(committed["live"], True)
+        committed["live"] = False
+        repo_policy = self.dir / "fund_manager_paused.json"
+        repo_policy.write_text(json.dumps(committed), encoding="utf-8")
         self.assertFalse(gate.load_gate_policy(repo_policy).live)
         # adapter (defense in depth): a planned, gate-approved leg is still refused with no broker call
         allowed, _ = self.gated(TEN)  # planned against a live temp copy
@@ -779,7 +784,9 @@ class TestAdapterSelectionAndLive(Base):
         buf = io.StringIO()
         with mock.patch.object(gate, "load_broker_adapter", return_value=sub), mock.patch.object(
             gate, "_deployable_cash_from_snapshot", return_value=12.0
-        ), mock.patch.object(gate, "load_override", return_value=(None, "")), redirect_stdout(buf):
+        ), mock.patch.object(gate, "load_override", return_value=(None, "")), mock.patch.object(
+            gate, "POLICY_PATH", repo_policy
+        ), redirect_stdout(buf):
             gate.main(["--execute-intents", str(f), "--no-record"])
         res = json.loads(buf.getvalue())
         sub.assert_not_called()

@@ -235,9 +235,9 @@ class TestBtcDigitalCreditNewMoneyWeights(unittest.TestCase):
         self.assertAlmostEqual(float(w["STRK"]), 0.15)
         self.assertAlmostEqual(float(w["floating"]), 0.35)
 
-    def test_strk_core_not_watchlist_live_false_paused(self):
+    def test_strk_core_not_watchlist_live_resumed(self):
         p = load_fund_policy()
-        self.assertIs(p.get("live"), False)  # Chris 2026-10-25: live trading paused
+        self.assertIs(p.get("live"), True)  # Chris resumed Agentic buys 2026-10-25 2:58 PM ET (Nakatoshi agrees)
         btc = p["sleeves"]["btc_digital_credit"]
         core = [s.upper() for s in (btc["sub_sleeves"]["digital_credit"].get("preferred_core") or [])]
         wl = [s.upper() for s in (btc.get("watchlist_symbols") or [])]

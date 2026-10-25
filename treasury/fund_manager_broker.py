@@ -1134,7 +1134,87 @@ def should_buy(
 # --------------------------------------------------------------------------
 
 RH = gate.RH_SERVER
-_READ_ONLY_TOOLS = ("get_accounts", "get_equity_orders", "get_equity_tradability", "get_equity_quotes")
+_READ_ONLY_TOOLS = ("get_portfolio", "get_accounts", "get_equity_orders", "get_equity_tradability", "get_equity_quotes")
+# grok headless envelope keys (grok >= 1.0.13 prints one pretty-printed JSON object).
+_GROK_ENVELOPE_KEYS = frozenset({"text", "stopReason", "sessionId", "requestId", "usage", "num_turns", "modelUsage"})
+
+
+def _last_json_object(text: str) -> Optional[Dict[str, Any]]:
+    """Last complete top-level JSON object in ``text`` (tolerates leading/trailing noise)."""
+    dec = json.JSONDecoder()
+    found: Optional[Dict[str, Any]] = None
+    pos = 0
+    while True:
+        i = text.find("{", pos)
+        if i < 0:
+            return found
+        try:
+            obj, end = dec.raw_decode(text, i)
+        except ValueError:
+            pos = i + 1
+            continue
+        if isinstance(obj, dict):
+            found = obj
+        pos = end
+
+
+def parse_grok_output(stdout: Optional[str], *, require_tool_round: bool = False) -> Dict[str, Any]:
+    """Structured result of one ``grok -p ... --json-schema`` run.
+
+    1. Parse the WHOLE stdout as JSON (grok 1.0.13 prints a multi-line envelope);
+       if that fails, fall back to the last complete JSON object (leading noise).
+    2. Envelope => ``structuredOutput`` (grok 1.0.13), else ``structured_output``
+       (older grok). An envelope without either is an error, never a guess.
+    3. A bare object (no envelope keys) is the schema result itself.
+    4. ``require_tool_round``: an envelope reporting ``num_turns`` < 2 means the
+       model answered without any tool round trip (seen on prism 2026-10-25: an
+       all-null get_portfolio answer in 1 turn). That is never trusted: an
+       invented ``orders: []`` would bypass the same-day order guard.
+    Raises BrokerError with a short, secret-free reason otherwise."""
+    text = (stdout or "").strip()
+    if not text:
+        raise BrokerError("grok returned empty output")
+    try:
+        out: Any = json.loads(text)
+    except ValueError:
+        out = _last_json_object(text)
+        if out is None:
+            raise BrokerError("grok returned non-JSON (no complete JSON object in output)")
+    if not isinstance(out, dict):
+        raise BrokerError(f"grok returned JSON {type(out).__name__}, expected an object")
+    for key in ("structuredOutput", "structured_output"):
+        if key in out:
+            so = out[key]
+            if not isinstance(so, dict):
+                raise BrokerError(f"grok {key} is {type(so).__name__}, expected an object")
+            turns = gate._num(out.get("num_turns"))
+            if require_tool_round and turns is not None and turns < 2:
+                raise BrokerError(f"grok answered in {int(turns)} turn(s) without a tool call; result not trusted")
+            return so
+    if _GROK_ENVELOPE_KEYS & set(out):
+        stop = str(out.get("stopReason") or "?")[:40]
+        raise BrokerError(f"grok envelope has no structuredOutput/structured_output (stopReason={stop})")
+    return out
+
+
+def portfolio_account(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a get_portfolio result for ``RobinhoodClient.get_account``.
+    ``settled_cash`` = min(explicit settled, cash, unleveraged_buying_power) over
+    the values present (None if none): conservative, never leveraged BP."""
+    acct = str(raw.get("account_number") or "").strip()
+    bp = gate._num(raw.get("buying_power"))
+    cash = gate._num(raw.get("cash"))
+    ubp = gate._num(raw.get("unleveraged_buying_power"))
+    explicit = gate._num(raw.get("settled_cash"))
+    vals = [v for v in (explicit, cash, ubp) if v is not None]
+    return {
+        "account_number": acct,
+        "buying_power": bp,
+        "cash": cash,
+        "unleveraged_buying_power": ubp,
+        "settled_cash": max(0.0, min(vals)) if vals else None,
+        "settled_cash_source": ("explicit" if explicit is not None else "min(cash, unleveraged_buying_power)") if vals else "unknown",
+    }
 
 
 class GrokMcpClient:
@@ -1150,7 +1230,7 @@ class GrokMcpClient:
       exercise) stays denied. The adapter re-checks the returned symbol/side/amount.
 
     UNVERIFIED against live tool schemas (tool names come from prism grok
-    session logs + research notes: get_accounts, get_equity_orders, get_equity_tradability, get_equity_quotes,
+    session logs + research notes: get_portfolio, get_accounts, get_equity_orders, get_equity_tradability, get_equity_quotes,
     review_equity_order, place_equity_order). Smoke-test the read/review path on
     prism before enabling ``live``.
     """
@@ -1163,9 +1243,12 @@ class GrokMcpClient:
         self.runner = runner
 
     @staticmethod
-    def _extra_deny() -> List[str]:
+    def _extra_deny(tools: Tuple[str, ...] = ()) -> List[str]:
         args: List[str] = []
-        for t in ("cancel_*", "review_option_order", "preview_crypto_order"):
+        extra = ["cancel_*", "review_option_order", "preview_crypto_order"]
+        if "review_equity_order" not in tools:  # read calls: no order review either
+            extra.append("review_equity_order")
+        for t in extra:
             args += ["--deny", f"MCPTool({RH}__{t})"]
         return args
 
@@ -1173,15 +1256,17 @@ class GrokMcpClient:
         prompt = (
             "You are a deterministic broker shim. Call ONLY these robinhood-trading tools: "
             + ", ".join(tools)
-            + ". Make no other tool calls, do not read or write files, do not place, modify or cancel any other order. "
-            "Return only JSON matching the schema.\n\n" + instruction
+            + ". You MAY first use the MCP tool-discovery helper (search_tool) to load those tools' schemas; "
+            "that lookup is allowed and expected. Make no other tool calls, do not read or write files, do not "
+            "place, modify or cancel any other order. You must actually call the tool(s) and copy values from "
+            "their responses; never answer from memory. Return only JSON matching the schema.\n\n" + instruction
         )
         carve = ("place_equity_order",) if allow_place else ()
         cmd = [self.grok_bin, "-p", prompt, "--cwd", self.cwd, "--yolo", "--disable-web-search",
                "--json-schema", json.dumps(schema), *grok_deny_args(allow_tools=carve)]
         for t in tools:
             cmd += ["--allow", f"MCPTool({RH}__{t})"]
-        cmd += self._extra_deny()
+        cmd += self._extra_deny(tools)
         try:
             r = self.runner(cmd, capture_output=True, text=True, timeout=self.timeout_s, check=False)
         except subprocess.TimeoutExpired as exc:
@@ -1190,26 +1275,34 @@ class GrokMcpClient:
             raise BrokerError(f"grok unavailable ({type(exc).__name__})") from exc
         if r.returncode != 0:
             raise BrokerError(f"grok exit {r.returncode}")
-        try:
-            out = json.loads((r.stdout or "").strip().splitlines()[-1])
-        except (ValueError, IndexError) as exc:
-            raise BrokerError("grok returned non-JSON") from exc
-        if isinstance(out, dict) and isinstance(out.get("structured_output"), dict):
-            out = out["structured_output"]
-        if not isinstance(out, dict):
-            raise BrokerError("grok returned non-object")
-        return out
+        return parse_grok_output(r.stdout, require_tool_round=True)
 
     def get_account(self, account_number: str) -> Dict[str, Any]:
-        return self._call(
-            f"Call get_accounts. Return the account whose account number is {account_number} with its "
-            "buying_power, cash and settled (withdrawable) cash as numbers. If not found return account_number \"\".",
-            {"type": "object", "required": ["account_number", "buying_power"],
+        """Buying power / cash from ``get_portfolio`` (``get_accounts`` carries no
+        reliable buying power; its tool description routes that to get_portfolio).
+        ``get_accounts`` is allowed only to discover/confirm the account.
+
+        Fields (prism grok 1.0.13, agentic 674601752): ``buying_power``, ``cash``,
+        ``unleveraged_buying_power``; no explicit settled field. ``settled_cash``
+        is conservative: the min of every value present among an explicit
+        settled/withdrawable figure, ``cash`` and ``unleveraged_buying_power``
+        (never derived from leveraged buying power); null when none is present.
+        The adapter still rejects any amount above live ``buying_power``."""
+        raw = self._call(
+            f"Call get_portfolio for account {account_number} (call get_accounts first only if you need it to "
+            f"find or confirm that account). Return account_number exactly as the broker reports it (\"\" if "
+            "account not found) and, as plain numbers copied from get_portfolio, buying_power, cash and "
+            "unleveraged_buying_power. Set settled_cash ONLY if the tool returns an explicit settled or "
+            "withdrawable cash field (e.g. cash_available_for_withdrawal / withdrawable_cash); otherwise null. "
+            "Never estimate or derive a number; use null for anything absent.",
+            {"type": "object", "required": ["account_number", "buying_power", "cash", "unleveraged_buying_power", "settled_cash"],
              "properties": {"account_number": {"type": "string"}, "buying_power": {"type": ["number", "null"]},
                             "cash": {"type": ["number", "null"]},
+                            "unleveraged_buying_power": {"type": ["number", "null"]},
                             "settled_cash": {"type": ["number", "null"]}}},
-            ("get_accounts",),
+            ("get_portfolio", "get_accounts"),
         )
+        return portfolio_account(raw)
 
     def get_recent_orders(self, account_number: str, since: datetime) -> List[Dict[str, Any]]:
         out = self._call(

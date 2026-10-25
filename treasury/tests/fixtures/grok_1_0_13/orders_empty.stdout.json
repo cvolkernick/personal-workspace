@@ -1,0 +1,31 @@
+{
+  "text": "{\"orders\":[{\"symbol\":\"\",\"side\":\"\",\"state\":\"\",\"dollar_amount\":null,\"order_id\":\"\",\"created_at\":\"\"}]}{\"orders\":[{\"symbol\":\"\",\"side\":\"\",\"state\":\"\",\"dollar_amount\":null,\"order_id\":\"\",\"created_at\":\"\"}]}{\"orders\":[]}",
+  "stopReason": "end_turn",
+  "sessionId": "00000000-0000-0000-0000-000000000000",
+  "requestId": "00000000-0000-0000-0000-000000000000",
+  "thought": "<redacted model reasoning>",
+  "usage": {
+    "input_tokens": 8946,
+    "cache_read_input_tokens": 46080,
+    "cache_creation_input_tokens": 0,
+    "output_tokens": 1614,
+    "reasoning_tokens": 1240,
+    "total_tokens": 56640
+  },
+  "num_turns": 3,
+  "total_cost_usd": 0.050616,
+  "total_cost_usd_ticks": 506160000,
+  "modelUsage": {
+    "grok-4.7-build": {
+      "inputTokens": 8946,
+      "outputTokens": 1614,
+      "cacheReadInputTokens": 46080,
+      "cacheCreationInputTokens": 0,
+      "modelCalls": 3,
+      "costUSD": 0.050616
+    }
+  },
+  "structuredOutput": {
+    "orders": []
+  }
+}

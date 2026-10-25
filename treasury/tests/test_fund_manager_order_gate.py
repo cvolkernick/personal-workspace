@@ -74,15 +74,15 @@ def sell(sym="MARA", **kw):
 
 
 class TestPolicyFailClosed(unittest.TestCase):
-    def test_repo_policy_loads_buy_only_and_live_false_paused_with_adapter(self):
-        # Chris 2026-10-25: live trading paused (live:false) until he resumes;
+    def test_repo_policy_loads_buy_only_and_live_resumed_with_adapter(self):
+        # Chris resumed Agentic buys 2026-10-25 2:58 PM ET (live:true, Nakatoshi agrees);
         # the buy-only broker adapter stays wired behind this gate.
         p = gate.load_gate_policy(POLICY_FILE)
         self.assertTrue(p.ok, p.error)
         self.assertEqual(p.allowed_sides, ("buy",))
-        self.assertFalse(p.live)
+        self.assertTrue(p.live)
         raw = json.loads(POLICY_FILE.read_text(encoding="utf-8"))
-        self.assertIs(raw["live"], False)
+        self.assertIs(raw["live"], True)
         self.assertIs(raw["execution"]["review_before_place"], True)
         self.assertEqual(raw["execution"]["broker_adapter"]["adapter"], "treasury.fund_manager_broker:submit")
         self.assertIs(raw["guardrails"]["no_sell_to_rebalance"], True)
@@ -971,6 +971,7 @@ class TestRunnersAndLint(unittest.TestCase):
         # the buy-only broker adapter: the sanctioned submit target of the gate (FM_BROKER_ADAPTER)
         "treasury/fund_manager_broker.py",
         "treasury/tests/test_fund_manager_broker.py",
+        "treasury/tests/test_fund_manager_broker_grok_client.py",  # asserts the place tool is never reached
         "treasury/tests/test_fund_manager_order_gate.py",
     }
 

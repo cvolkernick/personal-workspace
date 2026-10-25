@@ -1,0 +1,35 @@
+{
+  "text": "{\"account_number\":\"\",\"buying_power\":null,\"cash\":null,\"unleveraged_buying_power\":null,\"settled_cash\":null}",
+  "stopReason": "end_turn",
+  "sessionId": "00000000-0000-0000-0000-000000000000",
+  "requestId": "00000000-0000-0000-0000-000000000000",
+  "thought": "<redacted model reasoning>",
+  "usage": {
+    "input_tokens": 3955,
+    "cache_read_input_tokens": 12032,
+    "cache_creation_input_tokens": 0,
+    "output_tokens": 490,
+    "reasoning_tokens": 456,
+    "total_tokens": 16477
+  },
+  "num_turns": 1,
+  "total_cost_usd": 0.016866,
+  "total_cost_usd_ticks": 168660000,
+  "modelUsage": {
+    "grok-4.7-build": {
+      "inputTokens": 3955,
+      "outputTokens": 490,
+      "cacheReadInputTokens": 12032,
+      "cacheCreationInputTokens": 0,
+      "modelCalls": 1,
+      "costUSD": 0.016866
+    }
+  },
+  "structuredOutput": {
+    "account_number": "",
+    "buying_power": null,
+    "cash": null,
+    "unleveraged_buying_power": null,
+    "settled_cash": null
+  }
+}
