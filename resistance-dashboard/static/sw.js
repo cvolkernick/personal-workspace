@@ -2,11 +2,11 @@
  * Versioned (?v=) assets: stale-while-revalidate (instant from cache, refreshed
  * in the background). Shell and unversioned files: network-first, cache fallback.
  */
-const CACHE = "fitdash-shell-v145";
+const CACHE = "fitdash-shell-v146";
 const PRECACHE = [
   "/",
   "/index.html",
-  "/styles.css?v=brand-1027-1",
+  "/styles.css?v=labs-visible-1",
   "/meal-snapshot.js?v=recipe-planner-1288-2",
   "/trends-paired-avgs.js?v=paired-avgs-7",
   "/trends-azm.js?v=azm-90d-3",
@@ -16,7 +16,7 @@ const PRECACHE = [
   "/history-sets.js?v=tonnage-1025-1",
   "/calorie-rolling-avg.js?v=cal-7d-946-1",
   "/biomarkers.js?v=biomarkers-1",
-  "/app.js?v=quest-resync-1304-1",
+  "/app.js?v=labs-tab-order-1",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/favicon.svg",

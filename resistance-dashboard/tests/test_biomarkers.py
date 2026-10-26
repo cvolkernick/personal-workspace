@@ -387,6 +387,30 @@ class UiTests(unittest.TestCase):
         for key in ("draw_time", "fasted", "fast_hours", "creatine", "biotin", "alcohol_48h", "recent_illness"):
             self.assertIn(f'data-ctx="{key}"', self.HTML)
 
+    CSS = (ROOT / "static" / "styles.css").read_text()
+    APP = (ROOT / "static" / "app.js").read_text()
+
+    def test_tab_bar_order(self):
+        nav = self.HTML[self.HTML.index('<nav class="mobile-tabbar"'):]
+        nav = nav[: nav.index("</nav>")]
+        self.assertEqual(re.findall(r'data-m-tab="(\w+)"', nav),
+                         ["today", "trends", "log", "kitchen", "biomarkers", "more"])
+        self.assertEqual(re.findall(r'<span class="tab-lbl">([^<]+)</span>', nav),
+                         ["Today", "Trends", "Log", "Kitchen", "Labs", "More"])
+
+    def test_every_tab_has_a_panel_and_a_css_show_rule(self):
+        """Labs-blank bug class: ``body.m-shell [data-m-panel]`` hides every
+        panel; each tab needs its own show rule or the tab renders blank."""
+        nav = self.HTML[self.HTML.index('<nav class="mobile-tabbar"'):]
+        tabs = re.findall(r'data-m-tab="(\w+)"', nav[: nav.index("</nav>")])
+        self.assertIn("body.m-shell [data-m-panel] {\n  display: none !important;", self.CSS)
+        for t in tabs:
+            self.assertIn(f'data-m-panel="{t}"', self.HTML, t)
+            self.assertIn(f'body.m-shell[data-m-active="{t}"] [data-m-panel="{t}"]', self.CSS, t)
+
+    def test_app_render_hands_payload_to_biomarkers(self):
+        self.assertIn("window.FitDashBiomarkers.render(data)", self.APP)
+
     @unittest.skipUnless(shutil.which("node"), "node not installed")
     def test_render_with_fake_dom(self):
         view = _view([_row("apob", 95, "2026-01-10", lo=0, hi=90),

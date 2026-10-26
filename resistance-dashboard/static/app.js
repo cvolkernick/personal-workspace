@@ -8940,7 +8940,7 @@
     });
   }
 
-  /** Unified tab shell on web + phone — same Today / Trends / Kitchen / Log / More. */
+  /** Unified tab shell on web + phone — same Today / Trends / Log / Kitchen / Labs / More. */
   function useTabShell() {
     return true;
   }
