@@ -2855,6 +2855,68 @@ def purge_meal_plan_tasks(
     }
 
 
+def _persist_local_quest_day(
+    planned: List[PlannedGroup],
+    today_board: Optional[dict],
+    day: str,
+) -> None:
+    """Remember wearable hits and the frozen training target. No Google Tasks."""
+    board = today_board if isinstance(today_board, dict) else {}
+    day_key = str(day or "")[:10]
+    if not day_key:
+        return
+    cardio_hit = bool(cardio_spec(board, as_of=day_key).get("hit")) if board else False
+    hydration_hit = (
+        bool(hydration_spec(board, as_of=day_key).get("hit")) if board else False
+    )
+    sleep_hit = bool(sleep_spec(board, as_of=day_key).get("hit")) if board else False
+    train_hit = bool((board.get("workout") or {}).get("already_trained_today"))
+    cache = _load_cache()
+    raw = cache.get(day_key) if isinstance(cache.get(day_key), dict) else {}
+    local_completed = {
+        str(k): bool(v)
+        for k, v in dict(raw.get("local_completed") or {}).items()
+    }
+    saved_objective = raw.get("training_objective")
+    planned_frozen, objective = apply_training_objective(
+        planned,
+        saved_objective if isinstance(saved_objective, dict) else None,
+        session_type=_objective_session_type(board.get("workout")),
+        done_slugs=_done_lift_slugs(local_completed),
+    )
+    objective = _objective_include_planned(planned_frozen, objective)
+    for group in planned_frozen:
+        for item in group.items:
+            if wearable_quest_hit(
+                item,
+                cardio_hit=cardio_hit,
+                sleep_hit=sleep_hit,
+                train_hit=train_hit,
+                hydration_hit=hydration_hit,
+            ):
+                local_completed[item_kind_key(item)] = True
+    day_cache = dict(raw)
+    day_cache["local_completed"] = local_completed
+    day_cache["training_objective"] = objective
+    cache[day_key] = day_cache
+    _save_cache(cache)
+
+
+def _completed_by_cache_key(groups: Sequence[dict]) -> Dict[str, bool]:
+    completed_by_ck: Dict[str, bool] = {}
+    for grp in groups or []:
+        if not isinstance(grp, dict):
+            continue
+        kind = str(grp.get("group") or "")
+        for row in grp.get("items") or []:
+            if not isinstance(row, dict):
+                continue
+            slug = str(row.get("slug") or "")
+            if slug:
+                completed_by_ck[cache_key(kind, slug)] = bool(row.get("completed"))
+    return completed_by_ck
+
+
 def ensure_daily_tasks(
     today_board: dict,
     *,
@@ -2907,6 +2969,24 @@ def ensure_daily_tasks(
         "",
     )
     protein_stats = protein_remaining_payload()
+
+    if not quest_gt_sync_enabled():
+        # Retired Tasks mirror. Local cache is the checklist. Meal reminders
+        # still upsert here; they no-op without a Calendar grant.
+        _persist_local_quest_day(planned, today_board, day)
+        local = _local_payload(
+            planned,
+            day=day,
+            meal_regen=meal_stats,
+            today_board=today_board,
+        )
+        local["calendar"] = _sync_meal_calendar(
+            planned,
+            {},
+            _completed_by_cache_key(local.get("groups") or []),
+            day,
+        )
+        return _with_gym_calendar(local, today_board, day, user_id=user_id)
 
     cred = gtb.credentials_status()
     if not cred.get("ok"):
@@ -3813,7 +3893,8 @@ def complete_leaf(
     date: Optional[str] = None,
     title: Optional[str] = None,
 ) -> dict:
-    if not list_id or not task_id:
+    # Flag off: stale task ids from an old GT payload must not hit Google Tasks.
+    if not quest_gt_sync_enabled() or not list_id or not task_id:
         return _complete_local_leaf(
             group=group,
             slug=slug,

@@ -171,6 +171,59 @@ class QuestsFromGeneratedPlans(FrozenPlannerClockMixin, unittest.TestCase):
         daily = body.get("daily_tasks") or {}
         self.assertEqual(daily.get("source"), "plan_preview")
         self.assertTrue(daily.get("needs_sync"))
+
+    def test_needs_sync_false_when_quest_gt_sync_off(self):
+        session = Session(
+            date="2026-08-17",
+            session_type="push",
+            exercises=[
+                ExerciseEntry(
+                    name="DB Flat Press",
+                    sets=[SetEntry(weight_lbs=45, sets=3, reps=10)],
+                )
+            ],
+        )
+        env = {
+            "GOOGLE_CLIENT_SECRET": "test-secret",
+            "FITDASH_QUEST_GT_SYNC": "0",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([session], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(HealthSnapshot(), []),
+            ), mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=False
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": False, "error": "Google Tasks not configured"},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id",
+                side_effect=AssertionError("Google Tasks must not be called"),
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks",
+                side_effect=AssertionError("Google Tasks must not be called"),
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task",
+                side_effect=AssertionError("Google Tasks must not be called"),
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                side_effect=AssertionError("Google Tasks must not be called"),
+            ):
+                status, body = dashboard_body(_headers())
+                task_status, task_body = daily_tasks_body(_headers())
+        self.assertEqual(status, 200, body)
+        daily = body.get("daily_tasks") or {}
+        self.assertFalse(daily.get("needs_sync"))
+        self.assertIs(daily.get("quest_gt_sync"), False)
+        self.assertEqual(task_status, 200, task_body)
+        self.assertTrue(task_body.get("ok"), task_body)
+        ensured = task_body.get("daily_tasks") or {}
+        self.assertTrue(ensured.get("ok"), ensured)
+        self.assertIs(ensured.get("quest_gt_sync"), False)
+        self.assertNotIn("Google Tasks", ensured.get("error") or "")
         groups = {g["group"]: g for g in daily.get("groups") or []}
         self.assertIn("training", groups)
         self.assertIn("nutrition", groups)

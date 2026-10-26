@@ -7039,6 +7039,7 @@
   const QUEST_SYNC_FAIL = "Could not sync quests with Google Tasks";
   const QUEST_LOCAL_NOTE = "Local · complete here";
   let questSyncUi = { status: "idle", error: "" };
+  let questSyncInFlight = null;
 
   function dailyHasReadyLeaf(daily) {
     const listId = (daily && daily.list_id) || "";
@@ -7093,7 +7094,7 @@
       html += localMode
         ? `<p class="muted quest-sync-note">Loading quests…</p>`
         : `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`;
-    } else if (failed || err) {
+    } else if ((failed || err) && gtSyncOn !== false) {
       html += `<p class="quest-sync-note quest-sync-error">${QUEST_SYNC_FAIL}</p>`;
       if (err && String(err) !== QUEST_SYNC_FAIL) {
         html += `<p class="muted quest-sync-note">${escQuest(err)}</p>`;
@@ -7217,8 +7218,13 @@
     const src = (daily && daily.source) || "";
     const gtSyncOn = questGtSyncEnabled(daily);
     const failed = !!(daily && (daily.sync_failed || questSyncUi.status === "failed"));
+    const showGtFail = gtSyncOn !== false && (failed || !!err);
     const syncing =
-      !failed && daily && daily.needs_sync && src !== "google_tasks";
+      gtSyncOn !== false &&
+      !failed &&
+      daily &&
+      daily.needs_sync &&
+      src !== "google_tasks";
     const existing = box.querySelector(".daily-quests");
 
     if (!groups.length) {
@@ -7228,7 +7234,7 @@
         if (existing) {
           const body = existing.querySelector('[data-collapse-body="quests"]');
           if (body) {
-            body.innerHTML = failed || err
+            body.innerHTML = showGtFail
               ? `<p class="quest-sync-note quest-sync-error">${QUEST_SYNC_FAIL}</p>` +
                 (err && String(err) !== QUEST_SYNC_FAIL
                   ? `<p class="muted quest-sync-note">${escQuest(err)}</p>`
@@ -7241,7 +7247,7 @@
           applyQuestsCollapseDom(existing);
           return;
         }
-        box.innerHTML = failed || err
+        box.innerHTML = showGtFail
           ? `<p class="quest-sync-note quest-sync-error">${QUEST_SYNC_FAIL}</p>` +
             `<button type="button" class="quest-sync-retry" data-quest-retry>Retry sync</button>`
           : syncing
@@ -7272,14 +7278,14 @@
       const body = existing.querySelector('[data-collapse-body="quests"]');
       if (body) body.innerHTML = bodyHtml;
       existing.classList.toggle("is-syncing", !!syncing);
-      existing.classList.toggle("is-sync-failed", !!failed);
+      existing.classList.toggle("is-sync-failed", !!showGtFail);
       applyQuestsCollapseDom(existing);
       return;
     }
 
     // First paint only — bake current preference into shell
     const questsOpen = collapseOpen.quests !== false;
-    box.innerHTML = `<div class="daily-quests${syncing ? " is-syncing" : ""}${failed ? " is-sync-failed" : ""}">
+    box.innerHTML = `<div class="daily-quests${syncing ? " is-syncing" : ""}${showGtFail ? " is-sync-failed" : ""}">
       <button type="button" class="daily-quests-head collapsible-head${questsOpen ? "" : " is-collapsed"}" data-collapse="quests" aria-expanded="${questsOpen ? "true" : "false"}">
         <span class="collapsible-title">⚔ Daily quests</span>
         <span class="daily-quests-meter" aria-hidden="true"><span class="daily-quests-meter-fill" style="width:${pct}%"></span></span>
@@ -7326,34 +7332,58 @@
 
   async function syncDailyTasksFromServer() {
     const current = (state && state.daily_tasks) || {};
-    questSyncUi = { status: "syncing", error: "" };
-    applyDailyTasks({
-      ...current,
-      needs_sync: true,
-      sync_failed: false,
-      error: null,
-    });
-    try {
-      const res = await fetch("/api/daily-tasks", {
-        credentials: "same-origin",
-        cache: "no-store",
+    if (!questGtSyncEnabled(current)) return false;
+    if (questSyncInFlight) return questSyncInFlight;
+    const run = (async () => {
+      questSyncUi = { status: "syncing", error: "" };
+      applyDailyTasks({
+        ...current,
+        needs_sync: true,
+        sync_failed: false,
+        error: null,
       });
-      const data = await res.json().catch(() => ({}));
-      const daily = data && data.daily_tasks;
-      if (!res.ok || !daily || typeof daily !== "object") {
-        markQuestSyncFailed((data && data.error) || QUEST_SYNC_FAIL, current);
+      try {
+        const res = await fetch("/api/daily-tasks", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const data = await res.json().catch(() => ({}));
+        const daily = data && data.daily_tasks;
+        const gate = daily && typeof daily === "object" ? daily : current;
+        if (!questGtSyncEnabled(gate)) {
+          if (daily && typeof daily === "object") {
+            questSyncUi = { status: "ok", error: "" };
+            applyDailyTasks({
+              ...daily,
+              needs_sync: false,
+              sync_failed: false,
+              error: null,
+            });
+          }
+          return false;
+        }
+        if (!res.ok || !daily || typeof daily !== "object") {
+          markQuestSyncFailed((data && data.error) || QUEST_SYNC_FAIL, current);
+          return false;
+        }
+        if (dailyHasReadyLeaf(daily)) {
+          questSyncUi = { status: "ok", error: "" };
+          applyDailyTasks({ ...daily, needs_sync: false, sync_failed: false, error: null });
+          return true;
+        }
+        markQuestSyncFailed(daily.error || data.error || QUEST_SYNC_FAIL, daily);
+        return false;
+      } catch (e) {
+        if (!questGtSyncEnabled((state && state.daily_tasks) || current)) return false;
+        markQuestSyncFailed((e && e.message) || QUEST_SYNC_FAIL, current);
         return false;
       }
-      if (dailyHasReadyLeaf(daily)) {
-        questSyncUi = { status: "ok", error: "" };
-        applyDailyTasks({ ...daily, needs_sync: false, sync_failed: false, error: null });
-        return true;
-      }
-      markQuestSyncFailed(daily.error || data.error || QUEST_SYNC_FAIL, daily);
-      return false;
-    } catch (e) {
-      markQuestSyncFailed((e && e.message) || QUEST_SYNC_FAIL, current);
-      return false;
+    })();
+    questSyncInFlight = run;
+    try {
+      return await run;
+    } finally {
+      if (questSyncInFlight === run) questSyncInFlight = null;
     }
   }
 
@@ -7869,7 +7899,7 @@
         if (doneNote) doneNote.remove();
         paintQuestMeter(groupEl);
         applyWorkoutLogToLocalState(log);
-        if (isTrainSession) await syncDailyTasksFromServer();
+        if (isTrainSession && questGtSyncEnabled()) await syncDailyTasksFromServer();
       }
     } catch (e) {
       unlockQuestCard(btn);
@@ -8521,10 +8551,11 @@
     bindDailyQuestClicks();
     renderDailyPlanTasks(daily, today.actions || []);
     if (
-      (!alreadySyncedToday &&
+      questGtSyncEnabled(daily) &&
+      ((!alreadySyncedToday &&
         (!daily || daily.needs_sync || daily.source !== "google_tasks")) ||
-      foodLogsForceMealRegen ||
-      questSyncStale
+        foodLogsForceMealRegen ||
+        questSyncStale)
     ) {
       syncDailyTasksFromServer().then((ok) => {
         if (ok) lastQuestSyncAt = Date.now();
