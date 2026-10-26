@@ -6641,6 +6641,11 @@
   function render(data, opts) {
     const quiet = !!(opts && opts.quiet);
     state = data;
+    try {
+      if (window.FitDashBiomarkers) window.FitDashBiomarkers.render(data);
+    } catch (_) {
+      /* biomarkers tab must never break the dashboard */
+    }
     if (!quiet) clearAlerts();
 
     const rec = data.recovery || {};
@@ -8966,7 +8971,7 @@
     });
   }
 
-  /** Unified tab shell on web + phone — same Today / Trends / Kitchen / Log / More. */
+  /** Unified tab shell on web + phone — same Today / Trends / Log / Kitchen / Labs / More. */
   function useTabShell() {
     return true;
   }

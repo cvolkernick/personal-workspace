@@ -494,6 +494,21 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         tz_name=tz_name,
     )
     payload["recovery"] = recovery_dict
+    try:
+        from rt_dashboard.biomarkers_view import load_view as _load_biomarkers
+        from rt_dashboard.nutrition_targets import infer_phase as _infer_phase
+
+        _w = list(health.weight or [])
+        payload["biomarkers"] = _load_biomarkers(
+            user_id=str(user.get("id") or ""),
+            sessions=sessions,
+            weights=_w,
+            phase=_infer_phase(targets or {}, float(_w[-1].weight_lbs) if _w else None),
+            today=today,
+        )
+    except Exception as e:  # noqa: BLE001
+        payload["biomarkers"] = {"has_data": False, "error": f"biomarkers: {type(e).__name__}",
+                                 "today_card": {"show": False}, "groups": []}
     payload["sleep_battery"] = sleep_battery
     payload["nutrition_day"] = nd
     payload["nutrition_store"] = {

@@ -1094,6 +1094,24 @@ def _build_dashboard_data(
         "grocery_week": recipe_overlay.get("grocery_week") or [],
         "recipe_logs_today": recipe_overlay.get("recipe_logs_today") or [],
     }
+    # Blood-panel biomarkers (own tab + conditional Today card). Read-only
+    # here; sessions/weights feed the per-draw training context.
+    try:
+        from rt_dashboard.biomarkers_view import load_view as _load_biomarkers
+        from rt_dashboard.nutrition_targets import infer_phase as _infer_phase
+
+        _w = list(health.weight or [])
+        _cur_lb = float(_w[-1].weight_lbs) if _w else None
+        payload["biomarkers"] = _load_biomarkers(
+            user_id=uid or "",
+            sessions=sessions,
+            weights=_w,
+            phase=_infer_phase(nut.get("targets") or {}, _cur_lb),
+            today=local_today,
+        )
+    except Exception as e:  # noqa: BLE001
+        payload["biomarkers"] = {"has_data": False, "error": f"biomarkers: {type(e).__name__}",
+                                 "today_card": {"show": False}, "groups": []}
 
     # Full-width calorie pacing + same-day in/out delta bars
     try:
@@ -1873,6 +1891,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             ("GET", "/api/meal-plan"),
             ("POST", "/api/meal-plan"),
             ("GET", "/api/labs"),
+            ("GET", "/api/biomarkers"),
         }
         known = {p for _m, p in routes}
         if path not in known:
@@ -1927,6 +1946,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
                 nut = data.get("nutrition_store") or {}
                 self._send_json({"ok": True, "labs": nut.get("labs") or {}})
+            elif path == "/api/biomarkers":
+                uid = user["id"] if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                self._send_json({"ok": True, "biomarkers": data.get("biomarkers") or {}})
         except Exception as e:  # noqa: BLE001
             self._send_json({"ok": False, "error": str(e)}, status=500)
         return True
@@ -2719,6 +2742,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
+            return
+        if parsed.path in (
+            "/api/biomarkers/import",
+            "/api/biomarkers/context",
+            "/api/biomarkers/delete",
+        ):
+            try:
+                from rt_dashboard.biomarkers_api import handle_post, route_for_path
+
+                ru = getattr(self, "_request_user", None) or {}
+                uid = str(ru.get("user_id") or ru.get("id") or "")
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > MAX_PDF_BYTES * 2:
+                    self._send_json({"ok": False, "error": "Upload too large (8 MB PDF max)."}, status=400)
+                    return
+                body = self._read_json() if length else {}
+                status, out = handle_post(route_for_path(parsed.path), body, user_id=uid)
+                if status == 200 and (out.get("result") or route_for_path(parsed.path) != "biomarkers_import"):
+                    invalidate_dashboard_memo()
+                self._send_json(out, status=status)
+            except json.JSONDecodeError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/labs/upload":
             try:
