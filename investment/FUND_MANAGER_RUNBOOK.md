@@ -218,8 +218,9 @@ BTC + digital credit; hold, never sell; new cash fills the BTC + digital-credit 
      early close). Else `not_submitted_before_window` / `not_submitted_outside_market_hours`. Nothing is queued.
    * One buy run per ET day (shared with bp-poll/daily; same-day fills placed outside the adapter count): `skipped_already_bought_today`.
    * Allowlist: BTC sleeve STRC, SATA, STRK + floating MSTR, ASST, BITA, IBIT, MARA, RIOT, CLSK, IREN, WULF; stocks TSLA, SPCX.
-     IBIT is the native-BTC stand-in (no spot BTC in this account) and the default for the floating 35%. MSTR has low preference
-     through `low_preference.MSTR.until` (2026-11-30): prompt-level, noted in the plan when chosen.
+     IBIT is the native-BTC stand-in (no spot BTC in this account). The floating 35% always goes to `fold_into` (IBIT).
+     `honor_ai_floating` is false: AI-proposed floating names (MSTR, miners) are ignored. MSTR low preference
+     (`low_preference.MSTR.until`, 2026-11-30) is logged only when that flag is true and MSTR is actually chosen.
    * Run size is deterministic, never the AI's call: run total = investable = min(settled cash, `max_run_notional_usd` $160, daily
      cap left), and ALL of it is invested (AI-proposed totals are ignored and noted). Under `min_investable_usd` ($5):
      `skipped_below_min_investable`. If the AI step errors, times out (`FM_GROK_TIMEOUT_S`, default 1800s), is missing, or proposes
@@ -232,8 +233,8 @@ BTC + digital credit; hold, never sell; new cash fills the BTC + digital-credit 
      whole run goes to the BTC sleeve; TSLA/SPCX legs are dropped as `not_submitted_sleeve_gate` and their dollars redirected. At or
      over 40%: BTC gets what keeps it at 40% after the run, stocks get the rest, split to move TSLA/SPCX toward 50/50.
    * BTC sleeve: STRC 25 / SATA 25 / STRK 15 of the BTC amount, always exactly (AI amounts for these are ignored; one off by more than
-     max($1, 5% of the run total) is logged as `weights_repaired` in `repairs`). The LLM only splits the floating 35%, pro rata to
-     its floating proposals (none valid => all IBIT).
+     max($1, 5% of the run total) is logged as `weights_repaired` in `repairs`). The floating 35% is always `fold_into` (IBIT)
+     unless `honor_ai_floating` is literally true. AI names for that leg are ignored and logged.
      Legs over $75 spill into IBIT; legs under $1 fold into IBIT. The plan is recorded in the ledger (`runs`) with a `run_id`.
 2. **submit** (per gate-approved leg): buy-only hard reject (any non-`GatedOrder`, sell/short/option/crypto, non-`buy` side); kill
    switches (`FM_BROKER_DISABLE=1`, `live`, `enabled`); the order must be a leg of today's recorded plan (`not_submitted_unplanned`);

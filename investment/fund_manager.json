@@ -275,7 +275,7 @@
           "IREN"
         ],
         "buy_only": true,
-        "notes": "Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only \u2014 never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093. | Nakatoshi 2026-10-24: IBIT replaces BTC in the floating universe as the native-BTC stand-in (the account cannot hold spot BTC) and is the default for the floating 35%; legs < $1 fold into IBIT. MSTR low preference through 2026-11-30 (execution.broker_adapter.low_preference). Hard-enforced by treasury/fund_manager_broker.plan_intents."
+        "notes": "Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only \u2014 never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093. | Nakatoshi 2026-10-24: IBIT replaces BTC in the floating universe as the native-BTC stand-in (the account cannot hold spot BTC); legs < $1 fold into IBIT. MSTR low preference through 2026-11-30 (execution.broker_adapter.low_preference) applies only if honor_ai_floating is turned on. 2026-10-26: the floating 35% always goes to fold_into (IBIT). honor_ai_floating is false, so the planner ignores AI-proposed floating names. Hard-enforced by treasury/fund_manager_broker.plan_intents."
       }
     },
     "stocks_growth": {
@@ -478,6 +478,7 @@
       "weight_tolerance_pct": 0.05,
       "fold_below_usd": 1.0,
       "fold_into": "IBIT",
+      "honor_ai_floating": false,
       "dedupe_window_hours": 24,
       "snapshot_max_age_hours": 6,
       "low_preference": {
@@ -486,7 +487,7 @@
           "notes": "Nakatoshi 2026-10-24: keep MSTR on the floating list but prefer other floating names through this date (prompt-level; logged when chosen)."
         }
       },
-      "notes": "Nakatoshi 2026-10-24 (Grok-approved). Buy-only adapter + deterministic run planner behind the #1093 gate. Agentic ~60% stocks (TSLA/SPCX 50/50) / 40% BTC + digital credit; hold, never sell (any sell is a manual action Chris takes himself). New cash fills BTC + digital credit first until 40% of invested value; no TSLA/SPCX buy while under 40%. BTC sleeve per run: STRC 25 / SATA 25 / STRK 15 (tolerance max($1, 5% of run)), AI splits only the floating 35% (default IBIT, the native-BTC stand-in); legs < $1 fold into IBIT. Run cap min(settled cash, $160, daily cap left); skip under $5 investable. Market dollar DAY orders, regular hours, not before 10:00 ET, no queuing. One buy run per ET day shared by daily + bp-poll (same-day fills placed outside the adapter count). Placed orders post a decision entry to #701. client empty until prism sets FM_BROKER_CLIENT=grok_mcp."
+      "notes": "Nakatoshi 2026-10-24 (Grok-approved). Buy-only adapter + deterministic run planner behind the #1093 gate. Agentic ~60% stocks (TSLA/SPCX 50/50) / 40% BTC + digital credit; hold, never sell (any sell is a manual action Chris takes himself). New cash fills BTC + digital credit first until 40% of invested value; no TSLA/SPCX buy while under 40%. BTC sleeve per run: STRC 25 / SATA 25 / STRK 15 (tolerance max($1, 5% of run)); the floating 35% is always IBIT (honor_ai_floating false — AI-proposed floating names such as MSTR or miners are ignored); legs < $1 fold into IBIT. Run cap min(settled cash, $160, daily cap left); skip under $5 investable. Market dollar DAY orders, regular hours, not before 10:00 ET, no queuing. One buy run per ET day shared by daily + bp-poll (same-day fills placed outside the adapter count). Placed orders post a decision entry to #701. client empty until prism sets FM_BROKER_CLIENT=grok_mcp."
     },
     "notes": "Dollar/fractional market only in regular_hours (queue if after hours). Outside regular hours use extended limit only when fractional allowed."
   },
