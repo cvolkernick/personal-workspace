@@ -884,3 +884,46 @@ class TestAdapterSelectionAndLive(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ------------------------------------------------- advisory-only AI review (2026-10-26)
+class TestAdvisoryOnlyRefusesExecution(Base):
+    """The grok review step must never execute. These fail if submit or the
+    grok client would place under the advisory marker or a grok parent."""
+
+    def test_submit_refuses_under_advisory_marker(self):
+        allowed, _ = self.gated(TEN)
+        self.assertTrue(allowed)
+        c = FakeClient()
+        with mock.patch.dict(os.environ, {gate.ADVISORY_ENV: "1"}):
+            outs = [self.submit(g, c) for g in allowed]
+        self.assertEqual({o["status"] for o in outs}, {broker.S_ADVISORY})
+        self.assertEqual(c.calls, [])  # no account read, no review, no place
+
+    def test_submit_refuses_under_grok_ancestor(self):
+        allowed, _ = self.gated(TEN)
+        c = FakeClient()
+        with mock.patch.object(gate, "grok_ancestor", return_value="4242:grok"):
+            outs = [self.submit(g, c) for g in allowed]
+        self.assertEqual({o["status"] for o in outs}, {broker.S_ADVISORY})
+        self.assertIn("grok", outs[0]["broker_reason"])
+        self.assertEqual(c.calls, [])
+
+    def test_submit_still_places_without_marker(self):
+        c = FakeClient()
+        with mock.patch.dict(os.environ, {gate.ADVISORY_ENV: "0"}):
+            outs, _ = self.run_all(TEN, c)
+        self.assertEqual([o["status"] for o in outs], ["placed"] * 4)
+
+    def test_grok_client_place_refused_under_marker(self):
+        ran = []
+        cli = broker.GrokMcpClient(grok_bin="grok", cwd=str(ROOT), runner=lambda *a, **k: ran.append(a))
+        order = {"account_number": ACCT, "symbol": "IBIT", "side": "buy", "type": "market",
+                 "dollar_amount": "2.68", "time_in_force": "gfd", "market_hours": "regular_hours", "ref_id": "r"}
+        with mock.patch.dict(os.environ, {gate.ADVISORY_ENV: "1"}):
+            with self.assertRaises(broker.BrokerError):
+                cli.place_order(order)
+        with mock.patch.object(gate, "grok_ancestor", return_value="7:grok-1.0.13-linux-aarch64"):
+            with self.assertRaises(broker.BrokerError):
+                cli.place_order(order)
+        self.assertEqual(ran, [])  # grok was never launched with the place carve-out

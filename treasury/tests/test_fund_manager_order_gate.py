@@ -1128,3 +1128,127 @@ class TestRunnersAndLint(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ------------------------------------------------- advisory-only AI review (2026-10-26)
+class TestAdvisoryOnly(unittest.TestCase):
+    """Fail if the AI review path can execute intents."""
+
+    RUNNERS = ("fund_manager_daily.sh", "fund_manager_bp_poll.sh")
+    BROKER_ENV = ("FM_BROKER_ADAPTER", "FM_BROKER_CLIENT", "FM_BROKER_GROK_BIN")
+
+    def _fake_proc(self, root: Path, chain):
+        """chain: [(pid, ppid, comm, exe_name)] child first."""
+        for pid, ppid, comm, exe in chain:
+            d = root / str(pid)
+            d.mkdir(parents=True)
+            (d / "stat").write_text(f"{pid} ({comm}) S {ppid} 1 1 0 -1\n")
+            (d / "comm").write_text(comm + "\n")
+            (d / "cmdline").write_bytes(f"/usr/bin/{comm}\0-x\0".encode())
+            (d / "exe").symlink_to(f"/opt/{exe}")
+
+    def test_grok_ancestor_detected_through_shell(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # python -m gate <- bash (grok's tool shell) <- grok <- bash runner
+            self._fake_proc(root, [(500, 400, "python3", "python3.13"), (400, 300, "bash", "bash"),
+                                   (300, 200, "grok", "grok-1.0.13-linux-aarch64"), (200, 1, "bash", "bash")])
+            self.assertEqual(gate.grok_ancestor(500, root), "300:grok")
+
+    def test_grok_ancestor_by_exe_name_and_none_for_runner(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._fake_proc(root, [(500, 400, "python3", "python3"), (400, 300, "agent", "grok-1.0.13-linux-aarch64"),
+                                   (300, 1, "bash", "bash")])
+            self.assertEqual(gate.grok_ancestor(500, root), "400:grok-1.0.13-linux-aarch64")
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # deterministic step: python <- fund_manager_daily.sh <- systemd
+            self._fake_proc(root, [(500, 400, "python3", "python3"), (400, 1, "bash", "bash")])
+            self.assertIsNone(gate.grok_ancestor(500, root))
+
+    def test_block_reason_marker(self):
+        with mock.patch.dict(os.environ, {gate.ADVISORY_ENV: "1"}):
+            self.assertIn("advisory", gate.execution_block_reason())
+        with mock.patch.dict(os.environ, {gate.ADVISORY_ENV: "0"}), \
+                mock.patch.object(gate, "grok_ancestor", return_value=None):
+            self.assertIsNone(gate.execution_block_reason())
+
+    def _main_refuses(self, env, ancestor):
+        with tempfile.TemporaryDirectory() as td:
+            intents = Path(td) / "fund_manager_intents.json"
+            intents.write_text(json.dumps({"orders": [{"symbol": "IBIT", "side": "buy", "notional_usd": 2.68}]}))
+            loader = mock.Mock(side_effect=AssertionError("adapter must not load"))
+            with mock.patch.dict(os.environ, env), \
+                    mock.patch.object(gate, "grok_ancestor", return_value=ancestor), \
+                    mock.patch.object(gate, "load_broker_adapter", loader), \
+                    mock.patch.object(gate, "execute_intents", side_effect=AssertionError("must not execute")), \
+                    mock.patch("sys.stdout") as out:
+                rc = gate.main(["--execute-intents", str(intents)])
+            self.assertEqual(rc, 4)
+            loader.assert_not_called()
+            self.assertTrue(intents.is_file(), "intents must be left for the deterministic step")
+            printed = "".join(str(c.args[0]) for c in out.write.call_args_list)
+            self.assertIn("refused", printed)
+
+    def test_gate_execute_intents_refuses_under_marker(self):
+        self._main_refuses({gate.ADVISORY_ENV: "1"}, None)
+
+    def test_gate_execute_intents_refuses_under_grok_parent_without_marker(self):
+        # The 2026-10-26 14:05 review exported the broker env itself; the marker
+        # alone is not enough, so a grok parent also refuses.
+        self._main_refuses({gate.ADVISORY_ENV: "", "FM_BROKER_ADAPTER": "treasury.fund_manager_broker:submit",
+                            "FM_BROKER_CLIENT": "grok_mcp"}, "300:grok")
+
+    def test_gate_cli_subprocess_refuses_under_marker(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as td:
+            intents = Path(td) / "i.json"
+            intents.write_text('{"orders": []}')
+            env = {k: v for k, v in os.environ.items() if not k.startswith("FM_")}
+            env.update({gate.ADVISORY_ENV: "1", "FM_BROKER_ADAPTER": "treasury.fund_manager_broker:submit",
+                        "FM_BROKER_CLIENT": "grok_mcp", "FM_BROKER_GROK_BIN": "/nonexistent/grok"})
+            proc = subprocess.run([sys.executable, "-m", "treasury.fund_manager_order_gate",
+                                   "--execute-intents", str(intents), "--no-record"],
+                                  cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(proc.returncode, 4, proc.stdout + proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)["refused"], "advisory_only")
+            self.assertTrue(intents.is_file())
+
+    def _grok_prefix(self, text: str) -> str:
+        m = re.search(r"^(\s*env (?:-u \S+ )+\\\n\s*FM_ADVISORY_ONLY=1 \\\n)\s*timeout \S+ grok -p ", text, re.MULTILINE)
+        self.assertIsNotNone(m, "grok invocation must be prefixed with env -u <broker env> FM_ADVISORY_ONLY=1")
+        return m.group(1)
+
+    def test_runner_grok_invocation_strips_broker_env_and_sets_marker(self):
+        for name in self.RUNNERS:
+            text = (ROOT / "treasury" / name).read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r"\bgrok -p ", text)), 1, name)
+            prefix = self._grok_prefix(text)
+            for var in self.BROKER_ENV:
+                self.assertIn(f"-u {var} ", prefix, f"{name}: {var} not stripped from grok")
+            # the deterministic gate call is not under the marker
+            for line in text.splitlines():
+                if "fund_manager_order_gate --execute-intents" in line:
+                    self.assertNotIn("FM_ADVISORY_ONLY=1", line, name)
+
+    def test_runner_grok_env_in_a_real_shell(self):
+        import subprocess
+        for name in self.RUNNERS:
+            prefix = self._grok_prefix((ROOT / "treasury" / name).read_text(encoding="utf-8"))
+            # Replace `timeout … grok …` with `env` and see what grok would get.
+            script = prefix.rstrip().rstrip("\\") + " env\n"
+            script = script.replace("\\\n", " ")
+            env = dict(os.environ, FM_BROKER_ADAPTER="treasury.fund_manager_broker:submit",
+                       FM_BROKER_CLIENT="grok_mcp", FM_BROKER_GROK_BIN="/x/grok")
+            out = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, timeout=30).stdout
+            seen = dict(l.split("=", 1) for l in out.splitlines() if "=" in l)
+            self.assertEqual(seen.get("FM_ADVISORY_ONLY"), "1", name)
+            for var in self.BROKER_ENV:
+                self.assertNotIn(var, seen, f"{name}: grok would inherit {var}")
+
+    def test_prompt_says_advisory_and_never_execute(self):
+        text = (ROOT / "treasury" / "fund_manager_daily_prompt.txt").read_text(encoding="utf-8")
+        self.assertIn("ADVISORY ONLY", text)
+        self.assertIn("Never run `treasury.fund_manager_order_gate --execute-intents`", text)
+        self.assertNotIn("submitted without asking the human mid-pass", text)

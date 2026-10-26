@@ -146,7 +146,13 @@ elif [[ "${RR}" -ne 1 && "${SB}" -eq 0 ]]; then
       rm -f "${INTENTS_FILE}"
       # AI step is time-boxed; if it errors/times out the gate still runs and the
       # deterministic planner invests all settled cash (floating 35% -> IBIT).
-      timeout "${FM_GROK_TIMEOUT_S:-1800}" grok -p "$(cat "${PROMPT_FILE}")" \
+      # Advisory only (2026-10-26): grok may write intents but never execute them.
+      # Its env has no broker wiring and carries FM_ADVISORY_ONLY=1; the gate and
+      # adapter also refuse under any grok ancestor. Only the gate call below
+      # call (run by this script after grok exits) can submit.
+      env -u FM_BROKER_ADAPTER -u FM_BROKER_CLIENT -u FM_BROKER_GROK_BIN -u FM_BROKER_GROK_TIMEOUT_S \
+        FM_ADVISORY_ONLY=1 \
+        timeout "${FM_GROK_TIMEOUT_S:-1800}" grok -p "$(cat "${PROMPT_FILE}")" \
         --cwd "${ROOT}" \
         --yolo \
         "${GROK_DENY[@]}" \

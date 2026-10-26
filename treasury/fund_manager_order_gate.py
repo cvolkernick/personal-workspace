@@ -208,6 +208,71 @@ def test_path(env_name: str, default: Path) -> Path:
     return default
 
 
+# --------------------------------------------------------------------------
+# Advisory-only AI review (2026-10-26). The grok review step may write intents
+# but must never execute them. Only the deterministic step of the daily / bp-poll
+# runner runs --execute-intents. Two independent checks, either one refuses:
+#   1. FM_ADVISORY_ONLY set (the runners set it, with the broker env stripped,
+#      on the grok invocation only);
+#   2. any ancestor process is grok (catches a review that unsets the marker
+#      or exports the broker env itself, as the 2026-10-26 14:05 run did).
+# --------------------------------------------------------------------------
+ADVISORY_ENV = "FM_ADVISORY_ONLY"
+_GROK_PROC_RE = re.compile(r"^grok(?:[-_.].*)?$")
+
+
+def _proc_names(pid: int, proc_root: Path) -> List[str]:
+    d = proc_root / str(pid)
+    names: List[str] = []
+    try:
+        names.append((d / "comm").read_text(encoding="utf-8", errors="replace").strip())
+    except OSError:
+        pass
+    try:
+        argv0 = (d / "cmdline").read_bytes().split(b"\0", 1)[0].decode("utf-8", "replace")
+        if argv0:
+            names.append(os.path.basename(argv0))
+    except OSError:
+        pass
+    try:
+        names.append(os.path.basename(os.readlink(d / "exe")))
+    except OSError:
+        pass
+    return [n for n in names if n]
+
+
+def _ppid(pid: int, proc_root: Path) -> Optional[int]:
+    try:
+        stat = (proc_root / str(pid) / "stat").read_text(encoding="utf-8", errors="replace")
+        return int(stat.rsplit(")", 1)[1].split()[1])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def grok_ancestor(start_pid: Optional[int] = None, proc_root: Path = Path("/proc")) -> Optional[str]:
+    """``"<pid>:<name>"`` of the nearest grok ancestor (self excluded), else None."""
+    pid = _ppid(start_pid or os.getpid(), proc_root)
+    for _ in range(64):
+        if pid is None or pid <= 1:
+            return None
+        for name in _proc_names(pid, proc_root):
+            if _GROK_PROC_RE.match(name):
+                return f"{pid}:{name}"
+        pid = _ppid(pid, proc_root)
+    return None
+
+
+def execution_block_reason() -> Optional[str]:
+    """Why order execution must be refused here, or None for the deterministic step."""
+    marker = (os.environ.get(ADVISORY_ENV) or "").strip()
+    if marker and marker != "0":
+        return f"{ADVISORY_ENV}={marker}: the AI review is advisory only; execution refused"
+    anc = grok_ancestor()
+    if anc:
+        return f"running under grok ({anc}); only the deterministic runner step may execute"
+    return None
+
+
 def _num(val: Any) -> Optional[float]:
     if val is None or isinstance(val, bool) or val == "":
         return None
@@ -1286,6 +1351,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("\n".join(grok_deny_args()))
         return 0
     if args.execute_intents:
+        refused = execution_block_reason()
+        if refused:
+            # Leave the intents file for the deterministic step; submit nothing.
+            print(json.dumps({"ok": False, "refused": "advisory_only", "reason": refused,
+                              "placed": [], "broker_calls": 0}))
+            return 4
         p = Path(args.execute_intents)
         submit = load_broker_adapter()
         planner = getattr(submit, "plan", None) if submit is not None else None
