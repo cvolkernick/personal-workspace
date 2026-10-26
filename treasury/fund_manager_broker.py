@@ -403,6 +403,26 @@ def idempotency_key(run_date: str, account: str, symbol: str, side: str, cents: 
     return f"{run_date}|{account[-4:]}|{symbol}|{side}|{cents}c"
 
 
+# Accepted params per the robinhood-trading MCP input schemas (additionalProperties
+# false). review_equity_order has no ref_id; neither tool has extended_hours (regular
+# hours only is market_hours="regular_hours"). Extra keys fail with MCP -32602.
+REVIEW_ORDER_PARAMS = frozenset({
+    "account_number", "symbol", "side", "type", "quantity", "dollar_amount",
+    "limit_price", "stop_price", "time_in_force", "market_hours", "tax_lots",
+})
+PLACE_ORDER_PARAMS = REVIEW_ORDER_PARAMS | {"ref_id"}
+
+
+def review_payload(order: Dict[str, Any]) -> Dict[str, Any]:
+    """Arguments for review_equity_order: only the params its schema accepts."""
+    return {k: v for k, v in order.items() if k in REVIEW_ORDER_PARAMS}
+
+
+def place_payload(order: Dict[str, Any]) -> Dict[str, Any]:
+    """Arguments for place_equity_order: review params plus ref_id."""
+    return {k: v for k, v in order.items() if k in PLACE_ORDER_PARAMS}
+
+
 def ref_id_for(key: str) -> str:
     """Deterministic client order ref (broker-side idempotency when supported)."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, "fund-manager-broker:" + key))
@@ -1019,7 +1039,6 @@ def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) 
         "dollar_amount": f"{amount:.2f}",
         "time_in_force": cfg["time_in_force"],
         "market_hours": "regular_hours",
-        "extended_hours": False,
         "ref_id": ref_id_for(key),
     }
 
@@ -1051,7 +1070,7 @@ def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) 
             return rec(S_REVIEW_FAILED, f"{symbol} not tradable")
         if tr.get("fractional_tradable") is not True:  # every order here is a dollar (fractional) order
             return rec(S_REVIEW_FAILED, f"{symbol} not fractional/dollar tradable")
-        rv = client.review_order(dict(order)) or {}
+        rv = client.review_order(review_payload(order)) or {}
     except BrokerError as exc:
         return rec(S_REVIEW_FAILED, f"broker review error: {exc}"[:200])
     except Exception as exc:
@@ -1064,7 +1083,7 @@ def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) 
         led.claim_day(run_date, run_id, "adapter buy run", now)
 
     try:
-        res = client.place_order(dict(order)) or {}
+        res = client.place_order(place_payload(order)) or {}
     except Exception as exc:
         msg = str(exc)[:160] if isinstance(exc, BrokerError) else type(exc).__name__
         return rec(S_PLACE_UNKNOWN, f"place call failed ({msg}); outcome unknown -- key stays blocked, check broker", review=review)
@@ -1365,7 +1384,7 @@ class GrokMcpClient:
     def review_order(self, order: Dict[str, Any]) -> Dict[str, Any]:
         return self._call(
             "Call review_equity_order (a preview; it must not create an order) with exactly: "
-            + json.dumps(order) + ". Return ok=true only if the review shows the order can be placed as given.",
+            + json.dumps(review_payload(order)) + ". Return ok=true only if the review shows the order can be placed as given.",
             {"type": "object", "required": ["ok"], "properties": {"ok": {"type": "boolean"},
              "reason": {"type": "string"}, "warnings": {"type": "array", "items": {"type": "string"}}}},
             ("review_equity_order",),
@@ -1376,7 +1395,7 @@ class GrokMcpClient:
             raise BrokerError("non-buy order refused by client")
         return self._call(
             "Call place_equity_order EXACTLY ONCE with exactly these arguments (a BUY; never sell): "
-            + json.dumps(order) + ". Return the created order's order_id, state, symbol, side, dollar_amount, and quantity/average_price if filled.",
+            + json.dumps(place_payload(order)) + ". Return the created order's order_id, state, symbol, side, dollar_amount, and quantity/average_price if filled.",
             {"type": "object", "required": ["order_id", "state"], "properties": {
                 "order_id": {"type": "string"}, "state": {"type": "string"}, "symbol": {"type": "string"},
                 "side": {"type": "string"}, "dollar_amount": {"type": ["number", "null"]},

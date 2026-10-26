@@ -501,11 +501,42 @@ class TestOrdersAndWindow(Base):
         outs, info = self.run_all(TEN, c)
         self.assertEqual([o["status"] for o in outs], ["placed"] * 4)
         order = c.placed[0][1]
-        self.assertEqual((order["type"], order["time_in_force"], order["market_hours"], order["extended_hours"]),
-                         ("market", "gfd", "regular_hours", False))
+        self.assertEqual((order["type"], order["time_in_force"], order["market_hours"]),
+                         ("market", "gfd", "regular_hours"))
+        self.assertNotIn("extended_hours", order)
         self.assertEqual(order["account_number"], ACCT)
         names = [n for n, *_ in c.calls[:5]]
         self.assertEqual(names, ["get_account", "get_recent_orders", "get_tradability", "review_order", "place_order"])
+
+    def test_review_payload_has_only_accepted_params(self):
+        # 2026-10-26 prism run: review_equity_order rejected extended_hours/ref_id (MCP -32602).
+        c = FakeClient()
+        self.run_all(TEN, c)
+        reviews = [o for n, o, *_ in c.calls if n == "review_order"]
+        self.assertTrue(reviews)
+        for order in reviews:
+            self.assertLessEqual(set(order), broker.REVIEW_ORDER_PARAMS)
+            self.assertNotIn("extended_hours", order)
+            self.assertNotIn("ref_id", order)
+            self.assertEqual(order["market_hours"], "regular_hours")
+        for _, order in c.placed:
+            self.assertLessEqual(set(order), broker.PLACE_ORDER_PARAMS)
+            self.assertNotIn("extended_hours", order)
+            self.assertTrue(order.get("ref_id"))
+
+    def test_grok_client_prompts_use_filtered_payloads(self):
+        order = {"account_number": ACCT, "symbol": "STRC", "side": "buy", "type": "market",
+                 "dollar_amount": "1.90", "time_in_force": "gfd", "market_hours": "regular_hours",
+                 "extended_hours": False, "ref_id": "r-1"}
+        seen = []
+        cli = broker.GrokMcpClient.__new__(broker.GrokMcpClient)
+        cli._call = lambda instruction, schema, tools, **kw: seen.append(instruction) or {"ok": True, "order_id": "o", "state": "filled"}
+        cli.review_order(dict(order))
+        cli.place_order(dict(order))
+        self.assertNotIn("extended_hours", seen[0])
+        self.assertNotIn("ref_id", seen[0])
+        self.assertNotIn("extended_hours", seen[1])
+        self.assertIn('"ref_id": "r-1"', seen[1])
 
     def test_before_10am_et_not_submitted_and_not_queued(self):
         early = datetime(2026, 10, 26, 13, 59, tzinfo=timezone.utc)  # 09:59 ET
