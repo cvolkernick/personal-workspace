@@ -26,9 +26,10 @@ cash fills the BTC + digital-credit sleeve first until it reaches 40%.
   rest, split to move TSLA/SPCX toward 50/50.
 * BTC-sleeve weights: STRC 25 / SATA 25 / STRK 15 of the BTC amount, each within
   max($1, 5% of the run total) of the LLM's figure, else repaired to target
-  (``weights_repaired``). The LLM only chooses how the floating 35% splits among
-  the floating names (default: all IBIT). Legs > $75 spill into IBIT; legs < $1
-  fold into IBIT.
+  (``weights_repaired``). The floating 35% always goes to ``fold_into`` (IBIT)
+  unless ``execution.broker_adapter.honor_ai_floating`` is literally true.
+  AI-proposed floating names (MSTR, miners) are ignored. Legs > $75 spill into
+  IBIT; legs < $1 fold into IBIT.
 
 **submit** (per gate-approved order): buy-only hard reject, kill switches,
 planned-leg check (``not_submitted_unplanned`` for anything the planner did not
@@ -182,7 +183,7 @@ def _upper_list(val: Any) -> List[str]:
 def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Dict[str, Any]], str]:
     """(config, error). Reads ``live``, ``account``, ``guardrails``, ``targets``,
     ``sleeves`` and ``execution.broker_adapter`` from fund_manager.json."""
-    p = Path(policy_path or gate.POLICY_PATH)
+    p = Path(policy_path or gate.test_path("FM_POLICY_PATH", gate.POLICY_PATH))
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -270,6 +271,9 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
         "tol_pct": _d(ba.get("weight_tolerance_pct")) or Decimal("0.05"),
         "fold_below": _d(ba.get("fold_below_usd")) or Decimal("1"),
         "fold_into": fold_into,
+        # Only an explicit true lets AI name the floating leg. Missing/false
+        # keeps that leg on fold_into (IBIT).
+        "honor_ai_floating": ba.get("honor_ai_floating") is True,
         "fixed_weights": fixed,
         "floating_weight": floating_w,
         "floating": tuple(floating),
@@ -333,7 +337,7 @@ class BrokerLedger:
     def transaction(cls, path: Optional[Path] = None):
         import fcntl
 
-        p = Path(path or LEDGER_PATH)
+        p = Path(path or gate.test_path("FM_BROKER_LEDGER_PATH", LEDGER_PATH))
         p.parent.mkdir(parents=True, exist_ok=True)
         lock = open(str(p) + ".lock", "a+")
         try:
@@ -461,7 +465,9 @@ def _snapshot_agentic(snapshot: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def load_snapshot(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     try:
-        data = json.loads(Path(path or gate.RH_SNAPSHOT_PATH).read_text(encoding="utf-8"))
+        data = json.loads(
+            Path(path or gate.test_path("FM_RH_SNAPSHOT_PATH", gate.RH_SNAPSHOT_PATH)).read_text(encoding="utf-8")
+        )
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None
@@ -573,14 +579,16 @@ def plan_intents(
     client: Optional["RobinhoodClient"] = None,
     ai_note: str = "",
 ) -> Tuple[Any, Dict[str, Any]]:
-    """Build the deterministic run plan. The LLM's buy intents only steer how
-    the floating 35% splits; run size, sleeve split and fixed legs are ours.
+    """Build the deterministic run plan. Run size, sleeve split and fixed legs
+    are ours. The floating 35% goes to ``fold_into`` (IBIT) unless
+    ``honor_ai_floating`` is true. This function returns intents; it does not
+    submit. The order gate mints a GatedOrder for each and passes that to submit.
 
     Returns (intents for the gate, plan info). Non-buy intents (and a malformed
     payload) are passed through so the gate still blocks/logs/alerts them. An
     AI step that errored / proposed nothing still gets a full run (floating ->
     IBIT). Never raises: any planner error drops every buy (fail closed)."""
-    now = now or datetime.now(timezone.utc)
+    now = now or gate.test_now()
     if not isinstance(intents, list):
         others: List[Any] = [] if intents is None else [intents]
         buys: List[Dict[str, Any]] = []
@@ -699,13 +707,32 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
         ai_float = {s: proposed[s] for s in cfg["floating"] if proposed.get(s)}
         ai_float_total = sum(ai_float.values(), ZERO)
         legs.update(fixed)
-        if ai_float_total > 0:
+        # honor_ai_floating is opt-in. The shipped policy leaves it false so the
+        # AI review can still name MSTR/miners and the planner will not follow.
+        honor_ai = bool(cfg.get("honor_ai_floating"))
+        redirect = honor_ai and ai_float_total > 0
+        ignored = sorted(s for s in ai_float if s != cfg["fold_into"])
+        if redirect:
             info["floating_source"] = "ai"
+        elif not honor_ai and ignored:
+            names = ", ".join(ignored)
+            info["floating_source"] = f"{cfg['fold_into']}_only: AI floating names ignored ({names})"
+            repaired.append(
+                f"floating -> {cfg['fold_into']} only (AI named {names}; honor_ai_floating is false)"
+            )
+            info["notes"].append(
+                f"AI floating names ignored ({names}); floating leg is {cfg['fold_into']} only"
+            )
+        elif not honor_ai and not ai_float:
+            why_fb = ai_note or ("AI proposed no valid floating names" if buys else "AI proposed nothing")
+            info["floating_source"] = f"{cfg['fold_into']}_fallback: {why_fb}"
+        elif not honor_ai:
+            info["floating_source"] = f"{cfg['fold_into']}_only"
         else:
             why_fb = ai_note or ("AI proposed no valid floating names" if buys else "AI proposed nothing")
             info["floating_source"] = f"{cfg['fold_into']}_fallback: {why_fb}"
         if floating_amt > 0:
-            if ai_float_total > 0:
+            if redirect:
                 for s, v in ai_float.items():
                     legs[s] = legs.get(s, ZERO) + floating_amt * v / ai_float_total
             else:
@@ -907,7 +934,7 @@ def submit(
 
 
 def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
-    now = now or datetime.now(timezone.utc)
+    now = now or gate.test_now()
     ok, why = _is_plain_buy(gated)
     if not ok:
         return _result(S_NOT_GATED if "GatedOrder" in why or "verdict" in why else S_NON_BUY, why)
@@ -1102,7 +1129,7 @@ def should_buy(
 ) -> Tuple[bool, str]:
     """True only when a buy run may start: live + enabled, inside the window,
     no buy run yet this ET day, fresh snapshot, settled cash >= min_investable."""
-    now = now or datetime.now(timezone.utc)
+    now = now or gate.test_now()
     cfg, err = load_adapter_config(policy_path)
     if cfg is None:
         return False, f"{S_CONFIG}: {err}"

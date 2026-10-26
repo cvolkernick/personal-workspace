@@ -165,6 +165,8 @@ class TestAllowlist(Base):
                                                  "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX"})
         self.assertEqual(cfg["floating"], ("IBIT", "MSTR", "ASST", "BITA", "MARA", "RIOT", "CLSK", "WULF", "IREN"))
         self.assertEqual(cfg["fold_into"], "IBIT")
+        self.assertFalse(cfg["honor_ai_floating"])
+        self.assertFalse(REPO_POLICY["execution"]["broker_adapter"]["honor_ai_floating"])
         self.assertEqual(cfg["stocks"], ("TSLA", "SPCX"))
         btc = REPO_POLICY["sleeves"]["btc_digital_credit"]
         self.assertIn("IBIT", btc["symbols"])
@@ -176,7 +178,9 @@ class TestAllowlist(Base):
         text = (ROOT / "treasury" / "fund_manager_daily_prompt.txt").read_text(encoding="utf-8")
         self.assertIn("native-BTC stand-in", text)
         self.assertIn("LOW PREFERENCE through 2026-11-30", text)
-        self.assertIn("ONLY choose how the floating 35% splits", text)
+        self.assertIn("The floating 35% is always IBIT", text)
+        self.assertIn("honor_ai_floating", text)
+        self.assertNotIn("ONLY choose how the floating 35% splits", text)
 
     def test_non_allowlisted_buy_dropped_by_planner(self):
         orders, info = self.plan(TEN + [buy("NVDA", 3.0)])
@@ -192,8 +196,15 @@ class TestAllowlist(Base):
         self.assertEqual(c.calls, [])
 
     def test_mstr_low_preference_logged_until_date(self):
+        # Default policy ignores AI floating names, so MSTR is never chosen and
+        # the low-preference note (which fires only when the name is a leg) stays quiet.
         _, info = self.plan([buy("STRC", 2.5), buy("SATA", 2.5), buy("STRK", 1.5), buy("MSTR", 3.5)])
-        self.assertTrue(any("MSTR has low preference until 2026-11-30" in n for n in info["notes"]))
+        self.assertNotIn("MSTR", self.legs(info))
+        self.assertEqual(self.legs(info)["IBIT"], 3.5)
+        self.assertFalse(any("low preference" in n for n in info["notes"]))
+        self.write_policy(honor_ai_floating=True)
+        _, chosen = self.plan([buy("STRC", 2.5), buy("SATA", 2.5), buy("STRK", 1.5), buy("MSTR", 3.5)])
+        self.assertTrue(any("MSTR has low preference until 2026-11-30" in n for n in chosen["notes"]))
         _, info2 = broker.plan_intents([buy("STRC", 2.5), buy("SATA", 2.5), buy("STRK", 1.5), buy("MSTR", 3.5)],
                                        snapshot=snap(now=NOW + timedelta(days=36)), policy_path=self.policy,
                                        ledger_path=self.dir / "l2.json", now=NOW + timedelta(days=36))
@@ -237,12 +248,21 @@ class TestSleeveGateAndWeights(Base):
         self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "IBIT": 3.5})
         self.assertTrue(info["repairs"])
 
-    def test_ai_floating_split_is_honoured(self):
+    def test_ai_floating_names_are_ignored(self):
         _, info = self.plan([buy("STRC", 5), buy("SATA", 5), buy("STRK", 3), buy("MARA", 3.5), buy("IBIT", 3.5)],
                             snapshot=snap(cash=20))
         legs = self.legs(info)
-        self.assertEqual(legs["MARA"], 3.5)
-        self.assertEqual(legs["IBIT"], 3.5)
+        self.assertNotIn("MARA", legs)
+        self.assertEqual(legs["IBIT"], 7.0)
+        self.assertIn("ignored", info["floating_source"])
+        self.write_policy(honor_ai_floating=True)
+        _, honoured = self.plan(
+            [buy("STRC", 5), buy("SATA", 5), buy("STRK", 3), buy("MARA", 3.5), buy("IBIT", 3.5)],
+            snapshot=snap(cash=20),
+        )
+        split = self.legs(honoured)
+        self.assertEqual(split["MARA"], 3.5)
+        self.assertEqual(split["IBIT"], 3.5)
 
     def test_leg_under_one_dollar_folds_into_ibit(self):
         _, info = self.plan([buy("STRC", 1.5), buy("SATA", 1.5), buy("STRK", 0.9), buy("IBIT", 2.1)], snapshot=snap(cash=6))

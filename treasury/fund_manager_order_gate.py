@@ -195,6 +195,19 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def test_env_enabled() -> bool:
+    """Path/clock overrides exist only for the dry-run suite. Prod never sets this."""
+    return os.environ.get("FM_GATE_TEST") == "1"
+
+
+def test_path(env_name: str, default: Path) -> Path:
+    if test_env_enabled():
+        raw = (os.environ.get(env_name) or "").strip()
+        if raw:
+            return Path(raw)
+    return default
+
+
 def _num(val: Any) -> Optional[float]:
     if val is None or isinstance(val, bool) or val == "":
         return None
@@ -226,9 +239,18 @@ def _parse_ts(val: Any) -> Optional[datetime]:
     return dt.astimezone(timezone.utc)
 
 
+def test_now(fallback: Optional[datetime] = None) -> datetime:
+    """Test clock (``FM_NOW``). Ignored unless ``FM_GATE_TEST=1``."""
+    if test_env_enabled():
+        parsed = _parse_ts(os.environ.get("FM_NOW") or "")
+        if parsed is not None:
+            return parsed
+    return fallback or _now()
+
+
 def load_gate_policy(path: Optional[Path] = None) -> GatePolicy:
     """Read ``guardrails`` from fund_manager.json. Any problem => ok=False."""
-    p = path or POLICY_PATH
+    p = path or test_path("FM_POLICY_PATH", POLICY_PATH)
     try:
         data = json.loads(Path(p).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -1239,7 +1261,7 @@ def grok_deny_args(allow_tools: Iterable[str] = ()) -> List[str]:
 
 
 def _deployable_cash_from_snapshot(path: Optional[Path] = None) -> Optional[float]:
-    p = Path(path or RH_SNAPSHOT_PATH)
+    p = Path(path or test_path("FM_RH_SNAPSHOT_PATH", RH_SNAPSHOT_PATH))
     try:
         snap = json.loads(p.read_text(encoding="utf-8"))
         ag = snap.get("agentic") if isinstance(snap.get("agentic"), dict) else None
@@ -1289,6 +1311,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         if planner is not None:
             # Deterministic run planner (run size, sleeve gate, fixed weights, caps,
             # window, calendar, once-per-ET-day). Sells pass through to be blocked.
+            # plan_intents returns plain intent dicts. It must not submit. Every
+            # planned buy is minted by gate_orders (below, via execute_intents)
+            # and only that GatedOrder is passed to submit.
             try:
                 payload, plan = planner(payload, persist=not args.dry_run, ai_note=ai_note)
             except Exception as exc:  # fail closed: drop every buy
@@ -1321,4 +1346,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # `python -m treasury.fund_manager_order_gate` (daily + bp-poll) executes this
+    # file as __main__, a different module object from
+    # treasury.fund_manager_order_gate. The broker adapter imports the latter and
+    # submit() rejects every other GatedOrder ("not a GatedOrder minted by the
+    # order gate"). Minting here sent every planned leg (the 2026-10-26 12:30 ET
+    # STRC/SATA/STRK/IBIT run) straight into that rejection. Delegate so the gate
+    # that mints is the gate submit checks, then submit receives those orders.
+    from treasury.fund_manager_order_gate import main as _module_main
+
+    raise SystemExit(_module_main())

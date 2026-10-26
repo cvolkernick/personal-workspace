@@ -973,6 +973,9 @@ class TestRunnersAndLint(unittest.TestCase):
         "treasury/tests/test_fund_manager_broker.py",
         "treasury/tests/test_fund_manager_broker_grok_client.py",  # asserts the place tool is never reached
         "treasury/tests/test_fund_manager_order_gate.py",
+        # Dry-run doubles and the order-path test. Fake place_order only; no broker.
+        "treasury/tests/fm_e2e_doubles.py",
+        "treasury/tests/test_fund_manager_order_path_e2e.py",
     }
 
     def _tracked(self, patterns):
