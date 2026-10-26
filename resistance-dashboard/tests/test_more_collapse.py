@@ -162,7 +162,7 @@ class MoreTabCollapse(unittest.TestCase):
         self.assertIn("/styles.css?v=brand-1027-1", HTML)
         self.assertIn("/app.js?v=quest-resync-1304-1", SW)
         self.assertIn("/styles.css?v=brand-1027-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v144"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v145"', SW)
         self.assertNotIn("/app.js?v=hydration-quest-994-1", HTML)
         self.assertNotIn("/app.js?v=hydration-quest-994-1", SW)
         self.assertNotIn("fitdash-shell-v123", SW)

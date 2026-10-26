@@ -506,7 +506,7 @@ class StaticAssets(unittest.TestCase):
         sw = (ROOT / "static" / "sw.js").read_text()
         for asset in re.findall(r'(?:src|href)="(/[^"]+\?v=[^"]+)"', idx):
             self.assertIn(f'"{asset}"', sw)
-        self.assertIn('const CACHE = "fitdash-shell-v144"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v145"', sw)
         self.assertIn('url.searchParams.has("v")', sw)
 
 

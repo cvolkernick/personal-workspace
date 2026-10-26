@@ -97,7 +97,7 @@ class ClubPassCacheAndHobby(unittest.TestCase):
         self.assertIn("/app.js?v=quest-resync-1304-1", SW)
         self.assertIn("/styles.css?v=brand-1027-1", HTML)
         self.assertIn("/styles.css?v=brand-1027-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v144"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v145"', SW)
         self.assertNotIn("/app.js?v=pf-applink-582-1", HTML)
         self.assertNotIn("/app.js?v=pf-applink-582-1", SW)
         self.assertNotIn("/app.js?v=log-date-771-1", HTML)

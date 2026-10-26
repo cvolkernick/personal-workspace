@@ -20,3 +20,7 @@ venv/
 
 # Runtime
 *.log
+# Biomarker seed / panel files hold real health values — keep them out of git.
+biomarkers-seed/
+*.biomarkers.json
+biomarkers.sqlite3
