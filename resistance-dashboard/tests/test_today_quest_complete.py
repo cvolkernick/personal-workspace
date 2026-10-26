@@ -127,11 +127,27 @@ class FailedDailyTasksIsVisible(unittest.TestCase):
         self.assertIn(".quest-sync-error", CSS)
         self.assertIn(".daily-quests.is-sync-failed .quest-card-pending", CSS)
 
-    def test_dashboard_plan_preview_still_needs_follow_up(self):
+    def test_dashboard_plan_preview_needs_sync_follows_gt_flag(self):
         dash = (ROOT / "api" / "dashboard.py").read_text(encoding="utf-8")
+        server = (ROOT / "server.py").read_text(encoding="utf-8")
         self.assertIn("plan_preview(", dash)
-        self.assertIn('daily["needs_sync"] = True', dash)
+        self.assertIn('daily["needs_sync"] = quest_gt_sync_enabled()', dash)
+        self.assertIn('daily["needs_sync"] = quest_gt_sync_enabled()', server)
         self.assertIn("syncDailyTasksFromServer()", JS)
+        sync = JS.split("async function syncDailyTasksFromServer", 1)[1].split(
+            "function unlockQuestCard", 1
+        )[0]
+        self.assertIn("questSyncInFlight", sync)
+        self.assertIn("if (!questGtSyncEnabled(current)) return false", sync)
+        hub = JS.split("function renderTodayHub", 1)[1].split(
+            "// Targets with motivations", 1
+        )[0]
+        self.assertIn("questGtSyncEnabled(daily)", hub)
+        body = JS.split("function buildDailyQuestBodyHtml", 1)[1].split(
+            "function applyQuestsCollapseDom", 1
+        )[0]
+        self.assertIn("(failed || err) && gtSyncOn !== false", body)
+        self.assertIn("data-quest-retry", body)
 
 
 class OverlayLeavesHitBox(unittest.TestCase):

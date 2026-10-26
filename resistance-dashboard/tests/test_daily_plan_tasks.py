@@ -3419,6 +3419,81 @@ class QuestGtSyncOffLocalComplete(unittest.TestCase):
         self.assertFalse(result.get("ok"))
         self.assertIn("missing", (result.get("error") or "").lower())
 
+    def test_ensure_makes_no_google_tasks_calls_when_flag_off(self):
+        day = "2026-09-10"
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ",
+                {
+                    "RESISTANCE_DASHBOARD_CONFIG_DIR": tmp,
+                    "FITDASH_QUEST_GT_SYNC": "0",
+                },
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status"
+            ) as cred, mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id"
+            ) as resolve, mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks"
+            ) as listed, mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task"
+            ) as create, mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.get_task"
+            ) as get_task, mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.delete_task"
+            ) as delete, mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.update_task"
+            ) as update, mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task"
+            ) as complete, mock.patch(
+                "rt_dashboard.meal_calendar.sync_meal_reminders",
+                return_value={"ok": True, "skipped": True, "upserted": 0, "deleted": 0},
+            ) as meals:
+                result = ensure_daily_tasks(self._lift_board(day), day=day)
+        self.assertTrue(result.get("ok"), result)
+        self.assertIs(result.get("quest_gt_sync"), False)
+        self.assertEqual(result.get("source"), "local_preview")
+        self.assertEqual(result.get("calendar", {}).get("skipped"), True)
+        meals.assert_called_once()
+        cred.assert_not_called()
+        resolve.assert_not_called()
+        listed.assert_not_called()
+        create.assert_not_called()
+        get_task.assert_not_called()
+        delete.assert_not_called()
+        update.assert_not_called()
+        complete.assert_not_called()
+
+    def test_complete_leaf_with_stale_task_ids_is_local_when_flag_off(self):
+        day = "2026-09-10"
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ",
+                {
+                    "RESISTANCE_DASHBOARD_CONFIG_DIR": tmp,
+                    "FITDASH_QUEST_GT_SYNC": "0",
+                },
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task"
+            ) as gt_complete:
+                result = complete_leaf(
+                    "L-stale",
+                    "T-stale",
+                    completed=True,
+                    group="training",
+                    slug="ex-db-flat-press",
+                    date=day,
+                    title="DB Flat Press (50 lb 3×10)",
+                )
+                saved = json.loads(
+                    (Path(tmp) / "daily_quest_cache.json").read_text(encoding="utf-8")
+                )
+        self.assertTrue(result.get("ok"), result)
+        self.assertTrue(result.get("local"))
+        self.assertTrue(result.get("completed"))
+        gt_complete.assert_not_called()
+        local = (saved.get(day) or {}).get("local_completed") or {}
+        self.assertTrue(local.get("training|ex-db-flat-press"))
+
     def test_ensure_skips_gt_seed_and_hydrates_local_complete(self):
         store: dict = {
             "jot": {
@@ -4151,7 +4226,10 @@ class PartialWorkoutClient(unittest.TestCase):
         )[0]
         self.assertIn("isTrainSession", click)
         self.assertIn('questGroup.toLowerCase() !== "training"', click)
-        self.assertIn("if (isTrainSession) await syncDailyTasksFromServer()", click)
+        self.assertIn(
+            "if (isTrainSession && questGtSyncEnabled()) await syncDailyTasksFromServer()",
+            click,
+        )
         self.assertNotIn("mark session complete", js.lower())
         paint = js.split("function patchLocalQuestCompleted", 1)[1].split(
             "function paintQuestMeter", 1

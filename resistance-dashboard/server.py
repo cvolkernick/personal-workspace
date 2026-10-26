@@ -1330,13 +1330,14 @@ def _build_dashboard_data(
     except Exception as e:  # noqa: BLE001
         errors.append(f"calorie_delta_phase_color: {e}")
 
-    # Daily quests: fast local plan on dashboard paint; GT ensure is async via GET /api/daily-tasks
+    # Daily quests: fast local plan on dashboard paint. GT ensure is async via
+    # GET /api/daily-tasks only while FITDASH_QUEST_GT_SYNC is on.
     try:
-        from rt_dashboard.daily_plan_tasks import plan_preview
+        from rt_dashboard.daily_plan_tasks import plan_preview, quest_gt_sync_enabled
 
         today_board = (payload.get("coach") or {}).get("today") or {}
         daily = plan_preview(today_board, day=local_today)
-        daily["needs_sync"] = True
+        daily["needs_sync"] = quest_gt_sync_enabled()
         payload["daily_tasks"] = daily
         if isinstance(payload.get("coach"), dict) and isinstance(
             payload["coach"].get("today"), dict
@@ -1344,12 +1345,19 @@ def _build_dashboard_data(
             payload["coach"]["today"]["daily_tasks"] = daily
     except Exception as e:  # noqa: BLE001
         errors.append(f"daily_tasks: {e}")
+        try:
+            from rt_dashboard.daily_plan_tasks import quest_gt_sync_enabled as _quest_gt_sync_enabled
+
+            _needs_sync = _quest_gt_sync_enabled()
+        except Exception:
+            _needs_sync = False
         payload["daily_tasks"] = {
             "ok": False,
             "error": str(e),
             "groups": [],
             "summary": {"done": 0, "total": 0},
-            "needs_sync": True,
+            "needs_sync": _needs_sync,
+            "quest_gt_sync": _needs_sync,
         }
 
     # Orchestra day packet (P3-F): freeze fields → fitness/data/day_constraints.json

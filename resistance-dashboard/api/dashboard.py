@@ -323,7 +323,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.analytics import dashboard_payload
     from rt_dashboard.calorie_bars import build_calorie_bars_payload
     from rt_dashboard.coach import build_coach_payload
-    from rt_dashboard.daily_plan_tasks import plan_preview
+    from rt_dashboard.daily_plan_tasks import plan_preview, quest_gt_sync_enabled
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hidrate_client import hidrate_bottle_charge, hidrate_hydration_samples
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
@@ -782,7 +782,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         today_board = payload["coach"].get("today") or {}
     try:
         daily = plan_preview(today_board, day=today)
-        daily["needs_sync"] = True
+        daily["needs_sync"] = quest_gt_sync_enabled()
         payload["daily_tasks"] = daily
         if isinstance(payload.get("coach"), dict) and isinstance(
             payload["coach"].get("today"), dict
@@ -790,12 +790,14 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             payload["coach"]["today"]["daily_tasks"] = daily
     except Exception as exc:  # noqa: BLE001
         errors.append(f"daily_tasks: {type(exc).__name__}")
+        _needs_sync = quest_gt_sync_enabled()
         payload["daily_tasks"] = {
             "ok": False,
             "error": type(exc).__name__,
             "groups": [],
             "summary": {"done": 0, "total": 0},
-            "needs_sync": True,
+            "needs_sync": _needs_sync,
+            "quest_gt_sync": _needs_sync,
         }
     try:
         payload["day_constraints"] = export_day_constraints_from_dashboard(
