@@ -98,6 +98,7 @@ S_SLEEVE_GATE = "not_submitted_sleeve_gate"
 S_BELOW_MIN = "skipped_below_min_investable"
 S_BOOK_UNKNOWN = "not_submitted_book_unknown"
 S_CALENDAR = "not_submitted_calendar_unknown"
+S_ADVISORY = "refused_advisory_only"
 # plan statuses
 P_PLANNED = "planned"
 P_REPAIRED = "weights_repaired"
@@ -955,6 +956,9 @@ def submit(
 
 def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
     now = now or gate.test_now()
+    refused = gate.execution_block_reason()
+    if refused:
+        return _result(S_ADVISORY, refused)
     ok, why = _is_plain_buy(gated)
     if not ok:
         return _result(S_NOT_GATED if "GatedOrder" in why or "verdict" in why else S_NON_BUY, why)
@@ -1307,6 +1311,10 @@ class GrokMcpClient:
             "place, modify or cancel any other order. You must actually call the tool(s) and copy values from "
             "their responses; never answer from memory. Return only JSON matching the schema.\n\n" + instruction
         )
+        if allow_place:
+            refused = gate.execution_block_reason()
+            if refused:
+                raise BrokerError(f"place refused: {refused}")
         carve = ("place_equity_order",) if allow_place else ()
         cmd = [self.grok_bin, "-p", prompt, "--cwd", self.cwd, "--yolo", "--disable-web-search",
                "--json-schema", json.dumps(schema), *grok_deny_args(allow_tools=carve)]
