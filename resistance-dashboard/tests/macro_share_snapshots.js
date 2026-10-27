@@ -64,6 +64,9 @@ const pctSrc = sliceBetween(
 const factory = new Function(
   [
     extractFunction("rollingAverage"),
+    extractFunction("macroRollingShare"),
+    extractFunction("macroTrailingLoggedCount"),
+    extractFunction("macroGram"),
     extractFunction("macroCalPct"),
     extractFunction("macroTargetBandClass"),
     extractFunction("targetPct"),
@@ -73,23 +76,18 @@ const factory = new Function(
     lastRollSrc,
     sumSrc,
     pctSrc,
-    "return { splits, pPct, cPct, fPct, pRoll, cRoll, fRoll, rollWin, last, lastIdx, lastDate, lastRoll, sumPg, sumCg, sumFg, nDays, totK, pctP, pctC, pctF, avgPg, avgCg, avgFg };",
+    "return { splits, pPct, cPct, fPct, pRoll, cRoll, fRoll, rollWin, pRoll30, cRoll30, fRoll30, roll30Win, roll30Min, last, lastIdx, lastDate, lastRoll, roll30, roll30Logged, sumPg, sumCg, sumFg, nDays, totK, pctP, pctC, pctF, avgPg, avgCg, avgFg };",
     "}",
-    "return { macroCalPct, macroTargetBandClass, targetPct, rollingAverage, chartMath };",
+    "return { macroCalPct, macroTargetBandClass, targetPct, rollingAverage, macroRollingShare, macroTrailingLoggedCount, chartMath };",
   ].join("\n")
 );
 
 const api = factory();
-const { macroCalPct, macroTargetBandClass, targetPct, rollingAverage, chartMath } = api;
+const { macroCalPct, macroTargetBandClass, targetPct, chartMath } = api;
 
 // Live applied targets from the nutrition owner. Not the git seed.
 const TARGETS = { protein_g: 170, carbs_g: 195, fat_g: 60 };
 const TGT_PCT = macroCalPct(TARGETS.protein_g, TARGETS.carbs_g, TARGETS.fat_g);
-
-function round1(v) {
-  // Same expression the chart applies to each rolling point.
-  return v == null ? null : Math.round(v * 10) / 10;
-}
 
 function bands(pct) {
   if (!pct) return { p: "", c: "", f: "" };
@@ -168,21 +166,28 @@ function seriesRecord(rows) {
         c: chart.cRoll[i],
         f: chart.fRoll[i],
       },
+      roll30: {
+        p: chart.pRoll30[i],
+        c: chart.cRoll30[i],
+        f: chart.fRoll30[i],
+      },
     };
   });
   const periodPct = { p: chart.pctP, c: chart.pctC, f: chart.pctF };
   const avgG = { p: chart.avgPg, c: chart.avgCg, f: chart.avgFg };
-  const pSeries = chart.splits.map((s) => s.p);
-  const cSeries = chart.splits.map((s) => s.c);
-  const fSeries = chart.splits.map((s) => s.f);
-  const roll30 = {
-    note: "rollingAverage(daily chart %, 30) on this series only. The chart passes rollWin 7, not 30.",
-    chart_uses_this: false,
-    end: {
-      p: round1(rollingAverage(pSeries, 30).at(-1)),
-      c: round1(rollingAverage(cSeries, 30).at(-1)),
-      f: round1(rollingAverage(fSeries, 30).at(-1)),
-    },
+  const end30 = {
+    p: chart.pRoll30.at(-1),
+    c: chart.cRoll30.at(-1),
+    f: chart.fRoll30.at(-1),
+  };
+  const rolling30 = {
+    window_days: chart.roll30Win,
+    min_logged_days: chart.roll30Min,
+    logged_days: chart.roll30Logged,
+    enough: end30.p != null && end30.c != null && end30.f != null,
+    pct: end30.p == null ? null : end30,
+    band: end30.p == null ? { p: "", c: "", f: "" } : bands(end30),
+    chip: chart.roll30,
   };
   return {
     roll_window_days: chart.rollWin,
@@ -213,7 +218,7 @@ function seriesRecord(rows) {
       gram_hit_pct: gramHit(avgG),
       tot_kcal: chart.totK,
     },
-    rolling_average_window_30: roll30,
+    rolling_30d: rolling30,
   };
 }
 
@@ -229,6 +234,43 @@ const PROTEIN_ONLY = { protein_g: 170, carbs_g: null, fat_g: null };
 
 function iso(day) {
   return "2026-09-" + String(day).padStart(2, "0");
+}
+
+function dated(n, row) {
+  const days = [];
+  for (let i = 1; i <= n; i++) {
+    days.push(Object.assign({ date: iso(i) }, row));
+  }
+  return days;
+}
+
+// Consecutive civil days. Nulls sit in the middle of the window so a
+// zero-fill would move the mean; skipping them must not.
+function loggedWithMiddleGaps(loggedRow, loggedCount, nullCount) {
+  const head = Math.ceil(loggedCount / 2);
+  const tail = loggedCount - head;
+  const rows = []
+    .concat(dated(head, loggedRow))
+    .concat(dated(nullCount, GAP))
+    .concat(dated(tail, loggedRow));
+  return rows.map((row, i) => Object.assign({}, row, { date: iso(i + 1) }));
+}
+
+function judge30(rows) {
+  const chart = chartMath(rows);
+  const pct =
+    chart.roll30 && chart.roll30.p != null
+      ? { p: chart.roll30.p, c: chart.roll30.c, f: chart.roll30.f }
+      : null;
+  return {
+    window_days: chart.roll30Win,
+    min_logged_days: chart.roll30Min,
+    logged_days: chart.roll30Logged,
+    enough: pct != null,
+    pct,
+    band: pct ? bands(pct) : { p: "", c: "", f: "" },
+    civil_days: rows.length,
+  };
 }
 
 const thirty = [];
@@ -273,14 +315,20 @@ const payload = {
   meta: {
     source: "resistance-dashboard/static/app.js",
     evaluated: [
+      "macroGram",
       "macroCalPct",
       "macroTargetBandClass",
       "targetPct",
       "rollingAverage",
+      "macroRollingShare",
+      "macroTrailingLoggedCount",
       "chart day split",
       "7-day rolling percents",
+      "30-day health-goal average",
       "period gram pool",
     ],
+    chart_roll_30_days: 30,
+    chart_roll_30_min_logged: 21,
     kcal_per_gram: { protein: 4, carbs: 4, fat: 9 },
     band_percentage_points: 5,
     band_inclusive: true,
@@ -332,6 +380,26 @@ const payload = {
     },
     formula_disagreement: dayRecord({ protein_g: 100.5, carbs_g: 5, fat_g: 42 }),
     rounding_residue: dayRecord({ protein_g: 1, carbs_g: 1, fat_g: 1 }),
+    rolling_30d_judge: {
+      logged_20: judge30(dated(20, ON)),
+      logged_21: judge30(dated(21, ON)),
+      twenty_one_logged_among_nulls: judge30(loggedWithMiddleGaps(ON, 21, 9)),
+      twenty_logged_among_nulls: judge30(loggedWithMiddleGaps(ON, 20, 10)),
+      band_edges: {
+        protein_29: judge30(dated(21, { protein_g: 134.5, carbs_g: 195, fat_g: 60 })),
+        protein_28_9: judge30(dated(21, { protein_g: 133.9, carbs_g: 195, fat_g: 60 })),
+        protein_39: judge30(dated(21, { protein_g: 210.6, carbs_g: 195, fat_g: 60 })),
+        protein_39_1: judge30(dated(21, { protein_g: 211.5, carbs_g: 195, fat_g: 60 })),
+        fat_22: judge30(dated(21, { protein_g: 170, carbs_g: 195, fat_g: 45.7 })),
+        fat_21_9: judge30(dated(21, { protein_g: 170, carbs_g: 195, fat_g: 45.4 })),
+        fat_32: judge30(dated(21, { protein_g: 170, carbs_g: 195, fat_g: 76.2 })),
+        fat_32_1: judge30(dated(21, { protein_g: 170, carbs_g: 195, fat_g: 76.6 })),
+        carbs_34: judge30(dated(21, { protein_g: 170, carbs_g: 156.8, fat_g: 60 })),
+        carbs_33_9: judge30(dated(21, { protein_g: 170, carbs_g: 156.1, fat_g: 60 })),
+        carbs_44: judge30(dated(21, { protein_g: 170, carbs_g: 239.2, fat_g: 60 })),
+        carbs_44_1: judge30(dated(21, { protein_g: 170, carbs_g: 240.2, fat_g: 60 })),
+      },
+    },
   },
 };
 

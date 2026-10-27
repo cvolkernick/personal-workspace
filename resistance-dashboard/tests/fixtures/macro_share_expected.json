@@ -2,14 +2,20 @@
   "meta": {
     "source": "resistance-dashboard/static/app.js",
     "evaluated": [
+      "macroGram",
       "macroCalPct",
       "macroTargetBandClass",
       "targetPct",
       "rollingAverage",
+      "macroRollingShare",
+      "macroTrailingLoggedCount",
       "chart day split",
       "7-day rolling percents",
+      "30-day health-goal average",
       "period gram pool"
     ],
+    "chart_roll_30_days": 30,
+    "chart_roll_30_min_logged": 21,
     "kcal_per_gram": {
       "protein": 4,
       "carbs": 4,
@@ -834,14 +840,14 @@
           "fat_g": null
         },
         "tile_pct": {
-          "p": 100,
-          "c": 0,
-          "f": 0
+          "p": null,
+          "c": null,
+          "f": null
         },
         "chart_pct": {
-          "p": 100,
-          "c": 0,
-          "f": 0
+          "p": null,
+          "c": null,
+          "f": null
         },
         "chart_grams": {
           "p": 170,
@@ -849,14 +855,14 @@
           "f": 0
         },
         "band_on_tile_pct": {
-          "p": "chip-out-of-range",
-          "c": "chip-out-of-range",
-          "f": "chip-out-of-range"
+          "p": "",
+          "c": "",
+          "f": ""
         },
         "band_on_chart_pct": {
-          "p": "chip-out-of-range",
-          "c": "chip-out-of-range",
-          "f": "chip-out-of-range"
+          "p": "",
+          "c": "",
+          "f": ""
         },
         "gram_hit_pct": {
           "p": 100,
@@ -869,11 +875,7 @@
           "f": 0
         },
         "roll_window_days": 7,
-        "roll_pct": {
-          "p": 100,
-          "c": 0,
-          "f": 0
-        }
+        "roll_pct": null
       },
       "fat_missing": {
         "input": {
@@ -882,14 +884,14 @@
           "fat_g": null
         },
         "tile_pct": {
-          "p": 46.6,
-          "c": 53.4,
-          "f": 0
+          "p": null,
+          "c": null,
+          "f": null
         },
         "chart_pct": {
-          "p": 46.6,
-          "c": 53.4,
-          "f": 0
+          "p": null,
+          "c": null,
+          "f": null
         },
         "chart_grams": {
           "p": 170,
@@ -897,14 +899,14 @@
           "f": 0
         },
         "band_on_tile_pct": {
-          "p": "chip-out-of-range",
-          "c": "chip-out-of-range",
-          "f": "chip-out-of-range"
+          "p": "",
+          "c": "",
+          "f": ""
         },
         "band_on_chart_pct": {
-          "p": "chip-out-of-range",
-          "c": "chip-out-of-range",
-          "f": "chip-out-of-range"
+          "p": "",
+          "c": "",
+          "f": ""
         },
         "gram_hit_pct": {
           "p": 100,
@@ -917,11 +919,7 @@
           "f": 0
         },
         "roll_window_days": 7,
-        "roll_pct": {
-          "p": 46.6,
-          "c": 53.4,
-          "f": 0
-        }
+        "roll_pct": null
       },
       "non_numeric_protein": {
         "input": {
@@ -930,14 +928,14 @@
           "fat_g": 10
         },
         "tile_pct": {
-          "p": 0,
-          "c": 30.8,
-          "f": 69.2
+          "p": null,
+          "c": null,
+          "f": null
         },
         "chart_pct": {
-          "p": 0,
-          "c": 30.8,
-          "f": 69.2
+          "p": null,
+          "c": null,
+          "f": null
         },
         "chart_grams": {
           "p": 0,
@@ -945,14 +943,14 @@
           "f": 10
         },
         "band_on_tile_pct": {
-          "p": "chip-out-of-range",
-          "c": "chip-out-of-range",
-          "f": "chip-out-of-range"
+          "p": "",
+          "c": "",
+          "f": ""
         },
         "band_on_chart_pct": {
-          "p": "chip-out-of-range",
-          "c": "chip-out-of-range",
-          "f": "chip-out-of-range"
+          "p": "",
+          "c": "",
+          "f": ""
         },
         "gram_hit_pct": {
           "p": 0,
@@ -965,11 +963,7 @@
           "f": 10
         },
         "roll_window_days": 7,
-        "roll_pct": {
-          "p": 0,
-          "c": 30.8,
-          "f": 69.2
-        }
+        "roll_pct": null
       }
     },
     "thirty_day_series_with_gaps": {
@@ -1001,6 +995,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1029,6 +1028,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1057,6 +1061,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1085,6 +1094,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1113,6 +1127,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1141,6 +1160,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1169,6 +1193,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1197,6 +1226,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1225,6 +1259,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1235,9 +1274,9 @@
             "fat_g": null
           },
           "pct": {
-            "p": 100,
-            "c": 0,
-            "f": 0
+            "p": null,
+            "c": null,
+            "f": null
           },
           "grams": {
             "p": 170,
@@ -1245,14 +1284,19 @@
             "f": 0
           },
           "band": {
-            "p": "chip-out-of-range",
-            "c": "chip-out-of-range",
-            "f": "chip-out-of-range"
+            "p": "",
+            "c": "",
+            "f": ""
           },
           "roll": {
-            "p": 50.5,
-            "c": 29.3,
-            "f": 20.3
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1278,9 +1322,14 @@
             "f": "chip-in-range"
           },
           "roll": {
-            "p": 50.5,
-            "c": 29.3,
-            "f": 20.3
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1306,9 +1355,14 @@
             "f": ""
           },
           "roll": {
-            "p": 50.5,
-            "c": 29.3,
-            "f": 20.3
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1334,9 +1388,14 @@
             "f": "chip-in-range"
           },
           "roll": {
-            "p": 47.2,
-            "c": 31.2,
-            "f": 21.6
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1362,9 +1421,14 @@
             "f": "chip-in-range"
           },
           "roll": {
-            "p": 47.2,
-            "c": 31.2,
-            "f": 21.6
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1390,9 +1454,14 @@
             "f": "chip-in-range"
           },
           "roll": {
-            "p": 45,
-            "c": 32.5,
-            "f": 22.5
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1418,9 +1487,14 @@
             "f": "chip-in-range"
           },
           "roll": {
-            "p": 45,
-            "c": 32.5,
-            "f": 22.5
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1449,6 +1523,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1477,6 +1556,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1505,6 +1589,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1533,6 +1622,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1561,6 +1655,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1589,6 +1688,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1617,6 +1721,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1645,6 +1754,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1673,6 +1787,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": null,
+            "c": null,
+            "f": null
           }
         },
         {
@@ -1698,6 +1817,11 @@
             "f": "chip-in-range"
           },
           "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
             "p": 34,
             "c": 39,
             "f": 27
@@ -1729,6 +1853,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": 34,
+            "c": 39,
+            "f": 27
           }
         },
         {
@@ -1754,6 +1883,11 @@
             "f": "chip-in-range"
           },
           "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "roll30": {
             "p": 34,
             "c": 39,
             "f": 27
@@ -1785,6 +1919,11 @@
             "p": 34,
             "c": 39,
             "f": 27
+          },
+          "roll30": {
+            "p": 34,
+            "c": 39,
+            "f": 27
           }
         },
         {
@@ -1813,6 +1952,11 @@
             "p": 33,
             "c": 39.3,
             "f": 27.7
+          },
+          "roll30": {
+            "p": 33.7,
+            "c": 39.1,
+            "f": 27.2
           }
         }
       ],
@@ -1852,26 +1996,26 @@
         }
       },
       "period": {
-        "n_days": 26,
+        "n_days": 25,
         "sum_g": {
-          "p": 4286.5,
+          "p": 4116.5,
           "c": 4767,
           "f": 1474
         },
         "avg_g": {
-          "p": 164.8653846153846,
-          "c": 183.34615384615384,
-          "f": 56.69230769230769
+          "p": 164.66,
+          "c": 190.68,
+          "f": 58.96
         },
         "displayed_avg_g": {
           "p": 165,
-          "c": 183,
-          "f": 57
+          "c": 191,
+          "f": 59
         },
         "pct": {
-          "p": 34.7,
-          "c": 38.5,
-          "f": 26.8
+          "p": 33.7,
+          "c": 39.1,
+          "f": 27.2
         },
         "band": {
           "p": "chip-in-range",
@@ -1879,19 +2023,31 @@
           "f": "chip-in-range"
         },
         "gram_hit_pct": {
-          "p": 97,
-          "c": 94,
-          "f": 94.5
+          "p": 96.9,
+          "c": 97.8,
+          "f": 98.3
         },
-        "tot_kcal": 49480
+        "tot_kcal": 48800
       },
-      "rolling_average_window_30": {
-        "note": "rollingAverage(daily chart %, 30) on this series only. The chart passes rollWin 7, not 30.",
-        "chart_uses_this": false,
-        "end": {
-          "p": 36.3,
-          "c": 37.6,
-          "f": 26.2
+      "rolling_30d": {
+        "window_days": 30,
+        "min_logged_days": 21,
+        "logged_days": 25,
+        "enough": true,
+        "pct": {
+          "p": 33.7,
+          "c": 39.1,
+          "f": 27.2
+        },
+        "band": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "chip": {
+          "p": 33.7,
+          "c": 39.1,
+          "f": 27.2
         }
       }
     },
@@ -2005,7 +2161,7 @@
         "f": 47.3
       },
       "chart_pct": {
-        "p": 50.2,
+        "p": 50.3,
         "c": 2.5,
         "f": 47.3
       },
@@ -2036,7 +2192,7 @@
       },
       "roll_window_days": 7,
       "roll_pct": {
-        "p": 50.2,
+        "p": 50.3,
         "c": 2.5,
         "f": 47.3
       }
@@ -2087,6 +2243,274 @@
         "p": 23.5,
         "c": 23.5,
         "f": 52.9
+      }
+    },
+    "rolling_30d_judge": {
+      "logged_20": {
+        "window_days": 30,
+        "min_logged_days": 21,
+        "logged_days": 20,
+        "enough": false,
+        "pct": null,
+        "band": {
+          "p": "",
+          "c": "",
+          "f": ""
+        },
+        "civil_days": 20
+      },
+      "logged_21": {
+        "window_days": 30,
+        "min_logged_days": 21,
+        "logged_days": 21,
+        "enough": true,
+        "pct": {
+          "p": 34,
+          "c": 39,
+          "f": 27
+        },
+        "band": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "civil_days": 21
+      },
+      "twenty_one_logged_among_nulls": {
+        "window_days": 30,
+        "min_logged_days": 21,
+        "logged_days": 21,
+        "enough": true,
+        "pct": {
+          "p": 34,
+          "c": 39,
+          "f": 27
+        },
+        "band": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "civil_days": 30
+      },
+      "twenty_logged_among_nulls": {
+        "window_days": 30,
+        "min_logged_days": 21,
+        "logged_days": 20,
+        "enough": false,
+        "pct": null,
+        "band": {
+          "p": "",
+          "c": "",
+          "f": ""
+        },
+        "civil_days": 30
+      },
+      "band_edges": {
+        "protein_29": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 29,
+            "c": 42,
+            "f": 29.1
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "protein_28_9": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 28.9,
+            "c": 42,
+            "f": 29.1
+          },
+          "band": {
+            "p": "chip-out-of-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "protein_39": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 39,
+            "c": 36.1,
+            "f": 25
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "protein_39_1": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 39.1,
+            "c": 36,
+            "f": 24.9
+          },
+          "band": {
+            "p": "chip-out-of-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "fat_22": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 36.3,
+            "c": 41.7,
+            "f": 22
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "fat_21_9": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 36.4,
+            "c": 41.7,
+            "f": 21.9
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-out-of-range"
+          },
+          "civil_days": 21
+        },
+        "fat_32": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 31.7,
+            "c": 36.4,
+            "f": 32
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "fat_32_1": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 31.6,
+            "c": 36.3,
+            "f": 32.1
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-out-of-range"
+          },
+          "civil_days": 21
+        },
+        "carbs_34": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 36.8,
+            "c": 34,
+            "f": 29.2
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "carbs_33_9": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 36.9,
+            "c": 33.9,
+            "f": 29.3
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-out-of-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "carbs_44": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 31.2,
+            "c": 44,
+            "f": 24.8
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        },
+        "carbs_44_1": {
+          "window_days": 30,
+          "min_logged_days": 21,
+          "logged_days": 21,
+          "enough": true,
+          "pct": {
+            "p": 31.2,
+            "c": 44.1,
+            "f": 24.8
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-out-of-range",
+            "f": "chip-in-range"
+          },
+          "civil_days": 21
+        }
       }
     }
   }

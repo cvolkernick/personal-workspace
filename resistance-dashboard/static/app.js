@@ -1240,6 +1240,50 @@
     return out;
   }
 
+  /**
+   * Trailing mean of daily calorie-share percents over `window` civil days.
+   * Null and non-numeric days are skipped (not averaged in as 0).
+   * A point stays null until the window holds at least `minLogged` finite days.
+   * The health-goal judge calls this with window 30 and minLogged 21.
+   */
+  function macroRollingShare(values, window, minLogged) {
+    const list = values || [];
+    const w = Number(window);
+    const need = Number(minLogged);
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      const start =
+        Number.isFinite(w) && w > 0 ? Math.max(0, i - Math.floor(w) + 1) : 0;
+      let n = 0;
+      let sum = 0;
+      for (let j = start; j <= i; j++) {
+        const v = list[j];
+        if (v == null || !Number.isFinite(Number(v))) continue;
+        sum += Number(v);
+        n += 1;
+      }
+      if (!Number.isFinite(need) || n < need) out.push(null);
+      else out.push(Math.round((sum / n) * 10) / 10);
+    }
+    return out;
+  }
+
+  /** Finite points in the trailing `window` ending at the last index. */
+  function macroTrailingLoggedCount(values, window) {
+    const list = values || [];
+    if (!list.length) return 0;
+    const w = Number(window);
+    const i = list.length - 1;
+    const start =
+      Number.isFinite(w) && w > 0 ? Math.max(0, i - Math.floor(w) + 1) : 0;
+    let n = 0;
+    for (let j = start; j <= i; j++) {
+      const v = list[j];
+      if (v != null && Number.isFinite(Number(v))) n += 1;
+    }
+    return n;
+  }
+
   function rollingMedian(values, window) {
     const out = [];
     for (let i = 0; i < values.length; i++) {
@@ -2075,7 +2119,8 @@
     destroyChart(macrosChart);
     if ($("chart-macros")) {
       // 90d civil axis (aligned with body weight; independent of intake/burned span).
-      // Map logged nutrition onto each day; null split when no macros that day.
+      // Map logged nutrition onto each day. A day abstains (null split) when any
+      // macro is missing or non-numeric, or when macro kcal is 0.
       const macroSpanDays = 90;
       const macroEnd = new Date();
       macroEnd.setHours(0, 0, 0, 0);
@@ -2115,26 +2160,20 @@
         };
       });
       const splits = macroDays.map((n) => {
-        if (
-          n.protein_g == null &&
-          n.carbs_g == null &&
-          n.fat_g == null
-        ) {
-          return { p: null, c: null, f: null, grams: { p: 0, c: 0, f: 0 } };
-        }
-        const p = Number(n.protein_g) || 0;
-        const c = Number(n.carbs_g) || 0;
-        const f = Number(n.fat_g) || 0;
-        const pK = p * 4;
-        const cK = c * 4;
-        const fK = f * 9;
-        const tot = pK + cK + fK;
-        if (tot <= 0) return { p: null, c: null, f: null, grams: { p, c, f } };
+        // Same function as the today tile, so one rounding order.
+        const pct = macroCalPct(n.protein_g, n.carbs_g, n.fat_g);
+        const gp = macroGram(n.protein_g);
+        const gc = macroGram(n.carbs_g);
+        const gf = macroGram(n.fat_g);
         return {
-          p: Math.round((pK / tot) * 1000) / 10,
-          c: Math.round((cK / tot) * 1000) / 10,
-          f: Math.round((fK / tot) * 1000) / 10,
-          grams: { p, c, f },
+          p: pct.p,
+          c: pct.c,
+          f: pct.f,
+          grams: {
+            p: gp == null ? 0 : gp,
+            c: gc == null ? 0 : gc,
+            f: gf == null ? 0 : gf,
+          },
         };
       });
       const pPct = splits.map((s) => s.p);
@@ -2150,6 +2189,12 @@
       const fRoll = rollingAverage(fPct, rollWin).map((v) =>
         v == null ? null : Math.round(v * 10) / 10
       );
+      // Health goal: trailing 30 civil days, nulls skipped, shown at 21+ logged days.
+      const roll30Win = 30;
+      const roll30Min = 21;
+      const pRoll30 = macroRollingShare(pPct, roll30Win, roll30Min);
+      const cRoll30 = macroRollingShare(cPct, roll30Win, roll30Min);
+      const fRoll30 = macroRollingShare(fPct, roll30Win, roll30Min);
       const base = chartDefaults();
       macrosChart = new Chart($("chart-macros"), {
         data: {
@@ -2306,6 +2351,19 @@
           }
           return null;
         })();
+        const roll30Idx = pRoll30.length - 1;
+        const roll30 =
+          roll30Idx >= 0 &&
+          pRoll30[roll30Idx] != null &&
+          cRoll30[roll30Idx] != null &&
+          fRoll30[roll30Idx] != null
+            ? {
+                p: pRoll30[roll30Idx],
+                c: cRoll30[roll30Idx],
+                f: fRoll30[roll30Idx],
+              }
+            : null;
+        const roll30Logged = macroTrailingLoggedCount(pPct, roll30Win);
         // Period averages over the same days shown on the chart
         let sumPg = 0;
         let sumCg = 0;
@@ -2320,21 +2378,13 @@
         });
         if (!last || last.p == null) {
           note.innerHTML =
-            `<p class="chart-summary-empty">Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %.</p>`;
+            `<p class="chart-summary-empty">Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %. The 30-day average is the health goal and needs 21 logged days.</p>`;
         } else {
           const totK = sumPg * 4 + sumCg * 4 + sumFg * 9;
-          const pctP =
-            nDays > 0 && totK > 0
-              ? Math.round((sumPg * 4 * 1000) / totK) / 10
-              : null;
-          const pctC =
-            nDays > 0 && totK > 0
-              ? Math.round((sumCg * 4 * 1000) / totK) / 10
-              : null;
-          const pctF =
-            nDays > 0 && totK > 0
-              ? Math.round((sumFg * 9 * 1000) / totK) / 10
-              : null;
+          const periodShare = macroCalPct(sumPg, sumCg, sumFg);
+          const pctP = periodShare.p;
+          const pctC = periodShare.c;
+          const pctF = periodShare.f;
           const avgPg = nDays > 0 ? sumPg / nDays : 0;
           const avgCg = nDays > 0 ? sumCg / nDays : 0;
           const avgFg = nDays > 0 ? sumFg / nDays : 0;
@@ -2396,6 +2446,23 @@
             </div>`
                 : ""
             }
+            <div class="chart-summary-row">
+              <div class="chart-summary-chip chip-protein ${roll30 ? bandPct(roll30.p, "p") : ""}">
+                <span class="chip-k">30-day average · P</span>
+                <span class="chip-v">${roll30 ? roll30.p + "%" : "not enough data"}</span>
+                <span class="chip-s">${roll30 ? `health goal · ${roll30Logged} logged days` : `${roll30Logged} of ${roll30Min} logged days`}</span>
+              </div>
+              <div class="chart-summary-chip chip-carbs ${roll30 ? bandPct(roll30.c, "c") : ""}">
+                <span class="chip-k">30-day average · C</span>
+                <span class="chip-v">${roll30 ? roll30.c + "%" : "not enough data"}</span>
+                <span class="chip-s">${roll30 ? `health goal · ${roll30Logged} logged days` : `${roll30Logged} of ${roll30Min} logged days`}</span>
+              </div>
+              <div class="chart-summary-chip chip-fat ${roll30 ? bandPct(roll30.f, "f") : ""}">
+                <span class="chip-k">30-day average · F</span>
+                <span class="chip-v">${roll30 ? roll30.f + "%" : "not enough data"}</span>
+                <span class="chip-s">${roll30 ? `health goal · ${roll30Logged} logged days` : `${roll30Logged} of ${roll30Min} logged days`}</span>
+              </div>
+            </div>
             <div class="chart-summary-row">
               <div class="chart-summary-chip chip-protein ${bandPct(pctP, "p")}">
                 <span class="chip-k">Period · P</span>
@@ -4510,12 +4577,30 @@
     });
   }
 
+  /** Finite gram amount, or null when the field is missing or not a number.
+   *  Explicit 0 is present. Blank strings and non-numeric text are not.
+   */
+  function macroGram(value) {
+    if (value == null || typeof value === "boolean") return null;
+    if (typeof value === "string" && value.trim() === "") return null;
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    return n;
+  }
+
+  /**
+   * Calorie share of protein / carbs / fat. One rounding order for the today
+   * tile and the Trends chart: Math.round((grams * kcal * 1000) / total) / 10.
+   * Any missing or non-numeric macro abstains (all three shares null).
+   * A zero-calorie day (all numeric, total kcal <= 0) also abstains.
+   */
   function macroCalPct(protein_g, carbs_g, fat_g) {
-    const p = Number(protein_g) || 0;
-    const c = Number(carbs_g) || 0;
-    const f = Number(fat_g) || 0;
+    const p = macroGram(protein_g);
+    const c = macroGram(carbs_g);
+    const f = macroGram(fat_g);
+    if (p == null || c == null || f == null) return { p: null, c: null, f: null };
     const tot = p * 4 + c * 4 + f * 9;
-    if (tot <= 0) return { p: null, c: null, f: null };
+    if (!(tot > 0)) return { p: null, c: null, f: null };
     return {
       p: Math.round((p * 4 * 1000) / tot) / 10,
       c: Math.round((c * 4 * 1000) / tot) / 10,

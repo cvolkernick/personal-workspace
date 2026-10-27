@@ -1,9 +1,9 @@
 """Snapshot FitDash macro calorie-share math from the real app.js functions.
 
 Evaluates ``macroCalPct``, ``macroTargetBandClass``, ``targetPct``,
-``rollingAverage``, and the Trends chart split / 7-day roll / period pool
-by extracting those functions from ``static/app.js``. No reimplementation,
-no Turso, no network.
+``rollingAverage``, ``macroRollingShare``, and the Trends chart split /
+7-day roll / 30-day health-goal average / period pool by extracting those
+functions from ``static/app.js``. No reimplementation, no Turso, no network.
 
 Targets passed in are 170 g protein / 195 g carbs / 60 g fat (34% / 39% / 27%
 of macro kcal at 4 / 4 / 9). This does not read or write ``targets.json``.
@@ -76,9 +76,18 @@ class TestMacroShareSnapshots(unittest.TestCase):
         self.assertNotIn("https://", text)
         app = APP_JS.read_text(encoding="utf-8")
         self.assertIn("function macroCalPct(", app)
+        self.assertIn("function macroGram(", app)
+        self.assertIn("function macroRollingShare(", app)
         self.assertIn("±5 percentage points", app)
         self.assertIn("const rollWin = 7;", app)
+        self.assertIn("const roll30Win = 30;", app)
+        self.assertIn("const roll30Min = 21;", app)
         self.assertIn("const macroSpanDays = 90;", app)
+        self.assertIn("const pct = macroCalPct(n.protein_g, n.carbs_g, n.fat_g);", app)
+        self.assertIn("30-day average", app)
+        self.assertIn("not enough data", app)
+        self.assertIn("health goal", app)
+        self.assertNotIn("Math.round((pK / tot) * 1000) / 10", app)
 
     def test_targets_are_34_39_27_from_four_four_nine(self):
         # 170*4 + 195*4 + 60*9 = 2000 kcal → 34% / 39% / 27%.
@@ -90,6 +99,8 @@ class TestMacroShareSnapshots(unittest.TestCase):
         self.assertEqual(targets["chart_pct"], {"p": 34, "c": 39, "f": 27})
         self.assertEqual(self.actual["meta"]["kcal_per_gram"], {"protein": 4, "carbs": 4, "fat": 9})
         self.assertEqual(self.actual["meta"]["chart_roll_window_days"], 7)
+        self.assertEqual(self.actual["meta"]["chart_roll_30_days"], 30)
+        self.assertEqual(self.actual["meta"]["chart_roll_30_min_logged"], 21)
         self.assertEqual(self.actual["meta"]["chart_span_days"], 90)
 
     def test_on_target_day_is_inside_the_band_and_on_gram_targets(self):
@@ -177,13 +188,14 @@ class TestMacroShareSnapshots(unittest.TestCase):
     def test_thirty_day_series_period_pool_and_seven_day_roll(self):
         series = self.actual["cases"]["thirty_day_series_with_gaps"]
         period = series["period"]
-        # Kcal-weighted pool of the days the chart gave a percent.
-        self.assertEqual(period["n_days"], 26)
-        self.assertEqual(period["sum_g"], {"p": 4286.5, "c": 4767, "f": 1474})
-        self.assertEqual(period["tot_kcal"], 49480)
-        self.assertEqual(period["pct"], {"p": 34.7, "c": 38.5, "f": 26.8})
+        # Sep 10 abstains, so the pool is 25 complete days, not 26.
+        # 23 on-target + half + Sep 30: 4116.5 / 4767 / 1474 g, 48800 kcal.
+        self.assertEqual(period["n_days"], 25)
+        self.assertEqual(period["sum_g"], {"p": 4116.5, "c": 4767, "f": 1474})
+        self.assertEqual(period["tot_kcal"], 48800)
+        self.assertEqual(period["pct"], {"p": 33.7, "c": 39.1, "f": 27.2})
         self.assertEqual(period["band"], {"p": IN_RANGE, "c": IN_RANGE, "f": IN_RANGE})
-        self.assertEqual(period["displayed_avg_g"], {"p": 165, "c": 183, "f": 57})
+        self.assertEqual(period["displayed_avg_g"], {"p": 165, "c": 191, "f": 59})
         latest = series["latest"]
         self.assertEqual(latest["date"], "2026-09-30")
         self.assertEqual(latest["pct"], {"p": 27, "c": 41, "f": 32})
@@ -195,11 +207,19 @@ class TestMacroShareSnapshots(unittest.TestCase):
             series["rolling_7d"]["band"],
             {"p": IN_RANGE, "c": IN_RANGE, "f": IN_RANGE},
         )
-        window30 = series["rolling_average_window_30"]
-        self.assertFalse(window30["chart_uses_this"])
-        # Same rollingAverage, window 30: unweighted mean of daily percents.
-        # Protein 36.3 vs the kcal-weighted period 34.7.
-        self.assertEqual(window30["end"], {"p": 36.3, "c": 37.6, "f": 26.2})
+        # 24 days at 34/39/27 plus Sep 30 at 27/41/32. Sep 10 is not in the mean.
+        # (34*24 + 27) / 25 = 33.72 → 33.7; carbs 39.08 → 39.1; fat 27.2.
+        judge = series["rolling_30d"]
+        self.assertEqual(judge["window_days"], 30)
+        self.assertEqual(judge["min_logged_days"], 21)
+        self.assertEqual(judge["logged_days"], 25)
+        self.assertTrue(judge["enough"])
+        self.assertEqual(judge["pct"], {"p": 33.7, "c": 39.1, "f": 27.2})
+        self.assertEqual(
+            judge["band"],
+            {"p": IN_RANGE, "c": IN_RANGE, "f": IN_RANGE},
+        )
+        self.assertEqual(self._day("2026-09-30")["roll30"], judge["pct"])
 
     def test_grams_and_calorie_share_are_different_judges(self):
         half = self.actual["cases"]["grams_vs_pct_disagreement"]["half_portions_same_pct"]
@@ -226,37 +246,93 @@ class TestMacroShareSnapshots(unittest.TestCase):
         self.assertEqual(pct, {"p": 23.5, "c": 23.5, "f": 52.9})
         self.assertEqual(round(pct["p"] + pct["c"] + pct["f"], 1), 99.9)
 
-    @unittest.expectedFailure
     def test_today_tile_and_chart_use_the_same_percent(self):
-        """Today tiles and the Trends bars should agree on one calorie share.
+        """Today tile and Trends bars share macroCalPct's rounding order.
 
-        ``macroCalPct`` rounds ``(grams * kcal * 1000) / total``.
-        The chart day split rounds ``((grams * kcal) / total) * 1000``.
-        Those differ for 100.5 g protein / 5 g carbs / 42 g fat:
-        tile protein 50.3%, chart protein 50.2%.
+        100.5 g protein / 5 g carbs / 42 g fat is 50.3 / 2.5 / 47.3 on both.
+        The old chart formula rounded protein to 50.2 on this input.
         """
         day = self.actual["cases"]["formula_disagreement"]
-        self.assertEqual(day["tile_pct"], day["chart_pct"])
+        self.assertEqual(day["tile_pct"], {"p": 50.3, "c": 2.5, "f": 47.3})
+        self.assertEqual(day["chart_pct"], day["tile_pct"])
+        self.assertEqual(day["band_on_tile_pct"], day["band_on_chart_pct"])
 
-    @unittest.expectedFailure
     def test_missing_macro_is_not_treated_as_zero_grams(self):
-        """An omitted macro should abstain, the way an all-null day already does.
+        """A day with any missing or non-numeric macro abstains.
 
-        Once any of protein/carbs/fat is present, both ``macroCalPct`` and the
-        chart split coerce the others with ``Number(x) || 0``. A protein-only
-        day is judged 100/0/0 and a non-numeric protein is judged 0 g. That
-        day then enters the 7-day mean and the period pool. On the 30-day
-        fixture the protein-only day pulls the Sep 10 fat roll to 20.3%,
-        outside the 22–32 fat band, even though every complete food day in
-        that trail was inside it. Pantry profiling already drops a row when
-        any macro is missing so a hole cannot fake the mix.
+        It stays out of the 7-day mean, the 30-day average, and the period
+        pool. Sep 10 (protein 170 g, carbs and fat null) used to be judged
+        100/0/0 and pulled the fat roll to 20.3%.
         """
         missing = self.actual["cases"]["missing_fields"]
         for name in ("protein_only", "fat_missing", "non_numeric_protein"):
-            pct = missing[name]["chart_pct"]
-            self.assertIsNone(pct["p"], name)
-            self.assertIsNone(pct["c"], name)
-            self.assertIsNone(pct["f"], name)
+            row = missing[name]
+            self.assertEqual(row["chart_pct"], {"p": None, "c": None, "f": None}, name)
+            self.assertEqual(row["tile_pct"], row["chart_pct"], name)
+            self.assertIsNone(row["roll_pct"], name)
+        sep10 = self._day("2026-09-10")
+        self.assertEqual(sep10["pct"], {"p": None, "c": None, "f": None})
+        self.assertEqual(sep10["roll"], {"p": 34, "c": 39, "f": 27})
+        self.assertEqual(sep10["roll30"], {"p": None, "c": None, "f": None})
+        series = self.actual["cases"]["thirty_day_series_with_gaps"]
+        self.assertNotEqual(series["period"]["sum_g"]["p"], 4286.5)
+
+    def test_thirty_day_judge_needs_21_logged_days_and_skips_nulls(self):
+        judge = self.actual["cases"]["rolling_30d_judge"]
+        short = judge["logged_20"]
+        self.assertEqual(short["window_days"], 30)
+        self.assertEqual(short["min_logged_days"], 21)
+        self.assertEqual(short["logged_days"], 20)
+        self.assertEqual(short["civil_days"], 20)
+        self.assertFalse(short["enough"])
+        self.assertIsNone(short["pct"])
+        self.assertEqual(short["band"], {"p": "", "c": "", "f": ""})
+
+        full = judge["logged_21"]
+        self.assertEqual(full["logged_days"], 21)
+        self.assertTrue(full["enough"])
+        self.assertEqual(full["pct"], {"p": 34, "c": 39, "f": 27})
+        self.assertEqual(
+            full["band"],
+            {"p": IN_RANGE, "c": IN_RANGE, "f": IN_RANGE},
+        )
+
+        # 9 nulls inside a 30-day window must not dilute 34% (zero-fill would be 23.8).
+        skipped = judge["twenty_one_logged_among_nulls"]
+        self.assertEqual(skipped["civil_days"], 30)
+        self.assertEqual(skipped["logged_days"], 21)
+        self.assertTrue(skipped["enough"])
+        self.assertEqual(skipped["pct"], {"p": 34, "c": 39, "f": 27})
+        self.assertEqual(skipped["band"]["p"], IN_RANGE)
+
+        thin = judge["twenty_logged_among_nulls"]
+        self.assertEqual(thin["civil_days"], 30)
+        self.assertEqual(thin["logged_days"], 20)
+        self.assertFalse(thin["enough"])
+        self.assertIsNone(thin["pct"])
+
+    def test_thirty_day_judge_band_edges(self):
+        edges = self.actual["cases"]["rolling_30d_judge"]["band_edges"]
+        expect = {
+            "protein_29": ("p", 29, IN_RANGE),
+            "protein_28_9": ("p", 28.9, OUT),
+            "protein_39": ("p", 39, IN_RANGE),
+            "protein_39_1": ("p", 39.1, OUT),
+            "fat_22": ("f", 22, IN_RANGE),
+            "fat_21_9": ("f", 21.9, OUT),
+            "fat_32": ("f", 32, IN_RANGE),
+            "fat_32_1": ("f", 32.1, OUT),
+            "carbs_34": ("c", 34, IN_RANGE),
+            "carbs_33_9": ("c", 33.9, OUT),
+            "carbs_44": ("c", 44, IN_RANGE),
+            "carbs_44_1": ("c", 44.1, OUT),
+        }
+        for name, (key, pct, band) in expect.items():
+            row = edges[name]
+            self.assertTrue(row["enough"], name)
+            self.assertEqual(row["logged_days"], 21, name)
+            self.assertEqual(row["pct"][key], pct, name)
+            self.assertEqual(row["band"][key], band, name)
 
 
 if __name__ == "__main__":
