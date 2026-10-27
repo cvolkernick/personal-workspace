@@ -1,0 +1,2093 @@
+{
+  "meta": {
+    "source": "resistance-dashboard/static/app.js",
+    "evaluated": [
+      "macroCalPct",
+      "macroTargetBandClass",
+      "targetPct",
+      "rollingAverage",
+      "chart day split",
+      "7-day rolling percents",
+      "period gram pool"
+    ],
+    "kcal_per_gram": {
+      "protein": 4,
+      "carbs": 4,
+      "fat": 9
+    },
+    "band_percentage_points": 5,
+    "band_inclusive": true,
+    "chart_roll_window_days": 7,
+    "chart_span_days": 90,
+    "targets_are_inputs": true,
+    "targets_json_not_read": true
+  },
+  "targets": {
+    "protein_g": 170,
+    "carbs_g": 195,
+    "fat_g": 60,
+    "tile_pct": {
+      "p": 34,
+      "c": 39,
+      "f": 27
+    },
+    "chart_pct": {
+      "p": 34,
+      "c": 39,
+      "f": 27
+    }
+  },
+  "cases": {
+    "on_target_day": {
+      "input": {
+        "protein_g": 170,
+        "carbs_g": 195,
+        "fat_g": 60
+      },
+      "tile_pct": {
+        "p": 34,
+        "c": 39,
+        "f": 27
+      },
+      "chart_pct": {
+        "p": 34,
+        "c": 39,
+        "f": 27
+      },
+      "chart_grams": {
+        "p": 170,
+        "c": 195,
+        "f": 60
+      },
+      "band_on_tile_pct": {
+        "p": "chip-in-range",
+        "c": "chip-in-range",
+        "f": "chip-in-range"
+      },
+      "band_on_chart_pct": {
+        "p": "chip-in-range",
+        "c": "chip-in-range",
+        "f": "chip-in-range"
+      },
+      "gram_hit_pct": {
+        "p": 100,
+        "c": 100,
+        "f": 100
+      },
+      "displayed_grams": {
+        "p": 170,
+        "c": 195,
+        "f": 60
+      },
+      "roll_window_days": 7,
+      "roll_pct": {
+        "p": 34,
+        "c": 39,
+        "f": 27
+      }
+    },
+    "recent_reality_protein_low_fat_high": {
+      "input": {
+        "protein_g": 121.5,
+        "carbs_g": 184.5,
+        "fat_g": 64
+      },
+      "tile_pct": {
+        "p": 27,
+        "c": 41,
+        "f": 32
+      },
+      "chart_pct": {
+        "p": 27,
+        "c": 41,
+        "f": 32
+      },
+      "chart_grams": {
+        "p": 121.5,
+        "c": 184.5,
+        "f": 64
+      },
+      "band_on_tile_pct": {
+        "p": "chip-out-of-range",
+        "c": "chip-in-range",
+        "f": "chip-in-range"
+      },
+      "band_on_chart_pct": {
+        "p": "chip-out-of-range",
+        "c": "chip-in-range",
+        "f": "chip-in-range"
+      },
+      "gram_hit_pct": {
+        "p": 71.5,
+        "c": 94.6,
+        "f": 106.7
+      },
+      "displayed_grams": {
+        "p": 122,
+        "c": 185,
+        "f": 64
+      },
+      "roll_window_days": 7,
+      "roll_pct": {
+        "p": 27,
+        "c": 41,
+        "f": 32
+      }
+    },
+    "band_edges_from_grams": {
+      "protein_29": {
+        "input": {
+          "protein_g": 134.5,
+          "carbs_g": 195,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 29,
+          "c": 42,
+          "f": 29.1
+        },
+        "chart_pct": {
+          "p": 29,
+          "c": 42,
+          "f": 29.1
+        },
+        "chart_grams": {
+          "p": 134.5,
+          "c": 195,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 79.1,
+          "c": 100,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 135,
+          "c": 195,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 29,
+          "c": 42,
+          "f": 29.1
+        }
+      },
+      "protein_28_9": {
+        "input": {
+          "protein_g": 133.9,
+          "carbs_g": 195,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 28.9,
+          "c": 42,
+          "f": 29.1
+        },
+        "chart_pct": {
+          "p": 28.9,
+          "c": 42,
+          "f": 29.1
+        },
+        "chart_grams": {
+          "p": 133.9,
+          "c": 195,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 78.8,
+          "c": 100,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 134,
+          "c": 195,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 28.9,
+          "c": 42,
+          "f": 29.1
+        }
+      },
+      "protein_39": {
+        "input": {
+          "protein_g": 210.6,
+          "carbs_g": 195,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 39,
+          "c": 36.1,
+          "f": 25
+        },
+        "chart_pct": {
+          "p": 39,
+          "c": 36.1,
+          "f": 25
+        },
+        "chart_grams": {
+          "p": 210.6,
+          "c": 195,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 123.9,
+          "c": 100,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 211,
+          "c": 195,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 39,
+          "c": 36.1,
+          "f": 25
+        }
+      },
+      "protein_39_1": {
+        "input": {
+          "protein_g": 211.5,
+          "carbs_g": 195,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 39.1,
+          "c": 36,
+          "f": 24.9
+        },
+        "chart_pct": {
+          "p": 39.1,
+          "c": 36,
+          "f": 24.9
+        },
+        "chart_grams": {
+          "p": 211.5,
+          "c": 195,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 124.4,
+          "c": 100,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 212,
+          "c": 195,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 39.1,
+          "c": 36,
+          "f": 24.9
+        }
+      },
+      "fat_22": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 195,
+          "fat_g": 45.7
+        },
+        "tile_pct": {
+          "p": 36.3,
+          "c": 41.7,
+          "f": 22
+        },
+        "chart_pct": {
+          "p": 36.3,
+          "c": 41.7,
+          "f": 22
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 45.7
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 100,
+          "f": 76.2
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 46
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 36.3,
+          "c": 41.7,
+          "f": 22
+        }
+      },
+      "fat_21_9": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 195,
+          "fat_g": 45.4
+        },
+        "tile_pct": {
+          "p": 36.4,
+          "c": 41.7,
+          "f": 21.9
+        },
+        "chart_pct": {
+          "p": 36.4,
+          "c": 41.7,
+          "f": 21.9
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 45.4
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-out-of-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-out-of-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 100,
+          "f": 75.7
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 45
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 36.4,
+          "c": 41.7,
+          "f": 21.9
+        }
+      },
+      "fat_32": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 195,
+          "fat_g": 76.2
+        },
+        "tile_pct": {
+          "p": 31.7,
+          "c": 36.4,
+          "f": 32
+        },
+        "chart_pct": {
+          "p": 31.7,
+          "c": 36.4,
+          "f": 32
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 76.2
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 100,
+          "f": 127
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 76
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 31.7,
+          "c": 36.4,
+          "f": 32
+        }
+      },
+      "fat_32_1": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 195,
+          "fat_g": 76.6
+        },
+        "tile_pct": {
+          "p": 31.6,
+          "c": 36.3,
+          "f": 32.1
+        },
+        "chart_pct": {
+          "p": 31.6,
+          "c": 36.3,
+          "f": 32.1
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 76.6
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-out-of-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-out-of-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 100,
+          "f": 127.7
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 77
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 31.6,
+          "c": 36.3,
+          "f": 32.1
+        }
+      },
+      "carbs_34": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 156.8,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 36.8,
+          "c": 34,
+          "f": 29.2
+        },
+        "chart_pct": {
+          "p": 36.8,
+          "c": 34,
+          "f": 29.2
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 156.8,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 80.4,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 157,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 36.8,
+          "c": 34,
+          "f": 29.2
+        }
+      },
+      "carbs_33_9": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 156.1,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 36.9,
+          "c": 33.9,
+          "f": 29.3
+        },
+        "chart_pct": {
+          "p": 36.9,
+          "c": 33.9,
+          "f": 29.3
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 156.1,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-out-of-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-out-of-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 80.1,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 156,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 36.9,
+          "c": 33.9,
+          "f": 29.3
+        }
+      },
+      "carbs_44": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 239.2,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 31.2,
+          "c": 44,
+          "f": 24.8
+        },
+        "chart_pct": {
+          "p": 31.2,
+          "c": 44,
+          "f": 24.8
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 239.2,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 122.7,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 239,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 31.2,
+          "c": 44,
+          "f": 24.8
+        }
+      },
+      "carbs_44_1": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 240.2,
+          "fat_g": 60
+        },
+        "tile_pct": {
+          "p": 31.2,
+          "c": 44.1,
+          "f": 24.8
+        },
+        "chart_pct": {
+          "p": 31.2,
+          "c": 44.1,
+          "f": 24.8
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 240.2,
+          "f": 60
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-out-of-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-out-of-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 123.2,
+          "f": 100
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 240,
+          "f": 60
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 31.2,
+          "c": 44.1,
+          "f": 24.8
+        }
+      }
+    },
+    "band_edges_direct": {
+      "protein_target_34": {
+        "29": "chip-in-range",
+        "34": "chip-in-range",
+        "39": "chip-in-range",
+        "28.9": "chip-out-of-range",
+        "39.1": "chip-out-of-range"
+      },
+      "carbs_target_39": {
+        "34": "chip-in-range",
+        "44": "chip-in-range",
+        "33.9": "chip-out-of-range",
+        "44.1": "chip-out-of-range"
+      },
+      "fat_target_27": {
+        "22": "chip-in-range",
+        "32": "chip-in-range",
+        "21.9": "chip-out-of-range",
+        "32.1": "chip-out-of-range"
+      },
+      "null_and_non_positive_target": {
+        "null_value": "",
+        "null_target": "",
+        "zero_target": ""
+      }
+    },
+    "zero_food_day": {
+      "input": {
+        "protein_g": 0,
+        "carbs_g": 0,
+        "fat_g": 0
+      },
+      "tile_pct": {
+        "p": null,
+        "c": null,
+        "f": null
+      },
+      "chart_pct": {
+        "p": null,
+        "c": null,
+        "f": null
+      },
+      "chart_grams": {
+        "p": 0,
+        "c": 0,
+        "f": 0
+      },
+      "band_on_tile_pct": {
+        "p": "",
+        "c": "",
+        "f": ""
+      },
+      "band_on_chart_pct": {
+        "p": "",
+        "c": "",
+        "f": ""
+      },
+      "gram_hit_pct": {
+        "p": 0,
+        "c": 0,
+        "f": 0
+      },
+      "displayed_grams": {
+        "p": 0,
+        "c": 0,
+        "f": 0
+      },
+      "roll_window_days": 7,
+      "roll_pct": null
+    },
+    "missing_fields": {
+      "all_null": {
+        "input": {
+          "protein_g": null,
+          "carbs_g": null,
+          "fat_g": null
+        },
+        "tile_pct": {
+          "p": null,
+          "c": null,
+          "f": null
+        },
+        "chart_pct": {
+          "p": null,
+          "c": null,
+          "f": null
+        },
+        "chart_grams": {
+          "p": 0,
+          "c": 0,
+          "f": 0
+        },
+        "band_on_tile_pct": {
+          "p": "",
+          "c": "",
+          "f": ""
+        },
+        "band_on_chart_pct": {
+          "p": "",
+          "c": "",
+          "f": ""
+        },
+        "gram_hit_pct": {
+          "p": 0,
+          "c": 0,
+          "f": 0
+        },
+        "displayed_grams": {
+          "p": 0,
+          "c": 0,
+          "f": 0
+        },
+        "roll_window_days": 7,
+        "roll_pct": null
+      },
+      "protein_only": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": null,
+          "fat_g": null
+        },
+        "tile_pct": {
+          "p": 100,
+          "c": 0,
+          "f": 0
+        },
+        "chart_pct": {
+          "p": 100,
+          "c": 0,
+          "f": 0
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 0,
+          "f": 0
+        },
+        "band_on_tile_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 0,
+          "f": 0
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 0,
+          "f": 0
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 100,
+          "c": 0,
+          "f": 0
+        }
+      },
+      "fat_missing": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 195,
+          "fat_g": null
+        },
+        "tile_pct": {
+          "p": 46.6,
+          "c": 53.4,
+          "f": 0
+        },
+        "chart_pct": {
+          "p": 46.6,
+          "c": 53.4,
+          "f": 0
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 0
+        },
+        "band_on_tile_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 100,
+          "f": 0
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 0
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 46.6,
+          "c": 53.4,
+          "f": 0
+        }
+      },
+      "non_numeric_protein": {
+        "input": {
+          "protein_g": "nope",
+          "carbs_g": 10,
+          "fat_g": 10
+        },
+        "tile_pct": {
+          "p": 0,
+          "c": 30.8,
+          "f": 69.2
+        },
+        "chart_pct": {
+          "p": 0,
+          "c": 30.8,
+          "f": 69.2
+        },
+        "chart_grams": {
+          "p": 0,
+          "c": 10,
+          "f": 10
+        },
+        "band_on_tile_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "gram_hit_pct": {
+          "p": 0,
+          "c": 5.1,
+          "f": 16.7
+        },
+        "displayed_grams": {
+          "p": 0,
+          "c": 10,
+          "f": 10
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 0,
+          "c": 30.8,
+          "f": 69.2
+        }
+      }
+    },
+    "thirty_day_series_with_gaps": {
+      "roll_window_days": 7,
+      "days": [
+        {
+          "date": "2026-09-01",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-02",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-03",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-04",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-05",
+          "input": {
+            "protein_g": null,
+            "carbs_g": null,
+            "fat_g": null
+          },
+          "pct": {
+            "p": null,
+            "c": null,
+            "f": null
+          },
+          "grams": {
+            "p": 0,
+            "c": 0,
+            "f": 0
+          },
+          "band": {
+            "p": "",
+            "c": "",
+            "f": ""
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-06",
+          "input": {
+            "protein_g": null,
+            "carbs_g": null,
+            "fat_g": null
+          },
+          "pct": {
+            "p": null,
+            "c": null,
+            "f": null
+          },
+          "grams": {
+            "p": 0,
+            "c": 0,
+            "f": 0
+          },
+          "band": {
+            "p": "",
+            "c": "",
+            "f": ""
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-07",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-08",
+          "input": {
+            "protein_g": 0,
+            "carbs_g": 0,
+            "fat_g": 0
+          },
+          "pct": {
+            "p": null,
+            "c": null,
+            "f": null
+          },
+          "grams": {
+            "p": 0,
+            "c": 0,
+            "f": 0
+          },
+          "band": {
+            "p": "",
+            "c": "",
+            "f": ""
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-09",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-10",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": null,
+            "fat_g": null
+          },
+          "pct": {
+            "p": 100,
+            "c": 0,
+            "f": 0
+          },
+          "grams": {
+            "p": 170,
+            "c": 0,
+            "f": 0
+          },
+          "band": {
+            "p": "chip-out-of-range",
+            "c": "chip-out-of-range",
+            "f": "chip-out-of-range"
+          },
+          "roll": {
+            "p": 50.5,
+            "c": 29.3,
+            "f": 20.3
+          }
+        },
+        {
+          "date": "2026-09-11",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 50.5,
+            "c": 29.3,
+            "f": 20.3
+          }
+        },
+        {
+          "date": "2026-09-12",
+          "input": {
+            "protein_g": null,
+            "carbs_g": null,
+            "fat_g": null
+          },
+          "pct": {
+            "p": null,
+            "c": null,
+            "f": null
+          },
+          "grams": {
+            "p": 0,
+            "c": 0,
+            "f": 0
+          },
+          "band": {
+            "p": "",
+            "c": "",
+            "f": ""
+          },
+          "roll": {
+            "p": 50.5,
+            "c": 29.3,
+            "f": 20.3
+          }
+        },
+        {
+          "date": "2026-09-13",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 47.2,
+            "c": 31.2,
+            "f": 21.6
+          }
+        },
+        {
+          "date": "2026-09-14",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 47.2,
+            "c": 31.2,
+            "f": 21.6
+          }
+        },
+        {
+          "date": "2026-09-15",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 45,
+            "c": 32.5,
+            "f": 22.5
+          }
+        },
+        {
+          "date": "2026-09-16",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 45,
+            "c": 32.5,
+            "f": 22.5
+          }
+        },
+        {
+          "date": "2026-09-17",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-18",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-19",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-20",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-21",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-22",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-23",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-24",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-25",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-26",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-27",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-28",
+          "input": {
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 170,
+            "c": 195,
+            "f": 60
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-29",
+          "input": {
+            "protein_g": 85,
+            "carbs_g": 97.5,
+            "fat_g": 30
+          },
+          "pct": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          },
+          "grams": {
+            "p": 85,
+            "c": 97.5,
+            "f": 30
+          },
+          "band": {
+            "p": "chip-in-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 34,
+            "c": 39,
+            "f": 27
+          }
+        },
+        {
+          "date": "2026-09-30",
+          "input": {
+            "protein_g": 121.5,
+            "carbs_g": 184.5,
+            "fat_g": 64
+          },
+          "pct": {
+            "p": 27,
+            "c": 41,
+            "f": 32
+          },
+          "grams": {
+            "p": 121.5,
+            "c": 184.5,
+            "f": 64
+          },
+          "band": {
+            "p": "chip-out-of-range",
+            "c": "chip-in-range",
+            "f": "chip-in-range"
+          },
+          "roll": {
+            "p": 33,
+            "c": 39.3,
+            "f": 27.7
+          }
+        }
+      ],
+      "latest": {
+        "date": "2026-09-30",
+        "pct": {
+          "p": 27,
+          "c": 41,
+          "f": 32
+        },
+        "grams": {
+          "p": 121.5,
+          "c": 184.5,
+          "f": 64
+        },
+        "band": {
+          "p": "chip-out-of-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 71.5,
+          "c": 94.6,
+          "f": 106.7
+        }
+      },
+      "rolling_7d": {
+        "pct": {
+          "p": 33,
+          "c": 39.3,
+          "f": 27.7
+        },
+        "band": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        }
+      },
+      "period": {
+        "n_days": 26,
+        "sum_g": {
+          "p": 4286.5,
+          "c": 4767,
+          "f": 1474
+        },
+        "avg_g": {
+          "p": 164.8653846153846,
+          "c": 183.34615384615384,
+          "f": 56.69230769230769
+        },
+        "displayed_avg_g": {
+          "p": 165,
+          "c": 183,
+          "f": 57
+        },
+        "pct": {
+          "p": 34.7,
+          "c": 38.5,
+          "f": 26.8
+        },
+        "band": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 97,
+          "c": 94,
+          "f": 94.5
+        },
+        "tot_kcal": 49480
+      },
+      "rolling_average_window_30": {
+        "note": "rollingAverage(daily chart %, 30) on this series only. The chart passes rollWin 7, not 30.",
+        "chart_uses_this": false,
+        "end": {
+          "p": 36.3,
+          "c": 37.6,
+          "f": 26.2
+        }
+      }
+    },
+    "grams_vs_pct_disagreement": {
+      "half_portions_same_pct": {
+        "input": {
+          "protein_g": 85,
+          "carbs_g": 97.5,
+          "fat_g": 30
+        },
+        "tile_pct": {
+          "p": 34,
+          "c": 39,
+          "f": 27
+        },
+        "chart_pct": {
+          "p": 34,
+          "c": 39,
+          "f": 27
+        },
+        "chart_grams": {
+          "p": 85,
+          "c": 97.5,
+          "f": 30
+        },
+        "band_on_tile_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-in-range",
+          "c": "chip-in-range",
+          "f": "chip-in-range"
+        },
+        "gram_hit_pct": {
+          "p": 50,
+          "c": 50,
+          "f": 50
+        },
+        "displayed_grams": {
+          "p": 85,
+          "c": 98,
+          "f": 30
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 34,
+          "c": 39,
+          "f": 27
+        }
+      },
+      "protein_grams_on_target_share_low": {
+        "input": {
+          "protein_g": 170,
+          "carbs_g": 195,
+          "fat_g": 120
+        },
+        "tile_pct": {
+          "p": 26.8,
+          "c": 30.7,
+          "f": 42.5
+        },
+        "chart_pct": {
+          "p": 26.8,
+          "c": 30.7,
+          "f": 42.5
+        },
+        "chart_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 120
+        },
+        "band_on_tile_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "band_on_chart_pct": {
+          "p": "chip-out-of-range",
+          "c": "chip-out-of-range",
+          "f": "chip-out-of-range"
+        },
+        "gram_hit_pct": {
+          "p": 100,
+          "c": 100,
+          "f": 200
+        },
+        "displayed_grams": {
+          "p": 170,
+          "c": 195,
+          "f": 120
+        },
+        "roll_window_days": 7,
+        "roll_pct": {
+          "p": 26.8,
+          "c": 30.7,
+          "f": 42.5
+        }
+      }
+    },
+    "formula_disagreement": {
+      "input": {
+        "protein_g": 100.5,
+        "carbs_g": 5,
+        "fat_g": 42
+      },
+      "tile_pct": {
+        "p": 50.3,
+        "c": 2.5,
+        "f": 47.3
+      },
+      "chart_pct": {
+        "p": 50.2,
+        "c": 2.5,
+        "f": 47.3
+      },
+      "chart_grams": {
+        "p": 100.5,
+        "c": 5,
+        "f": 42
+      },
+      "band_on_tile_pct": {
+        "p": "chip-out-of-range",
+        "c": "chip-out-of-range",
+        "f": "chip-out-of-range"
+      },
+      "band_on_chart_pct": {
+        "p": "chip-out-of-range",
+        "c": "chip-out-of-range",
+        "f": "chip-out-of-range"
+      },
+      "gram_hit_pct": {
+        "p": 59.1,
+        "c": 2.6,
+        "f": 70
+      },
+      "displayed_grams": {
+        "p": 101,
+        "c": 5,
+        "f": 42
+      },
+      "roll_window_days": 7,
+      "roll_pct": {
+        "p": 50.2,
+        "c": 2.5,
+        "f": 47.3
+      }
+    },
+    "rounding_residue": {
+      "input": {
+        "protein_g": 1,
+        "carbs_g": 1,
+        "fat_g": 1
+      },
+      "tile_pct": {
+        "p": 23.5,
+        "c": 23.5,
+        "f": 52.9
+      },
+      "chart_pct": {
+        "p": 23.5,
+        "c": 23.5,
+        "f": 52.9
+      },
+      "chart_grams": {
+        "p": 1,
+        "c": 1,
+        "f": 1
+      },
+      "band_on_tile_pct": {
+        "p": "chip-out-of-range",
+        "c": "chip-out-of-range",
+        "f": "chip-out-of-range"
+      },
+      "band_on_chart_pct": {
+        "p": "chip-out-of-range",
+        "c": "chip-out-of-range",
+        "f": "chip-out-of-range"
+      },
+      "gram_hit_pct": {
+        "p": 0.6,
+        "c": 0.5,
+        "f": 1.7
+      },
+      "displayed_grams": {
+        "p": 1,
+        "c": 1,
+        "f": 1
+      },
+      "roll_window_days": 7,
+      "roll_pct": {
+        "p": 23.5,
+        "c": 23.5,
+        "f": 52.9
+      }
+    }
+  }
+}
