@@ -1762,7 +1762,7 @@
       padding-bottom: env(safe-area-inset-bottom, 0);
     }
     /* Touch targets + remove 300ms delay feel */
-    button, .btn, a.btn, .carousel-nav, summary {
+    button, .btn, a.btn, .tab-btn, .carousel-nav, summary {
       touch-action: manipulation;
       -webkit-tap-highlight-color: rgba(91, 159, 212, 0.25);
     }
@@ -1981,7 +1981,7 @@
     /* Optional body class set by JS when narrow / touch */
     body.is-mobile .sticky-top .sub { display: none; }
 
-    /* ── Tab shell (Glance / Cash / Bitcoin / Coach / More) — all viewports ── */
+    /* ── Tab shell (Glance / Cash / Bitcoin / Coach / More / Money) — all viewports ── */
     .mobile-tabbar {
       display: none;
     }
@@ -2009,6 +2009,7 @@
       letter-spacing: 0.02em;
       cursor: pointer;
       font-family: inherit;
+      text-decoration: none;
     }
     .mobile-tabbar .tab-btn .tab-ico {
       font-size: 1.05rem;
@@ -2195,6 +2196,10 @@
       <span class="tab-ico" aria-hidden="true">···</span>
       <span class="tab-lbl">More</span>
     </button>
+    <a class="tab-btn" id="nav-money" href="https://prism-gateway.tailb1085a.ts.net:10003/" title="Money">
+      <span class="tab-ico" aria-hidden="true">¤</span>
+      <span class="tab-lbl">Money</span>
+    </a>
   </nav>
 
   <main>
@@ -6192,7 +6197,7 @@
       const touchNarrow =
         window.matchMedia("(pointer: coarse)").matches && window.innerWidth <= 900;
       document.body.classList.toggle("is-mobile", narrow || touchNarrow);
-      // Tab shell always on (web + mobile) — same Glance/Cash/Bitcoin/Coach/More
+      // Tab shell always on (web + mobile) — Glance/Cash/Bitcoin/Coach/More, plus the Money link
       document.body.classList.add("m-shell");
       const bar = document.getElementById("mobile-tabbar");
       if (bar) {

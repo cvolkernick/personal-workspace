@@ -423,6 +423,39 @@ class TestFccNavHorizon(unittest.TestCase):
         self.assertIn("Watchlist | Refresh", index_html)
 
 
+MONEY_HREF = "https://prism-gateway.tailb1085a.ts.net:10003/"
+
+
+class TestFccNavMoney(unittest.TestCase):
+    """Money is a plain external link in the shared tab bar (phone bottom / desktop top)."""
+
+    def test_money_entry_is_same_tab_link_in_the_tab_bar(self) -> None:
+        html = (FCC / "index.html").read_text(encoding="utf-8")
+        bar_at = html.find('id="mobile-tabbar"')
+        self.assertGreater(bar_at, 0)
+        bar = html[bar_at:].split("</nav>", 1)[0]
+        labels = re.findall(r'class="tab-lbl">(.*?)</span>', bar)
+        self.assertEqual(labels, ["Glance", "Cash", "Bitcoin", "Coach", "More", "Money"])
+
+        money = _by_id(_parse_anchors(bar), "nav-money")
+        self.assertEqual(money["text"], "¤ Money")
+        self.assertEqual(money["href"], MONEY_HREF)
+        self.assertEqual(money["title"], "Money")
+        # Same tab. External broker chips use target=_blank; this entry does not.
+        self.assertEqual(money.get("target") or "", "")
+        at = bar.find('id="nav-money"')
+        self.assertGreater(at, 0)
+        chunk = bar[max(0, at - 40) :]
+        self.assertIn('class="tab-btn" id="nav-money"', chunk[:80])
+        self.assertIn('class="tab-ico" aria-hidden="true">¤', chunk)
+        self.assertNotIn("data-m-tab", chunk)
+        self.assertNotIn('data-m-tab="money"', html)
+        tabs = re.search(r"const FCC_TABS = (\[.*?\]);", html)
+        self.assertIsNotNone(tabs)
+        assert tabs is not None
+        self.assertNotIn("money", tabs.group(1))
+
+
 def _load_fcc_server():
     spec = importlib.util.spec_from_file_location("fcc_server", FCC / "server.py")
     assert spec is not None and spec.loader is not None

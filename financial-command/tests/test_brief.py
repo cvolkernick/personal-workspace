@@ -215,7 +215,7 @@ class TestNavEntry(unittest.TestCase):
         self.assertLess(controls.find('id="nav-watchlist"'), controls.find('id="btn-refresh"'))
         bar = index.split('id="mobile-tabbar"', 1)[1].split("</nav>", 1)[0]
         labels = re.findall(r'class="tab-lbl">(.*?)</span>', bar)
-        self.assertEqual(labels, ["Glance", "Cash", "Bitcoin", "Coach", "More"])
+        self.assertEqual(labels, ["Glance", "Cash", "Bitcoin", "Coach", "More", "Money"])
 
 
 if __name__ == "__main__":
