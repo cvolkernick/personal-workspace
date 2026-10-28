@@ -161,8 +161,12 @@ class TestAllowlist(Base):
         cfg, err = broker.load_adapter_config()
         self.assertEqual(err, "")
         self.assertTrue(cfg["live"])  # Chris resumed Agentic buys 2026-10-25 2:58 PM ET
-        self.assertEqual(set(cfg["allowlist"]), {"STRC", "SATA", "STRK", "MSTR", "ASST", "BITA", "IBIT", "MARA",
-                                                 "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX"})
+        self.assertEqual(set(cfg["allowlist"]), {"STRC", "SATA", "STRK", "SATS", "MSTR", "ASST", "BITA", "IBIT",
+                                                 "MARA", "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX"})
+        self.assertEqual({k: float(v) for k, v in cfg["fixed_weights"].items()},
+                         {"STRC": 0.25, "SATA": 0.25, "STRK": 0.15, "SATS": 0.10})
+        self.assertEqual(float(cfg["floating_weight"]), 0.25)
+        self.assertEqual({k: float(v) for k, v in cfg["price_caps"].items()}, {"SATS": 95.0})
         self.assertEqual(cfg["floating"], ("IBIT", "MSTR", "ASST", "BITA", "MARA", "RIOT", "CLSK", "WULF", "IREN"))
         self.assertEqual(cfg["fold_into"], "IBIT")
         self.assertFalse(cfg["honor_ai_floating"])
@@ -178,7 +182,9 @@ class TestAllowlist(Base):
         text = (ROOT / "treasury" / "fund_manager_daily_prompt.txt").read_text(encoding="utf-8")
         self.assertIn("native-BTC stand-in", text)
         self.assertIn("LOW PREFERENCE through 2026-11-30", text)
-        self.assertIn("The floating 35% is always IBIT", text)
+        self.assertIn("The floating 25% is always IBIT", text)
+        self.assertIn("STRC, SATA, STRK, SATS + floating", text)
+        self.assertIn("SATS 10%", text)
         self.assertIn("honor_ai_floating", text)
         self.assertNotIn("ONLY choose how the floating 35% splits", text)
 
@@ -261,8 +267,9 @@ class TestSleeveGateAndWeights(Base):
             snapshot=snap(cash=20),
         )
         split = self.legs(honoured)
-        self.assertEqual(split["MARA"], 3.5)
-        self.assertEqual(split["IBIT"], 3.5)
+        # floating 25% of $20 = $5 split MARA/IBIT; SATS ($2, no quote) folds into IBIT
+        self.assertEqual(split["MARA"], 2.5)
+        self.assertEqual(split["IBIT"], 4.5)
 
     def test_leg_under_one_dollar_folds_into_ibit(self):
         _, info = self.plan([buy("STRC", 1.5), buy("SATA", 1.5), buy("STRK", 0.9), buy("IBIT", 2.1)], snapshot=snap(cash=6))
@@ -281,6 +288,109 @@ class TestSleeveGateAndWeights(Base):
         allowed, _ = self.gated(TEN)
         allowed[0].intent["notional_usd"] = 9.99
         self.assertEqual(self.submit(allowed[0], FakeClient())["status"], "not_submitted_unplanned")
+
+
+# ------------------------------------- 2c SATS fixed leg (Chris 2026-10-28)
+class TestSatsFixedLeg(Base):
+    """SATS 10 / floating 25; SATS bought only on a live quote <= $95 (market
+    dollar orders carry no limit, so the planner's read-only quote is the cap)."""
+
+    def write_nmw(self, **changes):
+        p = copy.deepcopy(REPO_POLICY)
+        nmw = p["sleeves"]["btc_digital_credit"]["new_money_weights"]
+        for k, v in changes.items():
+            if v is None:
+                nmw.pop(k, None)
+            else:
+                nmw[k] = v
+        self.policy.write_text(json.dumps(p), encoding="utf-8")
+        return p
+
+    def test_sats_bought_when_quote_under_cap(self):
+        c = FakeClient(quotes={"SATS": 90.0})
+        _, info = self.plan(TEN, client=c)
+        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "SATS": 1.0, "IBIT": 2.5})
+        self.assertIn(("get_quotes", ("SATS",)), c.calls)  # read-only price check
+        self.assertFalse(any(n in ("place_order", "review_order") for n, *_ in c.calls))
+        self.assertIn("SATS", info["price_checks"])
+
+    def test_sats_quote_exactly_at_cap_is_bought(self):
+        _, info = self.plan([], client=FakeClient(quotes={"SATS": 95.0}))
+        self.assertAlmostEqual(self.legs(info)["SATS"], 1.0, places=2)
+
+    def test_sats_quote_over_cap_folds_into_ibit(self):
+        _, info = self.plan(TEN, client=FakeClient(quotes={"SATS": 95.01}))
+        legs = self.legs(info)
+        self.assertNotIn("SATS", legs)
+        self.assertEqual(legs["IBIT"], 3.5)
+        self.assertIn("> $95", info["skipped_fixed"]["SATS"])
+        self.assertTrue(any("SATS leg" in n and "folded into IBIT" in n for n in info["notes"]))
+
+    def test_sats_no_quote_fails_closed(self):
+        for c in (None, FakeClient(quotes={}), FakeClient(quote_exc=broker.BrokerError("grok timeout")),
+                  FakeClient(quotes={"SATS": "n/a"})):
+            _, info = broker.plan_intents([], snapshot=snap(), policy_path=self.policy,
+                                          ledger_path=self.dir / f"l{id(c)}.json", now=NOW, client=c)
+            self.assertNotIn("SATS", self.legs(info))
+            self.assertAlmostEqual(sum(self.legs(info).values()), 10.0, places=2)
+            self.assertIn("no live quote", info["skipped_fixed"]["SATS"])
+
+    def test_blocked_sats_folds_without_quote_call(self):
+        p = copy.deepcopy(REPO_POLICY)
+        p["guardrails"]["blocked_symbols"] = list(p["guardrails"].get("blocked_symbols") or []) + ["SATS"]
+        self.policy.write_text(json.dumps(p), encoding="utf-8")
+        c = FakeClient(quotes={"SATS": 50.0})
+        _, info = self.plan([], client=c)
+        self.assertNotIn("SATS", self.legs(info))
+        self.assertNotIn(("get_quotes", ("SATS",)), c.calls)
+        self.assertIn("blocked", info["skipped_fixed"]["SATS"])
+
+    def test_sats_leg_submits_end_to_end(self):
+        c = FakeClient(quotes={"SATS": 90.0})
+        orders, info = self.plan([], client=c)
+        res = gate.gate_orders(orders, deployable_cash=1000.0, policy=gpol(), now=NOW)
+        sats = [g for g in res.allowed if g.intent["symbol"] == "SATS"]
+        self.assertEqual(len(sats), 1)
+        out = self.submit(sats[0], c)
+        self.assertEqual(out["status"], "placed", out)
+        self.assertEqual([o for n, o in c.placed][0]["symbol"], "SATS")
+
+    def test_fixed_legs_are_data_driven(self):
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertEqual(err, "")
+        self.assertEqual(set(cfg["fixed_weights"]), {"STRC", "SATA", "STRK", "SATS"})  # ruled_*/flags skipped
+        # the pre-10/28 policy (no SATS, floating 35) still loads
+        self.write_nmw(SATS=None, floating=0.35)
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertEqual(err, "")
+        self.assertEqual(set(cfg["fixed_weights"]), {"STRC", "SATA", "STRK"})
+
+    def test_weights_must_sum_to_one(self):
+        self.write_nmw(floating=0.35)  # 1.10 with SATS
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertIsNone(cfg)
+        self.assertIn("sum to 1", err)
+        orders, info = self.plan(TEN)
+        self.assertEqual(orders, [])
+        self.assertEqual(info["status"], broker.S_CONFIG)
+
+    def test_fixed_leg_must_be_on_allowlist(self):
+        self.write_nmw(SATS=None, NVDA=0.10)
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertIsNone(cfg)
+        self.assertIn("NVDA", err)
+        p = copy.deepcopy(REPO_POLICY)
+        p["execution"]["broker_adapter"]["symbol_allowlist"].remove("SATS")
+        self.policy.write_text(json.dumps(p), encoding="utf-8")
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertIsNone(cfg)
+        self.assertIn("SATS", err)
+
+    def test_negative_fixed_weight_rejected(self):
+        self.write_nmw(SATS=-0.1, floating=0.45)
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertIsNone(cfg)
+        self.assertIn("SATS", err)
 
 
 # ------------------------------------------------ 4b deterministic run size
@@ -390,7 +500,8 @@ class TestValuationQuotes(Base):
         c = FakeClient(quotes={"TSLA": 1})
         _, info = self.plan([], snapshot=snap(cash=20, positions=mv), client=c)
         self.assertEqual(info["valuation"], "snapshot_market_value")
-        self.assertEqual(c.calls, [])
+        # no valuation quotes; the only call is the SATS <= $95 price check
+        self.assertEqual(c.calls, [("get_quotes", ("SATS",))])
 
     def test_grok_quote_call_is_read_only_place_denied(self):
         seen = {}
