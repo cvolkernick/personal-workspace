@@ -431,8 +431,8 @@ class HistoryDateMarkup(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=goal3b-coach-2", HTML)
-        self.assertIn("/app.js?v=goal3b-coach-2", SW)
+        self.assertIn("/app.js?v=goal3b-coach-3", HTML)
+        self.assertIn("/app.js?v=goal3b-coach-3", SW)
         self.assertIn('const CACHE = "fitdash-shell-v149"', SW)
         self.assertNotIn("/app.js?v=pf-applink-582-1", HTML)
         self.assertNotIn("/app.js?v=pf-applink-582-1", SW)

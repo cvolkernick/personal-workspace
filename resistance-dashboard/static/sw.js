@@ -16,7 +16,7 @@ const PRECACHE = [
   "/history-sets.js?v=tonnage-1025-1",
   "/calorie-rolling-avg.js?v=cal-7d-946-1",
   "/biomarkers.js?v=biomarkers-1",
-  "/app.js?v=goal3b-coach-2",
+  "/app.js?v=goal3b-coach-3",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/favicon.svg",
