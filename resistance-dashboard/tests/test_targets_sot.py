@@ -37,7 +37,7 @@ LIVE_SEED = {
     "protein_g": 210.0,
     "carbs_g": 180.0,
     "fat_g": 55.0,
-    "fiber_g": 30,
+    "fiber_g": 35,
     "sugar_g": 50,
     "sodium_mg": 2300,
     "weight_goal_lbs": 150.0,
@@ -78,7 +78,7 @@ class LiveSeed(unittest.TestCase):
         file_t, src = load_workspace_targets()
         self.assertEqual(src, TARGETS_PATH)
         self.assertEqual(file_t["calories"], 2100.0)
-        self.assertEqual(file_t["fiber_g"], 30)
+        self.assertEqual(file_t["fiber_g"], 35)
         self.assertEqual(file_t["sugar_g"], 50)
         self.assertEqual(file_t["sodium_mg"], 2300)
         self.assertEqual(file_t["weight_goal_lbs"], 150.0)
@@ -147,7 +147,7 @@ class SameReadPath(unittest.TestCase):
         self.assertEqual(len(puts), 1)
         self.assertEqual(puts[0][0], "sub-1")
         self.assertEqual(targets["calories"], 2100.0)
-        self.assertEqual(targets["fiber_g"], 30)
+        self.assertEqual(targets["fiber_g"], 35)
         self.assertEqual(targets["sugar_g"], 50)
         self.assertEqual(targets["sodium_mg"], 2300)
         self.assertEqual(targets["weight_goal_lbs"], 150.0)
@@ -286,7 +286,7 @@ class NutritionWriteOkTurso(unittest.TestCase):
 class NormalizeKeepsLiveMicros(unittest.TestCase):
     def test_seed_normalize_keeps_fiber_sugar_sodium(self):
         t = normalize_targets(LIVE_SEED)
-        self.assertEqual(t["fiber_g"], 30)
+        self.assertEqual(t["fiber_g"], 35)
         self.assertEqual(t["sugar_g"], 50)
         self.assertEqual(t["sodium_mg"], 2300)
         self.assertEqual(t["weight_goal_lbs"], 150.0)

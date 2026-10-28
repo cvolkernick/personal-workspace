@@ -426,8 +426,14 @@ def build_hydration_bars_payload(
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
     target_ml_override: Optional[float] = None,
+    lifting_day: Any = None,
+    hot_day: Any = None,
 ) -> Dict[str, Any]:
     """Compose hydration pacing payload for the dashboard JSON.
+
+    ``lifting_day`` and ``hot_day`` are ignored. The coach target is a flat
+    daily number with no 3.5 L tier. After the wake window closes the bar
+    is a soft cue and does not nag behind or ahead.
 
     Target precedence:
       1. target_ml_override (explicit)
@@ -441,6 +447,7 @@ def build_hydration_bars_payload(
     or summed across midnight to fake a wake actual. No wake or no timed
     sips → status ``unknown`` (not on-pace).
     """
+    del lifting_day, hot_day
     if now is None or tz_name:
         from .timeutil import local_now
 
@@ -553,6 +560,15 @@ def build_hydration_bars_payload(
         pacing["color"] = None
         pacing["rel_error"] = None
 
+    pacing["cue"] = "soft"
+    pacing["nag"] = False
+    if str((window or {}).get("source") or "") == "sleep_battery_after_empty":
+        shown = 0 if consumed is None else consumed
+        pacing["status"] = "closed"
+        pacing["band"] = "muted"
+        pacing["color"] = None
+        pacing["summary"] = f"{float(shown):g} / {float(target):g} ml · window closed"
+
     return {
         "pacing": pacing,
         "day": day,
@@ -562,3 +578,15 @@ def build_hydration_bars_payload(
         "weight_date": weight_date,
         "window": window,
     }
+
+
+def rules_target_ml() -> Optional[float]:
+    """Flat coach-rule target, or None when the rules file has no override."""
+    try:
+        from .coach_steps import hydration_target_ml
+    except Exception:
+        return None
+    try:
+        return hydration_target_ml()
+    except Exception:
+        return None

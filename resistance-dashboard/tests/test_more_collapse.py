@@ -158,10 +158,10 @@ class MoreTabCollapse(unittest.TestCase):
         self.assertNotIn("mobile-tabbar", more_css)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=labs-panel-1", HTML)
-        self.assertIn("/styles.css?v=labs-visible-1", HTML)
-        self.assertIn("/app.js?v=labs-panel-1", SW)
-        self.assertIn("/styles.css?v=labs-visible-1", SW)
+        self.assertIn("/app.js?v=goal3b-coach-3", HTML)
+        self.assertIn("/styles.css?v=goal3b-coach-1", HTML)
+        self.assertIn("/app.js?v=goal3b-coach-3", SW)
+        self.assertIn("/styles.css?v=goal3b-coach-1", SW)
         self.assertIn('const CACHE = "fitdash-shell-v149"', SW)
         self.assertNotIn("/app.js?v=hydration-quest-994-1", HTML)
         self.assertNotIn("/app.js?v=hydration-quest-994-1", SW)

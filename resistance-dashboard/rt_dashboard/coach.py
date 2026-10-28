@@ -784,11 +784,14 @@ def build_today_board(
         }
     )
 
+    from .hydration_bars import rules_target_ml
+
     hyd = hydration_spec(
         {"date": as_of},
         hydration=hydration,
         weight=weight,
         as_of=as_of,
+        target_ml=rules_target_ml(),
     )
     actions.append(
         {

@@ -1145,7 +1145,10 @@ def _build_dashboard_data(
 
     # Hydration pacing over the same wake window as calorie eating-window
     try:
-        from rt_dashboard.hydration_bars import build_hydration_bars_payload
+        from rt_dashboard.hydration_bars import (
+            build_hydration_bars_payload,
+            rules_target_ml,
+        )
 
         payload["hydration_bars"] = build_hydration_bars_payload(
             hydration=health.hydration or [],
@@ -1155,6 +1158,7 @@ def _build_dashboard_data(
             as_of=local_today,
             now=now,
             tz_name=tz_name,
+            target_ml_override=rules_target_ml(),
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"hydration_bars: {e}")
@@ -1417,6 +1421,14 @@ def _build_dashboard_data(
         "user_id": uid,
         "auth_required": _auth_required(),
     }
+    try:
+        from rt_dashboard.cut_coach import attach_coach_card
+
+        attach_coach_card(payload, as_of=local_today)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"coach_card: {type(e).__name__}")
+        payload["coach_card"] = None
+        payload["meta"]["error"] = "; ".join(errors) if errors else None
 
     # Serve cache-fast responses, then refresh remotes in the background.
     if not force_refresh:
@@ -2167,6 +2179,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json(
                     {"ok": False, "error": "agent_read_failed", "message": type(e).__name__},
                     status=500,
+                )
+            return
+        if parsed.path == "/api/agent/coach_card":
+            client_host = (self.client_address or ("", 0))[0]
+            user = _session_user_from_headers(self.headers)
+            principal = agent_today_principal(
+                self.headers, client_host, session_user=user
+            )
+            if _auth_required() and principal == "deny":
+                self._send_json(service_auth_denied("agents"), status=401)
+                return
+            try:
+                from rt_dashboard.agent_read import agent_targets_uid
+                from rt_dashboard.cut_coach import coach_card_for_payload
+
+                uid = (user.get("user_id") if user else None) or agent_targets_uid() or None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                self._send_json({"ok": True, "coach_card": coach_card_for_payload(data)})
+            except Exception as e:  # noqa: BLE001
+                self._send_json(
+                    {"ok": False, "error": type(e).__name__}, status=500
                 )
             return
         if parsed.path == "/api/agent/today":

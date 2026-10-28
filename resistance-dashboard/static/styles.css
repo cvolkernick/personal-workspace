@@ -5097,6 +5097,9 @@ body.m-shell[data-m-active="today"] #biomarkers-today-card[hidden] { display: no
 .bm-table-wrap { overflow-x: auto; }
 .bm-table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
 .bm-table td, .bm-table th { padding: 0.2rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; }
+.coach-pill { font-weight: 650; margin: 0.15rem 0 0; }
+.coach-staged-label { font-weight: 650; margin: 0.7rem 0 0.35rem; }
+#coach-staged-panel { margin-top: 0.4rem; }
 .bm-table tr.bm-dup { opacity: 0.55; }
 @media (max-width: 720px) {
   .bm-grid { grid-template-columns: 1fr; }

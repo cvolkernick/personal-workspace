@@ -1,0 +1,38 @@
+{
+  "schema": "fitdash.phase_calendar.v1",
+  "id": "goal3b-2026q4",
+  "status": "steps_approved",
+  "source": "Chris ruling 2026-10-27 21:58 ET via Grok",
+  "draw": {
+    "date": "2027-01-28",
+    "window": ["2027-01-22", "2027-02-05"],
+    "date_source": "plan_default",
+    "follow_labs_booking": true,
+    "no_program_change_from": "@draw-14d",
+    "no_hard_training_from": "@draw-2d"
+  },
+  "tracks": {
+    "steps": {
+      "enabled": true,
+      "approved_by": "Chris 2026-10-27 21:58 ET via Grok",
+      "approved_at": "2026-10-27T21:58:00-04:00",
+      "schedule": [
+        {"from": "2026-10-28", "step_target": 7000},
+        {"from": "2026-11-16", "step_target": 8000},
+        {"from": "2026-12-07", "step_target": 9000}
+      ],
+      "end": "2027-02-12",
+      "on_end": {
+        "resume_auto_rules": true,
+        "carry_step_target": "last_calendar_target",
+        "carry_last_step_up": "2026-12-07"
+      }
+    },
+    "kcal": {
+      "enabled": false,
+      "approved_by": null,
+      "approved_at": null,
+      "phases": []
+    }
+  }
+}

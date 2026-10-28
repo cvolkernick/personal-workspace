@@ -2516,10 +2516,18 @@
       const hSlope = trendSlopePerDay(hydVals);
       const lastHydRoll =
         [...hydRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
-      // Weight-based dynamic targets (35 ml/kg, forward-filled weight)
+      // Flat coach-rule target when the payload says so. 35 ml/kg remains
+      // the fallback guide. No lifting-day or hot-day tier.
       const weightPts = (data.health && data.health.weight) || [];
       const lbsByDay = weightLbsSeriesForDates(weightPts, hydDates);
-      const hydTargetDay = lbsByDay.map((lbs) => hydrationTargetMlFromLbs(lbs));
+      const barsTarget = (data.hydration_bars && data.hydration_bars.target_ml) || null;
+      const flatCoachTarget =
+        data.hydration_bars &&
+        data.hydration_bars.target_source === "override" &&
+        Number(barsTarget) > 0;
+      const hydTargetDay = flatCoachTarget
+        ? hydDates.map(() => Number(barsTarget))
+        : lbsByDay.map((lbs) => hydrationTargetMlFromLbs(lbs));
       const hydTargetRoll7 = rollingAverage(hydTargetDay, 7);
       const todayTarget =
         [...hydTargetDay].reverse().find((v) => v != null && !Number.isNaN(v)) ??
@@ -2568,7 +2576,20 @@
           order: 2,
         },
       ];
-      if (hydTargetDay.some((v) => v != null)) {
+      if (flatCoachTarget) {
+        hydDatasets.push({
+          type: "line",
+          label: "Day target (coach rule)",
+          data: hydTargetDay,
+          borderColor: "rgba(192, 132, 252, 0.9)",
+          borderDash: [2, 3],
+          borderWidth: 1.75,
+          pointRadius: 0,
+          tension: 0,
+          spanGaps: true,
+          order: 0,
+        });
+      } else if (hydTargetDay.some((v) => v != null)) {
         hydDatasets.push({
           type: "line",
           label: "Day target (35 ml/kg)",
@@ -2609,7 +2630,11 @@
             "Need hydration logs (and weight for a dynamic target).";
         } else {
           const bits = [];
-          if (todayTarget != null && todayLbs != null) {
+          if (flatCoachTarget && todayTarget != null) {
+            bits.push(
+              `Today target ${Math.round(todayTarget).toLocaleString()} ml (coach rule)`
+            );
+          } else if (todayTarget != null && todayLbs != null) {
             bits.push(
               `Today target ~${todayTarget.toLocaleString()} ml (35 ml/kg @ ${todayLbs.toFixed(1)} lb)`
             );
@@ -4898,6 +4923,104 @@
     }
   }
 
+  function renderCoachCard(data) {
+    const root = $("coach-phase-card");
+    if (!root) return;
+    const card = data && data.coach_card;
+    if (!card) {
+      root.hidden = true;
+      return;
+    }
+    root.hidden = false;
+    const pill = $("coach-phase-pill");
+    if (pill) pill.textContent = card.phase_pill || "";
+    const chip = $("coach-rate-chip");
+    if (chip) chip.textContent = card.rate_chip || "";
+    const kcal = $("coach-kcal-indicator");
+    if (kcal) {
+      const ind = card.kcal_indicator || {};
+      kcal.textContent = ind.text || "";
+    }
+    const sat = $("coach-sat-fat-chip");
+    if (sat) {
+      const chipData = card.sat_fat_chip;
+      if (chipData && chipData.text) {
+        sat.hidden = false;
+        sat.textContent = chipData.text;
+      } else {
+        sat.hidden = true;
+        sat.textContent = "";
+      }
+    }
+    const staged = $("coach-staged-panel");
+    if (!staged) return;
+    const preview = card.staged;
+    staged.replaceChildren();
+    if (preview && !card.calendar_applied) {
+    const label = document.createElement("p");
+    label.className = "coach-staged-label";
+    label.textContent = preview.label || "Steps approved and applied. Calories held at the live cut.";
+    staged.appendChild(label);
+    const wrap = document.createElement("div");
+    wrap.className = "bm-table-wrap";
+    const table = document.createElement("table");
+    table.className = "bm-table";
+    const head = document.createElement("tr");
+    ["Phase", "Kind", "Dates", "kcal", "P/C/F", "Steps"].forEach((name) => {
+      const th = document.createElement("th");
+      th.textContent = name;
+      head.appendChild(th);
+    });
+    const thead = document.createElement("thead");
+    thead.appendChild(head);
+    const tbody = document.createElement("tbody");
+    const stepRows = Array.isArray(preview.steps) ? preview.steps : [];
+    const phaseRows = stepRows.length ? [] : (preview.phases || []);
+    stepRows.forEach((row) => {
+      const tr = document.createElement("tr");
+      ["Steps", "applied", row.from || "", "", "", row.step_target != null ? String(row.step_target) : ""].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    phaseRows.forEach((p) => {
+      const macros = p.macros || {};
+      const steps = Array.isArray(p.steps)
+        ? p.steps.map((s) => `${s.from}: ${s.step_target}`).join(", ")
+        : p.steps != null
+          ? String(p.steps)
+          : "";
+      const tr = document.createElement("tr");
+      [
+        p.id || "",
+        p.phase || "",
+        `${p.start || ""} – ${p.end || ""}`,
+        p.kcal != null ? String(p.kcal) : "",
+        `${macros.protein ?? ""}/${macros.carbs ?? ""}/${macros.fat ?? ""}`,
+        steps,
+      ].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    staged.appendChild(wrap);
+    }
+    const reminder = (preview && preview.pre_draw_reminder) || card.pre_draw_reminder;
+    if (reminder && reminder.text && reminder.chip !== true) {
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = reminder.text;
+      staged.appendChild(note);
+    }
+  }
+
   /** Render hydration pacing bar (same wake window as calorie eating window). */
   function renderHydrationBars(data) {
     const bars = (data && data.hydration_bars) || {};
@@ -4947,6 +5070,10 @@
           sum =
             pacing.summary ||
             "No sip timestamps — wake-window pace unknown.";
+        } else if (status === "closed") {
+          sum =
+            pacing.summary ||
+            `${fmtNum(consumed)} / ${fmtNum(target)} ml · window closed`;
         } else if (pacedStatuses[status] && target != null) {
           // Prefer concise pace-now line for the athlete glance
           const delta = Number(pacing.delta_vs_pace);
@@ -4977,7 +5104,9 @@
                 : pacing.paced_budget
             )} ml`
           );
-        if (pacing.target_source === "weight_35ml_kg" && pacing.weight_lbs) {
+        if (pacing.target_source === "override") {
+          bits.push("target coach rule");
+        } else if (pacing.target_source === "weight_35ml_kg" && pacing.weight_lbs) {
           bits.push(
             `target 35 ml/kg @ ${Number(pacing.weight_lbs).toFixed(1)} lb`
           );
@@ -6789,6 +6918,7 @@
     // Full-width pacing (above chips) + in/out delta (below chips)
     renderCalorieBars(data);
     renderHydrationBars(data);
+    renderCoachCard(data);
     // Mirror cache meta onto mobile admin card
     if ($("mobile-meta-line") && $("meta-line")) {
       $("mobile-meta-line").textContent = $("meta-line").textContent;

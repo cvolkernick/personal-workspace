@@ -1,0 +1,61 @@
+{
+  "schema": "fitdash.coach_rules.v1",
+  "updated_at": "2026-10-28",
+  "owner": "Frankenfit (Goal 3b, rulings relayed by Grok 2026-10-27)",
+  "cut_band_pct": [0.25, 0.5],
+  "cut_target_pct": [0.25, 0.5],
+  "maintenance_band_pct": [-0.25, 0.25],
+  "kcal_indicator_tolerance": 150,
+  "hydration": {
+    "target_ml": 3000,
+    "source": "Grok ruling 3, 2026-10-27",
+    "flat_daily": true,
+    "lifting_day_ml": null,
+    "hot_day_ml": null
+  },
+  "sat_fat_chip": {"enabled": true},
+  "nutrition_floors": {
+    "fiber_g_min": 35,
+    "sugar_g_max": 50,
+    "sugar_basis": "total sugar (added-sugar proxy)"
+  },
+  "activity": {
+    "azm_week_min": 150,
+    "azm_cardio_week_min": 120,
+    "lift_days_week": 4,
+    "post_meal_walks": {
+      "per_day": 2,
+      "min_minutes": 10,
+      "min_steps": 1000
+    }
+  },
+  "phase_calendar": {
+    "path": "fitness/coach/phase_calendar_goal3b.json",
+    "labs_booking_date": null,
+    "steps": {
+      "enabled": true,
+      "approved_by": "Chris 2026-10-27 21:58 ET via Grok",
+      "approved_at": "2026-10-27T21:58:00-04:00"
+    },
+    "kcal": {
+      "enabled": false,
+      "approved_by": null,
+      "approved_at": null
+    }
+  },
+  "steps": {
+    "default_target": 7000,
+    "step_up": 1500,
+    "deload_drop": 1500,
+    "floor": 5000,
+    "min_spacing_days": 14,
+    "adherence_gate": 0.9,
+    "counted_weeks": 2
+  },
+  "kcal_floor_per_lb": 11,
+  "adherence_kcal_over": 150,
+  "kcal_cut": 150,
+  "kcal_bump": 150,
+  "strength_trip_pct": 0.5,
+  "bulk_kcal_advice": {}
+}
