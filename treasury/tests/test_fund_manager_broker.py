@@ -25,8 +25,9 @@ from treasury import fund_manager_broker as broker  # noqa: E402
 from treasury import fund_manager_order_gate as gate  # noqa: E402
 
 NOW = datetime(2026, 10, 26, 15, 0, tzinfo=timezone.utc)  # Mon 11:00 ET
-ACCT = "674601752"
 REPO_POLICY = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+# Account id is read from the repo policy so no full account number lives in this test (last 4: 1752).
+ACCT = REPO_POLICY["account"]["account_number"]
 
 
 def pos(sym, qty, px):
