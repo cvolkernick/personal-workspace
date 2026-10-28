@@ -414,6 +414,65 @@ class AgentTodayHttpTests(unittest.TestCase):
         self.assertEqual(len(bearer_body["today"]["active_zone_minutes"]), 1)
         self.assertNotIn("house-secret", json.dumps(bearer_body))
 
+    def test_agent_denial_uses_gate_reason(self) -> None:
+        """Missing vs wrong token: the agent gate's own text, still 401."""
+        saved_agent = os.environ.get("FITDASH_AGENT_TOKEN")
+        saved_loop = os.environ.get("FITDASH_SERVICE_LOOPBACK")
+        saved_house = os.environ.get("FITDASH_SERVICE_TOKEN")
+        try:
+            os.environ["FITDASH_SERVICE_LOOPBACK"] = "0"
+            os.environ.pop("FITDASH_SERVICE_TOKEN", None)
+            os.environ["FITDASH_AGENT_TOKEN"] = "agent-secret"
+            missing = "Send Authorization: Bearer <agent token>."
+            rejected = "Agent token rejected."
+            for path in (
+                "/api/agent/today",
+                "/api/agent/coach_card",
+                "/api/agent/steps_history",
+            ):
+                status, body = self._get(path)
+                self.assertEqual(status, 401, path)
+                self.assertFalse(body.get("ok", True), path)
+                self.assertEqual(body.get("error"), "auth_required", path)
+                self.assertEqual(body.get("reason"), "missing", path)
+                self.assertEqual(body.get("message"), missing, path)
+                self.assertNotIn("FITDASH_SERVICE_TOKEN for agents", body.get("message") or "")
+                status, body = self._get(
+                    path, headers={"Authorization": "Bearer wrong-token"}
+                )
+                self.assertEqual(status, 401, path)
+                self.assertEqual(body.get("error"), "auth_required", path)
+                self.assertEqual(body.get("reason"), "invalid", path)
+                self.assertEqual(body.get("message"), rejected, path)
+                self.assertNotIn("wrong-token", json.dumps(body))
+                self.assertNotIn("agent-secret", json.dumps(body))
+            os.environ.pop("FITDASH_AGENT_TOKEN", None)
+            status, body = self._get("/api/agent/today")
+            self.assertEqual(status, 401)
+            self.assertEqual(body.get("error"), "auth_required")
+            self.assertEqual(body.get("reason"), "unconfigured")
+            self.assertIn("FITDASH_AGENT_TOKEN is not set", body.get("message") or "")
+            os.environ["FITDASH_AGENT_TOKEN"] = "agent-secret"
+            status, body = self._get(
+                "/api/agent/today",
+                headers={"Authorization": "Bearer agent-secret"},
+            )
+            self.assertEqual(status, 200, body)
+            self.assertTrue(body.get("ok"))
+        finally:
+            if saved_agent is None:
+                os.environ.pop("FITDASH_AGENT_TOKEN", None)
+            else:
+                os.environ["FITDASH_AGENT_TOKEN"] = saved_agent
+            if saved_loop is None:
+                os.environ.pop("FITDASH_SERVICE_LOOPBACK", None)
+            else:
+                os.environ["FITDASH_SERVICE_LOOPBACK"] = saved_loop
+            if saved_house is None:
+                os.environ.pop("FITDASH_SERVICE_TOKEN", None)
+            else:
+                os.environ["FITDASH_SERVICE_TOKEN"] = saved_house
+
 
 if __name__ == "__main__":
     unittest.main()

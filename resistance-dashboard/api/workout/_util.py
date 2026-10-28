@@ -1233,7 +1233,10 @@ def targets_write(headers, payload=None):
         applied_targets_write,
         load_preview_targets,
     )
-    from rt_dashboard.nutrition_targets import merge_recommended_into_applied
+    from rt_dashboard.nutrition_targets import (
+        merge_recommended_into_applied,
+        preserve_applied_kcal_macros,
+    )
 
     client = GitHubLiftClient()
     uid = str(user.get("id") or "")
@@ -1257,9 +1260,10 @@ def targets_write(headers, payload=None):
                     "recommendation": rec,
                 }
             current, _src = load_preview_targets(uid)
-            updated = update_targets(
-                merge_recommended_into_applied(current or {}, rec)
-            )
+            merged = merge_recommended_into_applied(current or {}, rec)
+            # Kcal track off: Apply must not move calories or macros. Micros still apply.
+            merged = preserve_applied_kcal_macros(merged, current or {})
+            updated = update_targets(merged)
             stuck, err, write, persisted = applied_targets_write(
                 updated,
                 uid,

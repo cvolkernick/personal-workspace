@@ -237,6 +237,9 @@ class TargetsWriteJson(unittest.TestCase):
                 },
                 "turso",
             ),
+        ), mock.patch(
+            "rt_dashboard.nutrition_targets.kcal_track_active",
+            return_value=True,
         ):
             status, body = targets_write(_headers(), {"apply_coach": True})
         self.assertEqual(status, 200)
@@ -246,6 +249,58 @@ class TargetsWriteJson(unittest.TestCase):
         self.assertEqual(body["targets"]["protein_g"], 200)
         self.assertEqual(len(writes), 1)
         self.assertIn("apply coach targets", writes[0][1])
+
+    def test_apply_coach_track_off_keeps_kcal_and_macros(self):
+        rec = {
+            "abstain": True,
+            "phase": "cut",
+            "as_of": "2026-10-28",
+            "reasons": ["kcal track off"],
+            "recommended": {
+                "calories": 1950,
+                "protein_g": 180,
+                "carbs_g": 180,
+                "fat_g": 65,
+                "fiber_g": 35,
+                "sugar_g": 50,
+                "sodium_mg": 2300,
+            },
+        }
+        writes = []
+
+        def fake_persist(targets, user_id="", file_client=None, message=""):
+            writes.append(dict(targets))
+            return _turso_ok(targets, message)
+
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch(
+            "api.dashboard.dashboard_body",
+            return_value=(200, {"coach": {"nutrition_targets": rec}}),
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.persist_targets",
+            side_effect=fake_persist,
+        ), mock.patch(
+            "rt_dashboard.nutrition_store.load_preview_targets",
+            return_value=(
+                {
+                    "calories": 2000,
+                    "protein_g": 170,
+                    "carbs_g": 195,
+                    "fat_g": 60,
+                },
+                "turso",
+            ),
+        ):
+            status, body = targets_write(_headers(), {"apply_coach": True})
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["targets"]["calories"], 2000)
+        self.assertEqual(body["targets"]["protein_g"], 170)
+        self.assertEqual(body["targets"]["carbs_g"], 195)
+        self.assertEqual(body["targets"]["fat_g"], 60)
+        self.assertEqual(body["targets"]["fiber_g"], 35)
+        self.assertEqual(writes[0]["calories"], 2000)
+        self.assertEqual(writes[0]["protein_g"], 170)
 
     def test_apply_coach_turso_write_fail_is_not_ok(self):
         rec = {

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from rt_dashboard.models import (
     CaloriesBurnedDay,
@@ -19,6 +20,7 @@ from rt_dashboard.models import (
 from rt_dashboard.nutrition_planner import normalize_targets
 from rt_dashboard.nutrition_targets import (
     infer_phase,
+    kcal_track_active,
     merge_recommended_into_applied,
     micros_for_calories,
     recommend_nutrition_targets,
@@ -34,6 +36,18 @@ ACTIONS_PY = (ROOT / "rt_dashboard" / "coach_actions.py").read_text(encoding="ut
 HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 APP_JS = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 PLANNER = (ROOT / "rt_dashboard" / "nutrition_planner.py").read_text(encoding="utf-8")
+
+
+def _kcal_on_rules():
+    """Fixture: kcal track enabled and approved. Formula behavior stays."""
+    return {
+        "phase_calendar": {
+            "kcal": {
+                "enabled": True,
+                "approved_by": "test fixture",
+            }
+        }
+    }
 
 
 def _snap(*, burned, weights, nutrition=None, as_prefix="2026-08-"):
@@ -87,6 +101,7 @@ class RecommendCut(unittest.TestCase):
                 "notes": "Default cutting targets",
             },
             as_of="2026-08-27",
+            rules=_kcal_on_rules(),
         )
         self.assertEqual(rec["tdee_kcal"], 2500)
         self.assertEqual(rec["tdee_days"], 5)
@@ -157,6 +172,7 @@ class RecommendCut(unittest.TestCase):
             },
             recovery=RecoveryStatus(label="Caution", score=35.0, reasons=["low"]),
             as_of="2026-08-27",
+            rules=_kcal_on_rules(),
         )
         self.assertGreaterEqual(rec["recommended"]["calories"], 2400)
         self.assertTrue(any("recovery" in r.lower() for r in rec["reasons"]))
@@ -179,6 +195,7 @@ class RecommendCut(unittest.TestCase):
             recovery=RecoveryStatus(label="Ready", score=80.0, reasons=[]),
             adherence_7d={"protein": {"pct": 40.0}},
             as_of="2026-08-27",
+            rules=_kcal_on_rules(),
         )
         self.assertGreaterEqual(rec["recommended"]["calories"], 2400)
         self.assertTrue(any("protein hit rate" in r.lower() for r in rec["reasons"]))
@@ -199,6 +216,7 @@ class RecommendCut(unittest.TestCase):
                 "phase": "maintain",
             },
             as_of="2026-08-27",
+            rules=_kcal_on_rules(),
         )
         self.assertEqual(rec["phase"], "maintain")
         self.assertEqual(rec["recommended"]["calories"], 2400)
@@ -219,6 +237,7 @@ class RecommendCut(unittest.TestCase):
                 "phase": "slow_bulk",
             },
             as_of="2026-08-27",
+            rules=_kcal_on_rules(),
         )
         self.assertEqual(rec["recommended"]["calories"], 2600)
 
@@ -235,6 +254,193 @@ class RecommendCut(unittest.TestCase):
         self.assertTrue(rec["abstain"])
         self.assertIsNone(rec["tdee_kcal"])
         self.assertEqual(rec["recommended"]["calories"], 2100)
+
+
+APPLIED_RULING = {
+    "calories": 2000,
+    "protein_g": 170,
+    "carbs_g": 195,
+    "fat_g": 60,
+    "fiber_g": 20,
+    "weight_goal_lbs": 150,
+    "phase": "cut",
+    "notes": "cutting",
+}
+
+
+def _rich_cut_health():
+    """Enough burn and scale data that the formula would move kcal if allowed."""
+    burned = [(f"2026-08-{d:02d}", 2500) for d in range(14, 28)]
+    weights = [("2026-08-20", 173.0), ("2026-08-27", 172.8)]
+    return _snap(burned=burned, weights=weights)
+
+
+class KcalTrackAbstain(unittest.TestCase):
+    def test_track_off_holds_applied_kcal_and_macros(self):
+        self.assertFalse(kcal_track_active())
+        rec = recommend_nutrition_targets(
+            health=_rich_cut_health(),
+            targets=APPLIED_RULING,
+            as_of="2026-08-27",
+        )
+        self.assertTrue(rec["abstain"])
+        self.assertIn("kcal track off", rec["reasons"])
+        self.assertEqual(rec["recommended"]["calories"], 2000)
+        self.assertEqual(rec["recommended"]["protein_g"], 170)
+        self.assertEqual(rec["recommended"]["carbs_g"], 195)
+        self.assertEqual(rec["recommended"]["fat_g"], 60)
+        self.assertEqual(rec["delta"]["calories"], 0)
+        self.assertEqual(rec["delta"]["protein_g"], 0)
+        self.assertEqual(rec["delta"]["carbs_g"], 0)
+        self.assertEqual(rec["delta"]["fat_g"], 0)
+        # Fiber / sugar / sodium still come from the calorie formula.
+        self.assertEqual(rec["recommended"]["fiber_g"], micros_for_calories(2000)["fiber_g"])
+        self.assertEqual(rec["recommended"]["fiber_g"], 35)
+        self.assertNotEqual(rec["recommended"]["fiber_g"], APPLIED_RULING["fiber_g"])
+        self.assertEqual(rec["recommended"]["sugar_g"], 50)
+        self.assertEqual(rec["recommended"]["sodium_mg"], 2300)
+
+    def test_track_on_fixture_keeps_formula(self):
+        self.assertTrue(kcal_track_active(_kcal_on_rules()))
+        rec = recommend_nutrition_targets(
+            health=_rich_cut_health(),
+            targets=APPLIED_RULING,
+            as_of="2026-08-27",
+            rules=_kcal_on_rules(),
+        )
+        self.assertFalse(rec["abstain"])
+        self.assertNotIn("kcal track off", rec["reasons"])
+        self.assertEqual(rec["tdee_kcal"], 2500)
+        # Same cut formula as before the track switch: 2500 hat, deficit, then
+        # deepen 100 because the 14d loss is slower than 0.2 lb/week.
+        self.assertTrue(any("deepen 100" in r for r in rec["reasons"]))
+        self.assertEqual(rec["recommended"]["calories"], 2050)
+        self.assertNotEqual(rec["recommended"]["calories"], 2000)
+        self.assertEqual(rec["recommended"]["protein_g"], 175)
+        self.assertNotEqual(rec["recommended"]["carbs_g"], 195)
+        self.assertEqual(rec["recommended"]["fiber_g"], micros_for_calories(2050)["fiber_g"])
+
+    def test_unreadable_rules_fail_closed(self):
+        with mock.patch(
+            "rt_dashboard.coach_steps.load_rules",
+            side_effect=OSError("coach rules unreadable"),
+        ):
+            self.assertFalse(kcal_track_active())
+            rec = recommend_nutrition_targets(
+                health=_rich_cut_health(),
+                targets=APPLIED_RULING,
+                as_of="2026-08-27",
+            )
+        self.assertTrue(rec["abstain"])
+        self.assertIn("kcal track off", rec["reasons"])
+        self.assertEqual(rec["recommended"]["calories"], 2000)
+        self.assertEqual(rec["recommended"]["protein_g"], 170)
+        self.assertEqual(rec["recommended"]["carbs_g"], 195)
+        self.assertEqual(rec["recommended"]["fat_g"], 60)
+        self.assertEqual(rec["recommended"]["fiber_g"], 35)
+
+    def test_apply_coach_targets_holds_kcal_when_track_off(self):
+        import server as fitdash_server
+
+        applied = {
+            "calories": 2000,
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60,
+            "fiber_g": 20,
+            "weight_goal_lbs": 150,
+            "phase": "cut",
+        }
+        rec = {
+            "as_of": "2026-08-27",
+            "phase": "cut",
+            "abstain": True,
+            "reasons": ["kcal track off"],
+            "recommended": {
+                "calories": 1950,
+                "protein_g": 180,
+                "carbs_g": 180,
+                "fat_g": 65,
+                "fiber_g": 35,
+                "sugar_g": 50,
+                "sodium_mg": 2300,
+            },
+        }
+
+        def _write(updated, user_id="", file_client=None, message=""):
+            persisted = dict(updated)
+            return True, "", {"ok": True, "local": True, "turso": False, "github": False}, persisted
+
+        with mock.patch.object(
+            fitdash_server,
+            "load_dashboard_data",
+            return_value={"coach": {"nutrition_targets": rec}},
+        ), mock.patch.object(
+            fitdash_server,
+            "load_preview_targets",
+            return_value=(applied, "mem"),
+        ), mock.patch.object(
+            fitdash_server,
+            "applied_targets_write",
+            side_effect=_write,
+        ):
+            body = fitdash_server._apply_coach_targets(object(), user_id="u")
+        self.assertTrue(body["ok"])
+        targets = body["targets"]
+        self.assertEqual(float(targets["calories"]), 2000.0)
+        self.assertEqual(float(targets["protein_g"]), 170.0)
+        self.assertEqual(float(targets["carbs_g"]), 195.0)
+        self.assertEqual(float(targets["fat_g"]), 60.0)
+        self.assertEqual(float(targets["fiber_g"]), 35.0)
+        self.assertEqual(float(targets["sugar_g"]), 50.0)
+        self.assertEqual(float(targets["sodium_mg"]), 2300.0)
+
+    def test_apply_coach_targets_writes_kcal_when_track_on(self):
+        import server as fitdash_server
+
+        applied = {
+            "calories": 2000,
+            "protein_g": 170,
+            "carbs_g": 195,
+            "fat_g": 60,
+        }
+        rec = {
+            "as_of": "2026-08-27",
+            "phase": "cut",
+            "abstain": False,
+            "recommended": {
+                "calories": 1950,
+                "protein_g": 180,
+                "carbs_g": 180,
+                "fat_g": 65,
+                "fiber_g": 35,
+            },
+        }
+
+        def _write(updated, user_id="", file_client=None, message=""):
+            return True, "", {"ok": True, "local": True}, dict(updated)
+
+        with mock.patch.object(
+            fitdash_server,
+            "load_dashboard_data",
+            return_value={"coach": {"nutrition_targets": rec}},
+        ), mock.patch.object(
+            fitdash_server,
+            "load_preview_targets",
+            return_value=(applied, "mem"),
+        ), mock.patch.object(
+            fitdash_server,
+            "applied_targets_write",
+            side_effect=_write,
+        ), mock.patch(
+            "rt_dashboard.nutrition_targets.kcal_track_active",
+            return_value=True,
+        ):
+            body = fitdash_server._apply_coach_targets(object(), user_id="u")
+        self.assertEqual(float(body["targets"]["calories"]), 1950.0)
+        self.assertEqual(float(body["targets"]["protein_g"]), 180.0)
+        self.assertEqual(float(body["targets"]["carbs_g"]), 180.0)
+        self.assertEqual(float(body["targets"]["fat_g"]), 65.0)
 
 
 class MicrosFormula(unittest.TestCase):
