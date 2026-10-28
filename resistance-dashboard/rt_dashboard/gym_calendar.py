@@ -942,9 +942,13 @@ def civil_closed_letter(
     target = str(day or "")[:10]
     if not target:
         return None
-    best_at = None
-    best: Optional[str] = None
+    explicit_at = None
+    explicit: Optional[str] = None
+    legacy_at = None
+    legacy: Optional[str] = None
     from .training_day import frozen_plan_remainder, session_close_dt
+
+    from .session_work import effective_status
 
     day_sessions = []
     for session in sessions or []:
@@ -953,17 +957,26 @@ def civil_closed_letter(
             continue
         if _session_date(session) == target:
             day_sessions.append(session)
-        if session_close_civil_day(session) != target:
-            continue
+        status = effective_status(session, tz_name=GYM_TZ_NAME)
         closed = session_close_dt(session, tz_name=GYM_TZ_NAME)
-        if best_at is None or (closed is not None and closed >= best_at):
-            best_at = closed
-            best = letter
+        on_day = session_close_civil_day(session) == target or _session_date(session) == target
+        if status in ("complete", "partial") and on_day:
+            if explicit_at is None or (closed is not None and closed >= explicit_at):
+                explicit_at = closed
+                explicit = letter
+            continue
+        if status != "legacy" or session_close_civil_day(session) != target:
+            continue
+        if legacy_at is None or (closed is not None and closed >= legacy_at):
+            legacy_at = closed
+            legacy = letter
+    if explicit:
+        return explicit
     if isinstance(training_objective, dict):
         remainder = frozen_plan_remainder(training_objective, day_sessions)
         if remainder is None or not remainder["done"]:
             return None
-    return best
+    return legacy
 
 
 def civil_partial_letter(sessions: Optional[Sequence[Any]], day: str) -> Optional[str]:
@@ -982,7 +995,14 @@ def civil_partial_letter(sessions: Optional[Sequence[Any]], day: str) -> Optiona
         letter = _session_letter(session)
         if letter not in ("push", "pull", "legs"):
             continue
-        if session_is_quest_seed_only(session) or session_has_close_stamp(session):
+        from .session_work import effective_status
+
+        status = effective_status(session, tz_name=GYM_TZ_NAME)
+        if status not in ("in_progress", "open_legacy"):
+            continue
+        if status == "open_legacy" and session_has_close_stamp(session):
+            continue
+        if session_is_quest_seed_only(session):
             continue
         return letter
     return None

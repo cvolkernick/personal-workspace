@@ -142,6 +142,11 @@ def merge_same_day_session(
         notes=notes,
         source_file=source,
         closed_at=closed or None,
+        status=existing.status,
+        submission_id=existing.submission_id,
+        plan_objective=existing.plan_objective,
+        skipped=existing.skipped,
+        substitutions=existing.substitutions,
     )
 
 
@@ -154,10 +159,20 @@ def merge_log_with_history(
     return merge_same_day_session(incoming, existing, same_name="append")
 
 
-def _civil_day(value: Any) -> str:
-    day = str(value or "").strip()[:10]
-    datetime.strptime(day, "%Y-%m-%d")
-    return day
+def _civil_day(value: Any, *, tz_name: Optional[str] = None, now=None) -> str:
+    """Bare YYYY-MM-DD is kept. A timestamp uses the 4 AM ET training day."""
+    from .session_work import log_day_from_value
+    from .training_day import parse_dt
+
+    raw = str(value or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        datetime.strptime(raw, "%Y-%m-%d")
+        return raw
+    if raw and parse_dt(raw) is not None:
+        day = log_day_from_value(raw, now=now, tz_name=tz_name)
+        datetime.strptime(day, "%Y-%m-%d")
+        return day
+    raise ValueError("date must be YYYY-MM-DD")
 
 
 def plan_session_date_move(
@@ -166,6 +181,8 @@ def plan_session_date_move(
     session_type: str,
     from_date: str,
     to_date: str,
+    tz_name: Optional[str] = None,
+    now=None,
 ) -> Session:
     """Move a logged session's civil date. Sets/loads are unchanged.
 
@@ -178,8 +195,8 @@ def plan_session_date_move(
     if st not in ("push", "pull", "legs"):
         raise ValueError("session_type must be push, pull, or legs")
     try:
-        src_day = _civil_day(from_date)
-        dest_day = _civil_day(to_date)
+        src_day = _civil_day(from_date, tz_name=tz_name, now=now)
+        dest_day = _civil_day(to_date, tz_name=tz_name, now=now)
     except ValueError as exc:
         raise ValueError("date must be YYYY-MM-DD") from exc
     src = find_same_day_session(history, src_day, st)
@@ -260,6 +277,9 @@ def parse_log_body(data: dict, *, now=None) -> Session:
             if sn < 1 or r < 1:
                 raise ValueError(f"sets and reps must be >= 1 for {name}")
             set_entries.append(SetEntry(weight_lbs=w, sets=sn, reps=r))
+            from .session_work import apply_set_flags
+
+            apply_set_flags(set_entries[-1], s)
             idx = _parse_set_index(s.get("set_index"), name)
             if idx is not None:
                 set_entries[-1].set_index = idx
@@ -288,4 +308,77 @@ def parse_log_body(data: dict, *, now=None) -> Session:
         exercises=exercises,
         notes=notes,
         closed_at=closed,
+        submission_id=str(payload.get("submission_id") or "").strip() or None,
     )
+
+
+def finalize_logged_session(
+    session: Session,
+    *,
+    existing: Optional[Session] = None,
+    plan_exercises: Optional[Sequence[Any]] = None,
+    finish: bool = False,
+    submission_id: str = "",
+    catalog: Optional[dict] = None,
+    week_sessions: Optional[Sequence[Session]] = None,
+) -> Session:
+    """Reassess after a save. Does not force a new session open or closed.
+
+    Finish workout always completes and marks uncovered lifts skipped.
+    A legacy finished row stays finished. A quest-seed row plus a manual
+    log stays open until the plan is covered or the user finishes.
+    """
+    from .session_work import (
+        STATUS_COMPLETE,
+        STATUS_OPEN,
+        freeze_plan,
+        reassess_adjust_enabled,
+        reassess_plan,
+        session_work_done,
+        skipped_from_uncovered,
+        stored_status,
+    )
+    from .training_day import session_has_close_stamp, session_is_quest_seed_only
+
+    if submission_id:
+        session.submission_id = submission_id
+    if not session.plan_objective and plan_exercises:
+        frozen = freeze_plan(plan_exercises, session.session_type)
+        if frozen:
+            session.plan_objective = frozen
+    if (
+        session.plan_objective
+        and reassess_adjust_enabled()
+        and not finish
+    ):
+        adjusted = reassess_plan(
+            session,
+            session.plan_objective,
+            enabled=True,
+            catalog=catalog,
+            week_sessions=week_sessions,
+        )
+        session.plan_objective = adjusted.get("plan") or session.plan_objective
+    decision = session_work_done(session, session.plan_objective, catalog)
+    if decision.substitutions:
+        session.substitutions = decision.substitutions
+    if finish:
+        session.status = STATUS_COMPLETE
+        session.skipped = skipped_from_uncovered(decision.uncovered)
+        return session
+    prior = stored_status(existing) if existing is not None else None
+    prior_finished = prior in (STATUS_COMPLETE, "partial")
+    if existing is not None and prior is None:
+        prior_finished = bool(
+            session_has_close_stamp(existing)
+            and not session_is_quest_seed_only(existing)
+        )
+    if prior_finished:
+        session.status = prior or STATUS_COMPLETE
+        return session
+    if decision.done:
+        session.status = STATUS_COMPLETE
+        session.skipped = []
+    else:
+        session.status = STATUS_OPEN
+    return session

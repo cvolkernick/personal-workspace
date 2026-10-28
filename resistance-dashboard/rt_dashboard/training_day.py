@@ -257,10 +257,17 @@ def resolve_log_date(
     selections and stored 09/15. Agent/quest posts with no date still land
     on the current training day so a late-night write without a picker
     stays on this wake.
+
+    A full timestamp is not sliced at the UTC calendar date. 23:36 ET is
+    still that evening under the 4 AM cutoff, even when UTC has already
+    rolled to the next date.
     """
+    from .session_work import log_day_from_value
     from .timeutil import local_today_iso
 
-    raw = str(date or "").strip()[:10]
+    raw = str(date or "").strip()
+    if raw and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        return log_day_from_value(raw, now=now, tz_name=tz_name)
     train = training_day_iso(now=now, last_wake_at=last_wake_at, tz_name=tz_name)
     civil = local_today_iso(tz_name, now=now)
     covers = wake_covers_as_of(
@@ -838,17 +845,20 @@ def closed_ppl_for_planning(
     """
     from .timeutil import local_now
 
+    from .session_work import effective_status
+
     clock = local_now(tz_name, now=now)
     use_wake = wake_is_current(last_wake_at, as_of, now=clock, tz_name=tz_name)
     civil = str(as_of or "")[:10]
-    hits = []
+    # Explicit complete/partial close the day even when planned work remains
+    # (Finish, or the 4 AM partial roll). in_progress and missed do not.
+    # Legacy rows (no status) keep the old persist-close, then the remainder
+    # gate below. One new hand-logged lift no longer closes the session.
+    explicit = []
+    legacy = []
     for session in sessions or []:
         letter = _session_type(session)
         if letter not in ("push", "pull", "legs"):
-            continue
-        if not session_has_close_stamp(session):
-            continue
-        if session_is_quest_seed_only(session):
             continue
         if use_wake:
             if not session_in_wake(
@@ -857,8 +867,17 @@ def closed_ppl_for_planning(
                 continue
         elif _session_day(session) != civil:
             continue
+        status = effective_status(session, now=clock, tz_name=tz_name)
         closed = session_close_dt(session, tz_name=tz_name)
-        hits.append((closed or datetime.min.replace(tzinfo=timezone.utc), letter))
+        stamp = closed or datetime.min.replace(tzinfo=timezone.utc)
+        if status in ("complete", "partial"):
+            explicit.append((stamp, letter))
+            continue
+        if status != "legacy":
+            continue
+        if not session_has_close_stamp(session) or session_is_quest_seed_only(session):
+            continue
+        legacy.append((stamp, letter))
     window = planning_window_sessions(
         sessions,
         as_of=as_of,
@@ -866,12 +885,15 @@ def closed_ppl_for_planning(
         now=clock,
         tz_name=tz_name,
     )
+    if explicit:
+        explicit.sort(key=lambda item: item[0])
+        return explicit[-1][1]
     remainder = frozen_plan_remainder(training_objective, window)
     if remainder_is_history(window, as_of, remainder):
         remainder = None
     if remainder is not None and not remainder["done"]:
         return None
-    if not hits:
+    if not legacy:
         return None
-    hits.sort(key=lambda item: item[0])
-    return hits[-1][1]
+    legacy.sort(key=lambda item: item[0])
+    return legacy[-1][1]

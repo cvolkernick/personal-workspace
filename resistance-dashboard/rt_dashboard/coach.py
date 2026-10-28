@@ -746,12 +746,17 @@ def build_today_board(
     else:
         st = (wp.get("session_type") or "session").upper()
         n_ex = len(exercises)
+        prog = wp.get("workout_progress") if isinstance(wp.get("workout_progress"), dict) else {}
+        if prog.get("in_progress") and prog.get("label"):
+            train_text = f"In progress · {prog['label']}"
+        else:
+            train_text = f"Complete today's {st} session ({n_ex} lifts as prescribed)."
         actions.append(
             {
                 "id": "train-session",
                 "kind": "training",
                 "priority": 1,
-                "text": f"Complete today's {st} session ({n_ex} lifts as prescribed).",
+                "text": train_text,
                 "motivation": TARGET_MOTIVATIONS["training"],
             }
         )
@@ -900,6 +905,9 @@ def build_today_board(
             "remainder": wp.get("remainder")
             or (wp.get("context") or {}).get("remainder"),
             "session_closed_today": bool(wp.get("session_closed_today")),
+            "workout_progress": wp.get("workout_progress")
+            if isinstance(wp.get("workout_progress"), dict)
+            else None,
         },
         "meal": meal_block,
         "purchases": purchases,

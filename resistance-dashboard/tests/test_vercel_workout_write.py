@@ -51,16 +51,31 @@ class MemoryTurso:
 
     def execute(self, sql, params=()):
         norm = " ".join((sql or "").split()).upper()
-        if norm.startswith("CREATE TABLE"):
+        if norm.startswith("CREATE TABLE") or norm.startswith("ALTER TABLE"):
             return TursoCursor([], [])
         if norm.startswith("UPDATE WORKOUT_SESSIONS"):
-            notes, source, payload, uid, date, st = params
+            notes, source, payload = params[:3]
+            if len(params) >= 11:
+                status, submission_id, plan, skipped, subs, uid, date, st = params[3:11]
+            else:
+                status = submission_id = plan = skipped = subs = None
+                uid, date, st = params[-3:]
             key = (uid, date, st)
             existing = self.rows.get(key)
             if existing:
                 existing["notes"] = notes
                 existing["source_file"] = source
                 existing["exercises_json"] = payload
+                if status:
+                    existing["status"] = status
+                if submission_id:
+                    existing["submission_id"] = submission_id
+                if plan:
+                    existing["plan_json"] = plan
+                if skipped:
+                    existing["skipped_json"] = skipped
+                if subs:
+                    existing["substitutions_json"] = subs
             return TursoCursor([], [])
         if "INSERT INTO WORKOUT_SESSIONS" in norm:
             if len(params) >= 8:
@@ -68,6 +83,7 @@ class MemoryTurso:
             else:
                 uid, date, st, notes, source, payload = params[:6]
                 created = updated = ""
+            extra = params[8:13] if len(params) >= 13 else (None, None, None, None, None)
             key = (uid, date, st)
             existing = self.rows.get(key)
             self.rows[key] = TursoRow(
@@ -81,6 +97,11 @@ class MemoryTurso:
                     "exercises_json": payload,
                     "created_at": existing["created_at"] if existing else created,
                     "updated_at": updated,
+                    "status": extra[0] if extra[0] is not None else (existing or {}).get("status"),
+                    "submission_id": extra[1] or (existing or {}).get("submission_id"),
+                    "plan_json": extra[2] or (existing or {}).get("plan_json"),
+                    "skipped_json": extra[3] or (existing or {}).get("skipped_json"),
+                    "substitutions_json": extra[4] or (existing or {}).get("substitutions_json"),
                 }
             )
             return TursoCursor([], [])

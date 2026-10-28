@@ -1265,8 +1265,13 @@ def _performance_row(session: Session, ex: Any) -> dict:
     best_w = max(st.weight_lbs for st in ex.sets)
     # Judge progression on the first working set. Later sets that
     # fall off do not change the load (#954).
-    first = ex.sets[0]
-    top = max(ex.sets, key=lambda st: (st.weight_lbs, st.reps, st.sets))
+    from .session_work import working_sets
+
+    judged = working_sets(ex)
+    if not judged:
+        return None
+    first = judged[0]
+    top = max(judged, key=lambda st: (st.weight_lbs, st.reps, st.sets))
     total_sets = sum(st.sets for st in ex.sets)
     return {
         "date": session.date,
@@ -1294,9 +1299,15 @@ def last_performance(
     A variant with no logs of its own seeds from the shared trend-group
     anchor (historical ``Tricep Pushdowns``). A sibling variant does not.
     """
+    from .session_work import session_counts_for_progression
+
     target = _norm_name(exercise_name)
     target_id = _logged_catalog_id(exercise_name, catalog_by_id)
-    ordered = sorted(sessions, key=lambda s: s.date, reverse=True)
+    ordered = sorted(
+        (s for s in sessions if session_counts_for_progression(s)),
+        key=lambda s: s.date,
+        reverse=True,
+    )
 
     def _scan(match) -> Optional[dict]:
         for session in ordered:
@@ -1307,7 +1318,9 @@ def last_performance(
                 logged_id = _logged_catalog_id(ex.name, catalog_by_id)
                 if not match(logged, logged_id):
                     continue
-                return _performance_row(session, ex)
+                row = _performance_row(session, ex)
+                if row:
+                    return row
         return None
 
     own = _scan(
@@ -1346,8 +1359,15 @@ def _rotation_key(session: Any) -> Tuple[str, str]:
 
 
 def last_session_type(sessions: Sequence[Any]) -> Optional[str]:
+    from .session_work import session_advances_rotation
+
     ordered = sorted(
-        [s for s in sessions if session_type_of(s) in ("push", "pull", "legs")],
+        [
+            s
+            for s in sessions
+            if session_type_of(s) in ("push", "pull", "legs")
+            and session_advances_rotation(s)
+        ],
         key=_rotation_key,
         reverse=True,
     )
@@ -1414,7 +1434,13 @@ def next_session_type(sessions: Sequence[Any], goals: dict) -> str:
 
 
 def days_since_last_session(sessions: Sequence[Any], as_of: Optional[str] = None) -> Optional[int]:
-    dated = [s for s in (sessions or []) if session_date_of(s)]
+    from .session_work import session_counts_for_streak
+
+    dated = [
+        s
+        for s in (sessions or [])
+        if session_date_of(s) and session_counts_for_streak(s)
+    ]
     if not dated:
         return None
     if as_of is None:
@@ -1975,8 +2001,12 @@ def _exercise_from_dict(raw: dict) -> Optional[ExerciseEntry]:
 
 def progression_sessions(sessions: Sequence[Any]) -> List[Session]:
     """Non-deload logs as Session models. Dict briefs are accepted."""
+    from .session_work import session_counts_for_progression
+
     out: List[Session] = []
     for session in sessions or []:
+        if not session_counts_for_progression(session):
+            continue
         if _session_is_deload(session):
             continue
         if isinstance(session, Session):
@@ -2471,6 +2501,14 @@ def generate_workout_plan(
         remainder_is_history,
         remainder_public,
     )
+
+    from .session_work import session_plan_objective
+
+    snap = session_plan_objective(sessions, day=day)
+    if snap:
+        # The plan frozen when this session started wins over a different
+        # saved workout_plan row or an empty quest cache.
+        training_objective = snap
 
     logged_today = ppl_logged_for_planning(
         sessions,
