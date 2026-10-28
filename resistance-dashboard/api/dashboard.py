@@ -326,7 +326,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.daily_plan_tasks import plan_preview, quest_gt_sync_enabled
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hidrate_client import hidrate_bottle_charge, hidrate_hydration_samples
-    from rt_dashboard.hydration_bars import build_hydration_bars_payload
+    from rt_dashboard.hydration_bars import build_hydration_bars_payload, rules_target_ml
     from rt_dashboard.equipment_store import load_preview_equipment
     from rt_dashboard.inventory_store import (
         inventory_source_fields,
@@ -582,6 +582,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             weight=health.weight or [],
             sleep_battery=sleep_battery,
             as_of=today,
+            target_ml_override=rules_target_ml(),
             now=now,
             tz_name=tz_name,
         )
@@ -857,6 +858,14 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "health_days": HEALTH_COLD_DAYS,
         "error": "; ".join(errors) if errors else None,
     }
+    try:
+        from rt_dashboard.cut_coach import attach_coach_card
+
+        attach_coach_card(payload, as_of=today)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"coach_card: {type(exc).__name__}")
+        payload["coach_card"] = None
+        payload["meta"]["error"] = "; ".join(errors) if errors else None
     return 200, payload
 
 

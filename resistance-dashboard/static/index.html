@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=labs-visible-1" />
+    <link rel="stylesheet" href="/styles.css?v=goal3b-coach-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=recipe-planner-1288-2" defer></script>
@@ -25,7 +25,8 @@
     <script src="/history-sets.js?v=tonnage-1025-1" defer></script>
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
     <script src="/biomarkers.js?v=biomarkers-1" defer></script>
-    <script src="/app.js?v=partial-log-1" defer></script>
+    <script src="/trends-steps.js?v=steps-2" defer></script>
+    <script src="/app.js?v=partial-log-2" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -319,6 +320,22 @@
         </div>
         <p class="muted calorie-bar-summary" id="hydration-pacing-summary">—</p>
         <p class="muted calorie-bar-meta hydration-pacing-footer" id="hydration-pacing-meta"></p>
+      </section>
+
+      <section
+        class="card"
+        style="margin-top: 1rem"
+        id="coach-phase-card"
+        data-m-panel="today"
+        aria-label="Coach phase"
+        hidden
+      >
+        <h2>Coach</h2>
+        <p id="coach-phase-pill" class="coach-pill"></p>
+        <p id="coach-rate-chip" class="muted" style="margin-top: 0.35rem"></p>
+        <p id="coach-kcal-indicator" style="margin-top: 0.35rem"></p>
+        <p id="coach-sat-fat-chip" class="muted" hidden></p>
+        <div id="coach-staged-panel"></div>
       </section>
 
       <section
@@ -1343,6 +1360,33 @@
           <div class="tabs exercise-tabs-carousel" id="exercise-tabs" hidden></div>
           <div class="chart-box chart-box-match"><canvas id="chart-strength" aria-label="Strength chart"></canvas></div>
           <p class="muted" id="strength-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
+      </section>
+
+      <!-- Steps (the coach's lever) sits directly above the AZM/RHR response row. -->
+      <section class="grid" style="margin-top: 1rem" id="steps-row" data-m-panel="trends">
+        <article class="card card-fill" id="steps-trend-card" data-m-panel="trends" aria-label="Daily steps">
+          <h2 id="steps-title">Daily steps · 8 wk</h2>
+          <p class="muted" style="margin: 0 0 0.5rem; font-size: 0.85rem">Steps are the lever; AZM and resting HR below show the response.</p>
+          <div class="azm-week-row">
+            <div class="chart-summary-chip" id="steps-week-chip">
+              <span class="chip-k">Last week avg</span>
+              <span class="chip-v" id="steps-week-value">—</span>
+              <span class="chip-s" id="steps-week-sub">—</span>
+            </div>
+            <div class="chart-summary-chip" id="steps-target-chip">
+              <span class="chip-k">Step target</span>
+              <span class="chip-v" id="steps-target-value">—</span>
+              <span class="chip-s" id="steps-target-sub">—</span>
+            </div>
+            <div class="steps-range" role="group" aria-label="Steps range">
+              <button type="button" class="btn ghost" data-steps-weeks="4" aria-pressed="false">4 wk</button>
+              <button type="button" class="btn primary" data-steps-weeks="8" aria-pressed="true">8 wk</button>
+              <button type="button" class="btn ghost" data-steps-weeks="13" aria-pressed="false">13 wk</button>
+            </div>
+          </div>
+          <div class="chart-box"><canvas id="chart-steps" aria-label="Daily steps chart"></canvas></div>
+          <p class="muted" id="steps-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
       </section>
 

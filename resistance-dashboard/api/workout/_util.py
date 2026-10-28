@@ -1443,7 +1443,7 @@ def _agent_today_from_stores(headers, query: str = "", *, read_only: bool = Fals
     from rt_dashboard.agent_today import assemble_dashboard_slice, export_agent_today
     from rt_dashboard.google_health import GoogleHealthClient
     from rt_dashboard.hidrate_client import hidrate_bottle_charge, hidrate_hydration_samples
-    from rt_dashboard.hydration_bars import build_hydration_bars_payload
+    from rt_dashboard.hydration_bars import build_hydration_bars_payload, rules_target_ml
     from rt_dashboard.models import HealthSnapshot
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
@@ -1498,6 +1498,7 @@ def _agent_today_from_stores(headers, query: str = "", *, read_only: bool = Fals
             as_of=today,
             now=now,
             tz_name=tz_name,
+            target_ml_override=rules_target_ml(),
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"hydration_bars: {type(exc).__name__}")

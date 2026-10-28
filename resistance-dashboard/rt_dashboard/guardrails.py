@@ -11,7 +11,12 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .analytics import canonical_lift_name, lift_alias_table, strength_trend
-from .phase_barometer import GUARDRAIL_THRESHOLDS, canonical_phase, phase_label
+from .phase_barometer import (
+    GUARDRAIL_THRESHOLDS,
+    canonical_phase,
+    phase_label,
+    scale_thresholds,
+)
 
 _ROLE_ORDER = ("hinge", "squat", "push", "pull")
 _ROLE_HINTS = {
@@ -363,8 +368,7 @@ def _load_move(older: dict, newer: dict) -> str:
 
 
 def _scale_tile(weights: Sequence[Tuple[str, float]], end: datetime, phase: str, *, lifts_sliding: bool) -> dict:
-    spec = GUARDRAIL_THRESHOLDS["scale"]
-    bands = spec["phases"].get(phase) or spec["phases"]["maintain"]
+    bands = scale_thresholds(phase)
     avgs = _week_weight_avgs(weights, end, 6)
     pcts = [_wow_pct(avgs, k) for k in range(5)]
     pct = pcts[0]
@@ -408,9 +412,14 @@ def _scale_tile(weights: Sequence[Tuple[str, float]], end: datetime, phase: str,
 def _scale_rule(phase: str, bands: dict) -> str:
     name = phase_label(phase)
     if phase == "cut":
+        slow = _num(abs(bands["target_high_pct"]))
+        fast = _num(abs(bands["target_low_pct"]))
+        under = _num(bands["yellow_loss_under_pct"])
+        over = _num(bands["yellow_loss_over_pct"])
         return (
-            f"{name}: target loss {_num(abs(bands['target_high_pct']))}–{_num(abs(bands['target_low_pct']))}% "
-            "of body weight a week. Yellow under 0.25% or over 1.5% for 2 weeks. "
+            f"{name}: target loss {slow}–{fast}% "
+            "of body weight a week. "
+            f"Yellow under {under}% or over {over}% for 2 weeks. "
             "Red when weight stalls for 3 weeks and a main lift is sliding."
         )
     if phase == "slow_bulk":

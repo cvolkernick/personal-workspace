@@ -240,16 +240,17 @@ class RecommendCut(unittest.TestCase):
 class MicrosFormula(unittest.TestCase):
     def test_fiber_sugar_sodium_from_calories(self):
         m2100 = micros_for_calories(2100)
-        self.assertEqual(m2100, {"fiber_g": 30, "sugar_g": 50, "sodium_mg": 2300})
+        self.assertEqual(m2100, {"fiber_g": 35, "sugar_g": 50, "sodium_mg": 2300})
         m1800 = micros_for_calories(1800)
-        self.assertEqual(m1800["fiber_g"], 25)
+        self.assertEqual(m1800["fiber_g"], 35)
         self.assertEqual(m1800["sugar_g"], 45)
         self.assertEqual(m1800["sodium_mg"], 2300)
         m2500 = micros_for_calories(2500)
         self.assertEqual(m2500["fiber_g"], 35)
         self.assertEqual(m2500["sugar_g"], round_g(2500 * 0.10 / 4.0))
         self.assertEqual(m2500["sodium_mg"], 2300)
-        self.assertEqual(micros_for_calories(1000)["fiber_g"], 20)
+        self.assertEqual(micros_for_calories(1000)["fiber_g"], 35)
+        self.assertEqual(micros_for_calories(2000)["fiber_g"], 35)
 
     def test_recommend_includes_micros_with_reasons(self):
         rec = recommend_nutrition_targets(
@@ -259,13 +260,13 @@ class MicrosFormula(unittest.TestCase):
         )
         self.assertTrue(rec["abstain"])
         self.assertEqual(rec["recommended"]["calories"], 2100)
-        self.assertEqual(rec["recommended"]["fiber_g"], 30)
+        self.assertEqual(rec["recommended"]["fiber_g"], 35)
         self.assertEqual(rec["recommended"]["sugar_g"], 50)
         self.assertEqual(rec["recommended"]["sodium_mg"], 2300)
         self.assertNotIn("fiber_g", rec["applied"])
-        self.assertEqual(rec["delta"]["fiber_g"], 30)
+        self.assertEqual(rec["delta"]["fiber_g"], 35)
         blob = " ".join(rec["reasons"]).lower()
-        self.assertIn("fiber 30g", blob)
+        self.assertIn("fiber 35g", blob)
         self.assertIn("total sugars", blob)
         self.assertIn("not added sugars", blob)
         self.assertIn("salt (sodium) 2300mg", blob)

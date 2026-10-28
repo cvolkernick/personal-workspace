@@ -128,12 +128,12 @@ class PlanSeedsHydration(unittest.TestCase):
         self.assertEqual(len(leaf), 1)
         self.assertEqual(leaf[0].slug, HYDRATION_SLUG)
         self.assertEqual(item_kind_key(leaf[0]), HYDRATION_CACHE_KEY)
-        self.assertIn("500 / 3175", leaf[0].title)
+        self.assertIn("500 / 3000", leaf[0].title)
 
     def test_empty_board_still_shows_the_quest(self):
         groups = plan_from_today_board({"date": "2026-08-31"}, day="2026-08-31")
         hyd = next(g for g in groups if g.group == "hydration")
-        self.assertEqual(hyd.items[0].title, "Hydration — 0 / 2500 ml")
+        self.assertEqual(hyd.items[0].title, "Hydration — 0 / 3000 ml")
 
     def test_action_title_does_not_fork_a_second_leaf(self):
         board = _board(
@@ -170,10 +170,10 @@ class CoachEmitsHydration(unittest.TestCase):
         acts = [a for a in board["actions"] if a.get("kind") == "hydration"]
         self.assertEqual(len(acts), 1)
         self.assertEqual(acts[0]["id"], "water")
-        self.assertEqual(board["hydration"]["target_ml"], 3175)
+        self.assertEqual(board["hydration"]["target_ml"], 3000)
         self.assertEqual(board["hydration"]["water_ml"], 900.0)
         self.assertFalse(board["hydration"]["hit"])
-        self.assertIn("900 / 3175", board["hydration"]["title"])
+        self.assertIn("900 / 3000", board["hydration"]["title"])
 
 
 class EnsureAutoComplete(unittest.TestCase):
@@ -265,7 +265,7 @@ class EnsureAutoComplete(unittest.TestCase):
         hyd = next(g for g in first["groups"] if g["group"] == "hydration")
         leaf = hyd["items"][0]
         self.assertFalse(leaf["completed"])
-        self.assertIn("400 / 3175", leaf["title"])
+        self.assertIn("400 / 3000", leaf["title"])
         leaf_id = leaf["task_id"]
         high = _board(
             hydration_days=[
@@ -278,7 +278,7 @@ class EnsureAutoComplete(unittest.TestCase):
         leaf2 = hyd2["items"][0]
         self.assertEqual(leaf2["task_id"], leaf_id)
         self.assertTrue(leaf2["completed"])
-        self.assertIn("3300 / 3175", leaf2["title"])
+        self.assertIn("3300 / 3000", leaf2["title"])
         extra = [
             t
             for t in created2

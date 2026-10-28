@@ -1,7 +1,7 @@
 {
   "app.js": {
-    "sha256": "0853d0c0016825b8ceb3cc2d0048fe0dbd7dbb7eb2c7adc75f4574ede1e16ca1",
-    "v": "partial-log-1"
+    "sha256": "fdb2a69a7de076cd0adbcdd07e2a100d34631c615f5874de1acb175c77e807ab",
+    "v": "partial-log-2"
   },
   "biomarkers.js": {
     "sha256": "93fbfb78409df1f259965de1e92071fc06f3792d1ec5913085f69fe1c602ed50",
@@ -28,8 +28,8 @@
     "v": "recipe-planner-1288-2"
   },
   "styles.css": {
-    "sha256": "fd0b6ca98a1e7bd33041e3d355311080e8ea5094e5157f3d7c588632a830890f",
-    "v": "labs-visible-1"
+    "sha256": "5bb4d1da176236a942415019e60144a92bc98c71e93b66fdc385518ef23ef6ff",
+    "v": "goal3b-coach-1"
   },
   "supergrok.js": {
     "sha256": "a8305965e54ca1659362eb7169fe7b0a61cd9579f4ccbf746ae3f0f2f4018139",
@@ -42,5 +42,9 @@
   "trends-paired-avgs.js": {
     "sha256": "6861f15956666fbb5d54b65e2eaf0c5e7a32f66ae4066251b02e461a24ccabcb",
     "v": "paired-avgs-7"
+  },
+  "trends-steps.js": {
+    "sha256": "cb067def206304044e382a4fed66dc1b6c5d6c30adbfc2d4b2a78a70521836e9",
+    "v": "steps-2"
   }
 }

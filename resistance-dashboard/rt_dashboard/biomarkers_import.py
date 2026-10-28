@@ -269,7 +269,8 @@ def preview_pdf_text(text: str, *, filename: str = "", existing: Optional[set] =
     order_id = lab_panel.get("order_id") or ""
     lab = lab_panel.get("lab") or "Rythm Health"
     hint = f"rythm-{order_id}" if order_id and "rythm" in lab.lower() else (f"{lab}-{order_id}" if order_id else "")
-    panel = {"panel_id": _panel_id(lab, draw, hint), "lab": lab, "draw_date": draw,
+    panel = {"panel_id": _panel_id(lab, draw, hint), "order_id": order_id, "lab": lab,
+             "draw_date": draw, "collected": draw,
              "source": src + (f" sha256:{source_sha256[:16]}" if source_sha256 else ""), "context": ctx}
     return _finish(panel, rows, existing=existing, warnings=[])
 

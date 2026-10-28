@@ -1246,6 +1246,12 @@ def export_agent_today(
             "tiles": [],
             "flag": {"status": "insufficient", "sentence": "Not enough data."},
         }
+    try:
+        from .cut_coach import coach_card_for_payload
+
+        out["coach_card"] = coach_card_for_payload(data, as_of=day or None)
+    except Exception:  # noqa: BLE001
+        out["coach_card"] = None
     return out
 
 

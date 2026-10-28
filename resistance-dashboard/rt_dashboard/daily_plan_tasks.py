@@ -60,6 +60,14 @@ from .sleep_quest import (
 from .nutrition_planner import food_logs_fingerprint, format_plan_portion
 from .timeutil import local_today_iso
 
+
+def _coach_hydration_ml():
+    """Flat coach-rule water target. Does not write the Hidrate goal."""
+    from .hydration_bars import rules_target_ml
+
+    return rules_target_ml()
+
+
 DEFAULT_LIST_TITLE = "Fitness"
 QUEST_MARK_RE = re.compile(r"\[fitdash-quest:(\d{4}-\d{2}-\d{2})\]")
 MEAL_MARK_RE = re.compile(r"\[fitdash-meal:(\d{4}-\d{2}-\d{2})\]")
@@ -2038,6 +2046,12 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 bits.append(f"{ex.get('weight_lbs')} lb")
             if ex.get("sets") is not None and ex.get("reps") is not None:
                 bits.append(f"{ex.get('sets')}×{ex.get('reps')}")
+            # Catalog guard: no-history lift with no related log shows the cue,
+            # never a sets×reps row with a blank load.
+            rx_any = ex.get("prescription") if isinstance(ex.get("prescription"), dict) else {}
+            weight_text = ex.get("weight_text") or rx_any.get("weight_text")
+            if ex.get("weight_lbs") is None and weight_text:
+                bits.append(f"· {weight_text}")
             detail = f"{name} ({' '.join(bits)})" if bits else name
             _g("training").items.append(
                 PlannedItem(
@@ -2183,7 +2197,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
             )
         )
 
-    hyd = hydration_spec(today, as_of=day)
+    hyd = hydration_spec(today, as_of=day, target_ml=_coach_hydration_ml())
     hyd_g = groups.get(HYDRATION_GROUP)
     hyd_items = [
         it for it in (hyd_g.items if hyd_g else []) if is_hydration_item(it)
@@ -2867,7 +2881,7 @@ def _persist_local_quest_day(
         return
     cardio_hit = bool(cardio_spec(board, as_of=day_key).get("hit")) if board else False
     hydration_hit = (
-        bool(hydration_spec(board, as_of=day_key).get("hit")) if board else False
+        bool(hydration_spec(board, as_of=day_key, target_ml=_coach_hydration_ml()).get("hit")) if board else False
     )
     sleep_hit = bool(sleep_spec(board, as_of=day_key).get("hit")) if board else False
     train_hit = bool((board.get("workout") or {}).get("already_trained_today"))
@@ -2949,7 +2963,7 @@ def ensure_daily_tasks(
     planned = plan_from_today_board(today_board or {}, day=day)
     cardio = cardio_spec(today_board or {}, as_of=day)
     cardio_hit = bool(cardio.get("hit"))
-    hyd = hydration_spec(today_board or {}, as_of=day)
+    hyd = hydration_spec(today_board or {}, as_of=day, target_ml=_coach_hydration_ml())
     hydration_hit = bool(hyd.get("hit"))
     sleep = sleep_spec(today_board or {}, as_of=day)
     sleep_hit = bool(sleep.get("hit"))
@@ -3539,7 +3553,7 @@ def _local_payload(
     board = today_board if isinstance(today_board, dict) else {}
     cardio_hit = bool(cardio_spec(board, as_of=day).get("hit")) if board else False
     hydration_hit = (
-        bool(hydration_spec(board, as_of=day).get("hit")) if board else False
+        bool(hydration_spec(board, as_of=day, target_ml=_coach_hydration_ml()).get("hit")) if board else False
     )
     sleep_hit = bool(sleep_spec(board, as_of=day).get("hit")) if board else False
     train_hit = bool((board.get("workout") or {}).get("already_trained_today"))
