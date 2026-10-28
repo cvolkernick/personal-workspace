@@ -82,16 +82,22 @@ class Goal3bCoach(unittest.TestCase):
 
     def test_calendar_file_stays_off(self):
         raw = json.loads(RULES.read_text(encoding="utf-8"))
-        self.assertFalse(raw["phase_calendar"]["enabled"])
-        self.assertIsNone(raw["phase_calendar"]["approved_by"])
+        steps = raw["phase_calendar"]["steps"]
+        kcal = raw["phase_calendar"]["kcal"]
+        self.assertTrue(steps["enabled"])
+        self.assertEqual(steps["approved_by"], "Chris 2026-10-27 21:58 ET via Grok")
+        self.assertFalse(kcal["enabled"])
+        self.assertIsNone(kcal["approved_by"])
         cal = json.loads(CALENDAR.read_text(encoding="utf-8"))
-        schedule = cal["phases"][1]["step_schedule"]
-        self.assertEqual(schedule[0]["from"], "2026-11-16")
-        self.assertEqual(schedule[0]["step_target"], 8000)
-        self.assertNotEqual(schedule[0]["from"], "2026-11-09")
-        self.assertEqual(schedule[1], {"from": "2026-12-07", "step_target": 9000})
-        self.assertEqual(cal["phases"][1]["start"], "2026-11-09")
-        self.assertEqual(cal["phases"][1]["kcal"], 2000)
+        schedule = cal["tracks"]["steps"]["schedule"]
+        self.assertEqual(schedule[0], {"from": "2026-10-28", "step_target": 7000})
+        self.assertEqual(schedule[1], {"from": "2026-11-16", "step_target": 8000})
+        self.assertEqual(schedule[2], {"from": "2026-12-07", "step_target": 9000})
+        self.assertFalse(cal["tracks"]["kcal"]["enabled"])
+        self.assertEqual(cal["tracks"]["kcal"]["phases"], [])
+        blob = json.dumps(cal)
+        self.assertNotIn("2300", blob)
+        self.assertNotIn("maintenance", blob)
         self.assertEqual(cal["draw"]["date"], "2027-01-28")
 
     def test_cut_band_from_rules_json(self):
@@ -153,16 +159,22 @@ class Goal3bCoach(unittest.TestCase):
             {"rate_pct": 0.6, "counted": True},
         )
         card = decide(as_of="2026-10-28", state=_state(), rules=_rules(), weeks=fast)
-        self.assertEqual(card["recommendation"]["action"], "kcal_plus_150")
+        self.assertEqual(card["recommendation"]["action"], "none")
+        self.assertIn("losing faster than 0.5%/wk, flagged to coach", card["notes"])
+        self.assertEqual(card["targets"]["kcal_target"], 2000)
+        self.assertEqual(card["recommendation"]["proposed_kcal"], 2000)
         inside = _weeks(
             {"rate_pct": 0.4, "counted": True},
             {"rate_pct": 0.4, "counted": True},
         )
         quiet = decide(as_of="2026-10-28", state=_state(), rules=_rules(), weeks=inside)
         self.assertEqual(quiet["recommendation"]["action"], "none")
+        self.assertNotIn("losing faster than 0.5%/wk, flagged to coach", quiet["notes"])
         yellow = _weeks({"rate_pct": 0.6, "strength_yellow": True, "counted": True})
         flagged = decide(as_of="2026-10-28", state=_state(), rules=_rules(), weeks=yellow)
-        self.assertEqual(flagged["recommendation"]["action"], "kcal_plus_150")
+        self.assertEqual(flagged["recommendation"]["action"], "none")
+        self.assertIn("losing faster than 0.5%/wk, flagged to coach", flagged["notes"])
+        self.assertEqual(flagged["targets"]["kcal_target"], 2000)
         self.assertTrue(fast_yellow(0.6, 0.5, strength_yellow=True))
         self.assertFalse(fast_yellow(0.4, 0.5, strength_yellow=True))
 
@@ -195,62 +207,79 @@ class Goal3bCoach(unittest.TestCase):
         self.assertEqual(stepped["state"]["step_target"], 7000)
 
     def test_calendar_off_is_noop(self):
+        """Steps track on: only the step target moves on/after 11/16 and 12/7."""
         present = _rules()
-        missing = _rules(path="fitness/coach/does-not-exist-goal3b.json")
+        held = copy.deepcopy(present)
+        held["phase_calendar"]["steps"] = {"enabled": False, "approved_by": None}
         state = _state()
         snapshot = copy.deepcopy(state)
-        for day in ("2026-10-28", "2026-11-09", "2026-11-16", "2026-12-07"):
-            with_file = build_card(as_of=day, state=state, rules=present)
-            without = build_card(as_of=day, state=state, rules=missing)
-            self.assertEqual(_bytes(with_file), _bytes(without), day)
-            self.assertEqual(
-                json.dumps(today_targets(with_file), sort_keys=True),
-                json.dumps(today_targets(without), sort_keys=True),
-            )
-            self.assertEqual(today_targets(with_file)["kcal_target"], 2000)
-            self.assertEqual(today_targets(with_file)["step_target"], 7000)
-            self.assertFalse(with_file["calendar_applied"])
-            self.assertEqual(with_file["state"]["step_events"], [])
-            self.assertIsNotNone(with_file["staged"])
-            self.assertIsNone(without["staged"])
+        expect = {
+            "2026-10-28": 7000,
+            "2026-11-09": 7000,
+            "2026-11-15": 7000,
+            "2026-11-16": 8000,
+            "2026-12-06": 8000,
+            "2026-12-07": 9000,
+            "2026-12-21": 9000,
+        }
+        for day, steps in expect.items():
+            on = build_card(as_of=day, state=state, rules=present)
+            off = build_card(as_of=day, state=state, rules=held)
+            self.assertEqual(on["targets"]["kcal_target"], 2000, day)
+            self.assertEqual(off["targets"]["kcal_target"], 2000, day)
+            self.assertEqual(on["targets"]["step_target"], steps, day)
+            self.assertEqual(off["targets"]["step_target"], 7000, day)
+            self.assertEqual(on["kcal_indicator"]["low"], 1850, day)
+            self.assertEqual(on["kcal_indicator"]["high"], 2150, day)
+            self.assertEqual(on["kcal_indicator"]["source"], "cut")
+            self.assertNotIn("maintenance", on["kcal_indicator"]["text"].lower())
+            self.assertNotIn("maintenance", on["phase_pill"].lower())
+            self.assertEqual(on["phase"], "cut")
+            if steps == 7000:
+                self.assertEqual(on["targets"]["step_target"], off["targets"]["step_target"], day)
+                self.assertEqual(on["state"]["step_events"], [])
+            else:
+                self.assertNotEqual(on["targets"]["step_target"], off["targets"]["step_target"], day)
         self.assertEqual(state, snapshot)
-        self.assertIn("waiting on Chris's yes", present and build_card(
-            as_of="2026-10-28", state=state, rules=present
-        )["staged"]["label"])
+        label = build_card(as_of="2026-10-28", state=state, rules=present)["staged"]["label"]
+        self.assertIn("Steps approved and applied", label)
+        self.assertIn("Calories held", label)
 
     def test_calendar_requires_approval(self):
-        rules = _rules(enabled=True, approved_by=None)
+        rules = _rules()
+        rules["phase_calendar"]["steps"] = {"enabled": True, "approved_by": None}
         self.assertIsNone(effective("2026-11-16", rules=rules))
         state = _state()
         card = decide(as_of="2026-11-16", state=state, rules=rules)
-        self.assertFalse(card["calendar_applied"])
+        self.assertFalse(card["kcal_applied"])
         self.assertEqual(card["targets"]["step_target"], 7000)
         self.assertEqual(card["targets"]["kcal_target"], 2000)
         self.assertEqual(state["step_target"], 7000)
 
     def test_phase_calendar_targets(self):
-        rules = _on()
+        from rt_dashboard.phase_calendar import steps_resolution
+
+        rules = _rules()
         expect = {
-            "2026-11-08": ("P0", "maintenance", 2300, 7000, {"protein": 180, "carbs": 235, "fat": 70}, [-0.25, 0.25]),
-            "2026-11-09": ("P1", "cut", 2000, 7000, {"protein": 170, "carbs": 195, "fat": 60}, [0.25, 0.5]),
-            "2026-11-16": ("P1", "cut", 2000, 8000, {"protein": 170, "carbs": 195, "fat": 60}, [0.25, 0.5]),
-            "2026-11-26": ("P1", "cut", 2300, 8000, {"protein": 180, "carbs": 235, "fat": 70}, [0.25, 0.5]),
-            "2026-12-07": ("P1", "cut", 2000, 9000, {"protein": 170, "carbs": 195, "fat": 60}, [0.25, 0.5]),
-            "2026-12-21": ("P2", "maintenance", 2300, 9000, {"protein": 180, "carbs": 235, "fat": 70}, [-0.25, 0.25]),
-            "2027-01-04": ("P3", "maintenance", 2300, 9000, {"protein": 180, "carbs": 235, "fat": 70}, [-0.25, 0.25]),
-            "2027-01-28": ("P3", "maintenance", 2300, 9000, {"protein": 180, "carbs": 235, "fat": 70}, [-0.25, 0.25]),
-            "2027-01-29": ("P4", "maintenance", 2300, 9000, {"protein": 180, "carbs": 235, "fat": 70}, [-0.25, 0.25]),
+            "2026-11-08": 7000,
+            "2026-11-09": 7000,
+            "2026-11-16": 8000,
+            "2026-11-26": 8000,
+            "2026-12-07": 9000,
+            "2026-12-21": 9000,
+            "2027-01-04": 9000,
+            "2027-01-28": 9000,
         }
-        for day, (pid, phase, kcal, steps, macros, band) in expect.items():
-            got = effective(day, rules=rules)
-            self.assertIsNotNone(got, day)
-            self.assertEqual(got["phase_id"], pid, day)
-            self.assertEqual(got["phase"], phase, day)
-            self.assertEqual(got["kcal"], kcal, day)
+        for day, steps in expect.items():
+            self.assertIsNone(effective(day, rules=rules), day)
+            got = steps_resolution(day, rules=rules)
+            self.assertTrue(got["applied"], day)
             self.assertEqual(got["step_target"], steps, day)
-            self.assertEqual(got["macros"], macros, day)
-            self.assertEqual(got["rate_band"], band, day)
-        self.assertIsNone(effective("2027-02-13", rules=rules))
+            card = decide(as_of=day, state=_state(), rules=rules)
+            self.assertEqual(card["targets"]["kcal_target"], 2000, day)
+            self.assertEqual(card["targets"]["step_target"], steps, day)
+            self.assertEqual(card["phase"], "cut", day)
+        self.assertFalse(steps_resolution("2027-02-13", rules=rules)["applied"])
 
     def test_calendar_overrides_auto_steps(self):
         rules = _on()
@@ -296,49 +325,44 @@ class Goal3bCoach(unittest.TestCase):
         self.assertEqual(card["state"]["last_step_up_date"], "2026-12-07")
         self.assertEqual(card["next_step_up_earliest"], "2026-12-21")
 
-    def test_p1_floor_1900(self):
-        rules = _on()
-        light = decide(as_of="2026-11-10", state=_state(weight_lbs=170), rules=rules)
-        self.assertEqual(light["targets"]["kcal_floor"], 1900)
-        heavier = decide(as_of="2026-11-10", state=_state(weight_lbs=180), rules=rules)
-        self.assertEqual(heavier["targets"]["kcal_floor"], 1980)
+    def test_kcal_track_held_off(self):
+        rules = _rules()
+        self.assertFalse(rules["phase_calendar"]["kcal"]["enabled"])
+        for day in ("2026-10-28", "2026-11-09", "2026-11-26", "2026-12-21", "2027-01-28"):
+            self.assertIsNone(effective(day, rules=rules), day)
+            card = decide(as_of=day, state=_state(), rules=rules)
+            self.assertEqual(card["targets"]["kcal_target"], 2000, day)
+            self.assertFalse(card["kcal_applied"], day)
+            self.assertEqual(card["kcal_indicator"]["source"], "cut", day)
+            self.assertIn("· cut", card["kcal_indicator"]["text"])
+            self.assertNotIn("maintenance", card["kcal_indicator"]["text"].lower())
 
-    def test_p1_mini_cut_blocked(self):
-        blocked = decide(as_of="2026-11-10", state=_state(), rules=_on(), mini_cut=True)
-        self.assertEqual(blocked["recommendation"]["action"], "mini_cut_blocked")
-        self.assertFalse(blocked["mini_cut_allowed"])
-        live = decide(as_of="2026-11-10", state=_state(), rules=_rules(), mini_cut=True)
-        self.assertNotEqual(live["recommendation"]["action"], "mini_cut_blocked")
-        self.assertTrue(live["mini_cut_allowed"])
-
-    def test_p1_recomp_after_3_flat_weeks(self):
-        flat = _weeks(
-            {"rate_pct": 0.0, "kcal_avg": 2000, "steps_avg": 8000, "counted": True},
-            {"rate_pct": 0.0, "kcal_avg": 2000, "steps_avg": 8000, "counted": True},
-            {"rate_pct": 0.0, "kcal_avg": 2000, "steps_avg": 8000, "counted": True},
+    def test_sixteen_week_cut_does_not_switch_phase(self):
+        card = decide(
+            as_of="2026-12-28",
+            state=_state(phase="cut", anchor="2026-09-07"),
+            rules=_rules(),
         )
-        card = decide(as_of="2026-11-20", state=_state(), rules=_on(), weeks=flat)
-        self.assertEqual(card["recommendation"]["action"], "accept_recomp")
-        self.assertIn("Accept as recomp", card["recommendation"]["detail"])
-        two = flat[:2]
-        held = decide(as_of="2026-11-20", state=_state(), rules=_on(), weeks=two)
-        self.assertEqual(held["recommendation"]["action"], "hold_targets")
+        self.assertEqual(card["phase"], "cut")
+        self.assertEqual(card["state"]["phase"], "cut")
+        self.assertEqual(card["targets"]["kcal_target"], 2000)
+        self.assertNotEqual(card["recommendation"]["action"], "switch_phase")
+        self.assertNotIn("maintenance", card["phase_pill"].lower())
 
     def test_kcal_indicator_follows_phase(self):
         off = decide(as_of="2026-10-28", state=_state(), rules=_rules())
         ind = off["kcal_indicator"]
         self.assertEqual(ind["low"], 1850)
         self.assertEqual(ind["high"], 2150)
-        self.assertEqual(ind["source"], "live")
-        p0 = decide(as_of="2026-11-08", state=_state(), rules=_on())
-        self.assertEqual(p0["kcal_indicator"]["weekly_mean"], 2300)
-        self.assertEqual(p0["kcal_indicator"]["low"], 2150)
-        self.assertEqual(p0["kcal_indicator"]["high"], 2450)
-        self.assertEqual(p0["kcal_indicator"]["source"], "calendar P0")
-        thanks = decide(as_of="2026-11-26", state=_state(), rules=_on())
-        self.assertEqual(thanks["kcal_indicator"]["weekly_mean"], 2043)
-        self.assertEqual(thanks["kcal_indicator"]["low"], 1893)
-        self.assertEqual(thanks["kcal_indicator"]["high"], 2193)
+        self.assertEqual(ind["source"], "cut")
+        self.assertEqual(ind["phase_label"], "cut")
+        self.assertIn("· cut", ind["text"])
+        later = decide(as_of="2026-11-26", state=_state(), rules=_rules())
+        self.assertEqual(later["kcal_indicator"]["weekly_mean"], 2000)
+        self.assertEqual(later["kcal_indicator"]["low"], 1850)
+        self.assertEqual(later["kcal_indicator"]["high"], 2150)
+        self.assertEqual(later["kcal_indicator"]["source"], "cut")
+        self.assertNotIn("maintenance", later["kcal_indicator"]["text"].lower())
 
     def test_hydration_target_override_3000(self):
         self.assertEqual(rules_target_ml(), 3000.0)
@@ -371,9 +395,9 @@ class Goal3bCoach(unittest.TestCase):
         placeholder = resolve_phases(rules=_on(), use_store=False)
         self.assertEqual(placeholder["draw"]["date"], "2027-01-28")
         self.assertEqual(placeholder["draw"]["source"], "plan_default")
-        self.assertEqual(placeholder["flags"]["p3_end"], "2027-01-28")
-        self.assertEqual(placeholder["flags"]["p4_start"], "2027-01-29")
+        self.assertEqual(placeholder["flags"]["draw"], "2027-01-28")
         self.assertEqual(placeholder["flags"]["no_program_change_from"], "2027-01-14")
+        self.assertNotIn("p3_end", placeholder["flags"])
         self.assertNotIn("no_hard_training_from", placeholder["flags"])
         reminder = pre_draw_reminder("2027-01-28")
         self.assertEqual(reminder["from"], "2027-01-26")
@@ -389,8 +413,7 @@ class Goal3bCoach(unittest.TestCase):
         booked = resolve_phases(rules=_on(), booking_date="2027-02-03", use_store=False)
         self.assertEqual(booked["draw"]["date"], "2027-02-03")
         self.assertEqual(booked["draw"]["source"], "labs_booking")
-        self.assertEqual(booked["flags"]["p3_end"], "2027-02-03")
-        self.assertEqual(booked["flags"]["p4_start"], "2027-02-04")
+        self.assertEqual(booked["flags"]["draw"], "2027-02-03")
         self.assertEqual(booked["flags"]["no_program_change_from"], "2027-01-20")
         moved = pre_draw_reminder(booked["draw"]["date"])
         self.assertEqual(moved["from"], "2027-02-01")
@@ -416,8 +439,9 @@ class Goal3bCoach(unittest.TestCase):
         advisory_day = decide(as_of="2027-01-26", state=_state(), rules=_on())
         self.assertNotIn("no_hard_training", json.dumps(decision_view(advisory_day)))
         self.assertEqual(advisory_day["recommendation"]["action"], "none")
-        self.assertEqual(advisory_day["targets"]["kcal_target"], 2300)
+        self.assertEqual(advisory_day["targets"]["kcal_target"], 2000)
         self.assertEqual(advisory_day["targets"]["step_target"], 9000)
+        self.assertEqual(advisory_day["phase"], "cut")
         self.assertFalse(advisory_day["pre_draw_reminder"]["enforced"])
         self.assertFalse(advisory_day["pre_draw_reminder"]["chip"])
         self.assertEqual(advisory_day["pre_draw_reminder"]["from"], "2027-01-26")

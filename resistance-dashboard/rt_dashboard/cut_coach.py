@@ -31,13 +31,18 @@ from .phase_calendar import (
     _advisory_offset_days,
     calendar_active,
     effective,
+    kcal_track,
     last_calendar_step,
     load_calendar,
     phase_bounds,
     pre_draw_reminder,
     resolve_draw_date,
     staged_panel,
+    steps_resolution,
+    track_active,
 )
+
+FAST_LOSS_NOTE = "losing faster than 0.5%/wk, flagged to coach"
 
 # Filled by ``refresh_bands``. Tests read ``BANDS["cut"]``.
 BANDS: Dict[str, tuple] = {}
@@ -243,15 +248,23 @@ def kcal_indicator_for(
     labs: Any = None,
 ) -> dict:
     tol = kcal_tolerance(rules)
-    mean = weekly_kcal_mean(
-        as_of, live_kcal, rules=rules, booking_date=booking_date, labs=labs
-    )
-    if phase and phase.get("phase_id"):
+    kcal_on = track_active(kcal_track(rules))
+    if not kcal_on:
+        mean = int(live_kcal)
+        phase = None
+    else:
+        mean = weekly_kcal_mean(
+            as_of, live_kcal, rules=rules, booking_date=booking_date, labs=labs
+        )
+    if phase and phase.get("phase") == "maintenance":
+        source = "maintenance"
+    elif phase and phase.get("phase_id"):
         source = f"calendar {phase['phase_id']}"
     else:
-        source = "live"
+        source = "cut"
     low = int(mean) - tol
     high = int(mean) + tol
+    label = "cut" if source == "cut" else source
     return {
         "target": int(mean),
         "daily_target": int(phase["kcal"]) if phase and phase.get("kcal") is not None else int(live_kcal),
@@ -260,8 +273,9 @@ def kcal_indicator_for(
         "high": high,
         "weekly_mean": int(mean),
         "source": source,
+        "phase_label": "cut" if source == "cut" else str((phase or {}).get("phase") or ""),
         "text": (
-            f"Target {int(mean):,} ± {tol} ({low:,}–{high:,}) · source: {source}"
+            f"Target {int(mean):,} ± {tol} ({low:,}–{high:,}) · {label}"
         ),
     }
 
@@ -296,21 +310,22 @@ def decide(
     phase = effective(
         day_s, rules=rules, booking_date=booking_date, labs=labs
     )
-    active = phase is not None
+    active = phase is not None and bool(phase.get("kcal"))
+    steps_info = steps_resolution(day_s, rules=rules)
     live_kcal = int(incoming.get("kcal_target") or 0)
     live_steps = int(incoming.get("step_target") or cfg["default_target"])
     events = list(out_state.get("step_events") or [])
     labels: List[str] = []
+    notes: List[str] = []
     action = "none"
     detail = ""
+    steps_applied = bool(steps_info.get("applied"))
+    scheduled = steps_info.get("step_target")
+    past_end = bool(steps_info.get("past_end"))
 
     if active:
         kcal = int(phase["kcal"]) if phase.get("kcal") is not None else live_kcal
         base_steps = int(phase["step_target"]) if phase.get("step_target") is not None else live_steps
-        if base_steps != live_steps and not _has_event(events, day_s, "calendar"):
-            events.append(
-                {"date": day_s, "kind": "calendar", "step_target": base_steps}
-            )
         band = tuple(phase["rate_band"]) if phase.get("rate_band") else _live_band(incoming, rules)
         target_band = tuple(phase["rate_target"]) if phase.get("rate_target") else cut_target_band(rules)
         floor = _floor_kcal(incoming, rules, phase.get("floor"))
@@ -322,30 +337,30 @@ def decide(
         target_band = cut_target_band(rules) if str(incoming.get("phase") or "cut") == "cut" else band
         floor = _floor_kcal(incoming, rules, None)
         auto_steps = True
-        if calendar_active(rules):
-            cal = load_calendar(rules)
-            draw = parse_day(
-                resolve_draw_date(cal, rules=rules, booking_date=booking_date, labs=labs, use_store=False).get("date")
+    if steps_applied and scheduled is not None:
+        base_steps = int(scheduled)
+        if base_steps != live_steps and not _has_event(events, day_s, "calendar"):
+            events.append(
+                {"date": day_s, "kind": "calendar", "step_target": base_steps}
             )
-            bounds = phase_bounds(cal, draw)
-            if bounds and day and day > bounds[1]:
-                carry = (cal or {}).get("on_end") if isinstance(cal, dict) else {}
-                carry = carry if isinstance(carry, dict) else {}
-                carried_steps = last_calendar_step(cal, draw) or live_steps
-                last_up = str(carry.get("carry_last_step_up") or "")[:10] or None
-                if not _has_event(events, day_s, "carry"):
-                    events.append(
-                        {
-                            "date": day_s,
-                            "kind": "carry",
-                            "step_target": carried_steps,
-                            "last_step_up_date": last_up,
-                        }
-                    )
-                base_steps = int(carried_steps)
-                if last_up:
-                    out_state["last_step_up_date"] = last_up
-                out_state["auto_steps"] = True
+        if base_steps != live_steps:
+            auto_steps = False
+    elif past_end and steps_info.get("carry_step") is not None:
+        base_steps = int(steps_info["carry_step"])
+        last_up = steps_info.get("carry_last_up")
+        if not _has_event(events, day_s, "carry"):
+            events.append(
+                {
+                    "date": day_s,
+                    "kind": "carry",
+                    "step_target": base_steps,
+                    "last_step_up_date": last_up,
+                }
+            )
+        if last_up:
+            out_state["last_step_up_date"] = last_up
+        out_state["auto_steps"] = True
+        auto_steps = True
 
     lo, hi = float(band[0]), float(band[1])
     this_week, two_week = _week_rates(weeks)
@@ -372,19 +387,23 @@ def decide(
         labels.append("Hit the step target")
 
     cut_size = kcal_cut_size(rules)
-    bump = kcal_bump_size(rules)
     over = adherence_kcal_over(rules)
     avg = _kcal_avg(weeks)
     p1_hold = active and phase and phase.get("phase_id") == "P1" and phase.get("flags", {}).get("too_slow")
 
+    fast_loss = (
+        (this_week is not None and this_week > hi)
+        or (two_week is not None and two_week > hi)
+    )
     if mini_cut and active and phase and phase.get("flags", {}).get("mini_cut_allowed") is False:
         action = "mini_cut_blocked"
         detail = "Mini-cut blocked while the phase calendar is on."
-    elif _too_fast(weeks, hi) or strength_yellow or strength_trip:
-        action = "kcal_plus_150"
-        kcal = kcal + bump
-        detail = f"Loss above {_fmt_pct(hi)}%/wk — add {bump} kcal. Steps unchanged."
-        displayed_steps = base_steps if not _deload_active(deload) else displayed_steps
+    elif fast_loss or strength_yellow or strength_trip:
+        # Fast loss is a flag only. It does not change kcal advice.
+        if fast_loss or (this_week is not None and this_week > hi):
+            labels.append(FAST_LOSS_NOTE)
+            notes.append(FAST_LOSS_NOTE)
+        detail = FAST_LOSS_NOTE if fast_loss else ""
     elif lo > 0 and _too_slow(weeks, lo):
         slow_lo = lo
         if p1_hold:
@@ -431,20 +450,16 @@ def decide(
 
     # Calendar off must not rewrite the stored targets. The recommendation
     # can still name a change; the stored step and kcal stay put.
-    if not calendar_active(rules):
+    steps_tracked = steps_applied or past_end
+    if not steps_tracked and not active:
         out_state["kcal_target"] = live_kcal
         out_state["step_target"] = live_steps
         out_state["step_events"] = list(incoming.get("step_events") or [])
         events_out: List[dict] = []
     else:
-        out_state["kcal_target"] = live_kcal if not active else live_kcal
-        out_state["step_target"] = base_steps if active or out_state.get("auto_steps") else live_steps
-        if active:
-            out_state["step_target"] = base_steps
-        elif out_state.get("auto_steps"):
-            out_state["step_target"] = base_steps
-        else:
-            out_state["step_target"] = live_steps
+        out_state["kcal_target"] = live_kcal
+        out_state["step_target"] = int(base_steps)
+        out_state["phase"] = incoming.get("phase") or "cut"
         out_state["step_events"] = events
         events_out = [e for e in events if e not in (incoming.get("step_events") or [])]
 
@@ -498,6 +513,7 @@ def decide(
         "kcal_indicator": indicator,
         "recommendation": {"action": action, "detail": detail},
         "labels": labels,
+        "notes": notes,
         "step_events": events_out,
         "macros": (phase or {}).get("macros"),
         "flags": (phase or {}).get("flags") or {},
@@ -516,19 +532,21 @@ def decide(
     # Displayed recommendation kcal must not leak into stored state while off,
     # and the card's live targets stay the stored numbers when the calendar
     # is off even if the recommendation names a cut or a bump.
-    if not active:
-        card["targets"]["kcal_target"] = live_kcal
-        card["targets"]["step_target"] = live_steps if not (
-            calendar_active(rules) and out_state.get("auto_steps")
-        ) else int(out_state.get("step_target") or live_steps)
-        if calendar_active(rules) and out_state.get("auto_steps"):
-            card["targets"]["base_step_target"] = int(out_state.get("step_target") or live_steps)
-            card["targets"]["step_target"] = int(displayed_steps if _deload_active(deload) else out_state.get("step_target") or live_steps)
-    else:
-        card["targets"]["kcal_target"] = int(phase["kcal"]) if phase.get("kcal") is not None else live_kcal
+    card["targets"]["kcal_target"] = live_kcal if not active else int(
+        phase.get("kcal") if phase and phase.get("kcal") is not None else live_kcal
+    )
+    if steps_tracked or _deload_active(deload):
         card["targets"]["step_target"] = int(displayed_steps)
         card["targets"]["base_step_target"] = int(base_steps)
-    card["recommendation"]["proposed_kcal"] = int(kcal)
+    elif action == "steps_plus_1500" and auto_steps:
+        card["targets"]["step_target"] = live_steps
+        card["targets"]["base_step_target"] = live_steps
+    else:
+        card["targets"]["step_target"] = live_steps
+        card["targets"]["base_step_target"] = live_steps
+    card["steps_applied"] = bool(steps_applied or past_end)
+    card["kcal_applied"] = bool(active)
+    card["recommendation"]["proposed_kcal"] = int(live_kcal if fast_loss else kcal)
     card["recommendation"]["proposed_steps"] = int(displayed_steps)
     return card
 
@@ -636,7 +654,16 @@ def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dic
     }
     if kcal_i is None:
         state["kcal_target"] = 2000
-    return decide(as_of=day or "2026-10-28", state=state, rules=rules)
+    card = decide(as_of=day or "2026-10-28", state=state, rules=rules)
+    health = data.get("health") if isinstance(data.get("health"), dict) else {}
+    logs = health.get("food_logs") or []
+    try:
+        from .nutrition_micros import build_sat_fat_chip
+
+        card["sat_fat_chip"] = build_sat_fat_chip(logs, as_of=card.get("as_of"), rules=rules)
+    except Exception:
+        card["sat_fat_chip"] = None
+    return card
 
 
 def attach_coach_card(payload: dict, *, as_of: Any = None) -> dict:

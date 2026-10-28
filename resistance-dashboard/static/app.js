@@ -4941,6 +4941,17 @@
       const ind = card.kcal_indicator || {};
       kcal.textContent = ind.text || "";
     }
+    const sat = $("coach-sat-fat-chip");
+    if (sat) {
+      const chipData = card.sat_fat_chip;
+      if (chipData && chipData.text) {
+        sat.hidden = false;
+        sat.textContent = chipData.text;
+      } else {
+        sat.hidden = true;
+        sat.textContent = "";
+      }
+    }
     const staged = $("coach-staged-panel");
     if (!staged) return;
     const preview = card.staged;
@@ -4948,7 +4959,7 @@
     if (preview && !card.calendar_applied) {
     const label = document.createElement("p");
     label.className = "coach-staged-label";
-    label.textContent = preview.label || "Staged: waiting on Chris's yes. Not applied.";
+    label.textContent = preview.label || "Steps approved and applied. Calories held at the live cut.";
     staged.appendChild(label);
     const wrap = document.createElement("div");
     wrap.className = "bm-table-wrap";
@@ -4963,7 +4974,18 @@
     const thead = document.createElement("thead");
     thead.appendChild(head);
     const tbody = document.createElement("tbody");
-    (preview.phases || []).forEach((p) => {
+    const stepRows = Array.isArray(preview.steps) ? preview.steps : [];
+    const phaseRows = stepRows.length ? [] : (preview.phases || []);
+    stepRows.forEach((row) => {
+      const tr = document.createElement("tr");
+      ["Steps", "applied", row.from || "", "", "", row.step_target != null ? String(row.step_target) : ""].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    phaseRows.forEach((p) => {
       const macros = p.macros || {};
       const steps = Array.isArray(p.steps)
         ? p.steps.map((s) => `${s.from}: ${s.step_target}`).join(", ")

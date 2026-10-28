@@ -13,6 +13,7 @@
     "lifting_day_ml": null,
     "hot_day_ml": null
   },
+  "sat_fat_chip": {"enabled": true},
   "nutrition_floors": {
     "fiber_g_min": 35,
     "sugar_g_max": 50,
@@ -29,11 +30,18 @@
     }
   },
   "phase_calendar": {
-    "enabled": false,
     "path": "fitness/coach/phase_calendar_goal3b.json",
-    "approved_by": null,
-    "approved_at": null,
-    "labs_booking_date": null
+    "labs_booking_date": null,
+    "steps": {
+      "enabled": true,
+      "approved_by": "Chris 2026-10-27 21:58 ET via Grok",
+      "approved_at": "2026-10-27T21:58:00-04:00"
+    },
+    "kcal": {
+      "enabled": false,
+      "approved_by": null,
+      "approved_at": null
+    }
   },
   "steps": {
     "default_target": 7000,

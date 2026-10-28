@@ -49,6 +49,105 @@ def calendar_active(rules: Optional[dict] = None) -> bool:
     return calendar_enabled(rules) and approved_by(rules) is not None
 
 
+def _merged_track(rules: Optional[dict], calendar: Optional[dict], name: str) -> dict:
+    """File track, with a rules-block override when that track key is present."""
+    file_track: Dict[str, Any] = {}
+    if isinstance(calendar, dict):
+        tracks = calendar.get("tracks")
+        if isinstance(tracks, dict) and isinstance(tracks.get(name), dict):
+            file_track = dict(tracks[name])
+    block = calendar_block(rules)
+    rules_track = block.get(name) if isinstance(block.get(name), dict) else {}
+    merged = dict(file_track)
+    merged.update(rules_track)
+    return merged
+
+
+def track_active(track: Optional[dict]) -> bool:
+    if not isinstance(track, dict) or track.get("enabled") is not True:
+        return False
+    return bool(str(track.get("approved_by") or "").strip())
+
+
+def steps_track(rules: Optional[dict] = None, calendar: Optional[dict] = None) -> dict:
+    rules = load_rules() if rules is None else rules
+    if calendar is None:
+        calendar = load_calendar(rules)
+    return _merged_track(rules, calendar, "steps")
+
+
+def kcal_track(rules: Optional[dict] = None, calendar: Optional[dict] = None) -> dict:
+    rules = load_rules() if rules is None else rules
+    if calendar is None:
+        calendar = load_calendar(rules)
+    return _merged_track(rules, calendar, "kcal")
+
+
+def _schedule_step(schedule: Any, day: date) -> Optional[int]:
+    chosen = None
+    chosen_from: Optional[date] = None
+    for row in schedule or []:
+        if not isinstance(row, dict):
+            continue
+        start = _coerce_date(row.get("from"))
+        if start is None or start > day:
+            continue
+        if chosen_from is None or start >= chosen_from:
+            try:
+                chosen = int(row.get("step_target"))
+            except (TypeError, ValueError):
+                chosen = None
+            chosen_from = start
+    return chosen
+
+
+def steps_resolution(
+    as_of: Any,
+    *,
+    rules: Optional[dict] = None,
+    calendar: Optional[dict] = None,
+) -> Dict[str, Any]:
+    """Steps-track target for a date. Inactive or out of range leaves steps alone."""
+    rules = load_rules() if rules is None else rules
+    if calendar is None:
+        calendar = load_calendar(rules)
+    track = steps_track(rules, calendar)
+    empty = {
+        "applied": False,
+        "past_end": False,
+        "step_target": None,
+        "carry_step": None,
+        "carry_last_up": None,
+    }
+    if not track_active(track):
+        return empty
+    day = _coerce_date(as_of)
+    if day is None:
+        return empty
+    end = _coerce_date(track.get("end"))
+    schedule = track.get("schedule")
+    if end is not None and day > end:
+        on_end = track.get("on_end") if isinstance(track.get("on_end"), dict) else {}
+        last = _schedule_step(schedule, end)
+        return {
+            "applied": False,
+            "past_end": True,
+            "step_target": None,
+            "carry_step": last,
+            "carry_last_up": str(on_end.get("carry_last_step_up") or "")[:10] or None,
+        }
+    target = _schedule_step(schedule, day)
+    if target is None:
+        return empty
+    return {
+        "applied": True,
+        "past_end": False,
+        "step_target": target,
+        "carry_step": None,
+        "carry_last_up": None,
+    }
+
+
 def load_calendar(rules: Optional[dict] = None) -> Optional[dict]:
     block = calendar_block(rules)
     path = str(block.get("path") or "fitness/coach/phase_calendar_goal3b.json")
@@ -249,16 +348,18 @@ def resolve_phases(
     )
     draw = _coerce_date(draw_info.get("date"))
     rows = _phase_rows(cal, draw)
-    flags = {}
+    draw_blob = cal.get("draw") if isinstance(cal.get("draw"), dict) else {}
+    flags = {
+        "draw": _iso(draw),
+        "draw_source": draw_info.get("source"),
+        "no_program_change_from": resolve_token(draw_blob.get("no_program_change_from"), draw),
+    }
     for row in rows:
         if row.get("id") == "P3":
-            flags = {
-                "draw": _iso(draw),
-                "draw_source": draw_info.get("source"),
-                "no_program_change_from": row.get("no_program_change_from"),
-                "p3_end": row.get("end"),
-                "p4_start": None,
-            }
+            flags["p3_end"] = row.get("end")
+            flags["no_program_change_from"] = row.get("no_program_change_from") or flags.get(
+                "no_program_change_from"
+            )
         if row.get("id") == "P4":
             flags["p4_start"] = row.get("start")
     return {"draw": draw_info, "phases": rows, "flags": flags, "calendar": cal}
@@ -273,9 +374,12 @@ def effective(
     calendar: Optional[dict] = None,
     use_store: bool = False,
 ) -> Optional[dict]:
-    """Phase for ``as_of``, or None when the calendar is not in effect."""
+    """Kcal/macro phase for ``as_of``. None while that track is off or unapproved."""
     rules = load_rules() if rules is None else rules
-    if not calendar_active(rules):
+    cal = calendar if calendar is not None else load_calendar(rules)
+    if not track_active(kcal_track(rules, cal)):
+        return None
+    if not calendar_active(rules) and not track_active(kcal_track(rules, cal)):
         return None
     day = _coerce_date(as_of)
     if day is None:
@@ -343,9 +447,13 @@ def effective(
 
 def _advisory_offset_days(calendar: Optional[dict]) -> int:
     """Day count on the ``@draw-Nd`` reminder token. Not a training gate."""
-    for row in (calendar or {}).get("phases") or []:
-        if not isinstance(row, dict):
-            continue
+    blobs = []
+    if isinstance(calendar, dict):
+        draw = calendar.get("draw")
+        if isinstance(draw, dict):
+            blobs.append(draw)
+        blobs.extend(row for row in (calendar.get("phases") or []) if isinstance(row, dict))
+    for row in blobs:
         match = _TOKEN.match(str(row.get("no_hard_training_from") or ""))
         if match and match.group("sign") == "-":
             return int(match.group("n"))
@@ -378,10 +486,8 @@ def staged_panel(
     booking_date: Any = None,
     labs: Any = None,
 ) -> Optional[dict]:
-    """Read-only preview. Present only while the calendar file loads and is off."""
+    """Steps schedule plus the held calorie track. Shown whether or not steps apply."""
     rules = load_rules() if rules is None else rules
-    if calendar_active(rules):
-        return None
     cal = load_calendar(rules)
     if not isinstance(cal, dict):
         return None
@@ -411,14 +517,33 @@ def staged_panel(
             }
         )
     draw = resolved.get("draw") or {}
+    steps = steps_track(rules, cal)
+    calories = kcal_track(rules, cal)
+    steps_on = track_active(steps)
+    schedule = [
+        {"from": item.get("from"), "step_target": item.get("step_target")}
+        for item in (steps.get("schedule") or [])
+        if isinstance(item, dict)
+    ]
+    who = str(steps.get("approved_by") or "").strip()
+    if steps_on:
+        label = "Steps approved and applied"
+        if who:
+            label = f"{label} ({who})"
+        label = f"{label}. Calories held at the live cut."
+    else:
+        label = "Steps not applied. Calories held at the live cut."
     return {
-        "label": "Staged: waiting on Chris's yes. Not applied.",
+        "label": label,
         "applied": False,
-        "enabled": False,
-        "approved_by": approved_by(rules),
+        "steps_applied": steps_on,
+        "kcal_applied": track_active(calories),
+        "enabled": steps_on,
+        "approved_by": who or None,
         "draw": draw.get("date"),
         "draw_source": draw.get("source"),
         "phases": rows,
+        "steps": schedule,
         "pre_draw_reminder": pre_draw_reminder(
             draw.get("date"), offset_days=_advisory_offset_days(cal)
         ),
