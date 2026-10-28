@@ -13,6 +13,7 @@ import json
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 from rt_dashboard.coach_steps import clear_rules_cache, fiber_floor_g, load_rules
 from rt_dashboard.cut_coach import (
@@ -24,7 +25,9 @@ from rt_dashboard.cut_coach import (
     refresh_bands,
     today_targets,
 )
+from rt_dashboard.guardrails import build_guardrails
 from rt_dashboard.hydration_bars import build_hydration_bars_payload, rules_target_ml
+from rt_dashboard.phase_barometer import scale_thresholds
 from rt_dashboard.nutrition_targets import micros_for_calories
 from rt_dashboard.phase_calendar import (
     effective,
@@ -101,6 +104,47 @@ class Goal3bCoach(unittest.TestCase):
         built = refresh_bands(bare)
         self.assertEqual(built["cut"], (0.25, 0.5))
         self.assertEqual(built["cut_target"], (0.25, 0.5))
+
+    def test_guardrail_scale_reads_the_same_cut_band(self):
+        live = scale_thresholds("cut")
+        self.assertAlmostEqual(live["target_high_pct"], -0.25)
+        self.assertAlmostEqual(live["target_low_pct"], -0.5)
+        self.assertAlmostEqual(live["yellow_loss_under_pct"], 0.25)
+        self.assertAlmostEqual(live["yellow_loss_over_pct"], 0.5)
+        bare = copy.deepcopy(load_rules())
+        bare.pop("cut_band_pct", None)
+        fallback = scale_thresholds("cut", bare)
+        self.assertAlmostEqual(fallback["target_high_pct"], -0.25)
+        self.assertAlmostEqual(fallback["target_low_pct"], -0.5)
+        payload = {
+            "sessions": [],
+            "health": {
+                "weight": [
+                    {"date": "2026-10-14", "weight_lbs": 180},
+                    {"date": "2026-10-21", "weight_lbs": 179.5},
+                    {"date": "2026-10-28", "weight_lbs": 179.1},
+                ]
+            },
+            "phase_barometer": {"phase": "cut"},
+            "workout_store": {"goals": {}},
+            "meta": {"local_today": "2026-10-28"},
+        }
+        tile = next(t for t in build_guardrails(payload, as_of="2026-10-28")["tiles"] if t["id"] == "scale")
+        self.assertAlmostEqual(tile["band"]["high"], -0.25)
+        self.assertAlmostEqual(tile["band"]["low"], -0.5)
+        self.assertIn("0.25–0.5%", tile["rule"])
+        self.assertNotIn("1.5%", tile["rule"])
+        self.assertNotIn("1.0%", tile["rule"])
+        with mock.patch("rt_dashboard.coach_steps.cut_band", return_value=(0.3, 0.4)):
+            shifted = scale_thresholds("cut", {"cut_band_pct": [0.3, 0.4]})
+            self.assertAlmostEqual(shifted["target_high_pct"], -0.3)
+            self.assertAlmostEqual(shifted["target_low_pct"], -0.4)
+            moved = next(
+                t for t in build_guardrails(payload, as_of="2026-10-28")["tiles"] if t["id"] == "scale"
+            )
+        self.assertAlmostEqual(moved["band"]["high"], -0.3)
+        self.assertAlmostEqual(moved["band"]["low"], -0.4)
+        self.assertIn("0.3–0.4%", moved["rule"])
 
     def test_cut_rate_cap_half_pct(self):
         self.assertNotIn("0.75", inspect.getsource(fast_yellow))

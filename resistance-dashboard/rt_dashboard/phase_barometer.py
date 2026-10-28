@@ -103,6 +103,35 @@ GUARDRAIL_THRESHOLDS: Dict[str, Any] = {
     "flag": {"flat_weeks": 3},
 }
 
+
+def scale_thresholds(phase: str, rules: Optional[dict] = None) -> dict:
+    """Scale-tile bands. The cut target is the live coach cut band.
+
+    ``cut_band_pct`` is a loss rate (0.25–0.5). The tile stores that as a
+    signed week-over-week change: slow edge on ``target_high_pct``, fast
+    edge on ``target_low_pct``. Yellow sits on those same edges.
+    """
+    spec = GUARDRAIL_THRESHOLDS["scale"]
+    phases = spec["phases"]
+    base = dict(phases.get(phase) or phases["maintain"])
+    if canonical_phase(phase) != "cut":
+        return base
+    try:
+        from .coach_steps import cut_band
+
+        lo, hi = cut_band(rules)
+    except Exception:
+        lo, hi = 0.25, 0.5
+    lo, hi = abs(float(lo)), abs(float(hi))
+    if hi < lo:
+        lo, hi = hi, lo
+    base["target_high_pct"] = -lo
+    base["target_low_pct"] = -hi
+    base["yellow_loss_under_pct"] = lo
+    base["yellow_loss_over_pct"] = hi
+    return base
+
+
 PHASE_LABELS = {
     "cut": "Cut",
     "slow_bulk": "Bulk",
