@@ -2046,6 +2046,12 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 bits.append(f"{ex.get('weight_lbs')} lb")
             if ex.get("sets") is not None and ex.get("reps") is not None:
                 bits.append(f"{ex.get('sets')}×{ex.get('reps')}")
+            # Catalog guard: no-history lift with no related log shows the cue,
+            # never a sets×reps row with a blank load.
+            rx_any = ex.get("prescription") if isinstance(ex.get("prescription"), dict) else {}
+            weight_text = ex.get("weight_text") or rx_any.get("weight_text")
+            if ex.get("weight_lbs") is None and weight_text:
+                bits.append(f"· {weight_text}")
             detail = f"{name} ({' '.join(bits)})" if bits else name
             _g("training").items.append(
                 PlannedItem(

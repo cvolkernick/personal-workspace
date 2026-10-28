@@ -940,6 +940,19 @@ def _family_slot_taken(ex: dict, chosen: Sequence[dict]) -> bool:
     return n >= PATTERN_FAMILY_SESSION_CAP
 
 
+GUARD_PASSTHROUGH_KEYS = (
+    "aliases",
+    "load_step_lbs",
+    "bar_weight_lbs",
+    "load_convention",
+    "movement_pattern",
+    "related_lifts",
+    "legacy_id",
+    "copied_from",
+    "injected_by_guard",
+)
+
+
 def normalize_exercise(raw: dict) -> dict:
     name = str(raw.get("name") or "").strip()
     if not name:
@@ -977,6 +990,10 @@ def normalize_exercise(raw: dict) -> dict:
         out["volume_primary"] = [str(m).lower() for m in raw["volume_primary"]]
     if isinstance(raw.get("volume_secondary"), list):
         out["volume_secondary"] = [str(m).lower() for m in raw["volume_secondary"]]
+    # Catalog-guard data (aliases, load fields, related lifts) rides along.
+    for key in GUARD_PASSTHROUGH_KEYS:
+        if raw.get(key) is not None:
+            out[key] = deepcopy(raw[key])
     return out
 
 
@@ -1243,6 +1260,11 @@ def _canonical_exercise_id(
         for eid, ex in catalog_by_id.items():
             if _norm_name(ex.get("name") or "") == key:
                 return eid
+        # Declared aliases on the catalog row (catalog_guard.json).
+        for eid, ex in catalog_by_id.items():
+            for alias_name in ex.get("aliases") or []:
+                if _norm_name(str(alias_name)) == key:
+                    return eid
     return None
 
 
@@ -1578,6 +1600,12 @@ def load_step_lbs(
     DB +5 lb (2.5 lb when the rack's last log shows it). Cable or machine
     next pin is +5 lb. Barbell or Smith is +5 lb upper body, +10 lb lower.
     """
+    try:
+        explicit = float((catalog_ex or {}).get("load_step_lbs") or 0)
+    except (TypeError, ValueError):
+        explicit = 0.0
+    if explicit > 0:
+        return explicit
     kind = _implement_kind(catalog_ex, equipment)
     if kind == "db":
         return _db_step_lbs(last_weight)
@@ -2158,7 +2186,30 @@ def _plan_day(as_of: Optional[str]) -> Optional[str]:
     return None
 
 
-def clamp_llm_plan_loads(
+def clamp_llm_plan_loads(workout: dict, sessions: Sequence[Any], catalog: Optional[dict], **kwargs: Any) -> dict:
+    """SOP clamp, then the catalog guard (resolve, substitute or drop, start load)."""
+    from .catalog_guard import apply_catalog_guard, guard_plan
+
+    guarded = apply_catalog_guard(catalog) if isinstance(catalog, dict) else catalog
+    out = _clamp_llm_plan_loads_unguarded(workout, sessions, guarded, **kwargs)
+    if not isinstance(guarded, dict):
+        return out
+    try:
+        return guard_plan(
+            out,
+            guarded,
+            sessions,
+            equipment=kwargs.get("equipment"),
+            as_of=kwargs.get("as_of"),
+        )
+    except Exception:  # noqa: BLE001
+        import logging
+
+        logging.getLogger("fitdash.catalog_guard").exception("guard_plan failed")
+        return out
+
+
+def _clamp_llm_plan_loads_unguarded(
     workout: dict,
     sessions: Sequence[Any],
     catalog: Optional[dict],
@@ -2356,7 +2407,37 @@ def _stamp_plan_remainder(plan: dict, remainder: Optional[dict], objective: Any)
     return plan
 
 
-def generate_workout_plan(
+def generate_workout_plan(catalog: dict, goals: dict, sessions: Sequence[Session], **kwargs: Any) -> dict:
+    """Guarded planner: catalog guard in, every row resolved and weighted out.
+
+    See ``catalog_guard``. The guard never writes; rows for lifts already
+    logged on ``as_of`` are returned untouched.
+    """
+    from .catalog_guard import apply_catalog_guard, guard_plan
+
+    guarded = apply_catalog_guard(catalog)
+    plan = _generate_workout_plan_unguarded(guarded, goals, sessions, **kwargs)
+    as_of = kwargs.get("as_of")
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        as_of = local_today_iso()
+    try:
+        return guard_plan(
+            plan,
+            guarded,
+            sessions,
+            equipment=kwargs.get("equipment"),
+            as_of=as_of,
+        )
+    except Exception:  # noqa: BLE001 - the guard must never break the plan
+        import logging
+
+        logging.getLogger("fitdash.catalog_guard").exception("guard_plan failed")
+        return plan
+
+
+def _generate_workout_plan_unguarded(
     catalog: dict,
     goals: dict,
     sessions: Sequence[Session],

@@ -1,7 +1,7 @@
 {
   "app.js": {
-    "sha256": "4b7eeb027aeb72b53497f46d06699ed51255ccfb719986f90a8ae50ac2c0b262",
-    "v": "goal3b-coach-3"
+    "sha256": "c7d46f0fcea8c695111f1ad9f465779b7eefeb7b812705fb4a120b197469d873",
+    "v": "backport-steps-guard-1"
   },
   "biomarkers.js": {
     "sha256": "93fbfb78409df1f259965de1e92071fc06f3792d1ec5913085f69fe1c602ed50",
@@ -42,5 +42,9 @@
   "trends-paired-avgs.js": {
     "sha256": "6861f15956666fbb5d54b65e2eaf0c5e7a32f66ae4066251b02e461a24ccabcb",
     "v": "paired-avgs-7"
+  },
+  "trends-steps.js": {
+    "sha256": "cb067def206304044e382a4fed66dc1b6c5d6c30adbfc2d4b2a78a70521836e9",
+    "v": "steps-2"
   }
 }

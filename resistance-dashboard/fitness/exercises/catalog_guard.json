@@ -1,0 +1,63 @@
+{
+  "schema": "fitdash.catalog_guard.v1",
+  "updated_at": "2026-10-27",
+  "notes": "Planner guard data (Frankenfit spec 2026-10-27). App-bundled so it applies whatever catalog source loads (GitHub, local fallback, bundle). Aliases, legacy ids, load fields and related-lift starting weights live here as data, not code.",
+  "legacy_ids": {
+    "smith-bench": "smith-flat-bench"
+  },
+  "exercises": [
+    {
+      "id": "smith-flat-bench",
+      "name": "Smith Flat Bench",
+      "inject_if_missing": false,
+      "session_types": ["push"],
+      "primary_muscles": ["chest"],
+      "secondary_muscles": ["triceps", "shoulders"],
+      "volume_primary": ["chest"],
+      "volume_secondary": ["triceps", "front_delts"],
+      "movement": "compound",
+      "equipment": ["smith_machine"],
+      "default_sets": 3,
+      "default_reps": 8,
+      "rep_range": [5, 9],
+      "priority": 8,
+      "available": true
+    }
+  ],
+  "fields": {
+    "smith-flat-bench": {
+      "aliases": ["Smith bench", "Smith flat bench press", "Smith bench press"],
+      "movement_pattern": "horizontal_press",
+      "load_step_lbs": 5,
+      "rep_range": [5, 9],
+      "copy_from": {
+        "id": "smith-incline-bench",
+        "fields": ["equipment", "equipment_any", "bar_weight_lbs", "load_convention"]
+      }
+    },
+    "smith-incline-bench": {
+      "movement_pattern": "incline_press",
+      "load_step_lbs": 5
+    }
+  },
+  "related_lifts": {
+    "smith-flat-bench": [
+      {"related_lift": "smith-incline-bench", "factor": 1.10},
+      {"related_lift": "barbell-flat-bench-press", "factor": 0.90}
+    ],
+    "smith-incline-bench": [
+      {"related_lift": "smith-flat-bench", "factor": 0.90}
+    ]
+  },
+  "generic_fallback": {
+    "factor": 0.90,
+    "match": "same movement pattern and same equipment, most recent first working set"
+  },
+  "starting_weight": {
+    "reps_above_band_bottom": 2,
+    "rpe_cue": "about 2-3 reps in reserve (RPE 7-8)",
+    "label": "Starting estimate from {lift}",
+    "no_history_text": "Find a working weight: RPE 7 (about 3 reps left)"
+  },
+  "removed_note": "removed: {name} (not in equipment library)"
+}
