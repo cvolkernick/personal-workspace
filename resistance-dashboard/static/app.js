@@ -6626,7 +6626,7 @@
         const w =
           rx.weight_lbs != null && rx.weight_lbs !== ""
             ? `${rx.weight_lbs} lb`
-            : "BW / choose load";
+            : rx.weight_text || ex.weight_text || "BW / choose load";
         const muscles = (ex.primary_muscles || []).join(", ");
         const last = ex.last
           ? `Last ${ex.last.date}: ${ex.last.weight_lbs} lb × ${ex.last.sets}×${ex.last.reps}`
@@ -7177,6 +7177,8 @@
     }
 
     renderCharts(data);
+    // Steps chart (trends-steps.js) refreshes with each dashboard render.
+    if (window.FitDashTrendsSteps) window.FitDashTrendsSteps.refresh();
     // Charts built while Trends is display:none measure wrong on phone — fix after paint
     requestAnimationFrame(() => {
       requestAnimationFrame(() => resizeAllCharts());

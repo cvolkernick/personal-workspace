@@ -2181,6 +2181,34 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     status=500,
                 )
             return
+        if parsed.path == "/api/agent/steps_history":
+            # Steps chart (plan 2026-10-26): read-only daily steps, 7d rolling,
+            # Mon-Sun weeks matching the coach card. Same principals as coach_card.
+            client_host = (self.client_address or ("", 0))[0]
+            user = _session_user_from_headers(self.headers)
+            principal = agent_today_principal(self.headers, client_host, session_user=user)
+            if _auth_required() and principal == "deny":
+                self._send_json(service_auth_denied("agents"), status=401)
+                return
+            try:
+                from rt_dashboard.agent_read import agent_targets_uid
+                from rt_dashboard.steps_history import steps_history_response
+                from rt_dashboard.timeutil import local_today_iso
+
+                uid = (user.get("user_id") if user else None) or agent_targets_uid() or None
+                today = local_today_iso()
+                from rt_dashboard.steps_history import parse_params
+
+                _p, _err = parse_params(parsed.query or "", today)
+                if _err:
+                    self._send_json(_err, status=400)
+                    return
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                status, body = steps_history_response(data, parsed.query or "", today=today)
+                self._send_json(body, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": type(e).__name__}, status=500)
+            return
         if parsed.path == "/api/agent/coach_card":
             client_host = (self.client_address or ("", 0))[0]
             user = _session_user_from_headers(self.headers)
