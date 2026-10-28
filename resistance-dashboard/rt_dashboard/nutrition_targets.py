@@ -207,6 +207,48 @@ def _macros_for(
     return {"protein_g": protein, "carbs_g": carbs, "fat_g": fat}
 
 
+KCAL_MACRO_KEYS = ("calories", "protein_g", "carbs_g", "fat_g")
+
+
+def kcal_track_active(rules: Optional[dict] = None) -> bool:
+    """True only when the kcal track is enabled and approved.
+
+    Loads ``coach_rules.json`` the same way ``cut_coach`` does
+    (``load_rules`` → ``kcal_track`` → ``track_active``). Unreadable
+    rules fail closed: the track is off and calorie advice abstains.
+    """
+    try:
+        from .coach_steps import load_rules
+        from .phase_calendar import kcal_track, track_active
+
+        loaded = load_rules() if rules is None else rules
+        return bool(track_active(kcal_track(loaded)))
+    except Exception:
+        return False
+
+
+def preserve_applied_kcal_macros(
+    merged: dict,
+    applied: Optional[dict],
+    *,
+    rules: Optional[dict] = None,
+) -> dict:
+    """Keep calories and macros at the applied values while the kcal track is off.
+
+    Fiber, sugar, and sodium on ``merged`` are left alone.
+    """
+    out = dict(merged or {})
+    if kcal_track_active(rules):
+        return out
+    src = applied if isinstance(applied, dict) else {}
+    for key in KCAL_MACRO_KEYS:
+        if key in src and src.get(key) not in (None, ""):
+            out[key] = src[key]
+        else:
+            out.pop(key, None)
+    return out
+
+
 def recommend_nutrition_targets(
     *,
     health: Optional[HealthSnapshot] = None,
@@ -214,8 +256,14 @@ def recommend_nutrition_targets(
     recovery: Optional[RecoveryStatus] = None,
     adherence_7d: Optional[dict] = None,
     as_of: Optional[str] = None,
+    rules: Optional[dict] = None,
 ) -> dict:
-    """Pure recommendation. Does not write files."""
+    """Pure recommendation. Does not write files.
+
+    ``rules`` defaults to ``coach_rules.json`` (same loader as cut coach).
+    When the kcal track is off or the rules cannot be read, calories and
+    macros stay at the applied targets and ``abstain`` is true.
+    """
     day = as_of or local_today_iso()
     applied_in = targets or {}
     applied = {
@@ -260,7 +308,12 @@ def recommend_nutrition_targets(
     tdee_thin = tdee is None or tdee_days < TDEE_MIN_DAYS
     no_weigh_in = current_lb is None
     # No recent weigh-in: calorie rec stays applied (do not invent gap_lb).
-    calorie_abstain = tdee_thin or no_weigh_in
+    # Kcal track off (or rules unreadable): same abstain. Calories and macros
+    # stay on the applied targets.
+    kcal_on = kcal_track_active(rules)
+    calorie_abstain = tdee_thin or no_weigh_in or not kcal_on
+    if not kcal_on:
+        reasons.append("kcal track off")
     tdee_hat = None
     if tdee_thin:
         reasons.append(
@@ -341,13 +394,13 @@ def recommend_nutrition_targets(
 
         rec_cal = round_kcal(rec_cal)
 
-    if current_lb:
+    if current_lb and kcal_on:
         macros = _macros_for(calories=int(rec_cal), current_lb=current_lb, phase=phase)
         reasons.append(
             f"protein {'1.0' if phase == 'cut' else '0.9'} g/lb current → {macros['protein_g']} g"
         )
     else:
-        # No bodyweight: do not invent protein/fat; calories already applied.
+        # No bodyweight, or the kcal track is off: keep the applied split.
         macros = {
             "protein_g": int(applied["protein_g"]),
             "carbs_g": int(applied["carbs_g"]),

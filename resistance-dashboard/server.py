@@ -223,6 +223,7 @@ from rt_dashboard.nutrition_store import (  # noqa: E402
 )
 from rt_dashboard.nutrition_targets import (  # noqa: E402
     merge_recommended_into_applied,
+    preserve_applied_kcal_macros,
 )
 from rt_dashboard.grok_ask import (  # noqa: E402
     GrokAskError,
@@ -294,6 +295,21 @@ def _auth_required() -> bool:
         "no",
         "off",
     )
+
+
+def _agent_read_denied(headers) -> dict:
+    """401 body after ``agent_today_principal`` already returned deny.
+
+    Does not decide which tokens are accepted. Copies ``agent_read_gate``'s
+    own reason (missing / invalid / unconfigured) so callers see that text
+    instead of the generic service-token sentence.
+    """
+    from rt_dashboard.agent_read import agent_read_gate
+
+    denied = agent_read_gate(headers)
+    if isinstance(denied, dict):
+        return denied
+    return service_auth_denied("agents")
 
 
 def _resolve_warm_user_and_token(
@@ -1462,6 +1478,8 @@ def _apply_coach_targets(client, *, user_id: Optional[str] = None) -> dict:
         }
     current, _src = load_preview_targets(str(user_id or ""))
     base = merge_recommended_into_applied(current or {}, rec)
+    # Kcal track off: Apply must not move calories or macros. Micros still apply.
+    base = preserve_applied_kcal_macros(base, current or {})
     updated = update_targets(base)
     stuck, err, write, persisted = applied_targets_write(
         updated,
@@ -2189,7 +2207,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             user = _session_user_from_headers(self.headers)
             principal = agent_today_principal(self.headers, client_host, session_user=user)
             if _auth_required() and principal == "deny":
-                self._send_json(service_auth_denied("agents"), status=401)
+                self._send_json(_agent_read_denied(self.headers), status=401)
                 return
             try:
                 from rt_dashboard.agent_read import agent_targets_uid
@@ -2217,7 +2235,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.headers, client_host, session_user=user
             )
             if _auth_required() and principal == "deny":
-                self._send_json(service_auth_denied("agents"), status=401)
+                self._send_json(_agent_read_denied(self.headers), status=401)
                 return
             try:
                 from rt_dashboard.agent_read import agent_targets_uid
@@ -2244,7 +2262,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.headers, client_host, session_user=user
             )
             if _auth_required() and principal == "deny":
-                self._send_json(service_auth_denied("agents"), status=401)
+                self._send_json(_agent_read_denied(self.headers), status=401)
                 return
             try:
                 from rt_dashboard.agent_read import agent_targets_uid
