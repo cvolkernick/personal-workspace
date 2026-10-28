@@ -235,16 +235,23 @@ class TestLabsStore(unittest.TestCase):
         self.assertNotIn('"value": 97.5', blob)
 
     def test_legacy_float_markers(self):
-        flags = flag_markers(
-            {
-                "date": "2026-01-15",
-                "lab": "Quest",
-                "markers": {"vitamin_d_ng_ml": 18, "ldl_mg_dl": 90},
-            }
-        )
+        from rt_dashboard.labs_store import annotate_panel
+
+        raw = {
+            "date": "2026-01-15",
+            "lab": "Quest",
+            "markers": {"vitamin_d_ng_ml": 18, "ldl_mg_dl": 90},
+        }
+        flags = flag_markers(raw)
         keys = [f["marker"] for f in flags]
         self.assertTrue(any(k in ("vitamin_d", "vitamin_d_ng_ml") for k in keys))
         self.assertFalse(any(k in ("ldl", "ldl_mg_dl") for k in keys))
+        # Scalar values must survive panel normalize (coach reads them that way).
+        annotated = annotate_panel(raw)
+        self.assertEqual(annotated["markers"]["vitamin_d_ng_ml"]["value"], 18)
+        self.assertEqual(annotated["markers"]["ldl_mg_dl"]["value"], 90)
+        again = [f["marker"] for f in flag_markers(annotated)]
+        self.assertTrue(any(k in ("vitamin_d", "vitamin_d_ng_ml") for k in again))
 
 
 class TestLabsMarkup(unittest.TestCase):

@@ -48,23 +48,26 @@ def apply_draw_date(panel: dict) -> Tuple[dict, bool]:
     return out, corrected
 
 
-def _marker_items(panel: dict) -> List[Tuple[str, dict]]:
+def _marker_items(panel: dict) -> List[Tuple[str, Any]]:
+    """Every stored marker, including legacy scalar values. Scalars are not rewritten."""
     raw = panel.get("markers") if isinstance(panel, dict) else None
-    items: List[Tuple[str, dict]] = []
+    items: List[Tuple[str, Any]] = []
     if isinstance(raw, dict):
         order = list(panel.get("marker_order") or raw.keys())
         seen = set()
         for key in order:
-            if key in raw and isinstance(raw[key], dict):
+            if key in raw:
                 items.append((str(key), raw[key]))
                 seen.add(key)
         for key, val in raw.items():
-            if key not in seen and isinstance(val, dict):
+            if key not in seen:
                 items.append((str(key), val))
     elif isinstance(raw, list):
         for i, val in enumerate(raw):
             if isinstance(val, dict):
                 items.append((str(val.get("key") or i), val))
+            else:
+                items.append((str(i), val))
     return items
 
 
@@ -72,9 +75,13 @@ def normalize_panel(panel: dict) -> Tuple[dict, dict]:
     """Draw-date fix plus collapsed-row split. Unrecoverable rows stay as stored."""
     out, corrected = apply_draw_date(panel)
     stats = {"draw_date_corrected": int(corrected), "split": [], "unsplit": []}
-    new: Dict[str, dict] = {}
+    new: Dict[str, Any] = {}
     order: List[str] = []
     for key, marker in _marker_items(out):
+        if not isinstance(marker, dict):
+            new[key] = marker
+            order.append(key)
+            continue
         rec = recover_collapsed_marker(marker)
         if rec.get("status") == "split":
             for part in rec.get("markers") or []:
@@ -127,8 +134,10 @@ def same_panel(a: dict, b: dict) -> bool:
     return bool(identity_keys(a) & identity_keys(b))
 
 
-def _cid(marker: dict, key: str = "") -> str:
-    return canonical_id(str(marker.get("id") or marker.get("marker") or marker.get("name") or key))
+def _cid(marker: Any, key: str = "") -> str:
+    if isinstance(marker, dict):
+        return canonical_id(str(marker.get("id") or marker.get("marker") or marker.get("name") or key))
+    return canonical_id(str(key))
 
 
 def union_markers(base: dict, extra: dict) -> dict:
@@ -305,6 +314,24 @@ def project_biomarker(store: dict) -> Dict[str, Any]:
         )
         for key, marker in _marker_items(panel):
             cid = _cid(marker, key)
+            if not isinstance(marker, dict):
+                rows.append(
+                    {
+                        "panel_id": pid,
+                        "marker": cid,
+                        "marker_name": key,
+                        "value": marker,
+                        "value_text": "" if marker is None else str(marker),
+                        "comparator": "",
+                        "unit": "",
+                        "ref_low": None,
+                        "ref_high": None,
+                        "ref_text": None,
+                        "draw_date": draw,
+                        "source": panel.get("source") or "",
+                    }
+                )
+                continue
             rows.append(
                 {
                     "panel_id": pid,
@@ -342,6 +369,9 @@ def _signature(panels: List[dict]) -> tuple:
             continue
         markers = []
         for key, marker in _marker_items(panel):
+            if not isinstance(marker, dict):
+                markers.append((_cid(marker, key), "" if marker is None else str(marker), _num(marker), None, None, "", ""))
+                continue
             markers.append(
                 (
                     _cid(marker, key),

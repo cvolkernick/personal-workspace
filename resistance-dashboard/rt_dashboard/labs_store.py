@@ -743,17 +743,15 @@ def merge_panel(panel: dict, *, user_id: str = "") -> dict:
     write-through into the labs blob.
     """
     from .lab_panels import _marker_items, normalize_panel, same_panel, union_markers
-    from .lab_markers import canonical_id
 
     incoming, _stats = normalize_panel(_ensure_panel_id(_strip_panel(panel)))
     store = _read_store(user_id)
     panels = [p for p in (store.get("panels") or []) if isinstance(p, dict)]
 
     def _cids(p: dict) -> List[str]:
-        return [
-            canonical_id(str(m.get("id") or m.get("name") or k))
-            for k, m in _marker_items(p)
-        ]
+        from .lab_panels import _cid
+
+        return [_cid(m, k) for k, m in _marker_items(p)]
 
     incoming_ids = _cids(incoming)
     idx = next((i for i, p in enumerate(panels) if same_panel(p, incoming)), None)

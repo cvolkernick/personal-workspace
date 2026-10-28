@@ -264,11 +264,15 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return proc.stdout
 
+    def _assert_no_values(self, out):
+        # backup_dir is a timestamped path and can contain digit runs by chance.
+        plan = "\n".join(line for line in out.splitlines() if not line.startswith("backup_dir="))
+        for token in ("81", "1.7", "4.4", "0.4", "33"):
+            self.assertNotIn(token, plan)
+
     def test_dry_run_writes_nothing_and_apply_is_idempotent(self):
-        forbidden = ("81", "1.7", "4.4", "0.4", "33")
         out = self._run("--dry-run")
-        for token in forbidden:
-            self.assertNotIn(token, out)
+        self._assert_no_values(out)
         self.assertIn("mode=dry-run", out)
         self.assertIn("backup=0", out)
         self.assertIn("changed=1", out)
@@ -284,8 +288,7 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(n, 2)
 
         applied = self._run("--apply")
-        for token in forbidden:
-            self.assertNotIn(token, applied)
+        self._assert_no_values(applied)
         self.assertIn("backup=1", applied)
         self.assertIn("mode=apply", applied)
         backups = list((Path(self.tmp.name) / "lab-panel-backups").iterdir())
@@ -310,8 +313,7 @@ class MigrationTests(unittest.TestCase):
         self.assertIn("changed=0", second)
         self.assertIn("backup=0", second)
         self.assertNotIn("backup_dir=", second)
-        for token in forbidden:
-            self.assertNotIn(token, second)
+        self._assert_no_values(second)
         self.assertEqual(len(list((Path(self.tmp.name) / "lab-panel-backups").iterdir())), 1)
         labs2 = load_labs(user_id="local", as_of="2026-08-18")
         self.assertEqual(len(labs2["panels"]), 2)
