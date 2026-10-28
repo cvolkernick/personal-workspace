@@ -58,6 +58,12 @@ def filter_sessions(sessions: Sequence[Session]) -> List[Session]:
                     exercises=real,
                     notes=s.notes,
                     source_file=s.source_file,
+                    closed_at=s.closed_at,
+                    status=s.status,
+                    submission_id=s.submission_id,
+                    plan_objective=s.plan_objective,
+                    skipped=s.skipped,
+                    substitutions=s.substitutions,
                 )
             )
     return out

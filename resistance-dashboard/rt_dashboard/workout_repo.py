@@ -12,15 +12,18 @@ Env:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple  # noqa: F401
 
 from .crypto_box import open_str, seal_str
 from .models import ExerciseEntry, Session, SetEntry
 from .parse import parse_all_workouts
+
+_LOG = logging.getLogger("fitdash.workout_repo")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -142,15 +145,17 @@ def _exercises_from_json(raw: str) -> List[ExerciseEntry]:
             if not isinstance(s, dict):
                 continue
             try:
-                sets.append(
-                    SetEntry(
-                        weight_lbs=float(s.get("weight_lbs") or 0),
-                        sets=int(s.get("sets") or 1),
-                        reps=int(s.get("reps") or 0),
-                    )
+                entry = SetEntry(
+                    weight_lbs=float(s.get("weight_lbs") or 0),
+                    sets=int(s.get("sets") or 1),
+                    reps=int(s.get("reps") or 0),
                 )
             except (TypeError, ValueError):
                 continue
+            from .session_work import apply_set_flags
+
+            apply_set_flags(entry, s)
+            sets.append(entry)
         out.append(
             ExerciseEntry(
                 name=str(item.get("name") or ""),
@@ -194,15 +199,65 @@ def _row_get(row: Any, key: str, default: str = "") -> str:
     return str(val)
 
 
+def _json_field(row: Any, key: str) -> Any:
+    raw = _row_get(row, key, "")
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _row_to_session(row: sqlite3.Row, user_id: str) -> Session:
     closed = _row_get(row, "created_at") or _row_get(row, "closed_at")
-    return Session(
+    status = _row_get(row, "status", "") or None
+    session = Session(
         date=str(row["date"]),
         session_type=str(row["session_type"]),
         exercises=_open_exercises(user_id, str(row["exercises_json"] or "[]")),
         notes=str(row["notes"] or ""),
         source_file=str(row["source_file"] or ""),
         closed_at=closed or None,
+        status=status,
+        submission_id=_row_get(row, "submission_id", "") or None,
+        plan_objective=_json_field(row, "plan_json"),
+        skipped=_json_field(row, "skipped_json"),
+        substitutions=_json_field(row, "substitutions_json"),
+    )
+    from .session_work import annotate_day_roll
+
+    return annotate_day_roll(session)
+
+
+def _ensure_log_columns(conn: sqlite3.Connection) -> None:
+    """Additive nullable columns. Existing rows stay NULL (legacy complete)."""
+    have = {row[1] for row in conn.execute("PRAGMA table_info(workout_sessions)")}
+    for name in (
+        "status",
+        "submission_id",
+        "plan_json",
+        "skipped_json",
+        "substitutions_json",
+    ):
+        if name not in have:
+            conn.execute(f"ALTER TABLE workout_sessions ADD COLUMN {name} TEXT")
+
+
+def _status_params(session: Session) -> Tuple[Any, ...]:
+    plan = json.dumps(session.plan_objective, separators=(",", ":")) if session.plan_objective else None
+    skipped = json.dumps(session.skipped, separators=(",", ":")) if session.skipped else None
+    subs = (
+        json.dumps(session.substitutions, separators=(",", ":"))
+        if session.substitutions
+        else None
+    )
+    return (
+        session.status or None,
+        session.submission_id or None,
+        plan,
+        skipped,
+        subs,
     )
 
 
@@ -229,6 +284,7 @@ class WorkoutRepository:
     def _ensure(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            _ensure_log_columns(conn)
             conn.execute(
                 "INSERT OR IGNORE INTO schema_meta(key, value) VALUES(?, ?)",
                 ("version", "1"),
@@ -251,14 +307,59 @@ class WorkoutRepository:
             rows = conn.execute(
                 """
                 SELECT date, session_type, notes, source_file, exercises_json,
-                       created_at
+                       created_at, status, submission_id, plan_json,
+                       skipped_json, substitutions_json
                 FROM workout_sessions
                 WHERE user_id = ?
                 ORDER BY date DESC, session_type ASC
                 """,
                 (self.user_id,),
             ).fetchall()
-        return [_row_to_session(r, self.user_id) for r in rows]
+        sessions = [_row_to_session(r, self.user_id) for r in rows]
+        try:
+            self._persist_day_rolls(sessions)
+        except Exception:
+            _LOG.exception("day roll write-back failed")
+        return sessions
+
+    def _persist_day_rolls(self, sessions: Sequence[Session]) -> None:
+        """Write a 4 AM roll once. Later reads see partial or missed."""
+        pending = [s for s in sessions if getattr(s, "day_roll_pending", False)]
+        if not pending:
+            return
+        now = _utc_now()
+        with self._connect() as conn:
+            for session in pending:
+                skipped = (
+                    json.dumps(session.skipped, separators=(",", ":"))
+                    if session.skipped
+                    else None
+                )
+                subs = (
+                    json.dumps(session.substitutions, separators=(",", ":"))
+                    if session.substitutions
+                    else None
+                )
+                conn.execute(
+                    """
+                    UPDATE workout_sessions
+                    SET status = ?, skipped_json = ?, substitutions_json = ?,
+                        updated_at = ?
+                    WHERE user_id = ? AND date = ? AND session_type = ?
+                      AND status = 'in_progress'
+                    """,
+                    (
+                        session.status,
+                        skipped,
+                        subs,
+                        now,
+                        self.user_id,
+                        str(session.date)[:10],
+                        str(session.session_type or "").lower(),
+                    ),
+                )
+                session.day_roll_pending = False
+            conn.commit()
 
     def delete_session(self, date: str, session_type: str) -> bool:
         """Delete one (date, session_type) row. True when a row was removed."""
@@ -291,18 +392,28 @@ class WorkoutRepository:
         now = _utc_now()
         created = (session.closed_at or "").strip() or now
         payload = _seal_exercises(self.user_id, session.exercises)
+        status, submission_id, plan, skipped, subs = _status_params(session)
         with self._connect() as conn:
+            _ensure_log_columns(conn)
             conn.execute(
                 """
                 INSERT INTO workout_sessions(
                   user_id, date, session_type, notes, source_file,
-                  exercises_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  exercises_json, created_at, updated_at,
+                  status, submission_id, plan_json, skipped_json, substitutions_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, date, session_type) DO UPDATE SET
                   notes = excluded.notes,
                   source_file = excluded.source_file,
                   exercises_json = excluded.exercises_json,
-                  updated_at = excluded.updated_at
+                  updated_at = excluded.updated_at,
+                  status = COALESCE(excluded.status, workout_sessions.status),
+                  submission_id = COALESCE(excluded.submission_id, workout_sessions.submission_id),
+                  plan_json = COALESCE(excluded.plan_json, workout_sessions.plan_json),
+                  skipped_json = excluded.skipped_json,
+                  substitutions_json = COALESCE(
+                    excluded.substitutions_json, workout_sessions.substitutions_json
+                  )
                 """,
                 (
                     self.user_id,
@@ -313,6 +424,11 @@ class WorkoutRepository:
                     payload,
                     created,
                     now,
+                    status,
+                    submission_id,
+                    plan,
+                    skipped,
+                    subs,
                 ),
             )
             row = conn.execute(

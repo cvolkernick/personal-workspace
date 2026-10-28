@@ -21,6 +21,8 @@ class SetEntry:
     weight_lbs: float
     sets: int
     reps: int
+    warmup: bool = False
+    rir: Optional[int] = None
 
     def _math_weight(self) -> Optional[float]:
         """Load used for tonnage and e1RM.
@@ -58,6 +60,10 @@ class SetEntry:
 
     def to_dict(self) -> Dict[str, Any]:
         out = asdict(self)
+        if not out.get("warmup"):
+            out.pop("warmup", None)
+        if out.get("rir") is None:
+            out.pop("rir", None)
         source = getattr(self, "effective_load_source", None)
         if not source:
             return out
@@ -208,6 +214,13 @@ class Session:
     notes: str = ""
     source_file: str = ""
     closed_at: Optional[str] = None  # ISO datetime of first persist (session-close)
+    # None = legacy row, read as complete. Explicit values: in_progress,
+    # complete, partial, missed. Never backfilled onto old rows.
+    status: Optional[str] = None
+    submission_id: Optional[str] = None
+    plan_objective: Optional[dict] = None
+    skipped: Optional[list] = None
+    substitutions: Optional[list] = None
 
     @property
     def volume(self) -> float:
@@ -228,6 +241,16 @@ class Session:
         }
         if self.closed_at:
             out["closed_at"] = self.closed_at
+        if self.status:
+            out["status"] = self.status
+        if self.submission_id:
+            out["submission_id"] = self.submission_id
+        if self.plan_objective:
+            out["plan_objective"] = self.plan_objective
+        if self.skipped:
+            out["skipped"] = list(self.skipped)
+        if self.substitutions:
+            out["substitutions"] = list(self.substitutions)
         return out
 
 

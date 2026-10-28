@@ -161,6 +161,40 @@
     return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
   }
 
+  /** App training day in America/New_York with the 4 AM cutoff. Not UTC. */
+  function logDayISO(now) {
+    const clock = now instanceof Date ? now : new Date();
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    });
+    const parts = {};
+    fmt.formatToParts(clock).forEach((p) => {
+      parts[p.type] = p.value;
+    });
+    let y = Number(parts.year);
+    let m = Number(parts.month);
+    let d = Number(parts.day);
+    const hour = Number(parts.hour);
+    if (hour < 4) {
+      const prev = new Date(Date.UTC(y, m - 1, d) - 86400000);
+      y = prev.getUTCFullYear();
+      m = prev.getUTCMonth() + 1;
+      d = prev.getUTCDate();
+    }
+    const z = (n) => String(n).padStart(2, "0");
+    return `${y}-${z(m)}-${z(d)}`;
+  }
+
+  function newSubmissionId() {
+    if (window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    return "sub-" + Date.now().toString(16) + "-" + Math.random().toString(16).slice(2);
+  }
+
   function trainingDayISO(data) {
     const metaDay = data && data.meta && data.meta.training_day;
     if (metaDay && /^\d{4}-\d{2}-\d{2}$/.test(String(metaDay))) {
@@ -183,11 +217,15 @@
 
   function setLogDateFromTrainingDay(data) {
     const el = $("log-date");
-    if (!el) return;
-    // Civil today is the default (#771). Do not overwrite a filled picker
-    // with training-day (prior wake) — that prefilled 09/15 on 09/16.
-    if (el.value) return;
-    el.value = todayISO();
+    if (!el || (el.dataset && el.dataset.userPick === "1")) return;
+    // 4 AM ET training day. A UTC clock at 23:36 ET must not land on tomorrow.
+    // Do not use last-wake (that prefilled yesterday on the next morning, #771).
+    const train = data && data.meta && data.meta.training_day;
+    const day =
+      train && /^\d{4}-\d{2}-\d{2}$/.test(String(train))
+        ? String(train).slice(0, 10)
+        : logDayISO();
+    el.value = day;
   }
 
   /** Fill missing civil days with 0h sleep (sleep debt). End = today. */
@@ -2893,6 +2931,8 @@
           session_type: sessionType,
           from_date: fromDate,
           to_date: toDate,
+          tz:
+            (state && state.meta && state.meta.timezone) || "America/New_York",
         }),
       });
       const data = await res.json();
@@ -7721,6 +7761,19 @@
     });
   }
 
+  function plannedExercisesFromState(src) {
+    const slots = [
+      src && src.coach && src.coach.today && src.coach.today.workout,
+      src && src.workout_store && src.workout_store.plan,
+      src && src.workout,
+    ];
+    for (let i = 0; i < slots.length; i++) {
+      const rows = slots[i] && slots[i].exercises;
+      if (Array.isArray(rows) && rows.length) return rows;
+    }
+    return [];
+  }
+
   function pplSessionTypeFromState(data) {
     const src = data || state || {};
     const slots = [
@@ -8036,7 +8089,12 @@
           title: questTitle || null,
           slug: questSlug || null,
           date: localToday || null,
+          training_day: (state && state.meta && state.meta.training_day) || null,
           session_type: pplType || todayWo.session_type || null,
+          planned_exercises:
+            typeof plannedExercisesFromState === "function"
+              ? plannedExercisesFromState(state)
+              : [],
           next_session_type:
             pplType ||
             todayWo.next_session_type ||
@@ -8851,10 +8909,21 @@
         if (flat[flatKey] != null) return `${label} ${flat[flatKey]}%`;
         return `${label} —`;
       };
+      const trainProg =
+        (today.workout && today.workout.workout_progress) ||
+        (data.workout_store &&
+          data.workout_store.plan &&
+          data.workout_store.plan.workout_progress) ||
+        null;
+      const trainLine =
+        trainProg && trainProg.in_progress && trainProg.label
+          ? `<br/>Training in progress · ${trainProg.label}`
+          : "";
       $("today-adherence").innerHTML = `
         <strong>7-day adherence</strong><br/>
         ${fmt(p, "Protein", "protein_pct")} · ${fmt(c, "Calories", "calories_pct")}<br/>
         ${fmt(s, "Sleep", "sleep_pct")} · ${fmt(h, "Hydration", "hydration_pct")}
+        ${trainLine}
       `;
     }
 
@@ -9016,8 +9085,14 @@
           ${focusLine}
         `;
       } else {
+        const prog = w.workout_progress || {};
+        const progressLine =
+          prog.in_progress && prog.label
+            ? `<p><strong>In progress</strong> · ${prog.label}</p>`
+            : "";
         $("today-workout").innerHTML = `
           ${why}
+          ${progressLine}
           <p class="muted" style="margin:0;font-size:0.85rem">
             Mode: <strong>${rec}</strong>
             · prescription below · use <em>Plan controls</em> to refresh or force session
@@ -9551,10 +9626,18 @@
 
   async function submitWorkout(ev) {
     ev.preventDefault();
+    const saveBtn = $("btn-save");
+    if (saveBtn && saveBtn.dataset.inflight) return;
+    const submissionId = newSubmissionId();
+    if (saveBtn) saveBtn.dataset.inflight = submissionId;
     const status = $("log-status");
     const draft = manualLogDraftState();
+    function releaseSave() {
+      if (saveBtn) delete saveBtn.dataset.inflight;
+    }
     if (draft.partial) {
       status.textContent = "";
+      releaseSave();
       showAlert(
         "Finish weight, sets, and reps on every row you started. Empty rows are not saved.",
         "warn"
@@ -9563,6 +9646,7 @@
     }
     if (!draft.exercises.length) {
       status.textContent = "";
+      releaseSave();
       showAlert(
         "Enter weight, sets, and reps for at least one lift. Empty rows are not saved.",
         "warn"
@@ -9572,6 +9656,7 @@
     const unnamed = draft.exercises.some((ex) => !ex.name);
     if (unnamed) {
       status.textContent = "";
+      releaseSave();
       showAlert("Pick an exercise for each row you filled.", "warn");
       return;
     }
@@ -9583,7 +9668,10 @@
       date: $("log-date").value,
       notes: $("log-notes").value,
       exercises: draft.exercises,
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+      planned_exercises: plannedExercisesFromState(state),
+      submission_id: submissionId,
+      tz: (state && state.meta && state.meta.timezone) || "America/New_York",
+      viewer_tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
     };
     const wake =
       (state &&
@@ -9619,7 +9707,58 @@
       status.textContent = "";
       showAlert(`Log failed: ${e.message}`, "err");
     } finally {
-      $("btn-save").disabled = false;
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        delete saveBtn.dataset.inflight;
+      }
+    }
+  }
+
+  async function finishWorkout() {
+    const btn = $("btn-finish");
+    const status = $("log-status");
+    if (btn && btn.dataset.inflight) return;
+    if (btn) btn.dataset.inflight = "1";
+    const sessionType = ($("session_type") && $("session_type").value) || "";
+    if (!sessionType) {
+      if (btn) delete btn.dataset.inflight;
+      showAlert("Pick a session before finishing.", "warn");
+      return;
+    }
+    if (status) status.textContent = "Finishing…";
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch("/api/workouts/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_type: sessionType,
+          date: ($("log-date") && $("log-date").value) || logDayISO(),
+          planned_exercises: plannedExercisesFromState(state),
+          tz: (state && state.meta && state.meta.timezone) || "America/New_York",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || data.error || `HTTP ${res.status}`);
+      }
+      const skipped = (data.skipped || []).length;
+      if (status) status.textContent = skipped ? `Finished · ${skipped} skipped` : "Workout finished";
+      showAlert(
+        skipped
+          ? `Workout finished. ${skipped} planned lift${skipped === 1 ? "" : "s"} skipped.`
+          : "Workout finished.",
+        "ok"
+      );
+      await loadDashboard(false);
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`Finish failed: ${e.message}`, "err");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        delete btn.dataset.inflight;
+      }
     }
   }
 
@@ -10229,7 +10368,12 @@
 
   function init() {
     bindCollapsibles(document);
-    if ($("log-date")) $("log-date").value = todayISO();
+    if ($("log-date")) {
+      $("log-date").value = logDayISO();
+      $("log-date").addEventListener("change", () => {
+        if ($("log-date").dataset) $("log-date").dataset.userPick = "1";
+      });
+    }
     if ($("exercise-rows") && !$("exercise-rows").children.length) addExerciseRow();
     bindInventoryListOnce();
     initMobileShell();
@@ -10242,6 +10386,7 @@
       });
     }
     if ($("log-form")) $("log-form").addEventListener("submit", submitWorkout);
+    if ($("btn-finish")) $("btn-finish").addEventListener("click", finishWorkout);
     if ($("session_type")) {
       $("session_type").addEventListener("change", () => {
         const el = $("session_type");

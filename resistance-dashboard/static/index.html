@@ -26,7 +26,7 @@
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
     <script src="/biomarkers.js?v=biomarkers-1" defer></script>
     <script src="/trends-steps.js?v=steps-2" defer></script>
-    <script src="/app.js?v=backport-steps-guard-1" defer></script>
+    <script src="/app.js?v=partial-log-2" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -1303,7 +1303,8 @@
           <div id="exercise-rows"></div>
           <div class="actions log-actions">
             <button type="button" id="btn-add-ex" class="btn-touch">+ Exercise</button>
-            <button type="submit" class="primary btn-touch" id="btn-save">Save workout</button>
+            <button type="submit" class="primary btn-touch" id="btn-save">Add to log</button>
+            <button type="button" class="btn-touch" id="btn-finish">Finish workout</button>
           </div>
           <p class="muted" id="log-status" style="margin: 0"></p>
         </form>

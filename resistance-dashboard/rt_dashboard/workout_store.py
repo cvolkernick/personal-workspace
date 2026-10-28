@@ -305,6 +305,12 @@ def stamp_today_session(
         if not isinstance(saved_objective, dict):
             saved_objective = ctx.get("training_objective")
         training_objective = saved_objective if isinstance(saved_objective, dict) else None
+    from .session_work import session_plan_objective
+
+    snap = session_plan_objective(sessions or [], day=day)
+    if snap:
+        training_objective = snap
+
     logged = ppl_logged_for_planning(
         sessions or [],
         as_of=day,
@@ -382,7 +388,7 @@ def stamp_today_session(
         plan["context"] = ctx
         if "exercises" not in plan:
             plan["exercises"] = []
-        return plan
+        return _stamp_progress(plan, sessions, training_objective, day)
     if logged:
         plan["ppl_logged_today"] = logged
         ctx["ppl_logged_today"] = logged
@@ -394,7 +400,7 @@ def stamp_today_session(
         plan["context"] = ctx
         if "exercises" not in plan:
             plan["exercises"] = []
-        return plan
+        return _stamp_progress(plan, sessions, training_objective, day)
     if day_complete:
         if today_pin and plan.get("session_type") in (None, "", "rest"):
             plan["session_type"] = today_pin
@@ -404,7 +410,7 @@ def stamp_today_session(
         plan["context"] = ctx
         if "exercises" not in plan:
             plan["exercises"] = []
-        return plan
+        return _stamp_progress(plan, sessions, training_objective, day)
     if plan.get("session_type") in (None, ""):
         plan["session_type"] = next_st
     plan["already_trained_today"] = False
@@ -415,6 +421,7 @@ def stamp_today_session(
         plan["exercises"] = []
 
     plan = apply_rest_gate(plan, goals if isinstance(goals, dict) else {}, recovery or {})
+    # progress is attached on the way out; rest gate may replace fields first
     gate = plan.get("rest_gate") or {}
     if fill_rest and gate.get("force_rest"):
         plan["is_rest_day"] = True
@@ -424,6 +431,36 @@ def stamp_today_session(
             plan["message"] = reason
         elif reason and "below threshold" not in str(plan.get("message") or ""):
             plan["message"] = reason
+    return _stamp_progress(plan, sessions, training_objective, day)
+
+
+def _stamp_progress(plan, sessions, objective, day):
+    """In-progress copy for the coach card, e.g. '3 of 6 exercises'."""
+    from .session_work import workout_progress
+
+    if not isinstance(plan, dict):
+        return plan
+    letter = str(plan.get("ppl_logged_today") or plan.get("session_type") or "").lower()
+    prog = None
+    for session in sessions or []:
+        st = str(getattr(session, "session_type", None) or (session.get("session_type") if isinstance(session, dict) else "") or "").lower()
+        sday = str(getattr(session, "date", None) or (session.get("date") if isinstance(session, dict) else "") or "")[:10]
+        if sday and sday != str(day or "")[:10]:
+            continue
+        if letter in ("push", "pull", "legs") and st and st != letter:
+            continue
+        hit = workout_progress(
+            session,
+            objective or getattr(session, "plan_objective", None) or (session.get("plan_objective") if isinstance(session, dict) else None),
+        )
+        if hit:
+            prog = hit
+            break
+    if prog:
+        plan["workout_progress"] = prog
+        ctx = plan.get("context")
+        if isinstance(ctx, dict):
+            ctx["workout_progress"] = prog
     return plan
 
 

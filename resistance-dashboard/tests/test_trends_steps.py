@@ -42,13 +42,13 @@ class TrendsStepsCard(unittest.TestCase):
 
     def test_assets_pinned_and_sw_bumped(self):
         self.assertIn('/trends-steps.js?v=steps-2', HTML)
-        self.assertIn('/app.js?v=backport-steps-guard-1', HTML)
+        self.assertIn('/app.js?v=partial-log-2', HTML)
         self.assertLess(HTML.find("/trends-steps.js?v="), HTML.find("/app.js?v="))
-        self.assertIn('const CACHE = "fitdash-shell-v152"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v153"', SW)
         self.assertIn('"/trends-steps.js?v=steps-2"', SW)
-        self.assertIn('"/app.js?v=backport-steps-guard-1"', SW)
+        self.assertIn('"/app.js?v=partial-log-2"', SW)
         self.assertEqual(PINS["trends-steps.js"]["v"], "steps-2")
-        self.assertEqual(PINS["app.js"]["v"], "backport-steps-guard-1")
+        self.assertEqual(PINS["app.js"]["v"], "partial-log-2")
         self.assertIn("FitDashTrendsSteps", APP_JS)
         self.assertNotIn("steps_history", (ROOT / "vercel.json").read_text())
 

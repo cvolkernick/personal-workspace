@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+import logging
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .crypto_box import open_str
+from .models import Session
 from .turso_http import connect, turso_enabled
 from .workout_repo import (
     DEFAULT_USER,
@@ -12,14 +14,24 @@ from .workout_repo import (
     _seal_exercises,
     _utc_now,
 )
-from .models import Session
+
+_LOG = logging.getLogger("fitdash.turso_repo")
 
 LIST_SQL = """
-SELECT date, session_type, notes, source_file, exercises_json, created_at
+SELECT date, session_type, notes, source_file, exercises_json, created_at,
+       status, submission_id, plan_json, skipped_json, substitutions_json
 FROM workout_sessions
 WHERE user_id = ?
 ORDER BY date DESC, session_type ASC
 """
+
+_LOG_COLUMNS = (
+    "status",
+    "submission_id",
+    "plan_json",
+    "skipped_json",
+    "substitutions_json",
+)
 
 LIST_USER_IDS_SQL = """
 SELECT user_id, MAX(date) AS last_date
@@ -46,15 +58,21 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
 # Core columns already used by list_sessions_detailed (live Turso reads).
 UPDATE_SQL = """
 UPDATE workout_sessions
-SET notes = ?, source_file = ?, exercises_json = ?
+SET notes = ?, source_file = ?, exercises_json = ?,
+    status = COALESCE(?, status),
+    submission_id = COALESCE(?, submission_id),
+    plan_json = COALESCE(?, plan_json),
+    skipped_json = ?,
+    substitutions_json = COALESCE(?, substitutions_json)
 WHERE user_id = ? AND date = ? AND session_type = ?
 """
 
 INSERT_SQL = """
 INSERT INTO workout_sessions(
   user_id, date, session_type, notes, source_file,
-  exercises_json, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  exercises_json, created_at, updated_at,
+  status, submission_id, plan_json, skipped_json, substitutions_json
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 INSERT_MIN_SQL = """
@@ -64,7 +82,8 @@ INSERT INTO workout_sessions(
 """
 
 GET_SQL = """
-SELECT date, session_type, notes, source_file, exercises_json, created_at
+SELECT date, session_type, notes, source_file, exercises_json, created_at,
+       status, submission_id, plan_json, skipped_json, substitutions_json
 FROM workout_sessions
 WHERE user_id = ? AND date = ? AND session_type = ?
 """
@@ -105,6 +124,56 @@ def list_workout_user_ids() -> List[str]:
     return out
 
 
+def _ensure_log_columns(conn) -> None:
+    """Nullable columns. A duplicate-column error leaves existing rows NULL."""
+    for name in _LOG_COLUMNS:
+        try:
+            conn.execute(f"ALTER TABLE workout_sessions ADD COLUMN {name} TEXT")
+        except Exception:
+            pass
+
+
+def _persist_day_rolls(user_id: str, sessions: Sequence[Session]) -> None:
+    """Write a 4 AM roll. ``skipped_json`` is assigned, so a miss clears it."""
+    import json
+
+    pending = [s for s in sessions if getattr(s, "day_roll_pending", False)]
+    if not pending:
+        return
+    now = _utc_now()
+    with connect() as conn:
+        for session in pending:
+            skipped = (
+                json.dumps(session.skipped, separators=(",", ":"))
+                if session.skipped
+                else None
+            )
+            subs = (
+                json.dumps(session.substitutions, separators=(",", ":"))
+                if session.substitutions
+                else None
+            )
+            conn.execute(
+                """
+                UPDATE workout_sessions
+                SET status = ?, skipped_json = ?, substitutions_json = ?,
+                    updated_at = ?
+                WHERE user_id = ? AND date = ? AND session_type = ?
+                  AND status = 'in_progress'
+                """,
+                (
+                    session.status,
+                    skipped,
+                    subs,
+                    now,
+                    user_id,
+                    str(session.date)[:10],
+                    str(session.session_type or "").lower(),
+                ),
+            )
+            session.day_roll_pending = False
+
+
 def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
     if not turso_enabled():
         raise RuntimeError("turso env missing")
@@ -113,6 +182,8 @@ def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
     mig_note = ensure_turso_smith_bench_split()
     uid = _uid(user_id)
     with connect() as conn:
+        conn.execute(ENSURE_SQL)
+        _ensure_log_columns(conn)
         rows = conn.execute(LIST_SQL, (uid,)).fetchall()
     sessions: List[Session] = []
     decrypt_fails = 0
@@ -134,6 +205,10 @@ def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
             decrypt_err = str(exc)[:160]
         except Exception as exc:  # noqa: BLE001
             decrypt_err = type(exc).__name__
+    try:
+        _persist_day_rolls(uid, sessions)
+    except Exception:
+        _LOG.exception("day roll write-back failed")
     notes: List[str] = []
     if mig_note:
         notes.append(mig_note)
@@ -147,8 +222,28 @@ def _get_row(conn, uid: str, date: str, session_type: str):
     return conn.execute(GET_SQL, (uid, date, session_type)).fetchone()
 
 
+def _meta_params(session: Session):
+    import json
+
+    plan = json.dumps(session.plan_objective, separators=(",", ":")) if session.plan_objective else None
+    skipped = json.dumps(session.skipped, separators=(",", ":")) if session.skipped else None
+    subs = (
+        json.dumps(session.substitutions, separators=(",", ":"))
+        if session.substitutions
+        else None
+    )
+    return (
+        session.status or None,
+        session.submission_id or None,
+        plan,
+        skipped,
+        subs,
+    )
+
+
 def _insert_row(conn, uid: str, session: Session, payload: str, now: str) -> None:
     created = (session.closed_at or "").strip() or now
+    meta = _meta_params(session)
     args_full = (
         uid,
         session.date,
@@ -158,6 +253,7 @@ def _insert_row(conn, uid: str, session: Session, payload: str, now: str) -> Non
         payload,
         created,
         now,
+        *meta,
     )
     try:
         conn.execute(INSERT_SQL, args_full)
@@ -178,14 +274,17 @@ def upsert_session(user_id: str, session: Session) -> Dict[str, Any]:
     uid = _uid(user_id)
     now = _utc_now()
     payload = _seal_exercises(uid, session.exercises)
+    meta = _meta_params(session)
     with connect() as conn:
         conn.execute(ENSURE_SQL)
+        _ensure_log_columns(conn)
         conn.execute(
             UPDATE_SQL,
             (
                 session.notes or "",
                 session.source_file or "",
                 payload,
+                *meta,
                 uid,
                 session.date,
                 session.session_type,

@@ -173,6 +173,7 @@ from rt_dashboard.service_auth import (  # noqa: E402
 )
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.workout_log import (  # noqa: E402
+    finalize_logged_session,
     find_same_day_session,
     merge_log_with_history,
     parse_log_body,
@@ -2656,6 +2657,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     session_type=session_type,
                     from_date=from_date,
                     to_date=to_date,
+                    tz_name=str(body.get("tz") or "") or None,
                 )
                 if workout_use_sqlite():
                     repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
@@ -2696,6 +2698,57 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/workouts/finish":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            try:
+                uid = user.get("user_id") if user else None
+                body = self._read_json()
+                from rt_dashboard.models import Session
+                from rt_dashboard.session_work import log_day_from_value
+
+                history, _, _, _ = pull_merged_sessions(user_id=uid)
+                tz = str(body.get("tz") or "") or None
+                day = log_day_from_value(body.get("date") or "", tz_name=tz)
+                st = str(body.get("session_type") or "").lower().strip()
+                if st not in ("push", "pull", "legs"):
+                    self._send_json(
+                        {"ok": False, "error": "session_type must be push, pull, or legs"},
+                        status=400,
+                    )
+                    return
+                existing = find_same_day_session(history, day, st)
+                if existing is None:
+                    existing = Session(date=day, session_type=st, exercises=[])
+                session = finalize_logged_session(
+                    existing,
+                    existing=existing,
+                    plan_exercises=body.get("planned_exercises")
+                    if isinstance(body.get("planned_exercises"), list)
+                    else None,
+                    finish=True,
+                    week_sessions=history,
+                )
+                if workout_use_sqlite():
+                    repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
+                    result = repo.upsert_session(session)
+                else:
+                    from rt_dashboard.turso_repo import save_preview_session
+
+                    result = save_preview_session(uid or "default", session)
+                self._send_json(
+                    {
+                        "ok": True,
+                        "write": result,
+                        "session": session.to_dict(),
+                        "status": session.status,
+                        "skipped": session.skipped or [],
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/workouts":
             user = self._require_user()
             if user is None and _auth_required():
@@ -2706,7 +2759,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 session = parse_log_body(body)
                 # Auto-tag PRs from history (prior sessions only), then write.
                 history, _, _, _ = pull_merged_sessions(user_id=uid)
-                session = merge_log_with_history(session, history)
+                prior = find_same_day_session(history, session.date, session.session_type)
+                submission_id = str(body.get("submission_id") or "").strip()
+                if submission_id and prior is not None and prior.submission_id == submission_id:
+                    session = prior
+                else:
+                    session = merge_log_with_history(session, history)
+                    session = finalize_logged_session(
+                        session,
+                        existing=prior,
+                        plan_exercises=body.get("planned_exercises")
+                        if isinstance(body.get("planned_exercises"), list)
+                        else None,
+                        submission_id=submission_id,
+                        week_sessions=history,
+                    )
                 weighins = None
                 try:
                     snap = GoogleHealthClient().fetch_health(days=90)

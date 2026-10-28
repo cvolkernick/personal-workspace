@@ -84,7 +84,7 @@ class CatalogDeadliftRows(unittest.TestCase):
         catalog = self._catalog()
         self.assertEqual(catalog["updated_at"], "2026-10-16")
         by_id = {row["id"]: row for row in catalog["exercises"]}
-        self.assertEqual(len(by_id), 48)
+        self.assertEqual(len(by_id), 50)
         self.assertNotIn("forearms", VOLUME_GROUPS)
         barbell = by_id["barbell-deadlift"]
         trap = by_id["trap-bar-deadlift"]

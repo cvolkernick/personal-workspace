@@ -615,6 +615,23 @@ def attach_lift_quest_log(
             today=day,
         )
         if session is not None:
+            from .workout_log import finalize_logged_session, find_same_day_session
+
+            planned = []
+            if isinstance(payload.get("planned_exercises"), list):
+                planned = payload.get("planned_exercises") or []
+            elif isinstance(tw, dict) and isinstance(tw.get("exercises"), list):
+                planned = tw.get("exercises") or []
+            prior = find_same_day_session(
+                list(sessions or []), str(session.date)[:10], session.session_type
+            )
+            session = finalize_logged_session(
+                session,
+                existing=prior,
+                plan_exercises=planned,
+                week_sessions=list(sessions or []),
+            )
+            info["status"] = session.status
             writer = persist or persist_quest_session
             write = writer(user_id, session)
             info["write"] = write

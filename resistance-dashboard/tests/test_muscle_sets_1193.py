@@ -363,7 +363,7 @@ class CatalogTags(unittest.TestCase):
         catalog = json.loads(root.read_text(encoding="utf-8"))
         self.assertEqual(catalog["updated_at"], "2026-10-16")
         by_id = {ex["id"]: ex for ex in catalog["exercises"]}
-        self.assertEqual(len(by_id), 48)
+        self.assertEqual(len(by_id), 50)
         self.assertEqual(by_id["db-flat-press"]["primary_muscles"], ["chest"])
         self.assertEqual(by_id["db-flat-press"]["volume_primary"], ["chest"])
         self.assertEqual(

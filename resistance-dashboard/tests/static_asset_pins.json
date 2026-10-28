@@ -1,7 +1,7 @@
 {
   "app.js": {
-    "sha256": "c7d46f0fcea8c695111f1ad9f465779b7eefeb7b812705fb4a120b197469d873",
-    "v": "backport-steps-guard-1"
+    "sha256": "fdb2a69a7de076cd0adbcdd07e2a100d34631c615f5874de1acb175c77e807ab",
+    "v": "partial-log-2"
   },
   "biomarkers.js": {
     "sha256": "93fbfb78409df1f259965de1e92071fc06f3792d1ec5913085f69fe1c602ed50",

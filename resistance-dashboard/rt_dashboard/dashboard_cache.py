@@ -642,13 +642,15 @@ def sessions_from_dicts(items: Any) -> List[Session]:
                         for st in ex["sets"]:
                             if not isinstance(st, dict):
                                 continue
-                            sets.append(
-                                SetEntry(
-                                    weight_lbs=float(st.get("weight_lbs") or 0),
-                                    sets=int(st.get("sets") or 1),
-                                    reps=int(st.get("reps") or 0),
-                                )
+                            entry = SetEntry(
+                                weight_lbs=float(st.get("weight_lbs") or 0),
+                                sets=int(st.get("sets") or 1),
+                                reps=int(st.get("reps") or 0),
                             )
+                            from .session_work import apply_set_flags
+
+                            apply_set_flags(entry, st)
+                            sets.append(entry)
                 if not sets and (
                     ex.get("weight_lbs") is not None
                     or ex.get("sets") is not None
@@ -671,17 +673,27 @@ def sessions_from_dicts(items: Any) -> List[Session]:
                         quest_seeded=bool(ex.get("quest_seeded")),
                     )
                 )
-            out.append(
-                Session(
-                    date=str(raw.get("date") or ""),
-                    session_type=str(raw.get("session_type") or "other"),
-                    exercises=exercises,
-                    notes=str(raw.get("notes") or ""),
-                    source_file=str(raw.get("source_file") or ""),
-                    closed_at=str(raw.get("closed_at") or raw.get("created_at") or "")
-                    or None,
-                )
+            session = Session(
+                date=str(raw.get("date") or ""),
+                session_type=str(raw.get("session_type") or "other"),
+                exercises=exercises,
+                notes=str(raw.get("notes") or ""),
+                source_file=str(raw.get("source_file") or ""),
+                closed_at=str(raw.get("closed_at") or raw.get("created_at") or "")
+                or None,
+                status=str(raw.get("status") or "") or None,
+                submission_id=str(raw.get("submission_id") or "") or None,
+                plan_objective=raw.get("plan_objective")
+                if isinstance(raw.get("plan_objective"), dict)
+                else None,
+                skipped=raw.get("skipped") if isinstance(raw.get("skipped"), list) else None,
+                substitutions=raw.get("substitutions")
+                if isinstance(raw.get("substitutions"), list)
+                else None,
             )
+            from .session_work import annotate_day_roll
+
+            out.append(annotate_day_roll(session))
         except Exception:
             continue
     return out
