@@ -171,96 +171,90 @@ def _open_ctx(uid: str, blob: str) -> dict:
 
 
 def existing_keys(user_id: str = "", conn=None) -> set:
-    """{(marker, draw_date, panel_id)} already stored for this user."""
-    uid = _uid(user_id)
-    own = conn is None
-    conn = conn or _connect()
-    try:
-        migrate(conn)
-        rows = conn.execute(
-            "SELECT marker, draw_date, panel_id FROM biomarker_results WHERE user_id = ?",
-            (uid,),
-        ).fetchall()
-        return {(r["marker"], r["draw_date"], r["panel_id"]) for r in rows}
-    finally:
-        if own:
-            conn.close()
+    """{(marker, draw_date, panel_id)} already stored for this user.
+
+    Read from the labs blob (plus legacy rows unioned in). ``conn`` is accepted
+    for older callers and ignored — the biomarker tables are not the store.
+    """
+    del conn
+    data = load_all(user_id)
+    return {(r["marker"], r["draw_date"], r["panel_id"]) for r in data.get("rows") or []}
 
 
 def insert_panel(panel: dict, rows: List[dict], *, user_id: str = "") -> dict:
-    """Insert one panel + its rows atomically, skipping duplicates.
+    """Write one panel into the labs blob. Skips markers already stored.
 
     Returns {"inserted": n, "skipped": [marker,...], "panel_id": ...}.
+    Does not write biomarker_results — that table is legacy.
     """
-    uid = _uid(user_id)
-    seal = backend() == "turso"
-    now = _now()
-    pid = str(panel["panel_id"])
-    with _connect() as conn:
-        migrate(conn)
-        have = existing_keys(uid, conn)
-        stmts: List[Tuple[str, Sequence[Any]]] = []
-        ctx = panel.get("context") or {}
-        stmts.append((
-            """INSERT INTO biomarker_panels(user_id, panel_id, lab, draw_date, source, context_json, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(user_id, panel_id) DO UPDATE SET
-                 context_json = CASE WHEN excluded.context_json IS NULL OR excluded.context_json = ''
-                                     THEN biomarker_panels.context_json ELSE excluded.context_json END""",
-            (uid, pid, panel.get("lab") or "", panel["draw_date"], panel.get("source") or "",
-             (_seal_ctx(uid, ctx) if seal else json.dumps(ctx)) if ctx else "", now),
-        ))
-        inserted, skipped = 0, []
-        for r in rows:
-            key = (r["marker"], r["draw_date"], pid)
-            if key in have:
-                skipped.append(r["marker"])
-                continue
-            have.add(key)
-            if seal:
-                vals = (None, None, None, None, None, None, None, _seal_payload(uid, r))
-            else:
-                vals = (r.get("marker_name"), r.get("value"), r.get("value_text"), r.get("comparator") or "",
-                        r.get("ref_low"), r.get("ref_high"), r.get("ref_text"), None)
-            stmts.append((
-                """INSERT INTO biomarker_results(user_id, panel_id, marker, marker_name, value, value_text,
-                     comparator, ref_low, ref_high, ref_text, sealed, unit, draw_date, source, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (uid, pid, r["marker"], *vals, r.get("unit") or "", r["draw_date"],
-                 r.get("source") or panel.get("source") or "", now),
-            ))
-            inserted += 1
-        conn.execute_transaction(stmts)
-    return {"inserted": inserted, "skipped": skipped, "panel_id": pid}
+    from .lab_panels import rows_to_labs_panel
+    from .labs_store import merge_panel
+
+    pid = str(panel.get("panel_id") or "")
+    labs_panel = rows_to_labs_panel(dict(panel, panel_id=pid), rows)
+    res = merge_panel(labs_panel, user_id=_uid(user_id))
+    if not res.get("panel_id"):
+        res["panel_id"] = pid
+    return res
 
 
 def update_context(panel_id: str, context: dict, *, user_id: str = "") -> None:
+    """Store per-draw context on the labs panel with this id."""
+    from .labs_store import _read_store, _write_store
+
     uid = _uid(user_id)
-    blob = _seal_ctx(uid, context) if backend() == "turso" else json.dumps(context or {})
-    with _connect() as conn:
-        migrate(conn)
-        conn.execute(
-            "UPDATE biomarker_panels SET context_json = ? WHERE user_id = ? AND panel_id = ?",
-            (blob, uid, str(panel_id)),
-        )
+    pid = str(panel_id or "")
+    store = _read_store(uid)
+    found = False
+    for panel in store.get("panels") or []:
+        if str(panel.get("panel_id") or "") == pid:
+            ctx = dict(panel.get("context") or {})
+            ctx.update(context or {})
+            panel["context"] = ctx
+            if ctx.get("draw_time"):
+                panel["draw_time"] = ctx["draw_time"]
+            if "fasted" in ctx:
+                panel["fasting"] = bool(ctx.get("fasted"))
+            found = True
+            break
+    if not found:
+        return
+    store["updated_at"] = _now()
+    _write_store(uid, store)
 
 
-def load_all(user_id: str = "") -> Dict[str, Any]:
-    """{"panels": [...], "rows": [...]} decrypted, sorted by draw_date."""
+def load_legacy_tables(user_id: str = "") -> Dict[str, Any]:
+    """Read biomarker_panels / biomarker_results. Does not create a database.
+
+    New imports do not write these tables. Migration and the read-union use
+    this so a panel that only exists here is not invisible, and so a dry-run
+    does not touch disk.
+    """
     uid = _uid(user_id)
-    with _connect() as conn:
-        migrate(conn)
-        prow = conn.execute(
-            "SELECT panel_id, lab, draw_date, source, context_json, created_at "
-            "FROM biomarker_panels WHERE user_id = ? ORDER BY draw_date, panel_id",
-            (uid,),
-        ).fetchall()
-        rrow = conn.execute(
-            "SELECT panel_id, marker, marker_name, value, value_text, comparator, unit, ref_low, ref_high, "
-            "ref_text, draw_date, source, sealed, created_at FROM biomarker_results "
-            "WHERE user_id = ? ORDER BY draw_date, id",
-            (uid,),
-        ).fetchall()
+    empty = {"panels": [], "rows": [], "storage": "absent"}
+    if backend() != "turso" and not db_path().is_file():
+        return empty
+    try:
+        conn = _connect()
+    except Exception:
+        return empty
+    try:
+        try:
+            prow = conn.execute(
+                "SELECT panel_id, lab, draw_date, source, context_json, created_at "
+                "FROM biomarker_panels WHERE user_id = ? ORDER BY draw_date, panel_id",
+                (uid,),
+            ).fetchall()
+            rrow = conn.execute(
+                "SELECT panel_id, marker, marker_name, value, value_text, comparator, unit, ref_low, ref_high, "
+                "ref_text, draw_date, source, sealed, created_at FROM biomarker_results "
+                "WHERE user_id = ? ORDER BY draw_date, id",
+                (uid,),
+            ).fetchall()
+        except Exception:
+            return empty
+    finally:
+        conn.close()
     panels = []
     for p in prow:
         panels.append({
@@ -273,20 +267,89 @@ def load_all(user_id: str = "") -> Dict[str, Any]:
         d = {k: r[k] for k in ("panel_id", "marker", "marker_name", "value", "value_text", "comparator",
                                "unit", "ref_low", "ref_high", "ref_text", "draw_date", "source", "created_at")}
         if r["sealed"]:
-            d.update(_open_payload(uid, r["sealed"]))
+            try:
+                d.update(_open_payload(uid, r["sealed"]))
+            except Exception:
+                continue
         rows.append(d)
     return {"panels": panels, "rows": rows, "storage": backend()}
 
 
-def delete_panel(panel_id: str, *, user_id: str = "") -> int:
+def load_all(user_id: str = "") -> Dict[str, Any]:
+    """Panels and rows from the labs blob, with legacy biomarker rows unioned in."""
+    from .lab_panels import attach_legacy, project_biomarker
+    from .labs_store import _read_store
+
     uid = _uid(user_id)
-    with _connect() as conn:
-        migrate(conn)
-        n = len(conn.execute(
-            "SELECT id FROM biomarker_results WHERE user_id = ? AND panel_id = ?", (uid, panel_id)
-        ).fetchall())
-        conn.execute_transaction([
-            ("DELETE FROM biomarker_results WHERE user_id = ? AND panel_id = ?", (uid, panel_id)),
-            ("DELETE FROM biomarker_panels WHERE user_id = ? AND panel_id = ?", (uid, panel_id)),
-        ])
+    try:
+        store = attach_legacy(_read_store(uid), uid)
+    except Exception:
+        store = {"panels": []}
+    return project_biomarker(store)
+
+
+def delete_legacy_matches(
+    user_id: str = "",
+    *,
+    panel_id: str = "",
+    date: str = "",
+    lab: str = "",
+) -> int:
+    """Drop legacy rows so a deleted panel does not reappear through the union."""
+    uid = _uid(user_id)
+    if backend() != "turso" and not db_path().is_file():
+        return 0
+    data = load_legacy_tables(uid)
+    date_s = str(date or "")[:10]
+    lab_s = str(lab or "").strip().lower()
+    ids = []
+    for p in data.get("panels") or []:
+        pid = str(p.get("panel_id") or "")
+        if panel_id and pid == panel_id:
+            ids.append(pid)
+            continue
+        if date_s and str(p.get("draw_date") or "")[:10] == date_s:
+            if not lab_s or str(p.get("lab") or "").strip().lower() == lab_s:
+                ids.append(pid)
+    ids = list(dict.fromkeys(i for i in ids if i))
+    if not ids:
+        return 0
+    n = sum(1 for r in data.get("rows") or [] if r.get("panel_id") in ids)
+    try:
+        conn = _connect()
+    except Exception:
+        return 0
+    try:
+        stmts = []
+        for pid in ids:
+            stmts.append(("DELETE FROM biomarker_results WHERE user_id = ? AND panel_id = ?", (uid, pid)))
+            stmts.append(("DELETE FROM biomarker_panels WHERE user_id = ? AND panel_id = ?", (uid, pid)))
+        conn.execute_transaction(stmts)
+    except Exception:
+        return 0
+    finally:
+        conn.close()
     return n
+
+
+def delete_panel(panel_id: str, *, user_id: str = "") -> int:
+    """Remove one panel from the labs blob and from the legacy tables."""
+    from .labs_store import _read_store, _write_store
+
+    uid = _uid(user_id)
+    pid = str(panel_id or "")
+    store = _read_store(uid)
+    kept = []
+    removed_markers = 0
+    for panel in store.get("panels") or []:
+        if str(panel.get("panel_id") or "") == pid:
+            raw = panel.get("markers") or {}
+            removed_markers += len(raw) if isinstance(raw, (dict, list)) else 0
+            continue
+        kept.append(panel)
+    if len(kept) != len(store.get("panels") or []):
+        store["panels"] = kept
+        store["updated_at"] = _now()
+        _write_store(uid, store)
+    legacy_n = delete_legacy_matches(uid, panel_id=pid)
+    return removed_markers or legacy_n

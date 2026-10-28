@@ -307,16 +307,22 @@ def annotate_marker(key: str, raw: Any) -> dict:
     marker["key"] = str(marker.get("key") or key)
     cid = _canonical_id(str(marker.get("id") or marker["key"]))
     marker["id"] = cid
+    had_lo = marker.get("clinical_low") is not None
+    had_hi = marker.get("clinical_high") is not None
     cl_lo = marker.get("clinical_low")
     cl_hi = marker.get("clinical_high")
-    if cl_lo is None or cl_hi is None:
+    # A printed one-sided range stays. Hints fill only a missing range, and
+    # never replace this panel's range with another panel's.
+    if not had_lo and not had_hi:
         hint = _hint_range(marker["key"]) or _hint_range(cid)
         if hint:
             cl_lo, cl_hi = hint
             marker["clinical_low"] = cl_lo
             marker["clinical_high"] = cl_hi
             marker["range_source"] = "hint"
-    if marker.get("value") is not None and cl_lo is not None and cl_hi is not None:
+    elif had_lo or had_hi:
+        marker["range_source"] = marker.get("range_source") or "panel"
+    if marker.get("value") is not None and (cl_lo is not None or cl_hi is not None):
         band, cstat, pstat = classify_band(
             float(marker["value"]),
             comparator=str(marker.get("comparator") or ""),
@@ -326,9 +332,9 @@ def annotate_marker(key: str, raw: Any) -> dict:
             performance_high=marker.get("performance_high"),
             lower_better=cid in {"remnant_cholesterol", "hscrp", "ggt", "apob"},
         )
-        marker.setdefault("band", band)
-        marker.setdefault("clinical_status", cstat)
-        marker.setdefault("performance_status", pstat)
+        marker["band"] = band
+        marker["clinical_status"] = cstat
+        marker["performance_status"] = pstat
         marker["status"] = cstat if band == "out_of_clinical" else (
             pstat if band == "out_of_performance" else "ok"
         )
@@ -373,7 +379,10 @@ def _as_marker_map(raw: Any) -> Dict[str, dict]:
 
 
 def annotate_panel(panel: dict, *, targets: Optional[dict] = None, as_of: Optional[str] = None) -> dict:
-    out = deepcopy(panel)
+    from .lab_panels import normalize_panel
+
+    normalized, _stats = normalize_panel(panel)
+    out = deepcopy(normalized)
     markers = _as_marker_map(out.get("markers"))
     out["markers"] = markers
     if not out.get("marker_order"):
@@ -537,18 +546,51 @@ def _open_labs_blob(user_id: str, raw: Any) -> dict:
     return data
 
 
-def _turso_get_labs(user_id: str) -> Optional[dict]:
+def export_labs_blob(user_id: str) -> Optional[str]:
+    """Raw labs payload as stored (sealed blob or JSON file). Does not create tables."""
+    from .turso_http import connect, turso_enabled
+
+    if turso_enabled():
+        uid = _labs_uid(user_id)
+        try:
+            with connect() as conn:
+                row = conn.execute(
+                    "SELECT payload FROM labs_panels WHERE user_id = ?",
+                    (uid,),
+                ).fetchone()
+        except Exception:
+            row = None
+        if row:
+            payload = row["payload"] if isinstance(row, dict) else row[0]
+            if payload:
+                return str(payload)
+    path = _index_path(user_id)
+    if path.is_file():
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+    return None
+
+
+def _turso_get_labs(user_id: str, *, ensure: bool = True) -> Optional[dict]:
     from .turso_http import connect, turso_enabled
 
     if not turso_enabled():
         return None
     uid = _labs_uid(user_id)
     with connect() as conn:
-        conn.execute(ENSURE_LABS_SQL)
-        row = conn.execute(
-            "SELECT payload FROM labs_panels WHERE user_id = ?",
-            (uid,),
-        ).fetchone()
+        if ensure:
+            conn.execute(ENSURE_LABS_SQL)
+        try:
+            row = conn.execute(
+                "SELECT payload FROM labs_panels WHERE user_id = ?",
+                (uid,),
+            ).fetchone()
+        except Exception:
+            if ensure:
+                raise
+            return None
     if not row:
         return None
     payload = row["payload"] if isinstance(row, dict) else row[0]
@@ -598,11 +640,11 @@ def _commit_turso(user_id: str, store: dict, *, expect_identity=None) -> None:
         raise RuntimeError("turso write not visible on readback")
 
 
-def _read_store(user_id: str) -> dict:
+def _read_store(user_id: str, *, ensure: bool = True) -> dict:
     from .turso_http import turso_enabled
 
     if turso_enabled():
-        existing = _turso_get_labs(user_id)
+        existing = _turso_get_labs(user_id) if ensure else _turso_get_labs(user_id, ensure=False)
         if existing is not None:
             return existing
         if _ephemeral_host():
@@ -644,6 +686,17 @@ def _save_index(user_id: str, payload: dict) -> None:
     _atomic_write(_index_path(user_id), blob.encode("utf-8"))
 
 
+def _ensure_panel_id(panel: dict) -> dict:
+    """Stable id shared with the biomarker importer. Does not change values."""
+    if str(panel.get("panel_id") or "").strip():
+        return panel
+    order = str(panel.get("order_id") or "").strip()
+    lab = str(panel.get("lab") or "")
+    if order and "rythm" in lab.lower():
+        panel["panel_id"] = f"rythm-{order}"
+    return panel
+
+
 def _panel_identity(panel: dict) -> tuple:
     order = str(panel.get("order_id") or "").strip()
     date = str(panel.get("date") or "")[:10]
@@ -669,15 +722,61 @@ def save_panel(
             pdf_path = _user_dir(user_id) / "files" / f"{sha}.pdf"
             _atomic_write(pdf_path, pdf_bytes)
     annotated = _strip_panel(annotated)
+    annotated = _ensure_panel_id(annotated)
     ident = _panel_identity(annotated)
     store = _read_store(user_id)
-    panels = [p for p in store.get("panels") or [] if _panel_identity(p) != ident]
+    from .lab_panels import same_panel
+
+    panels = [p for p in store.get("panels") or [] if not same_panel(p, annotated)]
     panels.append(annotated)
     panels.sort(key=lambda x: str(x.get("date") or ""))
     store["panels"] = panels
     store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     _write_store(user_id, store, expect_identity=ident)
     return load_labs(user_id=user_id)
+
+
+def merge_panel(panel: dict, *, user_id: str = "") -> dict:
+    """Insert a panel or add markers it has that the stored panel lacks.
+
+    Existing measured values are not replaced. This is the biomarker
+    write-through into the labs blob.
+    """
+    from .lab_panels import _marker_items, normalize_panel, same_panel, union_markers
+    from .lab_markers import canonical_id
+
+    incoming, _stats = normalize_panel(_ensure_panel_id(_strip_panel(panel)))
+    store = _read_store(user_id)
+    panels = [p for p in (store.get("panels") or []) if isinstance(p, dict)]
+
+    def _cids(p: dict) -> List[str]:
+        return [
+            canonical_id(str(m.get("id") or m.get("name") or k))
+            for k, m in _marker_items(p)
+        ]
+
+    incoming_ids = _cids(incoming)
+    idx = next((i for i, p in enumerate(panels) if same_panel(p, incoming)), None)
+    if idx is None:
+        panels.append(incoming)
+        inserted = len(dict.fromkeys(incoming_ids))
+        skipped: List[str] = []
+    else:
+        before = set(_cids(panels[idx]))
+        panels[idx] = union_markers(panels[idx], incoming)
+        skipped = [cid for cid in dict.fromkeys(incoming_ids) if cid in before]
+        inserted = len(dict.fromkeys(incoming_ids)) - len(skipped)
+    from .lab_panels import panel_draw_date
+
+    panels.sort(key=lambda p: panel_draw_date(p) or str(p.get("date") or ""))
+    store["panels"] = panels
+    store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_store(user_id, store, expect_identity=_panel_identity(incoming))
+    return {
+        "inserted": inserted,
+        "skipped": skipped,
+        "panel_id": str(incoming.get("panel_id") or ""),
+    }
 
 
 def delete_panel(
@@ -691,16 +790,34 @@ def delete_panel(
     date_s = str(date)[:10]
     lab_s = str(lab or "").strip().lower()
     order_s = str(order_id or "").strip()
+    from .lab_panels import panel_draw_date
+
+    def _dates(p: dict) -> set:
+        return {
+            str(p.get(k) or "")[:10]
+            for k in ("date", "collected", "draw_date", "reported")
+            if str(p.get(k) or "")[:10]
+        }
+
     kept = []
     for p in store.get("panels") or []:
         if order_s and str(p.get("order_id") or "").strip() == order_s:
             continue
-        if str(p.get("date") or "")[:10] == date_s and (
+        dates = _dates(p) or {panel_draw_date(p)}
+        if date_s and date_s in dates and (
             not lab_s or str(p.get("lab") or "").strip().lower() == lab_s
         ):
             continue
         kept.append(p)
     store["panels"] = kept
+    try:
+        from .biomarkers_store import delete_legacy_matches
+
+        delete_legacy_matches(
+            user_id, panel_id=f"rythm-{order_s}" if order_s else "", date=date_s, lab=lab_s
+        )
+    except Exception:
+        pass
     store["updated_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     _write_store(user_id, store)
     return load_labs(user_id=user_id)
@@ -736,7 +853,11 @@ def _decorate_labs(
     *,
     targets: Optional[dict] = None,
     as_of: Optional[str] = None,
+    user_id: str = "",
 ) -> dict:
+    from .lab_panels import attach_legacy
+
+    src = attach_legacy(src, user_id)
     out = default_labs()
     out["source_note"] = src.get("source_note") or out["source_note"]
     out["updated_at"] = src.get("updated_at") or ""
@@ -768,17 +889,17 @@ def load_labs(
         except Exception:
             src = None
         if src is not None:
-            return _decorate_labs(src, targets=targets, as_of=as_of)
+            return _decorate_labs(src, targets=targets, as_of=as_of, user_id=user_id)
         if _ephemeral_host():
-            return _decorate_labs(default_labs(), targets=targets, as_of=as_of)
+            return _decorate_labs(default_labs(), targets=targets, as_of=as_of, user_id=user_id)
     elif _ephemeral_host():
-        return _decorate_labs(default_labs(), targets=targets, as_of=as_of)
+        return _decorate_labs(default_labs(), targets=targets, as_of=as_of, user_id=user_id)
     cfg = _load_index(user_id)
     src = cfg if cfg.get("panels") else _load_workspace_hook(workspace_dir, rel_path)
     if cfg.get("panels") and not src.get("storage"):
         src = dict(src)
         src["storage"] = "config"
-    return _decorate_labs(src, targets=targets, as_of=as_of)
+    return _decorate_labs(src, targets=targets, as_of=as_of, user_id=user_id)
 
 
 def latest_panel(labs: Optional[dict]) -> Optional[dict]:
@@ -823,8 +944,10 @@ def _numeric_uncensored(marker: dict) -> Optional[float]:
 
 def _history_point(panel: dict, marker: dict) -> dict:
     numeric = _numeric_uncensored(marker)
+    from .lab_panels import panel_draw_date
+
     return {
-        "date": str(panel.get("date") or "")[:10],
+        "date": panel_draw_date(panel) or str(panel.get("date") or "")[:10],
         "lab": str(panel.get("lab") or ""),
         "name": marker.get("name") or marker.get("id") or "",
         "value": marker.get("value"),
@@ -834,6 +957,10 @@ def _history_point(panel: dict, marker: dict) -> dict:
         "lane": marker.get("lane") or "info",
         "comparator": marker.get("comparator") or "",
         "numeric": numeric,
+        # This point's own printed range — not the latest panel's range.
+        "ref_low": marker.get("clinical_low"),
+        "ref_high": marker.get("clinical_high"),
+        "range_source": marker.get("range_source") or "",
     }
 
 
@@ -848,6 +975,9 @@ def _point_public(point: dict) -> dict:
         "lane": point.get("lane") or "info",
         "comparator": point.get("comparator") or "",
         "numeric": point.get("numeric"),
+        "ref_low": point.get("ref_low"),
+        "ref_high": point.get("ref_high"),
+        "range_source": point.get("range_source") or "",
     }
 
 
@@ -869,23 +999,26 @@ def labs_history(labs: Optional[dict]) -> dict:
     }
     if not labs:
         return empty
+    from .lab_markers import canonical_id, display_name, unit_key
+    from .lab_panels import panel_draw_date
+
     panels = [p for p in (labs.get("panels") or []) if isinstance(p, dict)]
-    panels.sort(key=lambda x: str(x.get("date") or ""))
+    panels.sort(key=lambda x: panel_draw_date(x) or str(x.get("date") or ""))
     if not panels:
         return empty
     latest = panels[-1]
-    latest_date = str(latest.get("date") or "")[:10]
+    latest_date = panel_draw_date(latest) or str(latest.get("date") or "")[:10]
     latest_ids = {
-        str(m.get("id") or "")
+        canonical_id(str(m.get("id") or m.get("name") or ""))
         for m in _as_marker_map(latest.get("markers")).values()
-        if m.get("id")
+        if m.get("id") or m.get("name")
     }
     vendor_names = set()
     panel_rows: List[dict] = []
     by_id: Dict[str, List[dict]] = {}
     for panel in panels:
         markers = _as_marker_map(panel.get("markers"))
-        date = str(panel.get("date") or "")[:10]
+        date = panel_draw_date(panel) or str(panel.get("date") or "")[:10]
         lab = str(panel.get("lab") or "")
         if lab:
             vendor_names.add(lab.strip().lower())
@@ -900,7 +1033,7 @@ def labs_history(labs: Optional[dict]) -> dict:
             }
         )
         for marker in markers.values():
-            cid = str(marker.get("id") or "")
+            cid = canonical_id(str(marker.get("id") or marker.get("name") or ""))
             if not cid:
                 continue
             by_id.setdefault(cid, []).append(_history_point(panel, marker))
@@ -911,7 +1044,8 @@ def labs_history(labs: Optional[dict]) -> dict:
         last = series[-1]
         prev = series[-2] if len(series) >= 2 else None
         on_latest = cid in latest_ids and last.get("date") == latest_date
-        units = {str(s.get("unit") or "") for s in series if s.get("unit")}
+        units = {unit_key(s.get("unit") or "") for s in series if s.get("unit")}
+        units.discard("")
         mixed_units = len(units) > 1
         series_labs = {str(s.get("lab") or "").strip().lower() for s in series if s.get("lab")}
         mixed_marker_labs = len(series_labs) > 1
@@ -949,7 +1083,7 @@ def labs_history(labs: Optional[dict]) -> dict:
         marker_rows.append(
             {
                 "id": cid,
-                "name": last.get("name") or cid,
+                "name": display_name(cid, last.get("name") or cid),
                 "unit": last.get("unit") or "",
                 "lane": last.get("lane") or "info",
                 "n": len(series),

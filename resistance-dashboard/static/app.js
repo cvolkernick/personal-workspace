@@ -5719,7 +5719,8 @@
         const vendor = m.mixed_labs ? ` · ${labEsc(last.lab || "")}` : "";
         return `<tr class="${m.on_latest ? "" : "labs-row-carry"}">
           <td>${labEsc(m.name || m.id)}${carry}</td>
-          <td class="labs-val">${labEsc(last.value_text || last.value)}${vendor}</td>
+          <td class="labs-val">${labEsc(last.value_text || last.value)}
+            <div class="muted">range used ${labEsc(labRange(last.ref_low, last.ref_high))}</div>${vendor}</td>
           <td>${labEsc(m.unit || last.unit || "")}</td>
           <td>${labDeltaText(m)}</td>
           <td>${labRangeHist(m)} <span class="muted">n=${labEsc(m.n)}</span></td>
@@ -5782,7 +5783,7 @@
           <td>${labEsc(m.name || m.key)}</td>
           <td class="labs-val">${labEsc(m.value_text || m.value)}</td>
           <td>${labEsc(m.unit || "")}</td>
-          <td>${labEsc(labRange(m.clinical_low, m.clinical_high))}</td>
+          <td>${labEsc(labRange(m.clinical_low, m.clinical_high))}${m.range_source === "hint" ? " <span class=\"muted\">fallback</span>" : ""}</td>
           <td>${labEsc(labRange(m.performance_low, m.performance_high))}</td>
           <td>${labEsc(status)}</td>
           <td>${labEsc(m.lane || "info")}</td>
@@ -5792,8 +5793,11 @@
     return `
       <p class="labs-meta">
         <strong>${labEsc(panel.lab || "Lab")}</strong>
-        · reported ${labEsc(panel.date || "—")}
-        ${panel.collected ? ` · collected ${labEsc(panel.collected)}` : ""}
+        · draw ${labEsc(panel.draw_date || panel.collected || panel.date || "—")}
+        ${panel.draw_time ? ` · ${labEsc(panel.draw_time)}` : ""}
+        ${panel.reported && panel.reported !== (panel.draw_date || panel.collected || panel.date)
+          ? ` · reported ${labEsc(panel.reported)}`
+          : ""}
         ${fasting ? ` · ${fasting}` : ""}
         · ${markers.length} markers
       </p>
@@ -5802,7 +5806,7 @@
           <thead>
             <tr>
               <th>Test</th><th>Value</th><th>Unit</th>
-              <th>Clinical</th><th>Performance</th><th>Status</th><th>Lane</th>
+              <th>Range used</th><th>Performance</th><th>Status</th><th>Lane</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>

@@ -86,8 +86,11 @@ def _by_id(panel):
 class TestLabsParse(unittest.TestCase):
     def test_rythm_table(self):
         panel = parse_lab_text(RYTHM_TEXT, filename="fake.pdf")
-        self.assertEqual(panel["date"], "2026-06-01")
+        self.assertEqual(panel["date"], "2026-05-30")
+        self.assertEqual(panel["draw_date"], "2026-05-30")
         self.assertEqual(panel["collected"], "2026-05-30")
+        self.assertEqual(panel["reported"], "2026-06-01")
+        self.assertEqual(panel["draw_time"], "08:00")
         self.assertEqual(panel["lab"], "Rythm Health")
         self.assertTrue(panel["fasting"])
         m = _by_id(panel)
@@ -139,7 +142,7 @@ class TestLabsStore(unittest.TestCase):
         self.assertTrue(pdf_hits or annotated.get("source_sha256"))
         summary = labs_summary_for_coach(loaded)
         self.assertTrue(summary["has_labs"])
-        self.assertEqual(summary["date"], "2026-06-01")
+        self.assertEqual(summary["date"], "2026-05-30")
 
     def test_upsert_same_date_lab(self):
         panel = parse_lab_text(RYTHM_TEXT)
@@ -150,7 +153,7 @@ class TestLabsStore(unittest.TestCase):
 
     def test_delete(self):
         save_panel(parse_lab_text(RYTHM_TEXT))
-        labs = delete_panel(date="2026-06-01")
+        labs = delete_panel(date="2026-05-30")
         self.assertEqual(labs["panels"], [])
 
     def test_turso_miss_on_pi_seeds_from_disk(self):
@@ -179,6 +182,9 @@ class TestLabsStore(unittest.TestCase):
         save_panel(first)
         second = deepcopy(parse_lab_text(RYTHM_TEXT))
         second["date"] = "2026-09-01"
+        second["draw_date"] = "2026-09-01"
+        second["collected"] = "2026-09-01"
+        second["reported"] = ""
         second["order_id"] = "222222"
         second["lab"] = "Quest Diagnostics"
         markers = second.get("markers") or {}
@@ -200,9 +206,10 @@ class TestLabsStore(unittest.TestCase):
         self.assertEqual(hist["panel_count"], 2)
         self.assertTrue(hist["mixed_labs"])
         by_id = {m["id"]: m for m in hist["markers"]}
-        e2 = by_id["estrogen"]
+        e2 = by_id["estradiol"]
         self.assertFalse(e2["on_latest"])
-        self.assertEqual(e2["last"]["date"], "2026-06-01")
+        self.assertEqual(e2["last"]["date"], "2026-05-30")
+        self.assertEqual(e2["name"], "Estradiol")
         self.assertIn("<", str(e2["last"].get("value_text") or ""))
         apo = by_id["apob"]
         self.assertTrue(apo["on_latest"])
@@ -221,8 +228,8 @@ class TestLabsStore(unittest.TestCase):
         self.assertNotIn("estrogen", kitchen)
         notes = " ".join(summary["history_notes"]).lower()
         self.assertIn("not averaged", notes)
-        self.assertIn("estrogen", notes)
-        self.assertIn("2026-06-01", notes)
+        self.assertIn("estradiol", notes)
+        self.assertIn("2026-05-30", notes)
         self.assertIn("mixed vendors", notes)
         blob = json.dumps(summary)
         self.assertNotIn('"value": 97.5', blob)
@@ -319,6 +326,9 @@ class TestFlagContract(unittest.TestCase):
         first = parse_lab_text(RYTHM_TEXT)
         second = deepcopy(first)
         second["date"] = "2026-09-01"
+        second["draw_date"] = "2026-09-01"
+        second["collected"] = "2026-09-01"
+        second["reported"] = ""
         second["order_id"] = "222222"
         second["lab"] = "Quest Diagnostics"
         markers = {}
@@ -351,8 +361,8 @@ class TestFlagContract(unittest.TestCase):
         ).lower()
         self.assertIn("2 panels", blob)
         self.assertIn("not averaged", blob)
-        self.assertIn("estrogen", blob)
-        self.assertIn("2026-06-01", blob)
+        self.assertIn("estradiol", blob)
+        self.assertIn("2026-05-30", blob)
         self.assertNotIn("97.5", blob)
         self.assertNotIn("trt", blob)
 
