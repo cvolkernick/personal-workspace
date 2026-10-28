@@ -182,6 +182,7 @@
         "MSTR",
         "STRC",
         "SATA",
+        "SATS",
         "STRK",
         "IBIT",
         "ASST",
@@ -215,6 +216,7 @@
           "symbols": [
             "STRC",
             "SATA",
+            "SATS",
             "STRK",
             "ASST",
             "BITA",
@@ -223,9 +225,10 @@
           "preferred_core": [
             "STRC",
             "SATA",
+            "SATS",
             "STRK"
           ],
-          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA \u2014 BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2\u00d7 owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit. Owner 2026-09-29 / Nakatoshi 2026-10-10: STRK moved to preferred_core with new_money_weights STRC 25 / SATA 25 / STRK 15 / 35 floating (buy-only; see sleeve new_money_weights). Not Jack Mallers Strike; not Starknet STRK."
+          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA \u2014 BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2\u00d7 owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit. Owner 2026-09-29 / Nakatoshi 2026-10-10: STRK moved to preferred_core with new_money_weights STRC 25 / SATA 25 / STRK 15 / 35 floating (buy-only; see sleeve new_money_weights). Not Jack Mallers Strike; not Starknet STRK. | Chris 2026-10-28 (5:53 PM ET, relayed by Grok): SATS (Strive 15.00% Series A Perpetual SATS Preferred, Nasdaq GM) is a full member of the sleeve. The sleeve is a spectrum, and same-issuer concentration with SATA/ASST is not a reason to exclude or trim. Ruled new-money weight: SATS 10, taken from floating (see new_money_weights.ruled_2026_10_28)."
         },
         "miners_infra": {
           "priority": "diversify_within_sleeve",
@@ -261,7 +264,8 @@
         "STRC": 0.25,
         "SATA": 0.25,
         "STRK": 0.15,
-        "floating": 0.35,
+        "SATS": 0.1,
+        "floating": 0.25,
         "floating_default": "IBIT",
         "floating_universe": [
           "IBIT",
@@ -275,7 +279,34 @@
           "IREN"
         ],
         "buy_only": true,
-        "notes": "Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only \u2014 never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093. | Nakatoshi 2026-10-24: IBIT replaces BTC in the floating universe as the native-BTC stand-in (the account cannot hold spot BTC); legs < $1 fold into IBIT. MSTR low preference through 2026-11-30 (execution.broker_adapter.low_preference) applies only if honor_ai_floating is turned on. 2026-10-26: the floating 35% always goes to fold_into (IBIT). honor_ai_floating is false, so the planner ignores AI-proposed floating names. Hard-enforced by treasury/fund_manager_broker.plan_intents."
+        "notes": "Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only \u2014 never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093. | Nakatoshi 2026-10-24: IBIT replaces BTC in the floating universe as the native-BTC stand-in (the account cannot hold spot BTC); legs < $1 fold into IBIT. MSTR low preference through 2026-11-30 (execution.broker_adapter.low_preference) applies only if honor_ai_floating is turned on. 2026-10-26: the floating 35% always goes to fold_into (IBIT). honor_ai_floating is false, so the planner ignores AI-proposed floating names. Hard-enforced by treasury/fund_manager_broker.plan_intents. | 2026-10-28: Chris ruled SATS 10 / floating 25 (STRC/SATA/STRK unchanged). Recorded in ruled_2026_10_28; not executable until the planner reads SATS as a fixed leg (see that block). | 2026-10-28 (Forge): live keys now STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25. The planner reads every uppercase ticker key with a numeric weight here as a fixed leg (each must be on symbol_allowlist; fixed + floating must sum to 1). SATS is bought only when a live quote is <= sats_guards.limit_price_max_usd; otherwise its leg folds into IBIT.",
+        "ruled_2026_10_28": {
+          "STRC": 0.25,
+          "SATA": 0.25,
+          "STRK": 0.15,
+          "SATS": 0.1,
+          "floating": 0.25,
+          "status": "live_in_keys_2026_10_28 (executes once the planner change is deployed to the Pi)",
+          "ruled_by": "Chris 2026-10-28 5:53 PM ET (relayed by Grok); recorded by Nakatoshi",
+          "why_not_live": "treasury/fund_manager_broker.load_adapter_config hard-codes the fixed legs to STRC/SATA/STRK and rejects the config unless STRC+SATA+STRK+floating == 1. Writing SATS 0.10 / floating 0.25 into the live keys would make that sum 0.90. The adapter would then refuse to load (fail closed), which stops ALL buy runs, while SATS still got nothing. So the live keys above stay STRC 25 / SATA 25 / STRK 15 / floating 35 until the executor reads SATS.",
+          "activation": "Forge (code change, not done here): make the fixed legs data-driven (every non-floating numeric key in new_money_weights, with each symbol required to be on symbol_allowlist), add SATS tests, add SATS to execution.broker_adapter.symbol_allowlist (left off for now because test_repo_config_allowlist_and_ibit_floating pins that list, and it would do nothing before the planner change), then copy this block into the live keys (SATS 0.10, floating 0.25). Guards in sleeves.btc_digital_credit.sats_guards must ship with or before that change.",
+          "first_deposit": "The first funded Agentic deposit whose buy run happens after the executor change has landed on the Pi. Not 11/15 unless the change lands before that run."
+        }
+      },
+      "sats_guards": {
+        "symbol": "SATS",
+        "limit_price_max_usd": 95.0,
+        "limit_price_enforced": true,
+        "limit_price_note": "ENFORCED by treasury/fund_manager_broker._plan (2026-10-28): before each run the planner reads a live SATS quote (read-only get_quotes) and skips the SATS leg, folding it into IBIT, when the quote is above limit_price_max_usd or unavailable. Earlier note: DOCUMENTED ONLY. The broker adapter supports market dollar orders only (load_adapter_config rejects any order_type other than market). A $95 cap needs a quote check in the planner: skip the SATS leg (or fold it into IBIT) when the live ask is above $95.",
+        "no_margin": true,
+        "no_margin_enforced": "partly. Every run is capped at settled cash (min(settled cash, max_run, daily cap left)), and submit re-checks live settled cash and buying power, so the adapter never buys on margin. 'No margin borrowing against SATS' (and not counting SATS toward the HY LTV buffer) is a manual or policy rule. No code checks it.",
+        "stop_buy_triggers": [
+          "Any SATS regular dividend skipped, deferred or not declared by its business-day payment date",
+          "BTC spot below ~$60,000",
+          "Strive issues any new security that ranks senior to SATS (new senior preferred, notes or other debt)"
+        ],
+        "stop_buy_enforced": "Trigger DETECTION is documented only (Naka checks in the daily fund brief). The STOP ACTION is enforced once applied: adding SATS to guardrails.blocked_symbols blocks it in both the order gate and the planner. Buy-only, so a trigger never means a sell.",
+        "source": "/workspace/treasury/sats-candidate-20261028.md"
       }
     },
     "stocks_growth": {
@@ -371,6 +402,7 @@
       "MSTR",
       "STRC",
       "SATA",
+      "SATS",
       "STRK",
       "IBIT",
       "ASST",
@@ -418,6 +450,7 @@
         "STRC",
         "SATA",
         "STRK",
+        "SATS",
         "MSTR",
         "ASST",
         "BITA",

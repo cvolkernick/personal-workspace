@@ -1167,7 +1167,7 @@ def _execution_entry(out: Dict[str, Any], plan: Optional[Dict[str, Any]]) -> Opt
         "summary": summary,
         "rationale": {
             "why_now": "Gate-approved buys from the deterministic run plan (BTC + digital credit first to 40%, "
-                       "STRC 25 / SATA 25 / STRK 15 / floating 35, TSLA/SPCX 50/50 after).",
+                       "STRC 25 / SATA 25 / STRK 15 / SATS 10 (quote <= $95) / floating 25, TSLA/SPCX 50/50 after).",
             "why_not_alternatives": "Buy-only; any sell is a manual action Chris takes himself.",
             "thesis_tags": ["broker_adapter", "run_plan", "no_sell_guard"],
         },
@@ -1366,7 +1366,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(json.dumps({"ok": True, "intents": 0, "note": "no intents file; nothing to do"}))
                 return 0
             # AI step errored / timed out / wrote nothing: the planner still runs
-            # (run size is deterministic; floating 35% -> IBIT).
+            # (run size is deterministic; floating 25% -> IBIT).
             payload, ai_note = [], "no AI intents file (AI step errored/timed out)"
         else:
             try:

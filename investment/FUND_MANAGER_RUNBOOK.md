@@ -276,3 +276,15 @@ until the next deposit settles (the 11/1 $75 deposit may take ~6 days to settle)
    `get_quotes`, `review_order`; no place). If anything looks off, stop and report.
 4. If the Mon 10/26 manual buy happened, confirm the ledger/broker view: `--should-buy` should report under $5 settled cash.
 5. `sudo systemctl daemon-reload && sudo systemctl enable --now fund-manager.timer fund-manager-bp-poll.timer && systemctl list-timers | grep fund-manager`
+
+## SATS sleeve membership (Chris ruling 2026-10-28, 5:53 PM ET)
+
+- SATS (Strive 15.00% Series A Perpetual SATS Preferred, Nasdaq GM) is a full member of `btc_digital_credit`. It is on `symbols`, `sub_sleeves.digital_credit.symbols`, `preferred_core` and `allowlist.core`. It is not yet on `execution.broker_adapter.symbol_allowlist`; Forge adds it with the executor change, since a broker test pins that list. The sleeve is a spectrum: same-issuer concentration with SATA/ASST is not a reason to exclude or trim.
+- Ruled new-money weights: STRC 25 / SATA 25 / STRK 15 / **SATS 10** / floating 25 (`new_money_weights.ruled_2026_10_28`).
+- **Not executable yet.** `treasury/fund_manager_broker.load_adapter_config` hard-codes the fixed legs to STRC/SATA/STRK and requires the weights to sum to 1. The live keys therefore stay at 25/25/15/35 until Forge makes the fixed legs data-driven. Changing only the live keys would fail closed and stop every buy run. Until then SATS receives $0 from the adapter. An AI-proposed SATS intent is allowlisted but unplanned, so it is not submitted.
+- Guards (`sleeves.btc_digital_credit.sats_guards`):
+  - Limit ≤ $95: **documented only**. The adapter is market-dollar only, so it needs a planner quote check.
+  - No margin: **enforced** for adapter buys (settled-cash run cap plus the live buying-power and settled-cash re-check at submit). Not borrowing against SATS is a policy rule only.
+  - Stop-buy triggers (skipped or undeclared dividend; BTC < ~$60k; a new Strive security senior to SATS): **detection documented only**, checked by Naka in the daily brief. The stop itself is **enforced** once SATS is added to `guardrails.blocked_symbols`.
+- `treasury/fund_manager_daily_prompt.txt` line 18 still lists the old buy-intent allowlist without SATS. Update it with the executor change.
+- **Executor change (Forge, 2026-10-28; live once deployed to the Pi).** The fixed legs are now data-driven: every uppercase ticker key with a numeric weight in `new_money_weights` (each must be on `symbol_allowlist`; fixed + floating must still sum to 1, else fail closed). Live keys = STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25. SATS is on `symbol_allowlist` and prompt line 18. The $95 cap is now **enforced**: before each run the planner makes a read-only SATS quote call and folds the SATS leg into IBIT when the quote is above $95 or unavailable. A blocked fixed leg (for example SATS on `guardrails.blocked_symbols`) also folds into IBIT.

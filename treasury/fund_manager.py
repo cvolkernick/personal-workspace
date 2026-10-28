@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -108,7 +109,13 @@ def allocate_new_cash(
     weights = (sleeve_cfg or {}).get("new_money_weights") or {}
     if not isinstance(weights, dict) or not weights:
         return []
-    pinned = ("STRC", "SATA", "STRK")
+    # Fixed legs are data-driven: every uppercase ticker key with a numeric weight
+    # (live: STRC, SATA, STRK, SATS). "floating", flags and nested ruled_* blocks are skipped.
+    pinned = tuple(
+        k for k, v in weights.items()
+        if isinstance(k, str) and re.match(r"^[A-Z][A-Z0-9.]{0,9}$", k)
+        and isinstance(v, (int, float)) and not isinstance(v, bool)
+    )
     intents: List[Dict[str, Any]] = []
     for sym in pinned:
         w = _f(weights.get(sym), 0.0)

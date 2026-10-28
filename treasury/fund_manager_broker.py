@@ -24,9 +24,15 @@ cash fills the BTC + digital-credit sleeve first until it reaches 40%.
   the BTC sleeve and TSLA/SPCX legs are dropped (``not_submitted_sleeve_gate``).
   At/over 40%, BTC gets what keeps it at 40% after the run and stocks get the
   rest, split to move TSLA/SPCX toward 50/50.
-* BTC-sleeve weights: STRC 25 / SATA 25 / STRK 15 of the BTC amount, each within
+* BTC-sleeve weights: the fixed legs are every uppercase ticker key with a
+  numeric weight in ``new_money_weights`` (live: STRC 25 / SATA 25 / STRK 15 /
+  SATS 10 of the BTC amount; each must be on ``symbol_allowlist`` and fixed +
+  floating must sum to 1), each within
   max($1, 5% of the run total) of the LLM's figure, else repaired to target
-  (``weights_repaired``). The floating 35% always goes to ``fold_into`` (IBIT)
+  (``weights_repaired``). A fixed leg with a ``<sym>_guards.limit_price_max_usd``
+  (SATS: $95) is bought only when a read-only live quote is at or under that
+  cap; otherwise (or with no quote) it folds into ``fold_into``. A blocked fixed
+  leg also folds into ``fold_into``. The floating leg always goes to ``fold_into`` (IBIT)
   unless ``execution.broker_adapter.honor_ai_floating`` is literally true.
   AI-proposed floating names (MSTR, miners) are ignored. Legs > $75 spill into
   IBIT; legs < $1 fold into IBIT.
@@ -52,6 +58,7 @@ import contextlib
 import importlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -177,6 +184,9 @@ def _hhmm(val: Any, default: str) -> Optional[dtime]:
         return None
 
 
+_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,9}$")
+
+
 def _upper_list(val: Any) -> List[str]:
     return [str(s).strip().upper() for s in (val or []) if isinstance(s, str) and s.strip()]
 
@@ -224,12 +234,22 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
     sleeves = data.get("sleeves") or {}
     btc = sleeves.get("btc_digital_credit") or {}
     nmw = btc.get("new_money_weights") or {}
+    if not isinstance(nmw, dict):
+        return None, "sleeves.btc_digital_credit.new_money_weights malformed"
     fixed: Dict[str, Decimal] = {}
-    for sym in ("STRC", "SATA", "STRK"):
-        w = _d(nmw.get(sym))
+    # Fixed legs are data-driven: every uppercase ticker key with a numeric
+    # (non-bool) weight. Nested blocks (ruled_*), "floating" and flags are skipped.
+    for key, raw in nmw.items():
+        if not (isinstance(key, str) and _TICKER_RE.match(key)) or isinstance(raw, bool):
+            continue
+        if not isinstance(raw, (int, float, str)):
+            continue
+        w = _d(raw)
         if w is None or w < 0:
-            return None, f"sleeves.btc_digital_credit.new_money_weights.{sym} missing"
-        fixed[sym] = w
+            return None, f"sleeves.btc_digital_credit.new_money_weights.{key} malformed"
+        fixed[key] = w
+    if not fixed:
+        return None, "sleeves.btc_digital_credit.new_money_weights has no fixed legs"
     floating_w = _d(nmw.get("floating"))
     floating = _upper_list(nmw.get("floating_universe"))
     fold_into = str(ba.get("fold_into") or nmw.get("floating_default") or "IBIT").strip().upper()
@@ -243,6 +263,17 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
     missing = [s for s in list(fixed) + floating + stocks if s not in allow]
     if missing:
         return None, f"sleeve symbols not on symbol_allowlist: {missing}"
+    price_caps: Dict[str, Decimal] = {}
+    for gkey, guard in btc.items():
+        if not (isinstance(gkey, str) and gkey.endswith("_guards") and isinstance(guard, dict)):
+            continue
+        gsym = str(guard.get("symbol") or "").strip().upper()
+        if gsym not in fixed or guard.get("limit_price_max_usd") is None:
+            continue
+        cap = _d(guard.get("limit_price_max_usd"))
+        if cap is None or cap <= 0:
+            return None, f"sleeves.btc_digital_credit.{gkey}.limit_price_max_usd malformed"
+        price_caps[gsym] = cap
     btc_target = _d((data.get("targets") or {}).get("btc_digital_credit_pct"))
     if btc_target is None or not (0 < btc_target < 1):
         return None, "targets.btc_digital_credit_pct malformed"
@@ -276,6 +307,7 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
         # keeps that leg on fold_into (IBIT).
         "honor_ai_floating": ba.get("honor_ai_floating") is True,
         "fixed_weights": fixed,
+        "price_caps": price_caps,
         "floating_weight": floating_w,
         "floating": tuple(floating),
         "stocks": tuple(stocks),
@@ -601,7 +633,7 @@ def plan_intents(
     ai_note: str = "",
 ) -> Tuple[Any, Dict[str, Any]]:
     """Build the deterministic run plan. Run size, sleeve split and fixed legs
-    are ours. The floating 35% goes to ``fold_into`` (IBIT) unless
+    are ours. The floating leg goes to ``fold_into`` (IBIT) unless
     ``honor_ai_floating`` is true. This function returns intents; it does not
     submit. The order gate mints a GatedOrder for each and passes that to submit.
 
@@ -717,7 +749,8 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
                 if abs(proposed.get(s, ZERO) - legs[s]) > tol:
                     repaired.append(f"{s} ${proposed.get(s, ZERO):.2f} -> ${legs[s]:.2f} (50/50 stock rule)")
         # BTC sleeve fixed legs
-        # fixed legs are always exactly STRC 25 / SATA 25 / STRK 15 of the BTC amount;
+        # fixed legs are always exactly their config weight of the BTC amount
+        # (live: STRC 25 / SATA 25 / STRK 15 / SATS 10);
         # AI-proposed fixed amounts are ignored (a large mismatch is logged as a repair).
         fixed = {s: btc_amt * w for s, w in cfg["fixed_weights"].items()}
         if proposed:
@@ -725,6 +758,7 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
                 if abs(proposed.get(s, ZERO) - t) > tol:
                     repaired.append(f"{s} AI ${proposed.get(s, ZERO):.2f} -> ${t:.2f} (fixed weight)")
         floating_amt = max(ZERO, btc_amt - sum(fixed.values(), ZERO))
+        fixed, client = _apply_fixed_leg_guards(fixed, cfg, client, info)
         ai_float = {s: proposed[s] for s in cfg["floating"] if proposed.get(s)}
         ai_float_total = sum(ai_float.values(), ZERO)
         legs.update(fixed)
@@ -789,6 +823,48 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             for s, v in legs.items()
         ]
         return orders, info
+
+
+def _apply_fixed_leg_guards(fixed: Dict[str, Decimal], cfg: Dict[str, Any], client: Optional["RobinhoodClient"],
+                            info: Dict[str, Any]) -> Tuple[Dict[str, Decimal], Optional["RobinhoodClient"]]:
+    """Fold blocked fixed legs, and price-capped legs (SATS <= $95) whose live quote
+    is over the cap or unknown, into ``fold_into``. Market dollar orders carry no
+    limit, so this read-only quote check is the cap. Fails closed (skip) on any
+    quote problem. Returns (fixed legs, client)."""
+    into = cfg["fold_into"]
+    out = dict(fixed)
+    skipped: Dict[str, str] = {}
+    for s in list(out):
+        if out[s] > 0 and s in cfg["blocked"]:
+            skipped[s] = "on guardrails.blocked_symbols"
+    capped = [s for s, cap in (cfg.get("price_caps") or {}).items() if out.get(s, ZERO) > 0 and s not in skipped]
+    if capped:
+        if client is None:
+            client = resolve_client(cfg)
+        quotes: Dict[str, Any] = {}
+        why_none = ""
+        if client is None or not hasattr(client, "get_quotes"):
+            why_none = "no broker client for quotes"
+        else:
+            try:
+                quotes = {str(k).upper(): v for k, v in (client.get_quotes(sorted(capped)) or {}).items()}
+            except Exception as exc:
+                why_none = f"quote call failed ({type(exc).__name__})"
+        for s in capped:
+            cap = cfg["price_caps"][s]
+            px = _d(quotes.get(s))
+            if px is None or px <= 0:
+                skipped[s] = f"no live quote ({why_none or 'quote missing'}); cap ${cap}"
+            elif px > cap:
+                skipped[s] = f"quote ${px} > ${cap} cap"
+            else:
+                info.setdefault("price_checks", {})[s] = f"quote ${px} <= ${cap} cap"
+    for s, why in skipped.items():
+        amt = out.pop(s)
+        out[into] = out.get(into, ZERO) + amt
+        info["notes"].append(f"{s} leg ${amt:.2f} skipped ({why}); folded into {into}")
+        info.setdefault("skipped_fixed", {})[s] = why
+    return out, client
 
 
 def _low_pref_active(cfg: Dict[str, Any], now: datetime) -> List[str]:
