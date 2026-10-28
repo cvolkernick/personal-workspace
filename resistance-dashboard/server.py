@@ -2728,6 +2728,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     if isinstance(body.get("planned_exercises"), list)
                     else None,
                     finish=True,
+                    week_sessions=history,
                 )
                 if workout_use_sqlite():
                     repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
@@ -2771,6 +2772,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         if isinstance(body.get("planned_exercises"), list)
                         else None,
                         submission_id=submission_id,
+                        week_sessions=history,
                     )
                 weighins = None
                 try:

@@ -312,7 +312,48 @@ class WorkoutRepository:
                 """,
                 (self.user_id,),
             ).fetchall()
-        return [_row_to_session(r, self.user_id) for r in rows]
+        sessions = [_row_to_session(r, self.user_id) for r in rows]
+        self._persist_day_rolls(sessions)
+        return sessions
+
+    def _persist_day_rolls(self, sessions: Sequence[Session]) -> None:
+        """Write a 4 AM roll once. Later reads see partial or missed."""
+        pending = [s for s in sessions if getattr(s, "day_roll_pending", False)]
+        if not pending:
+            return
+        now = _utc_now()
+        with self._connect() as conn:
+            for session in pending:
+                skipped = (
+                    json.dumps(session.skipped, separators=(",", ":"))
+                    if session.skipped
+                    else None
+                )
+                subs = (
+                    json.dumps(session.substitutions, separators=(",", ":"))
+                    if session.substitutions
+                    else None
+                )
+                conn.execute(
+                    """
+                    UPDATE workout_sessions
+                    SET status = ?, skipped_json = ?, substitutions_json = ?,
+                        updated_at = ?
+                    WHERE user_id = ? AND date = ? AND session_type = ?
+                      AND status = 'in_progress'
+                    """,
+                    (
+                        session.status,
+                        skipped,
+                        subs,
+                        now,
+                        self.user_id,
+                        str(session.date)[:10],
+                        str(session.session_type or "").lower(),
+                    ),
+                )
+                session.day_roll_pending = False
+            conn.commit()
 
     def delete_session(self, date: str, session_type: str) -> bool:
         """Delete one (date, session_type) row. True when a row was removed."""
@@ -363,7 +404,7 @@ class WorkoutRepository:
                   status = COALESCE(excluded.status, workout_sessions.status),
                   submission_id = COALESCE(excluded.submission_id, workout_sessions.submission_id),
                   plan_json = COALESCE(excluded.plan_json, workout_sessions.plan_json),
-                  skipped_json = COALESCE(excluded.skipped_json, workout_sessions.skipped_json),
+                  skipped_json = excluded.skipped_json,
                   substitutions_json = COALESCE(
                     excluded.substitutions_json, workout_sessions.substitutions_json
                   )

@@ -324,28 +324,36 @@ def finalize_logged_session(
 ) -> Session:
     """Reassess after a save. Does not force a new session open or closed.
 
-    Finish workout always completes and marks uncovered lifts skipped.
-    A legacy finished row stays finished. A quest-seed row plus a manual
-    log stays open until the plan is covered or the user finishes.
+    Finish workout marks uncovered lifts skipped when something was covered.
+    Zero covered lifts (an empty Finish) is a missed session: no streak and
+    no rotation credit. A legacy finished row stays finished. A quest-seed
+    row plus a manual log stays open until the plan is covered or Finish.
     """
     from .session_work import (
         STATUS_COMPLETE,
+        STATUS_MISSED,
         STATUS_OPEN,
         freeze_plan,
         reassess_adjust_enabled,
         reassess_plan,
+        resolve_catalog,
         session_work_done,
         skipped_from_uncovered,
         stored_status,
+        week_window,
+        _any_working_set,
+        _plan_leaves,
     )
     from .training_day import session_has_close_stamp, session_is_quest_seed_only
 
+    catalog = resolve_catalog(catalog)
     if submission_id:
         session.submission_id = submission_id
     if not session.plan_objective and plan_exercises:
         frozen = freeze_plan(plan_exercises, session.session_type)
         if frozen:
             session.plan_objective = frozen
+    window = week_window(week_sessions, session.date)
     if (
         session.plan_objective
         and reassess_adjust_enabled()
@@ -356,15 +364,23 @@ def finalize_logged_session(
             session.plan_objective,
             enabled=True,
             catalog=catalog,
-            week_sessions=week_sessions,
+            week_sessions=window,
         )
         session.plan_objective = adjusted.get("plan") or session.plan_objective
     decision = session_work_done(session, session.plan_objective, catalog)
     if decision.substitutions:
         session.substitutions = decision.substitutions
     if finish:
+        # Nothing covered: missed, not a finished day. Do not credit streak
+        # or rotation, and do not invent skipped failures.
+        if decision.covered_count == 0 and (
+            not _any_working_set(session) or _plan_leaves(session.plan_objective)
+        ):
+            session.status = STATUS_MISSED
+            session.skipped = None
+            return session
         session.status = STATUS_COMPLETE
-        session.skipped = skipped_from_uncovered(decision.uncovered)
+        session.skipped = skipped_from_uncovered(decision.uncovered) or None
         return session
     prior = stored_status(existing) if existing is not None else None
     prior_finished = prior in (STATUS_COMPLETE, "partial")

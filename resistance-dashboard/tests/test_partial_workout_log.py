@@ -542,6 +542,110 @@ class DateTests(unittest.TestCase):
         self.assertEqual(moved.date, "2026-10-27")
 
 
+class CatalogAndFinishTests(unittest.TestCase):
+    def test_swap_through_save_without_injected_catalog(self):
+        done = finalize_logged_session(
+            Session(
+                date=DAY,
+                session_type="push",
+                exercises=[_ex("Smith Flat Bench", [_set(40, 3, 8)])],
+                closed_at=f"{DAY}T18:00:00-04:00",
+            ),
+            plan_exercises=[
+                {"name": "DB Flat Press", "sets": 3, "reps": 8, "weight_lbs": 50}
+            ],
+        )
+        self.assertEqual(done.status, STATUS_COMPLETE)
+        self.assertEqual(done.substitutions[0]["planned_name"], "DB Flat Press")
+        self.assertEqual(done.substitutions[0]["logged_name"], "Smith Flat Bench")
+        self.assertEqual(done.substitutions[0]["disposition"], "substitution")
+
+    def test_finish_with_zero_lifts_is_missed(self):
+        earlier = _session(
+            [_ex("Old", [_set(40, 3, 8)])], day="2026-10-20", status=None
+        )
+        earlier.session_type = "legs"
+        empty = Session(
+            date=DAY,
+            session_type="push",
+            exercises=[],
+            closed_at=f"{DAY}T23:00:00-04:00",
+            plan_objective=_plan(["A", "B"]),
+        )
+        done = finalize_logged_session(empty, finish=True)
+        self.assertEqual(done.status, STATUS_MISSED)
+        self.assertFalse(done.skipped)
+        self.assertFalse(session_counts_for_streak(done))
+        self.assertFalse(session_advances_rotation(done))
+        self.assertEqual(last_session_type([earlier, done]), "legs")
+
+    def test_swap_only_day_roll_is_covered_not_missed(self):
+        plan = freeze_plan(
+            [{"name": "DB Flat Press", "sets": 3, "reps": 8, "weight_lbs": 50}],
+            "push",
+        )
+        session = _session(
+            [_ex("Smith Flat Bench", [_set(40, 3, 8)])],
+            status=STATUS_OPEN,
+            plan=plan,
+            day="2026-10-27",
+        )
+        after = datetime(2026, 10, 28, 4, 0, tzinfo=ET)
+        self.assertEqual(effective_status(session, now=after), STATUS_PARTIAL)
+        from rt_dashboard.session_work import annotate_day_roll
+
+        annotate_day_roll(session, now=after)
+        self.assertEqual(session.status, STATUS_PARTIAL)
+        self.assertTrue(getattr(session, "day_roll_pending", False))
+        self.assertEqual(session.substitutions[0]["logged_name"], "Smith Flat Bench")
+        self.assertFalse(session.skipped)
+        self.assertTrue(session_counts_for_streak(session, now=after))
+
+    def test_reassess_end_to_end_uses_week_and_session_type(self):
+        os.environ["FITDASH_REASSESS_ADJUST"] = "1"
+        try:
+            prior = Session(
+                date="2026-10-25",
+                session_type="push",
+                exercises=[_ex("DB Shoulder Press", [_set(25, 4, 10)])],
+                closed_at="2026-10-25T18:00:00-04:00",
+                status=STATUS_COMPLETE,
+            )
+            current = Session(
+                date=DAY,
+                session_type="push",
+                exercises=[_ex("DB Flat Press", [_set(50, 4, 4, rir=0)])],
+                closed_at=f"{DAY}T18:00:00-04:00",
+            )
+            done = finalize_logged_session(
+                current,
+                plan_exercises=[
+                    {"name": "DB Flat Press", "sets": 3, "reps": 8, "weight_lbs": 50}
+                ],
+                week_sessions=[prior],
+            )
+            added = [
+                leaf
+                for leaf in done.plan_objective["leaves"]
+                if leaf.get("added_by_reassess")
+            ]
+            self.assertEqual(len(added), 1)
+            self.assertNotEqual(added[0]["name"], "DB Shoulder Press")
+            self.assertNotIn(
+                added[0]["name"],
+                ("DB Curl", "Seated Cable Row", "DB Row", "Machine Row"),
+            )
+            from rt_dashboard.session_work import load_exercise_catalog
+
+            catalog = load_exercise_catalog()
+            row = next(
+                ex for ex in catalog["exercises"] if ex.get("name") == added[0]["name"]
+            )
+            self.assertIn("push", [str(t).lower() for t in row.get("session_types") or []])
+        finally:
+            os.environ.pop("FITDASH_REASSESS_ADJUST", None)
+
+
 class LegacySqliteTests(unittest.TestCase):
     def test_null_status_reads_as_complete(self):
         with tempfile.TemporaryDirectory() as tmp:

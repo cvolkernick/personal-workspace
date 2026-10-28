@@ -457,6 +457,7 @@ def workouts_write(headers, payload=None):
                 if isinstance(payload.get("planned_exercises"), list)
                 else None,
                 submission_id=submission_id,
+                week_sessions=history,
             )
         _annotate_assisted([session, *list(history or [])], _loaded_weighins())
         apply_auto_prs(session, history)
@@ -499,10 +500,11 @@ def workouts_write(headers, payload=None):
 
 
 def workouts_finish_write(headers, payload=None):
-    """POST /api/workouts/finish — manual override. Always completes.
+    """POST /api/workouts/finish — manual override.
 
-    Uncovered planned lifts are marked skipped, not failed. Sets and loads
-    are left as logged.
+    Covered work completes the day and marks the rest skipped. Zero covered
+    lifts is a missed session: no streak and no rotation credit. Sets and
+    loads already logged are left as they are.
     """
     user, err = require_user(headers)
     if err:
@@ -533,6 +535,7 @@ def workouts_finish_write(headers, payload=None):
             if isinstance(payload.get("planned_exercises"), list)
             else None,
             finish=True,
+            week_sessions=history,
         )
         result = save_preview_session(uid, session)
     except ValueError as exc:

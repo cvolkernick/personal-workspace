@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .crypto_box import open_str
 from .turso_http import connect, turso_enabled
@@ -59,7 +59,7 @@ SET notes = ?, source_file = ?, exercises_json = ?,
     status = COALESCE(?, status),
     submission_id = COALESCE(?, submission_id),
     plan_json = COALESCE(?, plan_json),
-    skipped_json = COALESCE(?, skipped_json),
+    skipped_json = ?,
     substitutions_json = COALESCE(?, substitutions_json)
 WHERE user_id = ? AND date = ? AND session_type = ?
 """
@@ -130,6 +130,47 @@ def _ensure_log_columns(conn) -> None:
             pass
 
 
+def _persist_day_rolls(user_id: str, sessions: Sequence[Session]) -> None:
+    """Write a 4 AM roll. ``skipped_json`` is assigned, so a miss clears it."""
+    import json
+
+    pending = [s for s in sessions if getattr(s, "day_roll_pending", False)]
+    if not pending:
+        return
+    now = _utc_now()
+    with connect() as conn:
+        for session in pending:
+            skipped = (
+                json.dumps(session.skipped, separators=(",", ":"))
+                if session.skipped
+                else None
+            )
+            subs = (
+                json.dumps(session.substitutions, separators=(",", ":"))
+                if session.substitutions
+                else None
+            )
+            conn.execute(
+                """
+                UPDATE workout_sessions
+                SET status = ?, skipped_json = ?, substitutions_json = ?,
+                    updated_at = ?
+                WHERE user_id = ? AND date = ? AND session_type = ?
+                  AND status = 'in_progress'
+                """,
+                (
+                    session.status,
+                    skipped,
+                    subs,
+                    now,
+                    user_id,
+                    str(session.date)[:10],
+                    str(session.session_type or "").lower(),
+                ),
+            )
+            session.day_roll_pending = False
+
+
 def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
     if not turso_enabled():
         raise RuntimeError("turso env missing")
@@ -161,6 +202,7 @@ def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
             decrypt_err = str(exc)[:160]
         except Exception as exc:  # noqa: BLE001
             decrypt_err = type(exc).__name__
+    _persist_day_rolls(uid, sessions)
     notes: List[str] = []
     if mig_note:
         notes.append(mig_note)

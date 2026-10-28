@@ -54,6 +54,14 @@ class MemoryTurso:
         if norm.startswith("CREATE TABLE") or norm.startswith("ALTER TABLE"):
             return TursoCursor([], [])
         if norm.startswith("UPDATE WORKOUT_SESSIONS"):
+            if "EXERCISES_JSON" not in norm:
+                status, skipped, subs, _updated, uid, date, st = params[:7]
+                existing = self.rows.get((uid, date, st))
+                if existing and existing.get("status") == "in_progress":
+                    existing["status"] = status
+                    existing["skipped_json"] = skipped
+                    existing["substitutions_json"] = subs
+                return TursoCursor([], [])
             notes, source, payload = params[:3]
             if len(params) >= 11:
                 status, submission_id, plan, skipped, subs, uid, date, st = params[3:11]
@@ -72,8 +80,7 @@ class MemoryTurso:
                     existing["submission_id"] = submission_id
                 if plan:
                     existing["plan_json"] = plan
-                if skipped:
-                    existing["skipped_json"] = skipped
+                existing["skipped_json"] = skipped
                 if subs:
                     existing["substitutions_json"] = subs
             return TursoCursor([], [])

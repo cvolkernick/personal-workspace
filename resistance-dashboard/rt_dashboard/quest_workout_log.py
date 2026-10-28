@@ -629,6 +629,7 @@ def attach_lift_quest_log(
                 session,
                 existing=prior,
                 plan_exercises=planned,
+                week_sessions=list(sessions or []),
             )
             info["status"] = session.status
             writer = persist or persist_quest_session

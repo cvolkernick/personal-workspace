@@ -204,21 +204,25 @@ def _is_seed(ex: Any) -> bool:
 def working_sets(ex: Any, planned_weight: Optional[float] = None) -> list:
     """Logged sets that count. Warm-ups are dropped. Quest checks count.
 
-    Without a planned load, the first non-flagged set is the working load.
-    Later sets under half of that are warm-ups. A heavier later set does
-    not replace the first working set.
+    The 50% line uses the heaviest non-flagged load that was actually
+    logged, not the planned weight. A heavier later set does not become
+    the first working set when the earlier set is still at least half.
+    ``planned_weight`` is ignored and kept so older callers stay valid.
     """
-    planned = _num(planned_weight)
-    load = planned if planned is not None and planned > 0 else None
-    out = []
+    del planned_weight
+    rows = []
     for st in _exercise_sets(ex):
         if _set_count(st) <= 0 or _set_reps(st) <= 0:
             continue
-        if load is None and not is_warmup_set(st, None):
-            w = _set_weight(st)
-            if w > 0:
-                load = w
-        if is_warmup_set(st, load):
+        rows.append(st)
+    load = 0.0
+    for st in rows:
+        if is_warmup_set(st, None):
+            continue
+        load = max(load, _set_weight(st))
+    out = []
+    for st in rows:
+        if is_warmup_set(st, load if load > 0 else None):
             continue
         out.append(st)
     return out
@@ -235,6 +239,46 @@ def sets_required(planned_sets: int) -> int:
     except (TypeError, ValueError):
         n = 0
     return max(1, n - 1)
+
+
+_CATALOG_CACHE: Optional[dict] = None
+
+
+def load_exercise_catalog() -> dict:
+    """Process-cached exercise catalog. Tests may pass an override instead."""
+    global _CATALOG_CACHE
+    cached = _CATALOG_CACHE
+    if isinstance(cached, dict) and cached.get("exercises"):
+        return cached
+    cat: dict = {}
+    try:
+        from .workout_store import load_workspace_catalog
+
+        loaded, _src = load_workspace_catalog()
+        if isinstance(loaded, dict):
+            cat = loaded
+    except Exception:
+        cat = {}
+    if not cat.get("exercises"):
+        try:
+            from .workout_planner import default_catalog
+
+            loaded = default_catalog()
+            if isinstance(loaded, dict):
+                cat = loaded
+        except Exception:
+            cat = {}
+    if not isinstance(cat, dict):
+        cat = {"exercises": []}
+    _CATALOG_CACHE = cat
+    return cat
+
+
+def resolve_catalog(catalog: Optional[dict] = None) -> dict:
+    """Caller override wins. Otherwise the cached workspace catalog."""
+    if isinstance(catalog, dict) and catalog.get("exercises"):
+        return catalog
+    return load_exercise_catalog()
 
 
 def _catalog_index(catalog: Optional[dict]) -> Dict[str, dict]:
@@ -260,7 +304,8 @@ def _same_slot(planned_name: str, logged_name: str, catalog: Optional[dict]) -> 
     """Catalog guard: same primary muscle and the same movement pattern."""
     if _norm(planned_name) == _norm(logged_name):
         return True
-    if not catalog:
+    catalog = resolve_catalog(catalog)
+    if not catalog.get("exercises"):
         return False
     left = _catalog_row(planned_name, catalog)
     right = _catalog_row(logged_name, catalog)
@@ -321,6 +366,7 @@ def session_work_done(session: Any, plan: Any, catalog: Optional[dict] = None) -
     leaves = _plan_leaves(plan)
     if not leaves:
         return WorkDecision(False, "no_plan")
+    catalog = resolve_catalog(catalog)
     exercises = _exercises(session)
     covered: List[dict] = []
     uncovered: List[dict] = []
@@ -421,6 +467,7 @@ def effective_status(
     raw = stored_status(session)
     if raw == STATUS_OPEN and day_has_rolled(session, now=now, tz_name=tz_name):
         plan = _session_field(session, "plan_objective", None)
+        catalog = resolve_catalog(catalog)
         if _plan_leaves(plan):
             decision = session_work_done(session, plan, catalog)
             covered = decision.covered_count
@@ -465,7 +512,12 @@ def session_advances_rotation(
 def session_counts_for_progression(
     session: Any, *, now: Any = None, tz_name: Optional[str] = None
 ) -> bool:
-    """Progression reads finished sessions only (complete, partial, legacy)."""
+    """Finished sessions only. Explicit open and missed rows are ignored.
+
+    Date-only legacy rows (no close stamp, no status) still count. Stored
+    history is built that way in the planner, and a persisted row always
+    gains ``created_at`` on read. Dropping them here would ignore real logs.
+    """
     return session_counts_for_streak(session, now=now, tz_name=tz_name)
 
 
@@ -476,15 +528,17 @@ def annotate_day_roll(
     tz_name: Optional[str] = None,
     catalog: Optional[dict] = None,
 ) -> Session:
-    """Read-time roll. Does not write the row back.
+    """Apply the 4 AM roll on the object.
 
-    Partial: uncovered lifts are skipped (not failed), no next-day carry.
-    Miss: zero covered lifts. Those lifts are not marked failed.
+    Sets ``day_roll_pending`` when status moved off ``in_progress`` so the
+    repository can write partial/missed and skipped lifts. Callers that
+    only hold a dict still see the rolled object.
     """
     if stored_status(session) != STATUS_OPEN:
         return session
     if not day_has_rolled(session, now=now, tz_name=tz_name):
         return session
+    catalog = resolve_catalog(catalog)
     plan = session.plan_objective
     if _plan_leaves(plan):
         decision = session_work_done(session, plan, catalog)
@@ -498,6 +552,8 @@ def annotate_day_roll(
         session.status = STATUS_PARTIAL
     else:
         session.status = STATUS_MISSED
+    if session.status in (STATUS_PARTIAL, STATUS_MISSED):
+        setattr(session, "day_roll_pending", True)
     return session
 
 
@@ -594,6 +650,27 @@ def freeze_plan(exercises: Sequence[Any], session_type: str) -> Optional[dict]:
     }
 
 
+def week_window(sessions: Optional[Sequence[Any]], day: str) -> List[Any]:
+    """Sessions in the 7 civil days ending on ``day``, inclusive."""
+    from datetime import datetime, timedelta
+
+    try:
+        end = datetime.strptime(str(day or "")[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return list(sessions or [])
+    start = end - timedelta(days=6)
+    out = []
+    for sess in sessions or []:
+        raw = _session_day(sess)
+        try:
+            got = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if start <= got <= end:
+            out.append(sess)
+    return out
+
+
 def session_plan_objective(
     sessions: Sequence[Any], *, day: str = "", letter: str = ""
 ) -> Optional[dict]:
@@ -652,6 +729,7 @@ def reassess_plan(
     base = plan if isinstance(plan, dict) else {}
     if not enabled:
         return {"enabled": False, "changed": False, "plan": base, "reason": "reassess_adjust disabled"}
+    catalog = resolve_catalog(catalog)
     import copy
 
     nxt = copy.deepcopy(base)
@@ -663,7 +741,23 @@ def reassess_plan(
 
     def weekly(muscle: str) -> int:
         total = 0
-        for sess in list(week_sessions or []) + [session]:
+        current_key = (
+            _session_day(session),
+            str(_session_field(session, "session_type", "") or "").lower(),
+        )
+        seen = set()
+        ordered = []
+        for sess in list(week_sessions or []):
+            key = (
+                _session_day(sess),
+                str(_session_field(sess, "session_type", "") or "").lower(),
+            )
+            if key == current_key or key in seen:
+                continue
+            seen.add(key)
+            ordered.append(sess)
+        ordered.append(session)
+        for sess in ordered:
             for ex in _exercises(sess):
                 if _muscle_of(_exercise_name(ex), catalog) != muscle:
                     continue
@@ -715,11 +809,17 @@ def reassess_plan(
             break
 
     added = False
-    if catalog and not added:
+    session_type = str(_session_field(session, "session_type", "") or "").lower()
+    if catalog.get("exercises") and not added:
         seen = {_norm(_leaf_name(x)) for x in leaves}
         muscles_open = []
         for ex in (catalog.get("exercises") or []):
             if not isinstance(ex, dict):
+                continue
+            types = ex.get("session_types") or ex.get("session_type") or []
+            if isinstance(types, str):
+                types = [types]
+            if session_type not in {str(t).lower() for t in types}:
                 continue
             muscle = ""
             prim = ex.get("primary_muscles") or []
