@@ -290,6 +290,8 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "seated-cable-row": HORIZONTAL_ROW_FAMILY,
     "machine-row": HORIZONTAL_ROW_FAMILY,
     "db-row": HORIZONTAL_ROW_FAMILY,
+    "barbell-row": HORIZONTAL_ROW_FAMILY,
+    "smith-row": HORIZONTAL_ROW_FAMILY,
     "leg-press": KNEE_DOMINANT_FAMILY,
     "goblet-squat": KNEE_DOMINANT_FAMILY,
     "seated-leg-curls": HAMSTRING_CURL_FAMILY,

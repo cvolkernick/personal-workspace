@@ -12,6 +12,7 @@ Env:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -21,6 +22,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple  # noqa: F401
 from .crypto_box import open_str, seal_str
 from .models import ExerciseEntry, Session, SetEntry
 from .parse import parse_all_workouts
+
+_LOG = logging.getLogger("fitdash.workout_repo")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -313,7 +316,10 @@ class WorkoutRepository:
                 (self.user_id,),
             ).fetchall()
         sessions = [_row_to_session(r, self.user_id) for r in rows]
-        self._persist_day_rolls(sessions)
+        try:
+            self._persist_day_rolls(sessions)
+        except Exception:
+            _LOG.exception("day roll write-back failed")
         return sessions
 
     def _persist_day_rolls(self, sessions: Sequence[Session]) -> None:

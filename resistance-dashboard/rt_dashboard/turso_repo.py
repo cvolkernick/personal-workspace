@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .crypto_box import open_str
+from .models import Session
 from .turso_http import connect, turso_enabled
 from .workout_repo import (
     DEFAULT_USER,
@@ -12,7 +14,8 @@ from .workout_repo import (
     _seal_exercises,
     _utc_now,
 )
-from .models import Session
+
+_LOG = logging.getLogger("fitdash.turso_repo")
 
 LIST_SQL = """
 SELECT date, session_type, notes, source_file, exercises_json, created_at,
@@ -202,7 +205,10 @@ def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
             decrypt_err = str(exc)[:160]
         except Exception as exc:  # noqa: BLE001
             decrypt_err = type(exc).__name__
-    _persist_day_rolls(uid, sessions)
+    try:
+        _persist_day_rolls(uid, sessions)
+    except Exception:
+        _LOG.exception("day roll write-back failed")
     notes: List[str] = []
     if mig_note:
         notes.append(mig_note)

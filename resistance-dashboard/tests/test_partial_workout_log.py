@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -543,6 +545,39 @@ class DateTests(unittest.TestCase):
 
 
 class CatalogAndFinishTests(unittest.TestCase):
+    def test_smith_row_covers_barbell_row_on_the_real_catalog(self):
+        from rt_dashboard.session_work import load_exercise_catalog
+        from rt_dashboard.workout_planner import pattern_family
+
+        catalog = load_exercise_catalog()
+        by_name = {
+            ex.get("name"): ex
+            for ex in catalog["exercises"]
+            if isinstance(ex, dict)
+        }
+        barbell = by_name["Barbell Row"]
+        smith = by_name["Smith Row"]
+        for row in (barbell, smith):
+            self.assertEqual(row["primary_muscles"], ["back"])
+            self.assertEqual(row["movement"], "compound")
+            self.assertEqual(pattern_family(row), "horizontal_row")
+        done = finalize_logged_session(
+            Session(
+                date=DAY,
+                session_type="pull",
+                exercises=[_ex("Smith Row", [_set(95, 3, 8)])],
+                closed_at=f"{DAY}T18:00:00-04:00",
+            ),
+            plan_exercises=[
+                {"name": "Barbell Row", "sets": 3, "reps": 8, "weight_lbs": 135}
+            ],
+        )
+        self.assertEqual(done.status, STATUS_COMPLETE)
+        self.assertEqual(done.substitutions[0]["planned_name"], "Barbell Row")
+        self.assertEqual(done.substitutions[0]["logged_name"], "Smith Row")
+        self.assertEqual(done.substitutions[0]["disposition"], "substitution")
+        self.assertFalse(done.skipped)
+
     def test_swap_through_save_without_injected_catalog(self):
         done = finalize_logged_session(
             Session(
@@ -644,6 +679,121 @@ class CatalogAndFinishTests(unittest.TestCase):
             self.assertIn("push", [str(t).lower() for t in row.get("session_types") or []])
         finally:
             os.environ.pop("FITDASH_REASSESS_ADJUST", None)
+
+
+class DayRollWriteBackTests(unittest.TestCase):
+    def _open_partial_session(self):
+        plan = freeze_plan(
+            [
+                {"name": "A", "sets": 3, "reps": 8, "weight_lbs": 50},
+                {"name": "B", "sets": 3, "reps": 8, "weight_lbs": 40},
+            ],
+            "push",
+        )
+        return Session(
+            date="2026-10-20",
+            session_type="push",
+            exercises=[_ex("A", [_set(50, 3, 8)])],
+            closed_at="2026-10-20T18:00:00-04:00",
+            status=STATUS_OPEN,
+            plan_objective=plan,
+        )
+
+    def test_sqlite_write_back_that_raises_still_returns_rolled_sessions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = WorkoutRepository(
+                db_path=Path(tmp) / "fitdash.db", user_id="roll-test"
+            )
+            repo.upsert_session(self._open_partial_session())
+
+            def boom(_sessions):
+                raise RuntimeError("write rejected")
+
+            repo._persist_day_rolls = boom
+            with self.assertLogs("fitdash.workout_repo", level="ERROR") as logs:
+                loaded = repo.list_sessions()
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0].status, STATUS_PARTIAL)
+        self.assertTrue(any(row.get("name") == "B" for row in loaded[0].skipped or []))
+        self.assertTrue(any("day roll write-back failed" in line for line in logs.output))
+
+    def test_turso_write_back_that_raises_still_returns_rolled_sessions(self):
+        from rt_dashboard import turso_repo
+
+        session = self._open_partial_session()
+        row = {
+            "date": session.date,
+            "session_type": session.session_type,
+            "notes": "",
+            "source_file": "",
+            "exercises_json": json.dumps(
+                [
+                    {
+                        "name": "A",
+                        "sets": [{"weight_lbs": 50, "sets": 3, "reps": 8}],
+                    }
+                ]
+            ),
+            "created_at": session.closed_at,
+            "status": STATUS_OPEN,
+            "submission_id": "",
+            "plan_json": json.dumps(session.plan_objective),
+            "skipped_json": None,
+            "substitutions_json": None,
+        }
+
+        class Conn:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return None
+
+            def execute(self, sql, params=()):
+                class Cur:
+                    def fetchall(self):
+                        return [row]
+
+                return Cur()
+
+        with mock.patch.object(turso_repo, "turso_enabled", return_value=True), mock.patch.object(
+            turso_repo, "connect", return_value=Conn()
+        ), mock.patch(
+            "rt_dashboard.smith_bench_migrate.ensure_turso_smith_bench_split",
+            return_value="",
+        ), mock.patch.object(
+            turso_repo, "_persist_day_rolls", side_effect=RuntimeError("write rejected")
+        ):
+            with self.assertLogs("fitdash.turso_repo", level="ERROR") as logs:
+                sessions, _notes = turso_repo.list_sessions_detailed("roll-test")
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].status, STATUS_PARTIAL)
+        self.assertTrue(any(row.get("name") == "B" for row in sessions[0].skipped or []))
+        self.assertTrue(any("day roll write-back failed" in line for line in logs.output))
+
+
+class LateLogSkippedTests(unittest.TestCase):
+    def test_logging_b_after_partial_roll_clears_b_from_skipped(self):
+        plan = _plan(["A", "B"])
+        existing = _session(
+            [_ex("A", [_set(50, 3, 8)])],
+            status=STATUS_PARTIAL,
+            plan=plan,
+        )
+        existing.skipped = [{"name": "B", "slug": "ex-b", "disposition": "skipped"}]
+        incoming = _session([_ex("B", [_set(40, 3, 8)])], plan=None, status=None)
+        merged = merge_same_day_session(incoming, existing, same_name="append")
+        self.assertEqual(
+            [row["name"] for row in merged.skipped or []],
+            ["B"],
+        )
+        done = finalize_logged_session(merged, existing=existing)
+        self.assertEqual(done.status, STATUS_PARTIAL)
+        self.assertNotIn("B", [row.get("name") for row in (done.skipped or [])])
+        self.assertEqual(
+            {ex.name for ex in done.exercises},
+            {"A", "B"},
+        )
 
 
 class LegacySqliteTests(unittest.TestCase):

@@ -390,7 +390,11 @@ def finalize_logged_session(
             and not session_is_quest_seed_only(existing)
         )
     if prior_finished:
+        # A day already rolled to partial (or a finished row) keeps that
+        # close. The skipped list still has to match what is covered now,
+        # or a late log leaves the newly logged lift marked skipped.
         session.status = prior or STATUS_COMPLETE
+        session.skipped = skipped_from_uncovered(decision.uncovered) or None
         return session
     if decision.done:
         session.status = STATUS_COMPLETE

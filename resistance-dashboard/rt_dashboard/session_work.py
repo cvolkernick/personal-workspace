@@ -10,6 +10,7 @@ Legacy rows (no ``status``) stay complete. Nothing here rewrites them.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -28,6 +29,7 @@ WEEKLY_SET_FLOOR = 4
 WARMUP_LOAD_FRACTION = 0.5
 
 _DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_LOG = logging.getLogger("fitdash.session_work")
 
 
 class WorkDecision:
@@ -241,14 +243,42 @@ def sets_required(planned_sets: int) -> int:
     return max(1, n - 1)
 
 
-_CATALOG_CACHE: Optional[dict] = None
+_CATALOG_CACHE: Dict[str, Any] = {"mtime": None, "path": "", "data": None}
+
+
+def _catalog_source() -> Tuple[Optional[float], str]:
+    """Mtime of the catalog file the workspace loader would read."""
+    try:
+        from .workout_planner import CATALOG_PATH
+        from .workout_store import _workspace_file_candidates
+    except Exception:
+        _LOG.warning("catalog path lookup failed", exc_info=True)
+        return None, ""
+    for path in _workspace_file_candidates(CATALOG_PATH):
+        try:
+            if path.is_file():
+                return path.stat().st_mtime, str(path)
+        except OSError:
+            _LOG.warning("catalog stat failed for %s", path, exc_info=True)
+    return None, ""
 
 
 def load_exercise_catalog() -> dict:
-    """Process-cached exercise catalog. Tests may pass an override instead."""
+    """Exercise catalog, reloaded when the file mtime changes.
+
+    A failed load is logged and not cached, so the next call tries again.
+    Tests may pass an override to ``resolve_catalog`` instead.
+    """
     global _CATALOG_CACHE
-    cached = _CATALOG_CACHE
-    if isinstance(cached, dict) and cached.get("exercises"):
+    mtime, path = _catalog_source()
+    cached = _CATALOG_CACHE.get("data") if isinstance(_CATALOG_CACHE, dict) else None
+    if (
+        isinstance(cached, dict)
+        and cached.get("exercises")
+        and path
+        and _CATALOG_CACHE.get("mtime") == mtime
+        and _CATALOG_CACHE.get("path") == path
+    ):
         return cached
     cat: dict = {}
     try:
@@ -258,8 +288,9 @@ def load_exercise_catalog() -> dict:
         if isinstance(loaded, dict):
             cat = loaded
     except Exception:
+        _LOG.warning("catalog load failed", exc_info=True)
         cat = {}
-    if not cat.get("exercises"):
+    if not isinstance(cat, dict) or not cat.get("exercises"):
         try:
             from .workout_planner import default_catalog
 
@@ -267,15 +298,20 @@ def load_exercise_catalog() -> dict:
             if isinstance(loaded, dict):
                 cat = loaded
         except Exception:
+            _LOG.warning("bundled catalog load failed", exc_info=True)
             cat = {}
-    if not isinstance(cat, dict):
-        cat = {"exercises": []}
-    _CATALOG_CACHE = cat
+    if not isinstance(cat, dict) or not cat.get("exercises"):
+        if isinstance(cached, dict) and cached.get("exercises"):
+            _LOG.warning("catalog reload empty; keeping the previous catalog")
+            return cached
+        _LOG.warning("catalog load produced no exercises")
+        return {"exercises": []}
+    _CATALOG_CACHE = {"mtime": mtime, "path": path, "data": cat}
     return cat
 
 
 def resolve_catalog(catalog: Optional[dict] = None) -> dict:
-    """Caller override wins. Otherwise the cached workspace catalog."""
+    """Caller override wins. Otherwise the mtime-cached workspace catalog."""
     if isinstance(catalog, dict) and catalog.get("exercises"):
         return catalog
     return load_exercise_catalog()
