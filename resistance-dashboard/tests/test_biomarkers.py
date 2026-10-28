@@ -82,6 +82,7 @@ class _TempStore(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         env = {"FITDASH_BIOMARKERS_BACKEND": "sqlite",
                "FITDASH_BIOMARKERS_DB": str(Path(self.tmp.name) / "bm.sqlite3"),
+               "RESISTANCE_DASHBOARD_CONFIG_DIR": self.tmp.name,
                "TURSO_DATABASE_URL": "", "TURSO_AUTH_TOKEN": ""}
         p = mock.patch.dict(os.environ, env)
         p.start()
@@ -122,27 +123,51 @@ class StoreTests(_TempStore):
         self.assertEqual(bs.load_all("a")["rows"], [])
 
     def test_turso_path_seals_values(self):
+        """The labs blob is sealed. Biomarker rows are not a second plaintext store."""
         import rt_dashboard.crypto_box as crypto_box
 
         crypto_box._KEY = None
         self.addCleanup(lambda: setattr(crypto_box, "_KEY", None))
-        with mock.patch.dict(os.environ, {"FITDASH_MASTER_KEY": base64.urlsafe_b64encode(b"k" * 32).decode()}):
-            path = Path(self.tmp.name) / "fake-turso.sqlite3"
-            with mock.patch.object(bs, "backend", return_value="turso"), \
-                 mock.patch.object(bs, "_connect", side_effect=lambda: bs._Sqlite(path)):
-                pv = bi.preview_pdf_text(SYNTH_RYTHM)
-                pv["panel"]["context"]["creatine"] = "yes"
-                bi.commit_preview(pv)
-                raw = sqlite3.connect(str(path)).execute(
-                    "SELECT value, ref_low, sealed FROM biomarker_results").fetchall()
-                self.assertTrue(all(r[0] is None and r[1] is None and r[2] for r in raw))
-                ctx_raw = sqlite3.connect(str(path)).execute(
-                    "SELECT context_json FROM biomarker_panels").fetchone()[0]
-                self.assertNotIn("creatine", ctx_raw)
-                data = bs.load_all()
-                apob = [r for r in data["rows"] if r["marker"] == "apob"][0]
-                self.assertEqual(apob["value"], 95.0)
-                self.assertEqual(data["panels"][0]["context"]["creatine"], "yes")
+        table = {}
+
+        class _Cursor:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def fetchone(self):
+                return self._rows[0] if self._rows else None
+
+        class _Conn:
+            def execute(self, sql, params=()):
+                text = " ".join(str(sql).split())
+                if text.upper().startswith("SELECT"):
+                    uid = params[0]
+                    if uid not in table:
+                        return _Cursor([])
+                    return _Cursor([{"payload": table[uid]}])
+                if "INSERT" in text.upper():
+                    table[params[0]] = params[1]
+                return _Cursor([])
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        with mock.patch.dict(os.environ, {"FITDASH_MASTER_KEY": base64.urlsafe_b64encode(b"k" * 32).decode()}), \
+             mock.patch("rt_dashboard.turso_http.turso_enabled", return_value=True), \
+             mock.patch("rt_dashboard.turso_http.connect", return_value=_Conn()):
+            pv = bi.preview_pdf_text(SYNTH_RYTHM)
+            pv["panel"]["context"]["creatine"] = "yes"
+            bi.commit_preview(pv)
+            blob = str(table["local"])
+            self.assertFalse(blob.startswith("{"))
+            self.assertNotIn("creatine", blob)
+            data = bs.load_all()
+            apob = [r for r in data["rows"] if r["marker"] == "apob"][0]
+            self.assertEqual(apob["value"], 95.0)
+            self.assertEqual(data["panels"][0]["context"]["creatine"], "yes")
 
     def test_default_backend_never_turso_when_forced(self):
         with mock.patch.dict(os.environ, {"TURSO_DATABASE_URL": "libsql://x", "TURSO_AUTH_TOKEN": "t"}):

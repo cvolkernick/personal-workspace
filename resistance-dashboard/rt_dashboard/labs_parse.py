@@ -21,14 +21,22 @@ _HEADER_ROW = re.compile(
     r"Test\s+Value\s+Unit\s+Range(?:\s+Performance\s+Range)?",
     re.I,
 )
-_ROW = re.compile(
-    r"^(?P<name>.+?)\s+"
-    r"(?P<cmp>[<>])?(?P<val>\d+(?:\.\d+)?)\s+"
-    r"(?P<unit>[A-Za-zµμu/%]+(?:/[A-Za-z]+)?)\s+"
-    r"(?P<cl_lo>\d+(?:\.\d+)?)\s*[-–]\s*(?P<cl_hi>\d+(?:\.\d+)?)"
-    r"(?:\s+(?P<pf_lo>\d+(?:\.\d+)?)\s*[-–]\s*(?P<pf_hi>\d+(?:\.\d+)?))?"
-    r"\s*$"
+# Unit allows eGFR-style mL/min/1.73m2 (multiple slashes, a digit).
+# Clinical range is two-sided (lo-hi) or one-sided (>60 / <3).
+_NUM = r"\d+(?:\.\d+)?"
+_UNIT = r"[A-Za-zµμ%](?:[A-Za-zµμ%0-9]*[A-Za-zµμ%])?(?:/[A-Za-z0-9.]+)*"
+_ROW_CORE = (
+    rf"(?P<name>.+?)\s+"
+    rf"(?P<cmp>[<>]=?)?(?P<val>{_NUM})\s+"
+    rf"(?P<unit>{_UNIT})\s+"
+    rf"(?:(?P<cl_lo>{_NUM})\s*[-–]\s*(?P<cl_hi>{_NUM})"
+    rf"|(?P<cl_op>[<>]=?)\s*(?P<cl_bound>{_NUM}))"
+    rf"(?:\s+(?:(?P<pf_lo>{_NUM})\s*[-–]\s*(?P<pf_hi>{_NUM})"
+    rf"|(?P<pf_op>[<>]=?)\s*(?P<pf_bound>{_NUM})))?"
 )
+_ROW = re.compile(rf"^{_ROW_CORE}\s*$")
+# Lead match, not end-anchored, so a second marker on the same line is a remainder.
+_ROW_LEAD = re.compile(rf"^{_ROW_CORE}(?=\s|$)")
 _STREAM = re.compile(rb"stream\r?\n(.*?)\r?\nendstream", re.DOTALL)
 _Tj = re.compile(r"\((?:\\.|[^\\)])*\)\s*Tj")
 _TJ = re.compile(r"\[(.*?)\]\s*TJ", re.DOTALL)
@@ -76,6 +84,35 @@ _LOWER_BETTER = {"remnant_cholesterol", "hs_crp", "hscrp", "ggt", "apob"}
 
 class LabParseError(ValueError):
     """Unrecognized or unreadable lab PDF/text."""
+
+
+def _clock_time(text: str) -> str:
+    """Clock time printed next to a US date, as HH:MM. No timezone conversion."""
+    m = _US_DATE.search(text or "")
+    if not m or not m.group(4):
+        return ""
+    hour = int(m.group(4))
+    minute = int(m.group(5))
+    ampm = (m.group(6) or "").upper()
+    if ampm == "PM" and hour != 12:
+        hour += 12
+    elif ampm == "AM" and hour == 12:
+        hour = 0
+    if hour > 23 or minute > 59:
+        return ""
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _range_pair(lo, hi, op, bound) -> Tuple[Optional[float], Optional[float]]:
+    if lo not in (None, "") and hi not in (None, ""):
+        return float(lo), float(hi)
+    if op and bound not in (None, ""):
+        v = float(bound)
+        if str(op).startswith("<"):
+            return None, v
+        if str(op).startswith(">"):
+            return v, None
+    return None, None
 
 
 def parse_us_date(text: str) -> Optional[str]:
@@ -144,31 +181,86 @@ def _field_after(text: str, label: str) -> str:
     return m.group(1).strip()
 
 
+def _name_embeds_two_markers(name: str) -> bool:
+    from .lab_markers import canonical_ids_in_text
+
+    return len(canonical_ids_in_text(name)) >= 2
+
+
+def _split_row_line(line: str) -> List[str]:
+    """Split one physical line into complete marker rows.
+
+    A line that only matches by swallowing a second marker into the name
+    returns [] so the caller cannot store a collapsed row.
+    """
+    rest = " ".join((line or "").split())
+    if not rest:
+        return []
+    parts: List[str] = []
+    while rest:
+        m = _ROW_LEAD.match(rest)
+        if not m:
+            return []
+        name = re.sub(r"\s+", " ", m.group("name")).strip()
+        if _name_embeds_two_markers(name):
+            return []
+        parts.append(rest[: m.end()].strip())
+        rest = rest[m.end() :].strip()
+    return parts
+
+
 def _join_wrapped_rows(block: str) -> List[str]:
+    """Join hyphen-wrapped names. Never glue a finished marker onto the next one."""
     raw_lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
     out: List[str] = []
     buf = ""
+
+    def _emit(line: str) -> None:
+        parts = _split_row_line(line)
+        if parts:
+            out.extend(parts)
+
     for ln in raw_lines:
         low = ln.lower()
         if low.startswith("all tests listed") or low.startswith("generated at"):
             break
-        if buf:
-            merged = buf.rstrip("-") + ln.lstrip()
-            if _ROW.match(merged):
-                out.append(merged)
+        own = _split_row_line(ln)
+        if own and buf and buf.endswith("-") and not re.match(r"^(?:[<>]=?\s*)?\d", ln):
+            # Hyphenated name wrap ("Pro-" / "tein) 0.40 ...") must win over
+            # treating the continuation as a brand-new marker.
+            parts = _split_row_line(buf[:-1] + ln)
+            if parts:
+                out.extend(parts)
                 buf = ""
                 continue
-            buf = buf + " " + ln
-            if _ROW.match(buf):
-                out.append(buf)
+        if own:
+            # A finished row is never glued onto the previous fragment.
+            if buf:
+                _emit(buf)
                 buf = ""
+            out.extend(own)
             continue
-        if _ROW.match(ln):
-            out.append(ln)
-        else:
-            buf = ln
-    if buf and _ROW.match(buf):
-        out.append(buf)
+        if buf:
+            candidates: List[str] = []
+            # Word-wrap hyphen ("Pro-" / "tein"), not a range dash before a number.
+            if buf.endswith("-") and not re.match(r"^(?:[<>]=?\s*)?\d", ln):
+                candidates.append(buf[:-1] + ln)
+            candidates.append(buf + " " + ln)
+            emitted = False
+            for cand in candidates:
+                parts = _split_row_line(cand)
+                if parts:
+                    out.extend(parts)
+                    buf = ""
+                    emitted = True
+                    break
+            if emitted:
+                continue
+            buf = candidates[-1]
+            continue
+        buf = ln
+    if buf:
+        _emit(buf)
     return out
 
 
@@ -228,32 +320,34 @@ def classify_band(
     is ``in_performance``). Else out of clinical. Else out of performance.
     """
     clinical_status = "ok"
-    if clinical_low is not None and clinical_high is not None:
-        lo, hi = float(clinical_low), float(clinical_high)
+    if clinical_low is not None or clinical_high is not None:
+        lo = float(clinical_low) if clinical_low is not None else None
+        hi = float(clinical_high) if clinical_high is not None else None
         if comparator == "<":
-            if value <= lo:
+            if lo is not None and value <= lo:
                 clinical_status = "low"
-            elif value > hi:
+            elif hi is not None and value > hi:
                 clinical_status = "high"
         elif comparator == ">":
-            if value >= hi:
+            if hi is not None and value >= hi:
                 clinical_status = "high"
-            elif value < lo:
+            elif lo is not None and value < lo:
                 clinical_status = "low"
         else:
-            if value < lo:
+            if lo is not None and value < lo:
                 clinical_status = "low"
-            elif value > hi:
+            elif hi is not None and value > hi:
                 clinical_status = "high"
 
     performance_status = "ok"
     in_perf = False
-    has_perf = performance_low is not None and performance_high is not None
+    has_perf = performance_low is not None or performance_high is not None
     if has_perf:
-        plo, phi = float(performance_low), float(performance_high)
-        if value < plo:
+        plo = float(performance_low) if performance_low is not None else None
+        phi = float(performance_high) if performance_high is not None else None
+        if plo is not None and value < plo:
             performance_status = "low"
-        elif value > phi:
+        elif phi is not None and value > phi:
             performance_status = "high"
         else:
             in_perf = True
@@ -291,6 +385,10 @@ def parse_lab_text(text: str, filename: str = "") -> dict:
         if not m:
             continue
         name = re.sub(r"\s+", " ", m.group("name")).strip()
+        if _name_embeds_two_markers(name):
+            # Refuse a collapsed row. Adjacent markers stay unparsed rather
+            # than landing as one measurement.
+            continue
         cmp_ch = m.group("cmp") or ""
         val_s = m.group("val")
         value = float(val_s)
@@ -298,9 +396,8 @@ def parse_lab_text(text: str, filename: str = "") -> dict:
         key = marker_key(name, unit)
         if key in markers:
             continue
-        cl_lo, cl_hi = float(m.group("cl_lo")), float(m.group("cl_hi"))
-        pf_lo = float(m.group("pf_lo")) if m.group("pf_lo") else None
-        pf_hi = float(m.group("pf_hi")) if m.group("pf_hi") else None
+        cl_lo, cl_hi = _range_pair(m.group("cl_lo"), m.group("cl_hi"), m.group("cl_op"), m.group("cl_bound"))
+        pf_lo, pf_hi = _range_pair(m.group("pf_lo"), m.group("pf_hi"), m.group("pf_op"), m.group("pf_bound"))
         stem = _stem(name)
         band, cstat, pstat = classify_band(
             value,
@@ -333,12 +430,20 @@ def parse_lab_text(text: str, filename: str = "") -> dict:
     if not markers:
         raise LabParseError("Rythm table header found but no marker rows parsed")
     fasting_raw = _field_after(blob, "FASTING")
-    reported = parse_us_date(_field_after(blob, "REPORTED")) or parse_us_date(blob)
-    collected = parse_us_date(_field_after(blob, "COLLECTED"))
+    collected_raw = _field_after(blob, "COLLECTED")
+    reported_raw = _field_after(blob, "REPORTED")
+    # Draw date is COLLECTED. REPORTED is a later paperwork date and must not
+    # become the panel date (that is what dated a May draw as the report day).
+    collected = parse_us_date(collected_raw) or ""
+    reported = parse_us_date(reported_raw) or ""
+    draw = collected or reported
     lab = _field_after(blob, "LAB") or "Rythm Health"
     return {
-        "date": reported or collected or "",
-        "collected": collected or "",
+        "date": draw,
+        "draw_date": draw,
+        "collected": collected,
+        "reported": reported,
+        "draw_time": _clock_time(collected_raw),
         "lab": lab,
         "fasting": fasting_raw.lower() in {"yes", "y", "true"},
         "specimen": _field_after(blob, "SPECIMEN"),
@@ -471,3 +576,107 @@ def marker_from_legacy(key: str, raw: Any) -> Optional[dict]:
         "performance_low": None,
         "performance_high": None,
     }
+
+
+def _has_token(blob: str, token: str) -> bool:
+    """True when token is present on its own, not as part of a longer number."""
+    if not token:
+        return False
+    return re.search(rf"(?<![\d.]){re.escape(token)}(?![\d.])", blob) is not None
+
+
+def _stored_source_text(marker: dict) -> str:
+    """Text already stored on the row. Nothing is added that was not stored."""
+    bits: List[str] = []
+    name = str(marker.get("name") or marker.get("marker_name") or "")
+    if name:
+        bits.append(name)
+    blob = name
+    vt = str(marker.get("value_text") or "")
+    if vt and not _has_token(blob, vt):
+        bits.append(vt)
+        blob = " ".join(bits)
+    unit = str(marker.get("unit") or "")
+    if unit and not _has_token(blob, unit):
+        bits.append(unit)
+        blob = " ".join(bits)
+    lo = marker.get("clinical_low")
+    if lo is None:
+        lo = marker.get("ref_low")
+    hi = marker.get("clinical_high")
+    if hi is None:
+        hi = marker.get("ref_high")
+    if lo is not None and hi is not None:
+        pair = f"{_trim_num(lo)} - {_trim_num(hi)}"
+        if not _has_token(blob, pair):
+            bits.append(pair)
+            blob = " ".join(bits)
+    elif lo is not None and not _has_token(blob, f">{_trim_num(lo)}") and not _has_token(blob, f">={_trim_num(lo)}"):
+        bits.append(f">{_trim_num(lo)}")
+    elif hi is not None and not _has_token(blob, f"<{_trim_num(hi)}") and not _has_token(blob, f"<={_trim_num(hi)}"):
+        bits.append(f"<{_trim_num(hi)}")
+    return " ".join(bits)
+
+
+def recover_collapsed_marker(marker: dict) -> dict:
+    """Split one stored row that glued two markers together.
+
+    ``single`` — not collapsed. ``split`` — each recovered value token was
+    already in the stored text. ``unrecoverable`` — the name mentions two
+    markers but both values are not in the stored fields. The caller must
+    leave an unrecoverable row unchanged rather than guess.
+    """
+    if not isinstance(marker, dict):
+        return {"status": "single", "markers": [], "ids": []}
+    from .lab_markers import canonical_ids_in_text
+
+    source = _stored_source_text(marker)
+    name = str(marker.get("name") or marker.get("marker_name") or "")
+    ids = canonical_ids_in_text(name)
+    if len(ids) < 2:
+        ids = canonical_ids_in_text(source)
+    parts = _split_row_line(source)
+    if len(ids) < 2 and len(parts) < 2:
+        return {"status": "single", "markers": [], "ids": ids}
+    if len(parts) < 2:
+        return {"status": "unrecoverable", "markers": [], "ids": ids}
+    built: List[dict] = []
+    found: List[str] = []
+    for line in parts:
+        m = _ROW.match(line)
+        if not m:
+            return {"status": "unrecoverable", "markers": [], "ids": ids}
+        val_s = m.group("val") or ""
+        if not _has_token(source, val_s):
+            return {"status": "unrecoverable", "markers": [], "ids": ids}
+        row_name = re.sub(r"\s+", " ", m.group("name")).strip()
+        if _name_embeds_two_markers(row_name):
+            return {"status": "unrecoverable", "markers": [], "ids": ids}
+        cmp_ch = m.group("cmp") or ""
+        value = float(val_s)
+        unit = m.group("unit") or ""
+        cl_lo, cl_hi = _range_pair(m.group("cl_lo"), m.group("cl_hi"), m.group("cl_op"), m.group("cl_bound"))
+        pf_lo, pf_hi = _range_pair(m.group("pf_lo"), m.group("pf_hi"), m.group("pf_op"), m.group("pf_bound"))
+        stem = _stem(row_name)
+        key = marker_key(row_name, unit)
+        built.append(
+            {
+                "key": key,
+                "id": stem,
+                "name": row_name,
+                "value": value,
+                "value_text": f"{cmp_ch}{val_s}" if cmp_ch else val_s,
+                "comparator": cmp_ch,
+                "unit": unit,
+                "clinical_low": cl_lo,
+                "clinical_high": cl_hi,
+                "performance_low": pf_lo,
+                "performance_high": pf_hi,
+            }
+        )
+        for cid in canonical_ids_in_text(row_name):
+            if cid not in found:
+                found.append(cid)
+    if ids and not set(ids).issubset(set(found)):
+        return {"status": "unrecoverable", "markers": [], "ids": ids}
+    return {"status": "split", "markers": built, "ids": found or ids}
