@@ -1,0 +1,89 @@
+{
+  "schema": "fitdash.phase_calendar.v1",
+  "id": "goal3b-2026q4",
+  "status": "pending_chris",
+  "source": "specs/goal3b-health-labs-plan.md §2; Frankenfit spec goal3b-fitdash-coaching-spec.md",
+  "draw": {
+    "date": "2027-01-28",
+    "window": ["2027-01-22", "2027-02-05"],
+    "date_source": "plan_default",
+    "follow_labs_booking": true
+  },
+  "phases": [
+    {
+      "id": "P0",
+      "phase": "maintenance",
+      "start": "2026-10-28",
+      "end": "2026-11-08",
+      "kcal": 2300,
+      "macros_g": {"protein": 180, "carbs": 235, "fat": 70},
+      "rate_band_pct": [-0.25, 0.25],
+      "step_target": 7000
+    },
+    {
+      "id": "P1",
+      "phase": "cut",
+      "start": "2026-11-09",
+      "end": "2026-12-20",
+      "kcal": 2000,
+      "kcal_floor": 1900,
+      "macros_g": {"protein": 170, "carbs": 195, "fat": 60},
+      "rate_band_pct": [0.25, 0.5],
+      "rate_target_pct": [0.25, 0.5],
+      "too_slow": "hold_then_recomp_after_3_weeks",
+      "mini_cut_allowed": false,
+      "step_target": 7000,
+      "step_schedule": [
+        {"from": "2026-11-16", "step_target": 8000},
+        {"from": "2026-12-07", "step_target": 9000}
+      ]
+    },
+    {
+      "id": "P2",
+      "phase": "maintenance",
+      "start": "2026-12-21",
+      "end": "2027-01-03",
+      "kcal": 2300,
+      "macros_g": {"protein": 180, "carbs": 235, "fat": 70},
+      "rate_band_pct": [-0.25, 0.25],
+      "step_target": 9000,
+      "deload_window": true
+    },
+    {
+      "id": "P3",
+      "phase": "maintenance",
+      "start": "2027-01-04",
+      "end": "@draw",
+      "kcal": 2300,
+      "macros_g": {"protein": 180, "carbs": 235, "fat": 70},
+      "rate_band_pct": [-0.25, 0.25],
+      "step_target": 9000,
+      "no_program_change_from": "@draw-14d",
+      "no_hard_training_from": "@draw-2d"
+    },
+    {
+      "id": "P4",
+      "phase": "maintenance",
+      "start": "@draw+1d",
+      "end": "2027-02-12",
+      "kcal": 2300,
+      "macros_g": {"protein": 180, "carbs": 235, "fat": 70},
+      "rate_band_pct": [-0.25, 0.25],
+      "step_target": 9000
+    }
+  ],
+  "day_overrides": [
+    {
+      "date": "2026-11-26",
+      "kcal": 2300,
+      "macros_g": {"protein": 180, "carbs": 235, "fat": 70},
+      "reason": "Thanksgiving (planned)"
+    }
+  ],
+  "auto_step_rules": "suspended_in_range",
+  "on_end": {
+    "resume_auto_rules": true,
+    "carry_step_target": "last_calendar_target",
+    "carry_last_step_up": "2026-12-07"
+  }
+}

@@ -26,7 +26,7 @@ class VercelTargetsFromFile(unittest.TestCase):
         self.assertEqual(raw["fat_g"], 55.0)
         self.assertEqual(raw["weight_goal_lbs"], 150.0)
         self.assertEqual(raw["updated_at"], "2026-09-10")
-        self.assertEqual(raw["fiber_g"], 30)
+        self.assertEqual(raw["fiber_g"], 35)
         self.assertEqual(raw["sugar_g"], 50)
         self.assertEqual(raw["sodium_mg"], 2300)
 
