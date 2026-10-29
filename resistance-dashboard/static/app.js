@@ -56,6 +56,7 @@
       "more-ask",
       "more-targets",
       "more-hsa",
+      "more-coach",
       "more-labs",
       "more-training",
       "more-suggestions",

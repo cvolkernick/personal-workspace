@@ -16,7 +16,8 @@ SW = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
 SECTIONS = (
     ("ask-card", "today-hub", "more-ask", "ask-form", "Ask Grok about your data"),
     ("targets-config-section", "hsa-section", "more-targets", "targets-form", "Daily Targets"),
-    ("hsa-section", "labs-section", "more-hsa", "hsa-settings-form", "HSA"),
+    ("hsa-section", "more-coach-section", "more-hsa", "hsa-settings-form", "HSA"),
+    ("more-coach-section", "labs-section", "more-coach", "coach-phase-card", "Coach"),
     ("labs-section", "training-settings-section", "more-labs", "labs-upload-form", "Labs"),
     (
         "training-settings-section",
@@ -158,11 +159,11 @@ class MoreTabCollapse(unittest.TestCase):
         self.assertNotIn("mobile-tabbar", more_css)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=partial-log-2", HTML)
+        self.assertIn("/app.js?v=coach-more-1", HTML)
         self.assertIn("/styles.css?v=goal3b-coach-1", HTML)
-        self.assertIn("/app.js?v=partial-log-2", SW)
+        self.assertIn("/app.js?v=coach-more-1", SW)
         self.assertIn("/styles.css?v=goal3b-coach-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v153"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v154"', SW)
         self.assertNotIn("/app.js?v=hydration-quest-994-1", HTML)
         self.assertNotIn("/app.js?v=hydration-quest-994-1", SW)
         self.assertNotIn("fitdash-shell-v123", SW)
