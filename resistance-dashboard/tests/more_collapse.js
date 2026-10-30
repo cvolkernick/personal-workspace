@@ -84,7 +84,7 @@ function fakeBody(value) {
 
 const api = loadFns();
 const keys = api.moreCollapseKeys();
-assert(keys.length === 9, "nine More sections");
+assert(keys.length === 10, "ten More sections");
 assert(keys.indexOf("more-ask") === 0, "ask is a More key");
 assert(keys.indexOf("more-connections") === keys.length - 1, "connections is a More key");
 
@@ -210,8 +210,8 @@ function screenshotMoreTab() {
     assert(sections.indexOf(`id="${id}"`) !== -1, "screenshot keeps " + id);
   });
   assert(sections.indexOf('aria-expanded="true"') === -1, "screenshot source has no open More section");
-  assert(sections.split('aria-expanded="false"').length - 1 === 9, "nine collapsed headers");
-  assert(sections.split(" hidden>").length - 1 >= 9, "nine hidden bodies");
+  assert(sections.split('aria-expanded="false"').length - 1 === 10, "ten collapsed headers");
+  assert(sections.split(" hidden>").length - 1 >= 10, "ten hidden bodies");
   assert(sections.indexOf('id="ask-question"') !== -1, "Ask field stays in the hidden body");
   assert(sections.indexOf('id="tgt-p"') !== -1, "targets field stays mounted");
   const page = `<!DOCTYPE html>
