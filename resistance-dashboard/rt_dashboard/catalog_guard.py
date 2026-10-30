@@ -219,6 +219,45 @@ def _family(ex: dict) -> Optional[str]:
     return pattern_family(ex)
 
 
+# Hip isolations carry an explicit ``movement_pattern`` in the catalog.
+# An unknown planned row maps to the same pattern by primary muscle (or by
+# name when it has no muscles), so a swap never crosses muscles: adduction
+# only to adductor rows, abduction only to abductor rows, flexion only to
+# hip-flexor rows.
+HIP_PATTERN_BY_MUSCLE = {
+    "adductors": "hip_adduction",
+    "abductors": "hip_abduction",
+    "hip_flexors": "hip_flexion",
+}
+_HIP_NAME_TOKENS = (
+    ("abduct", "hip_abduction"),
+    ("adduct", "hip_adduction"),
+    ("copenhagen", "hip_adduction"),
+    ("hip flexion", "hip_flexion"),
+    ("hip flexor", "hip_flexion"),
+    ("knee raise", "hip_flexion"),
+    ("march", "hip_flexion"),
+)
+
+
+def _hip_family(name: str, prim: Sequence[Any]) -> Optional[str]:
+    from .workout_planner import normalize_muscle
+
+    fams = {
+        HIP_PATTERN_BY_MUSCLE[m]
+        for m in (normalize_muscle(str(p)) for p in prim or [])
+        if m in HIP_PATTERN_BY_MUSCLE
+    }
+    if len(fams) == 1:
+        return fams.pop()
+    if prim:
+        return None
+    for token, fam in _HIP_NAME_TOKENS:
+        if token in name:
+            return fam
+    return None
+
+
 def _guess_family(row: dict) -> Optional[str]:
     """Pattern for a name that is not in the catalog (no id to look up)."""
     from .workout_planner import pattern_family
@@ -226,6 +265,9 @@ def _guess_family(row: dict) -> Optional[str]:
     name = str(row.get("name") or "")
     prim = list(row.get("primary_muscles") or [])
     low = _norm(name)
+    hip = _hip_family(low, prim)
+    if hip:
+        return hip
     if not prim:
         if any(t in low for t in ("bench", "chest press", "floor press", "fly")):
             prim = ["chest"]

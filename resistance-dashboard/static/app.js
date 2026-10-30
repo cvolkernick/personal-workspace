@@ -6510,7 +6510,7 @@
   const SESSION_MUSCLES = {
     push: ["chest", "delts", "triceps", "traps"],
     pull: ["mid_upper_back", "lats", "biceps", "traps"],
-    legs: ["quads", "hamstrings", "glutes", "calves", "adductors"],
+    legs: ["quads", "hamstrings", "glutes", "calves", "adductors", "abductors", "hip_flexors"],
   };
 
   function markForcedSessionButtons(sessionType) {

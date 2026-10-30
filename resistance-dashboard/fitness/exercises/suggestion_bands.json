@@ -18,6 +18,8 @@
     {"id": "abs", "label": "Abs / core", "size": "small", "min": 4, "max": 12, "tags": ["abs", "core"]},
     {"id": "forearms", "label": "Forearms / grip", "size": "small", "min": 2, "max": 8, "tags": ["forearms"]},
     {"id": "adductors", "label": "Adductors", "size": "small", "min": 2, "max": 8, "tags": ["adductors"]},
+    {"id": "abductors", "label": "Abductors", "size": "small", "min": 2, "max": 8, "tags": ["abductors"]},
+    {"id": "hip_flexors", "label": "Hip flexors", "size": "small", "min": 2, "max": 8, "tags": ["hip_flexors"]},
     {"id": "lower_back", "label": "Lower back", "size": "small", "min": 2, "max": 8, "tags": ["lower_back"]}
   ]
 }

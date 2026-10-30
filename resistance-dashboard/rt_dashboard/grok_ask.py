@@ -31,7 +31,7 @@ Volume framework (baked into FitDash workout planning — Dean Turner / DeanTTra
 - Balanced hypertrophy does **not** require 10–20 working sets per muscle per week.
 - Target roughly **4–8 hard sets per major muscle group per week**, counting compound **overlap**
   (e.g. RDLs credit hamstrings and glutes). Major groups: chest, mid/upper back, lats, delts,
-  biceps, triceps, quads, hamstrings, calves, glutes, adductors, abs, traps.
+  biceps, triceps, quads, hamstrings, calves, glutes, adductors, abductors, hip flexors, abs, traps.
 - Prioritizing 1–2 muscles is fine; other muscles should sit near a **maintenance** dose.
 - There is a cap on productive work per session and per week; 10–20 sets/muscle crowds that out.
 - Prefer compounds for multi-muscle efficiency when the user is short on time or under-recovered.

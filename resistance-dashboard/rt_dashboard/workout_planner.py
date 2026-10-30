@@ -66,7 +66,7 @@ NEW_LIFT_LOAD_CAP_LBS = {
 }
 
 LOWER_BODY_MUSCLES = frozenset(
-    {"quads", "hamstrings", "glutes", "calves", "adductors"}
+    {"quads", "hamstrings", "glutes", "calves", "adductors", "abductors", "hip_flexors"}
 )
 PIN_LOAD_TAGS = frozenset(
     {"cable", "machine", "lat_pulldown", "leg_press", "assisted_pullup"}
@@ -87,6 +87,8 @@ MAJOR_MUSCLES: Tuple[str, ...] = (
     "calves",
     "glutes",
     "adductors",
+    "abductors",
+    "hip_flexors",
     "abs",
     "traps",
 )
@@ -129,6 +131,11 @@ MUSCLE_ALIASES: Dict[str, str] = {
     "glute": "glutes",
     "adductors": "adductors",
     "adductor": "adductors",
+    "abductors": "abductors",
+    "abductor": "abductors",
+    "glute_med": "glutes",
+    "hip_flexors": "hip_flexors",
+    "hip_flexor": "hip_flexors",
     "abs": "abs",
     "core": "abs",
     "traps": "traps",
@@ -153,7 +160,7 @@ VOLUME_FRAMEWORK = {
 SESSION_MUSCLES: Dict[str, Tuple[str, ...]] = {
     "push": ("chest", "delts", "triceps", "traps"),
     "pull": ("mid_upper_back", "lats", "biceps", "traps"),
-    "legs": ("quads", "hamstrings", "glutes", "calves", "adductors"),
+    "legs": ("quads", "hamstrings", "glutes", "calves", "adductors", "abductors", "hip_flexors"),
 }
 
 DEFAULT_GOALS = {

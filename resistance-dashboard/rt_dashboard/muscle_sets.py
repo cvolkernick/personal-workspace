@@ -85,8 +85,8 @@ HISTORY_WEEKS = 10
 # below this, and anything above it is treated as a typo and ignored (#1267).
 MAX_CAP_OVERRIDE = 1000
 
-# Catalog tags that are not one of the 14 groups. Forearms and adductors
-# stay off the tracker. ``back`` on a hinge is lower back only when the
+# Catalog tags that are not one of the 14 groups. Forearms, adductors,
+# abductors and hip_flexors stay off the tracker. ``back`` on a hinge is lower back only when the
 # row's volume_secondary says so; the generic fallback treats ``back`` as
 # lats/upper back because that is the row pattern.
 _TAG_TO_GROUP = {

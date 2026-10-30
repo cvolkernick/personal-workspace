@@ -17,7 +17,7 @@ const PRECACHE = [
   "/calorie-rolling-avg.js?v=cal-7d-946-1",
   "/biomarkers.js?v=biomarkers-1",
   "/trends-steps.js?v=steps-2",
-  "/app.js?v=coach-more-1",
+  "/app.js?v=hip-lifts-1",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/favicon.svg",
