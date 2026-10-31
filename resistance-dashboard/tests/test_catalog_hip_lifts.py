@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from rt_dashboard import catalog_guard as cg
+from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard import workout_planner as wp
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,8 +63,12 @@ class HipCatalogRows(unittest.TestCase):
 
     def test_progression_steps(self):
         by_id = {r["id"]: r for r in _catalog()["exercises"]}
-        for rid in ("machine-adduction", "machine-abduction", "cable-hip-adduction",
-                    "cable-hip-abduction", "cable-hip-flexion"):
+        for rid in ("machine-adduction", "machine-abduction"):
+            self.assertIn("machine", by_id[rid]["equipment"], rid)
+            self.assertEqual(wp._implement_kind(by_id[rid], None), "pin", rid)
+            self.assertEqual(wp.load_step_lbs(by_id[rid], 50.0), 5.0, rid)
+        for rid in ("cable-hip-adduction", "cable-hip-abduction", "cable-hip-flexion"):
+            self.assertEqual(by_id[rid]["equipment"], ["cable"], rid)
             self.assertEqual(wp._implement_kind(by_id[rid], None), "pin", rid)
             self.assertEqual(wp.load_step_lbs(by_id[rid], 50.0), 5.0, rid)
         self.assertEqual(wp.ISOLATION_REP_BAND, (8, 15))
@@ -76,14 +81,21 @@ class HipCatalogRows(unittest.TestCase):
 
 
 class HipMuscleTags(unittest.TestCase):
-    def test_tags_are_majors_and_legs(self):
-        for tag in HIP_TAGS:
-            self.assertIn(tag, wp.MAJOR_MUSCLES)
-            self.assertIn(tag, wp.SESSION_MUSCLES["legs"])
+    def test_adductors_stay_tracked_and_new_tags_do_not(self):
+        self.assertIn("adductors", wp.MAJOR_MUSCLES)
+        self.assertIn("adductors", wp.SESSION_MUSCLES["legs"])
+        self.assertIn("adductors", wp.muscle_targets({}))
+        for tag in ("abductors", "hip_flexors"):
+            self.assertNotIn(tag, wp.MAJOR_MUSCLES)
+            self.assertNotIn(tag, wp.SESSION_MUSCLES["legs"])
+            self.assertNotIn(tag, wp.muscle_targets({}))
             self.assertIn(tag, wp.LOWER_BODY_MUSCLES)
             self.assertEqual(wp.normalize_muscle(tag), tag)
         self.assertEqual(wp.normalize_muscle("hip flexor"), "hip_flexors")
         self.assertEqual(wp.normalize_muscle("abductor"), "abductors")
+
+    def test_glute_med_aliases_to_glutes(self):
+        self.assertEqual(wp.normalize_muscle("glute_med"), "glutes")
 
     def test_ui_lists_the_tags(self):
         html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
@@ -96,6 +108,74 @@ class HipMuscleTags(unittest.TestCase):
         bands = json.loads((ROOT / "fitness" / "exercises" / "suggestion_bands.json").read_text())
         ids = {g["id"] for g in bands["groups"]}
         self.assertTrue(HIP_TAGS <= ids)
+
+
+def _session(date, st, lifts):
+    return Session(
+        date=date,
+        session_type=st,
+        exercises=[
+            ExerciseEntry(
+                name=name,
+                sets=[SetEntry(weight_lbs=weight, sets=2, reps=8)],
+            )
+            for name, weight in lifts
+        ],
+    )
+
+
+class HipPlansStayHandOnly(unittest.TestCase):
+    """Normal continuity: recent PPL logs, next letter is legs, recovery is fine."""
+
+    def _plans(self):
+        catalog = _catalog()
+        goals = {
+            "rotation": ["push", "pull", "legs"],
+            "split": "ppl",
+            "exercises_per_session": 5,
+            "rest_if_recovery_below": 40,
+            "prefer_compounds_first": True,
+            "auto_focus_muscles": True,
+        }
+        sessions = [
+            _session("2026-10-27", "push", [("DB Flat Press", 50)]),
+            _session("2026-10-28", "pull", [("Pulldowns", 100)]),
+            _session("2026-10-26", "legs", [("Leg Press", 270), ("RDL", 140)]),
+        ]
+        common = dict(
+            recovery_score=80,
+            recovery_label="Ready",
+            as_of="2026-10-29",
+        )
+        return catalog, [
+            wp.generate_workout_plan(catalog, goals, sessions, session_type="legs", **common),
+            wp.generate_workout_plan(catalog, goals, sessions, **common),
+        ]
+
+    def test_normal_legs_plans_omit_hip_rows(self):
+        catalog, plans = self._plans()
+        by_id = {r["id"]: r for r in catalog["exercises"]}
+        hip_ids = NEW_IDS | {"machine-adduction", "band-adduction"}
+        patterns = {"hip_adduction", "hip_abduction", "hip_flexion"}
+        self.assertEqual(len(plans), 2)
+        for plan in plans:
+            self.assertEqual(plan["session_type"], "legs")
+            self.assertFalse(plan["is_rest_day"])
+            self.assertTrue(plan["exercises"])
+            self.assertEqual(plan["context"]["training_continuity"]["phase"], "normal")
+            seen = []
+            for ex in plan["exercises"]:
+                seen.append(ex["id"])
+                row = by_id[ex["id"]]
+                self.assertNotIn(str(row.get("movement_pattern") or ""), patterns, ex["id"])
+                self.assertNotIn(ex["id"], hip_ids, ex["id"])
+            under = (plan.get("volume") or {}).get("under_target") or []
+            self.assertNotIn("abductors", under)
+            self.assertNotIn("hip_flexors", under)
+            msg = plan["message"].lower()
+            self.assertNotIn("abductor", msg)
+            self.assertNotIn("hip flexor", msg)
+            self.assertGreaterEqual(len(seen), 3)
 
 
 class HipSwapScoping(unittest.TestCase):

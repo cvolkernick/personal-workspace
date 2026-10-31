@@ -87,11 +87,11 @@ MAJOR_MUSCLES: Tuple[str, ...] = (
     "calves",
     "glutes",
     "adductors",
-    "abductors",
-    "hip_flexors",
     "abs",
     "traps",
 )
+# abductors and hip_flexors are catalog tags only, like forearms: no weekly
+# set target and not a legs session muscle. They stay selectable by hand.
 
 # Catalog / log muscle tags → major group
 MUSCLE_ALIASES: Dict[str, str] = {
@@ -160,8 +160,16 @@ VOLUME_FRAMEWORK = {
 SESSION_MUSCLES: Dict[str, Tuple[str, ...]] = {
     "push": ("chest", "delts", "triceps", "traps"),
     "pull": ("mid_upper_back", "lats", "biceps", "traps"),
-    "legs": ("quads", "hamstrings", "glutes", "calves", "adductors", "abductors", "hip_flexors"),
+    "legs": ("quads", "hamstrings", "glutes", "calves", "adductors"),
 }
+
+# Hip isolations stay in the library for a hand log or a same-muscle swap.
+# They are not ranked into an auto plan.
+HAND_ONLY_PATTERNS = frozenset({"hip_adduction", "hip_abduction", "hip_flexion"})
+
+
+def _hand_only_pattern(ex: dict) -> bool:
+    return str(ex.get("movement_pattern") or "").strip().lower() in HAND_ONLY_PATTERNS
 
 DEFAULT_GOALS = {
     "split": "ppl",
@@ -801,7 +809,9 @@ def _score_exercise_for_volume(
     prim = [normalize_muscle(m) for m in (ex.get("primary_muscles") or [])]
     sec = [normalize_muscle(m) for m in (ex.get("secondary_muscles") or [])]
     for m in prim:
-        band = bands.get(m) or {"min": 4, "max": 8}
+        band = bands.get(m)
+        if not band:
+            continue
         d = float(done.get(m) or 0)
         if d < band["min"]:
             score += (band["min"] - d) * 3.0
@@ -812,7 +822,9 @@ def _score_exercise_for_volume(
         if m in focus:
             score += 2.0
     for m in sec:
-        band = bands.get(m) or {"min": 4, "max": 8}
+        band = bands.get(m)
+        if not band:
+            continue
         d = float(done.get(m) or 0)
         if d < band["min"]:
             score += (band["min"] - d) * 1.0
@@ -2780,10 +2792,14 @@ def _generate_workout_plan_unguarded(
             or (logged_today if pin_open_session else None)
             or next_session_type(sessions, goals)
         ).lower()
-    pool = [ex for ex in available if st in ex["session_types"]]
+    pool = [
+        ex
+        for ex in available
+        if st in ex["session_types"] and not _hand_only_pattern(ex)
+    ]
     # Do not steal lifts from another PPL slot or invent unequipped gear.
     if not pool and not equipment_on:
-        pool = list(available)
+        pool = [ex for ex in available if not _hand_only_pattern(ex)]
 
     bands = scale_muscle_targets_for_continuity(muscle_targets(goals), continuity)
     focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
