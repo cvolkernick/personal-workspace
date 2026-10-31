@@ -32,7 +32,7 @@ class ManualLogLastPerfContract(unittest.TestCase):
         self.assertIn("does not", log)
         self.assertIn("read-only text", log)
         self.assertNotIn("loads that lift's last weight", log)
-        self.assertIn("/app.js?v=coach-more-1", HTML)
+        self.assertIn("/app.js?v=hip-lifts-1", HTML)
         self.assertNotIn("/app.js?v=partial-workout-999-1", HTML)
         self.assertNotIn("/app.js?v=calorie-7d-946-1", HTML)
         sw = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
