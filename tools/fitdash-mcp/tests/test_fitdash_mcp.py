@@ -103,7 +103,13 @@ def test_server_registers_section_tools_and_coaching_targets():
     import asyncio
     tools = asyncio.run(fm.build_server().list_tools())
     names = sorted(t.name for t in tools)
-    expect = sorted([*(f"fitdash_{s}" for s in fm.SECTIONS), "get_coaching_targets", "set_coaching_target"])
+    expect = sorted([
+        *(f"fitdash_{s}" for s in fm.SECTIONS),
+        "get_coaching_targets",
+        "set_coaching_target",
+        "get_pantry",
+        "update_pantry",
+    ])
     assert names == expect
 
 
@@ -155,3 +161,84 @@ def test_coaching_target_post_redacts_token():
     with pytest.raises(fm.FitDashError) as ei:
         fm.post_coaching_target("steps", 9000, transport=t)
     assert "400" in str(ei.value) and TOKEN not in str(ei.value)
+
+
+# ------------------------------------------------------------ pantry tools
+WTOKEN = "test-write-token-abc"
+INV = {"ok": True, "generated_at": "g", "as_of": "a", "data": {
+    "count": 3, "in_stock_count": 2, "out_of_stock_count": 1, "note": "n", "items": [
+        {"id": "oats", "name": "Oats", "stock": "in", "in_stock": True, "per_serving": {"protein_g": 5.0}},
+        {"id": "rice", "name": "Jasmine Rice", "stock": "low", "in_stock": True, "per_serving": None},
+        {"id": "tilapia", "name": "Tilapia", "stock": "out", "in_stock": False, "per_serving": None},
+    ]}}
+
+
+@pytest.fixture
+def wtok(monkeypatch):
+    monkeypatch.setenv("FITDASH_INVENTORY_AGENT_TOKEN", WTOKEN)
+
+
+def test_get_pantry_uses_read_token_and_filters():
+    seen = []
+    out = fm.get_pantry(transport=_transport(body=INV, seen=seen))
+    assert seen[0].method == "GET" and str(seen[0].url).endswith("/api/agent/inventory")
+    assert seen[0].headers["authorization"] == f"Bearer {TOKEN}"
+    assert out["returned"] == 3 and out["out_of_stock_count"] == 1
+    assert out["items"][0]["per_serving"] == {"protein_g": 5.0}
+    assert [i["id"] for i in fm.get_pantry("out", transport=_transport(body=INV))["items"]] == ["tilapia"]
+    assert [i["id"] for i in fm.get_pantry("low", transport=_transport(body=INV))["items"]] == ["rice"]
+    assert [i["id"] for i in fm.get_pantry(query="RICE", transport=_transport(body=INV))["items"]] == ["rice"]
+    with pytest.raises(fm.FitDashError):
+        fm.get_pantry("maybe", transport=_transport(body=INV))
+
+
+def test_update_pantry_routes_and_uses_write_token(wtok):
+    seen = []
+    t = _transport(body={"ok": True, "as_of": "x", "items": [{"id": "z"}]}, seen=seen)
+    out = fm.update_pantry(add=[{"name": "Skyr", "serving_g": 150}], restock=[{"id": "oats", "qty": 3}, "rice"],
+                           out_of_stock=["tilapia"], updated_by="nourish", transport=t)
+    assert [str(r.url) for r in seen] == ["https://fitdash.test:10001/api/agent/inventory/items",
+                                          "https://fitdash.test:10001/api/agent/inventory/stock"]
+    assert all(r.method == "POST" and r.headers["authorization"] == f"Bearer {WTOKEN}" for r in seen)
+    import json as _j
+    assert _j.loads(seen[0].content) == {"items": [{"name": "Skyr", "serving_g": 150}], "updated_by": "nourish"}
+    assert _j.loads(seen[1].content)["items"] == [
+        {"id": "oats", "in_stock": True, "qty": 3}, {"id": "rice", "in_stock": True},
+        {"id": "tilapia", "in_stock": False, "qty": 0}]
+    assert out["added"] and out["stock_updated"]
+
+
+def test_update_pantry_stock_only_skips_create(wtok):
+    seen = []
+    fm.update_pantry(out_of_stock=["oats"], transport=_transport(body={"items": []}, seen=seen))
+    assert len(seen) == 1 and str(seen[0].url).endswith("/inventory/stock")
+
+
+def test_update_pantry_local_validation(wtok):
+    t = _transport()
+    for kw in ({}, {"restock": [{"qty": 1}]}, {"restock": [{"id": "a", "stock": "low"}]},
+               {"out_of_stock": [""]}, {"restock": ["a"], "out_of_stock": ["A"]},
+               {"out_of_stock": [f"i{n}" for n in range(101)]}):
+        with pytest.raises(fm.FitDashError):
+            fm.update_pantry(transport=t, **kw)
+
+
+def test_update_pantry_never_uses_read_token(monkeypatch, tmp_path):
+    monkeypatch.delenv("FITDASH_INVENTORY_AGENT_TOKEN", raising=False)
+    monkeypatch.setenv("FITDASH_INVENTORY_AGENT_TOKEN_FILE", str(tmp_path / "nope"))
+    with pytest.raises(fm.FitDashError, match="inventory agent token"):
+        fm.update_pantry(out_of_stock=["oats"], transport=_transport())
+
+
+def test_update_pantry_errors_redact_token(wtok):
+    t = httpx.MockTransport(lambda r: httpx.Response(409, text="conflict " + r.headers["authorization"]))
+    with pytest.raises(fm.FitDashError) as ei:
+        fm.update_pantry(add=[{"name": "Oats"}], transport=t)
+    assert "409" in str(ei.value) and WTOKEN not in str(ei.value)
+    with pytest.raises(fm.FitDashError, match="401"):
+        fm.update_pantry(out_of_stock=["x"], transport=_transport(401))
+
+
+def test_post_rejects_non_pantry_paths(wtok):
+    with pytest.raises(fm.FitDashError):
+        fm.post("generate-plan", {}, transport=_transport())

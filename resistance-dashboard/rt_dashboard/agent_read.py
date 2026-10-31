@@ -265,6 +265,26 @@ def _log_ts(log: Dict[str, Any]) -> Optional[str]:
     return f"{day}T{t}" if t else day
 
 
+_PER_SERVING_KEYS = ("calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg")
+
+
+def _stock_or_none(ing: Dict[str, Any]) -> Optional[str]:
+    s = str(ing.get("stock") or "").strip().lower()
+    if s in ("in", "low", "out"):
+        return s
+    if isinstance(ing.get("in_stock"), bool):
+        return "in" if ing["in_stock"] else "out"
+    return None
+
+
+def _per_serving(ing: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Per-serving macros as stored, or None when the item has none recorded."""
+    out = {k: _num(ing.get(k)) for k in _PER_SERVING_KEYS if ing.get(k) is not None}
+    if not any(v for v in out.values() if v is not None):
+        return None
+    return out
+
+
 def build_inventory(
     rec: Dict[str, Any], food_logs: List[Dict[str, Any]]
 ) -> Tuple[Dict[str, Any], Optional[str]]:
@@ -292,6 +312,10 @@ def build_inventory(
                 "category": ing.get("category"),
                 "qty": qty,
                 "in_stock": ing.get("in_stock") if isinstance(ing.get("in_stock"), bool) else None,
+                "stock": _stock_or_none(ing),
+                "serving_label": ing.get("serving_label") or None,
+                "serving_g": _num(ing.get("serving_g")),
+                "per_serving": _per_serving(ing),
                 "updated_at": ing.get("updated_at") or None,
                 "last_used_at": max(used) if used else None,
             }
@@ -300,6 +324,7 @@ def build_inventory(
         "items": items,
         "count": len(items),
         "in_stock_count": sum(1 for i in items if i["in_stock"]),
+        "out_of_stock_count": sum(1 for i in items if i["in_stock"] is False),
         "updated_at": rec.get("updated_at") or None,
         "source": rec.get("source"),
         "note": (
