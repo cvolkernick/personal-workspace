@@ -4964,6 +4964,54 @@
     }
   }
 
+  /** Weekly coach section: counted-week gate, averages, protein gap, TDEE, one steps-first advisory. */
+  function coachWeeklyLines(weekly) {
+    if (!weekly) return [];
+    const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString());
+    const wow = (n) => (n == null ? "" : ` (${n > 0 ? "+" : ""}${Number(n).toLocaleString()} WoW)`);
+    const lines = [];
+    if (weekly.status !== "ready") {
+      lines.push(weekly.text || "Weekly data building");
+    }
+    const a = weekly.averages || {};
+    const dl = weekly.days_logged || {};
+    const cal = a.calories || {};
+    const st = a.steps || {};
+    const bw = a.bodyweight || {};
+    lines.push(
+      `Week ${weekly.week && weekly.week.start ? weekly.week.start : "—"}: ` +
+        `${fmt(cal.avg)} kcal${wow(cal.wow)} · ${fmt(st.avg)} steps${wow(st.wow)} · ${fmt(bw.avg)} lb${wow(bw.wow)}`
+    );
+    lines.push(
+      `Logged ${dl.weigh_ins || "0/7"} weigh-ins, ${dl.food || "0/7"} food · ` +
+        `${weekly.counted ? "counted" : "not counted"}` +
+        (weekly.noise && weekly.noise.length ? ` · noise: ${weekly.noise.join(", ")}` : "")
+    );
+    if (weekly.tdee) {
+      lines.push(`TDEE ~${fmt(weekly.tdee.tdee)} ± 150 (${weekly.tdee.weeks_used} wk)`);
+    }
+    if (weekly.protein_chip && weekly.protein_chip.show) {
+      lines.push(`Protein gap: ${weekly.protein_chip.days_under_170g} days under 170 g`);
+    }
+    const adv = weekly.advisory || {};
+    if (adv.detail && weekly.status === "ready") lines.push(adv.detail);
+    return lines;
+  }
+
+  function renderCoachWeekly(weekly) {
+    const box = $("coach-weekly");
+    if (!box) return;
+    box.replaceChildren();
+    const lines = coachWeeklyLines(weekly);
+    box.hidden = !lines.length;
+    lines.forEach((text) => {
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = text;
+      box.appendChild(p);
+    });
+  }
+
   function renderCoachCard(data) {
     const root = $("coach-phase-card");
     if (!root) return;
@@ -4993,6 +5041,7 @@
         sat.textContent = "";
       }
     }
+    renderCoachWeekly(card.weekly);
     const staged = $("coach-staged-panel");
     if (!staged) return;
     const preview = card.staged;

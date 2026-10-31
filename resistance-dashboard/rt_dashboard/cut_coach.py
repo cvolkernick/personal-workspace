@@ -654,7 +654,16 @@ def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dic
     }
     if kcal_i is None:
         state["kcal_target"] = 2000
-    card = decide(as_of=day or "2026-10-28", state=state, rules=rules)
+    day_s = str(day or "2026-10-28")[:10]
+    from . import coach_weekly as cw
+
+    store = cw.load_store()
+    try:
+        weeks = cw.build_weekly_rows(data, as_of=day_s, store=store)
+    except Exception:
+        weeks = []
+    card = decide(as_of=day_s, state=state, rules=rules, weeks=cw.decision_weeks(weeks))
+    apply_weekly(card, weeks, rules=rules, store=store, live_kcal=int(state["kcal_target"]))
     health = data.get("health") if isinstance(data.get("health"), dict) else {}
     logs = health.get("food_logs") or []
     try:
@@ -666,9 +675,60 @@ def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dic
     return card
 
 
+def apply_weekly(
+    card: dict, weeks: Sequence[dict], *, rules: dict, store: dict, live_kcal: int
+) -> dict:
+    """Attach the weekly section and enforce the counted-week gate and steps-first rule.
+
+    Fewer than 2 counted weeks: the card says "weekly data building" and makes
+    no recommendation. Kcal track off: the only lever is steps, and the
+    recommendation never names a kcal or macro change.
+    """
+    from . import coach_weekly as cw
+
+    band = (card.get("rate") or {}).get("band_pct") or list(cut_band(rules))
+    step = today_targets(card).get("step_target") or steps_cfg(rules)["default_target"]
+    weekly = cw.weekly_section(
+        weeks, as_of=card.get("as_of") or "", band=band, step_target=int(step), rules=rules, store=store
+    )
+    card["weekly"] = weekly
+    kcal_on = track_active(kcal_track(rules))
+    if weekly["status"] != "ready" or not kcal_on:
+        adv = weekly["advisory"]
+        card["recommendation"] = {
+            "action": adv["action"],
+            "detail": adv["detail"],
+            "lever": adv.get("lever"),
+            "proposed_kcal": int(live_kcal),
+            "proposed_steps": int(adv["proposed_steps"]),
+            "applies_automatically": False,
+        }
+        if not kcal_on:
+            card["macros"] = None
+    return card
+
+
+def persist_weekly(card: Optional[dict]) -> bool:
+    """Keep TDEE history (one row per card week). Best effort; read-only hosts skip."""
+    try:
+        from . import coach_weekly as cw
+
+        weekly = (card or {}).get("weekly") or {}
+        week = (weekly.get("week") or {}).get("start")
+        store = cw.load_store()
+        if cw.record_tdee(store, week, weekly.get("tdee")):
+            cw.save_store(store)
+            return True
+    except Exception:
+        return False
+    return False
+
+
 def attach_coach_card(payload: dict, *, as_of: Any = None) -> dict:
     try:
         payload["coach_card"] = coach_card_for_payload(payload, as_of=as_of)
     except Exception:
         payload["coach_card"] = None
+    if payload.get("coach_card"):
+        persist_weekly(payload["coach_card"])
     return payload
