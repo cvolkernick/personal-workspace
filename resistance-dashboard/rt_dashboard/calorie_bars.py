@@ -282,6 +282,23 @@ def eating_window_fraction(
     }
 
 
+# Calories: green (and the "on pace" label) within ±10% of paced expected,
+# both over and under. Other macros/micros keep the 5% ladder.
+CALORIE_PACE_GREEN_MAX = 0.10
+
+
+def _pace_rel_denom(paced: float, target: float) -> float:
+    """Shared denominator for pace relative error (band + calorie label)."""
+    return max(paced, target * 0.05, 1.0)
+
+
+def _calorie_on_pace(*, delta: float, paced: float, target: float) -> bool:
+    """Label rule: exactly the calorie green band (rel <= 0.10, same denominator
+    and float expression as pace_vs_expected), so on_pace iff green."""
+    rel = abs(delta) / _pace_rel_denom(paced, target)
+    return rel <= CALORIE_PACE_GREEN_MAX
+
+
 def calorie_pacing(
     *,
     consumed: float,
@@ -319,7 +336,7 @@ def calorie_pacing(
     if frac <= 0.02 and consumed <= 0:
         status = "start"
         summary = f"Eating window just opened · target {target:g} kcal"
-    elif abs(delta) <= max(50.0, target * 0.05):
+    elif _calorie_on_pace(delta=delta, paced=paced, target=target):
         status = "on_pace"
         summary = (
             f"{consumed:g} / {target:g} kcal · on pace "
@@ -547,7 +564,7 @@ def pace_vs_expected(
     after a normal first meal.
 
     Color bands (coach defaults) on the *problem* side of ``direction``:
-      green  |rel| ≤ 5% of paced denom
+      green  |rel| ≤ 5% of paced denom (calories: ≤ 10%, both sides)
       yellow 5% < |rel| ≤ 20%
       red    |rel| > 20%
 
@@ -587,7 +604,7 @@ def pace_vs_expected(
 
     paced = target * frac
     # Denom avoids divide-by-near-zero early in the window
-    rel_denom = max(paced, target * 0.05, 1.0)
+    rel_denom = _pace_rel_denom(paced, target)
     delta = consumed - paced
     rel = abs(delta) / rel_denom
 
@@ -611,6 +628,8 @@ def pace_vs_expected(
         # Thresholds
         if kind_key == "protein" and delta > 0:
             green_max, yellow_max = 0.15, 0.30
+        elif kind_key == "calories":
+            green_max, yellow_max = CALORIE_PACE_GREEN_MAX, 0.20
         else:
             green_max, yellow_max = 0.05, 0.20
 
