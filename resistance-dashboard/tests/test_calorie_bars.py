@@ -457,7 +457,7 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(on["side"], "on")
         self.assertAlmostEqual(on["paced_expected"], 1000.0, places=0)
 
-        # 12% ahead of paced → yellow (between 5% and 20%)
+        # 12% ahead of paced → yellow (between 10% and 20%)
         yel = pace_vs_expected(
             consumed=1120, target=2000, window_fraction=0.5, kind="calories"
         )
