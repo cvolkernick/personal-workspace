@@ -86,7 +86,7 @@ class ProperSetFilter(unittest.TestCase):
             3,
         )
 
-    def test_status_row_and_quest_seed_never_count(self):
+    def test_status_row_never_counts_and_quest_seed_does(self):
         status = {
             "name": "Already trained today",
             "sets": [_row(0, 1, 8)],
@@ -97,7 +97,10 @@ class ProperSetFilter(unittest.TestCase):
             "sets": [_row(200, 3, 6)],
         }
         self.assertEqual(exercise_proper_sets(status, PRESS, planned_load=200), 0)
-        self.assertEqual(exercise_proper_sets(seed, PRESS, planned_load=200), 0)
+        # A checked lift leaf is a logged set (#1362).
+        self.assertEqual(exercise_proper_sets(seed, PRESS, planned_load=200), 3)
+        movement_only = {"name": "DB Flat Press", "movement_only": True, "sets": []}
+        self.assertEqual(exercise_proper_sets(movement_only, PRESS, planned_load=200), 0)
 
     def test_assisted_uses_effective_load_and_counts_reps_when_missing(self):
         rows = [
