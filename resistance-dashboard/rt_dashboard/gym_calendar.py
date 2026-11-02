@@ -449,7 +449,9 @@ def window_bounds(day: str, window: QuietWindow, *, tz: Optional[ZoneInfo] = Non
 
 def _clock(now: Optional[datetime]) -> datetime:
     if now is None:
-        return datetime.now(gym_tz())
+        from . import timeutil  # app clock (patchable in tests)
+
+        return timeutil.local_now().astimezone(gym_tz())
     if now.tzinfo is None:
         return now.replace(tzinfo=gym_tz())
     return now
@@ -1348,6 +1350,17 @@ def busy_intervals(
     return out
 
 
+def event_started(ev: Optional[dict], clock: datetime) -> bool:
+    """True when the event has already started (in progress) or ended.
+
+    Started/ended gym events are history: never moved or deleted.
+    """
+    if not ev:
+        return False
+    interval = event_interval(ev)
+    return interval is not None and interval[0] <= clock
+
+
 def _delete_quiet(calendar_id: str, event_id: str) -> bool:
     try:
         result = gcal.delete_event(calendar_id, event_id)
@@ -1369,6 +1382,7 @@ def _scope_skip(status: dict) -> dict[str, Any]:
         "locked": 0,
         "moves": [],
         "no_slot": [],
+        "protected": 0,
     }
 
 
@@ -1389,6 +1403,8 @@ def sync_gym_sessions(
     when they are the selected slot
     (#818). On dashboard load, an elapsed unlocked window with no logged
     workout is moved to a remaining quiet slot (never tomorrow).
+    Exception (2026-11-02): a gym event that has started or ended is never
+    moved or deleted; it is counted in ``protected``.
     """
     status = gcal.credentials_status()
     if not status.get("ok"):
@@ -1399,6 +1415,7 @@ def sync_gym_sessions(
         updated = 0
         deleted = 0
         locked = 0
+        protected = 0
         moves: List[dict] = []
         no_slot: List[dict] = []
         for gym_day in days:
@@ -1407,7 +1424,11 @@ def sync_gym_sessions(
                 continue
             existing = list_day_gym_events(cal_id, day)
             keep, extras, locked_extras = partition_gym_events(existing)
+            clock = _clock(now)
             for ev in extras:
+                if event_started(ev, clock):
+                    protected += 1
+                    continue
                 if ev.get("id") and _delete_quiet(cal_id, str(ev["id"])):
                     deleted += 1
             locked += len(locked_extras)
@@ -1416,6 +1437,8 @@ def sync_gym_sessions(
                 # unlocked chip. Do not create a replacement.
                 if keep and is_user_locked(keep):
                     locked += 1
+                elif event_started(keep, clock):
+                    protected += 1
                 elif keep and keep.get("id") and _delete_quiet(cal_id, str(keep["id"])):
                     deleted += 1
                 continue
@@ -1430,6 +1453,10 @@ def sync_gym_sessions(
             clock = _clock(now)
             if keep and is_user_locked(keep):
                 locked += 1
+                continue
+            if event_started(keep, clock):
+                # In progress or ended: never move it (only future events relocate).
+                protected += 1
                 continue
             if keep:
                 interval = event_interval(keep)
@@ -1499,6 +1526,7 @@ def sync_gym_sessions(
             "locked": locked,
             "moves": moves,
             "no_slot": no_slot,
+            "protected": protected,
         }
     except Exception as exc:  # noqa: BLE001
         return {

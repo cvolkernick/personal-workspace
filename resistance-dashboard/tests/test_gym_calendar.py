@@ -665,6 +665,7 @@ class SyncCoach(unittest.TestCase):
             result = sync_gym_from_workout(
                 {"is_rest_day": False, "session_type": "push"},
                 day="2026-09-14",
+                now=datetime(2026, 9, 14, 0, 30, tzinfo=ET),
             )
         self.assertTrue(result["ok"], result)
         self.assertEqual(created, [])
@@ -735,6 +736,7 @@ class SyncCoach(unittest.TestCase):
             result = sync_gym_from_workout(
                 {"is_rest_day": True, "session_type": "rest"},
                 day="2026-09-14",
+                now=datetime(2026, 9, 14, 0, 30, tzinfo=ET),
             )
         self.assertTrue(result["ok"], result)
         self.assertEqual(deleted, ["ev-rest"])
@@ -823,7 +825,8 @@ class MonitorReconcile(unittest.TestCase):
             side_effect=lambda cid, eid, body: updated.append(body),
         ):
             result = reconcile_gym_sessions(
-                [GymDay(day="2026-09-14", is_rest=False, session_type="push")]
+                [GymDay(day="2026-09-14", is_rest=False, session_type="push")],
+                now=datetime(2026, 9, 14, 0, 30, tzinfo=ET),
             )
         self.assertTrue(result["ok"], result)
         self.assertEqual(len(result["moves"]), 1)
@@ -929,32 +932,22 @@ class ElapsedReschedule(unittest.TestCase):
         out.update(extra)
         return out
 
-    def test_one_pm_moves_10am_when_nothing_logged(self):
+    def test_one_pm_keeps_ended_10am_when_nothing_logged(self):
         existing = [
             _ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)
         ]
         result, updated, created, deleted = self._sync(
             existing, self._push(), self.ONE_PM
         )
+        # 2026-11-02: an ended event is history; never moved.
         self.assertTrue(result["ok"], result)
         self.assertEqual(created, [])
         self.assertEqual(deleted, [])
-        self.assertEqual(len(updated), 1)
-        self.assertEqual(updated[0][0], "ev-am")
-        body = updated[0][1]
-        start = datetime.fromisoformat(body["start"]["dateTime"])
-        self.assertEqual(start.strftime("%H:%M"), "21:00")
-        self.assertGreaterEqual(start, self.ONE_PM)
-        self.assertEqual(
-            body["extendedProperties"]["private"][PROP_PLANNED_START],
-            body["start"]["dateTime"],
-        )
-        self.assertEqual(len(result["moves"]), 1)
-        self.assertEqual(result["moves"][0]["reason"], "elapsed")
-        self.assertEqual(result["moves"][0]["event_id"], "ev-am")
-        self.assertIn("21:00", result["moves"][0]["to"])
+        self.assertEqual(updated, [])
+        self.assertEqual(result["moves"], [])
+        self.assertEqual(result["protected"], 1)
 
-    def test_closed_session_deletes_elapsed_event(self):
+    def test_closed_session_keeps_ended_event(self):
         """#951: a persisted close cancels today's chip. #811 partial logs still keep it."""
         existing = [
             _ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)
@@ -977,9 +970,10 @@ class ElapsedReschedule(unittest.TestCase):
         )
         self.assertTrue(result["ok"], result)
         self.assertEqual(created, [])
-        self.assertEqual(deleted, ["ev-am"])
+        self.assertEqual(deleted, [])
         self.assertEqual(updated, [])
         self.assertEqual(result["moves"], [])
+        self.assertEqual(result["protected"], 1)
 
     def test_in_progress_window_is_not_moved(self):
         existing = [
@@ -991,9 +985,23 @@ class ElapsedReschedule(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(created, [])
         self.assertEqual(deleted, [])
-        # Daytime windows are outside the evening policy: moved to 21:00.
+        self.assertEqual(updated, [])
+        self.assertEqual(result["moves"], [])
+        self.assertEqual(result["protected"], 1)
+
+    def test_only_future_event_relocates_to_2100(self):
+        """Started/ended events stay put; a future daytime event moves to 21:00."""
+        early = datetime(2026, 9, 14, 8, 0, tzinfo=ET)
+        existing = [_ev(eid="ev-am", day=self.DAY, start=self.AM, end=self.AM_END)]
+        result, updated, created, deleted = self._sync(existing, self._push(), early)
+        self.assertEqual(result["protected"], 0)
         self.assertEqual(len(result["moves"]), 1)
-        self.assertIn("21:00", result["moves"][0]["to"])
+        self.assertEqual(result["moves"][0]["event_id"], "ev-am")
+        self.assertIn("T21:00", result["moves"][0]["to"])
+        for now in (self.MID_SLOT, self.ONE_PM):
+            result, updated, created, deleted = self._sync(existing, self._push(), now)
+            self.assertEqual((updated, deleted, result["moves"]), ([], [], []), now)
+            self.assertEqual(result["protected"], 1)
 
     def test_user_moved_elapsed_event_stays_locked(self):
         existing = [
@@ -1030,7 +1038,7 @@ class ElapsedReschedule(unittest.TestCase):
         self.assertEqual(result["created"], 0)
         self.assertEqual(result["updated"], 0)
 
-    def test_rest_day_still_deletes_stale_tagged_event(self):
+    def test_rest_day_keeps_ended_tagged_event(self):
         existing = [
             _ev(eid="ev-rest", day=self.DAY, start=self.AM, end=self.AM_END)
         ]
@@ -1040,7 +1048,8 @@ class ElapsedReschedule(unittest.TestCase):
             self.ONE_PM,
         )
         self.assertTrue(result["ok"], result)
-        self.assertEqual(deleted, ["ev-rest"])
+        self.assertEqual(deleted, [])
+        self.assertEqual(result["protected"], 1)
         self.assertEqual(created, [])
         self.assertEqual(updated, [])
 
