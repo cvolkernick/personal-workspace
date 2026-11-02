@@ -51,6 +51,7 @@ Reconciliation contract (one writer, one key) (#901):
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -59,6 +60,9 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from zoneinfo import ZoneInfo
 
 from . import gcal_session as gcal
+
+_LOG = logging.getLogger(__name__)
+NO_SLOT_REASON = "no_evening_window_free"
 
 PROP_GYM = "fitdashGym"
 PROP_DATE = "fitdashGymDate"
@@ -92,12 +96,15 @@ _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 # (user_id, civil day) chips this process already created (#1064).
 _PROCESS_CHIPS: set[Tuple[str, str]] = set()
 
-# Late-evening gym policy (Chris ruling 2026-11-02): book 21:00-22:30 ET first;
-# fallback anywhere inside 19:00-24:00 ET. Never daytime, never 00:00-03:59.
+# Late-evening gym policy (Chris ruling 2026-11-02, amended): a window must
+# start at/after 21:00 ET, end by 24:00 ET, and not overlap the 22:30-23:00
+# walk block. Nothing between 00:00 and 21:00. 21:00-22:30 first; if nothing
+# fits, book nothing (with 90-min sessions only 21:00 fits today).
 PREFERRED_WINDOW = ("21:00", "22:30")
-EVENING_START_MIN = 19 * 60
+EVENING_START_MIN = 21 * 60
 EVENING_END_MAX = 24 * 60
-EXTRA_START_HOUR = 19.0
+WALK_BLOCK = ("22:30", "23:00")
+EXTRA_START_HOUR = EVENING_START_MIN / 60.0
 
 _FALLBACK_RANKED = {
     "mon": [("05:00", "06:30", 30), ("22:30", "00:00", 33), ("06:30", "08:00", 38)],
@@ -123,7 +130,8 @@ def _hhmm_min(text: str) -> int:
 
 
 def in_evening_window(window: "QuietWindow") -> bool:
-    """True when the window starts at/after 19:00 ET and ends by midnight."""
+    """True when the window starts at/after 21:00 ET, ends by midnight, and
+    does not overlap the walk block."""
     try:
         start = _hhmm_min(window.start_hhmm)
         end = _hhmm_min(window.end_hhmm)
@@ -131,7 +139,21 @@ def in_evening_window(window: "QuietWindow") -> bool:
         return False
     if end == 0:
         end = EVENING_END_MAX
-    return EVENING_START_MIN <= start < end <= EVENING_END_MAX
+    if not (EVENING_START_MIN <= start < end <= EVENING_END_MAX):
+        return False
+    w0, w1 = _hhmm_min(WALK_BLOCK[0]), _hhmm_min(WALK_BLOCK[1])
+    return not (start < w1 and w0 < end)
+
+
+def in_evening_interval(start: datetime, end: datetime) -> bool:
+    """in_evening_window for a concrete ET interval (same civil day, end may be 00:00 next)."""
+    s = start.astimezone(gym_tz())
+    e = end.astimezone(gym_tz())
+    if e - s > timedelta(hours=24) or e <= s:
+        return False
+    if e.date() != s.date() and not (e.hour == 0 and e.minute == 0 and (e.date() - s.date()).days == 1):
+        return False
+    return in_evening_window(QuietWindow(s.strftime("%H:%M"), e.strftime("%H:%M"), 0))
 
 
 @dataclass
@@ -364,7 +386,7 @@ def ranked_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
 
 
 def _evening_policy(day: str, club_id: str, windows: List[QuietWindow]) -> List[QuietWindow]:
-    """Preferred 21:00-22:30 first, then published windows inside 19:00-24:00 only."""
+    """Preferred 21:00-22:30 first, then other windows passing in_evening_window."""
     evening = [w for w in windows if in_evening_window(w)]
     ps, pe = PREFERRED_WINDOW
     if any((w.start_hhmm, w.end_hhmm) == (ps, pe) for w in evening):
@@ -452,6 +474,9 @@ def extra_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
         start_hhmm = f"{sh:02d}:{sm:02d}"
         end_hhmm = f"{eh:02d}:{em:02d}"
         if (start_hhmm, end_hhmm) in seen:
+            start_hour += 0.5
+            continue
+        if not in_evening_window(QuietWindow(start_hhmm, end_hhmm, 0)):
             start_hour += 0.5
             continue
         avg = window_occupancy(occ, start_hour)
@@ -709,6 +734,7 @@ def pick_slot(
         prefer_ok = cutoff is None or p0 >= cutoff
         if (
             prefer_ok
+            and in_evening_interval(p0, p1)
             and p1 - p0 >= timedelta(minutes=80)
             and not any(intervals_overlap(p0, p1, b0, b1) for b0, b1 in busy)
         ):
@@ -725,6 +751,8 @@ def pick_slot(
                 QuietWindow(p0.strftime("%H:%M"), p1.strftime("%H:%M"), occ),
             )
     for window in candidate_windows(day):
+        if not in_evening_window(window):
+            continue
         start, end = window_bounds(day, window)
         if cutoff is not None and start < cutoff:
             continue
@@ -1340,6 +1368,7 @@ def _scope_skip(status: dict) -> dict[str, Any]:
         "deleted": 0,
         "locked": 0,
         "moves": [],
+        "no_slot": [],
     }
 
 
@@ -1371,6 +1400,7 @@ def sync_gym_sessions(
         deleted = 0
         locked = 0
         moves: List[dict] = []
+        no_slot: List[dict] = []
         for gym_day in days:
             day = str(gym_day.day or "")[:10]
             if not day:
@@ -1421,6 +1451,8 @@ def sync_gym_sessions(
                 not_before=clock if elapsed_unlogged else None,
             )
             if slot is None:
+                no_slot.append({"day": day, "reason": NO_SLOT_REASON, "role": role})
+                _LOG.warning("gym: no slot for %s (%s); booking nothing", day, NO_SLOT_REASON)
                 continue
             body = event_body(day, slot, session_type=gym_day.session_type)
             if keep and keep.get("id"):
@@ -1466,6 +1498,7 @@ def sync_gym_sessions(
             "deleted": deleted,
             "locked": locked,
             "moves": moves,
+            "no_slot": no_slot,
         }
     except Exception as exc:  # noqa: BLE001
         return {
