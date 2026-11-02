@@ -1,4 +1,4 @@
-"""Trends Muscle sets undercount for the 10/26–11/1 week (#1362).
+"""Trends Muscle sets undercount for the 10/26–11/1 week (#1363).
 
 Synthetic fixture shaped like that week's log: the same exercise names,
 loads, set counts, reps, and close timestamps. Most rows were logged by
@@ -134,7 +134,7 @@ def _report(sessions):
     )
 
 
-class MuscleSetsWeek1362(unittest.TestCase):
+class MuscleSetsWeek1363(unittest.TestCase):
     def test_window_is_10_26_through_11_01(self):
         self.assertEqual(rolling_7d_bounds("2026-11-01"), ("2026-10-26", "2026-11-01"))
         self.assertEqual(

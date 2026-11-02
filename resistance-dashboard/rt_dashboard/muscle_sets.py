@@ -4,7 +4,7 @@ A proper set is a logged working set in the lift's rep window (band ± 1)
 at about 85% of that lift's planned working load. Warm-ups, ramps,
 movement-only rows, and ``Already trained today`` rows do not count. A
 quest-seeded row (a lift leaf checked off at the prescribed numbers) is a
-logged set and counts (#1362): unchecking removes it, so a row that is
+logged set and counts (#1363): unchecking removes it, so a row that is
 still in the log was done. Assisted lifts use
 effective load (#1156) and still count on reps when that load is missing.
 
@@ -519,7 +519,7 @@ def _catalog_index(catalog: Optional[dict]) -> Tuple[Dict[str, dict], Dict[str, 
     return by_id, by_name
 
 
-# Keyword fallback for logged names with no catalog row (#1362). Order
+# Keyword fallback for logged names with no catalog row (#1363). Order
 # matters: the first hit wins. Each entry is (needles, movement, primary,
 # secondary). Only muscle credit reads this; the planner does not.
 _NAME_FALLBACKS: Tuple[Tuple[Tuple[str, ...], str, Tuple[str, ...], Tuple[str, ...]], ...] = (
@@ -584,7 +584,7 @@ def _lookup_exercise(
     shared ``NAME_ALIASES`` (``Calf Raises`` → ``calf-raises`` whose catalog
     name is ``Calf Extensions``), then the name slug as an id. A name with no
     catalog row falls back to a keyword muscle map so a real logged set is
-    not credited to nothing (#1362).
+    not credited to nothing (#1363).
     """
     if isinstance(ex, dict):
         eid = str(ex.get("id") or ex.get("exercise_id") or "").strip()
@@ -681,7 +681,7 @@ def _skip_exercise(ex: Any) -> bool:
     """Rows that are not countable lift logs.
 
     Status rows (``Already trained today``) and movement-only rows never
-    count. A quest-seeded row with real sets does (#1362): checking a lift
+    count. A quest-seeded row with real sets does (#1363): checking a lift
     leaf logs it at the prescribed numbers and unchecking deletes it, so the
     seed that remains in the log is a completed set. Excluding seeds dropped
     whole Quest-logged sessions from the tile.
