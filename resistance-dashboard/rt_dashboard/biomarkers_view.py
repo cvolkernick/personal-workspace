@@ -302,13 +302,8 @@ def build_view(data: dict, *, sessions=None, weights=None, phase: str = "", toda
             groups.append({"id": gid, "label": label, "markers": ms})
     latest_draw = panels[-1]["draw_date"] if panels else ""
     flagged = [m for m in markers_out if m["flags"]]
-    td, ld = _d(today), _d(latest_draw)
-    recent = bool(td and ld and 0 <= (td - ld).days <= cfg.RECENT_RESULT_DAYS)
-    reason = []
-    if recent:
-        reason.append("new result")
-    if flagged:
-        reason.append(f"{len(flagged)} to review")
+    # Callers pass `today`. It is not copied into the view: Today has no labs slice.
+    _ = today
     return {
         "has_data": bool(markers_out),
         "footnote": cfg.UI_FOOTNOTE,
@@ -317,12 +312,6 @@ def build_view(data: dict, *, sessions=None, weights=None, phase: str = "", toda
         "panels": [dict(p, context=ctx_by_panel.get(p["panel_id"], {})) for p in panels],
         "groups": groups,
         "flagged_count": len(flagged),
-        "today_card": {
-            "show": recent or bool(flagged),
-            "reason": " · ".join(reason),
-            "latest_draw": latest_draw,
-            "flagged": [{"marker": m["marker"], "name": m["name"], "flag": m["flags"][0]} for m in flagged][:8],
-        },
         "context_fields": cfg.CONTEXT_FIELDS,
         "storage": data.get("storage") or "",
     }

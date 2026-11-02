@@ -261,7 +261,7 @@ class FlagTests(unittest.TestCase):
         m = _m(v, "apob")
         self.assertEqual(m["status"], "high")
         self.assertTrue(all(f.startswith("review:") for f in m["flags"]))
-        self.assertTrue(v["today_card"]["show"])
+        self.assertNotIn("today_card", v)
 
     def test_comparator_below_range(self):
         v = _view([_row("estradiol", 12, "2026-01-01", unit="pg/mL", lo=15, hi=32, cmp_="<")])
@@ -367,7 +367,7 @@ class GroupAndContextTests(unittest.TestCase):
         self.assertTrue(_m(v, "hs_crp")["caveats"])
         self.assertTrue(_m(v, "alt")["caveats"])
         self.assertFalse(_m(v, "apob")["caveats"])
-        self.assertFalse(v["today_card"]["show"])  # old + nothing flagged
+        self.assertNotIn("today_card", v)
 
     def test_context_caveats(self):
         cav = bv.active_caveats({"creatine": "yes", "alcohol_48h": True, "fasted": False, "biotin": "yes",
@@ -383,10 +383,29 @@ class GroupAndContextTests(unittest.TestCase):
                                             "fasted": True, "fast_hours": 12}), {})
         self.assertIn("glucose", bv.active_caveats({"fasted": True, "fast_hours": 6}))
 
-    def test_today_card_recent_result(self):
-        rows = [_row("apob", 80, "2026-01-10", lo=0, hi=90)]
-        self.assertTrue(_view(rows, today="2026-01-15")["today_card"]["show"])
-        self.assertFalse(_view(rows, today="2026-01-20")["today_card"]["show"])
+    def test_today_payload_has_no_labs_slice(self):
+        """Today's API slice does not exist. Labs groups still carry the panel."""
+        def today_slice(view):
+            return {k: v for k, v in view.items() if "today" in k}
+
+        quiet = _view([_row("synth_marker", 1, "2026-01-10", lo=0, hi=2)], today="2026-01-12")
+        self.assertEqual(today_slice(quiet), {})
+        self.assertNotIn("today_card", quiet)
+        self.assertTrue(quiet["groups"])
+        self.assertEqual(_m(quiet, "synth_marker")["marker"], "synth_marker")
+
+        loud = _view([
+            _row("synth_marker", 1, "2026-01-10", lo=0, hi=0),
+            _row("synth_other", 1, "2026-01-10", lo=0, hi=0),
+        ], today="2026-01-12")
+        self.assertEqual(today_slice(loud), {})
+        blob = json.dumps(today_slice(loud))
+        for word in ("synth_marker", "synth_other", "Blood panel", "review_count", "labs", "biomarker"):
+            self.assertNotIn(word, blob)
+        self.assertEqual(
+            sorted(m["marker"] for g in loud["groups"] for m in g["markers"]),
+            ["synth_marker", "synth_other"],
+        )
 
     def test_auto_context_weight_phase(self):
         rows = [_row("apob", 80, "2026-01-10", lo=0, hi=90)]
@@ -402,13 +421,21 @@ class UiTests(unittest.TestCase):
     SW = (ROOT / "static" / "sw.js").read_text()
     JS = (ROOT / "static" / "biomarkers.js").read_text()
 
-    def test_markup_tab_section_and_today_card(self):
+    def test_markup_labs_tab_and_no_today_labs(self):
         self.assertIn('data-m-tab="biomarkers"', self.HTML)
         self.assertIn('id="biomarkers-section" data-m-panel="biomarkers"', self.HTML)
-        self.assertRegex(self.HTML, r'id="biomarkers-today-card" data-m-panel="today" hidden')
+        self.assertIn("<h2>Blood panel</h2>", self.HTML)
+        self.assertNotIn("biomarkers-today-card", self.HTML)
+        self.assertNotIn("labs-review-badge", self.HTML)
+        self.assertNotIn('class="card bm-today"', self.HTML)
+        self.assertNotIn("today_card", self.JS)
+        self.assertNotIn("biomarkers-today-card", self.JS)
+        self.assertNotIn("Labs:", self.JS)
+        self.assertNotIn("#biomarkers-today-card", self.CSS)
+        self.assertNotIn(".bm-today-list", self.CSS)
         self.assertIn("Thresholds are rule-of-thumb defaults, not clinical rules.", self.HTML)
         self.assertLess(self.HTML.index("/biomarkers.js"), self.HTML.index("/app.js"))
-        self.assertIn("/biomarkers.js?v=biomarkers-1", self.SW)
+        self.assertIn("/biomarkers.js?v=labs-off-today-1", self.SW)
         for key in ("draw_time", "fasted", "fast_hours", "creatine", "biotin", "alcohol_48h", "recent_illness"):
             self.assertIn(f'data-ctx="{key}"', self.HTML)
 
@@ -441,32 +468,55 @@ class UiTests(unittest.TestCase):
         view = _view([_row("apob", 95, "2026-01-10", lo=0, hi=90),
                       _row("ferritin", 200, "2025-10-01", unit="ng/mL", lo=29, hi=575),
                       _row("ferritin", 150, "2026-01-10", unit="ng/mL", lo=29, hi=575)], today="2026-01-12")
+        quiet = _view([_row("synth_marker", 1, "2026-01-10", lo=0, hi=2)], today="2026-01-12")
+        self.assertNotIn("today_card", view)
+        self.assertNotIn("today_card", quiet)
+        self.assertGreater(view["flagged_count"], 0)
         harness = r"""
-const els = {};
-function el(id){ return els[id] || (els[id] = {id, innerHTML:"", textContent:"", hidden:true, value:"",
-  addEventListener(){}, querySelectorAll(){return [];}, dataset:{}}); }
+const els = {
+  "biomarkers-today-card": {id:"biomarkers-today-card", innerHTML:"UNTOUCHED", textContent:"UNTOUCHED",
+    hidden:true, value:"", onclick:null, addEventListener(){}, querySelectorAll(){return [];}, dataset:{}}
+};
+const asked = [];
+function el(id){
+  asked.push(id);
+  return els[id] || (els[id] = {id, innerHTML:"", textContent:"", hidden:true, value:"",
+    onclick:null, addEventListener(){}, querySelectorAll(){return [];}, dataset:{}});
+}
 global.document = { readyState: "complete", getElementById: el, querySelector(){return null;},
   querySelectorAll(){return [];}, addEventListener(){} };
 global.window = {};
 eval(require("fs").readFileSync(process.argv[2], "utf8"));
 window.FitDashBiomarkers.render({biomarkers: JSON.parse(process.argv[3])});
-console.log(JSON.stringify({body: els["biomarkers-body"].innerHTML, today: els["biomarkers-today-card"].innerHTML,
-  hidden: els["biomarkers-today-card"].hidden}));
+const shown = {body: els["biomarkers-body"].innerHTML, asked: asked.slice(),
+  today: els["biomarkers-today-card"].innerHTML, todayText: els["biomarkers-today-card"].textContent};
+asked.length = 0;
+window.FitDashBiomarkers.render({biomarkers: JSON.parse(process.argv[4])});
+const zero = {body: els["biomarkers-body"].innerHTML, asked: asked.slice(),
+  today: els["biomarkers-today-card"].innerHTML, todayText: els["biomarkers-today-card"].textContent};
+console.log(JSON.stringify({shown, zero}));
 """
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
             fh.write(harness)
         self.addCleanup(os.unlink, fh.name)
-        out = subprocess.run(["node", fh.name, str(ROOT / "static" / "biomarkers.js"), json.dumps(view)],
-                             capture_output=True, text=True, timeout=30, check=True)
+        out = subprocess.run(
+            ["node", fh.name, str(ROOT / "static" / "biomarkers.js"), json.dumps(view), json.dumps(quiet)],
+            capture_output=True, text=True, timeout=30, check=True)
         res = json.loads(out.stdout)
-        self.assertFalse(res["hidden"])
-        self.assertIn("ApoB", res["body"])
-        self.assertIn("bm-range", res["body"])
-        self.assertIn("<svg class=\"bm-spark\"", res["body"])
-        self.assertIn("cut-trend", res["body"])
-        self.assertIn("Training &amp; recovery", res["body"])
-        self.assertIn("Open Labs tab", res["today"])
-        self.assertLess(res["body"].index("Ferritin"), res["body"].index("ApoB"))
+        shown, zero = res["shown"], res["zero"]
+        for snap in (shown, zero):
+            self.assertNotIn("biomarkers-today-card", snap["asked"])
+            self.assertEqual(snap["today"], "UNTOUCHED")
+            self.assertEqual(snap["todayText"], "UNTOUCHED")
+        self.assertIn("ApoB", shown["body"])
+        self.assertIn("bm-range", shown["body"])
+        self.assertIn("bm-marker", shown["body"])
+        self.assertIn("<svg class=\"bm-spark\"", shown["body"])
+        self.assertIn("cut-trend", shown["body"])
+        self.assertIn("Training &amp; recovery", shown["body"])
+        self.assertLess(shown["body"].index("Ferritin"), shown["body"].index("ApoB"))
+        self.assertIn("synth_marker", zero["body"])
+        self.assertIn("bm-marker", zero["body"])
 
 
 class ConfigRoutesTests(unittest.TestCase):

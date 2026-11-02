@@ -1,4 +1,5 @@
-/* FitDash · Blood-panel biomarkers tab + conditional Today card.
+/* FitDash · Blood-panel biomarkers on the Labs tab only.
+ * Today does not render labs content.
  * Data: dashboard payload `biomarkers` (rt_dashboard/biomarkers_view.py).
  * Flags say "review", never diagnose. Caveats are annotations, not flags.
  */
@@ -106,27 +107,10 @@
     }
   }
 
-  function renderToday(bm) {
-    const card = $("biomarkers-today-card");
-    if (!card) return;
-    const t = (bm && bm.today_card) || {};
-    if (!t.show) { card.hidden = true; card.innerHTML = ""; return; }
-    card.hidden = false;
-    const items = (t.flagged || []).map((f) => `<li><strong>${esc(f.name)}</strong> — ${esc(f.flag)}</li>`).join("");
-    card.innerHTML = `<h2>Blood panel · ${esc(t.reason || "")}</h2>
-      <p class="muted" style="margin:0.2rem 0 0.4rem;font-size:0.85rem">Latest draw ${esc(t.latest_draw)}</p>
-      ${items ? `<ul class="bm-today-list">${items}</ul>` : ""}
-      <button type="button" class="btn" id="bm-open-tab">Open Labs tab</button>
-      <p class="muted bm-foot">${esc(bm.footnote || "")}</p>`;
-    const b = $("bm-open-tab");
-    if (b) b.onclick = () => { const tb = document.querySelector('[data-m-tab="biomarkers"]'); if (tb) tb.click(); };
-  }
-
   function render(data) {
-    const bm = (data && data.biomarkers) || { has_data: false, today_card: { show: false }, groups: [] };
+    const bm = (data && data.biomarkers) || { has_data: false, flagged_count: 0, groups: [] };
     last = bm;
     renderTab(bm);
-    renderToday(bm);
   }
 
   // ---- entry: manual / CSV / JSON / PDF with dry-run preview -------------

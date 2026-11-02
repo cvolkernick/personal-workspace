@@ -1111,8 +1111,8 @@ def _build_dashboard_data(
         "grocery_week": recipe_overlay.get("grocery_week") or [],
         "recipe_logs_today": recipe_overlay.get("recipe_logs_today") or [],
     }
-    # Blood-panel biomarkers (own tab + conditional Today card). Read-only
-    # here; sessions/weights feed the per-draw training context.
+    # Blood-panel biomarkers render on the Labs tab only. Today has no labs slice.
+    # Read-only here; sessions/weights feed per-draw context.
     try:
         from rt_dashboard.biomarkers_view import load_view as _load_biomarkers
         from rt_dashboard.nutrition_targets import infer_phase as _infer_phase
@@ -1128,7 +1128,7 @@ def _build_dashboard_data(
         )
     except Exception as e:  # noqa: BLE001
         payload["biomarkers"] = {"has_data": False, "error": f"biomarkers: {type(e).__name__}",
-                                 "today_card": {"show": False}, "groups": []}
+                                 "flagged_count": 0, "groups": []}
 
     # Full-width calorie pacing + same-day in/out delta bars
     try:

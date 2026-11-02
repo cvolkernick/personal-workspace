@@ -119,7 +119,6 @@ HEAVY_LEGS_PATTERN = r"deadlift|\brdl\b|squat|leg press|romanian"
 TRAINING_CAVEAT_MARKERS = ("hs_crp", "creatinine", "alt", "ast", "ck")
 SHOW_DAYS_SINCE_LIFT_ON = ("ck",)   # shown next to these only when present
 MORNING_CUTOFF_HOUR = 10            # draws at/after this hour are non-morning
-RECENT_RESULT_DAYS = 7              # Today card: result this fresh
 MIN_FAST_HOURS = 8.0
 
 # --- Context caveats (annotations, NOT flags) ------------------------------

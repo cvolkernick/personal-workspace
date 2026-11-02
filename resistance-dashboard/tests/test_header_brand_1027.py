@@ -71,9 +71,9 @@ class HeaderBrand1027(unittest.TestCase):
                 self.assertNotIn(needle, text, f"{path.name} contains {needle}")
 
     def test_cache_busts_stylesheet_only(self):
-        self.assertIn("/styles.css?v=goal3b-coach-1", HTML)
-        self.assertIn("/styles.css?v=goal3b-coach-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v155"', SW)
+        self.assertIn("/styles.css?v=labs-off-today-1", HTML)
+        self.assertIn("/styles.css?v=labs-off-today-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v157"', SW)
         self.assertIn("/app.js?v=coach-weekly-2", HTML)
         self.assertIn("/app.js?v=coach-weekly-2", SW)
         self.assertIn("/history-sets.js?v=tonnage-1025-1", HTML)
