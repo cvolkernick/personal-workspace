@@ -91,7 +91,7 @@ class Goal3bCoach(unittest.TestCase):
         cal = json.loads(CALENDAR.read_text(encoding="utf-8"))
         schedule = cal["tracks"]["steps"]["schedule"]
         self.assertEqual(schedule[0], {"from": "2026-10-28", "step_target": 7000})
-        self.assertEqual(schedule[1], {"from": "2026-11-16", "step_target": 8000})
+        self.assertEqual(schedule[1], {"from": "2026-11-02", "step_target": 8000})
         self.assertEqual(schedule[2], {"from": "2026-12-07", "step_target": 9000})
         self.assertFalse(cal["tracks"]["kcal"]["enabled"])
         self.assertEqual(cal["tracks"]["kcal"]["phases"], [])
@@ -207,7 +207,7 @@ class Goal3bCoach(unittest.TestCase):
         self.assertEqual(stepped["state"]["step_target"], 7000)
 
     def test_calendar_off_is_noop(self):
-        """Steps track on: only the step target moves on/after 11/16 and 12/7."""
+        """Steps track on: only the step target moves on/after 11/2 and 12/7."""
         present = _rules()
         held = copy.deepcopy(present)
         held["phase_calendar"]["steps"] = {"enabled": False, "approved_by": None}
@@ -215,8 +215,9 @@ class Goal3bCoach(unittest.TestCase):
         snapshot = copy.deepcopy(state)
         expect = {
             "2026-10-28": 7000,
-            "2026-11-09": 7000,
-            "2026-11-15": 7000,
+            "2026-11-01": 7000,
+            "2026-11-02": 8000,
+            "2026-11-15": 8000,
             "2026-11-16": 8000,
             "2026-12-06": 8000,
             "2026-12-07": 9000,
@@ -261,8 +262,9 @@ class Goal3bCoach(unittest.TestCase):
 
         rules = _rules()
         expect = {
-            "2026-11-08": 7000,
-            "2026-11-09": 7000,
+            "2026-11-01": 7000,
+            "2026-11-02": 8000,
+            "2026-11-09": 8000,
             "2026-11-16": 8000,
             "2026-11-26": 8000,
             "2026-12-07": 9000,
@@ -295,7 +297,7 @@ class Goal3bCoach(unittest.TestCase):
         )
         self.assertNotEqual(held["recommendation"]["action"], "steps_plus_1500")
         self.assertEqual(held["targets"]["step_target"], 8000)
-        drop = decide(as_of="2026-11-09", state=_state(), rules=rules)
+        drop = decide(as_of="2026-11-01", state=_state(), rules=rules)
         self.assertEqual(drop["targets"]["kcal_target"], 2000)
         self.assertEqual(drop["targets"]["step_target"], 7000)
         bump = decide(

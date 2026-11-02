@@ -92,6 +92,13 @@ _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 # (user_id, civil day) chips this process already created (#1064).
 _PROCESS_CHIPS: set[Tuple[str, str]] = set()
 
+# Late-evening gym policy (Chris ruling 2026-11-02): book 21:00-22:30 ET first;
+# fallback anywhere inside 19:00-24:00 ET. Never daytime, never 00:00-03:59.
+PREFERRED_WINDOW = ("21:00", "22:30")
+EVENING_START_MIN = 19 * 60
+EVENING_END_MAX = 24 * 60
+EXTRA_START_HOUR = 19.0
+
 _FALLBACK_RANKED = {
     "mon": [("05:00", "06:30", 30), ("22:30", "00:00", 33), ("06:30", "08:00", 38)],
     "tue": [("05:00", "06:30", 31), ("22:30", "00:00", 35), ("07:00", "08:30", 43)],
@@ -108,6 +115,23 @@ class QuietWindow:
     start_hhmm: str
     end_hhmm: str
     occupancy_pct: int
+
+
+def _hhmm_min(text: str) -> int:
+    parts = str(text or "").strip().split(":")
+    return int(parts[0]) * 60 + (int(parts[1]) if len(parts) > 1 else 0)
+
+
+def in_evening_window(window: "QuietWindow") -> bool:
+    """True when the window starts at/after 19:00 ET and ends by midnight."""
+    try:
+        start = _hhmm_min(window.start_hhmm)
+        end = _hhmm_min(window.end_hhmm)
+    except (TypeError, ValueError):
+        return False
+    if end == 0:
+        end = EVENING_END_MAX
+    return EVENING_START_MIN <= start < end <= EVENING_END_MAX
 
 
 @dataclass
@@ -332,13 +356,26 @@ def ranked_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
             except (TypeError, ValueError):
                 occ = 0
             windows.append(QuietWindow(start, end, occ))
-    if windows:
-        return windows
-    if club_id not in (None, "", CLUB_HOME):
-        return []
-    return [
-        QuietWindow(s, e, occ) for s, e, occ in _FALLBACK_RANKED.get(key, _FALLBACK_RANKED["mon"])
-    ]
+    if not windows and club_id in (None, "", CLUB_HOME):
+        windows = [
+            QuietWindow(s, e, occ) for s, e, occ in _FALLBACK_RANKED.get(key, _FALLBACK_RANKED["mon"])
+        ]
+    return _evening_policy(day, club_id, windows)
+
+
+def _evening_policy(day: str, club_id: str, windows: List[QuietWindow]) -> List[QuietWindow]:
+    """Preferred 21:00-22:30 first, then published windows inside 19:00-24:00 only."""
+    evening = [w for w in windows if in_evening_window(w)]
+    ps, pe = PREFERRED_WINDOW
+    if any((w.start_hhmm, w.end_hhmm) == (ps, pe) for w in evening):
+        pref = next(w for w in evening if (w.start_hhmm, w.end_hhmm) == (ps, pe))
+    else:
+        occ = occupancy_map(day, club_id)
+        if not occ and club_id not in (None, "", CLUB_HOME):
+            return evening
+        pct = int(round(window_occupancy(occ, _hhmm_min(ps) / 60.0))) if occ else 0
+        pref = QuietWindow(ps, pe, pct)
+    return [pref] + [w for w in evening if (w.start_hhmm, w.end_hhmm) != (ps, pe)]
 
 
 def occupancy_map(day: str, club_id: str = CLUB_HOME) -> Dict[int, float]:
@@ -403,7 +440,7 @@ def extra_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
         return []
     seen = {(w.start_hhmm, w.end_hhmm) for w in ranked_windows_for(day, club_id)}
     extras: List[Tuple[float, QuietWindow]] = []
-    start_hour = 5.0
+    start_hour = EXTRA_START_HOUR
     while start_hour <= 22.5 + 1e-9:
         end_hour = start_hour + 1.5
         if end_hour > 24.0 + 1e-9:

@@ -103,16 +103,36 @@ class Advisory(_Env):
 
     def test_too_slow_steps_only_next_calendar_step_capped(self):
         rules = load_rules()
-        a = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=7000, as_of="2026-11-02", rules=rules)
+        a = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=7000, as_of="2026-11-01", rules=rules)
         self.assertEqual(a["action"], "steps_pull_earlier")
         self.assertEqual(a["lever"], "steps")
-        self.assertEqual(a["next_step"], {"from": "2026-11-16", "step_target": 8000})
+        self.assertEqual(a["next_step"], {"from": "2026-11-02", "step_target": 8000})
         self.assertEqual(a["proposed_steps"], 8000)
         self.assertNotIn("kcal", a["detail"].lower())
         self.assertFalse(a["applies_automatically"])
         b = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=8000, as_of="2026-11-20", rules=rules)
         self.assertEqual(b["next_step"]["step_target"], 9000)
         self.assertEqual(b["proposed_steps"], 9000)
+
+    def test_8k_in_effect_from_11_02_is_never_suggested_as_lever(self):
+        rules = load_rules()
+        self.assertEqual(cw.current_calendar_step("2026-11-02", rules), 8000)
+        self.assertEqual(cw.current_calendar_step("2026-12-07", rules), 9000)
+        # Stale live target (7000) must not resurface "pull 8k earlier" once 8k is in effect.
+        a = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=7000, as_of="2026-11-02", rules=rules)
+        self.assertNotEqual(a.get("next_step", {}).get("step_target"), 8000)
+        self.assertNotIn("8,000/day from", a["detail"])
+        self.assertGreaterEqual(a["proposed_steps"], 8000)
+
+    def test_lever_suppressed_when_target_already_at_or_above(self):
+        rules = load_rules()
+        for cur, nxt in ((8000, 8000), (9000, 8000), (9000, 9000)):
+            with mock.patch.object(cw, "next_calendar_step", return_value={"from": "2026-12-07", "step_target": nxt}):
+                a = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=cur, as_of="2026-11-02", rules=rules)
+            self.assertEqual(a["action"], "hold", (cur, nxt))
+            self.assertIsNone(a["lever"])
+            self.assertNotIn("pull", a["detail"].lower())
+            self.assertGreaterEqual(a["proposed_steps"], cur)
 
     def test_too_fast_flags_grok_no_change(self):
         a = cw.steps_first_advisory(decision_rate=0.8, band=(0.25, 0.5), counted=2, step_target=7000, as_of="2026-11-02")
@@ -139,9 +159,10 @@ class Card(_Env):
         card = coach_card_for_payload(_payload([200, 199.9, 199.8], start="2026-10-12"), as_of="2026-11-02")
         rec = card["recommendation"]
         self.assertEqual(card["weekly"]["status"], "ready")
-        self.assertEqual(rec["action"], "steps_pull_earlier")
         self.assertEqual(rec["proposed_kcal"], 2000)
-        self.assertEqual(rec["proposed_steps"], 8000)
+        # 8k is already in effect from 11/2: the card never proposes it as a lever.
+        self.assertGreater(rec["proposed_steps"], 8000)
+        self.assertNotIn("8,000/day from", rec["detail"])
         self.assertNotIn("kcal", rec["detail"].lower())
         self.assertIsNone(card["macros"])
         self.assertEqual(card["targets"]["kcal_target"], 2000)

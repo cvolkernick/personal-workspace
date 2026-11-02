@@ -26,6 +26,7 @@ from rt_dashboard.gym_calendar import (
     PROP_GYM,
     PROP_PLANNED_START,
     candidate_windows,
+    in_evening_window,
     clock_label,
     event_body,
     gym_day_from_workout,
@@ -111,13 +112,18 @@ class BusynessBundle(unittest.TestCase):
         self.assertEqual(data.get("captured"), "2026-09-10")
         self.assertEqual(data.get("timezone"), "America/New_York")
         self.assertEqual(data["occupancy"]["tue"]["18"], 100)
+        # Late-evening policy (2026-11-02): 21:00-22:30 first, 19:00-24:00 only.
         ranked = ranked_windows_for("2026-09-14")  # Monday
-        self.assertEqual(ranked[0].start_hhmm, "05:00")
-        self.assertEqual(ranked[0].end_hhmm, "06:30")
+        self.assertEqual((ranked[0].start_hhmm, ranked[0].end_hhmm), ("21:00", "22:30"))
+        self.assertEqual(ranked[1].start_hhmm, "22:30")
         wed = ranked_windows_for("2026-09-16")
-        self.assertEqual(wed[0].start_hhmm, "22:30")
+        self.assertEqual(wed[0].start_hhmm, "21:00")
         thu = ranked_windows_for("2026-09-17")
-        self.assertEqual(thu[0].start_hhmm, "22:00")
+        self.assertEqual(thu[0].start_hhmm, "21:00")
+        self.assertEqual(thu[1].start_hhmm, "22:00")
+        for day in ("2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"):
+            for w in candidate_windows(day):
+                self.assertTrue(in_evening_window(w), (day, w))
 
     def test_weekday_key(self):
         self.assertEqual(weekday_key("2026-09-14"), "mon")
@@ -128,26 +134,39 @@ class QuietPick(unittest.TestCase):
     def setUp(self):
         reset_busyness_cache()
 
-    def test_monday_default_is_5am(self):
+    def test_default_is_9pm_evening(self):
         slot = pick_slot("2026-09-14", [])
-        self.assertEqual(slot.start.hour, 5)
+        self.assertEqual(slot.start.hour, 21)
         self.assertEqual(slot.start.minute, 0)
         self.assertEqual(slot.end - slot.start, DURATION)
 
-    def test_wednesday_default_is_1030pm(self):
+    def test_wednesday_default_is_9pm(self):
         slot = pick_slot("2026-09-16", [])
-        self.assertEqual(slot.start.hour, 22)
-        self.assertEqual(slot.start.minute, 30)
-        self.assertEqual(slot.end.day, 17)
-        self.assertEqual(slot.end.hour, 0)
+        self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
+        self.assertEqual(slot.end.strftime("%H:%M"), "22:30")
 
-    def test_drive_block_does_not_steal_monday_5am(self):
+    def test_preferred_conflict_falls_back_inside_evening(self):
+        busy = (
+            datetime(2026, 9, 14, 20, 30, tzinfo=ET),
+            datetime(2026, 9, 14, 22, 30, tzinfo=ET),
+        )
+        slot = pick_slot("2026-09-14", [busy])
+        self.assertEqual(slot.start.strftime("%H:%M"), "22:30")
+        self.assertEqual(slot.end.strftime("%H:%M"), "00:00")
+
+    def test_never_daytime_or_after_midnight(self):
+        busy = (
+            datetime(2026, 9, 14, 19, 0, tzinfo=ET),
+            datetime(2026, 9, 15, 0, 0, tzinfo=ET),
+        )
+        self.assertIsNone(pick_slot("2026-09-14", [busy]))
+
+    def test_drive_block_over_evening_books_nothing_daytime(self):
         drive = (
             datetime(2026, 9, 14, 18, 45, tzinfo=ET),
             datetime(2026, 9, 15, 3, 45, tzinfo=ET),
         )
-        slot = pick_slot("2026-09-14", [drive])
-        self.assertEqual(slot.start.strftime("%H:%M"), "05:00")
+        self.assertIsNone(pick_slot("2026-09-14", [drive]))
 
     def test_morning_conflict_falls_to_next_ranked(self):
         morning = (
@@ -155,7 +174,7 @@ class QuietPick(unittest.TestCase):
             datetime(2026, 9, 14, 7, 0, tzinfo=ET),
         )
         slot = pick_slot("2026-09-14", [morning])
-        self.assertEqual(slot.start.strftime("%H:%M"), "22:30")
+        self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
 
     def test_keep_existing_free_window(self):
         prefer = (
@@ -170,7 +189,7 @@ class QuietPick(unittest.TestCase):
         cutoff = datetime(2026, 9, 14, 13, 0, tzinfo=ET)
         slot = pick_slot("2026-09-14", [], not_before=cutoff)
         self.assertIsNotNone(slot)
-        self.assertEqual(slot.start.strftime("%H:%M"), "22:30")
+        self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
         self.assertGreaterEqual(slot.start, cutoff)
 
 
@@ -737,7 +756,7 @@ class MonitorReconcile(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(len(result["moves"]), 1)
         self.assertEqual(result["moves"][0]["from"], "2026-09-14T05:00:00-04:00")
-        self.assertIn("22:30", result["moves"][0]["to"])
+        self.assertIn("21:00", result["moves"][0]["to"])
         self.assertEqual(updated[0]["start"]["dateTime"], result["moves"][0]["to"])
 
     def test_monitor_does_not_move_locked(self):
@@ -852,7 +871,7 @@ class ElapsedReschedule(unittest.TestCase):
         self.assertEqual(updated[0][0], "ev-am")
         body = updated[0][1]
         start = datetime.fromisoformat(body["start"]["dateTime"])
-        self.assertEqual(start.strftime("%H:%M"), "22:30")
+        self.assertEqual(start.strftime("%H:%M"), "21:00")
         self.assertGreaterEqual(start, self.ONE_PM)
         self.assertEqual(
             body["extendedProperties"]["private"][PROP_PLANNED_START],
@@ -861,7 +880,7 @@ class ElapsedReschedule(unittest.TestCase):
         self.assertEqual(len(result["moves"]), 1)
         self.assertEqual(result["moves"][0]["reason"], "elapsed")
         self.assertEqual(result["moves"][0]["event_id"], "ev-am")
-        self.assertIn("22:30", result["moves"][0]["to"])
+        self.assertIn("21:00", result["moves"][0]["to"])
 
     def test_closed_session_deletes_elapsed_event(self):
         """#951: a persisted close cancels today's chip. #811 partial logs still keep it."""
@@ -971,16 +990,16 @@ class CrossClubFallback(unittest.TestCase):
 
     def _quiet_tamiami_at_10(self, data):
         data["ranked_windows"]["mon"] = [
-            {"start": "10:00", "end": "11:30", "occupancy_pct": 65}
+            {"start": "21:00", "end": "22:30", "occupancy_pct": 65}
         ]
         data["occupancy"]["mon"] = {str(h): 65 for h in range(24)}
         alt = dict(data.get("clubs", {}).get("alternate") or {})
         occ = {str(h): 90 for h in range(24)}
-        occ["10"] = 20
-        occ["11"] = 30
+        occ["21"] = 20
+        occ["22"] = 30
         alt["occupancy"] = {"mon": occ}
         alt["ranked_windows"] = {
-            "mon": [{"start": "10:00", "end": "11:30", "occupancy_pct": 25}]
+            "mon": [{"start": "21:00", "end": "22:30", "occupancy_pct": 25}]
         }
         data.setdefault("clubs", {})["alternate"] = alt
 
@@ -995,8 +1014,8 @@ class CrossClubFallback(unittest.TestCase):
     def test_normal_day_stays_home_club(self):
         slot = pick_placement("2026-09-14", [])
         self.assertIsNotNone(slot)
-        self.assertEqual(slot.start.strftime("%H:%M"), "05:00")
-        self.assertLessEqual(slot.occupancy_pct, occupancy_threshold())
+        self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
+        # Mon 21:00 is ~53% at home; alternates lack captured occupancy, so home stays.
         self.assertEqual(slot.club_id, "home")
         self.assertFalse(slot.location)
         body = event_body("2026-09-14", slot, session_type="push")
@@ -1010,7 +1029,7 @@ class CrossClubFallback(unittest.TestCase):
         slot = pick_placement("2026-09-14", [])
         self.assertIsNotNone(slot)
         self.assertEqual(slot.club_id, CLUB_ALT)
-        self.assertEqual(slot.start.strftime("%H:%M"), "10:00")
+        self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
         self.assertEqual(slot.occupancy_pct, 25)
         self.assertIn("Tamiami", slot.location)
         body = event_body("2026-09-14", slot, session_type="push")
@@ -1024,7 +1043,7 @@ class CrossClubFallback(unittest.TestCase):
 
         def mutate(data):
             data["ranked_windows"]["mon"] = [
-                {"start": "10:00", "end": "11:30", "occupancy_pct": 65}
+                {"start": "21:00", "end": "22:30", "occupancy_pct": 65}
             ]
             data["occupancy"]["mon"] = {str(h): 65 for h in range(24)}
 
@@ -1032,7 +1051,7 @@ class CrossClubFallback(unittest.TestCase):
         slot = pick_placement("2026-09-14", [])
         self.assertIsNotNone(slot)
         self.assertEqual(slot.club_id, "home")
-        self.assertEqual(slot.start.strftime("%H:%M"), "10:00")
+        self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
         self.assertEqual(slot.occupancy_pct, 65)
         body = event_body("2026-09-14", slot, session_type="push")
         self.assertEqual(body["location"], HOME_LOCATION)
@@ -1041,29 +1060,29 @@ class CrossClubFallback(unittest.TestCase):
         def mutate(data):
             alt = dict(data.get("clubs", {}).get("alternate") or {})
             occ = {str(h): 90 for h in range(24)}
-            occ["10"] = 20
-            occ["11"] = 30
+            occ["21"] = 20
+            occ["22"] = 30
             alt["occupancy"] = {"mon": occ}
             alt["ranked_windows"] = {
-                "mon": [{"start": "10:00", "end": "11:30", "occupancy_pct": 25}]
+                "mon": [{"start": "21:00", "end": "22:30", "occupancy_pct": 25}]
             }
             data.setdefault("clubs", {})["alternate"] = alt
 
         self._inject(mutate)
         busy = [
             (
-                datetime(2026, 9, 14, 4, 30, tzinfo=ET),
-                datetime(2026, 9, 14, 8, 0, tzinfo=ET),
+                datetime(2026, 9, 14, 19, 0, tzinfo=ET),
+                datetime(2026, 9, 14, 21, 0, tzinfo=ET),
             ),
             (
-                datetime(2026, 9, 14, 21, 0, tzinfo=ET),
+                datetime(2026, 9, 14, 22, 30, tzinfo=ET),
                 datetime(2026, 9, 15, 0, 0, tzinfo=ET),
             ),
         ]
         slot = pick_placement("2026-09-14", busy)
         self.assertIsNotNone(slot)
         self.assertEqual(slot.club_id, CLUB_ALT)
-        self.assertEqual(slot.start.strftime("%H:%M"), "10:00")
+        self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
         self.assertIn("Tamiami", slot.location)
 
     def test_no_feasible_pair_keeps_home_pick(self):

@@ -321,6 +321,15 @@ def next_calendar_step(as_of: str, rules: Optional[dict] = None) -> Optional[Dic
     return None
 
 
+def current_calendar_step(as_of: str, rules: Optional[dict] = None) -> Optional[int]:
+    """Calendar step target already in effect on ``as_of`` (latest row with from <= as_of)."""
+    cur = None
+    for row in _schedule(rules):
+        if row["from"] <= str(as_of)[:10]:
+            cur = int(row["step_target"])
+    return cur
+
+
 def _md(iso: str) -> str:
     dt = _d(iso)
     return f"{dt.month}/{dt.day}"
@@ -342,7 +351,15 @@ def steps_first_advisory(
     nxt = next_calendar_step(as_of, rules)
     if nxt is None:
         return dict(base, action="hold", detail="Below the band, no further approved step. Flag to Grok.")
-    proposed = min(int(nxt["step_target"]), int(step_target) + STEP_PULL_MAX)
+    # A step-raise lever that is already in effect is not a lever: never suggest
+    # pulling a target earlier when today's target already meets or beats it.
+    in_effect = max(int(step_target), int(current_calendar_step(as_of, rules) or 0))
+    proposed = min(int(nxt["step_target"]), in_effect + STEP_PULL_MAX)
+    if proposed <= in_effect:
+        return dict(
+            base, action="hold", proposed_steps=in_effect,
+            detail=f"Below the band; step target {in_effect:,}/day is already in effect. Flag to Grok.",
+        )
     detail = (
         f"Below the band: steps are the lever. Next approved step {nxt['step_target']:,}/day from {_md(nxt['from'])}; "
         f"can pull it earlier, max +{STEP_PULL_MAX:,}/day per counted week ({proposed:,}/day)."
