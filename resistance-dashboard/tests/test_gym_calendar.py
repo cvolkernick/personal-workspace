@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -114,18 +114,21 @@ class BusynessBundle(unittest.TestCase):
         self.assertEqual(data.get("captured"), "2026-09-10")
         self.assertEqual(data.get("timezone"), "America/New_York")
         self.assertEqual(data["occupancy"]["tue"]["18"], 100)
-        # Late-evening policy (2026-11-02): 21:00-22:30 first, 19:00-24:00 only.
+        # Preference order: 21:00-22:30, then the next clean later slot.
         ranked = ranked_windows_for("2026-09-14")  # Monday
-        self.assertEqual(
-            [(w.start_hhmm, w.end_hhmm) for w in ranked], [("21:00", "22:30")]
-        )
+        self.assertEqual((ranked[0].start_hhmm, ranked[0].end_hhmm), ("21:00", "22:30"))
+        self.assertEqual((ranked[1].start_hhmm, ranked[1].end_hhmm), ("23:00", "00:30"))
+        self.assertGreater(len(ranked), 2)
         wed = ranked_windows_for("2026-09-16")
-        self.assertEqual([w.start_hhmm for w in wed], ["21:00"])
+        self.assertEqual(wed[0].start_hhmm, "21:00")
         thu = ranked_windows_for("2026-09-17")
-        self.assertEqual([w.start_hhmm for w in thu], ["21:00"])
+        self.assertEqual(thu[0].start_hhmm, "21:00")
         for day in ("2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"):
             for w in candidate_windows(day):
-                self.assertTrue(in_evening_window(w), (day, w))
+                start, end = window_bounds(day, w)
+                origin = start.replace(hour=0, minute=0, second=0, microsecond=0)
+                self.assertGreaterEqual(start, origin + timedelta(hours=4), (day, w))
+                self.assertLessEqual(end, origin + timedelta(days=1, hours=1, minutes=15), (day, w))
 
     def test_weekday_key(self):
         self.assertEqual(weekday_key("2026-09-14"), "mon")
@@ -147,18 +150,38 @@ class QuietPick(unittest.TestCase):
         self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
         self.assertEqual(slot.end.strftime("%H:%M"), "22:30")
 
-    def test_preferred_conflict_books_nothing(self):
-        """Strict: 21:00-22:30 busy -> no fallback (22:30+ hits the walk block)."""
+    def test_preferred_busy_picks_nearest_later_evening(self):
+        """21:00-22:30 busy → 23:00-00:30, not the walk overlap at 22:30."""
         busy = (
-            datetime(2026, 9, 14, 20, 30, tzinfo=ET),
+            datetime(2026, 9, 14, 21, 0, tzinfo=ET),
             datetime(2026, 9, 14, 22, 30, tzinfo=ET),
         )
-        self.assertIsNone(pick_slot("2026-09-14", [busy]))
+        slot = pick_slot("2026-09-14", [busy])
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.start.strftime("%H:%M"), "23:00")
+        self.assertEqual(slot.end.strftime("%H:%M"), "00:30")
 
-    def test_policy_rejects_1900_and_2000_starts(self):
+    def test_later_evening_blocked_picks_2030(self):
+        """No clean gap: the nearest fit in the 20:30 band wins, Drive overlap and all."""
+        busy = [
+            (
+                datetime(2026, 9, 14, 4, 0, tzinfo=ET),
+                datetime(2026, 9, 14, 13, 0, tzinfo=ET),
+            ),
+            (
+                datetime(2026, 9, 14, 22, 0, tzinfo=ET),
+                datetime(2026, 9, 15, 1, 15, tzinfo=ET),
+            ),
+        ]
+        slot = pick_slot("2026-09-14", busy)
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.start.strftime("%H:%M"), "20:30")
+        self.assertEqual(slot.end.strftime("%H:%M"), "22:00")
+
+    def test_before_evening_band_is_not_the_default(self):
         self.assertFalse(in_evening_window(QuietWindow("19:00", "20:30", 0)))
         self.assertFalse(in_evening_window(QuietWindow("20:00", "21:30", 0)))
-        self.assertFalse(in_evening_window(QuietWindow("20:30", "22:00", 0)))
+        self.assertTrue(in_evening_window(QuietWindow("20:30", "22:00", 0)))
         prefer = (
             datetime(2026, 9, 14, 19, 0, tzinfo=ET),
             datetime(2026, 9, 14, 20, 30, tzinfo=ET),
@@ -166,16 +189,56 @@ class QuietPick(unittest.TestCase):
         slot = pick_slot("2026-09-14", [], prefer=prefer)
         self.assertEqual(slot.start.strftime("%H:%M"), "21:00")
 
-    def test_policy_rejects_walk_block_overlap(self):
+    def test_walk_overlap_penalized_until_it_is_the_only_gap(self):
         for s, e in (("21:30", "23:00"), ("22:00", "23:30"), ("22:30", "00:00"), ("22:45", "23:15")):
-            self.assertFalse(in_evening_window(QuietWindow(s, e, 0)), (s, e))
+            self.assertTrue(in_evening_window(QuietWindow(s, e, 0)), (s, e))
         self.assertTrue(in_evening_window(QuietWindow("23:00", "23:45", 0)))
+        open_slot = pick_slot("2026-09-14", [])
+        self.assertEqual(open_slot.start.strftime("%H:%M"), "21:00")
+        only = [
+            (
+                datetime(2026, 9, 14, 4, 0, tzinfo=ET),
+                datetime(2026, 9, 14, 22, 0, tzinfo=ET),
+            ),
+            (
+                datetime(2026, 9, 14, 23, 30, tzinfo=ET),
+                datetime(2026, 9, 15, 1, 15, tzinfo=ET),
+            ),
+        ]
+        slot = pick_slot("2026-09-14", only)
+        self.assertEqual(slot.start.strftime("%H:%M"), "22:00")
+        self.assertEqual(slot.end.strftime("%H:%M"), "23:30")
+
+    def test_drive_overlap_used_only_when_nothing_else_fits(self):
+        """A clean morning beats a Drive-block slot. Drive is taken when it is the only gap."""
+        evening_blocked = (
+            datetime(2026, 9, 14, 13, 0, tzinfo=ET),
+            datetime(2026, 9, 15, 1, 15, tzinfo=ET),
+        )
+        clean = pick_slot("2026-09-14", [evening_blocked])
+        self.assertEqual(clean.start.strftime("%H:%M"), "11:30")
+        self.assertEqual(clean.end.strftime("%H:%M"), "13:00")
+        only_drive = [
+            (
+                datetime(2026, 9, 14, 4, 0, tzinfo=ET),
+                datetime(2026, 9, 14, 13, 0, tzinfo=ET),
+            ),
+            (
+                datetime(2026, 9, 14, 21, 0, tzinfo=ET),
+                datetime(2026, 9, 15, 1, 15, tzinfo=ET),
+            ),
+        ]
+        slot = pick_slot("2026-09-14", only_drive)
+        self.assertEqual(slot.start.strftime("%H:%M"), "19:30")
+        self.assertEqual(slot.end.strftime("%H:%M"), "21:00")
 
     def test_policy_accepts_2100(self):
         self.assertTrue(in_evening_window(QuietWindow("21:00", "22:30", 0)))
         for day in ("2026-09-14", "2026-09-17", "2026-09-20"):
             starts = {w.start_hhmm for w in candidate_windows(day)}
-            self.assertEqual(starts, {"21:00"}, day)
+            self.assertIn("21:00", starts, day)
+            self.assertIn("23:00", starts, day)
+            self.assertGreater(len(starts), 1, day)
 
     def test_everything_busy_books_nothing(self):
         busy = (
@@ -185,19 +248,25 @@ class QuietPick(unittest.TestCase):
         self.assertIsNone(pick_slot("2026-09-14", [busy]))
         self.assertIsNone(pick_placement("2026-09-14", [busy]))
 
-    def test_never_daytime_or_after_midnight(self):
+    def test_evening_busy_falls_back_to_nearest_clean_gap(self):
         busy = (
             datetime(2026, 9, 14, 19, 0, tzinfo=ET),
             datetime(2026, 9, 15, 0, 0, tzinfo=ET),
         )
-        self.assertIsNone(pick_slot("2026-09-14", [busy]))
+        slot = pick_slot("2026-09-14", [busy])
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.start.strftime("%H:%M"), "11:30")
+        self.assertEqual(slot.end.strftime("%H:%M"), "13:00")
 
-    def test_drive_block_over_evening_books_nothing_daytime(self):
+    def test_calendar_drive_event_over_evening_uses_a_clean_gap(self):
         drive = (
             datetime(2026, 9, 14, 18, 45, tzinfo=ET),
             datetime(2026, 9, 15, 3, 45, tzinfo=ET),
         )
-        self.assertIsNone(pick_slot("2026-09-14", [drive]))
+        slot = pick_slot("2026-09-14", [drive])
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot.start.strftime("%H:%M"), "11:30")
+        self.assertEqual(slot.end.strftime("%H:%M"), "13:00")
 
     def test_morning_conflict_falls_to_next_ranked(self):
         morning = (
@@ -239,7 +308,7 @@ class OvernightAllowed(unittest.TestCase):
         reset_busyness_cache()
 
     def test_ranked_and_extra_candidates_still_prefer_daytime(self):
-        """Soft heuristic from #610: extras start at 05:00, ranked never overnight."""
+        """Bookable starts stay at 04:00 or later (#951). Sleep caps the end at 01:15."""
         for day in (
             "2026-09-14",
             "2026-09-15",
@@ -323,9 +392,9 @@ class OvernightAllowed(unittest.TestCase):
     def test_sync_no_slot_is_reported_and_logged(self):
         created = []
         busy_ev = _busy(
-            "evening",
-            "2026-09-17T20:30:00-04:00",
-            "2026-09-17T22:30:00-04:00",
+            "all-day",
+            "2026-09-17T00:00:00-04:00",
+            "2026-09-18T00:00:00-04:00",
         )
         with mock.patch(
             "rt_dashboard.gym_calendar.gcal.credentials_status",
@@ -353,6 +422,38 @@ class OvernightAllowed(unittest.TestCase):
             [{"day": "2026-09-17", "reason": NO_SLOT_REASON, "role": "coach"}],
         )
         self.assertTrue(any("no slot for 2026-09-17" in m for m in logs.output))
+
+    def test_sync_books_later_evening_when_preferred_is_busy(self):
+        created = []
+        busy_ev = _busy(
+            "preferred",
+            "2026-09-17T21:00:00-04:00",
+            "2026-09-17T22:30:00-04:00",
+        )
+        with mock.patch(
+            "rt_dashboard.gym_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.list_events",
+            side_effect=lambda cid, **kw: []
+            if (kw.get("private_props") or {}).get(PROP_GYM) == "1"
+            else [busy_ev],
+        ), mock.patch(
+            "rt_dashboard.gym_calendar.gcal.create_event",
+            side_effect=lambda cid, body: created.append(body) or {"id": "n"},
+        ):
+            result = sync_gym_from_workout(
+                {"is_rest_day": False, "session_type": "push"},
+                day="2026-09-17",
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["no_slot"], [])
+        self.assertEqual(len(created), 1)
+        start = datetime.fromisoformat(created[0]["start"]["dateTime"])
+        self.assertEqual(start.strftime("%H:%M"), "23:00")
 
     def test_monitor_keeps_future_unlocked_overnight(self):
         existing = [

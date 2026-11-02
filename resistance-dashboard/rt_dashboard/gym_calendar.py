@@ -34,6 +34,12 @@ Reconciliation contract (one writer, one key) (#901):
   pick rather than placing nothing.
 - Overnight starts already on the calendar stay (#818). A new chip is
   never created with a start in 00:00–03:59 ET (#951). 04:00 may book.
+- Gym clock time is a preference (2026-11-02). Prefer 21:00–22:30, then
+  the nearest clean later-evening slot, then any free 90-minute gap that
+  day. The 22:30–23:00 walk, the 13:00–21:00 Drive block, and running
+  past midnight are score penalties, not exclusions. 01:15 is the outer
+  limit (end at or before sleep). Book nothing only when no gap fits.
+  An event that has already started or ended is never moved or deleted.
 - A persisted close for the day deletes the unlocked ``[fitdash-gym:D]``
   chip and does not create another (#951). A partial log (no close stamp)
   still keeps the chip. A user-locked chip stays.
@@ -96,15 +102,29 @@ _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 # (user_id, civil day) chips this process already created (#1064).
 _PROCESS_CHIPS: set[Tuple[str, str]] = set()
 
-# Late-evening gym policy (Chris ruling 2026-11-02, amended): a window must
-# start at/after 21:00 ET, end by 24:00 ET, and not overlap the 22:30-23:00
-# walk block. Nothing between 00:00 and 21:00. 21:00-22:30 first; if nothing
-# fits, book nothing (with 90-min sessions only 21:00 fits today).
+# Gym clock preference (owner ruling 2026-11-02, amended): nothing here is a
+# hard exclusion except the 01:15 sleep limit and the #951 quiet-hours start.
+# Score favors 21:00-22:30, then other clean slots by distance (a clean
+# 23:00-00:30 beats a far morning), then slots that overlap the walk or the
+# Drive block. Those overlaps are booked only when no clean gap fits.
+# Bookable starts are 04:00 through 23:45 so a 90-minute session ends by 01:15.
 PREFERRED_WINDOW = ("21:00", "22:30")
-EVENING_START_MIN = 21 * 60
-EVENING_END_MAX = 24 * 60
 WALK_BLOCK = ("22:30", "23:00")
-EXTRA_START_HOUR = EVENING_START_MIN / 60.0
+DRIVE_BLOCK = ("13:00", "21:00")
+EVENING_START_MIN = 20 * 60 + 30
+PREF_START_MIN = 21 * 60
+PREF_END_MIN = 22 * 60 + 30
+WALK_START_MIN = 22 * 60 + 30
+WALK_END_MIN = 23 * 60
+DRIVE_START_MIN = 13 * 60
+DRIVE_END_MIN = 21 * 60
+BOOKABLE_START_MIN = 4 * 60
+SLEEP_END_MIN = 24 * 60 + 75  # 01:15 next morning; session must end by then
+MIDNIGHT_MIN = 24 * 60
+DURATION_MIN = int(DURATION.total_seconds() // 60)
+# Minutes past midnight. Keeps a 23:00 start ahead of 23:45 without
+# outweighing a real distance gap to the next clean morning slot.
+LATE_PENALTY_PER_MIN = 2
 
 _FALLBACK_RANKED = {
     "mon": [("05:00", "06:30", 30), ("22:30", "00:00", 33), ("06:30", "08:00", 38)],
@@ -129,29 +149,63 @@ def _hhmm_min(text: str) -> int:
     return int(parts[0]) * 60 + (int(parts[1]) if len(parts) > 1 else 0)
 
 
-def in_evening_window(window: "QuietWindow") -> bool:
-    """True when the window starts at/after 21:00 ET, ends by midnight, and
-    does not overlap the walk block."""
+def _span_minutes(start_hhmm: str, end_hhmm: str) -> Optional[Tuple[int, int]]:
+    """Clock span in minutes from local midnight. An end at or before the start
+    rolls into the next morning (00:30 after 23:00 is 24:30)."""
     try:
-        start = _hhmm_min(window.start_hhmm)
-        end = _hhmm_min(window.end_hhmm)
+        start = _hhmm_min(start_hhmm)
+        end = _hhmm_min(end_hhmm)
     except (TypeError, ValueError):
+        return None
+    if end <= start:
+        end += MIDNIGHT_MIN
+    return start, end
+
+
+def _overlap_minutes(a0: int, a1: int, b0: int, b1: int) -> int:
+    return max(0, min(a1, b1) - max(a0, b0))
+
+
+def policy_sort_key(start_min: int, end_min: int) -> Tuple[int, int, int, int]:
+    """Lower is better.
+
+    Walk overlap and Drive overlap are primary, so a clean slot beats any
+    overlap no matter how close the overlap sits to 21:00. Distance from
+    21:00, plus a lateness penalty for ending after midnight, breaks ties.
+    The last component prefers the later start when the score matches.
+    """
+    walk = _overlap_minutes(start_min, end_min, WALK_START_MIN, WALK_END_MIN)
+    drive = _overlap_minutes(start_min, end_min, DRIVE_START_MIN, DRIVE_END_MIN)
+    late = max(0, end_min - MIDNIGHT_MIN)
+    dist = abs(start_min - PREF_START_MIN)
+    return (
+        1 if walk else 0,
+        1 if drive else 0,
+        dist + LATE_PENALTY_PER_MIN * late + walk + drive,
+        -start_min,
+    )
+
+
+def in_evening_window(window: "QuietWindow") -> bool:
+    """True when the window starts at/after 20:30 and ends by 01:15.
+
+    Membership in the band is not an exclusion. Walk overlap and a finish
+    after midnight still return True; scoring penalizes them.
+    """
+    span = _span_minutes(window.start_hhmm, window.end_hhmm)
+    if span is None:
         return False
-    if end == 0:
-        end = EVENING_END_MAX
-    if not (EVENING_START_MIN <= start < end <= EVENING_END_MAX):
+    start, end = span
+    if start < EVENING_START_MIN or start >= MIDNIGHT_MIN:
         return False
-    w0, w1 = _hhmm_min(WALK_BLOCK[0]), _hhmm_min(WALK_BLOCK[1])
-    return not (start < w1 and w0 < end)
+    return end <= SLEEP_END_MIN
 
 
 def in_evening_interval(start: datetime, end: datetime) -> bool:
-    """in_evening_window for a concrete ET interval (same civil day, end may be 00:00 next)."""
+    """in_evening_window for a concrete ET interval (end may be after midnight)."""
     s = start.astimezone(gym_tz())
     e = end.astimezone(gym_tz())
     if e - s > timedelta(hours=24) or e <= s:
-        return False
-    if e.date() != s.date() and not (e.hour == 0 and e.minute == 0 and (e.date() - s.date()).days == 1):
         return False
     return in_evening_window(QuietWindow(s.strftime("%H:%M"), e.strftime("%H:%M"), 0))
 
@@ -361,7 +415,8 @@ def _ranked_table(club_id: str) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def ranked_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
+def _published_windows(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
+    """Captured shortlist for one weekday, with the home fallback when JSON is empty."""
     key = weekday_key(day)
     raw = _ranked_table(club_id).get(key) or []
     windows: List[QuietWindow] = []
@@ -382,22 +437,12 @@ def ranked_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
         windows = [
             QuietWindow(s, e, occ) for s, e, occ in _FALLBACK_RANKED.get(key, _FALLBACK_RANKED["mon"])
         ]
-    return _evening_policy(day, club_id, windows)
+    return windows
 
 
-def _evening_policy(day: str, club_id: str, windows: List[QuietWindow]) -> List[QuietWindow]:
-    """Preferred 21:00-22:30 first, then other windows passing in_evening_window."""
-    evening = [w for w in windows if in_evening_window(w)]
-    ps, pe = PREFERRED_WINDOW
-    if any((w.start_hhmm, w.end_hhmm) == (ps, pe) for w in evening):
-        pref = next(w for w in evening if (w.start_hhmm, w.end_hhmm) == (ps, pe))
-    else:
-        occ = occupancy_map(day, club_id)
-        if not occ and club_id not in (None, "", CLUB_HOME):
-            return evening
-        pct = int(round(window_occupancy(occ, _hhmm_min(ps) / 60.0))) if occ else 0
-        pref = QuietWindow(ps, pe, pct)
-    return [pref] + [w for w in evening if (w.start_hhmm, w.end_hhmm) != (ps, pe)]
+def ranked_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
+    """Bookable windows on an empty calendar, best preference score first."""
+    return _placement_windows(day, (), club_id=club_id)
 
 
 def occupancy_map(day: str, club_id: str = CLUB_HOME) -> Dict[int, float]:
@@ -457,39 +502,205 @@ def _clock(now: Optional[datetime]) -> datetime:
     return now
 
 
-def extra_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
-    """Occupancy-ranked 30-min starts when the published shortlist is all busy."""
+def _hhmm_from_minutes(minutes: int) -> str:
+    hour, minute = divmod(minutes % MIDNIGHT_MIN, 60)
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _origin(day: str) -> datetime:
+    y, m, d = (int(p) for p in str(day)[:10].split("-"))
+    return datetime(y, m, d, tzinfo=gym_tz())
+
+
+def _as_gym(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=gym_tz())
+    return dt.astimezone(gym_tz())
+
+
+def _minutes_from_origin(origin: datetime, dt: datetime) -> int:
+    return int(round((_as_gym(dt) - origin).total_seconds() / 60.0))
+
+
+def _clock_minutes(start: datetime, end: datetime) -> Tuple[int, int]:
+    s = _as_gym(start)
+    e = _as_gym(end)
+    origin = s.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        _minutes_from_origin(origin, s),
+        _minutes_from_origin(origin, e),
+    )
+
+
+def slot_policy_key(slot: "ChosenSlot") -> Tuple[int, int, int, int]:
+    return policy_sort_key(*_clock_minutes(slot.start, slot.end))
+
+
+# Kinks of the piecewise-linear score, plus the bookable edges.
+_POLICY_ANCHORS = (
+    BOOKABLE_START_MIN,
+    DRIVE_START_MIN - DURATION_MIN,
+    DRIVE_START_MIN,
+    DRIVE_END_MIN - DURATION_MIN,
+    EVENING_START_MIN,
+    PREF_START_MIN,
+    WALK_START_MIN - DURATION_MIN,
+    WALK_START_MIN,
+    WALK_END_MIN,
+    SLEEP_END_MIN - DURATION_MIN,
+)
+
+
+def _can_synthesize(club_id: str) -> bool:
+    """Home always gets a full search. Other clubs only when occupancy was captured."""
+    if club_id in (None, "", CLUB_HOME):
+        return True
+    return club_has_occupancy(club_id)
+
+
+def _free_start_minutes(
+    day: str,
+    busy: Sequence[Tuple[datetime, datetime]],
+    *,
+    not_before: Optional[datetime] = None,
+    extra_starts: Sequence[int] = (),
+) -> List[int]:
+    """Starts of 90-minute slots that fit a free gap inside 04:00–01:15."""
+    origin = _origin(day)
+    horizon0 = BOOKABLE_START_MIN
+    horizon1 = SLEEP_END_MIN
+    if not_before is not None:
+        horizon0 = max(horizon0, _minutes_from_origin(origin, _cutoff(not_before)))
+    latest_possible = horizon1 - DURATION_MIN
+    if horizon0 > latest_possible:
+        return []
+    blocks: List[Tuple[int, int]] = []
+    for b0, b1 in busy:
+        start = _minutes_from_origin(origin, b0)
+        end = _minutes_from_origin(origin, b1)
+        if end <= horizon0 or start >= horizon1:
+            continue
+        blocks.append((max(start, horizon0), min(end, horizon1)))
+    blocks.sort()
+    merged: List[List[int]] = []
+    for start, end in blocks:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    gaps: List[Tuple[int, int]] = []
+    cursor = horizon0
+    for start, end in merged:
+        if start > cursor:
+            gaps.append((cursor, start))
+        cursor = max(cursor, end)
+    if cursor < horizon1:
+        gaps.append((cursor, horizon1))
+    found = set()
+    for gap_start, gap_end in gaps:
+        if gap_end - gap_start < DURATION_MIN:
+            continue
+        earliest = gap_start
+        latest = min(gap_end - DURATION_MIN, latest_possible)
+        if earliest > latest:
+            continue
+        candidates = {earliest, latest}
+        for anchor in _POLICY_ANCHORS:
+            if earliest <= anchor <= latest:
+                candidates.add(anchor)
+        for start in extra_starts:
+            if earliest <= start <= latest:
+                candidates.add(start)
+        for start in candidates:
+            end = start + DURATION_MIN
+            if horizon0 <= start and end <= horizon1:
+                found.add(start)
+    return sorted(found)
+
+
+def _occupancy_for(
+    day: str,
+    club_id: str,
+    start_min: int,
+    end_min: int,
+    published: Sequence[QuietWindow],
+) -> int:
+    start_hhmm = _hhmm_from_minutes(start_min)
+    end_hhmm = _hhmm_from_minutes(end_min)
+    for window in published:
+        if window.start_hhmm == start_hhmm and window.end_hhmm == end_hhmm:
+            return window.occupancy_pct
     occ = occupancy_map(day, club_id)
     if not occ:
+        return 0
+    hours = (end_min - start_min) / 60.0
+    return int(round(window_occupancy(occ, start_min / 60.0, hours)))
+
+
+def _placement_windows(
+    day: str,
+    busy: Sequence[Tuple[datetime, datetime]],
+    *,
+    club_id: str = CLUB_HOME,
+    not_before: Optional[datetime] = None,
+) -> List[QuietWindow]:
+    """Free 90-minute windows ordered by ``policy_sort_key`` (best first)."""
+    published = _published_windows(day, club_id)
+    published_starts: List[int] = []
+    for window in published:
+        span = _span_minutes(window.start_hhmm, window.end_hhmm)
+        if span is None:
+            continue
+        start, end = span
+        if end - start == DURATION_MIN:
+            published_starts.append(start)
+    if _can_synthesize(club_id):
+        starts = _free_start_minutes(
+            day, busy, not_before=not_before, extra_starts=published_starts
+        )
+    elif published_starts:
+        allowed = set(published_starts)
+        starts = [
+            start
+            for start in _free_start_minutes(
+                day, busy, not_before=not_before, extra_starts=published_starts
+            )
+            if start in allowed
+        ]
+    else:
         return []
-    seen = {(w.start_hhmm, w.end_hhmm) for w in ranked_windows_for(day, club_id)}
-    extras: List[Tuple[float, QuietWindow]] = []
-    start_hour = EXTRA_START_HOUR
-    while start_hour <= 22.5 + 1e-9:
-        end_hour = start_hour + 1.5
-        if end_hour > 24.0 + 1e-9:
-            start_hour += 0.5
+    windows: List[QuietWindow] = []
+    seen = set()
+    for start in starts:
+        end = start + DURATION_MIN
+        if (start, end) in seen:
             continue
-        sh, sm = int(start_hour), int(round((start_hour % 1) * 60))
-        eh_raw = end_hour if end_hour < 24.0 - 1e-9 else 0.0
-        eh, em = int(eh_raw), int(round((eh_raw % 1) * 60))
-        start_hhmm = f"{sh:02d}:{sm:02d}"
-        end_hhmm = f"{eh:02d}:{em:02d}"
-        if (start_hhmm, end_hhmm) in seen:
-            start_hour += 0.5
-            continue
-        if not in_evening_window(QuietWindow(start_hhmm, end_hhmm, 0)):
-            start_hour += 0.5
-            continue
-        avg = window_occupancy(occ, start_hour)
-        extras.append((avg, QuietWindow(start_hhmm, end_hhmm, int(round(avg)))))
-        start_hour += 0.5
-    extras.sort(key=lambda row: (row[0], row[1].start_hhmm))
-    return [w for _, w in extras]
+        seen.add((start, end))
+        windows.append(
+            QuietWindow(
+                _hhmm_from_minutes(start),
+                _hhmm_from_minutes(end),
+                _occupancy_for(day, club_id, start, end, published),
+            )
+        )
+    def _key(window: QuietWindow) -> Tuple[int, int, int, int]:
+        span = _span_minutes(window.start_hhmm, window.end_hhmm)
+        if span is None:
+            return (1, 1, 10**9, 0)
+        return policy_sort_key(*span)
+
+    windows.sort(key=_key)
+    return windows
+
+
+def extra_windows_for(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
+    """Retained for callers. Gap edges are already inside ``ranked_windows_for``."""
+    del day, club_id
+    return []
 
 
 def candidate_windows(day: str, club_id: str = CLUB_HOME) -> List[QuietWindow]:
-    return ranked_windows_for(day, club_id) + extra_windows_for(day, club_id)
+    return ranked_windows_for(day, club_id)
 
 
 def intervals_overlap(a0: datetime, a1: datetime, b0: datetime, b1: datetime) -> bool:
@@ -714,6 +925,37 @@ def slot_overlaps_busy(slot: ChosenSlot, busy: Sequence[Tuple[datetime, datetime
     return any(intervals_overlap(slot.start, slot.end, b0, b1) for b0, b1 in busy)
 
 
+def _prefer_candidate(
+    day: str,
+    prefer: Optional[Tuple[datetime, datetime]],
+    busy: Sequence[Tuple[datetime, datetime]],
+    *,
+    not_before: Optional[datetime] = None,
+) -> Optional[ChosenSlot]:
+    """A free existing window, when it still sits inside the bookable day."""
+    if prefer is None:
+        return None
+    start, end = _as_gym(prefer[0]), _as_gym(prefer[1])
+    if end - start < timedelta(minutes=80):
+        return None
+    cutoff = _cutoff(not_before)
+    if cutoff is not None and start < cutoff:
+        return None
+    start_min, end_min = _clock_minutes(start, end)
+    if start_min < BOOKABLE_START_MIN or end_min > SLEEP_END_MIN:
+        return None
+    if any(intervals_overlap(start, end, b0, b1) for b0, b1 in busy):
+        return None
+    published = _published_windows(day)
+    occ = _occupancy_for(day, CLUB_HOME, start_min, end_min, published)
+    return ChosenSlot(
+        start,
+        end,
+        occ,
+        QuietWindow(start.strftime("%H:%M"), end.strftime("%H:%M"), occ),
+    )
+
+
 def pick_slot(
     day: str,
     busy: Sequence[Tuple[datetime, datetime]],
@@ -721,47 +963,32 @@ def pick_slot(
     prefer: Optional[Tuple[datetime, datetime]] = None,
     not_before: Optional[datetime] = None,
 ) -> Optional[ChosenSlot]:
-    """First free quiet stretch. Keep prefer if still free. None if none free.
+    """Best free 90-minute slot. None only when no bookable gap exists.
 
-    ``not_before`` (dashboard elapsed-reschedule) restricts the search to
-    windows whose start is >= that instant — remaining civil day, not the
-    already-elapsed morning. Overnight prefer is kept (#818).
+    Clean slots (no walk overlap, no Drive-block overlap) beat every
+    penalized slot. Among clean slots the nearest to 21:00 wins, with a
+    penalty for ending after midnight so 23:00 beats 23:45. Walk or Drive
+    overlap is booked only when every clean gap is busy. ``prefer`` is
+    kept when it is free and scores as well as the best gap. ``not_before``
+    drops starts earlier than that instant. A start in 00:00–03:59 is
+    outside the bookable day (#951); 01:15 is the latest end.
     """
-    cutoff = None
-    if not_before is not None:
-        cutoff = not_before if not_before.tzinfo else not_before.replace(tzinfo=gym_tz())
-        cutoff = cutoff.astimezone(gym_tz())
-    if prefer is not None:
-        p0, p1 = prefer
-        prefer_ok = cutoff is None or p0 >= cutoff
-        if (
-            prefer_ok
-            and in_evening_interval(p0, p1)
-            and p1 - p0 >= timedelta(minutes=80)
-            and not any(intervals_overlap(p0, p1, b0, b1) for b0, b1 in busy)
-        ):
-            occ = 0
-            for window in ranked_windows_for(day):
-                w0, w1 = window_bounds(day, window)
-                if w0 == p0 and w1 == p1:
-                    occ = window.occupancy_pct
-                    return ChosenSlot(p0, p1, occ, window)
-            return ChosenSlot(
-                p0,
-                p1,
-                occ,
-                QuietWindow(p0.strftime("%H:%M"), p1.strftime("%H:%M"), occ),
-            )
-    for window in candidate_windows(day):
-        if not in_evening_window(window):
-            continue
+    slots: List[ChosenSlot] = []
+    for window in _placement_windows(day, busy, not_before=not_before):
         start, end = window_bounds(day, window)
-        if cutoff is not None and start < cutoff:
-            continue
-        slot = ChosenSlot(start, end, window.occupancy_pct, window)
-        if not slot_overlaps_busy(slot, busy):
-            return slot
-    return None
+        slots.append(ChosenSlot(start, end, window.occupancy_pct, window))
+    prefer_slot = _prefer_candidate(day, prefer, busy, not_before=not_before)
+    if prefer_slot is not None:
+        slots.append(prefer_slot)
+    if not slots:
+        return None
+    by_span: Dict[Tuple[datetime, datetime], ChosenSlot] = {}
+    for slot in slots:
+        key = (slot.start, slot.end)
+        prev = by_span.get(key)
+        if prev is None or slot.occupancy_pct > prev.occupancy_pct:
+            by_span[key] = slot
+    return min(by_span.values(), key=slot_policy_key)
 
 
 def home_closed_for(start: datetime, end: datetime) -> bool:
@@ -819,19 +1046,22 @@ def ranked_window_fits(
     not_before: Optional[datetime] = None,
     club_id: str = CLUB_HOME,
 ) -> bool:
+    """True when the preferred 21:00-22:30 window itself is free at this club.
+
+    A worse gap still books, but a missed preferred window is what sends
+    ``pick_placement`` looking at the other clubs.
+    """
     cutoff = _cutoff(not_before)
-    for window in ranked_windows_for(day, club_id):
-        start, end = window_bounds(day, window)
-        if cutoff is not None and start < cutoff:
-            continue
-        if not club_open(club_id, start, end):
-            continue
-        if club_id == CLUB_HOME and home_closed_for(start, end):
-            continue
-        slot = ChosenSlot(start, end, window.occupancy_pct, window)
-        if not slot_overlaps_busy(slot, busy):
-            return True
-    return False
+    window = QuietWindow(PREFERRED_WINDOW[0], PREFERRED_WINDOW[1], 0)
+    start, end = window_bounds(day, window)
+    if cutoff is not None and start < cutoff:
+        return False
+    if not club_open(club_id, start, end):
+        return False
+    if club_id == CLUB_HOME and home_closed_for(start, end):
+        return False
+    slot = ChosenSlot(start, end, window.occupancy_pct, window)
+    return not slot_overlaps_busy(slot, busy)
 
 
 def _with_club(slot: ChosenSlot, club_id: str) -> ChosenSlot:
@@ -856,7 +1086,9 @@ def feasible_slots(
 ) -> List[ChosenSlot]:
     cutoff = _cutoff(not_before)
     out: List[ChosenSlot] = []
-    for window in candidate_windows(day, club_id):
+    for window in _placement_windows(
+        day, busy, club_id=club_id, not_before=not_before
+    ):
         start, end = window_bounds(day, window)
         if cutoff is not None and start < cutoff:
             continue
@@ -881,9 +1113,11 @@ def pick_placement(
     """Two-phase hybrid (#813): home club first, then cross-club fallback.
 
     Phase 1 is today's ``pick_slot`` at the home club. Fallback runs only when
-    no ranked window fits, home occupancy is above the threshold, home is
-    closed, or no home slot exists. Alt clubs without captured occupancy are
-    skipped. If no (slot, club) pair is feasible, keep the Phase 1 pick.
+    the preferred 21:00-22:30 window does not fit, home occupancy is above
+    the threshold, home is closed, or no home slot exists. Alt clubs without
+    captured occupancy are skipped. Time preference outranks occupancy, so a
+    free 21:00 at another club beats a later home gap. If no (slot, club)
+    pair is feasible, keep the Phase 1 pick.
     """
     home_slot = pick_slot(day, busy, prefer=prefer, not_before=not_before)
     ranked_ok = ranked_window_fits(day, busy, not_before=not_before)
@@ -906,6 +1140,7 @@ def pick_placement(
         return home_slot
     pairs.sort(
         key=lambda slot: (
+            slot_policy_key(slot),
             slot_score(slot),
             slot.occupancy_pct,
             slot.drive_minutes,
