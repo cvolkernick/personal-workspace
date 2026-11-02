@@ -5059,7 +5059,18 @@ body.m-shell #alerts {
 }
 
 /* ---- Blood-panel biomarkers (biomarkers.js) ---- */
+/* Today: review-count badge only. Panel rows stay on the Labs tab. */
 body.m-shell[data-m-active="today"] #biomarkers-today-card[hidden] { display: none !important; }
+body.m-shell[data-m-active="today"] #biomarkers-today-card:not([hidden]) {
+  display: inline-block !important;
+  width: auto;
+  margin: 0.75rem 0 0;
+  padding: 0.12rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.35;
+  border-radius: 999px;
+}
 .bm-sub, .bm-ctx { margin: 0.2rem 0; font-size: 0.82rem; }
 .bm-auto { font-size: 0.68rem; padding: 0 0.3rem; border-radius: 6px; background: var(--bg-elevated); color: var(--accent-2); }
 .bm-group { margin: 1rem 0 0.4rem; font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -5086,8 +5097,6 @@ body.m-shell[data-m-active="today"] #biomarkers-today-card[hidden] { display: no
 .bm-flag { color: var(--warn); }
 .bm-caveat { color: var(--muted); }
 .bm-foot { font-size: 0.75rem; margin-top: 0.7rem; font-style: italic; }
-.bm-today h2 { margin: 0; font-size: 1rem; }
-.bm-today-list { margin: 0.2rem 0 0.5rem; padding-left: 1.1rem; font-size: 0.85rem; }
 .bm-entry .bm-form-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .bm-entry label { display: flex; flex-direction: column; font-size: 0.8rem; gap: 0.2rem; }
 .bm-entry .bm-wide { flex: 1 1 100%; }

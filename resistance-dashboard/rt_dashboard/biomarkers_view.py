@@ -302,13 +302,11 @@ def build_view(data: dict, *, sessions=None, weights=None, phase: str = "", toda
             groups.append({"id": gid, "label": label, "markers": ms})
     latest_draw = panels[-1]["draw_date"] if panels else ""
     flagged = [m for m in markers_out if m["flags"]]
-    td, ld = _d(today), _d(latest_draw)
-    recent = bool(td and ld and 0 <= (td - ld).days <= cfg.RECENT_RESULT_DAYS)
-    reason = []
-    if recent:
-        reason.append("new result")
-    if flagged:
-        reason.append(f"{len(flagged)} to review")
+    # Today is a review count only. `today` is accepted for callers and is not
+    # a Today-tab signal: a fresh draw with nothing to review stays off Today.
+    # Marker rows stay on the Labs tab (groups), never on today_card.
+    _ = today
+    n_review = len(flagged)
     return {
         "has_data": bool(markers_out),
         "footnote": cfg.UI_FOOTNOTE,
@@ -316,12 +314,10 @@ def build_view(data: dict, *, sessions=None, weights=None, phase: str = "", toda
         "panel_count": len(panels),
         "panels": [dict(p, context=ctx_by_panel.get(p["panel_id"], {})) for p in panels],
         "groups": groups,
-        "flagged_count": len(flagged),
+        "flagged_count": n_review,
         "today_card": {
-            "show": recent or bool(flagged),
-            "reason": " · ".join(reason),
-            "latest_draw": latest_draw,
-            "flagged": [{"marker": m["marker"], "name": m["name"], "flag": m["flags"][0]} for m in flagged][:8],
+            "show": n_review > 0,
+            "review_count": n_review,
         },
         "context_fields": cfg.CONTEXT_FIELDS,
         "storage": data.get("storage") or "",

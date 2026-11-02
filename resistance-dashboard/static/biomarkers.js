@@ -1,4 +1,6 @@
-/* FitDash · Blood-panel biomarkers tab + conditional Today card.
+/* FitDash · Blood-panel biomarkers on the Labs tab.
+ * Today shows only a "Labs: N to review" badge when N > 0, and that badge
+ * opens the Labs tab. Marker rows never render on Today.
  * Data: dashboard payload `biomarkers` (rt_dashboard/biomarkers_view.py).
  * Flags say "review", never diagnose. Caveats are annotations, not flags.
  */
@@ -106,24 +108,37 @@
     }
   }
 
+  function reviewCount(bm) {
+    const t = (bm && bm.today_card) || {};
+    if (t.review_count != null && t.review_count !== "") {
+      const c = Number(t.review_count);
+      return Number.isFinite(c) && c > 0 ? Math.floor(c) : 0;
+    }
+    const n = Number(bm && bm.flagged_count);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  }
+
   function renderToday(bm) {
     const card = $("biomarkers-today-card");
     if (!card) return;
-    const t = (bm && bm.today_card) || {};
-    if (!t.show) { card.hidden = true; card.innerHTML = ""; return; }
+    const n = reviewCount(bm);
+    card.innerHTML = "";
+    if (!(n > 0)) {
+      card.hidden = true;
+      card.textContent = "";
+      card.onclick = null;
+      return;
+    }
     card.hidden = false;
-    const items = (t.flagged || []).map((f) => `<li><strong>${esc(f.name)}</strong> — ${esc(f.flag)}</li>`).join("");
-    card.innerHTML = `<h2>Blood panel · ${esc(t.reason || "")}</h2>
-      <p class="muted" style="margin:0.2rem 0 0.4rem;font-size:0.85rem">Latest draw ${esc(t.latest_draw)}</p>
-      ${items ? `<ul class="bm-today-list">${items}</ul>` : ""}
-      <button type="button" class="btn" id="bm-open-tab">Open Labs tab</button>
-      <p class="muted bm-foot">${esc(bm.footnote || "")}</p>`;
-    const b = $("bm-open-tab");
-    if (b) b.onclick = () => { const tb = document.querySelector('[data-m-tab="biomarkers"]'); if (tb) tb.click(); };
+    card.textContent = "Labs: " + n + " to review";
+    card.onclick = () => {
+      const tb = document.querySelector('[data-m-tab="biomarkers"]');
+      if (tb) tb.click();
+    };
   }
 
   function render(data) {
-    const bm = (data && data.biomarkers) || { has_data: false, today_card: { show: false }, groups: [] };
+    const bm = (data && data.biomarkers) || { has_data: false, flagged_count: 0, today_card: { show: false, review_count: 0 }, groups: [] };
     last = bm;
     renderTab(bm);
     renderToday(bm);

@@ -508,7 +508,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         )
     except Exception as e:  # noqa: BLE001
         payload["biomarkers"] = {"has_data": False, "error": f"biomarkers: {type(e).__name__}",
-                                 "today_card": {"show": False}, "groups": []}
+                                 "flagged_count": 0,
+                                 "today_card": {"show": False, "review_count": 0}, "groups": []}
     payload["sleep_battery"] = sleep_battery
     payload["nutrition_day"] = nd
     payload["nutrition_store"] = {

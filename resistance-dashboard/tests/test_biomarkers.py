@@ -383,10 +383,34 @@ class GroupAndContextTests(unittest.TestCase):
                                             "fasted": True, "fast_hours": 12}), {})
         self.assertIn("glucose", bv.active_caveats({"fasted": True, "fast_hours": 6}))
 
-    def test_today_card_recent_result(self):
-        rows = [_row("apob", 80, "2026-01-10", lo=0, hi=90)]
-        self.assertTrue(_view(rows, today="2026-01-15")["today_card"]["show"])
-        self.assertFalse(_view(rows, today="2026-01-20")["today_card"]["show"])
+    def test_today_payload_is_a_review_count_without_marker_rows(self):
+        """Today's API slice is a count. No blood-panel card and no marker rows.
+
+        N = 0 stays hidden even when the draw is recent. N > 0 is the count
+        only. The Labs groups still carry the panel.
+        """
+        quiet = _view([_row("synth_marker", 1, "2026-01-10", lo=0, hi=2)], today="2026-01-12")
+        self.assertEqual(quiet["flagged_count"], 0)
+        self.assertEqual(quiet["today_card"], {"show": False, "review_count": 0})
+        self.assertNotIn("flagged", quiet["today_card"])
+        self.assertTrue(quiet["groups"])
+        self.assertEqual(_m(quiet, "synth_marker")["marker"], "synth_marker")
+
+        loud = _view([
+            _row("synth_marker", 1, "2026-01-10", lo=0, hi=0),
+            _row("synth_other", 1, "2026-01-10", lo=0, hi=0),
+        ], today="2026-01-12")
+        self.assertEqual(loud["today_card"], {"show": True, "review_count": 2})
+        blob = json.dumps(loud["today_card"])
+        self.assertNotIn("synth_marker", blob)
+        self.assertNotIn("synth_other", blob)
+        self.assertNotIn("Blood panel", blob)
+        self.assertNotIn("new result", blob)
+        self.assertNotIn("review:", blob)
+        self.assertEqual(
+            sorted(m["marker"] for g in loud["groups"] for m in g["markers"]),
+            ["synth_marker", "synth_other"],
+        )
 
     def test_auto_context_weight_phase(self):
         rows = [_row("apob", 80, "2026-01-10", lo=0, hi=90)]
@@ -405,10 +429,17 @@ class UiTests(unittest.TestCase):
     def test_markup_tab_section_and_today_card(self):
         self.assertIn('data-m-tab="biomarkers"', self.HTML)
         self.assertIn('id="biomarkers-section" data-m-panel="biomarkers"', self.HTML)
-        self.assertRegex(self.HTML, r'id="biomarkers-today-card" data-m-panel="today" hidden')
+        self.assertRegex(
+            self.HTML,
+            r'<button type="button" class="labs-review-badge" id="biomarkers-today-card" data-m-panel="today" hidden></button>',
+        )
+        self.assertNotIn('class="card bm-today"', self.HTML)
+        self.assertIn("<h2>Blood panel</h2>", self.HTML)
         self.assertIn("Thresholds are rule-of-thumb defaults, not clinical rules.", self.HTML)
         self.assertLess(self.HTML.index("/biomarkers.js"), self.HTML.index("/app.js"))
-        self.assertIn("/biomarkers.js?v=biomarkers-1", self.SW)
+        self.assertIn("/biomarkers.js?v=labs-review-1", self.SW)
+        self.assertIn("#biomarkers-today-card:not([hidden])", self.CSS)
+        self.assertNotIn(".bm-today-list", self.CSS)
         for key in ("draw_time", "fasted", "fast_hours", "creatine", "biotin", "alcohol_48h", "recent_illness"):
             self.assertIn(f'data-ctx="{key}"', self.HTML)
 
@@ -441,32 +472,70 @@ class UiTests(unittest.TestCase):
         view = _view([_row("apob", 95, "2026-01-10", lo=0, hi=90),
                       _row("ferritin", 200, "2025-10-01", unit="ng/mL", lo=29, hi=575),
                       _row("ferritin", 150, "2026-01-10", unit="ng/mL", lo=29, hi=575)], today="2026-01-12")
+        quiet = _view([_row("synth_marker", 1, "2026-01-10", lo=0, hi=2)], today="2026-01-12")
+        self.assertGreater(view["flagged_count"], 0)
+        self.assertEqual(quiet["today_card"]["review_count"], 0)
         harness = r"""
 const els = {};
 function el(id){ return els[id] || (els[id] = {id, innerHTML:"", textContent:"", hidden:true, value:"",
-  addEventListener(){}, querySelectorAll(){return [];}, dataset:{}}); }
-global.document = { readyState: "complete", getElementById: el, querySelector(){return null;},
+  onclick:null, addEventListener(){}, querySelectorAll(){return [];}, dataset:{}}); }
+let opened = false;
+global.document = { readyState: "complete", getElementById: el,
+  querySelector(sel){ return sel === '[data-m-tab="biomarkers"]' ? {click(){ opened = true; }} : null; },
   querySelectorAll(){return [];}, addEventListener(){} };
 global.window = {};
 eval(require("fs").readFileSync(process.argv[2], "utf8"));
+function snap(){
+  const card = els["biomarkers-today-card"];
+  return {body: els["biomarkers-body"].innerHTML, today: card.innerHTML, todayText: card.textContent,
+    hidden: card.hidden, hasClick: typeof card.onclick === "function"};
+}
 window.FitDashBiomarkers.render({biomarkers: JSON.parse(process.argv[3])});
-console.log(JSON.stringify({body: els["biomarkers-body"].innerHTML, today: els["biomarkers-today-card"].innerHTML,
-  hidden: els["biomarkers-today-card"].hidden}));
+const shown = snap();
+if (shown.hasClick) els["biomarkers-today-card"].onclick();
+shown.openedLabs = opened;
+opened = false;
+window.FitDashBiomarkers.render({biomarkers: JSON.parse(process.argv[4])});
+const zero = snap();
+if (zero.hasClick) els["biomarkers-today-card"].onclick();
+zero.openedLabs = opened;
+console.log(JSON.stringify({shown, zero}));
 """
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
             fh.write(harness)
         self.addCleanup(os.unlink, fh.name)
-        out = subprocess.run(["node", fh.name, str(ROOT / "static" / "biomarkers.js"), json.dumps(view)],
-                             capture_output=True, text=True, timeout=30, check=True)
+        out = subprocess.run(
+            ["node", fh.name, str(ROOT / "static" / "biomarkers.js"), json.dumps(view), json.dumps(quiet)],
+            capture_output=True, text=True, timeout=30, check=True)
         res = json.loads(out.stdout)
-        self.assertFalse(res["hidden"])
-        self.assertIn("ApoB", res["body"])
-        self.assertIn("bm-range", res["body"])
-        self.assertIn("<svg class=\"bm-spark\"", res["body"])
-        self.assertIn("cut-trend", res["body"])
-        self.assertIn("Training &amp; recovery", res["body"])
-        self.assertIn("Open Labs tab", res["today"])
-        self.assertLess(res["body"].index("Ferritin"), res["body"].index("ApoB"))
+        shown, zero = res["shown"], res["zero"]
+        n = view["flagged_count"]
+        self.assertFalse(shown["hidden"])
+        self.assertEqual(shown["todayText"], f"Labs: {n} to review")
+        self.assertTrue(shown["openedLabs"])
+        for blob in (shown["today"], shown["todayText"]):
+            self.assertNotIn("Blood panel", blob)
+            self.assertNotIn("bm-marker", blob)
+            self.assertNotIn("bm-today-list", blob)
+            self.assertNotIn("<li", blob)
+            self.assertNotIn("<h2", blob)
+            self.assertNotIn("ApoB", blob)
+            self.assertNotIn("Ferritin", blob)
+        self.assertIn("ApoB", shown["body"])
+        self.assertIn("bm-range", shown["body"])
+        self.assertIn("bm-marker", shown["body"])
+        self.assertIn("<svg class=\"bm-spark\"", shown["body"])
+        self.assertIn("cut-trend", shown["body"])
+        self.assertIn("Training &amp; recovery", shown["body"])
+        self.assertLess(shown["body"].index("Ferritin"), shown["body"].index("ApoB"))
+        self.assertTrue(zero["hidden"])
+        self.assertEqual(zero["todayText"], "")
+        self.assertEqual(zero["today"], "")
+        self.assertFalse(zero["hasClick"])
+        self.assertFalse(zero["openedLabs"])
+        self.assertNotIn("Blood panel", zero["today"] + zero["todayText"])
+        self.assertIn("synth_marker", zero["body"])
+        self.assertIn("bm-marker", zero["body"])
 
 
 class ConfigRoutesTests(unittest.TestCase):

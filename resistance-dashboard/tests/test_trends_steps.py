@@ -44,7 +44,7 @@ class TrendsStepsCard(unittest.TestCase):
         self.assertIn('/trends-steps.js?v=steps-2', HTML)
         self.assertIn('/app.js?v=coach-weekly-2', HTML)
         self.assertLess(HTML.find("/trends-steps.js?v="), HTML.find("/app.js?v="))
-        self.assertIn('const CACHE = "fitdash-shell-v155"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v156"', SW)
         self.assertIn('"/trends-steps.js?v=steps-2"', SW)
         self.assertIn('"/app.js?v=coach-weekly-2"', SW)
         self.assertEqual(PINS["trends-steps.js"]["v"], "steps-2")
