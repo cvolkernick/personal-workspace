@@ -1,8 +1,11 @@
 """Weekly proper-set volume by muscle group (#1193).
 
 A proper set is a logged working set in the lift's rep window (band ± 1)
-at about 85% of that lift's planned working load. Warm-ups, ramps, quest
-seeds, and ``Already trained today`` rows do not count. Assisted lifts use
+at about 85% of that lift's planned working load. Warm-ups, ramps,
+movement-only rows, and ``Already trained today`` rows do not count. A
+quest-seeded row (a lift leaf checked off at the prescribed numbers) is a
+logged set and counts (#1363): unchecking removes it, so a row that is
+still in the log was done. Assisted lifts use
 effective load (#1156) and still count on reps when that load is missing.
 
 Credit is 1.0 to each primary group and 0.5 to each secondary. It is not
@@ -516,25 +519,97 @@ def _catalog_index(catalog: Optional[dict]) -> Tuple[Dict[str, dict], Dict[str, 
     return by_id, by_name
 
 
+# Keyword fallback for logged names with no catalog row (#1363). Order
+# matters: the first hit wins. Each entry is (needles, movement, primary,
+# secondary). Only muscle credit reads this; the planner does not.
+_NAME_FALLBACKS: Tuple[Tuple[Tuple[str, ...], str, Tuple[str, ...], Tuple[str, ...]], ...] = (
+    (("shrug",), "isolation", ("traps",), ()),
+    (("calf",), "isolation", ("calves",), ()),
+    (("leg curl", "hamstring curl"), "isolation", ("hamstrings",), ()),
+    (("pushdown", "pulldown rope", "tricep", "skull"), "isolation", ("triceps",), ()),
+    (("lateral raise", "side raise"), "isolation", ("side_delts",), ()),
+    (("face pull", "rear delt", "reverse fly"), "isolation", ("rear_delts",), ()),
+    (("curl",), "isolation", ("biceps",), ()),
+    (("incline press", "incline bench"), "compound", ("chest", "front_delts"), ("triceps",)),
+    (("bench press", "chest press", "flat press", "flat bench", "floor press"), "compound", ("chest",), ("triceps", "front_delts")),
+    (("shoulder press", "overhead press", "ohp", "military press"), "compound", ("front_delts",), ("side_delts", "triceps")),
+    (("romanian", "rdl", "stiff leg"), "compound", ("hamstrings", "glutes"), ("lower_back",)),
+    (("deadlift",), "compound", ("glutes", "hamstrings", "lower_back"), ("quads", "lats_upper_back", "traps")),
+    (("back extension", "hyperextension"), "isolation", ("lower_back", "glutes"), ("hamstrings",)),
+    (("pullup", "pull-up", "pull up", "chin", "pulldown", "pull down"), "compound", ("lats_upper_back",), ("biceps",)),
+    (("row",), "compound", ("lats_upper_back",), ("biceps",)),
+    (("leg press", "squat", "hack", "lunge", "split squat"), "compound", ("quads",), ("glutes", "hamstrings")),
+    (("leg extension",), "isolation", ("quads",), ()),
+)
+
+
+def _name_slug(name: str) -> str:
+    out = []
+    prev_dash = False
+    for ch in str(name or "").lower():
+        if ch.isalnum():
+            out.append(ch)
+            prev_dash = False
+        elif not prev_dash:
+            out.append("-")
+            prev_dash = True
+    return "".join(out).strip("-")
+
+
+def _fallback_row(name: str) -> Optional[dict]:
+    lname = _norm_name(name)
+    if not lname:
+        return None
+    for needles, movement, primary, secondary in _NAME_FALLBACKS:
+        if any(n in lname for n in needles):
+            return {
+                "name": name,
+                "movement": movement,
+                "volume_primary": list(primary),
+                "volume_secondary": list(secondary),
+                "_inferred": True,
+            }
+    return None
+
+
 def _lookup_exercise(
     ex: Any,
     by_id: Mapping[str, dict],
     by_name: Mapping[str, dict],
     aliases: Mapping[str, str],
 ) -> Optional[dict]:
+    """Catalog row for a logged exercise.
+
+    Id, then exact name, then goals ``lift_aliases``, then the planner's
+    shared ``NAME_ALIASES`` (``Calf Raises`` → ``calf-raises`` whose catalog
+    name is ``Calf Extensions``), then the name slug as an id. A name with no
+    catalog row falls back to a keyword muscle map so a real logged set is
+    not credited to nothing (#1363).
+    """
     if isinstance(ex, dict):
         eid = str(ex.get("id") or ex.get("exercise_id") or "").strip()
         if eid and eid in by_id:
             return by_id[eid]
-    name = _norm_name(_exercise_name(ex))
+    raw_name = _exercise_name(ex)
+    name = _norm_name(raw_name)
     if name in by_name:
         return by_name[name]
-    aliased = aliases.get(name) or aliases.get(_exercise_name(ex))
+    aliased = aliases.get(name) or aliases.get(raw_name)
     if aliased:
-        hit = by_name.get(_norm_name(aliased))
+        hit = by_name.get(_norm_name(aliased)) or by_id.get(str(aliased).strip())
         if hit:
             return hit
-    return None
+    try:
+        from .workout_planner import NAME_ALIASES
+    except ImportError:  # pragma: no cover
+        NAME_ALIASES = {}
+    alias_id = NAME_ALIASES.get(name)
+    if alias_id and alias_id in by_id:
+        return by_id[alias_id]
+    slug = _name_slug(raw_name)
+    if slug and slug in by_id:
+        return by_id[slug]
+    return _fallback_row(raw_name)
 
 
 def _movement_of(cat: Optional[dict], ex: Any) -> str:
@@ -603,17 +678,37 @@ def _override_value(goals: Mapping[str, Any]) -> Optional[int]:
 
 
 def _skip_exercise(ex: Any) -> bool:
+    """Rows that are not countable lift logs.
+
+    Status rows (``Already trained today``) and movement-only rows never
+    count. A quest-seeded row with real sets does (#1363): checking a lift
+    leaf logs it at the prescribed numbers and unchecking deletes it, so the
+    seed that remains in the log is a completed set. Excluding seeds dropped
+    whole Quest-logged sessions from the tile.
+    """
     from .models import is_zero_volume_status_log
-    from .quest_workout_log import exercise_is_real_log
 
     try:
         if is_zero_volume_status_log(ex):
             return True
-        if not exercise_is_real_log(ex):
-            return True
     except (TypeError, ValueError, OverflowError):
         # A row with a non-finite or unreadable count is not a countable log.
         return True
+    if isinstance(ex, dict):
+        name = str(ex.get("name") or "").strip()
+        movement_only = bool(ex.get("movement_only"))
+    else:
+        name = str(getattr(ex, "name", "") or "").strip()
+        movement_only = bool(getattr(ex, "movement_only", False))
+    if not name or movement_only:
+        return True
+    try:
+        from .models import is_planner_status_exercise_name
+
+        if is_planner_status_exercise_name(name):
+            return True
+    except ImportError:  # pragma: no cover
+        pass
     return False
 
 
