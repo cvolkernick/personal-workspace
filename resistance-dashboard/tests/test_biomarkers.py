@@ -261,7 +261,7 @@ class FlagTests(unittest.TestCase):
         m = _m(v, "apob")
         self.assertEqual(m["status"], "high")
         self.assertTrue(all(f.startswith("review:") for f in m["flags"]))
-        self.assertTrue(v["today_card"]["show"])
+        self.assertNotIn("today_card", v)
 
     def test_comparator_below_range(self):
         v = _view([_row("estradiol", 12, "2026-01-01", unit="pg/mL", lo=15, hi=32, cmp_="<")])
@@ -367,7 +367,7 @@ class GroupAndContextTests(unittest.TestCase):
         self.assertTrue(_m(v, "hs_crp")["caveats"])
         self.assertTrue(_m(v, "alt")["caveats"])
         self.assertFalse(_m(v, "apob")["caveats"])
-        self.assertFalse(v["today_card"]["show"])  # old + nothing flagged
+        self.assertNotIn("today_card", v)
 
     def test_context_caveats(self):
         cav = bv.active_caveats({"creatine": "yes", "alcohol_48h": True, "fasted": False, "biotin": "yes",
@@ -383,16 +383,14 @@ class GroupAndContextTests(unittest.TestCase):
                                             "fasted": True, "fast_hours": 12}), {})
         self.assertIn("glucose", bv.active_caveats({"fasted": True, "fast_hours": 6}))
 
-    def test_today_payload_is_a_review_count_without_marker_rows(self):
-        """Today's API slice is a count. No blood-panel card and no marker rows.
+    def test_today_payload_has_no_labs_slice(self):
+        """Today's API slice does not exist. Labs groups still carry the panel."""
+        def today_slice(view):
+            return {k: v for k, v in view.items() if "today" in k}
 
-        N = 0 stays hidden even when the draw is recent. N > 0 is the count
-        only. The Labs groups still carry the panel.
-        """
         quiet = _view([_row("synth_marker", 1, "2026-01-10", lo=0, hi=2)], today="2026-01-12")
-        self.assertEqual(quiet["flagged_count"], 0)
-        self.assertEqual(quiet["today_card"], {"show": False, "review_count": 0})
-        self.assertNotIn("flagged", quiet["today_card"])
+        self.assertEqual(today_slice(quiet), {})
+        self.assertNotIn("today_card", quiet)
         self.assertTrue(quiet["groups"])
         self.assertEqual(_m(quiet, "synth_marker")["marker"], "synth_marker")
 
@@ -400,13 +398,10 @@ class GroupAndContextTests(unittest.TestCase):
             _row("synth_marker", 1, "2026-01-10", lo=0, hi=0),
             _row("synth_other", 1, "2026-01-10", lo=0, hi=0),
         ], today="2026-01-12")
-        self.assertEqual(loud["today_card"], {"show": True, "review_count": 2})
-        blob = json.dumps(loud["today_card"])
-        self.assertNotIn("synth_marker", blob)
-        self.assertNotIn("synth_other", blob)
-        self.assertNotIn("Blood panel", blob)
-        self.assertNotIn("new result", blob)
-        self.assertNotIn("review:", blob)
+        self.assertEqual(today_slice(loud), {})
+        blob = json.dumps(today_slice(loud))
+        for word in ("synth_marker", "synth_other", "Blood panel", "review_count", "labs", "biomarker"):
+            self.assertNotIn(word, blob)
         self.assertEqual(
             sorted(m["marker"] for g in loud["groups"] for m in g["markers"]),
             ["synth_marker", "synth_other"],
@@ -426,20 +421,21 @@ class UiTests(unittest.TestCase):
     SW = (ROOT / "static" / "sw.js").read_text()
     JS = (ROOT / "static" / "biomarkers.js").read_text()
 
-    def test_markup_tab_section_and_today_card(self):
+    def test_markup_labs_tab_and_no_today_labs(self):
         self.assertIn('data-m-tab="biomarkers"', self.HTML)
         self.assertIn('id="biomarkers-section" data-m-panel="biomarkers"', self.HTML)
-        self.assertRegex(
-            self.HTML,
-            r'<button type="button" class="labs-review-badge" id="biomarkers-today-card" data-m-panel="today" hidden></button>',
-        )
-        self.assertNotIn('class="card bm-today"', self.HTML)
         self.assertIn("<h2>Blood panel</h2>", self.HTML)
+        self.assertNotIn("biomarkers-today-card", self.HTML)
+        self.assertNotIn("labs-review-badge", self.HTML)
+        self.assertNotIn('class="card bm-today"', self.HTML)
+        self.assertNotIn("today_card", self.JS)
+        self.assertNotIn("biomarkers-today-card", self.JS)
+        self.assertNotIn("Labs:", self.JS)
+        self.assertNotIn("#biomarkers-today-card", self.CSS)
+        self.assertNotIn(".bm-today-list", self.CSS)
         self.assertIn("Thresholds are rule-of-thumb defaults, not clinical rules.", self.HTML)
         self.assertLess(self.HTML.index("/biomarkers.js"), self.HTML.index("/app.js"))
-        self.assertIn("/biomarkers.js?v=labs-review-1", self.SW)
-        self.assertIn("#biomarkers-today-card:not([hidden])", self.CSS)
-        self.assertNotIn(".bm-today-list", self.CSS)
+        self.assertIn("/biomarkers.js?v=labs-off-today-1", self.SW)
         for key in ("draw_time", "fasted", "fast_hours", "creatine", "biotin", "alcohol_48h", "recent_illness"):
             self.assertIn(f'data-ctx="{key}"', self.HTML)
 
@@ -473,32 +469,31 @@ class UiTests(unittest.TestCase):
                       _row("ferritin", 200, "2025-10-01", unit="ng/mL", lo=29, hi=575),
                       _row("ferritin", 150, "2026-01-10", unit="ng/mL", lo=29, hi=575)], today="2026-01-12")
         quiet = _view([_row("synth_marker", 1, "2026-01-10", lo=0, hi=2)], today="2026-01-12")
+        self.assertNotIn("today_card", view)
+        self.assertNotIn("today_card", quiet)
         self.assertGreater(view["flagged_count"], 0)
-        self.assertEqual(quiet["today_card"]["review_count"], 0)
         harness = r"""
-const els = {};
-function el(id){ return els[id] || (els[id] = {id, innerHTML:"", textContent:"", hidden:true, value:"",
-  onclick:null, addEventListener(){}, querySelectorAll(){return [];}, dataset:{}}); }
-let opened = false;
-global.document = { readyState: "complete", getElementById: el,
-  querySelector(sel){ return sel === '[data-m-tab="biomarkers"]' ? {click(){ opened = true; }} : null; },
+const els = {
+  "biomarkers-today-card": {id:"biomarkers-today-card", innerHTML:"UNTOUCHED", textContent:"UNTOUCHED",
+    hidden:true, value:"", onclick:null, addEventListener(){}, querySelectorAll(){return [];}, dataset:{}}
+};
+const asked = [];
+function el(id){
+  asked.push(id);
+  return els[id] || (els[id] = {id, innerHTML:"", textContent:"", hidden:true, value:"",
+    onclick:null, addEventListener(){}, querySelectorAll(){return [];}, dataset:{}});
+}
+global.document = { readyState: "complete", getElementById: el, querySelector(){return null;},
   querySelectorAll(){return [];}, addEventListener(){} };
 global.window = {};
 eval(require("fs").readFileSync(process.argv[2], "utf8"));
-function snap(){
-  const card = els["biomarkers-today-card"];
-  return {body: els["biomarkers-body"].innerHTML, today: card.innerHTML, todayText: card.textContent,
-    hidden: card.hidden, hasClick: typeof card.onclick === "function"};
-}
 window.FitDashBiomarkers.render({biomarkers: JSON.parse(process.argv[3])});
-const shown = snap();
-if (shown.hasClick) els["biomarkers-today-card"].onclick();
-shown.openedLabs = opened;
-opened = false;
+const shown = {body: els["biomarkers-body"].innerHTML, asked: asked.slice(),
+  today: els["biomarkers-today-card"].innerHTML, todayText: els["biomarkers-today-card"].textContent};
+asked.length = 0;
 window.FitDashBiomarkers.render({biomarkers: JSON.parse(process.argv[4])});
-const zero = snap();
-if (zero.hasClick) els["biomarkers-today-card"].onclick();
-zero.openedLabs = opened;
+const zero = {body: els["biomarkers-body"].innerHTML, asked: asked.slice(),
+  today: els["biomarkers-today-card"].innerHTML, todayText: els["biomarkers-today-card"].textContent};
 console.log(JSON.stringify({shown, zero}));
 """
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
@@ -509,18 +504,10 @@ console.log(JSON.stringify({shown, zero}));
             capture_output=True, text=True, timeout=30, check=True)
         res = json.loads(out.stdout)
         shown, zero = res["shown"], res["zero"]
-        n = view["flagged_count"]
-        self.assertFalse(shown["hidden"])
-        self.assertEqual(shown["todayText"], f"Labs: {n} to review")
-        self.assertTrue(shown["openedLabs"])
-        for blob in (shown["today"], shown["todayText"]):
-            self.assertNotIn("Blood panel", blob)
-            self.assertNotIn("bm-marker", blob)
-            self.assertNotIn("bm-today-list", blob)
-            self.assertNotIn("<li", blob)
-            self.assertNotIn("<h2", blob)
-            self.assertNotIn("ApoB", blob)
-            self.assertNotIn("Ferritin", blob)
+        for snap in (shown, zero):
+            self.assertNotIn("biomarkers-today-card", snap["asked"])
+            self.assertEqual(snap["today"], "UNTOUCHED")
+            self.assertEqual(snap["todayText"], "UNTOUCHED")
         self.assertIn("ApoB", shown["body"])
         self.assertIn("bm-range", shown["body"])
         self.assertIn("bm-marker", shown["body"])
@@ -528,12 +515,6 @@ console.log(JSON.stringify({shown, zero}));
         self.assertIn("cut-trend", shown["body"])
         self.assertIn("Training &amp; recovery", shown["body"])
         self.assertLess(shown["body"].index("Ferritin"), shown["body"].index("ApoB"))
-        self.assertTrue(zero["hidden"])
-        self.assertEqual(zero["todayText"], "")
-        self.assertEqual(zero["today"], "")
-        self.assertFalse(zero["hasClick"])
-        self.assertFalse(zero["openedLabs"])
-        self.assertNotIn("Blood panel", zero["today"] + zero["todayText"])
         self.assertIn("synth_marker", zero["body"])
         self.assertIn("bm-marker", zero["body"])
 

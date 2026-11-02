@@ -244,7 +244,7 @@ class SecondSetClient(unittest.TestCase):
         self.assertNotIn("ex.sets[0]", today)
         self.assertIn("/app.js?v=coach-weekly-2", HTML)
         self.assertNotIn("/app.js?v=energy-scale-961-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v156"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v157"', SW)
         self.assertNotIn("fitdash-shell-v120", SW)
 
 
