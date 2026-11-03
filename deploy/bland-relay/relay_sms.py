@@ -72,18 +72,21 @@ def is_operator_number(to):
 
 
 def reserve_send(to, now=None):
-    """Allowlist + rate limit. Returns None when the send may proceed, else a reason."""
+    """Send gate. Returns None when the send may proceed, else a reason."""
     return reserve_send_ex(to, now)[0]
 
 
-def reserve_send_ex(to, now=None):
-    """Allowlist + rate limit. On success, record the attempt before the gateway call.
+def reserve_send_ex(to, now=None, *, commit=True):
+    """Rate limit and grant kind. On success, record the attempt before the gateway call.
 
     A failed gateway call still consumes a slot so a retry storm cannot multiply.
     Returns (reason, grant). reason is None when the send may proceed, otherwise
-    not_allowlisted, opt_out, rate_limited, or a first_contact_* refusal. Opt-out
+    opt_out, rate_limited, or first_contact_disabled. Opt-out
     wins even after the 72-hour window and over any first-contact approval.
-    grant is {"kind": "inbound"|"operator"|"first_contact", "entry": <entry copy or None>}.
+    grant is {"kind": "inbound"|"operator"|"first_contact"|"open", "entry": <entry copy or None>}.
+
+    commit=False (the send route's dry_run) runs the same checks and returns the
+    would-be grant without writing state.
     """
     now = time.time() if now is None else now
     with _sms_lock:
@@ -98,11 +101,15 @@ def reserve_send_ex(to, now=None):
         elif is_operator_number(to):
             # Operator (Chris) always passes the allowlist; opt-out and rate limits still apply.
             kind = "operator"
-        else:
-            fc_reason = _fc_grant_reason(st, to, now)
-            if fc_reason:
-                return fc_reason, None
+        elif fc_disabled():
+            # First-contact kill switch still blocks numbers outside the inbound window.
+            return "first_contact_disabled", None
+        elif _fc_grant_reason(st, to, now) is None:
             kind = "first_contact"
+        else:
+            # Owner ruling 2026-11-03: no per-number allowlist; any number may receive 904 sends.
+            # Opt-out, rate limits, SMS_SEND_DISABLED and send logging still apply.
+            kind = "open"
         sends = []
         for row in st.get("sends") or []:
             if not isinstance(row, dict):
@@ -112,20 +119,28 @@ def reserve_send_ex(to, now=None):
                 sends.append({"to": row.get("to"), "at": at})
         per = sum(1 for row in sends if row.get("to") == to and now - row["at"] < RECIPIENT_WINDOW_S)
         if per >= RECIPIENT_MAX or len(sends) >= GLOBAL_MAX:
-            st["sends"] = sends
-            try:
-                _save_json(_sms_state_path(), st)
-            except OSError as e:
-                log.error("sms state write failed: %s", type(e).__name__)
+            if commit:
+                st["sends"] = sends
+                try:
+                    _save_json(_sms_state_path(), st)
+                except OSError as e:
+                    log.error("sms state write failed: %s", type(e).__name__)
             return "rate_limited", None
-        sends.append({"to": to, "at": now})
-        st["sends"] = sends
         entry = None
         if kind == "first_contact":
-            entry = st["first_contact"][to]
-            entry["sends"] = int(entry.get("sends") or 0) + 1
-            entry["last_send_at_iso"] = _iso(now)
-            entry = dict(entry)
+            live = st["first_contact"][to]
+            if commit:
+                live["sends"] = int(live.get("sends") or 0) + 1
+                live["last_send_at_iso"] = _iso(now)
+                entry = dict(live)
+            else:
+                entry = dict(live)
+                entry["sends"] = int(entry.get("sends") or 0) + 1
+                entry["last_send_at_iso"] = _iso(now)
+        if not commit:
+            return None, {"kind": kind, "entry": entry}
+        sends.append({"to": to, "at": now})
+        st["sends"] = sends
         try:
             _save_json(_sms_state_path(), st)
         except OSError as e:

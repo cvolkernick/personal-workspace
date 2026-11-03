@@ -530,10 +530,12 @@ def test_owner_alert_unset_no_sms(live, monkeypatch):
 
 
 def test_owner_alert_skips_72h_window_only_for_owner(live):
-    # Owner never texted 904; the alert still goes. Normal sends stay gated.
+    # Owner never texted 904; the alert still goes. A normal send to some other
+    # number is an open grant (no per-number allowlist).
     handle(turo(text="I'm locked out"))
     assert len(live.sms) == 1
-    assert bland_relay.reserve_send("+12025550177") == "not_allowlisted"
+    reason, grant = bland_relay.reserve_send_ex("+12025550177")
+    assert reason is None and grant["kind"] == "open"
 
 
 def test_owner_alert_respects_send_disabled(live, monkeypatch):

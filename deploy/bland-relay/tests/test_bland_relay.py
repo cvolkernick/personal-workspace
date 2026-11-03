@@ -131,14 +131,94 @@ def test_validation_refuses_bad_to_and_message(http, monkeypatch):
     assert code == 400 and body["error"] == "bad message"
 
 
-def test_non_allowlisted_to_is_refused(http, monkeypatch):
+def test_unknown_number_gets_open_grant(http, monkeypatch):
     configure_send(monkeypatch)
-    called = {}
-    monkeypatch.setattr(bland_relay, "gateway_send", lambda *a, **k: called.setdefault("hit", True))
+    seen = {}
+
+    def fake(to, message, opener=None):
+        seen["to"] = to
+        seen["message"] = message
+        return {"id": "gw-open", "state": "Pending"}, ""
+
+    monkeypatch.setattr(bland_relay, "gateway_send", fake)
+    code, body = post(http, "/send-secret-path", {"to": TO, "message": "hi", "dry_run": True}, auth())
+    assert code == 200
+    assert body == {"ok": True, "dry_run": True, "grant": "open"}
+    assert seen == {}
     code, body = post(http, "/send-secret-path", {"to": TO, "message": "hi"}, auth())
-    assert code == 403
-    assert body["error"] == "not_allowlisted"
-    assert "hit" not in called
+    assert code == 200
+    assert body == {"ok": True, "id": "gw-open", "state": "Pending"}
+    assert seen == {"to": TO, "message": "hi"}
+
+
+def test_dry_run_never_calls_gateway_send(http, monkeypatch, caplog):
+    configure_send(monkeypatch)
+    calls = []
+
+    def fake(to, message, opener=None):
+        calls.append(to)
+        return {"id": "gw-1", "state": "Pending"}, ""
+
+    monkeypatch.setattr(bland_relay, "gateway_send", fake)
+    with caplog.at_level(logging.INFO, logger="bland-relay"):
+        code, body = post(
+            http,
+            "/send-secret-path",
+            {"to": TO, "message": BODY_TEXT, "dry_run": True},
+            auth(),
+        )
+    assert code == 200
+    assert body == {"ok": True, "dry_run": True, "grant": "open"}
+    assert calls == []
+    joined = caplog.text
+    assert "sms send dry-run" in joined
+    assert "***0199" in joined and f"len={len(BODY_TEXT)}" in joined
+    assert BODY_TEXT not in joined
+    state_path = bland_relay._sms_state_path()
+    if state_path.exists():
+        assert not json.loads(state_path.read_text()).get("sends")
+    code, body = post(
+        http,
+        "/send-secret-path",
+        {"to": TO, "message": "hi", "dry_run": "true"},
+        auth(),
+    )
+    assert code == 200 and body["id"] == "gw-1"
+    assert calls == [TO]
+    code, body = post(
+        http,
+        "/send-secret-path",
+        {"to": TO, "message": "hi", "dry_run": True},
+        auth(),
+    )
+    assert code == 200 and body["grant"] == "open"
+    assert calls == [TO]
+
+
+def test_stop_and_send_disabled_block_an_open_number(http, monkeypatch):
+    configure_send(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        bland_relay,
+        "gateway_send",
+        lambda *a, **k: calls.append(a) or ({"id": "i", "state": "Pending"}, ""),
+    )
+    code, body = post(http, "/send-secret-path", {"to": TO, "message": "hi", "dry_run": True}, auth())
+    assert code == 200 and body["grant"] == "open"
+    bland_relay.note_inbound(TO, "STOP", now=1_000)
+    code, body = post(http, "/send-secret-path", {"to": TO, "message": "hi"}, auth())
+    assert code == 403 and body["error"] == "opt_out"
+    code, body = post(http, "/send-secret-path", {"to": TO, "message": "hi", "dry_run": True}, auth())
+    assert code == 403 and body["error"] == "opt_out"
+    other = "+12025550100"
+    code, body = post(http, "/send-secret-path", {"to": other, "message": "hi", "dry_run": True}, auth())
+    assert code == 200 and body["grant"] == "open"
+    monkeypatch.setenv("SMS_SEND_DISABLED", "1")
+    code, body = post(http, "/send-secret-path", {"to": other, "message": "hi"}, auth())
+    assert code == 503 and body["error"] == "send disabled"
+    code, body = post(http, "/send-secret-path", {"to": other, "message": "hi", "dry_run": True}, auth())
+    assert code == 503 and body["error"] == "send disabled"
+    assert calls == []
 
 
 def test_allowlisted_send_returns_gateway_id(http, monkeypatch):
@@ -205,9 +285,11 @@ def test_stale_opt_out_still_blocks():
 
 def test_allowlist_window_is_72_hours():
     bland_relay.note_inbound(TO, "hi", now=5_000)
-    assert bland_relay.reserve_send(TO, now=5_000 + bland_relay.ALLOWLIST_S) is None
+    reason, grant = bland_relay.reserve_send_ex(TO, now=5_000 + bland_relay.ALLOWLIST_S)
+    assert reason is None and grant["kind"] == "inbound"
     bland_relay.note_inbound("+12025550100", "hi", now=5_000)
-    assert bland_relay.reserve_send("+12025550100", now=5_000 + bland_relay.ALLOWLIST_S + 1) == "not_allowlisted"
+    reason, grant = bland_relay.reserve_send_ex("+12025550100", now=5_000 + bland_relay.ALLOWLIST_S + 1)
+    assert reason is None and grant["kind"] == "open"
 
 
 def test_recipient_rate_limit_is_5_per_10_minutes(http, monkeypatch):
