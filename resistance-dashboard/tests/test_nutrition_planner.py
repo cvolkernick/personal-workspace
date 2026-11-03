@@ -4042,6 +4042,125 @@ class TestMealVariety1068(unittest.TestCase):
                     self.assertLessEqual(float(item["portion_g"]), MAX_MEAL_ITEM_G + 0.5)
 
 
+class TestBeanPlateCap(unittest.TestCase):
+    """Black beans must not win every plate.
+
+    An uncapped 1,200 g pick plus the 15 g fiber hint used to select beans
+    ahead of tuna, egg whites, and whey. ``apply_plate_variety`` then spread
+    that one staple across the day.
+    """
+
+    def _pantry(self):
+        by_id = {row["id"]: dict(row, in_stock=True) for row in STAPLE_CATALOG}
+        rows = [
+            by_id["egg-whites"],
+            by_id["chicken-breast"],
+            by_id["whey-protein"],
+            by_id["canned-tuna"],
+            by_id["brown-rice"],
+            by_id["oats"],
+            by_id["black-beans"],
+            by_id["chia-seeds"],
+            by_id["ground-flaxseed"],
+            _egg_whole(),
+            _ing(
+                "almonds",
+                "Almonds",
+                category="fat",
+                serving_g=28,
+                serving_label="28g",
+                calories=164,
+                protein_g=6,
+                carbs_g=6,
+                fat_g=14,
+            ),
+        ]
+        self.assertTrue(all(not is_veg_or_fruit(row) for row in rows))
+        return {"ingredients": rows}
+
+    def test_fiber_hint_cannot_outrank_lean_protein(self):
+        pantry = {row["id"]: row for row in self._pantry()["ingredients"]}
+        beans = pantry["black-beans"]
+        self.assertEqual(estimated_fiber_g(beans), 15.0)
+        rem = {"calories": 2000, "protein_g": 210, "carbs_g": 180, "fat_g": 55}
+        bean_score = _score_ingredient(beans, rem, fiber_need_g=SOFT_FIBER_TARGET_G)
+        for lean_id in ("chicken-breast", "canned-tuna", "egg-whites", "whey-protein"):
+            lean_score = _score_ingredient(
+                pantry[lean_id], rem, fiber_need_g=SOFT_FIBER_TARGET_G
+            )
+            self.assertGreater(lean_score, bean_score, msg=lean_id)
+
+    def test_open_protein_pick_is_one_plate_not_1200g(self):
+        beans = next(row for row in STAPLE_CATALOG if row["id"] == "black-beans")
+        rem = {"calories": 2000, "protein_g": 210, "carbs_g": 180, "fat_g": 55}
+        pick = _pick_continuous_portion(
+            beans,
+            rem,
+            2200,
+            {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+        )
+        self.assertIsNotNone(pick)
+        _servings, portion_g = pick
+        plate_g = max(float(beans["serving_g"]) * 2.0, 250.0)
+        self.assertLessEqual(portion_g, plate_g + 5.0)
+        self.assertLess(portion_g, 500.0)
+
+    def test_stocked_lean_protein_is_not_a_bean_day(self):
+        plan = generate_meal_plan(
+            self._pantry(),
+            {"calories": 2000, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            EMPTY_CONSUMED,
+        )
+        self.assertTrue(plan["meals"], msg=plan.get("message"))
+        planned_kcal = float(plan["planned_totals"]["calories"] or 0)
+        self.assertGreater(planned_kcal, 0)
+        by_id = {}
+        for item in plan["items"]:
+            iid = str(item.get("id") or item.get("name"))
+            by_id[iid] = by_id.get(iid, 0.0) + float(item.get("calories") or 0)
+        for meal in plan["meals"]:
+            for item in meal["items"]:
+                if item.get("portion_g") is not None:
+                    self.assertLessEqual(float(item["portion_g"]), 250.0 + 0.5)
+        for iid, kcal in by_id.items():
+            self.assertLessEqual(
+                kcal,
+                planned_kcal * 0.40 + 0.5,
+                msg=f"{iid} is {kcal:.0f} of {planned_kcal:.0f} kcal",
+            )
+        stocked = self._pantry()["ingredients"]
+        protein_stocked = [
+            row for row in stocked if "protein" in plate_roles_for_item(row)
+        ]
+        self.assertGreaterEqual(len(protein_stocked), 4)
+        protein_planned = {
+            str(item.get("id") or "")
+            for item in plan["items"]
+            if "protein" in plate_roles_for_item(item)
+        }
+        self.assertGreaterEqual(len(protein_planned), 3, msg=plan["items"])
+
+        def _black_beans(item):
+            blob = f"{item.get('id') or ''} {item.get('name') or ''}".lower()
+            return "black bean" in blob
+
+        lean_stocked = False
+        for row in stocked:
+            blob = f"{row.get('id') or ''} {row.get('name') or ''}".lower()
+            if any(tok in blob for tok in ("chicken", "tuna", "egg white")):
+                lean_stocked = True
+                break
+        self.assertTrue(lean_stocked)
+        bean_meals = 0
+        for meal in plan["meals"]:
+            items = [it for it in meal["items"] if isinstance(it, dict)]
+            if items and all(_black_beans(it) for it in items):
+                self.fail(f"beans-only meal: {items}")
+            if any(_black_beans(it) for it in items):
+                bean_meals += 1
+        self.assertLess(bean_meals, len(plan["meals"]))
+
+
 # 10/5 flight night: locked Sleep 19:45 → 03:45, stale empty_at still 02:02.
 _OCT5_SLEEP = {
     "start": "2026-10-05T19:45:00-04:00",
