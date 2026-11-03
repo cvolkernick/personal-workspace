@@ -32,6 +32,7 @@ def test_parts_share_the_bland_relay_namespace():
         "relay_rcs.py",
         "relay_turo.py",
         "relay_helm_sms.py",
+        "relay_autoreply.py",
         "relay_http.py",
     ):
         assert (ROOT / name).is_file()
@@ -49,6 +50,7 @@ DEPLOY_PY = (
     "relay_rcs.py",
     "relay_turo.py",
     "relay_helm_sms.py",
+    "relay_autoreply.py",
     "relay_http.py",
     "caller_context.py",
     "turo_email.py",

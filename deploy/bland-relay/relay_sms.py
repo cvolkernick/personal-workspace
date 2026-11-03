@@ -76,17 +76,21 @@ def reserve_send(to, now=None):
     return reserve_send_ex(to, now)[0]
 
 
-def reserve_send_ex(to, now=None, *, commit=True):
+def reserve_send_ex(to, now=None, *, commit=True, cooldown_key=None, cooldown_s=None):
     """Rate limit and grant kind. On success, record the attempt before the gateway call.
 
     A failed gateway call still consumes a slot so a retry storm cannot multiply.
     Returns (reason, grant). reason is None when the send may proceed, otherwise
-    opt_out, rate_limited, or first_contact_disabled. Opt-out
+    opt_out, cooldown, rate_limited, or first_contact_disabled. Opt-out
     wins even after the 72-hour window and over any first-contact approval.
     grant is {"kind": "inbound"|"operator"|"first_contact"|"open", "entry": <entry copy or None>}.
 
     commit=False (the send route's dry_run) runs the same checks and returns the
     would-be grant without writing state.
+
+    cooldown_key plus a positive cooldown_s refuse when that book already has a
+    timestamp for this number inside the window, and on commit store the new one
+    in the same write as the rate-limit slot. The send route leaves both unset.
     """
     now = time.time() if now is None else now
     with _sms_lock:
@@ -110,6 +114,11 @@ def reserve_send_ex(to, now=None, *, commit=True):
             # Owner ruling 2026-11-03: no per-number allowlist; any number may receive 904 sends.
             # Opt-out, rate limits, SMS_SEND_DISABLED and send logging still apply.
             kind = "open"
+        if cooldown_key and cooldown_s:
+            book = st.get(cooldown_key) if isinstance(st.get(cooldown_key), dict) else {}
+            prev = float(book.get(to) or 0)
+            if prev and now - prev < float(cooldown_s):
+                return "cooldown", None
         sends = []
         for row in st.get("sends") or []:
             if not isinstance(row, dict):
@@ -141,6 +150,13 @@ def reserve_send_ex(to, now=None, *, commit=True):
             return None, {"kind": kind, "entry": entry}
         sends.append({"to": to, "at": now})
         st["sends"] = sends
+        if cooldown_key and cooldown_s:
+            book = dict(st.get(cooldown_key) or {}) if isinstance(st.get(cooldown_key), dict) else {}
+            book[to] = now
+            limit = float(cooldown_s)
+            st[cooldown_key] = {
+                k: v for k, v in book.items() if now - float(v or 0) < limit
+            }
         try:
             _save_json(_sms_state_path(), st)
         except OSError as e:

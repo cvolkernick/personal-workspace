@@ -2,13 +2,13 @@
 
 Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.service`). Tailscale Funnel `:8443` is the existing public front. Secret paths stay unguessable. This tree is the source for `~/bin`. The unit keeps running the copy in `~/bin`, not this checkout.
 
-`bland_relay.py` is the import surface (`import bland_relay`, and the `bland-relay.py` wrapper). It loads these parts from the same directory: `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_helm_sms.py`, `relay_http.py`. `caller_context.py`, `meeting_check.py`, `post_call.py` and `turo_email.py` stay beside them. Each of those source files stays under ~40 KB.
+`bland_relay.py` is the import surface (`import bland_relay`, and the `bland-relay.py` wrapper). It loads these parts from the same directory: `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_helm_sms.py`, `relay_autoreply.py`, `relay_http.py`. `caller_context.py`, `meeting_check.py`, `post_call.py` and `turo_email.py` stay beside them. Each of those source files stays under ~40 KB.
 
 ## Routes
 
 | Route | Auth | What it does |
 |---|---|---|
-| `POST /<RELAY_PATH>` | `X-Webhook-Signature` HMAC | Bland webhook. Forwards the raw body to Alexandra. A signed body also schedules the post-call hook (#1231) before that forward. |
+| `POST /<RELAY_PATH>` | `X-Webhook-Signature` HMAC | Bland webhook. Forwards the raw body to Alexandra. A signed body also schedules the post-call hook (#1231) before that forward. With `AUTO_REPLY_906_ENABLED=1`, an inbound SMS on the 906 number also sends one fixed reply (below). The flag defaults off. |
 | `POST /<FWD_PATH>` | `FWD_TOKEN` as `Authorization: Bearer` or `X-Relay-Token` | 904 inbound SMS from the phone forwarder. Forwards the normalized payload. Records the sender for the reply allowlist unless `test: true`. |
 | `POST /<SMSGW_HOOK_PATH>` | Secret path, plus SMSGate `X-Signature`/`X-Timestamp` HMAC when `SMSGW_SIGNING_KEY` is set | SMSGate cloud `sms:received` webhook (#1054). Same inbound path as the forwarder: allowlist record, STOP/opt-out, same payload to Alexandra. Replaces the SMS Forwarder app. |
 | `POST /<RCS_HOOK_PATH>` | Secret path, plus `RCS_HOOK_TOKEN` (required) as `Authorization: Bearer` or `X-Relay-Token` | Google Messages notifications from the 904 phone (#1056), so RCS chats arrive too. Same allowlist, STOP, and payload. Deduped against SMSGate. Kill switch `RCS_HOOK_DISABLED=1`. Turo app notifications on the same route go to the Turo relay (#1104, below). |
@@ -47,6 +47,49 @@ The one number in `TURO_OWNER_ALERT_TO` (the operator cell, compared after NANP 
 Opt-out matches the whole inbound text, punctuation ignored. A later normal text does not clear it. `START`, `UNSTOP`, or `YES` does. Opt-out still blocks after 72 hours, including an open number. The gateway is called once (not at all on a dry run). A retry would risk a second SMS, so a failed attempt still uses a rate-limit slot.
 
 Logs show the last 4 digits and the message length. They do not show the body, the secret paths, or the gateway password. State lives in `~/.local/state/bland-relay/sms_send_state.json` (mode 0600) and stores numbers and timestamps only.
+
+## 906 fixed auto-reply
+
+Bland's SMS auto-reply on the 906 number (the Bland line ending 6221) rewrites one sentence on every inbound text. A signed inbound SMS webhook on `POST /<RELAY_PATH>` can send that sentence exactly, through the same gateway path as `POST /<SEND_PATH>` (the 904 handset): `reserve_send_ex`, `gateway_send`, the recipient and global rate limits, the CRM outbox row, and the same last-4 logs. The webhook's HTTP status stays the forward result. This does not change Bland. Turning off Bland `auto_reply_enabled` is a separate config step. Leave this flag off until that step: with both on, one inbound text gets Bland's reply and this one.
+
+`AUTO_REPLY_906_ENABLED` defaults off (`0` or unset). A deploy sends nothing until it is `1`.
+
+| Env | Default | Meaning |
+|---|---|---|
+| `AUTO_REPLY_906_ENABLED` | `0` | `1` sends. Anything else, including unset, does not. |
+| `AUTO_REPLY_906_TEXT` | the sentence below | Exact reply. Empty sends nothing. |
+| `AUTO_REPLY_906_NUMBER` | `+19062406221` | Agent number that triggers the reply. An invalid value turns replies off. |
+| `AUTO_REPLY_906_COOLDOWN_S` | `86400` | One auto-reply per number per window. `0` disables the cooldown. A non-integer or a value outside 0–30 days uses 86400. |
+
+Default text, the sentence configured on that Bland number today:
+
+```text
+Thanks for reaching out to Panamerica Auto! This is an automated reply. You can reach us by text or phone at (904) 334-3975, and we'll follow up with you there.
+```
+
+The reply runs only for a message webhook: `channel` `sms`, `agent_number` the configured line, `sender` `USER`, and a string `message`. Status events, agent or human messages, and call webhooks do not send. The user number is `phone_number` (else `user_number` or `from`).
+
+Skipped, with a last-4 journal line and no gateway call:
+
+| Case | Reason |
+|---|---|
+| Conversation handed to a human (`status` `human_handoff`, `metadata.human_handoff`, `metadata.last_human_handoff`, or `sender` `HUMAN`) | `handoff` |
+| Marked no auto-replies (that phrase on the handoff reason, or `metadata` / `variables` / `contact` / tags) | `no_auto_replies` |
+| This text is STOP (or UNSUBSCRIBE, CANCEL, END, QUIT, STOPALL, REVOKE, OPTOUT), or the number already opted out | `opt_out` |
+| `SMS_SEND_DISABLED=1` | `send_disabled` |
+| An auto-reply to that number is still inside the cooldown | `cooldown` |
+| Gateway env missing, or the reply text is empty or over 640 characters | `gateway_unconfigured` / `bad_text` |
+
+A handoff or no-auto-replies mark is stored on the user number until a `human_handoff_ended` webhook for that number. STOP is stored on the shared opt-out flag (it does not refresh the 72-hour inbound window and it does not approve a first-contact code). `START`, `UNSTOP`, or `YES` clears the opt-out. The reply then follows the usual rules.
+
+`dry_run: true` on the webhook JSON uses the send route's rule: checks and the dry-run log run, and the gateway is not called. The string `"true"` is a real send. A dry run does not consume a rate-limit slot or the cooldown. A refused dry run, including STOP, handoff, and the kill switch, does not send either.
+
+The cooldown stamp is written in the same state save as the rate-limit slot, before the gateway call, so a failed attempt does not send a second text. Logs and the #701 alert show the last 4 digits and the length, not the body.
+
+```bash
+printf %s 1 | ~/bin/bland-relay-setkey AUTO_REPLY_906_ENABLED
+printf %s 0 | ~/bin/bland-relay-setkey AUTO_REPLY_906_ENABLED
+```
 
 ## Gateway mode
 
@@ -655,14 +698,14 @@ Not done by this PR. Do not copy these files onto prism, do not restart the unit
 
 `smoke.py` is a local read-only tool. It is not copied.
 
-Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_helm_sms.py`, `relay_http.py`, `caller_context.py`, `meeting_check.py`, `post_call.py`, `turo_email.py`, `bland-relay-setkey`, `send-904`, `send-904-fc`.
+Deploy files: `bland-relay.py`, `bland_relay.py`, `relay_config.py`, `relay_audit.py`, `relay_sms.py`, `relay_fc.py`, `relay_send.py`, `relay_rcs.py`, `relay_turo.py`, `relay_helm_sms.py`, `relay_autoreply.py`, `relay_http.py`, `caller_context.py`, `meeting_check.py`, `post_call.py`, `turo_email.py`, `bland-relay-setkey`, `send-904`, `send-904-fc`.
 
 1. Back up the files already on prism. A name that is not on prism yet (`post_call.py` on the first #1231 deploy) is skipped. `bak-pre1230` was the #1230 stamp; this slice uses `bak-pre1231`.
 
 ```bash
 stamp=bak-pre1231
 for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
-  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_helm_sms.py relay_http.py \
+  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_helm_sms.py relay_autoreply.py relay_http.py \
   caller_context.py meeting_check.py post_call.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
   if [ -f ~/bin/$f ]; then cp ~/bin/$f ~/bin/$f.$stamp; fi
 done
@@ -681,6 +724,7 @@ cp deploy/bland-relay/bland-relay.py \
   deploy/bland-relay/relay_rcs.py \
   deploy/bland-relay/relay_turo.py \
   deploy/bland-relay/relay_helm_sms.py \
+  deploy/bland-relay/relay_autoreply.py \
   deploy/bland-relay/relay_http.py \
   deploy/bland-relay/caller_context.py \
   deploy/bland-relay/meeting_check.py \
@@ -690,7 +734,7 @@ cp deploy/bland-relay/bland-relay.py \
 cp deploy/bland-relay/bland-relay-setkey deploy/bland-relay/send-904 deploy/bland-relay/send-904-fc ~/bin/
 chmod 755 ~/bin/bland-relay.py ~/bin/bland-relay-setkey ~/bin/send-904 ~/bin/send-904-fc
 chmod 644 ~/bin/bland_relay.py ~/bin/relay_config.py ~/bin/relay_audit.py ~/bin/relay_sms.py \
-  ~/bin/relay_fc.py ~/bin/relay_send.py ~/bin/relay_rcs.py ~/bin/relay_turo.py ~/bin/relay_helm_sms.py ~/bin/relay_http.py \
+  ~/bin/relay_fc.py ~/bin/relay_send.py ~/bin/relay_rcs.py ~/bin/relay_turo.py ~/bin/relay_helm_sms.py ~/bin/relay_autoreply.py ~/bin/relay_http.py \
   ~/bin/caller_context.py ~/bin/meeting_check.py ~/bin/post_call.py ~/bin/turo_email.py
 ```
 
@@ -738,7 +782,7 @@ Rollback restores the `$stamp` copies over `~/bin`, then removes any `~/bin/rela
 ```bash
 stamp=bak-pre1231
 for f in bland-relay.py bland_relay.py relay_config.py relay_audit.py relay_sms.py \
-  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_helm_sms.py relay_http.py \
+  relay_fc.py relay_send.py relay_rcs.py relay_turo.py relay_helm_sms.py relay_autoreply.py relay_http.py \
   caller_context.py meeting_check.py post_call.py turo_email.py bland-relay-setkey send-904 send-904-fc; do
   if [ -f ~/bin/$f.$stamp ]; then cp ~/bin/$f.$stamp ~/bin/$f; fi
 done
@@ -772,5 +816,7 @@ python3 -m pytest tests -q
 `tests/test_caller_context.py` (#1096, no Bland or CRM network) covers index ingest for an inbound call webhook, a polled voicemail, a concurrency rejection, Bland SMS, and SMSGate; provider-id dedupe; `(239) 555-0101` == `+12395550101`; endpoint 401, unknown, last-3 ET order, sensitive-pattern stripping, and internal-error empty 200; a fixture CRM record (purpose, follow-up, booking sentence) and CRM timeout/5xx falling back to the index inside 250 ms; a non-loopback `CRM_API_BASE` using the index with no request and without echoing the token; both 2026-10-09 callback replays; a GET-only poller that stops on 429 and survives 5xx; 180-day purge; Grok-seat forget; token scrubbing; and p95 under 300 ms on 10k local rows.
 
 `tests/test_first_contact.py` (#1100, SMSGate mocked, no network) covers, with `FC_REQUIRE_APPROVAL=1`: an unapproved or pending number is an open grant, chat and SMS approval, no agent/self approval, code/text/ref checks, opt-out at request/approve/send and START, the daily cap and a capped entry becoming an open grant, existing rate limits, expiry/renewal/conversion, both kill switches, list/revoke, audit and CRM outbox records (no body, no secrets, 0600), log redaction, and the `send-904-fc` CLI; the #1102 (a) daily-cap rule for revoked/expired re-requests at request and at chat and SMS approve; #1102 (b) chat approval bound to `FC_CHAT_APPROVER` (unbound token and a different approver name are 403, and enabling the hash logs a warning); #1102 (c) an RCS title that is the approver's number does not approve (`deny`) while an `RCS_NAME_MAP` name does; #1102 (d) a non-local `SEND904_BASE` is refused by both CLIs before any request and the token is not printed; and, with approval off (default): immediate add, validation, STOP blocking add/send until START, the daily cap counting re-adds, TTL, no cap reset on re-add, existing rate limits, both kill switches, audit/CRM records, the approve route and SMS `YES <code>` being inert, and `send-904-fc add`.
+
+`tests/test_auto_reply_906.py` (gateway mocked, no live SMS, Bland config untouched) covers the fixed 906 reply: the exact default sentence and an env override, the 24-hour cooldown and expiry, STOP until START plus an opt-out already on the number, human handoff and a no-auto-replies mark (including a later plain text), the `SMS_SEND_DISABLED` kill switch, the flag left off, `dry_run: true` with no gateway call, and an agent message or a call webhook sending nothing. The Bland webhook still forwards the raw body.
 
 Covered: token 401, validation, the 72-hour inbound window and the open grant past it, `dry_run` (no gateway call), STOP until START, both rate limits, kill switch, missing gateway config, one mocked gateway call, log and #701 text redaction, 904 inbound forward plus allowlist recording, Bland HMAC including the compact-JSON signature, the SMSGate webhook: signature ok/bad/unsigned/stale, wrong path 404, payload parse and shape parity, allowlist, STOP/START, ignored events, duplicate ids, forward failure, and log redaction. The RCS notification route (`tests/test_rcs_webhook.py`) covers: app payload and lenient template parsing, number/title/name-map/unknown sender resolution, token 401, unset/blank token 503 (no path-only mode), path 404, kill switch 503, package/summary filtering, STOP/START, the unknown sender not being allowlisted, dedupe both ways against SMSGate plus repeat notifications and window expiry, the SMSGate head-start wait, forward failure and retry, and log redaction. The Turo relay (`tests/test_turo_relay.py`, #1104, gateway/webhooks mocked and real network blocked) covers: the Turo branch on the same path/token, token 401, unset/blank `RCS_HOOK_TOKEN` refusing the whole route, path 404, other packages still ignored, Messages unchanged, `big_text` preference, the normalized shape, reservation/vehicle/guest parsing with nulls, dedupe (key+text, guest+text, prefix re-post, window expiry, persisted state), suppression (default, env, bad regex), each urgent class, priority, the negative list and env overrides, owner_alert (template, `TURO_OWNER_ALERT_TO` as the only recipient, invalid E.164 disabled and never logged, no number in code, unset, 72 h skip for the owner only, `SMS_SEND_DISABLED`, STOP/START, dedupe, per-guest and hourly limits, relay-wide slot, gateway failure), non-urgent never texting, both kill switches, the trimmed Helm field set and auth (default Bearer, scheme passthrough, custom header, bad header, no key, timeout), JSONL-only when URLs are unset, the trimmed Alexandra `turo_urgent` push, webhook failure/exception isolation, inbox 0600/redaction/retention, and log/secret redaction. The Gmail push path (`tests/test_gmail_turo_watch.py`, #1142, Gmail history/messages from `tests/fixtures/gmail_turo`, webhooks stubbed, network blocked) covers: the parser (both copies, multi-line, HTML-only, non-Turo, booking mail, spoofed DKIM, too old, SPAM/SENT, lookalike domain), end-to-end history sync, the two Gmail copies giving one Helm POST, relay-first and email-first cross-source dedupe, truncated notifications, the guest/vehicle/trip guard and window, unchanged relay-only behavior, co-host suppression, the urgent owner alert + Alexandra, no second owner alert, kill switches, shadow mode, nack on relay or Gmail failure without advancing historyId, history 404 recovery, ack rules, watch renew, the loopback-only listener (token, path, proxy headers), the unit templates (the only timer is the daily renew), and the #1143 review fixes: topmost-A-R-only auth (forged lower header, missing A-R, non-Gmail top, DMARC fail rejected; real pass accepted), missing internalDate, 4xx skip and 5xx/fetch retry-then-skip with one alert and bounded state, cross-source consumption, the truncation/60% prefix rule, the watcher-side disable switch, catch-up after a lapsed watch, the key-file mode check, and shadow mode advancing historyId.

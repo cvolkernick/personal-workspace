@@ -422,40 +422,10 @@ class H(BaseHTTPRequestHandler):
         placed_by = _fc_seat(data.get("placed_by"))
         # JSON true only. Any other value, including the string "true", is a real send.
         dry_run = data.get("dry_run") is True
-        now = time.time()
-        reason, grant = reserve_send_ex(to, now, commit=not dry_run)
-        tail = _tail4(to)
-        if reason:
-            log.warning("sms send refused to=***%s reason=%s", tail, reason)
-            if reason in FC_REFUSALS:
-                fc_audit("send_refused", now, to=to, reason=reason)
-            code = 429 if reason in ("rate_limited", "first_contact_send_cap") else 403
-            return self._send(code, {"ok": False, "error": reason})
-        if dry_run:
-            log.info(
-                "sms send dry-run to=***%s len=%d grant=%s",
-                tail, len(message), (grant or {}).get("kind") or "-",
-            )
-            return self._send(200, {
-                "ok": True, "dry_run": True, "grant": (grant or {}).get("kind"),
-            })
-        result, err = gateway_send(to, message)
-        emit_interaction(crm_interaction_record(to, grant, result, err, now, purpose, placed_by))
-        if grant and grant.get("kind") == "first_contact":
-            fc_audit("send", now, to=to, outcome="sent" if result is not None else "failed",
-                     length=len(message), sends=(grant.get("entry") or {}).get("sends"),
-                     placed_by=placed_by, gateway_id=(result or {}).get("id"),
-                     gateway_state=(result or {}).get("state"))
-        if result is None:
-            log.error("sms send gateway failed to=***%s len=%d error=%s", tail, len(message), _scrub(err))
-            _spawn(alert_failure, (f"sms-****{tail}", err, 1, "904 SMS send failed"))
-            return self._send(502, {"ok": False, "error": "gateway failed"})
-        log.info(
-            "sms send ok to=***%s len=%d id=%s state=%s grant=%s",
-            tail, len(message), result.get("id") or "-", result.get("state") or "-",
-            (grant or {}).get("kind") or "-",
+        code, result = deliver_outbound_sms(
+            to, message, dry_run=dry_run, purpose=purpose, placed_by=placed_by,
         )
-        return self._send(200, {"ok": True, "id": result.get("id"), "state": result.get("state")})
+        return self._send(code, result)
 
     def _first_contact(self):
         got = token_from_headers(self.headers)
@@ -548,6 +518,10 @@ class H(BaseHTTPRequestHandler):
                 sorted(k.lower() for k in self.headers.keys()),
             )
             return self._send(401, {"ok": False, "error": "bad signature"})
+        try:
+            maybe_auto_reply_906(body)
+        except Exception as e:  # noqa: BLE001 - the Alexandra forward still runs
+            log.error("906 auto-reply failed: %s", type(e).__name__)
         _spawn(post_call.handle, (body,))
         status, err, attempts = forward(body)
         if status is not None:
@@ -758,6 +732,7 @@ def main():
         "off" if env("POST_CALL_INGEST").lower() == "off" else "on",
         "off" if env("POST_CALL_PUSH_DISABLED") == "1" else "on",
     )
+    log.info("%s", auto_reply_906_startup_line())
     meeting_check.start_sync()
     srv = ThreadingHTTPServer((HOST, PORT), H)
     log.info("listening on %s:%d", HOST, PORT)

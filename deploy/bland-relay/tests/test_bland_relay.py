@@ -34,6 +34,10 @@ def isolated(monkeypatch, tmp_path):
         "SMSGW_USER",
         "SMSGW_PASS",
         "SMS_SEND_DISABLED",
+        "AUTO_REPLY_906_ENABLED",
+        "AUTO_REPLY_906_TEXT",
+        "AUTO_REPLY_906_NUMBER",
+        "AUTO_REPLY_906_COOLDOWN_S",
     ):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("BLAND_RELAY_STATE_DIR", str(tmp_path))
