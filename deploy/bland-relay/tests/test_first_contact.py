@@ -131,14 +131,27 @@ def send(http, to=LEAD, msg="Hi Dana, this is Panamerica Auto.", **kw):
 
 # --- approval required -------------------------------------------------------
 
-def test_unapproved_first_contact_is_still_refused(http, gateway):
-    code, res = send(http)
-    assert code == 403 and res["error"] == "not_allowlisted"
+def test_unapproved_number_is_an_open_grant(http, gateway):
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
     code, res = post(http, FC, request_body())
     assert code == 200 and res["status"] == "pending"
-    code, res2 = send(http)
-    assert code == 403 and res2["error"] == "not_allowlisted"  # pending is not approved
+    code, res2 = send(http, dry_run=True)
+    assert code == 200 and res2["grant"] == "open"  # pending is not a first-contact grant
     assert gateway == []
+
+
+def test_dry_run_reports_grant_without_calling_gateway(http, gateway, tmp_path):
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res == {"ok": True, "dry_run": True, "grant": "open"}
+    approved(http)
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "first_contact"
+    _, lst = post(http, FC, {"action": "list", "status": "active"})
+    assert lst["entries"][0]["sends"] == 0
+    assert gateway == []
+    assert outbox(tmp_path) == []
+    assert [r["event"] for r in audit(tmp_path)] == ["request", "approve"]
 
 
 def test_request_validates_and_normalizes(http):
@@ -169,7 +182,9 @@ def test_send_token_cannot_approve(http, gateway, tmp_path):
     code, req = post(http, FC, request_body())
     code, res = post(http, FC, approve_body(req["code"]), SEND_TOK)
     assert code == 403 and "approver token" in res["error"]
-    assert send(http)[0] == 403
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
+    assert gateway == []
     assert any(r["event"] == "deny" and r["reason"] == "approve_without_approver_token" for r in audit(tmp_path))
 
 
@@ -237,7 +252,9 @@ def test_sms_yes_from_other_number_or_rcs_title_does_not_approve(http, gateway, 
     bland_relay.note_inbound("+19045550999", f"YES {req['code']}", via="smsgate")
     bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via="rcs-title")
     bland_relay.note_inbound(CHRIS, "YES 000000", via="smsgate")
-    assert send(http)[0] == 403
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
+    assert gateway == []
     denies = [r for r in audit(tmp_path) if r["event"] == "deny"]
     reasons = [r.get("reason") for r in denies]
     assert "via_not_allowed" in reasons and "no_matching_pending" in reasons
@@ -334,14 +351,17 @@ def test_existing_global_rate_limit_applies(gateway, monkeypatch):
     assert bland_relay.reserve_send(LEAD, now=now) == "rate_limited"
 
 
-def test_sends_before_reply_cap(http, gateway, monkeypatch):
+def test_sends_before_reply_cap_becomes_open(http, gateway, monkeypatch, tmp_path):
     monkeypatch.setenv("FC_MAX_SENDS_BEFORE_REPLY", "2")
     approved(http)
     assert send(http)[0] == 200 and send(http)[0] == 200
     c, r = send(http)
-    assert c == 429 and r["error"] == "first_contact_send_cap"
+    assert c == 200 and r["ok"] is True
+    assert [row["metadata"]["grant"] for row in outbox(tmp_path)] == [
+        "first_contact", "first_contact", "open"]
     bland_relay.note_inbound(LEAD, "sure, tell me more")  # reply -> normal inbound window
     assert send(http)[0] == 200
+    assert outbox(tmp_path)[-1]["metadata"]["grant"] == "inbound"
 
 
 # --- expiry, renewal, conversion -----------------------------------------------
@@ -352,8 +372,10 @@ def test_expiry_and_renewal(monkeypatch):
     _, req = bland_relay.fc_request(request_body(), now=t)
     bland_relay.fc_approve(approve_body(req["code"]), now=t)
     ttl = 30 * bland_relay.FC_DAY_S
-    assert bland_relay.reserve_send(LEAD, now=t + ttl - 10) is None
-    assert bland_relay.reserve_send(LEAD, now=t + ttl + 1) == "first_contact_expired"
+    reason, grant = bland_relay.reserve_send_ex(LEAD, now=t + ttl - 10)
+    assert reason is None and grant["kind"] == "first_contact"
+    reason, grant = bland_relay.reserve_send_ex(LEAD, now=t + ttl + 1)
+    assert reason is None and grant == {"kind": "open", "entry": None}
     _, lst = bland_relay.fc_list({"status": "expired"}, now=t + ttl + 1)
     assert [r["to"] for r in lst["entries"]] == [LEAD]
     t2 = t + ttl + 100
@@ -369,7 +391,8 @@ def test_ttl_is_configurable(monkeypatch):
     t = 6_000_000
     _, req = bland_relay.fc_request(request_body(), now=t)
     bland_relay.fc_approve(approve_body(req["code"]), now=t)
-    assert bland_relay.reserve_send(LEAD, now=t + 7 * bland_relay.FC_DAY_S + 1) == "first_contact_expired"
+    reason, grant = bland_relay.reserve_send_ex(LEAD, now=t + 7 * bland_relay.FC_DAY_S + 1)
+    assert reason is None and grant == {"kind": "open", "entry": None}
 
 
 def test_reply_converts_to_inbound_window(tmp_path):
@@ -382,7 +405,8 @@ def test_reply_converts_to_inbound_window(tmp_path):
     assert bland_relay.reserve_send(LEAD, now=t + 120) is None
     # after the 72h inbound window the approval does not come back
     later = t + 60 + bland_relay.ALLOWLIST_S + 1
-    assert bland_relay.reserve_send(LEAD, now=later) == "not_allowlisted"
+    reason, grant = bland_relay.reserve_send_ex(LEAD, now=later)
+    assert reason is None and grant == {"kind": "open", "entry": None}
     assert any(r["event"] == "convert" for r in audit(tmp_path))
 
 
@@ -395,7 +419,11 @@ def test_kill_switch_blocks_send_request_and_approve(http, gateway, monkeypatch)
     assert post(http, FC, request_body(to="+19045550124"))[0] == 503
     bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via="smsgate")
     monkeypatch.delenv("SMS_SEND_DISABLED")
-    assert send(http)[0] == 403  # SMS approval during kill switch was ignored
+    # SMS approval during the kill switch was ignored: still pending, so the grant is open.
+    _, lst = post(http, FC, {"action": "list"})
+    assert [e["status"] for e in lst["entries"] if e["to"] == LEAD] == ["pending"]
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
     _, req = post(http, FC, request_body())
     post(http, FC, approve_body(req["code"]), APPROVE_TOK)
     monkeypatch.setenv("SMS_SEND_DISABLED", "1")
@@ -429,7 +457,8 @@ def test_list_and_revoke(http, gateway, tmp_path):
     assert lst["daily_used"] == 1 and lst["daily_max"] == 20 and lst["ttl_days"] == 30
     c, r = post(http, FC, {"action": "revoke", "to": LEAD, "reason": "wrong number", "revoked_by": "grok"})
     assert c == 200
-    assert send(http)[0] == 403
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
     assert post(http, FC, {"action": "revoke", "to": "+19045550124", "reason": "x", "revoked_by": "grok"})[0] == 200
     assert post(http, FC, {"action": "revoke", "to": "+19045550199", "reason": "x", "revoked_by": "grok"})[0] == 404
     assert post(http, FC, {"action": "revoke", "to": LEAD})[0] == 400
@@ -632,7 +661,11 @@ def test_chat_token_without_binding_is_refused(http, monkeypatch, tmp_path):
     _, req = post(http, FC, request_body())
     c, r = post(http, FC, approve_body(req["code"]), APPROVE_TOK)
     assert c == 403 and r["error"] == "chat_approval_unbound"
-    assert send(http)[0] == 403
+    calls = []
+    monkeypatch.setattr(bland_relay, "gateway_send", lambda *a, **k: calls.append(a) or ({"id": "x", "state": "Pending"}, ""))
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
+    assert calls == []
     assert any(row.get("reason") == "chat_approval_unbound" for row in audit(tmp_path))
 
 
@@ -686,7 +719,11 @@ def test_rcs_title_does_not_approve_mapped_name_does(http, monkeypatch, tmp_path
         "text": f"YES {req['code']}",
     }
     assert post(http, "/rcs-secret", title_as_number, "rcs-tok") == (200, {"ok": True})
-    assert send(http)[0] == 403
+    calls = []
+    monkeypatch.setattr(bland_relay, "gateway_send", lambda *a, **k: calls.append(a) or ({"id": "x", "state": "Pending"}, ""))
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
+    assert calls == []
     assert any(r.get("event") == "deny" and r.get("reason") == "via_not_allowed" and r.get("via") == "rcs-title"
                for r in audit(tmp_path))
     bland_relay._recent_msgs.clear()
@@ -779,7 +816,9 @@ def test_require_approval_flag_values(monkeypatch):
 
 
 def test_no_approval_add_allows_immediately(http, gateway, no_approval, tmp_path):
-    assert send(http)[1]["error"] == "not_allowlisted"
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
+    assert gateway == []
     c, r = post(http, FC, add_body())
     assert c == 200 and r["status"] == "active" and r["approval_required"] is False
     assert "code" not in r and r["entry"]["approved_via"] == "auto"
@@ -804,14 +843,17 @@ def test_no_approval_add_still_validates(http, no_approval):
     assert post(http, FC, add_body(), token="wrong")[0] == 401
 
 
-def test_no_approval_readding_active_does_not_reset_caps(http, gateway, no_approval, monkeypatch):
+def test_no_approval_readding_active_does_not_reset_caps(http, gateway, no_approval, monkeypatch, tmp_path):
     monkeypatch.setenv("FC_MAX_SENDS_BEFORE_REPLY", "2")
     post(http, FC, add_body())
     assert send(http)[0] == 200 and send(http)[0] == 200
     c, r = post(http, FC, add_body())
     assert c == 200 and r["already_active"] is True and r["entry"]["sends"] == 2
     c, r = send(http)
-    assert c == 429 and r["error"] == "first_contact_send_cap"
+    assert c == 200 and r["ok"] is True
+    assert outbox(tmp_path)[-1]["metadata"]["grant"] == "open"
+    _, lst = post(http, FC, {"action": "list"})
+    assert [e["sends"] for e in lst["entries"] if e["to"] == LEAD] == [2]
     bland_relay.note_inbound(LEAD, "who is this?")  # reply converts -> normal window
     assert send(http)[0] == 200
 
@@ -845,7 +887,8 @@ def test_no_approval_daily_cap_counts_readds(no_approval, monkeypatch):
     assert bland_relay.fc_request(add_body(to=a), now=t + 3)[1]["error"] == "daily_cap"
     # next day: a (revoked) re-add uses a slot; b expired re-add uses the other
     t2 = t + bland_relay.FC_DAY_S + 10
-    assert bland_relay.reserve_send(b, now=t2) == "first_contact_expired"
+    reason, grant = bland_relay.reserve_send_ex(b, now=t2)
+    assert reason is None and grant == {"kind": "open", "entry": None}
     assert bland_relay.fc_request(add_body(to=a), now=t2)[0] == 200
     assert bland_relay.fc_request(add_body(to=b), now=t2)[0] == 200
     assert bland_relay.fc_request(add_body(to=c3), now=t2)[1]["error"] == "daily_cap"
@@ -866,8 +909,10 @@ def test_no_approval_ttl_expiry(no_approval, monkeypatch):
     _, r = bland_relay.fc_request(add_body(), now=t)
     assert r["status"] == "active"
     ttl = 7 * bland_relay.FC_DAY_S
-    assert bland_relay.reserve_send(LEAD, now=t + ttl - 10) is None
-    assert bland_relay.reserve_send(LEAD, now=t + ttl + 1) == "first_contact_expired"
+    reason, grant = bland_relay.reserve_send_ex(LEAD, now=t + ttl - 10)
+    assert reason is None and grant["kind"] == "first_contact"
+    reason, grant = bland_relay.reserve_send_ex(LEAD, now=t + ttl + 1)
+    assert reason is None and grant == {"kind": "open", "entry": None}
 
 
 def test_no_approval_kill_switches(http, gateway, no_approval, monkeypatch):
@@ -911,7 +956,9 @@ def test_no_approval_approve_route_is_inert(http, gateway, no_approval, tmp_path
         assert c == 409 and r["error"] == "approval_not_required"
     assert post(http, FC, approve_body("123456"), "wrong")[0] == 401
     assert bland_relay.fc_approve(approve_body("123456"))[0] == 409
-    assert send(http)[1]["error"] == "not_allowlisted"
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
+    assert gateway == []
     assert any(r.get("reason") == "approval_not_required" for r in audit(tmp_path))
 
 
@@ -922,7 +969,9 @@ def test_no_approval_sms_yes_from_approver_does_nothing(http, gateway, no_approv
     monkeypatch.delenv("FC_REQUIRE_APPROVAL")
     for via in ("smsgate", "sms", "forwarder", "rcs-number", "rcs-name_map", "rcs-title"):
         bland_relay.note_inbound(CHRIS, f"YES {req['code']}", via=via)
-    assert send(http)[1]["error"] == "not_allowlisted"
+    code, res = send(http, dry_run=True)
+    assert code == 200 and res["grant"] == "open"
+    assert gateway == []
     _, lst = post(http, FC, {"action": "list"})
     assert [e["status"] for e in lst["entries"]] == ["pending"] and lst["daily_used"] == 0
     assert not any(r["event"] in ("approve", "deny") for r in audit(tmp_path))

@@ -1,7 +1,8 @@
-"""Operator number (TURO_OWNER_ALERT_TO) bypasses the 72-hour send allowlist only.
+"""Operator number (TURO_OWNER_ALERT_TO) is grant kind operator.
 
 Ported from the live-only prism hotfix of 2026-10-14 (is_operator_number and the
-kind="operator" branch in reserve_send_ex). Opt-out and rate limits still apply.
+kind="operator" branch in reserve_send_ex). Any other number outside the 72-hour
+inbound window is grant kind open. Opt-out and rate limits still apply.
 """
 import pytest
 
@@ -38,10 +39,14 @@ def test_fresh_inbound_still_reports_inbound_kind():
     assert reason is None and grant["kind"] == "inbound"
 
 
-def test_non_operator_without_allowlist_is_still_blocked():
-    assert bland_relay.reserve_send(OTHER, now=T0) == "not_allowlisted"
+def test_non_operator_outside_inbound_window_is_open():
+    reason, grant = bland_relay.reserve_send_ex(OTHER, now=T0)
+    assert reason is None and grant == {"kind": "open", "entry": None}
     bland_relay.note_inbound(OTHER, "hi", now=T0)
-    assert bland_relay.reserve_send(OTHER, now=T0 + bland_relay.ALLOWLIST_S + 1) == "not_allowlisted"
+    reason, grant = bland_relay.reserve_send_ex(OTHER, now=T0 + 5)
+    assert reason is None and grant["kind"] == "inbound"
+    reason, grant = bland_relay.reserve_send_ex(OTHER, now=T0 + bland_relay.ALLOWLIST_S + 1)
+    assert reason is None and grant == {"kind": "open", "entry": None}
 
 
 def test_operator_compare_normalizes_phone_forms():
@@ -66,7 +71,8 @@ def test_unset_or_invalid_env_means_no_bypass(monkeypatch, value):
     assert bland_relay.is_operator_number(OPERATOR) is False
     assert bland_relay.is_operator_number(None) is False
     assert bland_relay.is_operator_number("") is False
-    assert bland_relay.reserve_send(OPERATOR, now=T0) == "not_allowlisted"
+    reason, grant = bland_relay.reserve_send_ex(OPERATOR, now=T0)
+    assert reason is None and grant["kind"] == "open"
 
 
 def test_opt_out_still_blocks_operator_even_after_window():

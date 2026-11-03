@@ -12,11 +12,19 @@ POST /<RCS_HOOK_PATH>
 accepts Google Messages notifications from a notification-listener app on the
 904 phone so RCS chats reach the same inbound path, deduped against SMSGate
 (#1056). POST /<SEND_PATH> lets Alexandra send one plain SMS back through SMS
-Gateway for Android. POST /<FC_PATH> manages first-contact numbers
-(add / request / approve / list / revoke, #1100) so the send route can reach a
-number that never texted 904. With FC_REQUIRE_APPROVAL=0 (the default) an add
-allows the number at once; FC_REQUIRE_APPROVAL=1 restores the per-number
-approval gate (Chris approves each number). Turo app notifications posted to
+Gateway for Android. Any number may receive that send. Grant kind is
+"inbound" inside the 72-hour window, "operator" for TURO_OWNER_ALERT_TO,
+"first_contact" for an active entry under the sends-before-reply cap, and
+"open" otherwise (no entry, or an expired or capped one). Opt-out, the
+recipient and global rate limits, SMS_SEND_DISABLED, and FC_DISABLED still
+block the send, and send logging is unchanged. JSON dry_run true runs those
+checks and the dry-run log line and returns the would-be grant kind without
+calling the gateway. POST /<FC_PATH> manages first-contact numbers
+(add / request / approve / list / revoke, #1100). An active entry supplies
+the purpose on the CRM row. With FC_REQUIRE_APPROVAL=0 (the default) an add
+is active at once; FC_REQUIRE_APPROVAL=1 restores the per-number approval
+gate (Chris approves each number). That gate does not block an open send.
+Turo app notifications posted to
 the same RCS route (package com.relayrides.android.relayrides) go to the Turo
 relay (#1104): JSONL inbox, Helm webhook, and for urgent messages only a
 templated 904 SMS to TURO_OWNER_ALERT_TO (the only recipient) plus a "turo_urgent" push to

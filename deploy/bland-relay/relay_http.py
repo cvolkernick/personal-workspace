@@ -420,8 +420,10 @@ class H(BaseHTTPRequestHandler):
         purpose = data.get("purpose") if isinstance(data.get("purpose"), str) else None
         purpose = " ".join(purpose.split())[:FC_PURPOSE_MAX] if purpose else None
         placed_by = _fc_seat(data.get("placed_by"))
+        # JSON true only. Any other value, including the string "true", is a real send.
+        dry_run = data.get("dry_run") is True
         now = time.time()
-        reason, grant = reserve_send_ex(to, now)
+        reason, grant = reserve_send_ex(to, now, commit=not dry_run)
         tail = _tail4(to)
         if reason:
             log.warning("sms send refused to=***%s reason=%s", tail, reason)
@@ -429,6 +431,14 @@ class H(BaseHTTPRequestHandler):
                 fc_audit("send_refused", now, to=to, reason=reason)
             code = 429 if reason in ("rate_limited", "first_contact_send_cap") else 403
             return self._send(code, {"ok": False, "error": reason})
+        if dry_run:
+            log.info(
+                "sms send dry-run to=***%s len=%d grant=%s",
+                tail, len(message), (grant or {}).get("kind") or "-",
+            )
+            return self._send(200, {
+                "ok": True, "dry_run": True, "grant": (grant or {}).get("kind"),
+            })
         result, err = gateway_send(to, message)
         emit_interaction(crm_interaction_record(to, grant, result, err, now, purpose, placed_by))
         if grant and grant.get("kind") == "first_contact":
