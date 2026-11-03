@@ -333,3 +333,56 @@ def _mark_event(event_id, now=None):
             _seen_events.pop(next(iter(_seen_events)))
 
 
+def deliver_outbound_sms(
+    to, message, *, dry_run=False, purpose=None, placed_by=None, now=None,
+    cooldown_key=None, cooldown_s=None, log_tag="sms send", alert_title="904 SMS send failed",
+):
+    """One outbound SMS through the gateway, after the shared send checks.
+
+    The HTTP send route and the 906 fixed auto-reply both use this. dry_run
+    (JSON true only, decided by the caller) runs the checks and the dry-run
+    log line and does not call the gateway or write a slot, a cooldown stamp,
+    a CRM row, or a send audit line. A refused dry run uses the same reason
+    as a real send. Returns (status_code, body).
+    """
+    if env("SMS_SEND_DISABLED") == "1":
+        log.warning("%s disabled", log_tag)
+        return 503, {"ok": False, "error": "send disabled"}
+    now = time.time() if now is None else now
+    reason, grant = reserve_send_ex(
+        to, now, commit=not dry_run, cooldown_key=cooldown_key, cooldown_s=cooldown_s,
+    )
+    tail = _tail4(to)
+    if reason:
+        log.warning("%s refused to=***%s reason=%s", log_tag, tail, reason)
+        if reason in FC_REFUSALS:
+            fc_audit("send_refused", now, to=to, reason=reason)
+        code = 429 if reason in ("rate_limited", "first_contact_send_cap", "cooldown") else 403
+        return code, {"ok": False, "error": reason}
+    if dry_run:
+        log.info(
+            "%s dry-run to=***%s len=%d grant=%s",
+            log_tag, tail, len(message), (grant or {}).get("kind") or "-",
+        )
+        return 200, {"ok": True, "dry_run": True, "grant": (grant or {}).get("kind")}
+    result, err = gateway_send(to, message)
+    emit_interaction(crm_interaction_record(to, grant, result, err, now, purpose, placed_by))
+    if grant and grant.get("kind") == "first_contact":
+        fc_audit(
+            "send", now, to=to, outcome="sent" if result is not None else "failed",
+            length=len(message), sends=(grant.get("entry") or {}).get("sends"),
+            placed_by=placed_by, gateway_id=(result or {}).get("id"),
+            gateway_state=(result or {}).get("state"),
+        )
+    if result is None:
+        log.error("%s gateway failed to=***%s len=%d error=%s", log_tag, tail, len(message), _scrub(err))
+        _spawn(alert_failure, (f"sms-****{tail}", err, 1, alert_title))
+        return 502, {"ok": False, "error": "gateway failed"}
+    log.info(
+        "%s ok to=***%s len=%d id=%s state=%s grant=%s",
+        log_tag, tail, len(message), result.get("id") or "-", result.get("state") or "-",
+        (grant or {}).get("kind") or "-",
+    )
+    return 200, {"ok": True, "id": result.get("id"), "state": result.get("state")}
+
+

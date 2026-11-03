@@ -37,6 +37,10 @@ POST /bland/meeting-check (#1230) answers match or no-match for a caller's state
 meeting; it needs MEETING_CHECK_TOKEN and stays no-match without calendar keys.
 A signed post-call webhook also schedules post_call.handle (#1231) before the
 raw forward. That hook does not change the HTTP status or call Bland.
+When AUTO_REPLY_906_ENABLED=1, a signed inbound SMS webhook for the 906
+number sends one fixed reply through the same gateway path. The flag
+defaults off. Handoff, a no-auto-replies mark, STOP, SMS_SEND_DISABLED,
+and a per-number cooldown skip it. JSON dry_run true does not send.
 
 On forward or send failure: journal ALERT line plus a GitHub ops issue #701
 comment (treasury pi_ops_alert sink, #704), max 1 per 15 min. Never logs
@@ -57,6 +61,7 @@ _PARTS = (
     "relay_rcs.py",
     "relay_turo.py",
     "relay_helm_sms.py",
+    "relay_autoreply.py",
     "relay_http.py",
 )
 
