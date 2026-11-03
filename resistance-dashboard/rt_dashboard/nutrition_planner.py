@@ -472,6 +472,12 @@ def _pick_continuous_portion(
     When mass is unknown, keep a whole free-text serving (never invent grams).
     ``max_servings`` caps one pick so veg/fruit cannot dump ``MAX_PORTION_G``
     of a single produce item and crowd out pantry alternatives (#513).
+    While protein is still open, each pick is one plate:
+    ``min(max_g, max(serving_g * 2, 250))``. That stops a 1,200 g staple
+    from filling the day and then being spread across every meal. Once
+    protein is covered, calorie fill stays at three labeled servings —
+    cutting that to two servings leaves a second bulky plate that the
+    per-meal 250 g cap deletes, and the day misses the #513 kcal band.
     """
     sg = _ingredient_serving_g(ing)
     cal = float(ing.get("calories") or 0)
@@ -494,6 +500,10 @@ def _pick_continuous_portion(
         max_g = min(MAX_PORTION_G, float(sg) * 8.0)
         if max_servings is not None and float(max_servings) > 0:
             max_g = min(max_g, float(sg) * float(max_servings))
+        # One plate while protein is open: max(two servings, 250 g), never 1,200 g.
+        # The greedy loop then moves on to the next stocked protein.
+        if rem_p >= 5 and prot_pg > 0:
+            max_g = min(max_g, max(float(sg) * 2.0, 250.0))
         target_g = min(max(0.0, target_g), max_g)
         portion = _round_portion_g(target_g, serving_g=sg)
         if portion <= 0:
@@ -1231,6 +1241,14 @@ def _consumed_micro_g(
     return round(total, 1) if found else 0.0
 
 
+# A black-bean name hint is 15 g. ``(15 / 25) * 1.2`` is ~0.72, enough to
+# put a carb ahead of tuna, egg whites, and whey while protein is still open.
+# Full fiber credit waits until protein is mostly covered; until then the
+# bonus is capped so the carb cannot outrank those lean proteins.
+_FIBER_BONUS_CAP = 0.3
+_PROTEIN_MOSTLY_COVERED_G = 20.0
+
+
 def _score_ingredient(
     ing: dict,
     rem: dict,
@@ -1250,7 +1268,10 @@ def _score_ingredient(
     sc = (p / protein_need) * 3.0 + (min(c, rem["calories"]) / cal_need) * 1.0 + (p / c) * 2.0
     if fiber_need_g > 0:
         fg = estimated_fiber_g(ing)
-        sc += (fg / max(fiber_need_g, 1.0)) * 1.2
+        bonus = (fg / max(fiber_need_g, 1.0)) * 1.2
+        if float(rem.get("protein_g") or 0) > _PROTEIN_MOSTLY_COVERED_G:
+            bonus = min(bonus, _FIBER_BONUS_CAP)
+        sc += bonus
         if is_veg_or_fruit(ing):
             sc += 0.4
     if sugar_room_g is not None:
