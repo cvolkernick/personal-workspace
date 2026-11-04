@@ -1,0 +1,25 @@
+# X API credential guard (#1130). This file is the whole ruleset: default
+# gitleaks rules stay off so the check stays specific to the four X key names.
+title = "X API credential guard"
+
+[extend]
+useDefault = false
+
+[[rules]]
+id = "x-api-key-name"
+description = "X API credential assigned to a known key name"
+regex = '''(?i)\b(X_ACCESS_TOKEN_SECRET|X_CONSUMER_SECRET|X_CONSUMER_KEY|X_ACCESS_TOKEN)\b['"]?\s*[=:]\s*['"]?([A-Za-z0-9_%+=/.-]{16,256})'''
+secretGroup = 2
+keywords = [
+  "X_CONSUMER_KEY",
+  "X_CONSUMER_SECRET",
+  "X_ACCESS_TOKEN",
+  "X_ACCESS_TOKEN_SECRET",
+]
+
+# FAKE-* fixtures are synthetic. The regex is anchored to the captured value.
+[[allowlists]]
+description = "Synthetic fixtures prefixed FAKE- are not credentials"
+targetRules = ["x-api-key-name"]
+regexTarget = "secret"
+regexes = ['''^FAKE-[A-Za-z0-9_-]+$''']

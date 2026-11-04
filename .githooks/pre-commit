@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pre-commit guard for X API credential assignments (#1130).
+# Enable with: git config core.hooksPath .githooks
+# Missing gitleaks or a missing config refuses the commit.
+set -eu
+root=$(git rev-parse --show-toplevel)
+config="$root/.gitleaks.toml"
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed; refusing to commit." >&2
+  exit 1
+fi
+if [ ! -f "$config" ]; then
+  echo "pre-commit: missing .gitleaks.toml; refusing to commit." >&2
+  exit 1
+fi
+exec gitleaks protect --staged --redact=100 --no-banner --config "$config"
