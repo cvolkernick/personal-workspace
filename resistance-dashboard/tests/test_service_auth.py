@@ -474,5 +474,19 @@ class AgentTodayHttpTests(unittest.TestCase):
                 os.environ["FITDASH_SERVICE_TOKEN"] = saved_house
 
 
+def test_wrong_token_on_loopback_is_denied(monkeypatch):
+    from rt_dashboard.service_auth import agent_today_principal, service_auth_ok
+    monkeypatch.setenv("FITDASH_SERVICE_TOKEN", "house-secret")
+    monkeypatch.setenv("FITDASH_AGENT_TOKEN", "agent-secret")
+    monkeypatch.setenv("FITDASH_SERVICE_LOOPBACK", "1")
+    bad = {"Authorization": "Bearer bogus"}
+    assert service_auth_ok(bad, "127.0.0.1") is False
+    assert agent_today_principal(bad, "127.0.0.1") == "deny"
+    # Unchanged: no token on loopback, house token, agent token
+    assert agent_today_principal({}, "127.0.0.1") == "service"
+    assert agent_today_principal({"Authorization": "Bearer house-secret"}, "10.0.0.5") == "service"
+    assert agent_today_principal({"Authorization": "Bearer agent-secret"}, "127.0.0.1") == "service"
+
+
 if __name__ == "__main__":
     unittest.main()

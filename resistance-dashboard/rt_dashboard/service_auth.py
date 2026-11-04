@@ -117,8 +117,15 @@ def service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
     """Allow service clients via shared token, or loopback if enabled."""
     expected = (os.environ.get("FITDASH_SERVICE_TOKEN") or "").strip()
     provided = service_token_from_headers(headers)
-    if expected and provided and provided == expected:
+    if expected and provided and _token_match(provided, expected):
         return True
+    if provided:
+        # A presented token must be a known credential. A wrong token fails
+        # closed even on loopback (same rule as trends_export_gate). The
+        # agent token on direct loopback keeps the service fill (#1295).
+        agent = (os.environ.get("FITDASH_AGENT_TOKEN") or "").strip()
+        if not (agent and _token_match(provided, agent)):
+            return False
     loopback_ok = (os.environ.get("FITDASH_SERVICE_LOOPBACK") or "1").strip().lower() not in (
         "0",
         "false",
