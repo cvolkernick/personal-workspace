@@ -29,7 +29,8 @@ PROTEIN_FLOOR_G = 170.0
 PROTEIN_GAP_DAYS = 3
 TDEE_BAND = 150
 COUNTED_WEEKS_GATE = 2
-STEP_PULL_MAX = 1000  # max +steps/day per counted week when pulling a step earlier
+STEP_PULL_MAX = 1000  # max +steps/day for a pre-9k pull, or an advisory raise above 9k
+NINE_K = 9000  # calendar step target from 2026-11-03; never suggest pulling this earlier
 MANUAL_TAGS = ("travel", "illness")
 BUILDING_TEXT = "Weekly data building"
 FAST_TEXT = "Losing faster than the band: flag to Grok. No change."
@@ -348,12 +349,37 @@ def steps_first_advisory(
         return dict(base, action="flag_to_grok", detail=FAST_TEXT)
     if decision_rate >= lo:
         return dict(base, action="change_nothing", detail="Inside the band: change nothing.")
-    nxt = next_calendar_step(as_of, rules)
-    if nxt is None:
-        return dict(base, action="hold", detail="Below the band, no further approved step. Flag to Grok.")
-    # A step-raise lever that is already in effect is not a lever: never suggest
-    # pulling a target earlier when today's target already meets or beats it.
     in_effect = max(int(step_target), int(current_calendar_step(as_of, rules) or 0))
+    nxt = next_calendar_step(as_of, rules)
+    # 9,000/day starts 2026-11-03, so suggesting that date be pulled earlier is moot.
+    # A raise once today's target is already at least 9,000 stays advisory and
+    # is capped at +STEP_PULL_MAX per day. It is never applied.
+    suppressed_nine_k = False
+    if nxt is not None and int(nxt["step_target"]) >= NINE_K:
+        nxt = None
+        suppressed_nine_k = True
+    if nxt is None:
+        if in_effect >= NINE_K:
+            proposed = in_effect + STEP_PULL_MAX
+            return dict(
+                base,
+                action="steps_raise_advisory",
+                lever="steps",
+                proposed_steps=proposed,
+                applies_automatically=False,
+                detail=(
+                    f"Below the band: steps are the lever. Advisory only, "
+                    f"max +{STEP_PULL_MAX:,}/day ({proposed:,}/day). Not applied."
+                ),
+            )
+        if suppressed_nine_k or in_effect > int(step_target):
+            return dict(
+                base, action="hold", proposed_steps=in_effect,
+                detail=f"Below the band; step target {in_effect:,}/day is already in effect. Flag to Grok.",
+            )
+        return dict(base, action="hold", detail="Below the band, no further approved step. Flag to Grok.")
+    # A step already in effect is not a lever: never suggest pulling a target
+    # earlier when today's target already meets or beats it.
     proposed = min(int(nxt["step_target"]), in_effect + STEP_PULL_MAX)
     if proposed <= in_effect:
         return dict(

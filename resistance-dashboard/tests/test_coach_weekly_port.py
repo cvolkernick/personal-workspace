@@ -13,7 +13,7 @@ from unittest import mock
 
 from rt_dashboard import coach_weekly as cw
 from rt_dashboard.coach_steps import clear_rules_cache, load_rules
-from rt_dashboard.cut_coach import attach_coach_card, coach_card_for_payload
+from rt_dashboard.cut_coach import attach_coach_card, coach_card_for_payload, today_targets
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -110,29 +110,49 @@ class Advisory(_Env):
         self.assertEqual(a["proposed_steps"], 8000)
         self.assertNotIn("kcal", a["detail"].lower())
         self.assertFalse(a["applies_automatically"])
+        # 9k is already the calendar target on 11/20. Do not pull it earlier.
+        # A raise above 9k is advisory only and capped at +1000/day.
         b = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=8000, as_of="2026-11-20", rules=rules)
-        self.assertEqual(b["next_step"]["step_target"], 9000)
-        self.assertEqual(b["proposed_steps"], 9000)
+        self.assertEqual(b["action"], "steps_raise_advisory")
+        self.assertIsNone(b.get("next_step"))
+        self.assertNotIn("pull", b["detail"].lower())
+        self.assertNotIn("earlier", b["detail"].lower())
+        self.assertNotIn("9,000/day from", b["detail"])
+        self.assertFalse(b["applies_automatically"])
+        self.assertEqual(b["proposed_steps"], 10000)
+        self.assertLessEqual(b["proposed_steps"] - 9000, cw.STEP_PULL_MAX)
 
     def test_8k_in_effect_from_11_02_is_never_suggested_as_lever(self):
         rules = load_rules()
         self.assertEqual(cw.current_calendar_step("2026-11-02", rules), 8000)
-        self.assertEqual(cw.current_calendar_step("2026-12-07", rules), 9000)
-        # Stale live target (7000) must not resurface "pull 8k earlier" once 8k is in effect.
+        self.assertEqual(cw.current_calendar_step("2026-11-03", rules), 9000)
+        # Stale live target (7000) must not resurface "pull 8k earlier" once 8k is in effect,
+        # and must not pull the 11/03 9k target earlier either.
         a = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=7000, as_of="2026-11-02", rules=rules)
+        self.assertNotEqual(a["action"], "steps_pull_earlier")
         self.assertNotEqual(a.get("next_step", {}).get("step_target"), 8000)
         self.assertNotIn("8,000/day from", a["detail"])
-        self.assertGreaterEqual(a["proposed_steps"], 8000)
+        self.assertNotIn("9,000/day from", a["detail"])
+        self.assertNotIn("pull", a["detail"].lower())
+        self.assertEqual(a["proposed_steps"], 8000)
 
     def test_lever_suppressed_when_target_already_at_or_above(self):
         rules = load_rules()
-        for cur, nxt in ((8000, 8000), (9000, 8000), (9000, 9000)):
+        for cur, nxt in ((8000, 8000), (9000, 8000)):
             with mock.patch.object(cw, "next_calendar_step", return_value={"from": "2026-12-07", "step_target": nxt}):
                 a = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=cur, as_of="2026-11-02", rules=rules)
             self.assertEqual(a["action"], "hold", (cur, nxt))
             self.assertIsNone(a["lever"])
             self.assertNotIn("pull", a["detail"].lower())
             self.assertGreaterEqual(a["proposed_steps"], cur)
+        # A mocked next step of 9k is not pulled earlier. Above 9k the raise is advisory, +1000.
+        with mock.patch.object(cw, "next_calendar_step", return_value={"from": "2026-12-07", "step_target": 9000}):
+            raised = cw.steps_first_advisory(decision_rate=0.1, band=(0.25, 0.5), counted=2, step_target=9000, as_of="2026-11-02", rules=rules)
+        self.assertEqual(raised["action"], "steps_raise_advisory")
+        self.assertIsNone(raised.get("next_step"))
+        self.assertFalse(raised["applies_automatically"])
+        self.assertNotIn("pull", raised["detail"].lower())
+        self.assertEqual(raised["proposed_steps"], 10000)
 
     def test_too_fast_flags_grok_no_change(self):
         a = cw.steps_first_advisory(decision_rate=0.8, band=(0.25, 0.5), counted=2, step_target=7000, as_of="2026-11-02")
@@ -160,13 +180,42 @@ class Card(_Env):
         rec = card["recommendation"]
         self.assertEqual(card["weekly"]["status"], "ready")
         self.assertEqual(rec["proposed_kcal"], 2000)
-        # 8k is already in effect from 11/2: the card never proposes it as a lever.
-        self.assertGreater(rec["proposed_steps"], 8000)
+        # 8k is already in effect on 11/2. The card holds there and does not pull 9k earlier.
+        self.assertEqual(card["targets"]["step_target"], 8000)
+        self.assertEqual(today_targets(card)["step_target"], 8000)
+        self.assertEqual(rec["proposed_steps"], 8000)
+        self.assertNotEqual(rec["action"], "steps_pull_earlier")
         self.assertNotIn("8,000/day from", rec["detail"])
+        self.assertNotIn("9,000/day from", rec["detail"])
+        self.assertNotIn("pull", rec["detail"].lower())
         self.assertNotIn("kcal", rec["detail"].lower())
         self.assertIsNone(card["macros"])
         self.assertEqual(card["targets"]["kcal_target"], 2000)
         self.assertNotIn("1950", json.dumps(card))
+
+    def test_from_2026_11_03_card_and_today_show_9000(self):
+        slow = _payload([200, 199.9, 199.8], start="2026-10-12")
+        for day in ("2026-11-03", "2026-11-08"):
+            card = coach_card_for_payload(slow, as_of=day)
+            rec = card["recommendation"]
+            self.assertEqual(card["targets"]["step_target"], 9000, day)
+            self.assertEqual(today_targets(card)["step_target"], 9000, day)
+            self.assertEqual(rec["action"], "steps_raise_advisory", day)
+            self.assertNotEqual(rec["action"], "steps_pull_earlier", day)
+            self.assertFalse(rec["applies_automatically"], day)
+            self.assertEqual(rec["proposed_steps"], 10000, day)
+            self.assertLessEqual(rec["proposed_steps"] - card["targets"]["step_target"], 1000, day)
+            self.assertNotIn("pull", rec["detail"].lower(), day)
+            self.assertNotIn("earlier", rec["detail"].lower(), day)
+            self.assertNotIn("kcal", rec["detail"].lower(), day)
+        for day in ("2026-11-16", "2026-12-07", "2027-01-28"):
+            card = coach_card_for_payload(_payload([200], start="2026-10-26", today=day), as_of=day)
+            self.assertEqual(card["targets"]["step_target"], 9000, day)
+            self.assertEqual(today_targets(card)["step_target"], 9000, day)
+            self.assertNotEqual(card["recommendation"]["action"], "steps_pull_earlier", day)
+            detail = card["recommendation"].get("detail") or ""
+            self.assertNotIn("pull", detail.lower(), day)
+            self.assertNotIn("9,000/day from", detail, day)
 
     def test_too_fast_card(self):
         card = coach_card_for_payload(_payload([200, 198.5, 197], start="2026-10-12"), as_of="2026-11-02")

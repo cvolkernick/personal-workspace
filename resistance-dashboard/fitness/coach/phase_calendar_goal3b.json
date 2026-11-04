@@ -2,7 +2,7 @@
   "schema": "fitdash.phase_calendar.v1",
   "id": "goal3b-2026q4",
   "status": "steps_approved",
-  "source": "Chris ruling 2026-10-27 21:58 ET via Grok",
+  "source": "Chris ruling 2026-10-27 21:58 ET via Grok; 9k from 2026-11-03",
   "draw": {
     "date": "2027-01-28",
     "window": ["2027-01-22", "2027-02-05"],
@@ -19,13 +19,13 @@
       "schedule": [
         {"from": "2026-10-28", "step_target": 7000},
         {"from": "2026-11-02", "step_target": 8000},
-        {"from": "2026-12-07", "step_target": 9000}
+        {"from": "2026-11-03", "step_target": 9000}
       ],
       "end": "2027-02-12",
       "on_end": {
         "resume_auto_rules": true,
         "carry_step_target": "last_calendar_target",
-        "carry_last_step_up": "2026-12-07"
+        "carry_last_step_up": "2026-11-03"
       }
     },
     "kcal": {

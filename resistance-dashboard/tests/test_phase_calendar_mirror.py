@@ -31,6 +31,10 @@ class PhaseCalendarMirror(unittest.TestCase):
     def test_steps_schedules_match(self):
         self.assertEqual(_steps_schedule(REPO / REL), _steps_schedule(APP / REL))
 
-    def test_current_calendar_step_is_8000_on_2026_11_03(self):
+    def test_current_calendar_step_is_9000_from_2026_11_03(self):
         clear_rules_cache()
-        self.assertEqual(current_calendar_step("2026-11-03"), 8000)
+        self.assertEqual(current_calendar_step("2026-11-01"), 7000)
+        self.assertEqual(current_calendar_step("2026-11-02"), 8000)
+        self.assertEqual(current_calendar_step("2026-11-03"), 9000)
+        self.assertEqual(current_calendar_step("2026-11-16"), 9000)
+        self.assertEqual(current_calendar_step("2026-12-07"), 9000)

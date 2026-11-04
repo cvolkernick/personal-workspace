@@ -90,9 +90,16 @@ class Goal3bCoach(unittest.TestCase):
         self.assertIsNone(kcal["approved_by"])
         cal = json.loads(CALENDAR.read_text(encoding="utf-8"))
         schedule = cal["tracks"]["steps"]["schedule"]
-        self.assertEqual(schedule[0], {"from": "2026-10-28", "step_target": 7000})
-        self.assertEqual(schedule[1], {"from": "2026-11-02", "step_target": 8000})
-        self.assertEqual(schedule[2], {"from": "2026-12-07", "step_target": 9000})
+        self.assertEqual(
+            schedule,
+            [
+                {"from": "2026-10-28", "step_target": 7000},
+                {"from": "2026-11-02", "step_target": 8000},
+                {"from": "2026-11-03", "step_target": 9000},
+            ],
+        )
+        self.assertEqual(cal["tracks"]["steps"]["on_end"]["carry_last_step_up"], "2026-11-03")
+        self.assertNotIn("2026-12-07", json.dumps(schedule))
         self.assertFalse(cal["tracks"]["kcal"]["enabled"])
         self.assertEqual(cal["tracks"]["kcal"]["phases"], [])
         blob = json.dumps(cal)
@@ -207,7 +214,7 @@ class Goal3bCoach(unittest.TestCase):
         self.assertEqual(stepped["state"]["step_target"], 7000)
 
     def test_calendar_off_is_noop(self):
-        """Steps track on: only the step target moves on/after 11/2 and 12/7."""
+        """Steps track on: the step target moves on 11/2, then to 9000 on 11/3."""
         present = _rules()
         held = copy.deepcopy(present)
         held["phase_calendar"]["steps"] = {"enabled": False, "approved_by": None}
@@ -217,9 +224,10 @@ class Goal3bCoach(unittest.TestCase):
             "2026-10-28": 7000,
             "2026-11-01": 7000,
             "2026-11-02": 8000,
-            "2026-11-15": 8000,
-            "2026-11-16": 8000,
-            "2026-12-06": 8000,
+            "2026-11-03": 9000,
+            "2026-11-15": 9000,
+            "2026-11-16": 9000,
+            "2026-12-06": 9000,
             "2026-12-07": 9000,
             "2026-12-21": 9000,
         }
@@ -264,9 +272,10 @@ class Goal3bCoach(unittest.TestCase):
         expect = {
             "2026-11-01": 7000,
             "2026-11-02": 8000,
-            "2026-11-09": 8000,
-            "2026-11-16": 8000,
-            "2026-11-26": 8000,
+            "2026-11-03": 9000,
+            "2026-11-09": 9000,
+            "2026-11-16": 9000,
+            "2026-11-26": 9000,
             "2026-12-07": 9000,
             "2026-12-21": 9000,
             "2027-01-04": 9000,
@@ -280,6 +289,7 @@ class Goal3bCoach(unittest.TestCase):
             card = decide(as_of=day, state=_state(), rules=rules)
             self.assertEqual(card["targets"]["kcal_target"], 2000, day)
             self.assertEqual(card["targets"]["step_target"], steps, day)
+            self.assertEqual(today_targets(card)["step_target"], steps, day)
             self.assertEqual(card["phase"], "cut", day)
         self.assertFalse(steps_resolution("2027-02-13", rules=rules)["applied"])
 
@@ -296,7 +306,8 @@ class Goal3bCoach(unittest.TestCase):
             weeks=slow,
         )
         self.assertNotEqual(held["recommendation"]["action"], "steps_plus_1500")
-        self.assertEqual(held["targets"]["step_target"], 8000)
+        self.assertEqual(held["targets"]["step_target"], 9000)
+        self.assertEqual(today_targets(held)["step_target"], 9000)
         drop = decide(as_of="2026-11-01", state=_state(), rules=rules)
         self.assertEqual(drop["targets"]["kcal_target"], 2000)
         self.assertEqual(drop["targets"]["step_target"], 7000)
@@ -306,7 +317,8 @@ class Goal3bCoach(unittest.TestCase):
             rules=rules,
             weeks=_weeks({"rate_pct": 0.2, "steps_avg": 5810, "kcal_avg": 2000, "counted": True}),
         )
-        self.assertEqual(bump["targets"]["step_target"], 8000)
+        self.assertEqual(bump["targets"]["step_target"], 9000)
+        self.assertEqual(today_targets(bump)["step_target"], 9000)
         self.assertNotEqual(bump["recommendation"]["action"], "steps_plus_1500")
         self.assertIn("Hit the step target", bump["labels"])
         kinds = [event.get("kind") for event in bump["step_events"]]
@@ -324,8 +336,9 @@ class Goal3bCoach(unittest.TestCase):
         self.assertFalse(card["calendar_applied"])
         self.assertTrue(card["auto_steps"])
         self.assertEqual(card["targets"]["step_target"], 9000)
-        self.assertEqual(card["state"]["last_step_up_date"], "2026-12-07")
-        self.assertEqual(card["next_step_up_earliest"], "2026-12-21")
+        self.assertEqual(today_targets(card)["step_target"], 9000)
+        self.assertEqual(card["state"]["last_step_up_date"], "2026-11-03")
+        self.assertEqual(card["next_step_up_earliest"], "2026-11-17")
 
     def test_kcal_track_held_off(self):
         rules = _rules()
