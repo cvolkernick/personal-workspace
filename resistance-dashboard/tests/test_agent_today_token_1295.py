@@ -103,9 +103,11 @@ class PrincipalTests(_Env):
     def test_loopback_without_agent_token_stays_service(self) -> None:
         self._tokens()
         self.assertEqual(agent_today_principal({}, "127.0.0.1"), "service")
+        # A presented token that is neither house nor agent fails closed on
+        # loopback (Pi service_auth hotfix). No token still stays service.
         self.assertEqual(
             agent_today_principal({"Authorization": "Bearer nope"}, "::1"),
-            "service",
+            "deny",
         )
 
     def test_loopback_keeps_the_fill_with_the_agent_token(self) -> None:
