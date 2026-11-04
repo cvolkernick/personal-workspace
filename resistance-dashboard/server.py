@@ -2173,6 +2173,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/agent/coaching_targets":
+            # Same FITDASH_AGENT_TOKEN as the read API. No session or loopback bypass.
+            from rt_dashboard.coaching_targets import respond_get
+
+            try:
+                status, body = respond_get(self.headers, parsed.query or "")
+            except Exception:
+                status, body = 500, {"ok": False, "error": "coaching_targets_failed"}
+            self._send_json(body, status=status)
+            return
         if parsed.path.startswith("/api/agent/") and parsed.path[len("/api/agent/"):].strip("/") in AGENT_READ_SECTIONS:
             # Token-locked read-only agent API (slice 1). FITDASH_AGENT_TOKEN
             # only: no loopback or session bypass. Never writes or generates.
@@ -2557,7 +2567,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         # Gate all personal POST APIs. Inventory stock also accepts a
         # Chris-bound agent token (not the house FITDASH_SERVICE_TOKEN).
         if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
-            if parsed.path == "/api/agent/inventory/stock":
+            if parsed.path == "/api/agent/coaching_targets":
+                # FITDASH_AGENT_TOKEN is checked in the handler. No session bypass.
+                self._request_user = None  # type: ignore[attr-defined]
+            elif parsed.path == "/api/agent/inventory/stock":
                 # Token-only: Chris-bound FITDASH_INVENTORY_AGENT_TOKEN, checked
                 # in the handler below. No session, loopback or house-token bypass.
                 self._request_user = None  # type: ignore[attr-defined]
@@ -2601,6 +2614,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if user is None and _auth_required():
                     return
                 self._request_user = user  # type: ignore[attr-defined]
+        if parsed.path == "/api/agent/coaching_targets":
+            from rt_dashboard.coaching_targets import respond_set
+
+            try:
+                body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
+            except (ValueError, json.JSONDecodeError):
+                self._send_json(
+                    {"ok": False, "error": "bad_request", "message": "invalid JSON"},
+                    status=400,
+                )
+                return
+            try:
+                status, out = respond_set(self.headers, body)
+            except Exception:
+                status, out = 500, {"ok": False, "error": "coaching_targets_failed"}
+            self._send_json(out, status=status)
+            return
         if parsed.path == "/api/agent/generate-plan":
             # Vercel rewrote this to /api/ask/plan?_r=agent_generate. Delegate
             # to the same ask/plan handler: signed-in user, else the house

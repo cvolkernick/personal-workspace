@@ -21,8 +21,10 @@ Env:
     service routes without a browser session. A loopback request carrying
     Tailscale Serve / proxy headers (Tailscale-User-Login, X-Forwarded-*)
     is treated as remote and gets no loopback bypass (#1304).
-  FITDASH_AGENT_TOKEN — read-only principal for ``GET /api/agent/today``
-    from a non-loopback host. Not a write credential.
+  FITDASH_AGENT_TOKEN — agent principal for ``GET /api/agent/today`` and the
+    read-only agent sections. Also the credential for coaching-target
+    settings (``GET`` and ``POST /api/agent/coaching_targets``). Not a
+    pantry or plan write.
   FITDASH_INVENTORY_AGENT_TOKEN — least-privilege pantry stock-write credential
   FITDASH_INVENTORY_AGENT_USER_ID — Google ``user_id`` / ``sub`` the agent
     token is bound to (Chris). Required with the token; never ``default``.

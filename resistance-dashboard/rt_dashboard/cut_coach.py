@@ -312,6 +312,22 @@ def decide(
     )
     active = phase is not None and bool(phase.get("kcal"))
     steps_info = steps_resolution(day_s, rules=rules)
+    overrides: Dict[str, Any] = {}
+    try:
+        from .coaching_targets import load_overrides
+
+        overrides = load_overrides()
+    except Exception:
+        overrides = {}
+    if overrides.get("steps") is not None:
+        # Settings replace the calendar number. Deload still applies on top.
+        steps_info = {
+            "applied": True,
+            "past_end": False,
+            "step_target": int(overrides["steps"]),
+            "carry_step": None,
+            "carry_last_up": None,
+        }
     live_kcal = int(incoming.get("kcal_target") or 0)
     live_steps = int(incoming.get("step_target") or cfg["default_target"])
     events = list(out_state.get("step_events") or [])
@@ -548,6 +564,15 @@ def decide(
     card["kcal_applied"] = bool(active)
     card["recommendation"]["proposed_kcal"] = int(live_kcal if fast_loss else kcal)
     card["recommendation"]["proposed_steps"] = int(displayed_steps)
+    if overrides.get("kcal") is not None:
+        card["targets"]["kcal_target"] = int(overrides["kcal"])
+        card["state"]["kcal_target"] = int(overrides["kcal"])
+    try:
+        from .coaching_targets import effective_hydration_ml
+
+        card["targets"]["hydration_ml"] = effective_hydration_ml(rules)
+    except Exception:
+        pass
     return card
 
 
@@ -624,6 +649,7 @@ def today_targets(card: dict) -> dict:
     return {
         "kcal_target": kcal,
         "step_target": steps,
+        "hydration_ml": targets.get("hydration_ml"),
         "calendar_applied": bool(card.get("calendar_applied")),
     }
 

@@ -1,7 +1,17 @@
-"""FitDash MCP server: thin, read-only stdio wrapper over the FitDash agent API.
+"""FitDash MCP server: stdio wrapper over the FitDash agent API.
 
-Slice 2 of #1281. Every tool issues a single GET against /api/agent/<section>
-and returns the JSON body unchanged (including generated_at / as_of).
+Slice 2 of #1281. The section tools issue a single GET against
+/api/agent/<section> and return the JSON body unchanged (including
+generated_at / as_of).
+
+Coaching targets (#1370) add one read and one narrow write, both with the
+same agent token:
+
+  get_coaching_targets  GET  /api/agent/coaching_targets
+  set_coaching_target   POST /api/agent/coaching_targets
+
+A settings override wins. Otherwise the phase calendar (coach rules when
+the calendar does not set that target). steps must be 1000–30000.
 
 Env:
   FITDASH_AGENT_TOKEN       bearer token (else read from FITDASH_AGENT_TOKEN_FILE)
@@ -70,11 +80,17 @@ def _check_date(name: str, value: str | None) -> _dt.date | None:
 
 
 def fetch(section: str, params: dict[str, str] | None = None,
-          transport: httpx.BaseTransport | None = None) -> Any:
+          transport: httpx.BaseTransport | None = None, *,
+          path: str | None = None) -> Any:
     """GET /api/agent/<section> and return the decoded JSON as-is."""
-    if section not in SECTIONS:
-        raise FitDashError(f"unknown section {section!r}")
-    url = f"{_base_url()}/api/agent/{section}"
+    if path is None:
+        if section not in SECTIONS:
+            raise FitDashError(f"unknown section {section!r}")
+        path = f"/api/agent/{section}"
+        label = section
+    else:
+        label = path
+    url = f"{_base_url()}{path}"
     headers = {"Authorization": f"Bearer {_token()}", "Accept": "application/json"}
     kwargs: dict[str, Any] = {"timeout": float(os.environ.get("FITDASH_TIMEOUT", "20"))}
     if transport is not None:
@@ -99,11 +115,11 @@ def fetch(section: str, params: dict[str, str] | None = None,
         raise FitDashError("FitDash API returned 403 Forbidden")
     if resp.status_code >= 400:
         detail = resp.text[:300].replace(headers["Authorization"], "Bearer ***")
-        raise FitDashError(f"FitDash API {section} returned HTTP {resp.status_code}: {detail}")
+        raise FitDashError(f"FitDash API {label} returned HTTP {resp.status_code}: {detail}")
     try:
         return resp.json()
     except ValueError:
-        raise FitDashError(f"FitDash API {section} returned non-JSON body") from None
+        raise FitDashError(f"FitDash API {label} returned non-JSON body") from None
 
 
 def fetch_logs(from_: str | None = None, to: str | None = None,
@@ -116,6 +132,86 @@ def fetch_logs(from_: str | None = None, to: str | None = None,
             raise FitDashError(f"logs range is at most {MAX_LOG_DAYS} days")
     params = {k: v.isoformat() for k, v in (("from", f), ("to", t)) if v}
     return fetch("logs", params, transport=transport)
+
+
+# Keep these aligned with rt_dashboard.coaching_targets.BOUNDS.
+COACHING_BOUNDS = {
+    "steps": (1000, 30000),
+    "kcal": (1200, 6000),
+    "hydration_ml": (500, 8000),
+}
+
+
+def validate_coaching_target(target: str, value: int | None) -> int | None:
+    """Reject a target outside the server bounds before the request is sent."""
+    if target not in COACHING_BOUNDS:
+        raise FitDashError("target must be steps, kcal, or hydration_ml")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise FitDashError(f"{target} must be an integer or null")
+    if isinstance(value, float) and not float(value).is_integer():
+        raise FitDashError(f"{target} must be an integer or null")
+    number = int(value)
+    lo, hi = COACHING_BOUNDS[target]
+    if number < lo or number > hi:
+        raise FitDashError(f"{target} must be between {lo} and {hi}")
+    return number
+
+
+def post_json(path: str, body: dict, transport: httpx.BaseTransport | None = None) -> Any:
+    """POST JSON with the same agent token and error wording as GET."""
+    url = f"{_base_url()}{path}"
+    headers = {
+        "Authorization": f"Bearer {_token()}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    kwargs: dict[str, Any] = {"timeout": float(os.environ.get("FITDASH_TIMEOUT", "20"))}
+    if transport is not None:
+        kwargs["transport"] = transport
+    elif _proxy():
+        kwargs["proxy"] = _proxy()
+    try:
+        with httpx.Client(**kwargs) as client:
+            resp = client.post(url, json=body, headers=headers)
+    except httpx.TimeoutException:
+        raise FitDashError(f"FitDash API timed out: {url}") from None
+    except (httpx.TransportError, OSError) as exc:
+        raise FitDashError(
+            f"FitDash API unreachable at {url} ({type(exc).__name__}); "
+            "check FITDASH_API_BASE / FITDASH_PROXY and that the tailnet proxy is up"
+        ) from None
+    if resp.status_code == 401:
+        raise FitDashError(
+            "FitDash API returned 401 Unauthorized: agent token missing, wrong or rotated"
+        )
+    if resp.status_code == 403:
+        raise FitDashError("FitDash API returned 403 Forbidden")
+    if resp.status_code >= 400:
+        detail = resp.text[:300].replace(headers["Authorization"], "Bearer ***")
+        raise FitDashError(f"FitDash API {path} returned HTTP {resp.status_code}: {detail}")
+    try:
+        return resp.json()
+    except ValueError:
+        raise FitDashError(f"FitDash API {path} returned non-JSON body") from None
+
+
+def fetch_coaching_targets(as_of: str | None = None,
+                           transport: httpx.BaseTransport | None = None) -> Any:
+    _check_date("as_of", as_of)
+    params = {"as_of": as_of} if as_of else None
+    return fetch("", params, transport=transport, path="/api/agent/coaching_targets")
+
+
+def post_coaching_target(target: str, value: int | None,
+                         transport: httpx.BaseTransport | None = None) -> Any:
+    number = validate_coaching_target(target, value)
+    return post_json(
+        "/api/agent/coaching_targets",
+        {"target": target, "value": number},
+        transport=transport,
+    )
 
 
 def build_server():
@@ -152,6 +248,27 @@ def build_server():
     def fitdash_recovery() -> dict:
         """FitDash recovery state (read-only)."""
         return fetch("recovery")
+
+    @mcp.tool()
+    def get_coaching_targets(as_of: str | None = None) -> dict:
+        """Effective coaching targets (steps, kcal, hydration_ml).
+
+        A settings override wins when one is set. Otherwise the phase
+        calendar, or the coach rules when the calendar does not set that
+        target. as_of is YYYY-MM-DD; omit it for the server's local today.
+        """
+        return fetch_coaching_targets(as_of)
+
+    @mcp.tool()
+    def set_coaching_target(target: str, value: int | None) -> dict:
+        """Set one coaching-target override. Pass null to clear it.
+
+        target is steps, kcal, or hydration_ml.
+        steps is an integer from 1000 to 30000.
+        kcal is an integer from 1200 to 6000.
+        hydration_ml is an integer from 500 to 8000.
+        """
+        return post_coaching_target(target, value)
 
     return mcp
 
