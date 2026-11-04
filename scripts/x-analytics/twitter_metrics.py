@@ -13,11 +13,15 @@ What it does
     prints the change in the headline numbers vs the previous snapshot.
 
 Credentials
-  Read only from the environment or ``~/.secrets/x-api.env`` (KEY=VALUE):
-  X_CONSUMER_KEY, X_CONSUMER_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET.
-  Values are never printed or logged.  Any text that leaves this script through
-  ``emit()`` is scrubbed of the credential values first, and API error bodies
-  are never printed (only the HTTP status and the error ``title``).
+  Read only from the environment, or from ``~/.secrets/x-api.env`` (KEY=VALUE).
+  The four names are X_CONSUMER_KEY, X_CONSUMER_SECRET, X_ACCESS_TOKEN,
+  X_ACCESS_TOKEN_SECRET.  The file is opened only when a name is missing from
+  the environment.  It must sit directly in ``~/.secrets``, mode 0600, with the
+  directory mode 0700, both owned by the run user.  A symlink or any looser
+  mode refuses the run before the file is parsed.  Values are never printed or
+  logged.  Any text that leaves this script through ``emit()`` is scrubbed of
+  the credential values first, and API error bodies are never printed (only
+  the HTTP status and the error ``title``).
 
 Output directory (first match wins)
   ``--output-dir PATH``, ``$X_ANALYTICS_OUTPUT_DIR``, ``~/x-analytics-output``.
@@ -38,6 +42,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -51,6 +56,8 @@ HTTP_TIMEOUT = 30
 
 X_ENV_FILE = os.path.expanduser("~/.secrets/x-api.env")
 X_ENV_VARS = ("X_CONSUMER_KEY", "X_CONSUMER_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET")
+SECRET_DIR_MODE = 0o700
+SECRET_FILE_MODE = 0o600
 DEFAULT_OUTPUT_DIR = "~/x-analytics-output"
 OUTPUT_DIR_ENV = "X_ANALYTICS_OUTPUT_DIR"
 
@@ -77,24 +84,104 @@ def emit(message: str = "", *, err: bool = False) -> None:
     print(scrub(message), file=sys.stderr if err else sys.stdout)
 
 
-def load_x_creds(path: str = X_ENV_FILE) -> dict[str, str]:
-    """X API creds from the environment, else ``path`` (KEY=VALUE). Never print them.
+def _secrets_dir() -> Path:
+    return Path.home() / ".secrets"
 
-    Raises SystemExit naming only the *missing keys* (never values)."""
+
+def _refuse(reason: str) -> None:
+    """Stop before any credential value can be returned. ``reason`` is value-free."""
+    raise SystemExit(f"refusing X credentials: {reason}")
+
+
+def _require_owner_mode(kind: str, info: os.stat_result, need: int) -> None:
+    uid = os.geteuid()
+    if info.st_uid != uid:
+        _refuse(f"{kind} owner uid {info.st_uid}; need run uid {uid}")
+    mode = stat.S_IMODE(info.st_mode)
+    if mode != need:
+        _refuse(f"{kind} mode {mode:04o}; need {need:04o}")
+
+
+def _read_secret_file(path: Path) -> str:
+    """Read ``~/.secrets/<file>`` or refuse. Errors name modes and paths only."""
+    try:
+        if path.is_symlink() or path.parent.is_symlink():
+            _refuse("symlink")
+        parent_info = path.parent.lstat()
+        file_info = path.lstat()
+    except SystemExit:
+        raise
+    except OSError as exc:
+        _refuse(f"cannot stat ({type(exc).__name__})")
+    if not stat.S_ISDIR(parent_info.st_mode):
+        _refuse("parent is not a directory")
+    if not stat.S_ISREG(file_info.st_mode):
+        _refuse("env file is not a regular file")
+    try:
+        if path.parent.resolve() != _secrets_dir().resolve():
+            _refuse("env file must be directly in ~/.secrets")
+    except OSError as exc:
+        _refuse(f"cannot resolve ({type(exc).__name__})")
+    _require_owner_mode("directory", parent_info, SECRET_DIR_MODE)
+    _require_owner_mode("file", file_info, SECRET_FILE_MODE)
+    flags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    fd = -1
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        _refuse(f"cannot open ({type(exc).__name__})")
+    try:
+        opened = os.fstat(fd)
+        if (opened.st_dev, opened.st_ino) != (file_info.st_dev, file_info.st_ino):
+            _refuse("file changed before read")
+        _require_owner_mode("file", opened, SECRET_FILE_MODE)
+        handle = os.fdopen(fd, "r", encoding="utf-8")
+        fd = -1
+        try:
+            return handle.read()
+        except UnicodeDecodeError:
+            _refuse("env file is not utf-8 text")
+        finally:
+            handle.close()
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    _refuse("unread")
+
+
+def _apply_env_text(text: str, creds: dict[str, str]) -> None:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip().removeprefix("export ").strip()
+        if key in creds and not creds[key]:
+            creds[key] = value.strip().strip("'\"")
+
+
+def load_x_creds(path: str | None = None) -> dict[str, str]:
+    """X API creds from the environment, else a private env file. Never print them.
+
+    The file is consulted only when at least one of the four names is missing
+    from the environment.  It must be a regular file directly in ``~/.secrets``,
+    mode 0600, in a 0700 directory, both owned by the run user.  Symlinks and
+    looser modes raise SystemExit with a value-free reason.  A missing name
+    raises SystemExit naming only the missing keys.
+    """
+    raw = X_ENV_FILE if path is None else path
+    path_obj = Path(raw).expanduser()
     creds = {k: os.environ.get(k, "") for k in X_ENV_VARS}
-    if not all(creds.values()) and os.path.exists(path):
-        with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                key = key.strip().removeprefix("export ").strip()
-                if key in creds and not creds[key]:
-                    creds[key] = value.strip().strip("'\"")
+    needs_file = not all(creds.values())
+    if needs_file and (path_obj.is_symlink() or path_obj.exists()):
+        _apply_env_text(_read_secret_file(path_obj), creds)
     missing = [k for k, v in creds.items() if not v]
     if missing:
-        raise SystemExit(f"missing X credentials: {', '.join(missing)} (set them or fill {path})")
+        raise SystemExit(
+            "missing X credentials: "
+            + ", ".join(missing)
+            + " (set them in the environment or in ~/.secrets/x-api.env)"
+        )
     return creds
 
 

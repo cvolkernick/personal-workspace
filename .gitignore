@@ -99,6 +99,11 @@ workflows/demo-site-outreach/.env
 workflows/panamerica-roadside-crm/data/
 workflows/panamerica-roadside-crm/.env
 
+# X API credentials live in ~/.secrets on the host only (#1130)
+**/.secrets/
+**/x-api.env
+**/.x_credentials.json
+
 # Android remote-loop harness (#617) — build + emulator artifacts
 android-loop/out/
 android-loop/fixture/.gradle/

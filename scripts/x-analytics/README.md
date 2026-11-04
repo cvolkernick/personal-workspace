@@ -58,11 +58,32 @@ values are scrubbed from everything the script emits (see the tests).
 
 ## Credentials
 
-Read only from the environment or `~/.secrets/x-api.env` (`KEY=VALUE`, optional
-`export`, optional quotes): `X_CONSUMER_KEY`, `X_CONSUMER_SECRET`,
-`X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`. Environment values win over the
-file. Keep the file `chmod 600`. The unit does not use `EnvironmentFile=`; the
-script reads the file itself. **Never commit this file.**
+Read only from the environment, or from `~/.secrets/x-api.env` when a name is
+missing from the environment. The four names are `X_CONSUMER_KEY`,
+`X_CONSUMER_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` (`KEY=VALUE`,
+optional `export`, optional quotes). The file must be a regular file directly
+in `~/.secrets`: directory mode `0700`, file mode `0600`, both owned by the
+run user. A symlink or any other mode refuses the run with a value-free
+error and does not parse the file. The unit does not use `EnvironmentFile=`,
+argv, or crontab for these values; the script reads the file itself.
+**Never commit this file.**
+
+`.gitleaks.toml` flags assignments of those four names. Values prefixed
+`FAKE-` are allowlisted fixtures. `.githooks/pre-commit` runs
+`gitleaks protect --staged --redact=100` and refuses the commit when gitleaks
+is missing (`git config core.hooksPath .githooks`). CI runs the same config
+against the working tree.
+
+Value-free inventory (paths, match type, sha256, counts — never values),
+suitable for a weekly cron:
+
+```bash
+python3 scripts/x-analytics/audit_x_creds.py --git --tracked
+```
+
+Exit 0 means no findings. `FAKE-*` fixtures are counted under `ignored_fixtures`.
+The live `~/.secrets/x-api.env` is the allowed store and is not listed as a
+finding. `--emit-fingerprints` prints only sha256 lines for the four keys.
 
 ## Dependencies
 

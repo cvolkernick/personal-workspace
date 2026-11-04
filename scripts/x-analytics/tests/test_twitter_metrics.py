@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import stat
 from datetime import datetime
@@ -108,26 +109,170 @@ def run_main(argv, get, monkeypatch):
         return tm.main(argv)
 
 
+def assert_values_absent(blob: str, values) -> None:
+    for value in values:
+        if value and value in blob:
+            raise AssertionError("output contained a credential fixture value")
+
+
+def write_secret_env(monkeypatch, tmp_path, body: str, *, file_mode: int = 0o600, dir_mode: int = 0o700) -> Path:
+    """Private env file directly in a fake ``~/.secrets``."""
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    monkeypatch.setenv("HOME", str(home))
+    secrets = home / ".secrets"
+    secrets.mkdir(exist_ok=True)
+    os.chmod(secrets, dir_mode)
+    env = secrets / "x-api.env"
+    env.write_text(body)
+    os.chmod(env, file_mode)
+    return env
+
+
+def _body(mapping: dict[str, str]) -> str:
+    return "".join(f"{key}={value}\n" for key, value in mapping.items())
+
+
 # ---------- credentials ----------
 
-def test_load_creds_from_env_file(tmp_path):
-    env = tmp_path / "x-api.env"
-    env.write_text(
-        "# comment\nX_CONSUMER_KEY=ck\nexport X_CONSUMER_SECRET='cs'\nX_ACCESS_TOKEN=\"at\"\nX_ACCESS_TOKEN_SECRET=ats\n"
+def test_load_creds_from_env_file(tmp_path, monkeypatch):
+    body = (
+        "# comment\n"
+        "X_CONSUMER_KEY=FAKE-ck-file-9f3a1b7c2d\n"
+        "export X_CONSUMER_SECRET='FAKE-cs-file-5e8d4c6a0b'\n"
+        'X_ACCESS_TOKEN="FAKE-at-file-1234567890"\n'
+        "X_ACCESS_TOKEN_SECRET=FAKE-ats-file-zYxWvUtSrQ\n"
     )
+    env = write_secret_env(monkeypatch, tmp_path, body)
     assert tm.load_x_creds(str(env)) == {
-        "X_CONSUMER_KEY": "ck",
-        "X_CONSUMER_SECRET": "cs",
-        "X_ACCESS_TOKEN": "at",
-        "X_ACCESS_TOKEN_SECRET": "ats",
+        "X_CONSUMER_KEY": "FAKE-ck-file-9f3a1b7c2d",
+        "X_CONSUMER_SECRET": "FAKE-cs-file-5e8d4c6a0b",
+        "X_ACCESS_TOKEN": "FAKE-at-file-1234567890",
+        "X_ACCESS_TOKEN_SECRET": "FAKE-ats-file-zYxWvUtSrQ",
     }
 
 
 def test_env_vars_win_over_file(tmp_path, monkeypatch):
-    env = tmp_path / "x-api.env"
-    env.write_text("X_CONSUMER_KEY=from-file\nX_CONSUMER_SECRET=cs\nX_ACCESS_TOKEN=at\nX_ACCESS_TOKEN_SECRET=ats\n")
-    monkeypatch.setenv("X_CONSUMER_KEY", "from-env")
-    assert tm.load_x_creds(str(env))["X_CONSUMER_KEY"] == "from-env"
+    env = write_secret_env(
+        monkeypatch,
+        tmp_path,
+        _body(
+            {
+                "X_CONSUMER_KEY": "FAKE-ck-from-file-0001",
+                "X_CONSUMER_SECRET": "FAKE-cs-file-5e8d4c6a0b",
+                "X_ACCESS_TOKEN": "FAKE-at-file-1234567890",
+                "X_ACCESS_TOKEN_SECRET": "FAKE-ats-file-zYxWvUtSrQ",
+            }
+        ),
+    )
+    monkeypatch.setenv("X_CONSUMER_KEY", "FAKE-ck-from-env-0001")
+    assert tm.load_x_creds(str(env))["X_CONSUMER_KEY"] == "FAKE-ck-from-env-0001"
+
+
+def test_complete_env_does_not_open_a_loose_file(tmp_path, monkeypatch):
+    env = write_secret_env(
+        monkeypatch,
+        tmp_path,
+        _body({"X_CONSUMER_KEY": "FAKE-ck-from-file-0001"}),
+        file_mode=0o644,
+    )
+    for key, value in FAKE.items():
+        monkeypatch.setenv(key, value)
+    loaded = tm.load_x_creds(str(env))
+    assert loaded["X_CONSUMER_KEY"] == FAKE["X_CONSUMER_KEY"]
+    assert "FAKE-ck-from-file-0001" not in loaded.values()
+
+
+def _assert_refuse(monkeypatch, tmp_path, body: str, needle: str, **kwargs) -> None:
+    env = write_secret_env(monkeypatch, tmp_path, body, **kwargs)
+    with pytest.raises(SystemExit) as caught:
+        tm.load_x_creds(str(env))
+    message = str(caught.value)
+    assert needle in message
+    assert_values_absent(message, list(FAKE.values()) + ["FAKE-ck-file-9f3a1b7c2d"])
+
+
+def test_loose_file_mode_fails_closed(tmp_path, monkeypatch):
+    _assert_refuse(monkeypatch, tmp_path, _body(FAKE), "file mode 0644; need 0600", file_mode=0o644)
+
+
+def test_tighter_file_mode_fails_closed(tmp_path, monkeypatch):
+    _assert_refuse(monkeypatch, tmp_path, _body(FAKE), "file mode 0400; need 0600", file_mode=0o400)
+
+
+def test_loose_directory_mode_fails_closed(tmp_path, monkeypatch):
+    _assert_refuse(monkeypatch, tmp_path, _body(FAKE), "directory mode 0755; need 0700", dir_mode=0o755)
+
+
+def test_wrong_owner_fails_closed(tmp_path, monkeypatch):
+    real_uid = os.geteuid()
+    monkeypatch.setattr(os, "geteuid", lambda: real_uid + 1)
+    _assert_refuse(monkeypatch, tmp_path, _body(FAKE), f"need run uid {real_uid + 1}")
+
+
+def test_symlink_file_fails_closed(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    secrets = home / ".secrets"
+    secrets.mkdir()
+    os.chmod(secrets, 0o700)
+    outside = tmp_path / "outside.env"
+    outside.write_text(_body(FAKE))
+    os.chmod(outside, 0o600)
+    link = secrets / "x-api.env"
+    link.symlink_to(outside)
+    with pytest.raises(SystemExit) as caught:
+        tm.load_x_creds(str(link))
+    assert "symlink" in str(caught.value)
+    assert_values_absent(str(caught.value), FAKE.values())
+
+
+def test_symlink_directory_fails_closed(tmp_path, monkeypatch):
+    real = tmp_path / "real-secrets"
+    real.mkdir()
+    os.chmod(real, 0o700)
+    env = real / "x-api.env"
+    env.write_text(_body(FAKE))
+    os.chmod(env, 0o600)
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    (home / ".secrets").symlink_to(real)
+    with pytest.raises(SystemExit) as caught:
+        tm.load_x_creds(str(home / ".secrets" / "x-api.env"))
+    assert "symlink" in str(caught.value)
+    assert_values_absent(str(caught.value), FAKE.values())
+
+
+def test_file_outside_secrets_dir_fails_closed(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    outside_dir = tmp_path / "other"
+    outside_dir.mkdir()
+    os.chmod(outside_dir, 0o700)
+    env = outside_dir / "x-api.env"
+    env.write_text(_body(FAKE))
+    os.chmod(env, 0o600)
+    with pytest.raises(SystemExit) as caught:
+        tm.load_x_creds(str(env))
+    assert "directly in ~/.secrets" in str(caught.value)
+    assert_values_absent(str(caught.value), FAKE.values())
+
+
+def test_loose_mode_main_prints_no_values(tmp_path, monkeypatch, capsys, caplog):
+    env = write_secret_env(monkeypatch, tmp_path, _body(FAKE), file_mode=0o644)
+    monkeypatch.setattr(tm, "X_ENV_FILE", str(env))
+    caplog.set_level(logging.DEBUG)
+    with mock.patch.object(tm.requests, "get") as get:
+        assert tm.main(["--check-config"]) == 1
+        get.assert_not_called()
+    cap = capsys.readouterr()
+    blob = cap.out + cap.err + caplog.text
+    assert "need 0600" in cap.err
+    assert_values_absent(blob, FAKE.values())
+    assert "FAKE-" not in blob
 
 
 def test_missing_creds_exit_1_names_keys_only(tmp_path, monkeypatch, capsys):
@@ -314,6 +459,27 @@ def test_systemd_units_match_schedule_and_have_no_gateway_or_secrets():
     assert "Unit=x-weekly-analytics.service" in timer
     assert "ExecStart=/usr/bin/python3 %h/.local/lib/x-analytics/twitter_metrics.py" in svc
     assert "Type=oneshot" in svc
-    combined = (svc + timer).lower()
-    assert ".openclaw" not in combined and "gateway" not in combined.replace("prism-gateway", "")
-    assert "x_consumer" not in combined and "environmentfile" not in combined
+    combined = svc + timer
+    lowered = combined.lower()
+    assert ".openclaw" not in lowered and "gateway" not in lowered.replace("prism-gateway", "")
+    assert "x_consumer" not in lowered and "environmentfile" not in lowered
+    for name in tm.X_ENV_VARS:
+        assert name not in combined
+    # The unit does not take credential flags, and the repo has no crontab
+    # fragment that assigns them.
+    src = Path(tm.__file__).read_text(encoding="utf-8")
+    for flag in ("--consumer-key", "--consumer-secret", "--access-token", "--api-key", "--api-secret"):
+        assert flag not in src
+    for directory in (ROOT / "deploy", ROOT / "scripts", ROOT / "ops"):
+        if not directory.is_dir():
+            continue
+        for path in directory.rglob("*"):
+            if not path.is_file() or ".git" in path.parts:
+                continue
+            name = path.name.lower()
+            if not (name.startswith("crontab") or name.endswith(".cron") or "crontab" in name):
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for key in tm.X_ENV_VARS:
+                if f"{key}=" in text:
+                    raise AssertionError(f"credential assignment in {path.relative_to(ROOT)}")
