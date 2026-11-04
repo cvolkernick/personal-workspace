@@ -4,16 +4,23 @@
 syntax error in the only homepage <script> block. The page never called
 loadTreasury() or initFccMobileShell(). 1a253fea restored the block. This
 test is the guard that class of parse error cannot ship again (#1146).
+
+A machine without node skips the parse checks. GitHub Actions sets CI=true
+(and GITHUB_ACTIONS=true). When either is set, a missing node fails the run
+instead of skipping, so dropping setup-node cannot turn this guard green.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
+from collections.abc import Mapping
 from html.parser import HTMLParser
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 FCC = ROOT / "financial-command"
@@ -81,6 +88,32 @@ def inline_scripts(html: str) -> list[str]:
     return [src for src in parser.scripts if src.strip()]
 
 
+def ci_requires_node(env: Mapping[str, str]) -> bool:
+    """True when CI asked for a hard failure instead of a skip.
+
+    GitHub Actions sets both CI and GITHUB_ACTIONS. Any non-empty value counts
+    as set, including the string "false": the homepage guard must not go green
+    because a workflow forgot to install node.
+    """
+    if (env.get("CI") or "").strip():
+        return True
+    return bool((env.get("GITHUB_ACTIONS") or "").strip())
+
+
+def require_node_for_syntax_checks(
+    node_path: str | None, env: Mapping[str, str]
+) -> None:
+    """Skip locally when node is absent. Fail when CI is set."""
+    if node_path:
+        return
+    if ci_requires_node(env):
+        raise AssertionError(
+            "node is not on PATH and CI is set; "
+            "FCC inline-script syntax checks must fail, not skip"
+        )
+    raise unittest.SkipTest("node not installed")
+
+
 def node_syntax_error(source: str) -> str | None:
     """Return node --check stderr, or None when the source parses."""
     with tempfile.NamedTemporaryFile(
@@ -114,8 +147,63 @@ class TestFccHomepageBootSymbols(unittest.TestCase):
             self.assertIn(needle, blob, needle)
 
 
-@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TestMissingNodeIsLoudInCi(unittest.TestCase):
+    """#1146: a CI run without node must fail, not skip the homepage guard."""
+
+    def test_skips_when_node_and_ci_are_absent(self) -> None:
+        with self.assertRaises(unittest.SkipTest):
+            require_node_for_syntax_checks(None, {})
+
+    def test_fails_when_ci_is_set_and_node_is_missing(self) -> None:
+        for env in (
+            {"CI": "true"},
+            {"CI": "1"},
+            {"CI": "false"},
+            {"GITHUB_ACTIONS": "true"},
+        ):
+            with self.subTest(env=env):
+                with self.assertRaises(AssertionError) as caught:
+                    require_node_for_syntax_checks(None, env)
+                self.assertIn("must fail, not skip", str(caught.exception))
+
+    def test_blank_ci_still_skips(self) -> None:
+        with self.assertRaises(unittest.SkipTest):
+            require_node_for_syntax_checks(None, {"CI": "  ", "GITHUB_ACTIONS": ""})
+
+    def test_node_present_runs_even_when_ci_is_set(self) -> None:
+        require_node_for_syntax_checks("/usr/bin/node", {"CI": "true"})
+
+    def test_parse_class_is_not_skipped_at_import(self) -> None:
+        self.assertFalse(
+            getattr(TestFccInlineScriptsParse, "__unittest_skip__", False),
+            "syntax checks must reach setUp so a missing node fails CI",
+        )
+
+    def test_setup_fails_when_ci_has_no_node(self) -> None:
+        case = TestFccInlineScriptsParse("test_checker_rejects_the_1124_fragment")
+        with patch("shutil.which", return_value=None), patch.dict(
+            os.environ, {"CI": "true"}
+        ):
+            with self.assertRaises(AssertionError) as caught:
+                case.setUp()
+        self.assertIn("must fail, not skip", str(caught.exception))
+
+    def test_setup_skips_when_local_runner_has_no_node(self) -> None:
+        case = TestFccInlineScriptsParse("test_checker_rejects_the_1124_fragment")
+        env = os.environ.copy()
+        env.pop("CI", None)
+        env.pop("GITHUB_ACTIONS", None)
+        with patch("shutil.which", return_value=None), patch.dict(
+            os.environ, env, clear=True
+        ):
+            with self.assertRaises(unittest.SkipTest):
+                case.setUp()
+
+
 class TestFccInlineScriptsParse(unittest.TestCase):
+    def setUp(self) -> None:
+        require_node_for_syntax_checks(shutil.which("node"), os.environ)
+
     def test_every_financial_command_html_inline_script_parses(self) -> None:
         failures: list[str] = []
         checked = 0
