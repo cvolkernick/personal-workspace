@@ -1,8 +1,11 @@
-# FitDash MCP server (read-only)
+# FitDash MCP server
 
 Slice 2 of #1281. A thin stdio MCP server over the FitDash agent API
-(`/api/agent/*`, slice 1 / #1282). Every tool is one `GET`; the JSON comes back
-unchanged, including `generated_at` and `as_of`. Nothing writes.
+(`/api/agent/*`, slice 1 / #1282). The section tools are one `GET`; the JSON
+comes back unchanged, including `generated_at` and `as_of`.
+
+Coaching targets (#1370) are the one settings write. The same agent token
+is used. A settings override wins; otherwise the phase calendar applies.
 
 | Tool | Endpoint |
 |------|----------|
@@ -12,6 +15,11 @@ unchanged, including `generated_at` and `as_of`. Nothing writes.
 | `fitdash_plan` | `GET /api/agent/plan` |
 | `fitdash_training` | `GET /api/agent/training` |
 | `fitdash_recovery` | `GET /api/agent/recovery` |
+| `get_coaching_targets(as_of?)` | `GET /api/agent/coaching_targets` |
+| `set_coaching_target(target, value)` | `POST /api/agent/coaching_targets` |
+
+`set_coaching_target` accepts `steps` (1000–30000), `kcal` (1200–6000), and
+`hydration_ml` (500–8000). `value: null` clears that override.
 
 ## Install
 
@@ -71,5 +79,5 @@ python3 -m pytest -q tools/fitdash-mcp/tests
 ```
 
 HTTP is mocked with `httpx.MockTransport`; tests cover pass-through JSON,
-401 handling, unreachable host, token redaction, logs range validation and
-tool registration.
+401 handling, unreachable host, token redaction, logs range validation,
+coaching-target bounds, and tool registration.

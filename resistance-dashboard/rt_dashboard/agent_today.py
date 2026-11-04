@@ -729,16 +729,31 @@ def _float_or_none(value: Any) -> Optional[float]:
         return None
 
 
+def _with_kcal_override(out: Dict[str, Any]) -> Dict[str, Any]:
+    """Settings kcal wins over the stored book. No override leaves ``out`` as-is."""
+    try:
+        from .coaching_targets import stored_override
+
+        kcal = stored_override("kcal")
+    except Exception:
+        return out
+    if not isinstance(kcal, int):
+        return out
+    stamped = dict(out)
+    stamped["calories"] = float(kcal)
+    return stamped
+
+
 def _targets(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Live books when present, else published 2100 / 210P. Not intake."""
     nut = _as_dict(payload.get("nutrition_store"))
     raw = nut.get("targets")
     if not isinstance(raw, dict):
-        return dict(_BOOK_TARGETS)
+        return _with_kcal_override(dict(_BOOK_TARGETS))
     calories = _float_or_none(raw.get("calories"))
     protein = _float_or_none(raw.get("protein_g"))
     if calories is None and protein is None:
-        return dict(_BOOK_TARGETS)
+        return _with_kcal_override(dict(_BOOK_TARGETS))
     out = {
         "calories": calories if calories is not None else _BOOK_TARGETS["calories"],
         "protein_g": protein if protein is not None else _BOOK_TARGETS["protein_g"],
@@ -759,7 +774,7 @@ def _targets(payload: Dict[str, Any]) -> Dict[str, Any]:
             k: _float_or_none(v) for k, v in rec.items() if isinstance(v, (int, float))
         }
         out["recommended"]["phase"] = nt.get("phase") or rec.get("phase")
-    return out
+    return _with_kcal_override(out)
 
 
 def _item_to_dict(item: Any) -> Optional[Dict[str, Any]]:

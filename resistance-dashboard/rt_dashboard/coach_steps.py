@@ -101,8 +101,8 @@ def kcal_tolerance(rules: Optional[dict] = None) -> int:
     return n if n > 0 else DEFAULT_KCAL_TOLERANCE
 
 
-def hydration_target_ml(rules: Optional[dict] = None) -> Optional[float]:
-    """Flat daily target from coach rules. No lifting-day or hot-day tier."""
+def rules_hydration_ml(rules: Optional[dict] = None) -> Optional[float]:
+    """Flat daily target from coach rules. Does not read settings."""
     rules = load_rules() if rules is None else rules
     blob = (rules or {}).get("hydration")
     if not isinstance(blob, dict):
@@ -115,6 +115,19 @@ def hydration_target_ml(rules: Optional[dict] = None) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return ml if ml > 0 else None
+
+
+def hydration_target_ml(rules: Optional[dict] = None) -> Optional[float]:
+    """Settings override when set, otherwise the coach-rules target."""
+    try:
+        from .coaching_targets import stored_override
+
+        override = stored_override("hydration_ml")
+    except Exception:
+        override = None
+    if isinstance(override, int) and override > 0:
+        return float(override)
+    return rules_hydration_ml(rules)
 
 
 def fiber_floor_g(rules: Optional[dict] = None) -> int:

@@ -98,8 +98,60 @@ def test_proxy_socks5h_normalized(monkeypatch):
     assert fm._proxy() == "socks5://127.0.0.1:1055"
 
 
-def test_server_registers_six_readonly_tools():
+def test_server_registers_section_tools_and_coaching_targets():
     pytest.importorskip("mcp")
     import asyncio
     tools = asyncio.run(fm.build_server().list_tools())
-    assert sorted(t.name for t in tools) == sorted(f"fitdash_{s}" for s in fm.SECTIONS)
+    names = sorted(t.name for t in tools)
+    expect = sorted([*(f"fitdash_{s}" for s in fm.SECTIONS), "get_coaching_targets", "set_coaching_target"])
+    assert names == expect
+
+
+def test_coaching_targets_get_and_set_use_the_agent_token():
+    seen = []
+    body = {"ok": True, "as_of": "2026-11-04", "targets": {"steps": {"effective": 9000}}}
+    got = fm.fetch_coaching_targets("2026-11-04", transport=_transport(body=body, seen=seen))
+    assert got == body
+    assert seen[0].method == "GET"
+    assert str(seen[0].url).startswith("https://fitdash.test:10001/api/agent/coaching_targets")
+    assert seen[0].url.params["as_of"] == "2026-11-04"
+    assert seen[0].headers["authorization"] == f"Bearer {TOKEN}"
+    seen.clear()
+    fm.post_coaching_target("steps", 9000, transport=_transport(body=body, seen=seen))
+    assert seen[0].method == "POST"
+    assert str(seen[0].url) == "https://fitdash.test:10001/api/agent/coaching_targets"
+    assert seen[0].headers["authorization"] == f"Bearer {TOKEN}"
+    import json
+    assert json.loads(seen[0].content) == {"target": "steps", "value": 9000}
+
+
+def test_coaching_target_bounds_do_not_call_the_api():
+    seen = []
+    transport = _transport(seen=seen)
+    for target, value in (
+        ("steps", 999),
+        ("steps", 30001),
+        ("steps", True),
+        ("kcal", 1199),
+        ("kcal", 6001),
+        ("hydration_ml", 499),
+        ("hydration_ml", 8001),
+        ("fiber", 35),
+    ):
+        with pytest.raises(fm.FitDashError):
+            fm.post_coaching_target(target, value, transport=transport)
+    assert seen == []
+    fm.validate_coaching_target("steps", 1000)
+    fm.validate_coaching_target("steps", 30000)
+    fm.validate_coaching_target("kcal", 1200)
+    fm.validate_coaching_target("kcal", 6000)
+    fm.validate_coaching_target("hydration_ml", 500)
+    fm.validate_coaching_target("hydration_ml", 8000)
+    assert fm.validate_coaching_target("steps", None) is None
+
+
+def test_coaching_target_post_redacts_token():
+    t = httpx.MockTransport(lambda r: httpx.Response(400, text="nope Bearer " + TOKEN))
+    with pytest.raises(fm.FitDashError) as ei:
+        fm.post_coaching_target("steps", 9000, transport=t)
+    assert "400" in str(ei.value) and TOKEN not in str(ei.value)
