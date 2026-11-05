@@ -1,0 +1,241 @@
+{
+  "investors": [
+    { "id": "inv_avery", "name": "Avery Quinn", "email": "avery.quinn@example.com" },
+    { "id": "inv_blake", "name": "Blake Moreno", "email": "blake.moreno@example.com" },
+    { "id": "inv_casey", "name": "Casey Nguyen", "email": "casey.nguyen@example.com" }
+  ],
+  "cars": [
+    {
+      "id": "car_harbor",
+      "investorId": "inv_avery",
+      "name": "Harbor",
+      "year": 2019,
+      "make": "Northline",
+      "model": "Arc",
+      "plate": "DEMO-C1",
+      "vin": "DEMO0ATLASVIN0001",
+      "purchaseCost": 4200,
+      "downPayment": 0,
+      "monthlyPayment": 0
+    },
+    {
+      "id": "car_lumen",
+      "investorId": "inv_avery",
+      "name": "Lumen",
+      "year": 2021,
+      "make": "Bramble",
+      "model": "Hatch",
+      "plate": "DEMO-C2",
+      "vin": "DEMO0ATLASVIN0002",
+      "purchaseCost": 5000,
+      "downPayment": 800,
+      "monthlyPayment": 180
+    },
+    {
+      "id": "car_sable",
+      "investorId": "inv_avery",
+      "name": "Sable",
+      "year": 2019,
+      "make": "Kite",
+      "model": "Coupe",
+      "plate": "DEMO-C3",
+      "vin": "DEMO0ATLASVIN0003",
+      "purchaseCost": 7600,
+      "downPayment": 400,
+      "monthlyPayment": 250
+    },
+    {
+      "id": "car_cedar",
+      "investorId": "inv_blake",
+      "name": "Cedar",
+      "year": 2020,
+      "make": "Cedar",
+      "model": "Wagon",
+      "plate": "DEMO-C4",
+      "vin": "DEMO0ATLASVIN0004",
+      "purchaseCost": 4800,
+      "downPayment": 200,
+      "monthlyPayment": 100
+    },
+    {
+      "id": "car_nimbus",
+      "investorId": "inv_blake",
+      "name": "Nimbus",
+      "year": 2018,
+      "make": "Pebble",
+      "model": "Van",
+      "plate": "DEMO-C5",
+      "vin": "DEMO0ATLASVIN0005",
+      "purchaseCost": 6400,
+      "downPayment": 0,
+      "monthlyPayment": 200
+    },
+    {
+      "id": "car_quill",
+      "investorId": "inv_blake",
+      "name": "Quill",
+      "year": 2023,
+      "make": "Quill",
+      "model": "Compact",
+      "plate": "DEMO-C6",
+      "vin": "DEMO0ATLASVIN0006",
+      "purchaseCost": 4000,
+      "downPayment": 0,
+      "monthlyPayment": 50
+    },
+    {
+      "id": "car_fable",
+      "investorId": "inv_casey",
+      "name": "Fable",
+      "year": 2022,
+      "make": "Fable",
+      "model": "Crossover",
+      "plate": "DEMO-C7",
+      "vin": "DEMO0ATLASVIN0007",
+      "purchaseCost": 7000,
+      "downPayment": 500,
+      "monthlyPayment": 220
+    },
+    {
+      "id": "car_plover",
+      "investorId": "inv_casey",
+      "name": "Plover",
+      "year": 2017,
+      "make": "Plover",
+      "model": "Sedan",
+      "plate": "DEMO-C8",
+      "vin": "DEMO0ATLASVIN0008",
+      "purchaseCost": 4500,
+      "downPayment": 0,
+      "monthlyPayment": 0
+    }
+  ],
+  "statuses": [
+    {
+      "carId": "car_harbor",
+      "status": "Rented",
+      "renter": "Jordan Hale",
+      "start": "2026-10-28",
+      "expectedReturn": "2026-11-03"
+    },
+    {
+      "carId": "car_lumen",
+      "status": "Reserved",
+      "renter": "Riley Cho",
+      "start": "2026-11-08",
+      "expectedReturn": "2026-11-12"
+    },
+    {
+      "carId": "car_sable",
+      "status": "Maintenance",
+      "renter": null,
+      "start": "2026-10-20",
+      "expectedReturn": null
+    },
+    {
+      "carId": "car_cedar",
+      "status": "Available",
+      "renter": null,
+      "start": "2026-10-18",
+      "expectedReturn": null
+    },
+    {
+      "carId": "car_nimbus",
+      "status": "Out of service",
+      "renter": null,
+      "start": "2026-09-01",
+      "expectedReturn": null
+    },
+    {
+      "carId": "car_quill",
+      "status": "Rented",
+      "renter": "Samira Adel",
+      "start": "2026-11-01",
+      "expectedReturn": "2026-11-05"
+    },
+    {
+      "carId": "car_fable",
+      "status": "Available",
+      "renter": null,
+      "start": "2026-10-31",
+      "expectedReturn": null
+    },
+    {
+      "carId": "car_plover",
+      "status": "Rented",
+      "renter": "Noah Pell",
+      "start": "2026-10-30",
+      "expectedReturn": "2026-11-09"
+    }
+  ],
+  "months": ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"],
+  "schedules": [
+    {
+      "carId": "car_harbor",
+      "platform": "Turo",
+      "gross": 1400,
+      "fees": 140,
+      "maintenance": 40,
+      "other": 20
+    },
+    {
+      "carId": "car_lumen",
+      "platform": "Upcar",
+      "gross": 1100,
+      "fees": 100,
+      "maintenance": 50,
+      "other": 30
+    },
+    {
+      "carId": "car_sable",
+      "platform": "Direct",
+      "gross": 700,
+      "fees": 70,
+      "maintenance": 40,
+      "other": 20,
+      "overrides": {
+        "2026-10": { "gross": 600, "fees": 60, "maintenance": 180, "other": 30 }
+      }
+    },
+    {
+      "carId": "car_cedar",
+      "platform": "Uber Fleet",
+      "gross": 900,
+      "fees": 90,
+      "maintenance": 60,
+      "other": 25
+    },
+    {
+      "carId": "car_nimbus",
+      "platform": "Turo",
+      "gross": 1200,
+      "fees": 120,
+      "maintenance": 80,
+      "other": 40
+    },
+    {
+      "carId": "car_quill",
+      "platform": "Upcar",
+      "gross": 800,
+      "fees": 80,
+      "maintenance": 200,
+      "other": 20
+    },
+    {
+      "carId": "car_fable",
+      "platform": "Direct",
+      "gross": 1300,
+      "fees": 130,
+      "maintenance": 70,
+      "other": 35
+    },
+    {
+      "carId": "car_plover",
+      "platform": "Uber Fleet",
+      "gross": 1000,
+      "fees": 50,
+      "maintenance": 30,
+      "other": 20
+    }
+  ]
+}

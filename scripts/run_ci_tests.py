@@ -174,6 +174,30 @@ def run_kanban_node() -> int:
     return _run(["npm", "test"], cwd=root, env=os.environ.copy())
 
 
+def discover_atlasgo_node(root: Path = ROOT) -> Path | None:
+    ui = root / "apps" / "atlasgo-demo"
+    if (ui / "package.json").is_file() and (ui / "package-lock.json").is_file():
+        return ui
+    return None
+
+
+def run_atlasgo_node() -> int:
+    root = discover_atlasgo_node()
+    if root is None:
+        print("apps/atlasgo-demo package-lock.json missing")
+        return 1
+    code = _run(["npm", "ci", "--ignore-scripts"], cwd=root, env=os.environ.copy())
+    if code != 0:
+        return code
+    code = _run(["npm", "test"], cwd=root, env=os.environ.copy())
+    if code != 0:
+        return code
+    code = _run(["npm", "run", "lint"], cwd=root, env=os.environ.copy())
+    if code != 0:
+        return code
+    return _run(["npm", "run", "build"], cwd=root, env=os.environ.copy())
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--python-only", action="store_true")
@@ -207,6 +231,10 @@ def main(argv: list[str] | None = None) -> int:
         print("kanban:")
         if kanban is not None:
             print(" ", kanban.relative_to(ROOT))
+        atlasgo = discover_atlasgo_node()
+        print("atlasgo:")
+        if atlasgo is not None:
+            print(" ", atlasgo.relative_to(ROOT))
         return 0
 
     results: list[tuple[str, int]] = []
@@ -224,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
             results.append((label, run_js(path)))
         results.append(("products/gethelpfrom.ai/tests/web.test.js", run_gethelpfrom_node()))
         results.append(("projects-dashboard/eng-kanban", run_kanban_node()))
+        results.append(("apps/atlasgo-demo", run_atlasgo_node()))
 
     if not args.no_clean_check:
         changed = tree_changes(before, tree_state())
