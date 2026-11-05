@@ -43,6 +43,12 @@ class DiscoverTests(unittest.TestCase):
         found = RUNNER.discover_gethelpfrom_node_tests(ROOT)
         self.assertTrue(any(p.name == "web.test.js" for p in found))
 
+    def test_atlasgo_node_suite_is_wired(self) -> None:
+        found = RUNNER.discover_atlasgo_node(ROOT)
+        self.assertIsNotNone(found)
+        assert found is not None
+        self.assertEqual(found.name, "atlasgo-demo")
+
     def test_js_tests_are_standalone_scripts(self) -> None:
         js = RUNNER.discover_js_tests(ROOT)
         self.assertTrue(js)

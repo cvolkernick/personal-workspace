@@ -1,0 +1,16 @@
+export const ROADMAP_ITEMS = [
+  "Customer booking site/rental portal",
+  "driver vetting + document profiles",
+  "rent-to-own/purchase tracking",
+  "Wheelbase integration",
+  "Turo earnings import",
+  "QuickBooks sync",
+  "tolls/SunPass invoicing",
+  "Trackhawk GPS miles/fuel/odometer",
+  "real-time data",
+  "real payments/payouts",
+  "tax reporting",
+  "partner/manager (franchise) portal + booking fee",
+  "double-booking prevention",
+  "multi-location",
+] as const;
