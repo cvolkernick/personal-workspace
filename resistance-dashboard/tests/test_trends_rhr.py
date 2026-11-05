@@ -63,9 +63,9 @@ class TrendsRhrMarkup(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=coach-weekly-2", HTML)
-        self.assertIn("/app.js?v=coach-weekly-2", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v157"', SW)
+        self.assertIn("/app.js?v=weight-slope-90d-1", HTML)
+        self.assertIn("/app.js?v=weight-slope-90d-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v158"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)
@@ -96,7 +96,7 @@ class TrendsRhrMarkup(unittest.TestCase):
         # Chart.js 4 draws a higher order first, so 3 and 4 sit behind daily order 2.
         self.assertLess(block.find("order: 2"), block.find('label: "Trend"'))
         self.assertLess(block.find('label: "Trend"'), block.find('label: "Baseline"'))
-        self.assertIn("const rSlope = trendSlopePerDay(rhrVals);", JS)
+        self.assertIn("const rSlope = trendSlopePerIndex(rhrVals);", JS)
         self.assertIn(
             "const rhrTrend = rSlope == null ? null : linearTrend(rhrVals);",
             JS,

@@ -1371,12 +1371,91 @@
     return out;
   }
 
-  function trendSlopePerDay(values) {
+  /**
+   * Points whose civil date is inside the last `windowDays` days ending on
+   * `asOf` (local today when omitted), inclusive. Same span as the other 90d
+   * charts: the end date and the previous windowDays-1 days.
+   */
+  function clipToRecentCalendarDays(points, windowDays, asOf) {
+    const spanRaw = Number(windowDays);
+    const span = Number.isFinite(spanRaw) && spanRaw > 0 ? Math.floor(spanRaw) : 90;
+    const z = (n) => String(n).padStart(2, "0");
+    let end = String(asOf || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+      const dt = new Date();
+      end = `${dt.getFullYear()}-${z(dt.getMonth() + 1)}-${z(dt.getDate())}`;
+    }
+    const parts = end.split("-").map(Number);
+    const startDt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    startDt.setUTCDate(startDt.getUTCDate() - (span - 1));
+    const start = `${startDt.getUTCFullYear()}-${z(startDt.getUTCMonth() + 1)}-${z(startDt.getUTCDate())}`;
+    return (points || []).filter((p) => {
+      const d = String((p && p.date) || "").slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= start && d <= end;
+    });
+  }
+
+  /** Last weight minus goal. Positive: still above the goal. */
+  function weightGoalGapLabel(lastLbs, goalLbs) {
+    const last = Number(lastLbs);
+    const goal = Number(goalLbs);
+    if (!Number.isFinite(last) || !Number.isFinite(goal)) return "";
+    const gap = last - goal;
+    if (gap > 0) return `+${gap.toFixed(1)} lb above goal`;
+    if (gap < 0) return `${Math.abs(gap).toFixed(1)} lb below goal`;
+    return "0.0 lb above goal";
+  }
+
+  /**
+   * OLS slope per array index. This is not a calendar-day rate.
+   * One index equals one civil day only for a dense filled series
+   * (daily tonnage, sleep, resting HR, hydration).
+   */
+  function trendSlopePerIndex(values) {
     const pts = [];
     values.forEach((v, i) => {
       if (v != null && !Number.isNaN(Number(v))) pts.push({ x: i, y: Number(v) });
     });
     if (pts.length < 2) return null;
+    const n = pts.length;
+    const meanX = pts.reduce((s, p) => s + p.x, 0) / n;
+    const meanY = pts.reduce((s, p) => s + p.y, 0) / n;
+    let num = 0;
+    let den = 0;
+    pts.forEach((p) => {
+      num += (p.x - meanX) * (p.y - meanY);
+      den += (p.x - meanX) ** 2;
+    });
+    if (den === 0) return null;
+    return num / den;
+  }
+
+  /**
+   * OLS slope in y per calendar day.
+   * x is whole UTC days since the earliest finite point's date.
+   * points: [{date, value}]. Null when fewer than 2 dated values,
+   * or when every point falls on the same civil day.
+   */
+  function trendSlopePerDay(points) {
+    const rows = [];
+    (points || []).forEach((p) => {
+      if (!p) return;
+      const raw = p.value != null ? p.value : p.y;
+      const y = Number(raw);
+      if (!Number.isFinite(y)) return;
+      const date = String(p.date || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      const parts = date.split("-").map(Number);
+      const utc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+      if (!Number.isFinite(utc)) return;
+      rows.push({ utc: utc, y: y });
+    });
+    if (rows.length < 2) return null;
+    let origin = rows[0].utc;
+    rows.forEach((r) => {
+      if (r.utc < origin) origin = r.utc;
+    });
+    const pts = rows.map((r) => ({ x: (r.utc - origin) / 86400000, y: r.y }));
     const n = pts.length;
     const meanX = pts.reduce((s, p) => s + p.x, 0) / n;
     const meanY = pts.reduce((s, p) => s + p.y, 0) / n;
@@ -1398,7 +1477,7 @@
     const volVals = vol.map((v) => v.volume);
     const volTrend = linearTrend(volVals);
     const volRoll7 = rollingAverage(volVals, 7);
-    const vSlope = trendSlopePerDay(volVals);
+    const vSlope = trendSlopePerIndex(volVals);
     const lastVolRoll =
       [...volRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
     destroyChart(volumeChart);
@@ -1551,15 +1630,19 @@
     }
     renderStrength(data);
 
-    const weights = downsamplePoints(
-      [...((data.health && data.health.weight) || [])].sort((a, b) =>
-        String(a.date).localeCompare(String(b.date))
-      ),
-      45
+    const weightSorted = [...((data.health && data.health.weight) || [])].sort((a, b) =>
+      String(a.date).localeCompare(String(b.date))
     );
+    // "Body Weight · 90d" — drop older weigh-ins before the chart and the footer.
+    // Under 2 points in the window: no trend (do not fit the unclipped history).
+    const weightWindow = clipToRecentCalendarDays(weightSorted, 90);
+    const weights = downsamplePoints(weightWindow, 45);
     const weightVals = weights.map((w) => w.weight_lbs);
-    const weightTrend = linearTrend(weightVals);
-    const wSlope = trendSlopePerDay(weightVals);
+    const wSlope = trendSlopePerDay(
+      weights.map((w) => ({ date: w && w.date, value: w && w.weight_lbs }))
+    );
+    const weightTrend =
+      wSlope == null ? weightVals.map(() => null) : linearTrend(weightVals);
     // Current body-weight goal from More → Daily targets (optional guide line)
     const weightGoalRaw =
       (data.nutrition_store &&
@@ -1655,9 +1738,8 @@
           [...weightVals].reverse().find((v) => v != null && Number.isFinite(v)) ??
           null;
         if (lastW != null) {
-          const gap = lastW - weightGoal;
           bits.push(
-            `goal ${weightGoal.toFixed(1)} lb · ${gap >= 0 ? "+" : ""}${gap.toFixed(1)} lb vs last`
+            `goal ${weightGoal.toFixed(1)} lb · ${weightGoalGapLabel(lastW, weightGoal)}`
           );
         } else {
           bits.push(`goal ${weightGoal.toFixed(1)} lb`);
@@ -1682,7 +1764,7 @@
     const sleepTrend = linearTrend(sleepVals);
     const sleepRoll7 = rollingAverage(sleepVals, 7);
     const sleepTarget = sleepVals.map(() => 8);
-    const sSlope = trendSlopePerDay(sleepVals);
+    const sSlope = trendSlopePerIndex(sleepVals);
     const lastRoll =
       [...sleepRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
     const zeroNights = countZeroSleepNights(sleepVals);
@@ -1788,9 +1870,9 @@
     );
     const rhrMedian14 = rollingMedian(rhrVals, 14);
     const rhrPresent = rhrVals.filter((v) => v != null).length;
-    // Same OLS as the sleep chart: slope from trendSlopePerDay, line from linearTrend.
+    // Dense civil-day series (nulls keep their day). Index slope is bpm/day.
     // Hide the dataset when the helper returns null (< 2 finite days, or zero variance in x).
-    const rSlope = trendSlopePerDay(rhrVals);
+    const rSlope = trendSlopePerIndex(rhrVals);
     const rhrTrend = rSlope == null ? null : linearTrend(rhrVals);
     const recIn = (data.recovery && data.recovery.inputs) || {};
     const baselineRaw = recIn.rhr_baseline_bpm;
@@ -2552,7 +2634,7 @@
       const hydVals = hydration.map((h) => h.water_ml);
       const hydRoll7 = rollingAverage(hydVals, 7);
       const hydTrend = linearTrend(hydVals);
-      const hSlope = trendSlopePerDay(hydVals);
+      const hSlope = trendSlopePerIndex(hydVals);
       const lastHydRoll =
         [...hydRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
       // Flat coach-rule target when the payload says so. 35 ml/kg remains
@@ -2736,7 +2818,9 @@
         : null
     );
     const e1rmTrend = linearTrend(e1rmVals);
-    const loadSlope = trendSlopePerDay(loadVals);
+    const loadSlope = trendSlopePerDay(
+      series.map((p, i) => ({ date: p && p.date, value: loadVals[i] }))
+    );
     const baseOpts = chartDefaults();
     destroyChart(strengthChart);
     strengthChart = new Chart($("chart-strength"), {
