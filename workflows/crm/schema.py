@@ -15,6 +15,37 @@ from workflows.crm import SCHEMA_VERSION
 # voice is still allowed; the SMS selector filters that tag itself.
 _FUNNEL = ("new", "sms_sent")
 
+# S1. contact_type is separate from party.type (lead/vendor/…). NULL is
+# allowed so rows written before this column stay untouched.
+CONTACT_TYPES = ("renter", "owner", "partner")
+# Controlled source tags stored on party_tag. Other tags (tire-shop,
+# turo-guest, …) stay valid; these are the ones reports filter on.
+SOURCE_TAGS = (
+    "fb-marketplace",
+    "sms-904",
+    "call-904",
+    "referral",
+    "site-form",
+    "turo",
+    "wheelbase",
+    "ref:atlasgo",
+    "ref:guillermo-group",
+)
+# A contact may carry at most one of these. Reports never add them together.
+DEAL_TAGS = ("ref:atlasgo", "ref:guillermo-group")
+# Renters only. Owners and partners keep the roadside status strings.
+RENTER_STATUSES = ("new", "contacted", "quoted", "booked", "completed", "lost")
+# new → contacted → quoted → booked → completed | lost. Same-status writes
+# are not a transition. Create may start on any renter status.
+RENTER_TRANSITIONS: dict[str, frozenset[str]] = {
+    "new": frozenset({"contacted"}),
+    "contacted": frozenset({"quoted"}),
+    "quoted": frozenset({"booked"}),
+    "booked": frozenset({"completed", "lost"}),
+    "completed": frozenset(),
+    "lost": frozenset(),
+}
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
   key TEXT PRIMARY KEY,
@@ -33,6 +64,7 @@ CREATE TABLE IF NOT EXISTS credential (
 CREATE TABLE IF NOT EXISTS party (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL CHECK (type IN ('lead','vendor','supplier','customer','partner','other')),
+  contact_type TEXT CHECK (contact_type IN ('renter','owner','partner')),
   display_name TEXT NOT NULL DEFAULT '',
   org_name TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT '',
@@ -273,10 +305,109 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _sql_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _migrate_s1(conn: sqlite3.Connection) -> None:
+    """Add contact_type, the deal-tag trigger, and the renter status trigger.
+
+    CREATE TABLE IF NOT EXISTS does not alter a party table from before S1,
+    so existing databases get the column via ALTER. Existing values stay NULL.
+    The contact_type index is created here, after the column exists.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(party)")}
+    if "contact_type" not in cols:
+        conn.execute(
+            """
+            ALTER TABLE party ADD COLUMN contact_type TEXT
+            CHECK (contact_type IN ('renter','owner','partner'))
+            """
+        )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_party_contact_type ON party(contact_type)")
+    deal_list = ", ".join(_sql_quote(tag) for tag in DEAL_TAGS)
+    conn.execute(
+        f"""
+        CREATE TRIGGER IF NOT EXISTS party_tag_deal_exclusive_insert
+        BEFORE INSERT ON party_tag
+        FOR EACH ROW
+        WHEN NEW.tag IN ({deal_list})
+        BEGIN
+          SELECT RAISE(ABORT, 'deal tags are mutually exclusive')
+          WHERE EXISTS (
+            SELECT 1 FROM party_tag
+            WHERE party_id = NEW.party_id
+              AND tag IN ({deal_list})
+              AND tag <> NEW.tag
+          );
+        END
+        """
+    )
+    conn.execute(
+        f"""
+        CREATE TRIGGER IF NOT EXISTS party_tag_deal_exclusive_update
+        BEFORE UPDATE OF tag ON party_tag
+        FOR EACH ROW
+        WHEN NEW.tag IN ({deal_list})
+        BEGIN
+          SELECT RAISE(ABORT, 'deal tags are mutually exclusive')
+          WHERE EXISTS (
+            SELECT 1 FROM party_tag
+            WHERE party_id = NEW.party_id
+              AND tag IN ({deal_list})
+              AND tag <> NEW.tag
+              AND NOT (party_id = OLD.party_id AND tag = OLD.tag)
+          );
+        END
+        """
+    )
+    status_list = ", ".join(_sql_quote(status) for status in RENTER_STATUSES)
+    edges = []
+    for src, dsts in RENTER_TRANSITIONS.items():
+        if not dsts:
+            continue
+        allowed = ", ".join(_sql_quote(dst) for dst in sorted(dsts))
+        edges.append(f"(OLD.status = {_sql_quote(src)} AND NEW.status IN ({allowed}))")
+    edge_sql = " OR ".join(edges) if edges else "0"
+    conn.execute(
+        f"""
+        CREATE TRIGGER IF NOT EXISTS party_renter_status_insert
+        BEFORE INSERT ON party
+        FOR EACH ROW
+        WHEN NEW.contact_type = 'renter'
+          AND NEW.status NOT IN ({status_list})
+        BEGIN
+          SELECT RAISE(ABORT, 'bad renter status');
+        END
+        """
+    )
+    conn.execute(
+        f"""
+        CREATE TRIGGER IF NOT EXISTS party_renter_status_update
+        BEFORE UPDATE OF status, contact_type ON party
+        FOR EACH ROW
+        WHEN NEW.contact_type = 'renter' AND IFNULL(NEW.status, '') <> 'merged'
+        BEGIN
+          SELECT RAISE(ABORT, 'invalid renter status transition')
+          WHERE (
+            OLD.contact_type = 'renter'
+            AND NEW.status <> OLD.status
+            AND NOT ({edge_sql})
+          )
+          OR (
+            (OLD.contact_type IS NULL OR OLD.contact_type <> 'renter')
+            AND NEW.status NOT IN ({status_list})
+          );
+        END
+        """
+    )
+
+
 def migrate(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     conn.executescript(FTS_SQL)
     conn.executescript(OUTREACH_VIEW_SQL)
+    _migrate_s1(conn)
     row = conn.execute("SELECT value FROM schema_meta WHERE key = 'version'").fetchone()
     if row is None:
         now = utc_now()
@@ -296,6 +427,13 @@ def migrate(conn: sqlite3.Connection) -> None:
         except Exception:
             conn.execute("ROLLBACK")
             raise
+    else:
+        current = str(row["value"] if hasattr(row, "keys") else row[0])
+        if current.isdigit() and int(current) < SCHEMA_VERSION:
+            conn.execute(
+                "UPDATE schema_meta SET value = ? WHERE key = 'version'",
+                (str(SCHEMA_VERSION),),
+            )
     harden_from_conn(conn)
 
 

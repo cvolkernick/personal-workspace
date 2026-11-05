@@ -33,8 +33,10 @@ def main(argv: list[str] | None = None) -> int:
     show.add_argument("party_id")
     search = sub.add_parser("search")
     search.add_argument("--q", default="")
-    search.add_argument("--type", default="")
+    search.add_argument("--type", default="", help="party.type (lead, vendor, customer, ...)")
+    search.add_argument("--contact-type", default="", help="renter, owner, or partner")
     search.add_argument("--tag", default="")
+    search.add_argument("--source", default="", help="controlled source tag")
     search.add_argument("--status", default="")
     token = sub.add_parser("token", help="Issue a seat token (prints the secret once)")
     token.add_argument("seat")
@@ -64,13 +66,21 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(party, indent=2))
         return 0
     if args.cmd == "search":
-        parties = db.search(
-            db.actor_for_seat("grok"),
-            q=args.q,
-            party_type=args.type,
-            tag=args.tag,
-            status=args.status,
-        )
+        from workflows.crm.auth import CrmError
+
+        try:
+            parties = db.search(
+                db.actor_for_seat("grok"),
+                q=args.q,
+                party_type=args.type,
+                tag=args.tag,
+                status=args.status,
+                contact_type=args.contact_type,
+                source=args.source,
+            )
+        except CrmError as exc:
+            print(exc.message, file=sys.stderr)
+            return 1
         for party in parties:
             print(badge_line(party))
         return 0
@@ -92,7 +102,14 @@ def _http(args: argparse.Namespace) -> int:
         return 0
     if args.cmd == "search":
         query = urllib_query(
-            {"q": args.q, "type": args.type, "tag": args.tag, "status": args.status}
+            {
+                "q": args.q,
+                "type": args.type,
+                "contact_type": args.contact_type,
+                "tag": args.tag,
+                "source": args.source,
+                "status": args.status,
+            }
         )
         payload = _request(base, "GET", "/v1/search" + query, args.token)
         for party in payload.get("results") or []:
