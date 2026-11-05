@@ -124,8 +124,18 @@ def _route(
             party_type=query.get("type") or "",
             tag=query.get("tag") or "",
             status=query.get("status") or "",
+            contact_type=query.get("contact_type") or "",
+            source=query.get("source") or "",
         )
         return 200, {"results": results}
+    if route == "/v1/reports/sources" and method == "GET":
+        return 200, db.source_report(
+            actor,
+            contact_type=query.get("contact_type") or "",
+            status=query.get("status") or "",
+            tag=query.get("tag") or "",
+            source=query.get("source") or "",
+        )
     if route == "/v1/interactions" and method == "POST":
         row, created = db.add_interaction(actor, payload)
         return (201 if created else 200), row

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import sqlite3
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,7 +23,15 @@ from workflows.crm.normalize import (
     phone_key,
     vin_norm,
 )
-from workflows.crm.schema import connect, utc_now
+from workflows.crm.schema import (
+    CONTACT_TYPES,
+    DEAL_TAGS,
+    RENTER_STATUSES,
+    RENTER_TRANSITIONS,
+    SOURCE_TAGS,
+    connect,
+    utc_now,
+)
 
 PARTY_TYPES = ("lead", "vendor", "supplier", "customer", "partner", "other")
 _EVENT_INTERACTION = {
@@ -61,6 +70,78 @@ def _holds(actor: Actor | None, scope: str) -> bool:
 
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _parse_contact_type(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text not in CONTACT_TYPES:
+        raise CrmError(400, "bad contact_type")
+    return text
+
+
+def _validate_renter_status(
+    *,
+    old_contact_type: str | None,
+    new_contact_type: str | None,
+    old_status: str,
+    new_status: str,
+) -> None:
+    """Renters follow RENTER_TRANSITIONS. Owners, partners, and NULL do not."""
+    if new_contact_type != "renter" or new_status == "merged":
+        return
+    if new_status not in RENTER_STATUSES:
+        raise CrmError(400, "bad renter status")
+    if (old_contact_type or "") == "renter" and new_status != old_status:
+        if new_status not in RENTER_TRANSITIONS.get(old_status, frozenset()):
+            raise CrmError(400, "invalid renter status transition")
+
+
+def _tag_list(tags: object) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for tag in tags or []:
+        text = str(tag).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def _validate_tag_list(tags: list[str]) -> None:
+    deals = [tag for tag in tags if tag in DEAL_TAGS]
+    if len(deals) > 1:
+        raise CrmError(400, "deal tags are mutually exclusive")
+    for tag in tags:
+        if tag.startswith("ref:") and tag not in DEAL_TAGS:
+            raise CrmError(400, "unknown deal tag")
+
+
+def _reject_combined_deal_filter(*values: str) -> None:
+    """A filter that names both deal tags would report them as one set."""
+    found: set[str] = set()
+    for value in values:
+        for part in str(value or "").split(","):
+            text = part.strip()
+            if text in DEAL_TAGS:
+                found.add(text)
+    if len(found) > 1:
+        raise CrmError(400, "deal tags cannot be combined")
+
+
+def _from_integrity(exc: sqlite3.IntegrityError) -> CrmError:
+    text = str(exc).lower()
+    if "deal tags" in text:
+        return CrmError(400, "deal tags are mutually exclusive")
+    if "bad renter status" in text:
+        return CrmError(400, "bad renter status")
+    if "renter status" in text:
+        return CrmError(400, "invalid renter status transition")
+    if "contact_type" in text:
+        return CrmError(400, "bad contact_type")
+    return CrmError(400, "invalid party")
 
 
 def _event_msg_id(party_id: str, index: int, event: dict[str, Any]) -> str:
@@ -146,52 +227,67 @@ class CrmDB:
         party_type = str(payload.get("type") or "lead").strip()
         if party_type not in PARTY_TYPES:
             raise CrmError(400, "bad type")
+        contact_type = (
+            _parse_contact_type(payload.get("contact_type")) if "contact_type" in payload else None
+        )
+        status = str(payload.get("status") or "new")
         specs = self._identity_specs(payload)
-        with self._tx():
-            for spec in specs:
-                owner = self._party_for_identity(spec["kind"], spec["value_norm"])
-                if owner:
-                    return self._party_doc(owner), False
-            explicit = str(payload.get("id") or "").strip()
-            if explicit and self._party_row(explicit) is not None:
-                return self._party_doc(explicit), False
-            party_id = explicit or ulid()
-            now = utc_now()
-            ext = payload.get("ext") if isinstance(payload.get("ext"), dict) else {}
-            self.conn.execute(
-                """
-                INSERT INTO party(
-                  id, type, display_name, org_name, status, source, owner_seat, location,
-                  ext_json, archived, created_at, created_by, updated_at, updated_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
-                """,
-                (
-                    party_id,
-                    party_type,
-                    str(payload.get("display_name") or ""),
-                    str(payload.get("org_name") or ""),
-                    str(payload.get("status") or "new"),
-                    str(payload.get("source") or "manual"),
-                    str(payload.get("owner_seat") or actor.seat),
-                    str(payload.get("location") or ""),
-                    _dumps(ext),
-                    now,
-                    actor.seat,
-                    now,
-                    actor.seat,
-                ),
-            )
-            self._replace_tags(party_id, payload.get("tags") or [])
-            for spec in specs:
-                self._insert_identity(party_id, spec)
-            self._insert_vehicles(party_id, payload.get("vehicle"), payload.get("vehicles"))
-            for body in payload.get("notes") or []:
-                if str(body).strip():
-                    self._insert_note(party_id, str(body), _SNAPSHOT_NOTE_AUTHOR, now)
-            self._reindex(party_id)
-            doc = self._party_doc(party_id)
-            self._audit(actor, "party", party_id, "create", None, doc, request_id)
-            return doc, True
+        try:
+            with self._tx():
+                for spec in specs:
+                    owner = self._party_for_identity(spec["kind"], spec["value_norm"])
+                    if owner:
+                        return self._party_doc(owner), False
+                explicit = str(payload.get("id") or "").strip()
+                if explicit and self._party_row(explicit) is not None:
+                    return self._party_doc(explicit), False
+                _validate_renter_status(
+                    old_contact_type=None,
+                    new_contact_type=contact_type,
+                    old_status="",
+                    new_status=status,
+                )
+                party_id = explicit or ulid()
+                now = utc_now()
+                ext = payload.get("ext") if isinstance(payload.get("ext"), dict) else {}
+                self.conn.execute(
+                    """
+                    INSERT INTO party(
+                      id, type, contact_type, display_name, org_name, status, source,
+                      owner_seat, location, ext_json, archived, created_at, created_by,
+                      updated_at, updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                    """,
+                    (
+                        party_id,
+                        party_type,
+                        contact_type,
+                        str(payload.get("display_name") or ""),
+                        str(payload.get("org_name") or ""),
+                        status,
+                        str(payload.get("source") or "manual"),
+                        str(payload.get("owner_seat") or actor.seat),
+                        str(payload.get("location") or ""),
+                        _dumps(ext),
+                        now,
+                        actor.seat,
+                        now,
+                        actor.seat,
+                    ),
+                )
+                self._replace_tags(party_id, payload.get("tags") or [])
+                for spec in specs:
+                    self._insert_identity(party_id, spec)
+                self._insert_vehicles(party_id, payload.get("vehicle"), payload.get("vehicles"))
+                for body in payload.get("notes") or []:
+                    if str(body).strip():
+                        self._insert_note(party_id, str(body), _SNAPSHOT_NOTE_AUTHOR, now)
+                self._reindex(party_id)
+                doc = self._party_doc(party_id)
+                self._audit(actor, "party", party_id, "create", None, doc, request_id)
+                return doc, True
+        except sqlite3.IntegrityError as exc:
+            raise _from_integrity(exc) from exc
 
     def get_party(self, actor: Actor, party_id: str) -> dict[str, Any]:
         require(actor, "read:party")
@@ -201,6 +297,14 @@ class CrmDB:
 
     def update_party(
         self, actor: Actor, party_id: str, patch: dict[str, Any], request_id: str = ""
+    ) -> dict[str, Any]:
+        try:
+            return self._update_party(actor, party_id, patch, request_id)
+        except sqlite3.IntegrityError as exc:
+            raise _from_integrity(exc) from exc
+
+    def _update_party(
+        self, actor: Actor, party_id: str, patch: dict[str, Any], request_id: str
     ) -> dict[str, Any]:
         with self._tx():
             row = self._party_row(party_id)
@@ -212,6 +316,17 @@ class CrmDB:
             for key in ("display_name", "org_name", "status", "location", "owner_seat", "source"):
                 if key in patch:
                     fields[key] = str(patch[key] or "")
+            if "contact_type" in patch:
+                fields["contact_type"] = _parse_contact_type(patch.get("contact_type"))
+            if "contact_type" in patch or "status" in patch:
+                _validate_renter_status(
+                    old_contact_type=row["contact_type"] or None,
+                    new_contact_type=fields["contact_type"]
+                    if "contact_type" in fields
+                    else (row["contact_type"] or None),
+                    old_status=str(row["status"] or ""),
+                    new_status=fields["status"] if "status" in fields else str(row["status"] or ""),
+                )
             if "archived" in patch:
                 fields["archived"] = 1 if patch["archived"] else 0
             ext = _loads(row["ext_json"], {})
@@ -263,11 +378,33 @@ class CrmDB:
         require(actor, "merge")
         if survivor_id == loser_id:
             raise CrmError(400, "merge needs two parties")
+        try:
+            return self._merge_parties(actor, survivor_id, loser_id, request_id)
+        except sqlite3.IntegrityError as exc:
+            raise _from_integrity(exc) from exc
+
+    def _merge_parties(
+        self, actor: Actor, survivor_id: str, loser_id: str, request_id: str
+    ) -> dict[str, Any]:
         with self._tx():
             if self._party_row(survivor_id) is None or self._party_row(loser_id) is None:
                 raise CrmError(404, "not found")
             before_s = self._party_doc(survivor_id)
             before_l = self._party_doc(loser_id)
+            survivor_tags = {
+                row["tag"]
+                for row in self.conn.execute(
+                    "SELECT tag FROM party_tag WHERE party_id = ?", (survivor_id,)
+                )
+            }
+            loser_tags = {
+                row["tag"]
+                for row in self.conn.execute(
+                    "SELECT tag FROM party_tag WHERE party_id = ?", (loser_id,)
+                )
+            }
+            if len((survivor_tags | loser_tags) & set(DEAL_TAGS)) > 1:
+                raise CrmError(400, "deal tags are mutually exclusive")
             for table in ("note", "task", "interaction", "vehicle"):
                 self.conn.execute(
                     f"UPDATE {table} SET party_id = ? WHERE party_id = ?",
@@ -530,8 +667,15 @@ class CrmDB:
         tag: str = "",
         status: str = "",
         limit: int = 50,
+        contact_type: str = "",
+        source: str = "",
     ) -> list[dict[str, Any]]:
         require(actor, "read:party")
+        _reject_combined_deal_filter(tag, source)
+        if contact_type and contact_type not in CONTACT_TYPES:
+            raise CrmError(400, "bad contact_type")
+        if source and source not in SOURCE_TAGS:
+            raise CrmError(400, "unknown source tag")
         tokens = [tok for tok in _fts_tokens(q)]
         params: list[Any] = []
         if tokens:
@@ -549,15 +693,78 @@ class CrmDB:
         if party_type:
             sql += " AND p.type = ?"
             params.append(party_type)
+        if contact_type:
+            sql += " AND p.contact_type = ?"
+            params.append(contact_type)
         if status:
             sql += " AND p.status = ?"
             params.append(status)
         if tag:
             sql += " AND EXISTS (SELECT 1 FROM party_tag t WHERE t.party_id = p.id AND t.tag = ?)"
             params.append(tag)
+        if source:
+            sql += " AND EXISTS (SELECT 1 FROM party_tag t WHERE t.party_id = p.id AND t.tag = ?)"
+            params.append(source)
         sql += " ORDER BY p.updated_at DESC LIMIT ?"
         params.append(int(limit))
         return [self._party_doc(row["id"]) for row in self.conn.execute(sql, params)]
+
+    def source_report(
+        self,
+        actor: Actor,
+        *,
+        contact_type: str = "",
+        status: str = "",
+        tag: str = "",
+        source: str = "",
+    ) -> dict[str, Any]:
+        """Counts per controlled source tag. Deal tags are separate keys, never summed."""
+        require(actor, "read:party")
+        _reject_combined_deal_filter(tag, source)
+        if contact_type and contact_type not in CONTACT_TYPES:
+            raise CrmError(400, "bad contact_type")
+        if source and source not in SOURCE_TAGS:
+            raise CrmError(400, "unknown source tag")
+        where = "p.archived = 0"
+        params: list[Any] = []
+        if contact_type:
+            where += " AND p.contact_type = ?"
+            params.append(contact_type)
+        if status:
+            where += " AND p.status = ?"
+            params.append(status)
+        if tag:
+            where += " AND EXISTS (SELECT 1 FROM party_tag t WHERE t.party_id = p.id AND t.tag = ?)"
+            params.append(tag)
+        if source:
+            where += " AND EXISTS (SELECT 1 FROM party_tag t WHERE t.party_id = p.id AND t.tag = ?)"
+            params.append(source)
+
+        def _count(source_tag: str) -> int:
+            row = self.conn.execute(
+                f"""
+                SELECT COUNT(*) AS n FROM party p
+                WHERE {where}
+                  AND EXISTS (
+                    SELECT 1 FROM party_tag t WHERE t.party_id = p.id AND t.tag = ?
+                  )
+                """,
+                [*params, source_tag],
+            ).fetchone()
+            return int(row["n"])
+
+        deal_tags = set(DEAL_TAGS)
+        deals = {deal: {"count": _count(deal)} for deal in DEAL_TAGS}
+        if set(deals) != deal_tags:
+            raise CrmError(400, "deal tags cannot be combined")
+        return {
+            "source_tags": [
+                {"tag": source_tag, "count": _count(source_tag)}
+                for source_tag in SOURCE_TAGS
+                if source_tag not in deal_tags
+            ],
+            "deals": deals,
+        }
 
     def by_identity(self, actor: Actor, *, kind: str, value: str) -> Optional[dict[str, Any]]:
         require(actor, "read:party")
@@ -1023,13 +1230,10 @@ class CrmDB:
             )
 
     def _replace_tags(self, party_id: str, tags: object) -> None:
+        cleaned = _tag_list(tags)
+        _validate_tag_list(cleaned)
         self.conn.execute("DELETE FROM party_tag WHERE party_id = ?", (party_id,))
-        seen: set[str] = set()
-        for tag in tags or []:
-            text = str(tag).strip()
-            if not text or text in seen:
-                continue
-            seen.add(text)
+        for text in cleaned:
             self.conn.execute(
                 "INSERT INTO party_tag(party_id, tag) VALUES (?, ?)",
                 (party_id, text),
@@ -1337,6 +1541,7 @@ class CrmDB:
         return {
             "id": row["id"],
             "type": row["type"],
+            "contact_type": row["contact_type"],
             "display_name": row["display_name"],
             "org_name": row["org_name"],
             "tags": tags,

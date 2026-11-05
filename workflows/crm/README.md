@@ -35,6 +35,31 @@ No live SMS. `PANAMERICA_ROADSIDE_COPY_APPROVED` stays unset.
 Importer `--dry-run` uses a throwaway database. `--backup` copies the roadside
 JSON to `store.json.bak-p1` once and never writes that file again.
 
+## Contact type, source tags, renter status (S1)
+
+`party.contact_type` is `renter`, `owner`, or `partner`. It is separate from
+`party.type` (`lead`, `vendor`, `supplier`, `customer`, `partner`, `other`).
+Rows from before the column stay `NULL`.
+
+Source tags live on `party_tag`. The controlled set is `fb-marketplace`,
+`sms-904`, `call-904`, `referral`, `site-form`, `turo`, `wheelbase`, plus the
+deal tags `ref:atlasgo` and `ref:guillermo-group`. A contact can hold at most
+one deal tag. Other tags (for example `tire-shop`) still save. `GET
+/v1/reports/sources` counts each source tag on its own and keeps the two deals
+in separate keys. A search or report filter that names both deal tags is 400.
+
+Renter status moves `new` → `contacted` → `quoted` → `booked` → `completed` or
+`lost`. Any other jump is 400. Create may start on any renter status. Owners
+and partners keep the roadside status strings.
+
+```bash
+crm search --contact-type renter --source referral --status quoted
+```
+
+`GET /v1/search?contact_type=renter&source=referral&status=quoted` is the same
+filter. `source` is a controlled source tag, not the free-text `party.source`
+column.
+
 ## Contact lookup by phone (#1097 slice 1)
 
 `GET /v1/contacts/by-phone?pn=<phone>&limit=<N>` returns one contact for the
