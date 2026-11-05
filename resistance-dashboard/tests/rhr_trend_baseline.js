@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * #906 RHR trend line: OLS ignores null days (never treats them as 0 bpm)
- * and is hidden when trendSlopePerDay returns null.
+ * and is hidden when trendSlopePerIndex returns null.
  */
 "use strict";
 
@@ -40,11 +40,11 @@ function assert(cond, msg) {
   }
 }
 
-const trendSlopePerDay = loadFn("trendSlopePerDay");
+const trendSlopePerIndex = loadFn("trendSlopePerIndex");
 const linearTrend = loadFn("linearTrend");
 
-assert(trendSlopePerDay([60]) === null, "<2 finite days hides the slope");
-assert(trendSlopePerDay([null, null]) === null, "all-null hides the slope");
+assert(trendSlopePerIndex([60]) === null, "<2 finite days hides the slope");
+assert(trendSlopePerIndex([null, null]) === null, "all-null hides the slope");
 assert(
   linearTrend([60, null]).every((v) => v === null),
   "linearTrend is an all-null series when the slope helper would return null"
@@ -52,7 +52,7 @@ assert(
 
 // Indices 0, 2, 4. Null gaps must not become 0 bpm.
 const gappy = [60, null, 62, null, 64];
-const slope = trendSlopePerDay(gappy);
+const slope = trendSlopePerIndex(gappy);
 assert(Math.abs(slope - 1) < 1e-9, "gappy series slope is 1 bpm/day, got " + slope);
 const line = linearTrend(gappy);
 assert(line.length === gappy.length, "trend line spans the window");
@@ -60,7 +60,7 @@ line.forEach((y, i) => {
   assert(Math.abs(y - (60 + i)) < 1e-9, "line y at " + i + " is " + y);
 });
 
-const asZero = trendSlopePerDay([60, 0, 62, 0, 64]);
+const asZero = trendSlopePerIndex([60, 0, 62, 0, 64]);
 assert(Math.abs(asZero - 0.8) < 1e-9, "zero-filled gaps slope is 0.8, got " + asZero);
 assert(Math.abs(asZero - slope) > 0.1, "treating gaps as 0 bpm changes the slope");
 
@@ -81,8 +81,8 @@ assert(chart.includes('label: "Baseline"'), "baseline dataset");
 assert(chart.includes("if (rhrTrend)"), "trend dataset omitted when null");
 assert(chart.includes("if (baselineLine)"), "baseline dataset omitted when unavailable");
 assert(
-  SRC.includes("const rSlope = trendSlopePerDay(rhrVals);"),
-  "slope comes from trendSlopePerDay"
+  SRC.includes("const rSlope = trendSlopePerIndex(rhrVals);"),
+  "slope comes from trendSlopePerIndex"
 );
 assert(
   SRC.includes("const rhrTrend = rSlope == null ? null : linearTrend(rhrVals);"),
