@@ -1,0 +1,29 @@
+{
+  "name": "caller_context",
+  "description": "Look up earlier contact with this caller from our own records. Call this once after the greeting has already been spoken. Do not call it before the greeting and do not wait to greet. If it is slow or fails, continue the call normally.",
+  "speech": "One moment while I check our notes.",
+  "url": "https://prism-gateway.tailb1085a.ts.net:8443/bland/caller-context",
+  "method": "POST",
+  "headers": {
+    "Authorization": "Bearer <CALLER_CONTEXT_TOKEN>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "call_id": "{{call_id}}",
+    "phone_number": "{{phone_number}}"
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "example": {}
+  },
+  "response": {
+    "caller_context": "$.caller_context",
+    "known": "$.known",
+    "last_contact_at": "$.last_contact_at",
+    "open_followups": "$.open_followups",
+    "caller_type": "$.caller_type"
+  },
+  "timeout": 5000
+}

@@ -14,7 +14,8 @@ Stdlib HTTP relay on prism. Listens on `127.0.0.1:8799` (user unit `bland-relay.
 | `POST /<RCS_HOOK_PATH>` | Secret path, plus `RCS_HOOK_TOKEN` (required) as `Authorization: Bearer` or `X-Relay-Token` | Google Messages notifications from the 904 phone (#1056), so RCS chats arrive too. Same allowlist, STOP, and payload. Deduped against SMSGate. Kill switch `RCS_HOOK_DISABLED=1`. Turo app notifications on the same route go to the Turo relay (#1104, below). |
 | `POST /<SEND_PATH>` | `SEND_TOKEN`, same headers | Alexandra sends one SMS. |
 | `POST /<FC_PATH>` | `SEND_TOKEN` (add/request/list/revoke) or the approver token (approve, only with `FC_REQUIRE_APPROVAL=1`) | First-contact numbers (#1100). See below. |
-| `GET /bland/caller-context?pn=` | `CALLER_CONTEXT_TOKEN` as `Authorization: Bearer` or `X-Caller-Context-Token` | Read-only caller history for Bland `dynamic_data` (#1096). See below. |
+| `GET /bland/caller-context?pn=` | `CALLER_CONTEXT_TOKEN` as `Authorization: Bearer` or `X-Caller-Context-Token` | Read-only caller history (#1096). Kept for compatibility. Not on the greeting path after the mid-call apply. See below. |
+| `POST /bland/caller-context` | `CALLER_CONTEXT_TOKEN`, same headers | Mid-call Bland tool. Same lookup as the GET. Body `phone_number` and `call_id`. The greeting does not wait on it. See below. |
 | `DELETE /bland/caller-context?pn=` | `CALLER_FORGET_TOKEN` (Grok seat only) | Forget one number in the local fallback index. |
 | `POST /bland/meeting-check` | `MEETING_CHECK_TOKEN` as `Authorization: Bearer` or `X-Meeting-Check-Token` | Mid-call Bland tool (#1230). Answers `{"match": false}` or `{"match": true, "meeting_time": "..."}` for the meeting a caller states. See Meeting check below. |
 
@@ -473,7 +474,7 @@ Phone setup, before any live send: install the app, turn Cloud Server on, tap On
 
 ## Caller context (#1096)
 
-`GET /bland/caller-context?pn=<E.164>` is the Bland `dynamic_data` source. It does not call Bland, and it does not read or write the live inbound number. That config change is applied later, from a fresh GET of the current inbound config, by Grok.
+`GET /bland/caller-context?pn=<E.164>` stays the compatibility read. `POST /bland/caller-context` is the mid-call tool for the Panamerica inbound line ending 6221 (`+19062406221`). Neither route calls Bland, and neither reads or writes the live inbound number. Moving the lookup off the greeting is a Bland config change after merge and deploy. This tree ships the route and `CALLER_CONTEXT_MIDCALL_APPLY.md`. It does not apply that config.
 
 **Active backend.** `CRM_API_BASE` plus `CRM_API_TOKEN` turns on the CRM read: `GET /v1/contacts/by-phone?pn=` with `Authorization: Bearer` and `X-CRM-Scope: caller-context`, timeout 250 ms. `CRM_API_BASE` is accepted only as `http://127.0.0.1:<port>` or `http://localhost:<port>` (same rule as `SEND904_BASE`). Any other value is not requested. The value and the token are not logged, and the local index is used. A 200 from an accepted base is rendered from that record. A 404 is an unknown caller (`backend: crm`) and does not consult the index, so leave `CRM_API_BASE` unset until #1097 actually serves that route. A timeout, connection error, or 5xx falls through to the local index. With the CRM env unset, the index is the active backend (`backend: index`). The index file is `CALLER_INDEX_PATH` or `$BLAND_RELAY_STATE_DIR/caller_index.sqlite` or `~/.local/state/bland-relay/caller_index.sqlite` (mode 0600).
 
@@ -491,12 +492,24 @@ Response:
 
 Unknown number: `{"known": false, "caller_context": "No previous contact on file.", ...}`.
 
-`dynamic_data` to add later (not in this PR). `response_data[].context` is the sentence Bland shows the model next to the variable:
+## Mid-call caller context (6221)
+
+`POST /bland/caller-context` is the mid-call tool, modeled on meeting-check: one early branch in `H.do_POST`, stdlib only, the same `CALLER_CONTEXT_TOKEN` as the GET. There is no new env key. A missing or wrong token is 401. The per-IP limit is the same `CALLER_CONTEXT_RPM` bucket as the GET (default 60). After auth the status is always 200 and the body is the same six keys as the GET. A bad, empty, oversized, or unfilled body (`{{phone_number}}` still in the string) is the empty shape, so the call continues. The phone comes from the JSON field `phone_number`. `call_id` is logged after it is reduced to letters, digits, and `_. :-`, and it is not used for the lookup. The query string is ignored. Logs are `caller-context tool: call_id=<id> known=true|false ms=<n>`. They do not include the token, the number, or the prose.
+
+Request (Bland tool body, at most 2 KB):
+
+```json
+{"call_id": "{{call_id}}", "phone_number": "{{phone_number}}"}
+```
+
+The greeting must not wait on this route. The pre-answer `dynamic_data` GET below is what to remove from the 6221 inbound config after merge and deploy. Until that apply, the live greeting still uses it. `caller_context_tool.json` is the tool object to append. `CALLER_CONTEXT_MIDCALL_APPLY.md` is the exact change. Neither file is copied to `~/bin`.
+
+`dynamic_data` entry to remove from the greeting (do not add it):
 
 ```json
 "dynamic_data": [
   {
-    "url": "https://<funnel-host>/bland/caller-context",
+    "url": "https://prism-gateway.tailb1085a.ts.net:8443/bland/caller-context",
     "method": "GET",
     "headers": {"Authorization": "Bearer <CALLER_CONTEXT_TOKEN>"},
     "query": {"pn": "{{phone_number}}"},
@@ -513,19 +526,29 @@ Unknown number: `{"known": false, "caller_context": "No previous contact on file
 ]
 ```
 
-Prompt block to append immediately after the `### PANAMERICA KB vN ###` block. It must not repeat the live RETURNED CALLS or HONESTY paragraphs:
+Prompt line for after the `### PANAMERICA KB vN ###` block. Alexandra calls the tool after the greeting, not before. It must not repeat the live RETURNED CALLS or HONESTY paragraphs:
 
 ```text
-CALLER HISTORY: {{caller_context}}. If it shows earlier contact, greet them as a returning caller and pick up the open item (for example, 'I see we tried to reach you this morning'). Never deny that we called. A matching number is not proof of identity: discuss booking specifics only after the caller gives a name and trip number that match. If there's no history, continue normally.
+CALLER HISTORY: Greet the caller first. After the greeting, and not before, call the caller_context tool once. If {{caller_context}} shows earlier contact, treat them as a returning caller and pick up the open item (for example, 'I see we tried to reach you this morning'). Never deny that we called. A matching number is not proof of identity: discuss booking specifics only after the caller gives a name and trip number that match. If there is no history, or the tool is slow or fails, continue normally.
 ```
 
-Rollback is `"dynamic_data": null` on the inbound update, preserving every other field.
+Config rollback puts that `dynamic_data` entry back and removes the tool. The GET route still answers, so the old greeting lookup works again. Do not clear `tools` to roll this back.
 
 Dry run, standing in for Bland `POST /v1/dynamic_data/test`. No live call. Loopback only:
 
 ```bash
 curl -sS -H "Authorization: Bearer $CALLER_CONTEXT_TOKEN" \
   "http://127.0.0.1:8799/bland/caller-context?pn=%2B12075550100"
+curl -sS -H "Authorization: Bearer $CALLER_CONTEXT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"call_id":"dry-run","phone_number":"+12075550100"}' \
+  http://127.0.0.1:8799/bland/caller-context
+```
+
+Public smoke for the POST tool, same token env, no live call:
+
+```bash
+python3 deploy/bland-relay/smoke.py --check caller-context-tool --base http://127.0.0.1:8799 --n 5
 ```
 
 Tokens:
@@ -814,6 +837,8 @@ python3 -m pytest tests -q
 `tests/test_meeting_check.py` (#1230, fake calendar client, fixtures in `tests/fixtures/meeting_check`, real network blocked) covers the exact response key set on every response, 401 and 429, every fail-closed path returning 200 `{"match": false}`, the match and no-match matrix (booking-page email, initial plus last, title-only, `timeZone` ignored, Central to ET, speech-to-text spellings, cancelled, all-day, declined, owner-only, wrong time/date/name, name or time or number alone, spoofed number), the privacy sweep over 25 fixture events, the anti-guess caps with zero calendar reads, fresh-snapshot zero-network and stale-snapshot one live call at 500 ms, the `fields` mask and OAuth refresh through a fake opener, `SECRET_ENV_KEYS` scrubbing, the 0600 attempt record and its 48 h purge, and p95 under 50 ms over 1000 requests on 2000 cached events.
 
 `tests/test_caller_context.py` (#1096, no Bland or CRM network) covers index ingest for an inbound call webhook, a polled voicemail, a concurrency rejection, Bland SMS, and SMSGate; provider-id dedupe; `(239) 555-0101` == `+12395550101`; endpoint 401, unknown, last-3 ET order, sensitive-pattern stripping, and internal-error empty 200; a fixture CRM record (purpose, follow-up, booking sentence) and CRM timeout/5xx falling back to the index inside 250 ms; a non-loopback `CRM_API_BASE` using the index with no request and without echoing the token; both 2026-10-09 callback replays; a GET-only poller that stops on 429 and survives 5xx; 180-day purge; Grok-seat forget; token scrubbing; and p95 under 300 ms on 10k local rows.
+
+`tests/test_caller_context_tool.py` (local relay, no Bland and no prism) covers `POST /bland/caller-context`: 401 with a missing, wrong, or unset `CALLER_CONTEXT_TOKEN`, the alternate header, a known caller and an unknown number, a bad body, an unfilled `{{phone_number}}`, the query string ignored, the shared 429 bucket, an internal error still returning the empty 200 shape, logs without the token, number, or prose, p95 under 300 ms, and the tool JSON plus apply plan. `tests/test_smoke_caller_context_tool.py` covers `smoke.py --check caller-context-tool` against a fixture server and against that local route.
 
 `tests/test_first_contact.py` (#1100, SMSGate mocked, no network) covers, with `FC_REQUIRE_APPROVAL=1`: an unapproved or pending number is an open grant, chat and SMS approval, no agent/self approval, code/text/ref checks, opt-out at request/approve/send and START, the daily cap and a capped entry becoming an open grant, existing rate limits, expiry/renewal/conversion, both kill switches, list/revoke, audit and CRM outbox records (no body, no secrets, 0600), log redaction, and the `send-904-fc` CLI; the #1102 (a) daily-cap rule for revoked/expired re-requests at request and at chat and SMS approve; #1102 (b) chat approval bound to `FC_CHAT_APPROVER` (unbound token and a different approver name are 403, and enabling the hash logs a warning); #1102 (c) an RCS title that is the approver's number does not approve (`deny`) while an `RCS_NAME_MAP` name does; #1102 (d) a non-local `SEND904_BASE` is refused by both CLIs before any request and the token is not printed; and, with approval off (default): immediate add, validation, STOP blocking add/send until START, the daily cap counting re-adds, TTL, no cap reset on re-add, existing rate limits, both kill switches, audit/CRM records, the approve route and SMS `YES <code>` being inert, and `send-904-fc add`.
 

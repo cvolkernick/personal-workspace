@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Read-only public smoke for bland-relay (#1229, #1230).
+"""Read-only public smoke for bland-relay (#1229, #1230, caller-context tool).
 
-Stdlib only. GET, and POST (an empty body, or the fixed non-matching probe
-that --check meeting-check sends). Never DELETE.
+Stdlib only. GET, and POST (an empty body, the fixed non-matching meeting
+probe, or the caller-context tool probe). Never DELETE.
 One JSON report goes to stdout: status codes, pass/fail, and
 p50/p95/max milliseconds. The report has no token, no request body,
 and no response body.
@@ -32,6 +32,11 @@ TOKEN_ENV = "CALLER_CONTEXT_TOKEN"
 MEETING_TOKEN_ENV = "MEETING_CHECK_TOKEN"
 BASE_ENV = "RELAY_PUBLIC_BASE"
 MEETING_ROUTE = "/bland/meeting-check"
+TOOL_ROUTE = "/bland/caller-context"
+# Shared 60/minute window with GET /bland/caller-context. One run sends 5
+# fixed probes plus --n latency probes, so --n stays under that window.
+TOOL_N_DEFAULT = 20
+TOOL_N_MAX = 40
 # The relay allows 40 meeting checks an hour overall (#1230). One run sends
 # 3 fixed probes plus --n latency probes with a valid token, so --n stays under
 # the cap and the default of 30 leaves room for a second look.
@@ -316,6 +321,71 @@ def run_meeting_check(base, token, n=MEETING_N_DEFAULT, limit_ms=1000, client=No
     }
 
 
+def _tool_url(base):
+    return base.rstrip("/") + TOOL_ROUTE
+
+
+def _tool_probe(run, i):
+    """Unknown fictional NANP. No live caller, and no assumption about the index."""
+    return json.dumps({
+        "call_id": "smoke-ctx-%s-%d" % (run, i),
+        "phone_number": "+1207555%04d" % (9000 + ((int(run, 16) + i) % 1000)),
+    }).encode("utf-8")
+
+
+def run_caller_context_tool(base, token, n=TOOL_N_DEFAULT, limit_ms=1000, client=None):
+    """POST /bland/caller-context. Auth, empty shape, and latency. No response body in the report."""
+    client = client if client is not None else Client()
+    url = _tool_url(base)
+    run = os.urandom(3).hex()
+    seq = [0]
+
+    def probe():
+        seq[0] += 1
+        return _tool_probe(run, seq[0])
+
+    cases = []
+    for name, headers in (("no_token", _json_headers()), ("wrong_token", _json_headers(_wrong(token)))):
+        status, _doc, _kind, _elapsed = client.exchange("POST", url, headers, body=probe())
+        cases.append(_case(name, status, status == 401))
+    auth = _json_headers(token)
+    status, doc, _kind, _elapsed = client.exchange("POST", url, auth, body=probe())
+    cases.append(_case(
+        "unknown_number", status, status == 200 and _empty(doc), empty_shape=_empty(doc),
+    ))
+    for name, raw in (("garbage_body", b"not json"), ("empty_body", b"")):
+        status, doc, _kind, _elapsed = client.exchange("POST", url, auth, body=raw)
+        cases.append(_case(name, status, status == 200 and _empty(doc), empty_shape=_empty(doc)))
+    samples = []
+    ok = 0
+    first_bad = None
+    count = int(n)
+    for _ in range(count):
+        status, doc, _kind, elapsed = client.exchange("POST", url, auth, body=probe())
+        samples.append(elapsed)
+        if status == 200 and _empty(doc):
+            ok += 1
+        elif first_bad is None:
+            first_bad = status
+    p95 = _ms(samples, 0.95)
+    cases.append(_case(
+        "latency",
+        200 if first_bad is None else first_bad,
+        ok == count and p95 is not None and p95 < limit_ms,
+        n=count,
+        ok=ok,
+        p50_ms=_ms(samples, 0.50),
+        p95_ms=p95,
+        max_ms=_ms(samples, 1.0),
+        limit_ms=limit_ms,
+    ))
+    return {
+        "check": "caller-context-tool",
+        "pass": all(row["pass"] for row in cases),
+        "cases": cases,
+    }
+
+
 def _base_ok(base):
     try:
         parts = urllib.parse.urlsplit(base)
@@ -357,20 +427,29 @@ def main(argv=None):
     parser.add_argument("--token-env", default="")
     args = parser.parse_args(argv)
     checks = list(args.check or [])
-    if checks not in (["caller-context"], ["meeting-check"]):
+    if checks not in (["caller-context"], ["meeting-check"], ["caller-context-tool"]):
         return _emit({"error": "unknown_check", "pass": False}, "")
     meeting = checks == ["meeting-check"]
+    tool = checks == ["caller-context-tool"]
     token = _token(args.token_env or (MEETING_TOKEN_ENV if meeting else TOKEN_ENV))
     base = (args.base or "").strip() or (os.environ.get(BASE_ENV) or "").strip()
-    n = args.n if args.n is not None else (MEETING_N_DEFAULT if meeting else CALLER_N_DEFAULT)
+    if tool:
+        n_default, n_max = TOOL_N_DEFAULT, TOOL_N_MAX
+    elif meeting:
+        n_default, n_max = MEETING_N_DEFAULT, MEETING_N_MAX
+    else:
+        n_default, n_max = CALLER_N_DEFAULT, 200
+    n = args.n if args.n is not None else n_default
     if not token:
         return _emit({"check": checks[0], "error": "token_unset", "pass": False}, "")
     if not _base_ok(base):
         return _emit({"error": "base_rejected", "pass": False}, token)
-    if n < 1 or n > (MEETING_N_MAX if meeting else 200) or args.limit_ms < 1:
+    if n < 1 or n > n_max or args.limit_ms < 1:
         return _emit({"error": "bad_args", "pass": False}, token)
     if meeting:
         report = run_meeting_check(base, token, n=n, limit_ms=args.limit_ms)
+    elif tool:
+        report = run_caller_context_tool(base, token, n=n, limit_ms=args.limit_ms)
     else:
         report = run_caller_context(base, token, n=n, limit_ms=args.limit_ms, include_rate_limit=True)
     return _emit(report, token)

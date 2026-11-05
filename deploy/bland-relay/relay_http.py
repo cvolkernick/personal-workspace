@@ -117,7 +117,7 @@ class H(BaseHTTPRequestHandler):
 
     def _caller_context(self):
         path, pn = self._caller_query()
-        if path != "/bland/caller-context":
+        if path != caller_context.TOOL_ROUTE:
             return self._nf()
         ip = self.client_address[0] if self.client_address else ""
         if not caller_context.allow_ip(ip, time.time()):
@@ -134,7 +134,7 @@ class H(BaseHTTPRequestHandler):
 
     def _caller_forget(self):
         path, pn = self._caller_query()
-        if path != "/bland/caller-context":
+        if path != caller_context.TOOL_ROUTE:
             return self._nf()
         ip = self.client_address[0] if self.client_address else ""
         if not caller_context.allow_ip(ip, time.time()):
@@ -159,6 +159,19 @@ class H(BaseHTTPRequestHandler):
             return self.rfile.read(n) if 0 < n <= meeting_check.MAX_BODY else None
 
         return self._send(*meeting_check.handle(got, body, ip))
+
+    def _caller_context_tool(self):
+        ip = self.client_address[0] if self.client_address else ""
+        got = (self.headers.get("X-Caller-Context-Token") or "").strip() or token_from_headers(self.headers)
+
+        def body():
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return None
+            return self.rfile.read(n) if 0 < n <= caller_context.MAX_TOOL_BODY else None
+
+        return self._send(*caller_context.handle_tool(got, body, ip))
 
     def do_GET(self):
         return self._caller_context()
@@ -475,6 +488,8 @@ class H(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path == meeting_check.ROUTE:
             return self._meeting_check()
+        if path == caller_context.TOOL_ROUTE:
+            return self._caller_context_tool()
         if path_is(path, send_path()):
             return self._send_sms()
         if path_is(path, fc_path()):

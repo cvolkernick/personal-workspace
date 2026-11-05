@@ -14,17 +14,22 @@ Stdlib only. Never log the read token, the forget token, or the CRM token.
 
 from __future__ import annotations
 
+import hmac
 import json
+import logging
 import os
 import re
 import sqlite3
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+log = logging.getLogger("bland-relay")
 
 ET = ZoneInfo("America/New_York")
 RETENTION_DAYS = 180
@@ -777,6 +782,115 @@ def render(view, now, backend):
         "caller_type": caller_type,
         "backend": backend,
     }
+
+
+# Mid-call tool. Same path as the GET, POST only. The greeting must not wait on it.
+TOOL_ROUTE = "/bland/caller-context"
+MAX_TOOL_BODY = 2 * 1024
+TOOL_KEYS = (
+    "known",
+    "caller_context",
+    "last_contact_at",
+    "open_followups",
+    "caller_type",
+    "backend",
+)
+
+
+def _tool_token_ok(got, expected):
+    if not got or not expected:
+        return False
+    try:
+        a, b = got.encode(), expected.encode()
+    except Exception:  # noqa: BLE001
+        return False
+    return len(a) == len(b) and hmac.compare_digest(a, b)
+
+
+def _clean_call_id(value):
+    return re.sub(r"[^A-Za-z0-9_.:-]", "", str(value or ""))[:64] or "-"
+
+
+def phone_from_tool(data):
+    """phone_number from a Bland tool body, or None when it is missing or still a template."""
+    if not isinstance(data, dict):
+        return None
+    raw = data.get("phone_number")
+    if not isinstance(raw, str) or not raw.strip() or "{{" in raw:
+        return None
+    return normalize_e164(raw)
+
+
+def tool_body(doc):
+    """The six keys GET already returns. Anything else is the empty shape."""
+    if not isinstance(doc, dict) or set(doc) != set(TOOL_KEYS):
+        return empty_context("empty")
+    known = doc.get("known")
+    prose = doc.get("caller_context")
+    last = doc.get("last_contact_at")
+    followups = doc.get("open_followups")
+    caller_type = doc.get("caller_type")
+    backend = doc.get("backend")
+    if (
+        not isinstance(known, bool)
+        or not isinstance(prose, str)
+        or not isinstance(last, str)
+        or not isinstance(followups, list)
+        or not all(isinstance(item, str) for item in followups)
+        or caller_type not in CALLER_TYPES
+        or not isinstance(backend, str)
+    ):
+        return empty_context("empty")
+    return {
+        "known": known,
+        "caller_context": prose,
+        "last_contact_at": last,
+        "open_followups": list(followups),
+        "caller_type": caller_type,
+        "backend": backend,
+    }
+
+
+def handle_tool(got_token, read_body, ip, now=None):
+    """POST /bland/caller-context. -> (status, body).
+
+    429 and 401 come before the lookup. After auth the answer is always 200
+    and the same shape as GET. A bad body is the empty shape, so the call
+    continues. Never logs the token, the number, or the prose.
+    """
+    now = time.time() if now is None else now
+    if not allow_ip(ip, now):
+        return 429, {"ok": False, "error": "rate_limited"}
+    if not _tool_token_ok(got_token, env("CALLER_CONTEXT_TOKEN")):
+        log.warning("caller-context tool: bad/missing token (len %d)", len(got_token or ""))
+        return 401, {"ok": False, "error": "unauthorized"}
+    started = time.perf_counter()
+    call_id = "-"
+    result = empty_context("empty")
+    try:
+        raw = read_body()
+        data = None
+        if isinstance(raw, (bytes, bytearray)) and len(raw) <= MAX_TOOL_BODY:
+            try:
+                data = json.loads(bytes(raw).decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                data = None
+        if isinstance(data, dict):
+            call_id = _clean_call_id(data.get("call_id"))
+            phone = phone_from_tool(data)
+            if phone:
+                result = lookup_caller(phone)
+        result = tool_body(result)
+    except Exception as exc:  # noqa: BLE001 — the call must still get a 200
+        log.error("caller-context tool failed: %s", type(exc).__name__)
+        result = empty_context("empty")
+    log.info(
+        "caller-context tool: call_id=%s known=%s ms=%d",
+        call_id,
+        "true" if result.get("known") else "false",
+        int((time.perf_counter() - started) * 1000),
+    )
+    return 200, result
 
 
 def lookup_caller(phone, now=None, index=None, opener=None):
