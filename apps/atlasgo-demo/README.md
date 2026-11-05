@@ -43,3 +43,15 @@ DATA_SOURCE=memory npm test
 ROI math in `lib/roi/calc.ts` is a pure function of cars, trips, and expenses. It does not load the seed. A new adapter only has to return those entities.
 
 Net for a month is income minus maintenance, other expenses, and the monthly payment. Income is trip gross minus fees. ROI percent is cumulative net divided by purchase cost plus down payment. The ROI hit badge appears when cumulative net reaches that capital. A maintenance alert appears when maintenance is more than 25% of that month's gross.
+
+## Cloudflare Pages
+
+Pages builds this app with `@cloudflare/next-on-pages`. Page and route modules set `runtime = "edge"`. Sign-in, sign-out, and invoice upload are route handlers, and `load-seed.ts` imports `lib/data/seed/fleet.json` so the edge bundle does not read the filesystem.
+
+```bash
+cd apps/atlasgo-demo
+npx @cloudflare/next-on-pages@1
+npx wrangler pages deploy .vercel/output/static
+```
+
+The build writes `.vercel/output/static`. Do not commit that directory. Preview the same output locally with `npx wrangler pages dev .vercel/output/static`.

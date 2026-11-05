@@ -48,3 +48,5 @@ export default async function ReportsPage() {
     </Shell>
   );
 }
+export const runtime = "edge";
+export const dynamic = "force-dynamic";

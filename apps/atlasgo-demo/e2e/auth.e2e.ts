@@ -11,7 +11,7 @@ test("investor_isolation", async ({ page }) => {
 
   const blocked = await page.goto("/cars/car_cedar");
   expect(blocked?.status()).toBe(404);
-  await expect(page.getByRole("heading", { name: "Not in this fleet" })).toBeVisible();
+  await expect(page.getByText("Not found", { exact: true })).toBeVisible();
 
   await page.goto("/dashboard");
   await signOut(page);
@@ -20,5 +20,5 @@ test("investor_isolation", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Harbor" })).toHaveCount(0);
   const reverse = await page.goto("/cars/car_harbor");
   expect(reverse?.status()).toBe(404);
-  await expect(page.getByRole("heading", { name: "Not in this fleet" })).toBeVisible();
+  await expect(page.getByText("Not found", { exact: true })).toBeVisible();
 });

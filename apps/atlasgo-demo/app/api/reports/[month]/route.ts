@@ -29,3 +29,4 @@ export async function GET(request: Request, context: { params: Promise<{ month: 
     },
   });
 }
+export const runtime = "edge";

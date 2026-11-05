@@ -1,18 +1,17 @@
-"use server";
-
-import { redirect } from "next/navigation";
+// Plain helpers called from POST route handlers (server actions fail on next-on-pages:
+// "Invariant: Missing initURL"). Each returns the path to redirect to.
 import { canSeeCar, canSeeInvoice } from "@/lib/auth/access";
-import { requireActor } from "@/lib/auth/session";
+import { readActor } from "@/lib/auth/session";
 import { getDataSource } from "@/lib/data";
 import type { ExpenseCategory } from "@/lib/data/types";
 
-export async function uploadInvoice(formData: FormData) {
-  const actor = await requireActor();
-  if (actor === "live-unavailable") redirect("/");
+export async function uploadInvoice(formData: FormData): Promise<string> {
+  const actor = await readActor();
+  if (!actor || actor === "live-unavailable") return "/";
   const file = formData.get("image");
-  if (!(file instanceof File) || file.size === 0) redirect("/invoices?notice=missing");
-  if (!file.type.startsWith("image/")) redirect("/invoices?notice=type");
-  if (file.size > 1_500_000) redirect("/invoices?notice=size");
+  if (!(file instanceof File) || file.size === 0) return "/invoices?notice=missing";
+  if (!file.type.startsWith("image/")) return "/invoices?notice=type";
+  if (file.size > 1_500_000) return "/invoices?notice=size";
   const bytes = Buffer.from(await file.arrayBuffer());
   const invoice = await getDataSource().createInvoice({
     fileName: file.name || "upload.png",
@@ -20,12 +19,12 @@ export async function uploadInvoice(formData: FormData) {
     bytesBase64: bytes.toString("base64"),
     ownerId: actor.id,
   });
-  redirect(`/invoices/${invoice.id}`);
+  return `/invoices/${invoice.id}`;
 }
 
-export async function approveInvoice(formData: FormData) {
-  const actor = await requireActor();
-  if (actor === "live-unavailable") redirect("/");
+export async function approveInvoice(formData: FormData): Promise<string> {
+  const actor = await readActor();
+  if (!actor || actor === "live-unavailable") return "/";
   const invoiceId = String(formData.get("invoiceId") ?? "");
   const carId = String(formData.get("carId") ?? "");
   const categoryRaw = String(formData.get("category") ?? "");
@@ -35,15 +34,15 @@ export async function approveInvoice(formData: FormData) {
   const category: ExpenseCategory | null =
     categoryRaw === "maintenance" || categoryRaw === "other" ? categoryRaw : null;
   if (!category || !Number.isFinite(amount) || amount < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    redirect(`/invoices/${invoiceId}?notice=invalid`);
+    return `/invoices/${invoiceId}?notice=invalid`;
   }
 
   const source = getDataSource();
   const [invoice, cars] = await Promise.all([source.getInvoice(invoiceId), source.listCars()]);
   const car = cars.find((item) => item.id === carId);
-  if (!invoice || !canSeeInvoice(actor, invoice, cars)) redirect("/invoices");
-  if (!car || !canSeeCar(actor, car)) redirect(`/invoices/${invoiceId}?notice=car`);
-  if (invoice.reviewState !== "pending") redirect(`/cars/${carId}?month=${date.slice(0, 7)}`);
+  if (!invoice || !canSeeInvoice(actor, invoice, cars)) return "/invoices";
+  if (!car || !canSeeCar(actor, car)) return `/invoices/${invoiceId}?notice=car`;
+  if (invoice.reviewState !== "pending") return `/cars/${carId}?month=${date.slice(0, 7)}`;
   await source.approveInvoice(invoiceId, { carId, category, amount, date, vendor });
-  redirect(`/cars/${carId}?month=${date.slice(0, 7)}`);
+  return `/cars/${carId}?month=${date.slice(0, 7)}`;
 }

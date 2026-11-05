@@ -1,6 +1,5 @@
 import { Shell } from "@/components/shell";
 import { LiveUnavailable } from "@/components/live-unavailable";
-import { uploadInvoice } from "@/app/invoices/actions";
 import { canSeeInvoice } from "@/lib/auth/access";
 import { requireActor } from "@/lib/auth/session";
 import { getDataSource } from "@/lib/data";
@@ -34,7 +33,7 @@ export default async function InvoicesPage({
           An upload is only a suggestion until you approve it. Nothing posts to a car before that review.
         </p>
         {notice ? <p className="notice">{notice}</p> : null}
-        <form className="panel stack" action={uploadInvoice}>
+        <form className="panel stack" action="/invoices/upload" method="post" encType="multipart/form-data">
           <label>
             Invoice image
             <input type="file" name="image" accept="image/*" required />
@@ -62,3 +61,5 @@ export default async function InvoicesPage({
     </Shell>
   );
 }
+export const runtime = "edge";
+export const dynamic = "force-dynamic";

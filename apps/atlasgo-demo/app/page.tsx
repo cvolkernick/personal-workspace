@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { signIn } from "@/app/auth-actions";
 import { LiveUnavailable } from "@/components/live-unavailable";
 import { ADMIN_ACTOR } from "@/lib/auth/actors";
 import { readActor } from "@/lib/auth/session";
@@ -45,18 +44,17 @@ export default async function LoginPage() {
       <ul className="actor-list">
         {choices.map((choice) => (
           <li key={choice.id}>
-            <form action={signIn}>
-              <input type="hidden" name="actorId" value={choice.id} />
-              <button type="submit" data-actor={choice.id}>
+            <a className="actor-choice" href={`/signin?actor=${encodeURIComponent(choice.id)}`} data-actor={choice.id}>
                 <strong>Continue as {choice.name}</strong>
                 <span>
                   {choice.detail} · {choice.email}
                 </span>
-              </button>
-            </form>
+              </a>
           </li>
         ))}
       </ul>
     </main>
   );
 }
+export const runtime = "edge";
+export const dynamic = "force-dynamic";

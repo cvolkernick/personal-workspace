@@ -187,3 +187,5 @@ export default async function DashboardPage({
     </Shell>
   );
 }
+export const runtime = "edge";
+export const dynamic = "force-dynamic";

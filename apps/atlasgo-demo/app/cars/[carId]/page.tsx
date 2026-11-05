@@ -128,3 +128,5 @@ export default async function CarPage({
     </Shell>
   );
 }
+export const runtime = "edge";
+export const dynamic = "force-dynamic";

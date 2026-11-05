@@ -150,3 +150,5 @@ export default async function ReportMonthPage({
     </Shell>
   );
 }
+export const runtime = "edge";
+export const dynamic = "force-dynamic";

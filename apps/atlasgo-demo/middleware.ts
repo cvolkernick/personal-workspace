@@ -3,7 +3,7 @@ import { SESSION_COOKIE } from "@/lib/auth/actors";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname === "/") return NextResponse.next();
+  if (pathname === "/" || pathname === "/signin" || pathname === "/signout") return NextResponse.next();
   const session = request.cookies.get(SESSION_COOKIE)?.value;
   if (!session) {
     const url = request.nextUrl.clone();

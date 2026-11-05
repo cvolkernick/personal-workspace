@@ -1,4 +1,3 @@
-import { signOut } from "@/app/auth-actions";
 import type { Actor } from "@/lib/auth/actors";
 
 const LINKS = [
@@ -35,9 +34,7 @@ export function Shell({
             </a>
           ) : null}
           <span className="who">{actor.name}</span>
-          <form action={signOut}>
-            <button type="submit">Sign out</button>
-          </form>
+          <a href="/signout">Sign out</a>
         </nav>
       </header>
       <div className="wrap">{children}</div>

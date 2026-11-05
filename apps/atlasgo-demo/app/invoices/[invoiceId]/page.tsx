@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { approveInvoice } from "@/app/invoices/actions";
 import { Shell } from "@/components/shell";
 import { LiveUnavailable } from "@/components/live-unavailable";
 import { canSeeInvoice } from "@/lib/auth/access";
@@ -55,7 +54,7 @@ export default async function InvoiceReviewPage({
           <p>Status: {invoice.reviewState === "pending" ? "Waiting for review" : "Approved"}</p>
         </div>
         {invoice.reviewState === "pending" ? (
-          <form className="panel form-grid" action={approveInvoice}>
+          <form className="panel form-grid" action="/invoices/approve" method="post">
             <input type="hidden" name="invoiceId" value={invoice.id} />
             <label>
               Car
@@ -101,3 +100,5 @@ export default async function InvoiceReviewPage({
     </Shell>
   );
 }
+export const runtime = "edge";
+export const dynamic = "force-dynamic";

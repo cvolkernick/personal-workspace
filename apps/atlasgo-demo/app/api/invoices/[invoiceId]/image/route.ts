@@ -21,3 +21,4 @@ export async function GET(_request: Request, context: { params: Promise<{ invoic
     },
   });
 }
+export const runtime = "edge";

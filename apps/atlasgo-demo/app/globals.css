@@ -114,7 +114,9 @@ button.primary, .button.primary { background: var(--ink); color: var(--sheet); b
 
 .login { max-width: 680px; padding-top: 56px; }
 .actor-list { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 10px; }
-.actor-list button { width: 100%; text-align: left; border-radius: 16px; padding: 14px 16px; }
+.actor-list .actor-choice { display: block; box-sizing: border-box; color: inherit; text-decoration: none; border: 1px solid var(--line); background: var(--sheet); }
+.actor-list .actor-choice:hover { border-color: var(--brass); }
+.actor-list button, .actor-list .actor-choice { width: 100%; text-align: left; border-radius: 16px; padding: 14px 16px; }
 .actor-list button:hover { border-color: var(--brass); }
 .actor-list strong { display: block; font-size: 1.05rem; }
 .actor-list span { color: var(--muted); }
