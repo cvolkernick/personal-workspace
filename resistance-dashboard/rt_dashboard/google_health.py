@@ -1,4 +1,4 @@
-"""Google Health API client for body weight and sleep (legacy Fit fallback).
+"""Google Health API client for body weight, body fat, and sleep (legacy Fit fallback).
 
 Uses OAuth2 refresh-token flow:
   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
     ActiveZoneMinutesDay,
+    BodyFatSample,
     CaloriesBurnedDay,
     FoodLogEntry,
     HealthSnapshot,
@@ -380,6 +381,23 @@ class GoogleHealthClient:
             pass
         return self.fetch_weight_fit(days=days)
 
+    def fetch_body_fat_health_api(self, days: int = 30) -> List[BodyFatSample]:
+        """Google Health API: GET .../dataTypes/body-fat/dataPoints.
+
+        Same list/paginate hop as weight. The granted scope
+        ``googlehealth.health_metrics_and_measurements.readonly`` already
+        covers this type. No legacy Fit fallback.
+        """
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=days)
+        max_pages = 3 if days >= 60 else 2
+        data = self._paginate_data_points("body-fat", max_pages=max_pages)
+        return parse_health_api_body_fat(data, start=start)
+
+    def fetch_body_fat(self, days: int = 30) -> List[BodyFatSample]:
+        """Body-fat % on the weight poll. Not a second poller."""
+        return self.fetch_body_fat_health_api(days=days)
+
     def fetch_sleep(
         self, days: int = 14, tz_name: Optional[str] = None
     ) -> List[SleepSample]:
@@ -654,6 +672,7 @@ class GoogleHealthClient:
 
         errors: List[str] = []
         weight: List[WeightSample] = []
+        body_fat: List[BodyFatSample] = []
         sleep: List[SleepSample] = []
         sleep_intervals: List[Dict[str, Any]] = []
         nutrition: List[NutritionDay] = []
@@ -664,8 +683,20 @@ class GoogleHealthClient:
         resting_heart_rate: List[RestingHeartRateDay] = []
         steps: List[StepSample] = []
 
-        def _weight() -> List[WeightSample]:
-            return self.fetch_weight(days=days)
+        def _weight() -> Tuple[List[WeightSample], List[BodyFatSample]]:
+            # Body fat rides the weight job so the existing poll still makes
+            # one health pass. A failure on either side does not drop the other.
+            samples: List[WeightSample] = []
+            fat: List[BodyFatSample] = []
+            try:
+                samples = self.fetch_weight(days=days)
+            except Exception as exc:  # noqa: BLE001
+                self._record_stream_failure("weight", exc, errors)
+            try:
+                fat = self.fetch_body_fat(days=days)
+            except Exception as exc:  # noqa: BLE001
+                self._record_stream_failure("body_fat", exc, errors)
+            return samples, fat
 
         def _sleep() -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
             return self.fetch_sleep_bundle(days=days, tz_name=tz_name)
@@ -723,7 +754,7 @@ class GoogleHealthClient:
                         self._record_stream_failure(name, exc, errors)
                         continue
                 if name == "weight":
-                    weight = result  # type: ignore[assignment]
+                    weight, body_fat = result  # type: ignore[misc]
                 elif name == "sleep":
                     sleep, sleep_intervals = result  # type: ignore[misc]
                 elif name == "nutrition":
@@ -742,6 +773,7 @@ class GoogleHealthClient:
         err = "; ".join(errors) if errors else None
         if (
             not weight
+            and not body_fat
             and not sleep
             and not nutrition
             and not food_logs
@@ -755,6 +787,7 @@ class GoogleHealthClient:
             return HealthSnapshot(error=err)
         return HealthSnapshot(
             weight=weight,
+            body_fat=body_fat,
             sleep=sleep,
             sleep_intervals=sleep_intervals,
             nutrition=nutrition,
@@ -834,6 +867,86 @@ def parse_health_api_weight(
     for s in samples:
         by_date[s.date] = s
     return [by_date[k] for k in sorted(by_date.keys())]
+
+
+def _observation_civil_date(block: dict) -> Tuple[Optional[str], Optional[str]]:
+    """Civil YYYY-MM-DD and physicalTime from an ObservationSampleTime block.
+
+    Weight and body fat both store the measurement clock on ``sampleTime``.
+    Civil date wins for the chart day. ``physicalTime`` is the timestamp.
+    """
+    st = block.get("sampleTime") if isinstance(block.get("sampleTime"), dict) else {}
+    date = None
+    civil = (st.get("civilTime") or {}) if isinstance(st, dict) else {}
+    civil_date = civil.get("date") if isinstance(civil, dict) else None
+    if isinstance(civil_date, dict) and civil_date.get("year"):
+        try:
+            date = (
+                f"{int(civil_date['year']):04d}-"
+                f"{int(civil_date['month']):02d}-"
+                f"{int(civil_date['day']):02d}"
+            )
+        except (TypeError, ValueError):
+            date = None
+    physical = st.get("physicalTime") if isinstance(st, dict) else None
+    recorded_at = str(physical) if physical else None
+    if not date and recorded_at:
+        date = _parse_rfc3339_date(recorded_at)
+    return date, recorded_at
+
+
+def parse_health_api_body_fat(
+    payload: dict, start: Optional[datetime] = None
+) -> List[BodyFatSample]:
+    """Parse Google Health API ``body-fat`` dataPoints.
+
+    Wire shape (same sampleTime pattern as weight)::
+      bodyFat.sampleTime.physicalTime / civilTime.date
+      bodyFat.percentage   # 0..100
+    """
+    if not isinstance(payload, dict):
+        return []
+    samples: List[BodyFatSample] = []
+    start = start or datetime.now(timezone.utc) - timedelta(days=365)
+    start_date = start.strftime("%Y-%m-%d")
+    for pt in payload.get("dataPoints") or []:
+        if not isinstance(pt, dict):
+            continue
+        block = pt.get("bodyFat") if isinstance(pt.get("bodyFat"), dict) else None
+        if block is None and isinstance(pt.get("body_fat"), dict):
+            block = pt.get("body_fat")
+        if not isinstance(block, dict):
+            continue
+        date, recorded_at = _observation_civil_date(block)
+        if not date:
+            ts = pt.get("startTime") or pt.get("endTime")
+            date = _parse_rfc3339_date(str(ts)) if ts else None
+            if ts and not recorded_at:
+                recorded_at = str(ts)
+        if not date or date < start_date:
+            continue
+        pct = _num(block.get("percentage"), block.get("bodyFatPercentage"))
+        if pct is None or pct < 0 or pct > 100:
+            continue
+        samples.append(
+            BodyFatSample(
+                date=date,
+                percentage=round(pct, 2),
+                recorded_at=recorded_at,
+                source="google_health",
+            )
+        )
+    by_key: Dict[str, BodyFatSample] = {}
+    for sample in samples:
+        key = f"{sample.date}|{sample.recorded_at or ''}"
+        by_key[key] = sample
+    return [
+        by_key[k]
+        for k in sorted(
+            by_key,
+            key=lambda k: (by_key[k].date, by_key[k].recorded_at or ""),
+        )
+    ]
 
 
 def _parse_interval_times(pt: dict) -> Optional[Tuple[datetime, datetime]]:

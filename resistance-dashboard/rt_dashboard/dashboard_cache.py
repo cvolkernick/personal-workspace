@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .models import (
     ActiveZoneMinutesDay,
+    BodyFatSample,
     CaloriesBurnedDay,
     FoodLogEntry,
     HealthSnapshot,
@@ -107,6 +108,7 @@ def health_cache_is_fresh(
         health
         and (
             health.weight
+            or health.body_fat
             or health.sleep
             or health.nutrition
             or health.food_logs
@@ -128,6 +130,19 @@ def health_cache_is_fresh(
 
 # --- Health -----------------------------------------------------------------
 
+def _body_fat_pct(value: Any) -> Optional[float]:
+    """Keep a percentage in the Google Health body-fat range [0, 100]."""
+    if value is None or value == "" or isinstance(value, bool):
+        return None
+    try:
+        pct = float(value)
+    except (TypeError, ValueError):
+        return None
+    if pct < 0 or pct > 100:
+        return None
+    return round(pct, 2)
+
+
 def health_from_dict(data: dict) -> HealthSnapshot:
     from .health_metrics_store import coerce_weight_to_lbs, normalize_weight_samples
 
@@ -144,6 +159,22 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         if isinstance(w, dict) and w.get("date")
     ]
     normalize_weight_samples(weights)
+    body_fat = []
+    for row in data.get("body_fat") or []:
+        if not isinstance(row, dict) or not row.get("date"):
+            continue
+        pct = _body_fat_pct(row.get("percentage"))
+        if pct is None:
+            continue
+        recorded = row.get("recorded_at")
+        body_fat.append(
+            BodyFatSample(
+                date=str(row.get("date") or "")[:10],
+                percentage=pct,
+                recorded_at=str(recorded) if recorded else None,
+                source=str(row.get("source") or "cache"),
+            )
+        )
     sleep = [
         SleepSample(
             date=str(s.get("date") or ""),
@@ -279,6 +310,7 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         )
     return HealthSnapshot(
         weight=weights,
+        body_fat=body_fat,
         sleep=sleep,
         sleep_intervals=sleep_intervals,
         nutrition=nutrition,
@@ -319,6 +351,38 @@ def load_health_cache() -> Tuple[Optional[HealthSnapshot], Optional[float], dict
             "fail_ttl_sec": fail_ttl_sec(),
         },
     )
+
+
+def _body_fat_merge_key(row: dict) -> str:
+    """One slot per measurement. Timestamped readings on the same day stay distinct."""
+    date = str(row.get("date") or "")[:10]
+    ts = str(row.get("recorded_at") or "").strip()
+    if not date and not ts:
+        return ""
+    return f"{date}|{ts}" if ts else date
+
+
+def _merge_body_fat(old_list: list, new_list: list) -> list:
+    """Union body-fat readings. A fresh pull wins on the same timestamp."""
+    by: Dict[str, dict] = {}
+    for seq in (old_list or [], new_list or []):
+        for item in seq:
+            row = _as_row(item)
+            if not row:
+                continue
+            key = _body_fat_merge_key(row)
+            if key:
+                by[key] = row
+    return [
+        by[k]
+        for k in sorted(
+            by,
+            key=lambda k: (
+                str(by[k].get("date") or ""),
+                str(by[k].get("recorded_at") or ""),
+            ),
+        )
+    ]
 
 
 def _merge_dated(old_list: list, new_list: list, *, key: str = "date") -> list:
@@ -459,6 +523,7 @@ def merge_health_snapshots(
     if base is None:
         return update
     w = _merge_dated(base.weight, update.weight)
+    bf = _merge_body_fat(base.body_fat, update.body_fat)
     s = _merge_dated(base.sleep, update.sleep)
     n = _merge_dated(base.nutrition, update.nutrition)
     h = _merge_dated(base.hydration, update.hydration)
@@ -477,6 +542,7 @@ def merge_health_snapshots(
     # auth errors left on the cached base (e.g. old HTTP 400 after re-auth).
     has_update = bool(
         update.weight
+        or update.body_fat
         or update.sleep
         or update.nutrition
         or update.food_logs
@@ -497,6 +563,7 @@ def merge_health_snapshots(
     return health_from_dict(
         {
             "weight": w,
+            "body_fat": bf,
             "sleep": s,
             "sleep_intervals": siv,
             "nutrition": n,
@@ -535,6 +602,7 @@ def save_health_cache(
         hdict = health.to_dict()
         has_data = bool(
             hdict.get("weight")
+            or hdict.get("body_fat")
             or hdict.get("sleep")
             or hdict.get("nutrition")
             or hdict.get("food_logs")
@@ -559,6 +627,7 @@ def save_health_cache(
     else:
         hdict = {
             "weight": [],
+            "body_fat": [],
             "sleep": [],
             "nutrition": [],
             "food_logs": [],
@@ -599,6 +668,7 @@ def save_health_cache(
         "path": str(cache_dir() / HEALTH_CACHE),
         "had_data": bool(
             hdict.get("weight")
+            or hdict.get("body_fat")
             or hdict.get("sleep")
             or hdict.get("nutrition")
             or hdict.get("food_logs")
