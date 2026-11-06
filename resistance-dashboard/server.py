@@ -2570,7 +2570,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if parsed.path == "/api/agent/coaching_targets":
                 # FITDASH_AGENT_TOKEN is checked in the handler. No session bypass.
                 self._request_user = None  # type: ignore[attr-defined]
-            elif parsed.path == "/api/agent/inventory/stock":
+            elif parsed.path in ("/api/agent/inventory/stock", "/api/agent/inventory/items"):
                 # Token-only: Chris-bound FITDASH_INVENTORY_AGENT_TOKEN, checked
                 # in the handler below. No session, loopback or house-token bypass.
                 self._request_user = None  # type: ignore[attr-defined]
@@ -3107,6 +3107,33 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 status, out = respond_agent_stock_write(
+                    self.headers,
+                    body,
+                    Store(file_client_factory=lambda: build_github_client(for_write=True)),
+                )
+                self._send_json(out, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json(
+                    {"ok": False, "error": "agent_write_failed", "message": type(e).__name__},
+                    status=500,
+                )
+            return
+        if parsed.path == "/api/agent/inventory/items":
+            # Agent pantry create: same Chris-bound inventory-agent token and row
+            # as /api/agent/inventory/stock. New items only; no edit / delete.
+            from rt_dashboard.agent_write import Store, agent_write_gate, respond_agent_create_write
+
+            denied = agent_write_gate(self.headers)
+            if denied:
+                self._send_json(denied, status=401)
+                return
+            try:
+                body = self._read_json()
+            except (ValueError, json.JSONDecodeError):
+                self._send_json({"ok": False, "error": "bad_request", "message": "invalid JSON"}, status=400)
+                return
+            try:
+                status, out = respond_agent_create_write(
                     self.headers,
                     body,
                     Store(file_client_factory=lambda: build_github_client(for_write=True)),

@@ -51,7 +51,14 @@ ITEM_KEYS = frozenset({"id", "in_stock", "qty"})
 BODY_KEYS = frozenset({"items", "updated_by"})
 MAX_UPDATED_BY = 64
 AUDIT_FILE = "nutrition_inventory_audit.jsonl"
-AUDIT_FIELDS = ("in_stock", "stock", "qty")
+AUDIT_FIELDS = ("in_stock", "stock", "qty", "created")
+CREATE_PATH = "/api/agent/inventory/items"
+CREATE_KEYS = frozenset({
+    "id", "name", "category", "serving_label", "serving_g", "calories", "protein_g", "carbs_g",
+    "fat_g", "fiber_g", "sugar_g", "sodium_mg", "notes", "in_stock", "qty",
+})
+MAX_CREATE_ITEMS = 25
+MAX_NAME = 80
 ENSURE_AUDIT_SQL = """
 CREATE TABLE IF NOT EXISTS nutrition_inventory_audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -392,3 +399,116 @@ def respond_agent_stock_write(
             t["stock"] = s.get("stock")
             t["qty"] = s.get("qty")
     return 200, {"ok": True, "generated_at": utc_now_iso(now), "as_of": ts, "updated_by": who, "items": touched}
+
+
+# ---------------------------------------------------------------- create (add new items)
+def validate_create_body(body: Any, inventory: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
+    """Return (normalized new ingredients, updated_by) or raise ValueError.
+
+    Create-only: an id or name that already exists is rejected (use the stock
+    write to restock it). No edits, no deletes.
+    """
+    from .nutrition_planner import normalize_ingredient, require_serving_grams_or_raise
+
+    if not isinstance(body, dict):
+        raise _bad("body must be a JSON object")
+    extra = sorted(set(body) - BODY_KEYS)
+    if extra:
+        raise _bad(f"unknown fields: {', '.join(map(str, extra))}")
+    who = body.get("updated_by")
+    if not isinstance(who, str) or not who.strip():
+        raise _bad("updated_by (non-empty string) is required")
+    who = who.strip()
+    if len(who) > MAX_UPDATED_BY:
+        raise _bad(f"updated_by longer than {MAX_UPDATED_BY} chars")
+    items = body.get("items")
+    if not isinstance(items, list) or not items:
+        raise _bad("items must be a non-empty list")
+    if len(items) > MAX_CREATE_ITEMS:
+        raise _bad(f"at most {MAX_CREATE_ITEMS} items per request")
+    ids, names = set(), set()
+    for i in inventory.get("ingredients") or []:
+        if isinstance(i, dict):
+            ids.add(str(i.get("id") or "").strip().lower())
+            names.add(str(i.get("name") or "").strip().lower())
+    out: List[Dict[str, Any]] = []
+    for n, it in enumerate(items):
+        if not isinstance(it, dict):
+            raise _bad(f"items[{n}] must be an object")
+        extra = sorted(set(it) - CREATE_KEYS)
+        if extra:
+            raise _bad(f"items[{n}] unknown fields: {', '.join(map(str, extra))}")
+        name = it.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise _bad(f"items[{n}].name must be a non-empty string")
+        if len(name.strip()) > MAX_NAME:
+            raise _bad(f"items[{n}].name longer than {MAX_NAME} chars")
+        if "id" in it and (not isinstance(it["id"], str) or not it["id"].strip()):
+            raise _bad(f"items[{n}].id must be a non-empty string")
+        for k in ("serving_g", "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg", "qty"):
+            if k in it and it[k] is not None:
+                v = it[k]
+                if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)) or v < 0:
+                    raise _bad(f"items[{n}].{k} must be a finite number >= 0")
+        if "in_stock" in it and not isinstance(it["in_stock"], bool):
+            raise _bad(f"items[{n}].in_stock must be a boolean")
+        raw = {k: v for k, v in it.items() if k not in ("in_stock", "qty")}
+        raw["stock"] = "in" if it.get("in_stock", True) else "out"
+        try:
+            require_serving_grams_or_raise(raw)
+            ing = normalize_ingredient(raw)
+        except ValueError as e:
+            raise _bad(f"items[{n}]: {e}") from None
+        if "qty" in it:
+            ing["qty"] = it["qty"]
+        key, nkey = ing["id"].strip().lower(), ing["name"].strip().lower()
+        if key in ids or nkey in names:
+            raise _bad(f"items[{n}] already exists in the pantry (id {ing['id']}); restock it instead")
+        ids.add(key)
+        names.add(nkey)
+        out.append(ing)
+    return out, who
+
+
+def apply_creates(
+    inventory: Dict[str, Any], new_items: List[Dict[str, Any]], updated_by: str, ts: str
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Pure. Appends new ingredients. Returns (new_inventory, created, audit_lines)."""
+    from copy import deepcopy
+
+    inv = deepcopy(inventory) if inventory else {"ingredients": []}
+    ingredients = inv.setdefault("ingredients", [])
+    created: List[Dict[str, Any]] = []
+    audit: List[Dict[str, Any]] = []
+    for ing in new_items:
+        row = dict(ing, updated_at=ts, updated_by=updated_by)
+        ingredients.append(row)
+        created.append({k: row.get(k) for k in ("id", "name", "category", "stock", "in_stock", "qty", "serving_label", "serving_g")})
+        audit.append({"ts": ts, "updated_by": updated_by, "id": row["id"], "created": {"old": None, "new": row}})
+    inv["updated_at"] = ts
+    return inv, created, audit
+
+
+def respond_agent_create_write(
+    headers, body: Any, store: Store, *, now: Optional[datetime] = None
+) -> Tuple[int, Dict[str, Any]]:
+    """``POST /api/agent/inventory/items``: add new pantry items. Same principal,
+    same row, same audit-first commit as the stock write."""
+    principal, denied = agent_write_principal(headers)
+    if denied:
+        return 401, denied
+    uid = str(principal.get("user_id") or "").strip()
+    current = store.load(uid) or {"ingredients": []}
+    try:
+        new_items, who = validate_create_body(body, current)
+    except ValueError as e:
+        msg = str(e)
+        status = 409 if "already exists" in msg else 400
+        return status, {"ok": False, "error": "conflict" if status == 409 else "bad_request", "message": msg}
+    ts = utc_now_iso(now)
+    updated, created, audit = apply_creates(current, new_items, who, ts)
+    saved = store.commit(uid, updated, audit)
+    saved_ids = {str(i.get("id")).strip().lower() for i in (saved or {}).get("ingredients") or [] if isinstance(i, dict)}
+    for c in created:
+        c["saved"] = str(c["id"]).strip().lower() in saved_ids
+    return 200, {"ok": True, "generated_at": utc_now_iso(now), "as_of": ts, "updated_by": who, "items": created}
