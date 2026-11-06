@@ -265,6 +265,24 @@ class WeightSample:
 
 
 @dataclass
+class BodyFatSample:
+    """One body-fat percentage from Google Health ``body-fat`` dataPoints.
+
+    ``date`` is the civil weigh-in day, same as weight. ``recorded_at`` is the
+    measurement timestamp (``ObservationSampleTime.physicalTime``) when the
+    API sent one, so two readings on the same day both persist.
+    """
+
+    date: str
+    percentage: float
+    recorded_at: Optional[str] = None
+    source: str = "google_health"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class SleepSample:
     date: str  # ISO night date
     sleep_hours: float
@@ -399,6 +417,7 @@ class StepSample:
 @dataclass
 class HealthSnapshot:
     weight: List[WeightSample] = field(default_factory=list)
+    body_fat: List[BodyFatSample] = field(default_factory=list)
     sleep: List[SleepSample] = field(default_factory=list)
     # Timed sleep sessions [{start, end, source}] for sleep battery (Time Allocator style)
     sleep_intervals: List[Dict[str, Any]] = field(default_factory=list)
@@ -414,6 +433,7 @@ class HealthSnapshot:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "weight": [w.to_dict() for w in self.weight],
+            "body_fat": [b.to_dict() for b in self.body_fat],
             "sleep": [s.to_dict() for s in self.sleep],
             "sleep_intervals": list(self.sleep_intervals or []),
             "nutrition": [n.to_dict() for n in self.nutrition],

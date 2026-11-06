@@ -1659,6 +1659,21 @@
       weightGoal != null && weights.length
         ? weights.map(() => weightGoal)
         : null;
+    const bfApi = typeof FitDashBodyFat !== "undefined" ? FitDashBodyFat : null;
+    const bodyFatWindow = clipToRecentCalendarDays(
+      [...((data.health && data.health.body_fat) || [])].sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      ),
+      90
+    );
+    const bodyFatVals = bfApi
+      ? bfApi.alignToLabels(
+          weights.map((w) => w.date),
+          bodyFatWindow
+        )
+      : weights.map(() => null);
+    const latestBf = bfApi ? bfApi.latest(bodyFatWindow) : null;
+    const hasBf = bodyFatVals.some((v) => v != null && Number.isFinite(Number(v)));
     const weightDatasets = [
       {
         label: "Weight (lb)",
@@ -1696,6 +1711,20 @@
         spanGaps: true,
       });
     }
+    if (hasBf) {
+      weightDatasets.push({
+        label: "Body fat (%)",
+        data: bodyFatVals,
+        yAxisID: "y1",
+        borderColor: "#f0b429",
+        backgroundColor: "transparent",
+        tension: 0.25,
+        fill: false,
+        pointRadius: 2,
+        spanGaps: true,
+        order: 0,
+      });
+    }
     // Include goal in Y domain so a far target still draws inside the plot
     const weightOpts = chartDefaults();
     const finiteW = weightVals.filter((v) => v != null && Number.isFinite(Number(v))).map(Number);
@@ -1710,6 +1739,30 @@
           ...weightOpts.scales.y,
           suggestedMin: lo - pad,
           suggestedMax: hi + pad,
+        },
+      };
+    }
+    if (hasBf) {
+      const finiteBf = bodyFatVals
+        .filter((v) => v != null && Number.isFinite(Number(v)))
+        .map(Number);
+      const loB = Math.min(...finiteBf);
+      const hiB = Math.max(...finiteBf);
+      const padB = Math.max(0.4, (hiB - loB) * 0.2 || 1);
+      weightOpts.scales = {
+        ...weightOpts.scales,
+        y1: {
+          position: "right",
+          grid: { drawOnChartArea: false },
+          ticks: { color: "#8b9bb4" },
+          title: {
+            display: true,
+            text: "Body fat (%)",
+            color: "#8b9bb4",
+            font: { size: 11 },
+          },
+          suggestedMin: Math.max(0, loB - padB),
+          suggestedMax: Math.min(100, hiB + padB),
         },
       };
     }
@@ -1746,6 +1799,13 @@
         }
       } else {
         bits.push("no goal line yet — set Weight goal (lb) under More → Daily targets, then Save");
+      }
+      if (latestBf && Number.isFinite(Number(latestBf.percentage))) {
+        bits.push(
+          `body fat ${Number(latestBf.percentage).toFixed(1)}% (${latestBf.date})`
+        );
+      } else {
+        bits.push("no body-fat readings in this window");
       }
       $("weight-trend-note").textContent = bits.join(" · ");
     }

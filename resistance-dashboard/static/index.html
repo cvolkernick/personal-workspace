@@ -26,7 +26,8 @@
     <script src="/calorie-rolling-avg.js?v=cal-7d-946-1" defer></script>
     <script src="/biomarkers.js?v=labs-off-today-1" defer></script>
     <script src="/trends-steps.js?v=steps-2" defer></script>
-    <script src="/app.js?v=weight-slope-90d-1" defer></script>
+    <script src="/body-fat-series.js?v=body-fat-1382-1" defer></script>
+    <script src="/app.js?v=body-fat-1382-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -81,7 +82,7 @@
           <button
             type="button"
             id="btn-refresh"
-            title="Bypass cache — pull Google Health (weight, sleep, food, hydration) now"
+            title="Bypass cache — pull Google Health (weight, body fat, sleep, food, hydration) now"
           >
             Refresh data
           </button>
@@ -553,8 +554,8 @@
 
       <section class="grid two equal-cards" style="margin-top: 1rem" id="weight-hydration-row" data-m-panel="trends">
         <article class="card card-fill">
-          <h2>Body Weight · 90d</h2>
-          <div class="chart-box"><canvas id="chart-weight" aria-label="Body weight chart last 90 days"></canvas></div>
+          <h2>Body weight · body fat · 90d</h2>
+          <div class="chart-box"><canvas id="chart-weight" aria-label="Body weight and body fat chart last 90 days"></canvas></div>
           <p class="muted" id="weight-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
         <article class="card card-fill" id="hydration-card">
@@ -1484,7 +1485,7 @@
       </section>
 
       <footer class="app-footer">
-        Data sources: local lift log (SQLite) · Google Health (weight, sleep, nutrition, hydration) ·
+        Data sources: local lift log (SQLite) · Google Health (weight, body fat, sleep, nutrition, hydration) ·
         lab PDFs (local config) · SuperGrok ask ·
         <span id="meta-line"></span>
       </footer>

@@ -8,7 +8,8 @@ Intake and burned use the daily series behind the Trends
 
 That is the raw daily point, not the 7-day mean. A missing day stays
 null. A logged 0 stays 0. Weight is null when that civil day has no
-weigh-in.
+weigh-in. Body fat is the last timestamped percentage that civil day,
+or null when that day has no reading.
 """
 
 from __future__ import annotations
@@ -96,6 +97,26 @@ def _series(health: Any, key: str) -> list:
     return list(raw) if isinstance(raw, Iterable) and not isinstance(raw, (str, bytes)) else []
 
 
+def body_fat_by_date(rows: Iterable[Any]) -> Dict[str, float]:
+    """Last finite percentage that civil day. Later ``recorded_at`` wins."""
+    by: Dict[str, float] = {}
+    stamp: Dict[str, str] = {}
+    for row in rows or []:
+        if row is None:
+            continue
+        day = str(_row_get(row, "date") or "")[:10]
+        if len(day) != 10:
+            continue
+        pct = _finite_kcal(_row_get(row, "percentage"))
+        if pct is None or pct < 0 or pct > 100:
+            continue
+        ts = str(_row_get(row, "recorded_at") or "")
+        if day not in by or ts >= stamp.get(day, ""):
+            by[day] = pct
+            stamp[day] = ts
+    return by
+
+
 def kcal_by_date(rows: Iterable[Any], *, value_key: str = "calories") -> Dict[str, float]:
     """Match calorie-rolling-avg.js kcalByDate: last finite value wins."""
     by: Dict[str, float] = {}
@@ -151,6 +172,7 @@ def export_trends_window(
     nutrition = kcal_by_date(_series(health, "nutrition"))
     burned = kcal_by_date(_series(health, "calories_burned"))
     weight = kcal_by_date(_series(health, "weight"), value_key="weight_lbs")
+    body_fat = body_fat_by_date(_series(health, "body_fat"))
     logged_days = set()
     for row in _series(health, "food_logs"):
         day = str(_row_get(row, "date") or "")[:10]
@@ -161,7 +183,13 @@ def export_trends_window(
 
     err_parts = [part for part in (_health_error(health), (extra_error or "").strip()) if part]
     err = "; ".join(err_parts)
-    series_empty = not nutrition and not burned and not weight and not _series(health, "food_logs")
+    series_empty = (
+        not nutrition
+        and not burned
+        and not weight
+        and not body_fat
+        and not _series(health, "food_logs")
+    )
     if err and series_empty:
         return {
             "ok": False,
@@ -181,6 +209,7 @@ def export_trends_window(
                 "intake_kcal": intake,
                 "burned_kcal": burned.get(day),
                 "weight_lb": weight.get(day),
+                "body_fat_pct": body_fat.get(day),
                 "logged": True if logged else False,
             }
         )

@@ -213,8 +213,10 @@ class MainLiftExports(unittest.TestCase):
             "intake_kcal",
             "burned_kcal",
             "weight_lb",
+            "body_fat_pct",
             "logged",
         })
+        self.assertIsNone(body["rows"][0]["body_fat_pct"])
         rdl = body["main_lifts"]["RDL"]
         self.assertEqual([p["date"] for p in rdl], ["2026-05-08"])
         point = rdl[0]
@@ -254,9 +256,9 @@ class MainLiftCardSource(unittest.TestCase):
         sw = (ROOT / "static/sw.js").read_text(encoding="utf-8")
         self.assertIn('id="chart-strength"', html)
         self.assertIn("<h2>Main lifts</h2>", html)
-        self.assertIn("/app.js?v=weight-slope-90d-1", html)
-        self.assertIn('const CACHE = "fitdash-shell-v158"', sw)
-        self.assertIn("/app.js?v=weight-slope-90d-1", sw)
+        self.assertIn("/app.js?v=body-fat-1382-1", html)
+        self.assertIn('const CACHE = "fitdash-shell-v159"', sw)
+        self.assertIn("/app.js?v=body-fat-1382-1", sw)
         self.assertIn('mainGroup.label = "Main lifts"', app)
         self.assertIn('yAxisID: "y1"', app)
         self.assertIn("First set", app)
