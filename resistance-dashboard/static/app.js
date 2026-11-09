@@ -1655,39 +1655,60 @@
       Number(weightGoalRaw) > 0
         ? Number(weightGoalRaw)
         : null;
-    const weightGoalLine =
-      weightGoal != null && weights.length
-        ? weights.map(() => weightGoal)
-        : null;
     const bfApi = typeof FitDashBodyFat !== "undefined" ? FitDashBodyFat : null;
-    const bodyFatWindow = clipToRecentCalendarDays(
-      [...((data.health && data.health.body_fat) || [])].sort((a, b) =>
-        String(a.date).localeCompare(String(b.date))
-      ),
-      90
+    const bodyFatSorted = [...((data.health && data.health.body_fat) || [])].sort((a, b) =>
+      String(a.date).localeCompare(String(b.date))
     );
-    const bodyFatVals = bfApi
-      ? bfApi.alignToLabels(
-          weights.map((w) => w.date),
-          bodyFatWindow
-        )
-      : weights.map(() => null);
+    // Raw points stay inside the 90-day chart. The mean also sees the 6 civil
+    // days before that so a window ending on the first visible day is [D-6, D].
+    const bodyFatWindow = clipToRecentCalendarDays(bodyFatSorted, 90);
+    const avgLead = bfApi && Number(bfApi.WINDOW_DAYS) > 1 ? Number(bfApi.WINDOW_DAYS) - 1 : 6;
+    const bodyFatForAvg = clipToRecentCalendarDays(bodyFatSorted, 90 + avgLead);
+    const weightLabels = weights.map((w) => String(w && w.date).slice(0, 10));
+    const axis = bfApi ? bfApi.axisDates(weightLabels, bodyFatWindow) : weightLabels.slice();
+    const axisMatchesWeights =
+      axis.length === weightLabels.length && axis.every((day, i) => day === weightLabels[i]);
+    // Civil dates, so each raw point (x = YYYY-MM-DD) lands on a category.
+    // Two readings on the same day share that category and both stay visible.
+    const chartLabels = axis;
+    const valueOnAxis = (days, values) =>
+      axis.map((day) => {
+        for (let i = days.length - 1; i >= 0; i--) {
+          if (days[i] === day) return values[i];
+        }
+        return null;
+      });
+    const chartWeightVals = axisMatchesWeights ? weightVals : valueOnAxis(weightLabels, weightVals);
+    const chartWeightTrend = axisMatchesWeights
+      ? weightTrend
+      : valueOnAxis(weightLabels, weightTrend);
+    const weightGoalLine =
+      weightGoal != null && weights.length ? chartLabels.map(() => weightGoal) : null;
+    const rawPoints = bfApi ? bfApi.measurements(bodyFatWindow) : [];
+    const bfAvg = bfApi
+      ? bfApi.trailingAverage(bodyFatForAvg, chartLabels)
+      : chartLabels.map(() => null);
     const latestBf = bfApi ? bfApi.latest(bodyFatWindow) : null;
-    const hasBf = bodyFatVals.some((v) => v != null && Number.isFinite(Number(v)));
+    const avgAtLatest =
+      bfApi && latestBf ? bfApi.trailingAverage(bodyFatForAvg, [latestBf.date])[0] : null;
+    const hasRaw = rawPoints.length > 0;
+    const hasAvg = bfAvg.some((v) => v != null && Number.isFinite(Number(v)));
+    const hasBf = hasRaw || hasAvg;
     const weightDatasets = [
       {
         label: "Weight (lb)",
-        data: weightVals,
+        data: chartWeightVals,
         borderColor: "#5ce1a8",
         backgroundColor: "rgba(92,225,168,0.12)",
         tension: 0.25,
         fill: true,
         pointRadius: 2,
         order: 2,
+        ...(axisMatchesWeights ? {} : { spanGaps: true }),
       },
       {
         label: "Trend",
-        data: weightTrend,
+        data: chartWeightTrend,
         borderColor: "#3d9cf0",
         borderDash: [6, 4],
         borderWidth: 2,
@@ -1695,6 +1716,7 @@
         fill: false,
         tension: 0,
         order: 1,
+        ...(axisMatchesWeights ? {} : { spanGaps: true }),
       },
     ];
     if (weightGoalLine) {
@@ -1712,16 +1734,35 @@
       });
     }
     if (hasBf) {
+      // Solid line is the 7-calendar-day mean. Dots are the logged readings
+      // and are not connected, so a gap is not a filled-in measurement.
+      weightDatasets.push({
+        label: "Body fat 7-day avg",
+        data: bfAvg,
+        yAxisID: "y1",
+        borderColor: "#ffe08a",
+        backgroundColor: "transparent",
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        tension: 0.15,
+        fill: false,
+        spanGaps: false,
+        order: 1,
+      });
       weightDatasets.push({
         label: "Body fat (%)",
-        data: bodyFatVals,
+        data: rawPoints.map((p) => ({ x: p.date, y: p.percentage })),
         yAxisID: "y1",
         borderColor: "#f0b429",
-        backgroundColor: "transparent",
-        tension: 0.25,
+        backgroundColor: "#f0b429",
+        pointBackgroundColor: "#f0b429",
+        pointBorderColor: "#1a1206",
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        showLine: false,
         fill: false,
-        pointRadius: 2,
-        spanGaps: true,
         order: 0,
       });
     }
@@ -1743,7 +1784,9 @@
       };
     }
     if (hasBf) {
-      const finiteBf = bodyFatVals
+      const finiteBf = rawPoints
+        .map((p) => p.percentage)
+        .concat(bfAvg)
         .filter((v) => v != null && Number.isFinite(Number(v)))
         .map(Number);
       const loB = Math.min(...finiteBf);
@@ -1766,11 +1809,27 @@
         },
       };
     }
+    weightOpts.plugins = {
+      ...weightOpts.plugins,
+      tooltip: {
+        callbacks: {
+          label(ctx) {
+            const label = (ctx.dataset && ctx.dataset.label) || "";
+            const y = ctx.parsed && ctx.parsed.y;
+            if (label.indexOf("Body fat") === 0 && y != null && Number.isFinite(Number(y))) {
+              return `${label}: ${(Math.round(Number(y) * 100) / 100).toFixed(2)}%`;
+            }
+            const value = ctx.formattedValue;
+            return label ? `${label}: ${value}` : `${value}`;
+          },
+        },
+      },
+    };
     destroyChart(weightChart);
     weightChart = new Chart($("chart-weight"), {
       type: "line",
       data: {
-        labels: weights.map((w) => w.date),
+        labels: chartLabels,
         datasets: weightDatasets,
       },
       options: weightOpts,
@@ -1804,6 +1863,9 @@
         bits.push(
           `body fat ${Number(latestBf.percentage).toFixed(1)}% (${latestBf.date})`
         );
+        if (avgAtLatest != null && Number.isFinite(Number(avgAtLatest))) {
+          bits.push(`7-day avg ${Number(avgAtLatest).toFixed(1)}%`);
+        }
       } else {
         bits.push("no body-fat readings in this window");
       }
