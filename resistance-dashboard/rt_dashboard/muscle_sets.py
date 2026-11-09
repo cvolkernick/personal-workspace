@@ -1381,13 +1381,21 @@ def build_muscle_set_report(
     trends = {
         group: _trend(history, group, date.fromisoformat(monday)) for group in VOLUME_GROUPS
     }
+    ramp_labels: Dict[str, str] = {}
+    if day:
+        try:
+            from .priority_ramp import display_targets
+
+            ramp_labels = display_targets(goals, sessions, catalog, as_of=day)
+        except Exception:  # noqa: BLE001 - Trends still renders the legacy labels
+            ramp_labels = {}
     muscle_sets = {}
     for group in VOLUME_GROUPS:
         done = _round_sets(rolling_credits.get(group) or 0)
         muscle_sets[group] = {
             "proper_sets": done,
             "tier": tier_for(done),
-            "target": _target_label(group, ceiling=ceiling),
+            "target": ramp_labels.get(group) or _target_label(group, ceiling=ceiling),
             "trend_4w": trends.get(group),
         }
     suggestion = drop_suggestion(credits)

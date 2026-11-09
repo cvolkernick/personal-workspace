@@ -6775,7 +6775,14 @@
     const scopeLine = sessionMuscles
       ? `<p class="muted volume-balance-note">Showing <strong>${dayLabel}</strong> muscles only (this session). Weekly hard-set credits still count everywhere.</p>`
       : `<p class="muted volume-balance-note">Full-week overview (≈4–8 hard sets/muscle/week w/ overlap).</p>`;
-    const focusLine = focusMuscles.length
+    const ramp = volume.priority_ramp || null;
+    const rampLine =
+      ramp && ramp.live && ramp.today_line
+        ? `<p class="muted volume-balance-note">${phaseBaroEsc(ramp.today_line)}</p>`
+        : "";
+    const focusLine = rampLine
+      ? rampLine
+      : focusMuscles.length
       ? `<p class="muted volume-balance-note"><strong>${
           src === "auto" ? "Auto focus" : "Focus"
         }:</strong> ${focusMuscles
@@ -6788,11 +6795,14 @@
             : "Manual priority muscles; others near maintenance."
         }</p>`
       : `<p class="muted volume-balance-note">Balanced volume (no priority muscles). Primary sets full credit; secondary partial.</p>`;
-    // fw.label is already "Balanced volume (≈4–8…)" — no coach brand in heading
-    const frameworkBit = (fw.label || "Balanced volume (≈4–8 / muscle)").replace(
-      /^DeanT\s+/i,
-      ""
-    );
+    // fw.label is already "Balanced volume (≈4–8…)" — no coach brand in heading.
+    // Once the priority ramp is live the note below carries the real targets.
+    const frameworkBit = ramp && ramp.live
+      ? "Priority volume"
+      : (fw.label || "Balanced volume (≈4–8 / muscle)").replace(
+          /^DeanT\s+/i,
+          ""
+        );
     return `<div class="volume-balance">
       <div class="volume-balance-title">Weekly Hard Sets · ${dayLabel} · ${frameworkBit}</div>
       <div class="volume-balance-chips">${chips}</div>

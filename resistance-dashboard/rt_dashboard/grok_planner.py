@@ -286,6 +286,15 @@ def generate_grok_plans(
             if isinstance(e, dict) and e.get("available", True) and e.get("name")
         ],
     }
+    from .priority_ramp import ensure_workout_message, prompt_volume_fields
+
+    volume_fields = prompt_volume_fields(
+        goals,
+        sessions if sessions is not None else sessions_brief,
+        catalog,
+        as_of=as_of,
+    )
+    volume_clause = volume_fields["volume_clause"]
     user_block = {
         "remaining_macros": rem,
         "targets": {
@@ -310,18 +319,21 @@ def generate_grok_plans(
         "volume_caps": {
             "default_hard_sets": (goals or {}).get("default_hard_sets"),
             "session_working_set_cap": (goals or {}).get("session_working_set_cap"),
-            "sets_per_muscle_week": "4-8",
+            "sets_per_muscle_week": volume_fields["sets_per_muscle_week"],
+            "muscle_targets": volume_fields["muscle_targets"],
+            "priority_volume": volume_fields["priority_volume"],
+            "lowering_cue": volume_fields["lowering_cue"],
             "ignore_catalog_default_sets": True,
         },
         "notes": (
             "PANTRY IS EMPTY OR MISSING. Return meal items=[] meals=[]. "
             "Do not invent food, meals, or ingredients. "
-            "Workout must use goals (PPL split / DeanT volume) + catalog names + "
+            "Workout must use goals (PPL split / volume_caps.muscle_targets) + catalog names + "
             "recent_sessions + recovery. rest_if_recovery_below is INPUT: you MAY "
             "generate a rest day as today's plan (that still fills the slot). "
             "Do not omit next_session_type. No canned plan. No fake inventory. "
             "Do NOT use catalog default_sets=3. Volume from goals: "
-            "default_hard_sets, DeanT 4-8, session_working_set_cap. "
+            "default_hard_sets, {volume_clause}, session_working_set_cap. "
             "Workout names are the programmed library, already checked against "
             "accessible equipment. Do not invent lifts or enable available=false "
             "rows. New gear does not auto-expand the library. "
@@ -349,12 +361,12 @@ def generate_grok_plans(
         user_block["notes"] = (
             "PANTRY IS EMPTY OR MISSING. Return meal items=[] meals=[]. "
             "Do not invent food, meals, or ingredients. "
-            "Workout must use goals (PPL split / DeanT volume) + catalog names + "
+            "Workout must use goals (PPL split / volume_caps.muscle_targets) + catalog names + "
             "recent_sessions + recovery. rest_if_recovery_below is INPUT: you MAY "
             "generate a rest day as today's plan (that still fills the slot). "
             "Do not omit next_session_type. No canned plan. No fake inventory. "
             "Do NOT use catalog default_sets=3. Volume from goals: "
-            "default_hard_sets, DeanT 4-8, session_working_set_cap. "
+            "default_hard_sets, {volume_clause}, session_working_set_cap. "
             "Workout names are the programmed library, already checked against "
             "accessible equipment. Do not invent lifts or enable available=false "
             "rows. New gear does not auto-expand the library. "
@@ -389,17 +401,20 @@ def generate_grok_plans(
             "(portion_g / serving_g) × per-serving macros. Round grams ~5g, "
             "min ~25g. If serving_g is missing, do not invent grams; use "
             "serving_label only. "
-            "Workout must use goals (PPL split / DeanT volume) + catalog names + "
+            "Workout must use goals (PPL split / volume_caps.muscle_targets) + catalog names + "
             "recent_sessions + recovery. rest_if_recovery_below is INPUT: you MAY "
             "generate a rest day as today's plan (that still fills the slot). "
             "Do not omit next_session_type. No canned plan. No fake inventory. "
             "Do NOT use catalog default_sets=3. Volume from goals: "
-            "default_hard_sets, DeanT 4-8, session_working_set_cap. "
+            "default_hard_sets, {volume_clause}, session_working_set_cap. "
             "Workout names are the programmed library, already checked against "
             "accessible equipment. Do not invent lifts or enable available=false "
             "rows. New gear does not auto-expand the library. "
             "Do not prescribe loads above max_weight_lbs."
         )
+    user_block["notes"] = str(user_block.get("notes") or "").replace(
+        "{volume_clause}", volume_clause
+    )
     system = (
         "You generate today's FitDash meal sketch and workout plan.\n"
         "Return ONLY JSON with keys meal and workout.\n"
@@ -428,8 +443,10 @@ def generate_grok_plans(
         "auto-add catalog rows.\n"
         "- If no accessible gear can load this PPL slot from the library, "
         "return exercises=[] and say why. Still set session_type.\n"
-        "- Volume caps come from goals (default_hard_sets, DeanT 4-8, "
-        "session_working_set_cap). NEVER use catalog default_sets=3.\n"
+        "- Volume caps come from volume_caps.muscle_targets "
+        f"({volume_clause}). NEVER use catalog default_sets=3. "
+        "Do not encode a tempo in sets, reps, or weight_lbs.\n"
+        f"- {volume_fields['message_rule']}\n"
         "- rest_if_recovery_below + recovery.score + sparse are INPUT to you. "
         "You MAY return is_rest_day as today's plan (a rest day is a plan, "
         "not an omitted slot). Still set session_type (rest or next PPL). "
@@ -587,7 +604,11 @@ def generate_grok_plans(
         "session_type": workout.get("session_type") or next_session_type,
         "is_rest_day": bool(workout.get("is_rest_day")),
         "exercises": capped,
-        "message": str(workout.get("message") or "Generated by SuperGrok."),
+        "message": ensure_workout_message(
+            str(workout.get("message") or "Generated by SuperGrok."),
+            volume_fields.get("ramp"),
+            has_lifts=bool(capped) and not bool(workout.get("is_rest_day")),
+        ),
         "empty": not capped and not workout.get("is_rest_day"),
         "source": "grok",
     }
@@ -615,6 +636,11 @@ def generate_grok_plans(
         next_st_override=next_session_type,
         as_of=as_of,
         training_objective=objective,
+    )
+    workout_out["message"] = ensure_workout_message(
+        workout_out.get("message"),
+        volume_fields.get("ramp"),
+        has_lifts=bool(workout_out.get("exercises")) and not workout_out.get("is_rest_day"),
     )
     return {
         "ok": True,

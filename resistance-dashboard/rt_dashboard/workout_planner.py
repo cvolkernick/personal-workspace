@@ -4,7 +4,10 @@ Volume framework (Dean Turner / DeanTTraining — balanced hypertrophy):
   - You do **not** need 10–20 working sets per muscle per week.
   - Aim roughly **4–8 hard sets per major muscle group per week**, counting
     compound **overlap** (e.g. RDL credits hams + glutes).
-  - Heavy priority on 1–2 muscles is fine; others drop toward a maintenance dose.
+  - Heavy priority on 1–2 muscles is fine; others drop toward a maintenance dose
+    only on the legacy focus path.
+  - The staged ramp (lats, then chest, then quads, toward ~10) keeps every
+    other major muscle in the 4–8 band. It does not use that maintenance drop.
   - Productive work is capped per session and per microcycle — high per-muscle
     volume crowds out the rest of the body.
   Source framing: https://x.com/DeanTTraining/status/2081501543510028437
@@ -190,8 +193,14 @@ DEFAULT_GOALS = {
     "volume_framework": VOLUME_FRAMEWORK["id"],
     "sets_per_muscle_week_min": 4,
     "sets_per_muscle_week_max": 8,
-    "sets_per_muscle_week_priority_max": 12,
+    "sets_per_muscle_week_priority_max": 10,
     "maintenance_sets_per_muscle_week": 3,
+    # Staged hypertrophy ramp. Other majors stay 4–8; focus does not maintenance-drop them.
+    "priority_muscles_ordered": ["lats", "chest", "quads"],
+    "priority_sets_target": 10,
+    "priority_ramp_increment": 2,
+    "priority_ramp_started_on": "2026-11-09",
+    "priority_keep_others_in_band": True,
     "session_working_set_cap": 14,
     "secondary_set_fraction": 0.5,
     "default_hard_sets": 2,  # preferred hard sets when history is thin
@@ -410,6 +419,37 @@ def normalize_goals(raw: Optional[dict]) -> dict:
             g["secondary_set_fraction"] = float(raw["secondary_set_fraction"])
         except (TypeError, ValueError):
             pass
+    if isinstance(raw.get("priority_muscles_ordered"), list):
+        ordered: List[str] = []
+        for item in raw["priority_muscles_ordered"]:
+            muscle = normalize_muscle(str(item))
+            if muscle and muscle not in ordered:
+                ordered.append(muscle)
+        g["priority_muscles_ordered"] = ordered
+    if raw.get("priority_sets_target") is not None:
+        try:
+            g["priority_sets_target"] = int(raw["priority_sets_target"])
+        except (TypeError, ValueError):
+            pass
+    if raw.get("priority_ramp_increment") is not None:
+        try:
+            step = int(raw["priority_ramp_increment"])
+            g["priority_ramp_increment"] = 1 if step <= 1 else 2
+        except (TypeError, ValueError):
+            pass
+    if raw.get("priority_ramp_started_on"):
+        g["priority_ramp_started_on"] = str(raw["priority_ramp_started_on"])[:10]
+    if "priority_keep_others_in_band" in raw:
+        flag = raw.get("priority_keep_others_in_band")
+        if isinstance(flag, str):
+            g["priority_keep_others_in_band"] = flag.strip().lower() in (
+                "1",
+                "true",
+                "yes",
+                "on",
+            )
+        else:
+            g["priority_keep_others_in_band"] = bool(flag)
     if raw.get("volume_framework"):
         g["volume_framework"] = str(raw["volume_framework"])
     if "prefer_compounds_first" in raw:
@@ -468,12 +508,11 @@ def normalize_muscle(name: str) -> str:
     return MUSCLE_ALIASES.get(key, key)
 
 
-def muscle_targets(goals: dict) -> Dict[str, Dict[str, float]]:
-    """Per-muscle weekly set min/max, elevating focus muscles."""
-    goals = normalize_goals(goals)
+def _focus_muscle_targets(goals: dict) -> Dict[str, Dict[str, float]]:
+    """Legacy focus bands. A set focus muscle raises its max and drops the rest to maintenance."""
     lo = float(goals.get("sets_per_muscle_week_min") or 4)
     hi = float(goals.get("sets_per_muscle_week_max") or 8)
-    pri_hi = float(goals.get("sets_per_muscle_week_priority_max") or 12)
+    pri_hi = float(goals.get("sets_per_muscle_week_priority_max") or 10)
     maint = float(goals.get("maintenance_sets_per_muscle_week") or 3)
     focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
     out: Dict[str, Dict[str, float]] = {}
@@ -486,6 +525,44 @@ def muscle_targets(goals: dict) -> Dict[str, Dict[str, float]]:
         else:
             out[m] = {"min": lo, "max": hi, "priority": False}
     return out
+
+
+def muscle_targets(
+    goals: dict,
+    *,
+    as_of: Optional[str] = None,
+    prior_credits: Optional[Dict[str, float]] = None,
+    lifts_status: Optional[str] = None,
+    prior_lifts_status: Optional[str] = None,
+    restore_flag: bool = False,
+    prior_restore_flag: bool = False,
+    phase: Optional[str] = None,
+) -> Dict[str, Dict[str, float]]:
+    """Per-muscle weekly set min/max.
+
+    When the priority ramp is live, the active muscle uses a staged ceiling
+    (min = max(4, target - 2), max = target) and every other major stays on
+    the 4–8 band. Focus muscles do not maintenance-drop the rest on that path.
+    """
+    raw = dict(goals or {})
+    balanced_only = bool(raw.get("_balanced_bands_only"))
+    normalized = normalize_goals(raw)
+    if not balanced_only:
+        from .priority_ramp import resolve_priority_ramp
+
+        ramp = resolve_priority_ramp(
+            raw,
+            as_of=as_of,
+            prior_credits=prior_credits,
+            lifts_status=lifts_status,
+            prior_lifts_status=prior_lifts_status,
+            restore_flag=restore_flag,
+            prior_restore_flag=prior_restore_flag,
+            phase=phase,
+        )
+        if ramp.get("live") and ramp.get("targets"):
+            return ramp["targets"]
+    return _focus_muscle_targets(normalized)
 
 
 def _working_sets_from_entry(ex: Any) -> int:
@@ -644,7 +721,8 @@ def suggest_focus_muscles(
     that are furthest under the weekly min among core program groups.
     """
     goals = normalize_goals(goals or {})
-    bands = muscle_targets({**goals, "focus_muscles": []})  # balanced bands
+    # Balanced 4–8 gaps only. The priority ramp must not rewrite focus picking.
+    bands = muscle_targets({**goals, "focus_muscles": [], "_balanced_bands_only": True})
     by = dict(tally.get("by_muscle") or {})
     # Prefer big drivers when gaps are equal (DeanT: prioritize 1–2 groups, not calves/arms first)
     candidates = [
@@ -746,10 +824,11 @@ def volume_balance_report(
     goals: dict,
     *,
     planned_credits: Optional[Dict[str, float]] = None,
+    bands: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, Any]:
     """Compare weekly tally (+ optional planned session) to DeanT bands."""
     goals = normalize_goals(goals)
-    bands = muscle_targets(goals)
+    bands = bands or muscle_targets(goals)
     by = dict(tally.get("by_muscle") or {})
     planned_credits = planned_credits or {}
     rows = []
@@ -2506,6 +2585,11 @@ def _generate_workout_plan_unguarded(
     now: Optional[datetime] = None,
     weighins: Optional[Sequence[Any]] = None,
     training_objective: Optional[dict] = None,
+    lifts_status: Optional[str] = None,
+    prior_lifts_status: Optional[str] = None,
+    restore_flag: Optional[bool] = None,
+    prior_restore_flag: Optional[bool] = None,
+    phase: Optional[str] = None,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -2592,6 +2676,64 @@ def _generate_workout_plan_unguarded(
         "auto": focus_res.get("auto"),
         "reason": focus_res.get("reason"),
     }
+
+    from .priority_ramp import (
+        MUSCLE_SESSION,
+        bump_priority_sets,
+        ensure_workout_message,
+        goals_flag_restore,
+        lifts_chip_status,
+        prior_sunday,
+        prior_week_credits,
+        prior_week_restore,
+        ramp_is_live,
+        this_week_restore,
+        ramp_public,
+        resolve_priority_ramp,
+        this_week_credits,
+    )
+
+    prior_credits: Dict[str, float] = {}
+    chip = lifts_status
+    prior_chip = prior_lifts_status
+    restore_now = bool(restore_flag) if restore_flag is not None else False
+    restore_prior = bool(prior_restore_flag) if prior_restore_flag is not None else False
+    if ramp_is_live(goals, day):
+        prior_credits = prior_week_credits(sessions, catalog, day, sec_frac)
+        if lifts_status is None:
+            chip = lifts_chip_status(sessions, goals, day)
+        if prior_lifts_status is None:
+            sunday = prior_sunday(day)
+            prior_chip = (
+                lifts_chip_status(sessions, goals, sunday) if sunday else "insufficient"
+            )
+        if restore_flag is None:
+            restore_now = (
+                bool(deload)
+                or goals_flag_restore(goals, recovery_label)
+                or this_week_restore(sessions, day)
+            )
+        if prior_restore_flag is None:
+            restore_prior = prior_week_restore(sessions, day)
+    ramp = resolve_priority_ramp(
+        goals,
+        as_of=day,
+        prior_credits=prior_credits,
+        lifts_status=chip,
+        prior_lifts_status=prior_chip,
+        restore_flag=bool(restore_now),
+        prior_restore_flag=bool(restore_prior),
+        phase=phase,
+        session_cap=goals.get("session_working_set_cap"),
+    )
+    long_bands = (
+        ramp["targets"] if ramp.get("live") else _focus_muscle_targets(goals)
+    )
+
+    def _stamp_ramp(report: dict) -> dict:
+        if ramp.get("live") and isinstance(report, dict):
+            report["priority_ramp"] = ramp_public(ramp)
+        return report
 
     explicit = str(session_type or "").strip().lower()
     from .training_day import (
@@ -2705,7 +2847,7 @@ def _generate_workout_plan_unguarded(
     if day_complete and not force_letter and not plan_next:
         pin = logged_today or next_session_type(sessions, goals)
         nxt = next_letter_after(pin, goals) if pin in ("push", "pull", "legs") else pin
-        balance = volume_balance_report(tally, goals)
+        balance = _stamp_ramp(volume_balance_report(tally, goals, bands=long_bands))
         balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
             tally, goals
         )
@@ -2715,6 +2857,14 @@ def _generate_workout_plan_unguarded(
             "reason": focus_res.get("reason"),
         }
         st_done = pin if pin in ("push", "pull", "legs") else logged_today or "session"
+        trained_message = ensure_workout_message(
+            (
+                f"Already trained today ({str(st_done).upper()}). "
+                f"Next session: {str(nxt).upper()} tomorrow."
+            ),
+            ramp,
+            has_lifts=False,
+        )
         return _stamp_plan_remainder({
             "date": day,
             "session_type": st_done,
@@ -2723,10 +2873,7 @@ def _generate_workout_plan_unguarded(
             "ppl_logged_today": logged_today,
             "exercises": [],
             "next_session_type": nxt,
-            "message": (
-                f"Already trained today ({str(st_done).upper()}). "
-                f"Next session: {str(nxt).upper()} tomorrow."
-            ),
+            "message": trained_message,
             "goals": goals,
             "volume": balance,
             "context": {
@@ -2752,7 +2899,7 @@ def _generate_workout_plan_unguarded(
         and recovery_score < rest_threshold
         and not recovery_sparse
     ):
-        balance = volume_balance_report(tally, goals)
+        balance = _stamp_ramp(volume_balance_report(tally, goals, bands=long_bands))
         balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
             tally, goals
         )
@@ -2761,15 +2908,20 @@ def _generate_workout_plan_unguarded(
             "source": focus_res.get("source"),
             "reason": focus_res.get("reason"),
         }
+        rest_message = ensure_workout_message(
+            (
+                f"Recovery score {recovery_score:.0f} is below threshold "
+                f"({rest_threshold}). Suggested rest or light walk/mobility only."
+            ),
+            ramp,
+            has_lifts=False,
+        )
         return _stamp_plan_remainder({
             "date": day,
             "session_type": "rest",
             "is_rest_day": True,
             "exercises": [],
-            "message": (
-                f"Recovery score {recovery_score:.0f} is below threshold "
-                f"({rest_threshold}). Suggested rest or light walk/mobility only."
-            ),
+            "message": rest_message,
             "goals": goals,
             "volume": balance,
             "context": {
@@ -2801,7 +2953,7 @@ def _generate_workout_plan_unguarded(
     if not pool and not equipment_on:
         pool = [ex for ex in available if not _hand_only_pattern(ex)]
 
-    bands = scale_muscle_targets_for_continuity(muscle_targets(goals), continuity)
+    bands = scale_muscle_targets_for_continuity(long_bands, continuity)
     focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
     last_family_ids = last_pattern_family_ids(sessions, by_id)
@@ -3131,9 +3283,112 @@ def _generate_workout_plan_unguarded(
         plan_ex = _remainder_plan_rows(remainder["lifts"], pool)
         session_sets = sum(max(0, int(row.get("sets") or 0)) for row in plan_ex)
         planned_credits = {}
+    elif (
+        plan_ex
+        and ramp.get("live")
+        and not ramp.get("rollback")
+        and ramp.get("active_muscle")
+        and MUSCLE_SESSION.get(str(ramp.get("active_muscle"))) == st
+    ):
+        active_muscle = str(ramp["active_muscle"])
+        week_logged = this_week_credits(sessions, catalog, day, sec_frac)
+        target_max = float((ramp.get("targets") or {}).get(active_muscle, {}).get("max") or 0)
+
+        def _new_priority_row() -> Optional[dict]:
+            taken = {str(row.get("id")) for row in plan_ex}
+            families: Dict[str, int] = {}
+            for row in plan_ex:
+                fam = pattern_family(row)
+                if fam:
+                    families[fam] = families.get(fam, 0) + 1
+            picked = None
+            for candidate in pool:
+                if str(candidate.get("id")) in taken:
+                    continue
+                if candidate.get("movement") != "compound":
+                    continue
+                prim = [normalize_muscle(m) for m in (candidate.get("primary_muscles") or [])]
+                if active_muscle not in prim:
+                    continue
+                fam = pattern_family(candidate)
+                if fam and families.get(fam, 0) >= PATTERN_FAMILY_SESSION_CAP:
+                    continue
+                picked = candidate
+                break
+            if picked is None:
+                return None
+            last = last_performance(sessions, picked["name"], by_id)
+            ex_rx = dict(picked)
+            ex_rx["default_sets"] = 1
+            rx_new = prescribe(
+                ex_rx,
+                last,
+                recovery_score=recovery_score,
+                continuity=continuity,
+                default_hard_sets=1,
+                rhr_under_recovered=bool(recovery_rhr_under),
+                equipment=equipment if equipment_on else None,
+                deload=bool(deload),
+                weighins=weighins,
+                as_of=day,
+            )
+            one = credit_sets_for_exercise(
+                picked.get("primary_muscles") or [],
+                picked.get("secondary_muscles") or [],
+                1,
+                secondary_fraction=sec_frac,
+            )
+            prescription_new = {
+                "weight_lbs": rx_new.get("weight_lbs"),
+                "load": rx_new.get("load"),
+                "sets": 1,
+                "reps": rx_new.get("reps"),
+                "rep_range": rx_new.get("rep_range"),
+                "rep_range_label": rx_new.get("rep_range_label"),
+                "target_reps": rx_new.get("target_reps"),
+                "progression_reason": rx_new.get("progression_reason"),
+            }
+            fresh = {
+                "id": picked["id"],
+                "name": picked["name"],
+                "primary_muscles": picked.get("primary_muscles") or [],
+                "secondary_muscles": picked.get("secondary_muscles") or [],
+                "movement": picked.get("movement"),
+                "equipment": picked.get("equipment") or [],
+                "load": rx_new.get("load"),
+                "rep_range": rx_new.get("rep_range_label"),
+                "target_reps": rx_new.get("target_reps"),
+                "progression_reason": rx_new.get("progression_reason"),
+                "prescription": prescription_new,
+                "set_credits": {k: round(v, 2) for k, v in one.items()},
+                "rationale": (
+                    f"{rx_new.get('rationale') or ''} Priority ramp: +1 hard set."
+                ).strip(),
+                "last": rx_new.get("last"),
+            }
+            _copy_assisted_keys(rx_new, fresh, prescription_new)
+            return fresh
+
+        bumped = bump_priority_sets(
+            plan_ex,
+            muscle=active_muscle,
+            increment=int(ramp.get("increment") or 2),
+            weekly_max=target_max,
+            logged=float(week_logged.get(active_muscle) or 0),
+            secondary_fraction=sec_frac,
+            session_cap=session_cap,
+            make_exercise=_new_priority_row,
+        )
+        plan_ex = bumped["exercises"]
+        planned_credits = bumped["planned_credits"]
+        session_sets = int(bumped["session_sets"])
 
     # Report volume against long-term bands, but annotate ramped planning bands
-    balance = volume_balance_report(tally, goals, planned_credits=planned_credits)
+    balance = _stamp_ramp(
+        volume_balance_report(
+            tally, goals, planned_credits=planned_credits, bands=long_bands
+        )
+    )
     balance["planning_bands"] = {
         m: {"min": bands[m]["min"], "max": bands[m]["max"], "priority": bands[m]["priority"]}
         for m in bands
@@ -3208,7 +3463,9 @@ def _generate_workout_plan_unguarded(
             f"Ramp targets (not catch-up): {', '.join(under[:3])}"
             + ("…" if len(under) > 3 else "")
         )
-    if continuity.get("phase") == "normal":
+    if ramp.get("live"):
+        msg_parts.append(str(ramp.get("today_line") or ""))
+    elif continuity.get("phase") == "normal":
         msg_parts.append("Framework: ≈4–8 sets/muscle/week (w/ overlap)")
     else:
         scale_pct = int(round(float(continuity.get("volume_band_scale") or 1) * 100))
@@ -3233,8 +3490,11 @@ def _generate_workout_plan_unguarded(
             f"Already trained today ({str(display_session).upper()}). "
             f"Next session: {str(nxt_open).upper()}."
         )
+        if ramp.get("live"):
+            message = f"{message} · {ramp.get('today_line') or ''}".strip()
     else:
-        message = " · ".join(msg_parts)
+        message = " · ".join(part for part in msg_parts if part)
+    message = ensure_workout_message(message, ramp, has_lifts=bool(plan_ex))
     out = {
         "date": day,
         "session_type": display_session,
