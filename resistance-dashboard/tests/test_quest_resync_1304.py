@@ -20,7 +20,7 @@ class QuestResync1304(unittest.TestCase):
         self.assertIn("if (ok) lastQuestSyncAt = Date.now();", block)
 
     def test_cache_bump(self):
-        self.assertIn('const CACHE = "fitdash-shell-v160"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v161"', SW)
         self.assertIn("/app.js?v=macro-colors-1", SW)
         self.assertIn("/app.js?v=macro-colors-1", HTML)
         self.assertNotRegex(SW + HTML, re.escape("compound-muscles-1299-1"))

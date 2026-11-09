@@ -273,7 +273,7 @@ class BodyFatChart(unittest.TestCase):
             HTML.find("/app.js?v=macro-colors-1"),
         )
         self.assertIn('"/body-fat-series.js?v=body-fat-1382-1"', SW)
-        self.assertIn('const CACHE = "fitdash-shell-v160"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v161"', SW)
         self.assertIn("FitDashBodyFat", APP_JS)
         self.assertIn('label: "Body fat (%)"', APP_JS)
         self.assertIn('yAxisID: "y1"', APP_JS)

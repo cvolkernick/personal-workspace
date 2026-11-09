@@ -89,7 +89,7 @@ class TrendsVolume7dMarkup(unittest.TestCase):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
         self.assertIn("/app.js?v=macro-colors-1", HTML)
         self.assertIn("/app.js?v=macro-colors-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v160"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v161"', SW)
         self.assertNotIn("/app.js?v=first-set-977-1", HTML)
         self.assertNotIn("/app.js?v=first-set-977-1", SW)
         self.assertNotIn('const CACHE = "fitdash-shell-v125"', SW)
