@@ -267,17 +267,25 @@ class BodyFatChart(unittest.TestCase):
     def test_weight_card_shows_body_fat_series(self):
         self.assertIn("Body weight · body fat · 90d", HTML)
         self.assertIn('id="chart-weight"', HTML)
-        self.assertIn("/body-fat-series.js?v=body-fat-1382-1", HTML)
+        self.assertIn("/body-fat-series.js?v=body-fat-7d-1", HTML)
         self.assertLess(
-            HTML.find("/body-fat-series.js?v=body-fat-1382-1"),
-            HTML.find("/app.js?v=body-fat-1382-1"),
+            HTML.find("/body-fat-series.js?v=body-fat-7d-1"),
+            HTML.find("/app.js?v=body-fat-7d-1"),
         )
-        self.assertIn('"/body-fat-series.js?v=body-fat-1382-1"', SW)
-        self.assertIn('const CACHE = "fitdash-shell-v159"', SW)
+        self.assertIn('"/body-fat-series.js?v=body-fat-7d-1"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v160"', SW)
         self.assertIn("FitDashBodyFat", APP_JS)
         self.assertIn('label: "Body fat (%)"', APP_JS)
+        self.assertIn('label: "Body fat 7-day avg"', APP_JS)
+        self.assertIn("showLine: false", APP_JS)
+        self.assertIn("spanGaps: false", APP_JS)
+        self.assertIn("bfApi.measurements(bodyFatWindow)", APP_JS)
+        self.assertIn("bfApi.trailingAverage(bodyFatForAvg, chartLabels)", APP_JS)
+        self.assertIn("bfApi.axisDates(weightLabels, bodyFatWindow)", APP_JS)
         self.assertIn('yAxisID: "y1"', APP_JS)
+        self.assertIn("7-day avg", APP_JS)
         self.assertIn("no body-fat readings in this window", APP_JS)
+        self.assertIn("7-calendar-day average", HTML)
         self.assertNotIn('id="body-fat-home"', HTML)
 
     def test_node_aligns_last_reading_onto_weight_dates(self):
