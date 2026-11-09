@@ -6,8 +6,8 @@ Volume framework (Dean Turner / DeanTTraining — balanced hypertrophy):
     compound **overlap** (e.g. RDL credits hams + glutes).
   - Heavy priority on 1–2 muscles is fine; others drop toward a maintenance dose
     only on the legacy focus path.
-  - The staged ramp (lats, then chest, then quads, toward ~10) keeps every
-    other major muscle in the 4–8 band. It does not use that maintenance drop.
+  - The equal ramp sends every major muscle toward ~10 on the same rate limit.
+    It does not use a focus list or the maintenance drop.
   - Productive work is capped per session and per microcycle — high per-muscle
     volume crowds out the rest of the body.
   Source framing: https://x.com/DeanTTraining/status/2081501543510028437
@@ -195,12 +195,11 @@ DEFAULT_GOALS = {
     "sets_per_muscle_week_max": 8,
     "sets_per_muscle_week_priority_max": 10,
     "maintenance_sets_per_muscle_week": 3,
-    # Staged hypertrophy ramp. Other majors stay 4–8; focus does not maintenance-drop them.
-    "priority_muscles_ordered": ["lats", "chest", "quads"],
-    "priority_sets_target": 10,
-    "priority_ramp_increment": 2,
-    "priority_ramp_started_on": "2026-11-09",
-    "priority_keep_others_in_band": True,
+    # Equal ~10 ramp. Off until goals.json turns it on for a Monday.
+    "volume_sets_target": 10,
+    "volume_ramp_increment": 2,
+    "volume_ramp_started_on": "",
+    "volume_ramp_equal": False,
     "session_working_set_cap": 14,
     "secondary_set_fraction": 0.5,
     "default_hard_sets": 2,  # preferred hard sets when history is thin
@@ -419,37 +418,31 @@ def normalize_goals(raw: Optional[dict]) -> dict:
             g["secondary_set_fraction"] = float(raw["secondary_set_fraction"])
         except (TypeError, ValueError):
             pass
-    if isinstance(raw.get("priority_muscles_ordered"), list):
-        ordered: List[str] = []
-        for item in raw["priority_muscles_ordered"]:
-            muscle = normalize_muscle(str(item))
-            if muscle and muscle not in ordered:
-                ordered.append(muscle)
-        g["priority_muscles_ordered"] = ordered
-    if raw.get("priority_sets_target") is not None:
+    if raw.get("volume_sets_target") is not None:
         try:
-            g["priority_sets_target"] = int(raw["priority_sets_target"])
+            g["volume_sets_target"] = int(raw["volume_sets_target"])
         except (TypeError, ValueError):
             pass
-    if raw.get("priority_ramp_increment") is not None:
+    if raw.get("volume_ramp_increment") is not None:
         try:
-            step = int(raw["priority_ramp_increment"])
-            g["priority_ramp_increment"] = 1 if step <= 1 else 2
+            step = int(raw["volume_ramp_increment"])
+            g["volume_ramp_increment"] = 1 if step <= 1 else 2
         except (TypeError, ValueError):
             pass
-    if raw.get("priority_ramp_started_on"):
-        g["priority_ramp_started_on"] = str(raw["priority_ramp_started_on"])[:10]
-    if "priority_keep_others_in_band" in raw:
-        flag = raw.get("priority_keep_others_in_band")
+    if raw.get("volume_ramp_started_on"):
+        g["volume_ramp_started_on"] = str(raw["volume_ramp_started_on"])[:10]
+    if "volume_ramp_equal" in raw:
+        flag = raw.get("volume_ramp_equal")
         if isinstance(flag, str):
-            g["priority_keep_others_in_band"] = flag.strip().lower() in (
-                "1",
-                "true",
-                "yes",
-                "on",
-            )
+            g["volume_ramp_equal"] = flag.strip().lower() in ("1", "true", "yes", "on")
         else:
-            g["priority_keep_others_in_band"] = bool(flag)
+            g["volume_ramp_equal"] = bool(flag)
+    # The sequenced priority list is not part of the equal ramp.
+    g.pop("priority_muscles_ordered", None)
+    g.pop("priority_sets_target", None)
+    g.pop("priority_ramp_increment", None)
+    g.pop("priority_ramp_started_on", None)
+    g.pop("priority_keep_others_in_band", None)
     if raw.get("volume_framework"):
         g["volume_framework"] = str(raw["volume_framework"])
     if "prefer_compounds_first" in raw:
@@ -2678,8 +2671,7 @@ def _generate_workout_plan_unguarded(
     }
 
     from .priority_ramp import (
-        MUSCLE_SESSION,
-        bump_priority_sets,
+        bump_equal_sets,
         ensure_workout_message,
         collect_ramp_signals,
         prior_week_credits,
@@ -2717,6 +2709,15 @@ def _generate_workout_plan_unguarded(
     long_bands = (
         ramp["targets"] if ramp.get("live") else _focus_muscle_targets(goals)
     )
+    if ramp.get("live"):
+        # Equal ramp: an auto-focus list must not maintenance-drop anyone.
+        goals = {**goals, "focus_muscles": []}
+        focus_res = {
+            **focus_res,
+            "muscles": [],
+            "source": "equal_volume",
+            "reason": "Equal volume ramp. No focus list.",
+        }
 
     def _stamp_ramp(report: dict) -> dict:
         if ramp.get("live") and isinstance(report, dict):
@@ -3271,101 +3272,84 @@ def _generate_workout_plan_unguarded(
         plan_ex = _remainder_plan_rows(remainder["lifts"], pool)
         session_sets = sum(max(0, int(row.get("sets") or 0)) for row in plan_ex)
         planned_credits = {}
-    elif (
-        plan_ex
-        and ramp.get("live")
-        and not ramp.get("rollback")
-        and ramp.get("active_muscle")
-        and MUSCLE_SESSION.get(str(ramp.get("active_muscle"))) == st
-    ):
-        active_muscle = str(ramp["active_muscle"])
+    elif plan_ex and ramp.get("live") and not ramp.get("rollback"):
         week_logged = this_week_credits(sessions, catalog, day, sec_frac)
-        target_max = float((ramp.get("targets") or {}).get(active_muscle, {}).get("max") or 0)
 
-        def _new_priority_row() -> Optional[dict]:
-            taken = {str(row.get("id")) for row in plan_ex}
+        def _new_equal_rows(current_rows: Sequence[dict]) -> List[dict]:
+            taken = {str(row.get("id")) for row in current_rows}
             families: Dict[str, int] = {}
-            for row in plan_ex:
+            for row in current_rows:
                 fam = pattern_family(row)
                 if fam:
                     families[fam] = families.get(fam, 0) + 1
-            picked = None
+            built: List[dict] = []
             for candidate in pool:
                 if str(candidate.get("id")) in taken:
                     continue
                 if candidate.get("movement") != "compound":
                     continue
-                prim = [normalize_muscle(m) for m in (candidate.get("primary_muscles") or [])]
-                if active_muscle not in prim:
-                    continue
                 fam = pattern_family(candidate)
                 if fam and families.get(fam, 0) >= PATTERN_FAMILY_SESSION_CAP:
                     continue
-                picked = candidate
-                break
-            if picked is None:
-                return None
-            last = last_performance(sessions, picked["name"], by_id)
-            ex_rx = dict(picked)
-            ex_rx["default_sets"] = 1
-            rx_new = prescribe(
-                ex_rx,
-                last,
-                recovery_score=recovery_score,
-                continuity=continuity,
-                default_hard_sets=1,
-                rhr_under_recovered=bool(recovery_rhr_under),
-                equipment=equipment if equipment_on else None,
-                deload=bool(deload),
-                weighins=weighins,
-                as_of=day,
-            )
-            one = credit_sets_for_exercise(
-                picked.get("primary_muscles") or [],
-                picked.get("secondary_muscles") or [],
-                1,
-                secondary_fraction=sec_frac,
-            )
-            prescription_new = {
-                "weight_lbs": rx_new.get("weight_lbs"),
-                "load": rx_new.get("load"),
-                "sets": 1,
-                "reps": rx_new.get("reps"),
-                "rep_range": rx_new.get("rep_range"),
-                "rep_range_label": rx_new.get("rep_range_label"),
-                "target_reps": rx_new.get("target_reps"),
-                "progression_reason": rx_new.get("progression_reason"),
-            }
-            fresh = {
-                "id": picked["id"],
-                "name": picked["name"],
-                "primary_muscles": picked.get("primary_muscles") or [],
-                "secondary_muscles": picked.get("secondary_muscles") or [],
-                "movement": picked.get("movement"),
-                "equipment": picked.get("equipment") or [],
-                "load": rx_new.get("load"),
-                "rep_range": rx_new.get("rep_range_label"),
-                "target_reps": rx_new.get("target_reps"),
-                "progression_reason": rx_new.get("progression_reason"),
-                "prescription": prescription_new,
-                "set_credits": {k: round(v, 2) for k, v in one.items()},
-                "rationale": (
-                    f"{rx_new.get('rationale') or ''} Priority ramp: +1 hard set."
-                ).strip(),
-                "last": rx_new.get("last"),
-            }
-            _copy_assisted_keys(rx_new, fresh, prescription_new)
-            return fresh
+                last = last_performance(sessions, candidate["name"], by_id)
+                ex_rx = dict(candidate)
+                ex_rx["default_sets"] = 1
+                rx_new = prescribe(
+                    ex_rx,
+                    last,
+                    recovery_score=recovery_score,
+                    continuity=continuity,
+                    default_hard_sets=1,
+                    rhr_under_recovered=bool(recovery_rhr_under),
+                    equipment=equipment if equipment_on else None,
+                    deload=bool(deload),
+                    weighins=weighins,
+                    as_of=day,
+                )
+                one = credit_sets_for_exercise(
+                    candidate.get("primary_muscles") or [],
+                    candidate.get("secondary_muscles") or [],
+                    1,
+                    secondary_fraction=sec_frac,
+                )
+                prescription_new = {
+                    "weight_lbs": rx_new.get("weight_lbs"),
+                    "load": rx_new.get("load"),
+                    "sets": 1,
+                    "reps": rx_new.get("reps"),
+                    "rep_range": rx_new.get("rep_range"),
+                    "rep_range_label": rx_new.get("rep_range_label"),
+                    "target_reps": rx_new.get("target_reps"),
+                    "progression_reason": rx_new.get("progression_reason"),
+                }
+                fresh = {
+                    "id": candidate["id"],
+                    "name": candidate["name"],
+                    "primary_muscles": candidate.get("primary_muscles") or [],
+                    "secondary_muscles": candidate.get("secondary_muscles") or [],
+                    "movement": candidate.get("movement"),
+                    "equipment": candidate.get("equipment") or [],
+                    "load": rx_new.get("load"),
+                    "rep_range": rx_new.get("rep_range_label"),
+                    "target_reps": rx_new.get("target_reps"),
+                    "progression_reason": rx_new.get("progression_reason"),
+                    "prescription": prescription_new,
+                    "set_credits": {k: round(v, 2) for k, v in one.items()},
+                    "rationale": str(rx_new.get("rationale") or ""),
+                    "last": rx_new.get("last"),
+                }
+                _copy_assisted_keys(rx_new, fresh, prescription_new)
+                built.append(fresh)
+            return built
 
-        bumped = bump_priority_sets(
+        bumped = bump_equal_sets(
             plan_ex,
-            muscle=active_muscle,
-            increment=int(ramp.get("increment") or 2),
-            weekly_max=target_max,
-            logged=float(week_logged.get(active_muscle) or 0),
+            targets=ramp.get("targets") or {},
+            logged=week_logged,
+            session_muscles=SESSION_MUSCLES.get(st, ()),
             secondary_fraction=sec_frac,
             session_cap=session_cap,
-            make_exercise=_new_priority_row,
+            new_rows=_new_equal_rows,
         )
         plan_ex = bumped["exercises"]
         planned_credits = bumped["planned_credits"]

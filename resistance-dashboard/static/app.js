@@ -6798,7 +6798,7 @@
     // fw.label is already "Balanced volume (≈4–8…)" — no coach brand in heading.
     // Once the priority ramp is live the note below carries the real targets.
     const frameworkBit = ramp && ramp.live
-      ? "Priority volume"
+      ? "Volume ramp"
       : (fw.label || "Balanced volume (≈4–8 / muscle)").replace(
           /^DeanT\s+/i,
           ""

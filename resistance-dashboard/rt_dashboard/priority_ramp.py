@@ -25,25 +25,26 @@ LOWERING_CUE = (
 # Logged credits at or above this gap under the ceiling count as finished.
 _NEAR = 0.5
 
-# Planner muscle → #1193 display group. Side delts and the middle band stay put.
+# #1193 group → planner muscle. Split delt tiles share the delts ramp.
+# lower_back stays on the old #1193 label.
 DISPLAY_GROUP_MUSCLE = {
-    "lats_upper_back": "lats",
     "chest": "chest",
+    "lats_upper_back": "lats",
     "quads": "quads",
+    "hamstrings": "hamstrings",
+    "biceps": "biceps",
+    "triceps": "triceps",
+    "traps": "traps",
+    "glutes": "glutes",
+    "calves": "calves",
+    "abs": "abs",
+    "front_delts": "delts",
+    "side_delts": "delts",
+    "rear_delts": "delts",
 }
 
-# Session letter that can take extra sets for the active muscle.
-MUSCLE_SESSION = {"lats": "pull", "chest": "push", "quads": "legs"}
-
-# Trim these isolations first when a priority set would break the session cap.
-_TRIM_BITS = (
-    ("shrug", 0),
-    ("pushdown", 1),
-    ("push-down", 1),
-    ("push down", 1),
-    ("curl", 2),
-    ("calf", 3),
-)
+# Previous balanced max. A muscle already near 10 rolls back toward this.
+_OLD_WEEKLY_MAX = 8.0
 
 
 def _day(value: Any) -> Optional[date]:
@@ -89,9 +90,9 @@ def _as_bool(value: Any, default: bool = False) -> bool:
 
 def ramp_configured(goals: Optional[dict]) -> bool:
     raw = goals or {}
-    if not _as_bool(raw.get("priority_keep_others_in_band"), False):
+    if not _as_bool(raw.get("volume_ramp_equal"), False):
         return False
-    return bool(str(raw.get("priority_ramp_started_on") or "")[:10])
+    return bool(str(raw.get("volume_ramp_started_on") or "")[:10])
 
 
 def ramp_is_live(goals: Optional[dict], as_of: Any) -> bool:
@@ -99,7 +100,7 @@ def ramp_is_live(goals: Optional[dict], as_of: Any) -> bool:
     raw = goals or {}
     if not ramp_configured(raw):
         return False
-    started = str(raw.get("priority_ramp_started_on") or "")[:10]
+    started = str(raw.get("volume_ramp_started_on") or "")[:10]
     day = str(as_of or "")[:10]
     return bool(day) and day >= started
 
@@ -120,7 +121,7 @@ def _band(staged: float, floor: float) -> Dict[str, float]:
     lo = max(float(floor), hi - 2.0)
     if lo > hi:
         lo = hi
-    return {"min": lo, "max": hi, "priority": True}
+    return {"min": lo, "max": hi, "priority": False}
 
 
 def _plain(lo: float, hi: float) -> Dict[str, float]:
@@ -387,20 +388,16 @@ def resolve_priority_ramp(
         return {"live": False, "as_of": day, "targets": {}}
 
     lo = float(normalized.get("sets_per_muscle_week_min") or 4)
-    hi = float(normalized.get("sets_per_muscle_week_max") or 8)
-    ceiling = float(normalized.get("priority_sets_target") or normalized.get("sets_per_muscle_week_priority_max") or 10)
+    ceiling = float(
+        normalized.get("volume_sets_target")
+        or normalized.get("sets_per_muscle_week_priority_max")
+        or 10
+    )
     try:
-        increment = int(normalized.get("priority_ramp_increment") or 2)
+        increment = int(normalized.get("volume_ramp_increment") or 2)
     except (TypeError, ValueError):
         increment = 2
     increment = 1 if increment <= 1 else 2
-    ordered = [
-        wp.normalize_muscle(m)
-        for m in (normalized.get("priority_muscles_ordered") or ["lats", "chest", "quads"])
-    ]
-    ordered = [m for m in ordered if m in wp.MAJOR_MUSCLES]
-    if not ordered:
-        ordered = ["lats", "chest", "quads"]
     prior = {
         wp.normalize_muscle(k): float(v or 0)
         for k, v in (prior_credits or {}).items()
@@ -408,99 +405,51 @@ def resolve_priority_ramp(
     in_cut = _in_cut(phase)
     current_bad = _bad_lifts(lifts_status, in_cut) or bool(restore_flag)
     prior_bad = _bad_lifts(prior_lifts_status, in_cut) or bool(prior_restore_flag)
-    week = ramp_week_number(day, normalized.get("priority_ramp_started_on"))
+    week = ramp_week_number(day, normalized.get("volume_ramp_started_on"))
     # Week 1 starts on approval. A yellow week after that holds the next week too.
     rollback = current_bad if week <= 1 else (current_bad or prior_bad)
 
     def reached(muscle: str) -> bool:
         return float(prior.get(muscle) or 0) + 1e-9 >= ceiling - _NEAR
 
-    held: List[str] = []
-    waiting: List[str] = []
-    active: Optional[str] = None
-    for muscle in ordered:
-        if reached(muscle):
-            held.append(muscle)
-        elif active is None:
-            active = muscle
+    targets: Dict[str, Dict[str, float]] = {}
+    for muscle in wp.MAJOR_MUSCLES:
+        if rollback and reached(muscle):
+            staged = _OLD_WEEKLY_MAX
+        elif rollback:
+            staged = float(prior.get(muscle) or 0)
+        elif reached(muscle):
+            staged = ceiling
         else:
-            waiting.append(muscle)
-
-    targets: Dict[str, Dict[str, float]] = {
-        m: _plain(lo, hi) for m in wp.MAJOR_MUSCLES
-    }
-    if rollback and len(held) > 1:
-        for muscle in held:
-            targets[muscle] = _band(hi, lo)
-        if active:
-            targets[active] = _band(float(prior.get(active) or 0), lo)
-    elif rollback:
-        recent = active or (held[-1] if held else ordered[0])
-        if recent in held:
-            targets[recent] = _band(hi, lo)
-        else:
-            targets[recent] = _band(float(prior.get(recent) or 0), lo)
-        for muscle in held:
-            if muscle != recent:
-                targets[muscle] = _band(ceiling, lo)
-    else:
-        for muscle in held:
-            targets[muscle] = _band(ceiling, lo)
-        if active:
-            staged = min(ceiling, float(prior.get(active) or 0) + increment)
-            targets[active] = _band(staged, lo)
+            staged = min(ceiling, float(prior.get(muscle) or 0) + increment)
+        targets[muscle] = _band(staged, lo)
 
     cap = int(session_cap or normalized.get("session_working_set_cap") or 14)
-    today_line = _today_line(
-        active=active,
-        held=held,
-        week=week,
-        ceiling=ceiling,
-        cap=cap,
-        rollback=rollback,
-    )
+    today_line = _today_line(ceiling=ceiling, cap=cap, rollback=rollback)
     return {
         "live": True,
+        "equal": True,
         "rollback": rollback,
         "as_of": day,
         "week": week,
         "increment": increment,
         "ceiling": ceiling,
-        "active_muscle": active,
-        "held": held,
-        "waiting": waiting,
-        "ordered": ordered,
         "targets": targets,
         "today_line": today_line,
         "session_cap": cap,
     }
 
 
-def _today_line(
-    *,
-    active: Optional[str],
-    held: Sequence[str],
-    week: int,
-    ceiling: float,
-    cap: int,
-    rollback: bool,
-) -> str:
+def _today_line(*, ceiling: float, cap: int, rollback: bool) -> str:
     dest = int(round(ceiling))
     if rollback:
-        who = active or (held[-1] if held else "lats")
         return (
-            f"Priority volume: {who} ramp paused (week {week}); "
-            f"other muscles 4–8. Session cap ~{cap}."
+            f"Volume: ramp paused; major-muscle targets rolled back. Session cap ~{cap}."
         )
-    if active:
-        return (
-            f"Priority volume: {active} toward ~{dest} hard sets/week "
-            f"(week {week} of ramp); other muscles 4–8. Session cap ~{cap}."
-        )
-    names = ", ".join(held) if held else "priority muscles"
     return (
-        f"Priority volume: {names} holding ~{dest} hard sets/week "
-        f"(week {week} of ramp); other muscles 4–8. Session cap ~{cap}."
+        f"Volume: ramping major muscles toward ~{dest} hard sets/week "
+        f"(at most +1–2 credits each from last week’s logged sets). "
+        f"Session cap ~{cap}."
     )
 
 
@@ -511,8 +460,8 @@ def ramp_public(ramp: Optional[dict]) -> Dict[str, Any]:
     targets = ramp.get("targets") or {}
     return {
         "live": True,
+        "equal": True,
         "rollback": bool(ramp.get("rollback")),
-        "active_muscle": ramp.get("active_muscle"),
         "week": ramp.get("week"),
         "increment": ramp.get("increment"),
         "ceiling": ramp.get("ceiling"),
@@ -579,10 +528,20 @@ def display_targets(
     targets = ramp.get("targets") or {}
     out: Dict[str, str] = {}
     for group, muscle in DISPLAY_GROUP_MUSCLE.items():
-        band = targets.get(muscle)
+        if group == "lats_upper_back":
+            band = _lower_ceiling(targets.get("lats"), targets.get("mid_upper_back"))
+        else:
+            band = targets.get(muscle)
         if isinstance(band, dict):
             out[group] = _fmt_band(band)
     return out
+
+
+def _lower_ceiling(*bands: Optional[Dict[str, float]]) -> Optional[Dict[str, float]]:
+    present = [band for band in bands if isinstance(band, dict)]
+    if not present:
+        return None
+    return min(present, key=lambda band: float(band.get("max") or 0))
 
 
 def prompt_volume_fields(
@@ -643,7 +602,7 @@ def prompt_volume_fields(
     return {
         "sets_per_muscle_week": summary,
         "muscle_targets": muscle_targets,
-        "priority_volume": ramp.get("today_line") if ramp.get("live") else None,
+        "volume_line": ramp.get("today_line") if ramp.get("live") else None,
         "lowering_cue": LOWERING_CUE,
         "volume_clause": clause,
         "message_rule": (
@@ -654,6 +613,15 @@ def prompt_volume_fields(
     }
 
 
+def _is_ramp_sentence(sentence: str) -> bool:
+    text = sentence.strip()
+    return (
+        text.startswith("Priority volume:")
+        or text.startswith("Volume: ramping")
+        or text.startswith("Volume: ramp paused")
+    )
+
+
 def _without_priority_line(text: str) -> str:
     """Drop any Priority volume sentence so the computed line is the one shown."""
     kept: List[str] = []
@@ -662,7 +630,7 @@ def _without_priority_line(text: str) -> str:
         piece = " ".join(
             sentence.strip()
             for sentence in sentences
-            if sentence.strip() and "Priority volume:" not in sentence
+            if sentence.strip() and not _is_ramp_sentence(sentence)
         )
         if piece:
             kept.append(piece)
@@ -684,34 +652,6 @@ def ensure_workout_message(message: Optional[str], ramp: Optional[dict], *, has_
     if has_lifts and "2–3 seconds" not in text and "2-3 seconds" not in text:
         text = f"{text} · {LOWERING_CUE}".strip(" ·") if text else LOWERING_CUE
     return text
-
-
-def _norm_name(name: str) -> str:
-    return " ".join(str(name or "").strip().lower().split())
-
-
-def _trim_rank(row: dict, active: str) -> Optional[int]:
-    if str(row.get("movement") or "") == "compound":
-        return None
-    prim = set()
-    wp = _planner()
-    for muscle in row.get("primary_muscles") or []:
-        prim.add(wp.normalize_muscle(muscle))
-    if active and active in prim:
-        return None
-    name = _norm_name(str(row.get("name") or ""))
-    for bit, rank in _TRIM_BITS:
-        if bit in name:
-            return rank
-    if "traps" in prim:
-        return 0
-    if "triceps" in prim:
-        return 1
-    if "biceps" in prim:
-        return 2
-    if "calves" in prim:
-        return 3
-    return None
 
 
 def _sets_of(row: dict) -> int:
@@ -749,140 +689,149 @@ def _planned_from(rows: Sequence[dict], secondary_fraction: float) -> Dict[str, 
     return planned
 
 
-def _muscle_credit(row: dict, muscle: str) -> float:
-    return float((row.get("set_credits") or {}).get(muscle) or 0)
-
-
-def _find_priority_compound(rows: Sequence[dict], muscle: str) -> Optional[int]:
-    wp = _planner()
-    for i, row in enumerate(rows):
-        if str(row.get("movement") or "") != "compound":
-            continue
-        prim = [wp.normalize_muscle(m) for m in (row.get("primary_muscles") or [])]
-        if muscle in prim:
-            return i
-    return None
-
-
-def _trim_one(rows: List[dict], active: str) -> bool:
-    ranked = []
-    for i, row in enumerate(rows):
-        rank = _trim_rank(row, active)
-        if rank is None or _sets_of(row) < 1:
-            continue
-        ranked.append((rank, i))
-    if not ranked:
-        return False
-    ranked.sort()
-    i = ranked[0][1]
-    nxt = _sets_of(rows[i]) - 1
-    if nxt <= 0:
-        rows.pop(i)
-    else:
-        _set_sets(rows[i], nxt)
-    return True
-
-
 def _compounds_first(rows: Sequence[dict]) -> List[dict]:
     compounds = [r for r in rows if str(r.get("movement") or "") == "compound"]
     rest = [r for r in rows if str(r.get("movement") or "") != "compound"]
     return compounds + rest
 
 
-def bump_priority_sets(
+def _marginal_credits(row: dict, secondary_fraction: float) -> Dict[str, float]:
+    wp = _planner()
+    return wp.credit_sets_for_exercise(
+        row.get("primary_muscles") or [],
+        row.get("secondary_muscles") or [],
+        1,
+        secondary_fraction=secondary_fraction,
+    )
+
+
+def _primaries(row: dict) -> set:
+    wp = _planner()
+    return {wp.normalize_muscle(m) for m in (row.get("primary_muscles") or [])}
+
+
+def _add_score(
+    row: dict,
+    gaps: Dict[str, float],
+    session_muscles: Sequence[str],
+    secondary_fraction: float,
+) -> Optional[tuple]:
+    """Higher is better. None means this +1 set should not be added."""
+    credits = _marginal_credits(row, secondary_fraction)
+    prim = _primaries(row)
+    helped: List[str] = []
+    for muscle, credit in credits.items():
+        if credit <= 1e-9:
+            continue
+        gap = float(gaps.get(muscle) or 0)
+        if muscle in prim and gap + 0.05 < float(credit):
+            return None
+        if gap >= 0.49:
+            helped.append(muscle)
+    if not helped:
+        return None
+    session = set(session_muscles or [])
+    session_gaps = [float(gaps[m]) for m in helped if m in session]
+    furthest = max(session_gaps) if session_gaps else 0.0
+    return (len(helped), furthest, sum(float(gaps[m]) for m in helped))
+
+
+def bump_equal_sets(
     plan_ex: Sequence[dict],
     *,
-    muscle: str,
-    increment: int,
-    weekly_max: float,
-    logged: float,
+    targets: Dict[str, Dict[str, float]],
+    logged: Optional[Dict[str, float]] = None,
+    session_muscles: Sequence[str] = (),
     secondary_fraction: float = 0.5,
     session_cap: int = 14,
-    make_exercise: Optional[Callable[[], Optional[dict]]] = None,
+    new_rows: Optional[Callable[[Sequence[dict]], Sequence[dict]]] = None,
 ) -> Dict[str, Any]:
-    """Add at most ``increment`` credits on the active muscle, staying within the caps.
+    """Add sets toward each muscle's ceiling without a named priority.
 
-    Prefer +1 set on an existing compound for ``muscle``. A new exercise is
-    built only when no current priority compound can take a set. Non-priority
-    isolation (shrugs, pushdowns, curls, calf raises) is trimmed before a
-    main compound, and a main compound never drops below 2 sets.
+    Prefer an existing compound that helps the most below-target muscles.
+    Ties go to the session muscle furthest below its target. A new compound
+    is added only when no current compound can take a set. The session cap
+    stops the add; isolation is not trimmed to make room.
     """
     rows: List[dict] = [dict(r) for r in plan_ex or []]
     for row in rows:
         if isinstance(row.get("prescription"), dict):
             row["prescription"] = dict(row["prescription"])
-    added = 0.0
-    tried_new = False
+    logged = logged or {}
     cap = max(0, int(session_cap))
+    added = 0
+    note = "Volume ramp: +1 hard set."
 
     def total_sets() -> int:
         return sum(max(0, _sets_of(row)) for row in rows)
 
-    def muscle_total() -> float:
-        return float(logged) + sum(_muscle_credit(row, muscle) for row in rows)
+    def current_gaps() -> Dict[str, float]:
+        planned = _planned_from(rows, secondary_fraction)
+        gaps: Dict[str, float] = {}
+        for muscle, band in (targets or {}).items():
+            ceiling = float((band or {}).get("max") or 0)
+            have = float(logged.get(muscle) or 0) + float(planned.get(muscle) or 0)
+            gaps[muscle] = ceiling - have
+        return gaps
 
-    while added + 1e-6 < float(increment):
-        if weekly_max - muscle_total() < 0.49:
-            break
-        idx = _find_priority_compound(rows, muscle)
-        if idx is None:
-            if tried_new or make_exercise is None:
-                break
-            tried_new = True
-            fresh = make_exercise()
-            if not isinstance(fresh, dict):
-                break
-            fresh = dict(fresh)
-            if isinstance(fresh.get("prescription"), dict):
-                fresh["prescription"] = dict(fresh["prescription"])
-            need = max(1, _sets_of(fresh))
-            while total_sets() + need > cap:
-                if not _trim_one(rows, muscle):
-                    fresh = None
-                    break
-            if not fresh:
-                break
-            _refresh_credits(fresh, secondary_fraction)
-            before = muscle_total()
-            # Keep compounds ahead of isolation.
-            insert_at = 0
-            for i, row in enumerate(rows):
-                if str(row.get("movement") or "") == "compound":
-                    insert_at = i + 1
-            rows.insert(insert_at, fresh)
-            gained = muscle_total() - before
-            if gained <= 1e-6:
-                rows.pop(insert_at)
-                break
-            added += gained
+    while total_sets() + 1 <= cap:
+        gaps = current_gaps()
+        best_i: Optional[int] = None
+        best_score: Optional[tuple] = None
+        for i, row in enumerate(rows):
+            if str(row.get("movement") or "") != "compound":
+                continue
+            score = _add_score(row, gaps, session_muscles, secondary_fraction)
+            if score is None:
+                continue
+            if best_score is None or score > best_score:
+                best_score = score
+                best_i = i
+        if best_i is not None:
+            _set_sets(rows[best_i], _sets_of(rows[best_i]) + 1)
+            rationale = str(rows[best_i].get("rationale") or "")
+            if note not in rationale:
+                rows[best_i]["rationale"] = f"{rationale} {note}".strip()
+            added += 1
             continue
-        while total_sets() + 1 > cap:
-            if not _trim_one(rows, muscle):
-                idx = None
-                break
-        if idx is None:
+        if new_rows is None:
             break
-        idx = _find_priority_compound(rows, muscle)
-        if idx is None:
-            continue
-        before = _muscle_credit(rows[idx], muscle)
-        _set_sets(rows[idx], _sets_of(rows[idx]) + 1)
-        _refresh_credits(rows[idx], secondary_fraction)
-        gained = _muscle_credit(rows[idx], muscle) - before
-        if gained <= 1e-6:
-            _set_sets(rows[idx], _sets_of(rows[idx]) - 1)
-            _refresh_credits(rows[idx], secondary_fraction)
+        fresh_best: Optional[dict] = None
+        fresh_score: Optional[tuple] = None
+        for candidate in new_rows(rows) or []:
+            if not isinstance(candidate, dict):
+                continue
+            if str(candidate.get("movement") or "") != "compound":
+                continue
+            score = _add_score(candidate, gaps, session_muscles, secondary_fraction)
+            if score is None:
+                continue
+            if fresh_score is None or score > fresh_score:
+                fresh_score = score
+                fresh_best = candidate
+        if fresh_best is None:
             break
-        note = "Priority ramp: +1 hard set."
-        rationale = str(rows[idx].get("rationale") or "")
+        fresh = dict(fresh_best)
+        if isinstance(fresh.get("prescription"), dict):
+            fresh["prescription"] = dict(fresh["prescription"])
+        if _sets_of(fresh) < 1:
+            _set_sets(fresh, 1)
+        if total_sets() + _sets_of(fresh) > cap:
+            break
+        rationale = str(fresh.get("rationale") or "")
         if note not in rationale:
-            rows[idx]["rationale"] = f"{rationale} {note}".strip()
-        added += gained
+            fresh["rationale"] = f"{rationale} {note}".strip()
+        insert_at = 0
+        for i, row in enumerate(rows):
+            if str(row.get("movement") or "") == "compound":
+                insert_at = i + 1
+        rows.insert(insert_at, fresh)
+        added += _sets_of(fresh)
     rows = _compounds_first(rows)
     planned = _planned_from(rows, secondary_fraction)
     return {
         "exercises": rows,
         "planned_credits": planned,
         "session_sets": sum(max(0, _sets_of(row)) for row in rows),
-        "added_credits": round(added, 2),
+        "added_sets": added,
     }

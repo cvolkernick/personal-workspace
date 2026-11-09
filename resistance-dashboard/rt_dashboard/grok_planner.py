@@ -343,7 +343,7 @@ def generate_grok_plans(
             "session_working_set_cap": (goals or {}).get("session_working_set_cap"),
             "sets_per_muscle_week": volume_fields["sets_per_muscle_week"],
             "muscle_targets": volume_fields["muscle_targets"],
-            "priority_volume": volume_fields["priority_volume"],
+            "volume_line": volume_fields["volume_line"],
             "lowering_cue": volume_fields["lowering_cue"],
             "ignore_catalog_default_sets": True,
         },
