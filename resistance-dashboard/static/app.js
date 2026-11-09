@@ -1668,7 +1668,9 @@
     const axis = bfApi ? bfApi.axisDates(weightLabels, bodyFatWindow) : weightLabels.slice();
     const axisMatchesWeights =
       axis.length === weightLabels.length && axis.every((day, i) => day === weightLabels[i]);
-    const chartLabels = axisMatchesWeights ? weights.map((w) => w.date) : axis;
+    // Civil dates, so each raw point (x = YYYY-MM-DD) lands on a category.
+    // Two readings on the same day share that category and both stay visible.
+    const chartLabels = axis;
     const valueOnAxis = (days, values) =>
       axis.map((day) => {
         for (let i = days.length - 1; i >= 0; i--) {
@@ -2445,7 +2447,7 @@
               type: "bar",
               label: "Protein %",
               data: pPct,
-              backgroundColor: "rgba(61,156,240,0.45)",
+              backgroundColor: "rgba(240,180,41,0.45)",
               borderRadius: 2,
               stack: "macros",
               spanGaps: false,
@@ -2456,7 +2458,7 @@
               type: "bar",
               label: "Carbs %",
               data: cPct,
-              backgroundColor: "rgba(240,180,41,0.45)",
+              backgroundColor: "rgba(61,156,240,0.45)",
               borderRadius: 2,
               stack: "macros",
               spanGaps: false,
@@ -2478,7 +2480,7 @@
               type: "line",
               label: "Protein 7d avg",
               data: pRoll,
-              borderColor: "#3d9cf0",
+              borderColor: "#f0b429",
               borderWidth: 2.5,
               pointRadius: 0,
               tension: 0.25,
@@ -2490,7 +2492,7 @@
               type: "line",
               label: "Carbs 7d avg",
               data: cRoll,
-              borderColor: "#f0b429",
+              borderColor: "#3d9cf0",
               borderWidth: 2.5,
               pointRadius: 0,
               tension: 0.25,
@@ -6835,7 +6837,14 @@
     const scopeLine = sessionMuscles
       ? `<p class="muted volume-balance-note">Showing <strong>${dayLabel}</strong> muscles only (this session). Weekly hard-set credits still count everywhere.</p>`
       : `<p class="muted volume-balance-note">Full-week overview (≈4–8 hard sets/muscle/week w/ overlap).</p>`;
-    const focusLine = focusMuscles.length
+    const ramp = volume.priority_ramp || null;
+    const rampLine =
+      ramp && ramp.live && ramp.today_line
+        ? `<p class="muted volume-balance-note">${phaseBaroEsc(ramp.today_line)}</p>`
+        : "";
+    const focusLine = rampLine
+      ? rampLine
+      : focusMuscles.length
       ? `<p class="muted volume-balance-note"><strong>${
           src === "auto" ? "Auto focus" : "Focus"
         }:</strong> ${focusMuscles
@@ -6848,11 +6857,14 @@
             : "Manual priority muscles; others near maintenance."
         }</p>`
       : `<p class="muted volume-balance-note">Balanced volume (no priority muscles). Primary sets full credit; secondary partial.</p>`;
-    // fw.label is already "Balanced volume (≈4–8…)" — no coach brand in heading
-    const frameworkBit = (fw.label || "Balanced volume (≈4–8 / muscle)").replace(
-      /^DeanT\s+/i,
-      ""
-    );
+    // fw.label is already "Balanced volume (≈4–8…)" — no coach brand in heading.
+    // Once the priority ramp is live the note below carries the real targets.
+    const frameworkBit = ramp && ramp.live
+      ? "Volume ramp"
+      : (fw.label || "Balanced volume (≈4–8 / muscle)").replace(
+          /^DeanT\s+/i,
+          ""
+        );
     return `<div class="volume-balance">
       <div class="volume-balance-title">Weekly Hard Sets · ${dayLabel} · ${frameworkBit}</div>
       <div class="volume-balance-chips">${chips}</div>

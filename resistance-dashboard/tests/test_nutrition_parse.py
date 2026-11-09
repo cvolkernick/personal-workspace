@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from rt_dashboard.google_health import (
     parse_food_log_entries,
     parse_nutrition_log_points,
     parse_nutrition_rollup,
 )
+
+# Meal-log parsers drop points older than the requested window. A fixed
+# 2026-07-11 fixture fell outside days=120 on 2026-11-09.
+_RECENT = datetime.now(timezone.utc).date() - timedelta(days=3)
+_RECENT_CIVIL = {"year": _RECENT.year, "month": _RECENT.month, "day": _RECENT.day}
 
 
 class TestNutritionParse(unittest.TestCase):
@@ -45,7 +51,7 @@ class TestNutritionParse(unittest.TestCase):
                     "nutritionLog": {
                         "interval": {
                             "civilStartTime": {
-                                "date": {"year": 2026, "month": 7, "day": 11}
+                                "date": _RECENT_CIVIL
                             }
                         },
                         "energy": {"kcal": 100},
@@ -60,7 +66,7 @@ class TestNutritionParse(unittest.TestCase):
                     "nutritionLog": {
                         "interval": {
                             "civilStartTime": {
-                                "date": {"year": 2026, "month": 7, "day": 11}
+                                "date": _RECENT_CIVIL
                             }
                         },
                         "energy": {"kcal": 50},
@@ -94,7 +100,7 @@ class TestNutritionParse(unittest.TestCase):
                         },
                         "interval": {
                             "civilStartTime": {
-                                "date": {"year": 2026, "month": 7, "day": 11},
+                                "date": _RECENT_CIVIL,
                                 "time": {"hours": 12, "minutes": 30},
                             }
                         },
@@ -115,7 +121,7 @@ class TestNutritionParse(unittest.TestCase):
                         "mealType": "SNACK",
                         "interval": {
                             "civilStartTime": {
-                                "date": {"year": 2026, "month": 7, "day": 11},
+                                "date": _RECENT_CIVIL,
                                 "time": {"hours": 15, "minutes": 0},
                             }
                         },
@@ -177,7 +183,7 @@ class TestNutritionParse(unittest.TestCase):
                     "nutritionLog": {
                         "interval": {
                             "civilStartTime": {
-                                "date": {"year": 2026, "month": 7, "day": 11}
+                                "date": _RECENT_CIVIL
                             }
                         },
                         "energy": {"kcal": 280},
@@ -194,7 +200,7 @@ class TestNutritionParse(unittest.TestCase):
                     "nutritionLog": {
                         "interval": {
                             "civilStartTime": {
-                                "date": {"year": 2026, "month": 7, "day": 11}
+                                "date": _RECENT_CIVIL
                             }
                         },
                         "energy": {"kcal": 150},

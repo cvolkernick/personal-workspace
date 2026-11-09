@@ -47,10 +47,15 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertEqual(raw["rest_if_recovery_below"], 40)
         self.assertEqual(raw["volume_framework"], "dean_t_balanced_4_8")
         self.assertEqual(raw["sets_per_muscle_week_min"], 4)
-        self.assertEqual(raw["sets_per_muscle_week_max"], 8)
+        self.assertEqual(raw["sets_per_muscle_week_max"], 10)
+        self.assertEqual(raw["sets_per_muscle_week_priority_max"], 10)
+        self.assertEqual(raw["volume_sets_target"], 10)
+        self.assertTrue(raw["volume_ramp_equal"])
+        self.assertEqual(raw["volume_ramp_started_on"], "2026-11-09")
+        self.assertNotIn("priority_muscles_ordered", raw)
         self.assertEqual(raw["default_hard_sets"], 2)
         self.assertEqual(raw["session_working_set_cap"], 14)
-        self.assertEqual(raw["updated_at"], "2026-10-03")
+        self.assertEqual(raw["updated_at"], "2026-11-09")
         self.assertEqual(
             raw["main_lifts"],
             [

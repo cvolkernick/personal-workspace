@@ -254,5 +254,62 @@ almostEqual(
   "unsorted measurements use civil dates"
 );
 
+// Sparse clusters, a gap longer than the window, several readings on one
+// day, and the inclusive [D-6, D] edge. Missing days are not filled with 0.
+const sparse = [
+  { date: "2026-01-01", percentage: 21 },
+  { date: "2026-02-01", percentage: 25 },
+  { date: "2026-03-01", percentage: 23 },
+];
+const sparseAvg = bf.trailingAverage(sparse, [
+  "2026-01-01",
+  "2026-01-07",
+  "2026-01-08",
+  "2026-02-01",
+]);
+almostEqual(sparseAvg[0], 21, "sparse: logged day is that reading");
+almostEqual(sparseAvg[1], 21, "sparse: day D-6 still includes the reading");
+assert(sparseAvg[2] === null, "gap > 7 days omits the overlay");
+assert(sparseAvg[2] !== 0, "omitted overlay is not a zero fill");
+almostEqual(sparseAvg[3], 25, "next cluster does not pull in the older reading");
+const sparseAll = (21 + 25 + 23) / 3;
+assert(Math.abs(sparseAvg[3] - sparseAll) > 1, "sparse window is not a last-measurements mean");
+
+const sameDayRows = [
+  { date: "2026-04-01", percentage: 10, recorded_at: "2026-04-01T08:00:00Z" },
+  { date: "2026-04-01", percentage: 14, recorded_at: "2026-04-01T12:00:00Z" },
+  { date: "2026-04-01", percentage: 18, recorded_at: "2026-04-01T18:00:00Z" },
+  { date: "2026-04-03", percentage: 22 },
+];
+const sameDayRaw = bf.measurements(sameDayRows);
+assert(sameDayRaw.length === 4, "raw points keep every same-day measurement");
+assert(
+  sameDayRaw.map((p) => p.percentage).join(",") === "10,14,18,22",
+  "raw points keep the original percentages " + sameDayRaw.map((p) => p.percentage).join(",")
+);
+assert(
+  sameDayRaw.filter((p) => p.date === "2026-04-01").length === 3,
+  "three readings stay on their own day"
+);
+almostEqual(
+  bf.trailingAverage(sameDayRows, ["2026-04-03"])[0],
+  16,
+  "same-day readings each count once in the window"
+);
+
+// D = 2026-05-10. D-6 = 2026-05-04 is inside. D-7 = 2026-05-03 is outside.
+almostEqual(
+  bf.trailingAverage(
+    [
+      { date: "2026-05-03", percentage: 30 },
+      { date: "2026-05-04", percentage: 10 },
+      { date: "2026-05-10", percentage: 20 },
+    ],
+    ["2026-05-10"]
+  )[0],
+  15,
+  "window boundary includes D-6 and excludes D-7"
+);
+
 console.log("ok body-fat-series");
 console.log(passed + " assertions");
