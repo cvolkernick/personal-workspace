@@ -11,6 +11,7 @@ That formula is not modified here.
 
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
@@ -298,6 +299,59 @@ def lifts_chip_status(sessions: Optional[Sequence[Any]], goals: Optional[dict], 
         return "insufficient"
 
 
+def collect_ramp_signals(
+    goals: Optional[dict],
+    sessions: Optional[Sequence[Any]],
+    *,
+    as_of: Optional[str] = None,
+    recovery_label: Optional[str] = None,
+    deload: bool = False,
+    lifts_status: Optional[str] = None,
+    prior_lifts_status: Optional[str] = None,
+    restore_flag: Optional[bool] = None,
+    prior_restore_flag: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Lifts chip and Restore flags, using the fallback planner's rules.
+
+    Explicit overrides win. When a value is omitted and the ramp is live,
+    the current and prior Mon–Sun weeks are read from the logs.
+    """
+    wp = _planner()
+    normalized = wp.normalize_goals(goals)
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        day = local_today_iso()
+    else:
+        day = str(as_of)[:10]
+    chip = lifts_status
+    prior_chip = prior_lifts_status
+    restore_now = bool(restore_flag) if restore_flag is not None else False
+    restore_prior = bool(prior_restore_flag) if prior_restore_flag is not None else False
+    if ramp_is_live(normalized, day):
+        if lifts_status is None:
+            chip = lifts_chip_status(sessions, goals, day)
+        if prior_lifts_status is None:
+            sunday = prior_sunday(day)
+            prior_chip = (
+                lifts_chip_status(sessions, goals, sunday) if sunday else "insufficient"
+            )
+        if restore_flag is None:
+            restore_now = (
+                bool(deload)
+                or goals_flag_restore(goals, recovery_label)
+                or this_week_restore(sessions, day)
+            )
+        if prior_restore_flag is None:
+            restore_prior = prior_week_restore(sessions, day)
+    return {
+        "lifts_status": chip,
+        "prior_lifts_status": prior_chip,
+        "restore_flag": bool(restore_now),
+        "prior_restore_flag": bool(restore_prior),
+    }
+
+
 def goals_flag_restore(goals: Optional[dict], recovery_label: Optional[str] = None) -> bool:
     raw = goals or {}
     if raw.get("deload") or raw.get("deload_week") or raw.get("recovery_week"):
@@ -485,8 +539,13 @@ def display_targets(
     catalog: Optional[dict],
     *,
     as_of: Optional[str] = None,
+    recovery_label: Optional[str] = None,
+    deload: bool = False,
 ) -> Dict[str, str]:
-    """#1193 labels for lats, chest, and quads. Empty when the ramp is not live."""
+    """#1193 labels for lats, chest, and quads. Empty when the ramp is not live.
+
+    Uses the same lifts-chip and Restore rollback as the fallback planner.
+    """
     wp = _planner()
     normalized = wp.normalize_goals(goals)
     if as_of is None:
@@ -499,7 +558,22 @@ def display_targets(
         return {}
     fraction = float(normalized.get("secondary_set_fraction") or 0.5)
     prior = prior_week_credits(sessions, catalog, day, fraction)
-    ramp = resolve_priority_ramp(normalized, as_of=day, prior_credits=prior)
+    signals = collect_ramp_signals(
+        goals,
+        sessions,
+        as_of=day,
+        recovery_label=recovery_label,
+        deload=deload,
+    )
+    ramp = resolve_priority_ramp(
+        normalized,
+        as_of=day,
+        prior_credits=prior,
+        lifts_status=signals["lifts_status"],
+        prior_lifts_status=signals["prior_lifts_status"],
+        restore_flag=signals["restore_flag"],
+        prior_restore_flag=signals["prior_restore_flag"],
+    )
     if not ramp.get("live"):
         return {}
     targets = ramp.get("targets") or {}
@@ -580,15 +654,35 @@ def prompt_volume_fields(
     }
 
 
+def _without_priority_line(text: str) -> str:
+    """Drop any Priority volume sentence so the computed line is the one shown."""
+    kept: List[str] = []
+    for chunk in re.split(r"\s*·\s*", text or ""):
+        sentences = re.split(r"(?<=[.!?])\s+", chunk)
+        piece = " ".join(
+            sentence.strip()
+            for sentence in sentences
+            if sentence.strip() and "Priority volume:" not in sentence
+        )
+        if piece:
+            kept.append(piece)
+    return " · ".join(kept)
+
+
 def ensure_workout_message(message: Optional[str], ramp: Optional[dict], *, has_lifts: bool) -> str:
-    """Add the priority line and the lowering cue when they belong on the message."""
+    """Put the computed priority line and the lowering cue on the workout message.
+
+    A model sentence that still says the ramp is climbing is replaced by the
+    rollback line when the lifts chip or Restore says to pause.
+    """
     text = str(message or "").strip()
     ramp = ramp or {}
     line = str(ramp.get("today_line") or "").strip()
-    if ramp.get("live") and line and "Priority volume:" not in text:
-        text = f"{text} · {line}".strip(" ·")
+    if ramp.get("live") and line:
+        text = _without_priority_line(text)
+        text = f"{text} · {line}".strip(" ·") if text else line
     if has_lifts and "2–3 seconds" not in text and "2-3 seconds" not in text:
-        text = f"{text} · {LOWERING_CUE}".strip(" ·")
+        text = f"{text} · {LOWERING_CUE}".strip(" ·") if text else LOWERING_CUE
     return text
 
 

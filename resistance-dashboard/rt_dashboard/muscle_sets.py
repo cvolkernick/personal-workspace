@@ -1386,7 +1386,19 @@ def build_muscle_set_report(
         try:
             from .priority_ramp import display_targets
 
-            ramp_labels = display_targets(goals, sessions, catalog, as_of=day)
+            rec = data.get("recovery") if isinstance(data.get("recovery"), dict) else {}
+            ramp_labels = display_targets(
+                goals,
+                sessions,
+                catalog,
+                as_of=day,
+                recovery_label=rec.get("label"),
+                deload=bool(
+                    rec.get("deload")
+                    or rec.get("deload_week")
+                    or rec.get("recovery_week")
+                ),
+            )
         except Exception:  # noqa: BLE001 - Trends still renders the legacy labels
             ramp_labels = {}
     muscle_sets = {}

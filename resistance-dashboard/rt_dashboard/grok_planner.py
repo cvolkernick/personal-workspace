@@ -286,13 +286,35 @@ def generate_grok_plans(
             if isinstance(e, dict) and e.get("available", True) and e.get("name")
         ],
     }
-    from .priority_ramp import ensure_workout_message, prompt_volume_fields
+    from .priority_ramp import (
+        collect_ramp_signals,
+        ensure_workout_message,
+        prompt_volume_fields,
+    )
+    from .timeutil import local_today_iso
 
+    ramp_day = str(as_of or local_today_iso())[:10]
+    ramp_history = sessions if sessions is not None else sessions_brief
+    rec = recovery if isinstance(recovery, dict) else {}
+    # Same lifts chip and Restore inputs as the fallback planner.
+    signals = collect_ramp_signals(
+        goals,
+        ramp_history,
+        as_of=ramp_day,
+        recovery_label=rec.get("label"),
+        deload=bool(
+            rec.get("deload") or rec.get("deload_week") or rec.get("recovery_week")
+        ),
+    )
     volume_fields = prompt_volume_fields(
         goals,
-        sessions if sessions is not None else sessions_brief,
+        ramp_history,
         catalog,
-        as_of=as_of,
+        as_of=ramp_day,
+        lifts_status=signals["lifts_status"],
+        prior_lifts_status=signals["prior_lifts_status"],
+        restore_flag=signals["restore_flag"],
+        prior_restore_flag=signals["prior_restore_flag"],
     )
     volume_clause = volume_fields["volume_clause"]
     user_block = {

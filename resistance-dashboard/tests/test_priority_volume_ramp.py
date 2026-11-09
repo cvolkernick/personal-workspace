@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import json
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
+from unittest import mock
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.muscle_sets import build_muscle_set_report
+from rt_dashboard.grok_planner import generate_grok_plans
 from rt_dashboard.priority_ramp import (
     LOWERING_CUE,
     bump_priority_sets,
+    display_targets,
     prompt_volume_fields,
 )
 from rt_dashboard.workout_planner import (
@@ -521,6 +525,159 @@ class PromptAndTrendsTests(unittest.TestCase):
         self.assertEqual(sets["quads"]["target"], "4-8")
         self.assertEqual(sets["side_delts"]["target"], "8-10")
         self.assertEqual(sets["hamstrings"]["target"], "4-7")
+
+
+def _grok_answer(message: str) -> dict:
+    return {
+        "answer": json.dumps(
+            {
+                "meal": {"message": "ok", "items": [], "meals": []},
+                "workout": {
+                    "session_type": "pull",
+                    "is_rest_day": False,
+                    "message": message,
+                    "exercises": [
+                        {
+                            "name": "Pulldowns",
+                            "prescription": {"sets": 2, "reps": 8, "weight_lbs": 100},
+                            "primary_muscles": ["lats"],
+                        }
+                    ],
+                },
+            }
+        ),
+        "model": "grok-test",
+        "auth_source": "test",
+    }
+
+
+class ModelAndTrendsRollbackTests(unittest.TestCase):
+    """The model prompt, stamped message, and Trends labels use the same rollback."""
+
+    def _history(self):
+        return [_session("2026-11-02", "pull", "Pulldowns", 100, 6, 8)]
+
+    def _run_grok(self, *, recovery=None, lifts=None):
+        captured = {}
+
+        def fake_chat(messages, **kwargs):
+            captured["messages"] = messages
+            return _grok_answer(
+                "Priority volume: lats toward ~10 hard sets/week "
+                "(week 1 of ramp); other muscles 4–8. Session cap ~14."
+            )
+
+        stack = ExitStack()
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.grok_ask.resolve_xai_credentials",
+                return_value={"token": "t", "source": "test", "expired": False},
+            )
+        )
+        stack.enter_context(
+            mock.patch("rt_dashboard.grok_ask.chat_completions", side_effect=fake_chat)
+        )
+        if lifts is not None:
+            stack.enter_context(
+                mock.patch(
+                    "rt_dashboard.priority_ramp.lifts_chip_status",
+                    return_value=lifts,
+                )
+            )
+        with stack:
+            out = generate_grok_plans(
+                "user-1",
+                goals=RAMP,
+                catalog=_pull_catalog(),
+                sessions=self._history(),
+                recovery=recovery or {"score": 80, "label": "Ready"},
+                next_session_type="pull",
+                as_of="2026-11-09",
+            )
+        raw = captured["messages"][1]["content"]
+        start = raw.index("{")
+        end = raw.rindex("}")
+        return out, json.loads(raw[start : end + 1])
+
+    def test_yellow_and_red_lifts_roll_the_model_path_back(self):
+        fallback = muscle_targets(
+            RAMP,
+            as_of="2026-11-09",
+            prior_credits={"lats": 6},
+            lifts_status="yellow",
+        )
+        for status in ("yellow", "red"):
+            with self.subTest(status=status):
+                out, context = self._run_grok(lifts=status)
+                targets = context["volume_caps"]["muscle_targets"]
+                self.assertEqual(targets["lats"]["max"], fallback["lats"]["max"])
+                self.assertEqual(targets["lats"]["max"], 6)
+                self.assertEqual(targets["chest"]["max"], 8)
+                self.assertEqual(targets["delts"]["max"], 8)
+                self.assertIn("ramp paused", context["volume_caps"]["sets_per_muscle_week"])
+                message = out["workout"]["message"]
+                self.assertIn("ramp paused", message)
+                self.assertNotIn("toward ~10", message)
+                self.assertIn("2–3 seconds", message)
+
+    def test_restore_deload_rolls_the_model_path_back(self):
+        out, context = self._run_grok(
+            recovery={"score": 80, "label": "Restore deload", "deload": True}
+        )
+        self.assertEqual(context["volume_caps"]["muscle_targets"]["lats"]["max"], 6)
+        self.assertIn("ramp paused", out["workout"]["message"])
+        self.assertNotIn("toward ~10", out["workout"]["message"])
+        fields = prompt_volume_fields(
+            RAMP,
+            self._history(),
+            _pull_catalog(),
+            as_of="2026-11-09",
+            restore_flag=True,
+        )
+        self.assertEqual(
+            fields["muscle_targets"]["lats"]["max"],
+            context["volume_caps"]["muscle_targets"]["lats"]["max"],
+        )
+
+    def test_display_targets_match_the_fallback_rollback(self):
+        sessions = self._history()
+        catalog = _pull_catalog()
+        fallback = muscle_targets(
+            RAMP,
+            as_of="2026-11-09",
+            prior_credits={"lats": 6},
+            lifts_status="yellow",
+        )
+        with mock.patch(
+            "rt_dashboard.priority_ramp.lifts_chip_status",
+            return_value="yellow",
+        ):
+            labels = display_targets(RAMP, sessions, catalog, as_of="2026-11-09")
+        self.assertEqual(labels["lats_upper_back"], "4-6")
+        self.assertEqual(float(labels["lats_upper_back"].split("-")[1]), fallback["lats"]["max"])
+        self.assertEqual(labels["chest"], "4-8")
+        self.assertEqual(labels["quads"], "4-8")
+        report = build_muscle_set_report(
+            {
+                "sessions": [
+                    {
+                        "date": "2026-11-02",
+                        "session_type": "pull",
+                        "exercises": [
+                            {
+                                "name": "Pulldowns",
+                                "sets": [{"weight_lbs": 100, "sets": 6, "reps": 8}],
+                            }
+                        ],
+                    }
+                ],
+                "recovery": {"label": "recovery week", "recovery_week": True},
+                "workout_store": {"goals": RAMP, "catalog": catalog},
+            },
+            as_of="2026-11-09",
+        )
+        self.assertEqual(report["muscle_sets"]["lats_upper_back"]["target"], "4-6")
+        self.assertEqual(report["muscle_sets"]["side_delts"]["target"], "8-10")
 
 
 if __name__ == "__main__":

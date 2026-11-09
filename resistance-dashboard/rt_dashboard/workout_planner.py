@@ -2681,48 +2681,36 @@ def _generate_workout_plan_unguarded(
         MUSCLE_SESSION,
         bump_priority_sets,
         ensure_workout_message,
-        goals_flag_restore,
-        lifts_chip_status,
-        prior_sunday,
+        collect_ramp_signals,
         prior_week_credits,
-        prior_week_restore,
         ramp_is_live,
-        this_week_restore,
         ramp_public,
         resolve_priority_ramp,
         this_week_credits,
     )
 
     prior_credits: Dict[str, float] = {}
-    chip = lifts_status
-    prior_chip = prior_lifts_status
-    restore_now = bool(restore_flag) if restore_flag is not None else False
-    restore_prior = bool(prior_restore_flag) if prior_restore_flag is not None else False
     if ramp_is_live(goals, day):
         prior_credits = prior_week_credits(sessions, catalog, day, sec_frac)
-        if lifts_status is None:
-            chip = lifts_chip_status(sessions, goals, day)
-        if prior_lifts_status is None:
-            sunday = prior_sunday(day)
-            prior_chip = (
-                lifts_chip_status(sessions, goals, sunday) if sunday else "insufficient"
-            )
-        if restore_flag is None:
-            restore_now = (
-                bool(deload)
-                or goals_flag_restore(goals, recovery_label)
-                or this_week_restore(sessions, day)
-            )
-        if prior_restore_flag is None:
-            restore_prior = prior_week_restore(sessions, day)
+    signals = collect_ramp_signals(
+        goals,
+        sessions,
+        as_of=day,
+        recovery_label=recovery_label,
+        deload=bool(deload),
+        lifts_status=lifts_status,
+        prior_lifts_status=prior_lifts_status,
+        restore_flag=restore_flag,
+        prior_restore_flag=prior_restore_flag,
+    )
     ramp = resolve_priority_ramp(
         goals,
         as_of=day,
         prior_credits=prior_credits,
-        lifts_status=chip,
-        prior_lifts_status=prior_chip,
-        restore_flag=bool(restore_now),
-        prior_restore_flag=bool(restore_prior),
+        lifts_status=signals["lifts_status"],
+        prior_lifts_status=signals["prior_lifts_status"],
+        restore_flag=signals["restore_flag"],
+        prior_restore_flag=signals["prior_restore_flag"],
         phase=phase,
         session_cap=goals.get("session_working_set_cap"),
     )
