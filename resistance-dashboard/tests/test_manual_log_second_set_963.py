@@ -242,7 +242,7 @@ class SecondSetClient(unittest.TestCase):
         )[0]
         self.assertIn("loggedLiftDetail(ex)", today)
         self.assertNotIn("ex.sets[0]", today)
-        self.assertIn("/app.js?v=body-fat-7d-2", HTML)
+        self.assertIn("/app.js?v=body-fat-7d-1", HTML)
         self.assertNotIn("/app.js?v=energy-scale-961-1", HTML)
         self.assertIn('const CACHE = "fitdash-shell-v162"', SW)
         self.assertNotIn("fitdash-shell-v120", SW)

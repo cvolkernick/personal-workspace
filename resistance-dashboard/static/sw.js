@@ -18,7 +18,7 @@ const PRECACHE = [
   "/biomarkers.js?v=labs-off-today-1",
   "/trends-steps.js?v=steps-2",
   "/body-fat-series.js?v=body-fat-7d-1",
-  "/app.js?v=body-fat-7d-2",
+  "/app.js?v=body-fat-7d-1",
   "/manifest.webmanifest",
   "/icon-192.png",
   "/favicon.svg",
