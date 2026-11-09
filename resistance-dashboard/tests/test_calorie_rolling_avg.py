@@ -32,13 +32,13 @@ class CalorieRollingAvgMarkup(unittest.TestCase):
 
     def test_script_before_app_and_cache(self):
         self.assertIn("/calorie-rolling-avg.js?v=cal-7d-946-1", HTML)
-        self.assertIn("/app.js?v=body-fat-1382-1", HTML)
+        self.assertIn("/app.js?v=equal-volume-1384-1", HTML)
         self.assertLess(
             HTML.find("/calorie-rolling-avg.js?v=cal-7d-946-1"),
-            HTML.find("/app.js?v=body-fat-1382-1"),
+            HTML.find("/app.js?v=equal-volume-1384-1"),
         )
-        self.assertIn('const CACHE = "fitdash-shell-v159"', SW)
-        self.assertIn("/app.js?v=body-fat-1382-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v160"', SW)
+        self.assertIn("/app.js?v=equal-volume-1384-1", SW)
         self.assertNotIn("/app.js?v=last-perf-920-1", HTML)
         self.assertNotIn("/app.js?v=last-perf-920-1", SW)
         self.assertNotIn("fitdash-shell-v115", SW)
