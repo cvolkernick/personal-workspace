@@ -437,21 +437,6 @@ button:disabled {
 }
 
 #nutrition-stats .macro-stat.macro-protein {
-  border-left-color: #3d9cf0;
-  background: linear-gradient(
-    135deg,
-    rgba(61, 156, 240, 0.14),
-    rgba(26, 35, 50, 0.9) 55%
-  );
-}
-#nutrition-stats .macro-stat.macro-protein .label {
-  color: #8fc4f5;
-}
-#nutrition-stats .macro-stat.macro-protein .macro-split-v {
-  color: #6db7f5;
-}
-
-#nutrition-stats .macro-stat.macro-carbs {
   border-left-color: #f0b429;
   background: linear-gradient(
     135deg,
@@ -459,11 +444,26 @@ button:disabled {
     rgba(26, 35, 50, 0.9) 55%
   );
 }
-#nutrition-stats .macro-stat.macro-carbs .label {
+#nutrition-stats .macro-stat.macro-protein .label {
   color: #f0d080;
 }
-#nutrition-stats .macro-stat.macro-carbs .macro-split-v {
+#nutrition-stats .macro-stat.macro-protein .macro-split-v {
   color: #f0c14d;
+}
+
+#nutrition-stats .macro-stat.macro-carbs {
+  border-left-color: #3d9cf0;
+  background: linear-gradient(
+    135deg,
+    rgba(61, 156, 240, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-carbs .label {
+  color: #8fc4f5;
+}
+#nutrition-stats .macro-stat.macro-carbs .macro-split-v {
+  color: #6db7f5;
 }
 
 #nutrition-stats .macro-stat.macro-fat {
@@ -1696,10 +1696,10 @@ footer {
 }
 
 .macro-chip.macro-protein {
-  border-left-color: #3d9cf0;
+  border-left-color: #f0b429;
 }
 .macro-chip.macro-carbs {
-  border-left-color: #f0b429;
+  border-left-color: #3d9cf0;
 }
 .macro-chip.macro-fat {
   border-left-color: #c084fc;
@@ -1771,10 +1771,10 @@ footer {
   background: linear-gradient(90deg, #5ce1a8, #3d9cf0);
 }
 .macro-progress-fill.macro-protein {
-  background: #3d9cf0;
+  background: #f0b429;
 }
 .macro-progress-fill.macro-carbs {
-  background: #f0b429;
+  background: #3d9cf0;
 }
 .macro-progress-fill.macro-fat {
   background: #c084fc;
@@ -2339,12 +2339,12 @@ button.meal-recipe-item {
   color: var(--accent-2);
 }
 .inv-macro-pill.macro-protein {
-  border-color: rgba(61, 156, 240, 0.5);
-  color: #6db7f5;
-}
-.inv-macro-pill.macro-carbs {
   border-color: rgba(240, 180, 41, 0.5);
   color: #f0c14d;
+}
+.inv-macro-pill.macro-carbs {
+  border-color: rgba(61, 156, 240, 0.5);
+  color: #6db7f5;
 }
 .inv-macro-pill.macro-fat {
   border-color: rgba(192, 132, 252, 0.5);
@@ -3557,19 +3557,19 @@ body.m-shell .quest-card {
 }
 
 .chart-summary-chip.chip-protein {
-  border-color: rgba(61, 156, 240, 0.35);
-  background: rgba(61, 156, 240, 0.1);
-}
-.chart-summary-chip.chip-protein .chip-v {
-  color: #6db7f5;
-}
-
-.chart-summary-chip.chip-carbs {
   border-color: rgba(240, 180, 41, 0.35);
   background: rgba(240, 180, 41, 0.1);
 }
-.chart-summary-chip.chip-carbs .chip-v {
+.chart-summary-chip.chip-protein .chip-v {
   color: #f0c14d;
+}
+
+.chart-summary-chip.chip-carbs {
+  border-color: rgba(61, 156, 240, 0.35);
+  background: rgba(61, 156, 240, 0.1);
+}
+.chart-summary-chip.chip-carbs .chip-v {
+  color: #6db7f5;
 }
 
 .chart-summary-chip.chip-fat {
@@ -3652,19 +3652,19 @@ body.m-shell .quest-card {
 }
 
 .macro-target-pill.pill-p {
-  border-color: rgba(61, 156, 240, 0.45);
-  background: rgba(61, 156, 240, 0.12);
-}
-.macro-target-pill.pill-p .mtp-v {
-  color: #6db7f5;
-}
-
-.macro-target-pill.pill-c {
   border-color: rgba(240, 180, 41, 0.45);
   background: rgba(240, 180, 41, 0.12);
 }
-.macro-target-pill.pill-c .mtp-v {
+.macro-target-pill.pill-p .mtp-v {
   color: #f0c14d;
+}
+
+.macro-target-pill.pill-c {
+  border-color: rgba(61, 156, 240, 0.45);
+  background: rgba(61, 156, 240, 0.12);
+}
+.macro-target-pill.pill-c .mtp-v {
+  color: #6db7f5;
 }
 
 .macro-target-pill.pill-f {

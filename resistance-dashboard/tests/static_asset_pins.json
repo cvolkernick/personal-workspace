@@ -1,7 +1,7 @@
 {
   "app.js": {
-    "sha256": "33fca1ad83a29970c4a17431cc73e1a2eba6e7b6b922cfc8c9c53f92d52a2cd2",
-    "v": "equal-volume-1384-1"
+    "sha256": "d666c6587b513981510865d629b6abec2224e62cadb790f08ebee05d9f35e869",
+    "v": "macro-colors-1"
   },
   "biomarkers.js": {
     "sha256": "bc0a2bdc40ffc45fab4e8a0716754e67397fa8c0cef1481590b4243fd41a133e",
@@ -32,8 +32,8 @@
     "v": "recipe-planner-1288-2"
   },
   "styles.css": {
-    "sha256": "7f13c6badf87c6132eb8ab0cc4bd54213c00d5f55644ebb3ea0baeb73b02b4f2",
-    "v": "labs-off-today-1"
+    "sha256": "0175f6bdc8c28e7d826d1e08e9131e915685b87610952aed0a3cd29a0063975f",
+    "v": "macro-colors-1"
   },
   "supergrok.js": {
     "sha256": "a8305965e54ca1659362eb7169fe7b0a61cd9579f4ccbf746ae3f0f2f4018139",
