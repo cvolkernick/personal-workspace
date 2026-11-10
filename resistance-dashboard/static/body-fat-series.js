@@ -5,11 +5,17 @@
  * date. Same-day readings stay separate. Readings outside 0..100 are dropped.
  *
  * The overlay is a trailing 7-calendar-day arithmetic mean: the window
- * ending on day D is [D-6, D] inclusive. Only valid logged measurements in
- * that window count. Missing days are left out — they are not stored as 0,
- * and no percentage is invented. An empty window is null (do not plot 0).
- * One measurement in the window is that measurement. This is not the mean
- * of the last seven readings.
+ * ending on day D is [D-6, D] inclusive. trailingAverage(samples, labels, n)
+ * uses n calendar days ([D-(n-1), D]) and defaults to 7. Only valid logged
+ * measurements in that window count. Missing days are left out — they are
+ * not stored as 0, and no percentage is invented. An empty window is null
+ * (do not plot 0). One measurement in the window is that measurement. This
+ * is not the mean of the last seven readings.
+ *
+ * Merge twins are collapsed before the mean. Readings on the same civil date,
+ * with the same percentage, whose recorded_at values differ only by a
+ * fractional second, count once. Two same-day readings with different values,
+ * or timestamps that differ by a whole second or more, both count.
  *
  * Civil dates are the YYYY-MM-DD already stored on each sample (America/New_York
  * at ingest). Day math is UTC calendar arithmetic so a DST boundary cannot
@@ -96,14 +102,64 @@
     return out;
   }
 
+  /** Strip a fractional-second suffix so 12:00:00.100Z and 12:00:00.900Z match. */
+  function secondStamp(recordedAt) {
+    var s = String(recordedAt || "").trim();
+    if (!s) return "";
+    return s.replace(/\.(\d+)(?=(Z|[+-]\d{2}:?\d{2})?$)/, "");
+  }
+
   /**
-   * One mean per label. Window is that civil day and the 6 calendar days
-   * before it. Each valid measurement in the window counts once. Null when
-   * the window has none (not 0).
+   * Same date, same percentage, timestamps equal once the fraction is removed.
+   * Untimestamped rows are kept; they are not paired with each other.
    */
-  function trailingAverage(samples, labels) {
-    var rows = measurements(samples);
-    var win = WINDOW_DAYS;
+  function dedupeTwins(rows) {
+    var seen = {};
+    var out = [];
+    (rows || []).forEach(function (row) {
+      var stamp = secondStamp(row && row.recorded_at);
+      if (!stamp) {
+        out.push(row);
+        return;
+      }
+      var key = row.date + "|" + row.percentage + "|" + stamp;
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(row);
+    });
+    return out;
+  }
+
+  /**
+   * Coach-card streak text. Cut uses ≤10%. Bulk (and slow_bulk / gain) uses ≥15%.
+   * Example: Day 5/14 at ≤10%.
+   */
+  function streakLabel(phase, streakDays, streakNeeded) {
+    var n = Number(streakDays);
+    if (!Number.isFinite(n) || n < 0) n = 0;
+    n = Math.floor(n);
+    var need = Number(streakNeeded);
+    if (!Number.isFinite(need) || need < 1) need = 14;
+    need = Math.floor(need);
+    var raw = String(phase == null ? "" : phase)
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+    var bulk = raw === "bulk" || raw === "slow_bulk" || raw === "gain";
+    return "Day " + n + "/" + need + " at " + (bulk ? "≥15%" : "≤10%");
+  }
+
+  /**
+   * One mean per label. Default window is that civil day and the 6 calendar
+   * days before it. Pass windowDays to use [D-(n-1), D]. Twins are deduped
+   * first. Each remaining valid measurement counts once. Null when the
+   * window has none (not 0).
+   */
+  function trailingAverage(samples, labels, windowDays) {
+    var rows = dedupeTwins(measurements(samples));
+    var win = Number(windowDays);
+    if (!Number.isFinite(win) || win < 1) win = WINDOW_DAYS;
+    win = Math.floor(win);
     return (labels || []).map(function (label) {
       var day = civilDay(label);
       if (!day) return null;
@@ -163,6 +219,9 @@
     lastByDate: lastByDate,
     alignToLabels: alignToLabels,
     measurements: measurements,
+    dedupeTwins: dedupeTwins,
+    secondStamp: secondStamp,
+    streakLabel: streakLabel,
     trailingAverage: trailingAverage,
     axisDates: axisDates,
     latest: latest,

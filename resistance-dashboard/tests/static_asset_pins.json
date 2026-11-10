@@ -1,15 +1,15 @@
 {
   "app.js": {
-    "sha256": "40779f263930c868c8d923c1aead51eea87a36a8dac586fbce58e70c9b6aa9d8",
-    "v": "body-fat-7d-1"
+    "sha256": "1209f6850e2bb7743df095d06e860bc569a98d8174dc2784754527a9c7de1629",
+    "v": "bf-phase-14d-1"
   },
   "biomarkers.js": {
     "sha256": "bc0a2bdc40ffc45fab4e8a0716754e67397fa8c0cef1481590b4243fd41a133e",
     "v": "labs-off-today-1"
   },
   "body-fat-series.js": {
-    "sha256": "2b2a1c80c76f8764a382ed05869820e844fabfae1f227251583bdcbd34822f43",
-    "v": "body-fat-7d-1"
+    "sha256": "03dea902df8fc6c6682c54720fe8fbe30308715c9355430299c5cfe5a777b0d0",
+    "v": "bf-phase-14d-1"
   },
   "calorie-rolling-avg.js": {
     "sha256": "ea2a47ef6c538b24301e2d8308db8657f09e958701a1a12785724c658bf627a3",

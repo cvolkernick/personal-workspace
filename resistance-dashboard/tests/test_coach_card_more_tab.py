@@ -32,6 +32,10 @@ class CoachCardMoreTab(unittest.TestCase):
             for sid in (
                 "coach-phase-card",
                 "coach-phase-pill",
+                "coach-bf-avg",
+                "coach-bf-streak",
+                "coach-bf-thin",
+                "coach-bf-proposal",
                 "coach-sat-fat-chip",
                 "coach-staged-panel",
             ):
@@ -45,8 +49,18 @@ class CoachCardMoreTab(unittest.TestCase):
         self.assertIn("is-collapsed", sec)
         self.assertRegex(sec, r'id="more-coach-body"[^>]*\bhidden\b')
         body = sec[sec.index('id="more-coach-body"'):]
-        for sid in ("coach-phase-card", "coach-phase-pill", "coach-staged-panel"):
+        for sid in (
+            "coach-phase-card",
+            "coach-phase-pill",
+            "coach-bf-avg",
+            "coach-bf-threshold",
+            "coach-bf-streak",
+            "coach-bf-thin",
+            "coach-bf-proposal",
+            "coach-staged-panel",
+        ):
             self.assertIn(f'id="{sid}"', body)
+        self.assertNotIn("<button", body[body.index('id="coach-bf-proposal"'):])
 
     def test_coach_card_ids_unique(self):
         for sid in ("coach-phase-card", "coach-staged-panel"):

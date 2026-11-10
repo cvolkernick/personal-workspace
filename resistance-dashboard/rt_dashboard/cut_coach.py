@@ -698,7 +698,29 @@ def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dic
         card["sat_fat_chip"] = build_sat_fat_chip(logs, as_of=card.get("as_of"), rules=rules)
     except Exception:
         card["sat_fat_chip"] = None
+    card["bf_phase"] = _bf_phase_block(data, day_s, card)
     return card
+
+
+def _bf_phase_block(data: dict, day_s: str, card: dict) -> Optional[dict]:
+    """Read-only body-fat streak. Never persists phase or calories."""
+    try:
+        try:
+            from body_fat_phase import bf_phase_for_payload
+        except ImportError:
+            import sys
+            from pathlib import Path
+
+            parent = str(Path(__file__).resolve().parents[1])
+            if parent not in sys.path:
+                sys.path.insert(0, parent)
+            from body_fat_phase import bf_phase_for_payload
+
+        weekly = card.get("weekly") if isinstance(card.get("weekly"), dict) else {}
+        tdee_block = weekly.get("tdee") if isinstance(weekly.get("tdee"), dict) else {}
+        return bf_phase_for_payload(data, as_of=day_s, tdee=tdee_block.get("tdee"))
+    except Exception:
+        return None
 
 
 def apply_weekly(
