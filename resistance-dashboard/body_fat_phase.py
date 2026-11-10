@@ -1058,6 +1058,9 @@ def record_manual_flip(
         "threshold_label": threshold_label(old_kind),
         "banner_dismissed": False,
         "status": "applied",
+        # Same claim token the auto path uses. Without it _turso_insert
+        # returns before writing, and the follow-up update matches no row.
+        "claim_token": uuid.uuid4().hex,
     }
     if old_kind == "cut":
         snap = snapshot_targets(old)

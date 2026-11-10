@@ -520,6 +520,121 @@ class AutoApply(_WriterCase):
         self.assertFalse(bf._log_path().is_file())
 
 
+class _Cursor:
+    def __init__(self, rows):
+        self._rows = list(rows)
+        self._i = 0
+
+    def fetchone(self):
+        if self._i >= len(self._rows):
+            return None
+        row = self._rows[self._i]
+        self._i += 1
+        return row
+
+    def fetchall(self):
+        rows = self._rows[self._i :]
+        self._i = len(self._rows)
+        return rows
+
+
+class _FakeTurso:
+    """In-memory bf_phase_flips table. No network."""
+
+    def __init__(self):
+        self.rows = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def execute(self, sql, params=()):
+        text = " ".join(str(sql).split()).lower()
+        if text.startswith("create"):
+            return _Cursor([])
+        if text.startswith("insert"):
+            uid, key, payload, created = params
+            self.rows.setdefault((uid, key), {"payload": payload, "created_at": created})
+            return _Cursor([])
+        if text.startswith("update"):
+            payload, uid, key = params
+            if (uid, key) in self.rows:
+                self.rows[(uid, key)]["payload"] = payload
+            return _Cursor([])
+        if text.startswith("delete"):
+            uid, key = params
+            self.rows.pop((uid, key), None)
+            return _Cursor([])
+        if text.startswith("select") and "flip_key = ?" in text:
+            uid, key = params
+            row = self.rows.get((uid, key))
+            return _Cursor([] if row is None else [{"payload": row["payload"]}])
+        if text.startswith("select"):
+            uid = params[0]
+            found = [row for (user, _key), row in self.rows.items() if user == uid]
+            found.sort(key=lambda row: row["created_at"])
+            return _Cursor([{"payload": row["payload"]} for row in found])
+        raise AssertionError(sql)
+
+
+class ManualFlipTurso(_WriterCase):
+    def setUp(self):
+        super().setUp()
+        self.turso = _FakeTurso()
+        # The base case empties Turso and forbids connect(). This test turns
+        # the live path on and serves it from memory.
+        os.environ["TURSO_DATABASE_URL"] = "libsql://bf-phase.test"
+        os.environ["TURSO_AUTH_TOKEN"] = "test-token"
+        self.patches[2].stop()
+        self.patches.pop(2)
+        self._connect = mock.patch(
+            "rt_dashboard.turso_http.connect",
+            side_effect=lambda: self.turso,
+        )
+        self._connect.start()
+
+    def tearDown(self):
+        self._connect.stop()
+        super().tearDown()
+
+    def test_manual_flip_persists_a_turso_row_that_anchors_auto(self):
+        rows = _series("2026-10-01", 40, 9.5)
+        as_of = rows[-1]["date"]
+        event = bf.record_manual_flip(
+            previous=dict(CUT_LIVE),
+            updated={"phase": "slow_bulk", "calories": 2200, "protein_g": 170, "carbs_g": 230, "fat_g": 60},
+            user_id="manual-user",
+            as_of=as_of,
+        )
+        self.assertEqual(len(self.turso.rows), 1)
+        stored = json.loads(next(iter(self.turso.rows.values()))["payload"])
+        self.assertEqual(stored["trigger"], "manual")
+        self.assertEqual(stored["date"], as_of)
+        self.assertEqual(stored["old_phase"], "cut")
+        self.assertTrue(stored.get("claim_token"))
+        self.assertEqual(event.get("claim_token"), stored["claim_token"])
+        # Drop the local file. load_events must still see the Turso row.
+        bf._log_path().unlink()
+        loaded = bf.load_events("manual-user")
+        self.assertEqual([row.get("trigger") for row in loaded], ["manual"])
+        self.assertEqual(loaded[0]["date"], as_of)
+        view = bf.run_phase(
+            rows,
+            as_of=as_of,
+            phase="cut",
+            tdee=2318,
+            applied=dict(CUT_LIVE),
+            user_id="manual-user",
+            apply=True,
+        )
+        self.assertEqual(view["anchor"], as_of)
+        self.assertEqual(view["counted"], 0)
+        self.assertFalse(view["applied"])
+        self.assertEqual(self.write_calls, [])
+
+
 class RulesFlag(unittest.TestCase):
     def test_auto_flip_defaults_on_and_reads_the_json_flag(self):
         for path in (
