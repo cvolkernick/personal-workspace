@@ -655,7 +655,12 @@ def today_targets(card: dict) -> dict:
 
 
 def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dict:
-    """Read-only card from a dashboard payload. Never persists state."""
+    """Card from a dashboard payload.
+
+    The weekly section stays read-only here. A body-fat phase flip, when the
+    median rule is met and auto-flip is on, is applied inside the body-fat
+    block through the nutrition target writers.
+    """
     data = payload if isinstance(payload, dict) else {}
     meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
     day = as_of or meta.get("local_today") or ""
@@ -698,12 +703,45 @@ def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dic
         card["sat_fat_chip"] = build_sat_fat_chip(logs, as_of=card.get("as_of"), rules=rules)
     except Exception:
         card["sat_fat_chip"] = None
-    card["bf_phase"] = _bf_phase_block(data, day_s, card)
+    block = _bf_phase_block(data, day_s, card)
+    card["bf_phase"] = block
+    report = block.get("phase_report") if isinstance(block, dict) else None
+    card["phase_report"] = report if isinstance(report, dict) else None
     return card
 
 
+def optional_as_of(query: str) -> Optional[str]:
+    """YYYY-MM-DD from ``as_of``, or None when the query omits it."""
+    from urllib.parse import parse_qs
+
+    raw = (parse_qs(query or "", keep_blank_values=False).get("as_of") or [None])[0]
+    if raw in (None, ""):
+        return None
+    day = parse_day(raw)
+    if day is None:
+        raise ValueError("as_of must be YYYY-MM-DD")
+    return day.isoformat()
+
+
+def agent_phase_body(payload: Optional[dict], *, as_of: Any = None) -> dict:
+    """Structured phase for ``GET /api/agent/phase`` and MCP ``get_phase``."""
+    card = coach_card_for_payload(payload, as_of=as_of)
+    report = card.get("phase_report") if isinstance(card.get("phase_report"), dict) else {}
+    return {"ok": True, "as_of": card.get("as_of"), **report}
+
+
+def agent_coach_card_body(payload: Optional[dict], *, as_of: Any = None) -> dict:
+    """Coach card plus the same ``phase_report`` object ``get_phase`` returns."""
+    card = coach_card_for_payload(payload, as_of=as_of)
+    body: Dict[str, Any] = {"ok": True, "coach_card": card}
+    report = card.get("phase_report") if isinstance(card.get("phase_report"), dict) else None
+    if report is not None:
+        body["phase_report"] = report
+    return body
+
+
 def _bf_phase_block(data: dict, day_s: str, card: dict) -> Optional[dict]:
-    """Read-only body-fat streak. Never persists phase or calories."""
+    """Body-fat median gate. May auto-apply a phase flip through the target writers."""
     try:
         try:
             from body_fat_phase import bf_phase_for_payload
@@ -718,7 +756,13 @@ def _bf_phase_block(data: dict, day_s: str, card: dict) -> Optional[dict]:
 
         weekly = card.get("weekly") if isinstance(card.get("weekly"), dict) else {}
         tdee_block = weekly.get("tdee") if isinstance(weekly.get("tdee"), dict) else {}
-        return bf_phase_for_payload(data, as_of=day_s, tdee=tdee_block.get("tdee"))
+        meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+        return bf_phase_for_payload(
+            data,
+            as_of=day_s,
+            tdee=tdee_block.get("tdee"),
+            user_id=str(meta.get("user_id") or ""),
+        )
     except Exception:
         return None
 

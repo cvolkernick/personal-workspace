@@ -1218,6 +1218,11 @@ def phase_barometer_write(headers, payload=None):
         }
     if action == "switch_phase":
         return 400, dict(PREVIEW_READ_ONLY)
+    if action == "dismiss_bf_banner":
+        from body_fat_phase import dismiss_bf_banner
+
+        dismissed = dismiss_bf_banner(user_id=uid)
+        return 200, {"ok": True, "action": "dismiss_bf_banner", **dismissed}
     return 400, {"ok": False, "error": "unknown_action", "action": action}
 
 

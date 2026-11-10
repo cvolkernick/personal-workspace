@@ -195,9 +195,21 @@ class CoachingTargets(unittest.TestCase):
         server = Path(__file__).resolve().parents[1].joinpath("server.py").read_text(encoding="utf-8")
         self.assertEqual(server.count('"/api/agent/coaching_targets"'), 3)
         static = Path(__file__).resolve().parents[1].joinpath("static")
+        html_path = static / "index.html"
+        html = html_path.read_text(encoding="utf-8")
+        mcp = html[html.index('id="mcp-section"') : html.index('id="connections-card"')]
+        self.assertIn("get_coaching_targets", mcp)
+        self.assertNotIn("<button", mcp[mcp.index('id="more-mcp-body"') :])
+        self.assertNotIn("coaching_targets", html.replace(mcp, ""))
         for path in static.rglob("*"):
+            if path.resolve() == html_path.resolve():
+                continue
             if path.suffix in {".js", ".html", ".css"}:
-                self.assertNotIn("coaching_targets", path.read_text(encoding="utf-8", errors="ignore"))
+                self.assertNotIn(
+                    "coaching_targets",
+                    path.read_text(encoding="utf-8", errors="ignore"),
+                    str(path),
+                )
 
 
 if __name__ == "__main__":

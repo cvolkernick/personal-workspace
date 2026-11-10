@@ -2238,7 +2238,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": type(e).__name__}, status=500)
             return
-        if parsed.path == "/api/agent/coach_card":
+        if parsed.path in ("/api/agent/phase", "/api/agent/coach_card"):
             client_host = (self.client_address or ("", 0))[0]
             user = _session_user_from_headers(self.headers)
             principal = agent_today_principal(
@@ -2249,11 +2249,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 from rt_dashboard.agent_read import agent_targets_uid
-                from rt_dashboard.cut_coach import coach_card_for_payload
+                from rt_dashboard.cut_coach import (
+                    agent_coach_card_body,
+                    agent_phase_body,
+                    optional_as_of,
+                )
 
+                as_of = optional_as_of(parsed.query or "")
                 uid = (user.get("user_id") if user else None) or agent_targets_uid() or None
                 data = load_dashboard_data(force_refresh=False, user_id=uid)
-                self._send_json({"ok": True, "coach_card": coach_card_for_payload(data)})
+                if parsed.path == "/api/agent/phase":
+                    self._send_json(agent_phase_body(data, as_of=as_of))
+                else:
+                    self._send_json(agent_coach_card_body(data, as_of=as_of))
+            except ValueError as e:
+                self._send_json(
+                    {"ok": False, "error": "bad_request", "message": str(e)},
+                    status=400,
+                )
             except Exception as e:  # noqa: BLE001
                 self._send_json(
                     {"ok": False, "error": type(e).__name__}, status=500
@@ -3402,7 +3415,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         result["error"] = err
                         self._send_json(result, status=502)
                         return
+                    try:
+                        from body_fat_phase import record_manual_flip
+
+                        record_manual_flip(
+                            previous=current,
+                            updated=persisted,
+                            user_id=str(uid or ""),
+                        )
+                    except Exception:
+                        logging.getLogger("fitdash.bf_phase").exception(
+                            "manual phase flip log failed"
+                        )
                     self._send_json(result)
+                    return
+                if action == "dismiss_bf_banner":
+                    from body_fat_phase import dismiss_bf_banner
+
+                    dismissed = dismiss_bf_banner(user_id=str(uid or ""))
+                    self._send_json(
+                        {"ok": True, "action": "dismiss_bf_banner", **dismissed}
+                    )
                     return
                 self._send_json(
                     {"ok": False, "error": "unknown_action", "action": action},

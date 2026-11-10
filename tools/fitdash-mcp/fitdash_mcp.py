@@ -8,6 +8,8 @@ Coaching targets (#1370) add one read and one narrow write, both with the
 same agent token:
 
   get_coaching_targets  GET  /api/agent/coaching_targets
+  get_coach_card        GET  /api/agent/coach_card
+  get_phase             GET  /api/agent/phase
   set_coaching_target   POST /api/agent/coaching_targets
 
 A settings override wins. Otherwise the phase calendar (coach rules when
@@ -33,6 +35,94 @@ DEFAULT_BASE = "https://prism-gateway.tailb1085a.ts.net:10001"
 DEFAULT_TOKEN_FILE = "/workspace/.fitdash_agent_token"
 SECTIONS = ("targets", "inventory", "logs", "plan", "training", "recovery")
 MAX_LOG_DAYS = 92
+
+# Returned-data notes for the More-tab catalog. Keep each ``returns`` string
+# identical to the sentence in resistance-dashboard/static/index.html.
+TOOL_CATALOG = (
+    {
+        "name": "fitdash_targets",
+        "access": "read",
+        "returns": (
+            "Applied nutrition targets: phase, kcal, macros (protein_g, carbs_g, fat_g, "
+            "fiber_g, sugar_g, sodium_mg), updated_at, applied_at, recommended, updated_by, source, and note."
+        ),
+    },
+    {
+        "name": "fitdash_inventory",
+        "access": "read",
+        "returns": (
+            "Pantry rows: id, name, category, qty, in_stock, updated_at, last_used_at, "
+            "plus count, in_stock_count, and the pantry source."
+        ),
+    },
+    {
+        "name": "fitdash_logs",
+        "access": "read",
+        "returns": (
+            "Food logs and workout sessions between from and to (default last 7 days, max 92): "
+            "meal date, time, name, meal_type, calories, protein_g, carbs_g, fat_g, serving_label, source, log_id; "
+            "session date, session_type, closed_at, volume, and exercise name, sets, and volume."
+        ),
+    },
+    {
+        "name": "fitdash_plan",
+        "access": "read",
+        "returns": (
+            "Stored plan only: today's date, workout, meal_plan, and nutrition, plus the week start, end, "
+            "workout_plan, goals, and week nutrition. It does not generate a plan."
+        ),
+    },
+    {
+        "name": "fitdash_training",
+        "access": "read",
+        "returns": (
+            "Today and week training payload, including muscle_sets (sets, budget, coach, rolling 7-day window) "
+            "and guardrails."
+        ),
+    },
+    {
+        "name": "fitdash_recovery",
+        "access": "read",
+        "returns": (
+            "Latest sleep (date, sleep_hours, efficiency_pct, source), readiness label, score, and reasons, "
+            "and hydration consumed_ml, target_ml, and status."
+        ),
+    },
+    {
+        "name": "get_coaching_targets",
+        "access": "read",
+        "returns": (
+            "Effective steps, kcal, and hydration_ml for as_of, each with its value and whether a settings "
+            "override or the phase calendar supplied it."
+        ),
+    },
+    {
+        "name": "get_coach_card",
+        "access": "read",
+        "returns": (
+            "Coach card JSON, including phase_report: phase (cut or bulk), median_7d, hits, hits_needed, "
+            "counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, "
+            "and targets (calories, protein_g, carbs_g, fat_g, phase)."
+        ),
+    },
+    {
+        "name": "get_phase",
+        "access": "read",
+        "returns": (
+            "phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, "
+            "thin, paused, flip_applied, flip_date, flip_trigger, status, threshold_label, auto_flip, as_of, "
+            "and targets (calories, protein_g, carbs_g, fat_g, phase)."
+        ),
+    },
+    {
+        "name": "set_coaching_target",
+        "access": "write",
+        "returns": (
+            "Writes one override for steps, kcal, or hydration_ml (null clears it) and returns the updated "
+            "effective targets. This page does not call it."
+        ),
+    },
+)
 
 
 class FitDashError(RuntimeError):
@@ -204,6 +294,20 @@ def fetch_coaching_targets(as_of: str | None = None,
     return fetch("", params, transport=transport, path="/api/agent/coaching_targets")
 
 
+def fetch_phase(as_of: str | None = None,
+                transport: httpx.BaseTransport | None = None) -> Any:
+    _check_date("as_of", as_of)
+    params = {"as_of": as_of} if as_of else None
+    return fetch("", params, transport=transport, path="/api/agent/phase")
+
+
+def fetch_coach_card(as_of: str | None = None,
+                     transport: httpx.BaseTransport | None = None) -> Any:
+    _check_date("as_of", as_of)
+    params = {"as_of": as_of} if as_of else None
+    return fetch("", params, transport=transport, path="/api/agent/coach_card")
+
+
 def post_coaching_target(target: str, value: int | None,
                          transport: httpx.BaseTransport | None = None) -> Any:
     number = validate_coaching_target(target, value)
@@ -258,6 +362,28 @@ def build_server():
         target. as_of is YYYY-MM-DD; omit it for the server's local today.
         """
         return fetch_coaching_targets(as_of)
+
+    @mcp.tool()
+    def get_coach_card(as_of: str | None = None) -> dict:
+        """Coach card, including the structured body-fat phase_report.
+
+        phase_report has phase (cut or bulk), median_7d, hits out of
+        hits_needed, counted out of counted_needed, median_14d, thin,
+        paused, flip_applied, flip_date, and calorie/macro targets.
+        as_of is YYYY-MM-DD; omit it for the server's local today.
+        """
+        return fetch_coach_card(as_of)
+
+    @mcp.tool()
+    def get_phase(as_of: str | None = None) -> dict:
+        """Current cut/bulk phase from the body-fat median rule.
+
+        Returns phase, median_7d, hits, hits_needed, counted,
+        counted_needed, median_14d, thin, paused, flip_applied, flip_date,
+        flip_trigger, and targets (calories, protein_g, carbs_g, fat_g, phase).
+        as_of is YYYY-MM-DD; omit it for the server's local today.
+        """
+        return fetch_phase(as_of)
 
     @mcp.tool()
     def set_coaching_target(target: str, value: int | None) -> dict:

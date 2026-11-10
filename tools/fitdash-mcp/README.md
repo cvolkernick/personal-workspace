@@ -16,10 +16,19 @@ is used. A settings override wins; otherwise the phase calendar applies.
 | `fitdash_training` | `GET /api/agent/training` |
 | `fitdash_recovery` | `GET /api/agent/recovery` |
 | `get_coaching_targets(as_of?)` | `GET /api/agent/coaching_targets` |
+| `get_coach_card(as_of?)` | `GET /api/agent/coach_card` (includes `phase_report`) |
+| `get_phase(as_of?)` | `GET /api/agent/phase` |
 | `set_coaching_target(target, value)` | `POST /api/agent/coaching_targets` |
 
 `set_coaching_target` accepts `steps` (1000–30000), `kcal` (1200–6000), and
 `hydration_ml` (500–8000). `value: null` clears that override.
+
+`get_phase` returns structured fields from the body-fat median rule already
+used by the coach card: `phase` (`cut` or `bulk`), `median_7d`, `hits`,
+`hits_needed`, `counted`, `counted_needed`, `median_14d`, `thin`, `paused`,
+`flip_applied`, `flip_date`, `flip_trigger`, and `targets`
+(`calories`, `protein_g`, `carbs_g`, `fat_g`, `phase`). `get_coach_card`
+includes that same object as `phase_report`.
 
 ## Install
 

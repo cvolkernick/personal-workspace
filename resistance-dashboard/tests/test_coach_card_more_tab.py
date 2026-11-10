@@ -55,8 +55,11 @@ class CoachCardMoreTab(unittest.TestCase):
             "coach-bf-avg",
             "coach-bf-threshold",
             "coach-bf-streak",
+            "coach-bf-median14",
             "coach-bf-thin",
+            "coach-bf-last",
             "coach-bf-proposal",
+            "bf-phase-banner-coach",
             "coach-staged-panel",
         ):
             self.assertIn(f'id="{sid}"', body)

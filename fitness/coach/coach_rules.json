@@ -57,5 +57,6 @@
   "kcal_cut": 150,
   "kcal_bump": 150,
   "strength_trip_pct": 0.5,
-  "bulk_kcal_advice": {}
+  "bulk_kcal_advice": {},
+  "bf_auto_flip": true
 }
