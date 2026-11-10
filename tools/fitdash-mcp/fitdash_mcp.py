@@ -19,6 +19,9 @@ Env:
   FITDASH_API_BASE          default https://prism-gateway.tailb1085a.ts.net:10001
   FITDASH_PROXY             e.g. socks5h://127.0.0.1:1055 (remote DNS); empty = direct
   FITDASH_TIMEOUT           seconds, default 20
+  FITDASH_INVENTORY_AGENT_TOKEN       pantry-write bearer (else ..._FILE); only
+  FITDASH_INVENTORY_AGENT_TOKEN_FILE  update_pantry uses it. Default
+                                      /workspace/.fitdash_inventory_agent_token
 """
 from __future__ import annotations
 
@@ -31,6 +34,10 @@ import httpx
 
 DEFAULT_BASE = "https://prism-gateway.tailb1085a.ts.net:10001"
 DEFAULT_TOKEN_FILE = "/workspace/.fitdash_agent_token"
+DEFAULT_WRITE_TOKEN_FILE = "/workspace/.fitdash_inventory_agent_token"
+STOCK_FILTERS = ("all", "in", "low", "out")
+PANTRY_WRITE_PATHS = ("inventory/items", "inventory/stock")
+MAX_PANTRY_OPS = 100
 SECTIONS = ("targets", "inventory", "logs", "plan", "training", "recovery")
 MAX_LOG_DAYS = 92
 
@@ -66,6 +73,23 @@ def _token() -> str:
     if not tok:
         raise FitDashError(
             "No FitDash agent token: set FITDASH_AGENT_TOKEN or FITDASH_AGENT_TOKEN_FILE"
+        )
+    return tok
+
+
+def _write_token() -> str:
+    tok = os.environ.get("FITDASH_INVENTORY_AGENT_TOKEN", "").strip()
+    if tok:
+        return tok
+    path = Path(os.environ.get("FITDASH_INVENTORY_AGENT_TOKEN_FILE", DEFAULT_WRITE_TOKEN_FILE))
+    try:
+        tok = path.read_text().strip()
+    except OSError:
+        tok = ""
+    if not tok:
+        raise FitDashError(
+            "No FitDash inventory agent token: set FITDASH_INVENTORY_AGENT_TOKEN or "
+            "FITDASH_INVENTORY_AGENT_TOKEN_FILE"
         )
     return tok
 
@@ -120,6 +144,109 @@ def fetch(section: str, params: dict[str, str] | None = None,
         return resp.json()
     except ValueError:
         raise FitDashError(f"FitDash API {label} returned non-JSON body") from None
+
+
+def post(path: str, body: dict, transport: httpx.BaseTransport | None = None) -> Any:
+    """POST /api/agent/<path> with the pantry-write token. Only pantry paths."""
+    if path not in PANTRY_WRITE_PATHS:
+        raise FitDashError(f"unknown write path {path!r}")
+    url = f"{_base_url()}/api/agent/{path}"
+    auth = f"Bearer {_write_token()}"
+    headers = {"Authorization": auth, "Accept": "application/json"}
+    kwargs: dict[str, Any] = {"timeout": float(os.environ.get("FITDASH_TIMEOUT", "20"))}
+    if transport is not None:
+        kwargs["transport"] = transport
+    elif _proxy():
+        kwargs["proxy"] = _proxy()
+    try:
+        with httpx.Client(**kwargs) as client:
+            resp = client.post(url, json=body, headers=headers)
+    except httpx.TimeoutException:
+        raise FitDashError(f"FitDash API timed out: {url} (write may or may not have landed; re-read the pantry)") from None
+    except (httpx.TransportError, OSError) as exc:
+        raise FitDashError(
+            f"FitDash API unreachable at {url} ({type(exc).__name__}); "
+            "check FITDASH_API_BASE / FITDASH_PROXY and that the tailnet proxy is up"
+        ) from None
+    if resp.status_code == 401:
+        raise FitDashError(
+            "FitDash API returned 401 Unauthorized: inventory agent token missing, wrong or rotated"
+        )
+    if resp.status_code >= 400:
+        detail = resp.text[:300].replace(auth, "Bearer ***")
+        raise FitDashError(f"FitDash API {path} returned HTTP {resp.status_code}: {detail}")
+    try:
+        return resp.json()
+    except ValueError:
+        raise FitDashError(f"FitDash API {path} returned non-JSON body") from None
+
+
+def get_pantry(stock: str = "all", query: str | None = None,
+               transport: httpx.BaseTransport | None = None) -> dict:
+    """Full ingredient library from GET /api/agent/inventory, optionally filtered."""
+    s = (stock or "all").strip().lower()
+    if s not in STOCK_FILTERS:
+        raise FitDashError(f"stock must be one of {', '.join(STOCK_FILTERS)}")
+    body = fetch("inventory", transport=transport)
+    data = (body or {}).get("data") or {}
+    items = list(data.get("items") or [])
+    if s != "all":
+        items = [i for i in items if (i.get("stock") or ("in" if i.get("in_stock") else "out")) == s]
+    q = (query or "").strip().lower()
+    if q:
+        items = [i for i in items if q in str(i.get("name") or "").lower() or q in str(i.get("id") or "").lower()]
+    return {
+        "generated_at": body.get("generated_at"), "as_of": body.get("as_of"),
+        "count": data.get("count"), "in_stock_count": data.get("in_stock_count"),
+        "out_of_stock_count": data.get("out_of_stock_count"),
+        "filter": {"stock": s, "query": q or None}, "returned": len(items), "items": items,
+        "note": data.get("note"),
+    }
+
+
+def update_pantry(add: list[dict] | None = None, restock: list[dict] | None = None,
+                  out_of_stock: list[str] | None = None, updated_by: str = "fitdash-mcp",
+                  transport: httpx.BaseTransport | None = None) -> dict:
+    """Pantry-only write. add -> POST inventory/items; restock / out_of_stock ->
+    POST inventory/stock. Validates shape locally; the server re-validates."""
+    add, restock, out_of_stock = list(add or []), list(restock or []), list(out_of_stock or [])
+    if not (add or restock or out_of_stock):
+        raise FitDashError("nothing to do: pass add, restock and/or out_of_stock")
+    if len(add) + len(restock) + len(out_of_stock) > MAX_PANTRY_OPS:
+        raise FitDashError(f"at most {MAX_PANTRY_OPS} pantry changes per call")
+    stock_items: list[dict] = []
+    seen: set[str] = set()
+    for r in restock:
+        if isinstance(r, str):
+            r = {"id": r}
+        if not isinstance(r, dict) or not str(r.get("id") or "").strip():
+            raise FitDashError("restock entries need an id")
+        extra = set(r) - {"id", "qty"}
+        if extra:
+            raise FitDashError(f"restock entries only take id and qty (got {', '.join(sorted(extra))})")
+        item = {"id": str(r["id"]).strip(), "in_stock": True}
+        if "qty" in r:
+            item["qty"] = r["qty"]
+        stock_items.append(item)
+    for iid in out_of_stock:
+        if not isinstance(iid, str) or not iid.strip():
+            raise FitDashError("out_of_stock entries must be item ids")
+        stock_items.append({"id": iid.strip(), "in_stock": False, "qty": 0})
+    for it in stock_items:
+        k = it["id"].lower()
+        if k in seen:
+            raise FitDashError(f"item {it['id']!r} appears more than once")
+        seen.add(k)
+    result: dict[str, Any] = {"added": [], "stock_updated": []}
+    if add:
+        r = post("inventory/items", {"items": add, "updated_by": updated_by}, transport=transport)
+        result["added"] = r.get("items") or []
+        result["as_of"] = r.get("as_of")
+    if stock_items:
+        r = post("inventory/stock", {"items": stock_items, "updated_by": updated_by}, transport=transport)
+        result["stock_updated"] = r.get("items") or []
+        result["as_of"] = r.get("as_of")
+    return result
 
 
 def fetch_logs(from_: str | None = None, to: str | None = None,
@@ -228,6 +355,26 @@ def build_server():
     def fitdash_inventory() -> dict:
         """FitDash food/supplement inventory (read-only)."""
         return fetch("inventory")
+
+    @mcp.tool(name="get_pantry")
+    def get_pantry_tool(stock: str = "all", query: str | None = None) -> dict:
+        """Full FitDash ingredient library (pantry): id, name, category, stock (in|low|out),
+        in_stock, qty, serving_label / serving_g and per_serving macros (calories, protein_g,
+        carbs_g, fat_g, fiber_g, sugar_g, sodium_mg; null when none recorded).
+        stock: all|in|low|out (default all). query: optional name/id substring."""
+        return get_pantry(stock, query)
+
+    @mcp.tool(name="update_pantry")
+    def update_pantry_tool(add: list[dict] | None = None, restock: list[dict] | None = None,
+                           out_of_stock: list[str] | None = None,
+                           updated_by: str = "fitdash-mcp") -> dict:
+        """Pantry-only write (FitDash inventory agent token). No deletes, no edits to existing items.
+        add: new items [{name, serving_g?, serving_label?, category?, calories?, protein_g?,
+        carbs_g?, fat_g?, fiber_g?, sugar_g?, sodium_mg?, notes?, qty?, in_stock? (default true),
+        id? (default slug of name)}]; an existing id/name is rejected (restock it instead).
+        restock: [{id, qty?}] marks items in stock. out_of_stock: [id] marks items out (qty 0).
+        updated_by: short label recorded in the audit log."""
+        return update_pantry(add, restock, out_of_stock, updated_by)
 
     @mcp.tool()
     def fitdash_logs(from_date: str | None = None, to_date: str | None = None) -> dict:

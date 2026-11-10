@@ -174,7 +174,7 @@ class SectionContract(unittest.TestCase):
         d = body["data"]
         self.assertEqual(body["as_of"], "2026-10-15T10:00:00Z")
         oats = d["items"][0]
-        self.assertEqual(set(oats), {"id", "name", "category", "qty", "in_stock", "updated_at", "last_used_at"})
+        self.assertEqual(set(oats), {"id", "name", "category", "qty", "in_stock", "stock", "serving_label", "serving_g", "per_serving", "updated_at", "last_used_at"})
         self.assertEqual(oats["qty"], 2)
         self.assertEqual(oats["last_used_at"], "2026-10-19T08:15")
         self.assertEqual(d["items"][1]["last_used_at"], "2026-10-10T12:00")

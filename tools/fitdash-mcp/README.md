@@ -17,9 +17,16 @@ is used. A settings override wins; otherwise the phase calendar applies.
 | `fitdash_recovery` | `GET /api/agent/recovery` |
 | `get_coaching_targets(as_of?)` | `GET /api/agent/coaching_targets` |
 | `set_coaching_target(target, value)` | `POST /api/agent/coaching_targets` |
+| `get_pantry(stock="all", query?)` | `GET /api/agent/inventory`, filtered by `stock` (all/in/low/out) and name/id substring. Items carry `stock`, `in_stock`, `qty`, `serving_label`, `serving_g`, `per_serving` macros (null when none recorded). |
+| `update_pantry(add?, restock?, out_of_stock?, updated_by)` | **Write, pantry only.** `add` -> `POST /api/agent/inventory/items` (new items; existing id/name is 409). `restock` `[{id, qty?}]` / `out_of_stock` `[id]` -> `POST /api/agent/inventory/stock`. |
 
 `set_coaching_target` accepts `steps` (1000–30000), `kcal` (1200–6000), and
 `hydration_ml` (500–8000). `value: null` clears that override.
+
+`update_pantry` writes the pantry only. It uses the inventory agent token
+(`FITDASH_INVENTORY_AGENT_TOKEN` / `_FILE`, default
+`/workspace/.fitdash_inventory_agent_token`), never the read token. The server
+binds that token to one user's pantry row; it cannot delete or edit items.
 
 ## Install
 
@@ -43,6 +50,9 @@ or rotated"; connection failure → "FitDash API unreachable at <url> … check
 FITDASH_API_BASE / FITDASH_PROXY".
 
 ## Register it
+
+Add `"FITDASH_INVENTORY_AGENT_TOKEN_FILE": "/path/to/.fitdash_inventory_agent_token"`
+to `env` to enable `update_pantry`.
 
 Generic MCP client config (Cursor `~/.cursor/mcp.json`, Claude Desktop, etc.):
 
