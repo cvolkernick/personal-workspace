@@ -857,6 +857,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "training_day": train_day,
         "health_days": HEALTH_COLD_DAYS,
         "error": "; ".join(errors) if errors else None,
+        "user_id": str(user.get("id") or ""),
     }
     try:
         from rt_dashboard.cut_coach import attach_coach_card

@@ -27,7 +27,7 @@
     <script src="/biomarkers.js?v=labs-off-today-1" defer></script>
     <script src="/trends-steps.js?v=steps-2" defer></script>
     <script src="/body-fat-series.js?v=bf-phase-14d-1" defer></script>
-    <script src="/app.js?v=bf-phase-14d-1" defer></script>
+    <script src="/app.js?v=bf-auto-flip-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -201,6 +201,7 @@
         <p class="muted today-headline" id="today-headline" style="margin: 0.5rem 0 0; font-size: 0.9rem"></p>
         <p class="muted today-overview-line" id="today-overview" style="margin: 0.2rem 0 0; font-size: 0.8rem"></p>
         <div id="phase-barometer-banner" class="phase-baro-banner" hidden data-phase-baro-surface="today-alert"></div>
+        <div id="bf-phase-banner" class="phase-baro-banner" hidden data-bf-phase-surface="today"></div>
         <!-- Daily Quests first; Lift/Meal/Targets pills sit directly above the panels they control -->
         <div id="today-actions" class="today-actions today-actions-compact" style="margin-top: 0.55rem"></div>
         <div class="today-mobile-pills" id="today-mobile-pills" hidden role="tablist" aria-label="Today sections">
@@ -992,11 +993,14 @@
         </h2>
         <div class="collapsible-body" id="more-coach-body" data-collapse-body="more-coach" hidden>
           <div id="coach-phase-card" aria-label="Coach phase" hidden>
+            <div id="bf-phase-banner-coach" class="phase-baro-banner" hidden data-bf-phase-surface="coach"></div>
             <p id="coach-phase-pill" class="coach-pill"></p>
             <p id="coach-bf-avg" class="muted" style="margin-top: 0.35rem"></p>
             <p id="coach-bf-threshold" class="muted" style="margin-top: 0.15rem"></p>
             <p id="coach-bf-streak" class="coach-pill" style="margin-top: 0.35rem"></p>
+            <p id="coach-bf-median14" class="muted" style="margin-top: 0.15rem"></p>
             <p id="coach-bf-thin" class="coach-pill" hidden></p>
+            <p id="coach-bf-last" class="muted" hidden></p>
             <p id="coach-bf-proposal" class="muted" hidden></p>
             <p id="coach-rate-chip" class="muted" style="margin-top: 0.35rem"></p>
             <p id="coach-kcal-indicator" style="margin-top: 0.35rem"></p>

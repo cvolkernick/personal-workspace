@@ -5218,86 +5218,127 @@
     });
   }
 
-  function bfStreakText(bf) {
+  function bfPhaseLabel(bf) {
     if (!bf) return "";
-    if (typeof FitDashBodyFat !== "undefined" && FitDashBodyFat.streakLabel) {
-      return FitDashBodyFat.streakLabel(bf.phase, bf.streak_days, bf.streak_needed);
-    }
-    const n = Number(bf.streak_days) || 0;
-    const need = Number(bf.streak_needed) || 14;
-    const bulk = bf.phase === "bulk";
-    return `Day ${n}/${need} at ${bulk ? "≥15%" : "≤10%"}`;
+    if (bf.phase_label) return String(bf.phase_label);
+    return bf.phase === "bulk" ? "BULK" : "CUT";
   }
 
-  /** Display text for a propose-only flip. No control here applies it. */
-  function bfProposalText(bf) {
-    if (!bf || (bf.status !== "propose_bulk" && bf.status !== "propose_cut")) return "";
-    const p = bf.proposed_targets || {};
-    if (bf.status === "propose_bulk") {
-      const bits = ["Proposed: switch to BULK"];
-      const day = p.flip_day;
-      const later = p.after_14d;
-      if (day && day.calories != null) {
-        bits.push(`flip day ${Math.round(Number(day.calories))} kcal (maintenance)`);
+  function bfMedianText(value) {
+    const n = Number(value);
+    if (value == null || !Number.isFinite(n)) return "—";
+    return n.toFixed(1);
+  }
+
+  /** N/12 of the last 14 counted days. A miss is not a reset. ≤10% in a cut, ≥15% in a bulk. */
+  function bfCountText(bf) {
+    const hits = Number(bf && bf.hits);
+    const n = Number.isFinite(hits) && hits > 0 ? Math.floor(hits) : 0;
+    const need = Number(bf && bf.hits_needed) || 12;
+    return `${n}/${need} of last 14 counted days`;
+  }
+
+  function renderBfBanners(bf) {
+    const banner = bf && bf.banner && bf.banner.show ? bf.banner : null;
+    const text = banner && banner.text ? String(banner.text) : "";
+    ["bf-phase-banner", "bf-phase-banner-coach"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.replaceChildren();
+      if (!text) {
+        el.hidden = true;
+        return;
       }
-      if (later && later.calories != null) {
-        bits.push(`after 14 days ${Math.round(Number(later.calories))} kcal`);
-        if (later.protein_g != null) {
-          bits.push(`${later.protein_g} P / ${later.carbs_g} C / ${later.fat_g} F`);
-        }
-      }
-      if (p.gain_target_pct_wk != null && Array.isArray(p.gain_band_pct_wk)) {
-        bits.push(
-          `gain +${p.gain_target_pct_wk}%/wk (band ${p.gain_band_pct_wk[0]}–${p.gain_band_pct_wk[1]})`
-        );
-      }
-      return bits.join(" · ");
+      el.hidden = false;
+      el.className = "phase-baro-banner phase-baro-alert";
+      const span = document.createElement("span");
+      span.className = "phase-baro-why";
+      span.textContent = text;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "phase-baro-btn";
+      btn.textContent = "Dismiss";
+      btn.addEventListener("click", () => dismissBfPhaseBanner());
+      el.appendChild(span);
+      el.appendChild(btn);
+    });
+  }
+
+  async function dismissBfPhaseBanner() {
+    try {
+      const res = await fetch("/api/phase-barometer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "dismiss_bf_banner" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+      showAlert("Phase switch banner dismissed", "ok");
+      await loadDashboard();
+    } catch (e) {
+      showAlert(`Phase switch: ${e.message}`, "err");
     }
-    const bits = ["Proposed: switch to CUT"];
-    if (p.calories != null) bits.push(`${Math.round(Number(p.calories))} kcal`);
-    if (p.protein_g != null) bits.push(`${p.protein_g} P / ${p.carbs_g} C / ${p.fat_g} F`);
-    return bits.join(" · ");
   }
 
   function renderBfPhase(bf) {
     const avg = $("coach-bf-avg");
     const thr = $("coach-bf-threshold");
     const streak = $("coach-bf-streak");
+    const median14 = $("coach-bf-median14");
     const thin = $("coach-bf-thin");
+    const last = $("coach-bf-last");
     const proposal = $("coach-bf-proposal");
+    renderBfBanners(bf);
     if (!bf) {
-      [avg, thr, streak, thin, proposal].forEach((el) => {
+      [avg, thr, streak, median14, thin, last, proposal].forEach((el) => {
         if (!el) return;
         el.hidden = true;
         el.textContent = "";
       });
       return;
     }
+    const phase = bfPhaseLabel(bf);
     if (avg) {
       avg.hidden = false;
-      const n = Number(bf.avg_7d);
-      const shown = bf.avg_7d == null || !Number.isFinite(n) ? "—" : n.toFixed(1);
-      const readings = bf.n_readings_7d == null ? 0 : bf.n_readings_7d;
-      const days = bf.n_days_7d == null ? 0 : bf.n_days_7d;
-      avg.textContent = `7-day BF avg ${shown}% (${readings} readings, ${days} days)`;
+      if (bf.thin) {
+        avg.textContent = `Phase ${phase} · 7-day BF median thin`;
+      } else {
+        const readings = bf.n_readings_7d == null ? 0 : bf.n_readings_7d;
+        const days = bf.n_days_7d == null ? 0 : bf.n_days_7d;
+        avg.textContent = `Phase ${phase} · 7-day BF median ${bfMedianText(bf.median_7d)}% (${readings} readings, ${days} days)`;
+      }
     }
     if (thr) {
       thr.hidden = false;
-      thr.textContent = bf.threshold_label || "";
+      const bound = bf.phase === "bulk" ? "≥15%" : "≤10%";
+      thr.textContent = bf.threshold_label ? `${bf.threshold_label} · ${bound}` : bound;
     }
     if (streak) {
       streak.hidden = false;
-      streak.textContent = bfStreakText(bf);
+      streak.textContent = bfCountText(bf);
+    }
+    if (median14) {
+      median14.hidden = false;
+      const shown = bf.median_14d == null ? "—" : `${bfMedianText(bf.median_14d)}%`;
+      median14.textContent = `14-day median ${shown}`;
     }
     if (thin) {
-      const show = bf.status === "data_thin";
+      const show = !!bf.thin;
       thin.hidden = !show;
       thin.textContent = show ? "BF data thin" : "";
     }
+    if (last) {
+      const flip = bf.last_flip;
+      const text = flip && flip.date
+        ? `Last flip: ${flip.phase_label || flip.phase || ""} on ${flip.date}` +
+          (flip.trigger ? ` (${flip.trigger})` : "")
+        : "";
+      last.hidden = !text;
+      last.textContent = text;
+    }
     if (proposal) {
-      const text = bfProposalText(bf);
-      proposal.hidden = !text;
-      proposal.textContent = text;
+      proposal.hidden = true;
+      proposal.textContent = "";
     }
   }
 
@@ -9135,6 +9176,7 @@
     const adh = coach.adherence_7d || {};
     const nutStore = data.nutrition_store || {};
     renderPhaseBarometer(data);
+    renderBfBanners(data && data.coach_card && data.coach_card.bf_phase);
 
     if ($("today-hub-date")) {
       const rec = today.recommendation || "—";

@@ -3402,7 +3402,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         result["error"] = err
                         self._send_json(result, status=502)
                         return
+                    try:
+                        from body_fat_phase import record_manual_flip
+
+                        record_manual_flip(
+                            previous=current,
+                            updated=persisted,
+                            user_id=str(uid or ""),
+                        )
+                    except Exception:
+                        logging.getLogger("fitdash.bf_phase").exception(
+                            "manual phase flip log failed"
+                        )
                     self._send_json(result)
+                    return
+                if action == "dismiss_bf_banner":
+                    from body_fat_phase import dismiss_bf_banner
+
+                    dismissed = dismiss_bf_banner(user_id=str(uid or ""))
+                    self._send_json(
+                        {"ok": True, "action": "dismiss_bf_banner", **dismissed}
+                    )
                     return
                 self._send_json(
                     {"ok": False, "error": "unknown_action", "action": action},
