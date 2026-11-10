@@ -13,7 +13,7 @@ from unittest import mock
 
 import body_fat_phase as bf
 from rt_dashboard.coach_steps import clear_rules_cache
-from rt_dashboard.cut_coach import coach_card_for_payload
+from rt_dashboard.cut_coach import agent_coach_card_body, agent_phase_body, coach_card_for_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parent
@@ -281,6 +281,22 @@ class AutoApply(_WriterCase):
         )
         self.assertEqual(first["status"], "flipped")
         self.assertEqual(first["phase_label"], "BULK")
+        report = first["phase_report"]
+        self.assertEqual(report["phase"], "bulk")
+        self.assertTrue(report["flip_applied"])
+        self.assertEqual(report["flip_date"], as_of)
+        self.assertEqual(report["flip_trigger"], "auto")
+        self.assertFalse(report["thin"])
+        self.assertFalse(report["paused"])
+        self.assertGreaterEqual(report["hits"], 12)
+        self.assertEqual(report["hits_needed"], 12)
+        self.assertEqual(report["counted"], 14)
+        self.assertEqual(report["counted_needed"], 14)
+        self.assertEqual(report["targets"]["calories"], 2318)
+        self.assertEqual(report["targets"]["protein_g"], 170)
+        self.assertEqual(report["targets"]["carbs_g"], 263)
+        self.assertEqual(report["targets"]["fat_g"], 65)
+        self.assertEqual(report["targets"]["phase"], "slow_bulk")
         self.assertEqual(first["banner"]["text"], f"Phase switched to BULK on {as_of}")
         written = self._targets()
         self.assertEqual(written["phase"], "slow_bulk")
@@ -539,6 +555,30 @@ class CoachCardPayload(_WriterCase):
         self.assertEqual(phase["hits"], 0)
         self.assertEqual(phase["hits_needed"], 12)
         self.assertIsNone(phase["median_14d"])
+        report = phase["phase_report"]
+        self.assertEqual(report["phase"], "cut")
+        self.assertAlmostEqual(report["median_7d"], 10.35)
+        self.assertEqual(report["hits"], 0)
+        self.assertEqual(report["counted"], 4)
+        self.assertIsNone(report["median_14d"])
+        self.assertFalse(report["thin"])
+        self.assertFalse(report["paused"])
+        self.assertFalse(report["flip_applied"])
+        self.assertIsNone(report["flip_date"])
+        self.assertEqual(report["targets"]["calories"], 2000)
+        self.assertEqual(report["targets"]["protein_g"], 170)
+        self.assertEqual(report["targets"]["carbs_g"], 195)
+        self.assertEqual(report["targets"]["fat_g"], 60)
+        self.assertEqual(card["phase_report"], report)
+        api = agent_phase_body(payload, as_of="2026-11-10")
+        card_api = agent_coach_card_body(payload, as_of="2026-11-10")
+        for key in (
+            "phase", "median_7d", "hits", "hits_needed", "counted", "counted_needed",
+            "median_14d", "thin", "paused", "flip_applied", "flip_date", "targets",
+        ):
+            self.assertEqual(api[key], report[key], key)
+            self.assertEqual(card_api["phase_report"][key], report[key], key)
+            self.assertEqual(card_api["coach_card"]["phase_report"][key], report[key], key)
         self.assertIn("<=10.0%", phase["threshold_label"])
         self.assertIsNone(phase["last_flip"])
         self.assertEqual(self.write_calls, [])
@@ -566,6 +606,38 @@ class CoachCardPayload(_WriterCase):
         self.assertEqual(payload["nutrition_store"]["targets"]["phase"], "slow_bulk")
         self.assertEqual(payload["nutrition_store"]["targets"]["calories"], 2318)
         self.assertEqual(payload["nutrition_store"]["targets"]["carbs_g"], 263)
+
+
+class PhaseReportThin(_WriterCase):
+    def test_thin_day_is_paused_and_records_no_flip(self):
+        payload = {
+            "meta": {"local_today": "2026-11-09", "user_id": "thin"},
+            "health": {
+                "body_fat": [
+                    {"date": "2026-11-09", "percentage": 10.0, "recorded_at": "2026-11-09T08:00:00Z"},
+                    {"date": "2026-11-09", "percentage": 10.2, "recorded_at": "2026-11-09T18:00:00Z"},
+                ]
+            },
+            "nutrition_store": {
+                "targets": {"phase": "cut", "calories": 1875, "protein_g": 160, "carbs_g": 180, "fat_g": 55}
+            },
+        }
+        body = agent_phase_body(payload, as_of="2026-11-09")
+        self.assertEqual(body["phase"], "cut")
+        self.assertTrue(body["thin"])
+        self.assertTrue(body["paused"])
+        self.assertEqual(body["hits"], 0)
+        self.assertEqual(body["counted"], 0)
+        self.assertIsNone(body["median_14d"])
+        self.assertFalse(body["flip_applied"])
+        self.assertIsNone(body["flip_date"])
+        self.assertEqual(body["targets"]["calories"], 1875)
+        self.assertEqual(body["targets"]["protein_g"], 160)
+        self.assertEqual(self.write_calls, [])
+        card = agent_coach_card_body(payload, as_of="2026-11-09")
+        self.assertEqual(card["phase_report"]["paused"], True)
+        self.assertEqual(card["coach_card"]["phase_report"]["thin"], True)
+        self.assertFalse(card["phase_report"]["flip_applied"])
 
 
 class CoachCardUi(unittest.TestCase):

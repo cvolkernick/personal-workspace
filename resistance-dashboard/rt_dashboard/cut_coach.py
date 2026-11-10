@@ -703,8 +703,41 @@ def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dic
         card["sat_fat_chip"] = build_sat_fat_chip(logs, as_of=card.get("as_of"), rules=rules)
     except Exception:
         card["sat_fat_chip"] = None
-    card["bf_phase"] = _bf_phase_block(data, day_s, card)
+    block = _bf_phase_block(data, day_s, card)
+    card["bf_phase"] = block
+    report = block.get("phase_report") if isinstance(block, dict) else None
+    card["phase_report"] = report if isinstance(report, dict) else None
     return card
+
+
+def optional_as_of(query: str) -> Optional[str]:
+    """YYYY-MM-DD from ``as_of``, or None when the query omits it."""
+    from urllib.parse import parse_qs
+
+    raw = (parse_qs(query or "", keep_blank_values=False).get("as_of") or [None])[0]
+    if raw in (None, ""):
+        return None
+    day = parse_day(raw)
+    if day is None:
+        raise ValueError("as_of must be YYYY-MM-DD")
+    return day.isoformat()
+
+
+def agent_phase_body(payload: Optional[dict], *, as_of: Any = None) -> dict:
+    """Structured phase for ``GET /api/agent/phase`` and MCP ``get_phase``."""
+    card = coach_card_for_payload(payload, as_of=as_of)
+    report = card.get("phase_report") if isinstance(card.get("phase_report"), dict) else {}
+    return {"ok": True, "as_of": card.get("as_of"), **report}
+
+
+def agent_coach_card_body(payload: Optional[dict], *, as_of: Any = None) -> dict:
+    """Coach card plus the same ``phase_report`` object ``get_phase`` returns."""
+    card = coach_card_for_payload(payload, as_of=as_of)
+    body: Dict[str, Any] = {"ok": True, "coach_card": card}
+    report = card.get("phase_report") if isinstance(card.get("phase_report"), dict) else None
+    if report is not None:
+        body["phase_report"] = report
+    return body
 
 
 def _bf_phase_block(data: dict, day_s: str, card: dict) -> Optional[dict]:

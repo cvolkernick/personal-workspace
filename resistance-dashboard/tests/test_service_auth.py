@@ -428,6 +428,7 @@ class AgentTodayHttpTests(unittest.TestCase):
             for path in (
                 "/api/agent/today",
                 "/api/agent/coach_card",
+                "/api/agent/phase",
                 "/api/agent/steps_history",
             ):
                 status, body = self._get(path)

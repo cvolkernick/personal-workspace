@@ -1002,14 +1002,14 @@ def run_phase(
     if decision["should_flip"] and not decision["auto_flip"]:
         decision["status"] = "disabled"
         decision["applied"] = False
-        return decision
+        return _with_report(decision, base)
     if apply and decision["should_flip"] and decision["auto_flip"]:
         decision = _apply_flip(decision, base=base, user_id=uid, tdee=tdee, events=events)
         events = load_events(uid)
         _attach_log(decision, uid, events, day)
         if decision.get("applied"):
             decision["auto_flip"] = True
-            return decision
+            return _with_report(decision, base)
     if apply and decision["auto_flip"] and not decision.get("applied") and decision.get("status") != "disabled":
         before = decision.get("status")
         decision = _maybe_ramp(decision, base=base, user_id=uid, events=events)
@@ -1019,7 +1019,7 @@ def run_phase(
             decision["status"] = "ramp"
         elif before == "flip" and decision.get("skipped") == "already_flipped":
             decision["status"] = "hold"
-    return decision
+    return _with_report(decision, base)
 
 
 def record_manual_flip(
@@ -1076,6 +1076,60 @@ def record_manual_flip(
             except Exception:
                 log.exception("manual bf phase log turso write failed")
     return event
+
+
+def phase_report(decision: Optional[dict], targets: Optional[dict] = None) -> dict:
+    """Stable fields for MCP ``get_phase`` and the coach-card payload.
+
+    Built only from an evaluation this module already produced. ``phase`` is
+    ``cut`` or ``bulk``. ``paused`` is the thin-day pause: today is not
+    counted, and the window stretches back instead of resetting.
+    """
+    src = decision if isinstance(decision, dict) else {}
+    last = src.get("last_flip") if isinstance(src.get("last_flip"), dict) else None
+    flip_date = _civil_day(last.get("date")) if last else ""
+    flip_trigger = last.get("trigger") if last and flip_date else None
+    if not flip_date and src.get("applied"):
+        flip_date = _civil_day(src.get("as_of"))
+        flip_trigger = "auto"
+    kind = src.get("phase")
+    if kind not in ("cut", "bulk"):
+        kind = phase_kind(kind)
+    snap = snapshot_targets(targets)
+    thin = bool(src.get("thin"))
+    return {
+        "phase": kind if kind in ("cut", "bulk") else kind,
+        "median_7d": src.get("median_7d"),
+        "hits": int(src.get("hits") or 0),
+        "hits_needed": int(src.get("hits_needed") or HITS_NEEDED),
+        "counted": int(src.get("counted") or 0),
+        "counted_needed": int(src.get("counted_needed") or COUNTED_NEEDED),
+        "median_14d": src.get("median_14d"),
+        "thin": thin,
+        "paused": thin,
+        "flip_applied": bool(flip_date),
+        "flip_date": flip_date or None,
+        "flip_trigger": flip_trigger,
+        "targets": {
+            "calories": snap.get("calories"),
+            "protein_g": snap.get("protein_g"),
+            "carbs_g": snap.get("carbs_g"),
+            "fat_g": snap.get("fat_g"),
+            "phase": snap.get("phase"),
+        },
+        "as_of": src.get("as_of"),
+        "status": src.get("status"),
+        "threshold_label": src.get("threshold_label"),
+        "auto_flip": src.get("auto_flip"),
+    }
+
+
+def _with_report(decision: dict, base: Optional[dict]) -> dict:
+    shown = dict(base or {})
+    if isinstance(decision.get("new_targets"), dict):
+        shown.update(decision["new_targets"])
+    decision["phase_report"] = phase_report(decision, shown)
+    return decision
 
 
 def dismiss_bf_banner(*, user_id: str = "", as_of: Optional[str] = None) -> dict:
@@ -1153,6 +1207,7 @@ def bf_phase_for_payload(
         view = evaluate(samples, as_of=as_of, phase=targets.get("phase"))
         view["note"] = "evaluation failed"
         view["auto_flip"] = auto_flip_enabled()
+        view = _with_report(view, merged)
     if apply and view.get("applied") and isinstance(view.get("new_targets"), dict) and isinstance(data, dict):
         nut = data.get("nutrition_store")
         if not isinstance(nut, dict):

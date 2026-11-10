@@ -103,8 +103,10 @@ def test_server_registers_section_tools_and_coaching_targets():
     import asyncio
     tools = asyncio.run(fm.build_server().list_tools())
     names = sorted(t.name for t in tools)
-    expect = sorted([*(f"fitdash_{s}" for s in fm.SECTIONS), "get_coaching_targets", "set_coaching_target"])
+    expect = sorted(tool["name"] for tool in fm.TOOL_CATALOG)
     assert names == expect
+    assert "get_phase" in names
+    assert "get_coach_card" in names
 
 
 def test_coaching_targets_get_and_set_use_the_agent_token():
@@ -148,6 +150,39 @@ def test_coaching_target_bounds_do_not_call_the_api():
     fm.validate_coaching_target("hydration_ml", 500)
     fm.validate_coaching_target("hydration_ml", 8000)
     assert fm.validate_coaching_target("steps", None) is None
+
+
+def test_phase_and_coach_card_use_the_agent_token():
+    seen = []
+    body = {
+        "ok": True,
+        "phase": "cut",
+        "median_7d": 10.35,
+        "hits": 0,
+        "hits_needed": 12,
+        "counted": 4,
+        "counted_needed": 14,
+        "median_14d": None,
+        "thin": False,
+        "paused": False,
+        "flip_applied": False,
+        "flip_date": None,
+        "targets": {"calories": 2000, "protein_g": 170, "carbs_g": 195, "fat_g": 60, "phase": "cut"},
+    }
+    got = fm.fetch_phase("2026-11-10", transport=_transport(body=body, seen=seen))
+    assert got["phase"] == "cut"
+    assert got["median_7d"] == 10.35
+    assert seen[0].method == "GET"
+    assert str(seen[0].url).startswith("https://fitdash.test:10001/api/agent/phase")
+    assert seen[0].url.params["as_of"] == "2026-11-10"
+    assert seen[0].headers["authorization"] == f"Bearer {TOKEN}"
+    seen.clear()
+    card = {"ok": True, "phase_report": body, "coach_card": {"phase_report": body}}
+    got = fm.fetch_coach_card(transport=_transport(body=card, seen=seen))
+    assert got["phase_report"]["hits"] == 0
+    assert got["coach_card"]["phase_report"]["phase"] == "cut"
+    assert str(seen[0].url) == "https://fitdash.test:10001/api/agent/coach_card"
+    assert seen[0].headers["authorization"] == f"Bearer {TOKEN}"
 
 
 def test_coaching_target_post_redacts_token():

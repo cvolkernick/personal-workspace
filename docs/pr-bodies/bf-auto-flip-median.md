@@ -4,6 +4,8 @@ Replaces the propose-only 14-day streak from #1389 (`1aafaf05`). When the median
 
 Auto-apply **WRITES phase and targets in prod**. Chris approved auto, via Grok 11/9 11:57 PM. The write goes through the existing `switch_phase` writers (`update_targets` then `applied_targets_write` / `persist_targets`), not a new calorie path. No Goal 3 / macro-band scoring change (Goal 3 is retired). The Today tab changes only by the phase-switch banner.
 
+This is a **visible UI change**: the More tab gains a collapsed MCP section that lists the FitDash MCP tools and the fields each one returns. MCP `get_phase` and the same fields on `get_coach_card` are part of this change.
+
 ## Shipped rule
 
 1. For each America/New_York civil day D, the daily value is the **median** of deduped body-fat readings on [D-6, D]. Validity and merge-twin dedupe match `body_fat_phase.py` / the chart helper. A day is **countable** only when that window has at least 4 deduped readings. Otherwise it is **thin**.
@@ -45,6 +47,24 @@ Each phase event stores the civil date, an America/New_York timestamp, the count
 
 Set `"bf_auto_flip": false` in `fitness/coach/coach_rules.json` (the repo-root file and `resistance-dashboard/fitness/coach/coach_rules.json` are the same document). The flag is read on every coach-card build, not from the cached rules object, so it takes effect on the next dashboard load without a code deploy. Missing key means **on**, which is the default Chris asked for. Off still shows the count. It does not write phase or the day-14 ramp.
 
+## MCP `get_phase` and `get_coach_card`
+
+`get_phase` is a FitDash MCP tool (`GET /api/agent/phase`). It returns the live median-rule state from the same `phase_report` the coach card builds. Callers get fields, not prose:
+
+`phase`, `median_7d`, `hits`, `hits_needed`, `counted`, `counted_needed`, `median_14d`, `thin`, `paused`, `flip_applied`, `flip_date`, `flip_trigger`, `status`, `threshold_label`, `auto_flip`, `as_of`, and `targets` (`calories`, `protein_g`, `carbs_g`, `fat_g`, `phase`).
+
+`phase` is `cut` or `bulk`. `paused` is true when today is thin: that day is skipped and the counted window stretches back. `flip_applied` and `flip_date` come from the flip log (auto or manual). `targets` are the calorie and macro targets after any flip this evaluation applied.
+
+`get_coach_card` (`GET /api/agent/coach_card`) returns that same object as `phase_report` on the response and on `coach_card.phase_report`.
+
+## More tab MCP section
+
+A collapsed **MCP** section on the More tab (`#mcp-section`, `data-collapse="more-mcp"`, body hidden, `aria-expanded="false"`). It documents the tools registered in `tools/fitdash-mcp/fitdash_mcp.py` (`TOOL_CATALOG`), each with the data it returns:
+
+`fitdash_targets`, `fitdash_inventory`, `fitdash_logs`, `fitdash_plan`, `fitdash_training`, `fitdash_recovery`, `get_coaching_targets`, `get_coach_card`, `get_phase`, and `set_coaching_target`.
+
+`get_today`, `get_macros_30d`, `get_recent_food_logs`, `get_recent_workouts`, and `get_steps_history` are not registered tools, so the section does not list them. The section is read-only documentation: no tokens, and `set_coaching_target` is described as a write that this page does not call. There is no button, form, or input inside the section body.
+
 ## Coach card and banner
 
 Coach (`#coach-phase-card`) shows phase (CUT or BULK), today's 7-day median or `thin`, `N/12 of last 14 counted days`, the 14-day median (or an em dash until 14 counted days exist), the threshold (`Bulk at <=10.0%` / `Cut at >=15.0%`), and the last flip when there is one.
@@ -71,14 +91,15 @@ Evaluated as of **2026-11-09** and **2026-11-10** (today), phase cut, live TDEE 
 
 ## Tests
 
-- `resistance-dashboard` pytest: **2610 passed, 2 skipped**, 149 subtests passed.
+- `resistance-dashboard` pytest: **2613 passed, 2 skipped**, 149 subtests passed.
 - `node resistance-dashboard/tests/*.js`: **27/27** scripts passed.
-- `tests/test_body_fat_phase.py` (inside the pytest count): 26 tests. Covers the day-13 outlier (13 hits, not a reset, still flips because 13 >= 12), a thin day that pauses and stretches the window, 11 hits holding without a reset, two evaluations and two racing threads producing one write, no flip-back the next day, maintenance then the day-14 +200 through the real target writers, bulk-to-cut restoring stored 1875/160/180/55, manual override, the disable flag, missing TDEE, the 7-day dismissible banner, and the dry run above.
+- `tools/fitdash-mcp` pytest: **17 passed** (tool registration includes `get_phase` and `get_coach_card`).
+- `tests/test_body_fat_phase.py` (inside the dashboard count) covers the day-13 outlier (13 hits, not a reset, still flips because 13 >= 12), a thin day that pauses and stretches the window, 11 hits holding without a reset, two evaluations and two racing threads producing one write, no flip-back the next day, maintenance then the day-14 +200 through the real target writers, bulk-to-cut restoring stored 1875/160/180/55, manual override, the disable flag, missing TDEE, the 7-day dismissible banner, the dry run, and the structured `phase_report` on a thin day and after an applied flip.
 
 ## Pins
 
-- `sw.js` `CACHE`: `fitdash-shell-v164`
-- `app.js?v=bf-auto-flip-1`
+- `sw.js` `CACHE`: `fitdash-shell-v165`
+- `app.js?v=bf-mcp-phase-1`
 - `body-fat-series.js?v=bf-phase-14d-1` (unchanged; the chart average did not change)
 - `styles.css?v=macro-colors-1` (unchanged)
 - `tests/static_asset_pins.json` app.js tag and sha256 updated to match

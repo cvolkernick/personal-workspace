@@ -62,6 +62,7 @@
       "more-suggestions",
       "more-equipment",
       "more-catalog",
+      "more-mcp",
       "more-connections",
     ];
   }

@@ -27,7 +27,7 @@
     <script src="/biomarkers.js?v=labs-off-today-1" defer></script>
     <script src="/trends-steps.js?v=steps-2" defer></script>
     <script src="/body-fat-series.js?v=bf-phase-14d-1" defer></script>
-    <script src="/app.js?v=bf-auto-flip-1" defer></script>
+    <script src="/app.js?v=bf-mcp-phase-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -1435,6 +1435,43 @@
           <div class="chart-box"><canvas id="chart-rhr" aria-label="Resting heart rate chart last 90 days"></canvas></div>
           <p class="muted" id="rhr-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
+      </section>
+
+      <section class="card" id="mcp-section" data-m-panel="more" aria-label="FitDash MCP">
+        <h2 class="more-section-title">
+          <button type="button" class="collapsible-head more-collapse-head is-collapsed" data-collapse="more-mcp" aria-expanded="false" aria-controls="more-mcp-body">
+            MCP
+            <span class="collapse-chevron" aria-hidden="true">▾</span>
+          </button>
+        </h2>
+        <div class="collapsible-body" id="more-mcp-body" data-collapse-body="more-mcp" hidden>
+          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+            Tools the FitDash MCP server registers, and the fields each one returns.
+            This list is documentation only. It does not call the tools and it does not show tokens.
+          </p>
+          <dl id="mcp-tool-list">
+            <dt><code>fitdash_targets</code> · read</dt>
+            <dd>Applied nutrition targets: phase, kcal, macros (protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg), updated_at, applied_at, recommended, updated_by, source, and note.</dd>
+            <dt><code>fitdash_inventory</code> · read</dt>
+            <dd>Pantry rows: id, name, category, qty, in_stock, updated_at, last_used_at, plus count, in_stock_count, and the pantry source.</dd>
+            <dt><code>fitdash_logs</code> · read</dt>
+            <dd>Food logs and workout sessions between from and to (default last 7 days, max 92): meal date, time, name, meal_type, calories, protein_g, carbs_g, fat_g, serving_label, source, log_id; session date, session_type, closed_at, volume, and exercise name, sets, and volume.</dd>
+            <dt><code>fitdash_plan</code> · read</dt>
+            <dd>Stored plan only: today's date, workout, meal_plan, and nutrition, plus the week start, end, workout_plan, goals, and week nutrition. It does not generate a plan.</dd>
+            <dt><code>fitdash_training</code> · read</dt>
+            <dd>Today and week training payload, including muscle_sets (sets, budget, coach, rolling 7-day window) and guardrails.</dd>
+            <dt><code>fitdash_recovery</code> · read</dt>
+            <dd>Latest sleep (date, sleep_hours, efficiency_pct, source), readiness label, score, and reasons, and hydration consumed_ml, target_ml, and status.</dd>
+            <dt><code>get_coaching_targets</code> · read</dt>
+            <dd>Effective steps, kcal, and hydration_ml for as_of, each with its value and whether a settings override or the phase calendar supplied it.</dd>
+            <dt><code>get_coach_card</code> · read</dt>
+            <dd>Coach card JSON, including phase_report: phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, and targets (calories, protein_g, carbs_g, fat_g, phase).</dd>
+            <dt><code>get_phase</code> · read</dt>
+            <dd>phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, status, threshold_label, auto_flip, as_of, and targets (calories, protein_g, carbs_g, fat_g, phase).</dd>
+            <dt><code>set_coaching_target</code> · write, not available from this page</dt>
+            <dd>Writes one override for steps, kcal, or hydration_ml (null clears it) and returns the updated effective targets. This page does not call it.</dd>
+          </dl>
+        </div>
       </section>
 
       <!-- Connections / recovery (More). Google re-auth is rare; not a daily header control. -->
