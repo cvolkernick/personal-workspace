@@ -5218,6 +5218,89 @@
     });
   }
 
+  function bfStreakText(bf) {
+    if (!bf) return "";
+    if (typeof FitDashBodyFat !== "undefined" && FitDashBodyFat.streakLabel) {
+      return FitDashBodyFat.streakLabel(bf.phase, bf.streak_days, bf.streak_needed);
+    }
+    const n = Number(bf.streak_days) || 0;
+    const need = Number(bf.streak_needed) || 14;
+    const bulk = bf.phase === "bulk";
+    return `Day ${n}/${need} at ${bulk ? "≥15%" : "≤10%"}`;
+  }
+
+  /** Display text for a propose-only flip. No control here applies it. */
+  function bfProposalText(bf) {
+    if (!bf || (bf.status !== "propose_bulk" && bf.status !== "propose_cut")) return "";
+    const p = bf.proposed_targets || {};
+    if (bf.status === "propose_bulk") {
+      const bits = ["Proposed: switch to BULK"];
+      const day = p.flip_day;
+      const later = p.after_14d;
+      if (day && day.calories != null) {
+        bits.push(`flip day ${Math.round(Number(day.calories))} kcal (maintenance)`);
+      }
+      if (later && later.calories != null) {
+        bits.push(`after 14 days ${Math.round(Number(later.calories))} kcal`);
+        if (later.protein_g != null) {
+          bits.push(`${later.protein_g} P / ${later.carbs_g} C / ${later.fat_g} F`);
+        }
+      }
+      if (p.gain_target_pct_wk != null && Array.isArray(p.gain_band_pct_wk)) {
+        bits.push(
+          `gain +${p.gain_target_pct_wk}%/wk (band ${p.gain_band_pct_wk[0]}–${p.gain_band_pct_wk[1]})`
+        );
+      }
+      return bits.join(" · ");
+    }
+    const bits = ["Proposed: switch to CUT"];
+    if (p.calories != null) bits.push(`${Math.round(Number(p.calories))} kcal`);
+    if (p.protein_g != null) bits.push(`${p.protein_g} P / ${p.carbs_g} C / ${p.fat_g} F`);
+    return bits.join(" · ");
+  }
+
+  function renderBfPhase(bf) {
+    const avg = $("coach-bf-avg");
+    const thr = $("coach-bf-threshold");
+    const streak = $("coach-bf-streak");
+    const thin = $("coach-bf-thin");
+    const proposal = $("coach-bf-proposal");
+    if (!bf) {
+      [avg, thr, streak, thin, proposal].forEach((el) => {
+        if (!el) return;
+        el.hidden = true;
+        el.textContent = "";
+      });
+      return;
+    }
+    if (avg) {
+      avg.hidden = false;
+      const n = Number(bf.avg_7d);
+      const shown = bf.avg_7d == null || !Number.isFinite(n) ? "—" : n.toFixed(1);
+      const readings = bf.n_readings_7d == null ? 0 : bf.n_readings_7d;
+      const days = bf.n_days_7d == null ? 0 : bf.n_days_7d;
+      avg.textContent = `7-day BF avg ${shown}% (${readings} readings, ${days} days)`;
+    }
+    if (thr) {
+      thr.hidden = false;
+      thr.textContent = bf.threshold_label || "";
+    }
+    if (streak) {
+      streak.hidden = false;
+      streak.textContent = bfStreakText(bf);
+    }
+    if (thin) {
+      const show = bf.status === "data_thin";
+      thin.hidden = !show;
+      thin.textContent = show ? "BF data thin" : "";
+    }
+    if (proposal) {
+      const text = bfProposalText(bf);
+      proposal.hidden = !text;
+      proposal.textContent = text;
+    }
+  }
+
   function renderCoachCard(data) {
     const root = $("coach-phase-card");
     if (!root) return;
@@ -5229,6 +5312,7 @@
     root.hidden = false;
     const pill = $("coach-phase-pill");
     if (pill) pill.textContent = card.phase_pill || "";
+    renderBfPhase(card.bf_phase);
     const chip = $("coach-rate-chip");
     if (chip) chip.textContent = card.rate_chip || "";
     const kcal = $("coach-kcal-indicator");

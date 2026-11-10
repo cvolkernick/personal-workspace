@@ -267,13 +267,13 @@ class BodyFatChart(unittest.TestCase):
     def test_weight_card_shows_body_fat_series(self):
         self.assertIn("Body weight · body fat · 90d", HTML)
         self.assertIn('id="chart-weight"', HTML)
-        self.assertIn("/body-fat-series.js?v=body-fat-7d-1", HTML)
+        self.assertIn("/body-fat-series.js?v=bf-phase-14d-1", HTML)
         self.assertLess(
-            HTML.find("/body-fat-series.js?v=body-fat-7d-1"),
-            HTML.find("/app.js?v=body-fat-7d-1"),
+            HTML.find("/body-fat-series.js?v=bf-phase-14d-1"),
+            HTML.find("/app.js?v=bf-phase-14d-1"),
         )
-        self.assertIn('"/body-fat-series.js?v=body-fat-7d-1"', SW)
-        self.assertIn('const CACHE = "fitdash-shell-v162"', SW)
+        self.assertIn('"/body-fat-series.js?v=bf-phase-14d-1"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v163"', SW)
         self.assertIn("FitDashBodyFat", APP_JS)
         self.assertIn('label: "Body fat (%)"', APP_JS)
         self.assertIn('label: "Body fat 7-day avg"', APP_JS)

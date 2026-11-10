@@ -311,5 +311,64 @@ almostEqual(
   "window boundary includes D-6 and excludes D-7"
 );
 
+// Optional window: 14 civil days is [D-13, D]. D-14 stays out. Default remains 7.
+const win14 = bf.trailingAverage(
+  [
+    { date: "2026-10-25", percentage: 40 },
+    { date: "2026-10-26", percentage: 10 },
+    { date: "2026-11-08", percentage: 20 },
+    { date: "2026-11-09", percentage: 80 },
+  ],
+  ["2026-11-08"],
+  14
+);
+almostEqual(win14[0], 15, "14-day window is [D-13, D]; D-14 and D+1 excluded");
+assert(bf.trailingAverage([], ["2026-11-08"], 14)[0] === null, "empty 14-day window is omitted");
+assert(
+  bf.trailingAverage([{ date: "2026-10-01", percentage: 10 }], ["2026-11-08"], 14)[0] === null,
+  "14-day window with no reading is null, not a zero fill"
+);
+
+// Same-day readings both count when they are not fractional-second twins.
+almostEqual(
+  bf.trailingAverage(
+    [
+      { date: "2026-11-08", percentage: 8, recorded_at: "2026-11-08T08:00:00Z" },
+      { date: "2026-11-08", percentage: 12, recorded_at: "2026-11-08T18:00:00Z" },
+    ],
+    ["2026-11-08"],
+    14
+  )[0],
+  10,
+  "14-day window counts both same-day readings"
+);
+
+// Twins: same date, same value, timestamps differ only by fractional seconds.
+almostEqual(
+  bf.trailingAverage(
+    [
+      { date: "2026-11-08", percentage: 10.4, recorded_at: "2026-11-08T12:00:00.100Z" },
+      { date: "2026-11-08", percentage: 10.4, recorded_at: "2026-11-08T12:00:00.900Z" },
+      { date: "2026-11-08", percentage: 12, recorded_at: "2026-11-08T18:00:00Z" },
+    ],
+    ["2026-11-08"],
+    7
+  )[0],
+  11.2,
+  "fractional-second twins count once in the mean"
+);
+assert(
+  bf.dedupeTwins([
+    { date: "2026-11-06", percentage: 10.4, recorded_at: "2026-11-06T12:00:00.100000Z" },
+    { date: "2026-11-06", percentage: 10.4, recorded_at: "2026-11-06T12:00:00.900000Z" },
+  ]).length === 1,
+  "dedupe keeps one twin"
+);
+
+assert(bf.streakLabel("cut", 5, 14) === "Day 5/14 at ≤10%", "cut streak label");
+assert(bf.streakLabel("bulk", 5, 14) === "Day 5/14 at ≥15%", "bulk streak label");
+assert(bf.streakLabel("slow_bulk", 0, 14) === "Day 0/14 at ≥15%", "stored bulk phase uses ≥15%");
+assert(bf.streakLabel("cut", 14, 14) === "Day 14/14 at ≤10%", "full cut streak label");
+
 console.log("ok body-fat-series");
 console.log(passed + " assertions");
