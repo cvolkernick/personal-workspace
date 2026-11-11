@@ -11,6 +11,7 @@ That formula is not modified here.
 
 from __future__ import annotations
 
+import copy
 import logging
 import re
 from datetime import date, timedelta
@@ -47,23 +48,7 @@ _SESSION_CAP_RE = re.compile(r"^Session cap ~\d+\.?$")
 # Logged credits at or above this gap under the ceiling count as finished.
 _NEAR = 0.5
 
-# #1193 group → planner muscle. Split delt tiles share the delts ramp.
-# lower_back stays on the old #1193 label.
-DISPLAY_GROUP_MUSCLE = {
-    "chest": "chest",
-    "lats_upper_back": "lats",
-    "quads": "quads",
-    "hamstrings": "hamstrings",
-    "biceps": "biceps",
-    "triceps": "triceps",
-    "traps": "traps",
-    "glutes": "glutes",
-    "calves": "calves",
-    "abs": "abs",
-    "front_delts": "delts",
-    "side_delts": "delts",
-    "rear_delts": "delts",
-}
+# Tile group → planner muscle. The lists are the same after the split.
 
 # Previous balanced max. A muscle already near 10 rolls back toward this.
 _OLD_WEEKLY_MAX = 8.0
@@ -504,7 +489,7 @@ def _fmt_band(band: Dict[str, float]) -> str:
     return f"{lo:g}-{hi:g}"
 
 
-def display_targets(
+def group_target_bands(
     goals: Optional[dict],
     sessions: Optional[Sequence[Any]],
     catalog: Optional[dict],
@@ -512,10 +497,11 @@ def display_targets(
     as_of: Optional[str] = None,
     recovery_label: Optional[str] = None,
     deload: bool = False,
-) -> Dict[str, str]:
-    """#1193 labels for lats, chest, and quads. Empty when the ramp is not live.
+) -> Dict[str, Dict[str, float]]:
+    """Equal-ramp min/max for every major group. Empty when the ramp is off.
 
-    Uses the same lifts-chip and Restore rollback as the fallback planner.
+    Same lifts-chip and Restore rollback as the planner. Lats and upper
+    back are separate bands.
     """
     wp = _planner()
     normalized = wp.normalize_goals(goals)
@@ -548,15 +534,35 @@ def display_targets(
     if not ramp.get("live"):
         return {}
     targets = ramp.get("targets") or {}
-    out: Dict[str, str] = {}
-    for group, muscle in DISPLAY_GROUP_MUSCLE.items():
-        if group == "lats_upper_back":
-            band = _lower_ceiling(targets.get("lats"), targets.get("mid_upper_back"))
-        else:
-            band = targets.get(muscle)
+    out: Dict[str, Dict[str, float]] = {}
+    for muscle in wp.MAJOR_MUSCLES:
+        band = targets.get(muscle)
         if isinstance(band, dict):
-            out[group] = _fmt_band(band)
+            out[muscle] = band
     return out
+
+
+def display_targets(
+    goals: Optional[dict],
+    sessions: Optional[Sequence[Any]],
+    catalog: Optional[dict],
+    *,
+    as_of: Optional[str] = None,
+    recovery_label: Optional[str] = None,
+    deload: bool = False,
+) -> Dict[str, str]:
+    """String bands for the Trends tile. Empty when the ramp is not live."""
+    return {
+        group: _fmt_band(band)
+        for group, band in group_target_bands(
+            goals,
+            sessions,
+            catalog,
+            as_of=as_of,
+            recovery_label=recovery_label,
+            deload=deload,
+        ).items()
+    }
 
 
 def _lower_ceiling(*bands: Optional[Dict[str, float]]) -> Optional[Dict[str, float]]:
@@ -681,6 +687,15 @@ def _without_cue(text: str) -> str:
     return _join_kept(text, _is_cue_sentence)
 
 
+def _is_held_compound_note(sentence: str) -> bool:
+    return sentence.strip().lower().startswith("did not add")
+
+
+def _without_held_compound_note(text: str) -> str:
+    """The planner's held-compound note is metadata, not Today copy."""
+    return _join_kept(text, _is_held_compound_note)
+
+
 def _is_stale_framework(sentence: str) -> bool:
     return _FRAMEWORK_48_RE.search(sentence) is not None
 
@@ -713,14 +728,44 @@ def ensure_workout_message(message: Optional[str], ramp: Optional[dict]) -> str:
     return text
 
 
-def _load_serve_goals() -> dict:
-    try:
-        from .workout_store import load_workspace_goals
+_SERVE_GOALS_CACHE: Dict[str, Any] = {"key": None, "goals": None}
 
+
+def _goals_mtime_key() -> tuple:
+    """(path, mtime_ns) of the goals file the planner reads. ('default', None) if missing."""
+    from .workout_planner import GOALS_PATH
+    from .workout_store import _workspace_file_candidates
+
+    for path in _workspace_file_candidates(GOALS_PATH):
+        try:
+            if not path.is_file():
+                continue
+            return (str(path), path.stat().st_mtime_ns)
+        except OSError:
+            continue
+    return ("default", None)
+
+
+def _load_serve_goals() -> dict:
+    """Workspace goals, re-read only when the file mtime changes.
+
+    The cache key also includes the loader object so a test patch of
+    ``load_workspace_goals`` cannot keep a previous test's dict.
+    """
+    from .workout_store import load_workspace_goals
+
+    key = (_goals_mtime_key(), id(load_workspace_goals))
+    cached = _SERVE_GOALS_CACHE
+    if cached.get("key") == key and isinstance(cached.get("goals"), dict):
+        return copy.deepcopy(cached["goals"])
+    try:
         loaded, _src = load_workspace_goals()
     except Exception:  # noqa: BLE001 - a missing file must not blank Today
         return {}
-    return loaded if isinstance(loaded, dict) else {}
+    goals = loaded if isinstance(loaded, dict) else {}
+    _SERVE_GOALS_CACHE["key"] = key
+    _SERVE_GOALS_CACHE["goals"] = copy.deepcopy(goals)
+    return copy.deepcopy(goals)
 
 
 def _goals_for_serve(goals: Optional[dict]) -> dict:
@@ -814,11 +859,15 @@ def present_served_workout(
     raw = plan.get("message")
     if raw is None or not str(raw).strip():
         return plan
-    text = str(raw).strip()
+    text = _without_held_compound_note(str(raw).strip())
     has_cue = _CUE_RE.search(text) is not None
     has_framework = _FRAMEWORK_48_RE.search(text) is not None
     if goals is None and not has_cue and not has_framework:
-        return plan
+        if text == str(raw).strip():
+            return plan
+        out = dict(plan)
+        out["message"] = text
+        return out
     resolved = _goals_for_serve(goals)
     day = str(as_of or plan.get("date") or "")[:10]
     live = bool(day) and ramp_is_live(resolved, day)
@@ -835,10 +884,15 @@ def present_served_workout(
                 "serve ramp failed; cue stripped, framework sentence left in place"
             )
         else:
-            stripped = _without_replaced_volume_copy(stripped)
             line = str(ramp.get("today_line") or "").strip()
             if ramp.get("live") and line:
+                stripped = _without_replaced_volume_copy(stripped)
                 stripped = f"{stripped} · {line}".strip(" ·") if stripped else line
+            else:
+                # Workspace flags say the ramp is live, but the computed
+                # ramp is not live or has no line. Keep the Framework
+                # sentence and still drop the stored cue.
+                stripped = _without_cue(text)
     if stripped == text:
         return plan
     out = dict(plan)
@@ -928,6 +982,10 @@ def _add_score(
     return (len(helped), furthest, sum(float(gaps[m]) for m in helped))
 
 
+# One lift does not keep taking the ramp's extra sets. Four is the cap.
+LIFT_SET_CAP = 4
+
+
 def bump_equal_sets(
     plan_ex: Sequence[dict],
     *,
@@ -936,14 +994,25 @@ def bump_equal_sets(
     session_muscles: Sequence[str] = (),
     secondary_fraction: float = 0.5,
     session_cap: int = 14,
+    max_exercises: Optional[int] = None,
     new_rows: Optional[Callable[[Sequence[dict]], Sequence[dict]]] = None,
+    pinned_ids: Optional[Sequence[str]] = None,
+    logged_today_ids: Optional[Sequence[str]] = None,
+    logged_today_names: Optional[Sequence[str]] = None,
+    spare_baseline: Optional[Dict[str, float]] = None,
+    spare_targets: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, Any]:
     """Add sets toward each muscle's ceiling without a named priority.
 
     Prefer an existing compound that helps the most below-target muscles.
     Ties go to the session muscle furthest below its target. A new compound
-    is added only when no current compound can take a set. The session cap
-    stops the add; isolation is not trimmed to make room.
+    is added when no current compound can take a set. If the exercise list
+    is already full, that compound may take an isolation whose every
+    credited muscle stays at or over target. A pinned lift, a lift logged
+    today, and a compound are never removed. A set already logged today
+    does not evict a different lift. No lift grows past four sets. The
+    session cap stops the add; isolation set counts are not trimmed to feed
+    another muscle.
     """
     rows: List[dict] = [dict(r) for r in plan_ex or []]
     for row in rows:
@@ -952,7 +1021,14 @@ def bump_equal_sets(
     logged = logged or {}
     cap = max(0, int(session_cap))
     added = 0
+    held: List[str] = []
     note = "Volume ramp: +1 hard set."
+    pins = {str(item) for item in (pinned_ids or []) if str(item)}
+    today_ids = {str(item) for item in (logged_today_ids or []) if str(item)}
+    today_names = {str(item) for item in (logged_today_names or []) if str(item)}
+    sets_logged_today = bool(today_ids or today_names)
+    baseline = spare_baseline if spare_baseline is not None else logged
+    leave_targets = spare_targets if spare_targets is not None else targets
 
     def total_sets() -> int:
         return sum(max(0, _sets_of(row)) for row in rows)
@@ -972,6 +1048,8 @@ def bump_equal_sets(
         best_score: Optional[tuple] = None
         for i, row in enumerate(rows):
             if str(row.get("movement") or "") != "compound":
+                continue
+            if _sets_of(row) >= LIFT_SET_CAP:
                 continue
             score = _add_score(row, gaps, session_muscles, secondary_fraction)
             if score is None:
@@ -1008,7 +1086,43 @@ def bump_equal_sets(
             fresh["prescription"] = dict(fresh["prescription"])
         if _sets_of(fresh) < 1:
             _set_sets(fresh, 1)
-        if total_sets() + _sets_of(fresh) > cap:
+        if _sets_of(fresh) > LIFT_SET_CAP:
+            _set_sets(fresh, LIFT_SET_CAP)
+        # A full session can give the compound an isolation's slot.
+        # The isolation has to be able to leave: not pinned, not logged
+        # today, and every muscle it credits stays at or over target.
+        # A set already logged today does not evict a different lift.
+        fresh_name = str(fresh.get("name") or "that compound")
+        if max_exercises is not None and len(rows) >= int(max_exercises):
+            if sets_logged_today:
+                held.append(
+                    f"Did not add {fresh_name}: a set is already logged today, "
+                    "so the remaining lifts stay."
+                )
+                break
+            planned_now = _planned_from(rows, secondary_fraction)
+            victim = _isolation_that_can_leave(
+                rows,
+                planned_now,
+                baseline=baseline,
+                targets=leave_targets,
+                pinned_ids=pins,
+                logged_today_ids=today_ids,
+                logged_today_names=today_names,
+            )
+            if victim is None:
+                held.append(
+                    f"Did not add {fresh_name}: no isolation can leave "
+                    "without dropping a muscle under target."
+                )
+                break
+            if total_sets() - _sets_of(rows[victim]) + _sets_of(fresh) > cap:
+                held.append(
+                    f"Did not add {fresh_name}: the session cap has no room."
+                )
+                break
+            rows.pop(victim)
+        elif total_sets() + _sets_of(fresh) > cap:
             break
         rationale = str(fresh.get("rationale") or "")
         if note not in rationale:
@@ -1026,4 +1140,62 @@ def bump_equal_sets(
         "planned_credits": planned,
         "session_sets": sum(max(0, _sets_of(row)) for row in rows),
         "added_sets": added,
+        "held": held,
     }
+
+
+def _isolation_that_can_leave(
+    rows: Sequence[dict],
+    planned: Dict[str, float],
+    *,
+    baseline: Dict[str, float],
+    targets: Optional[Dict[str, Dict[str, float]]],
+    pinned_ids: set,
+    logged_today_ids: set,
+    logged_today_names: set,
+) -> Optional[int]:
+    """Lowest-priority isolation whose muscles stay at target without it."""
+    wp = _planner()
+    spares = []
+    for index, row in enumerate(rows):
+        if str(row.get("movement") or "") == "compound":
+            continue
+        eid = str(row.get("id") or "")
+        if eid and eid in pinned_ids:
+            continue
+        if eid and eid in logged_today_ids:
+            continue
+        name = wp._norm_name(str(row.get("name") or ""))
+        if name and name in logged_today_names:
+            continue
+        family = wp.pattern_family(row)
+        if family and not any(
+            other is not row and wp.pattern_family(other) == family for other in rows
+        ):
+            continue
+        credits = row.get("set_credits") or {}
+        if not credits:
+            continue
+        covered = True
+        for muscle, credit in credits.items():
+            group = wp.normalize_muscle(muscle)
+            band = (targets or {}).get(group) or {}
+            try:
+                target = float(band.get("min") or 0)
+            except (TypeError, ValueError):
+                target = 0.0
+            have = float(baseline.get(group) or 0) + float(planned.get(group) or 0)
+            if have - float(credit) + 1e-9 < target:
+                covered = False
+                break
+        if not covered:
+            continue
+        try:
+            priority = int(row.get("priority") or 0)
+        except (TypeError, ValueError):
+            priority = 0
+        spares.append((priority, -index, index))
+    if not spares:
+        return None
+    spares.sort()
+    return spares[0][2]

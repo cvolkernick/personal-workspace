@@ -85,10 +85,13 @@ class HipMuscleTags(unittest.TestCase):
         self.assertIn("adductors", wp.MAJOR_MUSCLES)
         self.assertIn("adductors", wp.SESSION_MUSCLES["legs"])
         self.assertIn("adductors", wp.muscle_targets({}))
+        self.assertIn("abductors", wp.MAJOR_MUSCLES)
+        self.assertIn("abductors", wp.SESSION_MUSCLES["legs"])
+        self.assertIn("abductors", wp.muscle_targets({}))
+        self.assertNotIn("hip_flexors", wp.MAJOR_MUSCLES)
+        self.assertNotIn("hip_flexors", wp.SESSION_MUSCLES["legs"])
+        self.assertNotIn("hip_flexors", wp.muscle_targets({}))
         for tag in ("abductors", "hip_flexors"):
-            self.assertNotIn(tag, wp.MAJOR_MUSCLES)
-            self.assertNotIn(tag, wp.SESSION_MUSCLES["legs"])
-            self.assertNotIn(tag, wp.muscle_targets({}))
             self.assertIn(tag, wp.LOWER_BODY_MUSCLES)
             self.assertEqual(wp.normalize_muscle(tag), tag)
         self.assertEqual(wp.normalize_muscle("hip flexor"), "hip_flexors")
@@ -152,29 +155,31 @@ class HipPlansStayHandOnly(unittest.TestCase):
             wp.generate_workout_plan(catalog, goals, sessions, **common),
         ]
 
-    def test_normal_legs_plans_omit_hip_rows(self):
+    def test_legs_plans_may_rank_hip_abduction_and_keep_flexion_hand_only(self):
         catalog, plans = self._plans()
         by_id = {r["id"]: r for r in catalog["exercises"]}
-        hip_ids = NEW_IDS | {"machine-adduction", "band-adduction"}
-        patterns = {"hip_adduction", "hip_abduction", "hip_flexion"}
+        flexion_ids = {
+            "cable-hip-flexion",
+            "hanging-knee-raise",
+            "captains-chair-knee-raise",
+            "band-hip-flexion-march",
+        }
         self.assertEqual(len(plans), 2)
         for plan in plans:
             self.assertEqual(plan["session_type"], "legs")
             self.assertFalse(plan["is_rest_day"])
             self.assertTrue(plan["exercises"])
             self.assertEqual(plan["context"]["training_continuity"]["phase"], "normal")
+            total = sum(int((ex.get("prescription") or {}).get("sets") or 0) for ex in plan["exercises"])
+            self.assertLessEqual(total, 14)
             seen = []
             for ex in plan["exercises"]:
                 seen.append(ex["id"])
                 row = by_id[ex["id"]]
-                self.assertNotIn(str(row.get("movement_pattern") or ""), patterns, ex["id"])
-                self.assertNotIn(ex["id"], hip_ids, ex["id"])
-            under = (plan.get("volume") or {}).get("under_target") or []
-            self.assertNotIn("abductors", under)
-            self.assertNotIn("hip_flexors", under)
-            msg = plan["message"].lower()
-            self.assertNotIn("abductor", msg)
-            self.assertNotIn("hip flexor", msg)
+                self.assertNotEqual(str(row.get("movement_pattern") or ""), "hip_flexion", ex["id"])
+                self.assertNotIn(ex["id"], flexion_ids, ex["id"])
+            self.assertNotIn("hip_flexors", (plan.get("volume") or {}).get("under_target") or [])
+            self.assertNotIn("hip flexor", plan["message"].lower())
             self.assertGreaterEqual(len(seen), 3)
 
 

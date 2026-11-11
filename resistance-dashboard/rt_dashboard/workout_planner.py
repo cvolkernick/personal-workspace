@@ -77,24 +77,39 @@ PIN_LOAD_TAGS = frozenset(
 BAR_LOAD_TAGS = frozenset({"barbell", "smith_machine"})
 DB_LOAD_TAGS = frozenset({"dumbbells", "fitbench"})
 
-# Canonical major groups (DeanT list; aliases map into these).
+# One scoreboard for the planner, the Trends tile, and the body map.
+# Front / side / rear delts and lower back stay separate. Nothing here
+# aliases those tags into a lumped delts or mid-back bucket.
 MAJOR_MUSCLES: Tuple[str, ...] = (
     "chest",
-    "mid_upper_back",
+    "front_delts",
+    "side_delts",
+    "rear_delts",
     "lats",
-    "delts",
+    "mid_upper_back",
+    "traps",
     "biceps",
     "triceps",
     "quads",
     "hamstrings",
-    "calves",
     "glutes",
-    "adductors",
+    "calves",
     "abs",
-    "traps",
+    "lower_back",
+    "adductors",
+    "abductors",
 )
-# abductors and hip_flexors are catalog tags only, like forearms: no weekly
-# set target and not a legs session muscle. They stay selectable by hand.
+# Groups that get a 1-set slot when the week is still at 0 and the
+# 14-set cap has room. Compounds stay. The cap is not raised for them.
+ZERO_COVERAGE_GROUPS: Tuple[str, ...] = (
+    "abs",
+    "side_delts",
+    "rear_delts",
+    "adductors",
+    "abductors",
+    "lats",
+    "lower_back",
+)
 
 # Catalog / log muscle tags → major group
 MUSCLE_ALIASES: Dict[str, str] = {
@@ -109,13 +124,17 @@ MUSCLE_ALIASES: Dict[str, str] = {
     "lats": "lats",
     "lat": "lats",
     "latissimus": "lats",
-    "delts": "delts",
-    "delt": "delts",
-    "shoulders": "delts",
-    "shoulder": "delts",
-    "rear_delts": "delts",
-    "side_delts": "delts",
-    "front_delts": "delts",
+    "delts": "front_delts",
+    "delt": "front_delts",
+    "shoulders": "front_delts",
+    "shoulder": "front_delts",
+    "rear_delts": "rear_delts",
+    "rear_delt": "rear_delts",
+    "side_delts": "side_delts",
+    "side_delt": "side_delts",
+    "lateral_delts": "side_delts",
+    "front_delts": "front_delts",
+    "front_delt": "front_delts",
     "biceps": "biceps",
     "bis": "biceps",
     "bicep": "biceps",
@@ -143,8 +162,9 @@ MUSCLE_ALIASES: Dict[str, str] = {
     "core": "abs",
     "traps": "traps",
     "trapezius": "traps",
-    "lower_back": "mid_upper_back",  # erectors — credit upper/mid back bucket lightly
-    "forearms": "biceps",  # small carry; not a major DeanT group
+    "lower_back": "lower_back",
+    "erectors": "lower_back",
+    "forearms": "biceps",  # small carry; not its own weekly target
 }
 
 VOLUME_FRAMEWORK = {
@@ -161,14 +181,24 @@ VOLUME_FRAMEWORK = {
 # Primary majors shown for a PPL session day (UI filter; weekly credits still
 # accumulate for the full body). Catalog session_types map into these buckets.
 SESSION_MUSCLES: Dict[str, Tuple[str, ...]] = {
-    "push": ("chest", "delts", "triceps", "traps"),
-    "pull": ("mid_upper_back", "lats", "biceps", "traps"),
-    "legs": ("quads", "hamstrings", "glutes", "calves", "adductors"),
+    "push": ("chest", "front_delts", "side_delts", "triceps", "traps"),
+    "pull": ("mid_upper_back", "lats", "rear_delts", "biceps", "traps", "lower_back"),
+    "legs": (
+        "quads",
+        "hamstrings",
+        "glutes",
+        "calves",
+        "adductors",
+        "abductors",
+        "abs",
+        "lower_back",
+    ),
 }
 
-# Hip isolations stay in the library for a hand log or a same-muscle swap.
-# They are not ranked into an auto plan.
-HAND_ONLY_PATTERNS = frozenset({"hip_adduction", "hip_abduction", "hip_flexion"})
+# Hip flexion stays a hand log. Adduction and abduction are programmed
+# isolations on a legs day when that group is under target and the cap
+# has room.
+HAND_ONLY_PATTERNS = frozenset({"hip_flexion"})
 
 
 def _hand_only_pattern(ex: dict) -> bool:
@@ -220,6 +250,14 @@ NAME_ALIASES = {
     "lateral raise": "lateral-raises",
     "tricep pushdowns": "tricep-pushdowns",
     "tricep pushdown": "tricep-pushdowns",
+    "smith barbell row": "smith-row",
+    "smith barbell rows": "smith-row",
+    "barbell flat bench press": "barbell-flat-bench",
+    "barbell flat bench": "barbell-flat-bench",
+    "barbell shrugs": "barbell-shrugs",
+    "barbell shrug": "barbell-shrugs",
+    "hack squat": "hack-squat",
+    "hack squats": "hack-squat",
     "tricep pushdowns (rope)": "tricep-pushdowns-rope",
     "tricep pushdowns (t-bar)": "tricep-pushdowns-t-bar",
     "tricep pushdowns (t bar)": "tricep-pushdowns-t-bar",
@@ -288,6 +326,7 @@ VERTICAL_PRESS_FAMILY = "vertical_press"
 VERTICAL_PULL_FAMILY = "vertical_pull"
 HORIZONTAL_ROW_FAMILY = "horizontal_row"
 KNEE_DOMINANT_FAMILY = "knee_dominant"
+DEADLIFT_FAMILY = "deadlift"
 HAMSTRING_CURL_FAMILY = "hamstring_curl"
 CALF_FAMILY = "calf"
 TRICEP_PUSHDOWN_FAMILY = "tricep_pushdown"
@@ -317,6 +356,8 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "smith-row": HORIZONTAL_ROW_FAMILY,
     "leg-press": KNEE_DOMINANT_FAMILY,
     "goblet-squat": KNEE_DOMINANT_FAMILY,
+    "barbell-deadlift": DEADLIFT_FAMILY,
+    "trap-bar-deadlift": DEADLIFT_FAMILY,
     "seated-leg-curls": HAMSTRING_CURL_FAMILY,
     "lying-leg-curls": HAMSTRING_CURL_FAMILY,
     "calf-raises": CALF_FAMILY,
@@ -584,6 +625,30 @@ def _working_sets_from_entry(ex: Any) -> int:
     return 0
 
 
+# A pre-split catalog tag. Ramp credit expands it, then splits the set
+# across the two groups. The tile keeps the unsplit reading.
+LEGACY_MUSCLE_EXPANSIONS: Dict[str, Tuple[str, ...]] = {
+    "lats_upper_back": ("lats", "mid_upper_back"),
+}
+
+
+def expand_planner_muscles(names: Sequence[str]) -> List[str]:
+    """Normalize muscle tags. ``lats_upper_back`` becomes lats and upper back."""
+    out: List[str] = []
+    for raw in names or []:
+        key = re.sub(r"[\s\-]+", "_", str(raw or "").strip().lower())
+        expanded = LEGACY_MUSCLE_EXPANSIONS.get(key)
+        if expanded:
+            for muscle in expanded:
+                if muscle not in out:
+                    out.append(muscle)
+            continue
+        muscle = normalize_muscle(raw)
+        if muscle and muscle not in out:
+            out.append(muscle)
+    return out
+
+
 def credit_sets_for_exercise(
     primary: Sequence[str],
     secondary: Sequence[str],
@@ -591,21 +656,25 @@ def credit_sets_for_exercise(
     *,
     secondary_fraction: float = 0.5,
 ) -> Dict[str, float]:
-    """Distribute hard sets across major muscles (primary full, secondary fractional)."""
+    """Split hard sets across primaries. Secondary credit is fractional and split.
+
+    The equal ramp that started 2026-11-09 still reads this split. The
+    Trends tile and the body map use unsplit credit in ``muscle_sets``.
+    """
+    count = float(hard_sets or 0)
+    if count <= 0:
+        return {}
     credits: Dict[str, float] = {}
-    prim = [normalize_muscle(m) for m in primary if m]
-    sec = [normalize_muscle(m) for m in secondary if m]
-    # Avoid double-counting same major group
-    prim_u = list(dict.fromkeys(prim))
-    sec_u = [m for m in dict.fromkeys(sec) if m not in prim_u]
+    prim_u = expand_planner_muscles(primary)
+    sec_u = [m for m in expand_planner_muscles(secondary) if m not in prim_u]
     if prim_u:
-        share = float(hard_sets) / len(prim_u)
-        for m in prim_u:
-            credits[m] = credits.get(m, 0.0) + share
+        share = count / len(prim_u)
+        for muscle in prim_u:
+            credits[muscle] = credits.get(muscle, 0.0) + share
     if sec_u and secondary_fraction > 0:
-        share = float(hard_sets) * float(secondary_fraction) / len(sec_u)
-        for m in sec_u:
-            credits[m] = credits.get(m, 0.0) + share
+        share = count * float(secondary_fraction) / len(sec_u)
+        for muscle in sec_u:
+            credits[muscle] = credits.get(muscle, 0.0) + share
     return credits
 
 
@@ -630,9 +699,11 @@ def weekly_set_tally(
         end = datetime.now(timezone.utc).date()
     start = end - timedelta(days=max(1, window_days) - 1)
 
-    available = available_exercises(catalog) if catalog else []
-    by_id = {ex["id"]: ex for ex in available}
-    by_name = {_norm_name(ex["name"]): ex for ex in available}
+    # Credit looks up available=false rows too. A logged smith row or
+    # pushdown still counts. Auto-prescribe still uses available_exercises().
+    library = catalog_exercises(catalog, available_only=False) if catalog else []
+    by_id = {ex["id"]: ex for ex in library}
+    by_name = {_norm_name(ex["name"]): ex for ex in library}
 
     totals: Dict[str, float] = {m: 0.0 for m in MAJOR_MUSCLES}
     logged_exercises = 0
@@ -726,11 +797,17 @@ def suggest_focus_muscles(
         ("quads", 0),
         ("hamstrings", 0),
         ("glutes", 0),
-        ("delts", 1),
+        ("front_delts", 1),
+        ("side_delts", 1),
+        ("rear_delts", 1),
+        ("lower_back", 1),
+        ("abs", 1),
         ("triceps", 2),
         ("biceps", 2),
         ("traps", 3),
         ("calves", 3),
+        ("adductors", 3),
+        ("abductors", 3),
     ]
     scored: List[Tuple[float, int, str, float, float]] = []
     for m, rank in candidates:
@@ -961,14 +1038,18 @@ def pattern_family(ex: Optional[dict]) -> Optional[str]:
             if "shoulder" in name or "overhead" in name:
                 return VERTICAL_PRESS_FAMILY
             return HORIZONTAL_PRESS_FAMILY
-    if prim & {"delts"} and any(tok in name for tok in ("press", "ohp", "overhead")):
+    if prim & {"delts", "front_delts"} and any(
+        tok in name for tok in ("press", "ohp", "overhead")
+    ):
         return VERTICAL_PRESS_FAMILY
     # Pull: one vertical pull, one horizontal row. Face pulls are isolation.
     if "row" in name and "face" not in name:
         return HORIZONTAL_ROW_FAMILY
     if any(tok in name for tok in ("pulldown", "pullup", "pull-up", "chin-up", "chinup")):
         return VERTICAL_PULL_FAMILY
-    # Legs: one knee-dominant compound. RDL and back extension stay uncapped.
+    # Legs: one knee-dominant compound, one deadlift. RDL stays its own slot.
+    if "deadlift" in name:
+        return DEADLIFT_FAMILY
     if "quads" in prim and any(tok in name for tok in ("squat", "leg press", "lunge")):
         return KNEE_DOMINANT_FAMILY
     return None
@@ -1090,18 +1171,37 @@ def normalize_exercise(raw: dict) -> dict:
     return out
 
 
-def available_exercises(catalog: dict) -> List[dict]:
+def catalog_exercises(catalog: dict, *, available_only: bool = True) -> List[dict]:
+    """Normalized catalog rows. Credit passes ``available_only=False``."""
     out = []
-    for raw in catalog.get("exercises") or []:
+    for raw in (catalog or {}).get("exercises") or []:
         if not isinstance(raw, dict):
             continue
         try:
             ex = normalize_exercise(raw)
         except ValueError:
             continue
-        if ex["available"]:
-            out.append(ex)
+        if available_only and not ex["available"]:
+            continue
+        out.append(ex)
     return out
+
+
+def available_exercises(catalog: dict) -> List[dict]:
+    return catalog_exercises(catalog, available_only=True)
+
+
+def programmed_groups(catalog: dict) -> Set[str]:
+    """Groups an available=true row can credit. Empty means the map stays gray."""
+    found: Set[str] = set()
+    for ex in available_exercises(catalog or {}):
+        volume_tags = list(ex.get("volume_primary") or []) + list(ex.get("volume_secondary") or [])
+        muscle_tags = list(ex.get("primary_muscles") or []) + list(ex.get("secondary_muscles") or [])
+        tags = volume_tags if ex.get("volume_primary") or ex.get("volume_secondary") else muscle_tags
+        for group in expand_planner_muscles(tags):
+            if group in MAJOR_MUSCLES:
+                found.add(group)
+    return found
 
 
 def _norm_equipment_tag(tag: str) -> str:
@@ -3021,12 +3121,28 @@ def _generate_workout_plan_unguarded(
             return 0.0
         return float(accessory_tiebreak(ex, muscle_report, goals))
 
+    def _late_hip_or_abs(candidate: dict) -> int:
+        """Hip and abs isolations fill only after the other session muscles.
+
+        A second abduction must not take the calf or hamstring slot.
+        """
+        pattern = str(candidate.get("movement_pattern") or "").strip().lower()
+        if pattern in ("hip_adduction", "hip_abduction"):
+            return 1
+        if str(candidate.get("movement") or "") == "isolation":
+            prim = [normalize_muscle(m) for m in (candidate.get("primary_muscles") or [])]
+            if prim and all(m == "abs" for m in prim):
+                return 1
+        return 0
+
     # Rank pool by volume need (under-target muscles) + compound efficiency.
-    # The last-but-one key breaks accessory ties toward an under-target group.
+    # Hip and abs isolations sort after the other lifts so they cannot
+    # take a hamstring or calf slot. The last-but-one key breaks accessory ties.
     pool_scored = sorted(
         pool,
         key=lambda e: (
             _repeat_penalty(e),
+            _late_hip_or_abs(e),
             -_score_exercise_for_volume(e, done, bands, focus=focus),
             0 if e.get("movement") == "compound" else 1,
             -int(e.get("priority") or 0),
@@ -3036,6 +3152,9 @@ def _generate_workout_plan_unguarded(
     )
 
     n = max(3, min(8, int(goals.get("exercises_per_session") or 5)))
+    # Legs is six lifts. Push and pull stay on exercises_per_session.
+    if st == "legs":
+        n = min(8, max(n, 6))
     # Fewer movements during deep re-entry — finish the session, don’t pile debt
     if continuity.get("phase") in ("reentry", "restart"):
         n = max(3, min(n, 4))
@@ -3084,6 +3203,18 @@ def _generate_workout_plan_unguarded(
             if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
                 chosen.append(e)
                 break
+    # Leg Press is a main legs compound. It has to be chosen here, not only
+    # by the later ramp add (that add stops once a set is logged).
+    if st == "legs" and n:
+        press = pool_by_id.get("leg-press")
+        if (
+            press
+            and press.get("id") not in {c.get("id") for c in chosen}
+            and not _already_logged_today(press)
+            and not _family_slot_taken(press, chosen)
+            and len(chosen) < n
+        ):
+            chosen.append(press)
     for e in pool_scored:
         if len(chosen) >= n:
             break
@@ -3093,6 +3224,15 @@ def _generate_workout_plan_unguarded(
             continue
         if _family_slot_taken(e, chosen):
             continue
+        pattern = str(e.get("movement_pattern") or "").strip().lower()
+        # One abduction and one adduction, at 1 set, come from the coverage
+        # pass. The main fill keeps the hamstring and calf slots.
+        if pattern in ("hip_adduction", "hip_abduction"):
+            continue
+        if str(e.get("movement") or "") == "isolation":
+            abs_prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
+            if abs_prim and all(m == "abs" for m in abs_prim):
+                continue
         # Skip isolations whose primaries are already over weekly max
         prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
         if e.get("movement") != "compound" and prim:
@@ -3212,6 +3352,7 @@ def _generate_workout_plan_unguarded(
                     f"{allowed} accessory sets."
                 ).strip()
             hard = allowed
+        hard = min(hard, 4)
         if cap_left is not None:
             cap_left -= hard
         rx["sets"] = hard
@@ -3250,9 +3391,11 @@ def _generate_workout_plan_unguarded(
         plan_row = {
             "id": ex["id"],
             "name": ex["name"],
+            "priority": ex.get("priority") or 0,
             "primary_muscles": ex["primary_muscles"],
             "secondary_muscles": ex["secondary_muscles"],
             "movement": ex["movement"],
+            "movement_pattern": ex.get("movement_pattern") or "",
             "equipment": ex["equipment"],
             "load": rx.get("load"),
             "rep_range": rx.get("rep_range_label"),
@@ -3266,6 +3409,7 @@ def _generate_workout_plan_unguarded(
         _copy_assisted_keys(rx, plan_row, prescription)
         plan_ex.append(plan_row)
 
+    held_compounds: List[str] = []
     if use_remainder:
         plan_ex = _remainder_plan_rows(remainder["lifts"], pool)
         session_sets = sum(max(0, int(row.get("sets") or 0)) for row in plan_ex)
@@ -3323,6 +3467,7 @@ def _generate_workout_plan_unguarded(
                 fresh = {
                     "id": candidate["id"],
                     "name": candidate["name"],
+                    "priority": candidate.get("priority") or 0,
                     "primary_muscles": candidate.get("primary_muscles") or [],
                     "secondary_muscles": candidate.get("secondary_muscles") or [],
                     "movement": candidate.get("movement"),
@@ -3347,11 +3492,242 @@ def _generate_workout_plan_unguarded(
             session_muscles=SESSION_MUSCLES.get(st, ()),
             secondary_fraction=sec_frac,
             session_cap=session_cap,
+            max_exercises=n,
             new_rows=_new_equal_rows,
+            pinned_ids=pinned_lift_ids(goals, st),
+            logged_today_ids=today_logged_ids,
+            logged_today_names=today_logged_names,
+            spare_baseline=done,
+            spare_targets=bands,
         )
         plan_ex = bumped["exercises"]
         planned_credits = bumped["planned_credits"]
         session_sets = int(bumped["session_sets"])
+        held_compounds = list(bumped.get("held") or [])
+
+    if (
+        plan_ex
+        and ramp.get("live")
+        and not ramp.get("rollback")
+        and not use_remainder
+    ):
+        # After pins, compounds, and the equal-ramp adds: a 1-set slot for
+        # a group still under its ramp target, when this letter trains it.
+        # If the exercise list is already full, that slot replaces the
+        # lowest-priority isolation whose muscle is already at or over target.
+        # Compounds stay. The list does not grow past exercises_per_session,
+        # and the 14-set cap still holds.
+        taken_ids = {str(row.get("id") or "") for row in plan_ex}
+        session_ok = set(SESSION_MUSCLES.get(st, ()))
+
+        def _hits_group(candidate: dict, group: str) -> bool:
+            tagged = [
+                normalize_muscle(m)
+                for m in list(candidate.get("volume_primary") or [])
+                + list(candidate.get("primary_muscles") or [])
+            ]
+            return group in tagged
+
+        def _coverage_pick(group: str) -> Optional[dict]:
+            hits = []
+            for candidate in pool:
+                if str(candidate.get("id") or "") in taken_ids:
+                    continue
+                if _already_logged_today(candidate):
+                    continue
+                if _family_slot_taken(candidate, plan_ex):
+                    continue
+                if _hand_only_pattern(candidate):
+                    continue
+                if not _hits_group(candidate, group):
+                    continue
+                hits.append(candidate)
+            if not hits:
+                return None
+            hits.sort(
+                key=lambda candidate: (
+                    0 if candidate.get("movement") == "isolation" else 1,
+                    -int(candidate.get("priority") or 0),
+                    str(candidate.get("name") or ""),
+                )
+            )
+            return hits[0]
+
+        added_rows: List[dict] = []
+
+        def _band_min(group: str) -> float:
+            band = bands.get(group) or {}
+            try:
+                return float(band.get("min") or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _have(group: str) -> float:
+            return float(done.get(group) or 0) + float(planned_credits.get(group) or 0)
+
+        def _already_primary(group: str) -> bool:
+            for row in list(plan_ex) + added_rows:
+                prim = [normalize_muscle(m) for m in (row.get("primary_muscles") or [])]
+                if group in prim:
+                    return True
+            return False
+
+        def _row_sets(row: dict) -> int:
+            try:
+                return int((row.get("prescription") or {}).get("sets") or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        def _spare_isolation() -> Optional[dict]:
+            """Lowest-priority isolation that can leave the session.
+
+            Every muscle it credits must stay at or over target without it.
+            A compound is never a candidate. A lift already logged today stays.
+            """
+            spares = []
+            for index, row in enumerate(plan_ex):
+                if str(row.get("movement") or "") == "compound":
+                    continue
+                if str(row.get("id") or "") in pin_ids:
+                    continue
+                if _already_logged_today(row):
+                    continue
+                family = pattern_family(row)
+                if family and not any(
+                    other is not row and pattern_family(other) == family
+                    for other in plan_ex
+                ):
+                    continue
+                credits = row.get("set_credits") or {}
+                if not credits:
+                    continue
+                covered = True
+                for muscle, credit in credits.items():
+                    target = _band_min(normalize_muscle(muscle))
+                    remain = _have(normalize_muscle(muscle)) - float(credit)
+                    if remain + 1e-9 < target:
+                        covered = False
+                        break
+                if not covered:
+                    continue
+                src = pool_by_id.get(str(row.get("id") or "")) or row
+                spares.append((int(src.get("priority") or 0), -index, row))
+            if not spares:
+                return None
+            spares.sort(key=lambda item: (item[0], item[1]))
+            return spares[0][2]
+
+        for group in ZERO_COVERAGE_GROUPS:
+            if group not in session_ok:
+                continue
+            target = _band_min(group)
+            if target <= 0 or _have(group) + 1e-9 >= target:
+                continue
+            if _already_primary(group):
+                continue
+            candidate = _coverage_pick(group)
+            if candidate is None:
+                continue
+            pattern = str(candidate.get("movement_pattern") or "").strip().lower()
+            if pattern in ("hip_adduction", "hip_abduction") and any(
+                str(row.get("movement_pattern") or "").strip().lower() == pattern
+                for row in list(plan_ex) + added_rows
+            ):
+                continue
+            # A full session can swap a 1-set coverage lift for the
+            # lowest-priority isolation whose muscle is already covered.
+            # Compounds stay. The session does not grow past n or the cap.
+            occupied = len(plan_ex) + len(added_rows)
+            replacing: Optional[dict] = None
+            if occupied >= n and (today_logged_ids or today_logged_names):
+                # A set already logged today does not evict a different lift.
+                continue
+            if occupied >= n:
+                replacing = _spare_isolation()
+                if replacing is None:
+                    continue
+                if session_sets - _row_sets(replacing) + 1 > session_cap:
+                    continue
+            elif session_sets + 1 > session_cap:
+                continue
+            last = last_performance(sessions, candidate["name"], by_id)
+            ex_rx = dict(candidate)
+            ex_rx["default_sets"] = 1
+            rx_new = prescribe(
+                ex_rx,
+                last,
+                recovery_score=recovery_score,
+                continuity=continuity,
+                default_hard_sets=1,
+                rhr_under_recovered=bool(recovery_rhr_under),
+                equipment=equipment if equipment_on else None,
+                deload=bool(deload),
+                weighins=weighins,
+                as_of=day,
+            )
+            one = credit_sets_for_exercise(
+                candidate.get("primary_muscles") or [],
+                candidate.get("secondary_muscles") or [],
+                1,
+                secondary_fraction=sec_frac,
+            )
+            prescription_new = {
+                "weight_lbs": rx_new.get("weight_lbs"),
+                "load": rx_new.get("load"),
+                "sets": 1,
+                "reps": rx_new.get("reps"),
+                "rep_range": rx_new.get("rep_range"),
+                "rep_range_label": rx_new.get("rep_range_label"),
+                "target_reps": rx_new.get("target_reps"),
+                "progression_reason": rx_new.get("progression_reason"),
+            }
+            fresh = {
+                "id": candidate["id"],
+                "name": candidate["name"],
+                "primary_muscles": candidate.get("primary_muscles") or [],
+                "secondary_muscles": candidate.get("secondary_muscles") or [],
+                "movement": candidate.get("movement"),
+                "movement_pattern": candidate.get("movement_pattern") or "",
+                "equipment": candidate.get("equipment") or [],
+                "load": rx_new.get("load"),
+                "rep_range": rx_new.get("rep_range_label"),
+                "target_reps": rx_new.get("target_reps"),
+                "progression_reason": rx_new.get("progression_reason"),
+                "prescription": prescription_new,
+                "set_credits": {k: round(v, 2) for k, v in one.items()},
+                "rationale": (
+                    str(rx_new.get("rationale") or "")
+                    + f" Coverage: 1 hard set for {group.replace('_', ' ')} under target."
+                ).strip(),
+                "last": rx_new.get("last"),
+            }
+            _copy_assisted_keys(rx_new, fresh, prescription_new)
+            if replacing is not None:
+                for muscle, credit in (replacing.get("set_credits") or {}).items():
+                    planned_credits[muscle] = float(planned_credits.get(muscle) or 0) - float(credit)
+                    if planned_credits[muscle] <= 1e-9:
+                        planned_credits.pop(muscle, None)
+                session_sets = max(0, session_sets - _row_sets(replacing))
+                plan_ex.remove(replacing)
+            added_rows.append(fresh)
+            taken_ids.add(str(candidate.get("id") or ""))
+            for muscle, credit in one.items():
+                planned_credits[muscle] = planned_credits.get(muscle, 0.0) + credit
+            session_sets += 1
+        if added_rows:
+            compounds_new = [
+                row for row in added_rows if row.get("movement") == "compound"
+            ]
+            isolations_new = [
+                row for row in added_rows if row.get("movement") != "compound"
+            ]
+            insert_at = 0
+            for index, row in enumerate(plan_ex):
+                if row.get("movement") == "compound":
+                    insert_at = index + 1
+            for offset, row in enumerate(compounds_new):
+                plan_ex.insert(insert_at + offset, row)
+            plan_ex.extend(isolations_new)
 
     # Report volume against long-term bands, but annotate ramped planning bands
     balance = _stamp_ramp(
@@ -3433,6 +3809,12 @@ def _generate_workout_plan_unguarded(
             f"Ramp targets (not catch-up): {', '.join(under[:3])}"
             + ("…" if len(under) > 3 else "")
         )
+    if held_compounds:
+        import logging
+
+        logging.getLogger("fitdash.workout").info(
+            "held compounds: %s", " | ".join(held_compounds)
+        )
     if ramp.get("live"):
         msg_parts.append(str(ramp.get("today_line") or ""))
     elif continuity.get("phase") == "normal":
@@ -3475,6 +3857,7 @@ def _generate_workout_plan_unguarded(
         "next_session_type": nxt_open,
         "exercises": plan_ex,
         "message": message,
+        "held_compounds": held_compounds,
         "goals": goals,
         "volume": balance,
         "context": {
@@ -3512,6 +3895,58 @@ def _generate_workout_plan_unguarded(
         out["generate_error"] = empty_plan_error
         out["message"] = empty_plan_error
         out["context"]["generate_error"] = empty_plan_error
+    if (today_logged_ids or today_logged_names) and not use_remainder and not plan_next:
+        # Keep this morning's lift list. Drop what was logged. Do not add
+        # a new lift and do not swap one out.
+        morning_sessions = [
+            s for s in sessions if str(session_date_of(s) or "")[:10] != str(day)[:10]
+        ]
+        morning = generate_workout_plan(
+            catalog,
+            goals,
+            morning_sessions,
+            recovery_label=recovery_label,
+            recovery_score=recovery_score,
+            recovery_sparse=recovery_sparse,
+            recovery_rhr_under=recovery_rhr_under,
+            deload=deload,
+            session_type=st,
+            as_of=day,
+            equipment=equipment,
+            train_parent_completed=train_parent_completed,
+            last_wake_at=last_wake_at,
+            now=now,
+            weighins=weighins,
+            training_objective=None,
+            lifts_status=lifts_status,
+            prior_lifts_status=prior_lifts_status,
+            restore_flag=restore_flag,
+            prior_restore_flag=prior_restore_flag,
+            phase=phase,
+        )
+        if str(morning.get("session_type") or "") == st and not morning.get("is_rest_day"):
+            def _done_today(ex: dict) -> bool:
+                eid = str(ex.get("id") or "")
+                if eid and eid in today_logged_ids:
+                    return True
+                return _norm_name(str(ex.get("name") or "")) in today_logged_names
+
+            kept = [ex for ex in (morning.get("exercises") or []) if not _done_today(ex)]
+            kept_sets = sum(
+                int((ex.get("prescription") or {}).get("sets") or 0) for ex in kept
+            )
+            out["exercises"] = kept
+            out["message"] = re.sub(
+                rf"Suggested {re.escape(st.upper())} session \(\d+ exercises, \d+ hard sets\)",
+                f"Suggested {st.upper()} session ({len(kept)} exercises, {kept_sets} hard sets)",
+                str(out.get("message") or ""),
+            )
+            if isinstance(out.get("context"), dict):
+                out["context"]["session_hard_sets"] = kept_sets
+            out["held_compounds"] = [
+                note for note in (out.get("held_compounds") or [])
+                if "Did not add" not in note
+            ]
     return _stamp_plan_remainder(out, remainder, training_objective)
 
 

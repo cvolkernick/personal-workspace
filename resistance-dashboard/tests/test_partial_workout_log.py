@@ -558,7 +558,7 @@ class CatalogAndFinishTests(unittest.TestCase):
         barbell = by_name["Barbell Row"]
         smith = by_name["Smith Row"]
         for row in (barbell, smith):
-            self.assertEqual(row["primary_muscles"], ["back"])
+            self.assertEqual(row["primary_muscles"], ["mid_upper_back"])
             self.assertEqual(row["movement"], "compound")
             self.assertEqual(pattern_family(row), "horizontal_row")
         done = finalize_logged_session(

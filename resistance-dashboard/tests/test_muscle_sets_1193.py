@@ -261,7 +261,7 @@ class CapWarning(unittest.TestCase):
         self.assertEqual(override["cap_override"], 55)
 
     def test_priorities_plus_floors_warn_instead_of_overrunning(self):
-        self.assertEqual(demand_min(), 68)
+        self.assertEqual(demand_min(), 80)
         report = build_muscle_set_report(
             {
                 "sessions": [
@@ -364,9 +364,9 @@ class CatalogTags(unittest.TestCase):
         bundled = ROOT / "fitness" / "exercises" / "catalog.json"
         self.assertEqual(root.read_text(encoding="utf-8"), bundled.read_text(encoding="utf-8"))
         catalog = json.loads(root.read_text(encoding="utf-8"))
-        self.assertEqual(catalog["updated_at"], "2026-10-16")
+        self.assertEqual(catalog["updated_at"], "2026-11-11")
         by_id = {ex["id"]: ex for ex in catalog["exercises"]}
-        self.assertEqual(len(by_id), 58)
+        self.assertEqual(len(by_id), 61)
         self.assertEqual(by_id["db-flat-press"]["primary_muscles"], ["chest"])
         self.assertEqual(by_id["db-flat-press"]["volume_primary"], ["chest"])
         self.assertEqual(

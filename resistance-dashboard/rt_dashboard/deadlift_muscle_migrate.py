@@ -18,15 +18,15 @@ from typing import Dict, List, Optional, Tuple
 # tracked groups only (#1299).
 CONVENTIONAL_TAGS: Dict[str, List[str]] = {
     "primary_muscles": ["glutes", "hamstrings", "lower_back"],
-    "secondary_muscles": ["quads", "lats_upper_back", "traps", "forearms"],
+    "secondary_muscles": ["quads", "lats", "mid_upper_back", "traps", "forearms"],
     "volume_primary": ["glutes", "hamstrings", "lower_back"],
-    "volume_secondary": ["quads", "lats_upper_back", "traps"],
+    "volume_secondary": ["quads", "lats", "mid_upper_back", "traps"],
 }
 TRAP_TAGS: Dict[str, List[str]] = {
     "primary_muscles": ["glutes", "hamstrings", "lower_back", "quads"],
-    "secondary_muscles": ["lats_upper_back", "traps", "forearms"],
+    "secondary_muscles": ["lats", "mid_upper_back", "traps", "forearms"],
     "volume_primary": ["glutes", "hamstrings", "lower_back", "quads"],
-    "volume_secondary": ["lats_upper_back", "traps"],
+    "volume_secondary": ["lats", "mid_upper_back", "traps"],
 }
 _TAG_KEYS = (
     "primary_muscles",

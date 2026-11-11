@@ -1,12 +1,12 @@
-"""Muscle-set counts use a rolling 7 ET days (#1297).
+"""Muscle-set tile uses the Monday–Sunday ET week.
 
-The Monday–Sunday week stays on the cap, the planner tiebreak, and
-``et_week_bounds``. Tonnage weeks are not part of this module.
+Rolling 7 ET days stays on ``rolling_window`` / ``rolling_proper_sets``
+as a secondary view (#1297). The cap and the planner tiebreak use the
+same Monday–Sunday week.
 """
 
 from __future__ import annotations
 
-import json
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -80,8 +80,19 @@ class RollingWindow(unittest.TestCase):
                 "label": "rolling 7 days",
             },
         )
-        # 2 on the 13th + 1 on Sunday. The 11th and 12th are outside.
+        self.assertEqual(
+            report["week_window"],
+            {
+                "type": "calendar_week",
+                "start": "2026-10-19",
+                "end": "2026-10-25",
+                "label": "Mon–Sun ET",
+            },
+        )
+        # proper_sets is the rolling 7 days: 2 on the 13th + 1 on Sunday.
+        # monday_to_date is the open Monday, which has not started yet.
         self.assertEqual(report["muscle_sets"]["chest"]["proper_sets"], 3.0)
+        self.assertEqual(report["muscle_sets"]["chest"]["monday_to_date"], 0.0)
         # Calendar week is Monday 10-19 through Sunday 10-25. Only a Monday
         # log would land there, so the plan total stays 0.
         self.assertEqual(report["week_start"], "2026-10-19")
@@ -96,6 +107,7 @@ class RollingWindow(unittest.TestCase):
         )
         self.assertEqual(rolling_7d_bounds("2026-10-19"), ("2026-10-13", "2026-10-19"))
         self.assertEqual(report["muscle_sets"]["chest"]["proper_sets"], 1.0)
+        self.assertEqual(report["muscle_sets"]["chest"]["monday_to_date"], 0.0)
 
     def test_et_midnight_uses_the_civil_date_not_the_utc_date(self):
         # 2026-10-19 03:59Z is Sunday 23:59 EDT. 04:01Z is Monday 00:01 EDT.
@@ -120,8 +132,10 @@ class RollingWindow(unittest.TestCase):
         self.assertEqual(after["window"]["start"], "2026-10-13")
         self.assertEqual(after["window"]["end"], "2026-10-19")
         self.assertEqual(after["window"]["label"], "rolling 7 days")
-        # Sunday's set still counts. Monday's set counts too.
+        self.assertEqual(after["week_window"]["start"], "2026-10-19")
+        # Rolling still includes Sunday. monday_to_date is Monday only.
         self.assertEqual(after["muscle_sets"]["chest"]["proper_sets"], 6.0)
+        self.assertEqual(after["muscle_sets"]["chest"]["monday_to_date"], 5.0)
         # Plan week flipped to Monday and does not include Sunday's set.
         self.assertEqual(after["week_start"], "2026-10-19")
         self.assertEqual(after["budget"]["week_proper_sets"], 5)
@@ -145,11 +159,12 @@ class RollingWindow(unittest.TestCase):
         self.assertEqual(window["start"], "2026-10-13")
         self.assertEqual(window["end"], "2026-10-19")
         self.assertEqual(window["label"], "rolling 7 days")
-        self.assertIn("rolling 7 days", json.dumps(window))
         # The feed's calendar week is still Monday through today.
         self.assertEqual(body["week"]["start"], "2026-10-19")
         self.assertEqual(body["week"]["end"], "2026-10-19")
+        # proper_sets is rolling, so Sunday still counts. monday_to_date does not.
         self.assertEqual(body["week"]["muscle_sets"]["chest"]["proper_sets"], 1.0)
+        self.assertEqual(body["week"]["muscle_sets"]["chest"]["monday_to_date"], 0.0)
         self.assertEqual(body["week"]["muscle_set_budget"]["week_proper_sets"], 0)
         training, _as_of = build_training(body)
         self.assertEqual(training["muscle_sets"]["period"], "rolling 7 days")
@@ -176,18 +191,22 @@ class RollingWindow(unittest.TestCase):
         )
         report = build_muscle_set_report(payload, as_of="2026-10-19")
         self.assertEqual(report["muscle_sets"]["side_delts"]["proper_sets"], 8.0)
+        self.assertEqual(report["muscle_sets"]["side_delts"]["monday_to_date"], 0.0)
         self.assertEqual(report["calendar_credits"]["side_delts"], 0.0)
         self.assertGreater(accessory_tiebreak(LATERAL, report, {}), 0)
 
 
 class TileCopy(unittest.TestCase):
-    def test_tile_label_says_rolling_7_days(self):
+    def test_tile_label_says_last_7_days(self):
         html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("rolling 7 days · proper sets", html)
-        self.assertIn("rolling 7 days · ${dates}proper sets", app)
-        self.assertNotIn("Monday–Sunday ET", html)
-        self.assertNotIn("Monday–Sunday ET", app)
+        self.assertIn("Last 7 days", html)
+        self.assertIn("Last 7 days · ${dates}${cap}${weekBit}", app)
+        self.assertIn("This week (Mon–Sun)", app)
+        self.assertNotIn("monday_to_date", app)
+        self.assertIn('id="muscle-body-map"', html)
+        today = html[html.find('id="today-hub"') : html.find('id="muscle-sets-card"')]
+        self.assertNotIn("muscle-body-map", today)
 
 
 if __name__ == "__main__":

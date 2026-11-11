@@ -562,6 +562,7 @@ def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False
     from rt_dashboard.agent_plan import (
         house_plan_user_id,
         overlay_workout_on_payload,
+        prefer_rendered_session,
         stamp_and_fill_workout,
     )
     from rt_dashboard.timeutil import local_today_iso
@@ -595,6 +596,13 @@ def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False
         headers=headers,
         query=query,
         read_only=read_only,
+    )
+    # Local plan for today's letter, and only before a set is logged.
+    filled = prefer_rendered_session(
+        store.get("plan") if isinstance(store.get("plan"), dict) else None,
+        filled,
+        today=str(day)[:10],
+        sessions=data.get("sessions") or [],
     )
     data = overlay_workout_on_payload(data, filled)
     return data

@@ -113,6 +113,81 @@ def _present_served_plan(plan, *, goals, sessions, as_of, recovery):
     )
 
 
+def _named_plan_exercises(plan: Optional[dict]) -> list:
+    if not isinstance(plan, dict):
+        return []
+    out = []
+    for ex in plan.get("exercises") or []:
+        if not isinstance(ex, dict):
+            continue
+        if str(ex.get("name") or ex.get("exercise") or "").strip():
+            out.append(ex)
+    return out
+
+
+def _logged_set_on(sessions, day: str) -> bool:
+    """True when any working set is already logged on ``day``."""
+    day = str(day or "")[:10]
+    if not day:
+        return False
+    for session in sessions or []:
+        raw = session.to_dict() if hasattr(session, "to_dict") else session
+        if not isinstance(raw, dict):
+            continue
+        if str(raw.get("date") or "")[:10] != day:
+            continue
+        for ex in raw.get("exercises") or []:
+            if not isinstance(ex, dict):
+                continue
+            sets = ex.get("sets")
+            if isinstance(sets, list):
+                for st in sets:
+                    if isinstance(st, dict) and int(st.get("sets") or 0) > 0:
+                        return True
+                continue
+            try:
+                if int(sets or 0) > 0:
+                    return True
+            except (TypeError, ValueError):
+                continue
+    return False
+
+
+def prefer_rendered_session(
+    rendered: Optional[dict],
+    served: Optional[dict],
+    *,
+    today: str = "",
+    sessions=None,
+) -> Optional[dict]:
+    """Use the local plan when it is today's letter and nothing is logged yet.
+
+    Length is not the test. The swap happens only when the rendered plan's
+    date is ``today`` and its letter matches the saved row. The result is
+    labeled ``local``. A set already logged today keeps the saved row so
+    Today does not change mid-workout. An empty saved row stays empty.
+    A different letter stays on the saved row.
+    """
+    if not isinstance(served, dict):
+        return served
+    if not _named_plan_exercises(served):
+        return served
+    if not isinstance(rendered, dict) or rendered.get("is_rest_day"):
+        return served
+    if rendered.get("already_trained_today") or _logged_set_on(sessions, today):
+        return served
+    rendered_day = str(rendered.get("date") or "")[:10]
+    if not today or rendered_day != str(today)[:10]:
+        return served
+    want = _letter(rendered.get("session_type"))
+    have = _letter(served.get("session_type"))
+    if want not in ("push", "pull", "legs") or want != have:
+        return served
+    out = dict(rendered)
+    out["source"] = "local"
+    return out
+
+
 def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
     """Copy SuperGrok exercises onto workout, store.plan, and coach.today.workout.
 

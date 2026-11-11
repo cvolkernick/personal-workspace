@@ -82,6 +82,14 @@
       "max_weight_lbs": null,
       "notes": "Gym access.",
       "source": "gym"
+    },
+    {
+      "id": "roman_chair",
+      "name": "Roman chair",
+      "tag": "roman_chair",
+      "max_weight_lbs": null,
+      "notes": "Gym access. Captain's chair / roman chair for knee raises. Programs the abs row.",
+      "source": "gym"
     }
   ]
 }

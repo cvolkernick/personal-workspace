@@ -5101,3 +5101,48 @@ body.m-shell #alerts {
 @media (max-width: 720px) {
   .bm-grid { grid-template-columns: 1fr; }
 }
+
+/* Trends body map. Read-only. Not shown on Today. */
+.muscle-body-map { margin-top: 0.75rem; }
+.muscle-body-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+}
+.muscle-body-map-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.map-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  display: inline-block;
+}
+.map-swatch.map-under, .body-region.map-under { fill: #f0b429; background: #f0b429; }
+.map-swatch.map-on, .body-region.map-on { fill: #5ce1a8; background: #5ce1a8; }
+.map-swatch.map-over, .body-region.map-over { fill: #f07178; background: #f07178; }
+.map-swatch.map-gap, .body-region.map-gap { fill: #5c6b82; background: #5c6b82; }
+.muscle-body-map-views {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  max-width: 420px;
+}
+.muscle-body-map figure { margin: 0; }
+.muscle-body-map figcaption {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+.muscle-body-map svg { width: 100%; height: auto; color: var(--border); }
+.body-region {
+  stroke: #121820;
+  stroke-width: 1;
+  cursor: pointer;
+  fill: #5c6b82;
+}
+.body-region:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.muscle-body-map-detail { margin: 0.45rem 0 0; font-size: 0.85rem; min-height: 1.2em; }

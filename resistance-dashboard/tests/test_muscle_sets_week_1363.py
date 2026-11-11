@@ -115,7 +115,8 @@ EXPECTED = {
     "front_delts": 10.0,
     "side_delts": 2.0,
     "rear_delts": 0.0,
-    "lats_upper_back": 6.0,
+    "lats": 5.0,
+    "mid_upper_back": 5.0,
     "traps": 5.0,
     "biceps": 2.0,
     "triceps": 7.0,
@@ -125,6 +126,8 @@ EXPECTED = {
     "calves": 2.0,
     "abs": 0.0,
     "lower_back": 7.5,
+    "adductors": 0.0,
+    "abductors": 0.0,
 }
 
 
