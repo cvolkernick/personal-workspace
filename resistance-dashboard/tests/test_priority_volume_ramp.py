@@ -1,4 +1,8 @@
-"""Equal volume ramp toward ~10 hard sets/week, plus the lowering cue."""
+"""Equal volume ramp toward ~10 hard sets/week.
+
+The 2–3 second lowering cue is standing coaching only. It must not appear
+on the workout message, in the planner prompt, or on the Today payload.
+"""
 
 from __future__ import annotations
 
@@ -8,13 +12,14 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest import mock
 
+from rt_dashboard.coach import build_today_board
 from rt_dashboard.grok_planner import generate_grok_plans
-from rt_dashboard.models import ExerciseEntry, Session, SetEntry
+from rt_dashboard.models import ExerciseEntry, RecoveryStatus, Session, SetEntry
 from rt_dashboard.muscle_sets import build_muscle_set_report
 from rt_dashboard.priority_ramp import (
-    LOWERING_CUE,
     bump_equal_sets,
     display_targets,
+    ensure_workout_message,
     prompt_volume_fields,
 )
 from rt_dashboard.workout_planner import (
@@ -50,6 +55,42 @@ CLIMB = (
     "Volume: ramping major muscles toward ~10 hard sets/week "
     "(at most +1–2 credits each from last week’s logged sets). Session cap ~14."
 )
+
+# Phrases that mean the controlled-lowering cue. Bare "lower" and "controlled"
+# are not cues (muscle names and "uncontrolled" show up elsewhere).
+_CUE_MARKERS = (
+    "2–3 s",
+    "2-3 s",
+    "2–3s",
+    "2-3s",
+    "2–3 second",
+    "2-3 second",
+    "lower the weight",
+    "lowering",
+    "under control",
+    "controlled lower",
+    "eccentric",
+    "tempo",
+    "extra pause at the bottom",
+    "lowering_cue",
+)
+
+_MODEL_CUE = (
+    "On main lifts (bench, rows, overhead press, squat, hack squat, leg press, "
+    "deadlift, RDL, and pull-ups), lower the weight under control for 2–3 seconds, "
+    "then lift as usual on the way up. No extra pause at the bottom unless the lift "
+    "already has one. Use a 2-3 s eccentric tempo on the way down."
+)
+
+
+def _assert_no_lowering_cue(case, text, where):
+    blob = str(text).lower()
+    for marker in _CUE_MARKERS:
+        case.assertNotIn(
+            marker.lower(),
+            blob,
+            f"{where} still contains a lowering/tempo cue ({marker!r})",
+        )
 
 
 def _session(day, kind, name, weight, sets, reps, notes=""):
@@ -112,6 +153,9 @@ class GoalsFileTests(unittest.TestCase):
             self.assertEqual(raw["session_working_set_cap"], 14)
             self.assertNotIn("pre-bulk", raw["notes"].lower())
             self.assertNotIn("bulk started", raw["notes"].lower())
+            self.assertNotIn("tempo", raw)
+            self.assertNotIn("lowering_cue", raw)
+            _assert_no_lowering_cue(self, path.read_text(), path.name)
         loaded = default_goals()
         self.assertTrue(loaded["volume_ramp_equal"])
         self.assertNotIn("priority_muscles_ordered", loaded)
@@ -238,14 +282,17 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(names[: len(compounds)], compounds)
         message = plan["message"]
         self.assertIn(CLIMB, message)
-        self.assertIn("2–3 seconds", message)
-        self.assertIn(LOWERING_CUE, message)
+        _assert_no_lowering_cue(self, message, "workout message")
         self.assertNotIn("Priority volume", message)
         self.assertNotIn("lats toward", message)
+        self.assertNotIn("then chest", message)
+        self.assertNotIn("then quads", message)
         self.assertNotIn("DeanT 4-8", message)
         self.assertEqual(plan["goals"].get("focus_muscles"), [])
         for row in plan["exercises"]:
             rx = row["prescription"]
+            self.assertNotIn("tempo", row)
+            self.assertNotIn("tempo", rx)
             self.assertNotIn("3-0-1", str(rx.get("reps")))
             self.assertNotIn("3-0-1", str(rx.get("sets")))
             self.assertNotIn("3-0-1", str(rx.get("weight_lbs")))
@@ -267,7 +314,7 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(plan["volume"]["bands"]["lats"]["max"], 6)
         self.assertIn("ramp paused", plan["message"])
         self.assertNotIn("ramping major muscles toward ~10", plan["message"])
-        self.assertIn("2–3 seconds", plan["message"])
+        _assert_no_lowering_cue(self, plan["message"], "rolled-back workout message")
         total = sum(
             int((row.get("prescription") or {}).get("sets") or 0)
             for row in plan["exercises"]
@@ -411,14 +458,18 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
             _session("2026-11-03", "push", "DB Flat Press", 50, 5, 8),
         ]
 
-    def _run_grok(self, *, recovery=None, lifts=None):
+    def _run_grok(self, *, recovery=None, lifts=None, model_message=None):
         captured = {}
 
         def fake_chat(messages, **kwargs):
             captured["messages"] = messages
             return _grok_answer(
-                "Priority volume: lats toward ~10 hard sets/week (week 1 of ramp). "
-                + CLIMB
+                model_message
+                if model_message is not None
+                else (
+                    "Priority volume: lats toward ~10 hard sets/week (week 1 of ramp). "
+                    + CLIMB
+                )
             )
 
         stack = ExitStack()
@@ -450,7 +501,7 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
             )
         raw = captured["messages"][1]["content"]
         body = json.loads(raw[raw.index("{") : raw.rindex("}") + 1])
-        return out, body
+        return out, body, captured["messages"]
 
     def test_yellow_and_red_roll_the_model_message_back(self):
         fallback = muscle_targets(
@@ -461,7 +512,7 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
         )
         for status in ("yellow", "red"):
             with self.subTest(status=status):
-                out, context = self._run_grok(lifts=status)
+                out, context, _prompt = self._run_grok(lifts=status)
                 targets = context["volume_caps"]["muscle_targets"]
                 self.assertEqual(targets["lats"]["max"], fallback["lats"]["max"])
                 self.assertEqual(targets["chest"]["max"], fallback["chest"]["max"])
@@ -473,10 +524,10 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
                 self.assertNotIn("Priority volume", message)
                 self.assertNotIn("lats toward", message)
                 self.assertNotIn("ramping major muscles toward ~10", message)
-                self.assertIn("2–3 seconds", message)
+                _assert_no_lowering_cue(self, message, "model workout message")
 
     def test_restore_deload_rolls_the_model_path_back(self):
-        out, context = self._run_grok(
+        out, context, _prompt = self._run_grok(
             recovery={"score": 80, "label": "Restore deload", "deload": True}
         )
         self.assertEqual(context["volume_caps"]["muscle_targets"]["lats"]["max"], 6)
@@ -490,6 +541,88 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
         )
         self.assertEqual(fields["muscle_targets"]["lats"]["max"], 6)
         self.assertEqual(fields["muscle_targets"]["chest"]["max"], 5)
+        self.assertNotIn("lowering_cue", fields)
+        self.assertNotIn("message_rule", fields)
+        _assert_no_lowering_cue(self, fields["volume_clause"], "volume clause")
+
+    def test_workout_message_planner_prompt_and_today_omit_lowering_cue(self):
+        sessions = [
+            _session("2026-11-02", "pull", "Pulldowns", 100, 6, 8),
+            _session("2026-11-03", "push", "DB Flat Press", 50, 5, 8),
+            _session("2026-11-04", "legs", "Leg Press", 200, 7, 8),
+        ]
+        plan = generate_workout_plan(
+            _catalog(),
+            RAMP,
+            sessions,
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="pull",
+            as_of="2026-11-09",
+            lifts_status="green",
+            prior_lifts_status="green",
+        )
+        self.assertIn(CLIMB, plan["message"])
+        self.assertNotIn("Priority volume", plan["message"])
+        self.assertNotIn("lats toward", plan["message"])
+        _assert_no_lowering_cue(self, plan["message"], "workout message")
+        for row in plan["exercises"]:
+            self.assertNotIn("tempo", row)
+            self.assertNotIn("tempo", row.get("prescription") or {})
+
+        stripped = ensure_workout_message(
+            _MODEL_CUE
+            + " Priority volume: lats toward ~10, then chest, then quads. "
+            + CLIMB,
+            {"live": True, "today_line": CLIMB},
+        )
+        self.assertIn(CLIMB, stripped)
+        self.assertNotIn("Priority volume", stripped)
+        self.assertNotIn("lats toward", stripped)
+        self.assertNotIn("then chest", stripped)
+        self.assertNotIn("then quads", stripped)
+        _assert_no_lowering_cue(self, stripped, "stripped workout message")
+
+        out, context, messages = self._run_grok(
+            lifts="green",
+            model_message=(
+                _MODEL_CUE
+                + " Priority volume: lats toward ~10 hard sets/week, then chest, then quads. "
+                + CLIMB
+            ),
+        )
+        prompt = "\n".join(str(m.get("content") or "") for m in messages)
+        _assert_no_lowering_cue(self, prompt, "planner prompt")
+        self.assertIn("ramping major muscles toward", prompt)
+        self.assertNotIn("lowering_cue", context["volume_caps"])
+        self.assertNotIn("tempo", context["volume_caps"])
+        message = out["workout"]["message"]
+        self.assertIn(CLIMB, message)
+        self.assertNotIn("Priority volume", message)
+        self.assertNotIn("lats toward", message)
+        self.assertNotIn("then chest", message)
+        self.assertNotIn("then quads", message)
+        _assert_no_lowering_cue(self, message, "model workout message")
+        for row in out["workout"]["exercises"]:
+            self.assertNotIn("tempo", row)
+            self.assertNotIn("tempo", row.get("prescription") or {})
+
+        def _today(workout):
+            return build_today_board(
+                as_of="2026-11-09",
+                recovery=RecoveryStatus(label="Ready", score=80.0),
+                workout_plan=workout,
+                meal_plan={"message": "Pantry sketch", "items": [], "meals": []},
+                consumed={"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+                targets={"calories": 2100, "protein_g": 180, "carbs_g": 180, "fat_g": 60},
+                adherence={},
+            )
+
+        for label, workout in (("local plan", plan), ("model plan", out["workout"])):
+            board = _today(workout)
+            _assert_no_lowering_cue(self, board["workout"]["message"], f"Today {label} message")
+            _assert_no_lowering_cue(self, json.dumps(board), f"Today {label} payload")
+            self.assertNotIn("lats toward", board["workout"]["message"] or "")
 
     def test_display_targets_follow_the_parallel_rollback(self):
         sessions = self._history()

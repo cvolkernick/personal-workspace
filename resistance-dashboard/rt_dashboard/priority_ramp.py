@@ -15,11 +15,22 @@ import re
 from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-# Required on the workout message for main compounds. Not a 3-0-1-0 scheme.
-LOWERING_CUE = (
-    "On main lifts (bench, rows, overhead press, squat, hack squat, leg press, "
-    "deadlift, RDL, and pull-ups), lower the weight under control for 2–3 seconds, "
-    "then lift as usual on the way up. No extra pause at the bottom unless the lift already has one."
+# Standing coaching only. A sentence that still carries the old lowering/tempo
+# cue is dropped from the workout message so it cannot reach Today.
+_CUE_RE = re.compile(
+    "|".join(
+        (
+            r"2\s*[\u2010-\u2015\-]\s*3\s*s(?:ec(?:ond)?s?)?(?!\w)",
+            r"lower(?:ing)? the weight",
+            r"controlled lower",
+            r"\blowering\b",
+            r"\bunder control\b",
+            r"\beccentric\b",
+            r"\btempo\b",
+            r"extra pause at the bottom",
+        )
+    ),
+    re.IGNORECASE,
 )
 
 # Logged credits at or above this gap under the ceiling count as finished.
@@ -596,19 +607,13 @@ def prompt_volume_fields(
         if isinstance(band, dict)
     }
     clause = (
-        f"{summary} Per-muscle weekly targets are in volume_caps.muscle_targets. "
-        "Do not encode a tempo in sets, reps, or weight_lbs."
+        f"{summary} Per-muscle weekly targets are in volume_caps.muscle_targets."
     )
     return {
         "sets_per_muscle_week": summary,
         "muscle_targets": muscle_targets,
         "volume_line": ramp.get("today_line") if ramp.get("live") else None,
-        "lowering_cue": LOWERING_CUE,
         "volume_clause": clause,
-        "message_rule": (
-            "The workout message must include this sentence for main lifts: "
-            + LOWERING_CUE
-        ),
         "ramp": ramp_public(ramp),
     }
 
@@ -637,20 +642,38 @@ def _without_priority_line(text: str) -> str:
     return " · ".join(kept)
 
 
-def ensure_workout_message(message: Optional[str], ramp: Optional[dict], *, has_lifts: bool) -> str:
-    """Put the computed priority line and the lowering cue on the workout message.
+def _is_cue_sentence(sentence: str) -> bool:
+    return _CUE_RE.search(sentence) is not None
+
+
+def _without_cue(text: str) -> str:
+    """Drop lowering/tempo sentences. They stay standing coaching, not the plan."""
+    kept: List[str] = []
+    for chunk in re.split(r"\s*·\s*", text or ""):
+        sentences = re.split(r"(?<=[.!?])\s+", chunk)
+        piece = " ".join(
+            sentence.strip()
+            for sentence in sentences
+            if sentence.strip() and not _is_cue_sentence(sentence)
+        )
+        if piece:
+            kept.append(piece)
+    return " · ".join(kept)
+
+
+def ensure_workout_message(message: Optional[str], ramp: Optional[dict]) -> str:
+    """Put the computed volume line on the workout message.
 
     A model sentence that still says the ramp is climbing is replaced by the
-    rollback line when the lifts chip or Restore says to pause.
+    rollback line when the lifts chip or Restore says to pause. A lowering
+    or tempo cue is standing coaching only, so that sentence is dropped.
     """
-    text = str(message or "").strip()
+    text = _without_cue(str(message or "").strip())
     ramp = ramp or {}
     line = str(ramp.get("today_line") or "").strip()
     if ramp.get("live") and line:
         text = _without_priority_line(text)
         text = f"{text} · {line}".strip(" ·") if text else line
-    if has_lifts and "2–3 seconds" not in text and "2-3 seconds" not in text:
-        text = f"{text} · {LOWERING_CUE}".strip(" ·") if text else LOWERING_CUE
     return text
 
 
