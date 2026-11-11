@@ -6,12 +6,14 @@ on the workout message, in the planner prompt, or on the Today payload.
 
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
 from unittest import mock
 
+from rt_dashboard.agent_read import build_plan
 from rt_dashboard.coach import build_today_board
 from rt_dashboard.grok_planner import generate_grok_plans
 from rt_dashboard.models import ExerciseEntry, RecoveryStatus, Session, SetEntry
@@ -22,6 +24,7 @@ from rt_dashboard.priority_ramp import (
     bump_equal_sets,
     display_targets,
     ensure_workout_message,
+    present_served_workout,
     prompt_volume_fields,
 )
 from rt_dashboard.workout_planner import (
@@ -772,6 +775,224 @@ class StoredMessageServeTests(unittest.TestCase):
         self.assertNotIn("extra pause", text)
         self.assertNotIn("Framework: ≈4–8", text)
         self.assertIn(CLIMB, text)
+
+
+# Prod stored payload: ramp flags were saved off. The file the planner reads
+# is live. Non-ramp fields on the stored dict (cap, target) must win.
+STALE_STORED_GOALS = {
+    "rotation": ["push", "pull", "legs"],
+    "exercises_per_session": 5,
+    "default_hard_sets": 2,
+    "sets_per_muscle_week_min": 4,
+    "sets_per_muscle_week_max": 8,
+    "sets_per_muscle_week_priority_max": 10,
+    "maintenance_sets_per_muscle_week": 3,
+    "session_working_set_cap": 14,
+    "secondary_set_fraction": 0.5,
+    "volume_sets_target": 10,
+    "volume_ramp_increment": 2,
+    "volume_ramp_equal": False,
+    "volume_ramp_started_on": "",
+    "pinned_lifts": {},
+    "focus_muscles": ["lats"],
+    "notes": "stored payload",
+}
+
+
+class StaleStoredRampServeTests(unittest.TestCase):
+    def _workspace(self, **overrides):
+        goals = dict(RAMP)
+        # Divergent non-ramp fields. The served line must keep the stored cap
+        # and the stored ~10 target.
+        goals["volume_sets_target"] = 12
+        goals["session_working_set_cap"] = 99
+        goals["notes"] = "workspace"
+        goals.update(overrides)
+        return goals
+
+    def _patch_workspace(self, goals):
+        return mock.patch(
+            "rt_dashboard.workout_store.load_workspace_goals",
+            side_effect=lambda: (copy.deepcopy(goals), "fitness/exercises/goals.json"),
+        )
+
+    def _saved_plan(self):
+        return {
+            "session_type": "pull",
+            "is_rest_day": False,
+            "source": "grok",
+            "date": "2026-11-11",
+            "message": STORED_CUE_MESSAGE,
+            "exercises": [
+                {"name": "Pulldowns", "prescription": {"sets": 3, "reps": "8-12"}},
+                {"name": "Seated Cable Row", "prescription": {"sets": 3, "reps": "8-12"}},
+                {"name": "DB Curls", "prescription": {"sets": 2, "reps": "10-12"}},
+            ],
+        }
+
+    def _payload(self, goals):
+        return {
+            "meta": {"local_today": "2026-11-11"},
+            "coach": {"today": {"date": "2026-11-11"}},
+            "sessions": [],
+            "recovery": {"label": "Ready", "score": 80},
+            "workout": {"message": STORED_CUE_MESSAGE, "date": "2026-11-11"},
+            "workout_store": {
+                "goals": goals,
+                "plan": {
+                    "message": STORED_CUE_MESSAGE,
+                    "date": "2026-11-11",
+                    "session_type": "pull",
+                    "is_rest_day": False,
+                },
+            },
+        }
+
+    def _serve_all(self, goals):
+        saved = self._saved_plan()
+        slot = {
+            "session_type": "pull",
+            "is_rest_day": False,
+            "exercises": [],
+            "next_session_type": "legs",
+        }
+        with mock.patch(
+            "rt_dashboard.agent_plan.load_last_good_workout_plan",
+            return_value=saved,
+        ), mock.patch(
+            "rt_dashboard.grok_planner.dashboard_plan_slots",
+            return_value=({}, dict(slot)),
+        ), mock.patch(
+            "rt_dashboard.agent_plan.ensure_today_grok_plan",
+        ) as generate:
+            served = stamp_and_fill_workout(
+                "u",
+                day="2026-11-11",
+                sessions=[],
+                goals=goals,
+                recovery={"label": "Ready", "score": 80},
+                read_only=True,
+            )
+        generate.assert_not_called()
+        self.assertEqual(saved["message"], STORED_CUE_MESSAGE)
+
+        raw = self._payload(goals)
+        overlaid = overlay_workout_on_payload(raw, dict(saved))
+        self.assertEqual(saved["message"], STORED_CUE_MESSAGE)
+        exported = export_agent_today(self._payload(goals))
+        plan_body, _as_of = build_plan(
+            self._payload(goals),
+            {"today": {"date": "2026-11-11"}, "week": {}},
+        )
+        board = build_today_board(
+            as_of="2026-11-11",
+            recovery=RecoveryStatus(label="Ready", score=80.0),
+            workout_plan={
+                "message": STORED_CUE_MESSAGE,
+                "date": "2026-11-11",
+                "session_type": "pull",
+                "is_rest_day": False,
+                "exercises": [],
+                "goals": goals,
+            },
+            meal_plan={"message": "Pantry sketch", "items": [], "meals": []},
+            consumed={"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+            targets={"calories": 2100, "protein_g": 180, "carbs_g": 180, "fat_g": 60},
+            adherence={},
+        )
+        return {
+            "stamp": served.get("message"),
+            "overlay_workout": overlaid["workout"]["message"],
+            "overlay_plan": overlaid["workout_store"]["plan"]["message"],
+            "overlay_coach": overlaid["coach"]["today"]["workout"]["message"],
+            "export": exported["today"]["workout"]["message"],
+            "plan": plan_body["week"]["workout_plan"]["message"],
+            "coach": board["workout"]["message"],
+        }
+
+    def _assert_goals_untouched(self, goals, *, equal, started):
+        self.assertEqual(goals["volume_ramp_equal"], equal)
+        self.assertEqual(goals["volume_ramp_started_on"], started)
+        self.assertEqual(goals["focus_muscles"], ["lats"])
+        self.assertEqual(goals["notes"], "stored payload")
+        self.assertEqual(goals["session_working_set_cap"], 14)
+        self.assertEqual(goals["volume_sets_target"], 10)
+
+    def test_serve_paths_use_workspace_ramp_not_stored_flags(self):
+        stored = copy.deepcopy(STALE_STORED_GOALS)
+        workspace = self._workspace()
+        with self._patch_workspace(workspace):
+            messages = self._serve_all(stored)
+        for name, message in messages.items():
+            with self.subTest(path=name):
+                text = message or ""
+                self.assertNotIn("2–3", text)
+                self.assertNotIn("2-3", text)
+                self.assertNotIn("lower the weight", text)
+                self.assertNotIn("extra pause", text)
+                self.assertNotIn("Framework: ≈4–8", text)
+                self.assertIn(CLIMB, text)
+                self.assertNotIn("cap ~99", text)
+                self.assertNotIn("~12", text)
+        self._assert_goals_untouched(stored, equal=False, started="")
+
+    def test_workspace_ramp_off_keeps_framework(self):
+        # Stored flags would show the ramp. Workspace off must win.
+        stored = copy.deepcopy(STALE_STORED_GOALS)
+        stored["volume_ramp_equal"] = True
+        stored["volume_ramp_started_on"] = "2026-11-09"
+        workspace = self._workspace(
+            volume_ramp_equal=False,
+            volume_ramp_started_on="",
+        )
+        with self._patch_workspace(workspace):
+            messages = self._serve_all(stored)
+        for name, message in messages.items():
+            with self.subTest(path=name):
+                text = message or ""
+                self.assertIn("Framework: ≈4–8", text)
+                self.assertNotIn("Volume: ramping", text)
+                self.assertNotIn("Volume: ramp paused", text)
+                self.assertNotIn("lower the weight", text)
+                self.assertNotIn("2–3", text)
+                self.assertNotIn("2-3", text)
+        self._assert_goals_untouched(
+            stored, equal=True, started="2026-11-09"
+        )
+
+    def test_ramp_exception_keeps_framework_and_serves_today(self):
+        stored = copy.deepcopy(STALE_STORED_GOALS)
+        plan = {
+            "message": STORED_CUE_MESSAGE,
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "goals": stored,
+        }
+        with self._patch_workspace(self._workspace()), mock.patch(
+            "rt_dashboard.priority_ramp.collect_ramp_signals",
+            side_effect=RuntimeError("ramp blew up"),
+        ) as signals, self.assertLogs(
+            "rt_dashboard.priority_ramp", level="ERROR"
+        ) as logs:
+            served = present_served_workout(
+                plan,
+                goals=stored,
+                sessions=[],
+                as_of="2026-11-11",
+                recovery={"label": "Ready", "score": 80},
+            )
+        signals.assert_called()
+        self.assertIsInstance(served, dict)
+        self.assertIsNot(served, plan)
+        text = served.get("message") or ""
+        self.assertIn("Framework: ≈4–8", text)
+        self.assertNotIn("Volume:", text)
+        self.assertNotIn("lower the weight", text)
+        self.assertNotIn("2–3", text)
+        self.assertNotIn("2-3", text)
+        self.assertTrue(any("serve ramp failed" in line for line in logs.output))
+        self.assertEqual(plan["message"], STORED_CUE_MESSAGE)
+        self._assert_goals_untouched(stored, equal=False, started="")
 
 
 if __name__ == "__main__":

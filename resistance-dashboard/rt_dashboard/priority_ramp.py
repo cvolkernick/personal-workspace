@@ -11,9 +11,12 @@ That formula is not modified here.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Optional, Sequence
+
+_LOG = logging.getLogger(__name__)
 
 # Standing coaching only. Match the cue sentence, not the bare words
 # "lowering" or "tempo" (those show up in "lowering volume" and notes).
@@ -720,6 +723,22 @@ def _load_serve_goals() -> dict:
     return loaded if isinstance(loaded, dict) else {}
 
 
+def _goals_for_serve(goals: Optional[dict]) -> dict:
+    """Ramp flags follow workspace goals. Other fields stay on the caller's dict.
+
+    A stored payload can still say the ramp is off. Liveness uses the same
+    file the planner reads. The caller's dict is not written.
+    """
+    workspace = _load_serve_goals()
+    if not isinstance(goals, dict):
+        return workspace
+    merged = dict(goals)
+    for key, value in workspace.items():
+        if str(key).startswith("volume_ramp_"):
+            merged[key] = value
+    return merged
+
+
 def _recovery_fields(recovery: Any) -> tuple:
     if isinstance(recovery, dict):
         label = recovery.get("label")
@@ -763,6 +782,14 @@ def _serve_ramp(
     )
 
 
+def _without_replaced_volume_copy(text: str) -> str:
+    """Drop the stale 4–8 framework sentence and any old priority-volume line."""
+    text = _without_stale_framework(text)
+    return _join_kept(
+        text, lambda sentence: sentence.strip().startswith("Priority volume:")
+    )
+
+
 def present_served_workout(
     plan: Optional[dict],
     *,
@@ -774,10 +801,13 @@ def present_served_workout(
 ) -> Optional[dict]:
     """Read-time workout message. Does not write the stored plan.
 
-    Strips the standing-coaching cue from a saved or stamped message. When
-    ``volume_ramp_equal`` / ``volume_ramp_started_on`` make the equal ramp
-    live, the stale 4–8 framework sentence is replaced by ``today_line``.
-    A message that already carries the computed line is left on that line.
+    Strips the standing-coaching cue from a saved or stamped message.
+    ``volume_ramp_*`` liveness comes from workspace goals (the file the
+    planner reads), so a stored payload that still has the ramp off cannot
+    hide the line. Other goal fields stay on the dict the caller passed.
+    When the equal ramp is live, the stale 4–8 framework sentence is
+    replaced by ``today_line``. If that computation raises, the cue is
+    still stripped and the framework sentence is left as saved.
     """
     if not isinstance(plan, dict) or not plan:
         return plan
@@ -789,22 +819,26 @@ def present_served_workout(
     has_framework = _FRAMEWORK_48_RE.search(text) is not None
     if goals is None and not has_cue and not has_framework:
         return plan
-    resolved = goals if isinstance(goals, dict) else _load_serve_goals()
+    resolved = _goals_for_serve(goals)
     day = str(as_of or plan.get("date") or "")[:10]
     live = bool(day) and ramp_is_live(resolved, day)
     stripped = _without_cue(text)
-    if live:
-        stripped = _without_stale_framework(stripped)
-        stripped = _join_kept(
-            stripped, lambda sentence: sentence.strip().startswith("Priority volume:")
-        )
-    if live and not _has_volume_line(stripped):
-        ramp = _serve_ramp(
-            resolved, sessions, as_of=day, recovery=recovery, phase=phase
-        )
-        line = str(ramp.get("today_line") or "").strip()
-        if ramp.get("live") and line:
-            stripped = f"{stripped} · {line}".strip(" ·") if stripped else line
+    if live and _has_volume_line(stripped):
+        stripped = _without_replaced_volume_copy(stripped)
+    elif live:
+        try:
+            ramp = _serve_ramp(
+                resolved, sessions, as_of=day, recovery=recovery, phase=phase
+            )
+        except Exception:  # noqa: BLE001 - a ramp miss must not fail Today
+            _LOG.exception(
+                "serve ramp failed; cue stripped, framework sentence left in place"
+            )
+        else:
+            stripped = _without_replaced_volume_copy(stripped)
+            line = str(ramp.get("today_line") or "").strip()
+            if ramp.get("live") and line:
+                stripped = f"{stripped} · {line}".strip(" ·") if stripped else line
     if stripped == text:
         return plan
     out = dict(plan)
