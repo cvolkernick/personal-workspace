@@ -78,7 +78,7 @@ class WeeklyReviewCache(unittest.TestCase):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
         self.assertIn("/app.js?v=bf-mcp-phase-1", HTML)
         self.assertIn("/app.js?v=bf-mcp-phase-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v165"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v166"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", SW)
         self.assertNotIn("/app.js?v=ing-micros-612-1", HTML)

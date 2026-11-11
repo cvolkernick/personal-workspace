@@ -360,6 +360,21 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     message = slot.get("message") or plan.get("message") or coach_wo.get("message")
     if message is not None:
         message = str(message) if message != "" else None
+    if message:
+        from .priority_ramp import present_served_workout
+
+        goals = store.get("goals") if isinstance(store.get("goals"), dict) else None
+        if goals is None and isinstance(payload.get("goals"), dict):
+            goals = payload.get("goals")
+        served = present_served_workout(
+            {"message": message},
+            goals=goals,
+            sessions=payload.get("sessions"),
+            as_of=day,
+            recovery=payload.get("recovery") if isinstance(payload.get("recovery"), dict) else None,
+        )
+        if isinstance(served, dict) and served.get("message"):
+            message = str(served["message"])
 
     planning = _planning_sessions(payload)
     recent = _recent_logged_sessions(planning, day)

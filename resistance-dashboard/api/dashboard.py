@@ -708,6 +708,15 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         now=now,
         training_objective=training_objective,
     )
+    from rt_dashboard.priority_ramp import present_served_workout
+
+    workout_plan = present_served_workout(
+        workout_plan,
+        goals=effective_goals,
+        sessions=sessions,
+        as_of=today,
+        recovery=recovery_dict,
+    ) or workout_plan
     pack = build_training_pack(
         effective_goals, catalog, sessions, next_brief=nxt, limit=5
     )

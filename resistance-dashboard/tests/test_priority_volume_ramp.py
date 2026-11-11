@@ -16,6 +16,8 @@ from rt_dashboard.coach import build_today_board
 from rt_dashboard.grok_planner import generate_grok_plans
 from rt_dashboard.models import ExerciseEntry, RecoveryStatus, Session, SetEntry
 from rt_dashboard.muscle_sets import build_muscle_set_report
+from rt_dashboard.agent_plan import overlay_workout_on_payload, stamp_and_fill_workout
+from rt_dashboard.agent_today import export_agent_today
 from rt_dashboard.priority_ramp import (
     bump_equal_sets,
     display_targets,
@@ -656,6 +658,120 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
         )
         self.assertEqual(report["muscle_sets"]["lats_upper_back"]["target"], "0")
         self.assertEqual(report["muscle_sets"]["lower_back"]["target"], "4")
+
+
+# The prod stored plan. The leading prescription is abbreviated in the report
+# as '...'; the cue sentence is the one that shipped on the workout message.
+STORED_CUE_MESSAGE = (
+    "Suggested PULL session (5 exercises, 10 hard sets). "
+    "Framework: ≈4–8 sets/muscle/week (w/ overlap) · "
+    "On main lifts (bench, rows, overhead press, squat, hack squat, leg press, "
+    "deadlift, RDL, and pull-ups), lower the weight under control for 2–3 seconds, "
+    "then lift as usual on the way up. No extra pause at the bottom unless the lift already has one."
+)
+
+
+class CueStripperScopeTests(unittest.TestCase):
+    def test_cue_sentences_go_and_generic_words_stay(self):
+        raw = (
+            "Keep lowering volume if sleep is short. A tempo note in the log is not a prescription. "
+            "Framework: ≈4–8 sets/muscle/week (w/ overlap) · "
+            "On main lifts, lower the weight under control for 2–3 seconds, then lift as usual on the way up. "
+            "No extra pause at the bottom unless the lift already has one. "
+            "Use an eccentric tempo on the way down."
+        )
+        out = ensure_workout_message(raw, {"live": True, "today_line": CLIMB})
+        self.assertIn("lowering volume", out)
+        self.assertIn("tempo note", out)
+        self.assertNotIn("lower the weight", out)
+        self.assertNotIn("2–3", out)
+        self.assertNotIn("2-3", out)
+        self.assertNotIn("extra pause", out)
+        self.assertNotIn("eccentric tempo", out)
+        self.assertNotIn("Framework: ≈4–8", out)
+        self.assertIn(CLIMB, out)
+        self.assertEqual(out.count("Session cap ~14"), 1)
+
+        plain = ensure_workout_message(
+            "Keep lowering volume. Leave the tempo alone.",
+            {"live": False},
+        )
+        self.assertEqual(plain, "Keep lowering volume. Leave the tempo alone.")
+
+
+class StoredMessageServeTests(unittest.TestCase):
+    def test_serve_path_strips_stored_cue_and_framework(self):
+        saved = {
+            "session_type": "pull",
+            "is_rest_day": False,
+            "source": "grok",
+            "message": STORED_CUE_MESSAGE,
+            "exercises": [
+                {"name": "Pulldowns", "prescription": {"sets": 3, "reps": "8-12"}},
+                {"name": "Seated Cable Row", "prescription": {"sets": 3, "reps": "8-12"}},
+                {"name": "DB Curls", "prescription": {"sets": 2, "reps": "10-12"}},
+            ],
+        }
+        slot = {
+            "session_type": "pull",
+            "is_rest_day": False,
+            "exercises": [],
+            "next_session_type": "legs",
+        }
+        with mock.patch(
+            "rt_dashboard.agent_plan.load_last_good_workout_plan",
+            return_value=saved,
+        ), mock.patch(
+            "rt_dashboard.grok_planner.dashboard_plan_slots",
+            return_value=({}, dict(slot)),
+        ), mock.patch(
+            "rt_dashboard.agent_plan.ensure_today_grok_plan",
+        ) as generate:
+            served = stamp_and_fill_workout(
+                "u",
+                day="2026-11-11",
+                sessions=[],
+                # Empty pins: the file default would reject a plan that
+                # does not include assisted pull-ups. Ramp flags stay.
+                goals={**RAMP, "pinned_lifts": {}},
+                recovery={"label": "Ready", "score": 80},
+                read_only=True,
+            )
+        generate.assert_not_called()
+        self.assertIsNot(served, saved)
+        self.assertEqual(saved["message"], STORED_CUE_MESSAGE)
+        self._assert_clean(served.get("message"))
+
+        payload = overlay_workout_on_payload(
+            {
+                "meta": {"local_today": "2026-11-11"},
+                "coach": {"today": {"date": "2026-11-11"}},
+                "sessions": [],
+                "workout_store": {
+                    "goals": dict(RAMP),
+                    "plan": {"message": STORED_CUE_MESSAGE},
+                },
+                "recovery": {"label": "Ready", "score": 80},
+            },
+            dict(saved),
+        )
+        self.assertEqual(saved["message"], STORED_CUE_MESSAGE)
+        for piece in (
+            payload["workout"]["message"],
+            payload["workout_store"]["plan"]["message"],
+            payload["coach"]["today"]["workout"]["message"],
+            export_agent_today(payload)["today"]["workout"]["message"],
+        ):
+            self._assert_clean(piece)
+
+    def _assert_clean(self, message):
+        text = message or ""
+        self.assertNotIn("2–3", text)
+        self.assertNotIn("2-3", text)
+        self.assertNotIn("lower the weight", text)
+        self.assertNotIn("extra pause", text)
+        self.assertNotIn("Framework: ≈4–8", text)
+        self.assertIn(CLIMB, text)
 
 
 if __name__ == "__main__":

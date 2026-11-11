@@ -556,7 +556,7 @@ class GuardrailMarkup(unittest.TestCase):
         self.assertNotIn("treading", css.lower())
         self.assertIn("@media (max-width: 560px)", css)
         self.assertIn("grid-template-columns: repeat(4, minmax(0, 1fr))", css)
-        self.assertIn('const CACHE = "fitdash-shell-v165"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v166"', sw)
         self.assertNotIn("fitdash-shell-v131", sw)
         self.assertIn("/app.js?v=bf-mcp-phase-1", html)
         self.assertIn("/app.js?v=bf-mcp-phase-1", sw)
