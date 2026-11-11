@@ -2852,7 +2852,6 @@ def _generate_workout_plan_unguarded(
                 f"Next session: {str(nxt).upper()} tomorrow."
             ),
             ramp,
-            has_lifts=False,
         )
         return _stamp_plan_remainder({
             "date": day,
@@ -2903,7 +2902,6 @@ def _generate_workout_plan_unguarded(
                 f"({rest_threshold}). Suggested rest or light walk/mobility only."
             ),
             ramp,
-            has_lifts=False,
         )
         return _stamp_plan_remainder({
             "date": day,
@@ -3466,7 +3464,7 @@ def _generate_workout_plan_unguarded(
             message = f"{message} · {ramp.get('today_line') or ''}".strip()
     else:
         message = " · ".join(part for part in msg_parts if part)
-    message = ensure_workout_message(message, ramp, has_lifts=bool(plan_ex))
+    message = ensure_workout_message(message, ramp)
     out = {
         "date": day,
         "session_type": display_session,
