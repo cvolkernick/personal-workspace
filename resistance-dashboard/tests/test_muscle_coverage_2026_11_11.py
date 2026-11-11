@@ -359,8 +359,9 @@ class ScoreboardTests(unittest.TestCase):
             equipment=gear,
         )
         names = [row["name"] for row in plan["exercises"]]
-        self.assertIn("Lying Leg Curl", names)
         self.assertIn("Calf Extensions", names)
+        self.assertIn("Roman Chair Knee Raise", names)
+        self.assertGreater(_credit(plan, "hamstrings"), 0)
         self.assertLessEqual(len(names), RAMP["exercises_per_session"])
         self.assertLessEqual(_hard_sets(plan), 14)
         patterns = [str(row.get("movement_pattern") or "") for row in plan["exercises"]]
@@ -368,6 +369,106 @@ class ScoreboardTests(unittest.TestCase):
         self.assertLessEqual(patterns.count("hip_adduction"), 1)
         self.assertGreater(_credit(plan, "calves"), 0)
         self.assertGreater(_credit(plan, "hamstrings"), 0)
+
+    def test_pull_day_covers_rear_delts_without_passing_the_exercise_cap(self):
+        catalog = {
+            "exercises": [
+                _lift("assisted-pullups", "Assisted Pullups", "pull", ["lats"], ["biceps"], "compound", ["pullup"], 10),
+                _lift("machine-row", "Machine Row", "pull", ["mid_upper_back"], ["lats"], "compound", ["machine"], 9),
+                _lift("hammer-curls", "Hammer Curls", "pull", ["biceps"], [], "isolation", ["dumbbell"], 8),
+                _lift("db-curls", "DB Curls", "pull", ["biceps"], [], "isolation", ["dumbbell"], 7),
+                _lift("face-pulls", "Face Pulls", "pull", ["rear_delts"], [], "isolation", ["cable"], 4),
+            ]
+        }
+        gear = {
+            "items": [
+                {"id": "pullup", "name": "Pull-up", "tag": "pullup", "source": "gym"},
+                {"id": "machine", "name": "Machine", "tag": "machine", "source": "gym"},
+                {"id": "dumbbell", "name": "Dumbbell", "tag": "dumbbell", "source": "gym"},
+                {"id": "cable", "name": "Cable", "tag": "cable", "source": "gym"},
+            ]
+        }
+        goals = dict(RAMP)
+        goals["exercises_per_session"] = 4
+        plan = generate_workout_plan(
+            catalog,
+            goals,
+            [_session("2026-11-10", "push", "Walk", 1)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="pull",
+            as_of="2026-11-11",
+            equipment=gear,
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertIn("Face Pulls", names)
+        self.assertIn("Assisted Pullups", names)
+        self.assertIn("Machine Row", names)
+        self.assertLessEqual(names.count("Hammer Curls") + names.count("DB Curls"), 1)
+        self.assertLessEqual(len(names), goals["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(plan), 14)
+        self.assertGreater(_credit(plan, "rear_delts"), 0)
+
+    def test_legs_day_with_abs_under_target_gets_an_abs_lift(self):
+        catalog = {
+            "exercises": [
+                _lift("leg-press", "Leg Press", "legs", ["quads"], ["glutes"], "compound", ["leg_press"], 10),
+                _lift("rdl", "RDL", "legs", ["hamstrings", "glutes"], ["lower_back"], "compound", ["barbell"], 9),
+                _lift("lying-leg-curls", "Lying Leg Curl", "legs", ["hamstrings"], [], "isolation", ["machine"], 8),
+                _lift("calf-raises", "Calf Extensions", "legs", ["calves"], [], "isolation", ["machine"], 7),
+                _lift("leg-extension", "Leg Extension", "legs", ["quads"], [], "isolation", ["machine"], 3),
+                _lift("roman-chair-raise", "Roman Chair Knee Raise", "legs", ["abs"], [], "isolation", ["roman_chair"], 4),
+            ]
+        }
+        gear = {
+            "items": [
+                {"id": "machine", "name": "Machine", "tag": "machine", "source": "gym"},
+                {"id": "barbell", "name": "Barbell", "tag": "barbell", "source": "gym"},
+                {"id": "leg_press", "name": "Leg press", "tag": "leg_press", "source": "gym"},
+                {"id": "roman_chair", "name": "Roman chair", "tag": "roman_chair", "source": "gym"},
+            ]
+        }
+        plan = generate_workout_plan(
+            catalog,
+            dict(RAMP),
+            [_session("2026-11-10", "push", "Walk", 1)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+            equipment=gear,
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertIn("Roman Chair Knee Raise", names)
+        self.assertIn("Calf Extensions", names)
+        self.assertIn("Lying Leg Curl", names)
+        self.assertNotIn("Leg Extension", names)
+        self.assertLessEqual(len(names), RAMP["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(plan), 14)
+        for row in plan["exercises"]:
+            self.assertLessEqual(int((row.get("prescription") or {}).get("sets") or 0), 4)
+
+    def test_behind_the_neck_press_stays_at_four_sets(self):
+        goals = dict(RAMP)
+        goals["pinned_lifts"] = {"push": ["smith-btn-press"]}
+        plan = generate_workout_plan(
+            default_catalog(),
+            goals,
+            [
+                _session("2026-11-04", "push", "Behind-the-Neck Smith Press", 4, reps=8, weight=60),
+                _session("2026-11-10", "pull", "Pulldowns", 2),
+            ],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="push",
+            as_of="2026-11-11",
+        )
+        btn = next(row for row in plan["exercises"] if row["name"] == "Behind-the-Neck Smith Press")
+        self.assertLessEqual(int(btn["prescription"]["sets"]), 4)
+        self.assertLessEqual(len(plan["exercises"]), goals["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(plan), 14)
+        for row in plan["exercises"]:
+            self.assertLessEqual(int((row.get("prescription") or {}).get("sets") or 0), 4)
 
     def test_zero_group_gets_a_one_set_coverage_slot(self):
         catalog = {

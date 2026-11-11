@@ -166,9 +166,9 @@ class IngredientMicrosBackend(unittest.TestCase):
 class IngredientFormCache(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=muscle-map-169", HTML)
-        self.assertIn("/app.js?v=muscle-map-169", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v169"', SW)
+        self.assertIn("/app.js?v=muscle-map-170", HTML)
+        self.assertIn("/app.js?v=muscle-map-170", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v170"', SW)
         self.assertNotIn("/app.js?v=ing-micros-612-1", HTML)
         self.assertNotIn("/app.js?v=ing-micros-612-1", SW)
         self.assertNotIn("fitdash-shell-v105", SW)

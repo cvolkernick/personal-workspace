@@ -3332,6 +3332,7 @@ def _generate_workout_plan_unguarded(
                     f"{allowed} accessory sets."
                 ).strip()
             hard = allowed
+        hard = min(hard, 4)
         if cap_left is not None:
             cap_left -= hard
         rx["sets"] = hard
@@ -3468,6 +3469,7 @@ def _generate_workout_plan_unguarded(
             session_muscles=SESSION_MUSCLES.get(st, ()),
             secondary_fraction=sec_frac,
             session_cap=session_cap,
+            max_exercises=n,
             new_rows=_new_equal_rows,
         )
         plan_ex = bumped["exercises"]
@@ -3481,8 +3483,11 @@ def _generate_workout_plan_unguarded(
         and not use_remainder
     ):
         # After pins, compounds, and the equal-ramp adds: a 1-set slot for
-        # a group that is still at 0, when this letter trains it and one
-        # set fits under the cap. Compounds already chosen stay put.
+        # a group still under its ramp target, when this letter trains it.
+        # If the exercise list is already full, that slot replaces the
+        # lowest-priority isolation whose muscle is already at or over target.
+        # Compounds stay. The list does not grow past exercises_per_session,
+        # and the 14-set cap still holds.
         taken_ids = {str(row.get("id") or "") for row in plan_ex}
         session_ok = set(SESSION_MUSCLES.get(st, ()))
 
@@ -3520,18 +3525,74 @@ def _generate_workout_plan_unguarded(
             return hits[0]
 
         added_rows: List[dict] = []
+
+        def _band_min(group: str) -> float:
+            band = bands.get(group) or {}
+            try:
+                return float(band.get("min") or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _have(group: str) -> float:
+            return float(done.get(group) or 0) + float(planned_credits.get(group) or 0)
+
+        def _already_primary(group: str) -> bool:
+            for row in list(plan_ex) + added_rows:
+                prim = [normalize_muscle(m) for m in (row.get("primary_muscles") or [])]
+                if group in prim:
+                    return True
+            return False
+
+        def _row_sets(row: dict) -> int:
+            try:
+                return int((row.get("prescription") or {}).get("sets") or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        def _spare_isolation() -> Optional[dict]:
+            """Lowest-priority isolation whose muscle is already at or over target.
+
+            Another lift must still credit that muscle, so the only calf or
+            hamstring movement is not traded away.
+            """
+            spares = []
+            for row in plan_ex:
+                if str(row.get("movement") or "") == "compound":
+                    continue
+                if str(row.get("id") or "") in pin_ids:
+                    continue
+                prim = [normalize_muscle(m) for m in (row.get("primary_muscles") or [])]
+                if not prim:
+                    continue
+                credits = row.get("set_credits") or {}
+                covered = True
+                for muscle in prim:
+                    target = _band_min(muscle)
+                    have = _have(muscle)
+                    if target <= 0 or have + 1e-9 < target:
+                        covered = False
+                        break
+                    remain = have - float(credits.get(muscle) or 0)
+                    if remain <= 1e-9:
+                        covered = False
+                        break
+                if not covered:
+                    continue
+                src = pool_by_id.get(str(row.get("id") or "")) or row
+                spares.append((int(src.get("priority") or 0), str(row.get("name") or ""), row))
+            if not spares:
+                return None
+            spares.sort(key=lambda item: (item[0], item[1]))
+            return spares[0][2]
+
         for group in ZERO_COVERAGE_GROUPS:
             if group not in session_ok:
                 continue
-            have = float(done.get(group) or 0) + float(planned_credits.get(group) or 0)
-            if have >= 0.5:
+            target = _band_min(group)
+            if target <= 0 or _have(group) + 1e-9 >= target:
                 continue
-            # Do not grow the session past exercises_per_session, and do
-            # not spend a set that would push past the 14-set cap.
-            if len(plan_ex) + len(added_rows) >= n:
-                break
-            if session_sets + 1 > session_cap:
-                break
+            if _already_primary(group):
+                continue
             candidate = _coverage_pick(group)
             if candidate is None:
                 continue
@@ -3540,6 +3601,19 @@ def _generate_workout_plan_unguarded(
                 str(row.get("movement_pattern") or "").strip().lower() == pattern
                 for row in list(plan_ex) + added_rows
             ):
+                continue
+            # A full session can swap a 1-set coverage lift for the
+            # lowest-priority isolation whose muscle is already covered.
+            # Compounds stay. The session does not grow past n or the cap.
+            occupied = len(plan_ex) + len(added_rows)
+            replacing: Optional[dict] = None
+            if occupied >= n:
+                replacing = _spare_isolation()
+                if replacing is None:
+                    continue
+                if session_sets - _row_sets(replacing) + 1 > session_cap:
+                    continue
+            elif session_sets + 1 > session_cap:
                 continue
             last = last_performance(sessions, candidate["name"], by_id)
             ex_rx = dict(candidate)
@@ -3588,11 +3662,18 @@ def _generate_workout_plan_unguarded(
                 "set_credits": {k: round(v, 2) for k, v in one.items()},
                 "rationale": (
                     str(rx_new.get("rationale") or "")
-                    + f" Coverage: 1 hard set for {group.replace('_', ' ')} at 0."
+                    + f" Coverage: 1 hard set for {group.replace('_', ' ')} under target."
                 ).strip(),
                 "last": rx_new.get("last"),
             }
             _copy_assisted_keys(rx_new, fresh, prescription_new)
+            if replacing is not None:
+                for muscle, credit in (replacing.get("set_credits") or {}).items():
+                    planned_credits[muscle] = float(planned_credits.get(muscle) or 0) - float(credit)
+                    if planned_credits[muscle] <= 1e-9:
+                        planned_credits.pop(muscle, None)
+                session_sets = max(0, session_sets - _row_sets(replacing))
+                plan_ex.remove(replacing)
             added_rows.append(fresh)
             taken_ids.add(str(candidate.get("id") or ""))
             for muscle, credit in one.items():

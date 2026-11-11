@@ -387,16 +387,36 @@ class BumpTests(unittest.TestCase):
 
         bumped = bump_equal_sets(
             [pulldown],
-            targets={"lats": {"min": 6, "max": 8}, "biceps": {"min": 4, "max": 6}},
+            targets={"lats": {"min": 4, "max": 4}, "biceps": {"min": 4, "max": 6}},
             logged={},
             session_muscles=("lats", "biceps"),
             session_cap=14,
             new_rows=_new,
         )
         self.assertEqual(bumped["exercises"][0]["name"], "Pulldowns")
-        self.assertEqual(bumped["exercises"][0]["prescription"]["sets"], 8)
+        self.assertEqual(bumped["exercises"][0]["prescription"]["sets"], 4)
         self.assertNotIn("Seated Cable Row", [row["name"] for row in bumped["exercises"]])
         self.assertLessEqual(bumped["session_sets"], 14)
+
+    def test_a_single_lift_stops_at_four_sets(self):
+        pulldown = {
+            "id": "pulldowns",
+            "name": "Pulldowns",
+            "movement": "compound",
+            "primary_muscles": ["lats"],
+            "secondary_muscles": [],
+            "prescription": {"sets": 4, "reps": 8, "weight_lbs": 100},
+            "set_credits": {"lats": 4},
+        }
+        bumped = bump_equal_sets(
+            [pulldown],
+            targets={"lats": {"min": 8, "max": 10}},
+            logged={},
+            session_muscles=("lats",),
+            session_cap=14,
+        )
+        self.assertEqual(bumped["exercises"][0]["prescription"]["sets"], 4)
+        self.assertEqual(bumped["session_sets"], 4)
 
     def test_compounds_stay_ahead_of_isolation(self):
         curls = {

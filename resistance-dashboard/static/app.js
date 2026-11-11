@@ -8999,9 +8999,9 @@
       const week = report && report.week_window;
       const weekBit =
         week && week.start && week.end
-          ? ` · Mon–Sun ${week.start}–${week.end} is monday_to_date`
+          ? ` · This week (Mon–Sun) ${week.start}–${week.end}`
           : "";
-      sub.textContent = `rolling 7 days · ${dates}proper sets · ${cap}${weekBit}`;
+      sub.textContent = `Last 7 days · ${dates}${cap}${weekBit}`;
     }
     const lines = [];
     if (budget.warning) lines.push(budget.warning);

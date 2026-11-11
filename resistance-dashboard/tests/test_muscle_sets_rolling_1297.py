@@ -197,11 +197,13 @@ class RollingWindow(unittest.TestCase):
 
 
 class TileCopy(unittest.TestCase):
-    def test_tile_label_says_rolling_7_days(self):
+    def test_tile_label_says_last_7_days(self):
         html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("rolling 7 days · proper sets", html)
-        self.assertIn("rolling 7 days · ${dates}proper sets", app)
+        self.assertIn("Last 7 days", html)
+        self.assertIn("Last 7 days · ${dates}${cap}${weekBit}", app)
+        self.assertIn("This week (Mon–Sun)", app)
+        self.assertNotIn("monday_to_date", app)
         self.assertIn('id="muscle-body-map"', html)
         today = html[html.find('id="today-hub"') : html.find('id="muscle-sets-card"')]
         self.assertNotIn("muscle-body-map", today)

@@ -969,6 +969,10 @@ def _add_score(
     return (len(helped), furthest, sum(float(gaps[m]) for m in helped))
 
 
+# One lift does not keep taking the ramp's extra sets. Four is the cap.
+LIFT_SET_CAP = 4
+
+
 def bump_equal_sets(
     plan_ex: Sequence[dict],
     *,
@@ -977,14 +981,16 @@ def bump_equal_sets(
     session_muscles: Sequence[str] = (),
     secondary_fraction: float = 0.5,
     session_cap: int = 14,
+    max_exercises: Optional[int] = None,
     new_rows: Optional[Callable[[Sequence[dict]], Sequence[dict]]] = None,
 ) -> Dict[str, Any]:
     """Add sets toward each muscle's ceiling without a named priority.
 
     Prefer an existing compound that helps the most below-target muscles.
     Ties go to the session muscle furthest below its target. A new compound
-    is added only when no current compound can take a set. The session cap
-    stops the add; isolation is not trimmed to make room.
+    is added only when no current compound can take a set and the session
+    is still under ``max_exercises``. No lift grows past four sets. The
+    session cap stops the add; isolation is not trimmed to make room.
     """
     rows: List[dict] = [dict(r) for r in plan_ex or []]
     for row in rows:
@@ -1013,6 +1019,8 @@ def bump_equal_sets(
         best_score: Optional[tuple] = None
         for i, row in enumerate(rows):
             if str(row.get("movement") or "") != "compound":
+                continue
+            if _sets_of(row) >= LIFT_SET_CAP:
                 continue
             score = _add_score(row, gaps, session_muscles, secondary_fraction)
             if score is None:
@@ -1044,11 +1052,15 @@ def bump_equal_sets(
                 fresh_best = candidate
         if fresh_best is None:
             break
+        if max_exercises is not None and len(rows) >= int(max_exercises):
+            break
         fresh = dict(fresh_best)
         if isinstance(fresh.get("prescription"), dict):
             fresh["prescription"] = dict(fresh["prescription"])
         if _sets_of(fresh) < 1:
             _set_sets(fresh, 1)
+        if _sets_of(fresh) > LIFT_SET_CAP:
+            _set_sets(fresh, LIFT_SET_CAP)
         if total_sets() + _sets_of(fresh) > cap:
             break
         rationale = str(fresh.get("rationale") or "")
