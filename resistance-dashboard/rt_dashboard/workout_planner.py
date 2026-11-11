@@ -3389,6 +3389,7 @@ def _generate_workout_plan_unguarded(
         _copy_assisted_keys(rx, plan_row, prescription)
         plan_ex.append(plan_row)
 
+    held_compounds: List[str] = []
     if use_remainder:
         plan_ex = _remainder_plan_rows(remainder["lifts"], pool)
         session_sets = sum(max(0, int(row.get("sets") or 0)) for row in plan_ex)
@@ -3473,10 +3474,16 @@ def _generate_workout_plan_unguarded(
             session_cap=session_cap,
             max_exercises=n,
             new_rows=_new_equal_rows,
+            pinned_ids=pinned_lift_ids(goals, st),
+            logged_today_ids=today_logged_ids,
+            logged_today_names=today_logged_names,
+            spare_baseline=done,
+            spare_targets=bands,
         )
         plan_ex = bumped["exercises"]
         planned_credits = bumped["planned_credits"]
         session_sets = int(bumped["session_sets"])
+        held_compounds = list(bumped.get("held") or [])
 
     if (
         plan_ex
@@ -3606,6 +3613,9 @@ def _generate_workout_plan_unguarded(
             # Compounds stay. The session does not grow past n or the cap.
             occupied = len(plan_ex) + len(added_rows)
             replacing: Optional[dict] = None
+            if occupied >= n and (today_logged_ids or today_logged_names):
+                # A set already logged today does not evict a different lift.
+                continue
             if occupied >= n:
                 replacing = _spare_isolation()
                 if replacing is None:
@@ -3773,6 +3783,8 @@ def _generate_workout_plan_unguarded(
             f"Ramp targets (not catch-up): {', '.join(under[:3])}"
             + ("…" if len(under) > 3 else "")
         )
+    for held in held_compounds:
+        msg_parts.append(held)
     if ramp.get("live"):
         msg_parts.append(str(ramp.get("today_line") or ""))
     elif continuity.get("phase") == "normal":

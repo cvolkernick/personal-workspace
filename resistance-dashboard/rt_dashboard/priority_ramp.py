@@ -983,14 +983,21 @@ def bump_equal_sets(
     session_cap: int = 14,
     max_exercises: Optional[int] = None,
     new_rows: Optional[Callable[[Sequence[dict]], Sequence[dict]]] = None,
+    pinned_ids: Optional[Sequence[str]] = None,
+    logged_today_ids: Optional[Sequence[str]] = None,
+    logged_today_names: Optional[Sequence[str]] = None,
+    spare_baseline: Optional[Dict[str, float]] = None,
+    spare_targets: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Dict[str, Any]:
     """Add sets toward each muscle's ceiling without a named priority.
 
     Prefer an existing compound that helps the most below-target muscles.
     Ties go to the session muscle furthest below its target. A new compound
     is added when no current compound can take a set. If the exercise list
-    is already full, that compound takes the lowest-priority isolation's
-    slot. A compound is never removed. No lift grows past four sets. The
+    is already full, that compound may take an isolation whose every
+    credited muscle stays at or over target. A pinned lift, a lift logged
+    today, and a compound are never removed. A set already logged today
+    does not evict a different lift. No lift grows past four sets. The
     session cap stops the add; isolation set counts are not trimmed to feed
     another muscle.
     """
@@ -1001,7 +1008,14 @@ def bump_equal_sets(
     logged = logged or {}
     cap = max(0, int(session_cap))
     added = 0
+    held: List[str] = []
     note = "Volume ramp: +1 hard set."
+    pins = {str(item) for item in (pinned_ids or []) if str(item)}
+    today_ids = {str(item) for item in (logged_today_ids or []) if str(item)}
+    today_names = {str(item) for item in (logged_today_names or []) if str(item)}
+    sets_logged_today = bool(today_ids or today_names)
+    baseline = spare_baseline if spare_baseline is not None else logged
+    leave_targets = spare_targets if spare_targets is not None else targets
 
     def total_sets() -> int:
         return sum(max(0, _sets_of(row)) for row in rows)
@@ -1061,26 +1075,38 @@ def bump_equal_sets(
             _set_sets(fresh, 1)
         if _sets_of(fresh) > LIFT_SET_CAP:
             _set_sets(fresh, LIFT_SET_CAP)
-        # Compounds are added before an isolation keeps the last slot.
-        # A full session gives the new compound an isolation's place.
-        # A compound already in the session is never removed.
+        # A full session can give the compound an isolation's slot.
+        # The isolation has to be able to leave: not pinned, not logged
+        # today, and every muscle it credits stays at or over target.
+        # A set already logged today does not evict a different lift.
+        fresh_name = str(fresh.get("name") or "that compound")
         if max_exercises is not None and len(rows) >= int(max_exercises):
-            isolations = [
-                i for i, row in enumerate(rows)
-                if str(row.get("movement") or "") != "compound"
-            ]
-            if not isolations:
+            if sets_logged_today:
+                held.append(
+                    f"Did not add {fresh_name}: a set is already logged today, "
+                    "so the remaining lifts stay."
+                )
                 break
-
-            def _prio(index: int) -> int:
-                try:
-                    return int(rows[index].get("priority") or 0)
-                except (TypeError, ValueError):
-                    return 0
-
-            # Lowest priority, then the later slot (the extra isolation).
-            victim = min(isolations, key=lambda index: (_prio(index), -index))
+            planned_now = _planned_from(rows, secondary_fraction)
+            victim = _isolation_that_can_leave(
+                rows,
+                planned_now,
+                baseline=baseline,
+                targets=leave_targets,
+                pinned_ids=pins,
+                logged_today_ids=today_ids,
+                logged_today_names=today_names,
+            )
+            if victim is None:
+                held.append(
+                    f"Did not add {fresh_name}: no isolation can leave "
+                    "without dropping a muscle under target."
+                )
+                break
             if total_sets() - _sets_of(rows[victim]) + _sets_of(fresh) > cap:
+                held.append(
+                    f"Did not add {fresh_name}: the session cap has no room."
+                )
                 break
             rows.pop(victim)
         elif total_sets() + _sets_of(fresh) > cap:
@@ -1101,4 +1127,57 @@ def bump_equal_sets(
         "planned_credits": planned,
         "session_sets": sum(max(0, _sets_of(row)) for row in rows),
         "added_sets": added,
+        "held": held,
     }
+
+
+def _isolation_that_can_leave(
+    rows: Sequence[dict],
+    planned: Dict[str, float],
+    *,
+    baseline: Dict[str, float],
+    targets: Optional[Dict[str, Dict[str, float]]],
+    pinned_ids: set,
+    logged_today_ids: set,
+    logged_today_names: set,
+) -> Optional[int]:
+    """Lowest-priority isolation whose muscles stay at target without it."""
+    wp = _planner()
+    spares = []
+    for index, row in enumerate(rows):
+        if str(row.get("movement") or "") == "compound":
+            continue
+        eid = str(row.get("id") or "")
+        if eid and eid in pinned_ids:
+            continue
+        if eid and eid in logged_today_ids:
+            continue
+        name = wp._norm_name(str(row.get("name") or ""))
+        if name and name in logged_today_names:
+            continue
+        credits = row.get("set_credits") or {}
+        if not credits:
+            continue
+        covered = True
+        for muscle, credit in credits.items():
+            group = wp.normalize_muscle(muscle)
+            band = (targets or {}).get(group) or {}
+            try:
+                target = float(band.get("min") or 0)
+            except (TypeError, ValueError):
+                target = 0.0
+            have = float(baseline.get(group) or 0) + float(planned.get(group) or 0)
+            if have - float(credit) + 1e-9 < target:
+                covered = False
+                break
+        if not covered:
+            continue
+        try:
+            priority = int(row.get("priority") or 0)
+        except (TypeError, ValueError):
+            priority = 0
+        spares.append((priority, -index, index))
+    if not spares:
+        return None
+    spares.sort()
+    return spares[0][2]

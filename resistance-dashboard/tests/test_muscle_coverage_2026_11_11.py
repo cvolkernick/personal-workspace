@@ -497,6 +497,69 @@ class ScoreboardTests(unittest.TestCase):
         chair = next(row for row in plan["exercises"] if row["name"] == "Roman Chair Knee Raise")
         self.assertEqual(chair["movement"], "isolation")
 
+    def test_pinned_back_extension_survives_a_full_legs_day(self):
+        goals = dict(RAMP)
+        goals["pinned_lifts"] = {"legs": ["back-extension"]}
+        plan = generate_workout_plan(
+            default_catalog(),
+            goals,
+            [_session("2026-11-10", "pull", "Pulldowns", 2)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertIn("Back Extension Machine", names)
+        self.assertEqual(len(names), goals["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(plan), 14)
+
+    def test_back_extension_stays_while_lower_back_is_under_target(self):
+        goals = dict(RAMP)
+        goals["default_hard_sets"] = 1
+        goals["pinned_lifts"] = {}
+        plan = generate_workout_plan(
+            default_catalog(),
+            goals,
+            [_session("2026-11-10", "pull", "Pulldowns", 2)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertIn("Back Extension Machine", names)
+        lower = _credit(plan, "lower_back")
+        self.assertLess(lower, plan["volume"]["planning_bands"]["lower_back"]["min"])
+        self.assertLessEqual(len(names), goals["exercises_per_session"])
+        self.assertEqual(goals["pinned_lifts"], {})
+
+    def test_a_set_logged_today_does_not_remove_another_lift(self):
+        history = [_session("2026-11-10", "pull", "Pulldowns", 2)]
+        before = generate_workout_plan(
+            default_catalog(),
+            dict(RAMP),
+            history,
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        after = generate_workout_plan(
+            default_catalog(),
+            dict(RAMP),
+            history + [_session("2026-11-11", "legs", "Calf Extensions", 1, reps=12, weight=80)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        self.assertIn("Back Extension Machine", [row["name"] for row in before["exercises"]])
+        self.assertIn("Back Extension Machine", [row["name"] for row in after["exercises"]])
+        self.assertIn("a set is already logged today", after["message"])
+        self.assertLessEqual(len(after["exercises"]), RAMP["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(after), 14)
+
     def test_behind_the_neck_press_stays_at_four_sets(self):
         goals = dict(RAMP)
         goals["pinned_lifts"] = {"push": ["smith-btn-press"]}
