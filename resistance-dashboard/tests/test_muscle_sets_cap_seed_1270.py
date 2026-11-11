@@ -82,9 +82,9 @@ class CapSeed(unittest.TestCase):
                 b = _budget(_sessions(RAMP + LAST_FOUR), tonnage)
                 self.assertEqual(b["cap_raw"], 11)
                 self.assertEqual(b["cap"], 11)
-                self.assertAlmostEqual(b["credited_avg_4w"], 13.38, places=2)
+                self.assertAlmostEqual(b["credited_avg_4w"], 14.75, places=2)
                 self.assertEqual(b["week_proper_sets"], 13)
-                self.assertAlmostEqual(b["credit_cap"], 13.4, places=1)
+                self.assertAlmostEqual(b["credit_cap"], 14.8, places=1)
                 self.assertEqual(b["tonnage_status"], tonnage)
                 self.assertEqual(b["cap_source"], "rolling")
 
@@ -207,7 +207,7 @@ class SteadyAndLongGapRegressions(unittest.TestCase):
     def test_steady_history_cap_is_the_average_and_no_false_warning(self):
         b = _budget(self._history(4), "green", day="2026-10-16")
         self.assertEqual(b["cap"], 63)
-        self.assertEqual(b["credited_avg_4w"], 92.5)
+        self.assertEqual(b["credited_avg_4w"], 98.5)
         self.assertFalse(b["overrun"])
         self.assertIsNone(b["warning"])
 
@@ -255,7 +255,7 @@ class WarningCoherence(unittest.TestCase):
         text = ms.budget_warning(45, "side_delts", credit_cap=60.0, drop_closes_gap=True)
         self.assertIn("Drop side delts from the 8–10 list.", text)
         self.assertNotIn("would not close", text)
-        self.assertEqual(ms.demand_after_priority_drops(), 56)
+        self.assertEqual(ms.demand_after_priority_drops(), 68)
         self.assertIn("Drop chest", ms.budget_warning(30, "chest"))
         self.assertIn("Drop chest", ms.budget_warning(63, "chest", credit_cap=40.0))
 
@@ -286,8 +286,8 @@ class CatalogCredits(unittest.TestCase):
             self.ROOT_CATALOG.read_text(encoding="utf-8"), self.BUNDLED.read_text(encoding="utf-8")
         )
         rows = self._rows()
-        self.assertEqual(len(rows), 58)
-        self.assertEqual(len({r["id"] for r in rows}), 58)
+        self.assertEqual(len(rows), 61)
+        self.assertEqual(len({r["id"] for r in rows}), 61)
         for row in rows:
             primary = row.get("volume_primary")
             secondary = row.get("volume_secondary")
@@ -340,7 +340,7 @@ class CatalogCredits(unittest.TestCase):
             "db-flat-press": (["chest"], ["triceps", "front_delts"]),
             "lateral-raises": (["side_delts"], []),
             "band-adduction": ([], []),
-            "machine-adduction": ([], []),
+            "machine-adduction": (["adductors"], []),
             "wrist-roller": ([], []),
         }
         rows = self._rows()

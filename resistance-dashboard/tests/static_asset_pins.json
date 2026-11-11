@@ -1,7 +1,7 @@
 {
   "app.js": {
-    "sha256": "74f33a333684725d4c41ad0d287153522000a770825cb94aaef0a4104e36ba36",
-    "v": "bf-mcp-phase-1"
+    "sha256": "346bd54bd036d6bd16a38f67ec5cc372656131aaf974fcd0d994ced707289bf6",
+    "v": "muscle-map-168"
   },
   "biomarkers.js": {
     "sha256": "bc0a2bdc40ffc45fab4e8a0716754e67397fa8c0cef1481590b4243fd41a133e",
@@ -32,8 +32,8 @@
     "v": "recipe-planner-1288-2"
   },
   "styles.css": {
-    "sha256": "0175f6bdc8c28e7d826d1e08e9131e915685b87610952aed0a3cd29a0063975f",
-    "v": "macro-colors-1"
+    "sha256": "c076cd4579eb7b2288afadf540736ec12e7ac52d4509707f1e7eb01209b80c23",
+    "v": "muscle-map-168"
   },
   "supergrok.js": {
     "sha256": "a8305965e54ca1659362eb7169fe7b0a61cd9579f4ccbf746ae3f0f2f4018139",

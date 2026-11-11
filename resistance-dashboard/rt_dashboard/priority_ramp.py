@@ -47,23 +47,7 @@ _SESSION_CAP_RE = re.compile(r"^Session cap ~\d+\.?$")
 # Logged credits at or above this gap under the ceiling count as finished.
 _NEAR = 0.5
 
-# #1193 group → planner muscle. Split delt tiles share the delts ramp.
-# lower_back stays on the old #1193 label.
-DISPLAY_GROUP_MUSCLE = {
-    "chest": "chest",
-    "lats_upper_back": "lats",
-    "quads": "quads",
-    "hamstrings": "hamstrings",
-    "biceps": "biceps",
-    "triceps": "triceps",
-    "traps": "traps",
-    "glutes": "glutes",
-    "calves": "calves",
-    "abs": "abs",
-    "front_delts": "delts",
-    "side_delts": "delts",
-    "rear_delts": "delts",
-}
+# Tile group → planner muscle. The lists are the same after the split.
 
 # Previous balanced max. A muscle already near 10 rolls back toward this.
 _OLD_WEEKLY_MAX = 8.0
@@ -504,7 +488,7 @@ def _fmt_band(band: Dict[str, float]) -> str:
     return f"{lo:g}-{hi:g}"
 
 
-def display_targets(
+def group_target_bands(
     goals: Optional[dict],
     sessions: Optional[Sequence[Any]],
     catalog: Optional[dict],
@@ -512,10 +496,11 @@ def display_targets(
     as_of: Optional[str] = None,
     recovery_label: Optional[str] = None,
     deload: bool = False,
-) -> Dict[str, str]:
-    """#1193 labels for lats, chest, and quads. Empty when the ramp is not live.
+) -> Dict[str, Dict[str, float]]:
+    """Equal-ramp min/max for every major group. Empty when the ramp is off.
 
-    Uses the same lifts-chip and Restore rollback as the fallback planner.
+    Same lifts-chip and Restore rollback as the planner. Lats and upper
+    back are separate bands.
     """
     wp = _planner()
     normalized = wp.normalize_goals(goals)
@@ -548,15 +533,35 @@ def display_targets(
     if not ramp.get("live"):
         return {}
     targets = ramp.get("targets") or {}
-    out: Dict[str, str] = {}
-    for group, muscle in DISPLAY_GROUP_MUSCLE.items():
-        if group == "lats_upper_back":
-            band = _lower_ceiling(targets.get("lats"), targets.get("mid_upper_back"))
-        else:
-            band = targets.get(muscle)
+    out: Dict[str, Dict[str, float]] = {}
+    for muscle in wp.MAJOR_MUSCLES:
+        band = targets.get(muscle)
         if isinstance(band, dict):
-            out[group] = _fmt_band(band)
+            out[muscle] = band
     return out
+
+
+def display_targets(
+    goals: Optional[dict],
+    sessions: Optional[Sequence[Any]],
+    catalog: Optional[dict],
+    *,
+    as_of: Optional[str] = None,
+    recovery_label: Optional[str] = None,
+    deload: bool = False,
+) -> Dict[str, str]:
+    """String bands for the Trends tile. Empty when the ramp is not live."""
+    return {
+        group: _fmt_band(band)
+        for group, band in group_target_bands(
+            goals,
+            sessions,
+            catalog,
+            as_of=as_of,
+            recovery_label=recovery_label,
+            deload=deload,
+        ).items()
+    }
 
 
 def _lower_ceiling(*bands: Optional[Dict[str, float]]) -> Optional[Dict[str, float]]:
@@ -713,14 +718,44 @@ def ensure_workout_message(message: Optional[str], ramp: Optional[dict]) -> str:
     return text
 
 
-def _load_serve_goals() -> dict:
-    try:
-        from .workout_store import load_workspace_goals
+_SERVE_GOALS_CACHE: Dict[str, Any] = {"key": None, "goals": None}
 
+
+def _goals_mtime_key() -> tuple:
+    """(path, mtime_ns) of the goals file the planner reads. ('default', None) if missing."""
+    from .workout_planner import GOALS_PATH
+    from .workout_store import _workspace_file_candidates
+
+    for path in _workspace_file_candidates(GOALS_PATH):
+        try:
+            if not path.is_file():
+                continue
+            return (str(path), path.stat().st_mtime_ns)
+        except OSError:
+            continue
+    return ("default", None)
+
+
+def _load_serve_goals() -> dict:
+    """Workspace goals, re-read only when the file mtime changes.
+
+    The cache key also includes the loader object so a test patch of
+    ``load_workspace_goals`` cannot keep a previous test's dict.
+    """
+    from .workout_store import load_workspace_goals
+
+    key = (_goals_mtime_key(), id(load_workspace_goals))
+    cached = _SERVE_GOALS_CACHE
+    if cached.get("key") == key and isinstance(cached.get("goals"), dict):
+        return cached["goals"]
+    try:
         loaded, _src = load_workspace_goals()
     except Exception:  # noqa: BLE001 - a missing file must not blank Today
         return {}
-    return loaded if isinstance(loaded, dict) else {}
+    goals = loaded if isinstance(loaded, dict) else {}
+    _SERVE_GOALS_CACHE["key"] = key
+    _SERVE_GOALS_CACHE["goals"] = goals
+    return goals
 
 
 def _goals_for_serve(goals: Optional[dict]) -> dict:
@@ -835,10 +870,15 @@ def present_served_workout(
                 "serve ramp failed; cue stripped, framework sentence left in place"
             )
         else:
-            stripped = _without_replaced_volume_copy(stripped)
             line = str(ramp.get("today_line") or "").strip()
             if ramp.get("live") and line:
+                stripped = _without_replaced_volume_copy(stripped)
                 stripped = f"{stripped} · {line}".strip(" ·") if stripped else line
+            else:
+                # Workspace flags say the ramp is live, but the computed
+                # ramp is not live or has no line. Leave the saved message
+                # alone, Framework sentence included.
+                stripped = text
     if stripped == text:
         return plan
     out = dict(plan)

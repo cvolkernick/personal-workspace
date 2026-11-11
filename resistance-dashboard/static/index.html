@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=macro-colors-1" />
+    <link rel="stylesheet" href="/styles.css?v=muscle-map-168" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=recipe-planner-1288-2" defer></script>
@@ -27,7 +27,7 @@
     <script src="/biomarkers.js?v=labs-off-today-1" defer></script>
     <script src="/trends-steps.js?v=steps-2" defer></script>
     <script src="/body-fat-series.js?v=bf-phase-14d-1" defer></script>
-    <script src="/app.js?v=bf-mcp-phase-1" defer></script>
+    <script src="/app.js?v=muscle-map-168" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -511,7 +511,7 @@
         <ul class="reasons" id="weekly-review-bullets" style="margin-top: 0.6rem"></ul>
       </section>
 
-      <!-- Proper-set volume by muscle. Rolling 7 ET days. Suggestions only. -->
+      <!-- Proper-set volume by muscle. Mon–Sun ET. Body map is Trends only. -->
       <section
         class="card"
         style="margin-top: 1rem"
@@ -521,8 +521,69 @@
       >
         <h2>Muscle sets</h2>
         <p class="muted" id="muscle-sets-sub" style="margin-top: 0; font-size: 0.85rem">
-          rolling 7 days · proper sets
+          Mon–Sun ET · proper sets
         </p>
+        <div class="muscle-body-map" id="muscle-body-map">
+          <div class="muscle-body-map-legend" aria-hidden="true">
+            <span><i class="map-swatch map-under"></i> under</span>
+            <span><i class="map-swatch map-on"></i> on target</span>
+            <span><i class="map-swatch map-over"></i> over</span>
+            <span><i class="map-swatch map-gap"></i> no programmed lift</span>
+          </div>
+          <div class="muscle-body-map-views">
+            <figure>
+              <figcaption>Front</figcaption>
+              <svg viewBox="0 0 160 280" role="img" aria-label="Front body map">
+                <g class="body-outline" fill="none" stroke="currentColor">
+                  <ellipse cx="80" cy="28" rx="16" ry="18"></ellipse>
+                  <path d="M64 46 C58 70 50 78 42 86 L36 150 C40 156 48 158 54 154 L58 110 L70 168 L62 250 L74 252 L84 176 L96 252 L108 250 L100 168 L112 110 L116 154 C122 158 130 156 134 150 L128 86 C120 78 112 70 96 46"></path>
+                </g>
+                <path class="body-region" data-muscle="traps" d="M68 48 H92 L96 62 H64 Z"></path>
+                <path class="body-region" data-muscle="front_delts" d="M58 62 H72 L70 84 H54 Z"></path>
+                <path class="body-region" data-muscle="front_delts" d="M88 62 H102 L106 84 H90 Z"></path>
+                <path class="body-region" data-muscle="side_delts" d="M46 70 H58 L54 92 H42 Z"></path>
+                <path class="body-region" data-muscle="side_delts" d="M102 70 H114 L118 92 H106 Z"></path>
+                <path class="body-region" data-muscle="biceps" d="M42 96 H54 L50 140 H38 Z"></path>
+                <path class="body-region" data-muscle="biceps" d="M106 96 H118 L122 140 H110 Z"></path>
+                <path class="body-region" data-muscle="chest" d="M64 66 H96 L94 98 H66 Z"></path>
+                <path class="body-region" data-muscle="abs" d="M68 102 H92 L90 150 H70 Z"></path>
+                <path class="body-region" data-muscle="abductors" d="M62 168 H74 L70 214 H58 Z"></path>
+                <path class="body-region" data-muscle="abductors" d="M86 168 H98 L102 214 H90 Z"></path>
+                <path class="body-region" data-muscle="quads" d="M70 172 H82 L78 228 H66 Z"></path>
+                <path class="body-region" data-muscle="quads" d="M84 172 H96 L100 228 H88 Z"></path>
+                <path class="body-region" data-muscle="adductors" d="M78 176 H82 L80 220 H78 Z"></path>
+                <path class="body-region" data-muscle="calves" d="M66 230 H78 L76 262 H68 Z"></path>
+                <path class="body-region" data-muscle="calves" d="M88 230 H100 L98 262 H90 Z"></path>
+              </svg>
+            </figure>
+            <figure>
+              <figcaption>Back</figcaption>
+              <svg viewBox="0 0 160 280" role="img" aria-label="Back body map">
+                <g class="body-outline" fill="none" stroke="currentColor">
+                  <ellipse cx="80" cy="28" rx="16" ry="18"></ellipse>
+                  <path d="M64 46 C58 70 50 78 42 86 L36 150 C40 156 48 158 54 154 L58 110 L70 168 L62 250 L74 252 L84 176 L96 252 L108 250 L100 168 L112 110 L116 154 C122 158 130 156 134 150 L128 86 C120 78 112 70 96 46"></path>
+                </g>
+                <path class="body-region" data-muscle="traps" d="M66 48 H94 L100 78 H60 Z"></path>
+                <path class="body-region" data-muscle="rear_delts" d="M52 64 H70 L66 88 H48 Z"></path>
+                <path class="body-region" data-muscle="rear_delts" d="M90 64 H108 L112 88 H94 Z"></path>
+                <path class="body-region" data-muscle="side_delts" d="M42 70 H54 L50 92 H38 Z"></path>
+                <path class="body-region" data-muscle="side_delts" d="M106 70 H118 L122 92 H110 Z"></path>
+                <path class="body-region" data-muscle="triceps" d="M38 96 H52 L48 142 H36 Z"></path>
+                <path class="body-region" data-muscle="triceps" d="M108 96 H122 L124 142 H112 Z"></path>
+                <path class="body-region" data-muscle="mid_upper_back" d="M68 78 H92 L88 112 H72 Z"></path>
+                <path class="body-region" data-muscle="lats" d="M58 90 H74 L78 140 H62 Z"></path>
+                <path class="body-region" data-muscle="lats" d="M86 90 H102 L98 140 H82 Z"></path>
+                <path class="body-region" data-muscle="lower_back" d="M70 114 H90 L86 156 H74 Z"></path>
+                <path class="body-region" data-muscle="glutes" d="M62 156 H98 L94 186 H66 Z"></path>
+                <path class="body-region" data-muscle="hamstrings" d="M66 188 H78 L74 232 H62 Z"></path>
+                <path class="body-region" data-muscle="hamstrings" d="M82 188 H94 L98 232 H86 Z"></path>
+                <path class="body-region" data-muscle="calves" d="M64 234 H76 L74 264 H66 Z"></path>
+                <path class="body-region" data-muscle="calves" d="M84 234 H96 L94 264 H86 Z"></path>
+              </svg>
+            </figure>
+          </div>
+          <p class="muted muscle-body-map-detail" id="muscle-map-detail">Tap a muscle. Colors are read-only.</p>
+        </div>
         <ul class="reasons" id="muscle-sets-list" style="margin-top: 0.6rem"></ul>
         <p class="muted" id="muscle-sets-warning" style="margin-top: 0.45rem; font-size: 0.85rem"></p>
       </section>

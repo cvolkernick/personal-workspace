@@ -123,10 +123,10 @@ class Catalog(unittest.TestCase):
             self.assertEqual(ex["rep_range"], [6, 10])
             self.assertTrue(ex["available"])
         self.assertEqual(flat["primary_muscles"], ["chest"])
-        self.assertEqual(flat["secondary_muscles"], ["triceps", "shoulders"])
+        self.assertEqual(flat["secondary_muscles"], ["triceps", "front_delts"])
         self.assertEqual(flat["priority"], 8)
         self.assertEqual(incline["primary_muscles"], ["chest"])
-        self.assertEqual(incline["secondary_muscles"], ["shoulders"])
+        self.assertEqual(incline["secondary_muscles"], ["front_delts"])
         loaded, _src = load_workspace_catalog()
         loaded_ids = {ex["id"] for ex in loaded["exercises"]}
         self.assertIn("smith-flat-bench", loaded_ids)

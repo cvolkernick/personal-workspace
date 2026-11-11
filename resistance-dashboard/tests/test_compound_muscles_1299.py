@@ -39,11 +39,11 @@ HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 JS = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 BARBELL_PRIMARY = ["glutes", "hamstrings", "lower_back"]
-BARBELL_SECONDARY = ["quads", "lats_upper_back", "traps", "forearms"]
-BARBELL_VOLUME_SECONDARY = ["quads", "lats_upper_back", "traps"]
+BARBELL_SECONDARY = ["quads", "lats", "mid_upper_back", "traps", "forearms"]
+BARBELL_VOLUME_SECONDARY = ["quads", "lats", "mid_upper_back", "traps"]
 TRAP_PRIMARY = ["glutes", "hamstrings", "lower_back", "quads"]
-TRAP_SECONDARY = ["lats_upper_back", "traps", "forearms"]
-TRAP_VOLUME_SECONDARY = ["lats_upper_back", "traps"]
+TRAP_SECONDARY = ["lats", "mid_upper_back", "traps", "forearms"]
+TRAP_VOLUME_SECONDARY = ["lats", "mid_upper_back", "traps"]
 
 
 def _eq(*tags):
@@ -82,9 +82,9 @@ class CatalogDeadliftRows(unittest.TestCase):
 
     def test_deadlift_rows_credit_primary_and_secondary(self):
         catalog = self._catalog()
-        self.assertEqual(catalog["updated_at"], "2026-10-16")
+        self.assertEqual(catalog["updated_at"], "2026-11-11")
         by_id = {row["id"]: row for row in catalog["exercises"]}
-        self.assertEqual(len(by_id), 58)
+        self.assertEqual(len(by_id), 61)
         self.assertNotIn("forearms", VOLUME_GROUPS)
         barbell = by_id["barbell-deadlift"]
         trap = by_id["trap-bar-deadlift"]
@@ -336,7 +336,7 @@ class ExerciseWriteMuscles(unittest.TestCase):
             "name": "Barbell Deadlift",
             "session_types": ["legs"],
             "primary_muscles": ["glutes", "hamstrings", "lower_back"],
-            "secondary_muscles": ["quads", "lats_upper_back", "traps", "forearms"],
+            "secondary_muscles": ["quads", "lats", "mid_upper_back", "traps", "forearms"],
             "volume_primary": ["chest"],
             "volume_secondary": ["forearms"],
             "movement": "compound",

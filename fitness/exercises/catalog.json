@@ -1,116 +1,222 @@
 {
-  "updated_at": "2026-10-16",
-  "notes": "Movement universe. available=true is the programmed library Today reads. available=false stays off the plan until coach suggests and you apply. Equipment inventory is access, not an auto-unlock.",
+  "updated_at": "2026-11-11",
+  "notes": "Movement universe. available=true is the programmed library Today reads. available=false stays off the plan until coach suggests and you apply, but a logged name still credits its muscles. Lats and upper back are separate groups. Side and rear delts are not lumped into delts.",
   "exercises": [
     {
       "id": "db-flat-press",
       "name": "DB Flat Press",
-      "session_types": ["push"],
-      "primary_muscles": ["chest"],
-      "secondary_muscles": ["triceps", "shoulders"],
-      "volume_primary": ["chest"],
-      "volume_secondary": ["triceps", "front_delts"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "front_delts"
+      ],
+      "volume_primary": [
+        "chest"
+      ],
+      "volume_secondary": [
+        "triceps",
+        "front_delts"
+      ],
       "movement": "compound",
-      "equipment": ["dumbbells", "bench"],
+      "equipment": [
+        "dumbbells",
+        "bench"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 10,
       "available": true
     },
     {
       "id": "db-incline-press",
       "name": "DB Incline Press",
-      "session_types": ["push"],
-      "primary_muscles": ["chest", "shoulders"],
-      "secondary_muscles": ["triceps"],
-      "volume_primary": ["chest", "front_delts"],
-      "volume_secondary": ["triceps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "chest",
+        "front_delts"
+      ],
+      "secondary_muscles": [
+        "triceps"
+      ],
+      "volume_primary": [
+        "chest",
+        "front_delts"
+      ],
+      "volume_secondary": [
+        "triceps"
+      ],
       "movement": "compound",
-      "equipment": ["dumbbells", "incline_bench"],
+      "equipment": [
+        "dumbbells",
+        "incline_bench"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 9,
       "available": true
     },
     {
       "id": "smith-flat-bench",
       "name": "Smith Flat Bench",
-      "session_types": ["push"],
-      "primary_muscles": ["chest"],
-      "secondary_muscles": ["triceps", "shoulders"],
-      "volume_primary": ["chest"],
-      "volume_secondary": ["triceps", "front_delts"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "front_delts"
+      ],
+      "volume_primary": [
+        "chest"
+      ],
+      "volume_secondary": [
+        "triceps",
+        "front_delts"
+      ],
       "movement": "compound",
-      "equipment": ["smith_machine"],
+      "equipment": [
+        "smith_machine"
+      ],
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 10],
+      "rep_range": [
+        6,
+        10
+      ],
       "priority": 8,
       "available": true
     },
     {
       "id": "smith-incline-bench",
       "name": "Smith Incline Bench",
-      "session_types": ["push"],
-      "primary_muscles": ["chest"],
-      "secondary_muscles": ["shoulders"],
-      "volume_primary": ["chest"],
-      "volume_secondary": ["front_delts"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "front_delts"
+      ],
+      "volume_primary": [
+        "chest"
+      ],
+      "volume_secondary": [
+        "front_delts"
+      ],
       "movement": "compound",
-      "equipment": ["smith_machine"],
+      "equipment": [
+        "smith_machine"
+      ],
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 10],
+      "rep_range": [
+        6,
+        10
+      ],
       "priority": 8,
       "available": true
     },
     {
       "id": "db-shoulder-press",
       "name": "DB Shoulder Press",
-      "session_types": ["push"],
-      "primary_muscles": ["shoulders"],
-      "secondary_muscles": ["triceps"],
-      "volume_primary": ["front_delts"],
-      "volume_secondary": ["side_delts", "triceps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "front_delts"
+      ],
+      "secondary_muscles": [
+        "triceps"
+      ],
+      "volume_primary": [
+        "front_delts"
+      ],
+      "volume_secondary": [
+        "side_delts",
+        "triceps"
+      ],
       "movement": "compound",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 9,
       "available": true
     },
     {
       "id": "lateral-raises",
       "name": "Lateral Raises",
-      "session_types": ["push"],
-      "primary_muscles": ["shoulders"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "side_delts"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["side_delts"],
+      "volume_primary": [
+        "side_delts"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 6,
       "available": true
     },
     {
       "id": "tricep-pushdowns",
       "name": "Tricep Pushdowns",
-      "session_types": ["push"],
-      "primary_muscles": ["triceps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "triceps"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["triceps"],
+      "volume_primary": [
+        "triceps"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 7,
       "available": false,
       "notes": "Trend group for rope and T-bar. Not a log target. Historical Tricep Pushdowns stay on this name."
@@ -118,16 +224,27 @@
     {
       "id": "tricep-pushdowns-rope",
       "name": "Tricep Pushdowns (Rope)",
-      "session_types": ["push"],
-      "primary_muscles": ["triceps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "triceps"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["triceps"],
+      "volume_primary": [
+        "triceps"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 7,
       "available": true,
       "notes": "Rope attachment. Same trend and PR line as Tricep Pushdowns."
@@ -135,16 +252,27 @@
     {
       "id": "tricep-pushdowns-t-bar",
       "name": "Tricep Pushdowns (T-Bar)",
-      "session_types": ["push"],
-      "primary_muscles": ["triceps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "triceps"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["triceps"],
+      "volume_primary": [
+        "triceps"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 7,
       "available": true,
       "notes": "Straight-bar attachment. Same trend and PR line as Tricep Pushdowns."
@@ -152,195 +280,373 @@
     {
       "id": "seated-cable-row",
       "name": "Seated Cable Row",
-      "session_types": ["pull"],
-      "primary_muscles": ["back"],
-      "secondary_muscles": ["biceps", "rear_delts"],
-      "volume_primary": ["lats_upper_back"],
-      "volume_secondary": ["biceps", "rear_delts"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "mid_upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "rear_delts",
+        "lats"
+      ],
+      "volume_primary": [
+        "mid_upper_back"
+      ],
+      "volume_secondary": [
+        "biceps",
+        "rear_delts",
+        "lats"
+      ],
       "movement": "compound",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 10,
       "available": true
     },
     {
       "id": "pulldowns",
       "name": "Pulldowns",
-      "session_types": ["pull"],
-      "primary_muscles": ["lats", "back"],
-      "secondary_muscles": ["biceps"],
-      "volume_primary": ["lats_upper_back"],
-      "volume_secondary": ["biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "mid_upper_back"
+      ],
+      "volume_primary": [
+        "lats"
+      ],
+      "volume_secondary": [
+        "biceps",
+        "mid_upper_back"
+      ],
       "movement": "compound",
-      "equipment": ["cable", "lat_pulldown"],
+      "equipment": [
+        "cable",
+        "lat_pulldown"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 10,
       "available": true
     },
     {
       "id": "assisted-pullups",
       "name": "Assisted Pullups",
-      "session_types": ["pull"],
-      "primary_muscles": ["lats", "back"],
-      "secondary_muscles": ["biceps"],
-      "volume_primary": ["lats_upper_back"],
-      "volume_secondary": ["biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "mid_upper_back"
+      ],
+      "volume_primary": [
+        "lats"
+      ],
+      "volume_secondary": [
+        "biceps",
+        "mid_upper_back"
+      ],
       "movement": "compound",
-      "equipment": ["assisted_pullup"],
+      "equipment": [
+        "assisted_pullup"
+      ],
       "assisted": true,
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 12],
+      "rep_range": [
+        6,
+        12
+      ],
       "priority": 9,
       "available": true
     },
     {
       "id": "machine-row",
       "name": "Machine Row",
-      "session_types": ["pull"],
-      "primary_muscles": ["back"],
-      "secondary_muscles": ["biceps"],
-      "volume_primary": ["lats_upper_back"],
-      "volume_secondary": ["biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "mid_upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "lats"
+      ],
+      "volume_primary": [
+        "mid_upper_back"
+      ],
+      "volume_secondary": [
+        "biceps",
+        "lats"
+      ],
       "movement": "compound",
-      "equipment": ["machine"],
+      "equipment": [
+        "machine"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 8,
       "available": true
     },
     {
       "id": "face-pulls",
       "name": "Face Pulls",
-      "session_types": ["pull"],
-      "primary_muscles": ["rear_delts"],
-      "secondary_muscles": ["upper_back"],
-      "volume_primary": ["rear_delts"],
-      "volume_secondary": ["lats_upper_back"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "rear_delts"
+      ],
+      "secondary_muscles": [
+        "upper_back"
+      ],
+      "volume_primary": [
+        "rear_delts"
+      ],
+      "volume_secondary": [
+        "mid_upper_back"
+      ],
       "movement": "isolation",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 15,
-      "rep_range": [12, 20],
+      "rep_range": [
+        12,
+        20
+      ],
       "priority": 7,
       "available": true
     },
     {
       "id": "db-curls",
       "name": "DB Curls",
-      "session_types": ["pull"],
-      "primary_muscles": ["biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "biceps"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["biceps"],
+      "volume_primary": [
+        "biceps"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 6,
       "available": true
     },
     {
       "id": "hammer-curls",
       "name": "Hammer Curls",
-      "session_types": ["pull"],
-      "primary_muscles": ["biceps", "forearms"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "biceps",
+        "forearms"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["biceps"],
+      "volume_primary": [
+        "biceps"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 5,
       "available": true
     },
     {
       "id": "leg-press",
       "name": "Leg Press",
-      "session_types": ["legs"],
-      "primary_muscles": ["quads"],
-      "secondary_muscles": ["glutes", "hamstrings"],
-      "volume_primary": ["quads"],
-      "volume_secondary": ["glutes", "hamstrings"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "quads"
+      ],
+      "secondary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "volume_primary": [
+        "quads"
+      ],
+      "volume_secondary": [
+        "glutes",
+        "hamstrings"
+      ],
       "movement": "compound",
-      "equipment": ["leg_press"],
+      "equipment": [
+        "leg_press"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 10,
       "available": true
     },
     {
       "id": "rdl",
       "name": "RDL",
-      "session_types": ["legs"],
-      "primary_muscles": ["hamstrings", "glutes"],
-      "secondary_muscles": ["lower_back"],
-      "volume_primary": ["hamstrings", "glutes"],
-      "volume_secondary": ["lower_back"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hamstrings",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "lower_back"
+      ],
+      "volume_primary": [
+        "hamstrings",
+        "glutes"
+      ],
+      "volume_secondary": [
+        "lower_back"
+      ],
       "movement": "compound",
       "equipment": [],
-      "equipment_any": ["barbell", "dumbbells"],
+      "equipment_any": [
+        "barbell",
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 10],
+      "rep_range": [
+        6,
+        10
+      ],
       "priority": 10,
       "available": true
     },
     {
       "id": "seated-leg-curls",
       "name": "Seated Leg Curls",
-      "session_types": ["legs"],
-      "primary_muscles": ["hamstrings"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["hamstrings"],
+      "volume_primary": [
+        "hamstrings"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["machine"],
+      "equipment": [
+        "machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 7,
       "available": true
     },
     {
       "id": "lying-leg-curls",
       "name": "Lying Leg Curl",
-      "session_types": ["legs"],
-      "primary_muscles": ["hamstrings"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["hamstrings"],
+      "volume_primary": [
+        "hamstrings"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["machine"],
+      "equipment": [
+        "machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 7,
       "available": true
     },
     {
       "id": "calf-raises",
       "name": "Calf Extensions",
-      "session_types": ["legs"],
-      "primary_muscles": ["calves"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "calves"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["calves"],
+      "volume_primary": [
+        "calves"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
       "equipment": [],
-      "equipment_any": ["machine", "smith_machine"],
+      "equipment_any": [
+        "machine",
+        "smith_machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Machine calf extension (seated/standing machine or Smith). Not standing DB raises."
@@ -348,16 +654,27 @@
     {
       "id": "db-calf-raises",
       "name": "DB Calf Raises",
-      "session_types": ["legs"],
-      "primary_muscles": ["calves"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "calves"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["calves"],
+      "volume_primary": [
+        "calves"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Standing dumbbell calf raises. Not the machine extension."
@@ -365,48 +682,93 @@
     {
       "id": "back-extension",
       "name": "Back Extension Machine",
-      "session_types": ["legs", "pull"],
-      "primary_muscles": ["lower_back", "glutes"],
-      "secondary_muscles": ["hamstrings"],
-      "volume_primary": ["lower_back", "glutes"],
-      "volume_secondary": ["hamstrings"],
+      "session_types": [
+        "legs",
+        "pull"
+      ],
+      "primary_muscles": [
+        "lower_back",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "volume_primary": [
+        "lower_back",
+        "glutes"
+      ],
+      "volume_secondary": [
+        "hamstrings"
+      ],
       "movement": "isolation",
-      "equipment": ["machine"],
+      "equipment": [
+        "machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 4,
       "available": true
     },
     {
       "id": "smith-shrugs",
       "name": "Smith Shrugs",
-      "session_types": ["pull", "push"],
-      "primary_muscles": ["traps"],
+      "session_types": [
+        "pull",
+        "push"
+      ],
+      "primary_muscles": [
+        "traps"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["traps"],
+      "volume_primary": [
+        "traps"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["smith_machine"],
+      "equipment": [
+        "smith_machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 3,
       "available": true
     },
     {
       "id": "db-floor-press",
       "name": "DB Floor Press",
-      "session_types": ["push"],
-      "primary_muscles": ["chest"],
-      "secondary_muscles": ["triceps"],
-      "volume_primary": ["chest"],
-      "volume_secondary": ["triceps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps"
+      ],
+      "volume_primary": [
+        "chest"
+      ],
+      "volume_secondary": [
+        "triceps"
+      ],
       "movement": "compound",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 8,
       "available": false,
       "notes": "Home chest press without a bench."
@@ -414,16 +776,33 @@
     {
       "id": "db-row",
       "name": "DB Row",
-      "session_types": ["pull"],
-      "primary_muscles": ["back"],
-      "secondary_muscles": ["biceps"],
-      "volume_primary": ["lats_upper_back"],
-      "volume_secondary": ["biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "mid_upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "lats"
+      ],
+      "volume_primary": [
+        "mid_upper_back"
+      ],
+      "volume_secondary": [
+        "biceps",
+        "lats"
+      ],
       "movement": "compound",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 8,
       "available": false,
       "notes": "Home horizontal pull."
@@ -431,16 +810,31 @@
     {
       "id": "goblet-squat",
       "name": "Goblet Squat",
-      "session_types": ["legs"],
-      "primary_muscles": ["quads"],
-      "secondary_muscles": ["glutes"],
-      "volume_primary": ["quads"],
-      "volume_secondary": ["glutes"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "quads"
+      ],
+      "secondary_muscles": [
+        "glutes"
+      ],
+      "volume_primary": [
+        "quads"
+      ],
+      "volume_secondary": [
+        "glutes"
+      ],
       "movement": "compound",
-      "equipment": ["dumbbells"],
+      "equipment": [
+        "dumbbells"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 8,
       "available": false,
       "notes": "Home squat pattern. Load capped at DB max/hand."
@@ -448,16 +842,31 @@
     {
       "id": "cable-reverse-fly",
       "name": "Cable Reverse Fly",
-      "session_types": ["pull"],
-      "primary_muscles": ["rear_delts"],
-      "secondary_muscles": ["upper_back"],
-      "volume_primary": ["rear_delts"],
-      "volume_secondary": ["lats_upper_back"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "rear_delts"
+      ],
+      "secondary_muscles": [
+        "mid_upper_back"
+      ],
+      "volume_primary": [
+        "rear_delts"
+      ],
+      "volume_secondary": [
+        "mid_upper_back"
+      ],
       "movement": "isolation",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 6,
       "available": false,
       "notes": "Suggestion unlock. Off the programmed library until you add it."
@@ -465,16 +874,27 @@
     {
       "id": "cable-lateral-raise",
       "name": "Cable Lateral Raise",
-      "session_types": ["push"],
-      "primary_muscles": ["side_delts"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "side_delts"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["side_delts"],
+      "volume_primary": [
+        "side_delts"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 6,
       "available": false,
       "notes": "Suggestion unlock for side delts."
@@ -482,16 +902,31 @@
     {
       "id": "band-pull-apart",
       "name": "Band Pull-Apart",
-      "session_types": ["pull"],
-      "primary_muscles": ["rear_delts"],
-      "secondary_muscles": ["upper_back"],
-      "volume_primary": ["rear_delts"],
-      "volume_secondary": ["lats_upper_back"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "rear_delts"
+      ],
+      "secondary_muscles": [
+        "mid_upper_back"
+      ],
+      "volume_primary": [
+        "rear_delts"
+      ],
+      "volume_secondary": [
+        "mid_upper_back"
+      ],
       "movement": "isolation",
-      "equipment": ["resistance_band"],
+      "equipment": [
+        "resistance_band"
+      ],
       "default_sets": 3,
       "default_reps": 15,
-      "rep_range": [12, 20],
+      "rep_range": [
+        12,
+        20
+      ],
       "priority": 5,
       "available": false,
       "notes": "Suggestion unlock. Bands are a prompt, not a purchase."
@@ -499,16 +934,27 @@
     {
       "id": "pin-reverse-fly",
       "name": "Pin Reverse Fly",
-      "session_types": ["pull"],
-      "primary_muscles": ["rear_delts"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "rear_delts"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["rear_delts"],
+      "volume_primary": [
+        "rear_delts"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["loading_pin"],
+      "equipment": [
+        "loading_pin"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 4,
       "available": false,
       "notes": "Suggestion unlock for a loading pin."
@@ -516,16 +962,27 @@
     {
       "id": "reverse-pec-deck",
       "name": "Reverse Pec Deck",
-      "session_types": ["pull"],
-      "primary_muscles": ["rear_delts"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "rear_delts"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["rear_delts"],
+      "volume_primary": [
+        "rear_delts"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["reverse_fly_machine"],
+      "equipment": [
+        "reverse_fly_machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 5,
       "available": false,
       "notes": "Suggestion unlock."
@@ -533,16 +990,25 @@
     {
       "id": "band-adduction",
       "name": "Band Hip Adduction",
-      "session_types": ["legs"],
-      "primary_muscles": ["adductors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "adductors"
+      ],
       "secondary_muscles": [],
       "volume_primary": [],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["resistance_band"],
+      "equipment": [
+        "resistance_band"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 5,
       "available": false,
       "notes": "Suggestion unlock for adductors.",
@@ -551,16 +1017,27 @@
     {
       "id": "machine-adduction",
       "name": "Machine Hip Adduction",
-      "session_types": ["legs"],
-      "primary_muscles": ["adductors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "adductors"
+      ],
       "secondary_muscles": [],
-      "volume_primary": [],
+      "volume_primary": [
+        "adductors"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["machine"],
+      "equipment": [
+        "machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Hip adduction machine (Planet Fitness). Selectorized stack: +1 plate step at the top of 8-15. Swaps only to other adductor rows.",
@@ -569,16 +1046,27 @@
     {
       "id": "nordic-hamstring",
       "name": "Nordic Hamstring",
-      "session_types": ["legs"],
-      "primary_muscles": ["hamstrings"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["hamstrings"],
+      "volume_primary": [
+        "hamstrings"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["nordic_strap"],
+      "equipment": [
+        "nordic_strap"
+      ],
       "default_sets": 3,
       "default_reps": 6,
-      "rep_range": [4, 8],
+      "rep_range": [
+        4,
+        8
+      ],
       "priority": 6,
       "available": false,
       "notes": "Suggestion unlock. Strap is a prompt, not a purchase."
@@ -586,16 +1074,27 @@
     {
       "id": "attachment-leg-curl",
       "name": "Attachment Leg Curl",
-      "session_types": ["legs"],
-      "primary_muscles": ["hamstrings"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["hamstrings"],
+      "volume_primary": [
+        "hamstrings"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["hamstring_curl"],
+      "equipment": [
+        "hamstring_curl"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 6,
       "available": false,
       "notes": "Suggestion unlock for a curl attachment."
@@ -603,16 +1102,27 @@
     {
       "id": "calf-raise-step",
       "name": "Calf Raise on a Step",
-      "session_types": ["legs"],
-      "primary_muscles": ["calves"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "calves"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["calves"],
+      "volume_primary": [
+        "calves"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["calf_block"],
+      "equipment": [
+        "calf_block"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 5,
       "available": false,
       "notes": "Suggestion unlock for a calf block or step."
@@ -620,16 +1130,27 @@
     {
       "id": "pin-calf-raise",
       "name": "Pin Calf Raise",
-      "session_types": ["legs"],
-      "primary_muscles": ["calves"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "calves"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["calves"],
+      "volume_primary": [
+        "calves"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["loading_pin"],
+      "equipment": [
+        "loading_pin"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 4,
       "available": false,
       "notes": "Suggestion unlock."
@@ -637,16 +1158,29 @@
     {
       "id": "weighted-dip",
       "name": "Weighted Dip",
-      "session_types": ["push"],
-      "primary_muscles": ["chest", "triceps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "chest",
+        "triceps"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["chest", "triceps"],
+      "volume_primary": [
+        "chest",
+        "triceps"
+      ],
       "volume_secondary": [],
       "movement": "compound",
-      "equipment": ["dip_belt"],
+      "equipment": [
+        "dip_belt"
+      ],
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 10],
+      "rep_range": [
+        6,
+        10
+      ],
       "priority": 6,
       "available": false,
       "notes": "Suggestion unlock. A dip belt is a prompt, not a purchase."
@@ -654,16 +1188,27 @@
     {
       "id": "ab-wheel-rollout",
       "name": "Ab Wheel Rollout",
-      "session_types": ["legs"],
-      "primary_muscles": ["abs"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "abs"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["abs"],
+      "volume_primary": [
+        "abs"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["ab_wheel"],
+      "equipment": [
+        "ab_wheel"
+      ],
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 12],
+      "rep_range": [
+        6,
+        12
+      ],
       "priority": 5,
       "available": false,
       "notes": "Suggestion unlock for an ab wheel."
@@ -671,33 +1216,55 @@
     {
       "id": "roman-chair-raise",
       "name": "Roman Chair Knee Raise",
-      "session_types": ["legs"],
-      "primary_muscles": ["abs"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "abs"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["abs"],
+      "volume_primary": [
+        "abs"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["roman_chair"],
+      "equipment": [
+        "roman_chair"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 4,
-      "available": false,
-      "notes": "Suggestion unlock."
+      "available": true,
+      "notes": "Programmed abs lift. Gym roman chair / captain's chair. Hip-flexor knee raises stay tagged hip_flexors and are not retagged as abs."
     },
     {
       "id": "decline-sit-up",
       "name": "Decline Sit-Up",
-      "session_types": ["legs"],
-      "primary_muscles": ["abs"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "abs"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["abs"],
+      "volume_primary": [
+        "abs"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["decline_bench"],
+      "equipment": [
+        "decline_bench"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 4,
       "available": false,
       "notes": "Suggestion unlock."
@@ -705,16 +1272,27 @@
     {
       "id": "hanging-leg-raise",
       "name": "Hanging Leg Raise",
-      "session_types": ["legs"],
-      "primary_muscles": ["abs"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "abs"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["abs"],
+      "volume_primary": [
+        "abs"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["ab_straps"],
+      "equipment": [
+        "ab_straps"
+      ],
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 12],
+      "rep_range": [
+        6,
+        12
+      ],
       "priority": 4,
       "available": false,
       "notes": "Suggestion unlock."
@@ -722,16 +1300,25 @@
     {
       "id": "wrist-roller",
       "name": "Wrist Roller",
-      "session_types": ["pull"],
-      "primary_muscles": ["forearms"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "forearms"
+      ],
       "secondary_muscles": [],
       "volume_primary": [],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["wrist_roller"],
+      "equipment": [
+        "wrist_roller"
+      ],
       "default_sets": 3,
       "default_reps": 8,
-      "rep_range": [6, 12],
+      "rep_range": [
+        6,
+        12
+      ],
       "priority": 4,
       "available": false,
       "notes": "Suggestion unlock for grip."
@@ -739,16 +1326,28 @@
     {
       "id": "fat-grip-curl",
       "name": "Fat-Grip Curl",
-      "session_types": ["pull"],
-      "primary_muscles": ["forearms", "biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "forearms",
+        "biceps"
+      ],
       "secondary_muscles": [],
-      "volume_primary": ["biceps"],
+      "volume_primary": [
+        "biceps"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
-      "equipment": ["fat_grips"],
+      "equipment": [
+        "fat_grips"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 4,
       "available": false,
       "notes": "Suggestion unlock for grip."
@@ -756,16 +1355,42 @@
     {
       "id": "barbell-deadlift",
       "name": "Barbell Deadlift",
-      "session_types": ["legs"],
-      "primary_muscles": ["glutes", "hamstrings", "lower_back"],
-      "secondary_muscles": ["quads", "lats_upper_back", "traps", "forearms"],
-      "volume_primary": ["glutes", "hamstrings", "lower_back"],
-      "volume_secondary": ["quads", "lats_upper_back", "traps"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings",
+        "lower_back"
+      ],
+      "secondary_muscles": [
+        "quads",
+        "lats",
+        "mid_upper_back",
+        "traps",
+        "forearms"
+      ],
+      "volume_primary": [
+        "glutes",
+        "hamstrings",
+        "lower_back"
+      ],
+      "volume_secondary": [
+        "quads",
+        "lats",
+        "mid_upper_back",
+        "traps"
+      ],
       "movement": "compound",
-      "equipment": ["barbell"],
+      "equipment": [
+        "barbell"
+      ],
       "default_sets": 3,
       "default_reps": 5,
-      "rep_range": [5, 8],
+      "rep_range": [
+        5,
+        8
+      ],
       "priority": 6,
       "available": true,
       "notes": "Conventional barbell pull. Forearms stay a stored grip tag and are not a tracked volume group (#1299)."
@@ -773,16 +1398,42 @@
     {
       "id": "trap-bar-deadlift",
       "name": "Trap-Bar Deadlift",
-      "session_types": ["legs"],
-      "primary_muscles": ["glutes", "hamstrings", "lower_back", "quads"],
-      "secondary_muscles": ["lats_upper_back", "traps", "forearms"],
-      "volume_primary": ["glutes", "hamstrings", "lower_back", "quads"],
-      "volume_secondary": ["lats_upper_back", "traps"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "glutes",
+        "hamstrings",
+        "lower_back",
+        "quads"
+      ],
+      "secondary_muscles": [
+        "lats",
+        "mid_upper_back",
+        "traps",
+        "forearms"
+      ],
+      "volume_primary": [
+        "glutes",
+        "hamstrings",
+        "lower_back",
+        "quads"
+      ],
+      "volume_secondary": [
+        "lats",
+        "mid_upper_back",
+        "traps"
+      ],
       "movement": "compound",
-      "equipment": ["trap_bar"],
+      "equipment": [
+        "trap_bar"
+      ],
       "default_sets": 3,
       "default_reps": 5,
-      "rep_range": [5, 8],
+      "rep_range": [
+        5,
+        8
+      ],
       "priority": 6,
       "available": true,
       "notes": "Same hinge as the barbell deadlift plus more quads. Forearms stay a stored grip tag and are not a tracked volume group (#1299)."
@@ -790,16 +1441,33 @@
     {
       "id": "barbell-row",
       "name": "Barbell Row",
-      "session_types": ["pull"],
-      "primary_muscles": ["back"],
-      "secondary_muscles": ["biceps"],
-      "volume_primary": ["lats_upper_back"],
-      "volume_secondary": ["biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "mid_upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "lats"
+      ],
+      "volume_primary": [
+        "mid_upper_back"
+      ],
+      "volume_secondary": [
+        "biceps",
+        "lats"
+      ],
       "movement": "compound",
-      "equipment": ["barbell"],
+      "equipment": [
+        "barbell"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 8,
       "available": false,
       "notes": "Horizontal row. Off the programmed library so a Smith Row log can cover this slot."
@@ -807,16 +1475,33 @@
     {
       "id": "smith-row",
       "name": "Smith Row",
-      "session_types": ["pull"],
-      "primary_muscles": ["back"],
-      "secondary_muscles": ["biceps"],
-      "volume_primary": ["lats_upper_back"],
-      "volume_secondary": ["biceps"],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "mid_upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "lats"
+      ],
+      "volume_primary": [
+        "mid_upper_back"
+      ],
+      "volume_secondary": [
+        "biceps",
+        "lats"
+      ],
       "movement": "compound",
-      "equipment": ["smith_machine"],
+      "equipment": [
+        "smith_machine"
+      ],
       "default_sets": 3,
       "default_reps": 10,
-      "rep_range": [8, 12],
+      "rep_range": [
+        8,
+        12
+      ],
       "priority": 8,
       "available": false,
       "notes": "Horizontal row. Off the programmed library; covers a planned Barbell Row."
@@ -824,17 +1509,32 @@
     {
       "id": "machine-abduction",
       "name": "Machine Hip Abduction",
-      "session_types": ["legs"],
-      "primary_muscles": ["abductors"],
-      "secondary_muscles": ["glutes"],
-      "volume_primary": [],
-      "volume_secondary": ["glutes"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "abductors"
+      ],
+      "secondary_muscles": [
+        "glutes"
+      ],
+      "volume_primary": [
+        "abductors"
+      ],
+      "volume_secondary": [
+        "glutes"
+      ],
       "movement": "isolation",
       "movement_pattern": "hip_abduction",
-      "equipment": ["machine"],
+      "equipment": [
+        "machine"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Hip abduction machine (Planet Fitness). Glute med is the secondary. +1 plate step at the top of 8-15."
@@ -842,17 +1542,28 @@
     {
       "id": "cable-hip-adduction",
       "name": "Cable Hip Adduction",
-      "session_types": ["legs"],
-      "primary_muscles": ["adductors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "adductors"
+      ],
       "secondary_muscles": [],
-      "volume_primary": [],
+      "volume_primary": [
+        "adductors"
+      ],
       "volume_secondary": [],
       "movement": "isolation",
       "movement_pattern": "hip_adduction",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Ankle cuff on a low cable. +1 pin at the top of 8-15."
@@ -860,17 +1571,32 @@
     {
       "id": "cable-hip-abduction",
       "name": "Cable Hip Abduction",
-      "session_types": ["legs"],
-      "primary_muscles": ["abductors"],
-      "secondary_muscles": ["glutes"],
-      "volume_primary": [],
-      "volume_secondary": ["glutes"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "abductors"
+      ],
+      "secondary_muscles": [
+        "glutes"
+      ],
+      "volume_primary": [
+        "abductors"
+      ],
+      "volume_secondary": [
+        "glutes"
+      ],
       "movement": "isolation",
       "movement_pattern": "hip_abduction",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Ankle cuff on a low cable. Glute med is the secondary. +1 pin at the top of 8-15."
@@ -878,17 +1604,26 @@
     {
       "id": "copenhagen-plank",
       "name": "Copenhagen Plank",
-      "session_types": ["legs"],
-      "primary_muscles": ["adductors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "adductors"
+      ],
       "secondary_muscles": [],
       "volume_primary": [],
       "volume_secondary": [],
       "movement": "isolation",
       "movement_pattern": "hip_adduction",
-      "equipment": ["bench"],
+      "equipment": [
+        "bench"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 4,
       "available": false,
       "notes": "Bodyweight; top leg on a bench (side-lying adduction is the floor version). Suggestion unlock."
@@ -896,17 +1631,26 @@
     {
       "id": "cable-hip-flexion",
       "name": "Cable Hip Flexion",
-      "session_types": ["legs"],
-      "primary_muscles": ["hip_flexors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hip_flexors"
+      ],
       "secondary_muscles": [],
       "volume_primary": [],
       "volume_secondary": [],
       "movement": "isolation",
       "movement_pattern": "hip_flexion",
-      "equipment": ["cable"],
+      "equipment": [
+        "cable"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Standing cable knee raise with an ankle cuff on a low cable. +1 pin at the top of 8-15."
@@ -914,17 +1658,26 @@
     {
       "id": "hanging-knee-raise",
       "name": "Hanging Knee Raise",
-      "session_types": ["legs"],
-      "primary_muscles": ["hip_flexors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hip_flexors"
+      ],
       "secondary_muscles": [],
       "volume_primary": [],
       "volume_secondary": [],
       "movement": "isolation",
       "movement_pattern": "hip_flexion",
-      "equipment": ["pullup_bar"],
+      "equipment": [
+        "pullup_bar"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 4,
       "available": false,
       "notes": "Bodyweight from a hanging bar. Suggestion unlock until the bar is confirmed."
@@ -932,17 +1685,26 @@
     {
       "id": "captains-chair-knee-raise",
       "name": "Captain's Chair Knee Raise",
-      "session_types": ["legs"],
-      "primary_muscles": ["hip_flexors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hip_flexors"
+      ],
       "secondary_muscles": [],
       "volume_primary": [],
       "volume_secondary": [],
       "movement": "isolation",
       "movement_pattern": "hip_flexion",
-      "equipment": ["roman_chair"],
+      "equipment": [
+        "roman_chair"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 4,
       "available": false,
       "notes": "Bodyweight on a captain's chair. Suggestion unlock until the station is confirmed."
@@ -950,17 +1712,26 @@
     {
       "id": "band-hip-flexion-march",
       "name": "Banded Hip Flexion March",
-      "session_types": ["legs"],
-      "primary_muscles": ["hip_flexors"],
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "hip_flexors"
+      ],
       "secondary_muscles": [],
       "volume_primary": [],
       "volume_secondary": [],
       "movement": "isolation",
       "movement_pattern": "hip_flexion",
-      "equipment": ["resistance_band"],
+      "equipment": [
+        "resistance_band"
+      ],
       "default_sets": 3,
       "default_reps": 12,
-      "rep_range": [8, 15],
+      "rep_range": [
+        8,
+        15
+      ],
       "priority": 4,
       "available": false,
       "notes": "Seated or standing march against a mini band. Bands are a prompt, not a purchase."
@@ -968,19 +1739,133 @@
     {
       "id": "smith-btn-press",
       "name": "Behind-the-Neck Smith Press",
-      "session_types": ["push"],
-      "primary_muscles": ["shoulders"],
-      "secondary_muscles": ["triceps", "traps"],
-      "volume_primary": ["side_delts"],
-      "volume_secondary": ["front_delts", "triceps", "traps"],
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "side_delts"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "traps"
+      ],
+      "volume_primary": [
+        "side_delts"
+      ],
+      "volume_secondary": [
+        "front_delts",
+        "triceps",
+        "traps"
+      ],
       "movement": "compound",
-      "equipment": ["smith_machine"],
+      "equipment": [
+        "smith_machine"
+      ],
       "default_sets": 2,
       "default_reps": 12,
-      "rep_range": [10, 15],
+      "rep_range": [
+        10,
+        15
+      ],
       "priority": 5,
       "available": true,
       "notes": "Seated; lower bar behind head to ~ear level. Warm up first; moderate load, 10-15 reps; stop short of any shoulder pinch. Source: @CoachFHM."
+    },
+    {
+      "id": "barbell-flat-bench",
+      "name": "Barbell Flat Bench Press",
+      "session_types": [
+        "push"
+      ],
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps",
+        "front_delts"
+      ],
+      "volume_primary": [
+        "chest"
+      ],
+      "volume_secondary": [
+        "triceps",
+        "front_delts"
+      ],
+      "movement": "compound",
+      "equipment": [
+        "barbell",
+        "bench"
+      ],
+      "default_sets": 3,
+      "default_reps": 8,
+      "rep_range": [
+        5,
+        9
+      ],
+      "priority": 8,
+      "available": false,
+      "notes": "Credit-only alias for logged Barbell Flat Bench Press. Smith flat bench stays the programmed press."
+    },
+    {
+      "id": "barbell-shrugs",
+      "name": "Barbell Shrugs",
+      "session_types": [
+        "pull",
+        "push"
+      ],
+      "primary_muscles": [
+        "traps"
+      ],
+      "secondary_muscles": [],
+      "volume_primary": [
+        "traps"
+      ],
+      "volume_secondary": [],
+      "movement": "isolation",
+      "equipment": [
+        "barbell"
+      ],
+      "default_sets": 3,
+      "default_reps": 10,
+      "rep_range": [
+        8,
+        12
+      ],
+      "priority": 4,
+      "available": false,
+      "notes": "Credit-only alias for logged Barbell Shrugs. Smith shrugs stay the programmed shrug."
+    },
+    {
+      "id": "hack-squat",
+      "name": "Hack Squat",
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "quads"
+      ],
+      "secondary_muscles": [
+        "glutes"
+      ],
+      "volume_primary": [
+        "quads"
+      ],
+      "volume_secondary": [
+        "glutes"
+      ],
+      "movement": "compound",
+      "equipment": [
+        "machine"
+      ],
+      "default_sets": 3,
+      "default_reps": 8,
+      "rep_range": [
+        6,
+        10
+      ],
+      "priority": 6,
+      "available": false,
+      "notes": "Credit-only alias for a logged Hack Squat. Not auto-prescribed."
     }
   ]
 }

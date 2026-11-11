@@ -72,9 +72,9 @@ class PaceRowsMobileStack(unittest.TestCase):
 
 class PaceRowsCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertIn("/styles.css?v=macro-colors-1", HTML)
-        self.assertIn("/styles.css?v=macro-colors-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v167"', SW)
+        self.assertIn("/styles.css?v=muscle-map-168", HTML)
+        self.assertIn("/styles.css?v=muscle-map-168", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v168"', SW)
         self.assertNotIn("/styles.css?v=kitchen-collapse-1", HTML)
         self.assertNotIn("/styles.css?v=kitchen-collapse-1", SW)
         self.assertNotIn("fitdash-shell-v107", SW)

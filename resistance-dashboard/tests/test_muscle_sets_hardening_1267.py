@@ -392,8 +392,8 @@ class WarningUnits(unittest.TestCase):
         )
         budget = report["budget"]
         self.assertEqual(budget["cap"], 63)  # cap units are unchanged: proper sets
-        self.assertEqual(budget["credited_avg_4w"], 92.5)
-        self.assertEqual(budget["demand_min"], 68)
+        self.assertEqual(budget["credited_avg_4w"], 98.5)
+        self.assertEqual(budget["demand_min"], 80)
         self.assertFalse(budget["overrun"])
         self.assertIsNone(budget["warning"])
         self.assertIsNone(budget["drop_suggestion"])
@@ -444,7 +444,7 @@ class WarningUnits(unittest.TestCase):
 
     def test_budget_warning_helper_keeps_its_old_call_shape(self):
         self.assertIsNone(ms.budget_warning(None, "chest"))
-        self.assertIsNone(ms.budget_warning(68, "chest"))
+        self.assertIsNone(ms.budget_warning(80, "chest"))
         self.assertIn("Drop chest", ms.budget_warning(30, "chest"))
         self.assertIsNone(ms.budget_warning(63, "chest", credit_cap=91.0))
         self.assertIn("Drop chest", ms.budget_warning(63, "chest", credit_cap=40.0))
@@ -488,8 +488,9 @@ class PlannerCapUnchanged(unittest.TestCase):
         )
         self.assertEqual(
             self._plan(low + cur, "push", "2026-10-15"),
-            [("Smith Flat Bench", 2), ("Tricep Pushdowns (Rope)", 2),
-             ("Smith Incline Bench", 2), ("Behind-the-Neck Smith Press", 2)],
+            # Unified delt tags: presses no longer fill a lumped delts bucket,
+            # so the push day is the three presses (side delts stay open).
+            [("Smith Incline Bench", 2), ("Smith Flat Bench", 2), ("DB Shoulder Press", 2)],
         )
         hi = []
         for m in FOUR_WEEKS:
@@ -498,9 +499,9 @@ class PlannerCapUnchanged(unittest.TestCase):
             hi.append(self._s(m, "pull", ("Pulldowns", 100, 4, 8), ("DB Curls", 25, 3, 12)))
         self.assertEqual(
             self._plan(hi, "push", "2026-10-13"),
-            [("DB Incline Press", 2), ("Smith Flat Bench", 2), ("Behind-the-Neck Smith Press", 2),
+            [("DB Incline Press", 2), ("Smith Flat Bench", 2), ("DB Shoulder Press", 2),
              # Pushdowns (Rope) is a pattern-family main lift: 2-set floor (#1316).
-             ("Tricep Pushdowns (Rope)", 2), ("Lateral Raises", 1)],
+             ("Tricep Pushdowns (Rope)", 2), ("Behind-the-Neck Smith Press", 2)],
         )
 
 

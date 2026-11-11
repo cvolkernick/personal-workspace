@@ -395,9 +395,10 @@ class TestWorkoutPlanner(unittest.TestCase):
         credits = credit_sets_for_exercise(
             ["hamstrings", "glutes"], ["back"], 2, secondary_fraction=0.5
         )
-        self.assertAlmostEqual(credits["hamstrings"], 1.0)
-        self.assertAlmostEqual(credits["glutes"], 1.0)
-        self.assertAlmostEqual(credits["mid_upper_back"], 1.0)  # back → mid_upper_back * 0.5 * 2
+        # Unsplit: each primary gets the full 2 sets. Secondary back is 0.5 each.
+        self.assertAlmostEqual(credits["hamstrings"], 2.0)
+        self.assertAlmostEqual(credits["glutes"], 2.0)
+        self.assertAlmostEqual(credits["mid_upper_back"], 1.0)
 
     def test_weekly_tally_and_plan_volume(self):
         sessions = [
@@ -430,7 +431,7 @@ class TestWorkoutPlanner(unittest.TestCase):
 
     def test_volume_balance_status(self):
         tally = {
-            "by_muscle": {"chest": 2, "delts": 6, "triceps": 12},
+            "by_muscle": {"chest": 2, "front_delts": 6, "triceps": 12},
             "window_days": 7,
             "start": "2026-07-16",
             "end": "2026-07-22",
@@ -440,7 +441,7 @@ class TestWorkoutPlanner(unittest.TestCase):
         rep = volume_balance_report(tally, self.goals)
         statuses = {r["muscle"]: r["status"] for r in rep["muscles"]}
         self.assertIn(statuses["chest"], ("under", "low"))
-        self.assertEqual(statuses["delts"], "ok")
+        self.assertEqual(statuses["front_delts"], "ok")
         self.assertIn(statuses["triceps"], ("high", "over"))
 
     def test_auto_focus_applied_during_plan(self):

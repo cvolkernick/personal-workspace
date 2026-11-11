@@ -49,14 +49,20 @@ class SmithBtnPress1129(unittest.TestCase):
         bundled = Path(__file__).resolve().parents[1] / "fitness" / "exercises" / "catalog.json"
         self.assertEqual(root.read_text(encoding="utf-8"), bundled.read_text(encoding="utf-8"))
         catalog = load_json_file(root, {})
-        self.assertEqual(catalog["updated_at"], "2026-10-16")
+        self.assertEqual(catalog["updated_at"], "2026-11-11")
         exercises = catalog["exercises"]
         ids = [ex["id"] for ex in exercises]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(ids.count("smith-btn-press"), 1)
-        self.assertEqual(ids[-1], "smith-btn-press")
-        self.assertEqual(len(ids), 58)
-        self.assertEqual(exercises[-1], ROW)
+        self.assertEqual(len(ids), 61)
+        btn = next(ex for ex in exercises if ex["id"] == "smith-btn-press")
+        self.assertEqual(btn["name"], ROW["name"])
+        self.assertEqual(btn["volume_primary"], ["side_delts"])
+        self.assertEqual(btn["primary_muscles"], ["side_delts"])
+        self.assertEqual(
+            ids[-3:],
+            ["barbell-flat-bench", "barbell-shrugs", "hack-squat"],
+        )
         names = [ex["name"] for ex in exercises]
         self.assertEqual(names.count(ROW["name"]), 1)
         shoulder = next(ex for ex in exercises if ex["id"] == "db-shoulder-press")

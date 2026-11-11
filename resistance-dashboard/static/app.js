@@ -8905,6 +8905,46 @@
     root.innerHTML = html;
   }
 
+  function paintMuscleBodyMap(report) {
+    const root = $("muscle-body-map");
+    if (!root) return;
+    const detail = $("muscle-map-detail");
+    const rows = (report && report.body_map) || [];
+    const byId = {};
+    rows.forEach((row) => {
+      if (row && row.id) byId[row.id] = row;
+    });
+    const regions = root.querySelectorAll(".body-region");
+    regions.forEach((node) => {
+      const id = node.getAttribute("data-muscle");
+      const row = byId[id] || {};
+      const state = row.state || "gap";
+      node.setAttribute("class", "body-region map-" + state);
+      node.setAttribute("tabindex", "0");
+      node.setAttribute("role", "button");
+      const text = row.detail || (row.label ? row.label + " · no programmed lift" : id);
+      node.setAttribute("aria-label", text);
+      if (!node.dataset.mapBound) {
+        const show = () => {
+          if (detail) detail.textContent = node.getAttribute("aria-label") || "";
+        };
+        node.addEventListener("click", (event) => {
+          event.preventDefault();
+          show();
+        });
+        node.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            show();
+          }
+        });
+        node.addEventListener("mouseenter", show);
+        node.addEventListener("focus", show);
+        node.dataset.mapBound = "1";
+      }
+    });
+  }
+
   function renderMuscleSets(data) {
     const list = $("muscle-sets-list");
     const sub = $("muscle-sets-sub");
@@ -8924,7 +8964,8 @@
       front_delts: "front delts",
       side_delts: "side delts",
       rear_delts: "rear delts",
-      lats_upper_back: "lats/upper back",
+      lats: "lats",
+      mid_upper_back: "upper back",
       traps: "traps",
       biceps: "biceps",
       triceps: "triceps",
@@ -8934,7 +8975,10 @@
       calves: "calves",
       abs: "abs",
       lower_back: "lower back",
+      adductors: "adductors",
+      abductors: "abductors",
     };
+    paintMuscleBodyMap(report);
     const tierColor = { red: "var(--danger)", green: "var(--accent-2)", blue: "#3b82f6" };
     const order = Object.keys(labels).filter((id) => muscles[id]);
     list.innerHTML = order
@@ -8951,8 +8995,13 @@
       const win = report && report.window;
       const start = win && win.start;
       const end = win && win.end;
-      const dates = start && end ? `${start}–${end} ET · ` : "";
-      sub.textContent = `rolling 7 days · ${dates}proper sets · ${cap}`;
+      const dates = start && end ? `${start}–${end} · ` : "";
+      const roll = report && report.rolling_window;
+      const rollBit =
+        roll && roll.start && roll.end
+          ? ` · rolling 7d ${roll.start}–${roll.end} is secondary`
+          : "";
+      sub.textContent = `Mon–Sun ET · ${dates}proper sets · ${cap}${rollBit}`;
     }
     const lines = [];
     if (budget.warning) lines.push(budget.warning);

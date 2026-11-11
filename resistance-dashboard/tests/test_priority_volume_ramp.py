@@ -192,8 +192,8 @@ class MuscleTargetTests(unittest.TestCase):
         for muscle in MAJOR_MUSCLES:
             self.assertGreaterEqual(bands[muscle]["max"], 2, muscle)
             self.assertFalse(bands[muscle]["priority"], muscle)
-        self.assertEqual(bands["delts"]["max"], 6)
-        self.assertGreaterEqual(bands["delts"]["min"], 4)
+        self.assertEqual(bands["front_delts"]["max"], 6)
+        self.assertGreaterEqual(bands["front_delts"]["min"], 4)
         self.assertEqual(bands["hamstrings"]["max"], 5)
         self.assertEqual(bands["calves"]["max"], 3)
         self.assertEqual(bands["biceps"]["max"], 2)
@@ -203,7 +203,7 @@ class MuscleTargetTests(unittest.TestCase):
             prior_credits={"lats": 6, "delts": 4},
             lifts_status="green",
         )
-        self.assertEqual(focused["delts"]["max"], 6)
+        self.assertEqual(focused["front_delts"]["max"], 6)
         self.assertNotEqual(focused["triceps"]["max"], 3)
         self.assertGreaterEqual(focused["biceps"]["min"], 2)
 
@@ -218,7 +218,7 @@ class MuscleTargetTests(unittest.TestCase):
             as_of="2026-11-09",
         )
         self.assertEqual(bands["lats"]["max"], 10)
-        self.assertEqual(bands["delts"]["max"], 3)
+        self.assertEqual(bands["front_delts"]["max"], 3)
         self.assertLess(bands["biceps"]["min"], 4)
 
     def test_rollback_undoes_every_raise_and_drops_the_ceiling_toward_8(self):
@@ -227,7 +227,7 @@ class MuscleTargetTests(unittest.TestCase):
         self.assertEqual(rolled["chest"]["max"], 5)
         self.assertEqual(rolled["lats"]["max"], 6)
         self.assertEqual(rolled["quads"]["max"], 7)
-        self.assertEqual(rolled["delts"]["max"], 8)
+        self.assertEqual(rolled["front_delts"]["max"], 8)
         self.assertEqual(rolled["biceps"]["max"], 8)
         held = muscle_targets(
             RAMP,
@@ -246,7 +246,7 @@ class MuscleTargetTests(unittest.TestCase):
         )
         self.assertEqual(resumed["lats"]["max"], 8)
         self.assertEqual(resumed["chest"]["max"], 7)
-        self.assertEqual(resumed["delts"]["max"], 10)
+        self.assertEqual(resumed["front_delts"]["max"], 10)
         restore = self._bands(prior, lifts_status="green", restore_flag=True)
         self.assertEqual(restore["quads"]["max"], 7)
 
@@ -638,8 +638,9 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
         ):
             labels = display_targets(RAMP, sessions, catalog, as_of="2026-11-09")
         self.assertEqual(labels["chest"], "4-5")
-        # lats/upper back shows the lower ceiling of lats and mid/upper back.
-        self.assertEqual(labels["lats_upper_back"], "0")
+        # Lats and upper back are separate. Pulldowns credit lats only.
+        self.assertEqual(labels["lats"], "4-6")
+        self.assertEqual(labels["mid_upper_back"], "0")
         report = build_muscle_set_report(
             {
                 "sessions": [
@@ -659,8 +660,8 @@ class ModelAndTrendsRollbackTests(unittest.TestCase):
             },
             as_of="2026-11-09",
         )
-        self.assertEqual(report["muscle_sets"]["lats_upper_back"]["target"], "0")
-        self.assertEqual(report["muscle_sets"]["lower_back"]["target"], "4")
+        self.assertEqual(report["muscle_sets"]["lats"]["target"], "4-6")
+        self.assertEqual(report["muscle_sets"]["lower_back"]["target"], "0")
 
 
 # The prod stored plan. The leading prescription is abbreviated in the report
@@ -993,6 +994,83 @@ class StaleStoredRampServeTests(unittest.TestCase):
         self.assertTrue(any("serve ramp failed" in line for line in logs.output))
         self.assertEqual(plan["message"], STORED_CUE_MESSAGE)
         self._assert_goals_untouched(stored, equal=False, started="")
+
+    def test_computed_ramp_not_live_keeps_the_saved_text(self):
+        # Workspace flags are live, but the computed ramp is not. The
+        # Framework sentence stays and the saved message is not rewritten.
+        plan = {
+            "message": STORED_CUE_MESSAGE,
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "goals": copy.deepcopy(STALE_STORED_GOALS),
+        }
+        with self._patch_workspace(self._workspace()), mock.patch(
+            "rt_dashboard.priority_ramp._serve_ramp",
+            return_value={"live": False, "today_line": ""},
+        ):
+            served = present_served_workout(
+                plan,
+                goals=plan["goals"],
+                sessions=[],
+                as_of="2026-11-11",
+                recovery={"label": "Ready", "score": 80},
+            )
+        self.assertIs(served, plan)
+        self.assertEqual(served["message"], STORED_CUE_MESSAGE)
+        self.assertIn("Framework: ≈4–8", served["message"])
+
+    def test_computed_ramp_without_a_line_keeps_the_saved_text(self):
+        plan = {
+            "message": STORED_CUE_MESSAGE,
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "goals": copy.deepcopy(STALE_STORED_GOALS),
+        }
+        with self._patch_workspace(self._workspace()), mock.patch(
+            "rt_dashboard.priority_ramp._serve_ramp",
+            return_value={"live": True, "today_line": ""},
+        ):
+            served = present_served_workout(
+                plan,
+                goals=plan["goals"],
+                sessions=[],
+                as_of="2026-11-11",
+            )
+        self.assertEqual(served["message"], STORED_CUE_MESSAGE)
+
+    def test_load_serve_goals_rereads_when_the_mtime_changes(self):
+        from rt_dashboard import priority_ramp as pr
+
+        calls = {"n": 0}
+
+        def loader():
+            calls["n"] += 1
+            return (
+                {"notes": str(calls["n"]), "volume_ramp_equal": True},
+                "fitness/exercises/goals.json",
+            )
+
+        pr._SERVE_GOALS_CACHE["key"] = None
+        pr._SERVE_GOALS_CACHE["goals"] = None
+        keys = {"k": ("/tmp/fitdash-goals.json", 1)}
+        try:
+            with mock.patch(
+                "rt_dashboard.workout_store.load_workspace_goals",
+                side_effect=loader,
+            ), mock.patch.object(pr, "_goals_mtime_key", side_effect=lambda: keys["k"]):
+                first = pr._load_serve_goals()
+                second = pr._load_serve_goals()
+                self.assertEqual(calls["n"], 1)
+                self.assertEqual(first["notes"], "1")
+                self.assertEqual(second["notes"], "1")
+                keys["k"] = ("/tmp/fitdash-goals.json", 2)
+                third = pr._load_serve_goals()
+                self.assertEqual(calls["n"], 2)
+                self.assertEqual(third["notes"], "2")
+                self.assertEqual(first["notes"], "1")
+        finally:
+            pr._SERVE_GOALS_CACHE["key"] = None
+            pr._SERVE_GOALS_CACHE["goals"] = None
 
 
 if __name__ == "__main__":

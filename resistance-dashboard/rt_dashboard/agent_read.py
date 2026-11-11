@@ -385,7 +385,7 @@ def build_training(agent_today: Dict[str, Any]) -> Tuple[Dict[str, Any], Optiona
         "budget": week.get("muscle_set_budget"),
         "coach": week.get("muscle_set_coach"),
         "window": window,
-        "period": "rolling 7 days",
+        "period": str(window.get("label") or "Mon–Sun ET"),
     }
     out.setdefault("guardrails", None)
     as_of = _d(out.get("today")).get("date") or _d(out.get("guardrails")).get("as_of")

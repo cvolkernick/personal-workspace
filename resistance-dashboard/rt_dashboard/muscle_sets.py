@@ -9,15 +9,14 @@ still in the log was done. Assisted lifts use
 effective load (#1156) and still count on reps when that load is missing.
 
 Credit is 1.0 to each primary group and 0.5 to each secondary. It is not
-split across primaries. The tile and the agent feed count a rolling 7
-ET civil days (today and the six days before it, #1297). The cap, the
-Thursday flags, and the planner still use Monday–Sunday America/New_York.
-``et_week_bounds`` stays the calendar-week helper for those and for
-tonnage.
+split across primaries. The tile, the body map, and the planner use the
+Monday–Sunday America/New_York week. A rolling 7 ET days stays on the
+report as a secondary window. The cap and the Thursday flags use the
+same Monday–Sunday week.
 
-Priority groups (8–10): side delts, lats/upper back, chest.
-Middle (4–7): hamstrings, rear delts, biceps, triceps.
-Every other group holds a maintenance floor of 4.
+When the equal ~10 ramp is live, each group's target is that ramp band.
+The old priority / middle / floor labels are only the fallback when the
+ramp is off.
 
 The weekly cap is the rounded 4-week average of proper-set totals. It
 moves at most ±10% from the prior Monday and does not rise while the
@@ -41,7 +40,8 @@ VOLUME_GROUPS: Tuple[str, ...] = (
     "front_delts",
     "side_delts",
     "rear_delts",
-    "lats_upper_back",
+    "lats",
+    "mid_upper_back",
     "traps",
     "biceps",
     "triceps",
@@ -51,13 +51,16 @@ VOLUME_GROUPS: Tuple[str, ...] = (
     "calves",
     "abs",
     "lower_back",
+    "adductors",
+    "abductors",
 )
 GROUP_LABELS: Dict[str, str] = {
     "chest": "chest",
     "front_delts": "front delts",
     "side_delts": "side delts",
     "rear_delts": "rear delts",
-    "lats_upper_back": "lats/upper back",
+    "lats": "lats",
+    "mid_upper_back": "upper back",
     "traps": "traps",
     "biceps": "biceps",
     "triceps": "triceps",
@@ -67,12 +70,16 @@ GROUP_LABELS: Dict[str, str] = {
     "calves": "calves",
     "abs": "abs",
     "lower_back": "lower back",
+    "adductors": "adductors",
+    "abductors": "abductors",
 }
 
 # Shape drivers first. Chest is the first priority to drop on a tie.
-PRIORITY_GROUPS: Tuple[str, ...] = ("side_delts", "lats_upper_back", "chest")
+# These only feed the fallback labels and the Thursday note. The live
+# equal ramp replaces the 8–10 / 4–7 / 4 split on the tile.
+PRIORITY_GROUPS: Tuple[str, ...] = ("side_delts", "lats", "chest")
 MIDDLE_GROUPS: Tuple[str, ...] = ("hamstrings", "rear_delts", "biceps", "triceps")
-DROP_ORDER: Tuple[str, ...] = ("chest", "lats_upper_back", "side_delts")
+DROP_ORDER: Tuple[str, ...] = ("chest", "lats", "side_delts")
 
 PRIORITY_MIN = 8
 PRIORITY_MAX = 10
@@ -88,10 +95,8 @@ HISTORY_WEEKS = 10
 # below this, and anything above it is treated as a typo and ignored (#1267).
 MAX_CAP_OVERRIDE = 1000
 
-# Catalog tags that are not one of the 14 groups. Forearms, adductors,
-# abductors and hip_flexors stay off the tracker. ``back`` on a hinge is lower back only when the
-# row's volume_secondary says so; the generic fallback treats ``back`` as
-# lats/upper back because that is the row pattern.
+# Forearms and hip_flexors stay off the tracker. A legacy combined
+# ``lats_upper_back`` tag credits both lats and upper back.
 _TAG_TO_GROUP = {
     "chest": "chest",
     "pecs": "chest",
@@ -105,12 +110,13 @@ _TAG_TO_GROUP = {
     "shoulders": "front_delts",
     "shoulder": "front_delts",
     "delts": "front_delts",
-    "lats": "lats_upper_back",
-    "lat": "lats_upper_back",
-    "back": "lats_upper_back",
-    "upper_back": "lats_upper_back",
-    "mid_upper_back": "lats_upper_back",
-    "lats_upper_back": "lats_upper_back",
+    "lats": "lats",
+    "lat": "lats",
+    "back": "mid_upper_back",
+    "upper_back": "mid_upper_back",
+    "mid_back": "mid_upper_back",
+    "rhomboids": "mid_upper_back",
+    "mid_upper_back": "mid_upper_back",
     "traps": "traps",
     "biceps": "biceps",
     "triceps": "triceps",
@@ -121,6 +127,10 @@ _TAG_TO_GROUP = {
     "abs": "abs",
     "core": "abs",
     "lower_back": "lower_back",
+    "adductors": "adductors",
+    "adductor": "adductors",
+    "abductors": "abductors",
+    "abductor": "abductors",
 }
 
 
@@ -218,13 +228,110 @@ def rolling_7d_window(moment: Any) -> Dict[str, Any]:
 
 
 def tier_for(proper_sets: float) -> str:
-    """0–3 red, 4–7 green, 8+ blue."""
+    """0–3 red, 4–7 green, 8+ blue. The body map does not use this scale."""
     done = float(proper_sets or 0)
     if done < 4:
         return "red"
     if done < 8:
         return "green"
     return "blue"
+
+
+# A single secondary credit (0.5) must not flip a border muscle.
+COVERAGE_TOLERANCE = 0.5
+
+
+def coverage_state(
+    sets: float,
+    minimum: float,
+    maximum: float,
+    programmed: bool,
+) -> str:
+    """under / on / over / gap for the body map.
+
+    Gap means no available catalog row credits the region. The numeric
+    band is ignored in that case so the map does not invent a target.
+    """
+    if not programmed:
+        return "gap"
+    done = float(sets or 0)
+    lo = float(minimum)
+    hi = float(maximum)
+    if done > hi + COVERAGE_TOLERANCE:
+        return "over"
+    if done < lo - COVERAGE_TOLERANCE:
+        return "under"
+    return "on"
+
+
+def calendar_week_window(moment: Any) -> Dict[str, Any]:
+    """Monday–Sunday America/New_York. The tile and the body map use this."""
+    start, end = et_week_bounds(moment)
+    return {
+        "type": "calendar_week",
+        "start": start,
+        "end": end,
+        "label": "Mon–Sun ET",
+    }
+
+
+def _fallback_band(group: str) -> Dict[str, float]:
+    role = _role(group)
+    if role == "priority":
+        return {"min": float(PRIORITY_MIN), "max": float(PRIORITY_MAX)}
+    if role == "middle":
+        return {"min": float(MIDDLE_MIN), "max": float(MIDDLE_MAX)}
+    return {"min": float(FLOOR_MIN), "max": float(FLOOR_MIN)}
+
+
+def body_map_regions(
+    *,
+    sets_by_group: Mapping[str, float],
+    bands: Mapping[str, Mapping[str, float]],
+    programmed: Iterable[str],
+    target_labels: Optional[Mapping[str, str]] = None,
+) -> List[dict]:
+    """Read-only color rows for the Trends body map. One row per group."""
+    have = {str(group) for group in programmed}
+    labels = target_labels or {}
+    rows: List[dict] = []
+    for group in VOLUME_GROUPS:
+        label = GROUP_LABELS.get(group, group.replace("_", " "))
+        done = _round_sets(float(sets_by_group.get(group) or 0))
+        if group not in have:
+            rows.append(
+                {
+                    "id": group,
+                    "label": label,
+                    "sets": done,
+                    "target_min": None,
+                    "target_max": None,
+                    "target": None,
+                    "state": "gap",
+                    "detail": f"{label} · no programmed lift",
+                }
+            )
+            continue
+        band = bands.get(group) if isinstance(bands.get(group), Mapping) else None
+        if not band:
+            band = _fallback_band(group)
+        lo = float(band.get("min") or 0)
+        hi = float(band.get("max") or 0)
+        state = coverage_state(done, lo, hi, True)
+        shown = labels.get(group) or (f"{lo:g}" if abs(lo - hi) < 0.05 else f"{lo:g}–{hi:g}")
+        rows.append(
+            {
+                "id": group,
+                "label": label,
+                "sets": done,
+                "target_min": lo,
+                "target_max": hi,
+                "target": shown,
+                "state": state,
+                "detail": f"{label} {done:g} / {hi:g}",
+            }
+        )
+    return rows
 
 
 def _token(name: str) -> str:
@@ -245,9 +352,23 @@ def _groups_from_tags(tags: Sequence[Any], *, name: str, movement: str) -> List[
                 group = "front_delts"
         else:
             group = _TAG_TO_GROUP.get(token)
+        if token == "lats_upper_back":
+            for both in ("lats", "mid_upper_back"):
+                if both not in out:
+                    out.append(both)
+            continue
         if group and group not in out:
             out.append(group)
     return out
+
+
+def _expand_group_token(token: str) -> List[str]:
+    if token == "lats_upper_back":
+        return ["lats", "mid_upper_back"]
+    if token in VOLUME_GROUPS:
+        return [token]
+    mapped = _TAG_TO_GROUP.get(token)
+    return [mapped] if mapped else []
 
 
 def volume_groups(ex: Optional[dict]) -> Tuple[List[str], List[str]]:
@@ -264,13 +385,17 @@ def volume_groups(ex: Optional[dict]) -> Tuple[List[str], List[str]]:
     raw_p = ex.get("volume_primary")
     raw_s = ex.get("volume_secondary")
     if isinstance(raw_p, list) or isinstance(raw_s, list):
-        primary = [g for g in (_token(x) for x in (raw_p or [])) if g in VOLUME_GROUPS]
-        secondary = [
-            g
-            for g in (_token(x) for x in (raw_s or []))
-            if g in VOLUME_GROUPS and g not in primary
-        ]
-        return list(dict.fromkeys(primary)), list(dict.fromkeys(secondary))
+        primary: List[str] = []
+        for raw in raw_p or []:
+            for group in _expand_group_token(_token(raw)):
+                if group not in primary:
+                    primary.append(group)
+        secondary: List[str] = []
+        for raw in raw_s or []:
+            for group in _expand_group_token(_token(raw)):
+                if group not in primary and group not in secondary:
+                    secondary.append(group)
+        return primary, secondary
     primary = _groups_from_tags(ex.get("primary_muscles") or [], name=name, movement=movement)
     secondary = [
         g
@@ -293,14 +418,14 @@ def credit_proper_sets(
         return {}
     prim: List[str] = []
     for raw in primary:
-        group = _token(str(raw))
-        if group in VOLUME_GROUPS and group not in prim:
-            prim.append(group)
+        for group in _expand_group_token(_token(str(raw))):
+            if group not in prim:
+                prim.append(group)
     sec: List[str] = []
     for raw in secondary:
-        group = _token(str(raw))
-        if group in VOLUME_GROUPS and group not in prim and group not in sec:
-            sec.append(group)
+        for group in _expand_group_token(_token(str(raw))):
+            if group not in prim and group not in sec:
+                sec.append(group)
     credits: Dict[str, float] = {}
     for group in prim:
         credits[group] = count * 1.0
@@ -534,10 +659,10 @@ _NAME_FALLBACKS: Tuple[Tuple[Tuple[str, ...], str, Tuple[str, ...], Tuple[str, .
     (("bench press", "chest press", "flat press", "flat bench", "floor press"), "compound", ("chest",), ("triceps", "front_delts")),
     (("shoulder press", "overhead press", "ohp", "military press"), "compound", ("front_delts",), ("side_delts", "triceps")),
     (("romanian", "rdl", "stiff leg"), "compound", ("hamstrings", "glutes"), ("lower_back",)),
-    (("deadlift",), "compound", ("glutes", "hamstrings", "lower_back"), ("quads", "lats_upper_back", "traps")),
+    (("deadlift",), "compound", ("glutes", "hamstrings", "lower_back"), ("quads", "lats", "mid_upper_back", "traps")),
     (("back extension", "hyperextension"), "isolation", ("lower_back", "glutes"), ("hamstrings",)),
-    (("pullup", "pull-up", "pull up", "chin", "pulldown", "pull down"), "compound", ("lats_upper_back",), ("biceps",)),
-    (("row",), "compound", ("lats_upper_back",), ("biceps",)),
+    (("pullup", "pull-up", "pull up", "chin", "pulldown", "pull down"), "compound", ("lats",), ("biceps", "mid_upper_back")),
+    (("row",), "compound", ("mid_upper_back",), ("biceps", "lats")),
     (("leg press", "squat", "hack", "lunge", "split squat"), "compound", ("quads",), ("glutes", "hamstrings")),
     (("leg extension",), "isolation", ("quads",), ()),
 )
@@ -1303,7 +1428,8 @@ def build_muscle_set_report(
         return {
             "week_start": None,
             "week_end": None,
-            "window": rolling_7d_window(day),
+            "window": calendar_week_window(day),
+            "rolling_window": rolling_7d_window(day),
             "muscle_sets": {},
             "budget": {
                 "cap": None,
@@ -1403,9 +1529,11 @@ def build_muscle_set_report(
             ramp_labels = {}
     muscle_sets = {}
     for group in VOLUME_GROUPS:
-        done = _round_sets(rolling_credits.get(group) or 0)
+        # Tile numbers are the Mon–Sun week. Rolling 7d stays secondary.
+        done = _round_sets(credits.get(group) or 0)
         muscle_sets[group] = {
             "proper_sets": done,
+            "rolling_proper_sets": _round_sets(rolling_credits.get(group) or 0),
             "tier": tier_for(done),
             "target": ramp_labels.get(group) or _target_label(group, ceiling=ceiling),
             "trend_4w": trends.get(group),
@@ -1428,10 +1556,41 @@ def build_muscle_set_report(
     )
     overrun = warning is not None
     coach = thursday_flags(as_of=day, credits=credits, trends=trends)
+    try:
+        from .workout_planner import programmed_groups
+
+        programmed = programmed_groups(catalog or {})
+    except Exception:  # noqa: BLE001
+        programmed = set(VOLUME_GROUPS)
+    band_map: Dict[str, Dict[str, float]] = {}
+    try:
+        from .priority_ramp import group_target_bands
+
+        rec = data.get("recovery") if isinstance(data.get("recovery"), dict) else {}
+        band_map = group_target_bands(
+            goals,
+            sessions,
+            catalog,
+            as_of=day,
+            recovery_label=rec.get("label"),
+            deload=bool(
+                rec.get("deload") or rec.get("deload_week") or rec.get("recovery_week")
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        band_map = {}
+    body_map = body_map_regions(
+        sets_by_group={group: float(credits.get(group) or 0) for group in VOLUME_GROUPS},
+        bands=band_map,
+        programmed=programmed,
+        target_labels=ramp_labels,
+    )
     return {
         "week_start": monday,
         "week_end": sunday,
-        "window": rolling_7d_window(day),
+        "window": calendar_week_window(day),
+        "rolling_window": rolling_7d_window(day),
+        "body_map": body_map,
         # Monday-week credits. The planner tiebreak reads these so a
         # rolling display count does not change the weekly plan (#1297).
         "calendar_credits": {

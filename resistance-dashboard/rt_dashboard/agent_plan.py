@@ -113,6 +113,50 @@ def _present_served_plan(plan, *, goals, sessions, as_of, recovery):
     )
 
 
+def _named_plan_exercises(plan: Optional[dict]) -> list:
+    if not isinstance(plan, dict):
+        return []
+    out = []
+    for ex in plan.get("exercises") or []:
+        if not isinstance(ex, dict):
+            continue
+        if str(ex.get("name") or ex.get("exercise") or "").strip():
+            out.append(ex)
+    return out
+
+
+def prefer_rendered_session(rendered: Optional[dict], served: Optional[dict]) -> Optional[dict]:
+    """Keep the dashboard plan when the saved overlay drops lifts.
+
+    ``GET /api/agent/today`` loads the last-good saved plan and paints it
+    over ``workout_store.plan``. That saved row can be an older
+    compound-only list while the plan the dashboard, ``/api/agent/plan``,
+    and ``/api/agent/training`` render still has the isolations. Same open
+    letter, saved row non-empty, rendered list longer: the rendered plan
+    is the session.
+
+    An empty saved row stays authoritative so a fail-loud generate does
+    not leak canned local lifts. A saved row on another letter (the
+    closed-day rollover) stays too.
+    """
+    if not isinstance(served, dict):
+        return served
+    if not _named_plan_exercises(served):
+        return served
+    if not isinstance(rendered, dict) or rendered.get("is_rest_day"):
+        return served
+    if rendered.get("session_closed_today") or rendered.get("already_trained_today"):
+        return served
+    rendered_rows = _named_plan_exercises(rendered)
+    if len(rendered_rows) <= len(_named_plan_exercises(served)):
+        return served
+    want = _letter(rendered.get("session_type"))
+    have = _letter(served.get("session_type"))
+    if want in ("push", "pull", "legs") and have and want != have:
+        return served
+    return rendered
+
+
 def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
     """Copy SuperGrok exercises onto workout, store.plan, and coach.today.workout.
 
