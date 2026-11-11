@@ -351,7 +351,7 @@ class ScoreboardTests(unittest.TestCase):
         plan = generate_workout_plan(
             catalog,
             dict(RAMP),
-            [],
+            [_session("2026-11-10", "push", "Walk", 1)],
             recovery_score=80,
             recovery_label="Ready",
             session_type="legs",
@@ -359,6 +359,7 @@ class ScoreboardTests(unittest.TestCase):
             equipment=gear,
         )
         names = [row["name"] for row in plan["exercises"]]
+        self.assertIn("Lying Leg Curl", names)
         self.assertIn("Calf Extensions", names)
         self.assertIn("Roman Chair Knee Raise", names)
         self.assertGreater(_credit(plan, "hamstrings"), 0)
@@ -447,6 +448,54 @@ class ScoreboardTests(unittest.TestCase):
         self.assertLessEqual(_hard_sets(plan), 14)
         for row in plan["exercises"]:
             self.assertLessEqual(int((row.get("prescription") or {}).get("sets") or 0), 4)
+
+    def test_default_catalog_keeps_leg_press_and_curl_when_under_target(self):
+        catalog = default_catalog()
+        self.assertTrue(any(ex.get("id") == "barbell-deadlift" for ex in catalog["exercises"]))
+        history = [
+            Session(
+                date="2026-11-04",
+                session_type="legs",
+                exercises=[
+                    ExerciseEntry(
+                        name="Barbell Deadlift",
+                        sets=[SetEntry(weight_lbs=185, sets=2, reps=5)],
+                    ),
+                    ExerciseEntry(
+                        name="Seated Leg Curls",
+                        sets=[SetEntry(weight_lbs=50, sets=2, reps=12)],
+                    ),
+                ],
+            ),
+            _session("2026-11-10", "legs", "Back Extension Machine", 4, reps=12, weight=40),
+        ]
+        plan = generate_workout_plan(
+            catalog,
+            dict(RAMP),
+            history,
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        bands = plan["volume"]["planning_bands"]
+        self.assertIn("Leg Press", names)
+        self.assertIn("Lying Leg Curl", names)
+        self.assertIn("Roman Chair Knee Raise", names)
+        self.assertLessEqual(len(names), RAMP["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(plan), 14)
+        quads = _credit(plan, "quads")
+        hamstrings = _credit(plan, "hamstrings")
+        self.assertLess(quads, bands["quads"]["min"])
+        self.assertLess(hamstrings, bands["hamstrings"]["min"])
+        curl = next(row for row in plan["exercises"] if row["name"] == "Lying Leg Curl")
+        without_curl = hamstrings - float(curl["set_credits"]["hamstrings"])
+        self.assertLess(without_curl, bands["hamstrings"]["min"])
+        press = next(row for row in plan["exercises"] if row["name"] == "Leg Press")
+        self.assertEqual(press["movement"], "compound")
+        chair = next(row for row in plan["exercises"] if row["name"] == "Roman Chair Knee Raise")
+        self.assertEqual(chair["movement"], "isolation")
 
     def test_behind_the_neck_press_stays_at_four_sets(self):
         goals = dict(RAMP)

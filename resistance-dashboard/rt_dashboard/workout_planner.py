@@ -3371,6 +3371,7 @@ def _generate_workout_plan_unguarded(
         plan_row = {
             "id": ex["id"],
             "name": ex["name"],
+            "priority": ex.get("priority") or 0,
             "primary_muscles": ex["primary_muscles"],
             "secondary_muscles": ex["secondary_muscles"],
             "movement": ex["movement"],
@@ -3445,6 +3446,7 @@ def _generate_workout_plan_unguarded(
                 fresh = {
                     "id": candidate["id"],
                     "name": candidate["name"],
+                    "priority": candidate.get("priority") or 0,
                     "primary_muscles": candidate.get("primary_muscles") or [],
                     "secondary_muscles": candidate.get("secondary_muscles") or [],
                     "movement": candidate.get("movement"),
@@ -3550,36 +3552,33 @@ def _generate_workout_plan_unguarded(
                 return 0
 
         def _spare_isolation() -> Optional[dict]:
-            """Lowest-priority isolation whose muscle is already at or over target.
+            """Lowest-priority isolation that can leave the session.
 
-            Another lift must still credit that muscle, so the only calf or
-            hamstring movement is not traded away.
+            Every muscle it credits must stay at or over target without it.
+            A compound is never a candidate. A lift already logged today stays.
             """
             spares = []
-            for row in plan_ex:
+            for index, row in enumerate(plan_ex):
                 if str(row.get("movement") or "") == "compound":
                     continue
                 if str(row.get("id") or "") in pin_ids:
                     continue
-                prim = [normalize_muscle(m) for m in (row.get("primary_muscles") or [])]
-                if not prim:
+                if _already_logged_today(row):
                     continue
                 credits = row.get("set_credits") or {}
+                if not credits:
+                    continue
                 covered = True
-                for muscle in prim:
-                    target = _band_min(muscle)
-                    have = _have(muscle)
-                    if target <= 0 or have + 1e-9 < target:
-                        covered = False
-                        break
-                    remain = have - float(credits.get(muscle) or 0)
-                    if remain <= 1e-9:
+                for muscle, credit in credits.items():
+                    target = _band_min(normalize_muscle(muscle))
+                    remain = _have(normalize_muscle(muscle)) - float(credit)
+                    if remain + 1e-9 < target:
                         covered = False
                         break
                 if not covered:
                     continue
                 src = pool_by_id.get(str(row.get("id") or "")) or row
-                spares.append((int(src.get("priority") or 0), str(row.get("name") or ""), row))
+                spares.append((int(src.get("priority") or 0), -index, row))
             if not spares:
                 return None
             spares.sort(key=lambda item: (item[0], item[1]))

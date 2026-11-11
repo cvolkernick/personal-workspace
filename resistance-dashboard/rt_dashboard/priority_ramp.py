@@ -988,9 +988,11 @@ def bump_equal_sets(
 
     Prefer an existing compound that helps the most below-target muscles.
     Ties go to the session muscle furthest below its target. A new compound
-    is added only when no current compound can take a set and the session
-    is still under ``max_exercises``. No lift grows past four sets. The
-    session cap stops the add; isolation is not trimmed to make room.
+    is added when no current compound can take a set. If the exercise list
+    is already full, that compound takes the lowest-priority isolation's
+    slot. A compound is never removed. No lift grows past four sets. The
+    session cap stops the add; isolation set counts are not trimmed to feed
+    another muscle.
     """
     rows: List[dict] = [dict(r) for r in plan_ex or []]
     for row in rows:
@@ -1052,8 +1054,6 @@ def bump_equal_sets(
                 fresh_best = candidate
         if fresh_best is None:
             break
-        if max_exercises is not None and len(rows) >= int(max_exercises):
-            break
         fresh = dict(fresh_best)
         if isinstance(fresh.get("prescription"), dict):
             fresh["prescription"] = dict(fresh["prescription"])
@@ -1061,7 +1061,29 @@ def bump_equal_sets(
             _set_sets(fresh, 1)
         if _sets_of(fresh) > LIFT_SET_CAP:
             _set_sets(fresh, LIFT_SET_CAP)
-        if total_sets() + _sets_of(fresh) > cap:
+        # Compounds are added before an isolation keeps the last slot.
+        # A full session gives the new compound an isolation's place.
+        # A compound already in the session is never removed.
+        if max_exercises is not None and len(rows) >= int(max_exercises):
+            isolations = [
+                i for i, row in enumerate(rows)
+                if str(row.get("movement") or "") != "compound"
+            ]
+            if not isolations:
+                break
+
+            def _prio(index: int) -> int:
+                try:
+                    return int(rows[index].get("priority") or 0)
+                except (TypeError, ValueError):
+                    return 0
+
+            # Lowest priority, then the later slot (the extra isolation).
+            victim = min(isolations, key=lambda index: (_prio(index), -index))
+            if total_sets() - _sets_of(rows[victim]) + _sets_of(fresh) > cap:
+                break
+            rows.pop(victim)
+        elif total_sets() + _sets_of(fresh) > cap:
             break
         rationale = str(fresh.get("rationale") or "")
         if note not in rationale:
