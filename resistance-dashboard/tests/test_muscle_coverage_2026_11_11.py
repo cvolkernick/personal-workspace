@@ -363,7 +363,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertIn("Calf Extensions", names)
         self.assertIn("Roman Chair Knee Raise", names)
         self.assertGreater(_credit(plan, "hamstrings"), 0)
-        self.assertLessEqual(len(names), RAMP["exercises_per_session"])
+        self.assertLessEqual(len(names), 6)
         self.assertLessEqual(_hard_sets(plan), 14)
         patterns = [str(row.get("movement_pattern") or "") for row in plan["exercises"]]
         self.assertLessEqual(patterns.count("hip_abduction"), 1)
@@ -418,6 +418,7 @@ class ScoreboardTests(unittest.TestCase):
                 _lift("lying-leg-curls", "Lying Leg Curl", "legs", ["hamstrings"], [], "isolation", ["machine"], 8),
                 _lift("calf-raises", "Calf Extensions", "legs", ["calves"], [], "isolation", ["machine"], 7),
                 _lift("leg-extension", "Leg Extension", "legs", ["quads"], [], "isolation", ["machine"], 3),
+                _lift("hip-thrust", "Hip Thrust", "legs", ["glutes"], ["hamstrings"], "compound", ["machine"], 9),
                 _lift("roman-chair-raise", "Roman Chair Knee Raise", "legs", ["abs"], [], "isolation", ["roman_chair"], 4),
             ]
         }
@@ -444,7 +445,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertIn("Calf Extensions", names)
         self.assertIn("Lying Leg Curl", names)
         self.assertNotIn("Leg Extension", names)
-        self.assertLessEqual(len(names), RAMP["exercises_per_session"])
+        self.assertLessEqual(len(names), 6)
         self.assertLessEqual(_hard_sets(plan), 14)
         for row in plan["exercises"]:
             self.assertLessEqual(int((row.get("prescription") or {}).get("sets") or 0), 4)
@@ -465,6 +466,10 @@ class ScoreboardTests(unittest.TestCase):
                         name="Seated Leg Curls",
                         sets=[SetEntry(weight_lbs=50, sets=2, reps=12)],
                     ),
+                    ExerciseEntry(
+                        name="Leg Press",
+                        sets=[SetEntry(weight_lbs=200, sets=2, reps=10)],
+                    ),
                 ],
             ),
             _session("2026-11-10", "legs", "Back Extension Machine", 4, reps=12, weight=40),
@@ -483,7 +488,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertIn("Leg Press", names)
         self.assertIn("Lying Leg Curl", names)
         self.assertIn("Roman Chair Knee Raise", names)
-        self.assertLessEqual(len(names), RAMP["exercises_per_session"])
+        self.assertLessEqual(len(names), 6)
         self.assertLessEqual(_hard_sets(plan), 14)
         quads = _credit(plan, "quads")
         hamstrings = _credit(plan, "hamstrings")
@@ -511,7 +516,7 @@ class ScoreboardTests(unittest.TestCase):
         )
         names = [row["name"] for row in plan["exercises"]]
         self.assertIn("Back Extension Machine", names)
-        self.assertEqual(len(names), goals["exercises_per_session"])
+        self.assertEqual(len(names), 6)
         self.assertLessEqual(_hard_sets(plan), 14)
 
     def test_back_extension_stays_while_lower_back_is_under_target(self):
@@ -531,7 +536,7 @@ class ScoreboardTests(unittest.TestCase):
         self.assertIn("Back Extension Machine", names)
         lower = _credit(plan, "lower_back")
         self.assertLess(lower, plan["volume"]["planning_bands"]["lower_back"]["min"])
-        self.assertLessEqual(len(names), goals["exercises_per_session"])
+        self.assertLessEqual(len(names), 6)
         self.assertEqual(goals["pinned_lifts"], {})
 
     def test_a_set_logged_today_does_not_remove_another_lift(self):
@@ -556,9 +561,132 @@ class ScoreboardTests(unittest.TestCase):
         )
         self.assertIn("Back Extension Machine", [row["name"] for row in before["exercises"]])
         self.assertIn("Back Extension Machine", [row["name"] for row in after["exercises"]])
-        self.assertIn("a set is already logged today", after["message"])
-        self.assertLessEqual(len(after["exercises"]), RAMP["exercises_per_session"])
+        self.assertNotIn("Did not add", after["message"])
+        for note in after["held_compounds"]:
+            self.assertIn("Did not add", note)
+        self.assertLessEqual(len(after["exercises"]), 6)
         self.assertLessEqual(_hard_sets(after), 14)
+
+    def test_default_legs_day_is_the_six_lifts(self):
+        plan = generate_workout_plan(
+            default_catalog(),
+            dict(RAMP),
+            [_session("2026-11-10", "pull", "Pulldowns", 2)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertEqual(
+            names,
+            [
+                "Trap-Bar Deadlift",
+                "Leg Press",
+                "RDL",
+                "Lying Leg Curl",
+                "Calf Extensions",
+                "Back Extension Machine",
+            ],
+        )
+        self.assertEqual(
+            [row["movement"] for row in plan["exercises"][:3]],
+            ["compound", "compound", "compound"],
+        )
+        self.assertLessEqual(_hard_sets(plan), 14)
+        for row in plan["exercises"]:
+            self.assertLessEqual(int(row["prescription"]["sets"]), 4)
+        push = generate_workout_plan(
+            default_catalog(),
+            dict(RAMP),
+            [_session("2026-11-10", "pull", "Pulldowns", 2)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="push",
+            as_of="2026-11-11",
+        )
+        self.assertEqual(len(push["exercises"]), RAMP["exercises_per_session"])
+
+    def test_did_not_add_note_stays_out_of_served_messages(self):
+        from rt_dashboard.agent_plan import overlay_workout_on_payload, stamp_and_fill_workout
+        from rt_dashboard.agent_read import build_plan
+        from rt_dashboard.coach import build_today_board
+        from rt_dashboard.models import RecoveryStatus
+        from rt_dashboard.priority_ramp import present_served_workout
+
+        note = (
+            "Did not add Leg Press: a set is already logged today, "
+            "so the remaining lifts stay."
+        )
+        message = f"Suggested LEGS session (5 exercises, 8 hard sets). · {note}"
+        saved = {
+            "message": message,
+            "date": "2026-11-11",
+            "session_type": "legs",
+            "is_rest_day": False,
+            "exercises": [{"name": "RDL", "prescription": {"sets": 2}}],
+        }
+        direct = present_served_workout(
+            dict(saved),
+            goals=dict(RAMP),
+            sessions=[],
+            as_of="2026-11-11",
+            recovery={"label": "Ready"},
+        )
+        bare = present_served_workout({"message": note, "date": "2026-11-11"})
+        slot = {
+            "session_type": "legs",
+            "is_rest_day": False,
+            "exercises": [],
+            "next_session_type": "push",
+        }
+        with mock.patch(
+            "rt_dashboard.agent_plan.load_last_good_workout_plan",
+            return_value=dict(saved),
+        ), mock.patch(
+            "rt_dashboard.grok_planner.dashboard_plan_slots",
+            return_value=({}, dict(slot)),
+        ):
+            stamped = stamp_and_fill_workout(
+                "u",
+                day="2026-11-11",
+                sessions=[],
+                goals=dict(RAMP),
+                recovery={"label": "Ready", "score": 80},
+                read_only=True,
+            )
+        payload = {
+            "meta": {"local_today": "2026-11-11"},
+            "coach": {"today": {"date": "2026-11-11"}},
+            "sessions": [],
+            "workout_store": {"goals": dict(RAMP), "plan": dict(saved)},
+            "recovery": {"label": "Ready", "score": 80},
+        }
+        overlaid = overlay_workout_on_payload(payload, dict(saved))
+        exported = export_agent_today(payload)
+        plan_body, _as_of = build_plan(payload, {"today": {"date": "2026-11-11"}, "week": {}})
+        board = build_today_board(
+            as_of="2026-11-11",
+            recovery=RecoveryStatus(label="Ready", score=80.0),
+            workout_plan=dict(saved, goals=dict(RAMP)),
+            meal_plan={"message": "ok", "items": [], "meals": []},
+            consumed={"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+            targets={"calories": 2100, "protein_g": 180, "carbs_g": 180, "fat_g": 60},
+            adherence={},
+        )
+        served = [
+            direct.get("message"),
+            bare.get("message"),
+            stamped.get("message"),
+            overlaid["workout"]["message"],
+            overlaid["workout_store"]["plan"]["message"],
+            overlaid["coach"]["today"]["workout"]["message"],
+            exported["today"]["workout"]["message"],
+            plan_body["week"]["workout_plan"]["message"],
+            board["workout"]["message"],
+        ]
+        for text in served:
+            self.assertNotIn("Did not add", text or "")
 
     def test_behind_the_neck_press_stays_at_four_sets(self):
         goals = dict(RAMP)

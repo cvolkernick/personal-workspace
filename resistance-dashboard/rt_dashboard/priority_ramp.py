@@ -687,6 +687,15 @@ def _without_cue(text: str) -> str:
     return _join_kept(text, _is_cue_sentence)
 
 
+def _is_held_compound_note(sentence: str) -> bool:
+    return sentence.strip().lower().startswith("did not add")
+
+
+def _without_held_compound_note(text: str) -> str:
+    """The planner's held-compound note is metadata, not Today copy."""
+    return _join_kept(text, _is_held_compound_note)
+
+
 def _is_stale_framework(sentence: str) -> bool:
     return _FRAMEWORK_48_RE.search(sentence) is not None
 
@@ -850,11 +859,15 @@ def present_served_workout(
     raw = plan.get("message")
     if raw is None or not str(raw).strip():
         return plan
-    text = str(raw).strip()
+    text = _without_held_compound_note(str(raw).strip())
     has_cue = _CUE_RE.search(text) is not None
     has_framework = _FRAMEWORK_48_RE.search(text) is not None
     if goals is None and not has_cue and not has_framework:
-        return plan
+        if text == str(raw).strip():
+            return plan
+        out = dict(plan)
+        out["message"] = text
+        return out
     resolved = _goals_for_serve(goals)
     day = str(as_of or plan.get("date") or "")[:10]
     live = bool(day) and ramp_is_live(resolved, day)
@@ -1154,6 +1167,11 @@ def _isolation_that_can_leave(
             continue
         name = wp._norm_name(str(row.get("name") or ""))
         if name and name in logged_today_names:
+            continue
+        family = wp.pattern_family(row)
+        if family and not any(
+            other is not row and wp.pattern_family(other) == family for other in rows
+        ):
             continue
         credits = row.get("set_credits") or {}
         if not credits:

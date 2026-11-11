@@ -326,6 +326,7 @@ VERTICAL_PRESS_FAMILY = "vertical_press"
 VERTICAL_PULL_FAMILY = "vertical_pull"
 HORIZONTAL_ROW_FAMILY = "horizontal_row"
 KNEE_DOMINANT_FAMILY = "knee_dominant"
+DEADLIFT_FAMILY = "deadlift"
 HAMSTRING_CURL_FAMILY = "hamstring_curl"
 CALF_FAMILY = "calf"
 TRICEP_PUSHDOWN_FAMILY = "tricep_pushdown"
@@ -355,6 +356,8 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "smith-row": HORIZONTAL_ROW_FAMILY,
     "leg-press": KNEE_DOMINANT_FAMILY,
     "goblet-squat": KNEE_DOMINANT_FAMILY,
+    "barbell-deadlift": DEADLIFT_FAMILY,
+    "trap-bar-deadlift": DEADLIFT_FAMILY,
     "seated-leg-curls": HAMSTRING_CURL_FAMILY,
     "lying-leg-curls": HAMSTRING_CURL_FAMILY,
     "calf-raises": CALF_FAMILY,
@@ -1044,7 +1047,9 @@ def pattern_family(ex: Optional[dict]) -> Optional[str]:
         return HORIZONTAL_ROW_FAMILY
     if any(tok in name for tok in ("pulldown", "pullup", "pull-up", "chin-up", "chinup")):
         return VERTICAL_PULL_FAMILY
-    # Legs: one knee-dominant compound. RDL and back extension stay uncapped.
+    # Legs: one knee-dominant compound, one deadlift. RDL stays its own slot.
+    if "deadlift" in name:
+        return DEADLIFT_FAMILY
     if "quads" in prim and any(tok in name for tok in ("squat", "leg press", "lunge")):
         return KNEE_DOMINANT_FAMILY
     return None
@@ -3147,6 +3152,9 @@ def _generate_workout_plan_unguarded(
     )
 
     n = max(3, min(8, int(goals.get("exercises_per_session") or 5)))
+    # Legs is six lifts. Push and pull stay on exercises_per_session.
+    if st == "legs":
+        n = min(8, max(n, 6))
     # Fewer movements during deep re-entry — finish the session, don’t pile debt
     if continuity.get("phase") in ("reentry", "restart"):
         n = max(3, min(n, 4))
@@ -3572,6 +3580,12 @@ def _generate_workout_plan_unguarded(
                     continue
                 if _already_logged_today(row):
                     continue
+                family = pattern_family(row)
+                if family and not any(
+                    other is not row and pattern_family(other) == family
+                    for other in plan_ex
+                ):
+                    continue
                 credits = row.get("set_credits") or {}
                 if not credits:
                     continue
@@ -3783,8 +3797,12 @@ def _generate_workout_plan_unguarded(
             f"Ramp targets (not catch-up): {', '.join(under[:3])}"
             + ("…" if len(under) > 3 else "")
         )
-    for held in held_compounds:
-        msg_parts.append(held)
+    if held_compounds:
+        import logging
+
+        logging.getLogger("fitdash.workout").info(
+            "held compounds: %s", " | ".join(held_compounds)
+        )
     if ramp.get("live"):
         msg_parts.append(str(ramp.get("today_line") or ""))
     elif continuity.get("phase") == "normal":
@@ -3827,6 +3845,7 @@ def _generate_workout_plan_unguarded(
         "next_session_type": nxt_open,
         "exercises": plan_ex,
         "message": message,
+        "held_compounds": held_compounds,
         "goals": goals,
         "volume": balance,
         "context": {
