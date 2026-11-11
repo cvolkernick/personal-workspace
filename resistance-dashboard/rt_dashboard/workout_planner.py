@@ -3203,6 +3203,18 @@ def _generate_workout_plan_unguarded(
             if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
                 chosen.append(e)
                 break
+    # Leg Press is a main legs compound. It has to be chosen here, not only
+    # by the later ramp add (that add stops once a set is logged).
+    if st == "legs" and n:
+        press = pool_by_id.get("leg-press")
+        if (
+            press
+            and press.get("id") not in {c.get("id") for c in chosen}
+            and not _already_logged_today(press)
+            and not _family_slot_taken(press, chosen)
+            and len(chosen) < n
+        ):
+            chosen.append(press)
     for e in pool_scored:
         if len(chosen) >= n:
             break
@@ -3883,6 +3895,58 @@ def _generate_workout_plan_unguarded(
         out["generate_error"] = empty_plan_error
         out["message"] = empty_plan_error
         out["context"]["generate_error"] = empty_plan_error
+    if (today_logged_ids or today_logged_names) and not use_remainder and not plan_next:
+        # Keep this morning's lift list. Drop what was logged. Do not add
+        # a new lift and do not swap one out.
+        morning_sessions = [
+            s for s in sessions if str(session_date_of(s) or "")[:10] != str(day)[:10]
+        ]
+        morning = generate_workout_plan(
+            catalog,
+            goals,
+            morning_sessions,
+            recovery_label=recovery_label,
+            recovery_score=recovery_score,
+            recovery_sparse=recovery_sparse,
+            recovery_rhr_under=recovery_rhr_under,
+            deload=deload,
+            session_type=st,
+            as_of=day,
+            equipment=equipment,
+            train_parent_completed=train_parent_completed,
+            last_wake_at=last_wake_at,
+            now=now,
+            weighins=weighins,
+            training_objective=None,
+            lifts_status=lifts_status,
+            prior_lifts_status=prior_lifts_status,
+            restore_flag=restore_flag,
+            prior_restore_flag=prior_restore_flag,
+            phase=phase,
+        )
+        if str(morning.get("session_type") or "") == st and not morning.get("is_rest_day"):
+            def _done_today(ex: dict) -> bool:
+                eid = str(ex.get("id") or "")
+                if eid and eid in today_logged_ids:
+                    return True
+                return _norm_name(str(ex.get("name") or "")) in today_logged_names
+
+            kept = [ex for ex in (morning.get("exercises") or []) if not _done_today(ex)]
+            kept_sets = sum(
+                int((ex.get("prescription") or {}).get("sets") or 0) for ex in kept
+            )
+            out["exercises"] = kept
+            out["message"] = re.sub(
+                rf"Suggested {re.escape(st.upper())} session \(\d+ exercises, \d+ hard sets\)",
+                f"Suggested {st.upper()} session ({len(kept)} exercises, {kept_sets} hard sets)",
+                str(out.get("message") or ""),
+            )
+            if isinstance(out.get("context"), dict):
+                out["context"]["session_hard_sets"] = kept_sets
+            out["held_compounds"] = [
+                note for note in (out.get("held_compounds") or [])
+                if "Did not add" not in note
+            ]
     return _stamp_plan_remainder(out, remainder, training_objective)
 
 

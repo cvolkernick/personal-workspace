@@ -567,6 +567,40 @@ class ScoreboardTests(unittest.TestCase):
         self.assertLessEqual(len(after["exercises"]), 6)
         self.assertLessEqual(_hard_sets(after), 14)
 
+    def test_logged_calf_set_keeps_the_morning_list_minus_that_lift(self):
+        history = [_session("2026-11-10", "pull", "Pulldowns", 2)]
+        morning = generate_workout_plan(
+            default_catalog(),
+            dict(RAMP),
+            history,
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        after = generate_workout_plan(
+            default_catalog(),
+            dict(RAMP),
+            history + [_session("2026-11-11", "legs", "Calf Extensions", 1, reps=12, weight=80)],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        morning_names = [row["name"] for row in morning["exercises"]]
+        after_names = [row["name"] for row in after["exercises"]]
+        self.assertIn("Calf Extensions", morning_names)
+        self.assertIn("Leg Press", morning_names)
+        self.assertEqual(
+            after_names,
+            [name for name in morning_names if name != "Calf Extensions"],
+        )
+        self.assertNotIn("DB Calf Raises", after_names)
+        self.assertIn("Leg Press", after_names)
+        self.assertLessEqual(_hard_sets(after), 14)
+        for row in after["exercises"]:
+            self.assertLessEqual(int((row.get("prescription") or {}).get("sets") or 0), 4)
+
     def test_default_legs_day_is_the_six_lifts(self):
         plan = generate_workout_plan(
             default_catalog(),
