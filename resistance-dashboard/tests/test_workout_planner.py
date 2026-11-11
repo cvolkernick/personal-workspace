@@ -395,9 +395,10 @@ class TestWorkoutPlanner(unittest.TestCase):
         credits = credit_sets_for_exercise(
             ["hamstrings", "glutes"], ["back"], 2, secondary_fraction=0.5
         )
-        # Unsplit: each primary gets the full 2 sets. Secondary back is 0.5 each.
-        self.assertAlmostEqual(credits["hamstrings"], 2.0)
-        self.assertAlmostEqual(credits["glutes"], 2.0)
+        # Split across the two primaries. Secondary back is 0.5, not split further
+        # once it is the only secondary. lats_upper_back is not involved here.
+        self.assertAlmostEqual(credits["hamstrings"], 1.0)
+        self.assertAlmostEqual(credits["glutes"], 1.0)
         self.assertAlmostEqual(credits["mid_upper_back"], 1.0)
 
     def test_weekly_tally_and_plan_volume(self):

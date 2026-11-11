@@ -17,9 +17,11 @@ from rt_dashboard.agent_today import export_agent_today
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.muscle_sets import build_muscle_set_report, coverage_state
 from rt_dashboard.priority_ramp import this_week_credits
+from rt_dashboard.custom_movements import merge_custom_universe
 from rt_dashboard.workout_planner import (
     credit_sets_for_exercise,
     default_catalog,
+    expand_planner_muscles,
     generate_workout_plan,
     programmed_groups,
 )
@@ -68,6 +70,28 @@ def _hard_sets(plan):
     )
 
 
+def _lift(eid, name, letter, primary, secondary, movement, equipment, priority, pattern=""):
+    row = {
+        "id": eid,
+        "name": name,
+        "session_types": [letter],
+        "primary_muscles": primary,
+        "secondary_muscles": secondary,
+        "volume_primary": primary,
+        "volume_secondary": secondary,
+        "movement": movement,
+        "equipment": equipment,
+        "default_sets": 2,
+        "default_reps": 8,
+        "rep_range": [8, 15] if movement == "isolation" else [5, 9],
+        "priority": priority,
+        "available": True,
+    }
+    if pattern:
+        row["movement_pattern"] = pattern
+    return row
+
+
 def _credit(plan, muscle):
     total = 0.0
     for row in plan.get("exercises") or []:
@@ -112,17 +136,16 @@ class ScoreboardTests(unittest.TestCase):
             as_of="2026-11-08",
         )
         self.assertNotIn("lats_upper_back", report["muscle_sets"])
-        self.assertEqual(report["window"]["type"], "calendar_week")
-        self.assertEqual(report["window"]["label"], "Mon–Sun ET")
-        tile = report["muscle_sets"]["lats"]["proper_sets"]
-        self.assertEqual(planner["lats"], report["calendar_credits"]["lats"])
-        self.assertEqual(tile, planner["lats"])
-        self.assertEqual(
-            planner["mid_upper_back"], report["calendar_credits"]["mid_upper_back"]
-        )
-        self.assertGreater(planner["lats"], 2)
+        self.assertEqual(report["window"]["type"], "rolling_7d")
+        # Ramp credit stays split. The tile's proper_sets stay unsplit.
+        self.assertGreater(report["muscle_sets"]["lats"]["proper_sets"], planner["lats"])
+        self.assertGreater(planner["lats"], 0)
         self.assertGreater(planner["mid_upper_back"], 0)
-        self.assertNotEqual(planner["lats"], 2)
+        split = credit_sets_for_exercise(
+            ["lats", "back"], [], 4, secondary_fraction=0.5
+        )
+        self.assertAlmostEqual(split["lats"], 2.0)
+        self.assertAlmostEqual(split["mid_upper_back"], 2.0)
 
     def test_presses_alone_leave_side_and_rear_delts_under_target(self):
         catalog = {
@@ -287,13 +310,13 @@ class ScoreboardTests(unittest.TestCase):
         credits = credit_sets_for_exercise(
             ["lower_back", "glutes"], ["hamstrings"], 2, secondary_fraction=0.5
         )
-        self.assertEqual(credits["lower_back"], 2)
-        self.assertEqual(credits["glutes"], 2)
+        self.assertEqual(credits["lower_back"], 1.0)
+        self.assertEqual(credits["glutes"], 1.0)
         self.assertNotIn("mid_upper_back", credits)
         catalog = default_catalog()
         sessions = [_session("2026-11-08", "legs", "Back Extension Machine", 2, reps=12, weight=70)]
         tally = this_week_credits(sessions, catalog, "2026-11-08", 0.5)
-        self.assertGreaterEqual(tally["lower_back"], 2)
+        self.assertGreater(tally["lower_back"], 0)
         self.assertEqual(tally.get("mid_upper_back") or 0, 0)
 
     def test_half_credit_does_not_flip_the_map_border(self):
@@ -301,6 +324,179 @@ class ScoreboardTests(unittest.TestCase):
         self.assertEqual(coverage_state(10.6, 8, 10, True), "over")
         self.assertEqual(coverage_state(7.5, 8, 10, True), "on")
         self.assertEqual(coverage_state(7.4, 8, 10, True), "under")
+
+    def test_legs_day_keeps_curl_and_calves_and_one_hip_each(self):
+        catalog = {
+            "exercises": [
+                _lift("leg-press", "Leg Press", "legs", ["quads"], ["glutes"], "compound", ["leg_press"], 10),
+                _lift("rdl", "RDL", "legs", ["hamstrings", "glutes"], ["lower_back"], "compound", ["barbell"], 9),
+                _lift("lying-leg-curls", "Lying Leg Curl", "legs", ["hamstrings"], [], "isolation", ["machine"], 8),
+                _lift("calf-raises", "Calf Extensions", "legs", ["calves"], [], "isolation", ["machine"], 7),
+                _lift("cable-hip-abduction", "Cable Hip Abduction", "legs", ["abductors"], ["glutes"], "isolation", ["cable"], 6, pattern="hip_abduction"),
+                _lift("machine-abduction", "Machine Hip Abduction", "legs", ["abductors"], ["glutes"], "isolation", ["machine"], 5, pattern="hip_abduction"),
+                _lift("cable-hip-adduction", "Cable Hip Adduction", "legs", ["adductors"], [], "isolation", ["cable"], 6, pattern="hip_adduction"),
+                _lift("machine-adduction", "Machine Hip Adduction", "legs", ["adductors"], [], "isolation", ["machine"], 5, pattern="hip_adduction"),
+                _lift("roman-chair-raise", "Roman Chair Knee Raise", "legs", ["abs"], [], "isolation", ["roman_chair"], 4),
+            ]
+        }
+        gear = {
+            "items": [
+                {"id": "machine", "name": "Machine", "tag": "machine", "source": "gym"},
+                {"id": "cable", "name": "Cable", "tag": "cable", "source": "gym"},
+                {"id": "barbell", "name": "Barbell", "tag": "barbell", "source": "gym"},
+                {"id": "leg_press", "name": "Leg press", "tag": "leg_press", "source": "gym"},
+                {"id": "roman_chair", "name": "Roman chair", "tag": "roman_chair", "source": "gym"},
+            ]
+        }
+        plan = generate_workout_plan(
+            catalog,
+            dict(RAMP),
+            [],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+            equipment=gear,
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertIn("Lying Leg Curl", names)
+        self.assertIn("Calf Extensions", names)
+        self.assertLessEqual(len(names), RAMP["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(plan), 14)
+        patterns = [str(row.get("movement_pattern") or "") for row in plan["exercises"]]
+        self.assertLessEqual(patterns.count("hip_abduction"), 1)
+        self.assertLessEqual(patterns.count("hip_adduction"), 1)
+        self.assertGreater(_credit(plan, "calves"), 0)
+        self.assertGreater(_credit(plan, "hamstrings"), 0)
+
+    def test_zero_group_gets_a_one_set_coverage_slot(self):
+        catalog = {
+            "exercises": [
+                _lift("leg-press", "Leg Press", "legs", ["quads"], ["glutes"], "compound", ["leg_press"], 10),
+                _lift("machine-adduction", "Machine Hip Adduction", "legs", ["adductors"], [], "isolation", ["machine"], 5, pattern="hip_adduction"),
+            ]
+        }
+        plan = generate_workout_plan(
+            catalog,
+            dict(RAMP),
+            [],
+            recovery_score=80,
+            recovery_label="Ready",
+            session_type="legs",
+            as_of="2026-11-11",
+            equipment={
+                "items": [
+                    {"id": "machine", "name": "Machine", "tag": "machine", "source": "gym"},
+                    {"id": "leg_press", "name": "Leg press", "tag": "leg_press", "source": "gym"},
+                ]
+            },
+        )
+        adduction = next(row for row in plan["exercises"] if row["name"] == "Machine Hip Adduction")
+        self.assertEqual(int(adduction["prescription"]["sets"]), 1)
+        self.assertLessEqual(len(plan["exercises"]), RAMP["exercises_per_session"])
+        self.assertLessEqual(_hard_sets(plan), 14)
+
+    def test_custom_lats_upper_back_credits_on_planner_and_tile(self):
+        """A Turso custom row can still say lats_upper_back. Credit must see it.
+
+        No database write. The row is merged in memory the same way a
+        custom id replaces the catalog row.
+        """
+        base = {
+            "exercises": [
+                _lift(
+                    "barbell-deadlift",
+                    "Barbell Deadlift",
+                    "legs",
+                    ["glutes", "hamstrings", "lower_back"],
+                    ["quads", "lats", "mid_upper_back", "traps"],
+                    "compound",
+                    ["barbell"],
+                    6,
+                )
+            ]
+        }
+        custom = {
+            "exercises": [
+                {
+                    "id": "barbell-deadlift",
+                    "name": "Barbell Deadlift",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["glutes", "hamstrings", "lower_back"],
+                    "secondary_muscles": ["quads", "lats_upper_back", "traps", "forearms"],
+                    "volume_primary": ["glutes", "hamstrings", "lower_back"],
+                    "volume_secondary": ["quads", "lats_upper_back", "traps"],
+                    "movement": "compound",
+                    "equipment": ["barbell"],
+                    "available": True,
+                    "default_sets": 1,
+                    "default_reps": 5,
+                    "rep_range": [5, 8],
+                    "priority": 6,
+                },
+                {
+                    "id": "smith-barbell-row",
+                    "name": "Smith Barbell Row",
+                    "session_types": ["pull"],
+                    "primary_muscles": ["mid_upper_back"],
+                    "secondary_muscles": ["biceps"],
+                    "volume_primary": ["mid_upper_back"],
+                    "volume_secondary": ["biceps"],
+                    "movement": "compound",
+                    "equipment": ["smith_machine"],
+                    "available": True,
+                    "default_sets": 1,
+                    "default_reps": 8,
+                    "rep_range": [8, 12],
+                    "priority": 8,
+                },
+            ]
+        }
+        merged = merge_custom_universe(base, custom)
+        dead = next(ex for ex in merged["exercises"] if ex["id"] == "barbell-deadlift")
+        self.assertIn("lats_upper_back", dead["secondary_muscles"])
+        self.assertEqual(
+            expand_planner_muscles(dead["secondary_muscles"]),
+            ["quads", "lats", "mid_upper_back", "traps", "biceps"],
+        )
+        sessions = [_session("2026-11-08", "legs", "Barbell Deadlift", 2, reps=5, weight=185)]
+        planner = this_week_credits(sessions, merged, "2026-11-08", 0.5)
+        self.assertGreater(planner["lats"], 0)
+        self.assertGreater(planner["mid_upper_back"], 0)
+        self.assertIn("mid_upper_back", programmed_groups(merged) | set(planner))
+        report = build_muscle_set_report(
+            {
+                "sessions": [
+                    {
+                        "date": "2026-11-08",
+                        "session_type": "legs",
+                        "exercises": [
+                            {
+                                "name": "Barbell Deadlift",
+                                "sets": [{"weight_lbs": 185, "sets": 2, "reps": 5}],
+                            }
+                        ],
+                    }
+                ],
+                "workout_store": {"catalog": merged, "goals": dict(RAMP)},
+            },
+            as_of="2026-11-08",
+        )
+        self.assertGreater(report["muscle_sets"]["lats"]["proper_sets"], 0)
+        self.assertGreater(report["muscle_sets"]["mid_upper_back"]["proper_sets"], 0)
+        lats_region = next(row for row in report["body_map"] if row["id"] == "lats")
+        upper = next(row for row in report["body_map"] if row["id"] == "mid_upper_back")
+        self.assertNotEqual(lats_region["state"], "gap")
+        self.assertNotEqual(upper["state"], "gap")
+        self.assertGreater(lats_region["sets"], 0)
+        self.assertGreater(upper["sets"], 0)
+        row_plan = this_week_credits(
+            [_session("2026-11-08", "pull", "Smith Barbell Row", 3, reps=8, weight=95)],
+            merged,
+            "2026-11-08",
+            0.5,
+        )
+        self.assertGreater(row_plan["mid_upper_back"], 0)
 
 
 class BodyMapPlacementTests(unittest.TestCase):
@@ -370,6 +566,82 @@ class TodayPlanAgreementTests(unittest.TestCase):
         self.assertEqual(pairs(exported["today"]["workout"]["plan_exercises"]), dash)
         self.assertEqual(len(dash), 5)
         self.assertEqual(sum(sets for _name, sets in dash), 7)
+        self.assertEqual(served["workout_store"]["plan"]["source"], "local")
+        self.assertNotEqual(served["workout_store"]["plan"]["source"], "grok")
+
+    def test_wrong_letter_keeps_the_saved_plan(self):
+        rendered = {
+            "date": "2026-11-11",
+            "session_type": "legs",
+            "exercises": [{"name": "Leg Press", "sets": 2}, {"name": "RDL", "sets": 2}],
+            "source": "planner",
+        }
+        served = {
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "exercises": [{"name": "Assisted Pullups", "sets": 2}],
+            "source": "grok",
+        }
+        kept = prefer_rendered_session(rendered, served, today="2026-11-11", sessions=[])
+        self.assertEqual(kept["source"], "grok")
+        self.assertEqual(kept["exercises"][0]["name"], "Assisted Pullups")
+
+    def test_equal_length_still_swaps_when_date_and_letter_match(self):
+        rendered = {
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "exercises": [
+                {"name": "Assisted Pullups", "sets": 2},
+                {"name": "Machine Row", "sets": 2},
+            ],
+            "source": "planner",
+        }
+        served = {
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "exercises": [
+                {"name": "Pulldowns", "sets": 2},
+                {"name": "Seated Cable Row", "sets": 2},
+            ],
+            "source": "grok",
+        }
+        kept = prefer_rendered_session(rendered, served, today="2026-11-11", sessions=[])
+        self.assertEqual(kept["source"], "local")
+        self.assertEqual(
+            [ex["name"] for ex in kept["exercises"]],
+            ["Assisted Pullups", "Machine Row"],
+        )
+
+    def test_logged_set_today_does_not_swap_mid_session(self):
+        rendered = {
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "exercises": [
+                {"name": "Assisted Pullups", "sets": 2},
+                {"name": "Machine Row", "sets": 2},
+                {"name": "DB Curls", "sets": 1},
+            ],
+        }
+        served = {
+            "date": "2026-11-11",
+            "session_type": "pull",
+            "exercises": [{"name": "Assisted Pullups", "sets": 2}],
+            "source": "grok",
+        }
+        sessions = [
+            {
+                "date": "2026-11-11",
+                "session_type": "pull",
+                "exercises": [
+                    {"name": "Assisted Pullups", "sets": [{"weight_lbs": 40, "sets": 1, "reps": 8}]}
+                ],
+            }
+        ]
+        kept = prefer_rendered_session(
+            rendered, served, today="2026-11-11", sessions=sessions
+        )
+        self.assertEqual(kept["source"], "grok")
+        self.assertEqual(len(kept["exercises"]), 1)
 
     def test_empty_saved_plan_does_not_replace_a_fail_loud_slot(self):
         rendered = {

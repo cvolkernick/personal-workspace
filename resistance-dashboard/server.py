@@ -597,11 +597,12 @@ def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False
         query=query,
         read_only=read_only,
     )
-    # The stored plan the dashboard renders is the session. A shorter
-    # last-good row (compounds only) must not replace it.
+    # Local plan for today's letter, and only before a set is logged.
     filled = prefer_rendered_session(
         store.get("plan") if isinstance(store.get("plan"), dict) else None,
         filled,
+        today=str(day)[:10],
+        sessions=data.get("sessions") or [],
     )
     data = overlay_workout_on_payload(data, filled)
     return data

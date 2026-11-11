@@ -622,6 +622,30 @@ def _working_sets_from_entry(ex: Any) -> int:
     return 0
 
 
+# A pre-split catalog tag. Ramp credit expands it, then splits the set
+# across the two groups. The tile keeps the unsplit reading.
+LEGACY_MUSCLE_EXPANSIONS: Dict[str, Tuple[str, ...]] = {
+    "lats_upper_back": ("lats", "mid_upper_back"),
+}
+
+
+def expand_planner_muscles(names: Sequence[str]) -> List[str]:
+    """Normalize muscle tags. ``lats_upper_back`` becomes lats and upper back."""
+    out: List[str] = []
+    for raw in names or []:
+        key = re.sub(r"[\s\-]+", "_", str(raw or "").strip().lower())
+        expanded = LEGACY_MUSCLE_EXPANSIONS.get(key)
+        if expanded:
+            for muscle in expanded:
+                if muscle not in out:
+                    out.append(muscle)
+            continue
+        muscle = normalize_muscle(raw)
+        if muscle and muscle not in out:
+            out.append(muscle)
+    return out
+
+
 def credit_sets_for_exercise(
     primary: Sequence[str],
     secondary: Sequence[str],
@@ -629,26 +653,23 @@ def credit_sets_for_exercise(
     *,
     secondary_fraction: float = 0.5,
 ) -> Dict[str, float]:
-    """1.0 to each primary and ``secondary_fraction`` to each secondary.
+    """Split hard sets across primaries. Secondary credit is fractional and split.
 
-    Credit is not split across primaries. A pulldown tagged lats does not
-    lose half its sets to a generic back tag, and a row does not have to
-    share one bucket with that pulldown.
+    The equal ramp that started 2026-11-09 still reads this split. The
+    Trends tile and the body map use unsplit credit in ``muscle_sets``.
     """
     count = float(hard_sets or 0)
     if count <= 0:
         return {}
     credits: Dict[str, float] = {}
-    prim_u = list(dict.fromkeys(normalize_muscle(m) for m in primary if m))
-    sec_u = [
-        m
-        for m in dict.fromkeys(normalize_muscle(m) for m in secondary if m)
-        if m not in prim_u
-    ]
-    for muscle in prim_u:
-        credits[muscle] = credits.get(muscle, 0.0) + count
+    prim_u = expand_planner_muscles(primary)
+    sec_u = [m for m in expand_planner_muscles(secondary) if m not in prim_u]
+    if prim_u:
+        share = count / len(prim_u)
+        for muscle in prim_u:
+            credits[muscle] = credits.get(muscle, 0.0) + share
     if sec_u and secondary_fraction > 0:
-        share = count * float(secondary_fraction)
+        share = count * float(secondary_fraction) / len(sec_u)
         for muscle in sec_u:
             credits[muscle] = credits.get(muscle, 0.0) + share
     return credits
@@ -1169,14 +1190,10 @@ def programmed_groups(catalog: dict) -> Set[str]:
     """Groups an available=true row can credit. Empty means the map stays gray."""
     found: Set[str] = set()
     for ex in available_exercises(catalog or {}):
-        for raw in list(ex.get("volume_primary") or []) + list(ex.get("volume_secondary") or []):
-            group = normalize_muscle(str(raw))
-            if group in MAJOR_MUSCLES:
-                found.add(group)
-        if ex.get("volume_primary") or ex.get("volume_secondary"):
-            continue
-        for raw in list(ex.get("primary_muscles") or []) + list(ex.get("secondary_muscles") or []):
-            group = normalize_muscle(str(raw))
+        volume_tags = list(ex.get("volume_primary") or []) + list(ex.get("volume_secondary") or [])
+        muscle_tags = list(ex.get("primary_muscles") or []) + list(ex.get("secondary_muscles") or [])
+        tags = volume_tags if ex.get("volume_primary") or ex.get("volume_secondary") else muscle_tags
+        for group in expand_planner_muscles(tags):
             if group in MAJOR_MUSCLES:
                 found.add(group)
     return found
@@ -3099,12 +3116,28 @@ def _generate_workout_plan_unguarded(
             return 0.0
         return float(accessory_tiebreak(ex, muscle_report, goals))
 
+    def _late_hip_or_abs(candidate: dict) -> int:
+        """Hip and abs isolations fill only after the other session muscles.
+
+        A second abduction must not take the calf or hamstring slot.
+        """
+        pattern = str(candidate.get("movement_pattern") or "").strip().lower()
+        if pattern in ("hip_adduction", "hip_abduction"):
+            return 1
+        if str(candidate.get("movement") or "") == "isolation":
+            prim = [normalize_muscle(m) for m in (candidate.get("primary_muscles") or [])]
+            if prim and all(m == "abs" for m in prim):
+                return 1
+        return 0
+
     # Rank pool by volume need (under-target muscles) + compound efficiency.
-    # The last-but-one key breaks accessory ties toward an under-target group.
+    # Hip and abs isolations sort after the other lifts so they cannot
+    # take a hamstring or calf slot. The last-but-one key breaks accessory ties.
     pool_scored = sorted(
         pool,
         key=lambda e: (
             _repeat_penalty(e),
+            _late_hip_or_abs(e),
             -_score_exercise_for_volume(e, done, bands, focus=focus),
             0 if e.get("movement") == "compound" else 1,
             -int(e.get("priority") or 0),
@@ -3171,6 +3204,15 @@ def _generate_workout_plan_unguarded(
             continue
         if _family_slot_taken(e, chosen):
             continue
+        pattern = str(e.get("movement_pattern") or "").strip().lower()
+        # One abduction and one adduction, at 1 set, come from the coverage
+        # pass. The main fill keeps the hamstring and calf slots.
+        if pattern in ("hip_adduction", "hip_abduction"):
+            continue
+        if str(e.get("movement") or "") == "isolation":
+            abs_prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
+            if abs_prim and all(m == "abs" for m in abs_prim):
+                continue
         # Skip isolations whose primaries are already over weekly max
         prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
         if e.get("movement") != "compound" and prim:
@@ -3331,6 +3373,7 @@ def _generate_workout_plan_unguarded(
             "primary_muscles": ex["primary_muscles"],
             "secondary_muscles": ex["secondary_muscles"],
             "movement": ex["movement"],
+            "movement_pattern": ex.get("movement_pattern") or "",
             "equipment": ex["equipment"],
             "load": rx.get("load"),
             "rep_range": rx.get("rep_range_label"),
@@ -3483,10 +3526,20 @@ def _generate_workout_plan_unguarded(
             have = float(done.get(group) or 0) + float(planned_credits.get(group) or 0)
             if have >= 0.5:
                 continue
+            # Do not grow the session past exercises_per_session, and do
+            # not spend a set that would push past the 14-set cap.
+            if len(plan_ex) + len(added_rows) >= n:
+                break
             if session_sets + 1 > session_cap:
                 break
             candidate = _coverage_pick(group)
             if candidate is None:
+                continue
+            pattern = str(candidate.get("movement_pattern") or "").strip().lower()
+            if pattern in ("hip_adduction", "hip_abduction") and any(
+                str(row.get("movement_pattern") or "").strip().lower() == pattern
+                for row in list(plan_ex) + added_rows
+            ):
                 continue
             last = last_performance(sessions, candidate["name"], by_id)
             ex_rx = dict(candidate)
@@ -3525,6 +3578,7 @@ def _generate_workout_plan_unguarded(
                 "primary_muscles": candidate.get("primary_muscles") or [],
                 "secondary_muscles": candidate.get("secondary_muscles") or [],
                 "movement": candidate.get("movement"),
+                "movement_pattern": candidate.get("movement_pattern") or "",
                 "equipment": candidate.get("equipment") or [],
                 "load": rx_new.get("load"),
                 "rep_range": rx_new.get("rep_range_label"),

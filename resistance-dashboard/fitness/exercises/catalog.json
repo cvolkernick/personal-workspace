@@ -1743,9 +1743,10 @@
         "push"
       ],
       "primary_muscles": [
-        "side_delts"
+        "front_delts"
       ],
       "secondary_muscles": [
+        "side_delts",
         "triceps",
         "traps"
       ],

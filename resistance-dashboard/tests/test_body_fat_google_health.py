@@ -270,10 +270,10 @@ class BodyFatChart(unittest.TestCase):
         self.assertIn("/body-fat-series.js?v=bf-phase-14d-1", HTML)
         self.assertLess(
             HTML.find("/body-fat-series.js?v=bf-phase-14d-1"),
-            HTML.find("/app.js?v=muscle-map-168"),
+            HTML.find("/app.js?v=muscle-map-169"),
         )
         self.assertIn('"/body-fat-series.js?v=bf-phase-14d-1"', SW)
-        self.assertIn('const CACHE = "fitdash-shell-v168"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v169"', SW)
         self.assertIn("FitDashBodyFat", APP_JS)
         self.assertIn('label: "Body fat (%)"', APP_JS)
         self.assertIn('label: "Body fat 7-day avg"', APP_JS)

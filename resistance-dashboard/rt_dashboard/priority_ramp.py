@@ -11,6 +11,7 @@ That formula is not modified here.
 
 from __future__ import annotations
 
+import copy
 import logging
 import re
 from datetime import date, timedelta
@@ -747,15 +748,15 @@ def _load_serve_goals() -> dict:
     key = (_goals_mtime_key(), id(load_workspace_goals))
     cached = _SERVE_GOALS_CACHE
     if cached.get("key") == key and isinstance(cached.get("goals"), dict):
-        return cached["goals"]
+        return copy.deepcopy(cached["goals"])
     try:
         loaded, _src = load_workspace_goals()
     except Exception:  # noqa: BLE001 - a missing file must not blank Today
         return {}
     goals = loaded if isinstance(loaded, dict) else {}
     _SERVE_GOALS_CACHE["key"] = key
-    _SERVE_GOALS_CACHE["goals"] = goals
-    return goals
+    _SERVE_GOALS_CACHE["goals"] = copy.deepcopy(goals)
+    return copy.deepcopy(goals)
 
 
 def _goals_for_serve(goals: Optional[dict]) -> dict:
@@ -876,9 +877,9 @@ def present_served_workout(
                 stripped = f"{stripped} · {line}".strip(" ·") if stripped else line
             else:
                 # Workspace flags say the ramp is live, but the computed
-                # ramp is not live or has no line. Leave the saved message
-                # alone, Framework sentence included.
-                stripped = text
+                # ramp is not live or has no line. Keep the Framework
+                # sentence and still drop the stored cue.
+                stripped = _without_cue(text)
     if stripped == text:
         return plan
     out = dict(plan)

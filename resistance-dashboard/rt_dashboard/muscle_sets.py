@@ -1428,8 +1428,8 @@ def build_muscle_set_report(
         return {
             "week_start": None,
             "week_end": None,
-            "window": calendar_week_window(day),
-            "rolling_window": rolling_7d_window(day),
+            "window": rolling_7d_window(day),
+            "week_window": calendar_week_window(day),
             "muscle_sets": {},
             "budget": {
                 "cap": None,
@@ -1529,12 +1529,13 @@ def build_muscle_set_report(
             ramp_labels = {}
     muscle_sets = {}
     for group in VOLUME_GROUPS:
-        # Tile numbers are the Mon–Sun week. Rolling 7d stays secondary.
-        done = _round_sets(credits.get(group) or 0)
+        # proper_sets stays the rolling 7 ET days the tile and agent feed
+        # already showed. monday_to_date is the open Mon–Sun week.
+        rolling_done = _round_sets(rolling_credits.get(group) or 0)
         muscle_sets[group] = {
-            "proper_sets": done,
-            "rolling_proper_sets": _round_sets(rolling_credits.get(group) or 0),
-            "tier": tier_for(done),
+            "proper_sets": rolling_done,
+            "monday_to_date": _round_sets(credits.get(group) or 0),
+            "tier": tier_for(rolling_done),
             "target": ramp_labels.get(group) or _target_label(group, ceiling=ceiling),
             "trend_4w": trends.get(group),
         }
@@ -1580,7 +1581,9 @@ def build_muscle_set_report(
     except Exception:  # noqa: BLE001
         band_map = {}
     body_map = body_map_regions(
-        sets_by_group={group: float(credits.get(group) or 0) for group in VOLUME_GROUPS},
+        sets_by_group={
+            group: float(rolling_credits.get(group) or 0) for group in VOLUME_GROUPS
+        },
         bands=band_map,
         programmed=programmed,
         target_labels=ramp_labels,
@@ -1588,8 +1591,8 @@ def build_muscle_set_report(
     return {
         "week_start": monday,
         "week_end": sunday,
-        "window": calendar_week_window(day),
-        "rolling_window": rolling_7d_window(day),
+        "window": rolling_7d_window(day),
+        "week_window": calendar_week_window(day),
         "body_map": body_map,
         # Monday-week credits. The planner tiebreak reads these so a
         # rolling display count does not change the weekly plan (#1297).

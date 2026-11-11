@@ -1015,9 +1015,14 @@ class StaleStoredRampServeTests(unittest.TestCase):
                 as_of="2026-11-11",
                 recovery={"label": "Ready", "score": 80},
             )
-        self.assertIs(served, plan)
-        self.assertEqual(served["message"], STORED_CUE_MESSAGE)
-        self.assertIn("Framework: ≈4–8", served["message"])
+        text = served.get("message") or ""
+        self.assertIn("Framework: ≈4–8", text)
+        self.assertNotIn("lower the weight", text)
+        self.assertNotIn("2–3", text)
+        self.assertNotIn("2-3", text)
+        self.assertNotIn("extra pause", text)
+        self.assertEqual(plan["message"], STORED_CUE_MESSAGE)
+        self.assertIsNot(served, plan)
 
     def test_computed_ramp_without_a_line_keeps_the_saved_text(self):
         plan = {
@@ -1036,7 +1041,12 @@ class StaleStoredRampServeTests(unittest.TestCase):
                 sessions=[],
                 as_of="2026-11-11",
             )
-        self.assertEqual(served["message"], STORED_CUE_MESSAGE)
+        text = served.get("message") or ""
+        self.assertIn("Framework: ≈4–8", text)
+        self.assertNotIn("lower the weight", text)
+        self.assertNotIn("2–3", text)
+        self.assertNotIn("2-3", text)
+        self.assertEqual(plan["message"], STORED_CUE_MESSAGE)
 
     def test_load_serve_goals_rereads_when_the_mtime_changes(self):
         from rt_dashboard import priority_ramp as pr
@@ -1063,6 +1073,11 @@ class StaleStoredRampServeTests(unittest.TestCase):
                 self.assertEqual(calls["n"], 1)
                 self.assertEqual(first["notes"], "1")
                 self.assertEqual(second["notes"], "1")
+                second["notes"] = "mutated"
+                second["focus_muscles"] = ["chest"]
+                untouched = pr._load_serve_goals()
+                self.assertEqual(untouched["notes"], "1")
+                self.assertNotIn("focus_muscles", untouched)
                 keys["k"] = ("/tmp/fitdash-goals.json", 2)
                 third = pr._load_serve_goals()
                 self.assertEqual(calls["n"], 2)

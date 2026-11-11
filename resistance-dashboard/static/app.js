@@ -8996,12 +8996,12 @@
       const start = win && win.start;
       const end = win && win.end;
       const dates = start && end ? `${start}–${end} · ` : "";
-      const roll = report && report.rolling_window;
-      const rollBit =
-        roll && roll.start && roll.end
-          ? ` · rolling 7d ${roll.start}–${roll.end} is secondary`
+      const week = report && report.week_window;
+      const weekBit =
+        week && week.start && week.end
+          ? ` · Mon–Sun ${week.start}–${week.end} is monday_to_date`
           : "";
-      sub.textContent = `Mon–Sun ET · ${dates}proper sets · ${cap}${rollBit}`;
+      sub.textContent = `rolling 7 days · ${dates}proper sets · ${cap}${weekBit}`;
     }
     const lines = [];
     if (budget.warning) lines.push(budget.warning);

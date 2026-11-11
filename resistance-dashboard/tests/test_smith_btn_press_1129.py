@@ -58,7 +58,7 @@ class SmithBtnPress1129(unittest.TestCase):
         btn = next(ex for ex in exercises if ex["id"] == "smith-btn-press")
         self.assertEqual(btn["name"], ROW["name"])
         self.assertEqual(btn["volume_primary"], ["side_delts"])
-        self.assertEqual(btn["primary_muscles"], ["side_delts"])
+        self.assertEqual(btn["primary_muscles"], ["front_delts"])
         self.assertEqual(
             ids[-3:],
             ["barbell-flat-bench", "barbell-shrugs", "hack-squat"],
