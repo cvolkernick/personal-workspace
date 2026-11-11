@@ -4,12 +4,26 @@ import unittest
 
 from unittest import mock
 
-from models import SMS_MAX_CHARS, Lead
+from models import COPY_VERSION, SMS_MAX_CHARS, Lead
 from outreach_copy import (
+    SMS_DRAFT,
+    SMS_VARIANT_A,
+    SMS_VARIANT_B,
+    SMS_VARIANT_B_APPROVED,
+    _fit_sms,
     assign_sms_variant,
     render_sms,
     render_voice_task,
     sale_location_phrase,
+)
+
+# Approved 2026-11-10 8:44 PM ET. {location} maps onto {location_slot}.
+APPROVED_VARIANT_A = (
+    "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
+    "I saw your {car} for sale {location_slot} — have you considered renting it out "
+    "instead of selling? We manage cars for owners and handle everything: "
+    "listing, guests, cleaning, maintenance, and you keep 80–90% of every trip. "
+    "Details at https://www.panamericafleet.com/management. Worth a 10-min chat?"
 )
 
 KEVIN_LOCATION = "Near Burnt Store, Cape Coral, FL 33991"
@@ -69,8 +83,11 @@ class OutboundCopyTests(unittest.TestCase):
         self.assertTrue(body.startswith("Hi, this is Alexandra with Panamerica Auto in Cape Coral."))
         self.assertNotIn("STOP", body)
         self.assertNotIn("Turo", body)
-        self.assertIn("owner-exit", body)
-        self.assertIn("https://www.panamericafleet.com/plans", body)
+        self.assertIn("80–90%", body)
+        self.assertIn("https://www.panamericafleet.com/management", body)
+        self.assertNotIn("owner-exit", body.lower())
+        self.assertNotIn("take over the payments", body.lower())
+        self.assertNotIn("/plans", body)
         self.assertLessEqual(len(body), SMS_MAX_CHARS)
 
     def test_sms_road_style(self) -> None:
@@ -87,8 +104,11 @@ class OutboundCopyTests(unittest.TestCase):
         self.assertNotIn("on near", task.lower())
         self.assertNotIn("33991", task)
         self.assertEqual(lead.location, KEVIN_LOCATION)
-        self.assertIn("owner-exit", task)
-        self.assertIn("www.panamericafleet.com/plans", task)
+        self.assertIn("monthly income", task)
+        self.assertNotIn("owner-exit", task.lower())
+        self.assertNotIn("take over the payments", task.lower())
+        self.assertNotIn("panamericafleet.com", task)
+        self.assertNotIn("80–90%", task)
         self.assertIn("Do not mention Turo", task)
         self.assertEqual(task.lower().count("turo"), 1)
 
@@ -109,6 +129,41 @@ class OutboundCopyTests(unittest.TestCase):
         self.assertIn("2015 Jeep", challenger)
         self.assertIn("near Burnt Store in Cape Coral", challenger)
         self.assertNotEqual(champion, challenger)
+
+
+class ApprovedVariantATests(unittest.TestCase):
+    def test_draft_is_the_approved_text_on_existing_slots(self) -> None:
+        self.assertIs(SMS_VARIANT_A, SMS_DRAFT)
+        self.assertEqual(SMS_DRAFT, APPROVED_VARIANT_A)
+        self.assertIn("\u2014", SMS_DRAFT)  # em dash, as approved
+        self.assertIn("80\u201390%", SMS_DRAFT)  # en dash, as approved
+        self.assertNotIn("{location}", SMS_DRAFT.replace("{location_slot}", ""))
+        self.assertFalse(SMS_VARIANT_B_APPROVED)
+        self.assertIn("CHALLENGER_UNAPPROVED", SMS_VARIANT_B)
+        self.assertIn("{location_slot}", SMS_VARIANT_B)
+        self.assertEqual(COPY_VERSION, "v2")
+
+    def test_unknown_location_still_says_on_the_roadside(self) -> None:
+        body = render_sms(_lead(location=""))
+        self.assertIn("for sale on the roadside", body)
+        self.assertIn("80–90%", body)
+        self.assertIn("https://www.panamericafleet.com/management", body)
+
+    def test_over_length_fallback_drops_owner_exit(self) -> None:
+        long_car = "2015 Jeep Wrangler Unlimited Sahara"
+        slot = "near Burnt Store in Cape Coral"
+        with mock.patch("outreach_copy.SMS_MAX_CHARS", 300):
+            body = _fit_sms(SMS_VARIANT_A, long_car, slot)
+        self.assertLessEqual(len(body), 300)
+        self.assertTrue(body.startswith("Hi, this is Alexandra with Panamerica Auto in Cape Coral."))
+        self.assertIn("https://www.panamericafleet.com/management", body)
+        self.assertNotIn("owner-exit", body.lower())
+        self.assertNotIn("/plans", body)
+        self.assertNotIn("80–90%", body)
+        with mock.patch("outreach_copy.SMS_MAX_CHARS", 40):
+            challenger = _fit_sms(SMS_VARIANT_B, long_car, slot)
+        self.assertLessEqual(len(challenger), 40)
+        self.assertNotIn("panamericafleet.com", challenger)
 
 
 class AssignSmsVariantTests(unittest.TestCase):

@@ -57,15 +57,16 @@ class PipelineTests(unittest.TestCase):
             "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
             f"I saw your {lead.car_label()} for sale on {lead.location} — have you considered renting it out "
             "instead of selling? We manage cars for owners and handle everything: "
-            "listing, guests, cleaning, maintenance. We also have an owner-exit option "
-            "where we take over the payments if you'd rather move on. You can find details "
-            "on our available options at https://www.panamericafleet.com/plans. Worth a 10-min chat?"
+            "listing, guests, cleaning, maintenance, and you keep 80–90% of every trip. "
+            "Details at https://www.panamericafleet.com/management. Worth a 10-min chat?"
         )
         self.assertEqual(body, approved)
         self.assertNotIn("STOP", body)
         self.assertNotIn("Turo", body)
-        self.assertIn("owner-exit", body)
-        self.assertIn("https://www.panamericafleet.com/plans", body)
+        self.assertIn("80–90%", body)
+        self.assertIn("https://www.panamericafleet.com/management", body)
+        self.assertNotIn("owner-exit", body.lower())
+        self.assertNotIn("/plans", body)
         self.assertLessEqual(len(body), SMS_MAX_CHARS)
         self.assertIn(f"for sale on {lead.location}", body)
 
@@ -91,18 +92,24 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("STOP", body)
         self.assertNotIn("Turo", body)
 
-    def test_voice_task_and_prompt_include_owner_exit_no_turo_pitch(self) -> None:
+    def test_voice_task_and_prompt_drop_owner_exit_no_turo_pitch(self) -> None:
         lead = self.pipe.store.get("lead-set-corolla")
         assert lead is not None
         task = render_voice_task(lead)
         self.assertIn(f"listed for sale on {lead.location}", task)
-        self.assertIn("owner-exit", task)
-        self.assertIn("www.panamericafleet.com/plans", task)
+        self.assertIn("monthly income", task)
+        self.assertNotIn("owner-exit", task.lower())
+        self.assertNotIn("take over the payments", task.lower())
+        self.assertNotIn("panamericafleet.com", task)
+        self.assertNotIn("80–90%", task)
         self.assertIn("Do not mention Turo", task)
         self.assertEqual(task.lower().count("turo"), 1)
         prompt = (PKG / "prompts" / "alexandra.roadside.v1.md").read_text()
-        self.assertIn("owner-exit", prompt)
-        self.assertIn("www.panamericafleet.com/plans", prompt)
+        self.assertNotIn("owner-exit", prompt.lower())
+        self.assertNotIn("take over the payments", prompt.lower())
+        self.assertNotIn("panamericafleet.com", prompt)
+        self.assertNotIn("80–90%", prompt)
+        self.assertIn("monthly income", prompt)
         self.assertIn("Do not mention Turo", prompt)
         self.assertEqual(prompt.lower().count("turo"), 1)
 
@@ -113,7 +120,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result["state"], "sms_sent")
         self.assertTrue(result["sms"]["dry_run"])
         self.assertNotIn("STOP", result["sms"]["body"])
-        self.assertIn("https://www.panamericafleet.com/plans", result["sms"]["body"])
+        self.assertIn("https://www.panamericafleet.com/management", result["sms"]["body"])
+        self.assertNotIn("/plans", result["sms"]["body"])
         lead = self.pipe.store.get("lead-set-corolla")
         assert lead is not None
         self.assertEqual(lead.state, "sms_sent")

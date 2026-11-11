@@ -1,7 +1,9 @@
-"""Chris-approved SMS + voice script (#855, 2026-09-20).
+"""Chris-approved SMS + voice script.
 
-Copy is approved in-repo. Live send stays gated on
-PANAMERICA_ROADSIDE_COPY_APPROVED=1 (first-send human gate).
+Variant A SMS approved by Chris 2026-11-10 8:44 PM ET. Voice keeps the
+#855 (2026-09-20) pitch with the owner-exit sentence removed.
+Live send stays gated on PANAMERICA_ROADSIDE_COPY_APPROVED=1
+(first-send human gate).
 
 Location slot (#860): outbound SMS/voice use sale_location_phrase;
 the CRM keeps the full location string.
@@ -20,15 +22,15 @@ import re
 
 from models import SMS_MAX_CHARS, Lead
 
-# Canonical copy from issue #855. Do not drift without a new Chris approval.
-# {location_slot} is "on {road}" or "near {place} in {city}" (#860).
+# Variant A approved 2026-11-10 8:44 PM ET. Do not drift without a new Chris approval.
+# {car} and {location_slot} — {location_slot} is "on {road}", "near {place} in {city}",
+# or "on the roadside" when the location is unknown (#860).
 SMS_DRAFT = (
     "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
     "I saw your {car} for sale {location_slot} — have you considered renting it out "
     "instead of selling? We manage cars for owners and handle everything: "
-    "listing, guests, cleaning, maintenance. We also have an owner-exit option "
-    "where we take over the payments if you'd rather move on. You can find details "
-    "on our available options at https://www.panamericafleet.com/plans. Worth a 10-min chat?"
+    "listing, guests, cleaning, maintenance, and you keep 80–90% of every trip. "
+    "Details at https://www.panamericafleet.com/management. Worth a 10-min chat?"
 )
 
 # Inbound parse_inbound still honors STOP. Do not append this line to sends.
@@ -175,7 +177,7 @@ def _fit_sms(template: str, car: str, location_slot: str) -> str:
         "Hi, this is Alexandra with Panamerica Auto in Cape Coral. "
         "Saw your car for sale — rent it out instead of selling? "
         "We handle listing, guests, cleaning, maintenance. "
-        "Owner-exit and plans: https://www.panamericafleet.com/plans"
+        "Details: https://www.panamericafleet.com/management"
     )
     return fallback[:SMS_MAX_CHARS]
 
@@ -189,8 +191,6 @@ def render_voice_task(lead: Lead) -> str:
         "Pitch: instead of selling, owners host the car in our fleet — "
         "we handle listing, bookings, guests, cleaning, and maintenance; "
         "they earn monthly income off a car they would otherwise sell. "
-        "We also have an owner-exit option where we take over the payments, "
-        "and details on all our options are at www.panamericafleet.com/plans. "
         "Qualify: are you the owner? Open to a 10-minute chat with Chris? "
         "If interested, book a callback time and log it. "
         "If they decline or ask you to stop, apologize, end the call, and do not push. "
