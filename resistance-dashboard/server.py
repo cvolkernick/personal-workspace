@@ -1255,6 +1255,15 @@ def _build_dashboard_data(
                     if not str(k).startswith("_")
                 },
             }
+        from rt_dashboard.priority_ramp import present_served_workout
+
+        workout_plan = present_served_workout(
+            workout_plan,
+            goals=effective_goals,
+            sessions=sessions,
+            as_of=local_today,
+            recovery=recovery,
+        ) or workout_plan
         payload["workout_store"] = {
             "catalog": catalog,
             "equipment": equipment,

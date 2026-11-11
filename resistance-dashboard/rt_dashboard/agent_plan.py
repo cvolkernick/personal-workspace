@@ -100,13 +100,43 @@ def house_plan_user_id() -> str:
     return (os.environ.get("FITDASH_USER_ID") or "default").strip() or "default"
 
 
+def _present_served_plan(plan, *, goals, sessions, as_of, recovery):
+    """Cue strip + live ramp line. A copy only when the message changes."""
+    from .priority_ramp import present_served_workout
+
+    return present_served_workout(
+        plan,
+        goals=goals if isinstance(goals, dict) else None,
+        sessions=sessions,
+        as_of=as_of,
+        recovery=recovery,
+    )
+
+
 def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
     """Copy SuperGrok exercises onto workout, store.plan, and coach.today.workout.
 
     Empty lists stay authoritative so canned local-planner lifts cannot leak.
+    The saved message is cleaned here so Today does not keep a stored cue.
     """
     if not isinstance(payload, dict) or not isinstance(plan, dict):
         return payload
+    store_in = payload.get("workout_store") if isinstance(payload.get("workout_store"), dict) else {}
+    goals = store_in.get("goals") if isinstance(store_in.get("goals"), dict) else None
+    if goals is None and isinstance(payload.get("goals"), dict):
+        goals = payload.get("goals")
+    day = (
+        ((payload.get("coach") or {}).get("today") or {}).get("date")
+        or (payload.get("meta") or {}).get("local_today")
+        or plan.get("date")
+    )
+    plan = _present_served_plan(
+        plan,
+        goals=goals,
+        sessions=payload.get("sessions"),
+        as_of=str(day or "")[:10],
+        recovery=payload.get("recovery") if isinstance(payload.get("recovery"), dict) else None,
+    ) or plan
     exercises = flatten_plan_exercises(plan.get("exercises"))
     slot = dict(payload.get("workout") or {})
     slot["session_type"] = plan.get("session_type") or slot.get("session_type")
@@ -1101,23 +1131,33 @@ def fill_stamped_workout(
     saved = load_last_good_workout_plan(plan_uid, local_day)
     pin_ctx = {"goals": goals or {}}
     saved_pins = _pins_for(pin_ctx, (saved or {}).get("session_type")) if saved else []
+
+    def _serve(plan):
+        return _present_served_plan(
+            plan,
+            goals=goals if isinstance(goals, dict) else None,
+            sessions=sessions,
+            as_of=local_day,
+            recovery=recovery if isinstance(recovery, dict) else None,
+        )
+
     if saved_plan_problem(saved, None, saved_pins) is None and not _session_closed(slot):
-        return saved
+        return _serve(saved)
     if read_only:
         # Token path (#1304): a valid saved plan is the answer. A closed day
         # still returns it when it is the same letter, so plan_exercises is
         # not []. A saved plan on another letter is not today's plan.
         if _covers_today(saved, slot.get("session_type"), saved_pins):
-            return saved
+            return _serve(saved)
         # A closed day's valid plan is the next letter's (#1304), e.g. the
         # Push stamp closed and the saved 10/21 plan is a full Pull day.
         nxt = _letter(slot.get("next_session_type"))
         if nxt and _session_closed(slot) and _covers_today(saved, nxt, saved_pins):
-            return saved
-        return slot
+            return _serve(saved)
+        return _serve(slot)
     letter = _letter(slot.get("session_type"))
     if not letter or slot.get("is_rest_day") or letter == "rest":
-        return slot
+        return _serve(slot)
     filled = ensure_today_grok_plan(
         plan_uid,
         day=local_day,
@@ -1135,10 +1175,10 @@ def fill_stamped_workout(
         query=query,
     )
     if filled.get("ok") and is_good_workout_plan(filled.get("workout")):
-        return filled["workout"]
+        return _serve(filled["workout"])
     if filled.get("error"):
         slot["generate_error"] = filled["error"]
         if not slot.get("is_rest_day"):
             slot["message"] = filled["error"]
             slot["exercises"] = []
-    return slot
+    return _serve(slot)

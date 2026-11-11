@@ -15,23 +15,31 @@ import re
 from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-# Standing coaching only. A sentence that still carries the old lowering/tempo
-# cue is dropped from the workout message so it cannot reach Today.
+# Standing coaching only. Match the cue sentence, not the bare words
+# "lowering" or "tempo" (those show up in "lowering volume" and notes).
 _CUE_RE = re.compile(
     "|".join(
         (
             r"2\s*[\u2010-\u2015\-]\s*3\s*s(?:ec(?:ond)?s?)?(?!\w)",
             r"lower(?:ing)? the weight",
             r"controlled lower",
-            r"\blowering\b",
-            r"\bunder control\b",
-            r"\beccentric\b",
-            r"\btempo\b",
             r"extra pause at the bottom",
+            r"\beccentric\s+tempo\b",
+            r"\btempo\s+cue\b",
+            r"\blowering\s+cue\b",
+            r"\bcontrolled\s+eccentric\b",
         )
     ),
     re.IGNORECASE,
 )
+
+# Stale pre-ramp sentence. Replaced at read time when the equal ramp is live.
+_FRAMEWORK_48_RE = re.compile(
+    r"Framework:\s*≈?\s*4\s*[\u2010-\u2015\-]\s*8\s*sets/muscle/week",
+    re.IGNORECASE,
+)
+
+_SESSION_CAP_RE = re.compile(r"^Session cap ~\d+\.?$")
 
 # Logged credits at or above this gap under the ceiling count as finished.
 _NEAR = 0.5
@@ -624,6 +632,7 @@ def _is_ramp_sentence(sentence: str) -> bool:
         text.startswith("Priority volume:")
         or text.startswith("Volume: ramping")
         or text.startswith("Volume: ramp paused")
+        or _SESSION_CAP_RE.match(text) is not None
     )
 
 
@@ -642,23 +651,44 @@ def _without_priority_line(text: str) -> str:
     return " · ".join(kept)
 
 
+def _split_sentences(text: str) -> List[str]:
+    return re.split(r"(?<=[.!?])\s+", text or "")
+
+
+def _join_kept(text: str, drop) -> str:
+    """Drop sentences ``drop`` rejects. ``·`` chunks stay separate."""
+    kept: List[str] = []
+    for chunk in re.split(r"\s*·\s*", text or ""):
+        piece = " ".join(
+            sentence.strip()
+            for sentence in _split_sentences(chunk)
+            if sentence.strip() and not drop(sentence)
+        )
+        if piece:
+            kept.append(piece)
+    return " · ".join(kept)
+
+
 def _is_cue_sentence(sentence: str) -> bool:
     return _CUE_RE.search(sentence) is not None
 
 
 def _without_cue(text: str) -> str:
-    """Drop lowering/tempo sentences. They stay standing coaching, not the plan."""
-    kept: List[str] = []
-    for chunk in re.split(r"\s*·\s*", text or ""):
-        sentences = re.split(r"(?<=[.!?])\s+", chunk)
-        piece = " ".join(
-            sentence.strip()
-            for sentence in sentences
-            if sentence.strip() and not _is_cue_sentence(sentence)
-        )
-        if piece:
-            kept.append(piece)
-    return " · ".join(kept)
+    """Drop lowering/tempo cue sentences. Bare 'lowering' and 'tempo' stay."""
+    return _join_kept(text, _is_cue_sentence)
+
+
+def _is_stale_framework(sentence: str) -> bool:
+    return _FRAMEWORK_48_RE.search(sentence) is not None
+
+
+def _without_stale_framework(text: str) -> str:
+    """Drop 'Framework: ≈4–8 sets/muscle/week' once the equal ramp is live."""
+    return _join_kept(text, _is_stale_framework)
+
+
+def _has_volume_line(text: str) -> bool:
+    return "Volume: ramping" in (text or "") or "Volume: ramp paused" in (text or "")
 
 
 def ensure_workout_message(message: Optional[str], ramp: Optional[dict]) -> str:
@@ -667,14 +697,119 @@ def ensure_workout_message(message: Optional[str], ramp: Optional[dict]) -> str:
     A model sentence that still says the ramp is climbing is replaced by the
     rollback line when the lifts chip or Restore says to pause. A lowering
     or tempo cue is standing coaching only, so that sentence is dropped.
+    When the ramp is live, the stale 'Framework: ≈4–8 sets/muscle/week'
+    sentence is dropped so the computed line is the one shown.
     """
     text = _without_cue(str(message or "").strip())
     ramp = ramp or {}
     line = str(ramp.get("today_line") or "").strip()
     if ramp.get("live") and line:
+        text = _without_stale_framework(text)
         text = _without_priority_line(text)
         text = f"{text} · {line}".strip(" ·") if text else line
     return text
+
+
+def _load_serve_goals() -> dict:
+    try:
+        from .workout_store import load_workspace_goals
+
+        loaded, _src = load_workspace_goals()
+    except Exception:  # noqa: BLE001 - a missing file must not blank Today
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _recovery_fields(recovery: Any) -> tuple:
+    if isinstance(recovery, dict):
+        label = recovery.get("label")
+        deload = bool(
+            recovery.get("deload")
+            or recovery.get("deload_week")
+            or recovery.get("recovery_week")
+        )
+        return label, deload
+    if recovery is None:
+        return None, False
+    return getattr(recovery, "label", None), bool(getattr(recovery, "deload", False))
+
+
+def _serve_ramp(
+    goals: dict,
+    sessions: Optional[Sequence[Any]],
+    *,
+    as_of: str,
+    recovery: Any,
+    phase: Optional[str],
+) -> dict:
+    """Same rollback rule as the planner. The line does not use prior credits."""
+    label, deload = _recovery_fields(recovery)
+    signals = collect_ramp_signals(
+        goals,
+        sessions,
+        as_of=as_of,
+        recovery_label=label,
+        deload=deload,
+    )
+    return resolve_priority_ramp(
+        goals,
+        as_of=as_of,
+        lifts_status=signals["lifts_status"],
+        prior_lifts_status=signals["prior_lifts_status"],
+        restore_flag=signals["restore_flag"],
+        prior_restore_flag=signals["prior_restore_flag"],
+        phase=phase,
+        session_cap=(goals or {}).get("session_working_set_cap"),
+    )
+
+
+def present_served_workout(
+    plan: Optional[dict],
+    *,
+    goals: Optional[dict] = None,
+    sessions: Optional[Sequence[Any]] = None,
+    as_of: Optional[str] = None,
+    recovery: Any = None,
+    phase: Optional[str] = None,
+) -> Optional[dict]:
+    """Read-time workout message. Does not write the stored plan.
+
+    Strips the standing-coaching cue from a saved or stamped message. When
+    ``volume_ramp_equal`` / ``volume_ramp_started_on`` make the equal ramp
+    live, the stale 4–8 framework sentence is replaced by ``today_line``.
+    A message that already carries the computed line is left on that line.
+    """
+    if not isinstance(plan, dict) or not plan:
+        return plan
+    raw = plan.get("message")
+    if raw is None or not str(raw).strip():
+        return plan
+    text = str(raw).strip()
+    has_cue = _CUE_RE.search(text) is not None
+    has_framework = _FRAMEWORK_48_RE.search(text) is not None
+    if goals is None and not has_cue and not has_framework:
+        return plan
+    resolved = goals if isinstance(goals, dict) else _load_serve_goals()
+    day = str(as_of or plan.get("date") or "")[:10]
+    live = bool(day) and ramp_is_live(resolved, day)
+    stripped = _without_cue(text)
+    if live:
+        stripped = _without_stale_framework(stripped)
+        stripped = _join_kept(
+            stripped, lambda sentence: sentence.strip().startswith("Priority volume:")
+        )
+    if live and not _has_volume_line(stripped):
+        ramp = _serve_ramp(
+            resolved, sessions, as_of=day, recovery=recovery, phase=phase
+        )
+        line = str(ramp.get("today_line") or "").strip()
+        if ramp.get("live") and line:
+            stripped = f"{stripped} · {line}".strip(" ·") if stripped else line
+    if stripped == text:
+        return plan
+    out = dict(plan)
+    out["message"] = stripped
+    return out
 
 
 def _sets_of(row: dict) -> int:

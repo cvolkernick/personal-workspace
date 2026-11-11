@@ -444,7 +444,19 @@ def build_today_board(
     from inventory suggestions. Workout follows recovery + generate_workout_plan.
     Remaining macros recompute from targets − consumed so mid-day logs update Today.
     """
-    wp = workout_plan or {}
+    wp = dict(workout_plan or {})
+    if wp.get("message"):
+        from .priority_ramp import present_served_workout
+
+        wp = present_served_workout(
+            wp,
+            goals=wp.get("goals") if isinstance(wp.get("goals"), dict) else None,
+            as_of=as_of,
+            recovery={
+                "label": getattr(recovery, "label", None),
+                "deload": bool(getattr(recovery, "deload", False)),
+            },
+        ) or wp
     mp = meal_plan or {}
     targets = targets or {}
     consumed = consumed or {}

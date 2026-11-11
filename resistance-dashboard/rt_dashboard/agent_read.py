@@ -397,6 +397,17 @@ def build_plan(data: Dict[str, Any], agent_today: Dict[str, Any]) -> Tuple[Dict[
     week = _d(_d(agent_today).get("week"))
     nut = _d(data.get("nutrition_store"))
     store = _d(data.get("workout_store"))
+    workout_plan = store.get("plan")
+    if isinstance(workout_plan, dict) and workout_plan.get("message"):
+        from .priority_ramp import present_served_workout
+
+        workout_plan = present_served_workout(
+            workout_plan,
+            goals=store.get("goals") if isinstance(store.get("goals"), dict) else None,
+            sessions=data.get("sessions"),
+            as_of=today.get("date"),
+            recovery=data.get("recovery") if isinstance(data.get("recovery"), dict) else None,
+        )
     out = {
         "today": {
             "date": today.get("date"),
@@ -407,7 +418,7 @@ def build_plan(data: Dict[str, Any], agent_today: Dict[str, Any]) -> Tuple[Dict[
         "week": {
             "start": week.get("start"),
             "end": week.get("end"),
-            "workout_plan": store.get("plan"),
+            "workout_plan": workout_plan,
             "goals": store.get("goals"),
             "nutrition": week.get("nutrition"),
         },

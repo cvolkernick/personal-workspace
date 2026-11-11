@@ -84,7 +84,7 @@ class KitchenInventoryCollapse(unittest.TestCase):
         self.assertIn("/app.js?v=bf-mcp-phase-1", SW)
         self.assertIn("/styles.css?v=macro-colors-1", HTML)
         self.assertIn("/styles.css?v=macro-colors-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v165"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v166"', SW)
         self.assertNotIn("fitdash-shell-v104", SW)
         self.assertNotIn("fitdash-shell-v103", SW)
         self.assertNotIn("fitdash-shell-v102", SW)
