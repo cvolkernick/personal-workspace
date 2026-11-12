@@ -8905,6 +8905,17 @@
     root.innerHTML = html;
   }
 
+  function muscleMapColor(rowOrState) {
+    const raw = rowOrState && typeof rowOrState === "object" ? rowOrState.state : rowOrState;
+    const states = {
+      under: { state: "under", fill: "#f0b429", label: "under" },
+      on: { state: "on", fill: "#5ce1a8", label: "on target" },
+      over: { state: "over", fill: "#f07178", label: "over" },
+      gap: { state: "gap", fill: "#5c6b82", label: "no programmed lift" },
+    };
+    return states[raw] || states.gap;
+  }
+
   function paintMuscleBodyMap(report) {
     const root = $("muscle-body-map");
     if (!root) return;
@@ -8918,8 +8929,9 @@
     regions.forEach((node) => {
       const id = node.getAttribute("data-muscle");
       const row = byId[id] || {};
-      const state = row.state || "gap";
-      node.setAttribute("class", "body-region map-" + state);
+      const color = muscleMapColor(row);
+      node.setAttribute("class", "body-region map-" + color.state);
+      node.style.fill = color.fill;
       node.setAttribute("tabindex", "0");
       node.setAttribute("role", "button");
       const text = row.detail || (row.label ? row.label + " · no programmed lift" : id);
@@ -8979,15 +8991,17 @@
       abductors: "abductors",
     };
     paintMuscleBodyMap(report);
-    const tierColor = { red: "var(--danger)", green: "var(--accent-2)", blue: "#3b82f6" };
+    const mapById = {};
+    ((report && report.body_map) || []).forEach((entry) => {
+      if (entry && entry.id && !mapById[entry.id]) mapById[entry.id] = entry;
+    });
     const order = Object.keys(labels).filter((id) => muscles[id]);
     list.innerHTML = order
       .map((id) => {
         const row = muscles[id] || {};
-        const tier = row.tier || "red";
-        const color = tierColor[tier] || "var(--muted)";
+        const color = muscleMapColor(mapById[id]);
         const trend = row.trend_4w == null ? "" : ` · 4w ${row.trend_4w}`;
-        return `<li><span class="guardrail-dot ${phaseBaroEsc(tier)}" style="position:static;display:inline-block;background:${color}" aria-label="${phaseBaroEsc(tier)}"></span> ${phaseBaroEsc(labels[id] || id)} · ${phaseBaroEsc(String(row.proper_sets))} · target ${phaseBaroEsc(String(row.target || ""))}${phaseBaroEsc(trend)}</li>`;
+        return `<li><span class="muscle-map-dot map-${phaseBaroEsc(color.state)}" style="background:${color.fill}" aria-label="${phaseBaroEsc(color.label)}"></span> ${phaseBaroEsc(labels[id] || id)} · ${phaseBaroEsc(String(row.proper_sets))} · target ${phaseBaroEsc(String(row.target || ""))}${phaseBaroEsc(trend)}</li>`;
       })
       .join("");
     if (sub) {

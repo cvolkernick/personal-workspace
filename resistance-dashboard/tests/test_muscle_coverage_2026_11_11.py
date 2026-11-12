@@ -8,6 +8,8 @@ ranked. Back extension credits lower back.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -28,6 +30,8 @@ from rt_dashboard.workout_planner import (
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+CSS = (ROOT / "static" / "styles.css").read_text(encoding="utf-8")
+APP = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 RAMP = {
     "rotation": ["push", "pull", "legs"],
@@ -885,6 +889,87 @@ class BodyMapPlacementTests(unittest.TestCase):
         today = HTML[HTML.find('id="today-hub"') : HTML.find('id="muscle-sets-card"')]
         self.assertNotIn("muscle-body-map", today)
         self.assertNotIn("data-muscle=", today)
+        self.assertNotIn("muscle-sets-list", today)
+
+    def test_wide_layout_puts_the_list_beside_the_figures(self):
+        card = HTML[HTML.find('id="muscle-sets-card"') : HTML.find('id="sleep-trend-card"')]
+        map_at = card.find('id="muscle-body-map"')
+        list_at = card.find('id="muscle-sets-list"')
+        warn_at = card.find('id="muscle-sets-warning"')
+        self.assertGreater(map_at, -1)
+        self.assertLess(map_at, list_at)
+        self.assertLess(list_at, warn_at)
+        inside = card[map_at:list_at]
+        self.assertLess(inside.find("muscle-body-map-legend"), inside.find("muscle-body-map-figures"))
+        figures = inside[inside.find("muscle-body-map-figures") :]
+        self.assertIn("muscle-body-map-views", figures)
+        self.assertIn('id="muscle-map-detail"', figures)
+        self.assertIn("Tap a muscle", figures)
+        self.assertNotIn("display:none", card)
+        self.assertNotIn("display: none", card)
+
+        wide = _media_block(CSS, "#muscle-sets-list {\n    grid-column: 2;")
+        self.assertIn("min-width: 720px", wide)
+        self.assertIn("display: grid", wide)
+        self.assertIn("grid-template-columns: minmax(0, 420px) minmax(0, 1fr)", wide)
+        self.assertIn("align-items: start", wide)
+        self.assertIn(".muscle-body-map-legend { grid-column: 1; grid-row: 1;", wide)
+        self.assertIn(".muscle-body-map-figures { grid-column: 1; grid-row: 2;", wide)
+        self.assertIn("grid-row: 2", wide)
+        self.assertIn("margin-top: 0", wide)
+        self.assertNotIn("display: none", wide)
+        # Front/back stay side by side inside the left column. The section
+        # itself is not a two-column grid until the 720px query.
+        narrow = CSS[: CSS.find("@media (min-width: 720px)")]
+        self.assertIn(".muscle-body-map { margin-top: 0.75rem; }", narrow)
+        self.assertNotIn("grid-template-columns: minmax(0, 420px)", narrow)
+        self.assertIn("grid-template-columns: 1fr 1fr", narrow)
+        self.assertIn("#muscle-sets-list { margin-top: 0.6rem; }", narrow)
+
+    def test_list_dots_use_the_map_fill(self):
+        color = APP[APP.find("function muscleMapColor") : APP.find("function paintMuscleBodyMap")]
+        paint = APP[APP.find("function paintMuscleBodyMap") : APP.find("function renderMuscleSets")]
+        listed = APP[APP.find("function renderMuscleSets") : APP.find("function phaseBaroAct")]
+        for fill in ("#f0b429", "#5ce1a8", "#f07178", "#5c6b82"):
+            self.assertIn(fill, color)
+            self.assertIn(fill, CSS)
+        self.assertIn("muscleMapColor(row)", paint)
+        self.assertIn("color.fill", paint)
+        self.assertIn("map-\" + color.state", paint)
+        self.assertIn("report.body_map", listed)
+        self.assertIn("muscleMapColor(mapById[id])", listed)
+        self.assertIn("muscle-map-dot map-", listed)
+        self.assertNotIn("tierColor", listed)
+        self.assertNotIn("#3b82f6", listed)
+        self.assertNotIn("guardrail-dot", listed)
+        self.assertNotIn("row.tier", listed)
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node missing")
+        proc = subprocess.run(
+            [node, str(ROOT / "tests" / "muscle_map_colors.js")],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+
+def _media_block(css: str, needle: str) -> str:
+    start = css.find(needle)
+    if start < 0:
+        raise AssertionError("missing " + needle)
+    media = css.rfind("@media", 0, start)
+    brace = css.find("{", media)
+    depth = 0
+    for i in range(brace, len(css)):
+        if css[i] == "{":
+            depth += 1
+        elif css[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return css[media : i + 1]
+    raise AssertionError("unclosed media query")
 
 
 class TodayPlanAgreementTests(unittest.TestCase):
