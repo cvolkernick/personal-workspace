@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=muscle-map-168" />
+    <link rel="stylesheet" href="/styles.css?v=muscle-map-1399" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=recipe-planner-1288-2" defer></script>
@@ -27,7 +27,7 @@
     <script src="/biomarkers.js?v=labs-off-today-1" defer></script>
     <script src="/trends-steps.js?v=steps-2" defer></script>
     <script src="/body-fat-series.js?v=bf-phase-14d-1" defer></script>
-    <script src="/app.js?v=muscle-map-170" defer></script>
+    <script src="/app.js?v=muscle-map-1399" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -530,6 +530,7 @@
             <span><i class="map-swatch map-over"></i> over</span>
             <span><i class="map-swatch map-gap"></i> no programmed lift</span>
           </div>
+          <div class="muscle-body-map-figures">
           <div class="muscle-body-map-views">
             <figure>
               <figcaption>Front</figcaption>
@@ -583,8 +584,9 @@
             </figure>
           </div>
           <p class="muted muscle-body-map-detail" id="muscle-map-detail">Tap a muscle. Colors are read-only.</p>
+          </div>
+          <ul class="reasons" id="muscle-sets-list"></ul>
         </div>
-        <ul class="reasons" id="muscle-sets-list" style="margin-top: 0.6rem"></ul>
         <p class="muted" id="muscle-sets-warning" style="margin-top: 0.45rem; font-size: 0.85rem"></p>
       </section>
 

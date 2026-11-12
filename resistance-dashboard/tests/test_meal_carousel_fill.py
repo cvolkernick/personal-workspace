@@ -113,9 +113,9 @@ class MealCarouselFillLayout(unittest.TestCase):
         self.assertIn("scroll-snap-align", CSS)
 
     def test_cache_bumped(self):
-        self.assertIn("/styles.css?v=muscle-map-168", HTML)
-        self.assertIn("/styles.css?v=muscle-map-168", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v170"', SW)
+        self.assertIn("/styles.css?v=muscle-map-1399", HTML)
+        self.assertIn("/styles.css?v=muscle-map-1399", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v171"', SW)
         self.assertNotIn("fitdash-shell-v100", SW)
         self.assertNotIn("/styles.css?v=meal-carousel-fill-3", HTML)
         self.assertNotIn("/styles.css?v=meal-carousel-fill-3", SW)

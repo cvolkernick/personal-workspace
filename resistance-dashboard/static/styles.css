@@ -5102,7 +5102,9 @@ body.m-shell #alerts {
   .bm-grid { grid-template-columns: 1fr; }
 }
 
-/* Trends body map. Read-only. Not shown on Today. */
+/* Trends body map. Read-only. Not shown on Today.
+   Narrow widths stack the key, figures, and list. At 720px and up
+   (landscape tablets included) the list sits beside the figures. */
 .muscle-body-map { margin-top: 0.75rem; }
 .muscle-body-map-legend {
   display: flex;
@@ -5119,15 +5121,41 @@ body.m-shell #alerts {
   border-radius: 2px;
   display: inline-block;
 }
-.map-swatch.map-under, .body-region.map-under { fill: #f0b429; background: #f0b429; }
-.map-swatch.map-on, .body-region.map-on { fill: #5ce1a8; background: #5ce1a8; }
-.map-swatch.map-over, .body-region.map-over { fill: #f07178; background: #f07178; }
-.map-swatch.map-gap, .body-region.map-gap { fill: #5c6b82; background: #5c6b82; }
+.muscle-map-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.15rem;
+  vertical-align: 0.05em;
+}
+.map-swatch.map-under, .body-region.map-under, .muscle-map-dot.map-under { fill: #f0b429; background: #f0b429; }
+.map-swatch.map-on, .body-region.map-on, .muscle-map-dot.map-on { fill: #5ce1a8; background: #5ce1a8; }
+.map-swatch.map-over, .body-region.map-over, .muscle-map-dot.map-over { fill: #f07178; background: #f07178; }
+.map-swatch.map-gap, .body-region.map-gap, .muscle-map-dot.map-gap { fill: #5c6b82; background: #5c6b82; }
 .muscle-body-map-views {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   max-width: 420px;
+}
+#muscle-sets-list { margin-top: 0.6rem; }
+@media (min-width: 720px) {
+  .muscle-body-map {
+    display: grid;
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+    column-gap: 1.25rem;
+    align-items: start;
+  }
+  .muscle-body-map-legend { grid-column: 1; grid-row: 1; margin-bottom: 0.45rem; }
+  .muscle-body-map-figures { grid-column: 1; grid-row: 2; min-width: 0; }
+  .muscle-body-map-views { max-width: none; }
+  #muscle-sets-list {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 0;
+    min-width: 0;
+  }
 }
 .muscle-body-map figure { margin: 0; }
 .muscle-body-map figcaption {
