@@ -5,7 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from adapters import Adapters, ExternalSendError, build_adapters
+from adapters import (
+    Adapters,
+    ExternalSendError,
+    build_adapters,
+    forbid_906_destination,
+    require_line_904,
+    require_voice_from,
+)
 from config import Config, LiveBlocked
 from outreach_copy import (
     ab_mode,
@@ -160,6 +167,8 @@ class Pipeline:
                 "ab_mode": mode,
             }
         body = render_sms(lead)
+        require_line_904(self.cfg.bland_from_number, channel="sms")
+        forbid_906_destination(lead.phone, channel="sms")
         sent = dict(self.adapters.bland.send_sms(to=lead.phone, body=body, lead_id=lead.id))
         sent["sms_variant_id"] = variant
         sent["ab_mode"] = mode
@@ -242,6 +251,7 @@ class Pipeline:
         if lead.call_attempted_at:
             return {"lead_id": lead.id, "skipped": True, "reason": "already called"}
         task = render_voice_task(lead)
+        require_voice_from(self.cfg.bland_from_number)
         sent = self.adapters.bland.start_call(to=lead.phone, task=task, lead_id=lead.id)
         self.store.record_outbox(sent)
         lead.state = "call_attempted"

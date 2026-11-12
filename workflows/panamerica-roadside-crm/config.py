@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from models import COPY_VERSION, VOICE_DELAY_MAX_DAYS, VOICE_DELAY_MIN_DAYS
+from phones import LINE_904, LINE_906
 
 
 def _flag(name: str) -> bool:
@@ -115,6 +116,9 @@ class Config:
             "sender_name": self.sender_name,
             "bland_key_set": bool(self.bland_api_key),
             "bland_agent_set": bool(self.bland_agent_id),
+            # SMS is the 904 handset via send-904. Voice is Bland on 906.
+            "sms_from": LINE_904,
+            "voice_from": LINE_906,
             "drive_token_set": bool(self.google_drive_token),
             "vision_key_set": bool(self.vision_api_key),
             "alert_webhook_set": bool(self.alert_webhook),

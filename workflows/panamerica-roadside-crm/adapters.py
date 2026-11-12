@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import re
+import subprocess
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -14,7 +18,7 @@ from typing import Any, Optional
 from config import Config
 from geocode import FakeGeocoder, NominatimGeocoder
 from organize import PhotoCluster, clusters_from_photos, photo_meta_from_row
-from phones import e164
+from phones import LINE_904, LINE_906, e164, is_line_906
 
 BLAND_SMS_URL = "https://api.bland.ai/v1/sms/send"
 BLAND_CALL_URL = "https://api.bland.ai/v1/calls"
@@ -567,7 +571,168 @@ def _vision_text_and_confidence(data: dict[str, Any]) -> tuple[str, float]:
     return text, conf
 
 
-# --- Bland ------------------------------------------------------------------
+# --- 904 handset (send-904) / 906 Bland voice -----------------------------
+
+
+def require_line_904(raw: str, *, channel: str) -> str:
+    """SMS may originate only on the 904 handset.
+
+    An empty value means that rail. 906 and any other explicit from
+    raise before a text. Voice does not use this lock.
+    """
+    text = (raw or "").strip()
+    if is_line_906(text):
+        raise ExternalSendError(
+            f"refusing {channel}: 906 line {LINE_906} is forbidden; not sending"
+        )
+    if not text:
+        return LINE_904
+    normalized = e164(text)
+    if normalized != LINE_904:
+        shown = normalized or "invalid"
+        raise ExternalSendError(
+            f"refusing {channel}: from must be {LINE_904}; got {shown}"
+        )
+    return LINE_904
+
+
+def forbid_906_destination(to: str, *, channel: str) -> None:
+    """Do not text the 906 agent number. Voice destinations are unchanged."""
+    if is_line_906(to):
+        raise ExternalSendError(
+            f"refusing {channel}: 906 line {LINE_906} is forbidden; not sending"
+        )
+
+
+def require_voice_from(raw: str) -> str:
+    """Bland voice always originates on 906.
+
+    Unset, or 904 (the SMS handset), selects 906 and must not be forwarded
+    as Bland `from`. An explicit 906 is 906. Any other number raises
+    before a call.
+    """
+    text = (raw or "").strip()
+    if not text or is_line_906(text) or e164(text) == LINE_904:
+        return LINE_906
+    shown = e164(text) or "invalid"
+    raise ExternalSendError(f"refusing voice: from must be {LINE_906}; got {shown}")
+
+
+def _send904_script() -> Path:
+    """Existing prism send-904 CLI. This is the 904 rail, not a new one."""
+    override = os.environ.get("SEND904_BIN", "").strip()
+    if override:
+        path = Path(override).expanduser()
+    else:
+        home = Path.home() / "bin" / "send-904"
+        repo = Path(__file__).resolve().parents[2] / "deploy" / "bland-relay" / "send-904"
+        path = home if home.is_file() else repo
+    if path.name != "send-904":
+        raise ExternalSendError("refusing sms: send path is not send-904")
+    if not path.is_file():
+        raise ExternalSendError("refusing sms: send-904 is not installed")
+    return path
+
+
+def _parse_send904_stdout(stdout: str) -> tuple[Optional[int], dict[str, Any]]:
+    line, _, rest = (stdout or "").partition("\n")
+    try:
+        status = int(line.strip())
+    except ValueError:
+        return None, {}
+    rest = rest.strip()
+    if not rest:
+        return status, {}
+    try:
+        data = json.loads(rest)
+    except json.JSONDecodeError:
+        return status, {}
+    return status, data if isinstance(data, dict) else {}
+
+
+def _stderr_detail(stderr: str) -> str:
+    line = ""
+    for raw in reversed((stderr or "").splitlines()):
+        if raw.strip():
+            line = raw.strip()
+            break
+    if not line.startswith("error:"):
+        return ""
+    low = line.lower()
+    if any(word in low for word in ("token", "authorization", "bearer", "secret")):
+        return ""
+    return line[:160]
+
+
+def _send904_failure(
+    status: Optional[int],
+    returncode: int,
+    payload: dict[str, Any],
+    stderr: str,
+) -> ExternalSendError:
+    err = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(err, str) and re.fullmatch(r"[A-Za-z0-9_ .:-]{1,80}", err.strip()):
+        detail = err.strip()
+    else:
+        detail = _stderr_detail(stderr) or "send-904 refused"
+    code = status if status is not None else returncode
+    return ExternalSendError(f"send-904 failed ({code}): {detail}")
+
+
+def deliver_via_send904(to: str, message: str) -> dict[str, Any]:
+    """Run send-904. The relay originates on the 904 handset.
+
+    send-904 takes no from-number. It posts to the local bland-relay,
+    which sends through SMSGate on the T-Mobile handset. One attempt;
+    a timeout is not retried, because the handset may already have the text.
+    """
+    script = _send904_script()
+    argv = [sys.executable, str(script), to]
+    joined = " ".join(argv)
+    if (
+        BLAND_SMS_URL in joined
+        or BLAND_CALL_URL in joined
+        or LINE_906 in joined
+        or "api.bland.ai" in joined
+    ):
+        raise ExternalSendError("refusing sms: send command is not the 904 handset path")
+    try:
+        proc = subprocess.run(
+            argv,
+            input=message,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=25,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ExternalSendError(
+            "send-904 timed out; not retrying "
+            "(the handset may already have accepted the text)"
+        ) from exc
+    except OSError as exc:
+        raise ExternalSendError(
+            f"send-904 could not be started ({exc.__class__.__name__})"
+        ) from exc
+    status, payload = _parse_send904_stdout(proc.stdout or "")
+    if (
+        proc.returncode != 0
+        or status is None
+        or not 200 <= status < 300
+        or payload.get("ok") is not True
+    ):
+        raise _send904_failure(status, proc.returncode, payload, proc.stderr or "")
+    if payload.get("dry_run") is True:
+        raise ExternalSendError("send-904 returned dry_run; not marking sent")
+    for key in ("from", "sender", "line", "agent_number"):
+        echoed = payload.get(key)
+        if echoed not in (None, ""):
+            require_line_904(str(echoed), channel="sms")
+    return payload
+
+
+# --- Outreach adapters (904 SMS / 906 voice) ------------------------------
 
 
 @dataclass
@@ -580,6 +745,7 @@ class RecordingBland:
         row = {
             "channel": "sms",
             "to": e164(to) or to,
+            "from": LINE_904,
             "body": body,
             "lead_id": lead_id,
             "dry_run": self.dry_run,
@@ -592,6 +758,7 @@ class RecordingBland:
         row = {
             "channel": "voice",
             "to": e164(to) or to,
+            "from": LINE_906,
             "task": task,
             "lead_id": lead_id,
             "dry_run": self.dry_run,
@@ -608,49 +775,44 @@ class LiveBland:
         self.calls: list[dict[str, Any]] = []
 
     def send_sms(self, *, to: str, body: str, lead_id: str) -> dict[str, Any]:
-        if not self.cfg.bland_api_key:
-            raise ExternalSendError("BLAND_API_KEY is not set")
-        dest = e164(to) or to
-        payload: dict[str, Any] = {
-            "user_number": dest,
-            "agent_message": body,
-            "channel": "sms",
-            "metadata": {"lead_id": lead_id, "workflow": "panamerica-roadside-crm"},
-        }
-        if self.cfg.bland_from_number:
-            payload["agent_number"] = self.cfg.bland_from_number
-        if self.cfg.bland_agent_id:
-            payload["persona_id"] = self.cfg.bland_agent_id
-        if self.cfg.webhook_public_url:
-            payload["webhook"] = self.cfg.webhook_public_url
-        data = _http_json(
-            BLAND_SMS_URL,
-            payload,
-            headers={"authorization": self.cfg.bland_api_key},
-        )
+        """Text through send-904. Does not post to Bland's SMS API."""
+        origin = require_line_904(self.cfg.bland_from_number, channel="sms")
+        forbid_906_destination(to, channel="sms")
+        dest = e164(to)
+        if not dest:
+            raise ExternalSendError("refusing sms: destination is not a valid NANP number")
+        if not (body or "").strip():
+            raise ExternalSendError("refusing sms: empty body")
+        data = deliver_via_send904(dest, body)
         row = {
             "channel": "sms",
             "to": dest,
+            "from": origin,
             "body": body,
             "lead_id": lead_id,
             "dry_run": False,
             "sent": True,
-            "conversation_id": ((data.get("data") or {}).get("conversation_id")),
+            "via": "send-904",
+            "gateway_id": data.get("id"),
+            "gateway_state": data.get("state"),
         }
         self.sends.append(row)
         return row
 
     def start_call(self, *, to: str, task: str, lead_id: str) -> dict[str, Any]:
+        """Place a Bland call from 906. 904 is never sent as `from`."""
+        origin = require_voice_from(self.cfg.bland_from_number)
+        if origin != LINE_906:
+            raise ExternalSendError(f"refusing voice: from must be {LINE_906}")
         if not self.cfg.bland_api_key:
             raise ExternalSendError("BLAND_API_KEY is not set")
         dest = e164(to) or to
         payload: dict[str, Any] = {
             "phone_number": dest,
             "task": task,
+            "from": LINE_906,
             "metadata": {"lead_id": lead_id, "workflow": "panamerica-roadside-crm"},
         }
-        if self.cfg.bland_from_number:
-            payload["from"] = self.cfg.bland_from_number
         if self.cfg.bland_agent_id:
             payload["pathway_id"] = self.cfg.bland_agent_id
         if self.cfg.webhook_public_url:
@@ -663,6 +825,7 @@ class LiveBland:
         row = {
             "channel": "voice",
             "to": dest,
+            "from": LINE_906,
             "task": task,
             "lead_id": lead_id,
             "dry_run": False,

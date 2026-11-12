@@ -119,7 +119,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Panamerica roadside owner-outreach CRM (Drive intake + Bland SMS/voice)."
+        description="Panamerica roadside owner-outreach CRM (Drive intake, 904 SMS, 906 voice)."
     )
     mode = p.add_mutually_exclusive_group()
     mode.add_argument(
@@ -132,7 +132,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--live",
         dest="live",
         action="store_true",
-        help="Real SMS/voice (blocked until copy approved)",
+        help="Real SMS via send-904 and Bland voice from 906 (blocked until copy approved).",
     )
     p.set_defaults(live=False)
     p.add_argument("--store", default="", help="JSON store path (canonical file store)")
@@ -148,7 +148,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub.add_parser("weekly-pass", help="Alias for daily-pass").set_defaults(func=cmd_daily)
     sub.add_parser("sms-batch", help="Phase 1: SMS new leads with approved copy").set_defaults(func=cmd_sms)
-    sub.add_parser("call-batch", help="Phase 2: Bland voice to SMS non-responders after 5–7 days").set_defaults(
+    sub.add_parser(
+        "call-batch",
+        help="Phase 2: Bland voice from 906 for SMS non-responders after 5–7 days",
+    ).set_defaults(
         func=cmd_calls
     )
     ing = sub.add_parser("ingest-reply", help="Parse an inbound SMS/call transcript")
