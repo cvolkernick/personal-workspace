@@ -95,11 +95,12 @@ not call Bland, `send-904`, or the interest webhook.
 
 `--live` SMS goes out through prism `send-904` (local bland-relay →
 SMSGate) and originates on the 904 handset `+19043343975`. The Bland
-SMS API is not used. `BLAND_FROM_NUMBER` is a lock: unset or
+SMS API is not used. For texts, `BLAND_FROM_NUMBER` is a lock: unset or
 `+19043343975` is that rail; `+19062406221` (906) and any other value
-are refused before a send. Live voice is fail-closed: Bland cannot
-place a call from the 904 handset, and this workflow will not
-originate on 906.
+are refused before a send. Live voice uses Bland and always originates
+on 906. Unset or 904 in that shared env still places the call from 906
+and does not send 904 as Bland `from`. Any other explicit voice from
+is refused. Dry-run does not dial.
 
 `--live` requires `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send
 human gate; copy itself is already Chris-approved in #855). Compliance:

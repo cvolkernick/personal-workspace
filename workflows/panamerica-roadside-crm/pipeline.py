@@ -6,12 +6,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from adapters import (
-    VOICE_FROM_904_UNAVAILABLE,
     Adapters,
     ExternalSendError,
     build_adapters,
     forbid_906_destination,
     require_line_904,
+    require_voice_from,
 )
 from config import Config, LiveBlocked
 from outreach_copy import (
@@ -251,10 +251,7 @@ class Pipeline:
         if lead.call_attempted_at:
             return {"lead_id": lead.id, "skipped": True, "reason": "already called"}
         task = render_voice_task(lead)
-        require_line_904(self.cfg.bland_from_number, channel="voice")
-        forbid_906_destination(lead.phone, channel="voice")
-        if not self.cfg.dry_run:
-            raise ExternalSendError(VOICE_FROM_904_UNAVAILABLE)
+        require_voice_from(self.cfg.bland_from_number)
         sent = self.adapters.bland.start_call(to=lead.phone, task=task, lead_id=lead.id)
         self.store.record_outbox(sent)
         lead.state = "call_attempted"

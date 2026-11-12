@@ -10,8 +10,8 @@ import re
 
 PHONE_UNKNOWN = "UNKNOWN"
 
-# 904 is the T-Mobile handset (prism send-904 / bland-relay / SMSGate).
-# 906 is the Bland agent number. Roadside outreach must never originate on 906.
+# 904 is the T-Mobile handset (prism send-904 / bland-relay / SMSGate). Texts only.
+# 906 is the Bland agent number. Voice only. SMS must never originate on 906.
 # LINE_904 must stay equal to deploy/bland-relay/relay_config.py LINE_904.
 LINE_904 = "+19043343975"
 LINE_906 = "+19062406221"

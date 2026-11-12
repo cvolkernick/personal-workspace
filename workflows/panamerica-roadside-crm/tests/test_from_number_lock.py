@@ -1,11 +1,12 @@
-"""From-number lock: roadside SMS is 904 via send-904; 906 never goes out.
+"""SMS stays on 904 via send-904. Voice originates on 906 via Bland.
 
 These tests mock subprocess and urlopen. They do not call the relay,
-SMSGate, or Bland, and they do not send a text.
+SMSGate, or Bland, and they do not send a text or place a call.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -17,12 +18,12 @@ from unittest import mock
 from adapters import (
     BLAND_CALL_URL,
     BLAND_SMS_URL,
-    VOICE_FROM_904_UNAVAILABLE,
     ExternalSendError,
     LiveBland,
     RecordingBland,
     deliver_via_send904,
     require_line_904,
+    require_voice_from,
 )
 from config import Config
 from phones import LINE_904, LINE_906, is_line_906
@@ -85,7 +86,7 @@ class FromNumberLockTests(unittest.TestCase):
             self.assertIn(LINE_906, message)
             self.assertIn("not sending", message)
         with self.assertRaises(ExternalSendError) as ctx:
-            require_line_904("+15555550100", channel="voice")
+            require_line_904("+15555550100", channel="sms")
         self.assertIn(LINE_904, str(ctx.exception))
         self.assertIn("must be", str(ctx.exception))
 
@@ -211,34 +212,67 @@ class FromNumberLockTests(unittest.TestCase):
         self.assertIn("send-904", str(ctx.exception))
         self.assertFalse(run.called)
 
-    def test_voice_fails_closed_for_unset_904_and_906(self) -> None:
-        for from_number in ("", LINE_904, "(904) 334-3975", LINE_906, "+15555550100"):
-            bland = self._live(from_number)
-            with mock.patch("adapters.urllib.request.urlopen", side_effect=AssertionError("network")):
-                with mock.patch("adapters.subprocess.run", side_effect=AssertionError("spawned")) as run:
-                    with self.assertRaises(ExternalSendError) as ctx:
-                        bland.start_call(to="+12395550101", task="pitch", lead_id="lead-1")
-            self.assertFalse(run.called)
-            message = str(ctx.exception)
-            self.assertNotIn("bland_api_key", message)
-            if from_number in ("", LINE_904, "(904) 334-3975"):
-                self.assertEqual(message, VOICE_FROM_904_UNAVAILABLE)
-                self.assertIn(BLAND_CALL_URL, message)
-                self.assertIn(LINE_904, message)
-                self.assertIn(LINE_906, message)
-            elif is_line_906(from_number):
-                self.assertIn("not sending", message)
-                self.assertIn(LINE_906, message)
-            else:
-                self.assertIn("must be", message)
-                self.assertIn(LINE_904, message)
-            self.assertEqual(bland.calls, [])
+    def _urlopen_capture(self, seen: list[object]):
+        def urlopen(req: object, timeout: int = 30) -> mock.Mock:
+            del timeout
+            seen.append(req)
+            resp = mock.Mock()
+            resp.read.return_value = b'{"call_id":"call-1"}'
+            resp.__enter__ = mock.Mock(return_value=resp)
+            resp.__exit__ = mock.Mock(return_value=False)
+            return resp
 
-    def test_voice_to_906_does_not_dial(self) -> None:
-        with mock.patch("adapters.subprocess.run", side_effect=AssertionError("spawned")):
-            with self.assertRaises(ExternalSendError) as ctx:
-                self._live().start_call(to=LINE_906, task="pitch", lead_id="lead-1")
+        return urlopen
+
+    def test_voice_from_lock_selects_906(self) -> None:
+        for raw in ("", "   ", LINE_904, "(904) 334-3975", "9043343975", LINE_906, "906-240-6221"):
+            self.assertEqual(require_voice_from(raw), LINE_906, raw)
+        with self.assertRaises(ExternalSendError) as ctx:
+            require_voice_from("+15555550100")
         self.assertIn(LINE_906, str(ctx.exception))
+        self.assertIn("+15555550100", str(ctx.exception))
+        redacted = Config(bland_from_number=LINE_904).redacted()
+        self.assertEqual(redacted["sms_from"], LINE_904)
+        self.assertEqual(redacted["voice_from"], LINE_906)
+
+    def test_live_voice_posts_bland_from_906(self) -> None:
+        for from_number in ("", LINE_904, "(904) 334-3975", LINE_906, "906-240-6221"):
+            bland = LiveBland(
+                Config(
+                    dry_run=False,
+                    copy_approved=True,
+                    bland_api_key="test-key",
+                    bland_from_number=from_number,
+                )
+            )
+            seen: list[object] = []
+            with mock.patch("adapters.urllib.request.urlopen", side_effect=self._urlopen_capture(seen)):
+                with mock.patch("adapters.subprocess.run", side_effect=AssertionError("spawned")):
+                    row = bland.start_call(to="239-555-0101", task="pitch", lead_id="lead-1")
+            self.assertEqual(len(seen), 1)
+            req = seen[0]
+            self.assertEqual(req.full_url, BLAND_CALL_URL)  # type: ignore[attr-defined]
+            self.assertNotIn(BLAND_SMS_URL, req.full_url)  # type: ignore[attr-defined]
+            payload = json.loads(req.data.decode())  # type: ignore[attr-defined]
+            self.assertEqual(payload["from"], LINE_906)
+            self.assertNotEqual(payload["from"], LINE_904)
+            self.assertNotIn("9043343975", json.dumps(payload))
+            self.assertEqual(payload["phone_number"], "+12395550101")
+            self.assertEqual(row["from"], LINE_906)
+            self.assertEqual(row["call_id"], "call-1")
+            self.assertTrue(row["sent"])
+            self.assertEqual(bland.calls, [row])
+
+    def test_other_voice_from_does_not_call_bland(self) -> None:
+        bland = LiveBland(
+            Config(dry_run=False, bland_api_key="test-key", bland_from_number="+15555550100")
+        )
+        with mock.patch("adapters.urllib.request.urlopen", side_effect=AssertionError("network")):
+            with mock.patch("adapters.subprocess.run", side_effect=AssertionError("spawned")):
+                with self.assertRaises(ExternalSendError) as ctx:
+                    bland.start_call(to="+12395550101", task="pitch", lead_id="lead-1")
+        self.assertIn(LINE_906, str(ctx.exception))
+        self.assertEqual(bland.calls, [])
 
     def test_pipeline_refuses_906_before_the_adapter(self) -> None:
         pipe = self._pipeline()
@@ -271,15 +305,56 @@ class FromNumberLockTests(unittest.TestCase):
         self.assertTrue(result["sms"]["dry_run"])
         self.assertFalse(result["sms"]["sent"])
 
-    def test_live_voice_does_not_call_the_adapter(self) -> None:
-        pipe = self._pipeline()
+    def _due_for_call(self, name: str):
+        path = Path(self.tmp.name) / name
+        path.mkdir()
+        pipe = _pipe(str(path))
         pipe.weekly_pass()
         corolla = pipe.store.get("lead-set-corolla")
         assert corolla is not None
-        pipe.send_sms(corolla)
+        with mock.patch("adapters.subprocess.run", side_effect=AssertionError("subprocess during dry-run")):
+            pipe.send_sms(corolla)
+        pipe.cfg.now = lambda: shift_clock(NOW, 6)
+        return pipe
+
+    def test_dry_run_voice_does_not_dial(self) -> None:
+        pipe = self._due_for_call("dry")
+        pipe.cfg.bland_from_number = LINE_904
+        with mock.patch("adapters.urllib.request.urlopen", side_effect=AssertionError("network")):
+            with mock.patch("adapters.subprocess.run", side_effect=AssertionError("spawned")):
+                result = pipe.start_call(pipe.store.get("lead-set-corolla"))  # type: ignore[arg-type]
+        self.assertEqual(result["state"], "call_attempted")
+        self.assertTrue(result["call"]["dry_run"])
+        self.assertFalse(result["call"]["sent"])
+        self.assertEqual(result["call"]["from"], LINE_906)
+
+    def test_live_pipeline_voice_calls_bland_from_906(self) -> None:
+        for name, from_number in (("unset", ""), ("handset", LINE_904), ("agent", LINE_906)):
+            pipe = self._due_for_call(name)
+            pipe.cfg.dry_run = False
+            pipe.cfg.copy_approved = True
+            pipe.cfg.bland_api_key = "test-key"
+            pipe.cfg.bland_from_number = from_number
+            pipe.adapters.bland = LiveBland(pipe.cfg)
+            seen: list[object] = []
+            with mock.patch("adapters.urllib.request.urlopen", side_effect=self._urlopen_capture(seen)):
+                with mock.patch("adapters.subprocess.run", side_effect=AssertionError("spawned")):
+                    result = pipe.start_call(pipe.store.get("lead-set-corolla"))  # type: ignore[arg-type]
+            self.assertEqual(result["state"], "call_attempted", from_number)
+            payload = json.loads(seen[0].data.decode())  # type: ignore[attr-defined]
+            self.assertEqual(payload["from"], LINE_906)
+            self.assertNotIn("9043343975", json.dumps(payload))
+            self.assertEqual(seen[0].full_url, BLAND_CALL_URL)  # type: ignore[attr-defined]
+            stored = pipe.store.get("lead-set-corolla")
+            assert stored is not None
+            self.assertEqual(stored.state, "call_attempted")
+
+    def test_explicit_other_voice_from_does_not_call_the_adapter(self) -> None:
+        pipe = self._due_for_call("other")
         pipe.cfg.dry_run = False
         pipe.cfg.copy_approved = True
-        pipe.cfg.now = lambda: shift_clock(NOW, 6)
+        pipe.cfg.bland_api_key = "test-key"
+        pipe.cfg.bland_from_number = "+15555550100"
         calls: list[object] = []
 
         class Spy:
@@ -288,19 +363,13 @@ class FromNumberLockTests(unittest.TestCase):
                 raise AssertionError("voice adapter should not be called")
 
         pipe.adapters.bland = Spy()
-        with self.assertRaises(ExternalSendError) as ctx:
-            pipe.start_call(pipe.store.get("lead-set-corolla"))  # type: ignore[arg-type]
-        self.assertEqual(str(ctx.exception), VOICE_FROM_904_UNAVAILABLE)
+        with mock.patch("adapters.urllib.request.urlopen", side_effect=AssertionError("network")):
+            with self.assertRaises(ExternalSendError) as ctx:
+                pipe.start_call(pipe.store.get("lead-set-corolla"))  # type: ignore[arg-type]
+        self.assertIn(LINE_906, str(ctx.exception))
         self.assertEqual(calls, [])
         stored = pipe.store.get("lead-set-corolla")
         assert stored is not None
-        self.assertEqual(stored.state, "sms_sent")
-
-        pipe.cfg.bland_from_number = LINE_906
-        with self.assertRaises(ExternalSendError) as ctx:
-            pipe.start_call(stored)
-        self.assertIn(LINE_906, str(ctx.exception))
-        self.assertEqual(calls, [])
         self.assertEqual(stored.state, "sms_sent")
 
 

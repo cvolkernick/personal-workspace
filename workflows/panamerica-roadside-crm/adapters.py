@@ -571,15 +571,14 @@ def _vision_text_and_confidence(data: dict[str, Any]) -> tuple[str, float]:
     return text, conf
 
 
-# --- 904 handset (send-904) / voice fail-closed ---------------------------
+# --- 904 handset (send-904) / 906 Bland voice -----------------------------
 
 
 def require_line_904(raw: str, *, channel: str) -> str:
-    """The only legal origin is the 904 handset.
+    """SMS may originate only on the 904 handset.
 
-    An empty value means that rail. It does not mean Bland's default,
-    which is the 906 agent number. 906 and any other explicit from
-    raise before a send.
+    An empty value means that rail. 906 and any other explicit from
+    raise before a text. Voice does not use this lock.
     """
     text = (raw or "").strip()
     if is_line_906(text):
@@ -598,18 +597,25 @@ def require_line_904(raw: str, *, channel: str) -> str:
 
 
 def forbid_906_destination(to: str, *, channel: str) -> None:
-    """Do not text or dial the 906 agent number."""
+    """Do not text the 906 agent number. Voice destinations are unchanged."""
     if is_line_906(to):
         raise ExternalSendError(
             f"refusing {channel}: 906 line {LINE_906} is forbidden; not sending"
         )
 
 
-VOICE_FROM_904_UNAVAILABLE = (
-    "refusing voice: Bland cannot place a call from the 904 handset "
-    f"{LINE_904} (SMSGate handset, not a Bland voice origin). "
-    f"Not calling {BLAND_CALL_URL}. Not originating on 906 {LINE_906}."
-)
+def require_voice_from(raw: str) -> str:
+    """Bland voice always originates on 906.
+
+    Unset, or 904 (the SMS handset), selects 906 and must not be forwarded
+    as Bland `from`. An explicit 906 is 906. Any other number raises
+    before a call.
+    """
+    text = (raw or "").strip()
+    if not text or is_line_906(text) or e164(text) == LINE_904:
+        return LINE_906
+    shown = e164(text) or "invalid"
+    raise ExternalSendError(f"refusing voice: from must be {LINE_906}; got {shown}")
 
 
 def _send904_script() -> Path:
@@ -726,7 +732,7 @@ def deliver_via_send904(to: str, message: str) -> dict[str, Any]:
     return payload
 
 
-# --- Outreach adapters (904 SMS / voice fail-closed) ----------------------
+# --- Outreach adapters (904 SMS / 906 voice) ------------------------------
 
 
 @dataclass
@@ -752,6 +758,7 @@ class RecordingBland:
         row = {
             "channel": "voice",
             "to": e164(to) or to,
+            "from": LINE_906,
             "task": task,
             "lead_id": lead_id,
             "dry_run": self.dry_run,
@@ -793,15 +800,40 @@ class LiveBland:
         return row
 
     def start_call(self, *, to: str, task: str, lead_id: str) -> dict[str, Any]:
-        """Bland voice cannot originate from 904. Do not fall through to 906.
-
-        `to`, `task`, and `lead_id` stay in the signature the pipeline
-        already calls. They are not forwarded anywhere.
-        """
-        forbid_906_destination(to, channel="voice")
-        del to, task, lead_id
-        require_line_904(self.cfg.bland_from_number, channel="voice")
-        raise ExternalSendError(VOICE_FROM_904_UNAVAILABLE)
+        """Place a Bland call from 906. 904 is never sent as `from`."""
+        origin = require_voice_from(self.cfg.bland_from_number)
+        if origin != LINE_906:
+            raise ExternalSendError(f"refusing voice: from must be {LINE_906}")
+        if not self.cfg.bland_api_key:
+            raise ExternalSendError("BLAND_API_KEY is not set")
+        dest = e164(to) or to
+        payload: dict[str, Any] = {
+            "phone_number": dest,
+            "task": task,
+            "from": LINE_906,
+            "metadata": {"lead_id": lead_id, "workflow": "panamerica-roadside-crm"},
+        }
+        if self.cfg.bland_agent_id:
+            payload["pathway_id"] = self.cfg.bland_agent_id
+        if self.cfg.webhook_public_url:
+            payload["webhook"] = self.cfg.webhook_public_url
+        data = _http_json(
+            BLAND_CALL_URL,
+            payload,
+            headers={"authorization": self.cfg.bland_api_key},
+        )
+        row = {
+            "channel": "voice",
+            "to": dest,
+            "from": LINE_906,
+            "task": task,
+            "lead_id": lead_id,
+            "dry_run": False,
+            "sent": True,
+            "call_id": data.get("call_id") or (data.get("data") or {}).get("call_id"),
+        }
+        self.calls.append(row)
+        return row
 
 
 @dataclass
