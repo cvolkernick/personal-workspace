@@ -304,6 +304,15 @@ NAME_ALIASES = {
     "standing calf raises": "db-calf-raises",
     "standing calf raise": "db-calf-raises",
     "back extension machine": "back-extension",
+    "45-degree hyperextension": "45-degree-hyperextension",
+    "45 degree hyperextension": "45-degree-hyperextension",
+    "45-degree back extension": "45-degree-hyperextension",
+    "45 degree back extension": "45-degree-hyperextension",
+    "free-weight hyperextension": "45-degree-hyperextension",
+    "free weight hyperextension": "45-degree-hyperextension",
+    "plate hyperextension": "45-degree-hyperextension",
+    "dumbbell hyperextension": "45-degree-hyperextension",
+    "db hyperextension": "45-degree-hyperextension",
     "smith bench": "smith-flat-bench",
     "smith flat bench": "smith-flat-bench",
     "smith incline bench": "smith-incline-bench",
@@ -329,6 +338,7 @@ KNEE_DOMINANT_FAMILY = "knee_dominant"
 DEADLIFT_FAMILY = "deadlift"
 HAMSTRING_CURL_FAMILY = "hamstring_curl"
 CALF_FAMILY = "calf"
+BACK_EXTENSION_FAMILY = "back_extension"
 TRICEP_PUSHDOWN_FAMILY = "tricep_pushdown"
 TRICEP_PUSHDOWN_GROUP = "tricep-pushdowns"
 
@@ -362,6 +372,10 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "lying-leg-curls": HAMSTRING_CURL_FAMILY,
     "calf-raises": CALF_FAMILY,
     "db-calf-raises": CALF_FAMILY,
+    # One hinge slot. The machine and the plate-or-dumbbell 45-degree
+    # hyperextension rotate with the same repeat penalty as other families.
+    "back-extension": BACK_EXTENSION_FAMILY,
+    "45-degree-hyperextension": BACK_EXTENSION_FAMILY,
     "tricep-pushdowns-rope": TRICEP_PUSHDOWN_FAMILY,
     "tricep-pushdowns-t-bar": TRICEP_PUSHDOWN_FAMILY,
 }

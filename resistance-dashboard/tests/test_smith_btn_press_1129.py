@@ -54,7 +54,7 @@ class SmithBtnPress1129(unittest.TestCase):
         ids = [ex["id"] for ex in exercises]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(ids.count("smith-btn-press"), 1)
-        self.assertEqual(len(ids), 61)
+        self.assertEqual(len(ids), 62)
         btn = next(ex for ex in exercises if ex["id"] == "smith-btn-press")
         self.assertEqual(btn["name"], ROW["name"])
         self.assertEqual(btn["volume_primary"], ["side_delts"])

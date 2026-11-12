@@ -714,6 +714,43 @@
       "available": true
     },
     {
+      "id": "45-degree-hyperextension",
+      "name": "45-Degree Hyperextension",
+      "session_types": [
+        "legs",
+        "pull"
+      ],
+      "primary_muscles": [
+        "lower_back",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "volume_primary": [
+        "lower_back",
+        "glutes"
+      ],
+      "volume_secondary": [
+        "hamstrings"
+      ],
+      "movement": "isolation",
+      "equipment": [],
+      "equipment_any": [
+        "barbell",
+        "dumbbells"
+      ],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [
+        10,
+        15
+      ],
+      "priority": 4,
+      "available": true,
+      "notes": "Free-weight 45-degree hyperextension on a roman bench, loaded with a plate or a dumbbell. Not the back extension machine."
+    },
+    {
       "id": "smith-shrugs",
       "name": "Smith Shrugs",
       "session_types": [

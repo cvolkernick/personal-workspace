@@ -6,6 +6,7 @@ import unittest
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.workout_planner import (
+    BACK_EXTENSION_FAMILY,
     CALF_FAMILY,
     HAMSTRING_CURL_FAMILY,
     HORIZONTAL_PRESS_FAMILY,
@@ -1035,9 +1036,13 @@ class TestWorkoutPlanner(unittest.TestCase):
             {"id": "db-curls", "name": "DB Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
             {"id": "hammer-curls", "name": "Hammer Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
             {"id": "rdl", "name": "RDL", "movement": "compound", "primary_muscles": ["hamstrings", "glutes"]},
-            {"id": "back-extension", "name": "Back Extension Machine", "movement": "isolation", "primary_muscles": ["lower_back"]},
         ):
             self.assertIsNone(pattern_family(ex), ex["id"])
+        for ex in (
+            {"id": "back-extension", "name": "Back Extension Machine", "movement": "isolation", "primary_muscles": ["lower_back"]},
+            {"id": "45-degree-hyperextension", "name": "45-Degree Hyperextension", "movement": "isolation", "primary_muscles": ["lower_back"]},
+        ):
+            self.assertEqual(pattern_family(ex), BACK_EXTENSION_FAMILY, ex["id"])
         self.assertEqual(
             pattern_family({"id": "seated-leg-curls", "name": "Seated Leg Curls", "movement": "isolation", "primary_muscles": ["hamstrings"]}),
             HAMSTRING_CURL_FAMILY,
