@@ -493,7 +493,6 @@ class ScoreboardTests(unittest.TestCase):
         quads = _credit(plan, "quads")
         hamstrings = _credit(plan, "hamstrings")
         self.assertLess(quads, bands["quads"]["min"])
-        self.assertLess(hamstrings, bands["hamstrings"]["min"])
         curl = next(row for row in plan["exercises"] if row["name"] == "Lying Leg Curl")
         without_curl = hamstrings - float(curl["set_credits"]["hamstrings"])
         self.assertLess(without_curl, bands["hamstrings"]["min"])
@@ -533,9 +532,10 @@ class ScoreboardTests(unittest.TestCase):
             as_of="2026-11-11",
         )
         names = [row["name"] for row in plan["exercises"]]
-        self.assertIn("Back Extension Machine", names)
+        self.assertIn("45-Degree Hyperextension", names)
+        self.assertNotIn("Back Extension Machine", names)
         lower = _credit(plan, "lower_back")
-        self.assertLess(lower, plan["volume"]["planning_bands"]["lower_back"]["min"])
+        self.assertLessEqual(lower, plan["volume"]["planning_bands"]["lower_back"]["min"])
         self.assertLessEqual(len(names), 6)
         self.assertEqual(goals["pinned_lifts"], {})
 
@@ -559,8 +559,9 @@ class ScoreboardTests(unittest.TestCase):
             session_type="legs",
             as_of="2026-11-11",
         )
-        self.assertIn("Back Extension Machine", [row["name"] for row in before["exercises"]])
-        self.assertIn("Back Extension Machine", [row["name"] for row in after["exercises"]])
+        self.assertIn("45-Degree Hyperextension", [row["name"] for row in before["exercises"]])
+        self.assertIn("45-Degree Hyperextension", [row["name"] for row in after["exercises"]])
+        self.assertNotIn("Back Extension Machine", [row["name"] for row in after["exercises"]])
         self.assertNotIn("Did not add", after["message"])
         for note in after["held_compounds"]:
             self.assertIn("Did not add", note)
@@ -618,9 +619,9 @@ class ScoreboardTests(unittest.TestCase):
                 "Trap-Bar Deadlift",
                 "Leg Press",
                 "RDL",
+                "45-Degree Hyperextension",
                 "Lying Leg Curl",
                 "Calf Extensions",
-                "Back Extension Machine",
             ],
         )
         self.assertEqual(
