@@ -116,7 +116,11 @@ class PipelineTests(unittest.TestCase):
     def test_phase1_sms_dry_run_no_http(self) -> None:
         with mock.patch("adapters._http_json", side_effect=AssertionError("HTTP during dry-run")):
             with mock.patch("urllib.request.urlopen", side_effect=AssertionError("urlopen during dry-run")):
-                result = self.pipe.send_sms(self.pipe.store.get("lead-set-corolla"))  # type: ignore[arg-type]
+                with mock.patch(
+                    "adapters.subprocess.run",
+                    side_effect=AssertionError("subprocess during dry-run"),
+                ):
+                    result = self.pipe.send_sms(self.pipe.store.get("lead-set-corolla"))  # type: ignore[arg-type]
         self.assertEqual(result["state"], "sms_sent")
         self.assertTrue(result["sms"]["dry_run"])
         self.assertNotIn("STOP", result["sms"]["body"])
@@ -199,7 +203,11 @@ class PipelineTests(unittest.TestCase):
         self.pipe.cfg.simulate_interest = True
         with mock.patch("adapters._http_json", side_effect=AssertionError("HTTP during dry-run")):
             with mock.patch("urllib.request.urlopen", side_effect=AssertionError("urlopen during dry-run")):
-                result = self.pipe.run()
+                with mock.patch(
+                    "adapters.subprocess.run",
+                    side_effect=AssertionError("subprocess during dry-run"),
+                ):
+                    result = self.pipe.run()
         self.assertTrue(result["dry_run"])
         self.assertGreaterEqual(result["counts"].get("interested", 0), 1)
         self.assertTrue(all(row.get("dry_run") for row in self.pipe.store.outbox()))

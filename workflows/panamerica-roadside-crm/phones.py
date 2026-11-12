@@ -10,6 +10,13 @@ import re
 
 PHONE_UNKNOWN = "UNKNOWN"
 
+# 904 is the T-Mobile handset (prism send-904 / bland-relay / SMSGate).
+# 906 is the Bland agent number. Roadside outreach must never originate on 906.
+# LINE_904 must stay equal to deploy/bland-relay/relay_config.py LINE_904.
+LINE_904 = "+19043343975"
+LINE_906 = "+19062406221"
+_LINE_906_DIGITS = frozenset({"9062406221", "19062406221"})
+
 # Explicit NANP. Dotted form is exactly NNN.NNN.NNNN (not decimal degrees).
 _FORMATTED = re.compile(
     r"""
@@ -108,3 +115,9 @@ def phone_or_unknown(text: str) -> str:
 def e164(phone: str) -> str:
     digits = normalize_phone(phone)
     return f"+1{digits}" if digits else ""
+
+
+def is_line_906(phone: str) -> bool:
+    """True for the Bland 906 agent number in any usual written form."""
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    return digits in _LINE_906_DIGITS or e164(phone) == LINE_906

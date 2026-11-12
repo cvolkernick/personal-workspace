@@ -78,7 +78,7 @@ python3 workflows/panamerica-roadside-crm/run.py run \
 
 | Arg / verb | Meaning |
 |------------|---------|
-| `--dry-run` | Default. Full pipeline, **no** Bland HTTP |
+| `--dry-run` | Default. Full pipeline, **no** Bland HTTP and no `send-904` |
 | `--live` | Real SMS/voice. Refused until copy approval |
 | `daily-pass` | Organize root photos from EXIF, pull new sets, extract phone, skip duplicates |
 | `weekly-pass` | Alias for `daily-pass` |
@@ -91,7 +91,15 @@ python3 workflows/panamerica-roadside-crm/run.py run \
 
 Dry-run still executes intake, phone extract, dedupe, SMS/call rendering,
 state transitions, callbacks, and records an outbox/alert log. It does
-not call Bland or the interest webhook.
+not call Bland, `send-904`, or the interest webhook.
+
+`--live` SMS goes out through prism `send-904` (local bland-relay →
+SMSGate) and originates on the 904 handset `+19043343975`. The Bland
+SMS API is not used. `BLAND_FROM_NUMBER` is a lock: unset or
+`+19043343975` is that rail; `+19062406221` (906) and any other value
+are refused before a send. Live voice is fail-closed: Bland cannot
+place a call from the 904 handset, and this workflow will not
+originate on 906.
 
 `--live` requires `PANAMERICA_ROADSIDE_COPY_APPROVED=1` (first-send
 human gate; copy itself is already Chris-approved in #855). Compliance:
@@ -106,8 +114,8 @@ challenger in the same change that replaces the placeholder. That is
 not an env flag. Both arms still need the first-send gate above
 before anything goes live.
 
-`send_sms` assigns an empty `sms_variant_id` once, before the Bland
-call, and never rewrites it. The arm is SHA-256 of the lead id: first
+`send_sms` assigns an empty `sms_variant_id` once, before the send,
+and never rewrites it. The arm is SHA-256 of the lead id: first
 8 hex digits, even → A, odd → B (`assign_sms_variant`). While B is
 unapproved every assignment is A and the report's `ab_mode` is
 `champion_only`. A second lead with the same phone is skipped once
