@@ -880,7 +880,7 @@ class ScoreboardTests(unittest.TestCase):
 
 class BodyMapPlacementTests(unittest.TestCase):
     def test_map_is_on_the_trends_muscle_card_only(self):
-        card = HTML[HTML.find('id="muscle-sets-card"') : HTML.find('id="sleep-trend-card"')]
+        card = HTML[HTML.find('id="muscle-sets-card"') : HTML.find('id="steps-row"')]
         self.assertIn('data-m-panel="trends"', card)
         self.assertIn('id="muscle-body-map"', card)
         self.assertIn('data-muscle="side_delts"', card)
@@ -892,7 +892,7 @@ class BodyMapPlacementTests(unittest.TestCase):
         self.assertNotIn("muscle-sets-list", today)
 
     def test_wide_layout_puts_the_list_beside_the_figures(self):
-        card = HTML[HTML.find('id="muscle-sets-card"') : HTML.find('id="sleep-trend-card"')]
+        card = HTML[HTML.find('id="muscle-sets-card"') : HTML.find('id="steps-row"')]
         map_at = card.find('id="muscle-body-map"')
         list_at = card.find('id="muscle-sets-list"')
         warn_at = card.find('id="muscle-sets-warning"')

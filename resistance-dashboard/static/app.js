@@ -2443,12 +2443,14 @@
       macrosChart = new Chart($("chart-macros"), {
         data: {
           labels: macroDays.map((n) => n.date),
+          // This card only: Carbs, Protein, Fat. Draw order stays lines-on-top
+          // (order 1) over bars (order 2). Legend and tooltip follow array order.
           datasets: [
             {
               type: "bar",
-              label: "Protein %",
-              data: pPct,
-              backgroundColor: "rgba(240,180,41,0.45)",
+              label: "Carbs %",
+              data: cPct,
+              backgroundColor: "rgba(61,156,240,0.45)",
               borderRadius: 2,
               stack: "macros",
               spanGaps: false,
@@ -2457,9 +2459,9 @@
             },
             {
               type: "bar",
-              label: "Carbs %",
-              data: cPct,
-              backgroundColor: "rgba(61,156,240,0.45)",
+              label: "Protein %",
+              data: pPct,
+              backgroundColor: "rgba(240,180,41,0.45)",
               borderRadius: 2,
               stack: "macros",
               spanGaps: false,
@@ -2479,9 +2481,9 @@
             },
             {
               type: "line",
-              label: "Protein 7d avg",
-              data: pRoll,
-              borderColor: "#f0b429",
+              label: "Carbs 7d avg",
+              data: cRoll,
+              borderColor: "#3d9cf0",
               borderWidth: 2.5,
               pointRadius: 0,
               tension: 0.25,
@@ -2491,9 +2493,9 @@
             },
             {
               type: "line",
-              label: "Carbs 7d avg",
-              data: cRoll,
-              borderColor: "#3d9cf0",
+              label: "Protein 7d avg",
+              data: pRoll,
+              borderColor: "#f0b429",
               borderWidth: 2.5,
               pointRadius: 0,
               tension: 0.25,
@@ -2549,7 +2551,20 @@
           },
           plugins: {
             ...base.plugins,
+            legend: {
+              labels: {
+                color: "#8b9bb4",
+                // Chart.js otherwise sorts the legend by dataset.order, which
+                // would put the 7d lines ahead of the daily bars.
+                sort(a, b) {
+                  return a.datasetIndex - b.datasetIndex;
+                },
+              },
+            },
             tooltip: {
+              itemSort(a, b) {
+                return a.datasetIndex - b.datasetIndex;
+              },
               callbacks: {
                 label(ctx) {
                   const i = ctx.dataIndex;
@@ -2559,9 +2574,10 @@
                   if (label.includes("7d avg")) {
                     return `${label}: ${pct}%`;
                   }
-                  const key = ["p", "c", "f"][ctx.datasetIndex];
+                  const key =
+                    label === "Carbs %" ? "c" : label === "Protein %" ? "p" : label === "Fat %" ? "f" : null;
                   const s = splits[i];
-                  const g = s?.grams?.[key];
+                  const g = key ? s?.grams?.[key] : null;
                   const name = label.replace(" %", "");
                   return `${name}: ${pct}%${g != null ? ` (${Math.round(g)} g)` : ""}`;
                 },
@@ -2622,7 +2638,7 @@
         });
         if (!last || last.p == null) {
           note.innerHTML =
-            `<p class="chart-summary-empty">Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %. The 30-day average is the health goal and needs 21 logged days.</p>`;
+            `<p class="chart-summary-empty">Calorie share from carbs / protein / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %. The 30-day average is the health goal and needs 21 logged days.</p>`;
         } else {
           const totK = sumPg * 4 + sumCg * 4 + sumFg * 9;
           const periodShare = macroCalPct(sumPg, sumCg, sumFg);
@@ -2653,15 +2669,15 @@
             macroTargetBandClass(v, tgtPct[key]);
           note.innerHTML = `
             <div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein ${bandPct(last.p, "p")}">
-                <span class="chip-k">Latest · P</span>
-                <span class="chip-v">${last.p}%</span>
-                <span class="chip-s">${Math.round(last.grams.p)} g · ${latestSub}</span>
-              </div>
               <div class="chart-summary-chip chip-carbs ${bandPct(last.c, "c")}">
                 <span class="chip-k">Latest · C</span>
                 <span class="chip-v">${last.c}%</span>
                 <span class="chip-s">${Math.round(last.grams.c)} g · ${latestSub}</span>
+              </div>
+              <div class="chart-summary-chip chip-protein ${bandPct(last.p, "p")}">
+                <span class="chip-k">Latest · P</span>
+                <span class="chip-v">${last.p}%</span>
+                <span class="chip-s">${Math.round(last.grams.p)} g · ${latestSub}</span>
               </div>
               <div class="chart-summary-chip chip-fat ${bandPct(last.f, "f")}">
                 <span class="chip-k">Latest · F</span>
@@ -2672,14 +2688,14 @@
             ${
               lastRoll
                 ? `<div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein ${bandPct(lastRoll.p, "p")}">
-                <span class="chip-k">7d rolling · P</span>
-                <span class="chip-v">${lastRoll.p}%</span>
-                <span class="chip-s">of kcal · chart line</span>
-              </div>
               <div class="chart-summary-chip chip-carbs ${bandPct(lastRoll.c, "c")}">
                 <span class="chip-k">7d rolling · C</span>
                 <span class="chip-v">${lastRoll.c}%</span>
+                <span class="chip-s">of kcal · chart line</span>
+              </div>
+              <div class="chart-summary-chip chip-protein ${bandPct(lastRoll.p, "p")}">
+                <span class="chip-k">7d rolling · P</span>
+                <span class="chip-v">${lastRoll.p}%</span>
                 <span class="chip-s">of kcal · chart line</span>
               </div>
               <div class="chart-summary-chip chip-fat ${bandPct(lastRoll.f, "f")}">
@@ -2691,14 +2707,14 @@
                 : ""
             }
             <div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein ${roll30 ? bandPct(roll30.p, "p") : ""}">
-                <span class="chip-k">30-day average · P</span>
-                <span class="chip-v">${roll30 ? roll30.p + "%" : "not enough data"}</span>
-                <span class="chip-s">${roll30 ? `health goal · ${roll30Logged} logged days` : `${roll30Logged} of ${roll30Min} logged days`}</span>
-              </div>
               <div class="chart-summary-chip chip-carbs ${roll30 ? bandPct(roll30.c, "c") : ""}">
                 <span class="chip-k">30-day average · C</span>
                 <span class="chip-v">${roll30 ? roll30.c + "%" : "not enough data"}</span>
+                <span class="chip-s">${roll30 ? `health goal · ${roll30Logged} logged days` : `${roll30Logged} of ${roll30Min} logged days`}</span>
+              </div>
+              <div class="chart-summary-chip chip-protein ${roll30 ? bandPct(roll30.p, "p") : ""}">
+                <span class="chip-k">30-day average · P</span>
+                <span class="chip-v">${roll30 ? roll30.p + "%" : "not enough data"}</span>
                 <span class="chip-s">${roll30 ? `health goal · ${roll30Logged} logged days` : `${roll30Logged} of ${roll30Min} logged days`}</span>
               </div>
               <div class="chart-summary-chip chip-fat ${roll30 ? bandPct(roll30.f, "f") : ""}">
@@ -2708,15 +2724,15 @@
               </div>
             </div>
             <div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein ${bandPct(pctP, "p")}">
-                <span class="chip-k">Period · P</span>
-                <span class="chip-v">${pctP != null ? pctP + "%" : "—"}</span>
-                <span class="chip-s">${Math.round(avgPg)} g avg/day · ±5pp of target</span>
-              </div>
               <div class="chart-summary-chip chip-carbs ${bandPct(pctC, "c")}">
                 <span class="chip-k">Period · C</span>
                 <span class="chip-v">${pctC != null ? pctC + "%" : "—"}</span>
                 <span class="chip-s">${Math.round(avgCg)} g avg/day · ±5pp of target</span>
+              </div>
+              <div class="chart-summary-chip chip-protein ${bandPct(pctP, "p")}">
+                <span class="chip-k">Period · P</span>
+                <span class="chip-v">${pctP != null ? pctP + "%" : "—"}</span>
+                <span class="chip-s">${Math.round(avgPg)} g avg/day · ±5pp of target</span>
               </div>
               <div class="chart-summary-chip chip-fat ${bandPct(pctF, "f")}">
                 <span class="chip-k">Period · F</span>
@@ -2724,18 +2740,18 @@
                 <span class="chip-s">${Math.round(avgFg)} g avg/day · ±5pp of target</span>
               </div>
             </div>
-            <div class="macro-target-bar" title="Daily target calorie share from P×4 / C×4 / F×9">
+            <div class="macro-target-bar" title="Daily target calorie share from C×4 / P×4 / F×9">
               <span class="macro-target-bar-label">Targets</span>
               <div class="macro-target-bar-pills">
-                <span class="macro-target-pill pill-p">
-                  <span class="mtp-k">P</span>
-                  <span class="mtp-v">${tgtPct.p != null ? tgtPct.p + "%" : "—"}</span>
-                  <span class="mtp-g">${tgtG.p || "—"}g</span>
-                </span>
                 <span class="macro-target-pill pill-c">
                   <span class="mtp-k">C</span>
                   <span class="mtp-v">${tgtPct.c != null ? tgtPct.c + "%" : "—"}</span>
                   <span class="mtp-g">${tgtG.c || "—"}g</span>
+                </span>
+                <span class="macro-target-pill pill-p">
+                  <span class="mtp-k">P</span>
+                  <span class="mtp-v">${tgtPct.p != null ? tgtPct.p + "%" : "—"}</span>
+                  <span class="mtp-g">${tgtG.p || "—"}g</span>
                 </span>
                 <span class="macro-target-pill pill-f">
                   <span class="mtp-k">F</span>
@@ -2745,7 +2761,7 @@
               </div>
               <span class="macro-target-bar-hint">green / red = within ±5pp</span>
             </div>
-            <p class="chart-summary-meta">90d span · ${nDays} days with macros · ${rangeTxt} · % of kcal from P×4 / C×4 / F×9</p>
+            <p class="chart-summary-meta">90d span · ${nDays} days with macros · ${rangeTxt} · % of kcal from C×4 / P×4 / F×9</p>
           `;
         }
       }
