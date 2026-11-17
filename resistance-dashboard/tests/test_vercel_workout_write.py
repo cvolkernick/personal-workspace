@@ -539,7 +539,7 @@ class SameDayLogMerge(unittest.TestCase):
         self.assertEqual([e.name for e in merged.exercises], ["RDL", "Leg Press"])
         self.assertEqual(merged.notes, "from quest")
 
-    def test_incoming_weights_replace_same_name(self):
+    def test_cross_session_union_keeps_quest_seed_then_typed_set(self):
         existing = Session(
             date="2026-09-06",
             session_type="push",
@@ -564,8 +564,13 @@ class SameDayLogMerge(unittest.TestCase):
         )
         merged = merge_same_day_session(incoming, existing)
         self.assertEqual(len(merged.exercises), 1)
-        self.assertEqual(merged.exercises[0].sets[0].weight_lbs, 55)
-        self.assertEqual(merged.exercises[0].name, "db  flat press")
+        row = merged.exercises[0]
+        self.assertEqual(row.name, "DB Flat Press")
+        self.assertEqual(
+            [(s.weight_lbs, s.sets, s.reps) for s in row.sets],
+            [(50.0, 3, 10), (55.0, 3, 8)],
+        )
+        self.assertFalse(row.quest_seeded)
 
     def test_does_not_merge_other_day_or_type(self):
         existing = Session(

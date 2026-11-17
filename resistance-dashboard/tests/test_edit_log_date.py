@@ -128,7 +128,7 @@ class PlanSessionDateMove(unittest.TestCase):
         self.assertEqual(moved.volume, dest_vol + curl_vol)
         self.assertEqual(moved.closed_at, "2026-09-16T09:00:00-04:00")
 
-    def test_occupied_target_moved_load_wins_on_name_match(self):
+    def test_occupied_target_keeps_both_loads_on_name_match(self):
         tue = _legs("2026-09-09")
         mon = _legs("2026-09-08")
         mon.exercises[0].sets[0].weight_lbs = 35
@@ -141,7 +141,14 @@ class PlanSessionDateMove(unittest.TestCase):
         self.assertEqual(moved.date, "2026-09-08")
         self.assertEqual(len(moved.exercises), 1)
         self.assertEqual(moved.exercises[0].name, "RDL")
-        self.assertEqual(moved.exercises[0].sets[0].weight_lbs, 40)
+        sets = moved.exercises[0].sets
+        self.assertEqual(len(sets), 2)
+        self.assertEqual(sets[0].weight_lbs, 35)
+        self.assertEqual(sets[0].sets, 2)
+        self.assertEqual(sets[0].reps, 7)
+        self.assertEqual(sets[1].weight_lbs, 40)
+        self.assertEqual(sets[1].sets, 2)
+        self.assertEqual(sets[1].reps, 7)
 
     def test_same_date_is_identity(self):
         src = _legs()

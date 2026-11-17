@@ -376,15 +376,42 @@ class WorkoutRepository:
             conn.commit()
             return int(cur.rowcount or 0) > 0
 
+    def _session_on(self, date: str, session_type: str) -> Optional[Session]:
+        """One row by the key upsert writes. No day-roll write-back."""
+        day = str(date or "")[:10]
+        st = str(session_type or "")
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT date, session_type, notes, source_file, exercises_json,
+                       created_at, status, submission_id, plan_json,
+                       skipped_json, substitutions_json
+                FROM workout_sessions
+                WHERE user_id = ? AND date = ? AND session_type = ?
+                """,
+                (self.user_id, day, st),
+            ).fetchone()
+        if row is None:
+            return None
+        return _row_to_session(row, self.user_id)
+
     def relocate_session(self, session: Session, from_date: str) -> Dict[str, Any]:
-        """Write ``session`` at its date; delete ``from_date`` if different.
+        """Write ``session`` at its date. Delete the source only after that row reads back.
 
         Keeps ``closed_at`` (created_at) so wake membership does not jump.
+        A failed write leaves the source row in place.
         """
         src_day = str(from_date or "")[:10]
         result = self.upsert_session(session)
-        if src_day and src_day != str(session.date)[:10]:
-            self.delete_session(src_day, session.session_type)
+        dest_day = str(session.date)[:10]
+        if not src_day or src_day == dest_day:
+            return result
+        from .workout_log import logged_session_visible
+
+        read = self._session_on(dest_day, session.session_type)
+        if not logged_session_visible(session, read):
+            raise RuntimeError("write not visible on readback")
+        self.delete_session(src_day, session.session_type)
         return result
 
     def upsert_session(self, session: Session) -> Dict[str, Any]:
