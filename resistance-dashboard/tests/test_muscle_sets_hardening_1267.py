@@ -484,7 +484,9 @@ class PlannerCapUnchanged(unittest.TestCase):
             self._plan(low + cur, "pull", "2026-10-14"),
             # #1316: the spent weekly budget trims accessories; main and
             # pinned lifts keep the 2-set floor (was 1 set each).
-            [("Assisted Pullups", 2), ("Machine Row", 2)],
+            # The 45-degree hyperextension shares the back-extension family,
+            # so the weekly budget does not trim it the way it trims accessories.
+            [("Assisted Pullups", 2), ("Machine Row", 2), ("45-Degree Hyperextension", 2)],
         )
         self.assertEqual(
             self._plan(low + cur, "push", "2026-10-15"),

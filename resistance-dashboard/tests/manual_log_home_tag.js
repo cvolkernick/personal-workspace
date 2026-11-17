@@ -111,6 +111,7 @@ for (const catalogPath of catalogs) {
   const items = api.libraryLogExercises();
   const byName = Object.fromEntries(items.map((it) => [it.name, it.session]));
   assert(byName["Back Extension Machine"] === "legs", catalogPath + " back extension");
+  assert(byName["45-Degree Hyperextension"] === "legs", catalogPath + " 45-degree hyperextension");
   assert(byName["Smith Shrugs"] === "pull", catalogPath + " smith shrugs");
   assert(byName["DB Flat Press"] === "push", catalogPath + " db flat press");
 
@@ -120,7 +121,7 @@ for (const catalogPath of catalogs) {
     return tags.filter((t) => PPL.includes(t)).length > 1;
   });
   assert(
-    multi.map((ex) => ex.id).sort().join(",") === "back-extension,smith-shrugs",
+    multi.map((ex) => ex.id).sort().join(",") === "45-degree-hyperextension,back-extension,smith-shrugs",
     catalogPath + " unexpected multi-tag lifts: " + multi.map((ex) => ex.id).join(",")
   );
 

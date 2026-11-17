@@ -286,8 +286,8 @@ class CatalogCredits(unittest.TestCase):
             self.ROOT_CATALOG.read_text(encoding="utf-8"), self.BUNDLED.read_text(encoding="utf-8")
         )
         rows = self._rows()
-        self.assertEqual(len(rows), 61)
-        self.assertEqual(len({r["id"] for r in rows}), 61)
+        self.assertEqual(len(rows), 62)
+        self.assertEqual(len({r["id"] for r in rows}), 62)
         for row in rows:
             primary = row.get("volume_primary")
             secondary = row.get("volume_secondary")
