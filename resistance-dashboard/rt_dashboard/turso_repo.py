@@ -341,20 +341,33 @@ def read_session(user_id: str, date: str, session_type: str) -> Optional[Session
 def relocate_session(user_id: str, session: Session, from_date: str) -> Dict[str, Any]:
     """Write ``session`` at its date. Delete the source only after that row reads back.
 
-    A failed write or a readback that is not the merged session leaves the
+    The Turso driver's rowcount is 0 for UPDATE, so the write is verified
+    by ``read_session``, not by rowcount. A failed write, a readback that
+    is not the merged session, or a readback that did not gain every
+    source copy beyond the destination's pre-merge multiset leaves the
     source row in place.
     """
-    result = upsert_session(user_id, session)
     src_day = str(from_date or "")[:10]
     dest_day = str(session.date)[:10]
+    before = None
+    if src_day and src_day != dest_day:
+        before = read_session(user_id, dest_day, session.session_type)
+    result = upsert_session(user_id, session)
     if not src_day or src_day == dest_day:
         return result
-    from .workout_log import logged_session_visible
+    from .workout_log import (
+        ensure_source_sets_on_readback,
+        logged_session_visible,
+    )
 
     read = read_session(user_id, dest_day, session.session_type)
+    source = read_session(user_id, src_day, session.session_type)
+    if source is not None:
+        ensure_source_sets_on_readback(source, read, before=before)
     if not logged_session_visible(session, read):
         raise RuntimeError("turso write not visible on readback")
-    delete_session(user_id, src_day, session.session_type)
+    if source is not None:
+        delete_session(user_id, src_day, session.session_type)
     return result
 
 

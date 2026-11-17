@@ -11,12 +11,19 @@ the typed log inside that same session. ``set_index`` updates that
 stored set and leaves the others. Date moves and other cross-session
 merges keep every set: the target's sets stay first, then the moved
 sets, in list order. A quest tick in that union becomes a real logged
-set. Exercises only on one session are kept.
+set. A retry of the same source session does not append again. A new
+session later logged on that source day still merges. Exercises only
+on one session are kept.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
+import logging
 import re
+from collections import Counter
 from datetime import datetime
 from typing import Any, Dict, Optional, Sequence
 
@@ -28,21 +35,138 @@ def _norm_name(name: str) -> str:
 
 
 # Recorded on ``source_file`` so a retried date move can see that this
-# source day was already absorbed. Not a path. Log-tab saves leave it in
-# place when they have no source_file of their own.
+# source session was already absorbed. Not a path. Log-tab saves leave
+# the lines in place when they have no source_file of their own.
+#
+# Identity is the persist stamp (``created_at`` when the row has one,
+# otherwise ``closed_at``) plus an order-independent hash of the source
+# sets. A day-only line ``fitdash-merged-from:YYYY-MM-DD`` is still
+# parsed for older rows. It is never enough, by itself, to treat a
+# later move as a retry.
 _MERGED_FROM_PREFIX = "fitdash-merged-from:"
+# ``|base`` is the destination multiset from before this source was merged.
+# The stamp stops at the pipe so an older line with no baseline still parses.
+_IDENTITY_RE = re.compile(
+    r"^(?P<day>\d{4}-\d{2}-\d{2}) id=(?P<digest>[0-9a-f]{64})"
+    r"@(?P<stamp>[^|]*)(?:\|(?P<base>[A-Za-z0-9_-]*))?$"
+)
+_LOG = logging.getLogger("fitdash.workout_log")
+
+
+def session_persist_stamp(session: Session) -> str:
+    """``created_at`` when that attribute is set, otherwise ``closed_at``."""
+    for attr in ("created_at", "closed_at"):
+        text = str(getattr(session, attr, None) or "").strip()
+        if text:
+            return text.replace("\r", "").replace("\n", "")
+    return ""
+
+
+def _set_index_token(entry: SetEntry) -> str:
+    idx = getattr(entry, "set_index", None)
+    if idx is None or isinstance(idx, bool):
+        return ""
+    try:
+        return str(int(idx))
+    except (TypeError, ValueError):
+        return str(idx).replace("\r", "").replace("\n", "")
+
+
+def _canon_weight(value: Any) -> str:
+    number = float(value)
+    if number == 0:
+        return "0"
+    text = format(number, ".10f").rstrip("0").rstrip(".")
+    if text in ("", "-0"):
+        return "0"
+    return text
+
+
+def sets_digest(session: Session) -> str:
+    """Hash of exercise, weight, reps, sets, set_index, and quest flag.
+
+    Order does not change the digest. Two identical sets both count.
+    """
+    rows = []
+    for ex in session.exercises or []:
+        name = _norm_name(getattr(ex, "name", ""))
+        quest = "1" if getattr(ex, "quest_seeded", False) else "0"
+        for entry in ex.sets or []:
+            rows.append(
+                [
+                    name,
+                    _canon_weight(getattr(entry, "weight_lbs", 0)),
+                    str(int(getattr(entry, "reps", 0))),
+                    str(int(getattr(entry, "sets", 0))),
+                    _set_index_token(entry),
+                    quest,
+                ]
+            )
+    rows.sort()
+    payload = json.dumps(rows, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _parse_merged_marker(line: str) -> Optional[dict]:
+    text = line.strip()
+    if not text.startswith(_MERGED_FROM_PREFIX):
+        return None
+    rest = text[len(_MERGED_FROM_PREFIX) :].strip()
+    ident = _IDENTITY_RE.fullmatch(rest)
+    if ident:
+        base = ident.group("base")
+        return {
+            "day": ident.group("day"),
+            "digest": ident.group("digest"),
+            "stamp": ident.group("stamp"),
+            "base": base if base else None,
+            "legacy": False,
+            "token": text,
+        }
+    day = rest[:10]
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        return {
+            "day": day,
+            "digest": "",
+            "stamp": "",
+            "legacy": True,
+            "token": f"{_MERGED_FROM_PREFIX}{day}",
+        }
+    return None
+
+
+def _marker_tokens(source_file: str) -> list[str]:
+    seen = set()
+    tokens = []
+    for line in str(source_file or "").splitlines():
+        parsed = _parse_merged_marker(line)
+        if parsed is None or parsed["token"] in seen:
+            continue
+        seen.add(parsed["token"])
+        tokens.append(parsed["token"])
+
+    def sort_key(token: str):
+        parsed = _parse_merged_marker(token) or {}
+        return (
+            0 if parsed.get("legacy") else 1,
+            parsed.get("day") or "",
+            parsed.get("digest") or "",
+            parsed.get("stamp") or "",
+        )
+
+    return sorted(tokens, key=sort_key)
 
 
 def merged_from_days(source_file: str) -> set[str]:
-    """Civil days already unioned into this session by a date move."""
+    """Civil days named on merged-from lines, including legacy day-only lines.
+
+    A day in this set is not proof that a particular session was merged.
+    """
     days: set[str] = set()
     for line in str(source_file or "").splitlines():
-        text = line.strip()
-        if not text.startswith(_MERGED_FROM_PREFIX):
-            continue
-        day = text[len(_MERGED_FROM_PREFIX) :].strip()[:10]
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
-            days.add(day)
+        parsed = _parse_merged_marker(line)
+        if parsed is not None:
+            days.add(parsed["day"])
     return days
 
 
@@ -50,28 +174,206 @@ def _source_file_body(source_file: str) -> str:
     kept = [
         line
         for line in str(source_file or "").splitlines()
-        if not line.strip().startswith(_MERGED_FROM_PREFIX)
+        if _parse_merged_marker(line) is None
     ]
     return "\n".join(kept).strip()
 
 
-def mark_merged_from(source_file: str, day: str) -> str:
-    """Remember ``day`` was unioned into this row. Existing path text stays."""
-    day = str(day or "")[:10]
-    days = merged_from_days(source_file)
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
-        days.add(day)
-    tokens = [f"{_MERGED_FROM_PREFIX}{item}" for item in sorted(days)]
-    body = _source_file_body(source_file)
+def _with_markers(body: str, tokens: list[str]) -> str:
     return "\n".join(part for part in (body, *tokens) if part)
+
+
+def _encode_set_bag(bag: Counter) -> str:
+    rows = []
+    for key, count in bag.items():
+        if count <= 0:
+            continue
+        name, weight, sets, reps = key
+        rows.append([name, weight, int(sets), int(reps), int(count)])
+    rows.sort()
+    raw = json.dumps(rows, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_set_bag(text: str) -> Counter:
+    pad = "=" * (-len(text) % 4)
+    rows = json.loads(base64.urlsafe_b64decode((text + pad).encode("ascii")))
+    bag: Counter = Counter()
+    for name, weight, sets, reps, count in rows:
+        bag[(str(name), str(weight), int(sets), int(reps))] = int(count)
+    return bag
+
+
+def mark_merged_from(
+    source_file: str, day: str, session: Session, *, before: Optional[Session] = None
+) -> str:
+    """Remember this source session was unioned into the row.
+
+    The new line is keyed by persist stamp and set hash. When ``before``
+    is the destination, the line also stores that row's set multiset so a
+    later readback can require the source copies on top of it. A bare day
+    is not written. Existing path text and older day-only lines stay.
+    """
+    day = str(day or "")[:10]
+    tokens = _marker_tokens(source_file)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        token = (
+            f"{_MERGED_FROM_PREFIX}{day} id={sets_digest(session)}"
+            f"@{session_persist_stamp(session)}"
+        )
+        if before is not None:
+            token = f"{token}|{_encode_set_bag(_logged_set_bag(before))}"
+        fresh = _parse_merged_marker(token)
+        kept = []
+        for existing in tokens:
+            parsed = _parse_merged_marker(existing)
+            if (
+                fresh
+                and parsed
+                and not parsed["legacy"]
+                and parsed["day"] == fresh["day"]
+                and parsed["digest"] == fresh["digest"]
+                and parsed["stamp"] == fresh["stamp"]
+            ):
+                continue
+            kept.append(existing)
+        kept.append(token)
+        tokens = _marker_tokens("\n".join(kept))
+    return _with_markers(_source_file_body(source_file), tokens)
+
+
+def source_identity_already_merged(
+    source_file: str, day: str, session: Session
+) -> bool:
+    """True when this session's stamp and set hash are already recorded.
+
+    A legacy ``fitdash-merged-from:YYYY-MM-DD`` line is not proof.
+    """
+    day = str(day or "")[:10]
+    stamp = session_persist_stamp(session)
+    digest = sets_digest(session)
+    for line in str(source_file or "").splitlines():
+        parsed = _parse_merged_marker(line)
+        if parsed is None or parsed["legacy"]:
+            continue
+        if (
+            parsed["day"] == day
+            and parsed["stamp"] == stamp
+            and parsed["digest"] == digest
+        ):
+            return True
+    return False
 
 
 def _combine_source_files(incoming: str, existing: str) -> str:
-    """Incoming path wins. Merged-from days from either side stay."""
+    """Incoming path wins. Merged-from lines from either side stay."""
     body = _source_file_body(incoming) or _source_file_body(existing)
-    days = merged_from_days(incoming) | merged_from_days(existing)
-    tokens = [f"{_MERGED_FROM_PREFIX}{item}" for item in sorted(days)]
-    return "\n".join(part for part in (body, *tokens) if part)
+    tokens = _marker_tokens(f"{incoming}\n{existing}")
+    return _with_markers(body, tokens)
+
+
+def _logged_set_bag(session: Optional[Session]) -> Counter:
+    """Logged triples. ``set_index`` is not on the destination after a union."""
+    bag: Counter = Counter()
+    if session is None:
+        return bag
+    for ex in session.exercises or []:
+        name = _norm_name(getattr(ex, "name", ""))
+        for entry in ex.sets or []:
+            bag[
+                (
+                    name,
+                    _canon_weight(getattr(entry, "weight_lbs", 0)),
+                    int(getattr(entry, "sets", 0)),
+                    int(getattr(entry, "reps", 0)),
+                )
+            ] += 1
+    return bag
+
+
+def _recorded_baseline(source_file: str, source: Session) -> Optional[Counter]:
+    """Pre-merge multiset stored when this source session was marked.
+
+    ``None`` when this identity has no recorded baseline. An empty counter
+    means the destination had no sets of its own.
+    """
+    day = str(getattr(source, "date", "") or "")[:10]
+    stamp = session_persist_stamp(source)
+    digest = sets_digest(source)
+    found: Optional[Counter] = None
+    for line in str(source_file or "").splitlines():
+        parsed = _parse_merged_marker(line)
+        if parsed is None or parsed["legacy"] or parsed.get("base") is None:
+            continue
+        if (
+            parsed["day"] != day
+            or parsed["stamp"] != stamp
+            or parsed["digest"] != digest
+        ):
+            continue
+        found = _decode_set_bag(parsed["base"])
+    return found
+
+
+def _merge_baseline(before: Optional[Session], source: Session) -> Counter:
+    """Counts the source copies have to exceed.
+
+    A retry reads a destination that already holds the merged sets. The
+    marker written with the first merge still has the destination's own
+    multiset, and that is the baseline. Otherwise the baseline is the
+    destination row from before this write.
+    """
+    if before is not None:
+        recorded = _recorded_baseline(getattr(before, "source_file", "") or "", source)
+        if recorded is not None:
+            return recorded
+    return _logged_set_bag(before)
+
+
+def ensure_source_sets_on_readback(
+    source: Session,
+    dest: Optional[Session],
+    *,
+    before: Optional[Session] = None,
+) -> None:
+    """Raise unless the readback gained every source copy.
+
+    For each set key, ``count(dest) - count(before)`` must be at least
+    ``count(source)``. A copy the destination already held does not
+    count as one of the source copies. Two identical source sets merged
+    onto one identical destination set require three on the readback.
+
+    Quest ticks are stored on the destination as real sets, so the quest
+    flag is not part of this key. ``set_index`` is not copied by a
+    cross-session union, so it is not part of the key either.
+    """
+    pre = _merge_baseline(before, source)
+    post = _logged_set_bag(dest)
+    missing = []
+    for key, count in _logged_set_bag(source).items():
+        added = post.get(key, 0) - pre.get(key, 0)
+        if added >= count:
+            continue
+        name, weight, sets, reps = key
+        label = (
+            f"{name} {weight}x{sets}x{reps} "
+            f"(added {added}, need {count} beyond {pre.get(key, 0)})"
+        )
+        missing.append(label)
+    if not missing:
+        return
+    detail = ", ".join(missing)
+    day = str(getattr(source, "date", "") or "")[:10]
+    kind = str(getattr(source, "session_type", "") or "")
+    _LOG.error(
+        "refusing to delete source %s %s; destination readback is missing %s",
+        day,
+        kind,
+        detail,
+    )
+    raise RuntimeError(
+        "source sets missing on destination readback; source row kept: " + detail
+    )
 
 
 def find_same_day_session(
@@ -321,8 +623,9 @@ def plan_session_date_move(
     already on the target day unions into that session. An exercise on
     both days keeps the target's sets first, then the moved sets. Quest
     ticks in that union become real logged sets. Dest-only rows stay
-    (#771). Applying the same move again, after the destination already
-    holds that source day, does not append the sets a second time.
+    (#771). Applying the same move again is a no-op when the destination
+    already records this source session (persist stamp and set hash).
+    A marker that names only the source day is not that record.
     """
     st = str(session_type or "").lower().strip()
     if st not in ("push", "pull", "legs"):
@@ -349,11 +652,14 @@ def plan_session_date_move(
     if dest is None:
         return incoming
     # Retry after the dest row was written and before the source row was
-    # deleted. The sets are already on dest; unioning again would double them.
-    if src_day in merged_from_days(dest.source_file or ""):
+    # deleted. The same session is already on dest; unioning again would
+    # double its sets. A day-only marker is not this session.
+    if source_identity_already_merged(dest.source_file or "", src_day, src):
         return dest
     merged = merge_same_day_session(incoming, dest, same_name="union")
-    merged.source_file = mark_merged_from(merged.source_file, src_day)
+    merged.source_file = mark_merged_from(
+        merged.source_file, src_day, src, before=dest
+    )
     return merged
 
 
