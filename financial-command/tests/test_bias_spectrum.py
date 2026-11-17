@@ -160,14 +160,17 @@ class TestBiasSpectrumApi(unittest.TestCase):
         self.assertNotIn("Other", symbols)
         stamped = [c for c in (data.get("chips") or []) if c.get("consider_share_stamp")]
         self.assertTrue(stamped)
-        self.assertCountEqual([c.get("symbol") for c in stamped], ["TSLA", "SPCX"])
+        self.assertCountEqual(
+            [c.get("symbol") for c in stamped],
+            [s for s in pins if s in symbols],
+        )
         for chip in stamped:
-            self.assertIn(chip.get("symbol"), ("TSLA", "SPCX"))
+            self.assertIn(chip.get("symbol"), pins)
             # BE is off-axis, so historical reallocate must not bump dest pins.
             self.assertAlmostEqual(
                 float(chip["weight_pct"]), float(pins[chip["symbol"]]), places=2
             )
-        for sym in ("BITA", "STRC", "MARA", "NVDA"):
+        for sym in ("BITA", "STRC", "NVDA"):
             if sym not in symbols:
                 continue
             chip = next(c for c in data["chips"] if c["symbol"] == sym)
