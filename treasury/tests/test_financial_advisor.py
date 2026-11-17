@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 
 from treasury.financial_advisor import (
@@ -79,6 +80,42 @@ class FinancialAdvisorContextTests(unittest.TestCase):
         self.assertEqual(ctx["coach"]["top_obligations"][0]["item"], "Electric")
         self.assertEqual(ctx["fund_manager"]["nav_usd"], 173.0)
         self.assertTrue(ctx["braiins"]["ok"])
+
+    def test_missing_price_is_not_replaced_with_value_usd(self) -> None:
+        ctx = build_treasury_context(
+            {
+                "snapshot": {},
+                "evaluation": {},
+                "fund_manager": {
+                    "analysis": {
+                        "ok": True,
+                        "valuation": "missing_market_price",
+                        "nav_usd": 10,
+                        "weights_of_deployed": {
+                            "btc_digital_credit": None,
+                            "stocks_growth": None,
+                        },
+                        "positions": [
+                            {
+                                "symbol": "MARA",
+                                "quantity": 1,
+                                "market_value": None,
+                                "value_usd": 11.23,
+                                "average_buy_price": 11.23,
+                            }
+                        ],
+                    }
+                },
+            }
+        )
+        mara = ctx["fund_manager"]["holdings"][0]
+        self.assertEqual(mara["symbol"], "MARA")
+        self.assertIsNone(mara["market_value"])
+        self.assertEqual(mara["value_label"], "price missing")
+        self.assertNotEqual(mara["market_value"], 11.23)
+        self.assertEqual(ctx["fund_manager"]["weights_label"], "price missing")
+        blob = json.dumps(ctx["fund_manager"])
+        self.assertNotIn("11.23", blob)
 
     def test_ask_requires_question(self) -> None:
         with self.assertRaises(AdvisorError) as cm:

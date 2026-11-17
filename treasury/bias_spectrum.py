@@ -399,6 +399,19 @@ def _watch_entries(
     return entries
 
 
+def _book_price_missing(analysis: Dict[str, Any]) -> bool:
+    """True when a held name has no market value. Cost is not a substitute."""
+    if "missing_market_price" in str(analysis.get("valuation") or ""):
+        return True
+    for p in _as_list(analysis.get("positions")):
+        if not isinstance(p, dict) or "market_value" not in p or p.get("market_value") is not None:
+            continue
+        qty = _money(p.get("quantity"))
+        if qty and qty > 0:
+            return True
+    return False
+
+
 def _held_books(analysis: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     positions = [p for p in _as_list(analysis.get("positions")) if isinstance(p, dict)]
     equity = _money(analysis.get("equity_market_value_usd"))
@@ -409,18 +422,34 @@ def _held_books(analysis: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             if mv and mv > 0:
                 equity += mv
     books: Dict[str, Dict[str, Any]] = {}
-    if not equity or equity <= 0:
-        return books
     for p in positions:
         sym = _sym(p.get("symbol"))
+        if not sym:
+            continue
+        qty = _money(p.get("quantity"))
         mv = _money(p.get("market_value"))
-        if not sym or mv is None or mv <= 0:
+        if qty is not None and qty <= 0:
+            continue
+        # None is an unpriced holding. Zero is not a holding. Never use cost.
+        if mv is None:
+            if not qty or qty <= 0:
+                continue
+            books[sym] = {
+                "market_value": None,
+                "quantity": qty,
+                "book_pct": None,
+                "sleeve": str(p.get("sleeve") or ""),
+                "price_missing": True,
+            }
+            continue
+        if mv <= 0 or not equity or equity <= 0:
             continue
         books[sym] = {
             "market_value": round(mv, 4),
-            "quantity": _money(p.get("quantity")),
+            "quantity": qty,
             "book_pct": round(100.0 * mv / equity, 2),
             "sleeve": str(p.get("sleeve") or ""),
+            "price_missing": False,
         }
     return books
 
@@ -849,9 +878,11 @@ def build_bias_spectrum(
             "status": watch.get("status"),
             "source": "policy_consider_set",
             "held": bool(held),
-            "book_pct": None if not held else held["book_pct"],
-            "market_value": None if not held else held["market_value"],
-            "quantity": None if not held else held["quantity"],
+            "book_pct": None if not held else held.get("book_pct"),
+            "market_value": None if not held else held.get("market_value"),
+            "quantity": None if not held else held.get("quantity"),
+            "price_missing": bool(held and held.get("price_missing")),
+            "value_label": "price missing" if held and held.get("price_missing") else None,
             "notes": notes,
             "deep_link": f"position.html?symbol={sym}",
         }
@@ -901,6 +932,7 @@ def build_bias_spectrum(
         "equity_market_value_usd": equity,
         "sleeve_weights_deployed": _as_dict(analysis.get("weights_of_deployed")),
         "sleeve_weights_nav": _as_dict(analysis.get("weights_of_nav")),
+        "price_missing": _book_price_missing(analysis),
         "sleeve_budgets": {
             "btc_digital_credit_pct": btc_budget,
             "stocks_growth_pct": stocks_budget,

@@ -14,10 +14,9 @@
 
 Weights are percentages only. No dollar balances, quantities or account ids
 reach the block, because the Markdown copy is committed to a public repo.
-Position weights use quantity x price from the snapshot (a ``last_price``/``price``
-if present, else average buy price). Sizing does not use that cost fallback;
-this block still does, and labels it an estimate, because the brief does not
-place orders.
+Position weights use quantity times a market price from the snapshot. A name
+with no market price is ``price missing``. Average buy price is cost and is
+never used. This block does not place orders.
 """
 
 from __future__ import annotations
@@ -90,28 +89,37 @@ def holdings_block(
     from treasury.fund_manager import analyze_agentic_book  # lazy: repo's own sleeve math
 
     analysis = analyze_agentic_book(
-        snapshot, policy if isinstance(policy, dict) else None, cost_basis_fallback=True,
+        snapshot, policy if isinstance(policy, dict) else None,
     )
     if not analysis.get("ok"):
         return _no_data("No data: " + _clip(analysis.get("error") or "analysis failed", 120), as_of_iso, age, limit)
 
     nav = _num(agentic.get("total_value")) or 0.0
     pos_rows = [r for r in analysis.get("positions") or [] if isinstance(r, dict) and r.get("symbol")]
-    priced = all(any(_num(p.get(k)) for k in _PRICE_KEYS) for p in (agentic.get("positions") or []) if isinstance(p, dict)) \
-        and bool(agentic.get("positions"))
+
+    def _mv(row: dict[str, Any]) -> float | None:
+        v = row.get("market_value")
+        if v is None:
+            return None
+        return _num(v)
+
+    priced_rows = [(r, mv) for r in pos_rows if (mv := _mv(r)) is not None]
+    missing_rows = [r for r in pos_rows if _mv(r) is None]
+    priced = not missing_rows
     pins_raw = consider_share.get("pins") if isinstance(consider_share, dict) and isinstance(consider_share.get("pins"), dict) else {}
     pins = {k: float(v) for k, v in pins_raw.items() if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0}
     pin_total = sum(pins.values())
-    stocks_mv = sum(float(r["market_value"]) for r in pos_rows if r.get("sleeve") == "stocks_growth")
+    stocks_mv = sum(mv for r, mv in priced_rows if r.get("sleeve") == "stocks_growth")
 
     rows = []
-    for r in sorted(pos_rows, key=lambda r: (-float(r["market_value"]), r["symbol"])):
-        sym, mv = r["symbol"], float(r["market_value"])
+    for r, mv in sorted(priced_rows, key=lambda item: (-item[1], item[0]["symbol"])):
+        sym = r["symbol"]
         row: dict[str, Any] = {
             "symbol": sym,
             "sleeve": r.get("sleeve"),
             "pinned": sym in pins,
             "weight_nav_pct": _pct(mv / nav) if nav > 0 else None,
+            "price_missing": False,
         }
         if sym in pins and pin_total > 0 and stocks_mv > 0:
             tgt = pins[sym] / pin_total * 100.0
@@ -120,31 +128,50 @@ def holdings_block(
             row["target_pct"] = round(tgt, 1)
             row["drift_pp"] = round(w - tgt, 1)
         rows.append(row)
+    for r in sorted(missing_rows, key=lambda item: item["symbol"]):
+        sym = r["symbol"]
+        row = {
+            "symbol": sym,
+            "sleeve": r.get("sleeve"),
+            "pinned": sym in pins,
+            "weight_nav_pct": None,
+            "price_missing": True,
+        }
+        if sym in pins and pin_total > 0:
+            row["target_pct"] = round(pins[sym] / pin_total * 100.0, 1)
+            row["stocks_sleeve_weight_pct"] = None
+            row["drift_pp"] = None
+        rows.append(row)
     for sym in sorted(pins, key=lambda s: (-pins[s], s)):  # pinned but not held: weight 0, full drift
         if sym not in {r["symbol"] for r in rows} and pin_total > 0 and stocks_mv > 0:
             tgt = pins[sym] / pin_total * 100.0
             rows.append({"symbol": sym, "sleeve": "stocks_growth", "pinned": True, "weight_nav_pct": 0.0,
-                         "stocks_sleeve_weight_pct": 0.0, "target_pct": round(tgt, 1), "drift_pp": round(-tgt, 1)})
+                         "stocks_sleeve_weight_pct": 0.0, "target_pct": round(tgt, 1), "drift_pp": round(-tgt, 1),
+                         "price_missing": False})
 
     tg = analysis.get("targets") or {}
     wd, dd, ib = analysis.get("weights_of_deployed") or {}, analysis.get("drift_deployed") or {}, analysis.get("in_band") or {}
     sleeves = []
     for key, label, tkey in (("btc_digital_credit", "BTC & digital credit", "btc_digital_credit_pct"),
                              ("stocks_growth", "Stocks / growth", "stocks_growth_pct")):
-        if wd.get(key) is None:
+        weight = wd.get(key)
+        if weight is None and not missing_rows:
             continue
         sleeves.append({
             "sleeve": key, "label": label,
-            "weight_deployed_pct": _pct(wd.get(key)), "target_pct": _pct(_num(tg.get(tkey))),
-            "drift_pp": _pct(dd.get(key)), "in_band": ib.get(key),
+            "weight_deployed_pct": _pct(weight) if weight is not None else None,
+            "target_pct": _pct(_num(tg.get(tkey))),
+            "drift_pp": _pct(dd.get(key)) if weight is not None else None,
+            "in_band": ib.get(key) if weight is not None else None,
+            "price_missing": weight is None,
         })
     return {
         "state": "ok",
-        "note": "" if priced else "Weights are an estimate: the snapshot has no live per-position prices, so cost basis stands in for price.",
+        "note": "" if priced else "price missing",
         "as_of": as_of_iso,
         "age_hours": age,
         "stale_after_hours": limit,
-        "basis": "snapshot prices" if priced else "cost-basis estimate",
+        "basis": "snapshot prices" if priced else "price missing",
         "stocks_target": "pins from consider_share.json" if pins else "no pins",
         "cash_weight_pct": _pct((_num(agentic.get("cash")) or 0.0) / nav) if nav > 0 else None,
         "rows": rows,

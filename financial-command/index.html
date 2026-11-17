@@ -2612,6 +2612,23 @@
       if (n == null || !Number.isFinite(Number(n))) return "—";
       return (Number(n) * 100).toFixed(1) + "%";
     }
+    // Fund sleeve weights and position dollars. Null is a missing market
+    // price, never a cost-basis fill. Other null balances stay "—".
+    function bookPriceMissing(analysis) {
+      if (!analysis || typeof analysis !== "object") return false;
+      const v = String(analysis.valuation || "");
+      if (v.indexOf("missing_market_price") !== -1) return true;
+      const rows = analysis.positions || [];
+      return rows.some(
+        (p) => p && p.market_value == null && Number(p.quantity) > 0
+      );
+    }
+    function fmPct(x, analysis) {
+      if (x == null || !Number.isFinite(Number(x))) {
+        return bookPriceMissing(analysis) ? "price missing" : "—";
+      }
+      return (Number(x) * 100).toFixed(0) + "%";
+    }
     function metric(label, val) {
       return `<div class="metric"><span class="label">${label}</span><span class="val">${val}</span></div>`;
     }
@@ -3605,7 +3622,10 @@
       let fmHealth = "yellow";
       let fmHealthLabel = "No agentic analysis";
       if (fmaEarly.ok) {
-        if (inBandB && inBandS) {
+        if (bookPriceMissing(fmaEarly) && wDepEarly.btc_digital_credit == null) {
+          fmHealth = "yellow";
+          fmHealthLabel = "price missing";
+        } else if (inBandB && inBandS) {
           fmHealth = "green";
           fmHealthLabel = "In band · ~60/40";
         } else if (wDepEarly.btc_digital_credit == null && (fmaEarly.cash_usd || 0) > 0) {
@@ -3821,6 +3841,12 @@
         }
         if (fmK.policy_summary && fmK.policy_summary.live === false) {
           return toneResult("yellow", "Fund manager paused (live:false).");
+        }
+        if (bookPriceMissing(fmaK) && wDepK.btc_digital_credit == null) {
+          return toneResult(
+            "yellow",
+            "Sleeve weights price missing. Not valued at cost."
+          );
         }
         if (agentNav <= 0) {
           return toneResult("orange", "Agentic NAV is empty — nothing deployed.");
@@ -4061,7 +4087,9 @@
           v: money(agentNav),
           s:
             wDepK.btc_digital_credit == null
-              ? "agentic"
+              ? bookPriceMissing(fmaK)
+                ? "price missing"
+                : "agentic"
               : Math.round((wDepK.stocks_growth || 0) * 100) +
                 "/" +
                 Math.round(wDepK.btc_digital_credit * 100),
@@ -4205,7 +4233,11 @@
           .sort((a, b) => b.value - a.value)
           .map((p, i) => ({ ...p, color: colors[i % colors.length] }));
         if (!valued.length) {
-          return `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div><p class="hint">No valued positions</p></div>`;
+          const missing = (positions || []).some(
+            (p) => p && p.market_value == null && Number(p.quantity) > 0
+          );
+          const hint = missing ? "price missing" : "No valued positions";
+          return `<div class="pie-card"><div class="pie-title">${escapeHtml(title)}</div><p class="hint">${hint}</p></div>`;
         }
         const MAX_SLICES = 8;
         let slices = valued;
@@ -4606,8 +4638,7 @@
       const fma = fm.analysis || {};
       const wDep = fma.weights_of_deployed || {};
       const wNav = fma.weights_of_nav || {};
-      const pctLabel = (x) =>
-        x == null || !Number.isFinite(Number(x)) ? "—" : (Number(x) * 100).toFixed(0) + "%";
+      const pctLabel = (x) => fmPct(x, fma);
       const liveOn = !(fm.policy_summary && fm.policy_summary.live === false);
       const liveDot = document.getElementById("fm-live-dot");
       if (liveDot) {
@@ -4685,7 +4716,7 @@
                 `<tr><td><strong>${escapeHtml(p.symbol || "—")}</strong></td>` +
                 `<td><span class="sleeve-chip ${chip}">${escapeHtml(slabel)}</span></td>` +
                 `<td>${escapeHtml(String(p.quantity ?? "—"))}</td>` +
-                `<td>${p.market_value != null ? money(p.market_value) : "—"}</td></tr>`
+                `<td>${p.market_value != null ? money(p.market_value) : "price missing"}</td></tr>`
               );
             })
             .join("") +

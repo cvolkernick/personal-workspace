@@ -55,6 +55,7 @@ DECISION_RECORD_KEYS = (
     "team_votes",
     "actions",
     "weights_before",
+    "weights_display",
     "weights_after_expected",
     "weights_after",
     "nav_usd",
@@ -392,6 +393,101 @@ def _position_market_value(
     return None
 
 
+PRICE_MISSING = "price missing"
+
+
+def shown_weight(value: Any) -> str:
+    """Label for a sleeve weight. None is a missing market price, never a cost fill."""
+    if value is None or value == "":
+        return PRICE_MISSING
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return PRICE_MISSING
+    if n != n:  # NaN
+        return PRICE_MISSING
+    return str(n)
+
+
+def shown_money(value: Any) -> str:
+    """Label for a dollar value. None is a missing market price, never a cost fill."""
+    if value is None or value == "":
+        return PRICE_MISSING
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return PRICE_MISSING
+    if n != n:
+        return PRICE_MISSING
+    return f"${n:.2f}"
+
+
+def _market_price(pos: Dict[str, Any], quotes: Optional[Dict[str, float]]) -> Optional[float]:
+    """Per-share market price from a quote or a mark on the row. Never average buy price."""
+    sym = (pos.get("symbol") or "").upper()
+    if quotes and sym in quotes:
+        px = _positive(quotes.get(sym))
+        if px is not None:
+            return px
+    for k in _MARKET_PRICE_KEYS:
+        px = _positive(pos.get(k))
+        if px is not None:
+            return px
+    return None
+
+
+def fetch_snapshot_quotes(
+    rh_snapshot: Any,
+    *,
+    client: Any = None,
+) -> Dict[str, float]:
+    """Read-only quotes for held symbols the Robinhood snapshot did not price.
+
+    Reuses the buy path's broker-adapter quote fetch (``live_quotes`` →
+    ``get_quotes`` only). A missing client, a failed call, or an unusable
+    price returns ``{}`` so the snapshot keeps ``market_value: None``.
+    This never places, queues, or cancels an order and never uses cost basis.
+
+    Unit tests skip the live client unless one is injected. bp-poll and
+    ``run_treasury`` call ``evaluate_fund_manager``, which uses this when
+    ``FM_BROKER_CLIENT`` is set (grok_mcp on the producer).
+    """
+    snap = rh_snapshot if isinstance(rh_snapshot, dict) else {}
+    if client is None and os.environ.get("PYTEST_CURRENT_TEST"):
+        return {}
+    try:
+        from treasury.fund_manager_broker import (
+            BrokerUnavailable,
+            live_quotes,
+            load_adapter_config,
+            resolve_client,
+        )
+    except Exception:
+        return {}
+    cfg: Dict[str, Any] = {}
+    if client is None:
+        loaded, _err = load_adapter_config()
+        if not isinstance(loaded, dict):
+            return {}
+        cfg = loaded
+        try:
+            client = resolve_client(cfg)
+        except Exception:
+            return {}
+    try:
+        raw, _label = live_quotes(snap, cfg, client)
+    except BrokerUnavailable:
+        return {}
+    except Exception:
+        return {}
+    out: Dict[str, float] = {}
+    for sym, px in (raw or {}).items():
+        n = _positive(px)
+        if n is not None:
+            out[str(sym).strip().upper()] = n
+    return out
+
+
 def _agentic_block(snapshot: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(snapshot, dict):
         return None
@@ -542,6 +638,16 @@ def analyze_agentic_book(
         if not sym:
             continue
         mv = _position_market_value(pos, quotes, allow_cost_basis=cost_basis_fallback)
+        px = _market_price(pos, quotes)
+        # Equity already on the row has no per-share mark. Derive one from the
+        # market value. Cost basis is not a mark, so the labeled estimate does not.
+        if (
+            mv is not None
+            and px is None
+            and not cost_basis_fallback
+            and _f(pos.get("quantity")) > 0
+        ):
+            px = mv / _f(pos.get("quantity"))
         sleeve = sleeve_for_symbol(sym, policy)
         if mv is None:
             unpriced.append(sym)
@@ -549,6 +655,7 @@ def analyze_agentic_book(
                 {
                     "symbol": sym,
                     "quantity": _f(pos.get("quantity")),
+                    "market_price": None,
                     "market_value": None,
                     "sleeve": sleeve,
                     "valuation": "missing_market_price",
@@ -561,6 +668,7 @@ def analyze_agentic_book(
             {
                 "symbol": sym,
                 "quantity": _f(pos.get("quantity")),
+                "market_price": round(px, 6) if px is not None else None,
                 "market_value": round(mv, 4),
                 "sleeve": sleeve,
                 "valuation": "cost_basis_estimate" if cost_basis_fallback else "market_value",
@@ -724,7 +832,8 @@ def analyze_agentic_book(
             + (
                 " Unpriced positions ("
                 + ", ".join(unpriced)
-                + ") are omitted from market value; cost basis is not used for sizing."
+                + ") are price missing and omitted from market value; "
+                "cost basis is not used."
                 if unpriced
                 else ""
             )
@@ -784,6 +893,7 @@ def decision_record_payload(entry: Dict[str, Any]) -> Dict[str, Any]:
         "team_votes",
         "actions",
         "weights_before",
+        "weights_display",
         "nav_usd",
         "buying_power_usd",
     ):
@@ -803,6 +913,7 @@ def format_decision_github_body(entry: Dict[str, Any]) -> str:
     actions = entry.get("actions") or []
     wb = entry.get("weights_before") or {}
     wa = entry.get("weights_after") or entry.get("weights_after_expected") or {}
+    wd = entry.get("weights_display") if isinstance(entry.get("weights_display"), dict) else {}
     payload = decision_record_payload(entry)
     lines = [
         DECISION_GITHUB_MARKER,
@@ -818,16 +929,24 @@ def format_decision_github_body(entry: Dict[str, Any]) -> str:
         f"**summary:** {entry.get('summary') or rat.get('summary') or '—'}",
         f"**NAV:** ${entry.get('nav_usd', '—')} · **BP:** ${entry.get('buying_power_usd', '—')}",
     ]
-    if wb or wa:
+    def _one(weights: Any, key: str, *, prefer_display: bool) -> str:
+        if prefer_display and key in wd and wd.get(key) not in (None, ""):
+            return str(wd.get(key))
+        src = weights if isinstance(weights, dict) else {}
+        if key not in src and not src:
+            return "—"
+        return shown_weight(src.get(key))
+
+    if wb or wa or wd:
         lines.append(
             "**weights_before:** "
-            f"BTC-complex {wb.get('btc_digital_credit', '—')} · "
-            f"stocks {wb.get('stocks_growth', '—')}"
+            f"BTC-complex {_one(wb, 'btc_digital_credit', prefer_display=True)} · "
+            f"stocks {_one(wb, 'stocks_growth', prefer_display=True)}"
         )
         lines.append(
             "**weights_after:** "
-            f"BTC-complex {wa.get('btc_digital_credit', '—')} · "
-            f"stocks {wa.get('stocks_growth', '—')}"
+            f"BTC-complex {_one(wa, 'btc_digital_credit', prefer_display=False)} · "
+            f"stocks {_one(wa, 'stocks_growth', prefer_display=False)}"
         )
     if rat.get("why_now"):
         lines.append(f"**why_now:** {rat['why_now']}")
@@ -1142,10 +1261,17 @@ def _append_journal_markdown(entry: Dict[str, Any]) -> None:
             f"**Book:** NAV ${entry.get('nav_usd')} · BP ${entry.get('buying_power_usd')}\n"
         )
     wb = entry.get("weights_before") or {}
-    if wb:
+    wd = entry.get("weights_display") if isinstance(entry.get("weights_display"), dict) else {}
+    if wb or wd:
+        def _jw(key: str) -> str:
+            if key in wd and wd.get(key) not in (None, ""):
+                return str(wd.get(key))
+            src = wb if isinstance(wb, dict) else {}
+            return shown_weight(src.get(key))
+
         lines.append(
-            f"**Weights before (deployed):** BTC-complex {wb.get('btc_digital_credit')} · "
-            f"Stocks {wb.get('stocks_growth')}\n"
+            f"**Weights before (deployed):** BTC-complex {_jw('btc_digital_credit')} · "
+            f"Stocks {_jw('stocks_growth')}\n"
         )
     if rat.get("why_now"):
         lines.append(f"**Why now:** {rat['why_now']}\n")
@@ -1183,12 +1309,17 @@ def evaluate_fund_manager(
     rh_snapshot: Optional[Dict[str, Any]] = None,
     policy: Optional[Dict[str, Any]] = None,
     quotes: Optional[Dict[str, float]] = None,
+    quote_client: Any = None,
     decision_limit: int = 20,
 ) -> Dict[str, Any]:
     policy = policy or load_fund_policy()
     if rh_snapshot is None:
         rh_snapshot = load_json(SNAPSHOTS_DIR / "robinhood_latest.json") or {}
-    analysis = analyze_agentic_book(rh_snapshot, policy, quotes=quotes)
+    # bp-poll writes this snapshot twice (rules review, then run_treasury).
+    # Both go through here. Quotes are read-only; a miss stays unpriced.
+    if quotes is None:
+        quotes = fetch_snapshot_quotes(rh_snapshot, client=quote_client)
+    analysis = analyze_agentic_book(rh_snapshot, policy, quotes=quotes or None)
     cfg = load_config()
     agentic_acct = (cfg.get("robinhood") or {}).get("agentic_account_number")
     decisions = load_decision_log(limit=decision_limit)
@@ -1256,6 +1387,7 @@ def rules_based_review(
     rh_snapshot: Optional[Dict[str, Any]] = None,
     policy: Optional[Dict[str, Any]] = None,
     log: bool = True,
+    quote_client: Any = None,
 ) -> Dict[str, Any]:
     """Daily review without LLM when possible.
 
@@ -1266,7 +1398,9 @@ def rules_based_review(
     - live:false → OBSERVE only
     """
     policy = policy or load_fund_policy()
-    fm = evaluate_fund_manager(rh_snapshot=rh_snapshot, policy=policy)
+    fm = evaluate_fund_manager(
+        rh_snapshot=rh_snapshot, policy=policy, quote_client=quote_client
+    )
     analysis = fm.get("analysis") or {}
     live = bool(policy.get("live", False))
     targets = analysis.get("targets") or policy.get("targets") or {}
@@ -1351,11 +1485,24 @@ def rules_based_review(
             )
         else:
             summary = (
-                f"Rules HOLD ({reason}): no sleeve weights and deployable ${deployable:.2f} "
-                f"< min_trade ${min_trade:.2f}; nothing to buy, no sells."
+                f"Rules HOLD ({reason}): sleeve weights {PRICE_MISSING}; "
+                f"deployable ${deployable:.2f} < min_trade ${min_trade:.2f}; "
+                "nothing to buy, no sells. Not valued at cost."
             )
         need_llm = False
 
+    unpriced_names = [s for s in (analysis.get("unpriced_symbols") or []) if s]
+    if unpriced_names:
+        summary += (
+            " Unpriced ("
+            + ", ".join(unpriced_names)
+            + f"): {PRICE_MISSING}; not valued at cost."
+        )
+
+    weights_display = {
+        "btc_digital_credit": shown_weight(btc),
+        "stocks_growth": shown_weight(stocks),
+    }
     decision = {
         "kind": kind,
         "outcome": outcome,
@@ -1368,6 +1515,7 @@ def rules_based_review(
             "btc_digital_credit": btc,
             "stocks_growth": stocks,
         },
+        "weights_display": weights_display,
         # What spendable cash can actually buy (buys only) — never the 40/60 target.
         "weights_after_expected": (
             {"btc_digital_credit": btc, "stocks_growth": stocks}
@@ -1402,7 +1550,10 @@ def rules_based_review(
             },
             "thesis": {
                 "vote": "ok" if (in_band or not live or kind == "hold") else "deploy_new_cash",
-                "note": f"deployed BTC {btc} stocks {stocks}",
+                "note": (
+                    f"deployed BTC {weights_display['btc_digital_credit']} "
+                    f"stocks {weights_display['stocks_growth']}"
+                ),
             },
             "risk": {
                 "vote": "ok" if outcome == "hold" else "review",

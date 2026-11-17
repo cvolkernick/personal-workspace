@@ -134,6 +134,24 @@ class TestPositionDossier(unittest.TestCase):
         self.assertTrue(any("STRC" in x for x in data["policy_excerpts"]))
         self.assertEqual(data["chip"]["deep_link"], "position.html?symbol=STRC")
 
+    def test_missing_price_is_not_filled_from_cost(self) -> None:
+        fm = _fm()
+        for p in fm["analysis"]["positions"]:
+            if p["symbol"] == "TSLA":
+                p["market_value"] = None
+                p["average_buy_price"] = 999
+        fm["analysis"]["valuation"] = "missing_market_price"
+        data = build_position_dossier(
+            "TSLA", fund_manager=fm, treasury={}, policy=_policy(), watchlist=_watchlist()
+        )
+        st = data["stance"]
+        self.assertTrue(st["held"])
+        self.assertIsNone(st["market_value"])
+        self.assertEqual(st["value_label"], "price missing")
+        self.assertIn("price missing", st["picture"])
+        self.assertNotIn("999", st["picture"])
+        self.assertNotIn("cost", st["picture"].split("Not valued at cost basis.")[0])
+
     def test_be_watchlist_stance(self) -> None:
         data = _dossier("BE")
         self.assertTrue(data["ok"])

@@ -15,10 +15,12 @@ from unittest import mock
 
 from treasury.fund_manager import (  # noqa: E402
     DECISION_GITHUB_MARKER,
+    _append_journal_markdown,
     _decision_already_on_github,
     _is_rh_brokerage_stale_msg,
     analyze_agentic_book,
     append_decision,
+    evaluate_fund_manager,
     format_decision_github_body,
     load_decision_log,
     allocate_new_cash,
@@ -1199,6 +1201,150 @@ class TestAnalyze(unittest.TestCase):
         self.assertEqual(a["unpriced_symbols"], ["MARA"])
         self.assertEqual(a["equity_market_value_usd"], 0.0)
         self.assertEqual(a["valuation"], "missing_market_price")
+        self.assertIsNone(a["positions"][0]["market_price"])
+
+
+class _QuoteClient:
+    def __init__(self, quotes=None, exc=None):
+        self.quotes = quotes or {}
+        self.exc = exc
+        self.calls = []
+
+    def get_quotes(self, symbols):
+        self.calls.append(("get_quotes", tuple(symbols)))
+        if self.exc:
+            raise self.exc
+        return {s: self.quotes[s] for s in symbols if s in self.quotes}
+
+    def __getattr__(self, name):
+        def _blocked(*_args, **_kwargs):
+            self.calls.append((name,))
+            raise AssertionError("snapshot quote path called " + name)
+        return _blocked
+
+
+class TestSnapshotQuotes(unittest.TestCase):
+    def _book(self):
+        return {
+            "agentic": {
+                "account_number_last4": "1752",
+                "agentic_allowed": True,
+                "cash": 0.05,
+                "buying_power": 0.05,
+                "total_value": 473.15,
+                "positions": [
+                    {"symbol": "MARA", "quantity": 0.712517, "average_buy_price": 11.23},
+                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 100},
+                    {"symbol": "STRC", "quantity": 1, "average_buy_price": 50},
+                ],
+            }
+        }
+
+    def test_theme_buy_hold_stays_active(self):
+        hold = load_fund_policy()["theme_buy_hold"]
+        self.assertIs(hold["active"], True)
+        self.assertEqual(hold["themes"], ["ai_defense", "energy"])
+
+    def test_quote_success_fills_market_value_and_weights(self):
+        client = _QuoteClient({"MARA": 6.495, "TSLA": 200, "STRC": 80})
+        fm = evaluate_fund_manager(
+            rh_snapshot=self._book(), policy=load_fund_policy(), quote_client=client
+        )
+        rows = {p["symbol"]: p for p in fm["analysis"]["positions"]}
+        mara_mv = 0.712517 * 6.495
+        self.assertAlmostEqual(rows["MARA"]["market_price"], 6.495, places=4)
+        self.assertAlmostEqual(rows["MARA"]["market_value"], mara_mv, places=4)
+        self.assertNotAlmostEqual(rows["MARA"]["market_value"], 0.712517 * 11.23, places=2)
+        self.assertAlmostEqual(rows["TSLA"]["market_value"], 200.0, places=4)
+        self.assertAlmostEqual(rows["TSLA"]["market_price"], 200.0, places=4)
+        self.assertAlmostEqual(rows["STRC"]["market_value"], 80.0, places=4)
+        self.assertNotAlmostEqual(rows["STRC"]["market_value"], 50.0, places=2)
+        deployed = mara_mv + 200.0 + 80.0
+        w = fm["analysis"]["weights_of_deployed"]
+        self.assertAlmostEqual(w["btc_digital_credit"], 80.0 / deployed, places=3)
+        self.assertAlmostEqual(w["stocks_growth"], (mara_mv + 200.0) / deployed, places=3)
+        self.assertEqual(fm["analysis"]["valuation"], "market_value")
+        self.assertEqual(fm["analysis"]["unpriced_symbols"], [])
+        self.assertEqual([c[0] for c in client.calls], ["get_quotes"])
+        self.assertEqual(client.calls[0][1], ("MARA", "STRC", "TSLA"))
+
+    def test_partial_quote_does_not_cost_fill_the_miss(self):
+        client = _QuoteClient({"TSLA": 200})
+        fm = evaluate_fund_manager(
+            rh_snapshot=self._book(), policy=load_fund_policy(), quote_client=client
+        )
+        rows = {p["symbol"]: p for p in fm["analysis"]["positions"]}
+        self.assertIsNone(rows["MARA"]["market_value"])
+        self.assertIsNone(rows["MARA"]["market_price"])
+        self.assertEqual(rows["MARA"]["valuation"], "missing_market_price")
+        self.assertAlmostEqual(rows["TSLA"]["market_value"], 200.0, places=4)
+        self.assertNotAlmostEqual(rows["MARA"]["market_value"] or 0, 8.0016, places=2)
+
+    def test_quote_failure_leaves_none_and_readers_say_price_missing(self):
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from treasury.fund_manager_broker import BrokerUnavailable
+        from treasury.financial_advisor import build_treasury_context
+        from treasury import fund_manager as fm_mod
+
+        for exc in (RuntimeError("quote down"), BrokerUnavailable("broker down")):
+            client = _QuoteClient(exc=exc)
+            with tempfile.TemporaryDirectory() as td:
+                decisions = Path(td) / "dec.jsonl"
+                journal = Path(td) / "journal.md"
+                with mock.patch.object(fm_mod, "DECISIONS_PATH", decisions), mock.patch.object(
+                    fm_mod, "JOURNAL_PATH", journal
+                ), mock.patch.object(
+                    fm_mod, "FM_SNAPSHOT", Path(td) / "fund_manager_latest.json"
+                ), mock.patch.dict(os.environ, {"FM_DECISION_GITHUB": "0"}, clear=False):
+                    out = rules_based_review(
+                        rh_snapshot=self._book(),
+                        policy=_live_policy(),
+                        log=True,
+                        quote_client=client,
+                    )
+                text = journal.read_text(encoding="utf-8")
+                row = load_decision_log(path=decisions, limit=1)[0]
+            analysis = out["analysis"]
+            mara = next(p for p in analysis["positions"] if p["symbol"] == "MARA")
+            self.assertIsNone(mara["market_value"])
+            self.assertIsNone(mara["market_price"])
+            self.assertEqual(analysis["valuation"], "missing_market_price")
+            self.assertIsNone(analysis["weights_of_deployed"]["btc_digital_credit"])
+            self.assertIsNone(analysis["weights_of_deployed"]["stocks_growth"])
+            self.assertIn("price missing", out["rules_review"]["summary"])
+            self.assertIn("price missing", analysis["notes"])
+            self.assertEqual(row["weights_display"]["btc_digital_credit"], "price missing")
+            self.assertEqual(row["weights_display"]["stocks_growth"], "price missing")
+            self.assertIsNone(row["weights_before"]["btc_digital_credit"])
+            body = format_decision_github_body(row)
+            self.assertIn("price missing", body)
+            self.assertIn("price missing", text)
+            for leaked in ("11.23", "8.00", "cost basis", "cost_basis", "average_buy"):
+                self.assertNotIn(leaked, body)
+                self.assertNotIn(leaked, text)
+                self.assertNotIn(leaked, out["rules_review"]["summary"])
+            ctx = build_treasury_context(
+                {"snapshot": {}, "evaluation": {}, "fund_manager": out}
+            )
+            held = {h["symbol"]: h for h in ctx["fund_manager"]["holdings"]}
+            self.assertIsNone(held["MARA"]["market_value"])
+            self.assertEqual(held["MARA"]["value_label"], "price missing")
+            self.assertEqual(ctx["fund_manager"]["weights_label"], "price missing")
+            self.assertEqual([c[0] for c in client.calls], ["get_quotes"])
+
+    def test_auto_fetch_outside_pytest_uses_quotes_only(self):
+        import os
+
+        client = _QuoteClient({"MARA": 6.495, "TSLA": 200, "STRC": 80})
+        with mock.patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}, clear=False), mock.patch(
+            "treasury.fund_manager_broker.resolve_client", return_value=client
+        ):
+            fm = evaluate_fund_manager(rh_snapshot=self._book(), policy=load_fund_policy())
+        self.assertAlmostEqual(fm["analysis"]["positions"][0]["market_value"], 0.712517 * 6.495, places=3)
+        self.assertEqual([c[0] for c in client.calls], ["get_quotes"])
 
 
 if __name__ == "__main__":
