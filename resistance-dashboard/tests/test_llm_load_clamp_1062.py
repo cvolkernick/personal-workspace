@@ -289,7 +289,74 @@ class LlmLoadClamp1062(unittest.TestCase):
         self.assertEqual(row["load_source"], "sop")
         self.assertEqual(row["weight_lbs"], 45.0)
         self.assertEqual(row["reps"], 7)
+        # Post-shape caps the legs hinge at the template count. The SOP load stays.
+        self.assertEqual(row["prescription"]["sets"], 2)
+
+    def test_postshape_error_keeps_the_clamped_plan(self):
+        def fake_chat(messages, **kwargs):
+            return {
+                "answer": json.dumps(
+                    {
+                        "meal": {"message": "ok", "items": [], "meals": []},
+                        "workout": {
+                            "session_type": "legs",
+                            "is_rest_day": False,
+                            "message": "too heavy",
+                            "exercises": [
+                                {
+                                    "name": "RDL",
+                                    "prescription": {
+                                        "sets": 3,
+                                        "reps": 8,
+                                        "weight_lbs": 135,
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                ),
+                "model": "grok-test",
+                "auth_source": "supergrok_session",
+            }
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("shape broke")
+
+        with mock.patch(
+            "rt_dashboard.grok_ask.resolve_xai_credentials",
+            return_value={"token": "t", "source": "test", "expired": False},
+        ), mock.patch(
+            "rt_dashboard.grok_ask.chat_completions",
+            side_effect=fake_chat,
+        ), mock.patch(
+            "rt_dashboard.workout_planner.postshape_ai_workout",
+            side_effect=boom,
+        ), self.assertLogs("fitdash.grok", level="WARNING") as logs:
+            out = generate_grok_plans(
+                "user-1",
+                recovery={"score": 80, "label": "Ready"},
+                goals={
+                    "rotation": ["push", "pull", "legs"],
+                    "default_hard_sets": 2,
+                },
+                catalog={"exercises": [_rdl()]},
+                sessions=[_log("RDL", 45, 6)],
+                next_session_type="legs",
+                as_of="2026-10-01",
+            )
+        self.assertTrue(out["ok"])
+        row = out["workout"]["exercises"][0]
+        self.assertEqual(row["name"], "RDL")
+        self.assertEqual(row["load_source"], "sop")
+        self.assertEqual(row["weight_lbs"], 45.0)
+        self.assertEqual(row["reps"], 7)
+        # Unshaped: the model's set count survives the clamp.
         self.assertEqual(row["prescription"]["sets"], 3)
+        warning = "\n".join(logs.output)
+        self.assertIn("keeping the clamped plan", warning)
+        self.assertIn("RuntimeError", warning)
+        self.assertNotIn("shape broke", warning)
+        self.assertNotIn("token", warning.lower())
 
 
 if __name__ == "__main__":

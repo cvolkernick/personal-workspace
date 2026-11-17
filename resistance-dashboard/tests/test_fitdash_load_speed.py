@@ -255,6 +255,21 @@ class JsonGzip(unittest.TestCase):
         self.assertNotIn(b": ", raw)
         self.assertEqual(json.loads(raw), payload)
 
+    def test_gzip_q0_is_not_gzip(self):
+        payload = {"ok": True, "n": 1}
+        with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):
+            refused = self._handler({"Accept-Encoding": "gzip;q=0"})
+            refused._send_json(payload)
+            star = self._handler({"Accept-Encoding": "gzip;q=0, *;q=1"})
+            star._send_json(payload)
+            partial = self._handler({"Accept-Encoding": "gzip;q=0.5"})
+            partial._send_json(payload)
+        self.assertNotIn("Content-Encoding", self._headers(refused))
+        self.assertEqual(json.loads(refused.wfile.getvalue()), payload)
+        self.assertNotIn("Content-Encoding", self._headers(star))
+        self.assertEqual(self._headers(partial)["Content-Encoding"], "gzip")
+        self.assertEqual(json.loads(gzip.decompress(partial.wfile.getvalue())), payload)
+
 
 class AgentTodayCache(unittest.TestCase):
     def setUp(self):
@@ -289,6 +304,64 @@ class AgentTodayCache(unittest.TestCase):
             self.assertEqual(len(calls), 2)
             other = server.load_agent_today_response("u", query="x=1", read_only=True)
             self.assertEqual(other["n"], 3)
+
+    def test_ttl_env_defaults_to_300(self):
+        saved = os.environ.pop("FITDASH_TODAY_TTL_SEC", None)
+        old = os.environ.pop("FITDASH_TODAY_CACHE_SEC", None)
+        try:
+            self.assertEqual(server.agent_today_cache_ttl_sec(), 300.0)
+            os.environ["FITDASH_TODAY_TTL_SEC"] = "120"
+            self.assertEqual(server.agent_today_cache_ttl_sec(), 120.0)
+            self.assertEqual(server.today_refresh_wait_sec(), 90.0)
+            os.environ["FITDASH_TODAY_TTL_SEC"] = "0"
+            self.assertEqual(server.agent_today_cache_ttl_sec(), 0.0)
+        finally:
+            if saved is None:
+                os.environ.pop("FITDASH_TODAY_TTL_SEC", None)
+            else:
+                os.environ["FITDASH_TODAY_TTL_SEC"] = saved
+            if old is not None:
+                os.environ["FITDASH_TODAY_CACHE_SEC"] = old
+
+    def test_warm_fills_cache_and_write_rewarms(self):
+        import time
+
+        calls = []
+
+        def export(data, error=None):
+            time.sleep(0.05)
+            calls.append(time.perf_counter())
+            return {"ok": True, "n": len(calls)}
+
+        server._TODAY_WARM_ARMED = True
+        server._PAYLOAD_MEMO_ENABLED = True
+        try:
+            with mock.patch.object(server, "load_dashboard_data", return_value={"meta": {}}), \
+                 mock.patch.object(server, "_overlay_agent_workout", side_effect=lambda data, *a, **k: data), \
+                 mock.patch.object(server, "export_agent_today", export), \
+                 mock.patch("rt_dashboard.agent_read.agent_targets_uid", return_value="u"):
+                t0 = time.perf_counter()
+                server.warm_agent_today()
+                warm_s = time.perf_counter() - t0
+                before = len(calls)
+                t1 = time.perf_counter()
+                hit = server.load_agent_today_response("u", query="", read_only=True)
+                hit_s = time.perf_counter() - t1
+                self.assertEqual(hit["n"], 1)
+                self.assertEqual(len(calls), before)
+                self.assertLess(hit_s, warm_s)
+                server.invalidate_dashboard_memo()
+                deadline = time.time() + 2
+                while len(calls) < before + 2 and time.time() < deadline:
+                    time.sleep(0.02)
+                self.assertGreaterEqual(len(calls), before + 2)
+                again = server.load_agent_today_response("u", query="", read_only=True)
+                self.assertEqual(again["ok"], True)
+                self.assertGreater(warm_s, hit_s)
+        finally:
+            server._TODAY_WARM_ARMED = False
+            server._PAYLOAD_MEMO_ENABLED = self._was
+            server.invalidate_agent_today_cache()
 
 
 class CoachingSettingsAndTurso(unittest.TestCase):

@@ -554,12 +554,19 @@ def payload_memo_ttl_sec() -> float:
 
 
 def agent_today_cache_ttl_sec() -> float:
-    """Seconds to reuse a /api/agent/today body. Default 45 (within 30–60)."""
-    raw = os.environ.get("FITDASH_TODAY_CACHE_SEC", "45")
+    """Seconds to reuse a /api/agent/today body.
+
+    ``FITDASH_TODAY_TTL_SEC`` wins (default 300, matching the payload-memo
+    window the Pi runs). ``FITDASH_TODAY_CACHE_SEC`` is the older name.
+    ``0`` disables the cache.
+    """
+    raw = os.environ.get("FITDASH_TODAY_TTL_SEC")
+    if raw is None:
+        raw = os.environ.get("FITDASH_TODAY_CACHE_SEC", "300")
     try:
         value = float(raw)
     except ValueError:
-        return 45.0
+        return 300.0
     if value <= 0:
         return 0.0
     return value
@@ -610,6 +617,61 @@ def _apply_daily_tasks(data: Dict[str, Any], daily_tasks: Dict[str, Any]) -> Non
         coach["today"]["daily_tasks"] = daily_tasks
 
 
+def today_refresh_wait_sec() -> float:
+    """Warm again before the today cache can expire under a user request."""
+    ttl = agent_today_cache_ttl_sec()
+    if ttl <= 0:
+        return warm_interval_sec()
+    return max(15.0, ttl * 0.75)
+
+
+_TODAY_WARM_ARMED = False
+_TODAY_REWARM_LOCK = _threading.Lock()
+_TODAY_REWARM_SCHEDULED = False
+
+
+def warm_agent_today() -> None:
+    """Build /today for the house user so the next request is a cache hit.
+
+    Both the agent-token (read-only) and the service path are warmed.
+    The cache itself only stores while the server memo is on.
+    """
+    if not _PAYLOAD_MEMO_ENABLED or agent_today_cache_ttl_sec() <= 0:
+        return
+    from rt_dashboard.agent_read import agent_targets_uid
+
+    uid = agent_targets_uid() or None
+    for read_only in (True, False):
+        try:
+            load_agent_today_response(uid, query="", read_only=read_only)
+        except Exception as e:  # noqa: BLE001
+            _log.warning("today warm failed: %s", e)
+
+
+def _schedule_today_rewarm() -> None:
+    """After a write clears the cache, rebuild it off the request thread."""
+    global _TODAY_REWARM_SCHEDULED
+    if not _TODAY_WARM_ARMED or agent_today_cache_ttl_sec() <= 0:
+        return
+    with _TODAY_REWARM_LOCK:
+        if _TODAY_REWARM_SCHEDULED:
+            return
+        _TODAY_REWARM_SCHEDULED = True
+
+    def _fire() -> None:
+        global _TODAY_REWARM_SCHEDULED
+        with _TODAY_REWARM_LOCK:
+            _TODAY_REWARM_SCHEDULED = False
+        try:
+            warm_agent_today()
+        except Exception as e:  # noqa: BLE001
+            _log.warning("today rewarm failed: %s", e)
+
+    timer = _threading.Timer(0.01, _fire)
+    timer.daemon = True
+    timer.start()
+
+
 def invalidate_dashboard_memo() -> None:
     global _PAYLOAD_WRITE_GEN
     with _PAYLOAD_MEMO_LOCK:
@@ -617,6 +679,7 @@ def invalidate_dashboard_memo() -> None:
         _PAYLOAD_MEMO.clear()
         _DAILY_PATCH.clear()
     invalidate_agent_today_cache()
+    _schedule_today_rewarm()
 
 
 def _hit_fresh(hit: Tuple[Any, ...], ttl: float) -> bool:
@@ -822,7 +885,7 @@ def load_agent_today_response(
     query: str = "",
     read_only: bool = False,
 ) -> Dict[str, Any]:
-    """GET /api/agent/today body, cached 30–60s while the server is serving.
+    """GET /api/agent/today body, cached while the server is serving.
 
     A write that invalidates the dashboard memo also drops this cache, so
     the next read is computed again.
@@ -2235,8 +2298,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception:  # noqa: BLE001
                 accept = ""
         body = raw
-        if "gzip" in str(accept).lower():
-            body = gzip.compress(raw, compresslevel=5)
+        # q-values, not a substring check: gzip;q=0 is a refusal.
+        if accepts_gzip(accept):
+            body = gzip.compress(raw, compresslevel=5, mtime=0)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         if body is not raw:
@@ -4379,8 +4443,16 @@ def main(argv: Optional[List[str]] = None) -> None:
     host = str(args.host or "127.0.0.1")
     # Ensure static exists
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
-    global _PAYLOAD_MEMO_ENABLED
+    global _PAYLOAD_MEMO_ENABLED, _TODAY_WARM_ARMED
     _PAYLOAD_MEMO_ENABLED = True
+    _TODAY_WARM_ARMED = True
+    from rt_dashboard.background_refresh import (
+        register_today_warmer,
+        set_today_refresh_wait,
+    )
+
+    register_today_warmer(warm_agent_today)
+    set_today_refresh_wait(today_refresh_wait_sec)
     register_after_health_refresh(refresh_memoized_payloads)
     server = ThreadingHTTPServer((host, int(port)), DashboardHandler)
     display_host = "127.0.0.1" if host in ("0.0.0.0", "") else host

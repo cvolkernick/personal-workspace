@@ -67,6 +67,22 @@ class IncrementalWarmTests(unittest.TestCase):
         self.assertEqual(len(spawned), 2)
         self.assertTrue(all(c["incremental"] for c in spawned))
 
+    def test_warm_loop_warms_today_at_startup(self) -> None:
+        import time
+
+        calls = []
+        br.register_today_warmer(lambda: calls.append("today"))
+        os.environ["DASHBOARD_WARM_INTERVAL_SEC"] = "300"
+        try:
+            with mock.patch.object(br, "schedule_incremental_warm", return_value=False):
+                self.assertTrue(br.start_warm_loop())
+                deadline = time.time() + 2
+                while not calls and time.time() < deadline:
+                    time.sleep(0.02)
+            self.assertEqual(calls[0], "today")
+        finally:
+            br.clear_today_warmers()
+
     def test_warm_interval_zero_disables_loop(self) -> None:
         os.environ["DASHBOARD_WARM_INTERVAL_SEC"] = "0"
         self.assertEqual(br.warm_interval_sec(), 0.0)
