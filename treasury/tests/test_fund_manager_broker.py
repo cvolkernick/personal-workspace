@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
@@ -30,8 +31,16 @@ REPO_POLICY = json.loads((ROOT / "investment" / "fund_manager.json").read_text(e
 ACCT = REPO_POLICY["account"]["account_number"]
 
 
-def pos(sym, qty, px):
-    return {"symbol": sym, "quantity": str(qty), "average_buy_price": str(px)}
+def pos(sym, qty, px, *, priced=True):
+    """A position. ``px`` is the mark (last price) unless ``priced`` is false.
+
+    ``priced=False`` leaves only average buy price, which sizing must not treat
+    as market value.
+    """
+    row = {"symbol": sym, "quantity": str(qty), "average_buy_price": str(px)}
+    if priced:
+        row["last_price"] = str(px)
+    return row
 
 
 # BTC sleeve 50 of 170 invested (29%) -> under 40%
@@ -40,10 +49,39 @@ UNDER = [pos("TSLA", 1, 60), pos("SPCX", 1, 60), pos("STRC", 0.5, 100)]
 OVER = [pos("TSLA", 1, 30), pos("SPCX", 1, 20), pos("STRC", 1, 100)]
 
 
+def _marked_total(positions):
+    """Sum of market values, or None if any held row has no market price."""
+    total = 0.0
+    for p in positions or []:
+        if not isinstance(p, dict):
+            continue
+        try:
+            qty = float(p.get("quantity") or 0)
+        except (TypeError, ValueError):
+            return None
+        if qty <= 0:
+            continue
+        if p.get("market_value") not in (None, ""):
+            total += float(p["market_value"])
+            continue
+        px = None
+        for k in ("last_price", "price", "mark_price"):
+            if p.get(k) not in (None, ""):
+                px = float(p[k])
+                break
+        if px is None:
+            return None
+        total += qty * px
+    return total
+
+
 def snap(cash=10.0, bp=None, positions=UNDER, now=NOW, **extra):
     ag = {"account_number": ACCT, "cash": cash, "buying_power": cash if bp is None else bp,
           "unleveraged_buying_power": cash if bp is None else bp, "positions": positions,
           "as_of": (now - timedelta(hours=1)).isoformat()}
+    marked = _marked_total(positions)
+    if marked is not None and "total_value" not in extra:
+        ag["total_value"] = round(marked + float(cash), 4)
     ag.update(extra)
     return {"agentic": ag}
 
@@ -122,6 +160,7 @@ class Base(unittest.TestCase):
         os.environ.pop(broker.DISABLE_ENV, None)
         os.environ.pop(broker.CLIENT_ENV, None)
         os.environ["FM_PENDING_APPROVALS_PATH"] = str(self.dir / "pending.json")
+        os.environ["FM_DECISIONS_PATH"] = str(self.dir / "decisions.jsonl")
         err = mock.patch("sys.stderr")
         err.start()
         self.addCleanup(err.stop)
@@ -483,39 +522,64 @@ class TestDeterministicRunSize(Base):
 
 
 # ------------------------------------------- 2b valuing the 40% test (quotes)
-NOVALUE = [pos("TSLA", 1, 60), pos("SPCX", 1, 60), pos("STRC", 0.5, 100)]  # cost basis: BTC 29%
+# Cost only: no last price and no market value. Quotes must supply the mark.
+NOVALUE = [pos("TSLA", 1, 60, priced=False), pos("SPCX", 1, 60, priced=False), pos("STRC", 0.5, 100, priced=False)]
 
 
 class TestValuationQuotes(Base):
     def test_live_quotes_used_when_snapshot_has_no_market_value(self):
         c = FakeClient(quotes={"TSLA": 10, "SPCX": 10, "STRC": 200})  # BTC 100 / 120 = 83%
-        _, info = self.plan([buy("TSLA", 5)], snapshot=snap(cash=20, positions=NOVALUE), client=c)
+        # Quoted book 120 + cash 20. The stated total has to be that market NAV.
+        _, info = self.plan(
+            [buy("TSLA", 5)],
+            snapshot=snap(cash=20, positions=NOVALUE, total_value="140"),
+            client=c,
+        )
         self.assertEqual(info["valuation"], "live_quotes")
         self.assertAlmostEqual(info["btc_share_before"], 0.8333, places=3)
         self.assertIn("TSLA", self.legs(info))  # over 40% -> stocks allowed
         self.assertEqual(c.calls, [("get_recent_orders", ACCT), ("get_quotes", ("SPCX", "STRC", "TSLA"))])
         self.assertFalse(any(n == "place_order" for n, *_ in c.calls))
 
-    def test_quote_failure_falls_back_to_cost_basis_and_is_logged(self):
+    def test_quote_failure_blocks_the_buy_and_logs_one_decision(self):
         c = FakeClient(quote_exc=broker.BrokerError("grok timeout"))
-        _, info = self.plan([buy("TSLA", 5)], snapshot=snap(cash=20, positions=NOVALUE), client=c)
-        self.assertTrue(info["valuation"].startswith("cost_basis_fallback"))
-        self.assertAlmostEqual(info["btc_share_before"], 0.2941, places=3)
+        orders, info = self.plan([buy("TSLA", 5)], snapshot=snap(cash=20, positions=NOVALUE), client=c)
+        self.assertEqual(orders, [])
+        self.assertEqual(info["status"], broker.S_BOOK_UNKNOWN)
+        self.assertIn("missing market price", info["reason"])
+        self.assertNotIn("cost_basis", info["reason"])
         self.assertNotIn("TSLA", self.legs(info))
-        self.assertTrue(any("cost_basis_fallback" in n for n in info["notes"]))
-        self.assertIn("cost_basis_fallback", info["summary"])
-        entry = gate._execution_entry({"placed": [{"symbol": "STRC", "notional_usd": 5.0, "status": "placed"}]}, info)
-        self.assertIn("40% test valued at cost basis", entry["summary"])
-        self.assertIn("cost_basis_fallback", entry["plan"]["valuation"])
+        rows = [
+            json.loads(line)
+            for line in (self.dir / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("missing market price", rows[0]["reason"])
+        self.assertEqual(rows[0]["actions"], [])
+        # A second pass the same day does not add another row and does not raise.
+        again, info2 = self.plan([buy("TSLA", 5)], snapshot=snap(cash=20, positions=NOVALUE), client=c)
+        self.assertEqual(again, [])
+        self.assertEqual(info2["status"], broker.S_BOOK_UNKNOWN)
+        rows2 = [
+            json.loads(line)
+            for line in (self.dir / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(rows2), 1)
 
-    def test_no_client_or_partial_quotes_fall_back(self):
+    def test_no_client_or_partial_quotes_block_unpriced_symbols(self):
         _, info = self.plan([], snapshot=snap(cash=20, positions=NOVALUE))
-        self.assertIn("no broker client", info["valuation"])
+        self.assertEqual(info["status"], broker.S_BOOK_UNKNOWN)
+        self.assertIn("missing market price", info["reason"])
+        self.assertIn("no broker client", info.get("valuation") or info["reason"])
         c = FakeClient(quotes={"STRC": 200})
         _, info2 = broker.plan_intents([], snapshot=snap(cash=20, positions=NOVALUE), policy_path=self.policy,
                                        ledger_path=self.dir / "l5.json", now=NOW, client=c)
-        self.assertIn("live_quotes_partial", info2["valuation"])
-        self.assertIn("SPCX,TSLA", info2["valuation"])
+        self.assertEqual(info2["status"], broker.S_BOOK_UNKNOWN)
+        self.assertIn("SPCX", info2["reason"])
+        self.assertIn("TSLA", info2["reason"])
+        self.assertNotIn("cost_basis", info2["reason"])
 
     def test_snapshot_market_value_needs_no_quotes(self):
         mv = [dict(p, market_value=str(float(p["quantity"]) * float(p["average_buy_price"]))) for p in NOVALUE]
@@ -524,6 +588,167 @@ class TestValuationQuotes(Base):
         self.assertEqual(info["valuation"], "snapshot_market_value")
         # no valuation quotes; the only call is the SATS <= $95 price check
         self.assertEqual(c.calls, [("get_recent_orders", ACCT), ("get_quotes", ("SATS",))])
+
+    def test_mara_cap_uses_market_value_not_cost_basis(self):
+        # Pi 2026-11-17: 0.712517 sh, $11.23 average buy = $8.0016 (1.69% of
+        # $473.15). Live mark $6.495 = $4.63, which is 0.978% (reported 0.976%
+        # on the rounded dollar). The 1% cap must use the mark and let MARA pass.
+        qty = Decimal("0.712517")
+        nav = Decimal("473.15")
+        cost = qty * Decimal("11.23")
+        market = qty * Decimal("6.495")
+        self.assertAlmostEqual(float(cost), 8.0016, places=4)
+        self.assertGreater(float(cost / nav * 100), 1.6)
+        pct = float(market / nav * 100)
+        self.assertLess(pct, 1.0)
+        self.assertAlmostEqual(pct, 0.978, places=2)
+        pins = {"MARA": Decimal("1.67")}
+        themes = [("energy", ("MARA",))]
+        whole = {"MARA": Decimal("1")}
+        _, blocked = broker.allocate_stock_buys(Decimal("50"), {"MARA": cost}, nav, pins, themes, whole)
+        self.assertEqual(blocked, [])
+        _, allowed = broker.allocate_stock_buys(Decimal("50"), {"MARA": market}, nav, pins, themes, whole)
+        self.assertEqual(len(allowed), 1)
+        self.assertEqual(allowed[0]["symbol"], "MARA")
+        self.assertGreater(allowed[0]["notional_usd"], 0)
+        self.assertFalse(allowed[0]["auto_execute"])
+
+        shipped = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+        self.assertTrue(shipped["theme_buy_hold"]["active"])
+        policy = json.loads(self.policy.read_text(encoding="utf-8"))
+        policy["theme_buy_hold"]["active"] = False
+        self.policy.write_text(json.dumps(policy), encoding="utf-8")
+        (self.dir / "consider_share.json").write_text(json.dumps({
+            "pins": {"MARA": 1.67},
+            "whole_fund_pct": {"MARA": 1},
+            "themes": {"energy": {"fill_order": 1, "symbols": ["MARA"]}},
+        }), encoding="utf-8")
+        # STRC is the rest of the market book so NAV stays $473.15 and the BTC
+        # sleeve is already over 40% (the stock budget can reach MARA).
+        strc = nav - Decimal("10") - market
+        positions = [
+            {"symbol": "STRC", "quantity": "1", "market_value": str(strc)},
+            {"symbol": "MARA", "quantity": "0.712517", "average_buy_price": "11.23"},
+        ]
+        client = FakeClient(quotes={"MARA": "6.495"})
+        orders, info = self.plan(
+            [buy("MARA", 5)],
+            snapshot=snap(cash=10, positions=positions, total_value="473.15"),
+            client=client,
+        )
+        self.assertNotEqual(info["status"], broker.S_BOOK_UNKNOWN, info.get("reason"))
+        self.assertNotIn("cost_basis", str(info.get("valuation")))
+        self.assertAlmostEqual(info["symbol_nav_pct"]["MARA"], pct, places=3)
+        self.assertAlmostEqual(info["nav_usd"], 473.15, places=2)
+        pending = [p for p in info.get("pending_approvals") or [] if p.get("symbol") == "MARA"]
+        self.assertEqual(len(pending), 1)
+        self.assertAlmostEqual(pending[0]["notional_usd"], 0.10, places=2)
+        self.assertFalse(any(o.get("symbol") == "MARA" and o.get("side") != "buy" for o in orders if isinstance(o, dict)))
+        self.assertTrue(shipped["theme_buy_hold"]["active"])
+
+    def test_missing_mara_price_blocks_the_buy(self):
+        positions = [
+            {"symbol": "STRC", "quantity": "1", "market_value": "400"},
+            {"symbol": "MARA", "quantity": "0.712517", "average_buy_price": "11.23"},
+        ]
+        client = FakeClient(quotes={})
+        orders, info = self.plan(
+            [buy("MARA", 5)],
+            snapshot=snap(cash=10, positions=positions, total_value="410"),
+            client=client,
+        )
+        self.assertEqual(orders, [])
+        self.assertEqual(info["status"], broker.S_BOOK_UNKNOWN)
+        self.assertIn("MARA", info["reason"])
+        self.assertIn("missing market price", info["reason"])
+        self.assertNotIn("cost_basis", info["reason"])
+        self.assertEqual(info.get("pending_approvals") or [], [])
+        rows = [
+            json.loads(line)
+            for line in (self.dir / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("MARA", rows[0]["reason"])
+
+    def _decision_rows(self):
+        path = self.dir / "decisions.jsonl"
+        if not path.is_file():
+            return []
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def test_near_zero_total_with_positions_blocks_and_logs_once(self):
+        bad = snap(cash=0.0, bp=0.0, positions=[pos("TSLA", 1, 200)], total_value="0.00537")
+        orders, info = self.plan([buy("TSLA", 5)], snapshot=bad)
+        self.assertEqual(orders, [])
+        self.assertIn("near zero", info["reason"])
+        self.assertEqual(len(self._decision_rows()), 1)
+        again, _ = self.plan([buy("TSLA", 5)], snapshot=bad)
+        self.assertEqual(again, [])
+        self.assertEqual(len(self._decision_rows()), 1)
+        self.assertEqual(self._decision_rows()[0]["actions"], [])
+
+    def test_nav_disagreement_stale_and_missing_fields_block(self):
+        disagree = snap(cash=10, positions=[pos("TSLA", 1, 400)], total_value="10")
+        orders, info = self.plan([buy("TSLA", 5)], snapshot=disagree)
+        self.assertEqual(orders, [])
+        self.assertIn("disagrees", info["reason"])
+        self.assertEqual(len(self._decision_rows()), 1)
+
+        stale = snap(now=NOW - timedelta(hours=9))
+        orders, info = self.plan([buy("TSLA", 5)], snapshot=stale)
+        self.assertEqual(orders, [])
+        self.assertIn("stale", info["reason"])
+
+        missing_as_of = snap()
+        missing_as_of["agentic"].pop("as_of")
+        orders, info = self.plan([], snapshot=missing_as_of)
+        self.assertEqual(orders, [])
+        self.assertIn("missing as_of", info["reason"])
+
+        missing_cash = snap()
+        for key in ("cash", "buying_power", "unleveraged_buying_power", "settled_cash"):
+            missing_cash["agentic"].pop(key, None)
+        orders, info = self.plan([], snapshot=missing_cash)
+        self.assertEqual(orders, [])
+        self.assertIn("missing cash", info["reason"])
+
+        missing_positions = snap()
+        missing_positions["agentic"].pop("positions")
+        orders, info = self.plan([], snapshot=missing_positions)
+        self.assertEqual(orders, [])
+        self.assertIn("missing positions", info["reason"])
+        # one row per distinct reason, and nothing raised
+        reasons = [r["reason"] for r in self._decision_rows()]
+        self.assertGreaterEqual(len(reasons), 4)
+        self.assertEqual(len(reasons), len(set(reasons)))
+
+    def test_deployable_cash_fails_closed_on_implausible_snapshot(self):
+        from datetime import datetime as dt
+        fresh = (dt.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+        bad = {
+            "agentic": {
+                "as_of": fresh,
+                "cash": 20.0,
+                "buying_power": 20.0,
+                "total_value": 0.00537,
+                "positions": [{"symbol": "TSLA", "quantity": "1", "last_price": "200"}],
+            }
+        }
+        path = self.dir / "bad_rh.json"
+        path.write_text(json.dumps(bad), encoding="utf-8")
+        self.assertIsNone(gate._deployable_cash_from_snapshot(path))
+        good = {
+            "agentic": {
+                "as_of": fresh,
+                "cash": 12.5,
+                "buying_power": 12.5,
+                "total_value": 212.5,
+                "positions": [{"symbol": "TSLA", "quantity": "1", "last_price": "200", "market_value": "200"}],
+            }
+        }
+        path.write_text(json.dumps(good), encoding="utf-8")
+        self.assertAlmostEqual(gate._deployable_cash_from_snapshot(path), 12.5)
 
     def test_grok_quote_call_is_read_only_place_denied(self):
         seen = {}

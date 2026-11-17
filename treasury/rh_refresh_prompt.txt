@@ -2,6 +2,9 @@ Unattended Robinhood snapshot refresh for personal-workspace FCC (read-only trad
 
 1. Use Robinhood MCP: get_accounts.
 2. get_portfolio + get_equity_positions for primary (config robinhood.account_number, e.g. 5QW39737) and agentic (agentic_account_number, e.g. 674601752).
+   Copy each account's USD data.total_value, data.equity_value, and data.cash exactly.
+   Do not write crypto_value, a coin quantity, an rhc crypto-account balance, or any non-USD amount into total_value or cash.
+   If total_value is an object, use its amount only when currency is USD; otherwise use equity_value. get_equity_positions has no market price — do not invent one from average_buy_price.
 3. Build envelope JSON and run:
    python3 treasury/rh_sync.py --stdin
    with primary_portfolio/agentic_portfolio (wrap MCP data as {"data": ...}), accounts, primary_positions, agentic_positions, primary_account, agentic_account, source "live".

@@ -337,6 +337,29 @@ def _fnum(val: Any, default: float = 0.0) -> float:
         return default
 
 
+def _usd_amount(val: Any) -> Optional[float]:
+    """A dollar amount, or None when the value is missing or not USD.
+
+    A money object whose currency is BTC (or anything other than USD) is not
+    a dollar total. Callers must not store that quantity in ``total_value``.
+    """
+    if isinstance(val, dict):
+        cur = str(
+            val.get("currency") or val.get("currency_code") or val.get("display_currency") or "USD"
+        ).strip().upper()
+        if cur not in ("USD", "US$", ""):
+            return None
+        inner = val.get("amount")
+        if inner is None:
+            inner = val.get("value")
+        if inner is None or inner == "":
+            return None
+        return _fnum(inner)
+    if val is None or val == "":
+        return None
+    return _fnum(val)
+
+
 def normalize_robinhood_payload(data: Dict[str, Any], *, source: str = "snapshot") -> Dict[str, Any]:
     """Normalize MCP/API portfolio payload into treasury fields.
 
@@ -380,18 +403,35 @@ def normalize_robinhood_payload(data: Dict[str, Any], *, source: str = "snapshot
     acct = data.get("account_number") or body.get("account_number")
     last4 = data.get("account_number_last4") or _mask_account(acct)
 
+    currency = str(body.get("currency") or "USD").strip().upper() or "USD"
+    non_usd = currency not in ("USD", "US$", "")
+    if non_usd:
+        total = equity = cash_n = None
+    else:
+        total = _usd_amount(body.get("total_value"))
+        equity = _usd_amount(body.get("equity_value"))
+        cash_n = _usd_amount(body.get("cash"))
+        # A non-USD money object in total_value (crypto quantity) is not the book.
+        if total is None and equity is not None:
+            total = equity
+    untrusted = None
+    if non_usd or (isinstance(body.get("total_value"), dict) and _usd_amount(body.get("total_value")) is None and total is None):
+        untrusted = "portfolio total is not a USD amount"
+
     out: Dict[str, Any] = {
         "source": source,
         "as_of": data.get("as_of") or body.get("as_of") or _now(),
-        "total_value": _fnum(body.get("total_value")),
-        "equity_value": _fnum(body.get("equity_value")),
-        "cash": _fnum(body.get("cash")),
+        "total_value": 0.0 if total is None else total,
+        "equity_value": 0.0 if equity is None else equity,
+        "cash": 0.0 if cash_n is None else cash_n,
         "buying_power": bp,
         "unleveraged_buying_power": unlev,
         "margin_use": body.get("margin_use"),
-        "currency": body.get("currency") or "USD",
+        "currency": currency,
         "account_number_last4": last4,
     }
+    if untrusted:
+        out["sizing_untrusted"] = untrusted
     if acct:
         out["account_number"] = str(acct)
     if data.get("agentic_allowed") is not None:

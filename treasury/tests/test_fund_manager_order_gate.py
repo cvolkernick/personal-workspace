@@ -867,9 +867,9 @@ class TestRulesEngineNoSellToRebalance(unittest.TestCase):
                 "buying_power": bp,
                 "total_value": 424.0 + cash,
                 "positions": [
-                    {"symbol": "MSTR", "quantity": 1, "average_buy_price": 82.76},
-                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 170.62},
-                    {"symbol": "SPCX", "quantity": 1, "average_buy_price": 170.62},
+                    {"symbol": "MSTR", "quantity": 1, "average_buy_price": 82.76, "last_price": 82.76},
+                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 170.62, "last_price": 170.62},
+                    {"symbol": "SPCX", "quantity": 1, "average_buy_price": 170.62, "last_price": 170.62},
                 ],
             }
         }

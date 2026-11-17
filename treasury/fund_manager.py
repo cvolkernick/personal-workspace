@@ -34,6 +34,7 @@ from treasury.pi_ops_alert import (  # noqa: E402
 
 from treasury.fund_manager_order_gate import (  # noqa: E402
     BLOCK_STATUS as GATE_BLOCK_STATUS,
+    _parse_ts as _gate_parse_ts,
     guard_decision_entry,
     load_override as _load_sell_override,
 )
@@ -335,22 +336,161 @@ def sleeve_for_symbol(symbol: str, policy: Dict[str, Any]) -> str:
     return "other"
 
 
-def _position_market_value(pos: Dict[str, Any], quotes: Optional[Dict[str, float]] = None) -> float:
-    """Estimate position MV from quantity * price if available."""
+# Dollar totals already on the position (broker equity), never a per-share cost.
+_POSITION_EQUITY_KEYS = ("market_value", "equity", "position_equity")
+_MARKET_PRICE_KEYS = ("last_price", "price", "mark_price")
+# A stated total under this, while a share quantity is open, is not a book.
+_NEAR_ZERO_TOTAL_USD = 1.0
+
+
+def _positive(val: Any) -> Optional[float]:
+    if val is None or val == "":
+        return None
+    try:
+        n = float(val)
+    except (TypeError, ValueError):
+        return None
+    if n != n or n <= 0:  # NaN or not a positive mark
+        return None
+    return n
+
+
+def _position_market_value(
+    pos: Dict[str, Any],
+    quotes: Optional[Dict[str, float]] = None,
+    *,
+    allow_cost_basis: bool = False,
+) -> Optional[float]:
+    """Market value in dollars: position equity, or quantity times a market price.
+
+    ``average_buy_price`` is cost, not a mark. Sizing never uses it. The public
+    brief's labeled estimate may pass ``allow_cost_basis=True``. Returns None
+    when the position is held and no market price is available (fail closed).
+    """
     qty = _f(pos.get("quantity") or pos.get("shares_available_for_sells"))
     if qty <= 0:
         return 0.0
+    for k in _POSITION_EQUITY_KEYS:
+        mv = _positive(pos.get(k))
+        if mv is not None:
+            return mv
     sym = (pos.get("symbol") or "").upper()
     px = None
     if quotes and sym in quotes:
-        px = quotes[sym]
-    for k in ("last_price", "price", "mark_price", "average_buy_price"):
-        if pos.get(k) is not None and px is None:
-            px = _f(pos.get(k))
-    if px is None or px <= 0:
-        # Fall back to cost basis so empty quotes still allocate
-        px = _f(pos.get("average_buy_price"))
-    return qty * px
+        px = _positive(quotes.get(sym))
+    if px is None:
+        for k in _MARKET_PRICE_KEYS:
+            px = _positive(pos.get(k))
+            if px is not None:
+                break
+    if px is not None:
+        return qty * px
+    if allow_cost_basis:
+        cost = _positive(pos.get("average_buy_price"))
+        if cost is not None:
+            return qty * cost
+    return None
+
+
+def _agentic_block(snapshot: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(snapshot, dict):
+        return None
+    ag = snapshot.get("agentic") if isinstance(snapshot.get("agentic"), dict) else None
+    if ag is None and snapshot.get("agentic_allowed") is True:
+        ag = snapshot
+    return ag if isinstance(ag, dict) else None
+
+
+def _et_day(now: datetime) -> str:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return now.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    except Exception:
+        return now.astimezone(timezone.utc).date().isoformat()
+
+
+def sizing_snapshot_problem(
+    snapshot: Any,
+    *,
+    now: datetime,
+    max_age_hours: float = 6.0,
+) -> Optional[str]:
+    """Why this snapshot must not size a buy, or None when it is usable.
+
+    Fail closed: missing fields, a stale timestamp, a total near zero while a
+    position is open, or a stated NAV that disagrees with priced positions
+    plus cash. Cost basis is not a position value, so an unpriced name is
+    not compared here; the buyer blocks that symbol separately.
+    """
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    ag = _agentic_block(snapshot)
+    if ag is None:
+        return "missing agentic block in robinhood snapshot"
+    if ag.get("sizing_untrusted"):
+        return str(ag.get("sizing_untrusted"))
+    raw_as_of = ag.get("as_of") if ag.get("as_of") not in (None, "") else None
+    if raw_as_of is None and isinstance(snapshot, dict):
+        raw_as_of = snapshot.get("as_of")
+    if raw_as_of in (None, ""):
+        return "missing as_of"
+    ts = _gate_parse_ts(str(raw_as_of))
+    if ts is None:
+        return "unreadable as_of"
+    age_h = (now - ts).total_seconds() / 3600.0
+    if age_h < 0 or age_h > float(max_age_hours):
+        return f"stale robinhood snapshot (age {age_h:.1f}h)"
+    if "positions" not in ag or not isinstance(ag.get("positions"), list):
+        return "missing positions"
+    cash_keys = ("cash", "buying_power", "settled_cash", "unleveraged_buying_power")
+    if not any(ag.get(k) not in (None, "") for k in cash_keys):
+        return "missing cash"
+    positions = [p for p in ag.get("positions") or [] if isinstance(p, dict)]
+    held = [p for p in positions if _f(p.get("quantity")) > 0]
+    # total_value of 0 is present and not positive. Distinguish missing from zero.
+    total_missing = ag.get("total_value") in (None, "")
+    total = 0.0
+    if not total_missing:
+        try:
+            total = float(ag.get("total_value"))
+        except (TypeError, ValueError):
+            return "unreadable total_value"
+        if total != total or total < 0:
+            return "unreadable total_value"
+        if total < _NEAR_ZERO_TOTAL_USD and held:
+            return "total near zero while positions exist"
+    if total_missing or not held:
+        return None
+    values: List[float] = []
+    for p in held:
+        mv = _position_market_value(p)
+        if mv is None:
+            return None  # unpriced names are blocked by the buyer, not this check
+        values.append(mv)
+    cash = 0.0
+    for k in ("cash",):
+        if ag.get(k) not in (None, ""):
+            try:
+                cash = float(ag.get(k))
+            except (TypeError, ValueError):
+                return "unreadable cash"
+            break
+    summed = sum(values) + cash
+    tol = max(1.0, abs(float(total)) * 0.01)
+    if abs(float(total) - summed) > tol + 1e-6:
+        return (
+            f"nav {float(total):.4f} disagrees with positions plus cash {summed:.4f} "
+            f"beyond tolerance {tol:.2f}"
+        )
+    return None
+
+
+def decisions_path(explicit: Optional[Path] = None) -> Path:
+    if explicit:
+        return Path(explicit)
+    env = (os.environ.get("FM_DECISIONS_PATH") or "").strip()
+    return Path(env) if env else DECISIONS_PATH
 
 
 def analyze_agentic_book(
@@ -358,8 +498,14 @@ def analyze_agentic_book(
     policy: Optional[Dict[str, Any]] = None,
     *,
     quotes: Optional[Dict[str, float]] = None,
+    cost_basis_fallback: bool = False,
 ) -> Dict[str, Any]:
-    """Compute sleeve weights from agentic account only."""
+    """Compute sleeve weights from agentic account only.
+
+    Position dollars are market value (equity, or quantity times a quote or
+    last price). Cost basis is used only when ``cost_basis_fallback`` is true,
+    for the public brief's labeled estimate, never for sizing.
+    """
     policy = policy or load_fund_policy()
     targets = policy.get("targets") or {}
     tgt_btc = _f(targets.get("btc_digital_credit_pct"), 0.4)
@@ -390,12 +536,25 @@ def analyze_agentic_book(
     }
     rows: List[Dict[str, Any]] = []
     equity_mv = 0.0
+    unpriced: List[str] = []
     for pos in positions:
         sym = (pos.get("symbol") or "").upper()
         if not sym:
             continue
-        mv = _position_market_value(pos, quotes)
+        mv = _position_market_value(pos, quotes, allow_cost_basis=cost_basis_fallback)
         sleeve = sleeve_for_symbol(sym, policy)
+        if mv is None:
+            unpriced.append(sym)
+            rows.append(
+                {
+                    "symbol": sym,
+                    "quantity": _f(pos.get("quantity")),
+                    "market_value": None,
+                    "sleeve": sleeve,
+                    "valuation": "missing_market_price",
+                }
+            )
+            continue
         by_sleeve[sleeve] = by_sleeve.get(sleeve, 0.0) + mv
         equity_mv += mv
         rows.append(
@@ -404,6 +563,7 @@ def analyze_agentic_book(
                 "quantity": _f(pos.get("quantity")),
                 "market_value": round(mv, 4),
                 "sleeve": sleeve,
+                "valuation": "cost_basis_estimate" if cost_basis_fallback else "market_value",
             }
         )
 
@@ -540,6 +700,12 @@ def analyze_agentic_book(
             "stocks_growth": in_band_stocks,
         },
         "positions": rows,
+        "unpriced_symbols": unpriced,
+        "valuation": (
+            "missing_market_price"
+            if unpriced
+            else ("cost_basis_estimate" if cost_basis_fallback else "market_value")
+        ),
         "sleeve_market_value": {k: round(v, 4) for k, v in by_sleeve.items()},
         "allowlist_core": (policy.get("allowlist") or {}).get("core") or [],
         "watchlist": wl,
@@ -555,6 +721,13 @@ def analyze_agentic_book(
             "Downside capped by agentic deposits. Order size at manager discretion. "
             "Public watchlist is monitor/consider only — not auto-buy. "
             "Private watchlist is IPO/list monitor only — never deployable while private."
+            + (
+                " Unpriced positions ("
+                + ", ".join(unpriced)
+                + ") are omitted from market value; cost basis is not used for sizing."
+                if unpriced
+                else ""
+            )
         ),
     }
 
@@ -834,7 +1007,7 @@ def append_decision(
     actions [{symbol, side, notional_usd, status, order_id}],
     weights_before, weights_after_expected, nav_usd, buying_power_usd.
     """
-    p = path or DECISIONS_PATH
+    p = decisions_path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     entry = dict(decision)
     entry.setdefault("as_of", _now())
@@ -864,6 +1037,59 @@ def append_decision(
         entry["_alert"] = _alert_blocked_sell(entry)
 
     return entry
+
+
+def note_sizing_block(
+    reason: str,
+    *,
+    now: Optional[datetime] = None,
+    path: Optional[Path] = None,
+) -> None:
+    """One decision row for this ET day and reason. Never raises, never buys."""
+    try:
+        now = now or datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        day = _et_day(now)
+        p = decisions_path(path)
+        if p.is_file():
+            for line in p.read_text(encoding="utf-8").splitlines()[-80:]:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    row = json.loads(stripped)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(row, dict)
+                    and row.get("reason") == reason
+                    and str(row.get("run_date") or "") == day
+                ):
+                    return
+        append_decision(
+            {
+                "as_of": now.isoformat(),
+                "kind": "hold",
+                "outcome": "blocked",
+                "path": "sizing_guard",
+                "need_llm": False,
+                "summary": reason,
+                "reason": reason,
+                "run_date": day,
+                "actions": [],
+                "rationale": {
+                    "why_now": reason,
+                    "why_not_alternatives": "fail closed: no buy on a bad or unpriced book",
+                    "thesis_tags": ["sizing_guard"],
+                },
+            },
+            path=p,
+            also_journal=False,
+            also_github=False,
+        )
+    except Exception:
+        return
 
 
 def _alert_blocked_sell(entry: Dict[str, Any]) -> Dict[str, Any]:
