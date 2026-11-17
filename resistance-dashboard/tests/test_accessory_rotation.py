@@ -330,7 +330,10 @@ class AccessoryRotation(unittest.TestCase):
                 )
             )
         letters = [letter for letter, _eid in abs_seen]
+        # Pull has no abs exercise in the catalog, so the two weekly
+        # slots land on the first push and the first legs day.
         self.assertEqual(letters, ["push", "legs"])
+        self.assertEqual(abs_seen[0][1], "ab-crunch-machine")
         self.assertNotEqual(abs_seen[0][1], abs_seen[1][1])
 
     def _total(self, plan):
@@ -397,9 +400,14 @@ class AccessoryRotation(unittest.TestCase):
             self.catalog, dict(RAMP), logged,
             recovery_score=30, session_type="legs", as_of="2026-11-14",
         )
+        def _notes(plan):
+            return " ".join(str(row.get("rationale") or "") for row in plan["exercises"])
+
         self.assertGreaterEqual(self._total(normal), 10)
-        self.assertLess(self._total(deload), 10, _ids(deload))
-        self.assertLess(self._total(low), 10, _ids(low))
+        self.assertIn("session set floor", _notes(normal))
+        # Deload keeps whatever the planner built. It does not top up to 10.
+        self.assertNotIn("session set floor", _notes(deload))
+        self.assertTrue(low.get("is_rest_day") or self._total(low) < 10)
 
     def test_ab_crunch_machine_is_the_weekly_primary(self):
         by_id = {row["id"]: row for row in self.catalog["exercises"]}
@@ -579,6 +587,168 @@ class AccessoryRotation(unittest.TestCase):
         )
         names = [row["name"] for row in plan["exercises"]]
         self.assertIn("Behind-the-Neck Smith Press", names)
+
+    def test_two_weeks_of_abs_are_two_days_with_one_crunch_machine(self):
+        history = [
+            Session(
+                date="2026-11-08",
+                session_type="pull",
+                exercises=[
+                    ExerciseEntry(
+                        name="Pulldowns",
+                        sets=[SetEntry(weight_lbs=100, sets=2, reps=8)],
+                    )
+                ],
+            )
+        ]
+        prior = []
+        weeks = {
+            "2026-11-09": [
+                ("2026-11-09", "push"),
+                ("2026-11-10", "pull"),
+                ("2026-11-11", "legs"),
+                ("2026-11-12", "push"),
+                ("2026-11-13", "pull"),
+                ("2026-11-14", "legs"),
+            ],
+            "2026-11-16": [
+                ("2026-11-16", "push"),
+                ("2026-11-17", "pull"),
+                ("2026-11-18", "legs"),
+                ("2026-11-19", "push"),
+                ("2026-11-20", "pull"),
+                ("2026-11-21", "legs"),
+            ],
+        }
+        alternates = []
+        for monday, days in weeks.items():
+            abs_days = []
+            for day, letter in days:
+                plan = generate_workout_plan(
+                    self.catalog,
+                    dict(RAMP),
+                    history,
+                    recovery_score=80,
+                    session_type=letter,
+                    as_of=day,
+                    prior_plans=list(prior),
+                )
+                for row in plan["exercises"]:
+                    self.assertGreaterEqual(_sets(row), 2, (day, row["name"]))
+                self.assertGreaterEqual(self._total(plan), 10, day)
+                self.assertLessEqual(self._total(plan), 14, day)
+                abs_rows = [row for row in plan["exercises"] if row["id"] in ABS_IDS]
+                self.assertLessEqual(len(abs_rows), 1, day)
+                if abs_rows:
+                    self.assertEqual(_sets(abs_rows[0]), 2)
+                    abs_days.append(abs_rows[0]["name"])
+                prior.append({
+                    "date": day,
+                    "session_type": letter,
+                    "exercises": plan["exercises"],
+                })
+                history.append(
+                    Session(
+                        date=day,
+                        session_type=letter,
+                        exercises=[
+                            ExerciseEntry(
+                                name=row["name"],
+                                sets=[SetEntry(weight_lbs=100, sets=_sets(row), reps=8)],
+                            )
+                            for row in plan["exercises"]
+                        ],
+                    )
+                )
+            self.assertEqual(len(abs_days), 2, (monday, abs_days))
+            self.assertEqual(abs_days.count("Ab Crunch Machine"), 1, abs_days)
+            other = [name for name in abs_days if name != "Ab Crunch Machine"]
+            self.assertEqual(other, [other[0]])
+            self.assertIn(other[0], {"Cable Crunch", "Roman Chair Knee Raise"})
+            alternates.append(other[0])
+        self.assertEqual(len(set(alternates)), 2, alternates)
+
+    def test_abs_cap_is_two_dates_not_one_per_letter(self):
+        history = [
+            Session(
+                date="2026-11-08",
+                session_type="pull",
+                exercises=[
+                    ExerciseEntry(
+                        name="Pulldowns",
+                        sets=[SetEntry(weight_lbs=100, sets=2, reps=8)],
+                    )
+                ],
+            )
+        ]
+        days = [("2026-11-09", "push"), ("2026-11-10", "push"), ("2026-11-11", "legs")]
+        hosted = []
+        for day, letter in days:
+            plan = generate_workout_plan(
+                self.catalog, dict(RAMP), history,
+                recovery_score=80, session_type=letter, as_of=day,
+            )
+            names = [row["name"] for row in plan["exercises"] if row["id"] in ABS_IDS]
+            if names:
+                hosted.append((letter, names[0]))
+            history.append(
+                Session(
+                    date=day,
+                    session_type=letter,
+                    exercises=[
+                        ExerciseEntry(
+                            name=row["name"],
+                            sets=[SetEntry(weight_lbs=100, sets=_sets(row), reps=8)],
+                        )
+                        for row in plan["exercises"]
+                    ],
+                )
+            )
+        self.assertEqual([letter for letter, _name in hosted], ["push", "push"])
+        self.assertEqual(hosted[0][1], "Ab Crunch Machine")
+        self.assertIn(hosted[1][1], {"Cable Crunch", "Roman Chair Knee Raise"})
+
+    def test_no_exercise_is_programmed_for_one_set(self):
+        plan = generate_workout_plan(
+            self.catalog,
+            dict(RAMP),
+            [
+                Session(
+                    date="2026-11-10",
+                    session_type="pull",
+                    exercises=[
+                        ExerciseEntry(
+                            name="Pulldowns",
+                            sets=[SetEntry(weight_lbs=100, sets=2, reps=8)],
+                        )
+                    ],
+                )
+            ],
+            recovery_score=80,
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        for row in plan["exercises"]:
+            self.assertGreaterEqual(_sets(row), 2, row["name"])
+
+    def test_push_triceps_and_delt_rotation_varies(self):
+        plans = self._three("push", ["2026-11-11", "2026-11-14", "2026-11-17"])
+        triceps = []
+        delts = []
+        for plan in plans:
+            names = [row["name"] for row in plan["exercises"]]
+            tri = [name for name in names if "Pushdown" in name or "Extension" in name and "Calf" not in name]
+            delt = [
+                name for name in names
+                if "Lateral" in name or "Reverse" in name or "Rear" in name
+            ]
+            self.assertLessEqual(len(tri), 1, names)
+            triceps.append(tri[0] if tri else "")
+            delts.append(tuple(delt))
+        self.assertGreaterEqual(len({name for name in triceps if name}), 2, triceps)
+        # Lateral Raises is the available delt raise. It is not on every push day.
+        self.assertIn(("Lateral Raises",), delts)
+        self.assertTrue(any(item != ("Lateral Raises",) for item in delts), delts)
 
 
 if __name__ == "__main__":

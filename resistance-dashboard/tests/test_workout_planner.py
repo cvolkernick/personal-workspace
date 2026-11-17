@@ -729,7 +729,8 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         ids = [e["id"] for e in plan["exercises"]]
         curls = [i for i in ids if i in ("seated-leg-curls", "lying-leg-curls")]
-        self.assertEqual(len(curls), 1, ids)
+        # One curl family. A 1-set curl is dropped when the cap cannot give it 2.
+        self.assertLessEqual(len(curls), 1, ids)
         self.assertIn("seated-leg-curls", {e["id"] for e in catalog["exercises"]})
         self.assertIn("lying-leg-curls", {e["id"] for e in catalog["exercises"]})
 

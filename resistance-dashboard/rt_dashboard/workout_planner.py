@@ -2807,6 +2807,52 @@ def _abs_week_hits(
     return dates, letters
 
 
+def _abs_dates_this_week(
+    sessions: Sequence[Any],
+    plans: Sequence[Any],
+    index: Dict[str, dict],
+    day: str,
+) -> Set[str]:
+    """Civil dates this America/New_York Mon–Sun week that already have abs.
+
+    ``day`` is the planner's civil date, which is already New York local.
+    Logged sessions and stored plans both count. Today is not included.
+    """
+    from .priority_ramp import week_monday
+
+    dates, _letters = _abs_week_hits(sessions, index, day)
+    monday = week_monday(day)
+    if monday is None:
+        return dates
+    start = monday.isoformat()
+    today = str(day or "")[:10]
+    by_name = {
+        _norm_name(ex.get("name") or ""): ex
+        for ex in index.values()
+        if ex.get("name")
+    }
+    for plan in plans or []:
+        if not isinstance(plan, dict):
+            continue
+        stamp = str(plan.get("date") or plan.get("local_today") or "")[:10]
+        if not stamp or stamp < start or stamp >= today:
+            continue
+        for ex in plan.get("exercises") or []:
+            if not isinstance(ex, dict):
+                continue
+            eid = str(ex.get("id") or "")
+            row = index.get(eid) if eid else None
+            if row is None:
+                row = by_name.get(_norm_name(str(ex.get("name") or "")))
+            if row is not None and _is_abs_row(row):
+                dates.add(stamp)
+                break
+            if _is_abs_row(ex):
+                dates.add(stamp)
+                break
+    return dates
+
+
 def abs_session_due(
     st: str,
     sessions: Sequence[Any],
@@ -2815,9 +2861,10 @@ def abs_session_due(
     *,
     today_logged_ids: Optional[Sequence[str]] = None,
     today_logged_names: Optional[Sequence[str]] = None,
+    prior_plans: Optional[Sequence[Any]] = None,
 ) -> bool:
-    """Abs is on legs and push, once each, and only twice per Mon–Sun week."""
-    if str(st or "") not in ABS_LETTERS:
+    """About two ab days per calendar week, across push, pull, and legs together."""
+    if str(st or "") not in ("push", "pull", "legs"):
         return False
     index = {
         ex["id"]: ex
@@ -2830,8 +2877,8 @@ def abs_session_due(
             continue
         if eid in logged_ids or _norm_name(ex.get("name") or "") in logged_names:
             return False
-    dates, letters = _abs_week_hits(sessions, index, day)
-    if len(dates) >= 2 or st in letters:
+    dates = _abs_dates_this_week(sessions, list(prior_plans or []), index, day)
+    if len(dates) >= 2:
         return False
     return True
 
@@ -3096,6 +3143,45 @@ def _session_floor_exempt(
         return float(recovery_score) < LOW_RECOVERY_BELOW
     except (TypeError, ValueError):
         return False
+
+
+def _push_variety_picks(
+    pool: Sequence[dict],
+    seen: Dict[str, str],
+    recent_sets: Sequence[Set[str]],
+    day: str,
+) -> List[dict]:
+    """One triceps variant and a light delt slot, least-recent first.
+
+    Only catalog rows already in the available pool are eligible. Nothing
+    is invented. A single delt raise is not forced onto every push day.
+    """
+    def primaries(ex: dict) -> Set[str]:
+        return {normalize_muscle(m) for m in (ex.get("primary_muscles") or [])}
+
+    triceps = [
+        ex for ex in pool
+        if str(ex.get("movement") or "") == "isolation" and "triceps" in primaries(ex)
+    ]
+    delts = [
+        ex for ex in pool
+        if str(ex.get("movement") or "") == "isolation"
+        and primaries(ex) & {"side_delts", "rear_delts", "delts"}
+    ]
+    triceps.sort(key=lambda ex: str(ex.get("id") or ""))
+    delts.sort(key=lambda ex: str(ex.get("id") or ""))
+    chosen: List[dict] = []
+    if triceps:
+        chosen.extend(pick_rotated_accessories(triceps, seen, day, 1))
+    if not delts:
+        return chosen
+    if len(delts) == 1:
+        previous = recent_sets[0] if recent_sets else set()
+        if str(delts[0].get("id") or "") not in previous:
+            chosen.append(delts[0])
+        return chosen
+    chosen.extend(pick_rotated_accessories(delts, seen, day, 1))
+    return chosen
 
 
 def rotation_candidates_for(
@@ -3467,8 +3553,8 @@ def shape_session_coverage(
         if existing is not None:
             if _row_sets(existing) < ABS_SETS and room() >= ABS_SETS - _row_sets(existing):
                 _resize_plan_row(existing, ABS_SETS, sec_frac)
-        elif choice is not None and room() >= 1:
-            use = ABS_SETS if room() >= ABS_SETS else room()
+        elif choice is not None and room() >= 2:
+            use = ABS_SETS if room() >= ABS_SETS else 2
             rows.append(_coverage_plan_row(
                 choice,
                 use,
@@ -3585,6 +3671,13 @@ def shape_session_coverage(
         picks = []
         pick_ids = set()
         protect_ids.clear()
+    if st == "push":
+        for ex in _push_variety_picks(pool, seen, recent_sets, day):
+            eid = str(ex.get("id") or "")
+            if eid and eid not in pick_ids:
+                picks.append(ex)
+                pick_ids.add(eid)
+                protect_ids.add(eid)
     back_pick = next((ex for ex in picks if _is_back_extension_row(ex)), None)
     hinges = [row for row in rows if primary_hinge_key(row)]
     pinned_hinge = next(
@@ -3633,12 +3726,15 @@ def shape_session_coverage(
             continue
         if logged(ex):
             continue
-        need = main_sets
-        if room() < need:
-            trim_accessories_for(need)
-        use = need if room() >= need else room()
-        if use < 1:
+        fam = pattern_family(ex)
+        if fam and any(pattern_family(row) == fam for row in rows):
             continue
+        need = max(2, main_sets)
+        if room() < 2:
+            trim_accessories_for(2)
+        if room() < 2:
+            continue
+        use = min(need, room())
         rows.append(_coverage_plan_row(
             ex,
             use,
@@ -3662,6 +3758,7 @@ def shape_session_coverage(
         day,
         today_logged_ids=today_logged_ids,
         today_logged_names=today_logged_names,
+        prior_plans=plans,
     )
 
     abs_options = _abs_rotation_candidates(pool_by_id)
@@ -3779,7 +3876,7 @@ def shape_session_coverage(
             if _family_slot_taken(sub, rows):
                 continue
             use = sets_now if sets_now <= room() else room()
-            if use < 1:
+            if use < 2:
                 continue
             rows.append(_coverage_plan_row(
                 sub,
@@ -3863,55 +3960,86 @@ def shape_session_coverage(
                 str(ex.get("name") or ""),
             )
 
-        while _sum_row_sets(rows) < floor_target and room() > 0:
-            options = [ex for ex in pool if _can_add(ex)]
-            options.sort(key=_filler_key)
-            added = False
-            for ex in options:
-                need = min(main_sets, room(), ACCESSORY_SET_CAP)
-                if primary_hinge_key(ex) or str(ex.get("movement") or "") == "compound":
-                    need = min(need, MAIN_COMPOUND_SET_CAP)
-                if need < 1:
-                    break
-                rows.append(_coverage_plan_row(
-                    ex,
-                    need,
-                    sessions=sessions,
-                    by_id=by_id,
-                    sec_frac=sec_frac,
-                    note="Filled to the session set floor.",
-                    recovery_score=recovery_score,
-                    continuity=continuity,
-                    recovery_rhr_under=recovery_rhr_under,
-                    equipment=equipment,
-                    deload=deload,
-                    weighins=weighins,
-                    day=day,
-                ))
-                added = True
-                break
-            if added:
-                continue
-            main_id = _main_compound_id()
-            bumped = False
-            bumpable = sorted(
-                rows,
-                key=lambda row: (
-                    0 if str(row.get("id") or "") in rotation_ids else 1,
-                    seen.get(str(row.get("id") or "")) or "",
-                    -_row_sets(row),
-                ),
-            )
-            for row in bumpable:
-                cap_sets = _row_set_cap(row, main_id)
-                if _row_sets(row) >= cap_sets or room() < 1:
+        def _drop_under_two() -> None:
+            for row in list(rows):
+                have = _row_sets(row)
+                if have >= 2:
                     continue
-                _resize_plan_row(row, _row_sets(row) + 1, sec_frac)
-                bumped = True
-                break
-            if not bumped:
-                break
+                if have > 0 and room() >= 2 - have:
+                    _resize_plan_row(row, 2, sec_frac)
+                else:
+                    rows.remove(row)
+
+        def _fill_to_floor() -> None:
+            while _sum_row_sets(rows) < floor_target and room() > 0:
+                options = [ex for ex in pool if _can_add(ex)]
+                options.sort(key=_filler_key)
+                added = False
+                for ex in options:
+                    cap_sets = ACCESSORY_SET_CAP
+                    if primary_hinge_key(ex) or str(ex.get("movement") or "") == "compound":
+                        cap_sets = min(cap_sets, MAIN_COMPOUND_SET_CAP)
+                    need = min(max(main_sets, 2), room(), cap_sets)
+                    if need < 2:
+                        break
+                    rows.append(_coverage_plan_row(
+                        ex,
+                        need,
+                        sessions=sessions,
+                        by_id=by_id,
+                        sec_frac=sec_frac,
+                        note="Filled to the session set floor.",
+                        recovery_score=recovery_score,
+                        continuity=continuity,
+                        recovery_rhr_under=recovery_rhr_under,
+                        equipment=equipment,
+                        deload=deload,
+                        weighins=weighins,
+                        day=day,
+                    ))
+                    added = True
+                    break
+                if added:
+                    continue
+                main_id = _main_compound_id()
+                bumped = False
+                bumpable = sorted(
+                    rows,
+                    key=lambda row: (
+                        0 if str(row.get("id") or "") in rotation_ids else 1,
+                        seen.get(str(row.get("id") or "")) or "",
+                        -_row_sets(row),
+                    ),
+                )
+                for row in bumpable:
+                    cap_sets = _row_set_cap(row, main_id)
+                    if _row_sets(row) >= cap_sets or room() < 1:
+                        continue
+                    _resize_plan_row(row, _row_sets(row) + 1, sec_frac)
+                    bumped = True
+                    break
+                if not bumped:
+                    break
+
+        _fill_to_floor()
         _clamp_row_sets()
+        _drop_under_two()
+        if _sum_row_sets(rows) < floor_target:
+            _fill_to_floor()
+            _clamp_row_sets()
+            _drop_under_two()
+
+    def _drop_under_two_always() -> None:
+        for row in list(rows):
+            have = _row_sets(row)
+            if have >= 2:
+                continue
+            if have > 0 and room() >= 2 - have:
+                _resize_plan_row(row, 2, sec_frac)
+            else:
+                rows.remove(row)
+
+    _drop_under_two_always()
 
     def _rank(row: dict) -> tuple:
         eid = str(row.get("id") or "")

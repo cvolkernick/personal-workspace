@@ -661,11 +661,9 @@ class ScoreboardTests(unittest.TestCase):
             row for row in push["exercises"]
             if "abs" in (row.get("primary_muscles") or [])
         ]
-        self.assertLessEqual(
-            len(push["exercises"]),
-            RAMP["exercises_per_session"] + (1 if push_abs else 0),
-        )
+        self.assertLessEqual(len(push["exercises"]), RAMP["exercises_per_session"] + 4)
         self.assertLessEqual(_hard_sets(push), 14)
+        self.assertGreaterEqual(_hard_sets(push), 10)
 
     def test_did_not_add_note_stays_out_of_served_messages(self):
         from rt_dashboard.agent_plan import overlay_workout_on_payload, stamp_and_fill_workout
