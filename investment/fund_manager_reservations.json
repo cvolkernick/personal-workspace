@@ -1,0 +1,5 @@
+{
+  "schema": "fund_manager_reservations_v0",
+  "notes": "Unexpired entries are subtracted from investable cash before sizing. Each entry is {date, usd, by, expires}. expires is an ET date (YYYY-MM-DD), inclusive. A missing or unreadable file loads as an empty list.",
+  "entries": []
+}

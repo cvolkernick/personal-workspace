@@ -150,6 +150,12 @@ elif [[ "${RR}" -ne 1 && "${SB}" -eq 0 ]]; then
       # Its env has no broker wiring and carries FM_ADVISORY_ONLY=1; the gate and
       # adapter also refuse under any grok ancestor. Only the gate call below
       # call (run by this script after grok exits) can submit.
+      # A non-zero grok exit (HTTP 402, usage balance exhausted, or any other
+      # failure) is broker_unavailable: one decision + one alert, then no re-plan
+      # for the rest of this ET day. The deterministic gate does not run on that path.
+      GROK_OUT="${LOG_DIR}/fund_manager_grok_stdout.txt"
+      GROK_ERR="${LOG_DIR}/fund_manager_grok_stderr.txt"
+      set +e
       env -u FM_BROKER_ADAPTER -u FM_BROKER_CLIENT -u FM_BROKER_GROK_BIN -u FM_BROKER_GROK_TIMEOUT_S \
         FM_ADVISORY_ONLY=1 \
         timeout "${FM_GROK_TIMEOUT_S:-1800}" grok -p "$(cat "${PROMPT_FILE}")" \
@@ -157,9 +163,23 @@ elif [[ "${RR}" -ne 1 && "${SB}" -eq 0 ]]; then
         --yolo \
         "${GROK_DENY[@]}" \
         --output-format plain \
-        || echo "WARN: grok headless exited non-zero"
-      python3 -m treasury.fund_manager_order_gate --execute-intents "${INTENTS_FILE}" \
-        || echo "WARN: order gate blocked/failed (exit $?) — see #701 blocked_sell"
+        >"${GROK_OUT}" 2>"${GROK_ERR}"
+      GRC=$?
+      set -e
+      echo "--- grok stdout ---"
+      cat "${GROK_OUT}" 2>/dev/null || true
+      echo "--- grok stderr ---"
+      cat "${GROK_ERR}" 2>/dev/null || true
+      if [[ "${GRC}" -ne 0 ]]; then
+        echo "WARN: grok headless exited ${GRC}"
+        python3 -m treasury.fund_manager_broker --note-broker-unavailable \
+          --grok-exit "${GRC}" --grok-stdout "${GROK_OUT}" --grok-stderr "${GROK_ERR}" \
+          || echo "WARN: could not record broker_unavailable"
+        echo "broker_unavailable — no re-plan for the rest of this ET day"
+      else
+        python3 -m treasury.fund_manager_order_gate --execute-intents "${INTENTS_FILE}" \
+          || echo "WARN: order gate blocked/failed (exit $?) — see #701 blocked_sell"
+      fi
     fi
     # Stale-RH / thin fallback only — full decision already on #701 via append_decision
     # Never force on quiet HOLD (avoids double #701 spam)

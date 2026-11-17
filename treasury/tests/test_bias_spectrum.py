@@ -404,15 +404,34 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertNotIn("$100", raw)
         self.assertNotIn("monthly $100", raw.lower())
         data = json.loads(raw)
-        self.assertEqual(data["as_of"], "2026-09-22")
+        self.assertEqual(data["as_of"], "2026-11-17")
         self.assertEqual(data["schema"], "fcc_consider_share_stamps_v0")
         self.assertEqual(data["unit"], "new_money_consider_share_pct")
         self.assertEqual(data["sum_to"], 100)
-        self.assertEqual(data["pins"], {"TSLA": 50.0, "SPCX": 50.0})
+        self.assertEqual(data["basis"], "percent_of_stocks_growth_sleeve")
+        self.assertEqual(
+            data["pins"],
+            {
+                "TSLA": 33.33,
+                "SPCX": 33.33,
+                "PLTR": 8.33,
+                "CRWD": 4.17,
+                "S": 4.17,
+                "CCJ": 6.67,
+                "GEV": 3.33,
+                "VRT": 3.33,
+                "OKLO": 1.67,
+                "MARA": 1.67,
+            },
+        )
+        self.assertAlmostEqual(sum(data["pins"].values()), 100.0, places=2)
+        self.assertAlmostEqual(sum(data["whole_fund_pct"].values()), 60.0, places=2)
+        self.assertEqual(data["whole_fund_pct"]["MARA"], 1.0)
         self.assertNotIn("BITA", data["pins"])
         self.assertNotIn("STRC", data["pins"])
-        self.assertNotIn("MARA", data["pins"])
         self.assertNotIn("NVDA", data["pins"])
+        self.assertNotIn("CRK", data["pins"])
+        self.assertNotIn("ETR", data["pins"])
         notes = data["notes"]
         self.assertIn("supersedes", notes.lower())
         self.assertIn("BITA", notes)
@@ -440,30 +459,18 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertIn("stocks sleeve", data["notes"].lower())
 
     def test_two_pin_overlay_unpins_bita_strc_mara_nvda(self) -> None:
-        """TSLA/SPCX 50/50 stamp (sum 100); other equities rescale to ~0; no Other."""
+        """Sleeve pins sum to 100 and stamp those names; unpinned equities rescale to ~0."""
         stamps = json.loads(
             (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(stamps["pins"], {"TSLA": 50.0, "SPCX": 50.0})
+        self.assertAlmostEqual(sum(stamps["pins"].values()), 100.0, places=2)
+        self.assertIn("MARA", stamps["pins"])
         policy = _policy()
-        policy["allowlist"]["core"] = [
-            "MSTR",
-            "STRC",
-            "SATA",
-            "TSLA",
-            "SPCX",
-            "BITA",
-            "MARA",
-        ]
-        policy["sleeves"]["btc_digital_credit"]["symbols"] = [
-            "MSTR",
-            "STRC",
-            "SATA",
-            "BITA",
-            "MARA",
-        ]
-        policy["sleeves"]["stocks_growth"]["symbols"] = ["TSLA", "SPCX"]
-        policy["sleeves"]["stocks_growth"]["watchlist_symbols"] = ["NVDA", "PLTR"]
+        pinned = list(stamps["pins"])
+        policy["allowlist"]["core"] = ["MSTR", "STRC", "SATA", "BITA", "NVDA", *pinned]
+        policy["sleeves"]["btc_digital_credit"]["symbols"] = ["MSTR", "STRC", "SATA", "BITA"]
+        policy["sleeves"]["stocks_growth"]["symbols"] = list(pinned)
+        policy["sleeves"]["stocks_growth"]["watchlist_symbols"] = ["NVDA"]
         policy["sleeves"]["energy_opportunistic"]["watchlist_symbols"] = []
         watch = {
             "entries": [e for e in _watchlist()["entries"] if e.get("symbol") != "BE"]
@@ -485,15 +492,16 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
                 for c in payload["chips"]
             )
         )
-        for sym in ("TSLA", "SPCX"):
+        for sym, pct in stamps["pins"].items():
             self.assertIn(sym, by)
-            self.assertAlmostEqual(by[sym]["weight_pct"], 50.0)
+            self.assertAlmostEqual(by[sym]["weight_pct"], float(pct))
             self.assertEqual(by[sym]["weight_basis"], "consider_share_stamp")
             self.assertTrue(by[sym]["consider_share_stamp"])
             self.assertIn("NOT a live NAV", by[sym]["notes"])
             self.assertIn("NOT a sleeve target", by[sym]["notes"])
             self.assertIn("NOT an order", by[sym]["notes"])
-        superseded = {"BITA": 2.0, "STRC": 5.0, "MARA": 3.0, "NVDA": 5.0}
+        self.assertTrue(by["MARA"]["consider_share_stamp"])
+        superseded = {"BITA": 2.0, "STRC": 5.0, "NVDA": 5.0}
         for sym, old_pin in superseded.items():
             self.assertIn(sym, by)
             self.assertFalse(by[sym].get("consider_share_stamp"))
@@ -503,14 +511,14 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         residual = sum(
             float(c["weight_pct"])
             for c in payload["chips"]
-            if c["symbol"] not in ("TSLA", "SPCX")
+            if c["symbol"] not in stamps["pins"]
         )
         self.assertAlmostEqual(100.0 + residual, 100.0, places=1)
         self.assertAlmostEqual(
             sum(float(c["weight_pct"]) for c in payload["chips"]), 100.0, places=1
         )
         self.assertAlmostEqual(residual, 0.0, places=1)
-        self.assertCountEqual(payload["consider_share_stamps"], ["TSLA", "SPCX"])
+        self.assertCountEqual(payload["consider_share_stamps"], list(stamps["pins"]))
         # Historical BE→TSLA/SPCX reallocate stays; absent BE is harmless.
         self.assertEqual(
             stamps.get("reallocate"),

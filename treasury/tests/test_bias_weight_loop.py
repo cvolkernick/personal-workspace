@@ -328,7 +328,11 @@ class TestPinsSoT(unittest.TestCase):
         live = json.loads(
             (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(sorted(pins_from(live)), ["SPCX", "TSLA"])
+        self.assertEqual(
+            sorted(pins_from(live)),
+            ["CCJ", "CRWD", "GEV", "MARA", "OKLO", "PLTR", "S", "SPCX", "TSLA", "VRT"],
+        )
+        self.assertIn("MARA", pins_from(live))
         g = live.get("guardrails") or {}
         self.assertEqual(g.get("locked_by"), "Chairman")
         self.assertEqual(float(g.get("single_symbol_max_auto")), 2.0)

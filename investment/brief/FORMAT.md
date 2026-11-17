@@ -26,7 +26,7 @@ Do not put balances, share quantities or account ids in it (the repo is public):
    - A ticker with nothing new: `- **BE** — No developments in the last 48h. Source: none`
    - Cover every ticker you want shown. Tickers outside `investment/consider_share.json` are allowed and are listed as "Other tickers".
 5. `## Relevance`: one line per ticker: `- **TICKER**: pinned` or `- **TICKER**: watch only`.
-   Only SPCX and TSLA (the `pins` in `consider_share.json`) read `pinned`. Every other ticker reads `watch only`.
+   Only symbols in the `pins` of `consider_share.json` read `pinned`. Every other ticker reads `watch only`.
    The renderer takes pinned vs watch only from `consider_share.json`; if a line disagrees it flags it and the JSON wins.
 6. `## Naka: direction (advisory)`: free text in your own words. Paragraphs and `- ` bullets only (no tables, no raw HTML).
 7. `## Naka: actions taken`: what you changed, or the single word `none`. Same text goes into `investment/naka-actions.md`

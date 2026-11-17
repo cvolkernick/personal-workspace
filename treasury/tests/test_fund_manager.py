@@ -154,9 +154,13 @@ class TestFundPolicy(unittest.TestCase):
         self.assertNotIn("BE", stocks_wl + energy_wl + core)
         pins_path = ROOT / "investment" / "consider_share.json"
         pins = json.loads(pins_path.read_text(encoding="utf-8"))
-        self.assertEqual(sorted((pins.get("pins") or {}).keys()), ["SPCX", "TSLA"])
-        self.assertAlmostEqual(float((pins.get("pins") or {})["TSLA"]), 15.0)
-        self.assertAlmostEqual(float((pins.get("pins") or {})["SPCX"]), 15.0)
+        pin_map = pins.get("pins") or {}
+        self.assertEqual(
+            sorted(pin_map),
+            ["CCJ", "CRWD", "GEV", "MARA", "OKLO", "PLTR", "S", "SPCX", "TSLA", "VRT"],
+        )
+        self.assertAlmostEqual(sum(float(v) for v in pin_map.values()), 100.0, places=2)
+        self.assertIn("MARA", pin_map)
 
     def test_book_channel_map_v0_enums_and_anchors(self):
         """Meridian nest: load fixture, lock enums, assert NVDA/MSTR may_change."""
@@ -252,8 +256,14 @@ class TestBtcDigitalCreditNewMoneyWeights(unittest.TestCase):
         self.assertIn("STRK", [s.upper() for s in btc["symbols"]])
         # Miners listed explicitly in floating universe (repo miners_infra tickers)
         uni = btc["new_money_weights"]["floating_universe"]
-        for m in ("MARA", "RIOT", "CLSK", "WULF", "IREN"):
+        for m in ("RIOT", "CLSK", "WULF", "IREN"):
             self.assertIn(m, uni)
+        self.assertNotIn("MARA", uni)
+        miners = [s.upper() for s in (btc["sub_sleeves"]["miners_infra"].get("symbols") or [])]
+        self.assertNotIn("MARA", miners)
+        energy = ((p["sleeves"]["stocks_growth"].get("themes") or {}).get("energy") or {})
+        self.assertIn("MARA", [s.upper() for s in (energy.get("symbols") or [])])
+        self.assertEqual(energy.get("mara_whole_fund_pct"), 1)
         # Nakatoshi 2026-10-24: IBIT is the native-BTC stand-in (no spot BTC in the account)
         for t in ("IBIT", "MSTR", "ASST", "BITA"):
             self.assertIn(t, uni)
