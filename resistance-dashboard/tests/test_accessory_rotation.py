@@ -407,9 +407,9 @@ class AccessoryRotation(unittest.TestCase):
             return " ".join(str(row.get("rationale") or "") for row in plan["exercises"])
 
         self.assertGreaterEqual(self._total(normal), 10)
-        self.assertIn("session set floor", _notes(normal))
-        # Deload keeps whatever the planner built. It does not top up to 10.
+        # Deload does not run the set-floor filler. Squat counts are separate.
         self.assertNotIn("session set floor", _notes(deload))
+        self.assertNotIn("Filled to the session set floor", _notes(deload))
         self.assertTrue(low.get("is_rest_day") or self._total(low) < 10)
 
     def test_ab_crunch_machine_is_the_weekly_primary(self):

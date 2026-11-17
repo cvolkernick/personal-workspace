@@ -491,8 +491,8 @@ class PlannerCapUnchanged(unittest.TestCase):
             self._plan(low + cur, "push", "2026-10-15"),
             # No recent behind-the-neck log, so DB Shoulder Press takes that slot.
             [("Smith Flat Bench", 2), ("Smith Incline Bench", 2),
-             ("DB Shoulder Press", 2), ("Tricep Pushdowns (Rope)", 2),
-             ("Smith Shrugs", 2), ("Ab Crunch Machine", 2)],
+             ("DB Shoulder Press", 2), ("Tricep Pushdowns (T-Bar)", 2),
+             ("Ab Crunch Machine", 2)],
         )
         hi = []
         for m in FOUR_WEEKS:

@@ -260,6 +260,98 @@ class CompoundRotation(unittest.TestCase):
             if primary_hinge_key(row):
                 self.assertLessEqual(_sets(row), 3)
 
+    def test_legs_open_with_a_squat_and_the_hinge_follows(self):
+        history = [
+            Session(
+                date="2026-11-17",
+                session_type="legs",
+                exercises=[
+                    ExerciseEntry(name="Hack Squat", sets=[SetEntry(weight_lbs=180, sets=3, reps=8)]),
+                    ExerciseEntry(name="RDL", sets=[SetEntry(weight_lbs=135, sets=3, reps=6)]),
+                ],
+            )
+        ]
+        prior = []
+        for day in ("2026-11-18", "2026-11-20", "2026-11-23", "2026-11-26"):
+            plan = generate_workout_plan(
+                self.catalog, dict(RAMP), history,
+                recovery_score=80, session_type="legs", as_of=day, prior_plans=list(prior),
+            )
+            rows = plan["exercises"]
+            self.assertIn(rows[0]["id"], ("hack-squat", "leg-press"), [r["name"] for r in rows])
+            self.assertGreaterEqual(_sets(rows[0]), 3)
+            self.assertLessEqual(_sets(rows[0]), 4)
+            squat_at = [
+                i for i, row in enumerate(rows)
+                if row["id"] in ("hack-squat", "leg-press")
+            ]
+            hinge_at = [i for i, row in enumerate(rows) if primary_hinge_key(row)]
+            self.assertEqual(len(hinge_at), 1, [r["name"] for r in rows])
+            self.assertGreater(hinge_at[0], max(squat_at))
+            self.assertLessEqual(_sets(rows[hinge_at[0]]), 3)
+            self.assertIn("hack-squat", [row["id"] for row in rows])
+            self.assertIn("leg-press", [row["id"] for row in rows])
+            names = [row["name"] for row in rows]
+            self.assertLess(names.index("Hack Squat"), names.index("Leg Press"))
+            prior.append({"date": day, "session_type": "legs", "exercises": rows})
+            history.append(_as_session(day, "legs", plan))
+
+    def test_swap_does_not_drop_a_compound_pattern(self):
+        from rt_dashboard.workout_planner import pattern_family, postshape_ai_workout
+
+        def families(exercises):
+            found = set()
+            for row in exercises:
+                if primary_hinge_key(row):
+                    found.add("hinge")
+                elif row.get("movement") == "compound":
+                    fam = pattern_family(row)
+                    if fam:
+                        found.add(fam)
+            return found
+
+        raw = {
+            "source": "grok",
+            "session_type": "push",
+            "is_rest_day": False,
+            "exercises": STUB["push"],
+        }
+        first = postshape_ai_workout(raw, self.catalog, [], goals=dict(RAMP), as_of="2026-11-18")
+        before = families(first["exercises"])
+        second = postshape_ai_workout(
+            raw,
+            self.catalog,
+            [_as_session("2026-11-18", "push", first)],
+            goals=dict(RAMP),
+            as_of="2026-11-21",
+            prior_plans=[{"date": "2026-11-18", "session_type": "push", "exercises": first["exercises"]}],
+        )
+        after = families(second["exercises"])
+        self.assertTrue(before <= after, (before, after))
+        self.assertNotEqual(_compound_names(first), _compound_names(second))
+
+    def test_push_has_no_shrugs_or_trap_work(self):
+        plan = generate_workout_plan(
+            self.catalog,
+            dict(RAMP),
+            [
+                Session(
+                    date="2026-11-17",
+                    session_type="legs",
+                    exercises=[
+                        ExerciseEntry(name="Hack Squat", sets=[SetEntry(weight_lbs=180, sets=3, reps=8)])
+                    ],
+                )
+            ],
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-11-18",
+        )
+        for row in plan["exercises"]:
+            prim = row.get("primary_muscles") or []
+            self.assertFalse(prim and all(m == "traps" for m in prim), row["name"])
+            self.assertNotIn("shrug", row["name"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()

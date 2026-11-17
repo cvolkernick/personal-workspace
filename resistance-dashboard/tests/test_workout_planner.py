@@ -596,8 +596,10 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         self.assertEqual(plan["session_type"], "legs")
         self.assertTrue(plan["exercises"])
+        # The only lift is the squat opener, so it is 4 sets rather than
+        # the catalog default of 3 or the goal default of 2.
         for e in plan["exercises"]:
-            self.assertEqual(int((e.get("prescription") or {}).get("sets") or 0), 2)
+            self.assertEqual(int((e.get("prescription") or {}).get("sets") or 0), 4)
 
     def test_lying_and_seated_curl_share_hamstring_family(self):
         self.assertEqual(
