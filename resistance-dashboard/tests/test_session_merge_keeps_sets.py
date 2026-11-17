@@ -299,6 +299,103 @@ class DateMoveKeepsSets(unittest.TestCase):
         self.assertEqual(_set_rows(merged), _set_rows(target) + _set_rows(moved))
 
 
+class ReplayDoesNotDuplicateSets(unittest.TestCase):
+    """A retried date move unions once. The source row may still be present."""
+
+    def test_reapplying_the_same_move_does_not_duplicate_sets(self):
+        target = _target([_set(160, 1, 13)], quest=True)
+        moved = _moved([_set(130, 1, 15)])
+        first = _move([target, moved])
+        self.assertEqual(
+            _triples(first.exercises[0]),
+            [(160.0, 1, 13), (130.0, 1, 15)],
+        )
+        # Dest row already written; source row not deleted yet.
+        again = _move([first, moved])
+        self.assertEqual(_triples(again.exercises[0]), _triples(first.exercises[0]))
+        self.assertEqual(_triples(again.exercises[1]), [(90.0, 2, 12)])
+        self.assertEqual(_triples(again.exercises[2]), [(135.0, 1, 6)])
+        self.assertEqual(_set_rows(again), _set_rows(first))
+        self.assertEqual(_set_multipliers(again), _set_multipliers(first))
+        third = _move([again, moved])
+        self.assertEqual(_set_rows(third), _set_rows(first))
+
+    def test_identical_sets_stay_on_the_first_move_and_not_on_replay(self):
+        target = _target([_set(160, 1, 13)], quest=False)
+        moved = _moved([_set(160, 1, 13)])
+        first = _move([target, moved])
+        self.assertEqual(
+            _triples(first.exercises[0]),
+            [(160.0, 1, 13), (160.0, 1, 13)],
+        )
+        again = _move([first, moved])
+        self.assertEqual(_triples(again.exercises[0]), _triples(first.exercises[0]))
+        self.assertEqual(_set_rows(again), _set_rows(first))
+
+    def test_a_different_source_day_still_appends(self):
+        target = _target([_set(160, 1, 13)], quest=False)
+        moved = _moved([_set(130, 1, 15)])
+        first = _move([target, moved])
+        other = Session(
+            date="2026-11-15",
+            session_type="legs",
+            exercises=[
+                ExerciseEntry(
+                    name="Back Extension Machine",
+                    sets=[SetEntry(weight_lbs=140, sets=1, reps=12)],
+                )
+            ],
+        )
+        second = plan_session_date_move(
+            [first, other],
+            session_type="legs",
+            from_date="2026-11-15",
+            to_date=TARGET,
+        )
+        self.assertEqual(
+            _triples(second.exercises[0]),
+            [(160.0, 1, 13), (130.0, 1, 15), (140.0, 1, 12)],
+        )
+
+    def test_sqlite_replay_of_the_same_payload_does_not_add_sets(self):
+        import tempfile
+        from pathlib import Path
+
+        from rt_dashboard.workout_repo import WorkoutRepository
+
+        target = _target([_set(160, 1, 13)], quest=True)
+        moved = _moved([_set(130, 1, 15)])
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = WorkoutRepository(db_path=Path(tmp) / "fitdash.db", user_id="replay")
+            repo.upsert_session(target)
+            repo.upsert_session(moved)
+            first = plan_session_date_move(
+                repo.list_sessions(),
+                session_type="legs",
+                from_date=SOURCE,
+                to_date=TARGET,
+            )
+            # Write the merged dest and leave the source row (retry window).
+            repo.upsert_session(first)
+            again = plan_session_date_move(
+                repo.list_sessions(),
+                session_type="legs",
+                from_date=SOURCE,
+                to_date=TARGET,
+            )
+            self.assertEqual(_set_rows(again), _set_rows(first))
+            repo.relocate_session(again, SOURCE)
+            # The payload is already stored. Writing it again replaces the row.
+            repo.relocate_session(again, SOURCE)
+            rows = repo.list_sessions()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].date, TARGET)
+            back = next(ex for ex in rows[0].exercises if ex.name == "Back Extension Machine")
+            self.assertEqual(_triples(back), [(160.0, 1, 13), (130.0, 1, 15)])
+            self.assertFalse(back.quest_seeded)
+            self.assertEqual(_set_rows(rows[0]), _set_rows(first))
+
+
 class SameSessionQuestReplaceUnchanged(unittest.TestCase):
     def test_log_tab_still_replaces_quest_tick(self):
         seeded = Session(

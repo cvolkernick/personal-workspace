@@ -508,6 +508,46 @@ class WorkoutsWriteRoute(unittest.TestCase):
         self.assertEqual(row["sets"][0]["sets"], 3)
         self.assertEqual(len(store.rows), 1)
 
+    def test_same_submission_replay_does_not_add_sets(self):
+        """A retried log with the same submission id returns the stored row."""
+        env = {
+            "GOOGLE_CLIENT_SECRET": "test-secret",
+            "FITDASH_MASTER_KEY": "test-master-key-for-unit-tests-only!!",
+        }
+        store = MemoryTurso()
+        body = {
+            "session_type": "legs",
+            "date": "2026-11-17",
+            "submission_id": "replay-1",
+            "exercises": [
+                {
+                    "name": "Back Extension Machine",
+                    "sets": [{"weight_lbs": 130, "sets": 1, "reps": 15}],
+                }
+            ],
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            import rt_dashboard.crypto_box as cb
+
+            cb._KEY = None
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.turso_repo.connect", return_value=store
+            ):
+                first_status, first = workouts_write(_session_cookie(), body)
+                again_status, again = workouts_write(_session_cookie(), body)
+            cb._KEY = None
+        self.assertEqual(first_status, 200, first)
+        self.assertEqual(again_status, 200, again)
+        sets = again["session"]["exercises"][0]["sets"]
+        self.assertEqual(len(sets), 1)
+        self.assertEqual(sets[0]["weight_lbs"], 130)
+        self.assertEqual(len(first["session"]["exercises"][0]["sets"]), 1)
+        self.assertEqual(len(store.rows), 1)
+
 
 class SameDayLogMerge(unittest.TestCase):
     def test_keeps_quest_only_and_appends_log(self):

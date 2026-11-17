@@ -27,6 +27,53 @@ def _norm_name(name: str) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
 
 
+# Recorded on ``source_file`` so a retried date move can see that this
+# source day was already absorbed. Not a path. Log-tab saves leave it in
+# place when they have no source_file of their own.
+_MERGED_FROM_PREFIX = "fitdash-merged-from:"
+
+
+def merged_from_days(source_file: str) -> set[str]:
+    """Civil days already unioned into this session by a date move."""
+    days: set[str] = set()
+    for line in str(source_file or "").splitlines():
+        text = line.strip()
+        if not text.startswith(_MERGED_FROM_PREFIX):
+            continue
+        day = text[len(_MERGED_FROM_PREFIX) :].strip()[:10]
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            days.add(day)
+    return days
+
+
+def _source_file_body(source_file: str) -> str:
+    kept = [
+        line
+        for line in str(source_file or "").splitlines()
+        if not line.strip().startswith(_MERGED_FROM_PREFIX)
+    ]
+    return "\n".join(kept).strip()
+
+
+def mark_merged_from(source_file: str, day: str) -> str:
+    """Remember ``day`` was unioned into this row. Existing path text stays."""
+    day = str(day or "")[:10]
+    days = merged_from_days(source_file)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        days.add(day)
+    tokens = [f"{_MERGED_FROM_PREFIX}{item}" for item in sorted(days)]
+    body = _source_file_body(source_file)
+    return "\n".join(part for part in (body, *tokens) if part)
+
+
+def _combine_source_files(incoming: str, existing: str) -> str:
+    """Incoming path wins. Merged-from days from either side stay."""
+    body = _source_file_body(incoming) or _source_file_body(existing)
+    days = merged_from_days(incoming) | merged_from_days(existing)
+    tokens = [f"{_MERGED_FROM_PREFIX}{item}" for item in sorted(days)]
+    return "\n".join(part for part in (body, *tokens) if part)
+
+
 def find_same_day_session(
     sessions: Sequence[Session], date: str, session_type: str
 ) -> Optional[Session]:
@@ -217,7 +264,7 @@ def merge_same_day_session(
         else:
             by_key[key] = _union_cross_session_exercise(by_key[key], ex)
     notes = (incoming.notes or "").strip() or (existing.notes or "")
-    source = (incoming.source_file or "").strip() or (existing.source_file or "")
+    source = _combine_source_files(incoming.source_file or "", existing.source_file or "")
     closed = (existing.closed_at or "").strip() or (incoming.closed_at or "")
     return Session(
         date=incoming.date,
@@ -274,7 +321,8 @@ def plan_session_date_move(
     already on the target day unions into that session. An exercise on
     both days keeps the target's sets first, then the moved sets. Quest
     ticks in that union become real logged sets. Dest-only rows stay
-    (#771).
+    (#771). Applying the same move again, after the destination already
+    holds that source day, does not append the sets a second time.
     """
     st = str(session_type or "").lower().strip()
     if st not in ("push", "pull", "legs"):
@@ -300,7 +348,13 @@ def plan_session_date_move(
     dest = find_same_day_session(history, dest_day, st)
     if dest is None:
         return incoming
-    return merge_same_day_session(incoming, dest, same_name="union")
+    # Retry after the dest row was written and before the source row was
+    # deleted. The sets are already on dest; unioning again would double them.
+    if src_day in merged_from_days(dest.source_file or ""):
+        return dest
+    merged = merge_same_day_session(incoming, dest, same_name="union")
+    merged.source_file = mark_merged_from(merged.source_file, src_day)
+    return merged
 
 
 def parse_log_body(data: dict, *, now=None) -> Session:
