@@ -121,6 +121,7 @@ class Base(unittest.TestCase):
         env.start()
         os.environ.pop(broker.DISABLE_ENV, None)
         os.environ.pop(broker.CLIENT_ENV, None)
+        os.environ["FM_PENDING_APPROVALS_PATH"] = str(self.dir / "pending.json")
         err = mock.patch("sys.stderr")
         err.start()
         self.addCleanup(err.stop)
@@ -162,17 +163,23 @@ class TestAllowlist(Base):
         cfg, err = broker.load_adapter_config()
         self.assertEqual(err, "")
         self.assertTrue(cfg["live"])  # Chris resumed Agentic buys 2026-10-25 2:58 PM ET
-        self.assertEqual(set(cfg["allowlist"]), {"STRC", "SATA", "STRK", "SATS", "MSTR", "ASST", "BITA", "IBIT",
-                                                 "MARA", "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX"})
+        self.assertEqual(set(cfg["allowlist"]), {
+            "STRC", "SATA", "STRK", "SATS", "MSTR", "ASST", "BITA", "IBIT",
+            "MARA", "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX",
+            "PLTR", "CRWD", "S", "CCJ", "GEV", "VRT", "OKLO",
+        })
         self.assertEqual({k: float(v) for k, v in cfg["fixed_weights"].items()},
                          {"STRC": 0.25, "SATA": 0.25, "STRK": 0.15, "SATS": 0.10})
         self.assertEqual(float(cfg["floating_weight"]), 0.25)
         self.assertEqual({k: float(v) for k, v in cfg["price_caps"].items()}, {"SATS": 95.0})
-        self.assertEqual(cfg["floating"], ("IBIT", "MSTR", "ASST", "BITA", "MARA", "RIOT", "CLSK", "WULF", "IREN"))
+        self.assertEqual(cfg["floating"], ("IBIT", "MSTR", "ASST", "BITA", "RIOT", "CLSK", "WULF", "IREN"))
+        self.assertNotIn("MARA", cfg["floating"])
         self.assertEqual(cfg["fold_into"], "IBIT")
         self.assertFalse(cfg["honor_ai_floating"])
         self.assertFalse(REPO_POLICY["execution"]["broker_adapter"]["honor_ai_floating"])
-        self.assertEqual(cfg["stocks"], ("TSLA", "SPCX"))
+        self.assertEqual(cfg["stocks"], ("TSLA", "SPCX", "PLTR", "CRWD", "S", "CCJ", "GEV", "VRT", "OKLO", "MARA"))
+        self.assertIn("MARA", cfg["theme_symbols"])
+        self.assertNotIn("TSLA", cfg["theme_symbols"])
         btc = REPO_POLICY["sleeves"]["btc_digital_credit"]
         self.assertIn("IBIT", btc["symbols"])
         self.assertEqual(btc["new_money_weights"]["floating_default"], "IBIT")
@@ -237,11 +244,23 @@ class TestSleeveGateAndWeights(Base):
         self.assertAlmostEqual(legs["STRK"], 3.0, places=2)
 
     def test_over_40pct_stocks_get_rest_toward_50_50(self):
-        # BTC 100 / invested 150; run 30 -> BTC target 0.4*180-100 < 0 -> all to stocks
+        # BTC 100 / invested 150; run 30 -> BTC target 0.4*180-100 < 0 -> all to stocks.
+        # Sleeve pins are buy-only. Theme names are pending approval, not executable legs.
+        # The shipped theme_buy_hold would leave that theme cash uninvested. This
+        # assertion is the cleared-flag path.
+        policy = json.loads(self.policy.read_text(encoding="utf-8"))
+        policy["theme_buy_hold"]["active"] = False
+        self.policy.write_text(json.dumps(policy), encoding="utf-8")
         _, info = self.plan([buy("TSLA", 15), buy("SPCX", 15)], snapshot=snap(cash=30, positions=OVER))
         legs = self.legs(info)
-        # TSLA 30 / SPCX 20: equalize at (50+30)/2 = 40 -> TSLA 10, SPCX 20
-        self.assertEqual(legs, {"TSLA": 10.0, "SPCX": 20.0})
+        self.assertGreater(info["btc_share_before"], 0.4)
+        self.assertNotIn("STRC", legs)
+        theme = set(broker.load_adapter_config(self.policy)[0]["theme_symbols"])
+        self.assertTrue(set(legs).isdisjoint(theme))
+        pending = info.get("pending_approvals") or []
+        self.assertTrue(all(p["side"] == "buy" and p["auto_execute"] is False for p in pending))
+        spent = sum(legs.values()) + sum(p["notional_usd"] for p in pending)
+        self.assertAlmostEqual(spent, 30.0, places=2)
         self.assertEqual(info["status"], "weights_repaired")
 
     def test_fixed_legs_exact_ai_amounts_within_tolerance_not_flagged(self):
@@ -256,20 +275,22 @@ class TestSleeveGateAndWeights(Base):
         self.assertTrue(info["repairs"])
 
     def test_ai_floating_names_are_ignored(self):
-        _, info = self.plan([buy("STRC", 5), buy("SATA", 5), buy("STRK", 3), buy("MARA", 3.5), buy("IBIT", 3.5)],
+        # RIOT stands in for a floating miner. MARA is an energy pin, not floating.
+        _, info = self.plan([buy("STRC", 5), buy("SATA", 5), buy("STRK", 3), buy("RIOT", 3.5), buy("IBIT", 3.5)],
                             snapshot=snap(cash=20))
         legs = self.legs(info)
+        self.assertNotIn("RIOT", legs)
         self.assertNotIn("MARA", legs)
         self.assertEqual(legs["IBIT"], 7.0)
         self.assertIn("ignored", info["floating_source"])
         self.write_policy(honor_ai_floating=True)
         _, honoured = self.plan(
-            [buy("STRC", 5), buy("SATA", 5), buy("STRK", 3), buy("MARA", 3.5), buy("IBIT", 3.5)],
+            [buy("STRC", 5), buy("SATA", 5), buy("STRK", 3), buy("RIOT", 3.5), buy("IBIT", 3.5)],
             snapshot=snap(cash=20),
         )
         split = self.legs(honoured)
-        # floating 25% of $20 = $5 split MARA/IBIT; SATS ($2, no quote) folds into IBIT
-        self.assertEqual(split["MARA"], 2.5)
+        # floating 25% of $20 = $5 split RIOT/IBIT; SATS ($2, no quote) folds into IBIT
+        self.assertEqual(split["RIOT"], 2.5)
         self.assertEqual(split["IBIT"], 4.5)
 
     def test_leg_under_one_dollar_folds_into_ibit(self):
@@ -472,7 +493,7 @@ class TestValuationQuotes(Base):
         self.assertEqual(info["valuation"], "live_quotes")
         self.assertAlmostEqual(info["btc_share_before"], 0.8333, places=3)
         self.assertIn("TSLA", self.legs(info))  # over 40% -> stocks allowed
-        self.assertEqual(c.calls, [("get_quotes", ("SPCX", "STRC", "TSLA"))])
+        self.assertEqual(c.calls, [("get_recent_orders", ACCT), ("get_quotes", ("SPCX", "STRC", "TSLA"))])
         self.assertFalse(any(n == "place_order" for n, *_ in c.calls))
 
     def test_quote_failure_falls_back_to_cost_basis_and_is_logged(self):
@@ -502,7 +523,7 @@ class TestValuationQuotes(Base):
         _, info = self.plan([], snapshot=snap(cash=20, positions=mv), client=c)
         self.assertEqual(info["valuation"], "snapshot_market_value")
         # no valuation quotes; the only call is the SATS <= $95 price check
-        self.assertEqual(c.calls, [("get_quotes", ("SATS",))])
+        self.assertEqual(c.calls, [("get_recent_orders", ACCT), ("get_quotes", ("SATS",))])
 
     def test_grok_quote_call_is_read_only_place_denied(self):
         seen = {}
@@ -746,12 +767,14 @@ class TestDuplicates(Base):
         self.assertEqual(len(c.placed), 1)
 
     def test_open_buy_from_earlier_day_blocks_symbol(self):
+        # A still-open buy from the prior ET day claims the day and blocks sizing.
         c = FakeClient(orders=[{"symbol": "IBIT", "side": "buy", "state": "queued", "dollar_amount": 9.0, "order_id": "x",
                                 "created_at": (NOW - timedelta(days=1)).isoformat()}])
-        outs, _ = self.run_all(TEN, c)
-        by = {c.placed[i][1]["symbol"] for i in range(len(c.placed))}
-        self.assertNotIn("IBIT", by)
-        self.assertIn("skipped_duplicate_broker_order", [o["status"] for o in outs])
+        orders, info = self.plan(TEN, client=c)
+        self.assertEqual(orders, [])
+        self.assertEqual(info["status"], "skipped_already_bought_today")
+        self.assertAlmostEqual(info["external_open_usd"], 9.0)
+        self.assertEqual(c.placed, [])
 
     def test_matching_recent_fill_from_yesterday_skipped(self):
         c = FakeClient(orders=[{"symbol": "STRC", "side": "buy", "state": "filled", "dollar_amount": 2.5, "order_id": "y",

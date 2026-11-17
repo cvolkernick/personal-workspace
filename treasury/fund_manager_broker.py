@@ -15,15 +15,24 @@ cash fills the BTC + digital-credit sleeve first until it reaches 40%.
 * window: ET weekday, not a market holiday, ``earliest_place_et`` (10:00) <=
   now < ``latest_place_et`` (15:50, or 10 min before an early close). Else
   ``not_submitted_before_window`` / ``not_submitted_outside_market_hours`` (no queuing).
-* one buy run per ET day (shared by the daily run and bp-poll; external
-  same-day fills count): else ``skipped_already_bought_today``.
+* one buy run per ET day (shared by the daily run and bp-poll). A live
+  external buy claims the day when it was created today (undated fails
+  closed) or is still open from any created date, including the prior ET
+  day. Those open notionals, and unexpired reservations, come off investable
+  cash before sizing: else ``skipped_already_bought_today``.
 * run total = min(LLM-proposed allowlisted buys, settled cash,
   ``max_run_notional_usd`` (160), daily cap left). Under ``min_investable_usd`` (5):
   ``skipped_below_min_investable``.
 * sleeve gate: BTC sleeve under 40% of invested value => the whole run goes to
-  the BTC sleeve and TSLA/SPCX legs are dropped (``not_submitted_sleeve_gate``).
+  the BTC sleeve and stock legs are dropped (``not_submitted_sleeve_gate``).
   At/over 40%, BTC gets what keeps it at 40% after the run and stocks get the
-  rest, split to move TSLA/SPCX toward 50/50.
+  rest, buy-only toward the sleeve-basis pins in consider_share.json (sum 100).
+  AI defense fills before energy. Theme buys are pending Chris's approval and
+  are never auto-executed. ``theme_buy_hold`` (shipped active) blocks the
+  ai_defense and energy themes from being proposed, placed, queued, or written
+  as pending-approval items until ``active`` is set false by hand. MARA is an
+  energy pin (1% of the whole fund), not a BTC miner; a buy is proposed only
+  when the position is below that 1% and the hold is clear.
 * BTC-sleeve weights: the fixed legs are every uppercase ticker key with a
   numeric weight in ``new_money_weights`` (live: STRC 25 / SATA 25 / STRK 15 /
   SATS 10 of the BTC amount; each must be on ``symbol_allowlist`` and fixed +
@@ -79,6 +88,9 @@ ADAPTER_SPEC = "treasury.fund_manager_broker:submit"
 CLIENT_ENV = "FM_BROKER_CLIENT"  # "grok_mcp" | "pkg.module:factory"; unset => no client
 DISABLE_ENV = "FM_BROKER_DISABLE"  # "1" => place nothing
 LEDGER_PATH = ROOT / "treasury" / "snapshots" / "fund_manager_broker_ledger.json"
+CONSIDER_SHARE_PATH = ROOT / "investment" / "consider_share.json"
+RESERVATIONS_PATH = ROOT / "investment" / "fund_manager_reservations.json"
+PENDING_PATH = ROOT / "investment" / "fund_manager_pending_approvals.json"
 LEDGER_KEEP_DAYS = 45
 CENT = Decimal("0.01")
 ZERO = Decimal("0")
@@ -106,6 +118,9 @@ S_BELOW_MIN = "skipped_below_min_investable"
 S_BOOK_UNKNOWN = "not_submitted_book_unknown"
 S_CALENDAR = "not_submitted_calendar_unknown"
 S_ADVISORY = "refused_advisory_only"
+S_UNAVAILABLE = "broker_unavailable"
+S_PENDING = "not_submitted_pending_approval"
+S_THEME_HOLD = "not_submitted_theme_buy_hold"
 # plan statuses
 P_PLANNED = "planned"
 P_REPAIRED = "weights_repaired"
@@ -115,7 +130,7 @@ TERMINAL_STATUSES = frozenset(
         S_PLACED, S_NOT_GATED, S_NON_BUY, S_DISABLED, S_LIVE_FALSE, S_CONFIG, S_NO_CLIENT,
         S_REVIEW_FAILED, S_BROKER_REJECTED, S_DUP_KEY, S_DUP_BROKER, S_LEDGER, S_PLACE_UNKNOWN,
         S_UNPLANNED, S_BEFORE_WINDOW, S_OUTSIDE_HOURS, S_DAY_DONE, S_SLEEVE_GATE, S_BELOW_MIN,
-        S_BOOK_UNKNOWN, S_CALENDAR,
+        S_BOOK_UNKNOWN, S_CALENDAR, S_UNAVAILABLE, S_PENDING, S_THEME_HOLD,
     }
 )
 PLAN_SKIP_STATUSES = frozenset({S_CONFIG, S_CALENDAR, S_BEFORE_WINDOW, S_OUTSIDE_HOURS, S_DAY_DONE, S_BELOW_MIN, S_BOOK_UNKNOWN, S_LEDGER})
@@ -137,6 +152,10 @@ except Exception:  # pragma: no cover
 
 class BrokerError(Exception):
     """Client-side failure. The message must never contain secrets."""
+
+
+class BrokerUnavailable(BrokerError):
+    """HTTP 402, usage exhausted, or a non-zero grok exit. Back off for the ET day."""
 
 
 class RobinhoodClient(Protocol):
@@ -258,8 +277,8 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
     if fold_into not in floating:
         return None, f"fold_into {fold_into} must be in floating_universe"
     stocks = _upper_list((sleeves.get("stocks_growth") or {}).get("symbols"))
-    if len(stocks) != 2:
-        return None, "sleeves.stocks_growth.symbols must be exactly two names (50/50)"
+    if not stocks:
+        return None, "sleeves.stocks_growth.symbols missing"
     missing = [s for s in list(fixed) + floating + stocks if s not in allow]
     if missing:
         return None, f"sleeve symbols not on symbol_allowlist: {missing}"
@@ -278,6 +297,7 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
     if btc_target is None or not (0 < btc_target < 1):
         return None, "targets.btc_digital_credit_pct malformed"
     blocked = ((data.get("guardrails") or {}).get("blocked_symbols")) or []
+    stock_pins = load_stock_pins(p)
     cal, cal_err = _load_calendar(ba.get("market_calendar"))
     cfg = {
         "live": data.get("live") is True,
@@ -312,9 +332,11 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
         "floating": tuple(floating),
         "stocks": tuple(stocks),
         "btc_target": btc_target,
+        **_stock_pin_cfg(stock_pins, stocks),
         "one_run_per_day": ba.get("one_buy_run_per_et_day", True) is not False,
         "low_preference": ba.get("low_preference") if isinstance(ba.get("low_preference"), dict) else {},
         "client": str(ba.get("client") or "").strip(),
+        "theme_buy_hold": _theme_buy_hold(data),
     }
     return cfg, ""
 
@@ -430,6 +452,16 @@ class BrokerLedger:
         self.data["orders"] = {k: v for k, v in self.data["orders"].items() if str(v.get("run_date") or "9") >= cutoff}
         self.data["runs"] = {k: v for k, v in self.data["runs"].items() if str(v.get("run_date") or "9") >= cutoff}
         self.data["days"] = {k: v for k, v in self.data["days"].items() if k >= cutoff}
+        slot = self.data.get("unavailable")
+        if isinstance(slot, dict):
+            self.data["unavailable"] = {k: v for k, v in slot.items() if str(k) >= cutoff}
+
+    def unavailable(self, run_date: str) -> Optional[Dict[str, Any]]:
+        slot = self.data.get("unavailable")
+        if not isinstance(slot, dict):
+            return None
+        row = slot.get(run_date)
+        return row if isinstance(row, dict) else None
 
 
 def idempotency_key(run_date: str, account: str, symbol: str, side: str, cents: int) -> str:
@@ -550,6 +582,8 @@ def live_quotes(snapshot: Dict[str, Any], cfg: Dict[str, Any], client: Optional[
         return {}, "cost_basis_fallback: no broker client for quotes"
     try:
         raw = client.get_quotes(sorted(set(need))) or {}
+    except BrokerUnavailable:
+        raise
     except Exception as exc:
         msg = str(exc)[:80] if isinstance(exc, BrokerError) else type(exc).__name__
         return {}, f"cost_basis_fallback: quote call failed ({msg})"
@@ -621,6 +655,472 @@ def _cents(amount: Decimal) -> Decimal:
     return amount.quantize(CENT, rounding=ROUND_DOWN)
 
 
+def _stock_pin_cfg(meta: Dict[str, Any], stocks: List[str]) -> Dict[str, Any]:
+    """Pin maps the planner reads. Empty pins keep the legacy two-name 50/50 path."""
+    stock_set = set(stocks)
+    pins = {s: w for s, w in (meta.get("pins") or {}).items() if s in stock_set}
+    themes = []
+    theme_syms: List[str] = []
+    for name, syms in meta.get("themes") or []:
+        kept = tuple(s for s in syms if s in stock_set)
+        if kept:
+            themes.append((name, kept))
+            theme_syms.extend(kept)
+    return {
+        "stock_pins": pins,
+        "whole_fund_pct": {s: w for s, w in (meta.get("whole_fund") or {}).items() if s in stock_set or s in pins},
+        "themes": themes,
+        "theme_symbols": tuple(dict.fromkeys(theme_syms)),
+    }
+
+
+def _consider_share_path(policy_path: Optional[Path]) -> Path:
+    if policy_path is not None:
+        sibling = Path(policy_path).parent / "consider_share.json"
+        if sibling.is_file():
+            return sibling
+    return CONSIDER_SHARE_PATH
+
+
+def load_stock_pins(policy_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Tolerant reader for consider_share pins, whole-fund equivalents, and themes."""
+    empty: Dict[str, Any] = {"pins": {}, "whole_fund": {}, "themes": []}
+    path = _consider_share_path(policy_path)
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return empty
+    if not isinstance(data, dict):
+        return empty
+    pins: Dict[str, Decimal] = {}
+    raw = data.get("pins") if isinstance(data.get("pins"), dict) else {}
+    for key, val in raw.items():
+        if not isinstance(key, str) or not _TICKER_RE.match(key.strip().upper()):
+            continue
+        weight = _d(val)
+        if weight is None or weight <= 0:
+            continue
+        pins[key.strip().upper()] = weight
+    whole: Dict[str, Decimal] = {}
+    raw_w = data.get("whole_fund_pct") if isinstance(data.get("whole_fund_pct"), dict) else {}
+    for key, val in raw_w.items():
+        if not isinstance(key, str):
+            continue
+        weight = _d(val)
+        if weight is None or weight < 0:
+            continue
+        whole[key.strip().upper()] = weight
+    themes: List[Tuple[str, Tuple[str, ...]]] = []
+    raw_t = data.get("themes") if isinstance(data.get("themes"), dict) else {}
+    ordered = sorted(
+        ((str(name), spec) for name, spec in raw_t.items() if isinstance(spec, dict)),
+        key=lambda kv: (int(kv[1].get("fill_order") or 99) if str(kv[1].get("fill_order") or "").lstrip("-").isdigit() else 99, kv[0]),
+    )
+    for name, spec in ordered:
+        syms = tuple(_upper_list(spec.get("symbols")))
+        if syms:
+            themes.append((name, syms))
+    return {"pins": pins, "whole_fund": whole, "themes": themes}
+
+
+# Shipped hold covers these two themes when active is true and themes is empty.
+_DEFAULT_HELD_THEMES = ("ai_defense", "energy")
+
+
+def _theme_buy_hold(data: Any) -> Dict[str, Any]:
+    """Read ``theme_buy_hold``. Active only when ``active`` is exactly true.
+
+    Clearing is ``active: false`` by hand. An active block with no themes list
+    holds ai_defense and energy. A missing block is not a hold.
+    """
+    raw = data.get("theme_buy_hold") if isinstance(data, dict) else None
+    if not isinstance(raw, dict):
+        return {"active": False, "themes": (), "reason": "", "set": ""}
+    active = raw.get("active") is True
+    named: List[str] = []
+    for item in raw.get("themes") or []:
+        if isinstance(item, str) and item.strip():
+            named.append(item.strip())
+    themes = tuple(dict.fromkeys(named))
+    if active and not themes:
+        themes = _DEFAULT_HELD_THEMES
+    return {
+        "active": active,
+        "themes": themes,
+        "reason": str(raw.get("reason") or "").strip(),
+        "set": str(raw.get("set") or "").strip(),
+    }
+
+
+def _held_theme_names(cfg: Dict[str, Any]) -> Tuple[str, ...]:
+    hold = cfg.get("theme_buy_hold") if isinstance(cfg.get("theme_buy_hold"), dict) else {}
+    if not hold or hold.get("active") is not True:
+        return ()
+    themes = hold.get("themes") or ()
+    return tuple(str(name) for name in themes if str(name).strip())
+
+
+def _symbol_theme(cfg: Dict[str, Any], symbol: str) -> str:
+    for name, syms in cfg.get("themes") or []:
+        if symbol in syms:
+            return str(name)
+    return ""
+
+
+def _theme_hold_reason(cfg: Dict[str, Any], symbol: str) -> str:
+    """Why this symbol's theme buy is held, or '' when the hold does not apply."""
+    held = set(_held_theme_names(cfg))
+    if not held:
+        return ""
+    theme = _symbol_theme(cfg, symbol)
+    if not theme or theme not in held:
+        return ""
+    hold = cfg.get("theme_buy_hold") or {}
+    why = str(hold.get("reason") or "theme_buy_hold is active")
+    return f"{symbol} {theme} buy held until theme_buy_hold.active is set false by hand ({why})"
+
+
+def _hold_suffix(cfg: Dict[str, Any]) -> str:
+    names = _held_theme_names(cfg)
+    if not names:
+        return ""
+    return (
+        "; theme_buy_hold active ("
+        + ",".join(names)
+        + "): those buys are not proposed, not queued, and not written as pending approval"
+    )
+
+
+def load_reservations(path: Optional[Path] = None, now: Optional[datetime] = None) -> Decimal:
+    """Sum of unexpired reservation usd. Missing, unreadable, or junk input is 0.
+
+    An entry is ``{date, usd, by, expires}``. ``expires`` is an ET date
+    (YYYY-MM-DD), inclusive. No expires, or an unparseable expires, stays
+    reserved (fail closed on cash)."""
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    today = et_date(now)
+    p = Path(path) if path else Path(os.environ.get("FM_RESERVATIONS_PATH") or RESERVATIONS_PATH)
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ZERO
+    if isinstance(data, list):
+        entries = data
+    elif isinstance(data, dict) and isinstance(data.get("entries"), list):
+        entries = data["entries"]
+    else:
+        return ZERO
+    total = ZERO
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        usd = _d(entry.get("usd"))
+        if usd is None or usd <= 0:
+            continue
+        if _reservation_expired(entry.get("expires"), today):
+            continue
+        total += usd
+    return total
+
+
+def _reservation_expired(expires: Any, today: str) -> bool:
+    if expires in (None, ""):
+        return False
+    day = str(expires).strip()[:10]
+    try:
+        datetime.strptime(day, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return day < today
+
+
+def _investable(settled: Decimal, cfg: Dict[str, Any], daily_left: Decimal,
+                reserved: Decimal, external: Decimal) -> Decimal:
+    raw = min(settled, cfg["max_run"], daily_left) - reserved - external
+    if raw < 0:
+        raw = ZERO
+    return _cents(raw)
+
+
+def _pending_path(explicit: Optional[Path] = None) -> Path:
+    if explicit:
+        return Path(explicit)
+    env = (os.environ.get("FM_PENDING_APPROVALS_PATH") or "").strip()
+    return Path(env) if env else PENDING_PATH
+
+
+def stage_pending(items: List[Dict[str, Any]], path: Optional[Path], now: datetime) -> List[Dict[str, Any]]:
+    """Append pending-approval rows. Same symbol + ET date is not written twice.
+
+    A write failure leaves the plan's in-memory list intact and does not raise."""
+    if not items:
+        return []
+    p = _pending_path(path)
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    except (OSError, ValueError):
+        raw = {}
+    entries = raw.get("entries") if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+    if not isinstance(entries, list):
+        entries = []
+    entries = [e for e in entries if isinstance(e, dict)]
+    run_date = et_date(now)
+    have = {
+        (str(e.get("symbol") or ""), str(e.get("date") or "")[:10])
+        for e in entries if e.get("status") == "pending_approval"
+    }
+    added: List[Dict[str, Any]] = []
+    for item in items:
+        key = (str(item.get("symbol") or ""), run_date)
+        if key in have or not key[0]:
+            continue
+        row = dict(item)
+        row["date"] = run_date
+        row.setdefault("created_at", now.isoformat())
+        row["side"] = "buy"
+        row["auto_execute"] = False
+        entries.append(row)
+        added.append(row)
+        have.add(key)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"schema": "fund_manager_pending_approvals_v0", "entries": entries}
+        fd, tmp = tempfile.mkstemp(prefix=".pending-", suffix=".tmp", dir=str(p.parent))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2)
+                fh.write("\n")
+            os.replace(tmp, p)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
+            raise
+    except OSError:
+        return items
+    return added
+
+
+def allocate_stock_buys(
+    stock_amt: Decimal,
+    held: Dict[str, Decimal],
+    nav: Decimal,
+    pins: Dict[str, Decimal],
+    themes: List[Tuple[str, Tuple[str, ...]]],
+    whole_fund: Dict[str, Decimal],
+) -> Tuple[Dict[str, Decimal], List[Dict[str, Any]]]:
+    """Buy-only sleeve allocation.
+
+    Core names (pins that are not in a theme) are auto legs. Theme names are
+    pending-approval items and are never auto legs. AI defense is filled before
+    energy because themes are ordered by fill_order. MARA's buy size is the
+    gap to its whole-fund percent (1), and only when the position is below that.
+    No sell or trim is ever returned.
+    """
+    stock_amt = _cents(stock_amt)
+    if stock_amt <= 0 or not pins:
+        return {}, []
+    theme_of: Dict[str, str] = {}
+    for name, syms in themes:
+        for sym in syms:
+            theme_of.setdefault(sym, name)
+    core = [s for s in pins if s not in theme_of]
+    groups: List[Tuple[str, List[str], bool]] = [("core", core, True)]
+    for name, syms in themes:
+        groups.append((name, list(syms), False))
+    held_sum = sum((held.get(s, ZERO) for s in pins), ZERO)
+    sleeve_after = held_sum + stock_amt
+    remaining = stock_amt
+    auto: Dict[str, Decimal] = {}
+    pending: List[Dict[str, Any]] = []
+    for theme_name, syms, is_auto in groups:
+        for sym in syms:
+            if remaining <= 0:
+                break
+            if sym == "MARA":
+                wf = whole_fund.get("MARA", Decimal("1"))
+                cap = (nav * wf / Decimal(100)) if nav and nav > 0 else ZERO
+                room = cap - held.get(sym, ZERO)
+                if room <= 0:
+                    continue
+                gap = room
+            else:
+                pct = pins.get(sym)
+                if pct is None:
+                    continue
+                gap = sleeve_after * pct / Decimal(100) - held.get(sym, ZERO)
+            if gap <= 0:
+                continue
+            take = _cents(min(remaining, gap))
+            if take <= 0:
+                continue
+            if is_auto:
+                auto[sym] = auto.get(sym, ZERO) + take
+            else:
+                pending.append({
+                    "symbol": sym,
+                    "side": "buy",
+                    "notional_usd": float(take),
+                    "theme": theme_name,
+                    "status": "pending_approval",
+                    "by": "chris",
+                    "auto_execute": False,
+                    "reason": "theme buy requires Chris per-buy approval; not auto-executed",
+                })
+            remaining -= take
+    return auto, pending
+
+
+def classify_broker_unavailable(*, returncode: Optional[int] = None, text: str = "") -> Optional[str]:
+    """HTTP 402, a usage-balance-exhausted error, or any non-zero grok exit."""
+    blob = text or ""
+    low = blob.lower()
+    hit_usage = "usage balance exhausted" in low
+    hit_402 = bool(re.search(r"\b402\b", blob))
+    hit_exit = returncode not in (None, 0)
+    if hit_usage:
+        return "broker_unavailable: usage balance exhausted"
+    if hit_402:
+        return "broker_unavailable: HTTP 402"
+    if hit_exit:
+        return f"broker_unavailable: grok exit {returncode}"
+    return None
+
+
+def _default_unavailable_alert(title: str, text: str, **_kw: Any) -> Dict[str, Any]:
+    try:
+        from treasury.fund_manager import _skip_decision_github_in_pytest
+        if _skip_decision_github_in_pytest():
+            return {"ok": True, "posted": False, "skipped": "pytest"}
+    except Exception:
+        pass
+    from treasury.pi_ops_alert import post_ops_github
+    return post_ops_github(title, text, as_markdown=True)
+
+
+def _write_unavailable_decision(row: Dict[str, Any], now: datetime, decision_path: Optional[Path]) -> None:
+    from treasury.fund_manager import DECISIONS_PATH, append_decision
+    entry = {
+        "as_of": now.isoformat(),
+        "kind": S_UNAVAILABLE,
+        "summary": f"broker_unavailable ({row.get('reason')}); backoff for ET day {row.get('run_date')}",
+        "terminal": True,
+        "run_date": row.get("run_date"),
+        "rationale": {
+            "why_now": row.get("reason"),
+            "why_not_alternatives": "no re-plan for the rest of this ET day",
+            "thesis_tags": [S_UNAVAILABLE],
+        },
+        "actions": [],
+    }
+    append_decision(
+        entry,
+        path=Path(decision_path) if decision_path else DECISIONS_PATH,
+        also_journal=False,
+        also_github=False,
+    )
+
+
+def _mark_unavailable(
+    led: "BrokerLedger",
+    reason: str,
+    now: datetime,
+    *,
+    decision_path: Optional[Path] = None,
+    alert: Optional[Callable[..., Any]] = None,
+) -> Dict[str, Any]:
+    """One terminal decision row and one alert per ET day. Later calls are no-ops."""
+    run_date = et_date(now)
+    slot = led.data.get("unavailable")
+    if not isinstance(slot, dict):
+        slot = {}
+        led.data["unavailable"] = slot
+    prev = slot.get(run_date) if isinstance(slot.get(run_date), dict) else None
+    if prev and prev.get("decision_written") and prev.get("alerted"):
+        return {"status": S_UNAVAILABLE, "already": True, "run_date": run_date, "reason": prev.get("reason")}
+    row = dict(prev or {})
+    row.update({
+        "run_date": run_date,
+        "status": S_UNAVAILABLE,
+        "reason": str(reason or S_UNAVAILABLE),
+        "terminal": True,
+    })
+    row.setdefault("at", now.isoformat())
+    if not row.get("decision_written"):
+        _write_unavailable_decision(row, now, decision_path)
+        row["decision_written"] = True
+    if not row.get("alerted"):
+        (alert or _default_unavailable_alert)(
+            "FCC · fund-manager broker_unavailable",
+            f"broker_unavailable {run_date}: {row['reason']}. Backing off for the rest of this ET day. No re-plan.",
+        )
+        row["alerted"] = True
+    slot[run_date] = row
+    led.save()
+    return {"status": S_UNAVAILABLE, "already": False, "run_date": run_date, "reason": row["reason"]}
+
+
+def note_broker_unavailable(
+    reason: str,
+    *,
+    now: Optional[datetime] = None,
+    ledger_path: Optional[Path] = None,
+    decision_path: Optional[Path] = None,
+    alert: Optional[Callable[..., Any]] = None,
+) -> Dict[str, Any]:
+    now = now or gate.test_now()
+    with BrokerLedger.transaction(ledger_path) as led:
+        return _mark_unavailable(led, reason, now, decision_path=decision_path, alert=alert)
+
+
+def _is_open_state(order: Dict[str, Any]) -> bool:
+    state = gate._norm_token(order.get("state") or order.get("status") or "")
+    return state in _OPEN_BROKER_STATES
+
+
+def _external_hits(orders: List[Dict[str, Any]], run_date: str, own_ids: set) -> List[Dict[str, Any]]:
+    """External live buys that reserve cash: created this ET day (any live state,
+    undated fails closed) or still open from any created date, including yesterday."""
+    hits = []
+    for order in orders or []:
+        if not isinstance(order, dict) or not _live_buy(order):
+            continue
+        oid = str(order.get("order_id") or order.get("id") or "")
+        if oid and oid in own_ids:
+            continue
+        ts = gate._parse_ts(order.get("created_at") or order.get("updated_at"))
+        same_day = ts is None or et_date(ts) == run_date
+        if same_day or _is_open_state(order):
+            hits.append(order)
+    return hits
+
+
+def _external_usd(hits: List[Dict[str, Any]]) -> Decimal:
+    total = ZERO
+    for order in hits:
+        amt = _order_amount(order)
+        if amt is not None and amt > 0:
+            total += amt
+    return total
+
+
+def _fetch_orders(client: Optional["RobinhoodClient"], cfg: Dict[str, Any], now: datetime):
+    """(orders, error). No client => ([], ""). BrokerUnavailable propagates."""
+    if client is None or not hasattr(client, "get_recent_orders"):
+        return [], ""
+    since = now - timedelta(days=45)
+    try:
+        raw = client.get_recent_orders(cfg["account_number"], since)
+    except BrokerUnavailable:
+        raise
+    except Exception as exc:
+        return None, f"broker orders unavailable ({type(exc).__name__})"
+    if not isinstance(raw, list):
+        return None, "broker orders unavailable"
+    return raw, ""
+
+
 def plan_intents(
     intents: Any,
     *,
@@ -631,6 +1131,9 @@ def plan_intents(
     persist: bool = True,
     client: Optional["RobinhoodClient"] = None,
     ai_note: str = "",
+    reservations_path: Optional[Path] = None,
+    pending_path: Optional[Path] = None,
+    decision_path: Optional[Path] = None,
 ) -> Tuple[Any, Dict[str, Any]]:
     """Build the deterministic run plan. Run size, sleeve split and fixed legs
     are ours. The floating leg goes to ``fold_into`` (IBIT) unless
@@ -650,14 +1153,18 @@ def plan_intents(
         buys = [it for it in intents if isinstance(it, dict) and gate.classify_side(it)[0] == "buy"]
         others = [it for it in intents if not any(it is b for b in buys)]
     try:
-        orders, info = _plan(buys, snapshot, policy_path, ledger_path, now, persist, client, ai_note)
+        orders, info = _plan(
+            buys, snapshot, policy_path, ledger_path, now, persist, client, ai_note,
+            reservations_path, pending_path, decision_path,
+        )
     except Exception as exc:
         orders, info = [], {"status": "plan_error", "reason": f"planner error {type(exc).__name__}; no buys"}
     _log(f"plan {info.get('status')}: {info.get('reason') or info.get('summary') or ''}")
     return others + orders, info
 
 
-def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, ai_note=""):
+def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, ai_note="",
+          reservations_path=None, pending_path=None, decision_path=None):
     run_date = et_date(now)
     info: Dict[str, Any] = {"run_date": run_date, "dropped": [], "notes": []}
 
@@ -683,10 +1190,27 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
         return done(S_BOOK_UNKNOWN, "settled cash unknown")
 
     with BrokerLedger.transaction(ledger_path) as led:
+        if led.unavailable(run_date):
+            return done(S_UNAVAILABLE, "broker_unavailable backoff for the rest of this ET day; no re-plan")
         claim = led.day_claim(run_date) if cfg["one_run_per_day"] else None
         if claim:
             return done(S_DAY_DONE, f"buy run already done today ({claim.get('claimed_by')}: {claim.get('reason')})")
         daily_left = max(ZERO, cfg["max_daily"] - led.placed_total(run_date))
+        own_ids = {str(r.get("order_id")) for r in led.data["orders"].values() if r.get("order_id")}
+        if client is None:
+            # Live gate does not inject a client. Resolve the configured one so
+            # open external buys reduce sizing. No configured client => no network.
+            client = resolve_client(cfg)
+        try:
+            raw_orders, order_err = _fetch_orders(client, cfg, now)
+        except BrokerUnavailable as exc:
+            _mark_unavailable(led, str(exc), now, decision_path=decision_path)
+            return done(S_UNAVAILABLE, f"{exc}; backoff for the rest of this ET day; no re-plan")
+        if order_err:
+            return done(S_BOOK_UNKNOWN, order_err)
+        ext_hits = _external_hits(raw_orders or [], run_date, own_ids)
+        ext_usd = _external_usd(ext_hits)
+        ext_reason = _external_same_day(raw_orders or [], run_date, own_ids)
 
         proposed: Dict[str, Decimal] = {}
         for it in buys:
@@ -703,10 +1227,16 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             proposed[sym] = proposed.get(sym, ZERO) + amt
         prop_total = sum(proposed.values(), ZERO)
         # Run size is deterministic: ALL investable cash, never the AI's total.
-        investable = _cents(min(settled, cfg["max_run"], daily_left))
+        # Open external buys (any created date) and unexpired reservations come off first.
+        reserved = load_reservations(reservations_path, now)
+        investable = _investable(settled, cfg, daily_left, reserved, ext_usd)
         run_total = investable
         info.update(settled_cash=float(settled), investable_usd=float(investable),
+                    reservation_usd=float(reserved), external_open_usd=float(ext_usd),
                     ai_proposed_usd=float(prop_total), run_total_usd=float(run_total))
+        if ext_reason and cfg["one_run_per_day"]:
+            led.claim_day(run_date, "external", ext_reason, now)
+            return done(S_DAY_DONE, ext_reason)
         if investable < cfg["min_investable"]:
             return done(S_BELOW_MIN, f"investable ${investable} below ${cfg['min_investable']} minimum")
         if prop_total and abs(prop_total - run_total) > CENT:
@@ -714,7 +1244,11 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
 
         if client is None and _needs_quotes(snapshot):
             client = resolve_client(cfg)
-        quotes, valuation = live_quotes(snapshot, cfg, client)
+        try:
+            quotes, valuation = live_quotes(snapshot, cfg, client)
+        except BrokerUnavailable as exc:
+            _mark_unavailable(led, str(exc), now, decision_path=decision_path)
+            return done(S_UNAVAILABLE, f"{exc}; backoff for the rest of this ET day; no re-plan")
         info["valuation"] = valuation
         if valuation.startswith("cost_basis") or "cost_basis_fallback" in valuation:
             info["notes"].append(f"40% test valuation: {valuation}")
@@ -740,8 +1274,69 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
 
         tol = max(cfg["tol_usd"], cfg["tol_pct"] * run_total)
         legs: Dict[str, Decimal] = {}
-        # stocks: move TSLA/SPCX toward 50/50
-        if stock_amt > 0:
+        info["pending_approvals"] = []
+        # stocks: sleeve-basis pins, buy-only. Themes are approval-gated, never auto legs.
+        # Two names and no pins keep the legacy 50/50 equalizer.
+        if stock_amt > 0 and cfg.get("stock_pins"):
+            held = {s: bv.get("sym:" + s, ZERO) for s in stocks}
+            nav = invested + settled
+            auto, pending = allocate_stock_buys(
+                stock_amt, held, nav, cfg["stock_pins"], cfg.get("themes") or [], cfg.get("whole_fund_pct") or {},
+            )
+            held_themes = set(_held_theme_names(cfg))
+            blocked_pending: List[Dict[str, Any]] = []
+            if held_themes:
+                blocked_pending = [p for p in pending if str(p.get("theme") or "") in held_themes]
+                pending = [p for p in pending if str(p.get("theme") or "") not in held_themes]
+                for sym in list(auto):
+                    if _theme_hold_reason(cfg, sym):
+                        blocked_pending.append({
+                            "symbol": sym,
+                            "side": "buy",
+                            "notional_usd": float(auto.pop(sym)),
+                            "theme": _symbol_theme(cfg, sym),
+                            "status": S_THEME_HOLD,
+                            "auto_execute": False,
+                        })
+            legs.update(auto)
+            info["pending_approvals"] = pending
+            if held_themes:
+                info["theme_buy_hold"] = {
+                    "active": True,
+                    "themes": list(_held_theme_names(cfg)),
+                    "set": str((cfg.get("theme_buy_hold") or {}).get("set") or ""),
+                }
+            for s, v in auto.items():
+                if abs(proposed.get(s, ZERO) - v) > tol:
+                    repaired.append(f"{s} ${proposed.get(s, ZERO):.2f} -> ${v:.2f} (sleeve pin, buy-only)")
+            for item in blocked_pending:
+                info["dropped"].append({
+                    "symbol": item.get("symbol"),
+                    "notional_usd": item.get("notional_usd") or 0.0,
+                    "status": S_THEME_HOLD,
+                    "reason": "theme_buy_hold active; not proposed, not queued, not written as pending approval",
+                })
+                repaired.append(
+                    f"{item['symbol']} ${float(item['notional_usd']):.2f} held ({item.get('theme')}; not queued)"
+                )
+            if blocked_pending:
+                info["notes"].append(
+                    "theme_buy_hold active ("
+                    + ",".join(_held_theme_names(cfg))
+                    + "): those buys are not proposed, not queued, and not written as pending approval"
+                )
+            for item in pending:
+                repaired.append(
+                    f"{item['symbol']} ${item['notional_usd']:.2f} -> pending approval ({item['theme']}; not auto-executed)"
+                )
+            if pending:
+                info["notes"].append("theme buys staged for Chris per-buy approval; not auto-executed")
+                if persist:
+                    stage_pending(pending, pending_path, now)
+            parked = _cents(stock_amt - sum(auto.values(), ZERO) - sum((_d(p["notional_usd"]) or ZERO for p in pending), ZERO))
+            if parked > 0:
+                info["notes"].append(f"stock residual ${parked:.2f} left uninvested (buy-only; no overbuy, no sell)")
+        elif stock_amt > 0 and len(stocks) == 2:
             a, b = stocks
             amt_a = _clamp((bv["sym:" + a] + bv["sym:" + b] + stock_amt) / 2 - bv["sym:" + a], ZERO, stock_amt)
             legs[a], legs[b] = amt_a, stock_amt - amt_a
@@ -758,7 +1353,11 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
                 if abs(proposed.get(s, ZERO) - t) > tol:
                     repaired.append(f"{s} AI ${proposed.get(s, ZERO):.2f} -> ${t:.2f} (fixed weight)")
         floating_amt = max(ZERO, btc_amt - sum(fixed.values(), ZERO))
-        fixed, client = _apply_fixed_leg_guards(fixed, cfg, client, info)
+        try:
+            fixed, client = _apply_fixed_leg_guards(fixed, cfg, client, info)
+        except BrokerUnavailable as exc:
+            _mark_unavailable(led, str(exc), now, decision_path=decision_path)
+            return done(S_UNAVAILABLE, f"{exc}; backoff for the rest of this ET day; no re-plan")
         ai_float = {s: proposed[s] for s in cfg["floating"] if proposed.get(s)}
         ai_float_total = sum(ai_float.values(), ZERO)
         legs.update(fixed)
@@ -799,7 +1398,16 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
                 info["notes"].append(f"{s} has low preference until {cfg['low_preference'][s].get('until')} (AI chose ${legs[s]:.2f})")
 
         legs = _finalize_legs(legs, run_total, cfg, info)
-        if not legs:
+        pending_left = info.get("pending_approvals") or []
+        if not legs and not pending_left:
+            held_drop = any(
+                isinstance(row, dict) and row.get("status") == S_THEME_HOLD for row in (info.get("dropped") or [])
+            )
+            if held_drop:
+                return done(
+                    S_THEME_HOLD,
+                    "theme_buy_hold active; AI-defense and energy buys are not proposed, not placed, and not queued",
+                )
             return done(S_BELOW_MIN, "no leg left after folding/caps")
         run_id = f"{run_date}T{now.astimezone(_ET).strftime('%H%M%S')}-{uuid.uuid4().hex[:6]}"
         status = P_REPAIRED if repaired else P_PLANNED
@@ -848,6 +1456,8 @@ def _apply_fixed_leg_guards(fixed: Dict[str, Decimal], cfg: Dict[str, Any], clie
         else:
             try:
                 quotes = {str(k).upper(): v for k, v in (client.get_quotes(sorted(capped)) or {}).items()}
+            except BrokerUnavailable:
+                raise
             except Exception as exc:
                 why_none = f"quote call failed ({type(exc).__name__})"
         for s in capped:
@@ -982,19 +1592,19 @@ def _live_buy(o: Any) -> bool:
 
 
 def _external_same_day(orders: List[Dict[str, Any]], run_date: str, own_ids: set) -> Optional[str]:
-    """A live (non-cancelled) buy created today ET that this run did not place,
-    e.g. Nakatoshi's manual buy. Undated orders count (fail closed)."""
-    for o in orders:
-        if not _live_buy(o):
-            continue
-        oid = str(o.get("order_id") or o.get("id") or "")
-        if oid and oid in own_ids:
-            continue
-        ts = gate._parse_ts(o.get("created_at") or o.get("updated_at"))
-        if ts is None or et_date(ts) == run_date:
-            sym = str(o.get("symbol") or "?").upper()
-            return f"same-day buy {sym} (order {oid or '?'}) placed outside this run"
-    return None
+    """A live external buy that claims the day.
+
+    Counts a buy this run did not place when it was created today ET (filled or
+    open; undated fails closed) or when it is still open from any created date,
+    including the prior ET day. A filled order from a prior day does not claim today.
+    """
+    hits = _external_hits(orders, run_date, own_ids)
+    if not hits:
+        return None
+    order = hits[0]
+    oid = str(order.get("order_id") or order.get("id") or "")
+    sym = str(order.get("symbol") or "?").upper()
+    return f"open external buy {sym} (order {oid or '?'}) placed outside this run"
 
 
 def _broker_duplicate(orders: List[Dict[str, Any]], symbol: str, amount: Decimal) -> Optional[str]:
@@ -1074,6 +1684,15 @@ def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
         problem = f"${amount} above max_order_notional_usd ${cfg['max_order']}"
     if problem:
         return _result(S_REVIEW_FAILED, problem, **base)
+    held = _theme_hold_reason(cfg, symbol)
+    if held:
+        return _result(S_THEME_HOLD, held + "; not proposed, not queued, not written as pending approval", **base)
+    if symbol in set(cfg.get("theme_symbols") or ()):
+        return _result(
+            S_PENDING,
+            f"{symbol} is a theme buy (AI defense or energy); Chris per-buy approval required; not auto-executed",
+            **base,
+        )
 
     try:
         with BrokerLedger.transaction(ledger_path) as led:
@@ -1084,6 +1703,13 @@ def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
 
 def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) -> Dict[str, Any]:
     base = {"idempotency_key": key}
+    held = _theme_hold_reason(cfg, symbol)
+    if held:
+        return _result(
+            S_THEME_HOLD,
+            held + "; not proposed, not queued, not written as pending approval",
+            **base,
+        )
     acct = cfg["account_number"]
     run_id = str(it.get("run_id") or "")
     plan = led.data["runs"].get(run_id) if run_id else None
@@ -1134,15 +1760,32 @@ def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) 
         sc = settled_cash(acc)
         if sc is not None and amount > sc:
             return rec(S_REVIEW_FAILED, f"${amount} exceeds settled cash ${sc}")
-        since = now - timedelta(hours=cfg["dedupe_window_hours"])
+        since = now - timedelta(days=45)
         orders = client.get_recent_orders(acct, since)
         if not isinstance(orders, list):
             return rec(S_REVIEW_FAILED, "broker orders unavailable")
-        ext = _external_same_day(orders, run_date, led.run_order_ids(run_id))
+        own_ids = led.run_order_ids(run_id)
+        ext = _external_same_day(orders, run_date, own_ids)
+        ext_usd = _external_usd(_external_hits(orders, run_date, own_ids))
+        reserved = load_reservations(None, now)
         if ext and cfg["one_run_per_day"] and not (claim and claim.get("claimed_by") == run_id):
             led.claim_day(run_date, "external", ext, now)
             return rec(S_DAY_DONE, f"{ext}; one buy run per ET day")
-        dup = _broker_duplicate(orders, symbol, amount)
+        if sc is not None and amount > sc - reserved - ext_usd:
+            return rec(
+                S_REVIEW_FAILED,
+                f"${amount} exceeds investable ${sc - reserved - ext_usd} after reservations ${reserved} and open external buys ${ext_usd}",
+            )
+        cutoff = now - timedelta(hours=cfg["dedupe_window_hours"])
+        recent = []
+        for seen in orders:
+            if not isinstance(seen, dict):
+                recent.append(seen)
+                continue
+            ts = gate._parse_ts(seen.get("created_at") or seen.get("updated_at"))
+            if ts is None or ts >= cutoff:
+                recent.append(seen)
+        dup = _broker_duplicate(recent, symbol, amount)
         if dup:
             return rec(S_DUP_BROKER, dup)
         tr = client.get_tradability(symbol) or {}
@@ -1151,6 +1794,9 @@ def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) 
         if tr.get("fractional_tradable") is not True:  # every order here is a dollar (fractional) order
             return rec(S_REVIEW_FAILED, f"{symbol} not fractional/dollar tradable")
         rv = client.review_order(review_payload(order)) or {}
+    except BrokerUnavailable as exc:
+        _mark_unavailable(led, str(exc), now)
+        return rec(S_UNAVAILABLE, f"{exc}; backoff for the rest of this ET day"[:200])
     except BrokerError as exc:
         return rec(S_REVIEW_FAILED, f"broker review error: {exc}"[:200])
     except Exception as exc:
@@ -1225,34 +1871,72 @@ def _record(led, key, run_id, run_date, symbol, amount, status, reason, now, *, 
 def should_buy(
     *, snapshot: Optional[Dict[str, Any]] = None, policy_path: Optional[Path] = None,
     ledger_path: Optional[Path] = None, now: Optional[datetime] = None,
+    orders: Optional[List[Dict[str, Any]]] = None,
+    client: Optional["RobinhoodClient"] = None,
+    reservations_path: Optional[Path] = None,
 ) -> Tuple[bool, str]:
     """True only when a buy run may start: live + enabled, inside the window,
-    no buy run yet this ET day, fresh snapshot, settled cash >= min_investable."""
+    no buy run yet this ET day, broker not backed off, fresh snapshot, and
+    investable cash (settled minus reservations minus open external buys) >= min.
+
+    Passing ``orders`` or ``client`` applies the external-buy reserve. The CLI
+    does not call grok from here (that would burn a usage-exhausted balance)."""
     now = now or gate.test_now()
     cfg, err = load_adapter_config(policy_path)
     if cfg is None:
         return False, f"{S_CONFIG}: {err}"
+
+    def answer(ok: bool, why: str) -> Tuple[bool, str]:
+        # The hold does not block core or BTC buys. It records that named theme
+        # buys will not be proposed, queued, or written as pending approval.
+        suffix = _hold_suffix(cfg)
+        if suffix and suffix not in why:
+            why += suffix
+        return ok, why
+
     if not cfg["live"] or not cfg["enabled"]:
-        return False, f"{S_LIVE_FALSE}: live/enabled not true"
+        return answer(False, f"{S_LIVE_FALSE}: live/enabled not true")
     st, why = market_window(now, cfg)
     if st:
-        return False, f"{st}: {why}"
+        return answer(False, f"{st}: {why}")
+    run_date = et_date(now)
     try:
         with BrokerLedger.transaction(ledger_path) as led:
-            claim = led.day_claim(et_date(now)) if cfg["one_run_per_day"] else None
+            if led.unavailable(run_date):
+                return answer(False, f"{S_UNAVAILABLE}: backoff for the rest of this ET day")
+            claim = led.day_claim(run_date) if cfg["one_run_per_day"] else None
     except (OSError, ValueError) as exc:
-        return False, f"{S_LEDGER}: {type(exc).__name__}"
+        return answer(False, f"{S_LEDGER}: {type(exc).__name__}")
     if claim:
-        return False, f"{S_DAY_DONE}: {claim.get('claimed_by')} ({claim.get('reason')})"
+        return answer(False, f"{S_DAY_DONE}: {claim.get('claimed_by')} ({claim.get('reason')})")
     snapshot = snapshot if snapshot is not None else load_snapshot()
     ag = _snapshot_agentic(snapshot or {})
     age = _snapshot_age_hours(snapshot or {}, now) if ag else None
     if not ag or age is None or age > cfg["snapshot_max_age_hours"]:
-        return False, f"{S_BOOK_UNKNOWN}: snapshot missing/stale"
+        return answer(False, f"{S_BOOK_UNKNOWN}: snapshot missing/stale")
     sc = settled_cash(ag)
-    if sc is None or sc < cfg["min_investable"]:
-        return False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}"
-    return True, f"settled cash ${sc} >= ${cfg['min_investable']}; buy run allowed"
+    if sc is None:
+        return answer(False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}")
+    raw_orders = orders
+    if raw_orders is None and client is not None:
+        try:
+            raw_orders, order_err = _fetch_orders(client, cfg, now)
+        except BrokerUnavailable as exc:
+            return answer(False, f"{S_UNAVAILABLE}: {exc}")
+        if order_err:
+            return answer(False, f"{S_BOOK_UNKNOWN}: {order_err}")
+    hits = _external_hits(raw_orders or [], run_date, set())
+    ext_usd = _external_usd(hits)
+    ext_reason = _external_same_day(raw_orders or [], run_date, set()) if raw_orders else None
+    if ext_reason and cfg["one_run_per_day"]:
+        return answer(False, f"{S_DAY_DONE}: {ext_reason}")
+    reserved = load_reservations(reservations_path, now)
+    net = sc - reserved - ext_usd
+    if net < cfg["min_investable"]:
+        return answer(False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}")
+    if reserved == 0 and ext_usd == 0:
+        return answer(True, f"settled cash ${sc} >= ${cfg['min_investable']}; buy run allowed")
+    return answer(True, f"investable ${net} >= ${cfg['min_investable']}; buy run allowed")
 
 
 # --------------------------------------------------------------------------
@@ -1404,7 +2088,9 @@ class GrokMcpClient:
         except OSError as exc:
             raise BrokerError(f"grok unavailable ({type(exc).__name__})") from exc
         if r.returncode != 0:
-            raise BrokerError(f"grok exit {r.returncode}")
+            blob = f"{getattr(r, 'stderr', '') or ''}\n{getattr(r, 'stdout', '') or ''}"
+            kind = classify_broker_unavailable(returncode=r.returncode, text=blob)
+            raise BrokerUnavailable(kind or f"broker_unavailable: grok exit {r.returncode}")
         return parse_grok_output(r.stdout, require_tool_round=True)
 
     def get_account(self, account_number: str) -> Dict[str, Any]:
@@ -1496,7 +2182,32 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="fund-manager broker adapter (no network)")
     ap.add_argument("--should-buy", action="store_true",
                     help="exit 0 if a buy run may start now (settled cash >= min, once per ET day), else 1")
+    ap.add_argument("--note-broker-unavailable", action="store_true",
+                    help="record one broker_unavailable decision+alert for this ET day and exit 0")
+    ap.add_argument("--grok-exit", type=int, default=None)
+    ap.add_argument("--grok-stdout", default="")
+    ap.add_argument("--grok-stderr", default="")
     args = ap.parse_args(argv)
+    if args.note_broker_unavailable:
+        chunks = []
+        for raw in (args.grok_stdout, args.grok_stderr):
+            path = Path(raw) if raw and Path(raw).is_file() else None
+            if path is not None:
+                try:
+                    chunks.append(path.read_text(encoding="utf-8", errors="replace")[:4000])
+                except OSError:
+                    continue
+            elif raw:
+                chunks.append(str(raw)[:4000])
+        reason = classify_broker_unavailable(returncode=args.grok_exit, text="\n".join(chunks))
+        if reason is None and args.grok_exit not in (None, 0):
+            reason = f"broker_unavailable: grok exit {args.grok_exit}"
+        if reason is None:
+            print(json.dumps({"status": "not_broker_unavailable"}))
+            return 1
+        noted = note_broker_unavailable(reason)
+        print(json.dumps({"status": noted.get("status"), "already": noted.get("already"), "reason": noted.get("reason")}))
+        return 0
     if args.should_buy:
         ok, why = should_buy()
         print(json.dumps({"should_buy": ok, "reason": why}))

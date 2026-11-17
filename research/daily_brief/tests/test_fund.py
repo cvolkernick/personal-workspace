@@ -39,14 +39,19 @@ def _notes(tmp: tempfile.TemporaryDirectory, date_s: str = DATE) -> dict:
 class TestMonitoredSet(unittest.TestCase):
     def test_set_comes_from_consider_share_pins_first(self) -> None:
         m = fund.monitored_set(CS)
-        self.assertEqual([x["symbol"] for x in m if x["pinned"]], ["SPCX", "TSLA"])
-        self.assertEqual({x["symbol"] for x in m}, {"SPCX", "TSLA", "BE"})
+        pins = CS["pins"]
+        pinned = [x["symbol"] for x in m if x["pinned"]]
+        self.assertEqual(pinned, sorted(pins, key=lambda s: (-float(pins[s]), s)))
+        self.assertIn("MARA", pinned)
+        self.assertIn("BE", {x["symbol"] for x in m})
         self.assertEqual([x["symbol"] for x in m][:2], ["SPCX", "TSLA"])
 
     def test_only_pins_read_pinned(self) -> None:
         by = {x["symbol"]: fund.relevance_line(x) for x in fund.monitored_set(CS)}
         self.assertIn("pinned", by["TSLA"])
         self.assertIn("pinned", by["SPCX"])
+        self.assertIn("pinned", by["MARA"])
+        self.assertNotIn("watch only", by["MARA"])
         self.assertEqual(by["BE"], "Allocation relevance: watch only")
 
     def test_junk_and_lowercase_names_are_not_tickers(self) -> None:
@@ -240,10 +245,11 @@ class TestHoldings(unittest.TestCase):
         self.assertEqual(h["state"], "ok")
         rows = {r["symbol"]: r for r in h["rows"]}
         self.assertEqual(rows["TSLA"]["stocks_sleeve_weight_pct"], 50.0)
-        self.assertEqual(rows["TSLA"]["drift_pp"], 0.0)
+        # Sleeve pin is 33.33 (20% of the whole fund). 50.0 - 33.33 rounds to 16.7pp.
+        self.assertEqual(rows["TSLA"]["drift_pp"], 16.7)
         self.assertEqual(rows["SPCX"]["stocks_sleeve_weight_pct"], 37.5)
-        self.assertEqual(rows["SPCX"]["drift_pp"], -12.5)
-        self.assertEqual(rows["SPCX"]["target_pct"], 50.0)
+        self.assertEqual(rows["SPCX"]["drift_pp"], 4.2)
+        self.assertEqual(rows["SPCX"]["target_pct"], 33.3)
         self.assertEqual(rows["TSLA"]["weight_nav_pct"], 20.0)
         self.assertNotIn("drift_pp", rows["MSTR"])
         self.assertFalse(rows["MSTR"]["pinned"])

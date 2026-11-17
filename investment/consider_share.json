@@ -1,9 +1,11 @@
 {
   "schema": "fcc_consider_share_stamps_v0",
-  "as_of": "2026-09-22",
-  "verified_as_of": "2026-09-22",
+  "as_of": "2026-11-17",
+  "verified_as_of": "2026-11-17",
   "unit": "new_money_consider_share_pct",
   "sum_to": 100,
+  "basis": "percent_of_stocks_growth_sleeve",
+  "basis_note": "Pins are percent of the stocks_growth sleeve and sum to 100. Chris's 2026-11-17 wording was whole-fund (TSLA 20 / SPCX 20 / AI defense 10 / energy 10 = 60, the stocks sleeve of the whole fund). whole_fund_pct records that wording beside the sleeve-basis pins. Not a forced rebalance and not a sell.",
   "not_a_nav_target": false,
   "not_a_sleeve_target": false,
   "not_an_order": false,
@@ -11,34 +13,79 @@
   "not_for_monday_residual": false,
   "not_a_forced_rebalance": true,
   "authoritative_for_bias_pins": true,
-  "notes": "Chairman standing order 2026-09-22: Agentic STOCKS sleeve only = 50% SPCX / 50% TSLA by market value. (Historical: the 2026-09-22 exit of every other equity name was executed once; it is NOT a standing instruction and never authorizes a sell — #1093 no-sell-to-rebalance.) Ongoing stocks capital deploys 50/50 SPCX+TSLA only — no other equity names. Crypto/cash sleeves unchanged unless Chairman says otherwise. Monday $25 flatten-only / theme-gap cadence still applies, but stock deploys follow this 50/50 rule (do not theme-gap into other equities). Live rebalance executed 2026-09-22 on Agentic ****1752. Pins are the stocks-sleeve target (sum 100 of stocks consider list). Supersedes prior TSLA15/SPCX15 residual-float pins and BITA/STRC/MARA/NVDA pin history.",
+  "notes": "Chris ruling 2026-11-17 (Agentic 1752), recorded on the stocks-sleeve basis the config already uses (sum 100), not as raw whole-fund percents. Whole-fund wording was TSLA 20 / SPCX 20 / AI defense 10 (PLTR 5, CRWD 2.5, S 2.5) / energy 10 (CCJ 4, GEV 2, VRT 2, OKLO 1, MARA 1) = 60% of the fund, which is the stocks_growth sleeve. Sleeve pins: TSLA 33.33, SPCX 33.33, PLTR 8.33, CRWD 4.17, S 4.17, CCJ 6.67, GEV 3.33, VRT 3.33, OKLO 1.67, MARA 1.67. Buy-only: never sell or rebalance. AI defense fills before energy. Every AI-defense and energy buy needs Chris's per-buy approval and is never auto-executed. MARA leaves the BTC miners list for the energy sleeve with an explicit pin (whole-fund 1%); its position counts toward that 1%; never sell or trim MARA. Supersedes the 2026-09-22 50% SPCX / 50% TSLA sleeve rule and prior TSLA15/SPCX15 residual-float pins and BITA/STRC/MARA/NVDA pin history. (Historical: the 2026-09-22 exit of every other equity name was executed once; it is NOT a standing instruction and never authorizes a sell — #1093 no-sell-to-rebalance.) Monday theme-gap cadence still applies, but do not theme-gap into equities outside this stocks sleeve. Pins are the stocks-sleeve target (sum 100 of stocks consider list).",
   "pins": {
-    "TSLA": 50.0,
-    "SPCX": 50.0
+    "TSLA": 33.33,
+    "SPCX": 33.33,
+    "PLTR": 8.33,
+    "CRWD": 4.17,
+    "S": 4.17,
+    "CCJ": 6.67,
+    "GEV": 3.33,
+    "VRT": 3.33,
+    "OKLO": 1.67,
+    "MARA": 1.67
+  },
+  "whole_fund_pct": {
+    "TSLA": 20.0,
+    "SPCX": 20.0,
+    "PLTR": 5.0,
+    "CRWD": 2.5,
+    "S": 2.5,
+    "CCJ": 4.0,
+    "GEV": 2.0,
+    "VRT": 2.0,
+    "OKLO": 1.0,
+    "MARA": 1.0
+  },
+  "themes": {
+    "ai_defense": {
+      "fill_order": 1,
+      "whole_fund_pct": 10,
+      "symbols": ["PLTR", "CRWD", "S"],
+      "requires_per_buy_approval": true,
+      "buy_only": true
+    },
+    "energy": {
+      "fill_order": 2,
+      "whole_fund_pct": 10,
+      "symbols": ["CCJ", "GEV", "VRT", "OKLO", "MARA"],
+      "requires_per_buy_approval": true,
+      "buy_only": true,
+      "mara_whole_fund_pct": 1,
+      "mara_never_sell_or_trim": true
+    }
   },
   "reallocate_status": "HISTORICAL: executed 2026-09-22. Never a standing instruction; never authorizes a sell (#1093).",
   "reallocate": {
-    "BE": [
-      "TSLA",
-      "SPCX"
-    ],
-    "non_spcx_tsla_equities": [
-      "TSLA",
-      "SPCX"
-    ]
+    "BE": ["TSLA", "SPCX"],
+    "non_spcx_tsla_equities": ["TSLA", "SPCX"]
   },
   "guardrails": {
     "locked_by": "Chairman",
-    "locked_as_of": "2026-09-22",
-    "source": "Grok standing order 2026-09-22 (corrects misclick — use 50/50 not keep-ratio)",
+    "locked_as_of": "2026-11-17",
+    "source": "Chris ruling 2026-11-17 Agentic 1752 (sleeve-basis pins; whole-fund wording recorded in whole_fund_pct)",
     "stocks_sleeve_only_symbols": [
       "TSLA",
-      "SPCX"
+      "SPCX",
+      "PLTR",
+      "CRWD",
+      "S",
+      "CCJ",
+      "GEV",
+      "VRT",
+      "OKLO",
+      "MARA"
     ],
-    "stocks_deploy_rule": "50/50 SPCX+TSLA",
+    "stocks_deploy_rule": "sleeve-basis pins sum 100; AI defense fills before energy; theme buys need per-buy approval",
     "never_auto_sleeve_targets": false,
     "never_invent_pins": true,
-    "never_theme_gap_other_equities": true
+    "never_theme_gap_other_equities": true,
+    "buy_only": true,
+    "never_sell_or_rebalance": true,
+    "theme_buys_require_per_buy_approval": true,
+    "single_symbol_max_auto": 2.0,
+    "total_abs_max_auto": 5.0
   },
   "loop_adjustments": {}
 }
