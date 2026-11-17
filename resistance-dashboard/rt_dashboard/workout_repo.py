@@ -400,12 +400,15 @@ class WorkoutRepository:
 
         Keeps ``closed_at`` (created_at) so wake membership does not jump.
         A failed write leaves the source row in place. The source row is
-        deleted only when ``_session_on`` shows every one of its sets on
-        the destination.
+        deleted only when ``_session_on`` shows every source copy added
+        on top of the destination's pre-merge multiset.
         """
         src_day = str(from_date or "")[:10]
-        result = self.upsert_session(session)
         dest_day = str(session.date)[:10]
+        before = None
+        if src_day and src_day != dest_day:
+            before = self._session_on(dest_day, session.session_type)
+        result = self.upsert_session(session)
         if not src_day or src_day == dest_day:
             return result
         from .workout_log import (
@@ -416,7 +419,7 @@ class WorkoutRepository:
         read = self._session_on(dest_day, session.session_type)
         source = self._session_on(src_day, session.session_type)
         if source is not None:
-            ensure_source_sets_on_readback(source, read)
+            ensure_source_sets_on_readback(source, read, before=before)
         if not logged_session_visible(session, read):
             raise RuntimeError("write not visible on readback")
         if source is not None:

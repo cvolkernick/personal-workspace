@@ -343,12 +343,16 @@ def relocate_session(user_id: str, session: Session, from_date: str) -> Dict[str
 
     The Turso driver's rowcount is 0 for UPDATE, so the write is verified
     by ``read_session``, not by rowcount. A failed write, a readback that
-    is not the merged session, or a destination missing any source set
-    leaves the source row in place.
+    is not the merged session, or a readback that did not gain every
+    source copy beyond the destination's pre-merge multiset leaves the
+    source row in place.
     """
-    result = upsert_session(user_id, session)
     src_day = str(from_date or "")[:10]
     dest_day = str(session.date)[:10]
+    before = None
+    if src_day and src_day != dest_day:
+        before = read_session(user_id, dest_day, session.session_type)
+    result = upsert_session(user_id, session)
     if not src_day or src_day == dest_day:
         return result
     from .workout_log import (
@@ -359,7 +363,7 @@ def relocate_session(user_id: str, session: Session, from_date: str) -> Dict[str
     read = read_session(user_id, dest_day, session.session_type)
     source = read_session(user_id, src_day, session.session_type)
     if source is not None:
-        ensure_source_sets_on_readback(source, read)
+        ensure_source_sets_on_readback(source, read, before=before)
     if not logged_session_visible(session, read):
         raise RuntimeError("turso write not visible on readback")
     if source is not None:

@@ -18,6 +18,7 @@ from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.quest_workout_log import exercise_is_real_log, seed_exercise
 from rt_dashboard.turso_http import TursoCursor, TursoRow
 from rt_dashboard.workout_log import (
+    ensure_source_sets_on_readback,
     mark_merged_from,
     merged_from_days,
     merge_log_with_history,
@@ -578,6 +579,20 @@ def _names(session: Session) -> list:
     return [ex.name for ex in session.exercises]
 
 
+def _squats(n: int, day: str, stamp: str) -> Session:
+    """``n`` separate identical 100x1x10 squat sets."""
+    return _legs_on(
+        day,
+        [
+            ExerciseEntry(
+                name="Squat",
+                sets=[SetEntry(weight_lbs=100, sets=1, reps=10) for _ in range(n)],
+            )
+        ],
+        stamp,
+    )
+
+
 class SourceSessionIdentity(unittest.TestCase):
     """The merge marker is the source session, not only its civil day."""
 
@@ -753,6 +768,19 @@ class SourceSessionIdentity(unittest.TestCase):
         self.assertEqual(sets[1].weight_lbs, 120)
         self.assertIn(digest, merged.source_file)
 
+    def test_two_identical_sets_need_two_copies_beyond_the_destination(self):
+        before = _squats(1, Y_DAY, Y_STAMP)
+        source = _squats(2, X_DAY, X1_STAMP)
+        full = _squats(3, Y_DAY, Y_STAMP)
+        short = _squats(2, Y_DAY, Y_STAMP)
+        ensure_source_sets_on_readback(source, full, before=before)
+        with self.assertRaisesRegex(RuntimeError, "source row kept"):
+            ensure_source_sets_on_readback(source, short, before=before)
+        # Membership of the triple, or post >= source, would accept `short`
+        # (2 >= 2). The pre-existing copy is not one of the two new copies.
+        with self.assertRaisesRegex(RuntimeError, "added 1, need 2 beyond 1"):
+            ensure_source_sets_on_readback(source, short, before=before)
+
 
 class SourceIdentitySqlite(unittest.TestCase):
     def setUp(self):
@@ -864,6 +892,42 @@ class SourceIdentitySqlite(unittest.TestCase):
         self.assertEqual(_names(rows[0]), ["Seated Leg Curls", "Barbell Deadlift"])
         self.assertEqual(_triples(rows[0].exercises[1]), [(135.0, 1, 6)])
 
+    def test_two_identical_source_sets_land_as_three_and_source_is_deleted(self):
+        dest = _squats(1, Y_DAY, Y_STAMP)
+        src = _squats(2, X_DAY, X1_STAMP)
+        self.repo.upsert_session(dest)
+        self.repo.upsert_session(src)
+        moved = _move_x_to_y(self.repo.list_sessions())
+        self.assertEqual(len(moved.exercises[0].sets), 3)
+        self.repo.relocate_session(moved, X_DAY)
+        rows = self.repo.list_sessions()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].date, Y_DAY)
+        self.assertEqual(len(rows[0].exercises[0].sets), 3)
+        self.assertEqual(
+            _triples(rows[0].exercises[0]),
+            [(100.0, 1, 10), (100.0, 1, 10), (100.0, 1, 10)],
+        )
+
+    def test_readback_of_two_does_not_delete_when_destination_already_had_one(self):
+        dest = _squats(1, Y_DAY, Y_STAMP)
+        src = _squats(2, X_DAY, X1_STAMP)
+        self.repo.upsert_session(dest)
+        self.repo.upsert_session(src)
+        # One source copy dropped: the row shows the original plus one new copy.
+        short = _squats(2, Y_DAY, Y_STAMP)
+        with self.assertLogs("fitdash.workout_log", level="ERROR") as logs:
+            with self.assertRaisesRegex(RuntimeError, "added 1, need 2 beyond 1"):
+                self.repo.relocate_session(short, X_DAY)
+        self.assertTrue(any("refusing to delete" in line for line in logs.output))
+        rows = {row.date: row for row in self.repo.list_sessions()}
+        self.assertIn(X_DAY, rows)
+        self.assertEqual(len(rows[X_DAY].exercises[0].sets), 2)
+        self.assertEqual(
+            _triples(rows[X_DAY].exercises[0]),
+            [(100.0, 1, 10), (100.0, 1, 10)],
+        )
+
 
 class SourceIdentityTurso(RelocateDeletesSourceAfterReadback):
     def _read(self, day):
@@ -922,6 +986,27 @@ class SourceIdentityTurso(RelocateDeletesSourceAfterReadback):
         )
         self.assertEqual(_names_of(stored), ["Back Extension Machine", "Barbell Deadlift"])
         self.assertEqual(_triples(stored[1]), [(135.0, 1, 6)])
+
+    def test_readback_dropping_one_identical_copy_keeps_the_source(self):
+        from rt_dashboard.workout_repo import _seal_exercises
+
+        dest = _squats(1, Y_DAY, Y_STAMP)
+        src = _squats(2, X_DAY, X1_STAMP)
+        merged = _move_x_to_y([dest, src])
+        self.assertEqual(len(merged.exercises[0].sets), 3)
+        self._seed(dest, src)
+        dropped = _squats(2, Y_DAY, Y_STAMP)
+        self.store.substitute_payload = _seal_exercises(UID, dropped.exercises)
+        with self.assertLogs("fitdash.workout_log", level="ERROR") as logs:
+            with self.assertRaisesRegex(RuntimeError, "added 1, need 2 beyond 1"):
+                self._reloc(merged, X_DAY)
+        self.assertTrue(any("refusing to delete" in line for line in logs.output))
+        self.assertNotIn("delete", [event["op"] for event in self.store.events])
+        self.assertIn((UID, X_DAY, "legs"), self.store.rows)
+        stored = _open_exercises(
+            UID, self.store.rows[(UID, X_DAY, "legs")]["exercises_json"]
+        )
+        self.assertEqual(len(stored[0].sets), 2)
 
 
 def _names_of(exercises) -> list:
