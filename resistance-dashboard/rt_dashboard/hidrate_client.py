@@ -10,14 +10,14 @@ partial Health Connect / Fitbit water rows cannot double-count.
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import os
+import ssl
 import threading
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -47,6 +47,46 @@ _SIP_TTL_SEC = 300.0
 _STALE_MAX_SEC = float(os.environ.get("HIDRATE_STALE_MAX_SEC", "1800"))
 _REFRESHING: set = set()
 _REFRESH_LOCK = threading.Lock()
+# One HTTPS connection for Parse (login, Day, Sip, Bottle). A cold build used
+# to pay a fresh handshake on each of those calls.
+_HTTP_LOCK = threading.Lock()
+_HTTP_CONN: Optional[http.client.HTTPConnection] = None
+_HTTP_KEY: Optional[tuple] = None
+
+
+def _http_drop() -> None:
+    global _HTTP_CONN, _HTTP_KEY
+    conn = _HTTP_CONN
+    _HTTP_CONN = None
+    _HTTP_KEY = None
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _http_conn(scheme: str, netloc: str, timeout: float) -> http.client.HTTPConnection:
+    global _HTTP_CONN, _HTTP_KEY
+    key = (scheme, netloc)
+    if _HTTP_CONN is not None and _HTTP_KEY == key:
+        return _HTTP_CONN
+    _http_drop()
+    if scheme == "http":
+        conn: http.client.HTTPConnection = http.client.HTTPConnection(netloc, timeout=timeout)
+    else:
+        conn = http.client.HTTPSConnection(
+            netloc, timeout=timeout, context=ssl.create_default_context()
+        )
+    _HTTP_CONN = conn
+    _HTTP_KEY = key
+    return conn
+
+
+def reset_hidrate_connection() -> None:
+    """Drop the shared Parse connection. Tests use this."""
+    with _HTTP_LOCK:
+        _http_drop()
 
 
 def _background_refresh(name: str, fn) -> None:
@@ -160,33 +200,46 @@ class HidrateClient:
         params: Optional[Dict[str, str]] = None,
         session: bool = False,
     ) -> Any:
-        url = f"{self.server_url}{path}"
+        parts = urllib.parse.urlsplit(self.server_url)
+        req_path = (parts.path or "") + path
         if params:
-            url = f"{url}?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(
-            url, headers=self._headers(session=session), method=method.upper()
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout_sec) as resp:
-                raw = resp.read().decode("utf-8")
+            req_path = f"{req_path}?{urllib.parse.urlencode(params)}"
+        headers = self._headers(session=session)
+        scheme = parts.scheme or "https"
+        netloc = parts.netloc
+        with _HTTP_LOCK:
+            last_error: Optional[BaseException] = None
+            for attempt in (0, 1):
+                conn = _http_conn(scheme, netloc, self.timeout_sec)
+                try:
+                    conn.request(method.upper(), req_path, headers=headers)
+                    resp = conn.getresponse()
+                    raw = resp.read()
+                    status = resp.status
+                    close = (resp.getheader("Connection") or "").lower() == "close"
+                except (http.client.HTTPException, OSError, TimeoutError) as e:
+                    _http_drop()
+                    last_error = e
+                    if attempt == 0:
+                        continue
+                    raise HidrateError(f"Hidrate network error: {e}") from e
+                if close:
+                    _http_drop()
+                if status >= 400:
+                    body = raw.decode("utf-8", errors="replace")
+                    _http_drop()
+                    raise HidrateError(
+                        f"Hidrate HTTP {status}: {body[:300]}",
+                        status=status,
+                        body=body,
+                    )
                 if not raw:
                     return {}
-                return json.loads(raw)
-        except urllib.error.HTTPError as e:
-            body = ""
-            try:
-                body = e.read().decode("utf-8", errors="replace")
-            except Exception:
-                pass
-            raise HidrateError(
-                f"Hidrate HTTP {e.code}: {body[:300] or e.reason}",
-                status=e.code,
-                body=body,
-            ) from e
-        except urllib.error.URLError as e:
-            raise HidrateError(f"Hidrate network error: {e.reason}") from e
-        except json.JSONDecodeError as e:
-            raise HidrateError(f"Hidrate invalid JSON: {e}") from e
+                try:
+                    return json.loads(raw.decode("utf-8"))
+                except json.JSONDecodeError as e:
+                    raise HidrateError(f"Hidrate invalid JSON: {e}") from e
+            raise HidrateError(f"Hidrate network error: {last_error}")
 
     def login(self) -> Dict[str, Any]:
         if not self.credentials_present():
@@ -637,6 +690,17 @@ def parse_sip_samples(rows: Optional[List[Dict[str, Any]]]) -> List[Dict[str, An
             }
         )
     return out
+
+
+def hidrate_bundle_for_build(
+    *,
+    client: Optional[HidrateClient] = None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Sip samples and bottle charge on one client and one HTTPS connection."""
+    hc = client
+    if hc is None and hidrate_credentials_present():
+        hc = HidrateClient()
+    return hidrate_hydration_samples(client=hc), hidrate_bottle_charge(client=hc)
 
 
 def hidrate_hydration_samples(

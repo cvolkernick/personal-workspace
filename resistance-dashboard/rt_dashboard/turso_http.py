@@ -320,3 +320,117 @@ def _keepalive_post(url: str, body: bytes, headers: dict, *, timeout: float, sql
             raise RuntimeError(f"turso HTTP {resp.status}")
         return json.loads(raw.decode("utf-8"))
     raise RuntimeError("turso connection: retry exhausted")
+
+
+# --- Process-wide connection (agent today / coach card) --------------------
+# export_agent_today and the coach card each used to open a new TLS connection
+# per coaching_target_settings read (~146 ms on the Pi, ~35 ms when reused).
+# One connection, locked so threads do not share a socket, reconnects once
+# after a transport error. Writes stay on ``connect()`` / ``keepalive_scope``.
+
+_SHARED_LOCK = threading.Lock()
+_SHARED_CONN = None
+_SHARED_KEY = None
+_SHARED_LAST = 0.0
+_SHARED_IDLE_SEC = 120.0
+
+
+def _shared_drop_unlocked() -> None:
+    global _SHARED_CONN, _SHARED_KEY, _SHARED_LAST
+    conn = _SHARED_CONN
+    _SHARED_CONN = None
+    _SHARED_KEY = None
+    _SHARED_LAST = 0.0
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def reset_shared_connection() -> None:
+    """Drop the process-wide connection. Tests and reconnects call this."""
+    with _SHARED_LOCK:
+        _shared_drop_unlocked()
+
+
+def _shared_http(url: str, timeout: float):
+    global _SHARED_CONN, _SHARED_KEY, _SHARED_LAST
+    parts = urlsplit(url)
+    key = (parts.scheme, parts.netloc)
+    idle = time.time() - float(_SHARED_LAST or 0)
+    conn = _SHARED_CONN
+    if conn is not None and (_SHARED_KEY != key or idle > _SHARED_IDLE_SEC):
+        _shared_drop_unlocked()
+        conn = None
+    if conn is None:
+        if parts.scheme == "https":
+            conn = http.client.HTTPSConnection(
+                parts.netloc, timeout=timeout, context=ssl.create_default_context()
+            )
+        else:
+            conn = http.client.HTTPConnection(parts.netloc, timeout=timeout)
+        _SHARED_CONN = conn
+        _SHARED_KEY = key
+    return conn, parts
+
+
+def _cursor_from_payload(payload: dict) -> TursoCursor:
+    results = payload.get("results") or []
+    first = results[0] if results else {}
+    if first.get("type") == "error":
+        msg = (first.get("error") or {}).get("message") or first
+        raise RuntimeError(f"turso execute: {msg}")
+    result = ((first.get("response") or {}).get("result")) or {}
+    cols = [c.get("name") for c in (result.get("cols") or [])]
+    rows = []
+    for raw in result.get("rows") or []:
+        values = [_cell(c) for c in raw]
+        rows.append(TursoRow(zip(cols, values)))
+    return TursoCursor(cols, rows)
+
+
+def shared_read(sql: str, params: Sequence[Any] = (), *, timeout: float = 20.0) -> TursoCursor:
+    """Run one read on the process-wide Turso connection.
+
+    Thread-safe. A dead socket is dropped and the read is tried once more.
+    """
+    if not turso_enabled():
+        raise RuntimeError("TURSO_DATABASE_URL / TURSO_AUTH_TOKEN missing")
+    stmt: dict[str, Any] = {"sql": sql}
+    if params:
+        stmt["args"] = [_arg(p) for p in params]
+    body = json.dumps(
+        {"requests": [{"type": "execute", "stmt": stmt}, {"type": "close"}]}
+    ).encode("utf-8")
+    url = http_base_url(turso_url()) + "/v2/pipeline"
+    headers = {
+        "Authorization": f"Bearer {turso_token()}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    parts = urlsplit(url)
+    path = parts.path + (("?" + parts.query) if parts.query else "")
+    with _SHARED_LOCK:
+        last_error: Optional[BaseException] = None
+        for attempt in (0, 1):
+            conn, _parts = _shared_http(url, timeout)
+            try:
+                conn.request("POST", path, body=body, headers=headers)
+                resp = conn.getresponse()
+                raw = resp.read()
+            except (http.client.RemoteDisconnected, ConnectionError, http.client.BadStatusLine, OSError) as e:
+                _shared_drop_unlocked()
+                last_error = e
+                if attempt == 0:
+                    continue
+                raise RuntimeError(f"turso connection: {type(e).__name__}") from e
+            global _SHARED_LAST
+            _SHARED_LAST = time.time()
+            if (resp.getheader("Connection") or "").lower() == "close":
+                _shared_drop_unlocked()
+            if resp.status >= 400:
+                _shared_drop_unlocked()
+                raise RuntimeError(f"turso HTTP {resp.status}")
+            return _cursor_from_payload(json.loads(raw.decode("utf-8")))
+        raise RuntimeError(f"turso connection: {type(last_error).__name__ if last_error else 'retry exhausted'}")

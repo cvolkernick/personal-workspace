@@ -247,6 +247,7 @@ class PayloadMemo(unittest.TestCase):
         server.invalidate_dashboard_memo()
 
     def tearDown(self):
+        self.server.drain_payload_rebuilds()
         self.server.invalidate_dashboard_memo()
 
     def test_disabled_outside_serving_mode(self):
@@ -283,17 +284,36 @@ class PayloadMemo(unittest.TestCase):
             self.server.load_dashboard_data(user_id="u")
             self.assertEqual(len(calls), 4)
 
-    def test_health_cache_change_invalidates(self):
+    def test_health_cache_change_serves_stale_then_rebuilds(self):
+        """A health.json mtime change does not block the request.
+
+        The last good payload is returned and one background rebuild runs.
+        """
         calls = []
         m = {"v": 1.0}
+
+        def build(**k):
+            calls.append(m["v"])
+            return {"seen": m["v"]}
+
         with mock.patch.object(self.server, "_PAYLOAD_MEMO_ENABLED", True), \
-             mock.patch.object(self.server, "build_dashboard_data", lambda **k: calls.append(1) or {}), \
+             mock.patch.object(self.server, "build_dashboard_data", build), \
              mock.patch.object(self.server, "_health_cache_mtime", lambda: m["v"]):
+            first = self.server.load_dashboard_data(user_id="u")
             self.server.load_dashboard_data(user_id="u")
-            self.server.load_dashboard_data(user_id="u")
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first["seen"], 1.0)
             m["v"] = 2.0
-            self.server.load_dashboard_data(user_id="u")
-        self.assertEqual(len(calls), 2)
+            stale = self.server.load_dashboard_data(user_id="u")
+            self.assertEqual(stale["seen"], 1.0)
+            deadline = time.time() + 2
+            while len(calls) < 2 and time.time() < deadline:
+                time.sleep(0.01)
+            self.assertEqual(len(calls), 2)
+            self.server.drain_payload_rebuilds()
+            fresh = self.server.load_dashboard_data(user_id="u")
+            self.assertEqual(fresh["seen"], 2.0)
+            self.assertEqual(len(calls), 2)
 
 
 class PayloadMemoWriteGeneration(unittest.TestCase):

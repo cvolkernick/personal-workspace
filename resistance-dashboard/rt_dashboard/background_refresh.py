@@ -36,6 +36,23 @@ _schedule_lock = threading.Lock()
 _refresh_lock = threading.Lock()
 _last_scheduled = 0.0
 _warm_loop_started = False
+# server.py registers a payload rebuild so a health refresh does not leave
+# the next page load to rebuild the ~900 KB body itself.
+_after_health_refresh = []
+
+
+def register_after_health_refresh(fn) -> None:
+    """Call ``fn`` after each background health refresh finishes."""
+    if fn not in _after_health_refresh:
+        _after_health_refresh.append(fn)
+
+
+def _notify_after_health_refresh() -> None:
+    for fn in list(_after_health_refresh):
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            log.warning("after health refresh hook failed: %s", e)
 
 
 def _bg_min_interval() -> float:
@@ -241,6 +258,7 @@ def _spawn_refresh(
     def runner() -> None:
         if not _refresh_lock.acquire(blocking=False):
             return
+        health_ok = False
         try:
             _refresh_health(
                 local_dir=local_dir,
@@ -248,10 +266,18 @@ def _spawn_refresh(
                 incremental=incremental,
                 health_refresh_token=captured_health,
             )
+            health_ok = True
             _refresh_github(token=captured_gh)
         except Exception as e:  # noqa: BLE001
             log.warning("background refresh failed: %s", e)
         finally:
+            if health_ok:
+                # Rebuild the dashboard body after health.json is updated.
+                # Requests keep serving the previous payload while it runs.
+                try:
+                    _notify_after_health_refresh()
+                except Exception as e:  # noqa: BLE001
+                    log.warning("after health refresh hook failed: %s", e)
             _refresh_lock.release()
 
     threading.Thread(target=runner, name="rdash-bg-refresh", daemon=True).start()
