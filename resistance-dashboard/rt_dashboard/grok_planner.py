@@ -6,6 +6,7 @@ Never invent a canned meal/workout. Never assume a pantry / inventory.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Dict, Optional, Tuple
 
 from .grok_oauth import CONNECT_ERROR
@@ -13,6 +14,7 @@ from .nutrition_planner import remaining_macros
 
 HONEST_EMPTY_MSG = CONNECT_ERROR
 READY_MSG = "SuperGrok connected. Generate today's meal/workout plan."
+_log = logging.getLogger("fitdash.grok")
 
 
 def clamp_meal_to_stock(meal: dict, inventory: dict) -> dict:
@@ -660,17 +662,25 @@ def generate_grok_plans(
         volume_fields.get("ramp"),
     )
     if not workout_out.get("is_rest_day"):
-        from .workout_planner import postshape_ai_workout
+        # A shaping bug must not discard a plan that already passed the
+        # load and equipment clamps. Keep that plan and log the type only.
+        try:
+            from .workout_planner import postshape_ai_workout
 
-        workout_out = postshape_ai_workout(
-            workout_out,
-            catalog,
-            history,
-            goals=goals,
-            equipment=equipment if isinstance(equipment, dict) else None,
-            as_of=as_of,
-            recovery=recovery if isinstance(recovery, dict) else None,
-        )
+            workout_out = postshape_ai_workout(
+                workout_out,
+                catalog,
+                history,
+                goals=goals,
+                equipment=equipment if isinstance(equipment, dict) else None,
+                as_of=as_of,
+                recovery=recovery if isinstance(recovery, dict) else None,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _log.warning(
+                "AI plan post-shape failed (%s); keeping the clamped plan",
+                type(exc).__name__,
+            )
     return {
         "ok": True,
         "meal": meal_out,
