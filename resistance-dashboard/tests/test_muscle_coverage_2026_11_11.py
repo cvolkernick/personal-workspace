@@ -499,8 +499,20 @@ class ScoreboardTests(unittest.TestCase):
         self.assertLessEqual(_hard_sets(plan), 14)
         quads = _credit(plan, "quads")
         hamstrings = _credit(plan, "hamstrings")
-        # Press plus leg extension can meet the quad band. It does not pass the max.
-        self.assertLessEqual(quads, bands["quads"]["max"])
+        # Hack and Leg Press share the day (Hack first, 3–4 sets; Leg Press
+        # second, 2–3). Their quad credit can sit above the weekly max.
+        # A third quad lift is not added on top.
+        hack = next(row for row in plan["exercises"] if row["name"] == "Hack Squat")
+        leg_press = next(row for row in plan["exercises"] if row["name"] == "Leg Press")
+        self.assertGreaterEqual(int(hack["prescription"]["sets"]), 3)
+        self.assertLessEqual(int(hack["prescription"]["sets"]), 4)
+        self.assertGreaterEqual(int(leg_press["prescription"]["sets"]), 2)
+        self.assertLessEqual(int(leg_press["prescription"]["sets"]), 3)
+        pair = float(hack["set_credits"]["quads"]) + float(leg_press["set_credits"]["quads"])
+        # The hinge can list quads and add a fraction. No third quad lift.
+        self.assertNotIn("Leg Extension", names)
+        self.assertGreaterEqual(quads, pair)
+        self.assertLess(quads - pair, 1)
         self.assertLess(hamstrings, bands["hamstrings"]["min"])
         curl = next(
             row for row in plan["exercises"]

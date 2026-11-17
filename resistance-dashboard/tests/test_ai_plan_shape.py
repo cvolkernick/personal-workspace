@@ -198,6 +198,8 @@ class AbsCapTrim(unittest.TestCase):
         self.assertEqual(_sets(by_id[abs_ids[0]]), 2)
         if "lateral-raises" in by_id:
             self.assertLess(_sets(by_id["lateral-raises"]), 10)
-        self.assertEqual(_sets(by_id["db-flat-press"]), 2)
+        # DB Flat is the main opener, so the post-shape raises it to 4.
+        # The other press stays at the written 2.
+        self.assertEqual(_sets(by_id["db-flat-press"]), 4)
         self.assertEqual(_sets(by_id["smith-flat-bench"]), 2)
         self.assertLessEqual(sum(_sets(row) for row in shaped), CAP)

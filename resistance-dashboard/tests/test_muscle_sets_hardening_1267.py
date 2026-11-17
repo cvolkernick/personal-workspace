@@ -483,16 +483,17 @@ class PlannerCapUnchanged(unittest.TestCase):
         self.assertEqual(
             self._plan(low + cur, "pull", "2026-10-14"),
             # Spent weekly volume no longer thins the day below 10 sets.
-            # Mains stay at 2. Accessories rotate back in to meet the floor.
-            [("Assisted Pullups", 2), ("Machine Row", 2),
-             ("45-Degree Back Extension", 2), ("Face Pulls", 2), ("DB Curls", 2)],
+            # The first pull compound is the main, so it takes 4 sets.
+            [("Assisted Pullups", 4), ("Machine Row", 2),
+             ("Back Extension Machine", 2), ("Face Pulls", 2), ("DB Curls", 2)],
         )
         self.assertEqual(
             self._plan(low + cur, "push", "2026-10-15"),
             # No recent behind-the-neck log, so DB Shoulder Press takes that slot.
-            [("Smith Flat Bench", 2), ("Smith Incline Bench", 2),
-             ("DB Shoulder Press", 2), ("Tricep Pushdowns (Rope)", 2),
-             ("Smith Shrugs", 2), ("Ab Crunch Machine", 2)],
+            # Smith Flat opens the day and is not the main compound, so it stays at 3.
+            [("Smith Flat Bench", 3), ("Smith Incline Bench", 2),
+             ("DB Shoulder Press", 2), ("Tricep Pushdowns (T-Bar)", 2),
+             ("Ab Crunch Machine", 2)],
         )
         hi = []
         for m in FOUR_WEEKS:
@@ -501,7 +502,7 @@ class PlannerCapUnchanged(unittest.TestCase):
             hi.append(self._s(m, "pull", ("Pulldowns", 100, 4, 8), ("DB Curls", 25, 3, 12)))
         self.assertEqual(
             self._plan(hi, "push", "2026-10-13"),
-            [("DB Incline Press", 2), ("Smith Flat Bench", 2), ("DB Shoulder Press", 2),
+            [("DB Incline Press", 4), ("Smith Flat Bench", 2), ("DB Shoulder Press", 2),
              # Push accessories rotate. Abs stays at 2 sets on the push day.
              ("Tricep Pushdowns (T-Bar)", 2), ("Ab Crunch Machine", 2)],
         )

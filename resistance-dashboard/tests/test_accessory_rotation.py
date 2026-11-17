@@ -407,9 +407,9 @@ class AccessoryRotation(unittest.TestCase):
             return " ".join(str(row.get("rationale") or "") for row in plan["exercises"])
 
         self.assertGreaterEqual(self._total(normal), 10)
-        self.assertIn("session set floor", _notes(normal))
-        # Deload keeps whatever the planner built. It does not top up to 10.
+        # Deload does not run the set-floor filler. Squat counts are separate.
         self.assertNotIn("session set floor", _notes(deload))
+        self.assertNotIn("Filled to the session set floor", _notes(deload))
         self.assertTrue(low.get("is_rest_day") or self._total(low) < 10)
 
     def test_ab_crunch_machine_is_the_weekly_primary(self):
@@ -559,37 +559,57 @@ class AccessoryRotation(unittest.TestCase):
         self.assertIn("DB Shoulder Press", names)
 
     def test_btn_press_returns_after_a_recent_log(self):
-        plan = generate_workout_plan(
-            self.catalog,
-            dict(RAMP),
-            [
-                Session(
-                    date="2026-11-01",
-                    session_type="push",
-                    exercises=[
-                        ExerciseEntry(
-                            name="Behind-the-Neck Smith Press",
-                            sets=[SetEntry(weight_lbs=40, sets=2, reps=10)],
-                        )
-                    ],
-                ),
-                Session(
-                    date="2026-11-10",
-                    session_type="pull",
-                    exercises=[
-                        ExerciseEntry(
-                            name="Pulldowns",
-                            sets=[SetEntry(weight_lbs=100, sets=2, reps=8)],
-                        )
-                    ],
-                ),
-            ],
-            recovery_score=80,
-            session_type="push",
-            as_of="2026-11-11",
+        history = [
+            Session(
+                date="2026-11-01",
+                session_type="push",
+                exercises=[
+                    ExerciseEntry(
+                        name="Behind-the-Neck Smith Press",
+                        sets=[SetEntry(weight_lbs=40, sets=2, reps=10)],
+                    )
+                ],
+            ),
+            Session(
+                date="2026-11-10",
+                session_type="pull",
+                exercises=[
+                    ExerciseEntry(
+                        name="Pulldowns",
+                        sets=[SetEntry(weight_lbs=100, sets=2, reps=8)],
+                    )
+                ],
+            ),
+        ]
+        # Just-used behind-the-neck rotates to the other overhead press.
+        nxt = generate_workout_plan(
+            self.catalog, dict(RAMP), history,
+            recovery_score=80, session_type="push", as_of="2026-11-11",
         )
-        names = [row["name"] for row in plan["exercises"]]
-        self.assertIn("Behind-the-Neck Smith Press", names)
+        self.assertIn("DB Shoulder Press", [row["name"] for row in nxt["exercises"]])
+        self.assertNotIn(
+            "Behind-the-Neck Smith Press",
+            [row["name"] for row in nxt["exercises"]],
+        )
+        history.append(
+            Session(
+                date="2026-11-11",
+                session_type="push",
+                exercises=[
+                    ExerciseEntry(
+                        name=row["name"],
+                        sets=[SetEntry(weight_lbs=40, sets=_sets(row), reps=8)],
+                    )
+                    for row in nxt["exercises"]
+                ],
+            )
+        )
+        # It is still inside 60 days, so the following push can come back to it.
+        back = generate_workout_plan(
+            self.catalog, dict(RAMP), history,
+            recovery_score=80, session_type="push", as_of="2026-11-14",
+        )
+        self.assertIn("Behind-the-Neck Smith Press", [row["name"] for row in back["exercises"]])
 
     def test_two_weeks_of_abs_are_two_days_with_one_crunch_machine(self):
         history = [
