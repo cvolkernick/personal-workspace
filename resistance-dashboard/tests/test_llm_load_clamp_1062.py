@@ -289,7 +289,8 @@ class LlmLoadClamp1062(unittest.TestCase):
         self.assertEqual(row["load_source"], "sop")
         self.assertEqual(row["weight_lbs"], 45.0)
         self.assertEqual(row["reps"], 7)
-        self.assertEqual(row["prescription"]["sets"], 3)
+        # Post-shape caps the legs hinge at the template count. The SOP load stays.
+        self.assertEqual(row["prescription"]["sets"], 2)
 
 
 if __name__ == "__main__":

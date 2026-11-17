@@ -36,6 +36,10 @@ _schedule_lock = threading.Lock()
 _refresh_lock = threading.Lock()
 _last_scheduled = 0.0
 _warm_loop_started = False
+# /api/agent/today warmer. server.py registers it; the loop calls it at
+# startup and again before the today-cache TTL can expire.
+_today_warmers: list = []
+_today_wait: Optional[callable] = None
 # server.py registers a payload rebuild so a health refresh does not leave
 # the next page load to rebuild the ~900 KB body itself.
 _after_health_refresh = []
@@ -195,6 +199,43 @@ def schedule_incremental_warm(
     return True
 
 
+def register_today_warmer(fn) -> None:
+    """Run ``fn`` from the warm loop at startup and on each tick."""
+    if fn not in _today_warmers:
+        _today_warmers.append(fn)
+
+
+def clear_today_warmers() -> None:
+    _today_warmers.clear()
+
+
+def set_today_refresh_wait(fn) -> None:
+    """``fn() -> seconds`` until the next today-cache warm. None uses the health interval."""
+    global _today_wait
+    _today_wait = fn
+
+
+def _today_tick_sleep(interval: float) -> float:
+    """Sleep less than the today TTL so a request never rebuilds a cold cache."""
+    wait = interval
+    if _today_wait is not None:
+        try:
+            hinted = float(_today_wait() or 0)
+        except (TypeError, ValueError):
+            hinted = 0.0
+        if hinted > 0:
+            wait = min(wait, hinted) if wait > 0 else hinted
+    return max(15.0, wait)
+
+
+def _run_today_warmers() -> None:
+    for fn in list(_today_warmers):
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            log.warning("today cache warm failed: %s", e)
+
+
 def start_warm_loop(*, local_dir: str = "", token: str = "") -> bool:
     """Daemon loop: incremental Health + Hidrate while the server process is up.
 
@@ -211,10 +252,13 @@ def start_warm_loop(*, local_dir: str = "", token: str = "") -> bool:
         _warm_loop_started = True
 
     def loop() -> None:
-        # Let the HTTP server bind before the first pull.
+        # Today is warmed immediately so the first user request is a hit.
+        # The health pull still waits so the HTTP server can bind.
+        _run_today_warmers()
         time.sleep(min(20.0, interval))
         while True:
             try:
+                _run_today_warmers()
                 health_rt = _resolve_warm_health_token()
                 schedule_incremental_warm(
                     local_dir=local_dir,
@@ -223,7 +267,7 @@ def start_warm_loop(*, local_dir: str = "", token: str = "") -> bool:
                 )
             except Exception as e:  # noqa: BLE001
                 log.warning("warm loop tick failed: %s", e)
-            time.sleep(max(60.0, interval))
+            time.sleep(_today_tick_sleep(interval))
 
     threading.Thread(target=loop, name="rdash-warm-loop", daemon=True).start()
     log.info("warm loop started (every %.0fs, incremental Health + Hidrate)", interval)

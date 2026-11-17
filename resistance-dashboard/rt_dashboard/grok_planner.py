@@ -659,6 +659,18 @@ def generate_grok_plans(
         workout_out.get("message"),
         volume_fields.get("ramp"),
     )
+    if not workout_out.get("is_rest_day"):
+        from .workout_planner import postshape_ai_workout
+
+        workout_out = postshape_ai_workout(
+            workout_out,
+            catalog,
+            history,
+            goals=goals,
+            equipment=equipment if isinstance(equipment, dict) else None,
+            as_of=as_of,
+            recovery=recovery if isinstance(recovery, dict) else None,
+        )
     return {
         "ok": True,
         "meal": meal_out,

@@ -2956,6 +2956,7 @@ def shape_session_coverage(
     today_logged_ids: Sequence[str],
     today_logged_names: Sequence[str],
     drop_extras: bool = True,
+    force_counts: bool = False,
 ) -> List[dict]:
     """Legs template and the twice-weekly abs slot, inside the set cap.
 
@@ -2964,6 +2965,10 @@ def shape_session_coverage(
     push, once each per week. Back extension is only there while the hinge
     is under 2 sets. A logged set count is left alone; a never-logged
     template slot is raised up to its count when the cap allows.
+
+    ``force_counts`` is the AI post-shape. Template slots are set to those
+    counts even when the model wrote more. Deadlifts and back extensions
+    are removed. Abs is still 2 sets: other accessories are trimmed first.
     """
     rows: List[dict] = []
     for src in plan_ex or []:
@@ -2981,15 +2986,8 @@ def shape_session_coverage(
     def room() -> int:
         return int(session_cap) - _sum_row_sets(rows)
 
-    def at_least(row: dict, sets: int) -> None:
-        if row.get("last"):
-            return
-        current = _row_sets(row)
-        if current < sets and sets - current <= room():
-            _resize_plan_row(row, sets, sec_frac)
-
     def exact(row: dict, sets: int) -> None:
-        if row.get("last"):
+        if row.get("last") and not force_counts:
             return
         current = _row_sets(row)
         if current == sets:
@@ -2998,6 +2996,74 @@ def shape_session_coverage(
             _resize_plan_row(row, sets, sec_frac)
         elif current > sets:
             _resize_plan_row(row, sets, sec_frac)
+
+    def at_least(row: dict, sets: int) -> None:
+        if force_counts:
+            exact(row, sets)
+            return
+        if row.get("last"):
+            return
+        current = _row_sets(row)
+        if current < sets and sets - current <= room():
+            _resize_plan_row(row, sets, sec_frac)
+
+    def trim_accessories_for(need: int) -> None:
+        """Free ``need`` sets. Isolations go before compounds. Abs stays."""
+        while room() < need:
+            victim = None
+            best = None
+            for row in rows:
+                if str(row.get("id") or "") in pin_set or _is_abs_row(row):
+                    continue
+                if _row_sets(row) < 1:
+                    continue
+                accessory = str(row.get("movement") or "") != "compound"
+                rank = (
+                    0 if accessory else 1,
+                    int(row.get("priority") or 0),
+                    -_row_sets(row),
+                )
+                if best is None or rank < best:
+                    best = rank
+                    victim = row
+            if victim is None:
+                break
+            # Do not delete the last set of a compound until every
+            # accessory set is already gone.
+            if str(victim.get("movement") or "") == "compound" and any(
+                str(other.get("movement") or "") != "compound"
+                and not _is_abs_row(other)
+                and str(other.get("id") or "") not in pin_set
+                and _row_sets(other) > 0
+                for other in rows
+            ):
+                break
+            nxt = _row_sets(victim) - 1
+            if nxt <= 0 and str(victim.get("movement") or "") == "compound":
+                break
+            if nxt <= 0:
+                rows.remove(victim)
+            else:
+                _resize_plan_row(victim, nxt, sec_frac)
+
+    def place_abs() -> None:
+        if not abs_due:
+            rows[:] = [
+                row for row in rows
+                if not _is_abs_row(row) or str(row.get("id") or "") in pin_set
+            ]
+            return
+        existing = next((row for row in rows if _is_abs_row(row)), None)
+        have = _row_sets(existing) if existing is not None else 0
+        if have > ABS_SETS:
+            _resize_plan_row(existing, ABS_SETS, sec_frac)
+            have = ABS_SETS
+        trim_accessories_for(max(0, ABS_SETS - have))
+        if existing is not None:
+            if _row_sets(existing) < ABS_SETS and room() >= ABS_SETS - _row_sets(existing):
+                _resize_plan_row(existing, ABS_SETS, sec_frac)
+        elif room() >= ABS_SETS:
+            add(_is_abs_row, ABS_PREFERENCE, ABS_SETS, "Abs: 2 hard sets.")
 
     def add(pred, ids, sets: int, note: str) -> None:
         if any(pred(row) for row in rows):
@@ -3025,6 +3091,13 @@ def shape_session_coverage(
             day=day,
         ))
 
+    if force_counts:
+        # AI legs: RDL is the only hinge. Deadlift and back extension leave.
+        rows = [
+            row for row in rows
+            if primary_hinge_key(row) not in ("barbell-deadlift", "trap-bar-deadlift")
+            and not _is_back_extension_row(row)
+        ]
     hinges = [row for row in rows if primary_hinge_key(row)]
     if len(hinges) > 1:
         rows = _preferred_keep(rows, primary_hinge_key, PRIMARY_HINGE_PREFERENCE)
@@ -3041,12 +3114,7 @@ def shape_session_coverage(
     )
 
     if st != "legs":
-        if abs_due:
-            existing = next((row for row in rows if _is_abs_row(row)), None)
-            if existing is not None:
-                exact(existing, ABS_SETS)
-            else:
-                add(_is_abs_row, ABS_PREFERENCE, ABS_SETS, "Abs: 2 hard sets.")
+        place_abs()
         return rows
 
     def is_quad_compound(row: dict) -> bool:
@@ -3153,20 +3221,12 @@ def shape_session_coverage(
         found = next((row for row in rows if pred(row)), None)
         if found is not None:
             exact(found, HIP_SETS)
-    if abs_due:
-        found = next((row for row in rows if _is_abs_row(row)), None)
-        if found is not None:
-            exact(found, ABS_SETS)
-        else:
-            add(_is_abs_row, ABS_PREFERENCE, ABS_SETS, "Abs: 2 hard sets.")
-    else:
-        rows = [
-            row for row in rows
-            if not _is_abs_row(row) or str(row.get("id") or "") in pin_set
-        ]
+    place_abs()
     hinge_sets = sum(_row_sets(row) for row in rows if primary_hinge_key(row))
-    if hinge_sets < HINGE_LOW_BELOW and not any(
-        _is_back_extension_row(row) for row in rows
+    if (
+        not force_counts
+        and hinge_sets < HINGE_LOW_BELOW
+        and not any(_is_back_extension_row(row) for row in rows)
     ):
         add(
             _is_back_extension_row,
@@ -3203,6 +3263,129 @@ def shape_session_coverage(
 
     rows.sort(key=sort_key)
     return rows
+
+
+def _ai_plan_row(raw: dict, catalog: Optional[dict]) -> dict:
+    """One AI exercise as a planner row. Catalog ids ride along; other fields stay."""
+    row = dict(raw)
+    name = str(row.get("name") or row.get("exercise") or "").strip()
+    cat = _catalog_row_for_name(name, catalog) if name else {}
+    if not cat.get("id"):
+        cat = {}
+    rx = dict(row.get("prescription") or {})
+    try:
+        sets = int(rx.get("sets") if rx.get("sets") is not None else row.get("sets") or 0)
+    except (TypeError, ValueError):
+        sets = 0
+    if cat.get("id"):
+        row["id"] = str(cat["id"])
+    if cat.get("name"):
+        row["name"] = str(cat["name"])
+    elif name:
+        row["name"] = name
+    if cat.get("primary_muscles"):
+        row["primary_muscles"] = list(cat["primary_muscles"])
+    if cat.get("secondary_muscles"):
+        row["secondary_muscles"] = list(cat["secondary_muscles"])
+    if cat.get("movement"):
+        row["movement"] = str(cat["movement"])
+    if cat.get("movement_pattern"):
+        row["movement_pattern"] = str(cat["movement_pattern"])
+    if cat.get("priority") is not None:
+        row["priority"] = int(cat["priority"])
+    rx["sets"] = max(0, sets)
+    row["prescription"] = rx
+    row["last"] = None
+    return row
+
+
+def postshape_ai_workout(
+    workout: dict,
+    catalog: Optional[dict],
+    sessions: Sequence[Any],
+    *,
+    goals: Optional[dict] = None,
+    equipment: Optional[dict] = None,
+    as_of: Optional[str] = None,
+    recovery: Optional[dict] = None,
+) -> dict:
+    """Apply the legs/abs rules to a freshly generated SuperGrok plan.
+
+    Stored rows are not rewritten. Call this before the plan is saved.
+    Loads the model already chose are left in place; new rows have no load.
+    """
+    if not isinstance(workout, dict):
+        return workout
+    if str(workout.get("source") or "grok") not in ("grok", ""):
+        return workout
+    if workout.get("is_rest_day"):
+        return workout
+    st = str(workout.get("session_type") or "").strip().lower()
+    if st not in ("push", "pull", "legs"):
+        return workout
+    goals = goals if isinstance(goals, dict) else {}
+    catalog = catalog if isinstance(catalog, dict) else {"exercises": []}
+    recovery = recovery if isinstance(recovery, dict) else {}
+    available = [
+        ex for ex in catalog_exercises(catalog, available_only=True)
+        if st in (ex.get("session_types") or [])
+    ]
+    if isinstance(equipment, dict):
+        available = [ex for ex in available if movement_feasible(ex, equipment)]
+    pool_by_id = {str(ex.get("id")): ex for ex in available}
+    day = str(as_of or workout.get("date") or "")[:10]
+    if len(day) != 10:
+        from .timeutil import local_today_iso
+
+        day = local_today_iso()
+    try:
+        hard = int(goals.get("default_hard_sets") or 2)
+    except (TypeError, ValueError):
+        hard = 2
+    hard = max(1, min(4, hard))
+    try:
+        cap = int(goals.get("session_working_set_cap") or 14)
+    except (TypeError, ValueError):
+        cap = 14
+    cap = max(4, cap)
+    try:
+        sec = float(goals.get("secondary_set_fraction") or 0.5)
+    except (TypeError, ValueError):
+        sec = 0.5
+    rows = [
+        _ai_plan_row(raw, catalog)
+        for raw in (workout.get("exercises") or [])
+        if isinstance(raw, dict)
+    ]
+    shaped = shape_session_coverage(
+        rows,
+        st=st,
+        pool=available,
+        pool_by_id=pool_by_id,
+        pin_ids=pinned_lift_ids(goals, st),
+        session_cap=cap,
+        default_hard=hard,
+        sessions=list(sessions or []),
+        by_id=pool_by_id,
+        catalog=catalog,
+        day=day,
+        sec_frac=sec,
+        already_logged=lambda _row: False,
+        recovery_score=_optional_float(recovery.get("score")),
+        continuity=training_continuity(days_since_last_session(sessions or [], as_of=day)),
+        recovery_rhr_under=False,
+        equipment=equipment if isinstance(equipment, dict) else None,
+        deload=bool(goals.get("deload") or goals.get("deload_week") or recovery.get("deload")),
+        weighins=None,
+        today_logged_ids=[],
+        today_logged_names=[],
+        drop_extras=True,
+        force_counts=True,
+    )
+    out = dict(workout)
+    out["exercises"] = shaped
+    out["source"] = "grok"
+    return out
 
 
 def _credit_rows(rows: Sequence[dict]) -> Tuple[Dict[str, float], int]:
