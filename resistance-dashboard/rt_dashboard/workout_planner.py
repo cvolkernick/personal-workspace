@@ -3791,9 +3791,98 @@ def shape_session_coverage(
     def _row_set_cap(row: dict, main_id: Optional[str]) -> int:
         if _is_abs_row(row):
             return ABS_SETS
+        # Legs: only the squat pattern may reach 4. Every hinge stays at 3.
+        if st == "legs" and pattern_family(row) == KNEE_DOMINANT_FAMILY:
+            return MAIN_COMPOUND_SET_CAP
+        if primary_hinge_key(row):
+            return ACCESSORY_SET_CAP
         if main_id and str(row.get("id") or "") == main_id:
             return MAIN_COMPOUND_SET_CAP
         return ACCESSORY_SET_CAP
+
+    def _pattern_variants(kind: str) -> List[dict]:
+        """Available compounds that can fill one rotating slot."""
+        found: List[dict] = []
+        for ex in pool:
+            eid = str(ex.get("id") or "")
+            if not eid:
+                continue
+            if kind == "hinge":
+                if primary_hinge_key(ex):
+                    found.append(ex)
+                continue
+            if pattern_family(ex) != kind:
+                continue
+            if str(ex.get("movement") or "") != "compound":
+                continue
+            if eid == BTN_PRESS_ID and not btn_logged_within(sessions, day, pool_by_id):
+                continue
+            found.append(ex)
+        return found
+
+    def _rotate_compound_variants() -> None:
+        """Swap a just-used compound for a less-recent same-pattern variant.
+
+        Sets stay. The replacement load comes from that exercise's own history.
+        The squat slot is left to ``_rotate_squat_slot``. Pins stay put.
+        """
+        if st == "push":
+            kinds = (HORIZONTAL_PRESS_FAMILY, INCLINE_PRESS_FAMILY, VERTICAL_PRESS_FAMILY)
+        elif st == "pull":
+            kinds = (HORIZONTAL_ROW_FAMILY, VERTICAL_PULL_FAMILY)
+        elif st == "legs":
+            kinds = ("hinge",)
+        else:
+            return
+        previous = recent_sets[0] if recent_sets else set()
+        if not previous:
+            return
+        for row in list(rows):
+            eid = str(row.get("id") or "")
+            if not eid or eid in pin_set or eid not in previous:
+                continue
+            if st == "legs" and pattern_family(row) == KNEE_DOMINANT_FAMILY:
+                continue
+            if primary_hinge_key(row):
+                kind = "hinge"
+            else:
+                kind = pattern_family(row) or ""
+            if kind not in kinds:
+                continue
+            current_seen = seen.get(eid) or ""
+            less_recent = []
+            for ex in _pattern_variants(kind):
+                vid = str(ex.get("id") or "")
+                if not vid or vid == eid:
+                    continue
+                if any(str(other.get("id") or "") == vid for other in rows):
+                    continue
+                if (seen.get(vid) or "") < current_seen:
+                    less_recent.append(ex)
+            if not less_recent:
+                continue
+            want = pick_rotated_accessories(less_recent, seen, day, 1)[0]
+            kept = max(2, _row_sets(row))
+            index = rows.index(row)
+            rows.pop(index)
+            fresh = _coverage_plan_row(
+                want,
+                kept,
+                sessions=sessions,
+                by_id=by_id,
+                sec_frac=sec_frac,
+                note="Compound rotated to a less-recent variant.",
+                recovery_score=recovery_score,
+                continuity=continuity,
+                recovery_rhr_under=recovery_rhr_under,
+                equipment=equipment,
+                deload=deload,
+                weighins=weighins,
+                day=day,
+            )
+            if _row_sets(fresh) != kept:
+                _resize_plan_row(fresh, kept, sec_frac)
+            rows.insert(index, fresh)
 
     def _rotate_squat_slot() -> None:
         """One knee-dominant compound: Hack Squat and Leg Press by recency.
@@ -3868,6 +3957,7 @@ def shape_session_coverage(
 
     # Per-exercise caps before the session cap, so a 5-set accessory
     # shrinks instead of being deleted to make room.
+    _rotate_compound_variants()
     _rotate_squat_slot()
     _clamp_row_sets()
 
@@ -4042,9 +4132,7 @@ def shape_session_coverage(
                 options.sort(key=_filler_key)
                 added = False
                 for ex in options:
-                    cap_sets = ACCESSORY_SET_CAP
-                    if primary_hinge_key(ex) or str(ex.get("movement") or "") == "compound":
-                        cap_sets = min(cap_sets, MAIN_COMPOUND_SET_CAP)
+                    cap_sets = _row_set_cap(ex, _main_compound_id())
                     need = min(max(main_sets, 2), room(), cap_sets)
                     if need < 2:
                         break
