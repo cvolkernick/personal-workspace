@@ -324,12 +324,37 @@ def delete_session(user_id: str, date: str, session_type: str) -> bool:
     return row is None
 
 
+def read_session(user_id: str, date: str, session_type: str) -> Optional[Session]:
+    """One stored row, or None. Does not delete anything."""
+    if not turso_enabled():
+        raise RuntimeError("turso env missing")
+    uid = _uid(user_id)
+    day = str(date or "")[:10]
+    st = str(session_type or "").lower().strip()
+    with connect() as conn:
+        row = _get_row(conn, uid, day, st)
+    if not row:
+        return None
+    return _row_to_session(row, uid)
+
+
 def relocate_session(user_id: str, session: Session, from_date: str) -> Dict[str, Any]:
-    """Write ``session`` at its date; delete ``from_date`` if different."""
+    """Write ``session`` at its date. Delete the source only after that row reads back.
+
+    A failed write or a readback that is not the merged session leaves the
+    source row in place.
+    """
     result = upsert_session(user_id, session)
     src_day = str(from_date or "")[:10]
-    if src_day and src_day != str(session.date)[:10]:
-        delete_session(user_id, src_day, session.session_type)
+    dest_day = str(session.date)[:10]
+    if not src_day or src_day == dest_day:
+        return result
+    from .workout_log import logged_session_visible
+
+    read = read_session(user_id, dest_day, session.session_type)
+    if not logged_session_visible(session, read):
+        raise RuntimeError("turso write not visible on readback")
+    delete_session(user_id, src_day, session.session_type)
     return result
 
 

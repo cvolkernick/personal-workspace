@@ -7,9 +7,11 @@ so the README / Pi form stay valid.
 Log-tab save unions with an existing same-day same-type session (quest
 checkoffs) instead of replacing the row. A second log of an exercise
 already stored appends sets (#963). A quest seed is still replaced by
-the typed log. ``set_index`` updates that stored set and leaves the
-others. Date moves still let the moved load win on name match.
-Exercises only on the existing session are kept.
+the typed log inside that same session. ``set_index`` updates that
+stored set and leaves the others. Date moves and other cross-session
+merges keep every set: the target's sets stay first, then the moved
+sets, in list order. A quest tick in that union becomes a real logged
+set. Exercises only on one session are kept.
 """
 
 from __future__ import annotations
@@ -23,6 +25,53 @@ from .models import ExerciseEntry, Session, SetEntry, is_planner_status_exercise
 
 def _norm_name(name: str) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+
+# Recorded on ``source_file`` so a retried date move can see that this
+# source day was already absorbed. Not a path. Log-tab saves leave it in
+# place when they have no source_file of their own.
+_MERGED_FROM_PREFIX = "fitdash-merged-from:"
+
+
+def merged_from_days(source_file: str) -> set[str]:
+    """Civil days already unioned into this session by a date move."""
+    days: set[str] = set()
+    for line in str(source_file or "").splitlines():
+        text = line.strip()
+        if not text.startswith(_MERGED_FROM_PREFIX):
+            continue
+        day = text[len(_MERGED_FROM_PREFIX) :].strip()[:10]
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            days.add(day)
+    return days
+
+
+def _source_file_body(source_file: str) -> str:
+    kept = [
+        line
+        for line in str(source_file or "").splitlines()
+        if not line.strip().startswith(_MERGED_FROM_PREFIX)
+    ]
+    return "\n".join(kept).strip()
+
+
+def mark_merged_from(source_file: str, day: str) -> str:
+    """Remember ``day`` was unioned into this row. Existing path text stays."""
+    day = str(day or "")[:10]
+    days = merged_from_days(source_file)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        days.add(day)
+    tokens = [f"{_MERGED_FROM_PREFIX}{item}" for item in sorted(days)]
+    body = _source_file_body(source_file)
+    return "\n".join(part for part in (body, *tokens) if part)
+
+
+def _combine_source_files(incoming: str, existing: str) -> str:
+    """Incoming path wins. Merged-from days from either side stay."""
+    body = _source_file_body(incoming) or _source_file_body(existing)
+    days = merged_from_days(incoming) | merged_from_days(existing)
+    tokens = [f"{_MERGED_FROM_PREFIX}{item}" for item in sorted(days)]
+    return "\n".join(part for part in (body, *tokens) if part)
 
 
 def find_same_day_session(
@@ -91,19 +140,101 @@ def _combine_logged_exercise(
     )
 
 
+def _copy_union_set(entry: SetEntry) -> SetEntry:
+    """One logged set for a cross-session union.
+
+    ``set_index`` is not copied. Two sessions can both store index 0, and
+    that index is not an identity. Order after the union is list position.
+    """
+    return SetEntry(
+        weight_lbs=float(entry.weight_lbs),
+        sets=int(entry.sets),
+        reps=int(entry.reps),
+        warmup=bool(getattr(entry, "warmup", False)),
+        rir=getattr(entry, "rir", None),
+    )
+
+
+def _real_log_raw(*candidates: str) -> str:
+    """Keep a typed note. Drop a quest-seed fingerprint so the row is real."""
+    from .quest_workout_log import SEED_PREFIX
+
+    for part in candidates:
+        text = str(part or "")
+        if text.startswith(SEED_PREFIX):
+            continue
+        if text.strip():
+            return text
+    return ""
+
+
+def _union_cross_session_exercise(
+    existing: ExerciseEntry, incoming: ExerciseEntry
+) -> ExerciseEntry:
+    """Target sets first, then the moved sets. Quest ticks become real logs.
+
+    Same-session ``set_index`` edits do not apply here. A moved set is
+    appended even when its index collides with a set already on the target.
+    """
+    sets = [_copy_union_set(s) for s in (existing.sets or [])]
+    sets.extend(_copy_union_set(s) for s in (incoming.sets or []))
+    return ExerciseEntry(
+        name=existing.name,
+        sets=sets,
+        is_pr=bool(existing.is_pr or incoming.is_pr),
+        raw=_real_log_raw(existing.raw, incoming.raw),
+        quest_seeded=False,
+    )
+
+
+def logged_session_visible(expected: Session, read: Optional[Session]) -> bool:
+    """True when ``read`` is the merged row: same day, type, and set list."""
+    if read is None or expected is None:
+        return False
+    if str(read.date)[:10] != str(expected.date)[:10]:
+        return False
+    if str(read.session_type or "").lower() != str(expected.session_type or "").lower():
+        return False
+    got = list(read.exercises or [])
+    want = list(expected.exercises or [])
+    if len(got) != len(want):
+        return False
+    for left, right in zip(got, want):
+        if _norm_name(left.name) != _norm_name(right.name):
+            return False
+        if bool(getattr(left, "quest_seeded", False)) != bool(
+            getattr(right, "quest_seeded", False)
+        ):
+            return False
+        left_sets = list(left.sets or [])
+        right_sets = list(right.sets or [])
+        if len(left_sets) != len(right_sets):
+            return False
+        for a, b in zip(left_sets, right_sets):
+            if (
+                float(a.weight_lbs) != float(b.weight_lbs)
+                or int(a.sets) != int(b.sets)
+                or int(a.reps) != int(b.reps)
+            ):
+                return False
+    return True
+
+
 def merge_same_day_session(
     incoming: Session,
     existing: Optional[Session],
     *,
-    same_name: str = "replace",
+    same_name: str = "union",
 ) -> Session:
     """Union exercises for the same civil day + PPL type.
 
-    ``same_name="replace"`` (date moves) lets the incoming exercise win on
-    normalized name. ``same_name="append"`` (Log tab) adds sets onto a real
-    log and still lets a typed log replace a quest seed. Empty incoming
-    notes do not wipe existing notes. Different date or session_type is
-    not merged.
+    ``same_name="union"`` (date moves and any other cross-session merge)
+    keeps the target's sets, then appends the moved sets. Order is list
+    position, never ``set_index``. Quest-seeded sets in that union become
+    real logged sets. ``same_name="append"`` (Log tab, same session) adds
+    sets onto a real log and still lets a typed log replace a quest seed.
+    Empty incoming notes do not wipe existing notes. Different date or
+    session_type is not merged.
     """
     if existing is None:
         return incoming
@@ -131,9 +262,9 @@ def merge_same_day_session(
         if same_name == "append":
             by_key[key] = _combine_logged_exercise(by_key[key], ex)
         else:
-            by_key[key] = ex
+            by_key[key] = _union_cross_session_exercise(by_key[key], ex)
     notes = (incoming.notes or "").strip() or (existing.notes or "")
-    source = (incoming.source_file or "").strip() or (existing.source_file or "")
+    source = _combine_source_files(incoming.source_file or "", existing.source_file or "")
     closed = (existing.closed_at or "").strip() or (incoming.closed_at or "")
     return Session(
         date=incoming.date,
@@ -187,9 +318,11 @@ def plan_session_date_move(
     """Move a logged session's civil date. Sets/loads are unchanged.
 
     Explicit edit — does not remap through training-day SoT. Same-letter
-    already on the target day unions into that session (moved loads win
-    on name match; dest-only rows stay) so a stranded log can rejoin
-    the day's workout (#771).
+    already on the target day unions into that session. An exercise on
+    both days keeps the target's sets first, then the moved sets. Quest
+    ticks in that union become real logged sets. Dest-only rows stay
+    (#771). Applying the same move again, after the destination already
+    holds that source day, does not append the sets a second time.
     """
     st = str(session_type or "").lower().strip()
     if st not in ("push", "pull", "legs"):
@@ -215,7 +348,13 @@ def plan_session_date_move(
     dest = find_same_day_session(history, dest_day, st)
     if dest is None:
         return incoming
-    return merge_same_day_session(incoming, dest)
+    # Retry after the dest row was written and before the source row was
+    # deleted. The sets are already on dest; unioning again would double them.
+    if src_day in merged_from_days(dest.source_file or ""):
+        return dest
+    merged = merge_same_day_session(incoming, dest, same_name="union")
+    merged.source_file = mark_merged_from(merged.source_file, src_day)
+    return merged
 
 
 def parse_log_body(data: dict, *, now=None) -> Session:

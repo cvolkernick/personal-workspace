@@ -188,7 +188,7 @@ class SecondSetAppends(unittest.TestCase):
         self.assertEqual(len(merged.exercises[0].sets), 1)
         self.assertEqual(merged.exercises[0].sets[0].weight_lbs, 85)
 
-    def test_date_move_still_replaces_on_name(self):
+    def test_cross_session_merge_keeps_both_sets(self):
         existing = Session(
             date=DAY,
             session_type="push",
@@ -209,9 +209,10 @@ class SecondSetAppends(unittest.TestCase):
                 )
             ],
         )
-        replaced = merge_same_day_session(incoming, existing)
-        self.assertEqual(len(replaced.exercises[0].sets), 1)
-        self.assertEqual(replaced.exercises[0].sets[0].weight_lbs, 100)
+        unioned = merge_same_day_session(incoming, existing)
+        self.assertEqual(len(unioned.exercises[0].sets), 2)
+        self.assertEqual(unioned.exercises[0].sets[0].weight_lbs, 85)
+        self.assertEqual(unioned.exercises[0].sets[1].weight_lbs, 100)
         appended = merge_same_day_session(incoming, existing, same_name="append")
         self.assertEqual(len(appended.exercises[0].sets), 2)
         self.assertEqual(appended.exercises[0].sets[0].weight_lbs, 85)
